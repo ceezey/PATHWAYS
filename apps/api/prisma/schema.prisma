@@ -1,0 +1,195 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+model User {
+  id             String        @id @default(uuid())
+  supabaseUserId String?       @unique
+  email          String        @unique
+  fullName       String?
+  roles          UserRole[]
+  uploadBatches  UploadBatch[]
+  reports        Report[]      @relation("ReportCreatedBy")
+  auditLogs      AuditLog[]    @relation("AuditActor")
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+}
+
+model Role {
+  id          String     @id @default(uuid())
+  name        String     @unique
+  description String?
+  users       UserRole[]
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+}
+
+model UserRole {
+  id         String   @id @default(uuid())
+  userId     String
+  roleId     String
+  assignedAt DateTime @default(now())
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role       Role     @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@unique([userId, roleId])
+}
+
+model Participant {
+  id         String               @id @default(uuid())
+  externalId String               @unique
+  firstName  String
+  lastName   String
+  sex        String?
+  age        Int?
+  journeys   ParticipantJourney[]
+  cards      ParticipantCard[]
+  uploadRows UploadRow[]
+  createdAt  DateTime             @default(now())
+  updatedAt  DateTime             @updatedAt
+}
+
+model ParticipantJourney {
+  id            String      @id @default(uuid())
+  participantId String
+  programId     String
+  projectId     String?
+  status        String      @default("active")
+  enrolledAt    DateTime    @default(now())
+  participant   Participant @relation(fields: [participantId], references: [id], onDelete: Cascade)
+  program       Program     @relation(fields: [programId], references: [id], onDelete: Cascade)
+  project       Project?    @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+}
+
+model Program {
+  id          String               @id @default(uuid())
+  code        String               @unique
+  name        String
+  description String?
+  projects    Project[]
+  journeys    ParticipantJourney[]
+  reports     Report[]
+  createdAt   DateTime             @default(now())
+  updatedAt   DateTime             @updatedAt
+}
+
+model Project {
+  id            String               @id @default(uuid())
+  programId     String?
+  code          String               @unique
+  name          String
+  description   String?
+  program       Program?             @relation(fields: [programId], references: [id], onDelete: SetNull)
+  journeys      ParticipantJourney[]
+  uploadBatches UploadBatch[]
+  createdAt     DateTime             @default(now())
+  updatedAt     DateTime             @updatedAt
+}
+
+model FormMetadata {
+  id            String          @id @default(uuid())
+  name          String
+  version       String
+  description   String?
+  fields        MetadataField[]
+  uploadBatches UploadBatch[]
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+}
+
+model MetadataField {
+  id             String       @id @default(uuid())
+  formMetadataId String
+  key            String
+  label          String
+  fieldType      String
+  required       Boolean      @default(false)
+  formMetadata   FormMetadata @relation(fields: [formMetadataId], references: [id], onDelete: Cascade)
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+}
+
+model UploadBatch {
+  id             String        @id @default(uuid())
+  fileName       String
+  storagePath    String?
+  status         String        @default("pending")
+  projectId      String?
+  formMetadataId String?
+  uploadedById   String?
+  project        Project?      @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  formMetadata   FormMetadata? @relation(fields: [formMetadataId], references: [id], onDelete: SetNull)
+  uploadedBy     User?         @relation(fields: [uploadedById], references: [id], onDelete: SetNull)
+  rows           UploadRow[]
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+}
+
+model UploadRow {
+  id            String           @id @default(uuid())
+  uploadBatchId String
+  participantId String?
+  rowNumber     Int
+  rawData       Json
+  status        String           @default("pending")
+  uploadBatch   UploadBatch      @relation(fields: [uploadBatchId], references: [id], onDelete: Cascade)
+  participant   Participant?     @relation(fields: [participantId], references: [id], onDelete: SetNull)
+  errors        UploadRowError[]
+  createdAt     DateTime         @default(now())
+  updatedAt     DateTime         @updatedAt
+}
+
+model UploadRowError {
+  id          String    @id @default(uuid())
+  uploadRowId String
+  fieldKey    String?
+  message     String
+  uploadRow   UploadRow @relation(fields: [uploadRowId], references: [id], onDelete: Cascade)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+}
+
+model Report {
+  id          String   @id @default(uuid())
+  name        String
+  status      String   @default("draft")
+  filePath    String?
+  programId   String?
+  createdById String?
+  program     Program? @relation(fields: [programId], references: [id], onDelete: SetNull)
+  createdBy   User?    @relation("ReportCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model AuditLog {
+  id        String   @id @default(uuid())
+  actorId   String?
+  action    String
+  entity    String
+  entityId  String
+  details   Json?
+  actor     User?    @relation("AuditActor", fields: [actorId], references: [id], onDelete: SetNull)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model ParticipantCard {
+  id            String      @id @default(uuid())
+  participantId String
+  cardNumber    String      @unique
+  storagePath   String?
+  participant   Participant @relation(fields: [participantId], references: [id], onDelete: Cascade)
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+}

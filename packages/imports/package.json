@@ -1,0 +1,19 @@
+{
+  "name": "@pathways/imports",
+  "version": "0.1.0",
+  "private": true,
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": ["dist"],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "lint": "biome check .",
+    "test": "vitest run --passWithNoTests",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@pathways/shared": "workspace:*",
+    "papaparse": "^5.5.3",
+    "xlsx": "^0.18.5"
+  }
+}

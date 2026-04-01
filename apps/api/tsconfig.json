@@ -1,0 +1,27 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "module": "CommonJS",
+    "moduleResolution": "Node",
+    "target": "ES2022",
+    "declaration": true,
+    "removeComments": true,
+    "emitDecoratorMetadata": true,
+    "experimentalDecorators": true,
+    "allowSyntheticDefaultImports": true,
+    "sourceMap": true,
+    "outDir": "./dist",
+    "baseUrl": "./",
+    "incremental": true,
+    "types": ["node"],
+    "paths": {
+      "@app/*": ["src/*"],
+      "@pathways/shared": ["../../packages/shared/src/index.ts"],
+      "@pathways/shared/*": ["../../packages/shared/src/*"],
+      "@pathways/config": ["../../packages/config/src/index.ts"],
+      "@pathways/config/*": ["../../packages/config/src/*"]
+    }
+  },
+  "include": ["src/**/*.ts", "prisma/**/*.ts"],
+  "exclude": ["node_modules", "dist"]
+}

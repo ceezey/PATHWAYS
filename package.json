@@ -1,0 +1,30 @@
+{
+  "name": "pathways",
+  "private": true,
+  "packageManager": "pnpm@10.33.0",
+  "engines": {
+    "node": ">=20.11.0"
+  },
+  "scripts": {
+    "dev": "pnpm --parallel --filter @pathways/web --filter @pathways/api dev",
+    "dev:web": "pnpm --filter @pathways/web dev",
+    "dev:api": "pnpm --filter @pathways/api dev",
+    "build": "pnpm -r --if-present run build",
+    "lint": "pnpm exec biome check .",
+    "format": "pnpm exec biome format --write .",
+    "test": "pnpm -r --if-present run test",
+    "typecheck": "pnpm -r --if-present run typecheck",
+    "prepare": "node scripts/setup-husky.mjs"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^1.9.4",
+    "@playwright/test": "^1.55.0",
+    "@types/node": "^24.0.15",
+    "husky": "^9.1.7",
+    "lint-staged": "^16.1.0",
+    "msw": "^2.11.2",
+    "tsx": "^4.20.5",
+    "typescript": "^5.9.3",
+    "vitest": "^3.2.4"
+  }
+}

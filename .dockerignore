@@ -1,0 +1,9 @@
+﻿node_modules
+.pnpm-store
+.next
+dist
+coverage
+playwright-report
+test-results
+.env
+.env.local
