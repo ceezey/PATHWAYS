@@ -1,18 +1,43 @@
 # PATHWAYS
+A Digital Integrated Program Monitoring and Dashboard System with a Metadata-Driven Mechanism.
+
+PATHWAYS is a web-based monitoring platform designed to improve how organizations manage, organize, visualize, and report program monitoring data. The system is built around a metadata-driven workflow so that monitoring datasets collected from field tools such as KOBO can be imported, interpreted, organized, and prepared for dashboarding and reporting more consistently.
+
+The platform is intended to support program-level monitoring by centralizing participant records, imported datasets, dashboard parameters, demographic breakdowns, and report-ready outputs inside one structured system.
+
+## System Overview
+*Write 3 to 6 sentences here that explain how the web app, API, database, authentication, storage, dashboards, and reports work together.*
 
 PATHWAYS is a development-ready monorepo for a web app and API that work together with Supabase. Think of it like one big project box with a few smaller boxes inside: the website lives in one box, the API lives in another box, and the shared code sits in the middle so both can reuse it.
 
-## System Overview
-Team placeholder:
-Write 3 to 6 sentences here that explain how the web app, API, database, authentication, storage, dashboards, and reports work together.
-
 ## Purpose
-Team placeholder:
-Explain the real-world problem PATHWAYS is solving, who will use it, and why the system matters.
+*Explain the real-world problem PATHWAYS is solving, who will use it, and why the system matters.*
+
+The purpose of PATHWAYS is to reduce fragmented post-collection workflows by providing a centralized system for:
+
+- organizing participant records
+- managing imported monitoring datasets
+- supporting metadata-driven bulk upload
+- visualizing project indicators and performance metrics
+- supporting Sex, Age, and Disability Disaggregated Data (SADDD) analysis
+- generating automated monitoring reports
+- preparing data in formats aligned with higher-level reporting requirements
+
+The system is being developed as a web-based platform with separate frontend, backend, and shared packages to support maintainability and long-term extensibility.
 
 ## Features
-Team placeholder:
-List the main features your team wants other people to notice first.
+*List the main features your team wants other people to notice first.*
+
+This repository is being prepared to support development of the following core capabilities:
+
+- centralized participant and monitoring database
+- metadata-compatible import and export workflow
+- participant profile management
+- dashboard visualization
+- reporting and data export
+- role-based access control
+- file storage for uploads and reports
+- development-ready testing, formatting, and CI workflows
 
 ## Tech Stack
 - Frontend: Next.js, React, TypeScript, Tailwind CSS, shadcn-style UI primitives
