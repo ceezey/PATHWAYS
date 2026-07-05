@@ -1,7 +1,7 @@
 'use client'
 
 import { zodResolver } from '@hookform/resolvers/zod'
-import { Eye, EyeOff, Info, Loader2, LogIn } from 'lucide-react'
+import { Eye, EyeOff, Info, Loader2, LogIn, UserRound } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { useState } from 'react'
 import { useForm } from 'react-hook-form'
@@ -115,16 +115,20 @@ export const LoginForm = () => {
   }
 
   return (
-    <Card className="rounded-lg border-border/80 shadow-sm">
-      <CardHeader>
-        <CardTitle>Log in</CardTitle>
-        <CardDescription>
-          {webSetupState.guiPrototypeModeEnabled
-            ? 'Use a configured demo account to preview role-specific dashboards.'
-            : 'Use your Supabase email and password when the project auth setup is ready.'}
-        </CardDescription>
+    <Card className="w-full max-w-[430px] rounded-lg border-white/70 bg-white/95 shadow-xl backdrop-blur">
+      <CardHeader className="items-center space-y-3 pb-4 text-center">
+        <div className="flex h-14 w-14 items-center justify-center rounded-lg bg-primary text-primary-foreground shadow-sm">
+          <UserRound className="h-8 w-8" aria-hidden="true" />
+        </div>
+        <div>
+          <CardTitle className="text-3xl font-bold tracking-normal text-foreground">
+            PATHWAYS
+          </CardTitle>
+          <CardDescription className="mt-2 text-sm">Project Information Management</CardDescription>
+        </div>
       </CardHeader>
-      <CardContent>
+      <CardContent className="space-y-5">
+        <h1 className="text-lg font-semibold text-foreground">Sign in to PATHWAYS</h1>
         <Form {...form}>
           <form className="space-y-5" onSubmit={form.handleSubmit(onSubmit)}>
             <FormField
@@ -136,6 +140,7 @@ export const LoginForm = () => {
                   <FormControl>
                     <Input
                       autoComplete="username"
+                      className="border-0 border-b border-border bg-transparent px-0 shadow-none focus-visible:ring-0"
                       placeholder={
                         webSetupState.guiPrototypeModeEnabled
                           ? 'program.manager'
@@ -144,11 +149,6 @@ export const LoginForm = () => {
                       {...field}
                     />
                   </FormControl>
-                  <FormDescription>
-                    {webSetupState.guiPrototypeModeEnabled
-                      ? 'Demo accounts are available below for this GUI prototype.'
-                      : 'Prototype accounts are hidden while GUI prototype mode is disabled.'}
-                  </FormDescription>
                   <FormMessage />
                 </FormItem>
               )}
@@ -166,7 +166,7 @@ export const LoginForm = () => {
                         autoComplete={
                           webSetupState.guiPrototypeModeEnabled ? 'current-password' : 'password'
                         }
-                        className="pr-11"
+                        className="border-0 border-b border-border bg-transparent px-0 pr-11 shadow-none focus-visible:ring-0"
                         placeholder="Enter your password"
                         type={showPassword ? 'text' : 'password'}
                         {...field}

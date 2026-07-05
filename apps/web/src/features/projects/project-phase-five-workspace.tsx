@@ -755,7 +755,7 @@ export const ProjectPhaseFiveWorkspace = ({
       </SimpleDialog>
 
       <SimpleDialog
-        description="Evaluation basis is progress-based and human-reviewed, not strict timeline compliance."
+        description="Evaluation basis is progress-based, evidence-supported, and human-reviewed."
         onOpenChange={setBasisOpen}
         open={basisOpen}
         title="Evaluation Basis"

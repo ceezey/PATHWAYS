@@ -43,7 +43,7 @@ const columnHelper = createColumnHelper<ParticipantRow>()
 
 const columns = [
   columnHelper.accessor('id', {
-    header: 'Participant ID',
+    header: 'Beneficiary ID',
     cell: (info) => info.getValue(),
   }),
   columnHelper.accessor('fullName', {

@@ -21,3 +21,4 @@ apps/api/prisma/dev.db-journal
 .tmp/
 docs/
 scripts/render-gui-reference.mjs
+AGENTS.md

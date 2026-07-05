@@ -7,8 +7,8 @@ export default function ParticipantsPage() {
     <>
       <PageHeader
         eyebrow="Registry"
-        title="Participant registry"
-        description="TanStack Table and placeholder registry routes are in place so the real participant module can attach to a stable shell later."
+        title="Beneficiary registry"
+        description="TanStack Table and placeholder registry routes are in place so the real beneficiary module can attach to a stable shell later."
       />
       <ModulePlaceholder
         title="Registry preview"
