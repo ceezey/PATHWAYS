@@ -1,4 +1,5 @@
 import { PageHeader } from '@/components/layout/page-header'
+import { StatusBadge } from '@/components/pathways/status-badge'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 
@@ -9,6 +10,9 @@ export default function SettingsPage() {
         eyebrow="Settings"
         title="Environment and platform setup"
         description="This screen captures the human steps that still need real credentials or dashboard configuration after the scaffold is finished."
+        actions={
+          <StatusBadge tone="info">GUI implementation scheduled in a later phase</StatusBadge>
+        }
       />
       <Tabs className="space-y-4" defaultValue="auth">
         <TabsList>
@@ -22,6 +26,7 @@ export default function SettingsPage() {
               <CardTitle>Supabase Auth placeholders</CardTitle>
             </CardHeader>
             <CardContent className="space-y-3 text-sm leading-6 text-muted-foreground">
+              {/* TODO(AUTH): Replace prototype login with Supabase Auth. */}
               <p>
                 Set the Supabase Site URL to your local web app origin, usually
                 http://localhost:3000.
@@ -38,7 +43,7 @@ export default function SettingsPage() {
             </CardHeader>
             <CardContent className="space-y-3 text-sm leading-6 text-muted-foreground">
               <p>
-                Create private buckets named uploads, reports, participant-cards, and optional
+                Create private buckets named uploads, reports, beneficiary-cards, and optional
                 assets.
               </p>
               <p>

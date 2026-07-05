@@ -5,6 +5,7 @@ dist
 coverage
 .turbo
 .cache
+.cache/gui-reference/
 .DS_Store
 Thumbs.db
 playwright-report
@@ -18,3 +19,5 @@ apps/api/prisma/dev.db-journal
 .env.test.local
 .env.production.local
 .tmp/
+docs/
+scripts/render-gui-reference.mjs

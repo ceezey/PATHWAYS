@@ -15,6 +15,14 @@ export const webEnvSchema = z.object({
     .enum(['true', 'false'])
     .default('false')
     .transform((value) => value === 'true'),
+  NEXT_PUBLIC_ENABLE_GUI_PROTOTYPE_MODE: z
+    .enum(['true', 'false'])
+    .default('false')
+    .transform((value) => value === 'true'),
+  NEXT_PUBLIC_ENABLE_ROLE_PREVIEW: z
+    .enum(['true', 'false'])
+    .default('true')
+    .transform((value) => value === 'true'),
   NEXT_PUBLIC_SENTRY_DSN: optionalString,
   WEB_PORT: z.coerce.number().default(3000),
 })

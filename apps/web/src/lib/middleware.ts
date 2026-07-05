@@ -4,6 +4,12 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { webEnv, webSupabasePublishableKey } from '@/lib/env'
 
 export async function updateSession(request: NextRequest) {
+  if (webEnv.NEXT_PUBLIC_ENABLE_GUI_PROTOTYPE_MODE || webEnv.NEXT_PUBLIC_ENABLE_DEV_AUTH_BYPASS) {
+    return NextResponse.next({
+      request,
+    })
+  }
+
   if (!webEnv.NEXT_PUBLIC_SUPABASE_URL || !webSupabasePublishableKey) {
     return NextResponse.next({
       request,

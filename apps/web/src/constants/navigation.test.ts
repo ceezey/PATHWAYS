@@ -6,8 +6,10 @@ describe('navigation constants', () => {
   it('exposes the expected dashboard sections', () => {
     expect(dashboardNavigation.map((item) => item.href)).toEqual([
       '/dashboard',
-      '/participants',
-      '/imports',
+      '/projects',
+      '/beneficiaries',
+      '/collection',
+      '/analytics',
       '/reports',
       '/settings',
     ])
