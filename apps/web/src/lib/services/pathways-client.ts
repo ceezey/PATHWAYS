@@ -3,6 +3,7 @@ import type {
   AlertRecord,
   Beneficiary,
   BeneficiaryFilters,
+  BeneficiaryRecord,
   BudgetRecord,
   CreateActivityInput,
   CreateProjectInput,
@@ -10,6 +11,7 @@ import type {
   EvidenceRecord,
   ExpenseRecord,
   Indicator,
+  JourneyStageConfig,
   ProjectDetail,
   ProjectIndicator,
   ProjectSummary,
@@ -17,6 +19,7 @@ import type {
   RecommendationRecord,
   ReportRecord,
   RoleDashboardViewModel,
+  RuleDefinition,
   SubmitActivityProofInput,
   TransparencySection,
   UpdateActivityInput,
@@ -50,10 +53,14 @@ export interface PathwaysClient {
   getRecommendationOutcomes(projectId: string): Promise<RecommendationOutcomeRecord[]>
   getTransparencySections(projectId: string): Promise<TransparencySection[]>
   getBeneficiaries(filters?: BeneficiaryFilters): Promise<Beneficiary[]>
+  getBeneficiaryRecords(filters?: BeneficiaryFilters): Promise<BeneficiaryRecord[]>
+  getBeneficiaryRecord(id: string): Promise<BeneficiaryRecord>
+  getJourneyStages(projectId: string): Promise<JourneyStageConfig[]>
   getIndicators(projectId?: string): Promise<Indicator[]>
   getBudgets(projectId?: string): Promise<BudgetRecord[]>
   getAlerts(projectId?: string): Promise<AlertRecord[]>
   getRecommendations(): Promise<RecommendationRecord[]>
+  getRules(): Promise<RuleDefinition[]>
   getReports(projectId?: string): Promise<ReportRecord[]>
   getUsers(): Promise<UserRecord[]>
   getDashboard(role: string): Promise<RoleDashboardViewModel>

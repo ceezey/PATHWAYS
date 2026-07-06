@@ -10,6 +10,8 @@ describe('navigation constants', () => {
       '/beneficiaries',
       '/collection',
       '/analytics',
+      '/alerts',
+      '/recommendations',
       '/reports',
       '/settings',
     ])

@@ -1,5 +1,8 @@
+import Link from 'next/link'
+
 import { PageHeader } from '@/components/layout/page-header'
 import { StatusBadge } from '@/components/pathways/status-badge'
+import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 
@@ -11,7 +14,12 @@ export default function SettingsPage() {
         title="Environment and platform setup"
         description="This screen captures the human steps that still need real credentials or dashboard configuration after the scaffold is finished."
         actions={
-          <StatusBadge tone="info">GUI implementation scheduled in a later phase</StatusBadge>
+          <div className="flex flex-wrap gap-2">
+            <StatusBadge tone="info">Prototype setup</StatusBadge>
+            <Button asChild size="sm">
+              <Link href="/settings/rules">Rule configuration</Link>
+            </Button>
+          </div>
         }
       />
       <Tabs className="space-y-4" defaultValue="auth">

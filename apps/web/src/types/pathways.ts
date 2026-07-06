@@ -124,6 +124,81 @@ export interface Beneficiary {
   enrollmentStatus: BeneficiaryEnrollmentStatus
 }
 
+export type JourneyStageType = 'Entry' | 'Core' | 'Branch' | 'Follow-Up'
+
+export interface JourneyStageConfig {
+  id: string
+  projectId: string
+  code: string
+  name: string
+  order: number
+  type: JourneyStageType
+  parentStageId?: string
+  terminal: boolean
+  mappedActivityIds: string[]
+  description: string
+}
+
+export interface BeneficiaryEnrollment {
+  id: string
+  projectId: string
+  status: BeneficiaryEnrollmentStatus
+  enrolledAt: string
+  followUpStatus: 'Not due' | 'Scheduled' | 'Needs follow-up' | 'Completed'
+}
+
+export interface BeneficiaryParticipationRecord {
+  id: string
+  beneficiaryId: string
+  projectId: string
+  activityId: string
+  participatedAt: string
+  attendanceStatus: 'Present' | 'Partial' | 'Absent'
+  note: string
+}
+
+export interface BeneficiaryAssessmentRecord {
+  id: string
+  beneficiaryId: string
+  projectId: string
+  stageId: string
+  title: string
+  assessedAt: string
+  score: number
+  source: string
+  note: string
+}
+
+export interface BeneficiaryNoteRecord {
+  id: string
+  beneficiaryId: string
+  projectId: string
+  stageId: string
+  author: string
+  createdAt: string
+  visibility: 'Internal' | 'Project team'
+  note: string
+}
+
+export interface BeneficiaryRecord extends Beneficiary {
+  firstName: string
+  middleName?: string
+  lastName: string
+  birthDate?: string
+  age?: number
+  province: string
+  city: string
+  barangay: string
+  consentToParticipate: boolean
+  consentToStoreData: boolean
+  isMinor: boolean
+  guardianConsent: boolean
+  enrollments: BeneficiaryEnrollment[]
+  participation: BeneficiaryParticipationRecord[]
+  assessments: BeneficiaryAssessmentRecord[]
+  notes: BeneficiaryNoteRecord[]
+}
+
 export interface Indicator {
   id: string
   projectId: string
@@ -230,15 +305,65 @@ export interface AlertRecord {
   id: string
   projectId: string
   severity: 'Information' | 'Warning' | 'Critical'
-  category: 'Activity' | 'Indicator' | 'Budget' | 'Beneficiary Progress'
+  category: 'Activity' | 'Indicator' | 'Budget' | 'Beneficiary Progress' | 'Assessment'
   title: string
+  description: string
+  createdAt: string
+  lifecycleStatus: AlertLifecycleStatus
+  relatedType: 'Activity' | 'Indicator' | 'Budget' | 'Beneficiary Progress' | 'Assessment'
+  relatedId: string
+  currentValue: number
+  threshold: number
+  ruleId: string
+  actionNote?: string
 }
+
+export type AlertLifecycleStatus =
+  | 'New'
+  | 'Reviewed'
+  | 'Actioned'
+  | 'Resolved'
+  | 'Dismissed'
+  | 'Auto-resolved'
 
 export interface RecommendationRecord {
   id: string
   alertId: string
+  ruleId: string
+  alertBasis: string
+  ruleExplanation: string
   text: string
   reviewStatus: 'New' | 'Reviewed' | 'Actioned'
+  outcome?: RecommendationOutcome
+  outcomeNote?: string
+}
+
+export type RuleCategory =
+  | 'KPI / Indicator'
+  | 'Activity Timeline'
+  | 'Budget'
+  | 'Beneficiary Progress'
+  | 'Assessment'
+  | 'Project Health'
+
+export type RuleOperator = 'below' | 'above' | 'between' | 'equals'
+export type RuleSeverity = 'Low' | 'Medium' | 'High' | 'Critical'
+export type RuleStatus = 'Active' | 'Inactive'
+
+export interface RuleDefinition {
+  id: string
+  name: string
+  category: RuleCategory
+  parameter: string
+  operator: RuleOperator
+  threshold: number
+  upperThreshold?: number
+  severity: RuleSeverity
+  status: RuleStatus
+  suggestedAction: string
+  description: string
+  triggeredCount: number
+  lastTriggeredAt?: string
 }
 
 export type TransparencyApprovalState = 'Draft' | 'Pending Review' | 'Approved'
@@ -269,6 +394,8 @@ export interface BeneficiaryFilters {
   projectId?: string
   location?: string
   sex?: Beneficiary['sex']
+  ageGroup?: Beneficiary['ageGroup']
+  disabilityStatus?: Beneficiary['disabilityStatus']
   enrollmentStatus?: BeneficiaryEnrollmentStatus
 }
 

@@ -17,6 +17,7 @@ const workspaceTabs = [
   { label: 'Target Indicators', path: 'indicators', implemented: true },
   { label: 'Monitor & Evaluate', path: 'monitor-evaluate', implemented: true },
   { label: 'Budget', path: 'budget', implemented: true },
+  { label: 'Journey Stages', path: 'journey-stages', implemented: true },
   { label: 'Transparency', path: 'transparency', implemented: true },
 ]
 

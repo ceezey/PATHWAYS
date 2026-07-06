@@ -1,4 +1,4 @@
-import type { Beneficiary } from '@/types/pathways'
+import type { Beneficiary, BeneficiaryRecord, JourneyStageConfig } from '@/types/pathways'
 
 export const mockBeneficiaries: Beneficiary[] = [
   {
@@ -34,4 +34,387 @@ export const mockBeneficiaries: Beneficiary[] = [
     disabilityStatus: 'With disability',
     enrollmentStatus: 'Active',
   },
+]
+
+const makeEnrollment = (
+  id: string,
+  projectId: string,
+  status: BeneficiaryRecord['enrollmentStatus'],
+  enrolledAt: string,
+  followUpStatus: BeneficiaryRecord['enrollments'][number]['followUpStatus'],
+) => ({
+  id,
+  projectId,
+  status,
+  enrolledAt,
+  followUpStatus,
+})
+
+export const mockJourneyStages: JourneyStageConfig[] = [
+  {
+    id: 'stage-entry',
+    projectId: 'futuremakers-ncr',
+    code: 'J1',
+    name: 'Registration and intake',
+    order: 1,
+    type: 'Entry',
+    terminal: false,
+    mappedActivityIds: ['act-fm-01'],
+    description: 'Beneficiary enrollment, consent confirmation, and baseline profiling.',
+  },
+  {
+    id: 'stage-core',
+    projectId: 'futuremakers-ncr',
+    code: 'J2',
+    name: 'Core capability building',
+    order: 2,
+    type: 'Core',
+    terminal: false,
+    mappedActivityIds: [],
+    description: 'Shared preparation before the beneficiary moves into a branch track.',
+  },
+  {
+    id: 'stage-vocational',
+    projectId: 'futuremakers-ncr',
+    code: 'J2.1',
+    name: 'Skills bootcamp branch',
+    order: 3,
+    type: 'Branch',
+    parentStageId: 'stage-core',
+    terminal: false,
+    mappedActivityIds: ['act-fm-02'],
+    description: 'Livelihood and employability sessions for beneficiaries on the skills track.',
+  },
+  {
+    id: 'stage-academic',
+    projectId: 'futuremakers-ncr',
+    code: 'J2.2',
+    name: 'Learning support branch',
+    order: 4,
+    type: 'Branch',
+    parentStageId: 'stage-core',
+    terminal: false,
+    mappedActivityIds: [],
+    description: 'Optional branch reserved for education support activities.',
+  },
+  {
+    id: 'stage-follow-up',
+    projectId: 'futuremakers-ncr',
+    code: 'J7',
+    name: 'Open-ended follow-up',
+    order: 7,
+    type: 'Follow-Up',
+    terminal: true,
+    mappedActivityIds: [],
+    description:
+      'Human-reviewed follow-up remains open-ended and can continue after core activities end.',
+  },
+  {
+    id: 'stage-yr-entry',
+    projectId: 'youth-rise-western-samar',
+    code: 'J1',
+    name: 'Site readiness and intake',
+    order: 1,
+    type: 'Entry',
+    terminal: false,
+    mappedActivityIds: ['act-yr-01'],
+    description: 'Eligibility, venue readiness, and accessibility preparation.',
+  },
+  {
+    id: 'stage-yr-core',
+    projectId: 'youth-rise-western-samar',
+    code: 'J2',
+    name: 'Youth training pathway',
+    order: 2,
+    type: 'Core',
+    terminal: false,
+    mappedActivityIds: [],
+    description: 'Core project activities once local sites are ready.',
+  },
+  {
+    id: 'stage-nav-entry',
+    projectId: 'grassroots-centers-navotas',
+    code: 'J1',
+    name: 'Community center intake',
+    order: 1,
+    type: 'Entry',
+    terminal: false,
+    mappedActivityIds: [],
+    description: 'Registration and service orientation for center participants.',
+  },
+  {
+    id: 'stage-safe-follow-up',
+    projectId: 'safe-spaces-northern-samar',
+    code: 'J7',
+    name: 'Referral follow-up',
+    order: 7,
+    type: 'Follow-Up',
+    terminal: true,
+    mappedActivityIds: ['act-ss-01'],
+    description: 'Ongoing referral proof review with privacy-aware human oversight.',
+  },
+]
+
+export const mockBeneficiaryRecords: BeneficiaryRecord[] = [
+  {
+    id: 'ben-001',
+    code: 'BEN-NCR-001',
+    displayName: 'Beneficiary NCR-001',
+    firstName: 'Beneficiary',
+    middleName: 'NCR',
+    lastName: '001',
+    projectIds: ['futuremakers-ncr'],
+    location: 'Quezon City',
+    province: 'Metro Manila',
+    city: 'Quezon City',
+    barangay: 'Prototype Barangay 01',
+    sex: 'Female',
+    birthDate: '2003-05-10',
+    age: 23,
+    ageGroup: '18-24',
+    disabilityStatus: 'Without disability',
+    enrollmentStatus: 'Active',
+    consentToParticipate: true,
+    consentToStoreData: true,
+    isMinor: false,
+    guardianConsent: false,
+    enrollments: [
+      makeEnrollment('enr-001', 'futuremakers-ncr', 'Active', '2026-01-15', 'Scheduled'),
+    ],
+    participation: [
+      {
+        id: 'part-001-a',
+        beneficiaryId: 'ben-001',
+        projectId: 'futuremakers-ncr',
+        activityId: 'act-fm-01',
+        participatedAt: '2026-02-10',
+        attendanceStatus: 'Present',
+        note: 'Orientation and baseline profiling completed.',
+      },
+      {
+        id: 'part-001-b',
+        beneficiaryId: 'ben-001',
+        projectId: 'futuremakers-ncr',
+        activityId: 'act-fm-02',
+        participatedAt: '2026-06-18',
+        attendanceStatus: 'Present',
+        note: 'Completed a bootcamp session and follow-up check-in.',
+      },
+    ],
+    assessments: [
+      {
+        id: 'assess-001',
+        beneficiaryId: 'ben-001',
+        projectId: 'futuremakers-ncr',
+        stageId: 'stage-vocational',
+        title: 'Skills readiness check',
+        assessedAt: '2026-06-20',
+        score: 82,
+        source: 'Prototype assessment sheet',
+        note: 'Score reflects facilitator review and submitted activity evidence.',
+      },
+    ],
+    notes: [
+      {
+        id: 'note-ben-001',
+        beneficiaryId: 'ben-001',
+        projectId: 'futuremakers-ncr',
+        stageId: 'stage-vocational',
+        author: 'Project Officer A',
+        createdAt: '2026-06-21',
+        visibility: 'Project team',
+        note: 'Schedule a supportive check-in before the next session.',
+      },
+    ],
+  },
+  {
+    id: 'ben-002',
+    code: 'BEN-WS-014',
+    displayName: 'Beneficiary WS-014',
+    firstName: 'Beneficiary',
+    middleName: 'WS',
+    lastName: '014',
+    projectIds: ['youth-rise-western-samar'],
+    location: 'Calbayog',
+    province: 'Western Samar',
+    city: 'Calbayog',
+    barangay: 'Prototype Barangay 02',
+    sex: 'Male',
+    age: 16,
+    ageGroup: '15-17',
+    disabilityStatus: 'Not disclosed',
+    enrollmentStatus: 'Pending Review',
+    consentToParticipate: true,
+    consentToStoreData: true,
+    isMinor: true,
+    guardianConsent: true,
+    enrollments: [
+      makeEnrollment(
+        'enr-002',
+        'youth-rise-western-samar',
+        'Pending Review',
+        '2026-04-05',
+        'Not due',
+      ),
+    ],
+    participation: [
+      {
+        id: 'part-002-a',
+        beneficiaryId: 'ben-002',
+        projectId: 'youth-rise-western-samar',
+        activityId: 'act-yr-01',
+        participatedAt: '2026-06-10',
+        attendanceStatus: 'Partial',
+        note: 'Participated in readiness validation with accessibility notes pending.',
+      },
+    ],
+    assessments: [],
+    notes: [],
+  },
+  {
+    id: 'ben-003',
+    code: 'BEN-NAV-022',
+    displayName: 'Beneficiary NAV-022',
+    firstName: 'Beneficiary',
+    middleName: 'NAV',
+    lastName: '022',
+    projectIds: ['grassroots-centers-navotas'],
+    location: 'Navotas',
+    province: 'Metro Manila',
+    city: 'Navotas',
+    barangay: 'Prototype Barangay 03',
+    sex: 'Female',
+    age: 26,
+    ageGroup: '25+',
+    disabilityStatus: 'With disability',
+    enrollmentStatus: 'Active',
+    consentToParticipate: true,
+    consentToStoreData: true,
+    isMinor: false,
+    guardianConsent: false,
+    enrollments: [
+      makeEnrollment('enr-003', 'grassroots-centers-navotas', 'Active', '2026-02-02', 'Scheduled'),
+    ],
+    participation: [],
+    assessments: [],
+    notes: [
+      {
+        id: 'note-ben-003',
+        beneficiaryId: 'ben-003',
+        projectId: 'grassroots-centers-navotas',
+        stageId: 'stage-nav-entry',
+        author: 'Project Officer E',
+        createdAt: '2026-05-08',
+        visibility: 'Internal',
+        note: 'Accessibility accommodation confirmed in prototype record.',
+      },
+    ],
+  },
+  {
+    id: 'ben-004',
+    code: 'BEN-NCR-004',
+    displayName: 'Beneficiary NCR-004',
+    firstName: 'Beneficiary',
+    lastName: 'NCR-004',
+    projectIds: ['futuremakers-ncr'],
+    location: 'Manila',
+    province: 'Metro Manila',
+    city: 'Manila',
+    barangay: 'Prototype Barangay 04',
+    sex: 'Prefer not to say',
+    age: 20,
+    ageGroup: '18-24',
+    disabilityStatus: 'Not disclosed',
+    enrollmentStatus: 'Active',
+    consentToParticipate: true,
+    consentToStoreData: true,
+    isMinor: false,
+    guardianConsent: false,
+    enrollments: [
+      makeEnrollment('enr-004', 'futuremakers-ncr', 'Active', '2026-02-01', 'Needs follow-up'),
+    ],
+    participation: [
+      {
+        id: 'part-004-a',
+        beneficiaryId: 'ben-004',
+        projectId: 'futuremakers-ncr',
+        activityId: 'act-fm-01',
+        participatedAt: '2026-02-12',
+        attendanceStatus: 'Present',
+        note: 'Baseline profiling finished.',
+      },
+    ],
+    assessments: [],
+    notes: [],
+  },
+  ...Array.from({ length: 9 }, (_, index): BeneficiaryRecord => {
+    const number = index + 5
+    const padded = String(number).padStart(3, '0')
+    const projectId =
+      index % 3 === 0
+        ? 'futuremakers-ncr'
+        : index % 3 === 1
+          ? 'youth-rise-western-samar'
+          : 'safe-spaces-northern-samar'
+    const city =
+      projectId === 'futuremakers-ncr'
+        ? 'Quezon City'
+        : projectId === 'youth-rise-western-samar'
+          ? 'Calbayog'
+          : 'Catarman'
+    const enrollmentStatus = index % 4 === 0 ? 'Completed' : index % 4 === 1 ? 'Exited' : 'Active'
+
+    return {
+      id: `ben-${padded}`,
+      code: `BEN-MOCK-${padded}`,
+      displayName: `Beneficiary MOCK-${padded}`,
+      firstName: 'Beneficiary',
+      lastName: `MOCK-${padded}`,
+      projectIds: [projectId],
+      location: city,
+      province: projectId === 'youth-rise-western-samar' ? 'Western Samar' : 'Metro Manila',
+      city,
+      barangay: `Prototype Barangay ${padded}`,
+      sex: index % 2 === 0 ? 'Female' : 'Male',
+      age: index % 2 === 0 ? 19 + index : 15 + index,
+      ageGroup:
+        index % 4 === 0 ? '10-14' : index % 4 === 1 ? '15-17' : index % 4 === 2 ? '18-24' : '25+',
+      disabilityStatus:
+        index % 5 === 0
+          ? 'With disability'
+          : index % 5 === 1
+            ? 'Not disclosed'
+            : 'Without disability',
+      enrollmentStatus,
+      consentToParticipate: true,
+      consentToStoreData: true,
+      isMinor: index % 4 < 2,
+      guardianConsent: index % 4 < 2,
+      enrollments: [
+        makeEnrollment(
+          `enr-${padded}`,
+          projectId,
+          enrollmentStatus,
+          `2026-0${(index % 6) + 1}-10`,
+          index % 3 === 0 ? 'Scheduled' : index % 3 === 1 ? 'Completed' : 'Not due',
+        ),
+      ],
+      participation:
+        projectId === 'futuremakers-ncr'
+          ? [
+              {
+                id: `part-${padded}`,
+                beneficiaryId: `ben-${padded}`,
+                projectId,
+                activityId: index % 2 === 0 ? 'act-fm-02' : 'act-fm-01',
+                participatedAt: `2026-06-${String(10 + index).padStart(2, '0')}`,
+                attendanceStatus: index % 2 === 0 ? 'Present' : 'Partial',
+                note: 'Prototype participation record generated from coded mock data.',
+              },
+            ]
+          : [],
+      assessments: [],
+      notes: [],
+    }
+  }),
 ]

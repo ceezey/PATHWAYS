@@ -1,10 +1,12 @@
 import type { NavItem } from '@pathways/shared'
 import {
+  AlertTriangle,
   BarChart3,
   ClipboardList,
   FolderKanban,
   Home,
   LineChart,
+  ListChecks,
   Settings,
   UsersRound,
 } from 'lucide-react'
@@ -70,6 +72,18 @@ export const dashboardNavGroups: DashboardNavGroup[] = [
         label: 'Analytics',
         description: 'SADDD Analysis and project insights.',
         icon: BarChart3,
+      },
+      {
+        href: '/alerts',
+        label: 'Alerts',
+        description: 'Rule-based alerts for human review.',
+        icon: AlertTriangle,
+      },
+      {
+        href: '/recommendations',
+        label: 'Recommendations',
+        description: 'Predefined rule recommendations and outcomes.',
+        icon: ListChecks,
       },
       {
         href: '/reports',

@@ -13,6 +13,8 @@ export const config = {
     '/beneficiaries/:path*',
     '/collection/:path*',
     '/analytics/:path*',
+    '/alerts/:path*',
+    '/recommendations/:path*',
     '/imports/:path*',
     '/participants/:path*',
     '/reports/:path*',

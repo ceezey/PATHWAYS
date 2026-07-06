@@ -4,17 +4,20 @@ import {
   mockActivities,
   mockAlerts,
   mockBeneficiaries,
+  mockBeneficiaryRecords,
   mockBudgets,
   mockDashboards,
   mockEvaluations,
   mockEvidenceRecords,
   mockExpenses,
   mockIndicators,
+  mockJourneyStages,
   mockProjectIndicators,
   mockProjects,
   mockRecommendationOutcomes,
   mockRecommendations,
   mockReports,
+  mockRules,
   mockTransparencySections,
   mockUsers,
 } from '@/mocks/pathways'
@@ -23,6 +26,7 @@ import type {
   AlertRecord,
   Beneficiary,
   BeneficiaryFilters,
+  BeneficiaryRecord,
   BudgetRecord,
   CreateActivityInput,
   CreateProjectInput,
@@ -30,6 +34,7 @@ import type {
   EvidenceRecord,
   ExpenseRecord,
   Indicator,
+  JourneyStageConfig,
   ProjectDetail,
   ProjectIndicator,
   ProjectSummary,
@@ -37,6 +42,7 @@ import type {
   RecommendationRecord,
   ReportRecord,
   RoleDashboardViewModel,
+  RuleDefinition,
   SubmitActivityProofInput,
   TransparencySection,
   UpdateActivityInput,
@@ -460,12 +466,70 @@ export class MockPathwaysClient implements PathwaysClient {
         : true
       const matchesLocation = filters.location ? beneficiary.location === filters.location : true
       const matchesSex = filters.sex ? beneficiary.sex === filters.sex : true
+      const matchesAgeGroup = filters.ageGroup ? beneficiary.ageGroup === filters.ageGroup : true
+      const matchesDisability = filters.disabilityStatus
+        ? beneficiary.disabilityStatus === filters.disabilityStatus
+        : true
       const matchesEnrollment = filters.enrollmentStatus
         ? beneficiary.enrollmentStatus === filters.enrollmentStatus
         : true
 
-      return matchesProject && matchesLocation && matchesSex && matchesEnrollment
+      return (
+        matchesProject &&
+        matchesLocation &&
+        matchesSex &&
+        matchesAgeGroup &&
+        matchesDisability &&
+        matchesEnrollment
+      )
     })
+  }
+
+  async getBeneficiaryRecords(filters: BeneficiaryFilters = {}): Promise<BeneficiaryRecord[]> {
+    await this.wait()
+    // TODO(RBAC): Restrict access to beneficiary-sensitive data.
+
+    return mockBeneficiaryRecords.filter((beneficiary) => {
+      const matchesProject = filters.projectId
+        ? beneficiary.projectIds.includes(filters.projectId)
+        : true
+      const matchesLocation = filters.location ? beneficiary.location === filters.location : true
+      const matchesSex = filters.sex ? beneficiary.sex === filters.sex : true
+      const matchesAgeGroup = filters.ageGroup ? beneficiary.ageGroup === filters.ageGroup : true
+      const matchesDisability = filters.disabilityStatus
+        ? beneficiary.disabilityStatus === filters.disabilityStatus
+        : true
+      const matchesEnrollment = filters.enrollmentStatus
+        ? beneficiary.enrollmentStatus === filters.enrollmentStatus
+        : true
+
+      return (
+        matchesProject &&
+        matchesLocation &&
+        matchesSex &&
+        matchesAgeGroup &&
+        matchesDisability &&
+        matchesEnrollment
+      )
+    })
+  }
+
+  async getBeneficiaryRecord(id: string): Promise<BeneficiaryRecord> {
+    await this.wait()
+    // TODO(RBAC): Restrict access to beneficiary-sensitive data.
+    const beneficiary = mockBeneficiaryRecords.find((record) => record.id === id)
+
+    if (!beneficiary) {
+      throw new PathwaysClientError(`Beneficiary ${id} was not found in mock data.`, 'not_found')
+    }
+
+    return beneficiary
+  }
+
+  async getJourneyStages(projectId: string): Promise<JourneyStageConfig[]> {
+    await this.wait()
+    // TODO(DATABASE): Load configurable stages and activity-stage mappings.
+    return mockJourneyStages.filter((stage) => stage.projectId === projectId)
   }
 
   async getIndicators(projectId?: string): Promise<Indicator[]> {
@@ -482,12 +546,19 @@ export class MockPathwaysClient implements PathwaysClient {
 
   async getAlerts(projectId?: string): Promise<AlertRecord[]> {
     await this.wait()
+    // TODO(ALERTS): Evaluate rules through the backend rule engine.
     return projectId ? mockAlerts.filter((alert) => alert.projectId === projectId) : mockAlerts
   }
 
   async getRecommendations(): Promise<RecommendationRecord[]> {
     await this.wait()
     return mockRecommendations
+  }
+
+  async getRules(): Promise<RuleDefinition[]> {
+    await this.wait()
+    // TODO(BACKEND): Persist rule definitions and lifecycle transitions.
+    return mockRules
   }
 
   async getReports(projectId?: string): Promise<ReportRecord[]> {
