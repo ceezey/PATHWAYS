@@ -14,6 +14,7 @@ import {
   mockJourneyStages,
   mockProjectIndicators,
   mockProjects,
+  mockPublicProjects,
   mockRecommendationOutcomes,
   mockRecommendations,
   mockReports,
@@ -38,6 +39,7 @@ import type {
   ProjectDetail,
   ProjectIndicator,
   ProjectSummary,
+  PublicProjectRecord,
   RecommendationOutcomeRecord,
   RecommendationRecord,
   ReportRecord,
@@ -564,6 +566,28 @@ export class MockPathwaysClient implements PathwaysClient {
   async getReports(projectId?: string): Promise<ReportRecord[]> {
     await this.wait()
     return projectId ? mockReports.filter((report) => report.projectId === projectId) : mockReports
+  }
+
+  async getPublicProjects(): Promise<PublicProjectRecord[]> {
+    await this.wait()
+    // TODO(BACKEND): Load approved public project fields.
+    // TODO(RBAC): Require internal approval before publication.
+    // TODO(DATABASE): Apply public visibility configuration.
+    return mockPublicProjects
+  }
+
+  async getPublicProject(id: string): Promise<PublicProjectRecord> {
+    await this.wait()
+    // TODO(BACKEND): Load approved public project fields.
+    // TODO(RBAC): Require internal approval before publication.
+    // TODO(DATABASE): Apply public visibility configuration.
+    const project = mockPublicProjects.find((item) => item.id === id)
+
+    if (!project) {
+      throw new PathwaysClientError(`Public project ${id} was not found in mock data.`, 'not_found')
+    }
+
+    return project
   }
 
   async getUsers(): Promise<UserRecord[]> {

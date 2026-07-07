@@ -15,6 +15,7 @@ import type {
   ProjectDetail,
   ProjectIndicator,
   ProjectSummary,
+  PublicProjectRecord,
   RecommendationOutcomeRecord,
   RecommendationRecord,
   ReportRecord,
@@ -62,6 +63,8 @@ export interface PathwaysClient {
   getRecommendations(): Promise<RecommendationRecord[]>
   getRules(): Promise<RuleDefinition[]>
   getReports(projectId?: string): Promise<ReportRecord[]>
+  getPublicProjects(): Promise<PublicProjectRecord[]>
+  getPublicProject(id: string): Promise<PublicProjectRecord>
   getUsers(): Promise<UserRecord[]>
   getDashboard(role: string): Promise<RoleDashboardViewModel>
 }

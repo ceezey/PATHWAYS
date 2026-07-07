@@ -24,8 +24,13 @@ export interface DashboardNavGroup {
 export const publicNavigation: NavItem[] = [
   {
     href: '/',
-    label: 'Overview',
-    description: 'Project summary and setup status.',
+    label: 'Dashboard',
+    description: 'Approved public PATHWAYS project summaries.',
+  },
+  {
+    href: '/public/projects',
+    label: 'Projects',
+    description: 'Browse approved public project pages.',
   },
   {
     href: '/login',

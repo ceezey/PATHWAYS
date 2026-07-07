@@ -384,6 +384,51 @@ export interface ReportRecord {
   reportingPeriod: string
 }
 
+export type ReportKind = 'project-summary' | 'indicator-summary' | 'beneficiary-summary'
+
+export interface ReportColumnConfig {
+  id: string
+  label: string
+  enabledByDefault: boolean
+}
+
+export interface PublicIndicator {
+  id: string
+  label: string
+  targetLabel: string
+  actualLabel: string
+  progress: number
+  status: 'On Track' | 'Monitoring' | 'Completed'
+}
+
+export interface PublicMilestone {
+  id: string
+  title: string
+  dateLabel: string
+  status: 'Completed' | 'In Progress' | 'Planned'
+}
+
+export interface PublicProjectRecord {
+  id: string
+  title: string
+  tagline: string
+  area: string
+  sector: string
+  timeframe: string
+  approvedSummary: string
+  description: string
+  aboutProject: string
+  projectAreas: string[]
+  selectedIndicators: PublicIndicator[]
+  milestones: PublicMilestone[]
+  accomplishments: string[]
+  progressTrend: number[]
+  beneficiariesReached: number
+  budgetSummary: string
+  assessmentSummary: string
+  publicationState: 'Approved for public preview'
+}
+
 export interface UserRecord {
   id: string
   name: string
