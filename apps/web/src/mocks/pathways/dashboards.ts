@@ -66,7 +66,7 @@ export const mockDashboards: Record<PrototypeRole, RoleDashboardViewModel> = {
             status: 'On Track',
             severity: 'success',
             progress: 78,
-            href: '/projects',
+            href: '/projects/futuremakers-ncr',
           },
           {
             id: 'youth-rise-western-samar',
@@ -76,7 +76,7 @@ export const mockDashboards: Record<PrototypeRole, RoleDashboardViewModel> = {
             status: 'At Risk',
             severity: 'warning',
             progress: 52,
-            href: '/projects',
+            href: '/projects/youth-rise-western-samar',
           },
           {
             id: 'safe-spaces-northern-samar',
@@ -86,7 +86,7 @@ export const mockDashboards: Record<PrototypeRole, RoleDashboardViewModel> = {
             status: 'Critical',
             severity: 'danger',
             progress: 41,
-            href: '/projects',
+            href: '/projects/safe-spaces-northern-samar',
           },
         ],
       },
@@ -191,7 +191,7 @@ export const mockDashboards: Record<PrototypeRole, RoleDashboardViewModel> = {
             status: 'On Track',
             severity: 'success',
             progress: 78,
-            href: '/projects',
+            href: '/projects/futuremakers-ncr',
           },
           {
             id: 'safe-spaces-northern-samar',
@@ -201,7 +201,7 @@ export const mockDashboards: Record<PrototypeRole, RoleDashboardViewModel> = {
             status: 'Critical',
             severity: 'danger',
             progress: 41,
-            href: '/projects',
+            href: '/projects/safe-spaces-northern-samar',
           },
         ],
       },
@@ -253,7 +253,7 @@ export const mockDashboards: Record<PrototypeRole, RoleDashboardViewModel> = {
               id: 'go-budget-module',
               label: 'Go to Budget Module',
               kind: 'navigate',
-              href: '/projects',
+              href: '/projects/safe-spaces-northern-samar/budget',
             },
           },
         ],
@@ -301,7 +301,7 @@ export const mockDashboards: Record<PrototypeRole, RoleDashboardViewModel> = {
         title: 'Active alerts requiring review',
         description: 'Human review remains required for recommendation outcomes.',
         viewAllHref: '/analytics',
-        viewAllLabel: 'View All',
+        viewAllLabel: 'View analytics',
         items: [
           {
             id: 'alert-fm-bootcamp',
@@ -333,8 +333,8 @@ export const mockDashboards: Record<PrototypeRole, RoleDashboardViewModel> = {
         id: 'proof-submissions',
         title: 'Proof submissions awaiting review',
         description: 'Evidence review center placeholder.',
-        viewAllHref: '/projects',
-        viewAllLabel: 'View Evaluation Center',
+        viewAllHref: '/projects/futuremakers-ncr/evidence',
+        viewAllLabel: 'View evidence',
         items: [
           {
             id: 'proof-ss-referral',
@@ -405,8 +405,8 @@ export const mockDashboards: Record<PrototypeRole, RoleDashboardViewModel> = {
         id: 'activity-list',
         title: 'Activity list',
         description: 'Current activity assignments and update actions.',
-        viewAllHref: '/projects',
-        viewAllLabel: 'View All',
+        viewAllHref: '/projects/futuremakers-ncr/activities',
+        viewAllLabel: 'View activities',
         items: [
           {
             id: 'act-fm-02',

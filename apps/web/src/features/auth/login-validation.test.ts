@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { validatePrototypeCredentials } from '@/lib/auth/prototype-accounts'
+import { publicPrototypeAccounts } from '@/lib/auth/prototype-accounts'
 
 import { loginSchema } from './login-validation'
 
@@ -11,13 +11,18 @@ describe('login validation', () => {
     expect(result.success).toBe(false)
   })
 
-  it('accepts valid prototype credentials', () => {
-    const account = validatePrototypeCredentials('program.manager', 'PathwaysDemo!2026')
-
-    expect(account?.role).toBe('Program Manager')
+  it('exposes demo account metadata without passwords', () => {
+    expect(publicPrototypeAccounts[0]).toMatchObject({
+      role: 'Program Manager',
+      username: 'program.manager',
+    })
+    expect(JSON.stringify(publicPrototypeAccounts)).not.toContain('PathwaysDemo!2026')
   })
 
-  it('rejects invalid prototype credentials', () => {
-    expect(validatePrototypeCredentials('program.manager', 'not-the-password')).toBeNull()
+  it('keeps prototype credential verification out of the client validation module', () => {
+    expect(
+      loginSchema.safeParse({ identifier: 'program.manager', password: 'PathwaysDemo!2026' })
+        .success,
+    ).toBe(true)
   })
 })

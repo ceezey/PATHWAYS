@@ -2,6 +2,7 @@
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react'
 
+import { clearBeneficiaryAccess } from '@/lib/auth/beneficiary-step-up'
 import { webSetupState } from '@/lib/env'
 import { type PrototypeRole, defaultPrototypeRole, prototypeRoles } from '@/types/prototype-role'
 
@@ -37,6 +38,7 @@ export const PrototypeRoleProvider = ({ children }: { children: React.ReactNode 
   const setRole = useCallback(
     (nextRole: PrototypeRole) => {
       setRoleState(nextRole)
+      clearBeneficiaryAccess()
 
       if (enabled) {
         window.localStorage.setItem(STORAGE_KEY, nextRole)

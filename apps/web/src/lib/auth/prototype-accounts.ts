@@ -6,19 +6,17 @@ export interface PrototypeAccount {
   role: PrototypeRole
   username: string
   email: string
-  password: string
 }
 
-export type PrototypeAccountPublic = Omit<PrototypeAccount, 'password'>
+export type PrototypeAccountPublic = PrototypeAccount
 
-export const prototypeAccounts: PrototypeAccount[] = [
+export const publicPrototypeAccounts: PrototypeAccountPublic[] = [
   {
     id: 'program-manager',
     displayName: 'Program Manager Demo',
     role: 'Program Manager',
     username: 'program.manager',
     email: 'program.manager@demo.pathways.local',
-    password: 'PathwaysDemo!2026',
   },
   {
     id: 'project-manager',
@@ -26,7 +24,6 @@ export const prototypeAccounts: PrototypeAccount[] = [
     role: 'Project Manager',
     username: 'project.manager',
     email: 'project.manager@demo.pathways.local',
-    password: 'PathwaysDemo!2026',
   },
   {
     id: 'monitoring-evaluation-officer',
@@ -34,7 +31,6 @@ export const prototypeAccounts: PrototypeAccount[] = [
     role: 'Monitoring and Evaluation Officer',
     username: 'monitoring.officer',
     email: 'monitoring.officer@demo.pathways.local',
-    password: 'PathwaysDemo!2026',
   },
   {
     id: 'project-officer',
@@ -42,7 +38,6 @@ export const prototypeAccounts: PrototypeAccount[] = [
     role: 'Project Officer',
     username: 'project.officer',
     email: 'project.officer@demo.pathways.local',
-    password: 'PathwaysDemo!2026',
   },
   {
     id: 'system-administrator',
@@ -50,26 +45,5 @@ export const prototypeAccounts: PrototypeAccount[] = [
     role: 'System Administrator',
     username: 'system.admin',
     email: 'system.admin@demo.pathways.local',
-    password: 'PathwaysDemo!2026',
   },
 ]
-
-export const publicPrototypeAccounts = prototypeAccounts.map(
-  ({ password: _password, ...account }) => account,
-)
-
-export const validatePrototypeCredentials = (identifier: string, password: string) => {
-  const normalizedIdentifier = identifier.trim().toLowerCase()
-  const account = prototypeAccounts.find(
-    (item) =>
-      item.email.toLowerCase() === normalizedIdentifier ||
-      item.username.toLowerCase() === normalizedIdentifier,
-  )
-
-  if (!account || account.password !== password) {
-    return null
-  }
-
-  const { password: _password, ...safeAccount } = account
-  return safeAccount
-}

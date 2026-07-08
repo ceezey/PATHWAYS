@@ -32,11 +32,6 @@ export const publicNavigation: NavItem[] = [
     label: 'Projects',
     description: 'Browse approved public project pages.',
   },
-  {
-    href: '/login',
-    label: 'Login',
-    description: 'Staff sign-in entry point.',
-  },
 ]
 
 export const dashboardNavGroups: DashboardNavGroup[] = [

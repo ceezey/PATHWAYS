@@ -7,22 +7,13 @@ import {
   getPaginationRowModel,
   useReactTable,
 } from '@tanstack/react-table'
-import { KeyRound, Plus, Search } from 'lucide-react'
+import { Plus, Search } from 'lucide-react'
 import Link from 'next/link'
 import { useMemo, useState } from 'react'
-import { toast } from 'sonner'
 
 import { ProgressBar } from '@/components/pathways/progress-bar'
 import { StatusBadge } from '@/components/pathways/status-badge'
 import { Button } from '@/components/ui/button'
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import {
@@ -40,6 +31,8 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
+import { usePrototypeRole } from '@/hooks/use-prototype-role'
+import { scopeBeneficiariesForRole, scopeProjectsForRole } from '@/lib/rbac/data-scope'
 import type {
   Activity,
   BeneficiaryRecord,
@@ -70,6 +63,12 @@ export const BeneficiaryDirectory = ({
   activities,
   stages,
 }: BeneficiaryDirectoryProps) => {
+  const { role } = usePrototypeRole()
+  const scopedProjects = useMemo(() => scopeProjectsForRole(projects, role), [projects, role])
+  const scopedBeneficiaries = useMemo(
+    () => scopeBeneficiariesForRole(beneficiaries, role),
+    [beneficiaries, role],
+  )
   const [search, setSearch] = useState('')
   const [projectId, setProjectId] = useState(allValue)
   const [location, setLocation] = useState(allValue)
@@ -77,18 +76,16 @@ export const BeneficiaryDirectory = ({
   const [ageGroup, setAgeGroup] = useState(allValue)
   const [disabilityStatus, setDisabilityStatus] = useState(allValue)
   const [enrollmentStatus, setEnrollmentStatus] = useState(allValue)
-  const [verifyOpen, setVerifyOpen] = useState(false)
-  const [pin, setPin] = useState('')
-  const [verified, setVerified] = useState(false)
 
   const locations = useMemo(
-    () => Array.from(new Set(beneficiaries.map((beneficiary) => beneficiary.location))).sort(),
-    [beneficiaries],
+    () =>
+      Array.from(new Set(scopedBeneficiaries.map((beneficiary) => beneficiary.location))).sort(),
+    [scopedBeneficiaries],
   )
 
   const filteredBeneficiaries = useMemo(
     () =>
-      beneficiaries.filter((beneficiary) => {
+      scopedBeneficiaries.filter((beneficiary) => {
         const query = search.trim().toLowerCase()
         const matchesSearch = query
           ? [beneficiary.code, beneficiary.displayName, beneficiary.location]
@@ -116,7 +113,16 @@ export const BeneficiaryDirectory = ({
           matchesEnrollment
         )
       }),
-    [ageGroup, beneficiaries, disabilityStatus, enrollmentStatus, location, projectId, search, sex],
+    [
+      ageGroup,
+      disabilityStatus,
+      enrollmentStatus,
+      location,
+      projectId,
+      scopedBeneficiaries,
+      search,
+      sex,
+    ],
   )
 
   const columns = useMemo<ColumnDef<BeneficiaryRecord>[]>(
@@ -140,7 +146,7 @@ export const BeneficiaryDirectory = ({
         header: 'Enrolled project',
         cell: ({ row }) => (
           <div className="max-w-[240px] text-sm">
-            {row.original.projectIds.map((id) => projectTitle(id, projects)).join(', ')}
+            {row.original.projectIds.map((id) => projectTitle(id, scopedProjects)).join(', ')}
           </div>
         ),
       },
@@ -203,7 +209,7 @@ export const BeneficiaryDirectory = ({
         ),
       },
     ],
-    [activities, projects, stages],
+    [activities, scopedProjects, stages],
   )
 
   const table = useReactTable({
@@ -218,23 +224,16 @@ export const BeneficiaryDirectory = ({
     },
   })
 
-  const handleVerify = () => {
-    setVerified(true)
-    setVerifyOpen(false)
-    toast.success('Prototype access verified.', {
-      description: 'This does not enforce production beneficiary-data permissions.',
-    })
-  }
-
   return (
     <div className="space-y-6">
       <section className="flex flex-col gap-4 rounded-lg border border-border bg-card p-5 shadow-sm lg:flex-row lg:items-start lg:justify-between">
         <div className="space-y-2">
           <div className="flex flex-wrap items-center gap-2">
-            <StatusBadge tone={verified ? 'success' : 'warning'}>
-              {verified ? 'PIN verified in prototype' : 'Sensitive module prototype'}
-            </StatusBadge>
+            <StatusBadge tone="success">Step-up verified</StatusBadge>
             <StatusBadge tone="neutral">Safe coded mock data only</StatusBadge>
+            <StatusBadge tone={role === 'Project Officer' ? 'warning' : 'info'}>
+              {role === 'Project Officer' ? 'Scoped project view' : 'Full authorized view'}
+            </StatusBadge>
           </div>
           <div>
             <h1 className="text-3xl font-semibold tracking-tight text-foreground">
@@ -247,10 +246,6 @@ export const BeneficiaryDirectory = ({
           </div>
         </div>
         <div className="flex flex-wrap gap-2">
-          <Button variant="outline" onClick={() => setVerifyOpen(true)}>
-            <KeyRound className="mr-2 h-4 w-4" aria-hidden="true" />
-            Verify access
-          </Button>
           <Button asChild>
             <Link href="/beneficiaries/new">
               <Plus className="mr-2 h-4 w-4" aria-hidden="true" />
@@ -280,7 +275,7 @@ export const BeneficiaryDirectory = ({
           </div>
           <FilterSelect label="Project" value={projectId} onValueChange={setProjectId}>
             <SelectItem value={allValue}>All projects</SelectItem>
-            {projects.map((project) => (
+            {scopedProjects.map((project) => (
               <SelectItem key={project.id} value={project.id}>
                 {project.title}
               </SelectItem>
@@ -396,39 +391,6 @@ export const BeneficiaryDirectory = ({
           </div>
         </div>
       </section>
-
-      <Dialog open={verifyOpen} onOpenChange={setVerifyOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Verify beneficiary module access</DialogTitle>
-            <DialogDescription>
-              Prototype PIN verification demonstrates the intended privacy checkpoint only.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-2">
-            <Label htmlFor="beneficiary-pin">Prototype PIN</Label>
-            <Input
-              id="beneficiary-pin"
-              inputMode="numeric"
-              maxLength={4}
-              placeholder="0000"
-              value={pin}
-              onChange={(event) => setPin(event.target.value.replace(/\D/g, ''))}
-            />
-            <p className="text-xs text-muted-foreground">
-              Any four digits will verify this local prototype view.
-            </p>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setVerifyOpen(false)}>
-              Cancel
-            </Button>
-            <Button disabled={pin.length < 4} onClick={handleVerify}>
-              Enter module
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </div>
   )
 }
@@ -447,7 +409,7 @@ const FilterSelect = ({
   <div className="space-y-2">
     <span className="text-sm font-medium">{label}</span>
     <Select value={value} onValueChange={onValueChange}>
-      <SelectTrigger>
+      <SelectTrigger aria-label={label}>
         <SelectValue />
       </SelectTrigger>
       <SelectContent>{children}</SelectContent>

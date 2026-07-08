@@ -32,11 +32,15 @@ export const ActivityDetailContent = ({
   indicators,
   onEdit,
   onSubmitProof,
+  canEdit,
+  canSubmitProof,
 }: {
   activity: Activity
   indicators: Indicator[]
   onEdit: (activity: Activity) => void
   onSubmitProof: (activity: Activity) => void
+  canEdit: boolean
+  canSubmitProof: boolean
 }) => (
   <div className="space-y-5">
     <div className="flex flex-wrap gap-2">
@@ -120,14 +124,18 @@ export const ActivityDetailContent = ({
       </div>
     ) : null}
     <div className="grid gap-2 sm:grid-cols-2">
-      <Button className="gap-2" onClick={() => onEdit(activity)} type="button" variant="outline">
-        <Pencil className="h-4 w-4" aria-hidden="true" />
-        Edit
-      </Button>
-      <Button className="gap-2" onClick={() => onSubmitProof(activity)} type="button">
-        <UploadCloud className="h-4 w-4" aria-hidden="true" />
-        Submit Update & Proof
-      </Button>
+      {canEdit ? (
+        <Button className="gap-2" onClick={() => onEdit(activity)} type="button" variant="outline">
+          <Pencil className="h-4 w-4" aria-hidden="true" />
+          Edit
+        </Button>
+      ) : null}
+      {canSubmitProof ? (
+        <Button className="gap-2" onClick={() => onSubmitProof(activity)} type="button">
+          <UploadCloud className="h-4 w-4" aria-hidden="true" />
+          Submit Update & Proof
+        </Button>
+      ) : null}
       <Button
         className="gap-2"
         onClick={() =>
@@ -166,6 +174,8 @@ export const ActivityDetailPanel = ({
   onEdit,
   onOpenChange,
   onSubmitProof,
+  canEdit,
+  canSubmitProof,
 }: {
   activity: Activity | null
   indicators: Indicator[]
@@ -173,12 +183,16 @@ export const ActivityDetailPanel = ({
   onEdit: (activity: Activity) => void
   onOpenChange: (open: boolean) => void
   onSubmitProof: (activity: Activity) => void
+  canEdit: boolean
+  canSubmitProof: boolean
 }) => (
   <Sheet onOpenChange={onOpenChange} open={open}>
     {activity ? (
       <SidePanel title={activity.title} description={`${activity.status} activity detail`}>
         <ActivityDetailContent
           activity={activity}
+          canEdit={canEdit}
+          canSubmitProof={canSubmitProof}
           indicators={indicators}
           onEdit={onEdit}
           onSubmitProof={onSubmitProof}

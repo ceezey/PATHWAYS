@@ -39,7 +39,7 @@ export const PublicHomeDashboard = ({ projects }: { projects: PublicProjectRecor
               </Link>
             </Button>
             <Button asChild variant="outline">
-              <Link href="/login">Staff login</Link>
+              <Link href="/public/projects">Browse approved summaries</Link>
             </Button>
           </div>
         </div>

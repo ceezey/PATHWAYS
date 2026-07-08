@@ -23,6 +23,8 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { usePrototypeRole } from '@/hooks/use-prototype-role'
+import { can } from '@/lib/rbac/can'
 import type {
   RuleCategory,
   RuleDefinition,
@@ -68,6 +70,8 @@ const emptyDraft: RuleDraft = {
 export const RuleConfigurationWorkspace = ({
   initialRules,
 }: { initialRules: RuleDefinition[] }) => {
+  const { role } = usePrototypeRole()
+  const canConfigureRules = can(role, 'rules.configure')
   const [rules, setRules] = useState(initialRules)
   const [selectedRuleId, setSelectedRuleId] = useState(initialRules[0]?.id ?? '')
   const [dialogOpen, setDialogOpen] = useState(false)
@@ -81,12 +85,22 @@ export const RuleConfigurationWorkspace = ({
   const activeCount = rules.filter((rule) => rule.status === 'Active').length
 
   const openCreate = () => {
+    if (!canConfigureRules) {
+      toast.error('Rule configuration is only available to System Administrator.')
+      return
+    }
+
     setEditingRuleId(null)
     setDraft(emptyDraft)
     setDialogOpen(true)
   }
 
   const openEdit = (rule: RuleDefinition) => {
+    if (!canConfigureRules) {
+      toast.error('Rule editing is only available to System Administrator.')
+      return
+    }
+
     setEditingRuleId(rule.id)
     setDraft({
       name: rule.name,
@@ -104,6 +118,11 @@ export const RuleConfigurationWorkspace = ({
   }
 
   const saveRule = () => {
+    if (!canConfigureRules) {
+      toast.error('Rule configuration is only available to System Administrator.')
+      return
+    }
+
     if (!draft.name.trim() || !draft.parameter.trim() || !draft.suggestedAction.trim()) {
       toast.error('Rule name, parameter, and suggested action are required.')
       return
@@ -133,6 +152,11 @@ export const RuleConfigurationWorkspace = ({
   }
 
   const toggleRuleStatus = (rule: RuleDefinition) => {
+    if (!canConfigureRules) {
+      toast.error('Rule activation is only available to System Administrator.')
+      return
+    }
+
     // TODO(BACKEND): Persist rule definitions and lifecycle transitions.
     const nextStatus: RuleStatus = rule.status === 'Active' ? 'Inactive' : 'Active'
     setRules((current) =>
@@ -147,7 +171,9 @@ export const RuleConfigurationWorkspace = ({
         <div className="space-y-2">
           <div className="flex flex-wrap gap-2">
             <StatusBadge tone="info">Rule center</StatusBadge>
-            <StatusBadge tone="neutral">System Administrator preview</StatusBadge>
+            <StatusBadge tone={canConfigureRules ? 'neutral' : 'warning'}>
+              {canConfigureRules ? 'Configuration access' : 'View-only access'}
+            </StatusBadge>
           </div>
           <div>
             <h1 className="text-3xl font-semibold tracking-tight text-foreground">
@@ -159,10 +185,12 @@ export const RuleConfigurationWorkspace = ({
             </p>
           </div>
         </div>
-        <Button onClick={openCreate}>
-          <Plus className="mr-2 h-4 w-4" aria-hidden="true" />
-          Create rule
-        </Button>
+        {canConfigureRules ? (
+          <Button onClick={openCreate}>
+            <Plus className="mr-2 h-4 w-4" aria-hidden="true" />
+            Create rule
+          </Button>
+        ) : null}
       </section>
 
       <section className="rounded-lg border border-info/20 bg-info/10 p-4 text-sm leading-6 text-info">
@@ -243,14 +271,18 @@ export const RuleConfigurationWorkspace = ({
                   <p className="mt-2 text-muted-foreground">{selectedRule.suggestedAction}</p>
                 </div>
                 <div className="mt-4 flex flex-wrap gap-2">
-                  <Button variant="outline" onClick={() => openEdit(selectedRule)}>
-                    <Pencil className="mr-2 h-4 w-4" aria-hidden="true" />
-                    Edit rule
-                  </Button>
-                  <Button variant="outline" onClick={() => toggleRuleStatus(selectedRule)}>
-                    <Power className="mr-2 h-4 w-4" aria-hidden="true" />
-                    {selectedRule.status === 'Active' ? 'Deactivate' : 'Activate'}
-                  </Button>
+                  {canConfigureRules ? (
+                    <>
+                      <Button variant="outline" onClick={() => openEdit(selectedRule)}>
+                        <Pencil className="mr-2 h-4 w-4" aria-hidden="true" />
+                        Edit rule
+                      </Button>
+                      <Button variant="outline" onClick={() => toggleRuleStatus(selectedRule)}>
+                        <Power className="mr-2 h-4 w-4" aria-hidden="true" />
+                        {selectedRule.status === 'Active' ? 'Deactivate' : 'Activate'}
+                      </Button>
+                    </>
+                  ) : null}
                 </div>
               </div>
               <aside className="rounded-lg border border-border bg-card p-5 shadow-sm">
@@ -277,10 +309,12 @@ export const RuleConfigurationWorkspace = ({
                   Open the rule form to create a prototype rule definition.
                 </p>
               </div>
-              <Button onClick={openCreate}>
-                <Plus className="mr-2 h-4 w-4" aria-hidden="true" />
-                New rule
-              </Button>
+              {canConfigureRules ? (
+                <Button onClick={openCreate}>
+                  <Plus className="mr-2 h-4 w-4" aria-hidden="true" />
+                  New rule
+                </Button>
+              ) : null}
             </div>
           </section>
         </TabsContent>

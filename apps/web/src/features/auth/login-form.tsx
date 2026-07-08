@@ -1,7 +1,7 @@
 'use client'
 
 import { zodResolver } from '@hookform/resolvers/zod'
-import { Eye, EyeOff, Info, Loader2, LogIn, UserRound } from 'lucide-react'
+import { ArrowLeft, Eye, EyeOff, Info, Loader2, LogIn, RotateCcw, UserRound } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { useState } from 'react'
 import { useForm } from 'react-hook-form'
@@ -21,12 +21,10 @@ import {
   FormMessage,
 } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
 import { usePrototypeRole } from '@/hooks/use-prototype-role'
 import { useSession } from '@/hooks/use-session'
-import {
-  publicPrototypeAccounts,
-  validatePrototypeCredentials,
-} from '@/lib/auth/prototype-accounts'
+import { publicPrototypeAccounts } from '@/lib/auth/prototype-accounts'
 import { createPrototypeSession } from '@/lib/auth/prototype-session'
 import { webSetupState } from '@/lib/env'
 import { getBrowserSupabaseClient } from '@/lib/supabase/client'
@@ -37,6 +35,17 @@ export const LoginForm = () => {
   const { setRole } = usePrototypeRole()
   const { signInWithPrototype, refreshSession } = useSession()
   const [showPassword, setShowPassword] = useState(false)
+  const [mfaChallenge, setMfaChallenge] = useState<{
+    maskedDestination: string
+    expiresAt: string
+    identifier: string
+  } | null>(null)
+  const [otp, setOtp] = useState('')
+  const [otpStatus, setOtpStatus] = useState<'idle' | 'loading' | 'error' | 'expired' | 'locked'>(
+    'idle',
+  )
+  const [otpMessage, setOtpMessage] = useState('')
+  const [resendAvailableAt, setResendAvailableAt] = useState(0)
   const form = useForm<LoginSchema>({
     resolver: zodResolver(loginSchema),
     defaultValues: {
@@ -47,23 +56,38 @@ export const LoginForm = () => {
 
   const onSubmit = async (values: LoginSchema) => {
     if (webSetupState.guiPrototypeModeEnabled) {
-      const account = validatePrototypeCredentials(values.identifier, values.password)
+      const response = await fetch('/api/prototype-mfa/challenge', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(values),
+      })
+      const result = (await response.json()) as {
+        maskedDestination?: string
+        expiresAt?: string
+        message?: string
+      }
 
-      if (!account) {
+      if (!response.ok || !result.maskedDestination || !result.expiresAt) {
         form.setError('password', {
           type: 'validate',
-          message: 'The username, email, or password does not match a demo account.',
+          message:
+            result.message ?? 'The username, email, or password does not match a demo account.',
         })
         return
       }
 
-      // TODO(AUTH): Replace the GUI prototype session with the finalized Supabase Auth flow.
-      await signInWithPrototype(createPrototypeSession(account))
-      setRole(account.role)
-      toast.success('Prototype session started.', {
-        description: `${account.role} dashboard preview is ready.`,
+      setMfaChallenge({
+        maskedDestination: result.maskedDestination,
+        expiresAt: result.expiresAt,
+        identifier: values.identifier,
       })
-      router.push('/dashboard')
+      setOtp('')
+      setOtpStatus('idle')
+      setOtpMessage('Enter the six-digit code from the prototype MFA challenge.')
+      setResendAvailableAt(Date.now() + 30_000)
+      toast.message('OTP verification required.', {
+        description: `A prototype code was sent to ${result.maskedDestination}.`,
+      })
       return
     }
 
@@ -112,6 +136,145 @@ export const LoginForm = () => {
     await refreshSession()
     toast.success('Session established.')
     router.push('/dashboard')
+  }
+
+  const verifyOtp = async () => {
+    if (!mfaChallenge || otp.length !== 6 || otpStatus === 'loading') {
+      return
+    }
+
+    if (new Date(mfaChallenge.expiresAt).getTime() <= Date.now()) {
+      setOtpStatus('expired')
+      setOtpMessage('The OTP code has expired. Resend a new code to continue.')
+      return
+    }
+
+    setOtpStatus('loading')
+    const response = await fetch('/api/prototype-mfa/verify', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ otp }),
+    })
+    const result = (await response.json()) as {
+      account?: Parameters<typeof createPrototypeSession>[0]
+      message?: string
+    }
+
+    if (!response.ok || !result.account) {
+      setOtp('')
+      setOtpStatus(
+        response.status === 410 ? 'expired' : response.status === 429 ? 'locked' : 'error',
+      )
+      setOtpMessage(result.message ?? 'The OTP code could not be verified.')
+      return
+    }
+
+    // TODO(AUTH): Replace the GUI prototype OTP challenge with the finalized Supabase Auth MFA flow.
+    await signInWithPrototype(createPrototypeSession(result.account))
+    setRole(result.account.role)
+    toast.success('Prototype session started after OTP verification.', {
+      description: `${result.account.role} dashboard preview is ready.`,
+    })
+    router.push('/dashboard')
+  }
+
+  const resendOtp = async () => {
+    const values = form.getValues()
+    setOtp('')
+    setOtpStatus('loading')
+    await onSubmit(values)
+  }
+
+  if (mfaChallenge) {
+    const secondsUntilResend = Math.max(0, Math.ceil((resendAvailableAt - Date.now()) / 1000))
+    const expired = new Date(mfaChallenge.expiresAt).getTime() <= Date.now()
+
+    return (
+      <Card className="w-full max-w-[430px] rounded-lg border-white/70 bg-white/95 shadow-xl backdrop-blur">
+        <CardHeader className="items-center space-y-3 pb-4 text-center">
+          <div className="flex h-14 w-14 items-center justify-center rounded-lg bg-primary text-primary-foreground shadow-sm">
+            <UserRound className="h-8 w-8" aria-hidden="true" />
+          </div>
+          <div>
+            <CardTitle className="text-2xl font-bold tracking-normal text-foreground">
+              OTP verification
+            </CardTitle>
+            <CardDescription className="mt-2 text-sm">
+              Enter the six-digit code sent to {mfaChallenge.maskedDestination}.
+            </CardDescription>
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-5">
+          <div className="rounded-lg border border-info/20 bg-info/10 p-4 text-sm leading-6 text-info">
+            {/* TODO(AUTH): Replace the prototype OTP challenge with the finalized organization-approved MFA provider. */}
+            {/* TODO(SECURITY): Enforce rate limits, lockout, audit logging, and secure challenge storage server-side. */}
+            {expired ? 'This OTP challenge has expired.' : otpMessage}
+          </div>
+          <form
+            className="space-y-5"
+            onSubmit={(event) => {
+              event.preventDefault()
+              void verifyOtp()
+            }}
+          >
+            <div className="space-y-2">
+              <Label htmlFor="staff-otp">Six-digit OTP code</Label>
+              <Input
+                id="staff-otp"
+                autoComplete="one-time-code"
+                autoFocus
+                className="text-center text-2xl tracking-[0.45em]"
+                inputMode="numeric"
+                maxLength={6}
+                placeholder="000000"
+                value={otp}
+                onChange={(event) => setOtp(event.target.value.replace(/\D/g, ''))}
+              />
+              <p className="text-xs text-muted-foreground">
+                Password verification alone does not create a staff session.
+              </p>
+            </div>
+            <Button
+              className="w-full gap-2"
+              disabled={otp.length !== 6 || otpStatus === 'loading' || otpStatus === 'locked'}
+              type="submit"
+            >
+              {otpStatus === 'loading' ? (
+                <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+              ) : (
+                <LogIn className="h-4 w-4" aria-hidden="true" />
+              )}
+              Verify Code
+            </Button>
+          </form>
+          <div className="flex flex-col gap-2 sm:flex-row sm:justify-between">
+            <Button
+              className="gap-2"
+              type="button"
+              variant="outline"
+              onClick={() => {
+                setMfaChallenge(null)
+                setOtp('')
+                setOtpStatus('idle')
+              }}
+            >
+              <ArrowLeft className="h-4 w-4" aria-hidden="true" />
+              Back to login
+            </Button>
+            <Button
+              className="gap-2"
+              disabled={secondsUntilResend > 0 || otpStatus === 'loading'}
+              type="button"
+              variant="outline"
+              onClick={() => void resendOtp()}
+            >
+              <RotateCcw className="h-4 w-4" aria-hidden="true" />
+              {secondsUntilResend > 0 ? `Resend in ${secondsUntilResend}s` : 'Resend code'}
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+    )
   }
 
   return (

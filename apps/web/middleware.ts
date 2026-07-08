@@ -19,5 +19,6 @@ export const config = {
     '/participants/:path*',
     '/reports/:path*',
     '/settings/:path*',
+    '/unauthorized',
   ],
 }

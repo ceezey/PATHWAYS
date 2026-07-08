@@ -144,7 +144,7 @@ export const AnalyticsDashboard = ({
             value={projectId}
             onValueChange={(value) => refreshFilter(() => setProjectId(value))}
           >
-            <SelectTrigger>
+            <SelectTrigger aria-label="Project filter">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -160,7 +160,7 @@ export const AnalyticsDashboard = ({
         <div className="space-y-2">
           <span className="text-sm font-medium">Reporting period</span>
           <Select value={period} onValueChange={(value) => refreshFilter(() => setPeriod(value))}>
-            <SelectTrigger>
+            <SelectTrigger aria-label="Reporting period">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>

@@ -20,6 +20,8 @@ import { EmptyState, FilterBar, ProgressBar, SectionCard, StatusBadge } from '@/
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { usePrototypeRole } from '@/hooks/use-prototype-role'
+import { can } from '@/lib/rbac/can'
 import { pathwaysClient } from '@/lib/services/mock-pathways-client'
 import type {
   Activity,
@@ -160,6 +162,9 @@ export const ProjectActivitiesWorkspace = ({
   projectId: string
 }) => {
   const router = useRouter()
+  const { role } = usePrototypeRole()
+  const canCreateEdit = can(role, 'activities.create_edit')
+  const canSubmitProof = can(role, 'activities.submit_update_proof')
   const [project, setProject] = useState<ProjectDetail | null>(null)
   const [activities, setActivities] = useState<Activity[]>([])
   const [indicators, setIndicators] = useState<Indicator[]>([])
@@ -261,16 +266,28 @@ export const ProjectActivitiesWorkspace = ({
   }
 
   const openCreate = () => {
+    if (!canCreateEdit) {
+      return
+    }
+
     setEditingActivity(null)
     setFormOpen(true)
   }
 
   const openEdit = (activity: Activity) => {
+    if (!canCreateEdit) {
+      return
+    }
+
     setEditingActivity(activity)
     setFormOpen(true)
   }
 
   const openProof = (activity: Activity) => {
+    if (!canSubmitProof) {
+      return
+    }
+
     setProofActivity(activity)
     setProofOpen(true)
   }
@@ -367,10 +384,12 @@ export const ProjectActivitiesWorkspace = ({
             <List className="h-4 w-4" aria-hidden="true" />
             <span className="sr-only">List view</span>
           </Button>
-          <Button className="gap-2" onClick={openCreate} type="button">
-            <Plus className="h-4 w-4" aria-hidden="true" />
-            New Activity
-          </Button>
+          {canCreateEdit ? (
+            <Button className="gap-2" onClick={openCreate} type="button">
+              <Plus className="h-4 w-4" aria-hidden="true" />
+              New Activity
+            </Button>
+          ) : null}
         </div>
       </FilterBar>
       {filteredActivities.length === 0 ? (
@@ -464,6 +483,8 @@ export const ProjectActivitiesWorkspace = ({
       ) : null}
       <ActivityDetailPanel
         activity={selectedActivity}
+        canEdit={canCreateEdit}
+        canSubmitProof={canSubmitProof}
         indicators={indicators}
         onEdit={openEdit}
         onOpenChange={closeDetail}

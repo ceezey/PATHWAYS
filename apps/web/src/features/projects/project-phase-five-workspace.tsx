@@ -41,6 +41,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { usePrototypeRole } from '@/hooks/use-prototype-role'
+import { can } from '@/lib/rbac/can'
 import { pathwaysClient } from '@/lib/services/mock-pathways-client'
 import type {
   Activity,
@@ -304,11 +305,23 @@ export const ProjectPhaseFiveWorkspace = ({
   const remainingBudget = calculateRemainingBudget(plannedAmount, actualSpending)
   const utilization = plannedAmount > 0 ? Math.round((actualSpending / plannedAmount) * 100) : 0
   const expenseTotal = calculateExpenseTotal(expenses)
-  const canConfigureWeights =
-    role === 'Monitoring and Evaluation Officer' || role === 'System Administrator'
+  const canConfigureWeights = can(role, 'monitor_evaluate.full')
+  const canReviewEvidence = can(role, 'evidence.review')
+  const canAddIndicator = can(role, 'indicators.manage')
+  const canSubmitFormalEvaluation = can(role, 'evaluation.formal.submit')
+  const canLogRecommendationOutcome = can(role, 'alerts.outcome.log')
+  const canLogExpense = can(role, 'budget.expense.log')
+  const canVerifyExpense = can(role, 'budget.expense.verify')
+  const canApproveExpense = can(role, 'budget.expense.approve')
+  const canPublishTransparency = can(role, 'transparency.publish')
   const heading = viewTitles[view]
 
   const updateEvidenceStatus = (record: EvidenceRecord, status: EvidenceReviewStatus) => {
+    if (!canReviewEvidence) {
+      toast.error('Evidence review is not available for this role.')
+      return
+    }
+
     setEvidence((current) =>
       current.map((item) => (item.id === record.id ? { ...item, status } : item)),
     )
@@ -318,6 +331,11 @@ export const ProjectPhaseFiveWorkspace = ({
   }
 
   const addIndicator = () => {
+    if (!canAddIndicator) {
+      toast.error('Indicator configuration is not available for this role.')
+      return
+    }
+
     const result = addIndicatorSchema.safeParse(formState)
 
     if (!result.success) {
@@ -384,6 +402,11 @@ export const ProjectPhaseFiveWorkspace = ({
   }
 
   const saveFormalEvaluation = () => {
+    if (!canSubmitFormalEvaluation) {
+      toast.error('Formal evaluation submission is not available for this role.')
+      return
+    }
+
     const result = formalEvaluationSchema.safeParse(formState)
 
     if (!result.success || !evaluation) {
@@ -428,6 +451,11 @@ export const ProjectPhaseFiveWorkspace = ({
   }
 
   const logOutcome = () => {
+    if (!canLogRecommendationOutcome) {
+      toast.error('Recommendation outcome logging is not available for this role.')
+      return
+    }
+
     const result = recommendationOutcomeSchema.safeParse(formState)
 
     if (!result.success || !outcomeRecommendation) {
@@ -461,6 +489,11 @@ export const ProjectPhaseFiveWorkspace = ({
   }
 
   const logExpense = () => {
+    if (!canLogExpense) {
+      toast.error('Expense logging is not available for this role.')
+      return
+    }
+
     const result = logExpenseSchema.safeParse(formState)
 
     if (!result.success) {
@@ -497,6 +530,16 @@ export const ProjectPhaseFiveWorkspace = ({
     liquidationStatus: LiquidationStatus,
     rejectionReason?: string,
   ) => {
+    if (liquidationStatus === 'Verified' && !canVerifyExpense) {
+      toast.error('Expense verification is not available for this role.')
+      return
+    }
+
+    if (['Approved', 'Rejected'].includes(liquidationStatus) && !canApproveExpense) {
+      toast.error('Expense approval or rejection is not available for this role.')
+      return
+    }
+
     // TODO(RBAC): Enforce reviewer, verifier, approver, and publisher roles.
     // TODO(BACKEND): Persist expense and liquidation workflow.
     setExpenses((current) =>
@@ -526,6 +569,11 @@ export const ProjectPhaseFiveWorkspace = ({
     section: TransparencySection,
     patch: Partial<Pick<TransparencySection, 'approvalState' | 'visible'>>,
   ) => {
+    if (!canPublishTransparency) {
+      toast.error('Transparency publishing is not available for this role.')
+      return
+    }
+
     // TODO(DATABASE): Load transparency visibility configuration.
     // TODO(RBAC): Enforce reviewer, verifier, approver, and publisher roles.
     setTransparencySections((current) =>
@@ -583,6 +631,7 @@ export const ProjectPhaseFiveWorkspace = ({
       <ProjectWorkspaceHeader project={project} />
       {view === 'evidence' ? (
         <EvidenceView
+          canReviewEvidence={canReviewEvidence}
           evidence={evidence}
           reports={reports}
           onPreview={setPreviewEvidence}
@@ -592,6 +641,7 @@ export const ProjectPhaseFiveWorkspace = ({
       {view === 'indicators' ? (
         <IndicatorsView
           activities={activities}
+          canAddIndicator={canAddIndicator}
           indicators={indicators}
           onAdd={() => {
             setFormState({})
@@ -604,6 +654,7 @@ export const ProjectPhaseFiveWorkspace = ({
           canConfigureWeights={canConfigureWeights}
           evaluation={evaluation}
           evidenceCount={evidence.length}
+          canSubmitFormalEvaluation={canSubmitFormalEvaluation}
           onAddAnnotation={() => {
             setFormState({})
             setAnnotationOpen(true)
@@ -628,6 +679,10 @@ export const ProjectPhaseFiveWorkspace = ({
           remainingBudget={remainingBudget}
           utilization={utilization}
           onApproveExpense={(expense) => updateExpenseStatus(expense, 'Approved')}
+          canApproveExpense={canApproveExpense}
+          canLogExpense={canLogExpense}
+          canLogRecommendationOutcome={canLogRecommendationOutcome}
+          canVerifyExpense={canVerifyExpense}
           onLogExpense={() => {
             setFormState({ submitter: 'Project Officer A', expenseDate: today() })
             setReceiptFiles([])
@@ -651,6 +706,7 @@ export const ProjectPhaseFiveWorkspace = ({
           project={project}
           sections={transparencySections}
           utilization={utilization}
+          canPublishTransparency={canPublishTransparency}
           onUpdate={updateTransparency}
         />
       ) : null}
@@ -983,11 +1039,13 @@ const LabeledInput = ({
 )
 
 const EvidenceView = ({
+  canReviewEvidence,
   evidence,
   reports,
   onPreview,
   onStatusChange,
 }: {
+  canReviewEvidence: boolean
   evidence: EvidenceRecord[]
   reports: ReportRecord[]
   onPreview: (record: EvidenceRecord) => void
@@ -1035,33 +1093,41 @@ const EvidenceView = ({
                 <Eye className="h-4 w-4" aria-hidden="true" />
                 Preview
               </Button>
-              <Button
-                onClick={() => onStatusChange(record, 'Validated')}
-                size="sm"
-                type="button"
-                variant="outline"
-              >
-                Validate
-              </Button>
-              <Button
-                onClick={() => onStatusChange(record, 'Flagged')}
-                size="sm"
-                type="button"
-                variant="outline"
-              >
-                Flag
-              </Button>
-              <Button onClick={() => onStatusChange(record, 'Approved')} size="sm" type="button">
-                Approve
-              </Button>
-              <Button
-                onClick={() => onStatusChange(record, 'Returned')}
-                size="sm"
-                type="button"
-                variant="outline"
-              >
-                Return for Revision
-              </Button>
+              {canReviewEvidence ? (
+                <>
+                  <Button
+                    onClick={() => onStatusChange(record, 'Validated')}
+                    size="sm"
+                    type="button"
+                    variant="outline"
+                  >
+                    Validate
+                  </Button>
+                  <Button
+                    onClick={() => onStatusChange(record, 'Flagged')}
+                    size="sm"
+                    type="button"
+                    variant="outline"
+                  >
+                    Flag
+                  </Button>
+                  <Button
+                    onClick={() => onStatusChange(record, 'Approved')}
+                    size="sm"
+                    type="button"
+                  >
+                    Approve
+                  </Button>
+                  <Button
+                    onClick={() => onStatusChange(record, 'Returned')}
+                    size="sm"
+                    type="button"
+                    variant="outline"
+                  >
+                    Return for Revision
+                  </Button>
+                </>
+              ) : null}
             </div>
           </div>
         ))}
@@ -1089,10 +1155,12 @@ const EvidenceView = ({
 
 const IndicatorsView = ({
   activities,
+  canAddIndicator,
   indicators,
   onAdd,
 }: {
   activities: Activity[]
+  canAddIndicator: boolean
   indicators: ProjectIndicator[]
   onAdd: () => void
 }) => (
@@ -1100,10 +1168,12 @@ const IndicatorsView = ({
     title="Indicator cards"
     description="Baseline, target, actual, progress, status, and connected activity context."
     actions={
-      <Button className="gap-2" onClick={onAdd} type="button">
-        <Plus className="h-4 w-4" aria-hidden="true" />
-        Add Indicator
-      </Button>
+      canAddIndicator ? (
+        <Button className="gap-2" onClick={onAdd} type="button">
+          <Plus className="h-4 w-4" aria-hidden="true" />
+          Add Indicator
+        </Button>
+      ) : null
     }
   >
     <div className="grid gap-4 xl:grid-cols-2">
@@ -1170,6 +1240,7 @@ const IndicatorsView = ({
 
 const EvaluationView = ({
   canConfigureWeights,
+  canSubmitFormalEvaluation,
   evaluation,
   evidenceCount,
   onAddAnnotation,
@@ -1178,6 +1249,7 @@ const EvaluationView = ({
   onWeightChange,
 }: {
   canConfigureWeights: boolean
+  canSubmitFormalEvaluation: boolean
   evaluation: EvaluationRecord
   evidenceCount: number
   onAddAnnotation: () => void
@@ -1219,9 +1291,11 @@ const EvaluationView = ({
           <Button onClick={onAddAnnotation} type="button" variant="outline">
             Add Annotation
           </Button>
-          <Button onClick={onFormalEvaluation} type="button">
-            Formal Evaluation
-          </Button>
+          {canSubmitFormalEvaluation ? (
+            <Button onClick={onFormalEvaluation} type="button">
+              Formal Evaluation
+            </Button>
+          ) : null}
         </div>
       </div>
     </SectionCard>
@@ -1300,6 +1374,10 @@ const EvaluationView = ({
 const BudgetView = ({
   actualSpending,
   alerts,
+  canApproveExpense,
+  canLogExpense,
+  canLogRecommendationOutcome,
+  canVerifyExpense,
   expenseTotal,
   expenses,
   outcomes,
@@ -1315,6 +1393,10 @@ const BudgetView = ({
 }: {
   actualSpending: number
   alerts: AlertRecord[]
+  canApproveExpense: boolean
+  canLogExpense: boolean
+  canLogRecommendationOutcome: boolean
+  canVerifyExpense: boolean
   expenseTotal: number
   expenses: ExpenseRecord[]
   outcomes: RecommendationOutcomeRecord[]
@@ -1388,9 +1470,11 @@ const BudgetView = ({
                     <StatusBadge tone={outcome ? 'success' : 'warning'}>
                       {outcome ? outcome.outcome : recommendation.reviewStatus}
                     </StatusBadge>
-                    <Button onClick={() => onOutcome(recommendation)} size="sm" type="button">
-                      Log Outcome
-                    </Button>
+                    {canLogRecommendationOutcome ? (
+                      <Button onClick={() => onOutcome(recommendation)} size="sm" type="button">
+                        Log Outcome
+                      </Button>
+                    ) : null}
                   </div>
                   {outcome ? (
                     <p className="mt-2 text-sm text-muted-foreground">{outcome.note}</p>
@@ -1410,10 +1494,12 @@ const BudgetView = ({
       title="Expense Ledger"
       description="Liquidation status transitions are demonstrated without server enforcement."
       actions={
-        <Button className="gap-2" onClick={onLogExpense} type="button">
-          <Plus className="h-4 w-4" aria-hidden="true" />
-          Log Expense
-        </Button>
+        canLogExpense ? (
+          <Button className="gap-2" onClick={onLogExpense} type="button">
+            <Plus className="h-4 w-4" aria-hidden="true" />
+            Log Expense
+          </Button>
+        ) : null
       }
     >
       <div className="space-y-3">
@@ -1447,25 +1533,31 @@ const BudgetView = ({
               </p>
             </div>
             <div className="flex flex-wrap justify-end gap-2">
-              <Button
-                onClick={() => onVerifyExpense(expense)}
-                size="sm"
-                type="button"
-                variant="outline"
-              >
-                Verify
-              </Button>
-              <Button onClick={() => onApproveExpense(expense)} size="sm" type="button">
-                Approve
-              </Button>
-              <Button
-                onClick={() => onRejectExpense(expense)}
-                size="sm"
-                type="button"
-                variant="outline"
-              >
-                Reject
-              </Button>
+              {canVerifyExpense ? (
+                <Button
+                  onClick={() => onVerifyExpense(expense)}
+                  size="sm"
+                  type="button"
+                  variant="outline"
+                >
+                  Verify
+                </Button>
+              ) : null}
+              {canApproveExpense ? (
+                <>
+                  <Button onClick={() => onApproveExpense(expense)} size="sm" type="button">
+                    Approve
+                  </Button>
+                  <Button
+                    onClick={() => onRejectExpense(expense)}
+                    size="sm"
+                    type="button"
+                    variant="outline"
+                  >
+                    Reject
+                  </Button>
+                </>
+              ) : null}
             </div>
             {expense.rejectionReason ? (
               <p className="text-sm text-danger lg:col-span-5">Reason: {expense.rejectionReason}</p>
@@ -1478,6 +1570,7 @@ const BudgetView = ({
 )
 
 const TransparencyView = ({
+  canPublishTransparency,
   indicators,
   plannedAmount,
   project,
@@ -1485,6 +1578,7 @@ const TransparencyView = ({
   utilization,
   onUpdate,
 }: {
+  canPublishTransparency: boolean
   indicators: ProjectIndicator[]
   plannedAmount: number
   project: ProjectDetail
@@ -1512,36 +1606,40 @@ const TransparencyView = ({
                 <StatusBadge tone={statusTone(section.approvalState)}>
                   {section.approvalState}
                 </StatusBadge>
-                <Button
-                  className="gap-2"
-                  onClick={() => onUpdate(section, { visible: !section.visible })}
-                  size="sm"
-                  type="button"
-                  variant="outline"
-                >
-                  {section.visible ? (
-                    <ToggleRight className="h-4 w-4" aria-hidden="true" />
-                  ) : (
-                    <ToggleLeft className="h-4 w-4" aria-hidden="true" />
-                  )}
-                  {section.visible ? 'Visible' : 'Hidden'}
-                </Button>
+                {canPublishTransparency ? (
+                  <Button
+                    className="gap-2"
+                    onClick={() => onUpdate(section, { visible: !section.visible })}
+                    size="sm"
+                    type="button"
+                    variant="outline"
+                  >
+                    {section.visible ? (
+                      <ToggleRight className="h-4 w-4" aria-hidden="true" />
+                    ) : (
+                      <ToggleLeft className="h-4 w-4" aria-hidden="true" />
+                    )}
+                    {section.visible ? 'Visible' : 'Hidden'}
+                  </Button>
+                ) : null}
               </div>
             </div>
             <div className="mt-3 flex flex-wrap justify-end gap-2">
-              {(['Draft', 'Pending Review', 'Approved'] as TransparencyApprovalState[]).map(
-                (state) => (
-                  <Button
-                    key={state}
-                    onClick={() => onUpdate(section, { approvalState: state })}
-                    size="sm"
-                    type="button"
-                    variant={section.approvalState === state ? 'default' : 'outline'}
-                  >
-                    {state}
-                  </Button>
-                ),
-              )}
+              {canPublishTransparency
+                ? (['Draft', 'Pending Review', 'Approved'] as TransparencyApprovalState[]).map(
+                    (state) => (
+                      <Button
+                        key={state}
+                        onClick={() => onUpdate(section, { approvalState: state })}
+                        size="sm"
+                        type="button"
+                        variant={section.approvalState === state ? 'default' : 'outline'}
+                      >
+                        {state}
+                      </Button>
+                    ),
+                  )
+                : null}
             </div>
           </div>
         ))}

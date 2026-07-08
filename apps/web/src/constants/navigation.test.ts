@@ -17,7 +17,11 @@ describe('navigation constants', () => {
     ])
   })
 
-  it('keeps the login route available from the public nav', () => {
-    expect(publicNavigation.some((item) => item.href === '/login')).toBe(true)
+  it('keeps staff login out of public navigation', () => {
+    expect(publicNavigation.some((item) => item.href.includes('login'))).toBe(false)
+  })
+
+  it('exposes public project browsing without dashboard navigation', () => {
+    expect(publicNavigation.map((item) => item.href)).toEqual(['/', '/public/projects'])
   })
 })

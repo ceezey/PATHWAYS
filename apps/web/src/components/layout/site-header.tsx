@@ -1,6 +1,5 @@
 import Link from 'next/link'
 
-import { Button } from '@/components/ui/button'
 import { publicNavigation } from '@/constants/navigation'
 
 export const SiteHeader = () => (
@@ -21,9 +20,6 @@ export const SiteHeader = () => (
           </Link>
         ))}
       </nav>
-      <Button asChild size="sm">
-        <Link href="/login">Staff Login</Link>
-      </Button>
     </div>
   </header>
 )

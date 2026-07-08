@@ -8,7 +8,9 @@ import { APP_NAME } from '@pathways/shared'
 import { PrototypeRoleSwitcher } from '@/components/layout/prototype-role-switcher'
 import { SidebarNavItem } from '@/components/layout/sidebar-nav-item'
 import { dashboardNavGroups } from '@/constants/navigation'
+import { usePrototypeRole } from '@/hooks/use-prototype-role'
 import { useSession } from '@/hooks/use-session'
+import { filterDashboardNavGroups } from '@/lib/rbac/route-access'
 import { cn } from '@/lib/utils'
 
 export const Sidebar = ({
@@ -20,6 +22,8 @@ export const Sidebar = ({
 }) => {
   const pathname = usePathname()
   const { email, isBypassed, isPrototypeSession } = useSession()
+  const { role } = usePrototypeRole()
+  const visibleNavGroups = filterDashboardNavGroups(dashboardNavGroups, role)
   const sessionLabel = isPrototypeSession
     ? 'GUI prototype session'
     : isBypassed
@@ -52,7 +56,7 @@ export const Sidebar = ({
         </div>
       </div>
       <nav className={cn('flex-1 space-y-6 p-4', compact && 'px-3')} aria-label="Dashboard">
-        {dashboardNavGroups.map((group) => (
+        {visibleNavGroups.map((group) => (
           <div key={group.label} className="space-y-2">
             {!compact ? (
               <p className="px-3 text-[0.68rem] font-semibold uppercase text-blue-100/80">

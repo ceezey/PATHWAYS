@@ -24,6 +24,7 @@ export const webEnvSchema = z.object({
     .default('true')
     .transform((value) => value === 'true'),
   NEXT_PUBLIC_SENTRY_DSN: optionalString,
+  STAFF_PORTAL_BASE_URL: optionalUrl,
   WEB_PORT: z.coerce.number().default(3000),
 })
 

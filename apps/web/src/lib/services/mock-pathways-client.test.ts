@@ -148,4 +148,21 @@ describe('MockPathwaysClient dashboard data', () => {
     expect(sections.length).toBeGreaterThan(0)
     expect(sections.every((section) => section.projectId === 'prototype-project')).toBe(true)
   })
+
+  it('serves approved public project records without beneficiary-level fields', async () => {
+    const publicProjects = await client.getPublicProjects()
+
+    expect(publicProjects.length).toBeGreaterThan(0)
+    expect(publicProjects[0]).toMatchObject({
+      publicationState: 'Approved for public preview',
+    })
+    expect(JSON.stringify(publicProjects)).not.toMatch(/firstName|lastName|contact|phone/i)
+  })
+
+  it('returns a single public project detail record by id', async () => {
+    await expect(client.getPublicProject('futuremakers-ncr')).resolves.toMatchObject({
+      title: 'FutureMakers NCR',
+      projectAreas: expect.arrayContaining(['Quezon City']),
+    })
+  })
 })

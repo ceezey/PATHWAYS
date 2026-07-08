@@ -7,6 +7,7 @@ describe('env readers', () => {
     const env = readWebEnv({})
 
     expect(env.WEB_PORT).toBe(3000)
+    expect(env.STAFF_PORTAL_BASE_URL).toBe('')
     expect(env.NEXT_PUBLIC_ENABLE_GUI_PROTOTYPE_MODE).toBe(false)
     expect(env.NEXT_PUBLIC_ENABLE_ROLE_PREVIEW).toBe(true)
   })

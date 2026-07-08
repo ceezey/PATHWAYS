@@ -3,6 +3,7 @@
 import type { Session } from '@supabase/supabase-js'
 import { createContext, useContext, useEffect, useState } from 'react'
 
+import { clearBeneficiaryAccess } from '@/lib/auth/beneficiary-step-up'
 import {
   clearPrototypeSession,
   readPrototypeSession,
@@ -57,6 +58,7 @@ export const SessionProvider = ({ children }: { children: React.ReactNode }) => 
   const signOut = async () => {
     if (webSetupState.guiPrototypeModeEnabled) {
       clearPrototypeSession()
+      clearBeneficiaryAccess()
       setPrototypeSession(null)
       setSession(null)
       setStatus('unauthenticated')

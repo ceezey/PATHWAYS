@@ -7,22 +7,39 @@ import { usePathname } from 'next/navigation'
 import { ProgressBar } from '@/components/pathways/progress-bar'
 import { StatusBadge } from '@/components/pathways/status-badge'
 import { Button } from '@/components/ui/button'
+import { usePrototypeRole } from '@/hooks/use-prototype-role'
+import { type WorkspaceTabAccess, filterWorkspaceTabs } from '@/lib/rbac/route-access'
 import type { ProjectDetail } from '@/types/pathways'
 
 import { formatNumber, projectHealthTone, projectStatusTone } from './project-utils'
 
-const workspaceTabs = [
-  { label: 'Activities', path: 'activities', implemented: true },
-  { label: 'Evidence & Reports', path: 'evidence', implemented: true },
-  { label: 'Target Indicators', path: 'indicators', implemented: true },
-  { label: 'Monitor & Evaluate', path: 'monitor-evaluate', implemented: true },
-  { label: 'Budget', path: 'budget', implemented: true },
-  { label: 'Journey Stages', path: 'journey-stages', implemented: true },
-  { label: 'Transparency', path: 'transparency', implemented: true },
+const workspaceTabs: WorkspaceTabAccess[] = [
+  { label: 'Activities', path: 'activities', permission: 'activities.view' },
+  { label: 'Evidence & Reports', path: 'evidence', permission: 'evidence.review' },
+  { label: 'Target Indicators', path: 'indicators', permission: 'indicators.manage' },
+  { label: 'Monitor & Evaluate', path: 'monitor-evaluate', permission: 'monitor_evaluate.view' },
+  {
+    label: 'Budget',
+    path: 'budget',
+    anyPermissions: [
+      'budget.expense.log',
+      'budget.expense.view',
+      'budget.full',
+      'budget.portfolio_view',
+    ],
+  },
+  {
+    label: 'Journey Stages',
+    path: 'journey-stages',
+    anyPermissions: ['activities.create_edit', 'monitor_evaluate.full'],
+  },
+  { label: 'Transparency', path: 'transparency', permission: 'transparency.publish' },
 ]
 
 export const ProjectWorkspaceHeader = ({ project }: { project: ProjectDetail }) => {
   const pathname = usePathname()
+  const { role } = usePrototypeRole()
+  const visibleTabs = filterWorkspaceTabs(workspaceTabs, role)
   const activitiesHref = `/projects/${project.id}/activities`
   const beneficiaryProgress =
     project.targetBeneficiaries > 0
@@ -70,12 +87,10 @@ export const ProjectWorkspaceHeader = ({ project }: { project: ProjectDetail }) 
         <ProgressBar label="Beneficiary reach" tone="success" value={beneficiaryProgress} />
       </div>
       <nav className="mt-5 flex gap-2 overflow-x-auto pb-1" aria-label="Project workspace">
-        {workspaceTabs.map((tab) => {
+        {visibleTabs.map((tab) => {
           const href = `/projects/${project.id}/${tab.path}`
           const active =
-            tab.implemented &&
-            (pathname === href ||
-              (pathname === `/projects/${project.id}` && href === activitiesHref))
+            pathname === href || (pathname === `/projects/${project.id}` && href === activitiesHref)
 
           return (
             <Button

@@ -463,6 +463,7 @@ export const ReportingWorkspace = ({
                   aria-hidden="true"
                 />
                 <Input
+                  aria-label={`${reportTitles[kind]} search`}
                   className="pl-9"
                   placeholder="Type here"
                   value={search}
@@ -470,7 +471,7 @@ export const ReportingWorkspace = ({
                 />
               </span>
               <Select value={projectId} onValueChange={setProjectId}>
-                <SelectTrigger>
+                <SelectTrigger aria-label={`${reportTitles[kind]} project filter`}>
                   <SelectValue placeholder="Project" />
                 </SelectTrigger>
                 <SelectContent>

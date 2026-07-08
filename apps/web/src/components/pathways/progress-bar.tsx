@@ -10,6 +10,7 @@ export const ProgressBar = ({
   tone?: 'info' | 'success' | 'warning' | 'danger'
 }) => {
   const safeValue = Math.min(100, Math.max(0, value))
+  const accessibleLabel = label ?? 'Progress'
 
   return (
     <div className="space-y-2">
@@ -22,7 +23,7 @@ export const ProgressBar = ({
       <div
         className="h-2 overflow-hidden rounded-full bg-muted"
         role="progressbar"
-        aria-label={label}
+        aria-label={accessibleLabel}
         aria-valuemax={100}
         aria-valuemin={0}
         aria-valuenow={safeValue}
