@@ -15,7 +15,7 @@ export const handlers = [
   ),
   http.get(/.*\/api\/imports$/, () =>
     HttpResponse.json({
-      batches: [{ id: 'upload-001', status: 'pending', fileName: 'participants.csv' }],
+      batches: [{ id: 'upload-001', status: 'pending', fileName: 'beneficiaries.csv' }],
     }),
   ),
   http.get(/.*\/api\/dashboards\/overview$/, () =>

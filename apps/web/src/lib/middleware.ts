@@ -4,6 +4,12 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { webEnv, webSupabasePublishableKey } from '@/lib/env'
 
 export async function updateSession(request: NextRequest) {
+  if (webEnv.NEXT_PUBLIC_ENABLE_GUI_PROTOTYPE_MODE || webEnv.NEXT_PUBLIC_ENABLE_DEV_AUTH_BYPASS) {
+    return NextResponse.next({
+      request,
+    })
+  }
+
   if (!webEnv.NEXT_PUBLIC_SUPABASE_URL || !webSupabasePublishableKey) {
     return NextResponse.next({
       request,
@@ -48,12 +54,13 @@ export async function updateSession(request: NextRequest) {
 
   if (
     !user &&
+    !request.nextUrl.pathname.startsWith('/staff/login') &&
     !request.nextUrl.pathname.startsWith('/login') &&
     !request.nextUrl.pathname.startsWith('/auth')
   ) {
     // no user, potentially respond by redirecting the user to the login page
     const url = request.nextUrl.clone()
-    url.pathname = '/login'
+    url.pathname = '/staff/login'
     return NextResponse.redirect(url)
   }
 

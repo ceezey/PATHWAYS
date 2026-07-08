@@ -5,15 +5,18 @@ import { useRouter } from 'next/navigation'
 import { useEffect } from 'react'
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { usePrototypeRole } from '@/hooks/use-prototype-role'
 import { useSession } from '@/hooks/use-session'
+import { RouteAccessGuard } from './route-access-guard'
 
 export const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
   const router = useRouter()
   const { configured, isBypassed, status } = useSession()
+  const { role } = usePrototypeRole()
 
   useEffect(() => {
     if (configured && !isBypassed && status === 'unauthenticated') {
-      router.replace('/login')
+      router.replace('/staff/login')
     }
   }, [configured, isBypassed, router, status])
 
@@ -35,9 +38,9 @@ export const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
             <div className="mt-4">
               <Link
                 className="font-medium text-primary underline-offset-4 hover:underline"
-                href="/login"
+                href="/staff/login"
               >
-                Go to login placeholder
+                Go to secure staff login
               </Link>
             </div>
           </CardContent>
@@ -62,5 +65,5 @@ export const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
     )
   }
 
-  return <>{children}</>
+  return <RouteAccessGuard role={role}>{children}</RouteAccessGuard>
 }

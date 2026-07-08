@@ -10,6 +10,7 @@
     "dev:web": "pnpm --filter @pathways/web dev",
     "dev:api": "pnpm --filter @pathways/api dev",
     "build": "pnpm -r --if-present run build",
+    "gui:render-reference": "node scripts/render-gui-reference.mjs",
     "lint": "pnpm exec biome check .",
     "format": "pnpm exec biome format --write .",
     "test": "pnpm -r --if-present run test",
