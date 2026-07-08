@@ -27,7 +27,7 @@ export const mockPublicProjects: PublicProjectRecord[] = [
       {
         id: 'pub-fm-2',
         label: 'Skills bootcamp participation',
-        targetLabel: '420 participants',
+        targetLabel: '420 beneficiaries',
         actualLabel: '268 reached',
         progress: 64,
         status: 'On Track',

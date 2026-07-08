@@ -140,7 +140,7 @@ export const mockJourneyStages: JourneyStageConfig[] = [
     type: 'Entry',
     terminal: false,
     mappedActivityIds: [],
-    description: 'Registration and service orientation for center participants.',
+    description: 'Registration and service orientation for center beneficiaries.',
   },
   {
     id: 'stage-safe-follow-up',

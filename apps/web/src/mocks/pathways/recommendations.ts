@@ -9,7 +9,7 @@ export const mockRecommendations: RecommendationRecord[] = [
       'Bootcamp indicator is at 64%, below the configured 70% threshold for more than 7 days.',
     ruleExplanation:
       'When KPI achievement falls below target for the review window, a critical alert is raised for human review.',
-    text: 'Review participant outreach strategy and intensify vocational track engagement.',
+    text: 'Review beneficiary outreach strategy and intensify vocational track engagement.',
     reviewStatus: 'New',
   },
   {

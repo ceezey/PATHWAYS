@@ -19,6 +19,3 @@ apps/api/prisma/dev.db-journal
 .env.test.local
 .env.production.local
 .tmp/
-docs/
-scripts/render-gui-reference.mjs
-AGENTS.md

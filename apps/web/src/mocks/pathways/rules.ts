@@ -11,7 +11,7 @@ export const mockRules: RuleDefinition[] = [
     severity: 'Critical',
     status: 'Active',
     suggestedAction:
-      'Review participant outreach strategy and intensify vocational track engagement.',
+      'Review beneficiary outreach strategy and intensify vocational track engagement.',
     description:
       'Flags a project when KPI achievement remains below target for the configured review window.',
     triggeredCount: 3,

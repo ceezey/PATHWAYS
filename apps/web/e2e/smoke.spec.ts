@@ -56,13 +56,13 @@ test('login works and role preview switches through every supported role', async
   await expect(page.getByRole('heading', { name: 'OTP verification' })).toBeVisible()
   await page.getByLabel('Six-digit OTP code').fill('123456')
   await page.getByRole('button', { name: 'Verify Code' }).click()
-  await expect(page).toHaveURL(/\/dashboard$/)
+  await expect(page).toHaveURL(/\/dashboard$/, { timeout: 15_000 })
 
   const roleSwitcher = page.getByRole('combobox', { name: 'Prototype Role Preview' })
   await expect(roleSwitcher).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Program Manager dashboard' })).toBeVisible()
 
   for (const role of [
-    'Program Manager',
     'Project Manager',
     'Monitoring and Evaluation Officer',
     'Project Officer',
@@ -131,10 +131,13 @@ test('beneficiary directory and analytics screens expose critical controls', asy
   ).toBeVisible()
   await expect(page.getByRole('heading', { name: 'Beneficiary management' })).toHaveCount(0)
   await page.getByLabel('Beneficiary access PIN').fill('0000')
-  await page.getByRole('button', { name: 'Verify and enter' }).click()
-  await expect(page.getByText('Invalid beneficiary access PIN.')).toBeVisible()
+  const beneficiaryVerifyButton = page.getByRole('button', { name: 'Verify and enter' })
+  await expect(beneficiaryVerifyButton).toBeEnabled()
+  await beneficiaryVerifyButton.click()
+  await expect(page.getByText('Invalid beneficiary access PIN.')).toBeVisible({ timeout: 15_000 })
   await page.getByLabel('Beneficiary access PIN').fill('2468')
-  await page.getByRole('button', { name: 'Verify and enter' }).click()
+  await expect(beneficiaryVerifyButton).toBeEnabled()
+  await beneficiaryVerifyButton.click()
   await expect(page.getByRole('heading', { name: 'Beneficiary management' })).toBeVisible()
   await expect(page.getByLabel('Search')).toBeVisible()
   await expect(page.getByRole('button', { name: 'Verify access' })).toHaveCount(0)

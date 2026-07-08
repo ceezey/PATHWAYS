@@ -175,7 +175,7 @@ export const LoginForm = () => {
     toast.success('Prototype session started after OTP verification.', {
       description: `${result.account.role} dashboard preview is ready.`,
     })
-    router.push('/dashboard')
+    window.location.replace('/dashboard')
   }
 
   const resendOtp = async () => {

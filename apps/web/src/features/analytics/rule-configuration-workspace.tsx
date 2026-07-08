@@ -63,7 +63,7 @@ const emptyDraft: RuleDraft = {
   severity: 'High',
   status: 'Active',
   suggestedAction:
-    'Review participant outreach strategy and intensify vocational track engagement.',
+    'Review beneficiary outreach strategy and intensify vocational track engagement.',
   description: 'Prototype rule created from the rule configuration form.',
 }
 
