@@ -9,9 +9,16 @@ export async function middleware(request: NextRequest) {
 export const config = {
   matcher: [
     '/dashboard/:path*',
+    '/projects/:path*',
+    '/beneficiaries/:path*',
+    '/collection/:path*',
+    '/analytics/:path*',
+    '/alerts/:path*',
+    '/recommendations/:path*',
     '/imports/:path*',
     '/participants/:path*',
     '/reports/:path*',
     '/settings/:path*',
+    '/unauthorized',
   ],
 }

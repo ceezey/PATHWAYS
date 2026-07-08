@@ -4,25 +4,38 @@
 
 @layer base {
   :root {
-    --background: 205 38% 98%;
+    --background: 210 33% 98%;
     --foreground: 214 32% 16%;
+    --workspace: 213 35% 96%;
     --card: 0 0% 100%;
     --card-foreground: 214 32% 16%;
     --popover: 0 0% 100%;
     --popover-foreground: 214 32% 16%;
-    --primary: 173 80% 28%;
+    --primary: 207 88% 39%;
     --primary-foreground: 0 0% 100%;
-    --secondary: 200 27% 92%;
+    --navy: 213 78% 18%;
+    --navy-foreground: 0 0% 100%;
+    --light-blue: 203 94% 92%;
+    --light-blue-foreground: 207 88% 28%;
+    --secondary: 207 28% 92%;
     --secondary-foreground: 214 32% 16%;
     --muted: 206 30% 94%;
     --muted-foreground: 215 16% 39%;
-    --accent: 43 83% 93%;
+    --accent: 203 94% 92%;
     --accent-foreground: 214 32% 16%;
+    --success: 151 63% 34%;
+    --success-foreground: 0 0% 100%;
+    --warning: 38 92% 45%;
+    --warning-foreground: 30 75% 12%;
+    --danger: 0 72% 51%;
+    --danger-foreground: 0 0% 100%;
+    --info: 207 88% 39%;
+    --info-foreground: 0 0% 100%;
     --destructive: 0 72% 51%;
     --border: 210 22% 86%;
     --input: 210 22% 86%;
-    --ring: 173 80% 28%;
-    --radius: 1rem;
+    --ring: 207 88% 39%;
+    --radius: 0.5rem;
   }
 
   * {
@@ -35,9 +48,7 @@
 
   body {
     @apply min-h-screen bg-background text-foreground antialiased;
-    background-image: radial-gradient(circle at top left, rgba(15, 118, 110, 0.12), transparent 32%),
-      radial-gradient(circle at top right, rgba(245, 158, 11, 0.12), transparent 28%),
-      linear-gradient(180deg, rgba(255, 255, 255, 0.86), rgba(248, 250, 252, 1));
+    background: hsl(var(--background));
     font-family: "Segoe UI", "Helvetica Neue", Arial, sans-serif;
   }
 }

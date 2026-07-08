@@ -7,6 +7,7 @@ WORKDIR /workspace
 COPY . .
 RUN pnpm install --frozen-lockfile
 RUN pnpm --filter @pathways/web build
+RUN apk add --no-cache poppler-utils
 
 EXPOSE 3000
 CMD ["pnpm", "--filter", "@pathways/web", "exec", "next", "start", "--hostname", "0.0.0.0", "--port", "3000"]

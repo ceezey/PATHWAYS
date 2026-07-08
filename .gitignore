@@ -5,6 +5,7 @@ dist
 coverage
 .turbo
 .cache
+.cache/gui-reference/
 .DS_Store
 Thumbs.db
 playwright-report

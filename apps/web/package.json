@@ -9,7 +9,7 @@
     "lint": "biome check .",
     "test": "vitest run --passWithNoTests",
     "typecheck": "tsc --noEmit",
-    "e2e": "playwright test"
+    "e2e": "playwright test --config ../../playwright.config.ts"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.10.0",

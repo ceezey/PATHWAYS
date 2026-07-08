@@ -2,16 +2,16 @@ import { compareHeaders, createFileSummary } from '@pathways/imports'
 
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 
-const headers = ['participant_id', 'full_name', 'sex', 'program_code']
-const expectedHeaders = ['participant_id', 'full_name', 'age', 'sex', 'program_code']
+const headers = ['beneficiary_id', 'full_name', 'sex', 'program_code']
+const expectedHeaders = ['beneficiary_id', 'full_name', 'age', 'sex', 'program_code']
 const rows = [
-  { participant_id: 'P-001', full_name: 'Ariella Santos', sex: 'F', program_code: 'YL-01' },
-  { participant_id: 'P-002', full_name: 'Daniel Cruz', sex: 'M', program_code: 'CVA-04' },
+  { beneficiary_id: 'B-001', full_name: 'Ariella Santos', sex: 'F', program_code: 'YL-01' },
+  { beneficiary_id: 'B-002', full_name: 'Daniel Cruz', sex: 'M', program_code: 'CVA-04' },
 ]
 
 const headerComparison = compareHeaders(expectedHeaders, headers)
 const fileSummary = createFileSummary(
-  'participant-registry-template.csv',
+  'beneficiary-registry-template.csv',
   'csv',
   headers,
   rows,
