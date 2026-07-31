@@ -162,7 +162,7 @@ const modeDetails: Array<{
   },
   {
     id: 'scratch',
-    title: 'Build from scratch',
+    title: 'Build forms',
     description: 'Create fields one by one with metadata guidance.',
     href: '/collection/forms/new',
   },
@@ -1256,7 +1256,7 @@ const ImportView = ({
                 setView('builder')
               }}
             >
-              Build from scratch
+              Build Forms
             </Button>
           </div>
         </div>
