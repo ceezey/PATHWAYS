@@ -1,4 +1,5 @@
 import type { DashboardNavGroup, DashboardNavItem } from '@/constants/navigation'
+import type { ReportKind } from '@/types/pathways'
 import type { PrototypeRole } from '@/types/prototype-role'
 import { can, canAny } from './can'
 import type { PermissionCode } from './permissions'
@@ -14,6 +15,12 @@ export interface WorkspaceTabAccess {
   path: string
   permission?: PermissionCode
   anyPermissions?: PermissionCode[]
+}
+
+export const reportKindPermissions: Record<ReportKind, PermissionCode> = {
+  'project-summary': 'reports.project_summary.view',
+  'indicator-summary': 'reports.indicator_summary.view',
+  'beneficiary-summary': 'reports.beneficiary_summary.view',
 }
 
 const normalizePath = (pathname: string) => pathname.split('?')[0] ?? pathname
@@ -114,6 +121,22 @@ const routeChecks: Array<{
     test: (pathname) => pathname.startsWith('/recommendations'),
     moduleName: 'Recommendations',
     allowed: (role) => can(role, 'alerts.outcome.log'),
+  },
+  {
+    test: (pathname) => pathname === '/reports/project-summary',
+    moduleName: 'Project Summary',
+    allowed: (role) => can(role, reportKindPermissions['project-summary']),
+  },
+  {
+    test: (pathname) => pathname === '/reports/indicator-summary',
+    moduleName: 'Indicator Summary',
+    allowed: (role) => can(role, reportKindPermissions['indicator-summary']),
+  },
+  {
+    test: (pathname) =>
+      pathname === '/reports/beneficiary-summary' || pathname === '/reports/preview',
+    moduleName: 'Beneficiary Summary',
+    allowed: (role) => can(role, reportKindPermissions['beneficiary-summary']),
   },
   {
     test: (pathname) => pathname.startsWith('/reports'),
