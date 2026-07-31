@@ -29,6 +29,9 @@ export const roleAccessProfiles: Record<PrototypeRole, RoleAccessProfile> = {
       'budget.expense.log',
       'beneficiaries.scoped_view',
       'collection.view',
+      'analytics.view',
+      'reports.view',
+      'reports.beneficiary_summary.view',
     ],
     dataScopes: ['assigned_projects', 'assigned_activities'],
     modules: {
@@ -46,6 +49,7 @@ export const roleAccessProfiles: Record<PrototypeRole, RoleAccessProfile> = {
     role: 'Monitoring and Evaluation Officer',
     permissions: [
       'projects.view',
+      'activities.view',
       'evidence.review',
       'indicators.manage',
       'budget.expense.view',
@@ -58,6 +62,9 @@ export const roleAccessProfiles: Record<PrototypeRole, RoleAccessProfile> = {
       'collection.view',
       'analytics.view',
       'reports.view',
+      'reports.project_summary.view',
+      'reports.indicator_summary.view',
+      'reports.beneficiary_summary.view',
     ],
     dataScopes: ['monitored_projects'],
     modules: {
@@ -90,6 +97,9 @@ export const roleAccessProfiles: Record<PrototypeRole, RoleAccessProfile> = {
       'transparency.publish',
       'analytics.view',
       'reports.view',
+      'reports.project_summary.view',
+      'reports.indicator_summary.view',
+      'reports.beneficiary_summary.view',
     ],
     dataScopes: ['managed_projects'],
     modules: {
@@ -115,6 +125,9 @@ export const roleAccessProfiles: Record<PrototypeRole, RoleAccessProfile> = {
       'alerts.outcome.log',
       'analytics.view',
       'reports.view',
+      'reports.project_summary.view',
+      'reports.indicator_summary.view',
+      'reports.beneficiary_summary.view',
     ],
     dataScopes: ['portfolio_projects'],
     modules: {
@@ -144,6 +157,9 @@ export const roleAccessProfiles: Record<PrototypeRole, RoleAccessProfile> = {
       'alerts.outcome.log',
       'analytics.view',
       'reports.view',
+      'reports.project_summary.view',
+      'reports.indicator_summary.view',
+      'reports.beneficiary_summary.view',
       'settings.view',
     ],
     dataScopes: ['organization'],

@@ -25,6 +25,9 @@ export type PermissionCode =
   | 'collection.view'
   | 'analytics.view'
   | 'reports.view'
+  | 'reports.project_summary.view'
+  | 'reports.indicator_summary.view'
+  | 'reports.beneficiary_summary.view'
   | 'settings.view'
 
 export type DataScopeCode =

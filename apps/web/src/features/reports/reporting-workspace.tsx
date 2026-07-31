@@ -18,7 +18,7 @@ import {
   Search,
 } from 'lucide-react'
 import Link from 'next/link'
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { toast } from 'sonner'
 
 import { ProgressBar } from '@/components/pathways/progress-bar'
@@ -57,6 +57,9 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
+import { usePrototypeRole } from '@/hooks/use-prototype-role'
+import { can } from '@/lib/rbac/can'
+import { reportKindPermissions } from '@/lib/rbac/route-access'
 import type {
   BeneficiaryRecord,
   ProjectDetail,
@@ -174,7 +177,16 @@ export const ReportingWorkspace = ({
   projects,
   reports,
 }: ReportingWorkspaceProps) => {
-  const [kind, setKind] = useState<ReportKind>(initialKind)
+  const { role } = usePrototypeRole()
+  const visibleReportTabs = useMemo(
+    () => reportTabs.filter((tab) => can(role, reportKindPermissions[tab.kind])),
+    [role],
+  )
+  const initialVisibleKind = visibleReportTabs.some((tab) => tab.kind === initialKind)
+    ? initialKind
+    : (visibleReportTabs[0]?.kind ?? initialKind)
+
+  const [kind, setKind] = useState<ReportKind>(initialVisibleKind)
   const [search, setSearch] = useState('')
   const [projectId, setProjectId] = useState(allValue)
   const [indicatorGenerated, setIndicatorGenerated] = useState(initialKind !== 'indicator-summary')
@@ -182,6 +194,16 @@ export const ReportingWorkspace = ({
   const [previewOpen, setPreviewOpen] = useState(previewOnly)
   const [visibleColumns, setVisibleColumns] =
     useState<Record<ReportKind, string[]>>(defaultVisibleColumns)
+
+  useEffect(() => {
+    if (visibleReportTabs.length === 0 || visibleReportTabs.some((tab) => tab.kind === kind)) {
+      return
+    }
+
+    setKind(visibleReportTabs[0].kind)
+    setSearch('')
+    setProjectId(allValue)
+  }, [kind, visibleReportTabs])
 
   const selectedProject =
     projectId === allValue ? projects[0] : projects.find((project) => project.id === projectId)
@@ -402,7 +424,7 @@ export const ReportingWorkspace = ({
         <CardHeader className="space-y-4">
           <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
             <nav className="flex flex-wrap gap-2" aria-label="Report sections">
-              {reportTabs.map((tab) => (
+              {visibleReportTabs.map((tab) => (
                 <Button
                   asChild
                   key={tab.kind}

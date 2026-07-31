@@ -7,6 +7,10 @@ describe('Phase 10.5 RBAC matrix', () => {
   it.each([
     ['Project Officer', 'budget.expense.log', true],
     ['Project Officer', 'monitor_evaluate.view', false],
+    ['Project Officer', 'reports.view', true],
+    ['Project Officer', 'reports.beneficiary_summary.view', true],
+    ['Project Officer', 'reports.project_summary.view', false],
+    ['Project Officer', 'reports.indicator_summary.view', false],
     ['Monitoring and Evaluation Officer', 'budget.expense.verify', true],
     ['Monitoring and Evaluation Officer', 'alerts.outcome.log', false],
     ['Project Manager', 'evaluation.approve', true],
@@ -33,6 +37,25 @@ describe('Phase 10.5 RBAC matrix', () => {
     expect(getRouteAccess('Project Officer', '/settings/rules')).toMatchObject({
       allowed: false,
       moduleName: 'Rule center',
+    })
+  })
+
+  it('limits Project Officer reports to beneficiary summary', () => {
+    expect(getRouteAccess('Project Officer', '/reports')).toMatchObject({
+      allowed: true,
+      moduleName: 'Reports',
+    })
+    expect(getRouteAccess('Project Officer', '/reports/beneficiary-summary')).toMatchObject({
+      allowed: true,
+      moduleName: 'Beneficiary Summary',
+    })
+    expect(getRouteAccess('Project Officer', '/reports/project-summary')).toMatchObject({
+      allowed: false,
+      moduleName: 'Project Summary',
+    })
+    expect(getRouteAccess('Project Officer', '/reports/indicator-summary')).toMatchObject({
+      allowed: false,
+      moduleName: 'Indicator Summary',
     })
   })
 
