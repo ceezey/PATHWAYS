@@ -238,3 +238,5 @@ If all of these are true, your local setup is probably good:
 - `TODO.md`: the setup checklist and verification record
 - `infra/environment.md`: environment variable guide
 - `infra/supabase/HUMAN_SETUP.md`: Supabase setup notes
+
+## malaking tite
