@@ -13,7 +13,6 @@ import { useMemo, useState } from 'react'
 
 import { EmptyState } from '@/components/pathways/empty-state'
 import { MetricCard } from '@/components/pathways/metric-card'
-import { StatusBadge } from '@/components/pathways/status-badge'
 import { Button } from '@/components/ui/button'
 import {
   Select,
@@ -22,9 +21,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import { usePrototypeLabels } from '@/hooks/use-prototype-labels'
+import { usePrototypeRole } from '@/hooks/use-prototype-role'
+import { can } from '@/lib/rbac/can'
 import type {
   Activity,
   AlertRecord,
+  AnalyticsLocationRecord,
   BeneficiaryRecord,
   BudgetRecord,
   ProjectDetail,
@@ -33,11 +36,12 @@ import type {
 import {
   ActivityCompletionChart,
   AlertCountsChart,
-  BeneficiaryReachChart,
   BudgetUtilizationChart,
   ProjectPerformanceTrendChart,
   SadddChart,
 } from './analytics-charts'
+import { AnalyticsCoverageMap } from './analytics-coverage-map'
+import { buildLocationInsights } from './analytics-location-utils'
 import { formatNumber, formatPercent, humanReviewDisclaimer } from './analytics-utils'
 
 const allValue = 'all'
@@ -49,6 +53,7 @@ type AnalyticsDashboardProps = {
   budgets: BudgetRecord[]
   beneficiaries: BeneficiaryRecord[]
   alerts: AlertRecord[]
+  locations: AnalyticsLocationRecord[]
 }
 
 export const AnalyticsDashboard = ({
@@ -57,7 +62,10 @@ export const AnalyticsDashboard = ({
   budgets,
   beneficiaries,
   alerts,
+  locations,
 }: AnalyticsDashboardProps) => {
+  const { labels } = usePrototypeLabels()
+  const { role } = usePrototypeRole()
   const [projectId, setProjectId] = useState(allValue)
   const [period, setPeriod] = useState('Q2 2026')
   const [loading, setLoading] = useState(false)
@@ -73,7 +81,10 @@ export const AnalyticsDashboard = ({
       projectId === allValue ? projects : projects.filter((project) => project.id === projectId),
     [projectId, projects],
   )
-  const visibleProjectIds = visibleProjects.map((project) => project.id)
+  const visibleProjectIds = useMemo(
+    () => visibleProjects.map((project) => project.id),
+    [visibleProjects],
+  )
   // TODO(DATABASE): Query analytics from project, indicator, budget, assessment, and participation records.
   const visibleActivities = activities.filter((activity) =>
     visibleProjectIds.includes(activity.projectId),
@@ -83,6 +94,10 @@ export const AnalyticsDashboard = ({
     beneficiary.projectIds.some((id) => visibleProjectIds.includes(id)),
   )
   const visibleAlerts = alerts.filter((alert) => visibleProjectIds.includes(alert.projectId))
+  const visibleLocations = useMemo(
+    () => buildLocationInsights(locations, visibleProjectIds),
+    [locations, visibleProjectIds],
+  )
 
   const averageKpi =
     visibleProjects.length > 0
@@ -105,36 +120,45 @@ export const AnalyticsDashboard = ({
   const completedActivities = visibleActivities.filter(
     (activity) => activity.status === 'Completed',
   ).length
+  const canReviewAlerts = can(role, 'alerts.outcome.log')
+  const canViewRules = can(role, 'rules.view')
+  const canConfigureRules = can(role, 'rules.configure')
 
   return (
     <div className="space-y-6">
       <section className="flex flex-col gap-4 rounded-lg border border-border bg-card p-5 shadow-sm lg:flex-row lg:items-start lg:justify-between">
         <div className="space-y-2">
-          <div className="flex flex-wrap gap-2">
-            <StatusBadge tone="info">ECharts dashboard</StatusBadge>
-            <StatusBadge tone="neutral">Frontend prototype</StatusBadge>
-          </div>
           <div>
             <h1 className="text-3xl font-semibold tracking-tight text-foreground">
-              Monitoring and analytics dashboard
+              {labels.moduleAnalytics}
             </h1>
             <p className="mt-2 max-w-3xl text-sm leading-6 text-muted-foreground">
-              Project performance, SADDD breakdowns, budget utilization, beneficiary reach, and
-              rule-based alert signals for human review.
+              Project performance, SADDD Analysis, budget utilization, aggregate location coverage,
+              Beneficiary reach, and Rule-Based Alerts for human review.
             </p>
           </div>
         </div>
-        <div className="flex flex-wrap gap-2">
-          <Button asChild variant="outline">
-            <Link href="/alerts">Active alerts</Link>
-          </Button>
-          <Button asChild variant="outline">
-            <Link href="/recommendations">Recommendations</Link>
-          </Button>
-          <Button asChild>
-            <Link href="/settings/rules">Manage rules</Link>
-          </Button>
-        </div>
+        {canReviewAlerts || canViewRules ? (
+          <div className="flex flex-wrap gap-2">
+            {canReviewAlerts ? (
+              <>
+                <Button asChild variant="outline">
+                  <Link href="/alerts">{labels.moduleAlerts}</Link>
+                </Button>
+                <Button asChild variant="outline">
+                  <Link href="/recommendations">{labels.moduleRecommendations}</Link>
+                </Button>
+              </>
+            ) : null}
+            {canViewRules ? (
+              <Button asChild>
+                <Link href="/alerts/repository">
+                  {canConfigureRules ? 'Manage alert rules' : 'View alert rules'}
+                </Link>
+              </Button>
+            ) : null}
+          </div>
+        ) : null}
       </section>
 
       <section className="grid gap-3 rounded-lg border border-border bg-card p-5 shadow-sm md:grid-cols-2 xl:grid-cols-[1fr_240px_240px]">
@@ -185,7 +209,7 @@ export const AnalyticsDashboard = ({
         </section>
       ) : visibleProjects.length === 0 ? (
         <EmptyState
-          description="Adjust the project or reporting-period filter to show analytics mock data."
+          description="Adjust the project or reporting-period filter to show sample analysis data."
           icon={BarChart3}
           title="No analytics data for this filter"
         />
@@ -221,15 +245,21 @@ export const AnalyticsDashboard = ({
               value={`${completedActivities}/${visibleActivities.length}`}
             />
             <MetricCard
-              description="Alerts requiring review, action, or acknowledgement."
+              description="Rule-Based Alerts requiring review, action, or acknowledgement."
               icon={AlertTriangle}
-              label="Alert counts"
+              label="Rule-Based Alerts"
               tone={
                 visibleAlerts.some((alert) => alert.severity === 'Critical') ? 'danger' : 'warning'
               }
               value={visibleAlerts.length.toString()}
             />
           </section>
+
+          <AnalyticsCoverageMap
+            locations={visibleLocations}
+            period={period}
+            projects={visibleProjects}
+          />
 
           <section className="grid gap-6 xl:grid-cols-2">
             <ChartPanel title="Project performance trend">
@@ -238,16 +268,13 @@ export const AnalyticsDashboard = ({
             <ChartPanel title="Budget utilization">
               <BudgetUtilizationChart budgets={visibleBudgets} projects={visibleProjects} />
             </ChartPanel>
-            <ChartPanel title="Beneficiary reach">
-              <BeneficiaryReachChart projects={visibleProjects} />
-            </ChartPanel>
-            <ChartPanel title="SADDD breakdown">
+            <ChartPanel title="SADDD Analysis">
               <SadddChart beneficiaries={visibleBeneficiaries} />
             </ChartPanel>
             <ChartPanel title="Activity completion">
               <ActivityCompletionChart activities={visibleActivities} />
             </ChartPanel>
-            <ChartPanel title="Alert counts">
+            <ChartPanel title="Rule-Based Alerts">
               <AlertCountsChart alerts={visibleAlerts} />
             </ChartPanel>
           </section>

@@ -12,9 +12,10 @@ export default async function BeneficiaryDetailPage({
   const { beneficiaryId } = await params
 
   try {
-    const [beneficiary, projects] = await Promise.all([
+    const [beneficiary, projects, mediaProof] = await Promise.all([
       pathwaysClient.getBeneficiaryRecord(beneficiaryId),
       pathwaysClient.getProjects(),
+      pathwaysClient.getBeneficiaryMediaProof(beneficiaryId),
     ])
     const projectIds = beneficiary.projectIds
     const [activityGroups, stageGroups] = await Promise.all([
@@ -26,6 +27,7 @@ export default async function BeneficiaryDetailPage({
       <BeneficiaryDetail
         activities={activityGroups.flat()}
         beneficiary={beneficiary}
+        mediaProof={mediaProof}
         projects={projects}
         stages={stageGroups.flat()}
       />

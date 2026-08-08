@@ -7,6 +7,7 @@ import { useEffect, useState } from 'react'
 import { PageHeader } from '@/components/layout/page-header'
 import { EmptyState, ProgressBar, SectionCard, StatusBadge } from '@/components/pathways'
 import { Button } from '@/components/ui/button'
+import { usePrototypeLabels } from '@/hooks/use-prototype-labels'
 import { pathwaysClient } from '@/lib/services/mock-pathways-client'
 import type { ProjectDetail } from '@/types/pathways'
 
@@ -19,6 +20,7 @@ import {
 import { ProjectWorkspaceHeader } from './project-workspace-header'
 
 export const ProjectDetailView = ({ projectId }: { projectId: string }) => {
+  const { labels } = usePrototypeLabels()
   const [project, setProject] = useState<ProjectDetail | null>(null)
   const [status, setStatus] = useState<'loading' | 'success' | 'error'>('loading')
 
@@ -84,7 +86,7 @@ export const ProjectDetailView = ({ projectId }: { projectId: string }) => {
   return (
     <>
       <PageHeader
-        eyebrow="Project workspace"
+        eyebrow={labels.projectWorkspace}
         title={project.title}
         description={project.description}
         actions={
@@ -196,7 +198,7 @@ export const ProjectDetailView = ({ projectId }: { projectId: string }) => {
             </div>
           </div>
         </SectionCard>
-        <SectionCard title="Beneficiary target" description="Prototype target and reach.">
+        <SectionCard title="Beneficiary target" description="Current target and aggregate reach.">
           <div className="flex items-start gap-3 text-sm">
             <UsersRound className="mt-1 h-4 w-4 shrink-0 text-primary" aria-hidden="true" />
             <div>
@@ -214,9 +216,9 @@ export const ProjectDetailView = ({ projectId }: { projectId: string }) => {
           description="Project workspace tabs are available now."
         >
           <p className="text-sm leading-6 text-muted-foreground">
-            Activities, evidence, target indicators, monitoring and evaluation, budget, and
-            transparency are wired as frontend prototype tabs. Journey stages remain scheduled for a
-            later phase.
+            Activities, evidence, target indicators, monitoring and evaluation, budget, Beneficiary
+            Journey Tracking stages, and public transparency are available according to the selected
+            role.
           </p>
         </SectionCard>
       </section>

@@ -3,7 +3,9 @@ import {
   fallbackDashboard,
   mockActivities,
   mockAlerts,
+  mockAnalyticsLocations,
   mockBeneficiaries,
+  mockBeneficiaryMediaProof,
   mockBeneficiaryRecords,
   mockBudgets,
   mockDashboards,
@@ -25,8 +27,10 @@ import {
 import type {
   Activity,
   AlertRecord,
+  AnalyticsLocationRecord,
   Beneficiary,
   BeneficiaryFilters,
+  BeneficiaryMediaProofRecord,
   BeneficiaryRecord,
   BudgetRecord,
   CreateActivityInput,
@@ -528,6 +532,12 @@ export class MockPathwaysClient implements PathwaysClient {
     return beneficiary
   }
 
+  async getBeneficiaryMediaProof(beneficiaryId: string): Promise<BeneficiaryMediaProofRecord[]> {
+    await this.wait()
+    // TODO(STORAGE): Load private Beneficiary media through approved access-controlled storage.
+    return mockBeneficiaryMediaProof.filter((item) => item.beneficiaryId === beneficiaryId)
+  }
+
   async getJourneyStages(projectId: string): Promise<JourneyStageConfig[]> {
     await this.wait()
     // TODO(DATABASE): Load configurable stages and activity-stage mappings.
@@ -550,6 +560,12 @@ export class MockPathwaysClient implements PathwaysClient {
     await this.wait()
     // TODO(ALERTS): Evaluate rules through the backend rule engine.
     return projectId ? mockAlerts.filter((alert) => alert.projectId === projectId) : mockAlerts
+  }
+
+  async getAnalyticsLocations(): Promise<AnalyticsLocationRecord[]> {
+    await this.wait()
+    // TODO(BACKEND): Replace aggregate mock coverage locations with approved GIS summaries.
+    return mockAnalyticsLocations
   }
 
   async getRecommendations(): Promise<RecommendationRecord[]> {

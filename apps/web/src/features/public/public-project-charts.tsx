@@ -11,6 +11,11 @@ export const PublicProgressTrendChart = ({ project }: { project: PublicProjectRe
   <ReactECharts
     className="h-[260px] w-full"
     option={{
+      animation: false,
+      aria: {
+        enabled: true,
+        description: `Approved progress trend for ${project.title}.`,
+      },
       color: colors,
       tooltip: { trigger: 'axis' },
       grid,
@@ -33,6 +38,11 @@ export const PublicIndicatorChart = ({ project }: { project: PublicProjectRecord
   <ReactECharts
     className="h-[260px] w-full"
     option={{
+      animation: false,
+      aria: {
+        enabled: true,
+        description: `Selected public indicator progress for ${project.title}.`,
+      },
       color: ['#2563eb'],
       tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' } },
       grid,
@@ -40,6 +50,11 @@ export const PublicIndicatorChart = ({ project }: { project: PublicProjectRecord
       yAxis: {
         type: 'category',
         data: project.selectedIndicators.map((indicator) => indicator.label),
+        axisLabel: {
+          width: 120,
+          overflow: 'truncate',
+          ellipsis: '…',
+        },
       },
       series: [
         {
@@ -56,6 +71,11 @@ export const PublicPortfolioChart = ({ projects }: { projects: PublicProjectReco
   <ReactECharts
     className="h-[280px] w-full"
     option={{
+      animation: false,
+      aria: {
+        enabled: true,
+        description: 'Average selected-indicator progress across approved public projects.',
+      },
       color: colors,
       tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' } },
       legend: { top: 0 },

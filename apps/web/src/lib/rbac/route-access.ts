@@ -92,8 +92,8 @@ const routeChecks: Array<{
   },
   {
     test: (pathname) => /^\/projects\/[^/]+\/transparency/.test(pathname),
-    moduleName: 'Transparency publishing',
-    allowed: (role) => can(role, 'transparency.publish'),
+    moduleName: 'Public dashboard preview',
+    allowed: (role) => canAny(role, ['transparency.preview', 'transparency.publish']),
   },
   {
     test: (pathname) => pathname.startsWith('/beneficiaries'),
@@ -111,6 +111,11 @@ const routeChecks: Array<{
     test: (pathname) => pathname.startsWith('/analytics'),
     moduleName: 'Analytics',
     allowed: (role) => can(role, 'analytics.view'),
+  },
+  {
+    test: (pathname) => pathname === '/alerts/repository',
+    moduleName: 'Alerts Repository',
+    allowed: (role) => can(role, 'rules.view'),
   },
   {
     test: (pathname) => pathname.startsWith('/alerts'),
@@ -145,8 +150,18 @@ const routeChecks: Array<{
   },
   {
     test: (pathname) => pathname === '/settings/rules',
-    moduleName: 'Rule center',
+    moduleName: 'Alerts Repository',
     allowed: (role) => can(role, 'rules.view'),
+  },
+  {
+    test: (pathname) => pathname === '/settings/users',
+    moduleName: 'User Management',
+    allowed: (role) => can(role, 'settings.view'),
+  },
+  {
+    test: (pathname) => pathname === '/settings/labels',
+    moduleName: 'Edit Labels',
+    allowed: (role) => can(role, 'settings.view'),
   },
   {
     test: (pathname) => pathname.startsWith('/settings'),
@@ -181,7 +196,9 @@ const navPermissions: Record<string, PermissionCode | PermissionCode[] | undefin
   '/alerts': 'alerts.outcome.log',
   '/recommendations': 'alerts.outcome.log',
   '/reports': 'reports.view',
-  '/settings': 'settings.view',
+  '/alerts/repository': 'rules.view',
+  '/settings/users': 'settings.view',
+  '/settings/labels': 'settings.view',
 }
 
 export const filterDashboardNavGroups = (

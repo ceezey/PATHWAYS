@@ -25,6 +25,11 @@ export const ProjectPerformanceTrendChart = ({ projects }: Pick<ChartProps, 'pro
   <ReactECharts
     className="h-[300px] w-full"
     option={{
+      animation: false,
+      aria: {
+        enabled: true,
+        description: 'Monthly project performance trends for the selected project view.',
+      },
       color: colors,
       tooltip: { trigger: 'axis' },
       legend: { top: 0 },
@@ -51,6 +56,11 @@ export const BudgetUtilizationChart = ({
   <ReactECharts
     className="h-[280px] w-full"
     option={{
+      animation: false,
+      aria: {
+        enabled: true,
+        description: 'Planned allocation and actual spending by project.',
+      },
       color: ['#2563eb', '#f59e0b'],
       tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' } },
       legend: { top: 0 },
@@ -82,31 +92,6 @@ export const BudgetUtilizationChart = ({
   />
 )
 
-export const BeneficiaryReachChart = ({ projects }: Pick<ChartProps, 'projects'>) => (
-  <ReactECharts
-    className="h-[280px] w-full"
-    option={{
-      color: ['#0f766e', '#e2e8f0'],
-      tooltip: { trigger: 'item' },
-      series: projects.map((project, index) => {
-        const remaining = Math.max(project.targetBeneficiaries - project.beneficiariesReached, 0)
-
-        return {
-          name: project.title,
-          type: 'pie',
-          radius: ['48%', '68%'],
-          center: [`${18 + index * 20}%`, '52%'],
-          label: { formatter: project.title.split(' ')[0], fontSize: 10 },
-          data: [
-            { value: project.beneficiariesReached, name: 'Reached' },
-            { value: remaining, name: 'Remaining' },
-          ],
-        }
-      }),
-    }}
-  />
-)
-
 export const SadddChart = ({ beneficiaries }: Pick<ChartProps, 'beneficiaries'>) => {
   const sexGroups = ['Female', 'Male', 'Prefer not to say']
   const ageGroups = ['10-14', '15-17', '18-24', '25+']
@@ -115,6 +100,11 @@ export const SadddChart = ({ beneficiaries }: Pick<ChartProps, 'beneficiaries'>)
     <ReactECharts
       className="h-[280px] w-full"
       option={{
+        animation: false,
+        aria: {
+          enabled: true,
+          description: 'SADDD Analysis counts grouped by age and sex.',
+        },
         color: colors,
         tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' } },
         legend: { top: 0 },
@@ -144,6 +134,11 @@ export const ActivityCompletionChart = ({ activities }: Pick<ChartProps, 'activi
     <ReactECharts
       className="h-[260px] w-full"
       option={{
+        animation: false,
+        aria: {
+          enabled: true,
+          description: 'Project activity totals grouped by completion status.',
+        },
         color: colors,
         tooltip: { trigger: 'item' },
         series: [
@@ -168,6 +163,11 @@ export const AlertCountsChart = ({ alerts }: Pick<ChartProps, 'alerts'>) => {
     <ReactECharts
       className="h-[260px] w-full"
       option={{
+        animation: false,
+        aria: {
+          enabled: true,
+          description: 'Rule-Based Alert totals grouped by severity.',
+        },
         color: ['#dc2626', '#f59e0b', '#2563eb'],
         tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' } },
         grid,

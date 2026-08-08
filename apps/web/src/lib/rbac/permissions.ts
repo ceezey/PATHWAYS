@@ -14,6 +14,7 @@ export type PermissionCode =
   | 'alerts.outcome.log'
   | 'evaluation.formal.submit'
   | 'evaluation.approve'
+  | 'transparency.preview'
   | 'transparency.publish'
   | 'activities.view'
   | 'activities.create_edit'

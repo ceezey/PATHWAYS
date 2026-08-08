@@ -16,6 +16,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
 import {
   Select,
   SelectContent,
@@ -23,6 +24,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import { usePrototypeLabels } from '@/hooks/use-prototype-labels'
 import type {
   AlertRecord,
   ProjectSummary,
@@ -42,6 +44,7 @@ const allValue = 'all'
 const outcomes: RecommendationOutcome[] = ['Accept', 'Partially Accept', 'Decline', 'Escalate']
 
 type RecommendationsWorkspaceProps = {
+  initialRecommendationId?: string
   initialRecommendations: RecommendationRecord[]
   alerts: AlertRecord[]
   projects: ProjectSummary[]
@@ -49,16 +52,20 @@ type RecommendationsWorkspaceProps = {
 }
 
 export const RecommendationsWorkspace = ({
+  initialRecommendationId,
   initialRecommendations,
   alerts,
   projects,
   rules,
 }: RecommendationsWorkspaceProps) => {
+  const { labels } = usePrototypeLabels()
   const [recommendations, setRecommendations] = useState(initialRecommendations)
   const [projectId, setProjectId] = useState(allValue)
   const [reviewStatus, setReviewStatus] = useState(allValue)
   const [selectedRecommendationId, setSelectedRecommendationId] = useState(
-    initialRecommendations[0]?.id ?? '',
+    initialRecommendations.some((item) => item.id === initialRecommendationId)
+      ? (initialRecommendationId ?? '')
+      : (initialRecommendations[0]?.id ?? ''),
   )
   const [outcomeOpen, setOutcomeOpen] = useState(false)
   const [outcome, setOutcome] = useState<RecommendationOutcome>('Accept')
@@ -77,9 +84,8 @@ export const RecommendationsWorkspace = ({
     [alerts, projectId, recommendations, reviewStatus],
   )
   const selectedRecommendation =
-    recommendations.find((item) => item.id === selectedRecommendationId) ??
-    filteredRecommendations[0] ??
-    recommendations[0]
+    filteredRecommendations.find((item) => item.id === selectedRecommendationId) ??
+    filteredRecommendations[0]
   const selectedAlert = alerts.find((alert) => alert.id === selectedRecommendation?.alertId)
   const selectedProject = projects.find((project) => project.id === selectedAlert?.projectId)
   const selectedRule = rules.find((rule) => rule.id === selectedRecommendation?.ruleId)
@@ -108,13 +114,10 @@ export const RecommendationsWorkspace = ({
     <div className="space-y-6">
       <section className="flex flex-col gap-4 rounded-lg border border-border bg-card p-5 shadow-sm lg:flex-row lg:items-start lg:justify-between">
         <div className="space-y-2">
-          <div className="flex flex-wrap gap-2">
-            <StatusBadge tone="info">Recommended actions</StatusBadge>
-            <StatusBadge tone="neutral">Predefined rules only</StatusBadge>
-          </div>
+          <StatusBadge tone="info">Human review required</StatusBadge>
           <div>
             <h1 className="text-3xl font-semibold tracking-tight text-foreground">
-              Recommended actions
+              {labels.moduleRecommendations}
             </h1>
             <p className="mt-2 max-w-3xl text-sm leading-6 text-muted-foreground">
               Review the alert basis, rule explanation, recommendation text, and human-recorded
@@ -123,7 +126,7 @@ export const RecommendationsWorkspace = ({
           </div>
         </div>
         <Button asChild variant="outline">
-          <Link href="/alerts">Back to alerts</Link>
+          <Link href="/alerts">Back to {labels.moduleAlerts}</Link>
         </Button>
       </section>
 
@@ -135,7 +138,7 @@ export const RecommendationsWorkspace = ({
         <div className="space-y-2">
           <span className="text-sm font-medium">Project</span>
           <Select value={projectId} onValueChange={setProjectId}>
-            <SelectTrigger>
+            <SelectTrigger aria-label="Filter recommendations by project">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -151,7 +154,7 @@ export const RecommendationsWorkspace = ({
         <div className="space-y-2">
           <span className="text-sm font-medium">Review status</span>
           <Select value={reviewStatus} onValueChange={setReviewStatus}>
-            <SelectTrigger>
+            <SelectTrigger aria-label="Filter recommendations by review status">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -268,32 +271,41 @@ export const RecommendationsWorkspace = ({
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
-            <Select
-              value={outcome}
-              onValueChange={(value) => setOutcome(value as RecommendationOutcome)}
-            >
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {outcomes.map((item) => (
-                  <SelectItem key={item} value={item}>
-                    {item}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <Input
-              placeholder="Outcome note"
-              value={outcomeNote}
-              onChange={(event) => setOutcomeNote(event.target.value)}
-            />
+            <div className="space-y-2">
+              <Label htmlFor="recommendation-outcome">Human-reviewed outcome</Label>
+              <Select
+                value={outcome}
+                onValueChange={(value) => setOutcome(value as RecommendationOutcome)}
+              >
+                <SelectTrigger id="recommendation-outcome">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {outcomes.map((item) => (
+                    <SelectItem key={item} value={item}>
+                      {item}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="recommendation-outcome-note">Outcome note</Label>
+              <Input
+                id="recommendation-outcome-note"
+                placeholder="Add an outcome note"
+                value={outcomeNote}
+                onChange={(event) => setOutcomeNote(event.target.value)}
+              />
+            </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setOutcomeOpen(false)}>
+            <Button type="button" variant="outline" onClick={() => setOutcomeOpen(false)}>
               Cancel
             </Button>
-            <Button onClick={logOutcome}>Save outcome</Button>
+            <Button onClick={logOutcome} type="button">
+              Save outcome
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

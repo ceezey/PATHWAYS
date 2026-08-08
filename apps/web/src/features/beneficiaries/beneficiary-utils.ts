@@ -20,6 +20,36 @@ export const enrollmentTone = (status: BeneficiaryRecord['enrollmentStatus']) =>
   }
 }
 
+type SearchableBeneficiary = Pick<
+  BeneficiaryRecord,
+  'code' | 'displayName' | 'firstName' | 'middleName' | 'lastName'
+>
+
+const normalizeSearchText = (value: string) =>
+  value
+    .normalize('NFKD')
+    .replace(/\p{Diacritic}/gu, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim()
+
+export const matchesBeneficiarySearch = (beneficiary: SearchableBeneficiary, search: string) => {
+  const queryTokens = normalizeSearchText(search).split(/\s+/).filter(Boolean)
+
+  if (queryTokens.length === 0) {
+    return true
+  }
+
+  const fullName = [beneficiary.firstName, beneficiary.middleName, beneficiary.lastName]
+    .filter(Boolean)
+    .join(' ')
+  const searchableText = normalizeSearchText(
+    [beneficiary.code, beneficiary.displayName, fullName].join(' '),
+  )
+
+  return queryTokens.every((token) => searchableText.includes(token))
+}
+
 export const stageTypeTone = (type: JourneyStageConfig['type']) => {
   switch (type) {
     case 'Entry':

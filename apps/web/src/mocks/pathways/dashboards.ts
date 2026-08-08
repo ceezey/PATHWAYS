@@ -9,15 +9,124 @@ import type { PrototypeRole } from '@/types/prototype-role'
 export const mockDashboards: Record<PrototypeRole, RoleDashboardViewModel> = {
   'Program Manager': {
     role: 'Program Manager',
-    greetingName: 'Program Manager Demo',
+    greetingName: 'Executive Review Team',
     heading: 'Program Manager dashboard',
     summary:
-      'Portfolio health, escalated alerts, and human-reviewed decision support across active projects.',
+      'Review whether projects are on track, whether goals remain achievable, and where human follow-up is needed.',
     primaryAction: {
-      id: 'open-project-directory',
-      label: 'Open Portfolio Directory',
+      id: 'review-project-portfolio',
+      label: 'Review Project Portfolio',
       kind: 'navigate',
       href: '/projects',
+    },
+    executive: {
+      defaultContextId: 'portfolio',
+      contexts: [
+        {
+          id: 'portfolio',
+          selectorLabel: 'Portfolio overview',
+          title: 'Active project portfolio',
+          scopeLabel: '4 active projects · August 2026 review',
+          deliveryStatus: 'At Risk',
+          deliverySummary:
+            'Two projects are on track, one needs focused intervention, and one needs a recovery plan.',
+          goalAchievement: 60,
+          goalOutlook: 'Achievable with intervention',
+          milestonesCompleted: 14,
+          milestonesTotal: 22,
+          nextMilestone: 'Approve the Safe Spaces recovery plan by 15 August.',
+          budgetUtilization: 67,
+          scheduleProgress: 60,
+          riskLabel: '2 projects need executive attention',
+          riskSummary:
+            'Schedule readiness in Western Samar and delivery recovery in Northern Samar are the priority risk signals.',
+          riskSeverity: 'warning',
+        },
+        {
+          id: 'futuremakers-ncr',
+          selectorLabel: 'FutureMakers NCR',
+          projectId: 'futuremakers-ncr',
+          title: 'FutureMakers NCR',
+          scopeLabel: 'National Capital Region · Youth Livelihoods',
+          deliveryStatus: 'On Track',
+          deliverySummary:
+            'Outcome progress is ahead of elapsed schedule and spending remains within the expected range.',
+          goalAchievement: 78,
+          goalOutlook: 'Achievable',
+          milestonesCompleted: 5,
+          milestonesTotal: 6,
+          nextMilestone: 'Complete employer matching for the current youth cohort.',
+          budgetUtilization: 61,
+          scheduleProgress: 58,
+          riskLabel: 'Low current delivery risk',
+          riskSummary:
+            'No executive escalation is required; continue monitoring employer placements and cohort completion.',
+          riskSeverity: 'success',
+        },
+        {
+          id: 'youth-rise-western-samar',
+          selectorLabel: 'Youth RISE · Western Samar',
+          projectId: 'youth-rise-western-samar',
+          title: 'Youth RISE · Western Samar',
+          scopeLabel: 'Western Samar · Education and Skills',
+          deliveryStatus: 'At Risk',
+          deliverySummary:
+            'Goal progress trails the elapsed schedule, but site-readiness intervention can still protect the outcome target.',
+          goalAchievement: 52,
+          goalOutlook: 'Achievable with intervention',
+          milestonesCompleted: 3,
+          milestonesTotal: 6,
+          nextMilestone: 'Confirm training-site readiness before the next cohort launch.',
+          budgetUtilization: 72,
+          scheduleProgress: 64,
+          riskLabel: 'Schedule intervention required',
+          riskSummary:
+            'Training-site validation is behind schedule and needs a named owner and near-term completion date.',
+          riskSeverity: 'warning',
+        },
+        {
+          id: 'grassroots-centers-navotas',
+          selectorLabel: 'Grassroots Centers · Navotas',
+          projectId: 'grassroots-centers-navotas',
+          title: 'Grassroots Centers · Navotas',
+          scopeLabel: 'Navotas · Community Resilience',
+          deliveryStatus: 'On Track',
+          deliverySummary:
+            'Goal progress is ahead of elapsed schedule while budget utilization remains controlled.',
+          goalAchievement: 69,
+          goalOutlook: 'Achievable',
+          milestonesCompleted: 4,
+          milestonesTotal: 5,
+          nextMilestone: 'Complete the community-center sustainability review.',
+          budgetUtilization: 47,
+          scheduleProgress: 43,
+          riskLabel: 'Low current delivery risk',
+          riskSummary:
+            'No material exception is open; leadership should continue watching partner readiness for the final milestone.',
+          riskSeverity: 'success',
+        },
+        {
+          id: 'safe-spaces-northern-samar',
+          selectorLabel: 'Safe Spaces · Northern Samar',
+          projectId: 'safe-spaces-northern-samar',
+          title: 'Safe Spaces · Northern Samar',
+          scopeLabel: 'Northern Samar · Protection',
+          deliveryStatus: 'Behind Schedule',
+          deliverySummary:
+            'Outcome progress is materially behind elapsed schedule while budget utilization is already high.',
+          goalAchievement: 41,
+          goalOutlook: 'Needs recovery plan',
+          milestonesCompleted: 2,
+          milestonesTotal: 7,
+          nextMilestone: 'Approve a costed delivery-recovery plan by 15 August.',
+          budgetUtilization: 86,
+          scheduleProgress: 76,
+          riskLabel: 'Executive decision required',
+          riskSummary:
+            'Delivery progress, milestone completion, and budget utilization are misaligned and require human review.',
+          riskSeverity: 'danger',
+        },
+      ],
     },
     metrics: [
       {
@@ -79,6 +188,16 @@ export const mockDashboards: Record<PrototypeRole, RoleDashboardViewModel> = {
             href: '/projects/youth-rise-western-samar',
           },
           {
+            id: 'grassroots-centers-navotas',
+            title: 'Grassroots Centers - Navotas',
+            description: 'Navotas - Community Resilience',
+            meta: 'Budget utilization 47%',
+            status: 'On Track',
+            severity: 'success',
+            progress: 69,
+            href: '/projects/grassroots-centers-navotas',
+          },
+          {
             id: 'safe-spaces-northern-samar',
             title: 'Safe Spaces - Northern Samar',
             description: 'Northern Samar - Protection',
@@ -108,15 +227,15 @@ export const mockDashboards: Record<PrototypeRole, RoleDashboardViewModel> = {
               kind: 'dialog',
               dialogTitle: 'Budget utilization alert',
               dialogDescription:
-                'Safe Spaces - Northern Samar has crossed the prototype budget review threshold. This is a mock Rule-Based Alert.',
+                'Safe Spaces - Northern Samar has crossed the sample budget review threshold. This Rule-Based Alert still requires human review.',
             },
             secondaryAction: {
               id: 'decide-budget-alert',
-              label: 'Decide',
+              label: 'Preview Decision',
               kind: 'dialog',
               dialogTitle: 'Decision required',
               dialogDescription:
-                'Prototype decision captured for review only. Backend persistence will be added in a later phase.',
+                'This demonstration keeps the decision in your current browser session only.',
             },
           },
           {
@@ -208,7 +327,7 @@ export const mockDashboards: Record<PrototypeRole, RoleDashboardViewModel> = {
       {
         id: 'approval-queue',
         title: 'Pending approval queue',
-        description: 'Prototype actions open dialogs and do not persist decisions.',
+        description: 'Review submitted items and demonstrate the next decision.',
         items: [
           {
             id: 'proof-approval-01',
@@ -219,11 +338,11 @@ export const mockDashboards: Record<PrototypeRole, RoleDashboardViewModel> = {
             severity: 'warning',
             primaryAction: {
               id: 'approve-proof',
-              label: 'Approve',
+              label: 'Preview Approval',
               kind: 'dialog',
               dialogTitle: 'Approve proof bundle',
               dialogDescription:
-                'This prototype approval is not persisted. Backend approval workflows are scheduled later.',
+                'This demonstration keeps the approval in your current browser session only.',
             },
             secondaryAction: {
               id: 'review-proof',
@@ -231,7 +350,7 @@ export const mockDashboards: Record<PrototypeRole, RoleDashboardViewModel> = {
               kind: 'dialog',
               dialogTitle: 'Review proof bundle',
               dialogDescription:
-                'Open the future evidence module in a later phase to inspect files and annotations.',
+                'This preview summarizes the submitted files. Detailed evidence review is assigned to the Monitoring and Evaluation Officer.',
             },
           },
           {
@@ -243,11 +362,11 @@ export const mockDashboards: Record<PrototypeRole, RoleDashboardViewModel> = {
             severity: 'danger',
             primaryAction: {
               id: 'log-budget-outcome',
-              label: 'Log Outcome',
+              label: 'Preview Outcome',
               kind: 'dialog',
               dialogTitle: 'Log prototype outcome',
               dialogDescription:
-                'TODO(BACKEND): Persist approval and review actions. TODO(RBAC): Enforce project-manager approval permissions server-side.',
+                'This demonstration records the review outcome for this session only. Saving decisions and enforcing Project Manager access will be connected during production development.',
             },
             secondaryAction: {
               id: 'go-budget-module',
@@ -262,7 +381,7 @@ export const mockDashboards: Record<PrototypeRole, RoleDashboardViewModel> = {
   },
   'Monitoring and Evaluation Officer': {
     role: 'Monitoring and Evaluation Officer',
-    greetingName: 'Monitoring Officer Demo',
+    greetingName: 'Monitoring and Evaluation Officer Demo',
     heading: 'Monitoring and Evaluation Officer dashboard',
     summary: 'Alert review, proof queues, evaluation snapshots, and imported dataset status.',
     metrics: [
@@ -316,15 +435,15 @@ export const mockDashboards: Record<PrototypeRole, RoleDashboardViewModel> = {
               kind: 'dialog',
               dialogTitle: 'Review active alert',
               dialogDescription:
-                'This opens a prototype review summary. Backend alert workflows arrive in a later phase.',
+                'This opens a sample review summary and leaves the final outcome for human review.',
             },
             secondaryAction: {
               id: 'flag-alert',
-              label: 'Flag',
+              label: 'Preview Flag',
               kind: 'dialog',
               dialogTitle: 'Flag alert',
               dialogDescription:
-                'Prototype flag recorded for display only; no backend alert engine is updated.',
+                'This demonstration records the flag in your current browser session only.',
             },
           },
         ],
@@ -332,7 +451,7 @@ export const mockDashboards: Record<PrototypeRole, RoleDashboardViewModel> = {
       {
         id: 'proof-submissions',
         title: 'Proof submissions awaiting review',
-        description: 'Evidence review center placeholder.',
+        description: 'Review submitted project evidence and follow-up status.',
         viewAllHref: '/projects/futuremakers-ncr/evidence',
         viewAllLabel: 'View evidence',
         items: [
@@ -349,7 +468,7 @@ export const mockDashboards: Record<PrototypeRole, RoleDashboardViewModel> = {
               kind: 'dialog',
               dialogTitle: 'Proof review',
               dialogDescription:
-                'TODO(STORAGE): Upload evidence through approved storage. This dialog uses prototype metadata only.',
+                'This demonstration shows evidence details only. Approved private media storage will be connected during production development.',
             },
           },
           {
@@ -417,12 +536,10 @@ export const mockDashboards: Record<PrototypeRole, RoleDashboardViewModel> = {
             severity: 'info',
             progress: 64,
             primaryAction: {
-              id: 'submit-update',
-              label: 'Submit Update',
-              kind: 'dialog',
-              dialogTitle: 'Submit activity update',
-              dialogDescription:
-                'TODO(BACKEND): Persist activity progress and submissions. TODO(RBAC): Restrict activity updates to assigned officers.',
+              id: 'open-activity-update',
+              label: 'Open Activity',
+              kind: 'navigate',
+              href: '/projects/futuremakers-ncr/activities/act-fm-02',
             },
           },
           {
@@ -435,11 +552,11 @@ export const mockDashboards: Record<PrototypeRole, RoleDashboardViewModel> = {
             progress: 45,
             primaryAction: {
               id: 'request-extension',
-              label: 'Request Extension',
+              label: 'Preview Request',
               kind: 'dialog',
               dialogTitle: 'Request extension',
               dialogDescription:
-                'Prototype extension request only. Backend workflow and notifications are scheduled later.',
+                'This demonstration keeps the extension request in your current browser session and does not send notifications.',
             },
           },
         ],
@@ -458,11 +575,11 @@ export const mockDashboards: Record<PrototypeRole, RoleDashboardViewModel> = {
             severity: 'danger',
             primaryAction: {
               id: 'resolve-proof',
-              label: 'Resolve',
+              label: 'Preview Resolution',
               kind: 'dialog',
               dialogTitle: 'Resolve flagged proof',
               dialogDescription:
-                'TODO(STORAGE): Upload evidence through approved storage. This prototype does not upload files.',
+                'This demonstration does not upload files. Approved private media storage will be connected during production development.',
             },
           },
           {
@@ -482,58 +599,85 @@ export const mockDashboards: Record<PrototypeRole, RoleDashboardViewModel> = {
     greetingName: 'System Administrator Demo',
     heading: 'System Administrator dashboard',
     summary:
-      'A minimal prototype overview is available. Full user management is scheduled for a later phase.',
+      'Review prototype users, approved page headings, alert rules, and production-planning notes.',
     primaryAction: {
-      id: 'open-settings',
-      label: 'Open Settings',
+      id: 'open-user-management',
+      label: 'Manage Users',
       kind: 'navigate',
-      href: '/settings',
+      href: '/settings/users',
     },
     metrics: [
       {
-        id: 'prototype-routes',
-        label: 'Prototype routes',
-        value: 7,
-        helperText: 'Primary dashboard navigation links',
+        id: 'prototype-users',
+        label: 'Prototype users',
+        value: 6,
+        helperText: 'Five active and one invited account',
         severity: 'info',
       },
       {
-        id: 'role-preview',
-        label: 'Role preview',
-        value: 'On',
-        helperText: 'Display-only role selection',
+        id: 'role-profiles',
+        label: 'Role profiles',
+        value: 5,
+        helperText: 'Display-only role assignment options',
         severity: 'success',
       },
       {
-        id: 'backend-status',
-        label: 'Backend integration',
-        value: 'Pending',
-        helperText: 'No production RBAC in this phase',
+        id: 'production-connections',
+        label: 'Production connections',
+        value: 'Planned',
+        helperText: 'Account controls are not connected yet',
         severity: 'warning',
       },
       {
-        id: 'mock-data',
-        label: 'Mock records',
+        id: 'sample-data',
+        label: 'Sample records',
         value: 'Ready',
-        helperText: 'Frontend-only prototype data',
+        helperText: 'Safe records for client review',
         severity: 'neutral',
       },
     ],
     sections: [
       {
-        id: 'admin-overview',
-        title: 'System overview',
-        description: 'Minimal state for prototype navigation only.',
-        viewAllHref: '/settings',
-        viewAllLabel: 'Go to settings',
+        id: 'administration-tools',
+        title: 'Administration',
+        description: 'Clear entry points for prototype-only administration tasks.',
+        viewAllHref: '/settings/users',
+        viewAllLabel: 'Open user management',
         items: [
           {
+            id: 'user-management-ready',
+            title: 'User Management',
+            description: 'Review users, roles, account status, and temporary account actions.',
+            meta: 'Prototype configuration',
+            status: 'Available',
+            severity: 'success',
+            href: '/settings/users',
+          },
+          {
+            id: 'edit-page-headings',
+            title: 'Edit Labels',
+            description: 'Edit the approved page headings saved in this browser.',
+            meta: 'Prototype configuration',
+            status: 'Available',
+            severity: 'success',
+            href: '/settings/labels',
+          },
+          {
+            id: 'alerts-repository-ready',
+            title: 'Alerts Repository',
+            description: 'Review predefined alert and recommendation rules for human review.',
+            meta: 'Rule-Based Decision Support',
+            status: 'Available',
+            severity: 'success',
+            href: '/alerts/repository',
+          },
+          {
             id: 'prototype-boundary',
-            title: 'Prototype mode boundary',
+            title: 'Production access controls',
             description:
-              'GUI prototype login and role preview do not provide production authentication or authorization.',
-            meta: 'Frontend-only',
-            status: 'Scheduled',
+              'The production system will securely verify identities, roles, and account actions.',
+            meta: 'Production planning note',
+            status: 'Documented',
             severity: 'info',
           },
         ],

@@ -8,6 +8,10 @@ describe('MockPathwaysClient dashboard data', () => {
   it('maps supported roles to role-specific dashboard headings', async () => {
     await expect(client.getDashboard('Program Manager')).resolves.toMatchObject({
       heading: 'Program Manager dashboard',
+      primaryAction: {
+        href: '/projects',
+        label: 'Review Project Portfolio',
+      },
     })
 
     await expect(client.getDashboard('Project Officer')).resolves.toMatchObject({
@@ -19,9 +23,39 @@ describe('MockPathwaysClient dashboard data', () => {
     const programManager = await client.getDashboard('Program Manager')
     const projectManager = await client.getDashboard('Project Manager')
 
+    expect(programManager.executive).toBeDefined()
+    expect(projectManager.executive).toBeUndefined()
     expect(programManager.metrics.map((metric) => metric.label)).not.toEqual(
       projectManager.metrics.map((metric) => metric.label),
     )
+  })
+
+  it('describes Edit Labels as page-heading configuration for System Administrator', async () => {
+    const dashboard = await client.getDashboard('System Administrator')
+    const labelSettings = dashboard.sections
+      .flatMap((section) => section.items)
+      .find((item) => item.href === '/settings/labels')
+
+    expect(dashboard.summary).toContain('approved page headings')
+    expect(labelSettings?.description).toContain('approved page headings')
+    expect(JSON.stringify(dashboard)).not.toContain('sidebar item labels')
+  })
+
+  it('provides portfolio and project contexts for executive review', async () => {
+    const dashboard = await client.getDashboard('Program Manager')
+
+    expect(dashboard.executive?.defaultContextId).toBe('portfolio')
+    expect(dashboard.executive?.contexts).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ id: 'portfolio', deliveryStatus: 'At Risk' }),
+        expect.objectContaining({ id: 'futuremakers-ncr', deliveryStatus: 'On Track' }),
+        expect.objectContaining({
+          id: 'safe-spaces-northern-samar',
+          deliveryStatus: 'Behind Schedule',
+        }),
+      ]),
+    )
+    expect(JSON.stringify(dashboard)).not.toContain('Portfolio impact')
   })
 
   it('returns a safe fallback for an unknown role', async () => {
@@ -149,14 +183,61 @@ describe('MockPathwaysClient dashboard data', () => {
     expect(sections.every((section) => section.projectId === 'prototype-project')).toBe(true)
   })
 
+  it('serves aggregate analytics locations without precise Beneficiary location fields', async () => {
+    const locations = await client.getAnalyticsLocations()
+
+    expect(locations).toHaveLength(9)
+    expect(locations[0]).toMatchObject({
+      coordinatePrecision: 'Approximate city centroid',
+      projectSummaries: expect.arrayContaining([
+        expect.objectContaining({ beneficiariesReached: expect.any(Number) }),
+      ]),
+    })
+    expect(JSON.stringify(locations)).not.toMatch(
+      /beneficiaryId|firstName|lastName|barangay|street|address|contact/i,
+    )
+  })
+
+  it('serves private mock photo and video proof for a Beneficiary record', async () => {
+    const media = await client.getBeneficiaryMediaProof('ben-001')
+
+    expect(media).toHaveLength(3)
+    expect(media.map((item) => item.mediaType)).toEqual(expect.arrayContaining(['Photo', 'Video']))
+    expect(media.every((item) => item.beneficiaryId === 'ben-001')).toBe(true)
+    expect(media.every((item) => item.source === 'Mock media')).toBe(true)
+    await expect(client.getBeneficiaryMediaProof('unknown-beneficiary')).resolves.toEqual([])
+  })
+
+  it('returns typed prototype users with visible account states', async () => {
+    const users = await client.getUsers()
+
+    expect(users).toHaveLength(6)
+    expect(users.filter((user) => user.accountStatus === 'Active')).toHaveLength(5)
+    expect(users.filter((user) => user.accountStatus === 'Invited')).toHaveLength(1)
+    expect(users.every((user) => user.email && user.projectAccess.length > 0)).toBe(true)
+  })
+
   it('serves approved public project records without beneficiary-level fields', async () => {
     const publicProjects = await client.getPublicProjects()
 
     expect(publicProjects.length).toBeGreaterThan(0)
     expect(publicProjects[0]).toMatchObject({
       publicationState: 'Approved for public preview',
+      publicPresentation: {
+        sectionOrder: expect.arrayContaining(['overview', 'media', 'progress']),
+        layoutPreset: 'story-led',
+      },
+      approvedMedia: [
+        expect.objectContaining({
+          approvalState: 'Approved for public presentation',
+          source: 'Synthetic mock media',
+        }),
+      ],
     })
     expect(JSON.stringify(publicProjects)).not.toMatch(/firstName|lastName|contact|phone/i)
+    expect(JSON.stringify(publicProjects)).not.toMatch(
+      /beneficiaryId|skills-session-wide-shot|site-walkthrough/i,
+    )
   })
 
   it('returns a single public project detail record by id', async () => {

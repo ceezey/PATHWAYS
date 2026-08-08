@@ -77,7 +77,7 @@ export const ProjectSetupForm = () => {
       <PageHeader
         eyebrow="Project setup"
         title="Create project"
-        description="Create a temporary frontend-only project record for the GUI prototype."
+        description="Create a temporary project record for this browser session."
         actions={
           <Button asChild className="gap-2" variant="outline">
             <Link href="/projects">

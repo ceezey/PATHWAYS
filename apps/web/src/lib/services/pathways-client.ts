@@ -1,8 +1,10 @@
 import type {
   Activity,
   AlertRecord,
+  AnalyticsLocationRecord,
   Beneficiary,
   BeneficiaryFilters,
+  BeneficiaryMediaProofRecord,
   BeneficiaryRecord,
   BudgetRecord,
   CreateActivityInput,
@@ -56,10 +58,12 @@ export interface PathwaysClient {
   getBeneficiaries(filters?: BeneficiaryFilters): Promise<Beneficiary[]>
   getBeneficiaryRecords(filters?: BeneficiaryFilters): Promise<BeneficiaryRecord[]>
   getBeneficiaryRecord(id: string): Promise<BeneficiaryRecord>
+  getBeneficiaryMediaProof(beneficiaryId: string): Promise<BeneficiaryMediaProofRecord[]>
   getJourneyStages(projectId: string): Promise<JourneyStageConfig[]>
   getIndicators(projectId?: string): Promise<Indicator[]>
   getBudgets(projectId?: string): Promise<BudgetRecord[]>
   getAlerts(projectId?: string): Promise<AlertRecord[]>
+  getAnalyticsLocations(): Promise<AnalyticsLocationRecord[]>
   getRecommendations(): Promise<RecommendationRecord[]>
   getRules(): Promise<RuleDefinition[]>
   getReports(projectId?: string): Promise<ReportRecord[]>

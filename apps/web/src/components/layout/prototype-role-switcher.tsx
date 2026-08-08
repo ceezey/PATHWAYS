@@ -10,7 +10,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { usePrototypeRole } from '@/hooks/use-prototype-role'
-import { prototypeRoles } from '@/types/prototype-role'
+import { getPrototypeRoleDisplayName, prototypeRoles } from '@/types/prototype-role'
 
 export const PrototypeRoleSwitcher = ({ compact = false }: { compact?: boolean }) => {
   const { enabled, role, setRole } = usePrototypeRole()
@@ -25,13 +25,13 @@ export const PrototypeRoleSwitcher = ({ compact = false }: { compact?: boolean }
         <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-blue-100" aria-hidden="true" />
         {!compact ? (
           <div className="space-y-1">
-            <p className="text-xs font-semibold uppercase text-blue-50">Prototype Role Preview</p>
+            <p className="text-xs font-semibold uppercase text-blue-50">View workspace as</p>
             <p className="text-xs leading-4 text-blue-50/70">
-              Display-only role preview. It does not provide real authorization.
+              Choose a role for this frontend preview.
             </p>
           </div>
         ) : (
-          <span className="sr-only">Prototype Role Preview</span>
+          <span className="sr-only">View workspace as</span>
         )}
       </div>
       {!compact ? (
@@ -47,7 +47,7 @@ export const PrototypeRoleSwitcher = ({ compact = false }: { compact?: boolean }
             <SelectContent>
               {prototypeRoles.map((prototypeRole) => (
                 <SelectItem key={prototypeRole} value={prototypeRole}>
-                  {prototypeRole}
+                  {getPrototypeRoleDisplayName(prototypeRole)}
                 </SelectItem>
               ))}
             </SelectContent>

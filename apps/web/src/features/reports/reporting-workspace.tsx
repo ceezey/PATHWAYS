@@ -57,6 +57,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
+import { usePrototypeLabels } from '@/hooks/use-prototype-labels'
 import { usePrototypeRole } from '@/hooks/use-prototype-role'
 import { can } from '@/lib/rbac/can'
 import { reportKindPermissions } from '@/lib/rbac/route-access'
@@ -154,7 +155,7 @@ const projectCode = (index: number) => String(index + 1).padStart(3, '0')
 
 const progressLabel = (actual: number, target: number) => {
   const progress = target > 0 ? Math.round((actual / target) * 100) : 0
-  return `${progress}% of target - sourced from mock dataset`
+  return `${progress}% of target - sample reporting data`
 }
 
 const statusTone = (status: string) => {
@@ -177,6 +178,7 @@ export const ReportingWorkspace = ({
   projects,
   reports,
 }: ReportingWorkspaceProps) => {
+  const { labels } = usePrototypeLabels()
   const { role } = usePrototypeRole()
   const visibleReportTabs = useMemo(
     () => reportTabs.filter((tab) => can(role, reportKindPermissions[tab.kind])),
@@ -345,14 +347,15 @@ export const ReportingWorkspace = ({
   const generateIndicatorReport = () => {
     setIndicatorGenerated(true)
     toast.success('Indicator report generated locally.', {
-      description: 'This table uses mock project indicator data only.',
+      description: 'This table uses safe sample project data.',
     })
   }
 
-  const saveReport = () => {
+  const finishReportPreview = () => {
     // TODO(BACKEND): Save generated-report history.
-    toast.success('Saved Successfully', {
-      description: 'Prototype save notification only; no backend report history was written.',
+    setPreviewOpen(false)
+    toast.success('Report preview completed.', {
+      description: 'No report was added to shared history.',
     })
   }
 
@@ -373,15 +376,15 @@ export const ReportingWorkspace = ({
     link.click()
     URL.revokeObjectURL(url)
     toast.success('CSV exported from the browser.', {
-      description: 'This is a client-side prototype export.',
+      description: 'The sample report was downloaded to this device.',
     })
   }
 
   const openPrototypeExport = (format: 'PDF' | 'Excel') => {
     // TODO(REPORTING): Generate PDF and spreadsheet reports through the backend.
     setPreviewOpen(true)
-    toast.info(`${format} export is a prototype action.`, {
-      description: 'Preview opened; no backend file generation was requested.',
+    toast.info(`${format} preview opened.`, {
+      description: 'A preview opened; no downloadable file was created.',
     })
   }
 
@@ -396,25 +399,25 @@ export const ReportingWorkspace = ({
       <section className="rounded-lg border border-border bg-card p-5 shadow-sm">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
           <div className="space-y-2">
-            <p className="text-xs font-semibold uppercase text-primary">Reporting</p>
+            <p className="text-xs font-semibold uppercase text-primary">{labels.moduleReports}</p>
             <h1 className="text-3xl font-semibold tracking-tight text-foreground">
-              Reporting workspace
+              {labels.moduleReports}
             </h1>
             <p className="max-w-3xl text-sm leading-6 text-muted-foreground">
-              Build project, indicator, and beneficiary summary reports from safe mock data. PDF and
-              spreadsheet generation are preview-only until backend reporting is connected.
+              Build project, indicator, and Beneficiary summary reports from safe sample data. PDF
+              and spreadsheet actions open a preview in this demonstration.
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
             <Button asChild variant="outline">
-              <Link href="/reports/preview">
+              <Link href={`/reports/preview?kind=${kind}`}>
                 <Eye className="mr-2 h-4 w-4" aria-hidden="true" />
-                Preview route
+                Open report preview
               </Link>
             </Button>
-            <Button onClick={saveReport}>
+            <Button onClick={finishReportPreview}>
               <Save className="mr-2 h-4 w-4" aria-hidden="true" />
-              Save
+              Finish preview
             </Button>
           </div>
         </div>
@@ -461,11 +464,11 @@ export const ReportingWorkspace = ({
                   </DropdownMenuItem>
                   <DropdownMenuItem onClick={() => openPrototypeExport('PDF')}>
                     <FileText className="mr-2 h-4 w-4" aria-hidden="true" />
-                    PDF
+                    Preview PDF
                   </DropdownMenuItem>
                   <DropdownMenuItem onClick={() => openPrototypeExport('Excel')}>
                     <FileSpreadsheet className="mr-2 h-4 w-4" aria-hidden="true" />
-                    Excel
+                    Preview Excel
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
@@ -612,21 +615,21 @@ export const ReportingWorkspace = ({
             ))}
           </div>
           <DialogFooter>
-            <Button onClick={() => setColumnDialogOpen(false)}>Next</Button>
+            <Button onClick={() => setColumnDialogOpen(false)}>Done</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
       <Dialog open={previewOpen} onOpenChange={setPreviewOpen}>
-        <DialogContent className="max-w-4xl">
+        <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-4xl">
           <DialogHeader>
             <DialogTitle>Report Preview</DialogTitle>
             <DialogDescription>
-              Preview uses currently selected columns and mock data. Backend report generation is
-              deferred.
+              The preview uses the selected columns and sample data. Downloadable report files are
+              not created here.
             </DialogDescription>
           </DialogHeader>
-          <div className="border border-border">
+          <div className="overflow-x-auto border border-border">
             <div className="h-3 bg-success" />
             <div className="p-4">
               <Table>
@@ -653,9 +656,9 @@ export const ReportingWorkspace = ({
             <Button variant="outline" onClick={() => setPreviewOpen(false)}>
               Close
             </Button>
-            <Button onClick={saveReport}>
+            <Button onClick={finishReportPreview}>
               <Save className="mr-2 h-4 w-4" aria-hidden="true" />
-              Save
+              Finish preview
             </Button>
           </DialogFooter>
         </DialogContent>

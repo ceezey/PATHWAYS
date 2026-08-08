@@ -23,6 +23,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { usePrototypeLabels } from '@/hooks/use-prototype-labels'
 import { usePrototypeRole } from '@/hooks/use-prototype-role'
 import { can } from '@/lib/rbac/can'
 import type {
@@ -70,6 +71,7 @@ const emptyDraft: RuleDraft = {
 export const RuleConfigurationWorkspace = ({
   initialRules,
 }: { initialRules: RuleDefinition[] }) => {
+  const { labels } = usePrototypeLabels()
   const { role } = usePrototypeRole()
   const canConfigureRules = can(role, 'rules.configure')
   const [rules, setRules] = useState(initialRules)
@@ -147,7 +149,7 @@ export const RuleConfigurationWorkspace = ({
 
     setDialogOpen(false)
     toast.success(editingRuleId ? 'Rule updated locally.' : 'Prototype rule created.', {
-      description: 'Rules are not persisted to a backend in this GUI phase.',
+      description: 'This demonstration keeps the rule in your current browser session only.',
     })
   }
 
@@ -170,18 +172,19 @@ export const RuleConfigurationWorkspace = ({
       <section className="flex flex-col gap-4 rounded-lg border border-border bg-card p-5 shadow-sm lg:flex-row lg:items-start lg:justify-between">
         <div className="space-y-2">
           <div className="flex flex-wrap gap-2">
-            <StatusBadge tone="info">Rule center</StatusBadge>
+            <StatusBadge tone="info">Decision Support</StatusBadge>
             <StatusBadge tone={canConfigureRules ? 'neutral' : 'warning'}>
               {canConfigureRules ? 'Configuration access' : 'View-only access'}
             </StatusBadge>
           </div>
           <div>
             <h1 className="text-3xl font-semibold tracking-tight text-foreground">
-              Rule configuration
+              {labels.moduleAlertsRepository}
             </h1>
             <p className="mt-2 max-w-3xl text-sm leading-6 text-muted-foreground">
-              Configure predefined alert and recommendation rules for human-reviewed decision
-              support. No autonomous action is taken.
+              Review predefined alert and recommendation rules for human-reviewed decision support.
+              System Administrators can demonstrate prototype-only configuration; no autonomous
+              action is taken.
             </p>
           </div>
         </div>
@@ -200,8 +203,8 @@ export const RuleConfigurationWorkspace = ({
 
       <Tabs className="space-y-4" defaultValue="repository">
         <TabsList>
-          <TabsTrigger value="repository">Rule repository</TabsTrigger>
-          <TabsTrigger value="create">Create rule</TabsTrigger>
+          <TabsTrigger value="repository">Alerts Repository</TabsTrigger>
+          {canConfigureRules ? <TabsTrigger value="create">Create rule</TabsTrigger> : null}
         </TabsList>
         <TabsContent value="repository" className="space-y-6">
           <section className="rounded-lg border border-border bg-card p-5 shadow-sm">
@@ -300,24 +303,24 @@ export const RuleConfigurationWorkspace = ({
             </section>
           ) : null}
         </TabsContent>
-        <TabsContent value="create">
-          <section className="rounded-lg border border-border bg-card p-5 shadow-sm">
-            <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-              <div>
-                <h2 className="text-lg font-semibold text-foreground">Create rule</h2>
-                <p className="mt-1 text-sm text-muted-foreground">
-                  Open the rule form to create a prototype rule definition.
-                </p>
-              </div>
-              {canConfigureRules ? (
+        {canConfigureRules ? (
+          <TabsContent value="create">
+            <section className="rounded-lg border border-border bg-card p-5 shadow-sm">
+              <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                <div>
+                  <h2 className="text-lg font-semibold text-foreground">Create rule</h2>
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    Open the rule form to create a prototype rule definition.
+                  </p>
+                </div>
                 <Button onClick={openCreate}>
                   <Plus className="mr-2 h-4 w-4" aria-hidden="true" />
                   New rule
                 </Button>
-              ) : null}
-            </div>
-          </section>
-        </TabsContent>
+              </div>
+            </section>
+          </TabsContent>
+        ) : null}
       </Tabs>
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
@@ -331,6 +334,7 @@ export const RuleConfigurationWorkspace = ({
           <div className="grid gap-4 md:grid-cols-2">
             <Field label="Rule name">
               <Input
+                aria-label="Rule name"
                 value={draft.name}
                 onChange={(event) => setDraftValue('name', event.target.value, setDraft)}
               />
@@ -342,7 +346,7 @@ export const RuleConfigurationWorkspace = ({
                   setDraftValue('category', value as RuleCategory, setDraft)
                 }
               >
-                <SelectTrigger>
+                <SelectTrigger aria-label="Rule category">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -356,6 +360,7 @@ export const RuleConfigurationWorkspace = ({
             </Field>
             <Field label="Parameter">
               <Input
+                aria-label="Rule parameter"
                 value={draft.parameter}
                 onChange={(event) => setDraftValue('parameter', event.target.value, setDraft)}
               />
@@ -367,7 +372,7 @@ export const RuleConfigurationWorkspace = ({
                   setDraftValue('operator', value as RuleOperator, setDraft)
                 }
               >
-                <SelectTrigger>
+                <SelectTrigger aria-label="Rule operator">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -381,6 +386,7 @@ export const RuleConfigurationWorkspace = ({
             </Field>
             <Field label="Threshold">
               <Input
+                aria-label="Rule threshold"
                 type="number"
                 value={draft.threshold}
                 onChange={(event) =>
@@ -390,6 +396,7 @@ export const RuleConfigurationWorkspace = ({
             </Field>
             <Field label="Optional upper threshold">
               <Input
+                aria-label="Optional upper threshold"
                 type="number"
                 value={draft.upperThreshold ?? ''}
                 onChange={(event) =>
@@ -408,7 +415,7 @@ export const RuleConfigurationWorkspace = ({
                   setDraftValue('severity', value as RuleSeverity, setDraft)
                 }
               >
-                <SelectTrigger>
+                <SelectTrigger aria-label="Rule severity">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -425,7 +432,7 @@ export const RuleConfigurationWorkspace = ({
                 value={draft.status}
                 onValueChange={(value) => setDraftValue('status', value as RuleStatus, setDraft)}
               >
-                <SelectTrigger>
+                <SelectTrigger aria-label="Rule status">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -440,6 +447,7 @@ export const RuleConfigurationWorkspace = ({
             <div className="space-y-2 md:col-span-2">
               <span className="text-sm font-medium">Suggested action</span>
               <Input
+                aria-label="Suggested action"
                 value={draft.suggestedAction}
                 onChange={(event) => setDraftValue('suggestedAction', event.target.value, setDraft)}
               />
@@ -447,6 +455,7 @@ export const RuleConfigurationWorkspace = ({
             <div className="space-y-2 md:col-span-2">
               <span className="text-sm font-medium">Description</span>
               <textarea
+                aria-label="Rule description"
                 className="min-h-24 w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                 value={draft.description}
                 onChange={(event) => setDraftValue('description', event.target.value, setDraft)}
@@ -462,12 +471,12 @@ export const RuleConfigurationWorkspace = ({
             </p>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setDialogOpen(false)}>
+            <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>
               Cancel
             </Button>
-            <Button onClick={saveRule}>
+            <Button onClick={saveRule} type="button">
               <Save className="mr-2 h-4 w-4" aria-hidden="true" />
-              {editingRuleId ? 'Save changes' : 'Save and activate rule'}
+              {editingRuleId ? 'Save changes' : 'Save rule'}
             </Button>
           </DialogFooter>
         </DialogContent>

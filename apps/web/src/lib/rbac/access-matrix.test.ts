@@ -16,6 +16,8 @@ describe('Phase 10.5 RBAC matrix', () => {
     ['Project Manager', 'evaluation.approve', true],
     ['Project Manager', 'evaluation.formal.submit', false],
     ['Program Manager', 'budget.portfolio_view', true],
+    ['Program Manager', 'activities.view', true],
+    ['Program Manager', 'transparency.preview', true],
     ['Program Manager', 'transparency.publish', false],
     ['System Administrator', 'rules.configure', true],
     ['System Administrator', 'budget.expense.approve', false],
@@ -25,19 +27,39 @@ describe('Phase 10.5 RBAC matrix', () => {
 
   it('denies direct routes for disallowed modules', () => {
     expect(
+      getRouteAccess('Program Manager', '/projects/futuremakers-ncr/activities'),
+    ).toMatchObject({
+      allowed: true,
+      moduleName: 'Activities',
+    })
+    expect(
       getRouteAccess('Project Officer', '/projects/futuremakers-ncr/monitor-evaluate'),
     ).toMatchObject({
       allowed: false,
       moduleName: 'Monitor & Evaluate',
     })
-    expect(getRouteAccess('Monitoring and Evaluation Officer', '/settings/rules')).toMatchObject({
-      allowed: true,
-      moduleName: 'Rule center',
-    })
-    expect(getRouteAccess('Project Officer', '/settings/rules')).toMatchObject({
+    expect(getRouteAccess('Monitoring and Evaluation Officer', '/alerts/repository')).toMatchObject(
+      {
+        allowed: true,
+        moduleName: 'Alerts Repository',
+      },
+    )
+    expect(getRouteAccess('Project Officer', '/alerts/repository')).toMatchObject({
       allowed: false,
-      moduleName: 'Rule center',
+      moduleName: 'Alerts Repository',
     })
+  })
+
+  it('limits the staff public-dashboard preview to designated internal roles', () => {
+    expect(
+      getRouteAccess('Program Manager', '/projects/futuremakers-ncr/transparency/preview'),
+    ).toMatchObject({ allowed: true, moduleName: 'Public dashboard preview' })
+    expect(
+      getRouteAccess('Project Manager', '/projects/futuremakers-ncr/transparency/preview'),
+    ).toMatchObject({ allowed: true, moduleName: 'Public dashboard preview' })
+    expect(
+      getRouteAccess('Project Officer', '/projects/futuremakers-ncr/transparency/preview'),
+    ).toMatchObject({ allowed: false, moduleName: 'Public dashboard preview' })
   })
 
   it('limits Project Officer reports to beneficiary summary', () => {
@@ -67,6 +89,28 @@ describe('Phase 10.5 RBAC matrix', () => {
     expect(getRouteAccess('System Administrator', '/beneficiaries')).toMatchObject({
       allowed: true,
       requiresBeneficiaryStepUp: false,
+    })
+  })
+
+  it('keeps browser-local label settings in the System Administrator area', () => {
+    expect(getRouteAccess('System Administrator', '/settings/labels')).toMatchObject({
+      allowed: true,
+      moduleName: 'Edit Labels',
+    })
+    expect(getRouteAccess('Program Manager', '/settings/labels')).toMatchObject({
+      allowed: false,
+      moduleName: 'Edit Labels',
+    })
+  })
+
+  it('keeps prototype user management discoverable only in the administration area', () => {
+    expect(getRouteAccess('System Administrator', '/settings/users')).toMatchObject({
+      allowed: true,
+      moduleName: 'User Management',
+    })
+    expect(getRouteAccess('Program Manager', '/settings/users')).toMatchObject({
+      allowed: false,
+      moduleName: 'User Management',
     })
   })
 })

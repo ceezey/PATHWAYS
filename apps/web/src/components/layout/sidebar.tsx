@@ -1,17 +1,18 @@
 'use client'
 
-import { BadgeCheck, Database, ShieldCheck } from 'lucide-react'
+import { ShieldCheck } from 'lucide-react'
 import { usePathname } from 'next/navigation'
 
 import { APP_NAME } from '@pathways/shared'
 
 import { PrototypeRoleSwitcher } from '@/components/layout/prototype-role-switcher'
 import { SidebarNavItem } from '@/components/layout/sidebar-nav-item'
-import { dashboardNavGroups } from '@/constants/navigation'
+import { createDashboardNavGroups } from '@/constants/navigation'
 import { usePrototypeRole } from '@/hooks/use-prototype-role'
 import { useSession } from '@/hooks/use-session'
 import { filterDashboardNavGroups } from '@/lib/rbac/route-access'
 import { cn } from '@/lib/utils'
+import { getPrototypeRoleDisplayName } from '@/types/prototype-role'
 
 export const Sidebar = ({
   compact = false,
@@ -21,14 +22,14 @@ export const Sidebar = ({
   onNavigate?: () => void
 }) => {
   const pathname = usePathname()
-  const { email, isBypassed, isPrototypeSession } = useSession()
+  const { email } = useSession()
   const { role } = usePrototypeRole()
-  const visibleNavGroups = filterDashboardNavGroups(dashboardNavGroups, role)
-  const sessionLabel = isPrototypeSession
-    ? 'GUI prototype session'
-    : isBypassed
-      ? 'Development auth bypass'
-      : 'Supabase session placeholder'
+  const visibleNavGroups = filterDashboardNavGroups(createDashboardNavGroups(), role)
+  const roleLabel = getPrototypeRoleDisplayName(role)
+  const activeHref = visibleNavGroups
+    .flatMap((group) => group.items)
+    .filter((item) => pathname === item.href || pathname.startsWith(`${item.href}/`))
+    .sort((left, right) => right.href.length - left.href.length)[0]?.href
 
   return (
     <aside
@@ -55,17 +56,17 @@ export const Sidebar = ({
           )}
         </div>
       </div>
-      <nav className={cn('flex-1 space-y-6 p-4', compact && 'px-3')} aria-label="Dashboard">
+      <nav className={cn('flex-1 space-y-5 p-4', compact && 'px-3')} aria-label="Dashboard">
         {visibleNavGroups.map((group) => (
-          <div key={group.label} className="space-y-2">
+          <div key={group.id} className="space-y-2">
             {!compact ? (
               <p className="px-3 text-[0.68rem] font-semibold uppercase text-blue-100/80">
                 {group.label}
               </p>
             ) : null}
-            <div className="space-y-1">
+            <div className="space-y-0.5">
               {group.items.map((item) => {
-                const active = pathname === item.href || pathname.startsWith(`${item.href}/`)
+                const active = item.href === activeHref
 
                 return (
                   <SidebarNavItem
@@ -86,19 +87,12 @@ export const Sidebar = ({
         <div className="rounded-lg border border-white/20 bg-slate-950/20 p-3">
           <div className={cn('flex items-start gap-3', compact && 'justify-center')}>
             <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-white/10">
-              {isBypassed ? (
-                <BadgeCheck className="h-4 w-4 text-blue-100" aria-hidden="true" />
-              ) : (
-                <ShieldCheck className="h-4 w-4 text-blue-100" aria-hidden="true" />
-              )}
+              <ShieldCheck className="h-4 w-4 text-blue-100" aria-hidden="true" />
             </div>
             {!compact ? (
               <div className="min-w-0">
                 <p className="truncate text-sm font-medium">{email ?? 'Prototype user'}</p>
-                <p className="mt-1 flex items-center gap-1 text-xs text-blue-50/70">
-                  <Database className="h-3 w-3" aria-hidden="true" />
-                  {sessionLabel}
-                </p>
+                <p className="mt-1 text-xs leading-4 text-blue-50/70">{roleLabel}</p>
               </div>
             ) : (
               <span className="sr-only">{email ?? 'Prototype user'}</span>

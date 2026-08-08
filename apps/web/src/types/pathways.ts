@@ -34,6 +34,26 @@ export interface ProjectDetail extends ProjectSummary {
   createdInPrototype?: boolean
 }
 
+export type AnalyticsCoverageStatus = 'Strong' | 'Growing' | 'Limited' | 'Planned'
+
+export interface AnalyticsLocationProjectSummary {
+  projectId: string
+  beneficiariesReached: number
+  deliverySites: number
+  activitiesDelivered: number
+  coverageStatus: AnalyticsCoverageStatus
+}
+
+export interface AnalyticsLocationRecord {
+  id: string
+  name: string
+  region: string
+  latitude: number
+  longitude: number
+  coordinatePrecision: 'Approximate city centroid'
+  projectSummaries: AnalyticsLocationProjectSummary[]
+}
+
 export interface CreateProjectInput {
   title: string
   sector: string
@@ -178,6 +198,29 @@ export interface BeneficiaryNoteRecord {
   createdAt: string
   visibility: 'Internal' | 'Project team'
   note: string
+}
+
+export type BeneficiaryMediaType = 'Photo' | 'Video'
+export type BeneficiaryMediaReviewStatus = 'For Review' | 'Accepted' | 'Needs Clarification'
+
+export interface BeneficiaryMediaProofRecord {
+  id: string
+  beneficiaryId: string
+  projectId: string
+  activityId?: string
+  mediaType: BeneficiaryMediaType
+  fileName: string
+  mimeType: string
+  fileSizeBytes: number
+  capturedAt: string
+  addedAt: string
+  addedBy: string
+  note?: string
+  tags: string[]
+  reviewStatus: BeneficiaryMediaReviewStatus
+  reviewNote?: string
+  durationSeconds?: number
+  source: 'Mock media' | 'Local preview'
 }
 
 export interface BeneficiaryRecord extends Beneficiary {
@@ -408,6 +451,44 @@ export interface PublicMilestone {
   status: 'Completed' | 'In Progress' | 'Planned'
 }
 
+export type PublicDashboardSectionId =
+  | 'overview'
+  | 'media'
+  | 'progress'
+  | 'indicators'
+  | 'milestones'
+
+export type PublicDashboardLayoutPreset = 'story-led' | 'balanced' | 'compact'
+
+export interface PublicDashboardPresentation {
+  eyebrow: string
+  headline: string
+  summaryTitle: string
+  summaryBody: string
+  quote: string
+  quoteAttribution: string
+  closingTitle: string
+  closingText: string
+  secondaryCtaLabel: string
+  secondaryCtaHref: string
+  layoutPreset: PublicDashboardLayoutPreset
+  sectionOrder: PublicDashboardSectionId[]
+  visibleSections: PublicDashboardSectionId[]
+}
+
+export interface PublicBeneficiaryMediaRecord {
+  id: string
+  projectId: string
+  mediaType: 'Photo'
+  src: string
+  alt: string
+  caption: string
+  contextLabel: string
+  approvalState: 'Approved for public presentation'
+  consentScope: 'Public project storytelling'
+  source: 'Synthetic mock media'
+}
+
 export interface PublicProjectRecord {
   id: string
   title: string
@@ -427,13 +508,23 @@ export interface PublicProjectRecord {
   budgetSummary: string
   assessmentSummary: string
   publicationState: 'Approved for public preview'
+  publicPresentation: PublicDashboardPresentation
+  approvedMedia: PublicBeneficiaryMediaRecord[]
 }
 
 export interface UserRecord {
   id: string
   name: string
-  role: string
+  email: string
+  role: PrototypeRole
+  accountStatus: UserAccountStatus
+  signInMethod: 'Prototype password' | 'SSO placeholder'
+  projectAccess: string[]
+  createdAt: string
+  lastActiveAt?: string
 }
+
+export type UserAccountStatus = 'Active' | 'Invited' | 'Deactivated'
 
 export interface BeneficiaryFilters {
   projectId?: string
@@ -487,12 +578,44 @@ export interface DashboardSection {
   items: DashboardItem[]
 }
 
+export type ExecutiveDeliveryStatus = 'On Track' | 'At Risk' | 'Behind Schedule'
+export type ExecutiveGoalOutlook =
+  | 'Achievable'
+  | 'Achievable with intervention'
+  | 'Needs recovery plan'
+
+export interface ExecutiveDashboardContext {
+  id: string
+  selectorLabel: string
+  projectId?: string
+  title: string
+  scopeLabel: string
+  deliveryStatus: ExecutiveDeliveryStatus
+  deliverySummary: string
+  goalAchievement: number
+  goalOutlook: ExecutiveGoalOutlook
+  milestonesCompleted: number
+  milestonesTotal: number
+  nextMilestone: string
+  budgetUtilization: number
+  scheduleProgress: number
+  riskLabel: string
+  riskSummary: string
+  riskSeverity: DashboardSeverity
+}
+
+export interface ExecutiveDashboardViewModel {
+  defaultContextId: string
+  contexts: ExecutiveDashboardContext[]
+}
+
 export interface RoleDashboardViewModel {
   role: PrototypeRole
   greetingName: string
   heading: string
   summary: string
   primaryAction?: DashboardAction
+  executive?: ExecutiveDashboardViewModel
   metrics: DashboardMetric[]
   sections: DashboardSection[]
 }

@@ -3,7 +3,7 @@
 import { zodResolver } from '@hookform/resolvers/zod'
 import { ArrowLeft, Eye, EyeOff, Info, Loader2, LogIn, RotateCcw, UserRound } from 'lucide-react'
 import { useRouter } from 'next/navigation'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { toast } from 'sonner'
 
@@ -28,6 +28,7 @@ import { publicPrototypeAccounts } from '@/lib/auth/prototype-accounts'
 import { createPrototypeSession } from '@/lib/auth/prototype-session'
 import { webSetupState } from '@/lib/env'
 import { getBrowserSupabaseClient } from '@/lib/supabase/client'
+import { getPrototypeRoleDisplayName } from '@/types/prototype-role'
 import { type LoginSchema, loginSchema } from './login-validation'
 
 export const LoginForm = () => {
@@ -46,6 +47,7 @@ export const LoginForm = () => {
   )
   const [otpMessage, setOtpMessage] = useState('')
   const [resendAvailableAt, setResendAvailableAt] = useState(0)
+  const [clockNow, setClockNow] = useState(() => Date.now())
   const form = useForm<LoginSchema>({
     resolver: zodResolver(loginSchema),
     defaultValues: {
@@ -83,10 +85,11 @@ export const LoginForm = () => {
       })
       setOtp('')
       setOtpStatus('idle')
-      setOtpMessage('Enter the six-digit code from the prototype MFA challenge.')
+      setOtpMessage('Use prototype OTP 123456 to continue.')
       setResendAvailableAt(Date.now() + 30_000)
-      toast.message('OTP verification required.', {
-        description: `A prototype code was sent to ${result.maskedDestination}.`,
+      setClockNow(Date.now())
+      toast.message('Prototype OTP verification required.', {
+        description: `Use code 123456 for ${result.maskedDestination}.`,
       })
       return
     }
@@ -173,7 +176,7 @@ export const LoginForm = () => {
     await signInWithPrototype(createPrototypeSession(result.account))
     setRole(result.account.role)
     toast.success('Prototype session started after OTP verification.', {
-      description: `${result.account.role} dashboard preview is ready.`,
+      description: `${getPrototypeRoleDisplayName(result.account.role)} dashboard preview is ready.`,
     })
     window.location.replace('/dashboard')
   }
@@ -185,9 +188,20 @@ export const LoginForm = () => {
     await onSubmit(values)
   }
 
+  useEffect(() => {
+    if (!mfaChallenge) {
+      return
+    }
+
+    setClockNow(Date.now())
+    const timer = window.setInterval(() => setClockNow(Date.now()), 1000)
+
+    return () => window.clearInterval(timer)
+  }, [mfaChallenge])
+
   if (mfaChallenge) {
-    const secondsUntilResend = Math.max(0, Math.ceil((resendAvailableAt - Date.now()) / 1000))
-    const expired = new Date(mfaChallenge.expiresAt).getTime() <= Date.now()
+    const secondsUntilResend = Math.max(0, Math.ceil((resendAvailableAt - clockNow) / 1000))
+    const expired = new Date(mfaChallenge.expiresAt).getTime() <= clockNow
 
     return (
       <Card className="w-full max-w-[430px] rounded-lg border-white/70 bg-white/95 shadow-xl backdrop-blur">
@@ -200,7 +214,7 @@ export const LoginForm = () => {
               OTP verification
             </CardTitle>
             <CardDescription className="mt-2 text-sm">
-              Enter the six-digit code sent to {mfaChallenge.maskedDestination}.
+              Enter the six-digit prototype code for {mfaChallenge.maskedDestination}.
             </CardDescription>
           </div>
         </CardHeader>
@@ -269,7 +283,7 @@ export const LoginForm = () => {
               onClick={() => void resendOtp()}
             >
               <RotateCcw className="h-4 w-4" aria-hidden="true" />
-              {secondsUntilResend > 0 ? `Resend in ${secondsUntilResend}s` : 'Resend code'}
+              {secondsUntilResend > 0 ? `Refresh in ${secondsUntilResend}s` : 'Refresh code'}
             </Button>
           </div>
         </CardContent>
@@ -421,7 +435,7 @@ export const LoginForm = () => {
                     type="button"
                   >
                     <span className="block text-sm font-medium text-foreground">
-                      {account.role}
+                      {getPrototypeRoleDisplayName(account.role)}
                     </span>
                     <span className="mt-1 block text-xs text-muted-foreground">
                       Username: {account.username} | Password: PathwaysDemo!2026

@@ -3,11 +3,12 @@ import { pathwaysClient } from '@/lib/services/mock-pathways-client'
 
 export default async function AnalyticsPage() {
   const projectSummaries = await pathwaysClient.getProjects()
-  const [projects, budgets, beneficiaries, alerts] = await Promise.all([
+  const [projects, budgets, beneficiaries, alerts, locations] = await Promise.all([
     Promise.all(projectSummaries.map((project) => pathwaysClient.getProject(project.id))),
     pathwaysClient.getBudgets(),
     pathwaysClient.getBeneficiaryRecords(),
     pathwaysClient.getAlerts(),
+    pathwaysClient.getAnalyticsLocations(),
   ])
   const activityGroups = await Promise.all(
     projects.map((project) => pathwaysClient.getActivities(project.id)),
@@ -19,6 +20,7 @@ export default async function AnalyticsPage() {
       alerts={alerts}
       beneficiaries={beneficiaries}
       budgets={budgets}
+      locations={locations}
       projects={projects}
     />
   )

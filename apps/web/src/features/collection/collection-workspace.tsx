@@ -16,6 +16,7 @@ import {
 } from 'lucide-react'
 import Link from 'next/link'
 import { useMemo, useRef, useState } from 'react'
+import { toast } from 'sonner'
 
 import { compareHeaders, createFileSummary, parseCsv, parseWorkbook } from '@pathways/imports'
 
@@ -45,6 +46,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import { usePrototypeLabels } from '@/hooks/use-prototype-labels'
 import { cn } from '@/lib/utils'
 import { mockActivities } from '@/mocks/pathways/activities'
 import { mockProjects } from '@/mocks/pathways/projects'
@@ -246,6 +248,7 @@ export const CollectionWorkspace = ({
   initialMode = 'scratch',
   initialView = 'home',
 }: CollectionWorkspaceProps) => {
+  const { labels } = usePrototypeLabels()
   const [mode, setMode] = useState<CollectionMode>(initialMode)
   const [view, setView] = useState<CollectionView>(initialView)
   const [formTitle, setFormTitle] = useState('Journey 1 - Intake & Assessment Form')
@@ -365,7 +368,7 @@ export const CollectionWorkspace = ({
 
   const parseSelectedFile = async (file: File) => {
     setUploadProgress(28)
-    setImportMessage('Reading file locally. No backend upload is being created.')
+    setImportMessage('Reading the file in this browser. Nothing is being uploaded.')
 
     const extension = file.name.split('.').pop()?.toLowerCase()
     let parsed: ParsedImport
@@ -399,9 +402,7 @@ export const CollectionWorkspace = ({
       setParsedImport(parsed)
       setMappingRows(mappingFromHeaders(parsed.headers))
       setUploadProgress(100)
-      setImportMessage(
-        'Client-side preview ready. Production validation is still backend-deferred.',
-      )
+      setImportMessage('Preview ready. Full production validation is not connected yet.')
 
       if (mode === 'extend') {
         const importedFields = parsed.headers.map(fieldFromHeader)
@@ -439,15 +440,44 @@ export const CollectionWorkspace = ({
     // TODO(BACKEND): Submit metadata mappings and validation results.
     // TODO(DATABASE): Persist form fields, import batches, and mapping records.
     setProceedDialogOpen(false)
-    setSavedNotice('Import mapping marked ready for backend validation handoff.')
+    setSavedNotice('Import mapping marked ready for future production validation.')
+  }
+
+  const downloadSavedForm = (form: SavedForm) => {
+    const summary = JSON.stringify(
+      {
+        ...form,
+        note: 'Prototype summary created in this browser; no shared record was changed.',
+      },
+      null,
+      2,
+    )
+    const downloadUrl = URL.createObjectURL(
+      new Blob([summary], { type: 'application/json;charset=utf-8' }),
+    )
+    const anchor = document.createElement('a')
+    const fileName = form.title
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-|-$/g, '')
+
+    anchor.href = downloadUrl
+    anchor.download = `${fileName || 'collection-form'}-summary.json`
+    document.body.append(anchor)
+    anchor.click()
+    anchor.remove()
+    window.setTimeout(() => URL.revokeObjectURL(downloadUrl), 0)
+    toast.success('Form summary downloaded.', {
+      description: 'The summary was created in your browser for this prototype.',
+    })
   }
 
   return (
     <div className="space-y-6">
       <PageHeader
-        eyebrow="Collection"
-        title="Metadata-Aware Collection"
-        description="Build digital forms, map imported files, and preview mock validation without creating backend uploads."
+        eyebrow="Data workspace"
+        title={labels.moduleCollection}
+        description="Build digital forms, map imported files, and preview validation without uploading source data."
         actions={
           <Button asChild size="sm">
             <Link href="/collection/forms">Forms</Link>
@@ -494,6 +524,7 @@ export const CollectionWorkspace = ({
       {view === 'forms' || view === 'home' ? (
         <FormsGeneratorView
           onCreate={() => openBuilder('scratch')}
+          onDownload={downloadSavedForm}
           onImport={(nextMode) => openBuilder(nextMode)}
           savedForms={savedForms}
         />
@@ -565,8 +596,8 @@ export const CollectionWorkspace = ({
           <DialogHeader>
             <DialogTitle>Proceed with Save As?</DialogTitle>
             <DialogDescription>
-              This saves the form only in the frontend prototype session. Production form
-              definitions, fields, and mappings still require backend persistence.
+              This saves the form for the current browser session only. It does not change shared
+              form definitions or mappings.
             </DialogDescription>
           </DialogHeader>
           <div className="rounded-lg border bg-muted/40 p-4 text-sm">
@@ -587,7 +618,7 @@ export const CollectionWorkspace = ({
       <Dialog open={proceedDialogOpen} onOpenChange={setProceedDialogOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Proceed with mapping handoff?</DialogTitle>
+            <DialogTitle>Review mapped fields?</DialogTitle>
             <DialogDescription>
               This prototype marks the mapping as ready, but it does not upload the source dataset
               or run production validation.
@@ -607,10 +638,12 @@ export const CollectionWorkspace = ({
 
 const FormsGeneratorView = ({
   onCreate,
+  onDownload,
   onImport,
   savedForms,
 }: {
   onCreate: () => void
+  onDownload: (form: SavedForm) => void
   onImport: (mode: CollectionMode) => void
   savedForms: SavedForm[]
 }) => (
@@ -664,10 +697,10 @@ const FormsGeneratorView = ({
           </div>
           <div className="flex items-center gap-2">
             <Button asChild size="sm" variant="outline">
-              <Link href="/collection/forms/new">View Metadata</Link>
+              <Link href="/collection/forms/new">Open form builder</Link>
             </Button>
-            <Button size="sm" variant="outline">
-              Download
+            <Button size="sm" variant="outline" onClick={() => onDownload(form)}>
+              Download summary
             </Button>
           </div>
         </div>
@@ -1262,7 +1295,7 @@ const ImportView = ({
         </div>
 
         <div className="mt-4 space-y-3">
-          <ProgressBar label="Prototype upload progress" value={uploadProgress} />
+          <ProgressBar label="File reading progress" value={uploadProgress} />
           <p className="text-sm text-muted-foreground">{importMessage}</p>
         </div>
       </div>
@@ -1501,8 +1534,8 @@ const ImportValidationPanel = ({
           <SummaryPill label="Invalid" tone="danger" value={invalid} />
         </div>
         <p className="rounded-lg bg-muted/40 p-3 text-xs leading-5 text-muted-foreground">
-          Production validation will be performed after backend mapping submission. This prototype
-          only checks headers and local preview rows.
+          This demonstration checks column headings and preview rows only. Full production
+          validation is not connected yet.
         </p>
       </div>
     </div>

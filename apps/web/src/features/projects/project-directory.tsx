@@ -9,6 +9,7 @@ import { EmptyState, FilterBar, ProgressBar, SectionCard, StatusBadge } from '@/
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { usePrototypeLabels } from '@/hooks/use-prototype-labels'
 import { usePrototypeRole } from '@/hooks/use-prototype-role'
 import { pathwaysClient } from '@/lib/services/mock-pathways-client'
 import type { ProjectDetail, ProjectStatus, ProjectSummary } from '@/types/pathways'
@@ -31,6 +32,7 @@ const directoryDescription = {
 } as const
 
 export const ProjectDirectory = () => {
+  const { labels } = usePrototypeLabels()
   const { role } = usePrototypeRole()
   const [projects, setProjects] = useState<ProjectSummary[]>([])
   const [status, setStatus] = useState<'loading' | 'success' | 'error'>('loading')
@@ -90,8 +92,8 @@ export const ProjectDirectory = () => {
   return (
     <>
       <PageHeader
-        eyebrow="Projects"
-        title="Project Information Management"
+        eyebrow={labels.projectWorkspace}
+        title={labels.moduleProjects}
         description={directoryDescription[role]}
         actions={
           role === 'Project Manager' ? (

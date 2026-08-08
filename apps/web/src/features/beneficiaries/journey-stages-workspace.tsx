@@ -23,6 +23,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import { usePrototypeLabels } from '@/hooks/use-prototype-labels'
 import type {
   Activity,
   JourneyStageConfig,
@@ -46,6 +47,7 @@ export const JourneyStagesWorkspace = ({
   activities,
   initialStages,
 }: JourneyStagesWorkspaceProps) => {
+  const { labels } = usePrototypeLabels()
   const [stages, setStages] = useState(initialStages)
   const [selectedStageId, setSelectedStageId] = useState(initialStages[0]?.id ?? '')
   const [saveOpen, setSaveOpen] = useState(false)
@@ -107,7 +109,7 @@ export const JourneyStagesWorkspace = ({
     // TODO(DATABASE): Load configurable stages and activity-stage mappings.
     setSaveOpen(false)
     toast.success('Journey-stage configuration saved locally.', {
-      description: 'Production persistence and permissions are backend responsibilities.',
+      description: 'This demonstration keeps the changes in your current browser session only.',
     })
   }
 
@@ -115,13 +117,10 @@ export const JourneyStagesWorkspace = ({
     <div className="space-y-6">
       <section className="flex flex-col gap-4 rounded-lg border border-border bg-card p-5 shadow-sm lg:flex-row lg:items-start lg:justify-between">
         <div className="space-y-2">
-          <div className="flex flex-wrap gap-2">
-            <StatusBadge tone="warning">Prototype configuration</StatusBadge>
-            <StatusBadge tone="neutral">Activity mapped</StatusBadge>
-          </div>
+          <StatusBadge tone="info">Project-specific stages</StatusBadge>
           <div>
             <h1 className="text-3xl font-semibold tracking-tight text-foreground">
-              Configure journey stages
+              {labels.projectJourneyStages}
             </h1>
             <p className="mt-2 max-w-3xl text-sm leading-6 text-muted-foreground">
               Define the project stage path, branch options, terminal follow-up stages, and activity
@@ -155,6 +154,7 @@ export const JourneyStagesWorkspace = ({
                   ? 'border-primary bg-primary/10'
                   : 'border-border bg-background hover:bg-muted/60'
               }`}
+              aria-pressed={selectedStage?.id === stage.id}
               type="button"
               onClick={() => setSelectedStageId(stage.id)}
             >
@@ -192,6 +192,7 @@ export const JourneyStagesWorkspace = ({
                       ? 'border-primary bg-primary/10'
                       : 'border-border bg-background hover:bg-muted/60'
                   }`}
+                  aria-pressed={selectedStage?.id === stage.id}
                   type="button"
                   onClick={() => setSelectedStageId(stage.id)}
                 >
@@ -256,7 +257,7 @@ export const JourneyStagesWorkspace = ({
                   value={selectedStage.type}
                   onValueChange={(value) => updateStage('type', value as JourneyStageType)}
                 >
-                  <SelectTrigger>
+                  <SelectTrigger aria-label="Journey stage type">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -276,7 +277,7 @@ export const JourneyStagesWorkspace = ({
                     updateStage('parentStageId', value === noParentValue ? undefined : value)
                   }
                 >
-                  <SelectTrigger>
+                  <SelectTrigger aria-label="Parent journey stage">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -298,7 +299,7 @@ export const JourneyStagesWorkspace = ({
                   checked={selectedStage.terminal}
                   onChange={(event) => updateStage('terminal', event.target.checked)}
                 />
-                Terminal-stage flag
+                This is an end stage
               </Label>
               <Label className="space-y-2">
                 <span>Description</span>
@@ -371,7 +372,8 @@ export const JourneyStagesWorkspace = ({
           <DialogHeader>
             <DialogTitle>Save journey-stage configuration</DialogTitle>
             <DialogDescription>
-              This confirms the visible prototype state only; production persistence is not active.
+              Confirm these changes for the current browser session. Shared project records are not
+              changed.
             </DialogDescription>
           </DialogHeader>
           <div className="rounded-lg border border-border bg-muted/40 p-4 text-sm">

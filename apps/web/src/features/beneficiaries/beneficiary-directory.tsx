@@ -31,6 +31,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
+import { usePrototypeLabels } from '@/hooks/use-prototype-labels'
 import { usePrototypeRole } from '@/hooks/use-prototype-role'
 import { scopeBeneficiariesForRole, scopeProjectsForRole } from '@/lib/rbac/data-scope'
 import type {
@@ -44,6 +45,7 @@ import {
   deriveCurrentStage,
   enrollmentTone,
   formatDate,
+  matchesBeneficiarySearch,
   progressionRate,
   projectTitle,
 } from './beneficiary-utils'
@@ -63,6 +65,7 @@ export const BeneficiaryDirectory = ({
   activities,
   stages,
 }: BeneficiaryDirectoryProps) => {
+  const { labels } = usePrototypeLabels()
   const { role } = usePrototypeRole()
   const scopedProjects = useMemo(() => scopeProjectsForRole(projects, role), [projects, role])
   const scopedBeneficiaries = useMemo(
@@ -86,13 +89,7 @@ export const BeneficiaryDirectory = ({
   const filteredBeneficiaries = useMemo(
     () =>
       scopedBeneficiaries.filter((beneficiary) => {
-        const query = search.trim().toLowerCase()
-        const matchesSearch = query
-          ? [beneficiary.code, beneficiary.displayName, beneficiary.location]
-              .join(' ')
-              .toLowerCase()
-              .includes(query)
-          : true
+        const matchesSearch = matchesBeneficiarySearch(beneficiary, search)
         const matchesProject =
           projectId === allValue ? true : beneficiary.projectIds.includes(projectId)
         const matchesLocation = location === allValue ? true : beneficiary.location === location
@@ -128,17 +125,19 @@ export const BeneficiaryDirectory = ({
   const columns = useMemo<ColumnDef<BeneficiaryRecord>[]>(
     () => [
       {
-        header: 'Beneficiary code',
-        accessorKey: 'code',
+        header: 'Beneficiary',
+        accessorKey: 'displayName',
         cell: ({ row }) => (
           <div className="space-y-1">
             <Link
               className="font-semibold text-primary underline-offset-4 hover:underline"
               href={`/beneficiaries/${row.original.id}`}
             >
-              {row.original.code}
+              {row.original.displayName}
             </Link>
-            <p className="text-xs text-muted-foreground">{row.original.location}</p>
+            <p className="text-xs text-muted-foreground">
+              {row.original.code} · {row.original.location}
+            </p>
           </div>
         ),
       },
@@ -228,20 +227,16 @@ export const BeneficiaryDirectory = ({
     <div className="space-y-6">
       <section className="flex flex-col gap-4 rounded-lg border border-border bg-card p-5 shadow-sm lg:flex-row lg:items-start lg:justify-between">
         <div className="space-y-2">
-          <div className="flex flex-wrap items-center gap-2">
-            <StatusBadge tone="success">Step-up verified</StatusBadge>
-            <StatusBadge tone="neutral">Safe coded mock data only</StatusBadge>
-            <StatusBadge tone={role === 'Project Officer' ? 'warning' : 'info'}>
-              {role === 'Project Officer' ? 'Scoped project view' : 'Full authorized view'}
-            </StatusBadge>
-          </div>
+          <StatusBadge tone={role === 'Project Officer' ? 'warning' : 'info'}>
+            {role === 'Project Officer' ? 'Assigned projects' : 'Portfolio view'}
+          </StatusBadge>
           <div>
             <h1 className="text-3xl font-semibold tracking-tight text-foreground">
-              Beneficiary management
+              {labels.moduleBeneficiaries}
             </h1>
             <p className="mt-2 max-w-3xl text-sm leading-6 text-muted-foreground">
-              Filter coded beneficiary records, review derived journey progress, and open an
-              individual workspace for prototype participation and assessment flows.
+              Find Beneficiary records by name or code, review journey progress, and open a record
+              for journey and assessment details.
             </p>
           </div>
         </div>
@@ -258,7 +253,7 @@ export const BeneficiaryDirectory = ({
       <section className="space-y-4 rounded-lg border border-border bg-card p-5 shadow-sm">
         <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
           <div className="space-y-2">
-            <Label htmlFor="beneficiary-search">Search</Label>
+            <Label htmlFor="beneficiary-search">Search by name or code</Label>
             <span className="relative block">
               <Search
                 className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground"
@@ -267,11 +262,16 @@ export const BeneficiaryDirectory = ({
               <Input
                 id="beneficiary-search"
                 className="pl-9"
-                placeholder="Search beneficiary code"
+                aria-describedby="beneficiary-search-help"
+                placeholder="Enter Beneficiary name or code"
+                type="search"
                 value={search}
                 onChange={(event) => setSearch(event.target.value)}
               />
             </span>
+            <p className="text-xs leading-5 text-muted-foreground" id="beneficiary-search-help">
+              Searches Beneficiary names and codes.
+            </p>
           </div>
           <FilterSelect label="Project" value={projectId} onValueChange={setProjectId}>
             <SelectItem value={allValue}>All projects</SelectItem>
@@ -356,7 +356,7 @@ export const BeneficiaryDirectory = ({
                   colSpan={columns.length}
                   className="h-28 text-center text-muted-foreground"
                 >
-                  No coded beneficiary records match the current filters.
+                  No Beneficiary records match the current search and filters.
                 </TableCell>
               </TableRow>
             )}

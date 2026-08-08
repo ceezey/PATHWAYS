@@ -1,4 +1,5 @@
 import type { LucideIcon } from 'lucide-react'
+import type { ReactNode } from 'react'
 
 import { cn } from '@/lib/utils'
 
@@ -7,11 +8,13 @@ export const EmptyState = ({
   description,
   icon: Icon,
   className,
+  action,
 }: {
   title: string
   description: string
   icon?: LucideIcon
   className?: string
+  action?: ReactNode
 }) => (
   <div
     className={cn(
@@ -26,5 +29,6 @@ export const EmptyState = ({
     ) : null}
     <p className="text-base font-semibold text-foreground">{title}</p>
     <p className="mt-2 max-w-xl text-sm leading-6 text-muted-foreground">{description}</p>
+    {action ? <div className="mt-4">{action}</div> : null}
   </div>
 )

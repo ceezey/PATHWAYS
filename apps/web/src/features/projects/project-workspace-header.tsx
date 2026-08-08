@@ -7,19 +7,25 @@ import { usePathname } from 'next/navigation'
 import { ProgressBar } from '@/components/pathways/progress-bar'
 import { StatusBadge } from '@/components/pathways/status-badge'
 import { Button } from '@/components/ui/button'
+import type { PrototypeLabels } from '@/constants/prototype-labels'
+import { usePrototypeLabels } from '@/hooks/use-prototype-labels'
 import { usePrototypeRole } from '@/hooks/use-prototype-role'
 import { type WorkspaceTabAccess, filterWorkspaceTabs } from '@/lib/rbac/route-access'
 import type { ProjectDetail } from '@/types/pathways'
 
 import { formatNumber, projectHealthTone, projectStatusTone } from './project-utils'
 
-const workspaceTabs: WorkspaceTabAccess[] = [
-  { label: 'Activities', path: 'activities', permission: 'activities.view' },
-  { label: 'Evidence & Reports', path: 'evidence', permission: 'evidence.review' },
-  { label: 'Target Indicators', path: 'indicators', permission: 'indicators.manage' },
-  { label: 'Monitor & Evaluate', path: 'monitor-evaluate', permission: 'monitor_evaluate.view' },
+const createWorkspaceTabs = (labels: PrototypeLabels): WorkspaceTabAccess[] => [
+  { label: labels.projectActivities, path: 'activities', permission: 'activities.view' },
+  { label: labels.projectEvidence, path: 'evidence', permission: 'evidence.review' },
+  { label: labels.projectIndicators, path: 'indicators', permission: 'indicators.manage' },
   {
-    label: 'Budget',
+    label: labels.projectMonitorEvaluate,
+    path: 'monitor-evaluate',
+    permission: 'monitor_evaluate.view',
+  },
+  {
+    label: labels.projectBudget,
     path: 'budget',
     anyPermissions: [
       'budget.expense.log',
@@ -29,25 +35,29 @@ const workspaceTabs: WorkspaceTabAccess[] = [
     ],
   },
   {
-    label: 'Journey Stages',
+    label: labels.projectJourneyStages,
     path: 'journey-stages',
     anyPermissions: ['activities.create_edit', 'monitor_evaluate.full'],
   },
-  { label: 'Transparency', path: 'transparency', permission: 'transparency.publish' },
+  {
+    label: labels.projectPublicDashboard,
+    path: 'transparency',
+    anyPermissions: ['transparency.preview', 'transparency.publish'],
+  },
 ]
 
 export const ProjectWorkspaceHeader = ({ project }: { project: ProjectDetail }) => {
   const pathname = usePathname()
+  const { labels } = usePrototypeLabels()
   const { role } = usePrototypeRole()
-  const visibleTabs = filterWorkspaceTabs(workspaceTabs, role)
-  const activitiesHref = `/projects/${project.id}/activities`
+  const visibleTabs = filterWorkspaceTabs(createWorkspaceTabs(labels), role)
   const beneficiaryProgress =
     project.targetBeneficiaries > 0
       ? Math.round((project.beneficiariesReached / project.targetBeneficiaries) * 100)
       : 0
 
   return (
-    <section className="rounded-lg border border-border bg-card p-5 shadow-sm">
+    <section className="rounded-lg border border-border bg-card p-4 shadow-sm sm:p-5">
       <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
         <div className="min-w-0 space-y-3">
           <div className="flex flex-wrap gap-2">
@@ -55,7 +65,7 @@ export const ProjectWorkspaceHeader = ({ project }: { project: ProjectDetail }) 
             <StatusBadge tone={projectHealthTone(project.health)}>{project.health}</StatusBadge>
           </div>
           <div>
-            <h1 className="text-3xl font-semibold tracking-tight text-foreground">
+            <h1 className="text-2xl font-semibold tracking-tight text-foreground sm:text-3xl">
               {project.title}
             </h1>
             <p className="mt-2 max-w-3xl text-sm leading-6 text-muted-foreground">
@@ -63,8 +73,8 @@ export const ProjectWorkspaceHeader = ({ project }: { project: ProjectDetail }) 
             </p>
           </div>
         </div>
-        <div className="grid gap-3 text-sm sm:grid-cols-3 lg:min-w-[520px]">
-          <div className="rounded-lg border border-border bg-background p-3">
+        <div className="grid grid-cols-2 gap-3 text-sm sm:grid-cols-3 lg:min-w-[520px]">
+          <div className="col-span-2 rounded-lg border border-border bg-background p-3 sm:col-span-1">
             <CalendarDays className="mb-2 h-4 w-4 text-primary" aria-hidden="true" />
             <p className="text-muted-foreground">Project period</p>
             <p className="mt-1 font-medium text-foreground">{project.period}</p>
@@ -86,11 +96,10 @@ export const ProjectWorkspaceHeader = ({ project }: { project: ProjectDetail }) 
       <div className="mt-5">
         <ProgressBar label="Beneficiary reach" tone="success" value={beneficiaryProgress} />
       </div>
-      <nav className="mt-5 flex gap-2 overflow-x-auto pb-1" aria-label="Project workspace">
+      <nav className="mt-5 flex gap-2 overflow-x-auto pb-1" aria-label={labels.projectWorkspace}>
         {visibleTabs.map((tab) => {
           const href = `/projects/${project.id}/${tab.path}`
-          const active =
-            pathname === href || (pathname === `/projects/${project.id}` && href === activitiesHref)
+          const active = pathname === href || pathname.startsWith(`${href}/`)
 
           return (
             <Button

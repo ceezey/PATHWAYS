@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest'
 
-import { dashboardNavigation, publicNavigation } from './navigation'
+import {
+  createDashboardNavGroups,
+  dashboardNavigation,
+  getDashboardNavigationLabel,
+  publicNavigation,
+} from './navigation'
 
 describe('navigation constants', () => {
   it('exposes the expected dashboard sections', () => {
@@ -8,12 +13,38 @@ describe('navigation constants', () => {
       '/dashboard',
       '/projects',
       '/beneficiaries',
-      '/collection',
       '/analytics',
       '/alerts',
       '/recommendations',
       '/reports',
-      '/settings',
+      '/alerts/repository',
+      '/settings/users',
+      '/settings/labels',
+    ])
+    expect(dashboardNavigation.map((item) => item.label)).toEqual([
+      'Dashboard',
+      'Projects',
+      'Beneficiaries',
+      'Analytics',
+      'Alerts',
+      'Recommendations',
+      'Reports',
+      'Alerts Repository',
+      'User Management',
+      'Edit Labels',
+    ])
+  })
+
+  it('keeps both sidebar item labels and section headings fixed', () => {
+    const groups = createDashboardNavGroups()
+
+    expect(groups[0]?.items.find((item) => item.href === '/beneficiaries')?.label).toBe(
+      'Beneficiaries',
+    )
+    expect(groups.map((group) => group.label)).toEqual([
+      'Workspace',
+      'Decision Support',
+      'Administration',
     ])
   })
 
@@ -23,5 +54,11 @@ describe('navigation constants', () => {
 
   it('exposes public project browsing without dashboard navigation', () => {
     expect(publicNavigation.map((item) => item.href)).toEqual(['/', '/public/projects'])
+  })
+
+  it('uses the fixed label for the most specific current workspace route', () => {
+    expect(getDashboardNavigationLabel('/projects/futuremakers-ncr/activities')).toBe('Projects')
+    expect(getDashboardNavigationLabel('/settings/users')).toBe('User Management')
+    expect(getDashboardNavigationLabel('/alerts/repository')).toBe('Alerts Repository')
   })
 })
