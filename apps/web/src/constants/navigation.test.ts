@@ -13,6 +13,7 @@ describe('navigation constants', () => {
       '/dashboard',
       '/projects',
       '/beneficiaries',
+      '/collection',
       '/analytics',
       '/alerts',
       '/recommendations',
@@ -25,6 +26,7 @@ describe('navigation constants', () => {
       'Dashboard',
       'Projects',
       'Beneficiaries',
+      'Collection',
       'Analytics',
       'Alerts',
       'Recommendations',
@@ -41,6 +43,7 @@ describe('navigation constants', () => {
     expect(groups[0]?.items.find((item) => item.href === '/beneficiaries')?.label).toBe(
       'Beneficiaries',
     )
+    expect(groups[0]?.items.find((item) => item.href === '/collection')?.label).toBe('Collection')
     expect(groups.map((group) => group.label)).toEqual([
       'Workspace',
       'Decision Support',
@@ -58,6 +61,7 @@ describe('navigation constants', () => {
 
   it('uses the fixed label for the most specific current workspace route', () => {
     expect(getDashboardNavigationLabel('/projects/futuremakers-ncr/activities')).toBe('Projects')
+    expect(getDashboardNavigationLabel('/collection/import')).toBe('Collection')
     expect(getDashboardNavigationLabel('/settings/users')).toBe('User Management')
     expect(getDashboardNavigationLabel('/alerts/repository')).toBe('Alerts Repository')
   })

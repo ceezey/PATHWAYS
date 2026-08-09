@@ -2,6 +2,7 @@ import type { NavItem } from '@pathways/shared'
 import {
   AlertTriangle,
   BarChart3,
+  ClipboardList,
   FolderKanban,
   Home,
   LineChart,
@@ -33,6 +34,7 @@ export const fixedDashboardNavItemLabels = {
   dashboard: 'Dashboard',
   projects: 'Projects',
   beneficiaries: 'Beneficiaries',
+  collection: 'Collection',
   analytics: 'Analytics',
   alerts: 'Alerts',
   recommendations: 'Recommendations',
@@ -77,6 +79,12 @@ export const createDashboardNavGroups = (): DashboardNavGroup[] => [
         label: fixedDashboardNavItemLabels.beneficiaries,
         description: 'Beneficiary Journey Tracking records.',
         icon: UsersRound,
+      },
+      {
+        href: '/collection',
+        label: fixedDashboardNavItemLabels.collection,
+        description: 'Metadata-Driven Data Integration workspace.',
+        icon: ClipboardList,
       },
     ],
   },

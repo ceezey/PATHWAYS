@@ -38,6 +38,7 @@ const sidebarDestinationsByRole = {
     '/dashboard',
     '/projects',
     '/beneficiaries',
+    '/collection',
     '/analytics',
     '/alerts',
     '/recommendations',
@@ -48,6 +49,7 @@ const sidebarDestinationsByRole = {
     '/dashboard',
     '/projects',
     '/beneficiaries',
+    '/collection',
     '/analytics',
     '/alerts',
     '/recommendations',
@@ -58,15 +60,24 @@ const sidebarDestinationsByRole = {
     '/dashboard',
     '/projects',
     '/beneficiaries',
+    '/collection',
     '/analytics',
     '/reports',
     '/alerts/repository',
   ],
-  'Project Officer': ['/dashboard', '/projects', '/beneficiaries', '/analytics', '/reports'],
+  'Project Officer': [
+    '/dashboard',
+    '/projects',
+    '/beneficiaries',
+    '/collection',
+    '/analytics',
+    '/reports',
+  ],
   'System Administrator': [
     '/dashboard',
     '/projects',
     '/beneficiaries',
+    '/collection',
     '/analytics',
     '/alerts',
     '/recommendations',
@@ -712,6 +723,7 @@ test('System Administrator can edit the approved page headings while fixed label
   await expect(page.getByRole('heading', { name: 'Edit Labels' })).toBeVisible()
   const navigation = page.getByRole('navigation', { name: 'Dashboard' }).first()
   await expect(navigation.getByRole('link', { name: 'Beneficiaries', exact: true })).toBeVisible()
+  await expect(navigation.getByRole('link', { name: 'Collection', exact: true })).toBeVisible()
   await expect(navigation.getByRole('link', { name: 'Analytics', exact: true })).toBeVisible()
 
   await expect(page.getByLabel('Beneficiaries page heading')).toBeVisible()
@@ -720,6 +732,7 @@ test('System Administrator can edit the approved page headings while fixed label
   const headingUpdates = [
     ['Projects page heading', 'Project Delivery Workspace'],
     ['Beneficiaries page heading', 'Beneficiary Progress Review'],
+    ['Collection page heading', 'Field Data Collection'],
     ['Analytics page heading', 'Program Analysis Review'],
     ['Alerts page heading', 'Alerts Review Queue'],
     ['Recommendations page heading', 'Recommendation Review'],
@@ -736,11 +749,13 @@ test('System Administrator can edit the approved page headings while fixed label
   await page.getByRole('button', { name: 'Save headings' }).click()
   await expect(page.getByRole('heading', { level: 1, name: 'Page Heading Settings' })).toBeVisible()
   await expect(navigation.getByRole('link', { name: 'Beneficiaries', exact: true })).toBeVisible()
+  await expect(navigation.getByRole('link', { name: 'Collection', exact: true })).toBeVisible()
   await expect(navigation.getByRole('link', { name: 'Analytics', exact: true })).toBeVisible()
 
   const headingRoutes = [
     ['/projects', 'Project Delivery Workspace'],
     ['/beneficiaries', 'Beneficiary Progress Review'],
+    ['/collection', 'Field Data Collection'],
     ['/analytics', 'Program Analysis Review'],
     ['/alerts', 'Alerts Review Queue'],
     ['/recommendations', 'Recommendation Review'],
@@ -759,6 +774,11 @@ test('System Administrator can edit the approved page headings while fixed label
   await expect(page.getByRole('heading', { level: 1, name: 'Page Heading Settings' })).toBeVisible()
 
   await page.getByRole('button', { name: 'Restore defaults' }).click()
+  await page.goto('/collection')
+  await expect(
+    page.getByRole('heading', { name: 'Metadata-Driven Data Integration' }),
+  ).toBeVisible()
+  await expect(navigation.getByRole('link', { name: 'Collection', exact: true })).toBeVisible()
   await page.goto('/beneficiaries')
   await expect(page.getByRole('heading', { name: 'Beneficiary Journey Tracking' })).toBeVisible()
   await expect(page.getByRole('button', { name: 'Edit page heading' })).toHaveCount(0)

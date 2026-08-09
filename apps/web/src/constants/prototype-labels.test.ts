@@ -29,6 +29,7 @@ describe('prototype labels', () => {
       mergePrototypeLabels({
         sidebarBeneficiaries: 'Community journeys',
         moduleBeneficiaries: 'Beneficiary progress review',
+        moduleCollection: 'Field data collection',
         moduleAnalytics: 'Program analysis review',
         moduleProjects: 'Custom project heading',
         projectWorkspace: 'Configurable project workspace',
@@ -36,6 +37,7 @@ describe('prototype labels', () => {
       }),
     ).toMatchObject({
       moduleBeneficiaries: 'Beneficiary progress review',
+      moduleCollection: 'Field data collection',
       moduleProjects: 'Custom project heading',
       moduleAnalytics: 'Program analysis review',
       projectWorkspace: defaultPrototypeLabels.projectWorkspace,
@@ -49,7 +51,7 @@ describe('prototype labels', () => {
     expect(mergePrototypeLabels(['not', 'a', 'label', 'record'])).toEqual(defaultPrototypeLabels)
   })
 
-  it('limits the editor to the nine approved System Administrator page headings', () => {
+  it('limits the editor to the ten approved System Administrator page headings', () => {
     const editableKeys = prototypeLabelGroups.flatMap((group) =>
       group.labels.map((definition) => definition.key),
     )
@@ -57,6 +59,7 @@ describe('prototype labels', () => {
     expect(editableKeys).toEqual([
       'moduleProjects',
       'moduleBeneficiaries',
+      'moduleCollection',
       'moduleAnalytics',
       'moduleAlerts',
       'moduleRecommendations',

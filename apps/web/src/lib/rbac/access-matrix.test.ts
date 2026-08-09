@@ -17,9 +17,11 @@ describe('Phase 10.5 RBAC matrix', () => {
     ['Project Manager', 'evaluation.formal.submit', false],
     ['Program Manager', 'budget.portfolio_view', true],
     ['Program Manager', 'activities.view', true],
+    ['Program Manager', 'collection.view', true],
     ['Program Manager', 'transparency.preview', true],
     ['Program Manager', 'transparency.publish', false],
     ['System Administrator', 'rules.configure', true],
+    ['System Administrator', 'collection.view', true],
     ['System Administrator', 'budget.expense.approve', false],
   ] as const)('%s permission %s is %s', (role, permission, expected) => {
     expect(can(role, permission)).toBe(expected)
@@ -89,6 +91,19 @@ describe('Phase 10.5 RBAC matrix', () => {
     expect(getRouteAccess('System Administrator', '/beneficiaries')).toMatchObject({
       allowed: true,
       requiresBeneficiaryStepUp: false,
+    })
+  })
+
+  it.each([
+    'Program Manager',
+    'Project Manager',
+    'Monitoring and Evaluation Officer',
+    'Project Officer',
+    'System Administrator',
+  ] as const)('keeps Collection reachable for %s', (role) => {
+    expect(getRouteAccess(role, '/collection')).toMatchObject({
+      allowed: true,
+      moduleName: 'Collection',
     })
   })
 

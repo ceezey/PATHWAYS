@@ -52,6 +52,11 @@ export const prototypeLabelGroups: PrototypeLabelGroup[] = [
         label: 'Beneficiaries page heading',
         helperText: 'Heading for the Beneficiary Journey Tracking directory.',
       },
+      {
+        key: 'moduleCollection',
+        label: 'Collection page heading',
+        helperText: 'Heading for the Metadata-Driven Data Integration workspace.',
+      },
     ],
   },
   {
