@@ -12,6 +12,7 @@ export { mockApprovedPublicMedia } from './public-media'
 export { mockRecommendations } from './recommendations'
 export { mockReports } from './reports'
 export { mockRules } from './rules'
+export { mockSurveyAggregateResults, mockSurveyForms } from './survey-reports'
 export { mockUsers } from './users'
 export {
   defaultTransparencySections,

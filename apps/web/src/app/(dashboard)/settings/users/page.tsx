@@ -2,7 +2,10 @@ import { UserManagementWorkspace } from '@/features/settings/user-management-wor
 import { pathwaysClient } from '@/lib/services/mock-pathways-client'
 
 export default async function UserManagementPage() {
-  const users = await pathwaysClient.getUsers()
+  const [users, projects] = await Promise.all([
+    pathwaysClient.getUsers(),
+    pathwaysClient.getProjects(),
+  ])
 
-  return <UserManagementWorkspace initialUsers={users} />
+  return <UserManagementWorkspace initialProjects={projects} initialUsers={users} />
 }

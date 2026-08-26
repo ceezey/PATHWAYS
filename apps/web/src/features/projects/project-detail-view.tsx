@@ -8,6 +8,8 @@ import { PageHeader } from '@/components/layout/page-header'
 import { EmptyState, ProgressBar, SectionCard, StatusBadge } from '@/components/pathways'
 import { Button } from '@/components/ui/button'
 import { usePrototypeLabels } from '@/hooks/use-prototype-labels'
+import { usePrototypeRole } from '@/hooks/use-prototype-role'
+import { can } from '@/lib/rbac/can'
 import { pathwaysClient } from '@/lib/services/mock-pathways-client'
 import type { ProjectDetail } from '@/types/pathways'
 
@@ -21,6 +23,7 @@ import { ProjectWorkspaceHeader } from './project-workspace-header'
 
 export const ProjectDetailView = ({ projectId }: { projectId: string }) => {
   const { labels } = usePrototypeLabels()
+  const { role } = usePrototypeRole()
   const [project, setProject] = useState<ProjectDetail | null>(null)
   const [status, setStatus] = useState<'loading' | 'success' | 'error'>('loading')
 
@@ -97,9 +100,11 @@ export const ProjectDetailView = ({ projectId }: { projectId: string }) => {
                 Back to Projects
               </Link>
             </Button>
-            <Button asChild>
-              <Link href={`/projects/${project.id}/activities`}>Open Activities</Link>
-            </Button>
+            {can(role, 'activities.view') ? (
+              <Button asChild>
+                <Link href={`/projects/${project.id}/activities`}>Open Activities</Link>
+              </Button>
+            ) : null}
           </div>
         }
       />

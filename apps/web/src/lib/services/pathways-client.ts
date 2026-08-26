@@ -2,10 +2,10 @@ import type {
   Activity,
   AlertRecord,
   AnalyticsLocationRecord,
-  Beneficiary,
   BeneficiaryFilters,
   BeneficiaryMediaProofRecord,
   BeneficiaryRecord,
+  BeneficiarySadddAggregate,
   BudgetRecord,
   CreateActivityInput,
   CreateProjectInput,
@@ -24,15 +24,19 @@ import type {
   RoleDashboardViewModel,
   RuleDefinition,
   SubmitActivityProofInput,
+  SurveyAggregateFilters,
+  SurveyAggregateResultSet,
+  SurveyFormDefinition,
   TransparencySection,
   UpdateActivityInput,
   UserRecord,
 } from '@/types/pathways'
+import type { PrototypeRole } from '@/types/prototype-role'
 
 export class PathwaysClientError extends Error {
   constructor(
     message: string,
-    readonly code: 'not_found' | 'mock_failure',
+    readonly code: 'not_found' | 'forbidden' | 'mock_failure',
   ) {
     super(message)
     this.name = 'PathwaysClientError'
@@ -55,18 +59,28 @@ export interface PathwaysClient {
   getExpenses(projectId: string): Promise<ExpenseRecord[]>
   getRecommendationOutcomes(projectId: string): Promise<RecommendationOutcomeRecord[]>
   getTransparencySections(projectId: string): Promise<TransparencySection[]>
-  getBeneficiaries(filters?: BeneficiaryFilters): Promise<Beneficiary[]>
-  getBeneficiaryRecords(filters?: BeneficiaryFilters): Promise<BeneficiaryRecord[]>
-  getBeneficiaryRecord(id: string): Promise<BeneficiaryRecord>
-  getBeneficiaryMediaProof(beneficiaryId: string): Promise<BeneficiaryMediaProofRecord[]>
+  getBeneficiaryRecordsForRole(
+    role: PrototypeRole,
+    filters?: BeneficiaryFilters,
+  ): Promise<BeneficiaryRecord[]>
+  getBeneficiaryRecordForRole(role: PrototypeRole, id: string): Promise<BeneficiaryRecord>
+  getBeneficiaryMediaProofForRole(
+    role: PrototypeRole,
+    beneficiaryId: string,
+  ): Promise<BeneficiaryMediaProofRecord[]>
+  getBeneficiarySadddAggregatesForRole(role: PrototypeRole): Promise<BeneficiarySadddAggregate[]>
   getJourneyStages(projectId: string): Promise<JourneyStageConfig[]>
   getIndicators(projectId?: string): Promise<Indicator[]>
   getBudgets(projectId?: string): Promise<BudgetRecord[]>
   getAlerts(projectId?: string): Promise<AlertRecord[]>
+  getAlertsForRole(role: PrototypeRole, projectId?: string): Promise<AlertRecord[]>
   getAnalyticsLocations(): Promise<AnalyticsLocationRecord[]>
   getRecommendations(): Promise<RecommendationRecord[]>
+  getRecommendationsForRole(role: PrototypeRole): Promise<RecommendationRecord[]>
   getRules(): Promise<RuleDefinition[]>
   getReports(projectId?: string): Promise<ReportRecord[]>
+  getSurveyForms(projectId?: string): Promise<SurveyFormDefinition[]>
+  getSurveyAggregateResults(filters?: SurveyAggregateFilters): Promise<SurveyAggregateResultSet[]>
   getPublicProjects(): Promise<PublicProjectRecord[]>
   getPublicProject(id: string): Promise<PublicProjectRecord>
   getUsers(): Promise<UserRecord[]>

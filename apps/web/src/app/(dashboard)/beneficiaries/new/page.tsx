@@ -1,8 +1,5 @@
-import { BeneficiaryForm } from '@/features/beneficiaries/beneficiary-form'
-import { pathwaysClient } from '@/lib/services/mock-pathways-client'
+import { BeneficiaryFormLoader } from '@/features/beneficiaries/beneficiary-form-loader'
 
-export default async function NewBeneficiaryPage() {
-  const projects = await pathwaysClient.getProjects()
-
-  return <BeneficiaryForm projects={projects} />
+export default function NewBeneficiaryPage() {
+  return <BeneficiaryFormLoader />
 }

@@ -270,7 +270,7 @@ export const PublicProjectDetail = ({
                 type="button"
               >
                 <SlidersHorizontal className="h-4 w-4" aria-hidden="true" />
-                Edit public preview
+                Edit staff preview
               </Button>
             </div>
           </div>

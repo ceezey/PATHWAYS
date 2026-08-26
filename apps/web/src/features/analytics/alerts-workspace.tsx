@@ -1,10 +1,11 @@
 'use client'
 
-import { AlertTriangle, ExternalLink } from 'lucide-react'
+import { AlertTriangle, ExternalLink, Loader2 } from 'lucide-react'
 import Link from 'next/link'
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { toast } from 'sonner'
 
+import { EmptyState } from '@/components/pathways/empty-state'
 import { StatusBadge } from '@/components/pathways/status-badge'
 import { Button } from '@/components/ui/button'
 import {
@@ -25,6 +26,8 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { usePrototypeLabels } from '@/hooks/use-prototype-labels'
+import { usePrototypeRole } from '@/hooks/use-prototype-role'
+import { pathwaysClient } from '@/lib/services/mock-pathways-client'
 import type {
   AlertLifecycleStatus,
   AlertRecord,
@@ -57,7 +60,65 @@ type AlertsWorkspaceProps = {
   rules: RuleDefinition[]
 }
 
-export const AlertsWorkspace = ({
+type AlertsWorkspaceData = AlertsWorkspaceProps & { role: string }
+
+export const AlertsWorkspace = () => {
+  const { role } = usePrototypeRole()
+  const [data, setData] = useState<AlertsWorkspaceData | null>(null)
+  const [status, setStatus] = useState<'loading' | 'ready' | 'error'>('loading')
+
+  useEffect(() => {
+    let active = true
+    setStatus('loading')
+    setData(null)
+
+    Promise.all([
+      pathwaysClient.getAlertsForRole(role),
+      pathwaysClient.getProjectsForRole(role),
+      pathwaysClient.getRecommendationsForRole(role),
+      pathwaysClient.getRules(),
+    ])
+      .then(([initialAlerts, projects, recommendations, rules]) => {
+        if (!active) return
+        setData({ initialAlerts, projects, recommendations, role, rules })
+        setStatus('ready')
+      })
+      .catch(() => {
+        if (!active) return
+        setStatus('error')
+      })
+
+    return () => {
+      active = false
+    }
+  }, [role])
+
+  if (status === 'loading') {
+    return (
+      <div className="flex min-h-80 items-center justify-center rounded-lg border border-border bg-card">
+        <div className="flex items-center gap-3 text-sm text-muted-foreground">
+          <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+          Loading scoped alerts...
+        </div>
+      </div>
+    )
+  }
+
+  if (status === 'error' || !data) {
+    return (
+      <EmptyState
+        className="min-h-80 rounded-lg border border-border bg-card"
+        description="The role-scoped alert queue could not be loaded. Reload this page to try again."
+        icon={AlertTriangle}
+        title="Alerts unavailable"
+      />
+    )
+  }
+
+  return <AlertsWorkspaceContent key={data.role} {...data} />
+}
+
+const AlertsWorkspaceContent = ({
   initialAlerts,
   projects,
   recommendations,

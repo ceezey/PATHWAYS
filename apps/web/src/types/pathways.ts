@@ -242,6 +242,14 @@ export interface BeneficiaryRecord extends Beneficiary {
   notes: BeneficiaryNoteRecord[]
 }
 
+export interface BeneficiarySadddAggregate {
+  projectId: string
+  sex: Beneficiary['sex']
+  ageGroup: Beneficiary['ageGroup']
+  disabilityStatus: Beneficiary['disabilityStatus']
+  count: number
+}
+
 export interface Indicator {
   id: string
   projectId: string
@@ -427,7 +435,86 @@ export interface ReportRecord {
   reportingPeriod: string
 }
 
-export type ReportKind = 'project-summary' | 'indicator-summary' | 'beneficiary-summary'
+export type SurveyFormFieldType = 'Single select' | 'Numeric score'
+
+export interface SurveyFormFieldDefinition {
+  id: string
+  label: string
+  responseType: SurveyFormFieldType
+  metadataKey: string
+  required: boolean
+  options?: string[]
+  minimum?: number
+  maximum?: number
+}
+
+export interface SurveyFormDefinition {
+  id: string
+  title: string
+  formType: 'Training Survey' | 'Pre/Post Assessment' | 'Feedback Form'
+  programName: string
+  projectId: string
+  journeyStageId?: string
+  activityId?: string
+  fields: SurveyFormFieldDefinition[]
+  source: 'Metadata-driven Collection prototype'
+}
+
+export interface SurveyAggregateCount {
+  label: string
+  count: number
+}
+
+export interface SurveyCategoricalAggregate {
+  fieldId: string
+  kind: 'Categorical distribution'
+  responseCount: number
+  values: SurveyAggregateCount[]
+}
+
+export interface SurveyNumericAggregate {
+  fieldId: string
+  kind: 'Numeric summary'
+  responseCount: number
+  average: number
+  minimum: number
+  maximum: number
+  scaleLabel: string
+}
+
+export type SurveyQuestionAggregate = SurveyCategoricalAggregate | SurveyNumericAggregate
+
+export interface SurveyDemographicAggregate {
+  dimension: 'Sex' | 'Age group' | 'Disability status'
+  values: SurveyAggregateCount[]
+}
+
+export interface SurveyAggregateResultSet {
+  id: string
+  formId: string
+  projectId: string
+  location: string
+  responseDate: string
+  reportingPeriod: string
+  responseCount: number
+  questionResults: SurveyQuestionAggregate[]
+  demographicBreakdowns: SurveyDemographicAggregate[]
+  source: 'Synthetic aggregate mock'
+}
+
+export interface SurveyAggregateFilters {
+  formId?: string
+  projectId?: string
+  location?: string
+  responseDate?: string
+  reportingPeriod?: string
+}
+
+export type ReportKind =
+  | 'project-summary'
+  | 'indicator-summary'
+  | 'beneficiary-summary'
+  | 'survey-results'
 
 export interface ReportColumnConfig {
   id: string
@@ -519,6 +606,7 @@ export interface UserRecord {
   role: PrototypeRole
   accountStatus: UserAccountStatus
   signInMethod: 'Prototype password' | 'SSO placeholder'
+  projectIds: string[]
   projectAccess: string[]
   createdAt: string
   lastActiveAt?: string

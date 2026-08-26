@@ -19,6 +19,13 @@ export const publicPrototypeAccounts: PrototypeAccountPublic[] = [
     email: 'program.manager@demo.pathways.local',
   },
   {
+    id: 'grant-manager',
+    displayName: 'Grant Manager Demo',
+    role: 'Grant Manager',
+    username: 'grant.manager',
+    email: 'grant.manager@demo.pathways.local',
+  },
+  {
     id: 'project-manager',
     displayName: 'Project Manager Demo',
     role: 'Project Manager',

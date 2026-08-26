@@ -33,6 +33,7 @@ import {
 } from '@/components/ui/table'
 import { usePrototypeLabels } from '@/hooks/use-prototype-labels'
 import { usePrototypeRole } from '@/hooks/use-prototype-role'
+import { getAccessProfile } from '@/lib/rbac/can'
 import { scopeBeneficiariesForRole, scopeProjectsForRole } from '@/lib/rbac/data-scope'
 import type {
   Activity,
@@ -67,6 +68,13 @@ export const BeneficiaryDirectory = ({
 }: BeneficiaryDirectoryProps) => {
   const { labels } = usePrototypeLabels()
   const { role } = usePrototypeRole()
+  const projectAccess = getAccessProfile(role).projectAccess
+  const projectAccessLabel =
+    projectAccess === 'assigned-projects'
+      ? 'Assigned projects'
+      : projectAccess === 'organization'
+        ? 'All projects'
+        : 'Portfolio view'
   const scopedProjects = useMemo(() => scopeProjectsForRole(projects, role), [projects, role])
   const scopedBeneficiaries = useMemo(
     () => scopeBeneficiariesForRole(beneficiaries, role),
@@ -227,8 +235,8 @@ export const BeneficiaryDirectory = ({
     <div className="space-y-6">
       <section className="flex flex-col gap-4 rounded-lg border border-border bg-card p-5 shadow-sm lg:flex-row lg:items-start lg:justify-between">
         <div className="space-y-2">
-          <StatusBadge tone={role === 'Project Officer' ? 'warning' : 'info'}>
-            {role === 'Project Officer' ? 'Assigned projects' : 'Portfolio view'}
+          <StatusBadge tone={projectAccess === 'assigned-projects' ? 'warning' : 'info'}>
+            {projectAccessLabel}
           </StatusBadge>
           <div>
             <h1 className="text-3xl font-semibold tracking-tight text-foreground">

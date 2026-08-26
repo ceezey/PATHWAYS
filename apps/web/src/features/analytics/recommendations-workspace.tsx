@@ -1,10 +1,11 @@
 'use client'
 
-import { CheckCircle2, FileText } from 'lucide-react'
+import { AlertTriangle, CheckCircle2, FileText, Loader2 } from 'lucide-react'
 import Link from 'next/link'
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { toast } from 'sonner'
 
+import { EmptyState } from '@/components/pathways/empty-state'
 import { StatusBadge } from '@/components/pathways/status-badge'
 import { Button } from '@/components/ui/button'
 import {
@@ -25,6 +26,8 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { usePrototypeLabels } from '@/hooks/use-prototype-labels'
+import { usePrototypeRole } from '@/hooks/use-prototype-role'
+import { pathwaysClient } from '@/lib/services/mock-pathways-client'
 import type {
   AlertRecord,
   ProjectSummary,
@@ -51,7 +54,76 @@ type RecommendationsWorkspaceProps = {
   rules: RuleDefinition[]
 }
 
+type RecommendationsWorkspaceData = RecommendationsWorkspaceProps & { role: string }
+
 export const RecommendationsWorkspace = ({
+  initialRecommendationId,
+}: {
+  initialRecommendationId?: string
+}) => {
+  const { role } = usePrototypeRole()
+  const [data, setData] = useState<RecommendationsWorkspaceData | null>(null)
+  const [status, setStatus] = useState<'loading' | 'ready' | 'error'>('loading')
+
+  useEffect(() => {
+    let active = true
+    setStatus('loading')
+    setData(null)
+
+    Promise.all([
+      pathwaysClient.getRecommendationsForRole(role),
+      pathwaysClient.getAlertsForRole(role),
+      pathwaysClient.getProjectsForRole(role),
+      pathwaysClient.getRules(),
+    ])
+      .then(([initialRecommendations, alerts, projects, rules]) => {
+        if (!active) return
+        setData({
+          alerts,
+          initialRecommendationId,
+          initialRecommendations,
+          projects,
+          role,
+          rules,
+        })
+        setStatus('ready')
+      })
+      .catch(() => {
+        if (!active) return
+        setStatus('error')
+      })
+
+    return () => {
+      active = false
+    }
+  }, [initialRecommendationId, role])
+
+  if (status === 'loading') {
+    return (
+      <div className="flex min-h-80 items-center justify-center rounded-lg border border-border bg-card">
+        <div className="flex items-center gap-3 text-sm text-muted-foreground">
+          <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+          Loading scoped recommendations...
+        </div>
+      </div>
+    )
+  }
+
+  if (status === 'error' || !data) {
+    return (
+      <EmptyState
+        className="min-h-80 rounded-lg border border-border bg-card"
+        description="The role-scoped recommendation queue could not be loaded. Reload this page to try again."
+        icon={AlertTriangle}
+        title="Recommendations unavailable"
+      />
+    )
+  }
+
+  return <RecommendationsWorkspaceContent key={data.role} {...data} />
+}
+
+const RecommendationsWorkspaceContent = ({
   initialRecommendationId,
   initialRecommendations,
   alerts,

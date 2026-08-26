@@ -1,7 +1,12 @@
 import { ReportingPage } from '@/features/reports/reporting-page'
 import type { ReportKind } from '@/types/pathways'
 
-const reportKinds: ReportKind[] = ['project-summary', 'indicator-summary', 'beneficiary-summary']
+const reportKinds: ReportKind[] = [
+  'project-summary',
+  'indicator-summary',
+  'beneficiary-summary',
+  'survey-results',
+]
 
 export default async function ReportPreviewPage({
   searchParams,

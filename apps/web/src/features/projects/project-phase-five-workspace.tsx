@@ -1649,7 +1649,7 @@ const TransparencyView = ({
         <Button asChild className="gap-2" size="sm">
           <Link href={`/projects/${project.id}/transparency/preview`}>
             <Eye className="h-4 w-4" aria-hidden="true" />
-            Open public preview
+            Open staff preview
           </Link>
         </Button>
       }

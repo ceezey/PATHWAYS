@@ -11,6 +11,7 @@ import { Input } from '@/components/ui/input'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { usePrototypeLabels } from '@/hooks/use-prototype-labels'
 import { usePrototypeRole } from '@/hooks/use-prototype-role'
+import { can } from '@/lib/rbac/can'
 import { pathwaysClient } from '@/lib/services/mock-pathways-client'
 import type { ProjectDetail, ProjectStatus, ProjectSummary } from '@/types/pathways'
 
@@ -25,6 +26,7 @@ import {
 
 const directoryDescription = {
   'Program Manager': 'Portfolio projects across the prototype workspace.',
+  'Grant Manager': 'High-level grant and project portfolio summaries.',
   'Project Manager': 'Assigned projects and project setup entry point.',
   'Monitoring and Evaluation Officer': 'Projects assigned for monitoring and evaluation review.',
   'Project Officer': 'Projects with assigned field activities and implementation tasks.',
@@ -96,7 +98,7 @@ export const ProjectDirectory = () => {
         title={labels.moduleProjects}
         description={directoryDescription[role]}
         actions={
-          role === 'Project Manager' ? (
+          can(role, 'projects.create') ? (
             <Button asChild className="gap-2">
               <Link href="/projects/new">
                 <Plus className="h-4 w-4" aria-hidden="true" />
@@ -218,8 +220,14 @@ export const ProjectDirectory = () => {
                     Quick Preview
                   </Button>
                   <Button asChild className="gap-2">
-                    <Link href={`/projects/${project.id}/activities`}>
-                      Open Workspace
+                    <Link
+                      href={
+                        can(role, 'activities.view')
+                          ? `/projects/${project.id}/activities`
+                          : `/projects/${project.id}`
+                      }
+                    >
+                      {can(role, 'activities.view') ? 'Open Workspace' : 'View Project Summary'}
                       <ArrowRight className="h-4 w-4" aria-hidden="true" />
                     </Link>
                   </Button>

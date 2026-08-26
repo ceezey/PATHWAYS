@@ -9,7 +9,7 @@ import {
   UsersRound,
 } from 'lucide-react'
 import Link from 'next/link'
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 
 import { EmptyState } from '@/components/pathways/empty-state'
 import { MetricCard } from '@/components/pathways/metric-card'
@@ -24,11 +24,13 @@ import {
 import { usePrototypeLabels } from '@/hooks/use-prototype-labels'
 import { usePrototypeRole } from '@/hooks/use-prototype-role'
 import { can } from '@/lib/rbac/can'
+import { canAccessProjectForRole } from '@/lib/rbac/data-scope'
+import { pathwaysClient } from '@/lib/services/mock-pathways-client'
 import type {
   Activity,
   AlertRecord,
   AnalyticsLocationRecord,
-  BeneficiaryRecord,
+  BeneficiarySadddAggregate,
   BudgetRecord,
   ProjectDetail,
 } from '@/types/pathways'
@@ -51,7 +53,6 @@ type AnalyticsDashboardProps = {
   projects: ProjectDetail[]
   activities: Activity[]
   budgets: BudgetRecord[]
-  beneficiaries: BeneficiaryRecord[]
   alerts: AlertRecord[]
   locations: AnalyticsLocationRecord[]
 }
@@ -60,7 +61,6 @@ export const AnalyticsDashboard = ({
   projects,
   activities,
   budgets,
-  beneficiaries,
   alerts,
   locations,
 }: AnalyticsDashboardProps) => {
@@ -69,6 +69,39 @@ export const AnalyticsDashboard = ({
   const [projectId, setProjectId] = useState(allValue)
   const [period, setPeriod] = useState('Q2 2026')
   const [loading, setLoading] = useState(false)
+  const [sadddAggregates, setSadddAggregates] = useState<BeneficiarySadddAggregate[]>([])
+
+  const roleScopedProjects = useMemo(
+    () => projects.filter((project) => canAccessProjectForRole(role, project.id)),
+    [projects, role],
+  )
+
+  useEffect(() => {
+    let active = true
+
+    void pathwaysClient
+      .getBeneficiarySadddAggregatesForRole(role)
+      .then((aggregates) => {
+        if (active) {
+          setSadddAggregates(aggregates)
+        }
+      })
+      .catch(() => {
+        if (active) {
+          setSadddAggregates([])
+        }
+      })
+
+    return () => {
+      active = false
+    }
+  }, [role])
+
+  useEffect(() => {
+    if (projectId !== allValue && !roleScopedProjects.some((project) => project.id === projectId)) {
+      setProjectId(allValue)
+    }
+  }, [projectId, roleScopedProjects])
 
   const refreshFilter = (update: () => void) => {
     update()
@@ -78,8 +111,10 @@ export const AnalyticsDashboard = ({
 
   const visibleProjects = useMemo(
     () =>
-      projectId === allValue ? projects : projects.filter((project) => project.id === projectId),
-    [projectId, projects],
+      projectId === allValue
+        ? roleScopedProjects
+        : roleScopedProjects.filter((project) => project.id === projectId),
+    [projectId, roleScopedProjects],
   )
   const visibleProjectIds = useMemo(
     () => visibleProjects.map((project) => project.id),
@@ -90,8 +125,8 @@ export const AnalyticsDashboard = ({
     visibleProjectIds.includes(activity.projectId),
   )
   const visibleBudgets = budgets.filter((budget) => visibleProjectIds.includes(budget.projectId))
-  const visibleBeneficiaries = beneficiaries.filter((beneficiary) =>
-    beneficiary.projectIds.some((id) => visibleProjectIds.includes(id)),
+  const visibleSadddAggregates = sadddAggregates.filter((aggregate) =>
+    visibleProjectIds.includes(aggregate.projectId),
   )
   const visibleAlerts = alerts.filter((alert) => visibleProjectIds.includes(alert.projectId))
   const visibleLocations = useMemo(
@@ -173,7 +208,7 @@ export const AnalyticsDashboard = ({
             </SelectTrigger>
             <SelectContent>
               <SelectItem value={allValue}>All projects</SelectItem>
-              {projects.map((project) => (
+              {roleScopedProjects.map((project) => (
                 <SelectItem key={project.id} value={project.id}>
                   {project.title}
                 </SelectItem>
@@ -269,7 +304,7 @@ export const AnalyticsDashboard = ({
               <BudgetUtilizationChart budgets={visibleBudgets} projects={visibleProjects} />
             </ChartPanel>
             <ChartPanel title="SADDD Analysis">
-              <SadddChart beneficiaries={visibleBeneficiaries} />
+              <SadddChart aggregates={visibleSadddAggregates} />
             </ChartPanel>
             <ChartPanel title="Activity completion">
               <ActivityCompletionChart activities={visibleActivities} />

@@ -2,6 +2,7 @@ import type { DashboardNavGroup, DashboardNavItem } from '@/constants/navigation
 import type { ReportKind } from '@/types/pathways'
 import type { PrototypeRole } from '@/types/prototype-role'
 import { can, canAny } from './can'
+import { canAccessProjectForRole } from './data-scope'
 import type { PermissionCode } from './permissions'
 
 export interface RouteAccessResult {
@@ -21,17 +22,42 @@ export const reportKindPermissions: Record<ReportKind, PermissionCode> = {
   'project-summary': 'reports.project_summary.view',
   'indicator-summary': 'reports.indicator_summary.view',
   'beneficiary-summary': 'reports.beneficiary_summary.view',
+  'survey-results': 'reports.view',
+}
+
+const reportKindModuleNames: Record<ReportKind, string> = {
+  'project-summary': 'Project Summary',
+  'indicator-summary': 'Indicator Summary',
+  'beneficiary-summary': 'Beneficiary Summary',
+  'survey-results': 'Survey/Form Results',
 }
 
 const normalizePath = (pathname: string) => pathname.split('?')[0] ?? pathname
 
+const getPreviewReportKind = (pathname: string): ReportKind => {
+  const query = pathname.split('?')[1] ?? ''
+  const requestedKind = new URLSearchParams(query).get('kind')
+
+  return requestedKind && requestedKind in reportKindPermissions
+    ? (requestedKind as ReportKind)
+    : 'beneficiary-summary'
+}
+
 const hasBeneficiaryPermission = (role: PrototypeRole) =>
   canAny(role, ['beneficiaries.scoped_view', 'beneficiaries.full_view'])
+
+const getProjectIdFromPath = (pathname: string) =>
+  /^\/projects\/([^/]+)/.exec(pathname)?.[1] ?? null
+
+const canAccessProjectPath = (role: PrototypeRole, pathname: string) => {
+  const projectId = getProjectIdFromPath(pathname)
+  return projectId ? canAccessProjectForRole(role, projectId) : true
+}
 
 const routeChecks: Array<{
   test: (pathname: string) => boolean
   moduleName: string
-  allowed: (role: PrototypeRole) => boolean
+  allowed: (role: PrototypeRole, pathname: string) => boolean
   requiresBeneficiaryStepUp?: (role: PrototypeRole) => boolean
 }> = [
   {
@@ -52,32 +78,37 @@ const routeChecks: Array<{
   {
     test: (pathname) => pathname === '/projects' || /^\/projects\/[^/]+$/.test(pathname),
     moduleName: 'Projects',
-    allowed: (role) => can(role, 'projects.view'),
+    allowed: (role, pathname) => can(role, 'projects.view') && canAccessProjectPath(role, pathname),
   },
   {
     test: (pathname) => /^\/projects\/[^/]+\/activities/.test(pathname),
     moduleName: 'Activities',
-    allowed: (role) => can(role, 'activities.view'),
+    allowed: (role, pathname) =>
+      can(role, 'activities.view') && canAccessProjectPath(role, pathname),
   },
   {
     test: (pathname) => /^\/projects\/[^/]+\/evidence/.test(pathname),
     moduleName: 'Evidence review',
-    allowed: (role) => can(role, 'evidence.review'),
+    allowed: (role, pathname) =>
+      can(role, 'evidence.review') && canAccessProjectPath(role, pathname),
   },
   {
     test: (pathname) => /^\/projects\/[^/]+\/indicators/.test(pathname),
     moduleName: 'Target indicators',
-    allowed: (role) => can(role, 'indicators.manage'),
+    allowed: (role, pathname) =>
+      can(role, 'indicators.manage') && canAccessProjectPath(role, pathname),
   },
   {
     test: (pathname) => /^\/projects\/[^/]+\/monitor-evaluate/.test(pathname),
     moduleName: 'Monitor & Evaluate',
-    allowed: (role) => can(role, 'monitor_evaluate.view'),
+    allowed: (role, pathname) =>
+      can(role, 'monitor_evaluate.view') && canAccessProjectPath(role, pathname),
   },
   {
     test: (pathname) => /^\/projects\/[^/]+\/budget/.test(pathname),
     moduleName: 'Budget',
-    allowed: (role) =>
+    allowed: (role, pathname) =>
+      canAccessProjectPath(role, pathname) &&
       canAny(role, [
         'budget.expense.log',
         'budget.expense.view',
@@ -88,12 +119,16 @@ const routeChecks: Array<{
   {
     test: (pathname) => /^\/projects\/[^/]+\/journey-stages/.test(pathname),
     moduleName: 'Journey stages',
-    allowed: (role) => canAny(role, ['activities.create_edit', 'monitor_evaluate.full']),
+    allowed: (role, pathname) =>
+      canAccessProjectPath(role, pathname) &&
+      canAny(role, ['activities.create_edit', 'monitor_evaluate.full']),
   },
   {
     test: (pathname) => /^\/projects\/[^/]+\/transparency/.test(pathname),
     moduleName: 'Public dashboard preview',
-    allowed: (role) => canAny(role, ['transparency.preview', 'transparency.publish']),
+    allowed: (role, pathname) =>
+      canAccessProjectPath(role, pathname) &&
+      canAny(role, ['transparency.preview', 'transparency.publish']),
   },
   {
     test: (pathname) => pathname.startsWith('/beneficiaries'),
@@ -138,8 +173,12 @@ const routeChecks: Array<{
     allowed: (role) => can(role, reportKindPermissions['indicator-summary']),
   },
   {
-    test: (pathname) =>
-      pathname === '/reports/beneficiary-summary' || pathname === '/reports/preview',
+    test: (pathname) => pathname === '/reports/survey-results',
+    moduleName: 'Survey/Form Results',
+    allowed: (role) => can(role, reportKindPermissions['survey-results']),
+  },
+  {
+    test: (pathname) => pathname === '/reports/beneficiary-summary',
     moduleName: 'Beneficiary Summary',
     allowed: (role) => can(role, reportKindPermissions['beneficiary-summary']),
   },
@@ -156,7 +195,7 @@ const routeChecks: Array<{
   {
     test: (pathname) => pathname === '/settings/users',
     moduleName: 'User Management',
-    allowed: (role) => can(role, 'settings.view'),
+    allowed: (role) => can(role, 'settings.users.manage'),
   },
   {
     test: (pathname) => pathname === '/settings/labels',
@@ -172,13 +211,26 @@ const routeChecks: Array<{
 
 export const getRouteAccess = (role: PrototypeRole, pathname: string): RouteAccessResult => {
   const normalizedPath = normalizePath(pathname)
+
+  if (normalizedPath === '/reports/preview') {
+    const reportKind = getPreviewReportKind(pathname)
+    const allowed = can(role, reportKindPermissions[reportKind])
+
+    return {
+      allowed,
+      moduleName: `${reportKindModuleNames[reportKind]} preview`,
+      requiresBeneficiaryStepUp:
+        allowed && reportKind === 'beneficiary-summary' ? role !== 'System Administrator' : false,
+    }
+  }
+
   const route = routeChecks.find((item) => item.test(normalizedPath))
 
   if (!route) {
     return { allowed: true, moduleName: 'Workspace' }
   }
 
-  const allowed = route.allowed(role)
+  const allowed = route.allowed(role, normalizedPath)
 
   return {
     allowed,
@@ -197,7 +249,7 @@ const navPermissions: Record<string, PermissionCode | PermissionCode[] | undefin
   '/recommendations': 'alerts.outcome.log',
   '/reports': 'reports.view',
   '/alerts/repository': 'rules.view',
-  '/settings/users': 'settings.view',
+  '/settings/users': 'settings.users.manage',
   '/settings/labels': 'settings.view',
 }
 

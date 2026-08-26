@@ -1,8 +1,4 @@
-import { notFound } from 'next/navigation'
-
-import { BeneficiaryDetail } from '@/features/beneficiaries/beneficiary-detail'
-import { pathwaysClient } from '@/lib/services/mock-pathways-client'
-import { PathwaysClientError } from '@/lib/services/pathways-client'
+import { BeneficiaryDetailLoader } from '@/features/beneficiaries/beneficiary-detail-loader'
 
 export default async function BeneficiaryDetailPage({
   params,
@@ -11,32 +7,5 @@ export default async function BeneficiaryDetailPage({
 }) {
   const { beneficiaryId } = await params
 
-  try {
-    const [beneficiary, projects, mediaProof] = await Promise.all([
-      pathwaysClient.getBeneficiaryRecord(beneficiaryId),
-      pathwaysClient.getProjects(),
-      pathwaysClient.getBeneficiaryMediaProof(beneficiaryId),
-    ])
-    const projectIds = beneficiary.projectIds
-    const [activityGroups, stageGroups] = await Promise.all([
-      Promise.all(projectIds.map((projectId) => pathwaysClient.getActivities(projectId))),
-      Promise.all(projectIds.map((projectId) => pathwaysClient.getJourneyStages(projectId))),
-    ])
-
-    return (
-      <BeneficiaryDetail
-        activities={activityGroups.flat()}
-        beneficiary={beneficiary}
-        mediaProof={mediaProof}
-        projects={projects}
-        stages={stageGroups.flat()}
-      />
-    )
-  } catch (error) {
-    if (error instanceof PathwaysClientError && error.code === 'not_found') {
-      notFound()
-    }
-
-    throw error
-  }
+  return <BeneficiaryDetailLoader beneficiaryId={beneficiaryId} />
 }

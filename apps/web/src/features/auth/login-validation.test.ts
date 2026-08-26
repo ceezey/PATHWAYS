@@ -19,6 +19,17 @@ describe('login validation', () => {
     expect(JSON.stringify(publicPrototypeAccounts)).not.toContain('PathwaysDemo!2026')
   })
 
+  it('exposes Grant Manager as a distinct safe demo account', () => {
+    expect(publicPrototypeAccounts).toContainEqual(
+      expect.objectContaining({
+        id: 'grant-manager',
+        role: 'Grant Manager',
+        username: 'grant.manager',
+        email: 'grant.manager@demo.pathways.local',
+      }),
+    )
+  })
+
   it('keeps prototype credential verification out of the client validation module', () => {
     expect(
       loginSchema.safeParse({ identifier: 'program.manager', password: 'PathwaysDemo!2026' })

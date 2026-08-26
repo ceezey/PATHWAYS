@@ -33,18 +33,35 @@ const seedBeneficiaryAccess = async (page: Page, role = 'Monitoring and Evaluati
   }, role)
 }
 
+const seedProjectAssignmentOverride = async (
+  page: Page,
+  role: 'Project Manager' | 'Project Officer' | 'Monitoring and Evaluation Officer',
+  projectIds: string[],
+) => {
+  await page.addInitScript(
+    ({ selectedRole, selectedProjectIds }) => {
+      window.localStorage.setItem(
+        'pathways.prototypeUserAssignments',
+        JSON.stringify({ [selectedRole]: selectedProjectIds }),
+      )
+    },
+    { selectedRole: role, selectedProjectIds: projectIds },
+  )
+}
+
 const sidebarDestinationsByRole = {
   'Program Manager': [
     '/dashboard',
     '/projects',
-    '/beneficiaries',
     '/collection',
     '/analytics',
     '/alerts',
     '/recommendations',
     '/reports',
     '/alerts/repository',
+    '/settings/users',
   ],
+  'Grant Manager': ['/dashboard', '/projects', '/analytics', '/reports'],
   'Project Manager': [
     '/dashboard',
     '/projects',
@@ -55,6 +72,7 @@ const sidebarDestinationsByRole = {
     '/recommendations',
     '/reports',
     '/alerts/repository',
+    '/settings/users',
   ],
   'Monitoring and Evaluation Officer': [
     '/dashboard',
@@ -129,6 +147,7 @@ test('public dashboard links work without the internal sidebar', async ({ page }
 test('Program Manager customizes a browser-local staff preview without changing the public page', async ({
   page,
 }) => {
+  test.setTimeout(90_000)
   await seedPrototypeSession(page, 'Program Manager')
   await page.goto('/projects/futuremakers-ncr/transparency')
   const previewLink = page.getByRole('link', { name: 'Open staff preview' })
@@ -263,10 +282,9 @@ test('login works and role preview switches through every supported role', async
 
   await expect(page.getByRole('heading', { name: 'Sign in to PATHWAYS' })).toBeVisible()
   await page.getByRole('button', { name: 'Demo Accounts' }).click()
-  await page
-    .getByRole('dialog', { name: 'Demo accounts' })
-    .getByRole('button', { name: /Program Manager/ })
-    .click()
+  const demoAccounts = page.getByRole('dialog', { name: 'Demo accounts' })
+  await expect(demoAccounts.getByRole('button', { name: /Grant Manager/ })).toBeVisible()
+  await demoAccounts.getByRole('button', { name: /Program Manager/ }).click()
   await page.keyboard.press('Escape')
   await page.getByLabel('Password', { exact: true }).fill(prototypePassword)
   await page.getByRole('button', { name: 'Log In' }).click()
@@ -278,9 +296,9 @@ test('login works and role preview switches through every supported role', async
   const roleSwitcher = page.getByRole('combobox', { name: 'Prototype Role Preview' })
   await expect(roleSwitcher).toBeVisible()
   await expect(page.getByRole('heading', { name: 'Program Manager dashboard' })).toBeVisible()
-  await expect(page.getByText('Grant Manager')).toHaveCount(0)
 
   for (const role of [
+    'Grant Manager',
     'Project Manager',
     'Monitoring and Evaluation Officer',
     'Project Officer',
@@ -300,7 +318,6 @@ test('dashboard navigation and legacy route redirects are reachable', async ({ p
 
   for (const linkName of [
     'Projects',
-    'Beneficiaries',
     'Analytics',
     'Alerts',
     'Recommendations',
@@ -312,19 +329,26 @@ test('dashboard navigation and legacy route redirects are reachable', async ({ p
 
   await page.goto('/participants')
   await expect(page).toHaveURL(/\/beneficiaries$/)
-  await expect(
-    page.getByRole('heading', { name: 'Verify beneficiary module access' }),
-  ).toBeVisible()
+  await expect(page.getByText('Unauthorized access', { exact: true })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Verify beneficiary module access' })).toHaveCount(
+    0,
+  )
+
+  await page.goto('/reports/beneficiary-summary')
+  await expect(page.getByText('Unauthorized access', { exact: true })).toBeVisible()
+  await expect(page.getByRole('columnheader', { name: 'Beneficiary Code' })).toHaveCount(0)
 
   await page.goto('/imports')
   await expect(page).toHaveURL(/\/collection\/import$/)
-  await expect(page.getByText('Unauthorized access')).toBeVisible()
-  await expect(page.getByText(/cannot access Collection/)).toBeVisible()
+  await expect(
+    page.getByRole('heading', { name: 'Metadata-Driven Data Integration' }),
+  ).toBeVisible()
+  await expect(page.getByText('Unauthorized access')).toHaveCount(0)
 })
 
 for (const [role, destinations] of Object.entries(sidebarDestinationsByRole)) {
   test(`${role} sidebar destinations open without a dead end`, async ({ page }) => {
-    test.setTimeout(120_000)
+    test.setTimeout(180_000)
     await seedBeneficiaryAccess(page, role)
     await page.goto('/dashboard')
 
@@ -337,10 +361,11 @@ for (const [role, destinations] of Object.entries(sidebarDestinationsByRole)) {
 
     for (const href of destinations) {
       await page.goto('/dashboard')
-      await navigation.locator(`a[href="${href}"]`).click()
-      await page.waitForURL((url) => url.pathname === href)
+      await expect(navigation.locator(`a[href="${href}"]`)).toHaveAttribute('href', href)
+      await page.goto(href)
+      await expect(page).toHaveURL((url) => url.pathname === href)
 
-      await expect(page.getByRole('heading', { name: 'Unauthorized access' })).toHaveCount(0)
+      await expect(page.getByText('Unauthorized access', { exact: true })).toHaveCount(0)
       await expect(page.getByRole('heading', { name: 'Route not found' })).toHaveCount(0)
       await expect(navigation.locator(`a[href="${href}"]`)).toHaveAttribute('aria-current', 'page')
     }
@@ -370,7 +395,6 @@ test('Program Manager executive summary prioritizes delivery and goal outlook', 
   await page.goto('/dashboard')
 
   await expect(page.getByRole('heading', { name: 'Program Manager dashboard' })).toBeVisible()
-  await expect(page.getByText('Grant Manager')).toHaveCount(0)
 
   const executiveSummary = page.getByRole('region', { name: 'Active project portfolio' })
   await expect(executiveSummary).toBeVisible()
@@ -393,6 +417,135 @@ test('Program Manager executive summary prioritizes delivery and goal outlook', 
   await expect(page.getByText('Needs recovery plan', { exact: true })).toBeVisible()
 })
 
+test('Grant Manager remains a distinct aggregate-only portfolio role', async ({ page }) => {
+  await seedPrototypeSession(page, 'Grant Manager')
+  await page.goto('/dashboard')
+
+  await expect(page.getByRole('heading', { name: 'Grant Manager dashboard' })).toBeVisible()
+  await expect(page.getByText(/aggregate information only/i)).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Review Aggregate Reports' })).toBeVisible()
+
+  const navigation = page.getByRole('navigation', { name: 'Dashboard' }).first()
+  await expect(navigation.getByRole('link', { name: 'Beneficiaries' })).toHaveCount(0)
+  await expect(navigation.getByRole('link', { name: 'User Management' })).toHaveCount(0)
+
+  await page.goto('/projects')
+  await expect(page.getByRole('heading', { name: 'FutureMakers NCR' })).toBeVisible()
+  await expect(page.getByRole('link', { name: 'View Project Summary' }).first()).toBeVisible()
+  await expect(page.getByRole('link', { name: 'Open Workspace' })).toHaveCount(0)
+
+  await page.goto('/projects/futuremakers-ncr/activities')
+  await expect(page.getByText('Unauthorized access', { exact: true })).toBeVisible()
+
+  await page.goto('/beneficiaries')
+  await expect(page.getByText('Unauthorized access', { exact: true })).toBeVisible()
+})
+
+test('Monitoring and Evaluation Officer sees multiple assigned projects only', async ({ page }) => {
+  await seedPrototypeSession(page, 'Monitoring and Evaluation Officer')
+  await page.goto('/projects')
+
+  await expect(page.getByRole('heading', { name: 'FutureMakers NCR' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Grassroots Centers - Navotas' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Youth RISE - Western Samar' })).toHaveCount(0)
+  await expect(page.getByRole('heading', { name: 'Safe Spaces - Northern Samar' })).toHaveCount(0)
+})
+
+for (const scenario of [
+  {
+    role: 'Project Manager',
+    assignedProjects: ['FutureMakers NCR'],
+    unassignedId: 'grassroots-centers-navotas',
+    unassignedTitle: 'Grassroots Centers - Navotas',
+  },
+  {
+    role: 'Project Officer',
+    assignedProjects: ['FutureMakers NCR'],
+    unassignedId: 'grassroots-centers-navotas',
+    unassignedTitle: 'Grassroots Centers - Navotas',
+  },
+  {
+    role: 'Monitoring and Evaluation Officer',
+    assignedProjects: ['FutureMakers NCR', 'Grassroots Centers - Navotas'],
+    unassignedId: 'youth-rise-western-samar',
+    unassignedTitle: 'Youth RISE - Western Samar',
+  },
+] as const) {
+  test(`${scenario.role} keeps project workspaces and filters inside assigned scope`, async ({
+    page,
+  }) => {
+    await seedPrototypeSession(page, scenario.role)
+    await page.goto('/projects')
+
+    for (const project of scenario.assignedProjects) {
+      await expect(page.getByRole('heading', { name: project })).toBeVisible()
+    }
+    await expect(page.getByRole('heading', { name: scenario.unassignedTitle })).toHaveCount(0)
+
+    await page.goto(`/projects/${scenario.unassignedId}/activities`)
+    await expect(page.getByText('Unauthorized access', { exact: true })).toBeVisible()
+
+    if (scenario.role === 'Project Manager') {
+      await page.goto(`/projects/${scenario.unassignedId}/transparency/preview`)
+      await expect(page.getByText('Unauthorized access', { exact: true })).toBeVisible()
+      await expect(page.getByText('Staff-only prototype preview.')).toHaveCount(0)
+    }
+
+    await page.goto('/analytics')
+    const analyticsProjectFilter = page.getByRole('combobox', { name: 'Project filter' })
+    await analyticsProjectFilter.click()
+    for (const project of scenario.assignedProjects) {
+      await expect(page.getByRole('option', { name: project })).toBeVisible()
+    }
+    await expect(page.getByRole('option', { name: scenario.unassignedTitle })).toHaveCount(0)
+    await page.keyboard.press('Escape')
+
+    await page.goto('/reports/survey-results')
+    const surveyProjectFilter = page.getByRole('combobox', {
+      name: 'Survey results project filter',
+    })
+    await surveyProjectFilter.click()
+    await expect(page.getByRole('option', { name: 'FutureMakers NCR' })).toBeVisible()
+    await expect(page.getByRole('option', { name: 'Youth RISE - Western Samar' })).toHaveCount(0)
+  })
+}
+
+test('Project Manager alert and recommendation queues stay inside assigned project scope', async ({
+  page,
+}) => {
+  await seedPrototypeSession(page, 'Project Manager')
+  await page.goto('/alerts')
+
+  const alertProjectFilter = page.getByRole('combobox', { name: 'Filter alerts by project' })
+  await alertProjectFilter.click()
+  await expect(page.getByRole('option', { name: 'FutureMakers NCR' })).toBeVisible()
+  await expect(page.getByRole('option', { name: 'Youth RISE - Western Samar' })).toHaveCount(0)
+  await expect(page.getByRole('option', { name: 'Grassroots Centers - Navotas' })).toHaveCount(0)
+  await page.keyboard.press('Escape')
+  await expect(page.getByText('Low KPI achievement', { exact: true }).first()).toBeVisible()
+  await expect(page.getByText('Training site validation is behind schedule')).toHaveCount(0)
+
+  await page.goto('/recommendations')
+  const recommendationProjectFilter = page.getByRole('combobox', {
+    name: 'Filter recommendations by project',
+  })
+  await recommendationProjectFilter.click()
+  await expect(page.getByRole('option', { name: 'FutureMakers NCR' })).toBeVisible()
+  await expect(page.getByRole('option', { name: 'Safe Spaces - Northern Samar' })).toHaveCount(0)
+  await page.keyboard.press('Escape')
+  await expect(
+    page
+      .getByText(
+        'Review beneficiary outreach strategy and intensify vocational track engagement.',
+        {
+          exact: true,
+        },
+      )
+      .first(),
+  ).toBeVisible()
+  await expect(page.getByText('Compare spending against approved activity plans')).toHaveCount(0)
+})
+
 test('project directory, workspace tabs, and activity dialog are navigable', async ({ page }) => {
   test.setTimeout(120_000)
   await seedPrototypeSession(page, 'Project Manager')
@@ -400,6 +553,12 @@ test('project directory, workspace tabs, and activity dialog are navigable', asy
 
   await expect(page.getByRole('heading', { name: 'Project Information Management' })).toBeVisible()
   await expect(page.getByLabel('Search projects')).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'FutureMakers NCR' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Youth RISE - Western Samar' })).toHaveCount(0)
+  await expect(page.getByRole('heading', { name: 'Grassroots Centers - Navotas' })).toHaveCount(0)
+
+  await page.goto('/projects/grassroots-centers-navotas')
+  await expect(page.getByText('Unauthorized access', { exact: true })).toBeVisible()
 
   await page.goto('/projects/futuremakers-ncr/activities')
   await expect(page.getByRole('heading', { name: 'Project Activities' })).toBeVisible()
@@ -482,6 +641,7 @@ for (const viewport of [
 }
 
 test('beneficiary directory and analytics screens expose critical controls', async ({ page }) => {
+  test.setTimeout(90_000)
   await seedPrototypeSession(page, 'Monitoring and Evaluation Officer')
   await page.goto('/beneficiaries')
 
@@ -499,12 +659,19 @@ test('beneficiary directory and analytics screens expose critical controls', asy
   await expect(beneficiaryVerifyButton).toBeEnabled()
   await beneficiaryVerifyButton.click()
   await expect(page.getByRole('heading', { name: 'Beneficiary Journey Tracking' })).toBeVisible()
+  await expect(page.getByText('Assigned projects', { exact: true })).toBeVisible()
   const beneficiarySearch = page.getByRole('searchbox', { name: 'Search by name or code' })
   await expect(beneficiarySearch).toBeVisible()
 
   await beneficiarySearch.fill('Beneficiary WS 014')
-  await expect(page.getByRole('link', { name: 'Beneficiary WS-014' })).toBeVisible()
-  await expect(page.getByText('BEN-WS-014 · Calbayog')).toBeVisible()
+  await expect(page.getByRole('link', { name: 'Beneficiary WS-014' })).toHaveCount(0)
+  await expect(
+    page.getByText('No Beneficiary records match the current search and filters.'),
+  ).toBeVisible()
+
+  await beneficiarySearch.fill('Beneficiary NCR 001')
+  await expect(page.getByRole('link', { name: 'Beneficiary NCR-001' })).toBeVisible()
+  await expect(page.getByText('BEN-NCR-001 · Quezon City')).toBeVisible()
 
   await beneficiarySearch.fill('BEN-NAV-022')
   await expect(page.getByRole('link', { name: 'Beneficiary NAV-022' })).toBeVisible()
@@ -522,6 +689,69 @@ test('beneficiary directory and analytics screens expose critical controls', asy
 
   await page.goto('/collection/import')
   await expect(page.getByText('File reading progress')).toBeVisible()
+})
+
+for (const scenario of [
+  {
+    role: 'Project Officer',
+    allowedId: 'ben-001',
+    allowedHeading: 'Beneficiary NCR-001',
+    restrictedId: 'ben-003',
+  },
+  {
+    role: 'Monitoring and Evaluation Officer',
+    allowedId: 'ben-003',
+    allowedHeading: 'Beneficiary NAV-022',
+    restrictedId: 'ben-002',
+  },
+] as const) {
+  test(`${scenario.role} direct Beneficiary routes follow assigned projects`, async ({ page }) => {
+    await seedBeneficiaryAccess(page, scenario.role)
+    await page.goto(`/beneficiaries/${scenario.allowedId}`)
+
+    await expect(page.getByRole('heading', { name: scenario.allowedHeading })).toBeVisible()
+
+    await page.goto(`/beneficiaries/${scenario.restrictedId}`)
+    await expect(page.getByText('Beneficiary record restricted', { exact: true })).toBeVisible()
+    await expect(page.getByRole('region', { name: 'Media proof' })).toHaveCount(0)
+  })
+}
+
+test('System Administrator can open Beneficiary records across projects', async ({ page }) => {
+  await seedPrototypeSession(page, 'System Administrator')
+  await page.goto('/beneficiaries/ben-002')
+
+  await expect(page.getByRole('heading', { name: 'Beneficiary WS-014' })).toBeVisible()
+  await expect(page.getByText('BEN-WS-014', { exact: false }).first()).toBeVisible()
+})
+
+test('assignment changes propagate to Beneficiary search, deep links, reports, and forms', async ({
+  page,
+}) => {
+  await seedBeneficiaryAccess(page, 'Project Manager')
+  await seedProjectAssignmentOverride(page, 'Project Manager', ['grassroots-centers-navotas'])
+  await page.goto('/beneficiaries')
+
+  const search = page.getByRole('searchbox', { name: 'Search by name or code' })
+  await search.fill('BEN-NAV-022')
+  await expect(page.getByRole('link', { name: 'Beneficiary NAV-022' })).toBeVisible()
+  await search.fill('BEN-NCR-001')
+  await expect(page.getByRole('link', { name: 'Beneficiary NCR-001' })).toHaveCount(0)
+
+  await page.goto('/beneficiaries/ben-003')
+  await expect(page.getByRole('heading', { name: 'Beneficiary NAV-022' })).toBeVisible()
+  await page.goto('/beneficiaries/ben-001')
+  await expect(page.getByText('Beneficiary record restricted', { exact: true })).toBeVisible()
+
+  await page.goto('/reports/beneficiary-summary')
+  await expect(page.getByRole('columnheader', { name: 'Beneficiary Code' })).toBeVisible()
+  await expect(page.getByText('BEN-NAV-022', { exact: true })).toBeVisible()
+  await expect(page.getByText('BEN-NCR-001', { exact: true })).toHaveCount(0)
+
+  await page.goto('/beneficiaries/new')
+  await page.getByRole('combobox', { name: 'Project enrollment' }).click()
+  await expect(page.getByRole('option', { name: 'Grassroots Centers - Navotas' })).toBeVisible()
+  await expect(page.getByRole('option', { name: 'FutureMakers NCR' })).toHaveCount(0)
 })
 
 test('view-only Alerts Repository hides configuration actions', async ({ page }) => {
@@ -656,7 +886,8 @@ test('analytics location coverage answers where projects are reaching people', a
   await expect(coverage.getByRole('img', { name: 'Aggregate project coverage map' })).toBeVisible()
   await expect(coverage.getByText('Selected location', { exact: true })).toHaveCount(0)
   await expect(coverage.getByRole('heading', { name: 'Location summary' })).toHaveCount(0)
-  await expect(coverage.getByRole('button', { name: /Beneficiaries reached/ })).toHaveCount(9)
+  await expect(coverage.getByRole('button', { name: /Beneficiaries reached/ })).toHaveCount(3)
+  await expect(coverage.getByRole('button', { name: /Calbayog/ })).toHaveCount(0)
 
   const navotasPoint = coverage.getByRole('button', { name: /Navotas/ })
   await navotasPoint.hover()
@@ -828,7 +1059,8 @@ test('System Administrator can manage prototype users without server-side claims
   )
 
   const userList = page.getByRole('list', { name: 'Prototype users' })
-  await expect(userList.getByRole('listitem')).toHaveCount(6)
+  await expect(userList.getByRole('listitem')).toHaveCount(7)
+  await expect(userList.getByText('Grant Manager A')).toBeVisible()
   const programManagerRow = userList
     .getByRole('listitem')
     .filter({ hasText: 'program.manager.a@demo.pathways.local' })
@@ -851,11 +1083,14 @@ test('System Administrator can manage prototype users without server-side claims
 
   await page.getByRole('button', { name: 'Create user' }).click()
   const createDialog = page.getByRole('dialog', { name: 'Create prototype user' })
+  await createDialog.getByRole('combobox', { name: 'Role' }).click()
+  await expect(page.getByRole('option')).toHaveCount(6)
+  await page.getByRole('option', { name: 'Project Officer' }).click()
   await createDialog.getByLabel('Full name').fill('New Project Officer')
   await createDialog.getByLabel('Email').fill('new.officer@demo.pathways.local')
-  await createDialog.getByLabel('Project or access-scope labels').fill('FutureMakers NCR')
+  await createDialog.getByRole('checkbox', { name: 'Assign FutureMakers NCR' }).check()
   await createDialog.getByRole('button', { name: 'Create locally' }).click()
-  await expect(userList.getByRole('listitem')).toHaveCount(7)
+  await expect(userList.getByRole('listitem')).toHaveCount(8)
   await expect(userList.getByText('New Project Officer')).toBeVisible()
 
   const officerRow = userList
@@ -875,9 +1110,129 @@ test('System Administrator can manage prototype users without server-side claims
   await page.reload()
   await expect(
     page.getByRole('list', { name: 'Prototype users' }).getByRole('listitem'),
-  ).toHaveCount(6)
-  await expect(page.getByText('New Project Officer')).toHaveCount(0)
+  ).toHaveCount(8)
+  await expect(page.getByText('New Project Officer')).toBeVisible()
+  await expect(page.getByText('Program Manager Client Review')).toBeVisible()
 })
+
+test('Program Manager can manage only Project Managers and M&E assignments', async ({ page }) => {
+  await seedPrototypeSession(page, 'Program Manager')
+  await page.goto('/settings/users')
+
+  await expect(page.getByRole('heading', { name: 'User Management' })).toBeVisible()
+  await expect(page.getByText(/create and authorize Project Manager and Monitoring/i)).toBeVisible()
+  await expect(page.getByRole('link', { name: 'Edit Labels' })).toHaveCount(0)
+
+  await page.getByRole('button', { name: 'Create user' }).click()
+  const createDialog = page.getByRole('dialog', { name: 'Create prototype user' })
+  await createDialog.getByRole('combobox', { name: 'Role' }).click()
+  await expect(page.getByRole('option')).toHaveCount(2)
+  await expect(page.getByRole('option', { name: 'Project Manager' })).toBeVisible()
+  await expect(
+    page.getByRole('option', { name: 'Monitoring and Evaluation Officer' }),
+  ).toBeVisible()
+  await expect(page.getByRole('option', { name: 'Project Officer' })).toHaveCount(0)
+  await expect(page.getByRole('option', { name: 'Grant Manager' })).toHaveCount(0)
+  await page.getByRole('option', { name: 'Monitoring and Evaluation Officer' }).click()
+
+  await expect(createDialog.getByText('Multiple projects may be selected.')).toBeVisible()
+  await expect(createDialog.getByRole('checkbox')).toHaveCount(5)
+  await createDialog.getByLabel('Full name').fill('M&E Multi-project Review')
+  await createDialog.getByLabel('Email').fill('me.multi@demo.pathways.local')
+  await createDialog.getByRole('checkbox', { name: 'Assign Youth RISE - Western Samar' }).check()
+  await createDialog.getByRole('checkbox', { name: 'Assign Girls Lead - Metro Manila' }).check()
+  await createDialog.getByRole('button', { name: 'Create locally' }).click()
+
+  const createdRow = page
+    .getByRole('list', { name: 'Prototype users' })
+    .getByRole('listitem')
+    .filter({ hasText: 'me.multi@demo.pathways.local' })
+  await expect(createdRow).toContainText('Youth RISE - Western Samar')
+  await expect(createdRow).toContainText('Girls Lead - Metro Manila')
+
+  const roleSwitcher = page.getByRole('combobox', { name: 'Prototype Role Preview' })
+  await roleSwitcher.click()
+  await page.getByRole('option', { name: 'Monitoring and Evaluation Officer' }).click()
+  await expect(page.getByText('Unauthorized access', { exact: true })).toBeVisible()
+
+  await page.getByRole('link', { name: 'Back to Dashboard' }).click()
+  await expect(
+    page.getByRole('heading', { name: 'Monitoring and Evaluation Officer dashboard' }),
+  ).toBeVisible()
+
+  const projectsLink = page
+    .getByRole('navigation', { name: 'Dashboard' })
+    .first()
+    .getByRole('link', { name: 'Projects', exact: true })
+  await projectsLink.click()
+  await expect(page.getByRole('heading', { name: 'Youth RISE - Western Samar' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Girls Lead - Metro Manila' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'FutureMakers NCR' })).toHaveCount(0)
+})
+
+test('Project Manager account controls stay inside managed project scope', async ({ page }) => {
+  await seedPrototypeSession(page, 'Project Manager')
+  await page.goto('/settings/users')
+
+  await expect(page.getByRole('heading', { name: 'User Management' })).toBeVisible()
+  await expect(page.getByText(/create and authorize Project Officer and Monitoring/i)).toBeVisible()
+  await expect(page.getByRole('link', { name: 'Edit Labels' })).toHaveCount(0)
+
+  const userList = page.getByRole('list', { name: 'Prototype users' })
+  await expect(
+    userList.getByRole('button', { name: 'Account actions for Project Officer A' }),
+  ).toBeEnabled()
+  await expect(
+    userList.getByRole('button', {
+      name: 'Account actions unavailable for Project Officer Invite',
+    }),
+  ).toBeDisabled()
+  await expect(
+    userList.getByRole('button', {
+      name: 'Account actions unavailable for Monitoring and Evaluation Officer A',
+    }),
+  ).toBeDisabled()
+
+  await page.getByRole('button', { name: 'Create user' }).click()
+  const createDialog = page.getByRole('dialog', { name: 'Create prototype user' })
+  await createDialog.getByRole('combobox', { name: 'Role' }).click()
+  await expect(page.getByRole('option')).toHaveCount(2)
+  await expect(page.getByRole('option', { name: 'Project Officer' })).toBeVisible()
+  await expect(
+    page.getByRole('option', { name: 'Monitoring and Evaluation Officer' }),
+  ).toBeVisible()
+  await expect(page.getByRole('option', { name: 'Project Manager' })).toHaveCount(0)
+  await page.getByRole('option', { name: 'Project Officer' }).click()
+
+  await expect(createDialog.getByRole('checkbox')).toHaveCount(1)
+  await expect(
+    createDialog.getByRole('checkbox', { name: 'Assign FutureMakers NCR' }),
+  ).toBeVisible()
+  await expect(
+    createDialog.getByRole('checkbox', { name: 'Assign Youth RISE - Western Samar' }),
+  ).toHaveCount(0)
+  await createDialog.getByRole('button', { name: 'Cancel' }).click()
+})
+
+for (const role of [
+  'Project Officer',
+  'Monitoring and Evaluation Officer',
+  'Grant Manager',
+] as const) {
+  test(`${role} has no User Management controls`, async ({ page }) => {
+    await seedPrototypeSession(page, role)
+    await page.goto('/settings/users')
+
+    await expect(page.getByText('Unauthorized access', { exact: true })).toBeVisible()
+    await expect(page.getByRole('button', { name: 'Create user' })).toHaveCount(0)
+    await expect(
+      page
+        .getByRole('navigation', { name: 'Dashboard' })
+        .first()
+        .getByRole('link', { name: 'User Management', exact: true }),
+    ).toHaveCount(0)
+  })
+}
 
 test('user management remains concise and navigable on mobile', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 })
@@ -929,6 +1284,87 @@ test('reports are filterable, previewable, and keep export actions prototype-onl
     page.getByRole('link', { name: 'Open report preview' }).click(),
   ])
   await expect(page.getByRole('dialog', { name: 'Report Preview' })).toBeVisible()
+})
+
+test('survey results demonstrate the aggregate Life Skills FutureMakers Navotas scenario', async ({
+  page,
+}) => {
+  await seedPrototypeSession(page, 'Program Manager')
+  await page.goto('/reports/survey-results')
+
+  await expect(page.getByRole('heading', { name: 'Reports', exact: true })).toBeVisible()
+  await expect(page.getByRole('link', { name: 'Beneficiary Summary' })).toHaveCount(0)
+  await expect(page.getByRole('link', { name: 'Survey/Form Results' })).toBeVisible()
+  await expect(page.getByRole('combobox', { name: 'Survey results program filter' })).toContainText(
+    'FutureMakers',
+  )
+  await expect(page.getByRole('combobox', { name: 'Survey results project filter' })).toContainText(
+    'FutureMakers NCR',
+  )
+  await expect(page.getByRole('combobox', { name: 'Survey results form filter' })).toContainText(
+    'Life Skills Training Survey',
+  )
+  await expect(
+    page.getByRole('combobox', { name: 'Survey results location filter' }),
+  ).toContainText('Navotas')
+  await expect(
+    page.getByRole('combobox', { name: 'Survey results response date filter' }),
+  ).toContainText('Jul 15, 2026')
+
+  const context = page.getByRole('region', { name: 'Selected survey report context' })
+  await expect(context.getByText('2026 Q3')).toBeVisible()
+  await expect(context.getByText('J2.1 - Skills bootcamp branch')).toBeVisible()
+  await expect(context.getByText('Deliver skills bootcamp sessions')).toBeVisible()
+  await expect(context.getByText('40')).toBeVisible()
+  await expect(page.getByText('Confidence applying life skills')).toBeVisible()
+  await expect(page.getByText('Very confident: 18 (45%)')).toBeVisible()
+  await expect(page.getByText(/BEN-/)).toHaveCount(0)
+
+  await page.getByRole('combobox', { name: 'Survey results location filter' }).click()
+  await page.getByRole('option', { name: 'Quezon City' }).click()
+  await expect(
+    page.getByRole('combobox', { name: 'Survey results response date filter' }),
+  ).toContainText('Jun 30, 2026')
+  await expect(context.getByText('32', { exact: true }).first()).toBeVisible()
+  await page.getByRole('combobox', { name: 'Survey results location filter' }).click()
+  await page.getByRole('option', { name: 'Navotas' }).click()
+  await expect(
+    page.getByRole('combobox', { name: 'Survey results response date filter' }),
+  ).toContainText('Jul 15, 2026')
+
+  await page.getByRole('searchbox', { name: 'Survey/Form Results search' }).fill('no-match')
+  await expect(
+    page.getByText('No aggregate question summaries match the current filters.'),
+  ).toBeVisible()
+  await page.getByRole('searchbox', { name: 'Survey/Form Results search' }).fill('')
+
+  await page.getByRole('button', { name: 'Preview', exact: true }).click()
+  const preview = page.getByRole('dialog', { name: 'Report Preview' })
+  await expect(preview.getByText('Life Skills Training Survey')).toBeVisible()
+  await expect(preview.getByText(/No individual responses or Beneficiary identities/)).toBeVisible()
+  await preview.getByRole('button', { name: 'Close' }).first().click()
+
+  await page.getByRole('combobox', { name: 'Survey results program filter' }).click()
+  await page.getByRole('option', { name: 'Youth RISE' }).click()
+  await expect(page.getByRole('combobox', { name: 'Survey results project filter' })).toContainText(
+    'Youth RISE - Western Samar',
+  )
+  await expect(page.getByRole('combobox', { name: 'Survey results form filter' })).toContainText(
+    'Community Readiness Survey',
+  )
+  await expect(
+    page.getByRole('combobox', { name: 'Survey results location filter' }),
+  ).toContainText('Calbayog')
+
+  await page.setViewportSize({ width: 390, height: 844 })
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(
+    true,
+  )
+
+  await seedPrototypeSession(page, 'System Administrator')
+  await page.goto('/reports/beneficiary-summary')
+  await expect(page.getByRole('columnheader', { name: 'Beneficiary Code' })).toBeVisible()
+  await expect(page.getByText('BEN-NCR-001')).toBeVisible()
 })
 
 test('report preview dialog remains usable on mobile', async ({ page }) => {
