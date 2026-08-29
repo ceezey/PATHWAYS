@@ -7,10 +7,10 @@ import { useEffect, useState } from 'react'
 import { PageHeader } from '@/components/layout/page-header'
 import { EmptyState, ProgressBar, SectionCard, StatusBadge } from '@/components/pathways'
 import { Button } from '@/components/ui/button'
-import { usePrototypeLabels } from '@/hooks/use-prototype-labels'
-import { usePrototypeRole } from '@/hooks/use-prototype-role'
+import { useCurrentRole } from '@/hooks/use-current-role'
+import { useDisplayLabels } from '@/hooks/use-display-labels'
 import { can } from '@/lib/rbac/can'
-import { pathwaysClient } from '@/lib/services/mock-pathways-client'
+import { pathwaysClient } from '@/lib/services/pathways-client'
 import type { ProjectDetail } from '@/types/pathways'
 
 import {
@@ -22,8 +22,8 @@ import {
 import { ProjectWorkspaceHeader } from './project-workspace-header'
 
 export const ProjectDetailView = ({ projectId }: { projectId: string }) => {
-  const { labels } = usePrototypeLabels()
-  const { role } = usePrototypeRole()
+  const { labels } = useDisplayLabels()
+  const { role } = useCurrentRole()
   const [project, setProject] = useState<ProjectDetail | null>(null)
   const [status, setStatus] = useState<'loading' | 'success' | 'error'>('loading')
 
@@ -70,7 +70,7 @@ export const ProjectDetailView = ({ projectId }: { projectId: string }) => {
         <PageHeader
           eyebrow="Projects"
           title="Project not found"
-          description="This project is not available in the current prototype session."
+          description="This project could not be loaded from the Projects backend."
           actions={
             <Button asChild variant="outline">
               <Link href="/projects">Back to projects</Link>
@@ -78,7 +78,7 @@ export const ProjectDetailView = ({ projectId }: { projectId: string }) => {
           }
         />
         <EmptyState
-          description="Prototype projects created in another browser session may not be available here."
+          description="Return to the project directory or try again after the backend is connected."
           icon={FolderKanban}
           title="No project record"
         />
@@ -100,7 +100,7 @@ export const ProjectDetailView = ({ projectId }: { projectId: string }) => {
                 Back to Projects
               </Link>
             </Button>
-            {can(role, 'activities.view') ? (
+            {role && can(role, 'activities.view') ? (
               <Button asChild>
                 <Link href={`/projects/${project.id}/activities`}>Open Activities</Link>
               </Button>
@@ -117,9 +117,6 @@ export const ProjectDetailView = ({ projectId }: { projectId: string }) => {
             <div className="flex flex-wrap gap-2">
               <StatusBadge tone={projectStatusTone(project.status)}>{project.status}</StatusBadge>
               <StatusBadge tone={projectHealthTone(project.health)}>{project.health}</StatusBadge>
-              {project.createdInPrototype ? (
-                <StatusBadge tone="info">Prototype record</StatusBadge>
-              ) : null}
             </div>
           }
         >
@@ -169,7 +166,7 @@ export const ProjectDetailView = ({ projectId }: { projectId: string }) => {
         </SectionCard>
         <SectionCard
           title="Project team"
-          description="Prototype role assignments for this project."
+          description="Staff assignments associated with this project."
         >
           <dl className="space-y-4 text-sm">
             <div>
@@ -222,8 +219,8 @@ export const ProjectDetailView = ({ projectId }: { projectId: string }) => {
         >
           <p className="text-sm leading-6 text-muted-foreground">
             Activities, evidence, target indicators, monitoring and evaluation, budget, Beneficiary
-            Journey Tracking stages, and public transparency are available according to the selected
-            role.
+            Journey Tracking stages, and public transparency are available according to the
+            authenticated role.
           </p>
         </SectionCard>
       </section>

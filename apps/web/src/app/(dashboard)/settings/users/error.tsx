@@ -13,7 +13,7 @@ export default function UserManagementError({ reset }: { reset: () => void }) {
       <PageHeader
         eyebrow="Administration"
         title="User Management"
-        description="The prototype user directory could not be loaded."
+        description="The user directory could not be loaded."
       />
       <EmptyState
         action={
@@ -30,7 +30,7 @@ export default function UserManagementError({ reset }: { reset: () => void }) {
             </Button>
           </div>
         }
-        description="Try loading the mock records again or open the other Administration workspace."
+        description="Try loading the directory again or open the other Administration workspace."
         icon={UsersRound}
         title="User management unavailable"
       />

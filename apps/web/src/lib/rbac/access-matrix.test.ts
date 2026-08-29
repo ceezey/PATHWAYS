@@ -1,26 +1,14 @@
 import { describe, expect, it } from 'vitest'
 
-import { mockDashboards, mockProjects } from '@/mocks/pathways'
-import { prototypeRoles } from '@/types/prototype-role'
+import { pathwaysRoles } from '@/types/pathways-role'
 import { roleAccessProfiles } from './access-matrix'
 import { can, canConfigureProjectAssignmentsForRole, canCreateOrAuthorizeRole } from './can'
 import { getRouteAccess } from './route-access'
 
-const collectHrefs = (value: unknown): string[] => {
-  if (Array.isArray(value)) {
-    return value.flatMap(collectHrefs)
-  }
+const testProjectIds = ['project-alpha', 'project-beta']
+const projectManagerAssignments = ['project-alpha']
 
-  if (!value || typeof value !== 'object') {
-    return []
-  }
-
-  return Object.entries(value).flatMap(([key, entry]) =>
-    key === 'href' && typeof entry === 'string' ? [entry] : collectHrefs(entry),
-  )
-}
-
-describe('prototype RBAC matrix', () => {
+describe('RBAC matrix', () => {
   it.each([
     ['Project Officer', 'budget.expense.log', true],
     ['Project Officer', 'monitor_evaluate.view', false],
@@ -63,7 +51,7 @@ describe('prototype RBAC matrix', () => {
       projectAccess: 'organization',
       beneficiaryDataAccess: 'all-records',
       userAdministration: {
-        createAndAuthorizeRoles: prototypeRoles,
+        createAndAuthorizeRoles: pathwaysRoles,
         projectAssignmentRoles: [
           'Project Manager',
           'Project Officer',
@@ -122,13 +110,13 @@ describe('prototype RBAC matrix', () => {
 
   it('limits account creation and authorization to the locked hierarchy', () => {
     expect(
-      prototypeRoles.filter((role) => canCreateOrAuthorizeRole('System Administrator', role)),
-    ).toEqual(prototypeRoles)
+      pathwaysRoles.filter((role) => canCreateOrAuthorizeRole('System Administrator', role)),
+    ).toEqual(pathwaysRoles)
     expect(
-      prototypeRoles.filter((role) => canCreateOrAuthorizeRole('Program Manager', role)),
+      pathwaysRoles.filter((role) => canCreateOrAuthorizeRole('Program Manager', role)),
     ).toEqual(['Project Manager', 'Monitoring and Evaluation Officer'])
     expect(
-      prototypeRoles.filter((role) => canCreateOrAuthorizeRole('Project Manager', role)),
+      pathwaysRoles.filter((role) => canCreateOrAuthorizeRole('Project Manager', role)),
     ).toEqual(['Monitoring and Evaluation Officer', 'Project Officer'])
 
     for (const role of [
@@ -136,7 +124,7 @@ describe('prototype RBAC matrix', () => {
       'Monitoring and Evaluation Officer',
       'Grant Manager',
     ] as const) {
-      expect(prototypeRoles.some((targetRole) => canCreateOrAuthorizeRole(role, targetRole))).toBe(
+      expect(pathwaysRoles.some((targetRole) => canCreateOrAuthorizeRole(role, targetRole))).toBe(
         false,
       )
     }
@@ -182,14 +170,12 @@ describe('prototype RBAC matrix', () => {
   })
 
   it('denies direct routes for disallowed modules', () => {
-    expect(
-      getRouteAccess('Program Manager', '/projects/futuremakers-ncr/activities'),
-    ).toMatchObject({
+    expect(getRouteAccess('Program Manager', '/projects/project-alpha/activities')).toMatchObject({
       allowed: true,
       moduleName: 'Activities',
     })
     expect(
-      getRouteAccess('Project Officer', '/projects/futuremakers-ncr/monitor-evaluate'),
+      getRouteAccess('Project Officer', '/projects/project-alpha/monitor-evaluate'),
     ).toMatchObject({
       allowed: false,
       moduleName: 'Monitor & Evaluate',
@@ -207,18 +193,24 @@ describe('prototype RBAC matrix', () => {
   })
 
   it('denies Project Manager direct routes outside the assigned project scope', () => {
-    expect(getRouteAccess('Project Manager', '/projects/futuremakers-ncr')).toMatchObject({
+    expect(
+      getRouteAccess('Project Manager', '/projects/project-alpha', projectManagerAssignments),
+    ).toMatchObject({
       allowed: true,
       moduleName: 'Projects',
     })
-    expect(getRouteAccess('Project Manager', '/projects/grassroots-centers-navotas')).toMatchObject(
-      {
-        allowed: false,
-        moduleName: 'Projects',
-      },
-    )
     expect(
-      getRouteAccess('Project Manager', '/projects/grassroots-centers-navotas/activities'),
+      getRouteAccess('Project Manager', '/projects/project-beta', projectManagerAssignments),
+    ).toMatchObject({
+      allowed: false,
+      moduleName: 'Projects',
+    })
+    expect(
+      getRouteAccess(
+        'Project Manager',
+        '/projects/project-beta/activities',
+        projectManagerAssignments,
+      ),
     ).toMatchObject({
       allowed: false,
       moduleName: 'Activities',
@@ -226,9 +218,9 @@ describe('prototype RBAC matrix', () => {
   })
 
   it.each([
-    ['Project Manager', 'grassroots-centers-navotas'],
-    ['Project Officer', 'grassroots-centers-navotas'],
-    ['Monitoring and Evaluation Officer', 'youth-rise-western-samar'],
+    ['Project Manager', 'project-beta'],
+    ['Project Officer', 'project-beta'],
+    ['Monitoring and Evaluation Officer', 'project-gamma'],
   ] as const)('denies every unassigned project workspace path for %s', (role, projectId) => {
     for (const suffix of [
       '',
@@ -247,23 +239,11 @@ describe('prototype RBAC matrix', () => {
   })
 
   it('allows the System Administrator to open every project summary route', () => {
-    for (const project of mockProjects) {
-      expect(getRouteAccess('System Administrator', `/projects/${project.id}`)).toMatchObject({
+    for (const projectId of testProjectIds) {
+      expect(getRouteAccess('System Administrator', `/projects/${projectId}`)).toMatchObject({
         allowed: true,
         moduleName: 'Projects',
       })
-    }
-  })
-
-  it('keeps every role-dashboard navigation target inside the role matrix', () => {
-    for (const role of prototypeRoles) {
-      const hrefs = collectHrefs(mockDashboards[role])
-
-      for (const href of hrefs) {
-        expect(getRouteAccess(role, href), `${role} dashboard link ${href}`).toMatchObject({
-          allowed: true,
-        })
-      }
     }
   })
 
@@ -306,7 +286,7 @@ describe('prototype RBAC matrix', () => {
       allowed: false,
       moduleName: 'Beneficiaries',
     })
-    expect(getRouteAccess('Grant Manager', '/projects/futuremakers-ncr/activities')).toMatchObject({
+    expect(getRouteAccess('Grant Manager', '/projects/project-alpha/activities')).toMatchObject({
       allowed: false,
       moduleName: 'Activities',
     })
@@ -345,19 +325,24 @@ describe('prototype RBAC matrix', () => {
 
   it('limits the staff public-dashboard preview to designated internal roles', () => {
     expect(
-      getRouteAccess('Program Manager', '/projects/futuremakers-ncr/transparency/preview'),
-    ).toMatchObject({ allowed: true, moduleName: 'Public dashboard preview' })
-    expect(
-      getRouteAccess('Project Manager', '/projects/futuremakers-ncr/transparency/preview'),
+      getRouteAccess('Program Manager', '/projects/project-alpha/transparency/preview'),
     ).toMatchObject({ allowed: true, moduleName: 'Public dashboard preview' })
     expect(
       getRouteAccess(
         'Project Manager',
-        '/projects/grassroots-centers-navotas/transparency/preview',
+        '/projects/project-alpha/transparency/preview',
+        projectManagerAssignments,
+      ),
+    ).toMatchObject({ allowed: true, moduleName: 'Public dashboard preview' })
+    expect(
+      getRouteAccess(
+        'Project Manager',
+        '/projects/project-beta/transparency/preview',
+        projectManagerAssignments,
       ),
     ).toMatchObject({ allowed: false, moduleName: 'Public dashboard preview' })
     expect(
-      getRouteAccess('Project Officer', '/projects/futuremakers-ncr/transparency/preview'),
+      getRouteAccess('Project Officer', '/projects/project-alpha/transparency/preview'),
     ).toMatchObject({ allowed: false, moduleName: 'Public dashboard preview' })
   })
 
@@ -417,7 +402,7 @@ describe('prototype RBAC matrix', () => {
     })
   })
 
-  it('keeps browser-local label settings in the System Administrator area', () => {
+  it('keeps label settings in the System Administrator area', () => {
     expect(getRouteAccess('System Administrator', '/settings/labels')).toMatchObject({
       allowed: true,
       moduleName: 'Edit Labels',
@@ -446,5 +431,12 @@ describe('prototype RBAC matrix', () => {
         moduleName: 'User Management',
       })
     }
+  })
+
+  it('fails closed for protected routes without an explicit access rule', () => {
+    expect(getRouteAccess('System Administrator', '/imports')).toMatchObject({
+      allowed: false,
+      moduleName: 'Workspace',
+    })
   })
 })

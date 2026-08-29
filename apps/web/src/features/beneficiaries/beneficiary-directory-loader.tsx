@@ -4,8 +4,8 @@ import { UsersRound } from 'lucide-react'
 import { useEffect, useState } from 'react'
 
 import { EmptyState } from '@/components/pathways/empty-state'
-import { usePrototypeRole } from '@/hooks/use-prototype-role'
-import { pathwaysClient } from '@/lib/services/mock-pathways-client'
+import { useCurrentRole } from '@/hooks/use-current-role'
+import { pathwaysClient } from '@/lib/services/pathways-client'
 import type {
   Activity,
   BeneficiaryRecord,
@@ -30,7 +30,7 @@ const emptyDirectoryData: DirectoryData = {
 }
 
 export const BeneficiaryDirectoryLoader = () => {
-  const { role } = usePrototypeRole()
+  const { role } = useCurrentRole()
   const [data, setData] = useState<DirectoryData>(emptyDirectoryData)
   const [loading, setLoading] = useState(true)
   const [failed, setFailed] = useState(false)
@@ -41,6 +41,12 @@ export const BeneficiaryDirectoryLoader = () => {
     const loadDirectory = async () => {
       setLoading(true)
       setFailed(false)
+
+      if (!role) {
+        setFailed(true)
+        setLoading(false)
+        return
+      }
 
       try {
         const [beneficiaries, projects] = await Promise.all([
@@ -85,7 +91,7 @@ export const BeneficiaryDirectoryLoader = () => {
         aria-live="polite"
         className="rounded-lg border border-border bg-card p-8 text-sm text-muted-foreground"
       >
-        Loading the Beneficiary records available to this prototype role...
+        Loading the beneficiary records available to your role...
       </div>
     )
   }
@@ -93,7 +99,7 @@ export const BeneficiaryDirectoryLoader = () => {
   if (failed) {
     return (
       <EmptyState
-        description="The scoped sample records could not be loaded. Refresh the page to try again."
+        description="Beneficiary records could not be loaded. The backend integration may not be configured."
         icon={UsersRound}
         title="Beneficiary records unavailable"
       />

@@ -14,13 +14,14 @@ import {
   FileSpreadsheet,
   FileText,
   Filter,
-  Save,
   Search,
+  ShieldAlert,
 } from 'lucide-react'
 import Link from 'next/link'
 import { useEffect, useMemo, useState } from 'react'
 import { toast } from 'sonner'
 
+import { EmptyState } from '@/components/pathways/empty-state'
 import { ProgressBar } from '@/components/pathways/progress-bar'
 import { StatusBadge } from '@/components/pathways/status-badge'
 import { Button } from '@/components/ui/button'
@@ -57,12 +58,12 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
-import { usePrototypeLabels } from '@/hooks/use-prototype-labels'
-import { usePrototypeRole } from '@/hooks/use-prototype-role'
+import { useCurrentRole } from '@/hooks/use-current-role'
+import { useDisplayLabels } from '@/hooks/use-display-labels'
 import { can } from '@/lib/rbac/can'
 import { canAccessProjectForRole } from '@/lib/rbac/data-scope'
 import { reportKindPermissions } from '@/lib/rbac/route-access'
-import { pathwaysClient } from '@/lib/services/mock-pathways-client'
+import { pathwaysClient } from '@/lib/services/pathways-client'
 import type {
   Activity,
   BeneficiaryRecord,
@@ -75,7 +76,7 @@ import type {
   SurveyAggregateResultSet,
   SurveyFormDefinition,
 } from '@/types/pathways'
-import type { PrototypeRole } from '@/types/prototype-role'
+import type { PathwaysRole } from '@/types/pathways-role'
 
 import { SurveyReportOverview } from './survey-report-overview'
 import {
@@ -173,7 +174,7 @@ const defaultVisibleColumns = Object.fromEntries(
 
 const formatDate = (value?: string) => {
   if (!value) {
-    return 'Prototype date'
+    return 'Not available'
   }
 
   return new Intl.DateTimeFormat('en-US', {
@@ -184,14 +185,14 @@ const formatDate = (value?: string) => {
 
 const splitPeriod = (period: string) => {
   const [startDate, endDate] = period.split(' - ')
-  return { startDate: startDate ?? 'Prototype start', endDate: endDate ?? 'Prototype end' }
+  return { startDate: startDate ?? 'Not available', endDate: endDate ?? 'Not available' }
 }
 
 const projectCode = (index: number) => String(index + 1).padStart(3, '0')
 
 const progressLabel = (actual: number, target: number) => {
   const progress = target > 0 ? Math.round((actual / target) * 100) : 0
-  return `${progress}% of target - sample reporting data`
+  return `${progress}% of target`
 }
 
 const statusTone = (status: string) => {
@@ -217,11 +218,13 @@ export const ReportingWorkspace = ({
   surveyForms,
   surveyResults,
 }: ReportingWorkspaceProps) => {
-  const { labels } = usePrototypeLabels()
-  const { role } = usePrototypeRole()
-  const canViewBeneficiarySummary = can(role, reportKindPermissions['beneficiary-summary'])
+  const { labels } = useDisplayLabels()
+  const { role } = useCurrentRole()
+  const canViewBeneficiarySummary = role
+    ? can(role, reportKindPermissions['beneficiary-summary'])
+    : false
   const visibleReportTabs = useMemo(
-    () => reportTabs.filter((tab) => can(role, reportKindPermissions[tab.kind])),
+    () => (role ? reportTabs.filter((tab) => can(role, reportKindPermissions[tab.kind])) : []),
     [role],
   )
   const initialVisibleKind = visibleReportTabs.some((tab) => tab.kind === initialKind)
@@ -232,7 +235,7 @@ export const ReportingWorkspace = ({
   const [search, setSearch] = useState('')
   const [projectId, setProjectId] = useState(allValue)
   const [beneficiaryData, setBeneficiaryData] = useState<{
-    role: PrototypeRole
+    role: PathwaysRole
     records: BeneficiaryRecord[]
   } | null>(null)
   const [beneficiaryLoadState, setBeneficiaryLoadState] = useState<
@@ -240,9 +243,11 @@ export const ReportingWorkspace = ({
   >('idle')
   const [surveySelection, setSurveySelection] = useState(() => {
     const initialProjectIds = new Set(
-      projects
-        .filter((project) => canAccessProjectForRole(role, project.id))
-        .map((project) => project.id),
+      role
+        ? projects
+            .filter((project) => canAccessProjectForRole(role, project.id))
+            .map((project) => project.id)
+        : [],
     )
     const initialForms = surveyForms.filter((form) => initialProjectIds.has(form.projectId))
     const initialResults = surveyResults.filter((result) => initialProjectIds.has(result.projectId))
@@ -266,7 +271,7 @@ export const ReportingWorkspace = ({
   }, [kind, visibleReportTabs])
 
   useEffect(() => {
-    if (kind !== 'beneficiary-summary' || !canViewBeneficiarySummary) {
+    if (kind !== 'beneficiary-summary' || !canViewBeneficiarySummary || !role) {
       setBeneficiaryData(null)
       setBeneficiaryLoadState('idle')
       return
@@ -295,7 +300,7 @@ export const ReportingWorkspace = ({
   }, [canViewBeneficiarySummary, kind, role])
 
   const scopedProjects = useMemo(
-    () => projects.filter((project) => canAccessProjectForRole(role, project.id)),
+    () => (role ? projects.filter((project) => canAccessProjectForRole(role, project.id)) : []),
     [projects, role],
   )
   const scopedProjectIds = useMemo(
@@ -536,9 +541,20 @@ export const ReportingWorkspace = ({
   }
 
   const generateIndicatorReport = () => {
+    const availableIndicators = scopedIndicators.filter((indicator) =>
+      selectedProject ? indicator.projectId === selectedProject.id : true,
+    )
+
+    if (availableIndicators.length === 0) {
+      toast.error('No indicator data are available for this report.', {
+        description: 'Choose a project with indicator data or try again after data are loaded.',
+      })
+      return
+    }
+
     setIndicatorGenerated(true)
-    toast.success('Indicator report generated locally.', {
-      description: 'This table uses safe sample project data.',
+    toast.success('Indicator report generated.', {
+      description: 'This table uses the currently loaded project data.',
     })
   }
 
@@ -573,15 +589,14 @@ export const ReportingWorkspace = ({
     }))
   }
 
-  const finishReportPreview = () => {
-    // TODO(BACKEND): Save generated-report history.
-    setPreviewOpen(false)
-    toast.success('Report preview completed.', {
-      description: 'No report was added to shared history.',
-    })
-  }
-
   const exportCsv = () => {
+    if (rows.length === 0) {
+      toast.error('No report rows are available to export.', {
+        description: 'Adjust the report filters or load report data before exporting a CSV.',
+      })
+      return
+    }
+
     const headers = activeColumns.map((column) => column.label)
     const csvRows = rows.map((row) =>
       activeColumns
@@ -594,15 +609,15 @@ export const ReportingWorkspace = ({
     const url = URL.createObjectURL(blob)
     const link = document.createElement('a')
     link.href = url
-    link.download = `${kind}-prototype-report.csv`
+    link.download = `${kind}-report.csv`
     link.click()
     URL.revokeObjectURL(url)
     toast.success('CSV exported from the browser.', {
-      description: 'The sample report was downloaded to this device.',
+      description: 'The current report was downloaded to this device.',
     })
   }
 
-  const openPrototypeExport = (format: 'PDF' | 'Excel') => {
+  const openExportPreview = (format: 'PDF' | 'Excel') => {
     // TODO(REPORTING): Generate PDF and spreadsheet reports through the backend.
     setPreviewOpen(true)
     toast.info(`${format} preview opened.`, {
@@ -616,6 +631,17 @@ export const ReportingWorkspace = ({
     setProjectId(allValue)
   }
 
+  if (!role) {
+    return (
+      <EmptyState
+        className="min-h-80 rounded-lg border border-border bg-card"
+        description="A verified staff identity and role are required to load scoped reports."
+        icon={ShieldAlert}
+        title="Reports access unavailable"
+      />
+    )
+  }
+
   return (
     <div className="space-y-6">
       <section className="rounded-lg border border-border bg-card p-5 shadow-sm">
@@ -626,8 +652,9 @@ export const ReportingWorkspace = ({
               {labels.moduleReports}
             </h1>
             <p className="max-w-3xl text-sm leading-6 text-muted-foreground">
-              Build project, indicator, Beneficiary, and aggregate survey reports from safe sample
-              data. PDF and spreadsheet actions open a preview in this demonstration.
+              Build project, indicator, Beneficiary, and aggregate survey reports from currently
+              available data. PDF and spreadsheet actions remain previews until export services are
+              configured.
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
@@ -636,10 +663,6 @@ export const ReportingWorkspace = ({
                 <Eye className="mr-2 h-4 w-4" aria-hidden="true" />
                 Open report preview
               </Link>
-            </Button>
-            <Button onClick={finishReportPreview}>
-              <Save className="mr-2 h-4 w-4" aria-hidden="true" />
-              Finish preview
             </Button>
           </div>
         </div>
@@ -678,17 +701,17 @@ export const ReportingWorkspace = ({
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end">
-                  <DropdownMenuLabel>Prototype export</DropdownMenuLabel>
+                  <DropdownMenuLabel>Export</DropdownMenuLabel>
                   <DropdownMenuSeparator />
                   <DropdownMenuItem onClick={exportCsv}>
                     <FileText className="mr-2 h-4 w-4" aria-hidden="true" />
                     CSV
                   </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => openPrototypeExport('PDF')}>
+                  <DropdownMenuItem onClick={() => openExportPreview('PDF')}>
                     <FileText className="mr-2 h-4 w-4" aria-hidden="true" />
                     Preview PDF
                   </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => openPrototypeExport('Excel')}>
+                  <DropdownMenuItem onClick={() => openExportPreview('Excel')}>
                     <FileSpreadsheet className="mr-2 h-4 w-4" aria-hidden="true" />
                     Preview Excel
                   </DropdownMenuItem>
@@ -702,7 +725,7 @@ export const ReportingWorkspace = ({
               <p className="text-sm text-muted-foreground">
                 {kind === 'survey-results'
                   ? `${scopedSurveyResults.length} aggregate survey result sets are available for review.`
-                  : `${scopedReports.length} saved prototype report records are available for reference.`}
+                  : `${scopedReports.length} saved report records are available for reference.`}
               </p>
             </div>
             {kind === 'survey-results' ? (
@@ -714,11 +737,18 @@ export const ReportingWorkspace = ({
                   setSurveySelection((current) => ({ ...current, responseDate }))
                 }
                 onFormChange={selectSurveyForm}
-                onGenerate={() =>
-                  toast.success('Aggregate survey report generated locally.', {
-                    description: 'No individual response records were loaded.',
+                onGenerate={() => {
+                  if (!selectedSurveyForm || !selectedSurveyResult) {
+                    toast.error('No aggregate survey data are available for this report.', {
+                      description: 'Choose a Survey/Form, location, and response date with data.',
+                    })
+                    return
+                  }
+
+                  toast.success('Aggregate survey report generated.', {
+                    description: 'The report uses currently loaded aggregate data only.',
                   })
-                }
+                }}
                 onLocationChange={selectSurveyLocation}
                 onProgramChange={selectSurveyProgram}
                 onProjectChange={selectSurveyProject}
@@ -764,9 +794,9 @@ export const ReportingWorkspace = ({
                     Generate
                   </Button>
                 ) : (
-                  <Button variant="outline" onClick={() => toast.info('Filters applied locally.')}>
+                  <Button disabled variant="outline">
                     <Filter className="mr-2 h-4 w-4" aria-hidden="true" />
-                    Filter
+                    Filters update automatically
                   </Button>
                 )}
               </div>
@@ -872,7 +902,7 @@ export const ReportingWorkspace = ({
           <DialogHeader>
             <DialogTitle>Select columns</DialogTitle>
             <DialogDescription>
-              Choose the columns shown in this saved prototype report view.
+              Choose the columns shown in the current report view.
             </DialogDescription>
           </DialogHeader>
           <div className="grid gap-3 sm:grid-cols-2">
@@ -901,8 +931,8 @@ export const ReportingWorkspace = ({
           <DialogHeader>
             <DialogTitle>Report Preview</DialogTitle>
             <DialogDescription>
-              The preview uses the selected columns and sample data. Downloadable report files are
-              not created here.
+              The preview uses the selected columns and currently loaded data. Downloadable PDF or
+              spreadsheet files are not created here.
             </DialogDescription>
           </DialogHeader>
           {kind === 'survey-results' && selectedSurveyForm && selectedSurveyResult ? (
@@ -950,13 +980,7 @@ export const ReportingWorkspace = ({
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setPreviewOpen(false)}>
-              Close
-            </Button>
-            <Button onClick={finishReportPreview}>
-              <Save className="mr-2 h-4 w-4" aria-hidden="true" />
-              Finish preview
-            </Button>
+            <Button onClick={() => setPreviewOpen(false)}>Close</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

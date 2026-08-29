@@ -1,14 +1,10 @@
 import { describe, expect, it } from 'vitest'
 
-import {
-  defaultPrototypeLabels,
-  mergePrototypeLabels,
-  prototypeLabelGroups,
-} from './prototype-labels'
+import { defaultDisplayLabels, displayLabelGroups, mergeDisplayLabels } from './display-labels'
 
-describe('prototype labels', () => {
+describe('display labels', () => {
   it('uses the locked terminology as the default presentation wording', () => {
-    expect(defaultPrototypeLabels).toMatchObject({
+    expect(defaultDisplayLabels).toMatchObject({
       moduleProjects: 'Project Information Management',
       moduleBeneficiaries: 'Beneficiary Journey Tracking',
       moduleCollection: 'Metadata-Driven Data Integration',
@@ -26,7 +22,7 @@ describe('prototype labels', () => {
 
   it('merges safe stored values while retaining defaults for missing or blank labels', () => {
     expect(
-      mergePrototypeLabels({
+      mergeDisplayLabels({
         sidebarBeneficiaries: 'Community journeys',
         moduleBeneficiaries: 'Beneficiary progress review',
         moduleCollection: 'Field data collection',
@@ -40,19 +36,19 @@ describe('prototype labels', () => {
       moduleCollection: 'Field data collection',
       moduleProjects: 'Custom project heading',
       moduleAnalytics: 'Program analysis review',
-      projectWorkspace: defaultPrototypeLabels.projectWorkspace,
+      projectWorkspace: defaultDisplayLabels.projectWorkspace,
     })
-    expect(mergePrototypeLabels({ sidebarBeneficiaries: 'Community journeys' })).not.toHaveProperty(
+    expect(mergeDisplayLabels({ sidebarBeneficiaries: 'Community journeys' })).not.toHaveProperty(
       'sidebarBeneficiaries',
     )
   })
 
   it('falls back safely when stored label data is malformed', () => {
-    expect(mergePrototypeLabels(['not', 'a', 'label', 'record'])).toEqual(defaultPrototypeLabels)
+    expect(mergeDisplayLabels(['not', 'a', 'label', 'record'])).toEqual(defaultDisplayLabels)
   })
 
   it('limits the editor to the ten approved System Administrator page headings', () => {
-    const editableKeys = prototypeLabelGroups.flatMap((group) =>
+    const editableKeys = displayLabelGroups.flatMap((group) =>
       group.labels.map((definition) => definition.key),
     )
 

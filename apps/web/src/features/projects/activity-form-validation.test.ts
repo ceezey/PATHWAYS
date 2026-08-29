@@ -21,8 +21,8 @@ describe('activity form validation', () => {
 
   it('rejects a due date before the start date', () => {
     const result = activityFormSchema.safeParse({
-      title: 'Prototype activity',
-      description: 'A valid prototype activity description.',
+      title: 'Community workshop',
+      description: 'A valid activity description for the selected project.',
       startDate: '2026-09-10',
       dueDate: '2026-09-01',
       targetBeneficiaries: 30,

@@ -47,7 +47,6 @@ export const ActivityDetailContent = ({
   <div className="space-y-5">
     <div className="flex flex-wrap gap-2">
       <StatusBadge tone={activityStatusTone(activity.status)}>{activity.status}</StatusBadge>
-      <StatusBadge tone="info">Prototype activity</StatusBadge>
     </div>
     <p className="text-sm leading-6 text-muted-foreground">{activity.description}</p>
     <ProgressBar
@@ -143,28 +142,28 @@ export const ActivityDetailContent = ({
           <Button
             className="gap-2"
             onClick={() =>
-              toast.success('Completion action previewed.', {
-                description: 'This demonstration does not change shared project records.',
+              toast.error('Activity review is not configured.', {
+                description: 'Connect activity review persistence before marking work complete.',
               })
             }
             type="button"
             variant="outline"
           >
             <CheckCircle2 className="h-4 w-4" aria-hidden="true" />
-            Preview Completion
+            Mark Complete
           </Button>
           <Button
             className="gap-2"
             onClick={() =>
-              toast.info('Revision action previewed.', {
-                description: 'This demonstration does not change shared project records.',
+              toast.error('Activity review is not configured.', {
+                description: 'Connect activity review persistence before returning work.',
               })
             }
             type="button"
             variant="outline"
           >
             <RotateCcw className="h-4 w-4" aria-hidden="true" />
-            Preview Return
+            Return for Revision
           </Button>
         </>
       ) : null}

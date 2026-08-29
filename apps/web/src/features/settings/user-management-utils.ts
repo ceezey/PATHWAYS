@@ -2,16 +2,16 @@ import { type ProjectAssignableRole, projectAssignableRoles } from '@/lib/rbac/a
 import { canCreateOrAuthorizeRole, getAccessProfile } from '@/lib/rbac/can'
 import { canConfigureProjectAssignment } from '@/lib/rbac/data-scope'
 import type { ProjectSummary, UserAccountStatus, UserRecord } from '@/types/pathways'
-import type { PrototypeRole } from '@/types/prototype-role'
+import type { PathwaysRole } from '@/types/pathways-role'
 
 export type UserStatusFilter = 'All' | UserAccountStatus
 
-export interface PrototypeRoleSummary {
-  role: PrototypeRole
+export interface RoleSummary {
+  role: PathwaysRole
   description: string
 }
 
-export const prototypeRoleSummaries: PrototypeRoleSummary[] = [
+export const roleSummaries: RoleSummary[] = [
   {
     role: 'Program Manager',
     description: 'Executive portfolio review, progress signals, and goal-achievement oversight.',
@@ -35,7 +35,7 @@ export const prototypeRoleSummaries: PrototypeRoleSummary[] = [
   },
   {
     role: 'System Administrator',
-    description: 'Prototype configuration, user records, labels, and future integration setup.',
+    description: 'System configuration, user records, labels, and future integration setup.',
   },
 ]
 
@@ -54,28 +54,33 @@ export const filterUserRecords = (users: UserRecord[], query: string, status: Us
   })
 }
 
-export const isProjectAssignableRole = (role: PrototypeRole): role is ProjectAssignableRole =>
-  (projectAssignableRoles as readonly PrototypeRole[]).includes(role)
+export const isProjectAssignableRole = (role: PathwaysRole): role is ProjectAssignableRole =>
+  (projectAssignableRoles as readonly PathwaysRole[]).includes(role)
 
-export const getManageableUserRoles = (actorRole: PrototypeRole) => [
+export const getManageableUserRoles = (actorRole: PathwaysRole) => [
   ...getAccessProfile(actorRole).userAdministration.createAndAuthorizeRoles,
 ]
 
 export const getAssignableProjects = (
-  actorRole: PrototypeRole,
-  targetRole: PrototypeRole,
+  actorRole: PathwaysRole,
+  targetRole: PathwaysRole,
   projects: ProjectSummary[],
+  actorAssignedProjectIds: readonly string[] = [],
 ) => {
   if (!isProjectAssignableRole(targetRole)) {
     return []
   }
 
   return projects.filter((project) =>
-    canConfigureProjectAssignment(actorRole, targetRole, project.id),
+    canConfigureProjectAssignment(actorRole, targetRole, project.id, actorAssignedProjectIds),
   )
 }
 
-export const canManageUserRecord = (actorRole: PrototypeRole, user: UserRecord) => {
+export const canManageUserRecord = (
+  actorRole: PathwaysRole,
+  user: UserRecord,
+  actorAssignedProjectIds: readonly string[] = [],
+) => {
   if (!canCreateOrAuthorizeRole(actorRole, user.role)) {
     return false
   }
@@ -85,12 +90,17 @@ export const canManageUserRecord = (actorRole: PrototypeRole, user: UserRecord) 
   }
 
   return user.projectIds.every((projectId) =>
-    canConfigureProjectAssignment(actorRole, user.role as ProjectAssignableRole, projectId),
+    canConfigureProjectAssignment(
+      actorRole,
+      user.role as ProjectAssignableRole,
+      projectId,
+      actorAssignedProjectIds,
+    ),
   )
 }
 
 export const getProjectAccessLabels = (
-  role: PrototypeRole,
+  role: PathwaysRole,
   projectIds: readonly string[],
   projects: ProjectSummary[],
 ) => {
@@ -105,15 +115,15 @@ export const getProjectAccessLabels = (
   return ['Organization portfolio']
 }
 
-export const getUserAdministrationSummary = (actorRole: PrototypeRole) => {
+export const getUserAdministrationSummary = (actorRole: PathwaysRole) => {
   const roles = getManageableUserRoles(actorRole)
 
   if (roles.length === 0) {
-    return 'This role has no prototype account creation, authorization, or assignment controls.'
+    return 'This role has no account creation, authorization, or assignment controls.'
   }
 
   if (actorRole === 'System Administrator') {
-    return 'You can create and authorize every supported prototype role and configure relevant project assignments.'
+    return 'You can create and authorize every supported role and configure relevant project assignments.'
   }
 
   return `You can create and authorize ${roles.join(' and ')} accounts within your permitted project scope.`

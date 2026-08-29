@@ -22,18 +22,18 @@ import {
   SheetTrigger,
 } from '@/components/ui/sheet'
 import { getDashboardNavigationLabel } from '@/constants/navigation'
-import { usePrototypeRole } from '@/hooks/use-prototype-role'
+import { useCurrentRole } from '@/hooks/use-current-role'
 import { useSession } from '@/hooks/use-session'
 import { cn } from '@/lib/utils'
-import { getPrototypeRoleDisplayName } from '@/types/prototype-role'
+import { getPathwaysRoleDisplayName } from '@/types/pathways-role'
 
 export const AppShell = ({ children }: { children: React.ReactNode }) => {
   const pathname = usePathname()
   const [compact, setCompact] = useState(false)
   const [mobileOpen, setMobileOpen] = useState(false)
   const { email, signOut } = useSession()
-  const { role } = usePrototypeRole()
-  const roleLabel = getPrototypeRoleDisplayName(role)
+  const { role } = useCurrentRole()
+  const roleLabel = role ? getPathwaysRoleDisplayName(role) : 'Role unavailable'
   const workspaceLabel = getDashboardNavigationLabel(pathname)
 
   return (
@@ -91,9 +91,7 @@ export const AppShell = ({ children }: { children: React.ReactNode }) => {
                 <DropdownMenuItem disabled>{email ?? 'No signed-in user'}</DropdownMenuItem>
                 <DropdownMenuItem disabled>{roleLabel}</DropdownMenuItem>
                 <DropdownMenuSeparator />
-                <DropdownMenuItem onClick={() => void signOut()}>
-                  Sign out of prototype
-                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => void signOut()}>Sign out</DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
           </div>

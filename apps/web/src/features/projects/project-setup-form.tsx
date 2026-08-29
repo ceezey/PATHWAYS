@@ -3,7 +3,6 @@
 import { zodResolver } from '@hookform/resolvers/zod'
 import { ArrowLeft, Loader2, Save } from 'lucide-react'
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
 import { useForm } from 'react-hook-form'
 import { toast } from 'sonner'
 
@@ -27,7 +26,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { pathwaysClient } from '@/lib/services/mock-pathways-client'
+import { pathwaysClient } from '@/lib/services/pathways-client'
 import type { ProjectStatus } from '@/types/pathways'
 
 import { type ProjectSetupSchema, projectSetupSchema } from './project-form-validation'
@@ -35,7 +34,6 @@ import { type ProjectSetupSchema, projectSetupSchema } from './project-form-vali
 const projectStatuses: ProjectStatus[] = ['Active', 'Needs Attention', 'Planned', 'Completed']
 
 export const ProjectSetupForm = () => {
-  const router = useRouter()
   const form = useForm<ProjectSetupSchema>({
     resolver: zodResolver(projectSetupSchema),
     defaultValues: {
@@ -47,29 +45,27 @@ export const ProjectSetupForm = () => {
       status: 'Planned',
       budgetCode: '',
       description: '',
-      programManager: 'Program Manager A',
-      projectManager: 'Project Manager A',
-      monitoringOfficer: 'Monitoring and Evaluation Officer A',
+      programManager: '',
+      projectManager: '',
+      monitoringOfficer: '',
       projectOfficers: '',
     },
   })
 
   const onSubmit = async (values: ProjectSetupSchema) => {
-    // TODO(BACKEND): Submit project creation to NestJS projects endpoint.
-    // TODO(RBAC): Restrict project creation to authorized roles.
-    // TODO(DATABASE): Persist project and project-team relationships.
-    const project = await pathwaysClient.createProject({
-      ...values,
-      projectOfficers: values.projectOfficers
-        .split(',')
-        .map((officer) => officer.trim())
-        .filter(Boolean),
-    })
-
-    toast.success('Prototype project created.', {
-      description: `${project.title} is available during this browser session.`,
-    })
-    router.push(`/projects/${project.id}`)
+    try {
+      await pathwaysClient.createProject({
+        ...values,
+        projectOfficers: values.projectOfficers
+          .split(',')
+          .map((officer) => officer.trim())
+          .filter(Boolean),
+      })
+    } catch {
+      toast.error('Project creation is not configured.', {
+        description: 'Your entries remain in the form. Connect the Projects backend to save them.',
+      })
+    }
   }
 
   return (
@@ -77,7 +73,7 @@ export const ProjectSetupForm = () => {
       <PageHeader
         eyebrow="Project setup"
         title="Create project"
-        description="Create a temporary project record for this browser session."
+        description="Enter the project details that will be saved once the Projects backend is connected."
         actions={
           <Button asChild className="gap-2" variant="outline">
             <Link href="/projects">
@@ -89,8 +85,8 @@ export const ProjectSetupForm = () => {
       />
       <SectionCard
         title="Project information"
-        description="Required fields are validated before the temporary project is created."
-        actions={<StatusBadge tone="info">Prototype only</StatusBadge>}
+        description="Required fields are validated before the project can be submitted."
+        actions={<StatusBadge tone="info">Backend pending</StatusBadge>}
       >
         <Form {...form}>
           <form className="space-y-6" onSubmit={form.handleSubmit(onSubmit)}>
@@ -218,7 +214,7 @@ export const ProjectSetupForm = () => {
               <div>
                 <h2 className="text-lg font-semibold text-foreground">Project team</h2>
                 <p className="mt-1 text-sm text-muted-foreground">
-                  Names are prototype labels and do not create user accounts.
+                  Assignments will be validated against real staff accounts by the backend.
                 </p>
               </div>
               <div className="grid gap-5 lg:grid-cols-2">
@@ -268,7 +264,7 @@ export const ProjectSetupForm = () => {
                     <FormItem>
                       <FormLabel>Project Officers</FormLabel>
                       <FormControl>
-                        <Input placeholder="Project Officer A, Project Officer B" {...field} />
+                        <Input placeholder="Enter staff names separated by commas" {...field} />
                       </FormControl>
                       <FormDescription>
                         Separate multiple Project Officers with commas.

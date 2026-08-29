@@ -39,11 +39,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import type { PrototypeLabelKey } from '@/constants/prototype-labels'
-import { usePrototypeLabels } from '@/hooks/use-prototype-labels'
-import { usePrototypeRole } from '@/hooks/use-prototype-role'
+import type { DisplayLabelKey } from '@/constants/display-labels'
+import { useCurrentRole } from '@/hooks/use-current-role'
+import { useDisplayLabels } from '@/hooks/use-display-labels'
 import { can } from '@/lib/rbac/can'
-import { pathwaysClient } from '@/lib/services/mock-pathways-client'
+import { PathwaysClientError, pathwaysClient } from '@/lib/services/pathways-client'
 import type {
   Activity,
   AlertRecord,
@@ -52,7 +52,6 @@ import type {
   EvidenceRecord,
   EvidenceReviewStatus,
   ExpenseRecord,
-  IndicatorStatus,
   LiquidationStatus,
   ProjectDetail,
   ProjectIndicator,
@@ -107,7 +106,7 @@ const viewTitles: Record<PhaseFiveWorkspaceView, { title: string; description: s
   },
 }
 
-const viewLabelKeys: Record<PhaseFiveWorkspaceView, PrototypeLabelKey> = {
+const viewLabelKeys: Record<PhaseFiveWorkspaceView, DisplayLabelKey> = {
   evidence: 'projectEvidence',
   indicators: 'projectIndicators',
   'monitor-evaluate': 'projectMonitorEvaluate',
@@ -136,27 +135,18 @@ const statusTone = (status: string) => {
 }
 
 const progressForIndicator = (indicator: ProjectIndicator) =>
-  Math.min(100, Math.round((indicator.actual / indicator.target) * 100))
-
-const statusForIndicator = (indicator: ProjectIndicator): IndicatorStatus => {
-  const progress = progressForIndicator(indicator)
-
-  if (progress >= 100) {
-    return 'Met'
-  }
-
-  if (progress >= 60) {
-    return 'On Track'
-  }
-
-  return 'Needs Review'
-}
+  indicator.target > 0 ? Math.min(100, Math.round((indicator.actual / indicator.target) * 100)) : 0
 
 const today = () => new Date().toISOString().slice(0, 10)
 
 const fieldError = (message: string) =>
   toast.error('Check the form fields.', {
     description: message,
+  })
+
+const backendNotConfigured = (action: string) =>
+  toast.error(`${action} is not configured.`, {
+    description: 'Connect the corresponding backend service before saving this change.',
   })
 
 const TextArea = ({
@@ -206,8 +196,8 @@ export const ProjectPhaseFiveWorkspace = ({
   projectId: string
   view: PhaseFiveWorkspaceView
 }) => {
-  const { labels } = usePrototypeLabels()
-  const { role } = usePrototypeRole()
+  const { labels } = useDisplayLabels()
+  const { role } = useCurrentRole()
   const [project, setProject] = useState<ProjectDetail | null>(null)
   const [activities, setActivities] = useState<Activity[]>([])
   const [evidence, setEvidence] = useState<EvidenceRecord[]>([])
@@ -241,12 +231,29 @@ export const ProjectPhaseFiveWorkspace = ({
     setLoading(true)
     setError(false)
 
+    if (!role) {
+      setLoading(false)
+      setError(true)
+      return () => {
+        mounted = false
+      }
+    }
+
     Promise.all([
       pathwaysClient.getProject(projectId),
       pathwaysClient.getActivities(projectId),
       pathwaysClient.getEvidence(projectId),
       pathwaysClient.getProjectIndicators(projectId),
-      pathwaysClient.getEvaluation(projectId),
+      pathwaysClient.getEvaluation(projectId).catch((evaluationError) => {
+        if (
+          evaluationError instanceof PathwaysClientError &&
+          ['not_configured', 'not_found'].includes(evaluationError.code)
+        ) {
+          return null
+        }
+
+        throw evaluationError
+      }),
       pathwaysClient.getBudgets(projectId),
       pathwaysClient.getAlerts(projectId),
       pathwaysClient.getRecommendations(),
@@ -303,7 +310,7 @@ export const ProjectPhaseFiveWorkspace = ({
     return () => {
       mounted = false
     }
-  }, [projectId])
+  }, [projectId, role])
 
   const projectAlerts = alerts
   const projectRecommendations = useMemo(() => {
@@ -315,15 +322,15 @@ export const ProjectPhaseFiveWorkspace = ({
   const remainingBudget = calculateRemainingBudget(plannedAmount, actualSpending)
   const utilization = plannedAmount > 0 ? Math.round((actualSpending / plannedAmount) * 100) : 0
   const expenseTotal = calculateExpenseTotal(expenses)
-  const canConfigureWeights = can(role, 'monitor_evaluate.full')
-  const canReviewEvidence = can(role, 'evidence.review')
-  const canAddIndicator = can(role, 'indicators.manage')
-  const canSubmitFormalEvaluation = can(role, 'evaluation.formal.submit')
-  const canLogRecommendationOutcome = can(role, 'alerts.outcome.log')
-  const canLogExpense = can(role, 'budget.expense.log')
-  const canVerifyExpense = can(role, 'budget.expense.verify')
-  const canApproveExpense = can(role, 'budget.expense.approve')
-  const canPublishTransparency = can(role, 'transparency.publish')
+  const canConfigureWeights = role ? can(role, 'monitor_evaluate.full') : false
+  const canReviewEvidence = role ? can(role, 'evidence.review') : false
+  const canAddIndicator = role ? can(role, 'indicators.manage') : false
+  const canSubmitFormalEvaluation = role ? can(role, 'evaluation.formal.submit') : false
+  const canLogRecommendationOutcome = role ? can(role, 'alerts.outcome.log') : false
+  const canLogExpense = role ? can(role, 'budget.expense.log') : false
+  const canVerifyExpense = role ? can(role, 'budget.expense.verify') : false
+  const canApproveExpense = role ? can(role, 'budget.expense.approve') : false
+  const canPublishTransparency = role ? can(role, 'transparency.publish') : false
   const heading = {
     ...viewTitles[view],
     title: labels[viewLabelKeys[view]],
@@ -335,12 +342,9 @@ export const ProjectPhaseFiveWorkspace = ({
       return
     }
 
-    setEvidence((current) =>
-      current.map((item) => (item.id === record.id ? { ...item, status } : item)),
-    )
-    toast.success(`Evidence marked ${status.toLowerCase()}.`, {
-      description: 'Prototype status transition only; no server enforcement occurred.',
-    })
+    void record
+    void status
+    backendNotConfigured('Evidence review')
   }
 
   const addIndicator = () => {
@@ -356,34 +360,7 @@ export const ProjectPhaseFiveWorkspace = ({
       return
     }
 
-    // TODO(BACKEND): Save indicator configuration and updates.
-    const indicator: ProjectIndicator = {
-      id: `prototype-indicator-${Date.now().toString(36)}`,
-      projectId,
-      code: result.data.code,
-      label: result.data.label,
-      baseline: result.data.baseline,
-      target: result.data.target,
-      actual: result.data.actual,
-      status: statusForIndicator({
-        id: 'preview',
-        projectId,
-        code: result.data.code,
-        label: result.data.label,
-        baseline: result.data.baseline,
-        target: result.data.target,
-        actual: result.data.actual,
-        status: 'Needs Review',
-        connectedActivityIds: [],
-      }),
-      connectedActivityIds: activities[0] ? [activities[0].id] : [],
-    }
-    setIndicators((current) => [...current, indicator])
-    setFormState({})
-    setAddIndicatorOpen(false)
-    toast.success('Prototype indicator added.', {
-      description: 'The indicator is available in local workspace state only.',
-    })
+    backendNotConfigured('Indicator creation')
   }
 
   const addAnnotation = () => {
@@ -394,24 +371,7 @@ export const ProjectPhaseFiveWorkspace = ({
       return
     }
 
-    // TODO(BACKEND): Save formal evaluation, annotations, and evaluation weights.
-    setEvaluation({
-      ...evaluation,
-      annotations: [
-        ...evaluation.annotations,
-        {
-          id: `annotation-${Date.now().toString(36)}`,
-          author: role,
-          note: result.data.note,
-          createdAt: today(),
-        },
-      ],
-    })
-    setFormState({})
-    setAnnotationOpen(false)
-    toast.success('Annotation added.', {
-      description: 'This is a local human-review note for the prototype.',
-    })
+    backendNotConfigured('Evaluation annotation')
   }
 
   const saveFormalEvaluation = () => {
@@ -427,26 +387,7 @@ export const ProjectPhaseFiveWorkspace = ({
       return
     }
 
-    // TODO(BACKEND): Save formal evaluation, annotations, and evaluation weights.
-    setEvaluation({
-      ...evaluation,
-      currentScore: result.data.score,
-      history: [
-        {
-          id: `evaluation-${Date.now().toString(36)}`,
-          score: result.data.score,
-          reviewer: role,
-          reviewedAt: today(),
-          note: result.data.note,
-        },
-        ...evaluation.history,
-      ],
-    })
-    setFormState({})
-    setFormalEvaluationOpen(false)
-    toast.success('Formal evaluation saved locally.', {
-      description: 'The score is progress-based and human-reviewed in this prototype.',
-    })
+    backendNotConfigured('Formal evaluation submission')
   }
 
   const updateWeight = (weightId: string, value: number) => {
@@ -454,13 +395,9 @@ export const ProjectPhaseFiveWorkspace = ({
       return
     }
 
-    // TODO(BACKEND): Save formal evaluation, annotations, and evaluation weights.
-    setEvaluation({
-      ...evaluation,
-      components: evaluation.components.map((component) =>
-        component.id === weightId ? { ...component, value } : component,
-      ),
-    })
+    void weightId
+    void value
+    backendNotConfigured('Evaluation weight updates')
   }
 
   const logOutcome = () => {
@@ -476,29 +413,7 @@ export const ProjectPhaseFiveWorkspace = ({
       return
     }
 
-    // TODO(BACKEND): Save recommendation outcome lifecycle.
-    setOutcomes((current) => [
-      {
-        id: `outcome-${Date.now().toString(36)}`,
-        recommendationId: outcomeRecommendation.id,
-        outcome: result.data.outcome,
-        note: result.data.note,
-        loggedAt: today(),
-      },
-      ...current.filter((outcome) => outcome.recommendationId !== outcomeRecommendation.id),
-    ])
-    setRecommendations((current) =>
-      current.map((recommendation) =>
-        recommendation.id === outcomeRecommendation.id
-          ? { ...recommendation, reviewStatus: 'Actioned' }
-          : recommendation,
-      ),
-    )
-    setFormState({})
-    setOutcomeRecommendation(null)
-    toast.success('Recommendation outcome logged.', {
-      description: 'Lifecycle status changed visibly in prototype state only.',
-    })
+    backendNotConfigured('Recommendation outcome logging')
   }
 
   const logExpense = () => {
@@ -514,28 +429,7 @@ export const ProjectPhaseFiveWorkspace = ({
       return
     }
 
-    // TODO(BACKEND): Persist expense and liquidation workflow.
-    // TODO(STORAGE): Upload and retrieve receipts.
-    const expense: ExpenseRecord = {
-      id: `expense-${Date.now().toString(36)}`,
-      projectId,
-      description: result.data.description,
-      amount: result.data.amount,
-      submitter: result.data.submitter,
-      submittedDate: today(),
-      expenseDate: result.data.expenseDate,
-      hasReceipt: receiptFiles.length > 0,
-      receiptFileName: receiptFiles[0]?.name,
-      liquidationStatus: 'Pending',
-    }
-    setExpenses((current) => [expense, ...current])
-    setActualSpending((current) => current + expense.amount)
-    setReceiptFiles([])
-    setFormState({})
-    setExpenseOpen(false)
-    toast.success('Expense logged locally.', {
-      description: 'Receipt files are previewed by name only and are not uploaded.',
-    })
+    backendNotConfigured('Expense logging')
   }
 
   const updateExpenseStatus = (
@@ -553,16 +447,9 @@ export const ProjectPhaseFiveWorkspace = ({
       return
     }
 
-    // TODO(RBAC): Enforce reviewer, verifier, approver, and publisher roles.
-    // TODO(BACKEND): Persist expense and liquidation workflow.
-    setExpenses((current) =>
-      current.map((item) =>
-        item.id === expense.id ? { ...item, liquidationStatus, rejectionReason } : item,
-      ),
-    )
-    toast.success(`Expense marked ${liquidationStatus.toLowerCase()}.`, {
-      description: 'Prototype transition only; no server authorization was enforced.',
-    })
+    void expense
+    void rejectionReason
+    backendNotConfigured(`Expense ${liquidationStatus.toLowerCase()}`)
   }
 
   const rejectExpenseWithReason = () => {
@@ -587,11 +474,9 @@ export const ProjectPhaseFiveWorkspace = ({
       return
     }
 
-    // TODO(DATABASE): Load transparency visibility configuration.
-    // TODO(RBAC): Enforce reviewer, verifier, approver, and publisher roles.
-    setTransparencySections((current) =>
-      current.map((item) => (item.id === section.id ? { ...item, ...patch } : item)),
-    )
+    void section
+    void patch
+    backendNotConfigured('Transparency publishing')
   }
 
   if (loading) {
@@ -610,7 +495,11 @@ export const ProjectPhaseFiveWorkspace = ({
         <PageHeader
           eyebrow={labels.projectWorkspace}
           title="Workspace unavailable"
-          description="This project tab is not available in the current prototype session."
+          description={
+            role
+              ? 'This project tab could not be loaded. The backend may not be configured yet.'
+              : 'A verified staff identity is required before project workspace data can be loaded.'
+          }
           actions={
             <Button asChild variant="outline">
               <Link href="/projects">Back to Projects</Link>
@@ -680,12 +569,20 @@ export const ProjectPhaseFiveWorkspace = ({
           onWeightChange={updateWeight}
         />
       ) : null}
+      {view === 'monitor-evaluate' && !evaluation ? (
+        <EmptyState
+          description="Evaluation data will appear after an evaluation record is available from the backend."
+          icon={FileText}
+          title="No evaluation record"
+        />
+      ) : null}
       {view === 'budget' ? (
         <BudgetView
           actualSpending={actualSpending}
           alerts={projectAlerts}
           expenseTotal={expenseTotal}
           expenses={expenses}
+          hasBudget={budgets.length > 0}
           outcomes={outcomes}
           plannedAmount={plannedAmount}
           recommendations={projectRecommendations}
@@ -697,7 +594,7 @@ export const ProjectPhaseFiveWorkspace = ({
           canLogRecommendationOutcome={canLogRecommendationOutcome}
           canVerifyExpense={canVerifyExpense}
           onLogExpense={() => {
-            setFormState({ submitter: 'Project Officer A', expenseDate: today() })
+            setFormState({ expenseDate: today() })
             setReceiptFiles([])
             setExpenseOpen(true)
           }}
@@ -725,7 +622,7 @@ export const ProjectPhaseFiveWorkspace = ({
       ) : null}
 
       <SimpleDialog
-        description="File preview placeholders do not fetch remote storage files."
+        description="File content is unavailable until approved storage retrieval is configured."
         onOpenChange={(open) => {
           if (!open) {
             setPreviewEvidence(null)
@@ -750,7 +647,7 @@ export const ProjectPhaseFiveWorkspace = ({
       </SimpleDialog>
 
       <SimpleDialog
-        description="Add a temporary local indicator configuration for this project."
+        description="Define an indicator for this project. Saving requires backend configuration."
         onOpenChange={setAddIndicatorOpen}
         open={addIndicatorOpen}
         title="Add Indicator"
@@ -833,12 +730,12 @@ export const ProjectPhaseFiveWorkspace = ({
           <div className="space-y-4 text-sm leading-6 text-muted-foreground">
             <p>
               Current score blends journey progression, indicator achievement, and supporting
-              evidence quality. The score is a prototype review aid and is not server-enforced.
+              evidence quality. The score remains human-reviewed and requires backend persistence.
             </p>
             {evaluation.components.map((component) => (
               <div key={component.id} className="rounded-lg border border-border bg-background p-3">
                 <p className="font-medium text-foreground">{component.label}</p>
-                <p>{component.value}% weight in the current role-preview model.</p>
+                <p>{component.value}% weight in the current evaluation model.</p>
               </div>
             ))}
           </div>
@@ -846,7 +743,7 @@ export const ProjectPhaseFiveWorkspace = ({
       </SimpleDialog>
 
       <SimpleDialog
-        description="Save a formal progress review in local prototype state."
+        description="Save a formal progress review after evaluation persistence is configured."
         onOpenChange={setFormalEvaluationOpen}
         open={formalEvaluationOpen}
         title="Formal Evaluation"
@@ -924,7 +821,7 @@ export const ProjectPhaseFiveWorkspace = ({
       </SimpleDialog>
 
       <SimpleDialog
-        description="Project Officer expense logging is local to this prototype session."
+        description="Record an expense after budget persistence and receipt storage are configured."
         onOpenChange={setExpenseOpen}
         open={expenseOpen}
         title="Project Officer Log Expense"
@@ -991,7 +888,7 @@ export const ProjectPhaseFiveWorkspace = ({
       </SimpleDialog>
 
       <SimpleDialog
-        description="Provide a visible prototype reason for rejecting this expense."
+        description="Provide a rejection reason. Saving requires budget workflow persistence."
         onOpenChange={(open) => {
           if (!open) {
             setRejectExpense(null)
@@ -1067,83 +964,89 @@ const EvidenceView = ({
   <section className="grid gap-4 xl:grid-cols-[1.4fr_0.6fr]">
     <SectionCard
       title="Activity evidence list"
-      description="Proof review actions are prototype transitions."
+      description="Review submitted proof. Status changes require backend persistence."
     >
       <div className="space-y-3">
-        {evidence.map((record) => (
-          <div key={record.id} className="rounded-lg border border-border bg-background p-4">
-            <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
-              <div className="min-w-0">
-                <p className="break-words font-medium text-foreground">{record.reportTitle}</p>
-                <p className="mt-1 break-all text-sm text-muted-foreground">{record.fileName}</p>
+        {evidence.length > 0 ? (
+          evidence.map((record) => (
+            <div key={record.id} className="rounded-lg border border-border bg-background p-4">
+              <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                <div className="min-w-0">
+                  <p className="break-words font-medium text-foreground">{record.reportTitle}</p>
+                  <p className="mt-1 break-all text-sm text-muted-foreground">{record.fileName}</p>
+                </div>
+                <StatusBadge tone={statusTone(record.status)}>{record.status}</StatusBadge>
               </div>
-              <StatusBadge tone={statusTone(record.status)}>{record.status}</StatusBadge>
+              <dl className="mt-4 grid gap-3 text-sm sm:grid-cols-3">
+                <div>
+                  <dt className="text-muted-foreground">Submitter</dt>
+                  <dd className="mt-1 font-medium text-foreground">{record.submitter}</dd>
+                </div>
+                <div>
+                  <dt className="text-muted-foreground">Submitted date</dt>
+                  <dd className="mt-1 font-medium text-foreground">
+                    {formatDate(record.submittedDate)}
+                  </dd>
+                </div>
+                <div>
+                  <dt className="text-muted-foreground">Proof review</dt>
+                  <dd className="mt-1 font-medium text-foreground">{record.previewSummary}</dd>
+                </div>
+              </dl>
+              <div className="mt-4 flex flex-wrap justify-end gap-2">
+                <Button
+                  className="gap-2"
+                  onClick={() => onPreview(record)}
+                  size="sm"
+                  type="button"
+                  variant="outline"
+                >
+                  <Eye className="h-4 w-4" aria-hidden="true" />
+                  Preview
+                </Button>
+                {canReviewEvidence ? (
+                  <>
+                    <Button
+                      onClick={() => onStatusChange(record, 'Validated')}
+                      size="sm"
+                      type="button"
+                      variant="outline"
+                    >
+                      Validate
+                    </Button>
+                    <Button
+                      onClick={() => onStatusChange(record, 'Flagged')}
+                      size="sm"
+                      type="button"
+                      variant="outline"
+                    >
+                      Flag
+                    </Button>
+                    <Button
+                      onClick={() => onStatusChange(record, 'Approved')}
+                      size="sm"
+                      type="button"
+                    >
+                      Approve
+                    </Button>
+                    <Button
+                      onClick={() => onStatusChange(record, 'Returned')}
+                      size="sm"
+                      type="button"
+                      variant="outline"
+                    >
+                      Return for Revision
+                    </Button>
+                  </>
+                ) : null}
+              </div>
             </div>
-            <dl className="mt-4 grid gap-3 text-sm sm:grid-cols-3">
-              <div>
-                <dt className="text-muted-foreground">Submitter</dt>
-                <dd className="mt-1 font-medium text-foreground">{record.submitter}</dd>
-              </div>
-              <div>
-                <dt className="text-muted-foreground">Submitted date</dt>
-                <dd className="mt-1 font-medium text-foreground">
-                  {formatDate(record.submittedDate)}
-                </dd>
-              </div>
-              <div>
-                <dt className="text-muted-foreground">Proof review</dt>
-                <dd className="mt-1 font-medium text-foreground">{record.previewSummary}</dd>
-              </div>
-            </dl>
-            <div className="mt-4 flex flex-wrap justify-end gap-2">
-              <Button
-                className="gap-2"
-                onClick={() => onPreview(record)}
-                size="sm"
-                type="button"
-                variant="outline"
-              >
-                <Eye className="h-4 w-4" aria-hidden="true" />
-                Preview
-              </Button>
-              {canReviewEvidence ? (
-                <>
-                  <Button
-                    onClick={() => onStatusChange(record, 'Validated')}
-                    size="sm"
-                    type="button"
-                    variant="outline"
-                  >
-                    Validate
-                  </Button>
-                  <Button
-                    onClick={() => onStatusChange(record, 'Flagged')}
-                    size="sm"
-                    type="button"
-                    variant="outline"
-                  >
-                    Flag
-                  </Button>
-                  <Button
-                    onClick={() => onStatusChange(record, 'Approved')}
-                    size="sm"
-                    type="button"
-                  >
-                    Approve
-                  </Button>
-                  <Button
-                    onClick={() => onStatusChange(record, 'Returned')}
-                    size="sm"
-                    type="button"
-                    variant="outline"
-                  >
-                    Return for Revision
-                  </Button>
-                </>
-              ) : null}
-            </div>
-          </div>
-        ))}
+          ))
+        ) : (
+          <p className="rounded-lg border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
+            No evidence records are available for this project.
+          </p>
+        )}
       </div>
     </SectionCard>
     <SectionCard title="Report records" description="Generated report references for the project.">
@@ -1190,47 +1093,54 @@ const IndicatorsView = ({
     }
   >
     <div className="grid gap-4 xl:grid-cols-2">
-      {indicators.map((indicator) => (
-        <div key={indicator.id} className="rounded-lg border border-border bg-background p-4">
-          <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
-            <div className="min-w-0">
-              <p className="text-sm font-medium text-primary">{indicator.code}</p>
-              <h2 className="mt-1 break-words text-lg font-semibold text-foreground">
-                {indicator.label}
-              </h2>
+      {indicators.length > 0 ? (
+        indicators.map((indicator) => (
+          <div key={indicator.id} className="rounded-lg border border-border bg-background p-4">
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+              <div className="min-w-0">
+                <p className="text-sm font-medium text-primary">{indicator.code}</p>
+                <h2 className="mt-1 break-words text-lg font-semibold text-foreground">
+                  {indicator.label}
+                </h2>
+              </div>
+              <StatusBadge tone={statusTone(indicator.status)}>{indicator.status}</StatusBadge>
             </div>
-            <StatusBadge tone={statusTone(indicator.status)}>{indicator.status}</StatusBadge>
+            <dl className="mt-4 grid gap-3 text-sm sm:grid-cols-3">
+              <div>
+                <dt className="text-muted-foreground">Baseline</dt>
+                <dd className="mt-1 font-medium text-foreground">{indicator.baseline}</dd>
+              </div>
+              <div>
+                <dt className="text-muted-foreground">Target</dt>
+                <dd className="mt-1 font-medium text-foreground">{indicator.target}</dd>
+              </div>
+              <div>
+                <dt className="text-muted-foreground">Actual/current value</dt>
+                <dd className="mt-1 font-medium text-foreground">{indicator.actual}</dd>
+              </div>
+            </dl>
+            <div className="mt-4">
+              <ProgressBar label="Indicator progress" value={progressForIndicator(indicator)} />
+            </div>
+            <div className="mt-4 text-sm text-muted-foreground">
+              Connected activities:{' '}
+              <span className="font-medium text-foreground">
+                {indicator.connectedActivityIds
+                  .map(
+                    (activityId) =>
+                      activities.find((activity) => activity.id === activityId)?.title ??
+                      activityId,
+                  )
+                  .join(', ') || 'None linked yet'}
+              </span>
+            </div>
           </div>
-          <dl className="mt-4 grid gap-3 text-sm sm:grid-cols-3">
-            <div>
-              <dt className="text-muted-foreground">Baseline</dt>
-              <dd className="mt-1 font-medium text-foreground">{indicator.baseline}</dd>
-            </div>
-            <div>
-              <dt className="text-muted-foreground">Target</dt>
-              <dd className="mt-1 font-medium text-foreground">{indicator.target}</dd>
-            </div>
-            <div>
-              <dt className="text-muted-foreground">Actual/current value</dt>
-              <dd className="mt-1 font-medium text-foreground">{indicator.actual}</dd>
-            </div>
-          </dl>
-          <div className="mt-4">
-            <ProgressBar label="Indicator progress" value={progressForIndicator(indicator)} />
-          </div>
-          <div className="mt-4 text-sm text-muted-foreground">
-            Connected activities:{' '}
-            <span className="font-medium text-foreground">
-              {indicator.connectedActivityIds
-                .map(
-                  (activityId) =>
-                    activities.find((activity) => activity.id === activityId)?.title ?? activityId,
-                )
-                .join(', ') || 'None linked yet'}
-            </span>
-          </div>
-        </div>
-      ))}
+        ))
+      ) : (
+        <p className="rounded-lg border border-dashed border-border p-6 text-center text-sm text-muted-foreground xl:col-span-2">
+          No indicator records are available for this project.
+        </p>
+      )}
     </div>
   </SectionCard>
 )
@@ -1301,30 +1211,34 @@ const EvaluationView = ({
         title="Evaluation weights"
         description={
           canConfigureWeights
-            ? 'Role preview allows local weight adjustment.'
-            : 'View-only for this role preview.'
+            ? 'Weight changes require evaluation backend persistence.'
+            : 'View-only for this role.'
         }
       >
         <div className="space-y-3">
-          {evaluation.components.map((component) => (
-            <div
-              key={component.id}
-              className="grid gap-3 rounded-lg border border-border bg-background p-3 sm:grid-cols-[1fr_120px]"
-            >
-              <div>
-                <p className="font-medium text-foreground">{component.label}</p>
-                <p className="text-sm text-muted-foreground">Weight: {component.value}%</p>
+          {evaluation.components.length > 0 ? (
+            evaluation.components.map((component) => (
+              <div
+                key={component.id}
+                className="grid gap-3 rounded-lg border border-border bg-background p-3 sm:grid-cols-[1fr_120px]"
+              >
+                <div>
+                  <p className="font-medium text-foreground">{component.label}</p>
+                  <p className="text-sm text-muted-foreground">Weight: {component.value}%</p>
+                </div>
+                <Input
+                  disabled={!canConfigureWeights}
+                  max={100}
+                  min={0}
+                  onChange={(event) => onWeightChange(component.id, Number(event.target.value))}
+                  type="number"
+                  value={component.value}
+                />
               </div>
-              <Input
-                disabled={!canConfigureWeights}
-                max={100}
-                min={0}
-                onChange={(event) => onWeightChange(component.id, Number(event.target.value))}
-                type="number"
-                value={component.value}
-              />
-            </div>
-          ))}
+            ))
+          ) : (
+            <p className="text-sm text-muted-foreground">No evaluation weights are configured.</p>
+          )}
         </div>
       </SectionCard>
       <SectionCard title="Annotations" description="Human review notes.">
@@ -1377,6 +1291,7 @@ const BudgetView = ({
   canVerifyExpense,
   expenseTotal,
   expenses,
+  hasBudget,
   outcomes,
   plannedAmount,
   recommendations,
@@ -1396,6 +1311,7 @@ const BudgetView = ({
   canVerifyExpense: boolean
   expenseTotal: number
   expenses: ExpenseRecord[]
+  hasBudget: boolean
   outcomes: RecommendationOutcomeRecord[]
   plannedAmount: number
   recommendations: RecommendationRecord[]
@@ -1408,49 +1324,63 @@ const BudgetView = ({
   onVerifyExpense: (expense: ExpenseRecord) => void
 }) => (
   <div className="space-y-4">
-    <section className="grid gap-4 lg:grid-cols-4">
-      {[
-        ['Planned allocation', formatCurrency(plannedAmount)],
-        ['Actual spending', formatCurrency(actualSpending)],
-        ['Remaining balance', formatCurrency(remainingBudget)],
-        ['Expense ledger total', formatCurrency(expenseTotal)],
-      ].map(([label, value]) => (
-        <div key={label} className="rounded-lg border border-border bg-card p-4 shadow-sm">
-          <p className="text-sm text-muted-foreground">{label}</p>
-          <p className="mt-2 text-2xl font-semibold text-foreground">{value}</p>
-        </div>
-      ))}
-    </section>
-    <SectionCard
-      title="Budget utilization"
-      description="Budget records remain local and internally consistent."
-    >
-      <ProgressBar
-        label="Utilization"
-        tone={utilization > 85 ? 'warning' : 'info'}
-        value={utilization}
+    {hasBudget ? (
+      <>
+        <section className="grid gap-4 lg:grid-cols-4">
+          {[
+            ['Planned allocation', formatCurrency(plannedAmount)],
+            ['Actual spending', formatCurrency(actualSpending)],
+            ['Remaining balance', formatCurrency(remainingBudget)],
+            ['Expense ledger total', formatCurrency(expenseTotal)],
+          ].map(([label, value]) => (
+            <div key={label} className="rounded-lg border border-border bg-card p-4 shadow-sm">
+              <p className="text-sm text-muted-foreground">{label}</p>
+              <p className="mt-2 text-2xl font-semibold text-foreground">{value}</p>
+            </div>
+          ))}
+        </section>
+        <SectionCard
+          title="Budget utilization"
+          description="Actual spending against the available planned allocation."
+        >
+          <ProgressBar
+            label="Utilization"
+            tone={utilization > 85 ? 'warning' : 'info'}
+            value={utilization}
+          />
+        </SectionCard>
+      </>
+    ) : (
+      <EmptyState
+        description="Budget totals will appear after an allocation is available from the backend."
+        icon={Receipt}
+        title="No budget record"
       />
-    </SectionCard>
+    )}
     <section className="grid gap-4 xl:grid-cols-2">
       <SectionCard
         title="Budget alerts"
         description="Alerts and recommendation prompts for review."
       >
         <div className="space-y-3">
-          {alerts.map((alert) => (
-            <div key={alert.id} className="rounded-lg border border-border bg-background p-3">
-              <div className="flex items-center justify-between gap-3">
-                <p className="font-medium text-foreground">{alert.title}</p>
-                <StatusBadge tone={statusTone(alert.severity)}>{alert.severity}</StatusBadge>
+          {alerts.length > 0 ? (
+            alerts.map((alert) => (
+              <div key={alert.id} className="rounded-lg border border-border bg-background p-3">
+                <div className="flex items-center justify-between gap-3">
+                  <p className="font-medium text-foreground">{alert.title}</p>
+                  <StatusBadge tone={statusTone(alert.severity)}>{alert.severity}</StatusBadge>
+                </div>
+                <p className="mt-1 text-sm text-muted-foreground">{alert.category}</p>
               </div>
-              <p className="mt-1 text-sm text-muted-foreground">{alert.category}</p>
-            </div>
-          ))}
+            ))
+          ) : (
+            <p className="text-sm text-muted-foreground">No budget alerts for this project.</p>
+          )}
         </div>
       </SectionCard>
       <SectionCard
         title="Recommendation prompts"
-        description="Outcome lifecycle is local prototype state."
+        description="Human-reviewed recommendation outcomes."
       >
         <div className="space-y-3">
           {recommendations.length > 0 ? (
@@ -1489,7 +1419,7 @@ const BudgetView = ({
     </section>
     <SectionCard
       title="Expense Ledger"
-      description="Liquidation status transitions are demonstrated without server enforcement."
+      description="Expense and liquidation records supplied by the budget service."
       actions={
         canLogExpense ? (
           <Button className="gap-2" onClick={onLogExpense} type="button">
@@ -1500,67 +1430,79 @@ const BudgetView = ({
       }
     >
       <div className="space-y-3">
-        {expenses.map((expense) => (
-          <div
-            key={expense.id}
-            className="grid gap-4 rounded-lg border border-border bg-background p-4 lg:grid-cols-[1fr_0.6fr_0.6fr_0.5fr_auto]"
-          >
-            <div className="min-w-0">
-              <p className="break-words font-medium text-foreground">{expense.description}</p>
-              <p className="mt-1 text-sm text-muted-foreground">{expense.submitter}</p>
-            </div>
-            <div className="text-sm">
-              <p className="text-muted-foreground">Dates</p>
-              <p className="mt-1 font-medium text-foreground">{formatDate(expense.expenseDate)}</p>
-              <p className="text-muted-foreground">Submitted {formatDate(expense.submittedDate)}</p>
-            </div>
-            <div className="text-sm">
-              <p className="text-muted-foreground">Amount</p>
-              <p className="mt-1 font-medium text-foreground">{formatCurrency(expense.amount)}</p>
-            </div>
-            <div className="space-y-2">
-              <StatusBadge tone={statusTone(expense.liquidationStatus)}>
-                {expense.liquidationStatus}
-              </StatusBadge>
-              <p className="flex items-center gap-1 text-sm text-muted-foreground">
-                <Receipt className="h-4 w-4" aria-hidden="true" />
-                {expense.hasReceipt
-                  ? (expense.receiptFileName ?? 'Receipt attached')
-                  : 'No receipt'}
-              </p>
-            </div>
-            <div className="flex flex-wrap justify-end gap-2">
-              {canVerifyExpense && expense.liquidationStatus === 'Pending' ? (
-                <Button
-                  onClick={() => onVerifyExpense(expense)}
-                  size="sm"
-                  type="button"
-                  variant="outline"
-                >
-                  Verify
-                </Button>
-              ) : null}
-              {canApproveExpense && expense.liquidationStatus === 'Verified' ? (
-                <>
-                  <Button onClick={() => onApproveExpense(expense)} size="sm" type="button">
-                    Approve
-                  </Button>
+        {expenses.length > 0 ? (
+          expenses.map((expense) => (
+            <div
+              key={expense.id}
+              className="grid gap-4 rounded-lg border border-border bg-background p-4 lg:grid-cols-[1fr_0.6fr_0.6fr_0.5fr_auto]"
+            >
+              <div className="min-w-0">
+                <p className="break-words font-medium text-foreground">{expense.description}</p>
+                <p className="mt-1 text-sm text-muted-foreground">{expense.submitter}</p>
+              </div>
+              <div className="text-sm">
+                <p className="text-muted-foreground">Dates</p>
+                <p className="mt-1 font-medium text-foreground">
+                  {formatDate(expense.expenseDate)}
+                </p>
+                <p className="text-muted-foreground">
+                  Submitted {formatDate(expense.submittedDate)}
+                </p>
+              </div>
+              <div className="text-sm">
+                <p className="text-muted-foreground">Amount</p>
+                <p className="mt-1 font-medium text-foreground">{formatCurrency(expense.amount)}</p>
+              </div>
+              <div className="space-y-2">
+                <StatusBadge tone={statusTone(expense.liquidationStatus)}>
+                  {expense.liquidationStatus}
+                </StatusBadge>
+                <p className="flex items-center gap-1 text-sm text-muted-foreground">
+                  <Receipt className="h-4 w-4" aria-hidden="true" />
+                  {expense.hasReceipt
+                    ? (expense.receiptFileName ?? 'Receipt attached')
+                    : 'No receipt'}
+                </p>
+              </div>
+              <div className="flex flex-wrap justify-end gap-2">
+                {canVerifyExpense && expense.liquidationStatus === 'Pending' ? (
                   <Button
-                    onClick={() => onRejectExpense(expense)}
+                    onClick={() => onVerifyExpense(expense)}
                     size="sm"
                     type="button"
                     variant="outline"
                   >
-                    Reject
+                    Verify
                   </Button>
-                </>
+                ) : null}
+                {canApproveExpense && expense.liquidationStatus === 'Verified' ? (
+                  <>
+                    <Button onClick={() => onApproveExpense(expense)} size="sm" type="button">
+                      Approve
+                    </Button>
+                    <Button
+                      onClick={() => onRejectExpense(expense)}
+                      size="sm"
+                      type="button"
+                      variant="outline"
+                    >
+                      Reject
+                    </Button>
+                  </>
+                ) : null}
+              </div>
+              {expense.rejectionReason ? (
+                <p className="text-sm text-danger lg:col-span-5">
+                  Reason: {expense.rejectionReason}
+                </p>
               ) : null}
             </div>
-            {expense.rejectionReason ? (
-              <p className="text-sm text-danger lg:col-span-5">Reason: {expense.rejectionReason}</p>
-            ) : null}
-          </div>
-        ))}
+          ))
+        ) : (
+          <p className="rounded-lg border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
+            No expense records are available for this project.
+          </p>
+        )}
       </div>
     </SectionCard>
   </div>
@@ -1592,54 +1534,60 @@ const TransparencyView = ({
       description="Toggle public visibility for safe aggregate content."
     >
       <div className="space-y-3">
-        {sections.map((section) => (
-          <div key={section.id} className="rounded-lg border border-border bg-background p-4">
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-              <div>
-                <p className="font-medium text-foreground">{section.title}</p>
-                <p className="mt-1 text-sm text-muted-foreground">{section.summary}</p>
+        {sections.length > 0 ? (
+          sections.map((section) => (
+            <div key={section.id} className="rounded-lg border border-border bg-background p-4">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                <div>
+                  <p className="font-medium text-foreground">{section.title}</p>
+                  <p className="mt-1 text-sm text-muted-foreground">{section.summary}</p>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <StatusBadge tone={statusTone(section.approvalState)}>
+                    {section.approvalState}
+                  </StatusBadge>
+                  {canPublishTransparency ? (
+                    <Button
+                      className="gap-2"
+                      onClick={() => onUpdate(section, { visible: !section.visible })}
+                      size="sm"
+                      type="button"
+                      variant="outline"
+                    >
+                      {section.visible ? (
+                        <ToggleRight className="h-4 w-4" aria-hidden="true" />
+                      ) : (
+                        <ToggleLeft className="h-4 w-4" aria-hidden="true" />
+                      )}
+                      {section.visible ? 'Visible' : 'Hidden'}
+                    </Button>
+                  ) : null}
+                </div>
               </div>
-              <div className="flex flex-wrap gap-2">
-                <StatusBadge tone={statusTone(section.approvalState)}>
-                  {section.approvalState}
-                </StatusBadge>
-                {canPublishTransparency ? (
-                  <Button
-                    className="gap-2"
-                    onClick={() => onUpdate(section, { visible: !section.visible })}
-                    size="sm"
-                    type="button"
-                    variant="outline"
-                  >
-                    {section.visible ? (
-                      <ToggleRight className="h-4 w-4" aria-hidden="true" />
-                    ) : (
-                      <ToggleLeft className="h-4 w-4" aria-hidden="true" />
-                    )}
-                    {section.visible ? 'Visible' : 'Hidden'}
-                  </Button>
-                ) : null}
+              <div className="mt-3 flex flex-wrap justify-end gap-2">
+                {canPublishTransparency
+                  ? (['Draft', 'Pending Review', 'Approved'] as TransparencyApprovalState[]).map(
+                      (state) => (
+                        <Button
+                          key={state}
+                          onClick={() => onUpdate(section, { approvalState: state })}
+                          size="sm"
+                          type="button"
+                          variant={section.approvalState === state ? 'default' : 'outline'}
+                        >
+                          {state}
+                        </Button>
+                      ),
+                    )
+                  : null}
               </div>
             </div>
-            <div className="mt-3 flex flex-wrap justify-end gap-2">
-              {canPublishTransparency
-                ? (['Draft', 'Pending Review', 'Approved'] as TransparencyApprovalState[]).map(
-                    (state) => (
-                      <Button
-                        key={state}
-                        onClick={() => onUpdate(section, { approvalState: state })}
-                        size="sm"
-                        type="button"
-                        variant={section.approvalState === state ? 'default' : 'outline'}
-                      >
-                        {state}
-                      </Button>
-                    ),
-                  )
-                : null}
-            </div>
-          </div>
-        ))}
+          ))
+        ) : (
+          <p className="rounded-lg border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
+            No public information sections are configured for this project.
+          </p>
+        )}
       </div>
     </SectionCard>
     <SectionCard
@@ -1679,8 +1627,8 @@ const TransparencyView = ({
           details, and proof files.
         </p>
         <p className="text-xs leading-5 text-muted-foreground">
-          Program Manager and Project Manager can customize the browser-local staff preview. The
-          approved anonymous page remains unchanged until a real publishing workflow is connected.
+          Program Manager and Project Manager can customize a temporary unsaved staff preview. The
+          approved anonymous page remains unchanged until a publishing workflow is connected.
         </p>
       </div>
     </SectionCard>

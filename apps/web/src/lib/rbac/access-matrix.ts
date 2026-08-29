@@ -1,4 +1,4 @@
-import { type PrototypeRole, prototypeRoles } from '@/types/prototype-role'
+import { type PathwaysRole, pathwaysRoles } from '@/types/pathways-role'
 import type { DataScopeCode, PermissionCode } from './permissions'
 
 export type AccessLevel = 'none' | 'view' | 'aggregate' | 'scoped' | 'full' | 'configure'
@@ -14,18 +14,18 @@ export const projectAssignableRoles = [
   'Project Manager',
   'Project Officer',
   'Monitoring and Evaluation Officer',
-] as const satisfies readonly PrototypeRole[]
+] as const satisfies readonly PathwaysRole[]
 
 export type ProjectAssignableRole = (typeof projectAssignableRoles)[number]
 
 export interface UserAdministrationCapabilities {
-  createAndAuthorizeRoles: readonly PrototypeRole[]
+  createAndAuthorizeRoles: readonly PathwaysRole[]
   projectAssignmentRoles: readonly ProjectAssignableRole[]
   projectAssignmentScope: ProjectAssignmentScope
 }
 
 export interface RoleAccessProfile {
-  role: PrototypeRole
+  role: PathwaysRole
   permissions: readonly PermissionCode[]
   dataScopes: readonly DataScopeCode[]
   projectAccess: ProjectAccessScope
@@ -49,7 +49,7 @@ const noUserAdministration = {
   projectAssignmentScope: 'none',
 } as const satisfies UserAdministrationCapabilities
 
-export const roleAccessProfiles: Record<PrototypeRole, RoleAccessProfile> = {
+export const roleAccessProfiles: Record<PathwaysRole, RoleAccessProfile> = {
   'Project Officer': {
     role: 'Project Officer',
     permissions: [
@@ -248,7 +248,7 @@ export const roleAccessProfiles: Record<PrototypeRole, RoleAccessProfile> = {
     projectAccess: 'organization',
     beneficiaryDataAccess: 'all-records',
     userAdministration: {
-      createAndAuthorizeRoles: [...prototypeRoles],
+      createAndAuthorizeRoles: [...pathwaysRoles],
       projectAssignmentRoles: [...projectAssignableRoles],
       projectAssignmentScope: 'all-projects',
     },

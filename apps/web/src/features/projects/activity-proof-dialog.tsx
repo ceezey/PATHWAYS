@@ -9,7 +9,7 @@ import { Button } from '@/components/ui/button'
 import { Dialog, DialogFooter } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { pathwaysClient } from '@/lib/services/mock-pathways-client'
+import { pathwaysClient } from '@/lib/services/pathways-client'
 import type { Activity } from '@/types/pathways'
 
 export const ActivityProofDialog = ({
@@ -63,7 +63,7 @@ export const ActivityProofDialog = ({
         fileNames: files.map((file) => file.name),
       })
 
-      toast.success('Update submitted for prototype review.', {
+      toast.success('Activity update submitted.', {
         description:
           files.length > 0
             ? `${files.length} proof file${files.length === 1 ? '' : 's'} selected locally.`
@@ -82,7 +82,7 @@ export const ActivityProofDialog = ({
     <Dialog onOpenChange={onOpenChange} open={open}>
       <DialogShell
         title="Submit Update & Proof"
-        description="Record a prototype progress update. Files stay on this device and are not uploaded."
+        description="Prepare a progress update and select evidence files for upload."
       >
         <div className="space-y-5">
           <div className="space-y-2">
@@ -115,7 +115,7 @@ export const ActivityProofDialog = ({
               type="file"
             />
             <p className="text-sm text-muted-foreground">
-              Prototype status: selected on this device, not uploaded.
+              Files are staged on this device until the activity upload backend is connected.
             </p>
           </div>
           {files.length > 0 ? (

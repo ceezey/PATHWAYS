@@ -23,9 +23,6 @@ importers:
       lint-staged:
         specifier: ^16.1.0
         version: 16.4.0
-      msw:
-        specifier: ^2.11.2
-        version: 2.12.14(@types/node@24.12.0)(typescript@5.9.3)
       tsx:
         specifier: ^4.20.5
         version: 4.21.0

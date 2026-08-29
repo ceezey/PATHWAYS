@@ -5,14 +5,13 @@ import { usePathname } from 'next/navigation'
 
 import { APP_NAME } from '@pathways/shared'
 
-import { PrototypeRoleSwitcher } from '@/components/layout/prototype-role-switcher'
 import { SidebarNavItem } from '@/components/layout/sidebar-nav-item'
 import { createDashboardNavGroups } from '@/constants/navigation'
-import { usePrototypeRole } from '@/hooks/use-prototype-role'
+import { useCurrentRole } from '@/hooks/use-current-role'
 import { useSession } from '@/hooks/use-session'
 import { filterDashboardNavGroups } from '@/lib/rbac/route-access'
 import { cn } from '@/lib/utils'
-import { getPrototypeRoleDisplayName } from '@/types/prototype-role'
+import { getPathwaysRoleDisplayName } from '@/types/pathways-role'
 
 export const Sidebar = ({
   compact = false,
@@ -23,9 +22,9 @@ export const Sidebar = ({
 }) => {
   const pathname = usePathname()
   const { email } = useSession()
-  const { role } = usePrototypeRole()
-  const visibleNavGroups = filterDashboardNavGroups(createDashboardNavGroups(), role)
-  const roleLabel = getPrototypeRoleDisplayName(role)
+  const { role } = useCurrentRole()
+  const visibleNavGroups = role ? filterDashboardNavGroups(createDashboardNavGroups(), role) : []
+  const roleLabel = role ? getPathwaysRoleDisplayName(role) : 'Role unavailable'
   const activeHref = visibleNavGroups
     .flatMap((group) => group.items)
     .filter((item) => pathname === item.href || pathname.startsWith(`${item.href}/`))
@@ -83,7 +82,6 @@ export const Sidebar = ({
         ))}
       </nav>
       <div className={cn('space-y-3 border-t border-white/10 p-4', compact && 'px-3')}>
-        <PrototypeRoleSwitcher compact={compact} />
         <div className="rounded-lg border border-white/20 bg-slate-950/20 p-3">
           <div className={cn('flex items-start gap-3', compact && 'justify-center')}>
             <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-white/10">
@@ -91,11 +89,11 @@ export const Sidebar = ({
             </div>
             {!compact ? (
               <div className="min-w-0">
-                <p className="truncate text-sm font-medium">{email ?? 'Prototype user'}</p>
+                <p className="truncate text-sm font-medium">{email ?? 'Signed-in user'}</p>
                 <p className="mt-1 text-xs leading-4 text-blue-50/70">{roleLabel}</p>
               </div>
             ) : (
-              <span className="sr-only">{email ?? 'Prototype user'}</span>
+              <span className="sr-only">{email ?? 'Signed-in user'}</span>
             )}
           </div>
         </div>

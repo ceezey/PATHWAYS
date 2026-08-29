@@ -11,18 +11,6 @@ export const webEnvSchema = z.object({
   NEXT_PUBLIC_API_BASE_URL: optionalUrl
     .or(z.string().startsWith('/'))
     .default('http://localhost:4000/api'),
-  NEXT_PUBLIC_ENABLE_DEV_AUTH_BYPASS: z
-    .enum(['true', 'false'])
-    .default('false')
-    .transform((value) => value === 'true'),
-  NEXT_PUBLIC_ENABLE_GUI_PROTOTYPE_MODE: z
-    .enum(['true', 'false'])
-    .default('false')
-    .transform((value) => value === 'true'),
-  NEXT_PUBLIC_ENABLE_ROLE_PREVIEW: z
-    .enum(['true', 'false'])
-    .default('true')
-    .transform((value) => value === 'true'),
   NEXT_PUBLIC_SENTRY_DSN: optionalString,
   STAFF_PORTAL_BASE_URL: optionalUrl,
   WEB_PORT: z.coerce.number().default(3000),

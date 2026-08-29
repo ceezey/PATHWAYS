@@ -19,7 +19,10 @@ export const PublicProgressTrendChart = ({ project }: { project: PublicProjectRe
       color: colors,
       tooltip: { trigger: 'axis' },
       grid,
-      xAxis: { type: 'category', data: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun'] },
+      xAxis: {
+        type: 'category',
+        data: project.progressTrend.map((_, index) => `Update ${index + 1}`),
+      },
       yAxis: { type: 'value', min: 0, max: 100 },
       series: [
         {
@@ -87,12 +90,14 @@ export const PublicPortfolioChart = ({ projects }: { projects: PublicProjectReco
           name: 'Average selected-indicator progress',
           type: 'bar',
           data: projects.map((project) =>
-            Math.round(
-              project.selectedIndicators.reduce(
-                (total, indicator) => total + indicator.progress,
-                0,
-              ) / project.selectedIndicators.length,
-            ),
+            project.selectedIndicators.length > 0
+              ? Math.round(
+                  project.selectedIndicators.reduce(
+                    (total, indicator) => total + indicator.progress,
+                    0,
+                  ) / project.selectedIndicators.length,
+                )
+              : 0,
           ),
         },
       ],

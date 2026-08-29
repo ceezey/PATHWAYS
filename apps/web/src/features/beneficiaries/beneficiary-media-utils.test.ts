@@ -10,7 +10,7 @@ import {
 } from './beneficiary-media-utils'
 
 describe('Beneficiary media proof helpers', () => {
-  it('recognizes the prototype photo and video formats', () => {
+  it('recognizes the supported photo and video formats', () => {
     expect(isSupportedBeneficiaryMedia('image/jpeg')).toBe(true)
     expect(isSupportedBeneficiaryMedia('image/png')).toBe(true)
     expect(isSupportedBeneficiaryMedia('video/mp4')).toBe(true)

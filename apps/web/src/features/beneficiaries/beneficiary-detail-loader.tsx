@@ -6,9 +6,8 @@ import { useEffect, useState } from 'react'
 
 import { EmptyState } from '@/components/pathways/empty-state'
 import { Button } from '@/components/ui/button'
-import { usePrototypeRole } from '@/hooks/use-prototype-role'
-import { pathwaysClient } from '@/lib/services/mock-pathways-client'
-import { PathwaysClientError } from '@/lib/services/pathways-client'
+import { useCurrentRole } from '@/hooks/use-current-role'
+import { PathwaysClientError, pathwaysClient } from '@/lib/services/pathways-client'
 import type {
   Activity,
   BeneficiaryMediaProofRecord,
@@ -34,7 +33,7 @@ type DetailState =
   | { status: 'unavailable' }
 
 export const BeneficiaryDetailLoader = ({ beneficiaryId }: { beneficiaryId: string }) => {
-  const { role } = usePrototypeRole()
+  const { role } = useCurrentRole()
   const [state, setState] = useState<DetailState>({ status: 'loading' })
 
   useEffect(() => {
@@ -42,6 +41,11 @@ export const BeneficiaryDetailLoader = ({ beneficiaryId }: { beneficiaryId: stri
 
     const loadDetail = async () => {
       setState({ status: 'loading' })
+
+      if (!role) {
+        setState({ status: 'restricted' })
+        return
+      }
 
       try {
         const beneficiary = await pathwaysClient.getBeneficiaryRecordForRole(role, beneficiaryId)
@@ -112,8 +116,8 @@ export const BeneficiaryDetailLoader = ({ beneficiaryId }: { beneficiaryId: stri
         <EmptyState
           description={
             restricted
-              ? 'This record is outside the projects assigned to the current prototype role. No Beneficiary details or media were loaded.'
-              : 'This Beneficiary record is not available in the current safe sample data.'
+              ? 'This record is outside the projects assigned to your authenticated role. No beneficiary details or media were loaded.'
+              : 'This beneficiary record is unavailable because its backend integration is not configured or the record does not exist.'
           }
           icon={restricted ? ShieldAlert : UserRoundX}
           title={restricted ? 'Beneficiary record restricted' : 'Beneficiary record unavailable'}

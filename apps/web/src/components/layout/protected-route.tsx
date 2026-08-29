@@ -4,21 +4,22 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { Suspense, useEffect } from 'react'
 
+import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { usePrototypeRole } from '@/hooks/use-prototype-role'
+import { useCurrentRole } from '@/hooks/use-current-role'
 import { useSession } from '@/hooks/use-session'
 import { RouteAccessGuard } from './route-access-guard'
 
 export const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
   const router = useRouter()
-  const { configured, isBypassed, status } = useSession()
-  const { role } = usePrototypeRole()
+  const { configured, status } = useSession()
+  const { assignedProjectIds, role } = useCurrentRole()
 
   useEffect(() => {
-    if (configured && !isBypassed && status === 'unauthenticated') {
+    if (configured && status === 'unauthenticated') {
       router.replace('/staff/login')
     }
-  }, [configured, isBypassed, router, status])
+  }, [configured, router, status])
 
   if (!configured) {
     return (
@@ -57,10 +58,34 @@ export const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
     )
   }
 
-  if (!isBypassed && status === 'unauthenticated') {
+  if (status === 'unauthenticated') {
     return (
       <div className="flex min-h-screen items-center justify-center text-sm text-muted-foreground">
         Redirecting to login...
+      </div>
+    )
+  }
+
+  if (!role) {
+    return (
+      <div className="flex min-h-screen items-center justify-center p-6">
+        <Card className="max-w-xl">
+          <CardHeader>
+            <CardTitle>Authenticated role required</CardTitle>
+            <CardDescription>
+              This session does not contain a recognized PATHWAYS role in Supabase app metadata.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4 text-sm leading-6 text-muted-foreground">
+            <p>
+              Protected content remains hidden. Ask an administrator to assign a supported role,
+              then sign in again.
+            </p>
+            <Button asChild variant="outline">
+              <Link href="/staff/login">Return to staff login</Link>
+            </Button>
+          </CardContent>
+        </Card>
       </div>
     )
   }
@@ -73,7 +98,9 @@ export const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
         </div>
       }
     >
-      <RouteAccessGuard role={role}>{children}</RouteAccessGuard>
+      <RouteAccessGuard assignedProjectIds={assignedProjectIds} role={role}>
+        {children}
+      </RouteAccessGuard>
     </Suspense>
   )
 }

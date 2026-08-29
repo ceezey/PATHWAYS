@@ -8,18 +8,7 @@ describe('env readers', () => {
 
     expect(env.WEB_PORT).toBe(3000)
     expect(env.STAFF_PORTAL_BASE_URL).toBe('')
-    expect(env.NEXT_PUBLIC_ENABLE_GUI_PROTOTYPE_MODE).toBe(false)
-    expect(env.NEXT_PUBLIC_ENABLE_ROLE_PREVIEW).toBe(true)
-  })
-
-  it('reads explicit prototype-mode web envs', () => {
-    const env = readWebEnv({
-      NEXT_PUBLIC_ENABLE_GUI_PROTOTYPE_MODE: 'true',
-      NEXT_PUBLIC_ENABLE_ROLE_PREVIEW: 'false',
-    })
-
-    expect(env.NEXT_PUBLIC_ENABLE_GUI_PROTOTYPE_MODE).toBe(true)
-    expect(env.NEXT_PUBLIC_ENABLE_ROLE_PREVIEW).toBe(false)
+    expect(env.NEXT_PUBLIC_API_BASE_URL).toBe('http://localhost:4000/api')
   })
 
   it('applies defaults for api envs', () => {

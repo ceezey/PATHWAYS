@@ -20,10 +20,11 @@ import { EmptyState, FilterBar, ProgressBar, SectionCard, StatusBadge } from '@/
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { usePrototypeLabels } from '@/hooks/use-prototype-labels'
-import { usePrototypeRole } from '@/hooks/use-prototype-role'
+import { useCurrentRole } from '@/hooks/use-current-role'
+import { useDisplayLabels } from '@/hooks/use-display-labels'
+import { useSession } from '@/hooks/use-session'
 import { can } from '@/lib/rbac/can'
-import { pathwaysClient } from '@/lib/services/mock-pathways-client'
+import { pathwaysClient } from '@/lib/services/pathways-client'
 import type {
   Activity,
   ActivityStatus,
@@ -46,8 +47,6 @@ import {
 } from './activity-utils'
 import { ProjectWorkspaceHeader } from './project-workspace-header'
 
-const projectOfficerName = 'Project Officer A'
-
 const indicatorSummary = (activity: Activity, indicators: Indicator[]) =>
   activity.indicatorIds
     .map(
@@ -59,9 +58,13 @@ const indicatorSummary = (activity: Activity, indicators: Indicator[]) =>
 const attentionActivity = (activity: Activity) =>
   activity.status === 'Overdue' || activity.status === 'For Review' || activity.progress < 50
 
-const matchesFilter = (activity: Activity, filter: ActivityFilter) => {
+const matchesFilter = (
+  activity: Activity,
+  filter: ActivityFilter,
+  currentAssignee: string | null,
+) => {
   if (filter === 'Mine') {
-    return activity.assignedTo.includes(projectOfficerName)
+    return currentAssignee ? activity.assignedTo.includes(currentAssignee) : false
   }
 
   if (filter === 'Overdue') {
@@ -248,11 +251,12 @@ export const ProjectActivitiesWorkspace = ({
   projectId: string
 }) => {
   const router = useRouter()
-  const { labels } = usePrototypeLabels()
-  const { role } = usePrototypeRole()
-  const canCreateEdit = can(role, 'activities.create_edit')
+  const { labels } = useDisplayLabels()
+  const { role } = useCurrentRole()
+  const { email } = useSession()
+  const canCreateEdit = role ? can(role, 'activities.create_edit') : false
   const canReview = role === 'Project Manager'
-  const canSubmitProof = can(role, 'activities.submit_update_proof')
+  const canSubmitProof = role ? can(role, 'activities.submit_update_proof') : false
   const [project, setProject] = useState<ProjectDetail | null>(null)
   const [activities, setActivities] = useState<Activity[]>([])
   const [indicators, setIndicators] = useState<Indicator[]>([])
@@ -331,9 +335,9 @@ export const ProjectActivitiesWorkspace = ({
             .includes(normalizedQuery)
         : true
 
-      return matchesQuery && matchesFilter(activity, filter)
+      return matchesQuery && matchesFilter(activity, filter, email)
     })
-  }, [activities, filter, indicators, query])
+  }, [activities, email, filter, indicators, query])
 
   const activityStatusCounts = useMemo(() => {
     const counts: Record<ActivityStatus, number> = {
@@ -421,7 +425,7 @@ export const ProjectActivitiesWorkspace = ({
         <PageHeader
           eyebrow={labels.projectWorkspace}
           title="Workspace unavailable"
-          description="This project workspace is not available in the current prototype session."
+          description="This project workspace could not be loaded from the Projects backend."
           actions={
             <Button asChild variant="outline">
               <Link href="/projects">Back to Projects</Link>
@@ -519,9 +523,15 @@ export const ProjectActivitiesWorkspace = ({
       />
       {filteredActivities.length === 0 ? (
         <EmptyState
-          description="Create an activity or adjust the search and filter controls."
+          description={
+            activities.length === 0
+              ? 'No activity records are available for this project.'
+              : 'Adjust the search and filter controls.'
+          }
           icon={LayoutGrid}
-          title="No activities match the current view"
+          title={
+            activities.length === 0 ? 'No activities yet' : 'No activities match the current view'
+          }
         />
       ) : null}
       {filteredActivities.length > 0 && viewMode === 'board' ? (

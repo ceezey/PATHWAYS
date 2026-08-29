@@ -65,7 +65,7 @@ export const createDashboardNavGroups = (): DashboardNavGroup[] => [
       {
         href: '/dashboard',
         label: fixedDashboardNavItemLabels.dashboard,
-        description: 'Priorities and progress for the selected role.',
+        description: 'Priorities and progress for the authenticated role.',
         icon: Home,
       },
       {
@@ -131,13 +131,13 @@ export const createDashboardNavGroups = (): DashboardNavGroup[] => [
       {
         href: '/settings/users',
         label: fixedDashboardNavItemLabels.userManagement,
-        description: 'Review prototype users, roles, and account states.',
+        description: 'Review users, roles, and account states.',
         icon: UserCog,
       },
       {
         href: '/settings/labels',
         label: fixedDashboardNavItemLabels.editLabels,
-        description: 'Edit approved browser-local page headings.',
+        description: 'Review approved page headings for future persistence.',
         icon: Type,
       },
     ],

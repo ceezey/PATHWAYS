@@ -15,7 +15,7 @@ import {
   Trash2,
 } from 'lucide-react'
 import Link from 'next/link'
-import { useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { toast } from 'sonner'
 
 import { compareHeaders, createFileSummary, parseCsv, parseWorkbook } from '@pathways/imports'
@@ -46,10 +46,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { usePrototypeLabels } from '@/hooks/use-prototype-labels'
+import { useDisplayLabels } from '@/hooks/use-display-labels'
+import { pathwaysClient } from '@/lib/services/pathways-client'
 import { cn } from '@/lib/utils'
-import { mockActivities } from '@/mocks/pathways/activities'
-import { mockProjects } from '@/mocks/pathways/projects'
+import type { Activity, ProjectSummary } from '@/types/pathways'
 
 type CollectionMode = 'scratch' | 'import' | 'extend'
 type CollectionView = 'home' | 'forms' | 'builder' | 'import'
@@ -107,48 +107,14 @@ const expectedImportHeaders = [
 ]
 
 const metadataConnections = [
-  'Youth trained - vocational skills',
-  'Assessment delta (Effectiveness)',
+  'Project indicators',
+  'Assessment results',
   'Monitoring dashboard',
   'Beneficiary journey view',
   'Evaluation center',
 ]
 
-const initialFields: FormField[] = [
-  {
-    id: 'field-beneficiary-id',
-    label: 'Beneficiary ID',
-    code: 'beneficiary_id',
-    type: 'text',
-    required: true,
-    metadataKey: true,
-    sadddField: false,
-    allowedValues: '',
-    mappingStatus: 'mapped',
-  },
-  {
-    id: 'field-attendance',
-    label: 'Attendance status',
-    code: 'attendance_status',
-    type: 'single_select',
-    required: true,
-    metadataKey: false,
-    sadddField: false,
-    allowedValues: 'Present, Absent, Excused',
-    mappingStatus: 'mapped',
-  },
-  {
-    id: 'field-age-band',
-    label: 'Age group',
-    code: 'beneficiary_age_group',
-    type: 'single_select',
-    required: false,
-    metadataKey: false,
-    sadddField: true,
-    allowedValues: '10-14, 15-17, 18-24, 25+',
-    mappingStatus: 'unmapped',
-  },
-]
+const initialFields: FormField[] = []
 
 const modeDetails: Array<{
   id: CollectionMode
@@ -248,43 +214,70 @@ export const CollectionWorkspace = ({
   initialMode = 'scratch',
   initialView = 'home',
 }: CollectionWorkspaceProps) => {
-  const { labels } = usePrototypeLabels()
+  const { labels } = useDisplayLabels()
   const [mode, setMode] = useState<CollectionMode>(initialMode)
   const [view, setView] = useState<CollectionView>(initialView)
-  const [formTitle, setFormTitle] = useState('Journey 1 - Intake & Assessment Form')
-  const [formType, setFormType] = useState('Pre/Post Assessment')
-  const [projectId, setProjectId] = useState(mockProjects[0]?.id ?? '')
-  const [journeyStage, setJourneyStage] = useState('J1 - Intake & assessment')
-  const [linkedActivityId, setLinkedActivityId] = useState(
-    mockActivities.find((activity) => activity.projectId === mockProjects[0]?.id)?.id ??
-      mockActivities[0]?.id ??
-      '',
+  const [formTitle, setFormTitle] = useState('')
+  const [formType, setFormType] = useState('')
+  const [projectId, setProjectId] = useState('')
+  const [journeyStage, setJourneyStage] = useState('')
+  const [linkedActivityId, setLinkedActivityId] = useState('')
+  const [projects, setProjects] = useState<ProjectSummary[]>([])
+  const [activities, setActivities] = useState<Activity[]>([])
+  const [projectLoadStatus, setProjectLoadStatus] = useState<'loading' | 'ready' | 'error'>(
+    'loading',
   )
   const [fields, setFields] = useState<FormField[]>(initialFields)
   const [selectedFieldId, setSelectedFieldId] = useState(initialFields[0]?.id ?? '')
   const [saveDialogOpen, setSaveDialogOpen] = useState(false)
   const [proceedDialogOpen, setProceedDialogOpen] = useState(false)
   const [savedNotice, setSavedNotice] = useState('')
-  const [savedForms, setSavedForms] = useState<SavedForm[]>([
-    {
-      id: 'saved-journey-1',
-      title: 'Journey 1 - Forms',
-      type: 'Training Survey',
-      project: 'FutureMakers NCR',
-      fieldCount: 5,
-      savedAt: '2026-06-22',
-    },
-  ])
+  const [savedForms] = useState<SavedForm[]>([])
   const [parsedImport, setParsedImport] = useState<ParsedImport | null>(null)
   const [mappingRows, setMappingRows] = useState<MappingRow[]>([])
   const [uploadProgress, setUploadProgress] = useState(0)
   const [importMessage, setImportMessage] = useState('No source file selected yet.')
   const fileInputRef = useRef<HTMLInputElement | null>(null)
 
-  const selectedProject =
-    mockProjects.find((project) => project.id === projectId) ?? mockProjects[0]
-  const projectActivities = mockActivities.filter((activity) => activity.projectId === projectId)
+  useEffect(() => {
+    let active = true
+
+    pathwaysClient
+      .getProjects()
+      .then(async (projectRecords) => {
+        const activityGroups = await Promise.all(
+          projectRecords.map((project) => pathwaysClient.getActivities(project.id)),
+        )
+
+        if (!active) {
+          return
+        }
+
+        setProjects(projectRecords)
+        setActivities(activityGroups.flat())
+        setProjectId((current) => current || projectRecords[0]?.id || '')
+        setProjectLoadStatus('ready')
+      })
+      .catch(() => {
+        if (active) {
+          setProjectLoadStatus('error')
+        }
+      })
+
+    return () => {
+      active = false
+    }
+  }, [])
+
+  const selectedProject = projects.find((project) => project.id === projectId)
+  const projectActivities = activities.filter((activity) => activity.projectId === projectId)
   const selectedField = fields.find((field) => field.id === selectedFieldId) ?? fields[0]
+
+  useEffect(() => {
+    if (!projectActivities.some((activity) => activity.id === linkedActivityId)) {
+      setLinkedActivityId(projectActivities[0]?.id ?? '')
+    }
+  }, [linkedActivityId, projectActivities])
 
   const mappedCount = fields.filter((field) => field.mappingStatus === 'mapped').length
   const sadddCount = fields.filter((field) => field.sadddField).length
@@ -308,7 +301,7 @@ export const CollectionWorkspace = ({
       parsedImport.rows,
       [
         ...parsedImport.errors,
-        ...(comparison.matches ? [] : ['Mock validation found headers that need review.']),
+        ...(comparison.matches ? [] : ['Header validation found columns that need review.']),
       ],
     )
   }, [parsedImport])
@@ -396,7 +389,7 @@ export const CollectionWorkspace = ({
           sheetNames: result.sheetNames,
         }
       } else {
-        throw new Error('Choose a CSV, XLS, or XLSX file for this prototype.')
+        throw new Error('Choose a CSV, XLS, or XLSX file.')
       }
 
       setParsedImport(parsed)
@@ -417,37 +410,25 @@ export const CollectionWorkspace = ({
     }
   }
 
-  const savePrototypeForm = () => {
-    // TODO(BACKEND): Create and update digital form definitions.
-    // TODO(DATABASE): Persist form fields, import batches, and mapping records.
-    const savedForm: SavedForm = {
-      id: `saved-${Date.now()}`,
-      title: formTitle || 'Untitled collection form',
-      type: formType,
-      project: selectedProject?.title ?? 'Unassigned project',
-      fieldCount: fields.length,
-      savedAt: 'Prototype session',
-    }
-
-    setSavedForms((currentForms) => [savedForm, ...currentForms])
+  const requestFormSave = () => {
     setSaveDialogOpen(false)
-    setSavedNotice('Saved successfully in this prototype session.')
-    setView('forms')
+    setSavedNotice(
+      'Form saving is not configured. Your unsaved draft remains in the current workspace.',
+    )
   }
 
   const confirmImportProceed = () => {
-    // TODO(STORAGE): Upload source dataset.
-    // TODO(BACKEND): Submit metadata mappings and validation results.
-    // TODO(DATABASE): Persist form fields, import batches, and mapping records.
     setProceedDialogOpen(false)
-    setSavedNotice('Import mapping marked ready for future production validation.')
+    setSavedNotice(
+      'Import submission is not configured. The parsed preview and mappings remain unsaved.',
+    )
   }
 
   const downloadSavedForm = (form: SavedForm) => {
     const summary = JSON.stringify(
       {
         ...form,
-        note: 'Prototype summary created in this browser; no shared record was changed.',
+        note: 'Exported from the current supplied form data.',
       },
       null,
       2,
@@ -468,7 +449,7 @@ export const CollectionWorkspace = ({
     anchor.remove()
     window.setTimeout(() => URL.revokeObjectURL(downloadUrl), 0)
     toast.success('Form summary downloaded.', {
-      description: 'The summary was created in your browser for this prototype.',
+      description: 'The summary contains the current form data only.',
     })
   }
 
@@ -484,6 +465,16 @@ export const CollectionWorkspace = ({
           </Button>
         }
       />
+
+      {projectLoadStatus !== 'ready' || projects.length === 0 ? (
+        <div className="rounded-lg border border-info/20 bg-info/10 px-4 py-3 text-sm text-info">
+          {projectLoadStatus === 'loading'
+            ? 'Loading project and activity options...'
+            : projectLoadStatus === 'error'
+              ? 'Project and activity options could not be loaded from the backend.'
+              : 'No project or activity options are available yet. You can still prepare an unsaved form or inspect a local file.'}
+        </div>
+      ) : null}
 
       <div className="grid gap-3 lg:grid-cols-3">
         {modeDetails.map((item) => (
@@ -510,7 +501,7 @@ export const CollectionWorkspace = ({
       </div>
 
       {savedNotice ? (
-        <div className="flex items-center justify-between rounded-lg border border-success/20 bg-success/10 px-4 py-3 text-sm text-success">
+        <div className="flex items-center justify-between rounded-lg border border-info/20 bg-info/10 px-4 py-3 text-sm text-info">
           <span className="flex items-center gap-2">
             <CheckCircle2 className="h-4 w-4" aria-hidden="true" />
             {savedNotice}
@@ -544,12 +535,13 @@ export const CollectionWorkspace = ({
           mappedCount={mappedCount}
           mode={mode}
           moveField={moveField}
+          projects={projects}
           projectActivities={projectActivities}
           projectId={projectId}
           sadddCount={sadddCount}
           selectedField={selectedField}
           selectedFieldId={selectedFieldId}
-          selectedProject={selectedProject?.title ?? 'FutureMakers NCR'}
+          selectedProject={selectedProject?.title ?? 'No project selected'}
           setFormTitle={setFormTitle}
           setFormType={setFormType}
           setJourneyStage={setJourneyStage}
@@ -575,9 +567,10 @@ export const CollectionWorkspace = ({
           mode={mode}
           parsedImport={parsedImport}
           parseSelectedFile={parseSelectedFile}
+          projects={projects}
           projectActivities={projectActivities}
           projectId={projectId}
-          selectedProject={selectedProject?.title ?? 'FutureMakers NCR'}
+          selectedProject={selectedProject?.title ?? 'No project selected'}
           setFormTitle={setFormTitle}
           setFormType={setFormType}
           setJourneyStage={setJourneyStage}
@@ -596,8 +589,8 @@ export const CollectionWorkspace = ({
           <DialogHeader>
             <DialogTitle>Proceed with Save As?</DialogTitle>
             <DialogDescription>
-              This saves the form for the current browser session only. It does not change shared
-              form definitions or mappings.
+              Form persistence is not connected. Proceeding will keep this as an unsaved draft and
+              will not change shared form definitions or mappings.
             </DialogDescription>
           </DialogHeader>
           <div className="rounded-lg border bg-muted/40 p-4 text-sm">
@@ -610,7 +603,7 @@ export const CollectionWorkspace = ({
             <Button variant="outline" onClick={() => setSaveDialogOpen(false)}>
               Cancel
             </Button>
-            <Button onClick={savePrototypeForm}>Proceed</Button>
+            <Button onClick={requestFormSave}>Proceed</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -620,8 +613,8 @@ export const CollectionWorkspace = ({
           <DialogHeader>
             <DialogTitle>Review mapped fields?</DialogTitle>
             <DialogDescription>
-              This prototype marks the mapping as ready, but it does not upload the source dataset
-              or run production validation.
+              Import submission is not connected. The source dataset stays on this device and only
+              the local parsing and mapping preview is available.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
@@ -678,6 +671,16 @@ const FormsGeneratorView = ({
     </div>
 
     <div className="mt-4 space-y-3">
+      {savedForms.length === 0 ? (
+        <div className="rounded-lg border border-dashed bg-muted/20 p-6 text-center">
+          <Database className="mx-auto h-6 w-6 text-muted-foreground" aria-hidden="true" />
+          <p className="mt-3 text-sm font-medium text-foreground">No saved forms yet</p>
+          <p className="mt-1 text-xs leading-5 text-muted-foreground">
+            Create a form draft or import a file. Saved forms will appear after the Collection
+            backend is connected.
+          </p>
+        </div>
+      ) : null}
       {savedForms.map((form) => (
         <div
           key={form.id}
@@ -722,6 +725,7 @@ const BuilderView = ({
   mappedCount,
   mode,
   moveField,
+  projects,
   projectActivities,
   projectId,
   sadddCount,
@@ -749,7 +753,8 @@ const BuilderView = ({
   mappedCount: number
   mode: CollectionMode
   moveField: (fieldId: string, direction: 'up' | 'down') => void
-  projectActivities: typeof mockActivities
+  projects: ProjectSummary[]
+  projectActivities: Activity[]
   projectId: string
   sadddCount: number
   selectedField?: FormField
@@ -771,6 +776,7 @@ const BuilderView = ({
         formType={formType}
         journeyStage={journeyStage}
         linkedActivityId={linkedActivityId}
+        projects={projects}
         projectActivities={projectActivities}
         projectId={projectId}
         setFormTitle={setFormTitle}
@@ -908,6 +914,7 @@ const FormInfoPanel = ({
   formType,
   journeyStage,
   linkedActivityId,
+  projects,
   projectActivities,
   projectId,
   setFormTitle,
@@ -920,7 +927,8 @@ const FormInfoPanel = ({
   formType: string
   journeyStage: string
   linkedActivityId: string
-  projectActivities: typeof mockActivities
+  projects: ProjectSummary[]
+  projectActivities: Activity[]
   projectId: string
   setFormTitle: (value: string) => void
   setFormType: (value: string) => void
@@ -961,7 +969,7 @@ const FormInfoPanel = ({
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            {mockProjects.map((project) => (
+            {projects.map((project) => (
               <SelectItem key={project.id} value={project.id}>
                 {project.title}
               </SelectItem>
@@ -984,7 +992,7 @@ const FormInfoPanel = ({
             <SelectValue placeholder="Select an activity" />
           </SelectTrigger>
           <SelectContent>
-            {(projectActivities.length > 0 ? projectActivities : mockActivities).map((activity) => (
+            {projectActivities.map((activity) => (
               <SelectItem key={activity.id} value={activity.id}>
                 {activity.title}
               </SelectItem>
@@ -1121,9 +1129,9 @@ const MetadataMapPanel = ({
     <div className="flex items-center justify-between gap-3">
       <div>
         <p className="text-sm font-semibold text-foreground">Metadata map</p>
-        <p className="text-xs text-muted-foreground">Live prototype summary</p>
+        <p className="text-xs text-muted-foreground">Current unsaved form summary</p>
       </div>
-      <StatusBadge tone="info">Mock</StatusBadge>
+      <StatusBadge tone="info">Draft</StatusBadge>
     </div>
     <div className="mt-4 space-y-3 text-sm">
       <div className="rounded-lg bg-muted/40 p-3">
@@ -1201,6 +1209,7 @@ const ImportView = ({
   mode,
   parsedImport,
   parseSelectedFile,
+  projects,
   projectActivities,
   projectId,
   selectedProject,
@@ -1227,7 +1236,8 @@ const ImportView = ({
   mode: CollectionMode
   parsedImport: ParsedImport | null
   parseSelectedFile: (file: File) => Promise<void>
-  projectActivities: typeof mockActivities
+  projects: ProjectSummary[]
+  projectActivities: Activity[]
   projectId: string
   selectedProject: string
   setFormTitle: (value: string) => void
@@ -1248,6 +1258,7 @@ const ImportView = ({
         formType={formType}
         journeyStage={journeyStage}
         linkedActivityId={linkedActivityId}
+        projects={projects}
         projectActivities={projectActivities}
         projectId={projectId}
         setFormTitle={setFormTitle}
@@ -1277,8 +1288,8 @@ const ImportView = ({
             Upload your existing form file
           </h2>
           <p className="mt-1 max-w-xl text-sm text-muted-foreground">
-            The prototype reads CSV, XLS, or XLSX locally, then suggests metadata mappings. No
-            production upload is performed.
+            PATHWAYS reads CSV, XLS, or XLSX locally, then suggests metadata mappings. No source
+            data is uploaded until the import backend is connected.
           </p>
           <div className="mt-4 flex flex-wrap justify-center gap-2">
             <Button onClick={() => fileInputRef.current?.click()}>Select CSV/XLSX file</Button>
@@ -1378,7 +1389,7 @@ const MappingTable = ({
       <div>
         <h2 className="text-lg font-semibold text-foreground">Metadata mapping</h2>
         <p className="text-sm text-muted-foreground">
-          Review source columns, target fields, and mock validation states.
+          Review source columns, target fields, and client-side validation states.
         </p>
       </div>
       <div className="flex gap-2">
@@ -1471,7 +1482,7 @@ const DataPreview = ({ parsedImport }: { parsedImport: ParsedImport }) => (
   <div className="rounded-lg border bg-card p-4 shadow-sm">
     <h2 className="text-lg font-semibold text-foreground">Data preview</h2>
     <p className="mt-1 text-sm text-muted-foreground">
-      First rows are shown client-side for prototype review only.
+      First rows are shown client-side from the file you selected.
     </p>
     <div className="mt-4 overflow-x-auto">
       <table className="w-full min-w-[720px] text-left text-sm">
@@ -1519,7 +1530,7 @@ const ImportValidationPanel = ({
       <div className="flex items-center justify-between gap-3">
         <div>
           <p className="text-sm font-semibold text-foreground">Validation summary</p>
-          <p className="text-xs text-muted-foreground">Mock validation only</p>
+          <p className="text-xs text-muted-foreground">Client-side preview validation</p>
         </div>
         <StatusBadge tone={invalid > 0 ? 'danger' : parsedImport ? 'success' : 'neutral'}>
           {parsedImport ? 'Preview ready' : 'Waiting'}
@@ -1534,8 +1545,8 @@ const ImportValidationPanel = ({
           <SummaryPill label="Invalid" tone="danger" value={invalid} />
         </div>
         <p className="rounded-lg bg-muted/40 p-3 text-xs leading-5 text-muted-foreground">
-          This demonstration checks column headings and preview rows only. Full production
-          validation is not connected yet.
+          This preview checks column headings and visible rows only. Server-side validation is not
+          connected yet.
         </p>
       </div>
     </div>

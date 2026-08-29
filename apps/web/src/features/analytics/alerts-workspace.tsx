@@ -25,9 +25,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { usePrototypeLabels } from '@/hooks/use-prototype-labels'
-import { usePrototypeRole } from '@/hooks/use-prototype-role'
-import { pathwaysClient } from '@/lib/services/mock-pathways-client'
+import { useCurrentRole } from '@/hooks/use-current-role'
+import { useDisplayLabels } from '@/hooks/use-display-labels'
+import { pathwaysClient } from '@/lib/services/pathways-client'
 import type {
   AlertLifecycleStatus,
   AlertRecord,
@@ -63,7 +63,7 @@ type AlertsWorkspaceProps = {
 type AlertsWorkspaceData = AlertsWorkspaceProps & { role: string }
 
 export const AlertsWorkspace = () => {
-  const { role } = usePrototypeRole()
+  const { role } = useCurrentRole()
   const [data, setData] = useState<AlertsWorkspaceData | null>(null)
   const [status, setStatus] = useState<'loading' | 'ready' | 'error'>('loading')
 
@@ -71,6 +71,13 @@ export const AlertsWorkspace = () => {
     let active = true
     setStatus('loading')
     setData(null)
+
+    if (!role) {
+      setStatus('error')
+      return () => {
+        active = false
+      }
+    }
 
     Promise.all([
       pathwaysClient.getAlertsForRole(role),
@@ -92,6 +99,17 @@ export const AlertsWorkspace = () => {
       active = false
     }
   }, [role])
+
+  if (!role) {
+    return (
+      <EmptyState
+        className="min-h-80 rounded-lg border border-border bg-card"
+        description="A verified staff identity and role are required to load scoped alerts."
+        icon={AlertTriangle}
+        title="Alerts access unavailable"
+      />
+    )
+  }
 
   if (status === 'loading') {
     return (
@@ -124,8 +142,8 @@ const AlertsWorkspaceContent = ({
   recommendations,
   rules,
 }: AlertsWorkspaceProps) => {
-  const { labels } = usePrototypeLabels()
-  const [alerts, setAlerts] = useState(initialAlerts)
+  const { labels } = useDisplayLabels()
+  const alerts = initialAlerts
   const [projectId, setProjectId] = useState(allValue)
   const [status, setStatus] = useState(allValue)
   const [selectedAlertId, setSelectedAlertId] = useState(initialAlerts[0]?.id ?? '')
@@ -151,17 +169,9 @@ const AlertsWorkspaceContent = ({
   const selectedRule = rules.find((rule) => rule.id === selectedAlert?.ruleId)
 
   const updateAlert = () => {
-    // TODO(BACKEND): Persist rule definitions and lifecycle transitions.
-    setAlerts((current) =>
-      current.map((alert) =>
-        alert.id === selectedAlert?.id
-          ? { ...alert, lifecycleStatus: reviewStatus, actionNote }
-          : alert,
-      ),
-    )
     setReviewOpen(false)
-    toast.success('Alert review updated locally.', {
-      description: 'This demonstration keeps the change in your current browser session only.',
+    toast.error('Alert review is not configured.', {
+      description: 'Connect the alert lifecycle backend before saving review decisions.',
     })
   }
 
@@ -347,7 +357,7 @@ const AlertsWorkspaceContent = ({
           <DialogHeader>
             <DialogTitle>Review alert lifecycle</DialogTitle>
             <DialogDescription>
-              This records a local prototype status and action note only.
+              Alert review persistence is not configured yet. Your entry will not be saved.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">

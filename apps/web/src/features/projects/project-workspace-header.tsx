@@ -7,15 +7,15 @@ import { usePathname } from 'next/navigation'
 import { ProgressBar } from '@/components/pathways/progress-bar'
 import { StatusBadge } from '@/components/pathways/status-badge'
 import { Button } from '@/components/ui/button'
-import type { PrototypeLabels } from '@/constants/prototype-labels'
-import { usePrototypeLabels } from '@/hooks/use-prototype-labels'
-import { usePrototypeRole } from '@/hooks/use-prototype-role'
+import type { DisplayLabels } from '@/constants/display-labels'
+import { useCurrentRole } from '@/hooks/use-current-role'
+import { useDisplayLabels } from '@/hooks/use-display-labels'
 import { type WorkspaceTabAccess, filterWorkspaceTabs } from '@/lib/rbac/route-access'
 import type { ProjectDetail } from '@/types/pathways'
 
 import { formatNumber, projectHealthTone, projectStatusTone } from './project-utils'
 
-const createWorkspaceTabs = (labels: PrototypeLabels): WorkspaceTabAccess[] => [
+const createWorkspaceTabs = (labels: DisplayLabels): WorkspaceTabAccess[] => [
   { label: labels.projectActivities, path: 'activities', permission: 'activities.view' },
   { label: labels.projectEvidence, path: 'evidence', permission: 'evidence.review' },
   { label: labels.projectIndicators, path: 'indicators', permission: 'indicators.manage' },
@@ -48,9 +48,9 @@ const createWorkspaceTabs = (labels: PrototypeLabels): WorkspaceTabAccess[] => [
 
 export const ProjectWorkspaceHeader = ({ project }: { project: ProjectDetail }) => {
   const pathname = usePathname()
-  const { labels } = usePrototypeLabels()
-  const { role } = usePrototypeRole()
-  const visibleTabs = filterWorkspaceTabs(createWorkspaceTabs(labels), role)
+  const { labels } = useDisplayLabels()
+  const { role } = useCurrentRole()
+  const visibleTabs = role ? filterWorkspaceTabs(createWorkspaceTabs(labels), role) : []
   const beneficiaryProgress =
     project.targetBeneficiaries > 0
       ? Math.round((project.beneficiariesReached / project.targetBeneficiaries) * 100)

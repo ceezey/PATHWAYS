@@ -4,11 +4,6 @@ import type {
   PublicDashboardSectionId,
 } from '@/types/pathways'
 
-export const PUBLIC_DASHBOARD_STORAGE_KEY = 'pathways.publicDashboardCustomization'
-
-export const getPublicDashboardStorageKey = (projectId: string) =>
-  `${PUBLIC_DASHBOARD_STORAGE_KEY}.${projectId}`
-
 export const publicDashboardSections: ReadonlyArray<{
   id: PublicDashboardSectionId
   label: string
@@ -22,7 +17,7 @@ export const publicDashboardSections: ReadonlyArray<{
   {
     id: 'media',
     label: 'Approved project media',
-    description: 'Safe, non-identifying mock media approved for public presentation',
+    description: 'Approved, non-sensitive media cleared for public presentation',
   },
   {
     id: 'progress',

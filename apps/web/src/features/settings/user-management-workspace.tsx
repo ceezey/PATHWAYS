@@ -17,7 +17,7 @@ import {
   UsersRound,
 } from 'lucide-react'
 import Link from 'next/link'
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { toast } from 'sonner'
 
 import { PageHeader } from '@/components/layout/page-header'
@@ -48,28 +48,21 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { usePrototypeLabels } from '@/hooks/use-prototype-labels'
-import { usePrototypeRole } from '@/hooks/use-prototype-role'
-import type { ProjectAssignableRole } from '@/lib/rbac/access-matrix'
+import { useCurrentRole } from '@/hooks/use-current-role'
+import { useDisplayLabels } from '@/hooks/use-display-labels'
 import { can } from '@/lib/rbac/can'
-import { setPrototypeProjectAssignments } from '@/lib/rbac/data-scope'
-import {
-  readPrototypeUserRecords,
-  writePrototypeUserRecords,
-} from '@/lib/rbac/prototype-user-store'
 import type { ProjectSummary, UserAccountStatus, UserRecord } from '@/types/pathways'
-import { type PrototypeRole, getPrototypeRoleDisplayName } from '@/types/prototype-role'
+import { type PathwaysRole, getPathwaysRoleDisplayName } from '@/types/pathways-role'
 import {
   type UserStatusFilter,
   canManageUserRecord,
   filterUserRecords,
   getAssignableProjects,
   getManageableUserRoles,
-  getProjectAccessLabels,
   getUserAdministrationSummary,
   getUserInitials,
   isProjectAssignableRole,
-  prototypeRoleSummaries,
+  roleSummaries,
   userAccountStatusTone,
 } from './user-management-utils'
 
@@ -80,17 +73,17 @@ interface UserEditorState {
   userId?: string
   name: string
   email: string
-  role: PrototypeRole
+  role: PathwaysRole
   signInMethod: UserRecord['signInMethod']
   projectIds: string[]
 }
 
-const emptyEditor = (role: PrototypeRole): UserEditorState => ({
+const emptyEditor = (role: PathwaysRole): UserEditorState => ({
   mode: 'create',
   name: '',
   email: '',
   role,
-  signInMethod: 'Prototype password',
+  signInMethod: 'Password',
   projectIds: [],
 })
 
@@ -111,27 +104,30 @@ export const UserManagementWorkspace = ({
   initialProjects: ProjectSummary[]
   initialUsers: UserRecord[]
 }) => {
-  const { labels } = usePrototypeLabels()
-  const { role: actorRole } = usePrototypeRole()
-  const [users, setUsers] = useState(initialUsers)
+  const { labels } = useDisplayLabels()
+  const { assignedProjectIds, role: actorRole } = useCurrentRole()
+  const users = initialUsers
   const [query, setQuery] = useState('')
   const [statusFilter, setStatusFilter] = useState<UserStatusFilter>('All')
   const [editor, setEditor] = useState<UserEditorState | null>(null)
   const [viewUserId, setViewUserId] = useState<string | null>(null)
   const [deactivateUserId, setDeactivateUserId] = useState<string | null>(null)
   const [editorError, setEditorError] = useState('')
-  const manageableRoles = useMemo(() => getManageableUserRoles(actorRole), [actorRole])
+  const manageableRoles = useMemo(
+    () => (actorRole ? getManageableUserRoles(actorRole) : []),
+    [actorRole],
+  )
   const canCreateUsers = manageableRoles.length > 0
-  const administrationSummary = getUserAdministrationSummary(actorRole)
+  const administrationSummary = actorRole
+    ? getUserAdministrationSummary(actorRole)
+    : 'A recognized authenticated role is required before account administration is available.'
   const assignableProjects = useMemo(
     () =>
-      editor ? getAssignableProjects(actorRole, editor.role, initialProjects) : initialProjects,
-    [actorRole, editor, initialProjects],
+      editor && actorRole
+        ? getAssignableProjects(actorRole, editor.role, initialProjects, assignedProjectIds)
+        : initialProjects,
+    [actorRole, assignedProjectIds, editor, initialProjects],
   )
-
-  useEffect(() => {
-    setUsers(readPrototypeUserRecords(initialUsers))
-  }, [initialUsers])
 
   const filteredUsers = useMemo(
     () => filterUserRecords(users, query, statusFilter),
@@ -142,14 +138,6 @@ export const UserManagementWorkspace = ({
   const activeCount = users.filter((user) => user.accountStatus === 'Active').length
   const invitedCount = users.filter((user) => user.accountStatus === 'Invited').length
   const deactivatedCount = users.filter((user) => user.accountStatus === 'Deactivated').length
-
-  const commitUsers = (updater: (current: UserRecord[]) => UserRecord[]) => {
-    setUsers((current) => {
-      const nextUsers = updater(current)
-      writePrototypeUserRecords(nextUsers)
-      return nextUsers
-    })
-  }
 
   const openCreate = () => {
     const defaultRole = manageableRoles[0]
@@ -163,7 +151,7 @@ export const UserManagementWorkspace = ({
   }
 
   const openEdit = (user: UserRecord) => {
-    if (!canManageUserRecord(actorRole, user)) {
+    if (!actorRole || !canManageUserRecord(actorRole, user, assignedProjectIds)) {
       return
     }
 
@@ -200,12 +188,12 @@ export const UserManagementWorkspace = ({
     if (
       users.some((user) => user.email.toLocaleLowerCase() === email && user.id !== editor.userId)
     ) {
-      setEditorError('That email already belongs to another prototype user.')
+      setEditorError('That email already belongs to another user.')
       return
     }
 
     if (!manageableRoles.includes(editor.role)) {
-      setEditorError('That target role is not available to your current prototype role.')
+      setEditorError('That target role is not available to your authenticated role.')
       return
     }
 
@@ -223,77 +211,25 @@ export const UserManagementWorkspace = ({
     }
 
     const projectIds = isProjectAssignableRole(editor.role) ? selectedProjectIds : []
-    const projectAccess = getProjectAccessLabels(editor.role, projectIds, initialProjects)
-
-    if (editor.mode === 'create') {
-      const createdUser: UserRecord = {
-        id: `prototype-user-${Date.now()}`,
-        name,
-        email,
-        role: editor.role,
-        accountStatus: 'Invited',
-        signInMethod: editor.signInMethod,
-        projectIds,
-        projectAccess,
-        createdAt: new Date().toISOString(),
-      }
-      commitUsers((current) => [createdUser, ...current])
-      toast.success('Prototype user created.', {
-        description:
-          'Saved in this browser for client review. No identity or invitation was created.',
-      })
-    } else {
-      commitUsers((current) =>
-        current.map((user) =>
-          user.id === editor.userId
-            ? {
-                ...user,
-                name,
-                email,
-                role: editor.role,
-                signInMethod: editor.signInMethod,
-                projectIds,
-                projectAccess,
-              }
-            : user,
-        ),
-      )
-      toast.success('Prototype user updated.', {
-        description: 'Browser-local changes now inform the selected role preview scope.',
-      })
-    }
-
-    if (isProjectAssignableRole(editor.role)) {
-      setPrototypeProjectAssignments(editor.role as ProjectAssignableRole, projectIds)
-    }
-
-    setEditor(null)
-    setEditorError('')
+    setEditorError('User administration backend is not configured. This draft has not been saved.')
+    toast.error('User changes were not saved.', {
+      description: 'Connect the user administration backend before enabling this action.',
+    })
   }
 
   const deactivate = () => {
     if (!deactivateUser) return
 
-    commitUsers((current) =>
-      current.map((user) =>
-        user.id === deactivateUser.id ? { ...user, accountStatus: 'Deactivated' } : user,
-      ),
-    )
     setDeactivateUserId(null)
-    toast.success('Prototype account deactivated.', {
-      description:
-        'The browser-local directory changed. No sign-in account or server session changed.',
+    toast.error('Account status was not changed.', {
+      description: 'User administration backend is not configured.',
     })
   }
 
   const reactivate = (user: UserRecord) => {
-    commitUsers((current) =>
-      current.map((record) =>
-        record.id === user.id ? { ...record, accountStatus: 'Active' } : record,
-      ),
-    )
-    toast.success('Prototype account reactivated.', {
-      description: 'This status is saved only in the current browser prototype.',
+    void user
+    toast.error('Account status was not changed.', {
+      description: 'User administration backend is not configured.',
     })
   }
 
@@ -307,10 +243,10 @@ export const UserManagementWorkspace = ({
       <PageHeader
         eyebrow="Administration"
         title={labels.moduleUserManagement}
-        description="Review prototype users, role assignments, account status, and access-scope labels in one place."
+        description="Review user records, role assignments, account status, and access-scope labels in one place."
         actions={
           <div className="flex flex-wrap items-center gap-2">
-            <StatusBadge tone="info">Prototype only</StatusBadge>
+            <StatusBadge tone="warning">Backend not configured</StatusBadge>
             {canCreateUsers ? (
               <Button className="gap-2" onClick={openCreate} size="sm" type="button">
                 <Plus className="h-4 w-4" aria-hidden="true" />
@@ -322,7 +258,7 @@ export const UserManagementWorkspace = ({
       />
 
       <section
-        aria-label="Prototype administration notice"
+        aria-label="User administration integration notice"
         className="rounded-lg border border-info/20 bg-info/10 p-4 text-sm leading-6 text-info"
       >
         <div className="flex items-start gap-3">
@@ -330,8 +266,8 @@ export const UserManagementWorkspace = ({
           <div>
             <p className="font-medium">{administrationSummary}</p>
             <p className="mt-1">
-              Prototype configuration only. Changes stay in this browser and do not create
-              identities, send invitations, change sign-in access, or enforce server permissions.
+              User administration writes are disabled until the backend integration can create
+              identities, send invitations, and enforce role and project assignments.
             </p>
           </div>
         </div>
@@ -350,7 +286,7 @@ export const UserManagementWorkspace = ({
       <section className="grid min-w-0 gap-4 xl:grid-cols-[minmax(0,1fr)_340px]">
         <SectionCard
           title="User accounts"
-          description="Search the prototype directory. Actions are available only for roles and projects inside your authority."
+          description="Search the user directory. Actions are available only for roles and projects inside your authority."
           actions={<StatusBadge tone="neutral">{filteredUsers.length} shown</StatusBadge>}
         >
           <div className="mb-4 grid gap-3 sm:grid-cols-[minmax(0,1fr)_180px]">
@@ -366,7 +302,7 @@ export const UserManagementWorkspace = ({
                 placeholder="Search users, roles, or projects"
                 value={query}
               />
-              <span className="sr-only">Search prototype users</span>
+              <span className="sr-only">Search users</span>
             </label>
             <Select
               onValueChange={(value) => setStatusFilter(value as UserStatusFilter)}
@@ -387,7 +323,7 @@ export const UserManagementWorkspace = ({
           {filteredUsers.length > 0 ? (
             <ul
               className="divide-y divide-border rounded-lg border border-border"
-              aria-label="Prototype users"
+              aria-label="Users"
             >
               {filteredUsers.map((user) => (
                 <UserAccountRow
@@ -397,9 +333,9 @@ export const UserManagementWorkspace = ({
                   onReactivate={() => reactivate(user)}
                   onView={() => setViewUserId(user.id)}
                   unavailableReason={
-                    canManageUserRecord(actorRole, user)
+                    actorRole && canManageUserRecord(actorRole, user, assignedProjectIds)
                       ? undefined
-                      : 'Your current prototype role cannot authorize this account or its project scope.'
+                      : 'Your authenticated role cannot authorize this account or its project scope.'
                   }
                   user={user}
                 />
@@ -412,9 +348,9 @@ export const UserManagementWorkspace = ({
                   Clear filters
                 </Button>
               }
-              description="Try a different name, email, role, project, or account state."
+              description="No user records were returned. The user administration backend may not be configured yet."
               icon={Search}
-              title="No prototype users match"
+              title="No users available"
             />
           )}
         </SectionCard>
@@ -422,17 +358,17 @@ export const UserManagementWorkspace = ({
         <aside className="space-y-4" aria-label="Role profiles and administration links">
           <SectionCard
             title="Role profiles"
-            description="Plain-language role assignment options shown in the prototype."
+            description="Plain-language role assignment options for the account workflow."
           >
             <div className="space-y-3">
-              {prototypeRoleSummaries.map((summary) => {
+              {roleSummaries.map((summary) => {
                 const count = users.filter((user) => user.role === summary.role).length
 
                 return (
                   <div className="rounded-lg border border-border p-3" key={summary.role}>
                     <div className="flex items-start justify-between gap-3">
                       <p className="text-sm font-semibold leading-5 text-foreground">
-                        {getPrototypeRoleDisplayName(summary.role)}
+                        {getPathwaysRoleDisplayName(summary.role)}
                       </p>
                       <span className="shrink-0 text-xs font-medium text-muted-foreground">
                         {count} {count === 1 ? 'user' : 'users'}
@@ -446,13 +382,14 @@ export const UserManagementWorkspace = ({
               })}
             </div>
             <p className="mt-4 text-xs leading-5 text-muted-foreground">
-              These descriptions support client review only. They do not change real account access.
+              These descriptions are frontend guidance only. Server authorization remains
+              authoritative.
             </p>
           </SectionCard>
 
-          <SectionCard title="Administration links" description="Related prototype configuration.">
+          <SectionCard title="Administration links" description="Related configuration.">
             <div className="grid gap-2">
-              {can(actorRole, 'settings.view') ? (
+              {actorRole && can(actorRole, 'settings.view') ? (
                 <Button asChild className="justify-start" variant="outline">
                   <Link href="/settings/labels">Edit Labels</Link>
                 </Button>
@@ -492,10 +429,10 @@ export const UserManagementWorkspace = ({
         {deactivateUser ? (
           <DialogContent>
             <DialogHeader>
-              <DialogTitle>Deactivate prototype account?</DialogTitle>
+              <DialogTitle>Deactivate account?</DialogTitle>
               <DialogDescription>
-                {deactivateUser.name} will appear as deactivated on this page. The current session,
-                navigation, and any real account remain unchanged.
+                This action requires the user administration backend. No account will be changed
+                while the integration is unavailable.
               </DialogDescription>
             </DialogHeader>
             <div className="rounded-lg border border-warning/30 bg-warning/10 p-3 text-sm leading-6 text-warning">
@@ -506,7 +443,7 @@ export const UserManagementWorkspace = ({
                 Cancel
               </Button>
               <Button onClick={deactivate} type="button" variant="destructive">
-                Deactivate locally
+                Request deactivation
               </Button>
             </DialogFooter>
           </DialogContent>
@@ -565,7 +502,7 @@ const UserAccountRow = ({
         </div>
         <p className="mt-1 break-all text-sm text-muted-foreground">{user.email}</p>
         <p className="mt-2 text-xs leading-5 text-muted-foreground">
-          {getPrototypeRoleDisplayName(user.role)} · {user.projectAccess.join(', ')}
+          {getPathwaysRoleDisplayName(user.role)} · {user.projectAccess.join(', ')}
         </p>
       </div>
     </div>
@@ -603,18 +540,18 @@ const UserAccountRow = ({
             <DropdownMenuLabel>Account actions</DropdownMenuLabel>
             <DropdownMenuItem onSelect={onEdit}>
               <Pencil className="mr-2 h-4 w-4" aria-hidden="true" />
-              Edit prototype user
+              Edit user
             </DropdownMenuItem>
             <DropdownMenuSeparator />
             {user.accountStatus === 'Deactivated' ? (
               <DropdownMenuItem onSelect={onReactivate}>
                 <RotateCcw className="mr-2 h-4 w-4" aria-hidden="true" />
-                Reactivate locally
+                Reactivate account
               </DropdownMenuItem>
             ) : (
               <DropdownMenuItem className="text-destructive" onSelect={onDeactivate}>
                 <UserX className="mr-2 h-4 w-4" aria-hidden="true" />
-                Deactivate locally
+                Deactivate account
               </DropdownMenuItem>
             )}
           </DropdownMenuContent>
@@ -635,7 +572,7 @@ const UserEditorDialog = ({
 }: {
   editor: UserEditorState | null
   error: string
-  manageableRoles: PrototypeRole[]
+  manageableRoles: PathwaysRole[]
   onChange: (editor: UserEditorState) => void
   onClose: () => void
   onSave: () => void
@@ -645,31 +582,27 @@ const UserEditorDialog = ({
     {editor ? (
       <DialogContent className="max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>
-            {editor.mode === 'create' ? 'Create prototype user' : 'Edit prototype user'}
-          </DialogTitle>
+          <DialogTitle>{editor.mode === 'create' ? 'Create user' : 'Edit user'}</DialogTitle>
           <DialogDescription>
-            {editor.mode === 'create'
-              ? 'Add an invited account to this page for client review.'
-              : 'Update this account record locally for client review.'}{' '}
-            Changes stay in this browser; nothing is added to a shared account directory.
+            Prepare the account and access fields. Submission remains disabled until the user
+            administration backend is connected.
           </DialogDescription>
         </DialogHeader>
 
         <div className="grid gap-4">
           <div className="space-y-2">
-            <Label htmlFor="prototype-user-name">Full name</Label>
+            <Label htmlFor="user-name">Full name</Label>
             <Input
-              id="prototype-user-name"
+              id="user-name"
               maxLength={100}
               onChange={(event) => onChange({ ...editor, name: event.target.value })}
               value={editor.name}
             />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="prototype-user-email">Email</Label>
+            <Label htmlFor="user-email">Email</Label>
             <Input
-              id="prototype-user-email"
+              id="user-email"
               maxLength={160}
               onChange={(event) => onChange({ ...editor, email: event.target.value })}
               type="email"
@@ -677,39 +610,40 @@ const UserEditorDialog = ({
             />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="prototype-user-role">Role</Label>
+            <Label htmlFor="user-role">Role</Label>
             <Select
               onValueChange={(value) =>
-                onChange({ ...editor, projectIds: [], role: value as PrototypeRole })
+                onChange({ ...editor, projectIds: [], role: value as PathwaysRole })
               }
               value={editor.role}
             >
-              <SelectTrigger id="prototype-user-role">
+              <SelectTrigger id="user-role">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
                 {manageableRoles.map((role) => (
                   <SelectItem key={role} value={role}>
-                    {getPrototypeRoleDisplayName(role)}
+                    {getPathwaysRoleDisplayName(role)}
                   </SelectItem>
                 ))}
               </SelectContent>
             </Select>
           </div>
           <div className="space-y-2">
-            <Label htmlFor="prototype-user-sign-in">Sign-in method</Label>
+            <Label htmlFor="user-sign-in">Sign-in method</Label>
             <Select
               onValueChange={(value) =>
                 onChange({ ...editor, signInMethod: value as UserRecord['signInMethod'] })
               }
               value={editor.signInMethod}
             >
-              <SelectTrigger id="prototype-user-sign-in">
+              <SelectTrigger id="user-sign-in">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="Prototype password">Prototype password</SelectItem>
-                <SelectItem value="SSO placeholder">SSO placeholder</SelectItem>
+                <SelectItem value="Password">Password</SelectItem>
+                <SelectItem value="Single sign-on">Single sign-on</SelectItem>
+                <SelectItem value="Magic link">Magic link</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -721,7 +655,7 @@ const UserEditorDialog = ({
                 {editor.role === 'Monitoring and Evaluation Officer'
                   ? ' Multiple projects may be selected.'
                   : ''}{' '}
-                Saving updates the browser-local scoped preview for this role.
+                Assignments are submitted only after the backend integration is configured.
               </p>
               {projects.length > 0 ? (
                 <div className="grid gap-2 rounded-lg border border-border p-3">
@@ -767,7 +701,7 @@ const UserEditorDialog = ({
             </fieldset>
           ) : (
             <div className="rounded-lg border border-border bg-muted/40 p-3 text-sm leading-6 text-muted-foreground">
-              {getPrototypeRoleDisplayName(editor.role)} uses its fixed organization or portfolio
+              {getPathwaysRoleDisplayName(editor.role)} uses its fixed organization or portfolio
               scope and does not receive individual project assignments.
             </div>
           )}
@@ -784,7 +718,7 @@ const UserEditorDialog = ({
             Cancel
           </Button>
           <Button onClick={onSave} type="button">
-            {editor.mode === 'create' ? 'Create locally' : 'Save local changes'}
+            {editor.mode === 'create' ? 'Create user' : 'Save changes'}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -797,7 +731,7 @@ const UserDetailDialog = ({ onClose, user }: { onClose: () => void; user?: UserR
     {user ? (
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Prototype account details</DialogTitle>
+          <DialogTitle>Account details</DialogTitle>
           <DialogDescription>
             Review account information without opening an editing workflow.
           </DialogDescription>
@@ -820,7 +754,7 @@ const UserDetailDialog = ({ onClose, user }: { onClose: () => void; user?: UserR
           <DetailItem
             icon={ShieldCheck}
             label="Role"
-            value={getPrototypeRoleDisplayName(user.role)}
+            value={getPathwaysRoleDisplayName(user.role)}
           />
           <DetailItem icon={KeyRound} label="Sign-in method" value={user.signInMethod} />
           <DetailItem
@@ -835,8 +769,7 @@ const UserDetailDialog = ({ onClose, user }: { onClose: () => void; user?: UserR
           />
         </dl>
         <p className="text-xs leading-5 text-muted-foreground">
-          These are safe sample accounts. Secure sign-in, invitation delivery, and enforced roles
-          remain part of production planning.
+          Account records are read-only until user administration endpoints are configured.
         </p>
         <DialogFooter>
           <Button onClick={onClose} type="button">

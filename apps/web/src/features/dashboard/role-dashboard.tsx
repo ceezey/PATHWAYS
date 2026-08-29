@@ -27,16 +27,16 @@ import {
 } from '@/components/pathways'
 import { Button } from '@/components/ui/button'
 import { Dialog } from '@/components/ui/dialog'
-import { usePrototypeLabels } from '@/hooks/use-prototype-labels'
-import { usePrototypeRole } from '@/hooks/use-prototype-role'
-import { pathwaysClient } from '@/lib/services/mock-pathways-client'
+import { useCurrentRole } from '@/hooks/use-current-role'
+import { useDisplayLabels } from '@/hooks/use-display-labels'
+import { pathwaysClient } from '@/lib/services/pathways-client'
 import type {
   DashboardAction,
   DashboardItem,
   DashboardSeverity,
   RoleDashboardViewModel,
 } from '@/types/pathways'
-import { getPrototypeRoleDisplayName } from '@/types/prototype-role'
+import { getPathwaysRoleDisplayName } from '@/types/pathways-role'
 
 import { ExecutiveDashboard } from './executive-dashboard'
 
@@ -130,9 +130,9 @@ const DashboardListItem = ({
 
 export const RoleDashboard = () => {
   const router = useRouter()
-  const { labels } = usePrototypeLabels()
-  const { role } = usePrototypeRole()
-  const roleLabel = getPrototypeRoleDisplayName(role)
+  const { labels } = useDisplayLabels()
+  const { role } = useCurrentRole()
+  const roleLabel = role ? getPathwaysRoleDisplayName(role) : 'Role unavailable'
   const [dashboard, setDashboard] = useState<RoleDashboardViewModel | null>(null)
   const [status, setStatus] = useState<'loading' | 'success' | 'error'>('loading')
   const [activeAction, setActiveAction] = useState<DashboardAction | null>(null)
@@ -140,6 +140,12 @@ export const RoleDashboard = () => {
   useEffect(() => {
     let mounted = true
     setStatus('loading')
+
+    if (!role) {
+      setDashboard(null)
+      setStatus('error')
+      return
+    }
 
     pathwaysClient
       .getDashboard(role)
@@ -171,26 +177,13 @@ export const RoleDashboard = () => {
     }
 
     if (action.kind === 'toast') {
-      toast.info(action.toastTitle ?? 'Prototype action', {
-        description:
-          action.toastDescription ??
-          'This demonstration keeps the update in your current browser session only.',
+      toast.info(action.toastTitle ?? 'Action unavailable', {
+        description: action.toastDescription ?? 'This action requires a connected backend service.',
       })
       return
     }
 
     setActiveAction(action)
-  }
-
-  const acknowledgeDialogAction = () => {
-    if (!activeAction) {
-      return
-    }
-
-    toast.success('Preview completed.', {
-      description: `${activeAction.label} was demonstrated without changing shared records.`,
-    })
-    setActiveAction(null)
   }
 
   if (status === 'loading') {
@@ -208,7 +201,7 @@ export const RoleDashboard = () => {
     return (
       <EmptyState
         className="min-h-[360px] rounded-lg border border-border bg-card"
-        description="We could not load this dashboard right now. Reload the page to try again."
+        description="Dashboard aggregates are unavailable until the dashboard backend is connected."
         icon={AlertTriangle}
         title="Dashboard data unavailable"
       />
@@ -254,7 +247,7 @@ export const RoleDashboard = () => {
       {emptyDashboard ? (
         <EmptyState
           className="min-h-[260px] rounded-lg border border-border bg-card"
-          description="Switch to a supported prototype role to load dashboard data."
+          description="No dashboard records are available for the current account."
           icon={ShieldCheck}
           title="No dashboard records"
         />
@@ -348,20 +341,17 @@ export const RoleDashboard = () => {
           <DialogShell
             title={activeAction.dialogTitle ?? activeAction.label}
             description={
-              activeAction.dialogDescription ??
-              'This previews the action without changing shared records.'
+              activeAction.dialogDescription ?? 'This action requires a connected backend service.'
             }
           >
             <div className="space-y-4">
               <p className="text-sm leading-6 text-muted-foreground">
-                Shared project records are not changed, and no notifications are sent.
+                Shared project records cannot be changed, and no notifications are sent until the
+                corresponding service is configured.
               </p>
-              <div className="flex flex-wrap justify-end gap-2">
+              <div className="flex justify-end">
                 <Button onClick={() => setActiveAction(null)} type="button" variant="outline">
                   Close
-                </Button>
-                <Button onClick={acknowledgeDialogAction} type="button">
-                  Finish preview
                 </Button>
               </div>
             </div>

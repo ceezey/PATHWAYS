@@ -64,9 +64,9 @@ export const BeneficiaryDetail = ({
   stages,
   mediaProof,
 }: BeneficiaryDetailProps) => {
-  const [participation, setParticipation] = useState(beneficiary.participation)
-  const [notes, setNotes] = useState(beneficiary.notes)
-  const [enrollmentStatus, setEnrollmentStatus] = useState(beneficiary.enrollmentStatus)
+  const participation = beneficiary.participation
+  const notes = beneficiary.notes
+  const enrollmentStatus = beneficiary.enrollmentStatus
   const [noteOpen, setNoteOpen] = useState(false)
   const [assessmentOpen, setAssessmentOpen] = useState(false)
   const [participationOpen, setParticipationOpen] = useState(false)
@@ -106,22 +106,8 @@ export const BeneficiaryDetail = ({
       return
     }
 
-    // TODO(BACKEND): Save participation and assessment records.
-    const note: BeneficiaryNoteRecord = {
-      id: `note-prototype-${Date.now().toString(36)}`,
-      beneficiaryId: beneficiary.id,
-      projectId: beneficiary.projectIds[0],
-      stageId: noteDraft.stageId,
-      author: 'Prototype user',
-      createdAt: new Date().toISOString().slice(0, 10),
-      visibility: noteDraft.visibility as BeneficiaryNoteRecord['visibility'],
-      note: noteDraft.note,
-    }
-    setNotes((current) => [note, ...current])
-    setNoteDraft((current) => ({ ...current, note: '' }))
-    setNoteOpen(false)
-    toast.success('Note added locally.', {
-      description: 'This is a prototype-only beneficiary note.',
+    toast.error('Beneficiary note was not saved.', {
+      description: 'The beneficiary write endpoint is not configured. Your draft remains open.',
     })
   }
 
@@ -131,30 +117,14 @@ export const BeneficiaryDetail = ({
       return
     }
 
-    // TODO(BACKEND): Save participation and assessment records.
-    const activity = activities.find((item) => item.id === participationDraft.activityId)
-    const record: BeneficiaryParticipationRecord = {
-      id: `part-prototype-${Date.now().toString(36)}`,
-      beneficiaryId: beneficiary.id,
-      projectId: activity?.projectId ?? beneficiary.projectIds[0],
-      activityId: participationDraft.activityId,
-      participatedAt: participationDraft.participatedAt,
-      attendanceStatus:
-        participationDraft.attendanceStatus as BeneficiaryParticipationRecord['attendanceStatus'],
-      note: participationDraft.note || 'Prototype participation recorded.',
-    }
-    setParticipation((current) => [...current, record])
-    setParticipationOpen(false)
-    toast.success('Participation recorded locally.', {
-      description: 'Current journey stage was recalculated from the activity mapping.',
+    toast.error('Participation was not saved.', {
+      description: 'The beneficiary write endpoint is not configured. Your draft remains open.',
     })
   }
 
   const updateStatus = () => {
-    setEnrollmentStatus(nextStatus)
-    setStatusOpen(false)
-    toast.success('Enrollment status updated in prototype.', {
-      description: 'This transition is visible only in the current UI session.',
+    toast.error('Enrollment status was not changed.', {
+      description: 'The beneficiary write endpoint is not configured.',
     })
   }
 
@@ -346,7 +316,7 @@ export const BeneficiaryDetail = ({
                   ))
                 ) : (
                   <p className="rounded-lg border border-border bg-background p-4 text-sm text-muted-foreground">
-                    No assessment records are available for this sample profile.
+                    No assessment records are available for this profile.
                   </p>
                 )}
               </div>
@@ -391,7 +361,7 @@ export const BeneficiaryDetail = ({
           <DialogHeader>
             <DialogTitle>Add beneficiary note</DialogTitle>
             <DialogDescription>
-              Notes remain in this browser for the current demonstration.
+              Prepare a note draft. Saving requires the beneficiary backend integration.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
@@ -450,7 +420,7 @@ export const BeneficiaryDetail = ({
           <DialogHeader>
             <DialogTitle>{selectedAssessment?.title ?? 'Assessment record'}</DialogTitle>
             <DialogDescription>
-              Human-reviewed assessment basis for the prototype.
+              Human-reviewed assessment details from the loaded record.
             </DialogDescription>
           </DialogHeader>
           {selectedAssessment ? (
@@ -478,7 +448,7 @@ export const BeneficiaryDetail = ({
           <DialogHeader>
             <DialogTitle>Record participation</DialogTitle>
             <DialogDescription>
-              Activity selection updates the journey stage shown in this demonstration.
+              Prepare participation details for submission once the backend is configured.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
@@ -558,7 +528,7 @@ export const BeneficiaryDetail = ({
           <DialogHeader>
             <DialogTitle>Update enrollment status</DialogTitle>
             <DialogDescription>
-              Status changes remain in this browser for the current demonstration.
+              Status changes require the beneficiary backend integration.
             </DialogDescription>
           </DialogHeader>
           <Select
@@ -639,7 +609,7 @@ const RecordList = ({
           })
       ) : (
         <p className="rounded-lg border border-border bg-background p-4 text-sm text-muted-foreground">
-          No participation history in this coded mock profile.
+          No participation history is available for this record.
         </p>
       )}
     </div>
@@ -674,7 +644,7 @@ const NoteList = ({
         })
       ) : (
         <p className="rounded-lg border border-border bg-background p-4 text-sm text-muted-foreground">
-          No notes have been added for this mock profile.
+          No notes have been added for this record.
         </p>
       )}
     </div>

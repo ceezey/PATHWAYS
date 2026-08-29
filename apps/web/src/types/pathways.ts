@@ -1,4 +1,4 @@
-import type { PrototypeRole } from '@/types/prototype-role'
+import type { PathwaysRole } from '@/types/pathways-role'
 
 export type ProjectStatus = 'Active' | 'Needs Attention' | 'Planned' | 'Completed'
 export type HealthStatus = 'On Track' | 'At Risk' | 'Critical'
@@ -18,6 +18,7 @@ export interface ProjectSummary {
   projectManager: string
   kpiAchievement: number
   beneficiariesReached: number
+  beneficiaryReachPercentage?: number
   budgetUtilization: number
   timelineProgress: number
 }
@@ -31,7 +32,6 @@ export interface ProjectDetail extends ProjectSummary {
   budgetCode: string
   startDate?: string
   endDate?: string
-  createdInPrototype?: boolean
 }
 
 export type AnalyticsCoverageStatus = 'Strong' | 'Growing' | 'Limited' | 'Planned'
@@ -220,7 +220,7 @@ export interface BeneficiaryMediaProofRecord {
   reviewStatus: BeneficiaryMediaReviewStatus
   reviewNote?: string
   durationSeconds?: number
-  source: 'Mock media' | 'Local preview'
+  source: 'Stored media' | 'Local preview'
 }
 
 export interface BeneficiaryRecord extends Beneficiary {
@@ -457,7 +457,7 @@ export interface SurveyFormDefinition {
   journeyStageId?: string
   activityId?: string
   fields: SurveyFormFieldDefinition[]
-  source: 'Metadata-driven Collection prototype'
+  source?: string
 }
 
 export interface SurveyAggregateCount {
@@ -499,7 +499,7 @@ export interface SurveyAggregateResultSet {
   responseCount: number
   questionResults: SurveyQuestionAggregate[]
   demographicBreakdowns: SurveyDemographicAggregate[]
-  source: 'Synthetic aggregate mock'
+  source?: string
 }
 
 export interface SurveyAggregateFilters {
@@ -573,7 +573,7 @@ export interface PublicBeneficiaryMediaRecord {
   contextLabel: string
   approvalState: 'Approved for public presentation'
   consentScope: 'Public project storytelling'
-  source: 'Synthetic mock media'
+  source: string
 }
 
 export interface PublicProjectRecord {
@@ -603,9 +603,9 @@ export interface UserRecord {
   id: string
   name: string
   email: string
-  role: PrototypeRole
+  role: PathwaysRole
   accountStatus: UserAccountStatus
-  signInMethod: 'Prototype password' | 'SSO placeholder'
+  signInMethod: 'Password' | 'Single sign-on' | 'Magic link'
   projectIds: string[]
   projectAccess: string[]
   createdAt: string
@@ -698,7 +698,7 @@ export interface ExecutiveDashboardViewModel {
 }
 
 export interface RoleDashboardViewModel {
-  role: PrototypeRole
+  role: PathwaysRole
   greetingName: string
   heading: string
   summary: string

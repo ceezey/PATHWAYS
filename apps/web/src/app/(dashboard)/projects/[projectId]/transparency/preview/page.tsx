@@ -5,8 +5,7 @@ import { PageHeader } from '@/components/layout/page-header'
 import { EmptyState } from '@/components/pathways/empty-state'
 import { Button } from '@/components/ui/button'
 import { PublicProjectDetail } from '@/features/public/public-project-components'
-import { pathwaysClient } from '@/lib/services/mock-pathways-client'
-import { PathwaysClientError } from '@/lib/services/pathways-client'
+import { PathwaysClientError, pathwaysClient } from '@/lib/services/pathways-client'
 
 export default async function StaffPublicProjectPreviewPage({
   params,
@@ -20,13 +19,16 @@ export default async function StaffPublicProjectPreviewPage({
 
     return <PublicProjectDetail mode="staff-preview" project={project} />
   } catch (error) {
-    if (error instanceof PathwaysClientError && error.code === 'not_found') {
+    if (
+      error instanceof PathwaysClientError &&
+      (error.code === 'not_found' || error.code === 'not_configured')
+    ) {
       return (
         <>
           <PageHeader
             eyebrow="Public Project Dashboard"
             title="Public preview unavailable"
-            description="This project does not yet have an approved public prototype record."
+            description="This project does not yet have an approved public publishing record."
           />
           <EmptyState
             action={

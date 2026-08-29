@@ -4,7 +4,6 @@ import type { PublicDashboardPresentation } from '@/types/pathways'
 
 import {
   PUBLIC_DONATE_CTA_LABEL,
-  getPublicDashboardStorageKey,
   publicCtaDestinations,
   sanitizePublicDashboardPresentation,
 } from './public-dashboard-config'
@@ -65,12 +64,6 @@ describe('public dashboard presentation configuration', () => {
       layoutPreset: presentation.layoutPreset,
       visibleSections: presentation.visibleSections,
     })
-  })
-
-  it('uses a separate browser-local storage key for each project', () => {
-    expect(getPublicDashboardStorageKey('futuremakers-ncr')).not.toBe(
-      getPublicDashboardStorageKey('youth-rise-western-samar'),
-    )
   })
 
   it('keeps Donate Now fixed and excludes project-to-project return destinations', () => {

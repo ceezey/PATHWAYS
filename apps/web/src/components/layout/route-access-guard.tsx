@@ -1,45 +1,34 @@
 'use client'
 
 import { usePathname, useSearchParams } from 'next/navigation'
-import { useEffect, useState } from 'react'
 
 import { BeneficiaryAccessGate } from '@/components/layout/beneficiary-access-gate'
 import { UnauthorizedState } from '@/components/layout/unauthorized-state'
-import { clearBeneficiaryAccess, hasActiveBeneficiaryAccess } from '@/lib/auth/beneficiary-step-up'
 import { getRouteAccess } from '@/lib/rbac/route-access'
-import type { PrototypeRole } from '@/types/prototype-role'
+import type { PathwaysRole } from '@/types/pathways-role'
 
 export const RouteAccessGuard = ({
+  assignedProjectIds,
   children,
   role,
 }: {
+  assignedProjectIds: readonly string[]
   children: React.ReactNode
-  role: PrototypeRole
+  role: PathwaysRole
 }) => {
   const pathname = usePathname()
   const searchParams = useSearchParams()
-  const [beneficiaryVerified, setBeneficiaryVerified] = useState(() =>
-    hasActiveBeneficiaryAccess(role),
-  )
   const query = searchParams.toString()
-  const access = getRouteAccess(role, query ? `${pathname}?${query}` : pathname)
+  const access = getRouteAccess(role, query ? `${pathname}?${query}` : pathname, assignedProjectIds)
   const requiresBeneficiaryStepUp = access.requiresBeneficiaryStepUp === true
-
-  useEffect(() => {
-    setBeneficiaryVerified(hasActiveBeneficiaryAccess(role))
-  }, [role])
 
   if (!access.allowed) {
     return <UnauthorizedState moduleName={access.moduleName} />
   }
 
-  if (requiresBeneficiaryStepUp && !beneficiaryVerified) {
-    return <BeneficiaryAccessGate onVerified={() => setBeneficiaryVerified(true)} />
+  if (requiresBeneficiaryStepUp) {
+    return <BeneficiaryAccessGate />
   }
 
   return <>{children}</>
-}
-
-export const clearRouteScopedVerification = () => {
-  clearBeneficiaryAccess()
 }

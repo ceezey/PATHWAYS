@@ -1,4 +1,4 @@
-export const defaultPrototypeLabels = {
+export const defaultDisplayLabels = {
   moduleDashboard: 'Dashboard',
   moduleProjects: 'Project Information Management',
   moduleBeneficiaries: 'Beneficiary Journey Tracking',
@@ -20,23 +20,23 @@ export const defaultPrototypeLabels = {
   projectPublicDashboard: 'Public Project Dashboard',
 } as const
 
-export type PrototypeLabelKey = keyof typeof defaultPrototypeLabels
-export type PrototypeLabels = { [Key in PrototypeLabelKey]: string }
+export type DisplayLabelKey = keyof typeof defaultDisplayLabels
+export type DisplayLabels = { [Key in DisplayLabelKey]: string }
 
-export interface PrototypeLabelDefinition {
-  key: PrototypeLabelKey
+export interface DisplayLabelDefinition {
+  key: DisplayLabelKey
   label: string
   helperText: string
 }
 
-export interface PrototypeLabelGroup {
+export interface DisplayLabelGroup {
   id: string
   title: string
   description: string
-  labels: PrototypeLabelDefinition[]
+  labels: DisplayLabelDefinition[]
 }
 
-export const prototypeLabelGroups: PrototypeLabelGroup[] = [
+export const displayLabelGroups: DisplayLabelGroup[] = [
   {
     id: 'workspace-page-headings',
     title: 'Workspace page headings',
@@ -99,23 +99,23 @@ export const prototypeLabelGroups: PrototypeLabelGroup[] = [
       {
         key: 'moduleUserManagement',
         label: 'User Management page heading',
-        helperText: 'Heading for prototype user and role records.',
+        helperText: 'Heading for user and role records.',
       },
       {
         key: 'moduleLabelSettings',
         label: 'Edit Labels page heading',
-        helperText: 'Heading for this browser-local page-heading editor.',
+        helperText: 'Heading for the page-heading editor.',
       },
     ],
   },
 ]
 
-const editableLabelKeys = prototypeLabelGroups.flatMap((group) =>
+const editableLabelKeys = displayLabelGroups.flatMap((group) =>
   group.labels.map((definition) => definition.key),
 )
 
-export const mergePrototypeLabels = (value: unknown): PrototypeLabels => {
-  const labels: PrototypeLabels = { ...defaultPrototypeLabels }
+export const mergeDisplayLabels = (value: unknown): DisplayLabels => {
+  const labels: DisplayLabels = { ...defaultDisplayLabels }
 
   if (!value || typeof value !== 'object' || Array.isArray(value)) {
     return labels

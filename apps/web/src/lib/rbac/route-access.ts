@@ -1,6 +1,6 @@
 import type { DashboardNavGroup, DashboardNavItem } from '@/constants/navigation'
 import type { ReportKind } from '@/types/pathways'
-import type { PrototypeRole } from '@/types/prototype-role'
+import type { PathwaysRole } from '@/types/pathways-role'
 import { can, canAny } from './can'
 import { canAccessProjectForRole } from './data-scope'
 import type { PermissionCode } from './permissions'
@@ -43,22 +43,26 @@ const getPreviewReportKind = (pathname: string): ReportKind => {
     : 'beneficiary-summary'
 }
 
-const hasBeneficiaryPermission = (role: PrototypeRole) =>
+const hasBeneficiaryPermission = (role: PathwaysRole) =>
   canAny(role, ['beneficiaries.scoped_view', 'beneficiaries.full_view'])
 
 const getProjectIdFromPath = (pathname: string) =>
   /^\/projects\/([^/]+)/.exec(pathname)?.[1] ?? null
 
-const canAccessProjectPath = (role: PrototypeRole, pathname: string) => {
+const canAccessProjectPath = (
+  role: PathwaysRole,
+  pathname: string,
+  assignedProjectIds: readonly string[],
+) => {
   const projectId = getProjectIdFromPath(pathname)
-  return projectId ? canAccessProjectForRole(role, projectId) : true
+  return projectId ? canAccessProjectForRole(role, projectId, assignedProjectIds) : true
 }
 
 const routeChecks: Array<{
   test: (pathname: string) => boolean
   moduleName: string
-  allowed: (role: PrototypeRole, pathname: string) => boolean
-  requiresBeneficiaryStepUp?: (role: PrototypeRole) => boolean
+  allowed: (role: PathwaysRole, pathname: string, assignedProjectIds: readonly string[]) => boolean
+  requiresBeneficiaryStepUp?: (role: PathwaysRole) => boolean
 }> = [
   {
     test: (pathname) => pathname === '/dashboard',
@@ -78,37 +82,39 @@ const routeChecks: Array<{
   {
     test: (pathname) => pathname === '/projects' || /^\/projects\/[^/]+$/.test(pathname),
     moduleName: 'Projects',
-    allowed: (role, pathname) => can(role, 'projects.view') && canAccessProjectPath(role, pathname),
+    allowed: (role, pathname, assignedProjectIds) =>
+      can(role, 'projects.view') && canAccessProjectPath(role, pathname, assignedProjectIds),
   },
   {
     test: (pathname) => /^\/projects\/[^/]+\/activities/.test(pathname),
     moduleName: 'Activities',
-    allowed: (role, pathname) =>
-      can(role, 'activities.view') && canAccessProjectPath(role, pathname),
+    allowed: (role, pathname, assignedProjectIds) =>
+      can(role, 'activities.view') && canAccessProjectPath(role, pathname, assignedProjectIds),
   },
   {
     test: (pathname) => /^\/projects\/[^/]+\/evidence/.test(pathname),
     moduleName: 'Evidence review',
-    allowed: (role, pathname) =>
-      can(role, 'evidence.review') && canAccessProjectPath(role, pathname),
+    allowed: (role, pathname, assignedProjectIds) =>
+      can(role, 'evidence.review') && canAccessProjectPath(role, pathname, assignedProjectIds),
   },
   {
     test: (pathname) => /^\/projects\/[^/]+\/indicators/.test(pathname),
     moduleName: 'Target indicators',
-    allowed: (role, pathname) =>
-      can(role, 'indicators.manage') && canAccessProjectPath(role, pathname),
+    allowed: (role, pathname, assignedProjectIds) =>
+      can(role, 'indicators.manage') && canAccessProjectPath(role, pathname, assignedProjectIds),
   },
   {
     test: (pathname) => /^\/projects\/[^/]+\/monitor-evaluate/.test(pathname),
     moduleName: 'Monitor & Evaluate',
-    allowed: (role, pathname) =>
-      can(role, 'monitor_evaluate.view') && canAccessProjectPath(role, pathname),
+    allowed: (role, pathname, assignedProjectIds) =>
+      can(role, 'monitor_evaluate.view') &&
+      canAccessProjectPath(role, pathname, assignedProjectIds),
   },
   {
     test: (pathname) => /^\/projects\/[^/]+\/budget/.test(pathname),
     moduleName: 'Budget',
-    allowed: (role, pathname) =>
-      canAccessProjectPath(role, pathname) &&
+    allowed: (role, pathname, assignedProjectIds) =>
+      canAccessProjectPath(role, pathname, assignedProjectIds) &&
       canAny(role, [
         'budget.expense.log',
         'budget.expense.view',
@@ -119,15 +125,15 @@ const routeChecks: Array<{
   {
     test: (pathname) => /^\/projects\/[^/]+\/journey-stages/.test(pathname),
     moduleName: 'Journey stages',
-    allowed: (role, pathname) =>
-      canAccessProjectPath(role, pathname) &&
+    allowed: (role, pathname, assignedProjectIds) =>
+      canAccessProjectPath(role, pathname, assignedProjectIds) &&
       canAny(role, ['activities.create_edit', 'monitor_evaluate.full']),
   },
   {
     test: (pathname) => /^\/projects\/[^/]+\/transparency/.test(pathname),
     moduleName: 'Public dashboard preview',
-    allowed: (role, pathname) =>
-      canAccessProjectPath(role, pathname) &&
+    allowed: (role, pathname, assignedProjectIds) =>
+      canAccessProjectPath(role, pathname, assignedProjectIds) &&
       canAny(role, ['transparency.preview', 'transparency.publish']),
   },
   {
@@ -209,7 +215,11 @@ const routeChecks: Array<{
   },
 ]
 
-export const getRouteAccess = (role: PrototypeRole, pathname: string): RouteAccessResult => {
+export const getRouteAccess = (
+  role: PathwaysRole,
+  pathname: string,
+  assignedProjectIds: readonly string[] = [],
+): RouteAccessResult => {
   const normalizedPath = normalizePath(pathname)
 
   if (normalizedPath === '/reports/preview') {
@@ -227,10 +237,10 @@ export const getRouteAccess = (role: PrototypeRole, pathname: string): RouteAcce
   const route = routeChecks.find((item) => item.test(normalizedPath))
 
   if (!route) {
-    return { allowed: true, moduleName: 'Workspace' }
+    return { allowed: false, moduleName: 'Workspace' }
   }
 
-  const allowed = route.allowed(role, normalizedPath)
+  const allowed = route.allowed(role, normalizedPath, assignedProjectIds)
 
   return {
     allowed,
@@ -255,7 +265,7 @@ const navPermissions: Record<string, PermissionCode | PermissionCode[] | undefin
 
 export const filterDashboardNavGroups = (
   groups: DashboardNavGroup[],
-  role: PrototypeRole,
+  role: PathwaysRole,
 ): DashboardNavGroup[] =>
   groups
     .map((group) => ({
@@ -264,7 +274,7 @@ export const filterDashboardNavGroups = (
     }))
     .filter((group) => group.items.length > 0)
 
-const canViewNavItem = (item: DashboardNavItem, role: PrototypeRole) => {
+const canViewNavItem = (item: DashboardNavItem, role: PathwaysRole) => {
   const permission = navPermissions[item.href]
 
   if (!permission) {
@@ -276,7 +286,7 @@ const canViewNavItem = (item: DashboardNavItem, role: PrototypeRole) => {
 
 export const filterWorkspaceTabs = <Tab extends WorkspaceTabAccess>(
   tabs: Tab[],
-  role: PrototypeRole,
+  role: PathwaysRole,
 ) =>
   tabs.filter((tab) => {
     if (tab.anyPermissions) {

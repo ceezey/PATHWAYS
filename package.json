@@ -10,7 +10,6 @@
     "dev:web": "pnpm --filter @pathways/web dev",
     "dev:api": "pnpm --filter @pathways/api dev",
     "build": "pnpm -r --if-present run build",
-    "gui:render-reference": "node scripts/render-gui-reference.mjs",
     "lint": "pnpm exec biome check .",
     "format": "pnpm exec biome format --write .",
     "test": "pnpm -r --if-present run test",
@@ -23,7 +22,6 @@
     "@types/node": "^24.0.15",
     "husky": "^9.1.7",
     "lint-staged": "^16.1.0",
-    "msw": "^2.11.2",
     "tsx": "^4.20.5",
     "typescript": "^5.9.3",
     "vitest": "^3.2.4"

@@ -1,4 +1,4 @@
-import type { PrototypeRole } from '@/types/prototype-role'
+import type { PathwaysRole } from '@/types/pathways-role'
 import {
   type ProjectAssignableRole,
   fallbackAccessProfile,
@@ -6,21 +6,21 @@ import {
 } from './access-matrix'
 import type { PermissionCode } from './permissions'
 
-export const getAccessProfile = (role: PrototypeRole) =>
+export const getAccessProfile = (role: PathwaysRole) =>
   roleAccessProfiles[role] ?? fallbackAccessProfile
 
-export const can = (role: PrototypeRole, permission: PermissionCode) =>
+export const can = (role: PathwaysRole, permission: PermissionCode) =>
   getAccessProfile(role).permissions.includes(permission)
 
-export const canAny = (role: PrototypeRole, permissions: PermissionCode[]) =>
+export const canAny = (role: PathwaysRole, permissions: PermissionCode[]) =>
   permissions.some((permission) => can(role, permission))
 
-export const cannot = (role: PrototypeRole, permission: PermissionCode) => !can(role, permission)
+export const cannot = (role: PathwaysRole, permission: PermissionCode) => !can(role, permission)
 
-export const canCreateOrAuthorizeRole = (actorRole: PrototypeRole, targetRole: PrototypeRole) =>
+export const canCreateOrAuthorizeRole = (actorRole: PathwaysRole, targetRole: PathwaysRole) =>
   getAccessProfile(actorRole).userAdministration.createAndAuthorizeRoles.includes(targetRole)
 
 export const canConfigureProjectAssignmentsForRole = (
-  actorRole: PrototypeRole,
+  actorRole: PathwaysRole,
   targetRole: ProjectAssignableRole,
 ) => getAccessProfile(actorRole).userAdministration.projectAssignmentRoles.includes(targetRole)

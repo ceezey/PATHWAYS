@@ -1,61 +1,116 @@
 import { describe, expect, it } from 'vitest'
 
-import { mockAnalyticsLocations } from '@/mocks/pathways'
+import type { AnalyticsLocationRecord } from '@/types/pathways'
 
 import { buildLocationInsights, getLocationKpis, getMapPosition } from './analytics-location-utils'
 
-const allProjectIds = [
-  'futuremakers-ncr',
-  'youth-rise-western-samar',
-  'grassroots-centers-navotas',
-  'girls-lead-metro-manila',
-  'safe-spaces-northern-samar',
+const testLocations: AnalyticsLocationRecord[] = [
+  {
+    id: 'city-alpha',
+    name: 'City Alpha',
+    region: 'Region One',
+    latitude: 14.6,
+    longitude: 121,
+    coordinatePrecision: 'Approximate city centroid',
+    projectSummaries: [
+      {
+        projectId: 'project-alpha',
+        beneficiariesReached: 100,
+        deliverySites: 2,
+        activitiesDelivered: 4,
+        coverageStatus: 'Strong',
+      },
+    ],
+  },
+  {
+    id: 'city-overlap',
+    name: 'City Overlap',
+    region: 'Region One',
+    latitude: 14.7,
+    longitude: 120.9,
+    coordinatePrecision: 'Approximate city centroid',
+    projectSummaries: [
+      {
+        projectId: 'project-alpha',
+        beneficiariesReached: 50,
+        deliverySites: 1,
+        activitiesDelivered: 2,
+        coverageStatus: 'Growing',
+      },
+      {
+        projectId: 'project-beta',
+        beneficiariesReached: 75,
+        deliverySites: 3,
+        activitiesDelivered: 3,
+        coverageStatus: 'Limited',
+      },
+    ],
+  },
+  {
+    id: 'city-beta',
+    name: 'City Beta',
+    region: 'Region Two',
+    latitude: 12.1,
+    longitude: 124.6,
+    coordinatePrecision: 'Approximate city centroid',
+    projectSummaries: [
+      {
+        projectId: 'project-beta',
+        beneficiariesReached: 25,
+        deliverySites: 1,
+        activitiesDelivered: 1,
+        coverageStatus: 'Limited',
+      },
+    ],
+  },
 ]
+
+const allProjectIds = ['project-alpha', 'project-beta']
 
 describe('aggregate analytics location helpers', () => {
   it('builds portfolio location totals from city-level project summaries', () => {
-    const insights = buildLocationInsights(mockAnalyticsLocations, allProjectIds)
+    const insights = buildLocationInsights(testLocations, allProjectIds)
 
     expect(getLocationKpis(insights)).toEqual({
-      locationCount: 9,
-      deliverySites: 23,
-      beneficiariesReached: 2033,
-      locationsNeedingAttention: 4,
+      locationCount: 3,
+      deliverySites: 7,
+      beneficiariesReached: 250,
+      locationsNeedingAttention: 2,
     })
   })
 
   it('keeps project filtering consistent with project reach totals', () => {
-    const insights = buildLocationInsights(mockAnalyticsLocations, ['futuremakers-ncr'])
+    const insights = buildLocationInsights(testLocations, ['project-alpha'])
 
     expect(getLocationKpis(insights)).toMatchObject({
-      locationCount: 3,
-      deliverySites: 9,
-      beneficiariesReached: 842,
+      locationCount: 2,
+      deliverySites: 3,
+      beneficiariesReached: 150,
     })
   })
 
   it('aggregates overlapping project coverage without duplicating the city marker', () => {
-    const navotas = buildLocationInsights(mockAnalyticsLocations, allProjectIds).find(
-      (location) => location.id === 'navotas',
+    const overlap = buildLocationInsights(testLocations, allProjectIds).find(
+      (location) => location.id === 'city-overlap',
     )
 
-    expect(navotas).toMatchObject({
-      beneficiariesReached: 698,
-      deliverySites: 7,
-      coverageStatus: 'Growing',
-      projectIds: ['futuremakers-ncr', 'grassroots-centers-navotas'],
+    expect(overlap).toMatchObject({
+      beneficiariesReached: 125,
+      deliverySites: 4,
+      coverageStatus: 'Limited',
+      projectIds: ['project-alpha', 'project-beta'],
     })
   })
 
   it('projects approximate city centroids inside the map and contains no precise-location fields', () => {
-    const manila = mockAnalyticsLocations.find((location) => location.id === 'manila')
+    const city = testLocations.find((location) => location.id === 'city-alpha')
 
-    expect(manila).toBeDefined()
-    expect(getMapPosition(manila?.latitude ?? 0, manila?.longitude ?? 0)).toEqual({
+    expect(city).toBeDefined()
+    expect(getMapPosition(city?.latitude ?? 0, city?.longitude ?? 0)).toEqual({
       left: expect.any(Number),
       top: expect.any(Number),
     })
-    expect(JSON.stringify(mockAnalyticsLocations)).not.toMatch(
+    expect(JSON.stringify(testLocations)).not.toMatch(
       /beneficiaryId|firstName|lastName|barangay|street|address|contact/i,
     )
   })

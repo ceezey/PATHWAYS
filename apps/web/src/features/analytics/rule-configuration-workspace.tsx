@@ -1,9 +1,10 @@
 'use client'
 
-import { Pencil, Plus, Power, Save } from 'lucide-react'
+import { AlertTriangle, Pencil, Plus, Power, Save } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { toast } from 'sonner'
 
+import { EmptyState } from '@/components/pathways/empty-state'
 import { StatusBadge } from '@/components/pathways/status-badge'
 import { Button } from '@/components/ui/button'
 import {
@@ -23,8 +24,8 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { usePrototypeLabels } from '@/hooks/use-prototype-labels'
-import { usePrototypeRole } from '@/hooks/use-prototype-role'
+import { useCurrentRole } from '@/hooks/use-current-role'
+import { useDisplayLabels } from '@/hooks/use-display-labels'
 import { can } from '@/lib/rbac/can'
 import type {
   RuleCategory,
@@ -58,23 +59,26 @@ type RuleDraft = Omit<RuleDefinition, 'id' | 'triggeredCount' | 'lastTriggeredAt
 const emptyDraft: RuleDraft = {
   name: '',
   category: 'KPI / Indicator',
-  parameter: 'KPI achievement rate',
+  parameter: '',
   operator: 'below',
-  threshold: 70,
+  threshold: 0,
   severity: 'High',
-  status: 'Active',
-  suggestedAction:
-    'Review beneficiary outreach strategy and intensify vocational track engagement.',
-  description: 'Prototype rule created from the rule configuration form.',
+  status: 'Inactive',
+  suggestedAction: '',
+  description: '',
 }
 
 export const RuleConfigurationWorkspace = ({
   initialRules,
-}: { initialRules: RuleDefinition[] }) => {
-  const { labels } = usePrototypeLabels()
-  const { role } = usePrototypeRole()
-  const canConfigureRules = can(role, 'rules.configure')
-  const [rules, setRules] = useState(initialRules)
+  loadError = false,
+}: {
+  initialRules: RuleDefinition[]
+  loadError?: boolean
+}) => {
+  const { labels } = useDisplayLabels()
+  const { role } = useCurrentRole()
+  const canConfigureRules = role ? can(role, 'rules.configure') : false
+  const rules = initialRules
   const [selectedRuleId, setSelectedRuleId] = useState(initialRules[0]?.id ?? '')
   const [dialogOpen, setDialogOpen] = useState(false)
   const [editingRuleId, setEditingRuleId] = useState<string | null>(null)
@@ -130,41 +134,32 @@ export const RuleConfigurationWorkspace = ({
       return
     }
 
-    // TODO(RBAC): Restrict rule configuration to authorized administrators.
-    // TODO(BACKEND): Persist rule definitions and lifecycle transitions.
-    if (editingRuleId) {
-      setRules((current) =>
-        current.map((rule) => (rule.id === editingRuleId ? { ...rule, ...draft } : rule)),
-      )
-      setSelectedRuleId(editingRuleId)
-    } else {
-      const rule: RuleDefinition = {
-        ...draft,
-        id: `rule-prototype-${Date.now().toString(36)}`,
-        triggeredCount: 0,
-      }
-      setRules((current) => [rule, ...current])
-      setSelectedRuleId(rule.id)
-    }
-
     setDialogOpen(false)
-    toast.success(editingRuleId ? 'Rule updated locally.' : 'Prototype rule created.', {
-      description: 'This demonstration keeps the rule in your current browser session only.',
+    toast.error('Rule persistence is not configured.', {
+      description: 'Connect the rule repository backend before creating or updating rules.',
     })
   }
 
-  const toggleRuleStatus = (rule: RuleDefinition) => {
+  const toggleRuleStatus = () => {
     if (!canConfigureRules) {
       toast.error('Rule activation is only available to System Administrator.')
       return
     }
 
-    // TODO(BACKEND): Persist rule definitions and lifecycle transitions.
-    const nextStatus: RuleStatus = rule.status === 'Active' ? 'Inactive' : 'Active'
-    setRules((current) =>
-      current.map((item) => (item.id === rule.id ? { ...item, status: nextStatus } : item)),
+    toast.error('Rule activation is not configured.', {
+      description: 'Connect the rule repository backend before changing lifecycle status.',
+    })
+  }
+
+  if (!role) {
+    return (
+      <EmptyState
+        className="min-h-80 rounded-lg border border-border bg-card"
+        description="A verified staff identity and role are required to access the rule repository."
+        icon={AlertTriangle}
+        title="Rule repository access unavailable"
+      />
     )
-    toast.success(`Rule marked ${nextStatus.toLowerCase()} locally.`)
   }
 
   return (
@@ -183,8 +178,8 @@ export const RuleConfigurationWorkspace = ({
             </h1>
             <p className="mt-2 max-w-3xl text-sm leading-6 text-muted-foreground">
               Review predefined alert and recommendation rules for human-reviewed decision support.
-              System Administrators can demonstrate prototype-only configuration; no autonomous
-              action is taken.
+              System Administrators can configure predefined conditions once backend persistence is
+              connected. No autonomous action is taken.
             </p>
           </div>
         </div>
@@ -201,127 +196,151 @@ export const RuleConfigurationWorkspace = ({
         recommendation requires human review before action is taken.
       </section>
 
-      <Tabs className="space-y-4" defaultValue="repository">
-        <TabsList>
-          <TabsTrigger value="repository">Alerts Repository</TabsTrigger>
-          {canConfigureRules ? <TabsTrigger value="create">Create rule</TabsTrigger> : null}
-        </TabsList>
-        <TabsContent value="repository" className="space-y-6">
-          <section className="rounded-lg border border-border bg-card p-5 shadow-sm">
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <h2 className="text-lg font-semibold text-foreground">
-                {rules.length} rules configured
-              </h2>
-              <p className="text-sm text-muted-foreground">
-                {activeCount} active · {rules.length - activeCount} inactive
-              </p>
-            </div>
-            <div className="mt-4 space-y-3">
-              {rules.map((rule) => (
-                <button
-                  key={rule.id}
-                  className={`w-full rounded-lg border p-4 text-left transition-colors ${
-                    selectedRule?.id === rule.id
-                      ? 'border-primary bg-primary/10'
-                      : 'border-border bg-background hover:bg-muted/60'
-                  }`}
-                  type="button"
-                  onClick={() => setSelectedRuleId(rule.id)}
-                >
-                  <div className="flex flex-wrap items-start justify-between gap-3">
-                    <div>
-                      <p className="font-semibold text-foreground">{rule.name}</p>
-                      <p className="mt-1 text-sm text-muted-foreground">
-                        {rule.category} · {rule.parameter} {operatorCopy(rule.operator)}{' '}
-                        {rule.threshold}
-                        {rule.upperThreshold ? ` to ${rule.upperThreshold}` : ''}
-                      </p>
-                    </div>
-                    <div className="flex flex-wrap gap-2">
-                      <StatusBadge tone={ruleSeverityTone(rule.severity)}>
-                        {rule.severity}
-                      </StatusBadge>
-                      <StatusBadge tone={ruleStatusTone(rule.status)}>{rule.status}</StatusBadge>
-                    </div>
-                  </div>
-                  <p className="mt-3 text-sm leading-6 text-muted-foreground">
-                    {rule.suggestedAction}
-                  </p>
-                </button>
-              ))}
-            </div>
-          </section>
+      {loadError ? (
+        <EmptyState
+          className="min-h-64 rounded-lg border border-border bg-card"
+          description="The rule repository could not be loaded. The backend may not be configured yet."
+          icon={AlertTriangle}
+          title="Rule repository unavailable"
+        />
+      ) : null}
 
-          {selectedRule ? (
-            <section className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_420px]">
-              <div className="rounded-lg border border-border bg-card p-5 shadow-sm">
-                <h2 className="text-lg font-semibold text-foreground">Selected rule</h2>
-                <div className="mt-4 grid gap-3 md:grid-cols-2">
-                  <InfoRow label="Rule name" value={selectedRule.name} />
-                  <InfoRow label="Category" value={selectedRule.category} />
-                  <InfoRow label="Parameter" value={selectedRule.parameter} />
-                  <InfoRow label="Operator" value={selectedRule.operator} />
-                  <InfoRow label="Threshold" value={`${selectedRule.threshold}`} />
-                  <InfoRow
-                    label="Optional upper threshold"
-                    value={selectedRule.upperThreshold ? `${selectedRule.upperThreshold}` : 'None'}
-                  />
-                  <InfoRow label="Severity" value={selectedRule.severity} />
-                  <InfoRow label="Status" value={selectedRule.status} />
-                </div>
-                <div className="mt-4 rounded-lg border border-border bg-background p-4 text-sm leading-6">
-                  <p className="font-medium text-foreground">Suggested action</p>
-                  <p className="mt-2 text-muted-foreground">{selectedRule.suggestedAction}</p>
-                </div>
-                <div className="mt-4 flex flex-wrap gap-2">
-                  {canConfigureRules ? (
-                    <>
-                      <Button variant="outline" onClick={() => openEdit(selectedRule)}>
-                        <Pencil className="mr-2 h-4 w-4" aria-hidden="true" />
-                        Edit rule
-                      </Button>
-                      <Button variant="outline" onClick={() => toggleRuleStatus(selectedRule)}>
-                        <Power className="mr-2 h-4 w-4" aria-hidden="true" />
-                        {selectedRule.status === 'Active' ? 'Deactivate' : 'Activate'}
-                      </Button>
-                    </>
-                  ) : null}
-                </div>
-              </div>
-              <aside className="rounded-lg border border-border bg-card p-5 shadow-sm">
-                <h2 className="text-lg font-semibold text-foreground">Trigger history</h2>
-                <div className="mt-4 rounded-lg border border-border bg-background p-4 text-sm">
-                  <p className="text-muted-foreground">Triggered total</p>
-                  <p className="mt-1 text-3xl font-semibold text-foreground">
-                    {selectedRule.triggeredCount}
-                  </p>
-                  <p className="mt-3 text-muted-foreground">
-                    Last triggered: {selectedRule.lastTriggeredAt ?? 'Not yet triggered'}
-                  </p>
-                </div>
-              </aside>
-            </section>
-          ) : null}
-        </TabsContent>
-        {canConfigureRules ? (
-          <TabsContent value="create">
+      {!loadError ? (
+        <Tabs className="space-y-4" defaultValue="repository">
+          <TabsList>
+            <TabsTrigger value="repository">Alerts Repository</TabsTrigger>
+            {canConfigureRules ? <TabsTrigger value="create">Create rule</TabsTrigger> : null}
+          </TabsList>
+          <TabsContent value="repository" className="space-y-6">
             <section className="rounded-lg border border-border bg-card p-5 shadow-sm">
-              <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-                <div>
-                  <h2 className="text-lg font-semibold text-foreground">Create rule</h2>
-                  <p className="mt-1 text-sm text-muted-foreground">
-                    Open the rule form to create a prototype rule definition.
-                  </p>
-                </div>
-                <Button onClick={openCreate}>
-                  <Plus className="mr-2 h-4 w-4" aria-hidden="true" />
-                  New rule
-                </Button>
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <h2 className="text-lg font-semibold text-foreground">
+                  {rules.length} rules configured
+                </h2>
+                <p className="text-sm text-muted-foreground">
+                  {activeCount} active · {rules.length - activeCount} inactive
+                </p>
+              </div>
+              <div className="mt-4 space-y-3">
+                {rules.length > 0 ? (
+                  rules.map((rule) => (
+                    <button
+                      key={rule.id}
+                      className={`w-full rounded-lg border p-4 text-left transition-colors ${
+                        selectedRule?.id === rule.id
+                          ? 'border-primary bg-primary/10'
+                          : 'border-border bg-background hover:bg-muted/60'
+                      }`}
+                      type="button"
+                      onClick={() => setSelectedRuleId(rule.id)}
+                    >
+                      <div className="flex flex-wrap items-start justify-between gap-3">
+                        <div>
+                          <p className="font-semibold text-foreground">{rule.name}</p>
+                          <p className="mt-1 text-sm text-muted-foreground">
+                            {rule.category} · {rule.parameter} {operatorCopy(rule.operator)}{' '}
+                            {rule.threshold}
+                            {rule.upperThreshold ? ` to ${rule.upperThreshold}` : ''}
+                          </p>
+                        </div>
+                        <div className="flex flex-wrap gap-2">
+                          <StatusBadge tone={ruleSeverityTone(rule.severity)}>
+                            {rule.severity}
+                          </StatusBadge>
+                          <StatusBadge tone={ruleStatusTone(rule.status)}>
+                            {rule.status}
+                          </StatusBadge>
+                        </div>
+                      </div>
+                      <p className="mt-3 text-sm leading-6 text-muted-foreground">
+                        {rule.suggestedAction}
+                      </p>
+                    </button>
+                  ))
+                ) : (
+                  <EmptyState
+                    className="min-h-48 border border-dashed border-border"
+                    description="Rules will appear here after the rule repository backend is connected."
+                    icon={AlertTriangle}
+                    title="No rules configured"
+                  />
+                )}
               </div>
             </section>
+
+            {selectedRule ? (
+              <section className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_420px]">
+                <div className="rounded-lg border border-border bg-card p-5 shadow-sm">
+                  <h2 className="text-lg font-semibold text-foreground">Selected rule</h2>
+                  <div className="mt-4 grid gap-3 md:grid-cols-2">
+                    <InfoRow label="Rule name" value={selectedRule.name} />
+                    <InfoRow label="Category" value={selectedRule.category} />
+                    <InfoRow label="Parameter" value={selectedRule.parameter} />
+                    <InfoRow label="Operator" value={selectedRule.operator} />
+                    <InfoRow label="Threshold" value={`${selectedRule.threshold}`} />
+                    <InfoRow
+                      label="Optional upper threshold"
+                      value={
+                        selectedRule.upperThreshold ? `${selectedRule.upperThreshold}` : 'None'
+                      }
+                    />
+                    <InfoRow label="Severity" value={selectedRule.severity} />
+                    <InfoRow label="Status" value={selectedRule.status} />
+                  </div>
+                  <div className="mt-4 rounded-lg border border-border bg-background p-4 text-sm leading-6">
+                    <p className="font-medium text-foreground">Suggested action</p>
+                    <p className="mt-2 text-muted-foreground">{selectedRule.suggestedAction}</p>
+                  </div>
+                  <div className="mt-4 flex flex-wrap gap-2">
+                    {canConfigureRules ? (
+                      <>
+                        <Button variant="outline" onClick={() => openEdit(selectedRule)}>
+                          <Pencil className="mr-2 h-4 w-4" aria-hidden="true" />
+                          Edit rule
+                        </Button>
+                        <Button variant="outline" onClick={toggleRuleStatus}>
+                          <Power className="mr-2 h-4 w-4" aria-hidden="true" />
+                          {selectedRule.status === 'Active' ? 'Deactivate' : 'Activate'}
+                        </Button>
+                      </>
+                    ) : null}
+                  </div>
+                </div>
+                <aside className="rounded-lg border border-border bg-card p-5 shadow-sm">
+                  <h2 className="text-lg font-semibold text-foreground">Trigger history</h2>
+                  <div className="mt-4 rounded-lg border border-border bg-background p-4 text-sm">
+                    <p className="text-muted-foreground">Triggered total</p>
+                    <p className="mt-1 text-3xl font-semibold text-foreground">
+                      {selectedRule.triggeredCount}
+                    </p>
+                    <p className="mt-3 text-muted-foreground">
+                      Last triggered: {selectedRule.lastTriggeredAt ?? 'Not yet triggered'}
+                    </p>
+                  </div>
+                </aside>
+              </section>
+            ) : null}
           </TabsContent>
-        ) : null}
-      </Tabs>
+          {canConfigureRules ? (
+            <TabsContent value="create">
+              <section className="rounded-lg border border-border bg-card p-5 shadow-sm">
+                <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                  <div>
+                    <h2 className="text-lg font-semibold text-foreground">Create rule</h2>
+                    <p className="mt-1 text-sm text-muted-foreground">
+                      Open the rule form to define a rule. Saving requires backend configuration.
+                    </p>
+                  </div>
+                  <Button onClick={openCreate}>
+                    <Plus className="mr-2 h-4 w-4" aria-hidden="true" />
+                    New rule
+                  </Button>
+                </div>
+              </section>
+            </TabsContent>
+          ) : null}
+        </Tabs>
+      ) : null}
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl">

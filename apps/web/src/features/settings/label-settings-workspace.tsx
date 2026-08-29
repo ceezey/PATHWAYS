@@ -2,7 +2,7 @@
 
 import { RotateCcw, Save, Type } from 'lucide-react'
 import Link from 'next/link'
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { toast } from 'sonner'
 
 import { PageHeader } from '@/components/layout/page-header'
@@ -10,32 +10,26 @@ import { SectionCard, StatusBadge } from '@/components/pathways'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import {
-  type PrototypeLabelKey,
-  type PrototypeLabels,
-  defaultPrototypeLabels,
-  prototypeLabelGroups,
-} from '@/constants/prototype-labels'
-import { usePrototypeLabels } from '@/hooks/use-prototype-labels'
+  type DisplayLabelKey,
+  type DisplayLabels,
+  defaultDisplayLabels,
+  displayLabelGroups,
+} from '@/constants/display-labels'
+import { useDisplayLabels } from '@/hooks/use-display-labels'
 
-const editableLabelDefinitions = prototypeLabelGroups.flatMap((group) => group.labels)
+const editableLabelDefinitions = displayLabelGroups.flatMap((group) => group.labels)
 
 export const LabelSettingsWorkspace = () => {
-  const { hydrated, labels, resetLabels, saveLabels } = usePrototypeLabels()
-  const [draft, setDraft] = useState<PrototypeLabels>(labels)
+  const { labels } = useDisplayLabels()
+  const [draft, setDraft] = useState<DisplayLabels>(labels)
   const [error, setError] = useState('')
-
-  useEffect(() => {
-    if (hydrated) {
-      setDraft(labels)
-    }
-  }, [hydrated, labels])
 
   const changed = useMemo(
     () => editableLabelDefinitions.some(({ key }) => draft[key] !== labels[key]),
     [draft, labels],
   )
 
-  const updateDraft = (key: PrototypeLabelKey, value: string) => {
+  const updateDraft = (key: DisplayLabelKey, value: string) => {
     setDraft((current) => ({ ...current, [key]: value }))
     setError('')
   }
@@ -49,19 +43,17 @@ export const LabelSettingsWorkspace = () => {
       return
     }
 
-    saveLabels(draft)
-    toast.success('Page headings saved.', {
-      description: 'The selected internal page headings now update in this browser.',
+    toast.error('Label settings backend is not configured.', {
+      description: 'Your draft remains on this page and has not been saved.',
     })
   }
 
   const reset = () => {
-    const defaults: PrototypeLabels = { ...defaultPrototypeLabels }
-    resetLabels()
+    const defaults: DisplayLabels = { ...defaultDisplayLabels }
     setDraft(defaults)
     setError('')
-    toast.success('Default page headings restored.', {
-      description: 'The current PATHWAYS presentation headings are active again.',
+    toast.info('Draft restored to the default headings.', {
+      description: 'No saved configuration was changed.',
     })
   }
 
@@ -70,11 +62,11 @@ export const LabelSettingsWorkspace = () => {
       <PageHeader
         eyebrow="Administration"
         title={labels.moduleLabelSettings}
-        description="Edit the approved internal page headings for this prototype. Only the System Administrator can open this workspace. Sidebar labels and section titles stay fixed."
+        description="Prepare internal page-heading changes for a future settings integration. Sidebar labels and section titles stay fixed."
         actions={
           <div className="flex flex-wrap gap-2">
             <StatusBadge tone="info">System Administrator</StatusBadge>
-            <StatusBadge tone="neutral">Browser-local prototype</StatusBadge>
+            <StatusBadge tone="neutral">Unsaved draft</StatusBadge>
             <Button asChild size="sm" variant="outline">
               <Link href="/settings/users">Open User Management</Link>
             </Button>
@@ -84,19 +76,19 @@ export const LabelSettingsWorkspace = () => {
 
       <section className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_320px]">
         <div className="space-y-4">
-          {prototypeLabelGroups.map((group) => (
+          {displayLabelGroups.map((group) => (
             <SectionCard key={group.id} title={group.title} description={group.description}>
               <div className="grid gap-4 md:grid-cols-2">
                 {group.labels.map((definition) => (
                   <label
                     className="space-y-2"
-                    htmlFor={`prototype-label-${definition.key}`}
+                    htmlFor={`display-label-${definition.key}`}
                     key={definition.key}
                   >
                     <span className="text-sm font-medium text-foreground">{definition.label}</span>
                     <Input
                       aria-label={definition.label}
-                      id={`prototype-label-${definition.key}`}
+                      id={`display-label-${definition.key}`}
                       maxLength={64}
                       onChange={(event) => updateDraft(definition.key, event.target.value)}
                       value={draft[definition.key]}
@@ -117,7 +109,7 @@ export const LabelSettingsWorkspace = () => {
             description="A compact preview of the editable heading scope."
           >
             <div className="space-y-5 text-sm">
-              {prototypeLabelGroups.map((group) => (
+              {displayLabelGroups.map((group) => (
                 <PreviewGroup
                   key={group.id}
                   label={group.title.replace(' page headings', '')}
@@ -153,7 +145,7 @@ export const LabelSettingsWorkspace = () => {
           <RotateCcw className="h-4 w-4" aria-hidden="true" />
           Restore defaults
         </Button>
-        <Button className="gap-2" disabled={!hydrated || !changed} type="submit">
+        <Button className="gap-2" disabled={!changed} type="submit">
           <Save className="h-4 w-4" aria-hidden="true" />
           Save headings
         </Button>

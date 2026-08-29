@@ -23,7 +23,7 @@ type ChartProps = {
 const grid = { left: 16, right: 16, top: 28, bottom: 18, containLabel: true }
 const colors = ['#0f766e', '#2563eb', '#f59e0b', '#dc2626', '#7c3aed']
 
-export const ProjectPerformanceTrendChart = ({ projects }: Pick<ChartProps, 'projects'>) => {
+export const ProjectPerformanceChart = ({ projects }: Pick<ChartProps, 'projects'>) => {
   const visibleProjects = projects.slice(0, 4)
   const legendLabels = visibleProjects.map((project) => project.title)
   const legendLayout = createAdaptiveLegendLayout(legendLabels)
@@ -36,23 +36,19 @@ export const ProjectPerformanceTrendChart = ({ projects }: Pick<ChartProps, 'pro
         aria: {
           enabled: true,
           description: buildLegendAriaDescription(
-            'Monthly project performance trends for the selected project view.',
+            'Current project performance for the selected project view.',
             legendLabels,
           ),
         },
         color: colors,
         tooltip: { trigger: 'axis' },
         ...legendLayout,
-        xAxis: { type: 'category', data: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun'] },
+        xAxis: { type: 'category', data: ['Current'] },
         yAxis: { type: 'value', min: 0, max: 100 },
-        series: visibleProjects.map((project, index) => ({
+        series: visibleProjects.map((project) => ({
           name: project.title,
           type: 'line',
-          smooth: true,
-          areaStyle: { opacity: 0.08 },
-          data: [0.72, 0.82, 0.88, 0.94, 1.02, 1].map((factor, monthIndex) =>
-            Math.min(100, Math.round(project.kpiAchievement * factor + monthIndex + index)),
-          ),
+          data: [project.kpiAchievement],
         })),
       }}
     />

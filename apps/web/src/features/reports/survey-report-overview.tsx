@@ -45,8 +45,7 @@ export const SurveyReportOverview = ({
         </p>
         <h3 className="mt-1 text-lg font-semibold text-foreground">{form.title}</h3>
         <p className="mt-1 text-sm text-muted-foreground">
-          Synthetic aggregate mock data only. No individual responses or Beneficiary identities are
-          included.
+          Aggregate results only. No individual responses or Beneficiary identities are included.
         </p>
       </div>
       <div className="rounded-md border border-info/20 bg-background px-4 py-3 text-center">

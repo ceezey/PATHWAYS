@@ -25,9 +25,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { usePrototypeLabels } from '@/hooks/use-prototype-labels'
-import { usePrototypeRole } from '@/hooks/use-prototype-role'
-import { pathwaysClient } from '@/lib/services/mock-pathways-client'
+import { useCurrentRole } from '@/hooks/use-current-role'
+import { useDisplayLabels } from '@/hooks/use-display-labels'
+import { pathwaysClient } from '@/lib/services/pathways-client'
 import type {
   AlertRecord,
   ProjectSummary,
@@ -61,7 +61,7 @@ export const RecommendationsWorkspace = ({
 }: {
   initialRecommendationId?: string
 }) => {
-  const { role } = usePrototypeRole()
+  const { role } = useCurrentRole()
   const [data, setData] = useState<RecommendationsWorkspaceData | null>(null)
   const [status, setStatus] = useState<'loading' | 'ready' | 'error'>('loading')
 
@@ -69,6 +69,13 @@ export const RecommendationsWorkspace = ({
     let active = true
     setStatus('loading')
     setData(null)
+
+    if (!role) {
+      setStatus('error')
+      return () => {
+        active = false
+      }
+    }
 
     Promise.all([
       pathwaysClient.getRecommendationsForRole(role),
@@ -97,6 +104,17 @@ export const RecommendationsWorkspace = ({
       active = false
     }
   }, [initialRecommendationId, role])
+
+  if (!role) {
+    return (
+      <EmptyState
+        className="min-h-80 rounded-lg border border-border bg-card"
+        description="A verified staff identity and role are required to load scoped recommendations."
+        icon={AlertTriangle}
+        title="Recommendations access unavailable"
+      />
+    )
+  }
 
   if (status === 'loading') {
     return (
@@ -130,8 +148,8 @@ const RecommendationsWorkspaceContent = ({
   projects,
   rules,
 }: RecommendationsWorkspaceProps) => {
-  const { labels } = usePrototypeLabels()
-  const [recommendations, setRecommendations] = useState(initialRecommendations)
+  const { labels } = useDisplayLabels()
+  const recommendations = initialRecommendations
   const [projectId, setProjectId] = useState(allValue)
   const [reviewStatus, setReviewStatus] = useState(allValue)
   const [selectedRecommendationId, setSelectedRecommendationId] = useState(
@@ -168,17 +186,9 @@ const RecommendationsWorkspaceContent = ({
       return
     }
 
-    // TODO(BACKEND): Persist recommendation review and outcomes.
-    setRecommendations((current) =>
-      current.map((recommendation) =>
-        recommendation.id === selectedRecommendation?.id
-          ? { ...recommendation, outcome, outcomeNote, reviewStatus: 'Actioned' }
-          : recommendation,
-      ),
-    )
     setOutcomeOpen(false)
-    toast.success('Recommendation outcome logged locally.', {
-      description: 'Human decision recorded for this prototype view.',
+    toast.error('Recommendation outcomes are not configured.', {
+      description: 'Connect the recommendation backend before saving human-review outcomes.',
     })
   }
 

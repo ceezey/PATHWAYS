@@ -9,10 +9,10 @@ import { EmptyState, FilterBar, ProgressBar, SectionCard, StatusBadge } from '@/
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { usePrototypeLabels } from '@/hooks/use-prototype-labels'
-import { usePrototypeRole } from '@/hooks/use-prototype-role'
+import { useCurrentRole } from '@/hooks/use-current-role'
+import { useDisplayLabels } from '@/hooks/use-display-labels'
 import { can } from '@/lib/rbac/can'
-import { pathwaysClient } from '@/lib/services/mock-pathways-client'
+import { pathwaysClient } from '@/lib/services/pathways-client'
 import type { ProjectDetail, ProjectStatus, ProjectSummary } from '@/types/pathways'
 
 import { ProjectPreviewDialog } from './project-preview-dialog'
@@ -25,17 +25,17 @@ import {
 } from './project-utils'
 
 const directoryDescription = {
-  'Program Manager': 'Portfolio projects across the prototype workspace.',
+  'Program Manager': 'Portfolio projects across the organization.',
   'Grant Manager': 'High-level grant and project portfolio summaries.',
   'Project Manager': 'Assigned projects and project setup entry point.',
   'Monitoring and Evaluation Officer': 'Projects assigned for monitoring and evaluation review.',
   'Project Officer': 'Projects with assigned field activities and implementation tasks.',
-  'System Administrator': 'All prototype projects for setup and configuration review.',
+  'System Administrator': 'All projects available for setup and configuration review.',
 } as const
 
 export const ProjectDirectory = () => {
-  const { labels } = usePrototypeLabels()
-  const { role } = usePrototypeRole()
+  const { labels } = useDisplayLabels()
+  const { role } = useCurrentRole()
   const [projects, setProjects] = useState<ProjectSummary[]>([])
   const [status, setStatus] = useState<'loading' | 'success' | 'error'>('loading')
   const [query, setQuery] = useState('')
@@ -45,6 +45,12 @@ export const ProjectDirectory = () => {
   useEffect(() => {
     let mounted = true
     setStatus('loading')
+
+    if (!role) {
+      setProjects([])
+      setStatus('error')
+      return
+    }
 
     pathwaysClient
       .getProjectsForRole(role)
@@ -96,9 +102,9 @@ export const ProjectDirectory = () => {
       <PageHeader
         eyebrow={labels.projectWorkspace}
         title={labels.moduleProjects}
-        description={directoryDescription[role]}
+        description={role ? directoryDescription[role] : 'A recognized staff role is required.'}
         actions={
-          can(role, 'projects.create') ? (
+          role && can(role, 'projects.create') ? (
             <Button asChild className="gap-2">
               <Link href="/projects/new">
                 <Plus className="h-4 w-4" aria-hidden="true" />
@@ -137,23 +143,29 @@ export const ProjectDirectory = () => {
       </FilterBar>
       {status === 'loading' ? (
         <EmptyState
-          description="Loading role-specific project records from the mock service."
+          description="Loading the project records available to your account."
           icon={FolderKanban}
           title="Loading projects"
         />
       ) : null}
       {status === 'error' ? (
         <EmptyState
-          description="The project directory could not load prototype records."
+          description="The project directory could not load records from the Projects backend."
           icon={FolderKanban}
           title="Project data unavailable"
         />
       ) : null}
       {status === 'success' && filteredProjects.length === 0 ? (
         <EmptyState
-          description="Try another search term or status filter."
+          description={
+            projects.length === 0
+              ? 'No project records are available to your account.'
+              : 'Try another search term or status filter.'
+          }
           icon={FolderKanban}
-          title="No projects match the current filters"
+          title={
+            projects.length === 0 ? 'No projects yet' : 'No projects match the current filters'
+          }
         />
       ) : null}
       {status === 'success' && filteredProjects.length > 0 ? (
@@ -203,11 +215,13 @@ export const ProjectDirectory = () => {
                     value={project.budgetUtilization}
                   />
                   <ProgressBar label="Timeline progress" value={project.timelineProgress} />
-                  <ProgressBar
-                    label="Beneficiary reach"
-                    tone="success"
-                    value={Math.min(100, Math.round(project.beneficiariesReached / 10))}
-                  />
+                  {typeof project.beneficiaryReachPercentage === 'number' ? (
+                    <ProgressBar
+                      label="Beneficiary reach"
+                      tone="success"
+                      value={project.beneficiaryReachPercentage}
+                    />
+                  ) : null}
                 </div>
                 <div className="flex flex-wrap justify-end gap-2">
                   <Button
@@ -222,12 +236,14 @@ export const ProjectDirectory = () => {
                   <Button asChild className="gap-2">
                     <Link
                       href={
-                        can(role, 'activities.view')
+                        role && can(role, 'activities.view')
                           ? `/projects/${project.id}/activities`
                           : `/projects/${project.id}`
                       }
                     >
-                      {can(role, 'activities.view') ? 'Open Workspace' : 'View Project Summary'}
+                      {role && can(role, 'activities.view')
+                        ? 'Open Workspace'
+                        : 'View Project Summary'}
                       <ArrowRight className="h-4 w-4" aria-hidden="true" />
                     </Link>
                   </Button>

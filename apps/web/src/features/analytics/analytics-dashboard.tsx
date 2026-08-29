@@ -21,11 +21,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { usePrototypeLabels } from '@/hooks/use-prototype-labels'
-import { usePrototypeRole } from '@/hooks/use-prototype-role'
+import { useCurrentRole } from '@/hooks/use-current-role'
+import { useDisplayLabels } from '@/hooks/use-display-labels'
 import { can } from '@/lib/rbac/can'
 import { canAccessProjectForRole } from '@/lib/rbac/data-scope'
-import { pathwaysClient } from '@/lib/services/mock-pathways-client'
+import { pathwaysClient } from '@/lib/services/pathways-client'
 import type {
   Activity,
   AlertRecord,
@@ -39,7 +39,7 @@ import {
   ActivityCompletionChart,
   AlertCountsChart,
   BudgetUtilizationChart,
-  ProjectPerformanceTrendChart,
+  ProjectPerformanceChart,
   SadddChart,
 } from './analytics-charts'
 import { AnalyticsCoverageMap } from './analytics-coverage-map'
@@ -47,8 +47,6 @@ import { buildLocationInsights } from './analytics-location-utils'
 import { formatNumber, formatPercent, humanReviewDisclaimer } from './analytics-utils'
 
 const allValue = 'all'
-const loadingKeys = ['kpi', 'budget', 'reach']
-
 type AnalyticsDashboardProps = {
   projects: ProjectDetail[]
   activities: Activity[]
@@ -64,31 +62,42 @@ export const AnalyticsDashboard = ({
   alerts,
   locations,
 }: AnalyticsDashboardProps) => {
-  const { labels } = usePrototypeLabels()
-  const { role } = usePrototypeRole()
+  const { labels } = useDisplayLabels()
+  const { role } = useCurrentRole()
   const [projectId, setProjectId] = useState(allValue)
-  const [period, setPeriod] = useState('Q2 2026')
-  const [loading, setLoading] = useState(false)
+  const period = 'All available periods'
   const [sadddAggregates, setSadddAggregates] = useState<BeneficiarySadddAggregate[]>([])
+  const [sadddStatus, setSadddStatus] = useState<'loading' | 'ready' | 'error'>('loading')
 
   const roleScopedProjects = useMemo(
-    () => projects.filter((project) => canAccessProjectForRole(role, project.id)),
+    () => (role ? projects.filter((project) => canAccessProjectForRole(role, project.id)) : []),
     [projects, role],
   )
 
   useEffect(() => {
     let active = true
+    setSadddStatus('loading')
+    setSadddAggregates([])
+
+    if (!role) {
+      setSadddStatus('error')
+      return () => {
+        active = false
+      }
+    }
 
     void pathwaysClient
       .getBeneficiarySadddAggregatesForRole(role)
       .then((aggregates) => {
         if (active) {
           setSadddAggregates(aggregates)
+          setSadddStatus('ready')
         }
       })
       .catch(() => {
         if (active) {
           setSadddAggregates([])
+          setSadddStatus('error')
         }
       })
 
@@ -102,12 +111,6 @@ export const AnalyticsDashboard = ({
       setProjectId(allValue)
     }
   }, [projectId, roleScopedProjects])
-
-  const refreshFilter = (update: () => void) => {
-    update()
-    setLoading(true)
-    window.setTimeout(() => setLoading(false), 240)
-  }
 
   const visibleProjects = useMemo(
     () =>
@@ -155,9 +158,9 @@ export const AnalyticsDashboard = ({
   const completedActivities = visibleActivities.filter(
     (activity) => activity.status === 'Completed',
   ).length
-  const canReviewAlerts = can(role, 'alerts.outcome.log')
-  const canViewRules = can(role, 'rules.view')
-  const canConfigureRules = can(role, 'rules.configure')
+  const canReviewAlerts = role ? can(role, 'alerts.outcome.log') : false
+  const canViewRules = role ? can(role, 'rules.view') : false
+  const canConfigureRules = role ? can(role, 'rules.configure') : false
 
   return (
     <div className="space-y-6">
@@ -199,10 +202,7 @@ export const AnalyticsDashboard = ({
       <section className="grid gap-3 rounded-lg border border-border bg-card p-5 shadow-sm md:grid-cols-2 xl:grid-cols-[1fr_240px_240px]">
         <div className="space-y-2">
           <span className="text-sm font-medium">Project filter</span>
-          <Select
-            value={projectId}
-            onValueChange={(value) => refreshFilter(() => setProjectId(value))}
-          >
+          <Select value={projectId} onValueChange={setProjectId}>
             <SelectTrigger aria-label="Project filter">
               <SelectValue />
             </SelectTrigger>
@@ -218,14 +218,12 @@ export const AnalyticsDashboard = ({
         </div>
         <div className="space-y-2">
           <span className="text-sm font-medium">Reporting period</span>
-          <Select value={period} onValueChange={(value) => refreshFilter(() => setPeriod(value))}>
+          <Select disabled value={period}>
             <SelectTrigger aria-label="Reporting period">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="Q1 2026">Q1 2026</SelectItem>
-              <SelectItem value="Q2 2026">Q2 2026</SelectItem>
-              <SelectItem value="July 2026">July 2026</SelectItem>
+              <SelectItem value={period}>{period}</SelectItem>
             </SelectContent>
           </Select>
         </div>
@@ -234,19 +232,15 @@ export const AnalyticsDashboard = ({
         </div>
       </section>
 
-      {loading ? (
-        <section className="rounded-lg border border-border bg-card p-8 shadow-sm">
-          <div className="grid gap-4 md:grid-cols-3">
-            {loadingKeys.map((key) => (
-              <div key={key} className="h-28 animate-pulse rounded-lg bg-muted" />
-            ))}
-          </div>
-        </section>
-      ) : visibleProjects.length === 0 ? (
+      {visibleProjects.length === 0 ? (
         <EmptyState
-          description="Adjust the project or reporting-period filter to show sample analysis data."
+          description={
+            role
+              ? 'Analytics will appear when project data are available for this scope.'
+              : 'A verified staff identity and role are required to load scoped analytics.'
+          }
           icon={BarChart3}
-          title="No analytics data for this filter"
+          title={role ? 'No analytics data for this filter' : 'Analytics access unavailable'}
         />
       ) : (
         <>
@@ -297,20 +291,40 @@ export const AnalyticsDashboard = ({
           />
 
           <section className="grid gap-6 xl:grid-cols-2">
-            <ChartPanel title="Project performance trend">
-              <ProjectPerformanceTrendChart projects={visibleProjects} />
+            <ChartPanel title="Current project performance">
+              <ProjectPerformanceChart projects={visibleProjects} />
             </ChartPanel>
             <ChartPanel title="Budget utilization">
-              <BudgetUtilizationChart budgets={visibleBudgets} projects={visibleProjects} />
+              {visibleBudgets.length > 0 ? (
+                <BudgetUtilizationChart budgets={visibleBudgets} projects={visibleProjects} />
+              ) : (
+                <ChartEmpty message="No budget data are available for this scope." />
+              )}
             </ChartPanel>
             <ChartPanel title="SADDD Analysis">
-              <SadddChart aggregates={visibleSadddAggregates} />
+              {sadddStatus === 'loading' ? (
+                <ChartEmpty message="Loading aggregate SADDD data..." />
+              ) : sadddStatus === 'error' ? (
+                <ChartEmpty message="Aggregate SADDD data could not be loaded." />
+              ) : visibleSadddAggregates.length > 0 ? (
+                <SadddChart aggregates={visibleSadddAggregates} />
+              ) : (
+                <ChartEmpty message="No aggregate SADDD data are available for this scope." />
+              )}
             </ChartPanel>
             <ChartPanel title="Activity completion">
-              <ActivityCompletionChart activities={visibleActivities} />
+              {visibleActivities.length > 0 ? (
+                <ActivityCompletionChart activities={visibleActivities} />
+              ) : (
+                <ChartEmpty message="No activity data are available for this scope." />
+              )}
             </ChartPanel>
             <ChartPanel title="Rule-Based Alerts">
-              <AlertCountsChart alerts={visibleAlerts} />
+              {visibleAlerts.length > 0 ? (
+                <AlertCountsChart alerts={visibleAlerts} />
+              ) : (
+                <ChartEmpty message="No Rule-Based Alerts are available for this scope." />
+              )}
             </ChartPanel>
           </section>
         </>
@@ -324,4 +338,10 @@ const ChartPanel = ({ title, children }: { title: string; children: React.ReactN
     <h2 className="text-lg font-semibold text-foreground">{title}</h2>
     <div className="mt-4">{children}</div>
   </section>
+)
+
+const ChartEmpty = ({ message }: { message: string }) => (
+  <div className="flex min-h-56 items-center justify-center rounded-lg border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
+    {message}
+  </div>
 )

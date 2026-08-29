@@ -69,7 +69,7 @@ const coverageSummary = (location: AnalyticsLocationInsight) => {
     case 'Limited':
       return 'Coverage remains limited and may need a site-readiness or delivery follow-up.'
     case 'Planned':
-      return 'This location is included in the plan, but delivery has not started in this prototype view.'
+      return 'This location is included in the plan, but delivery has not started.'
   }
 }
 
@@ -103,7 +103,7 @@ export const AnalyticsCoverageMap = ({
               <p className="text-xs font-semibold uppercase tracking-wide text-primary">
                 Location coverage
               </p>
-              <StatusBadge tone="neutral">Prototype map</StatusBadge>
+              <StatusBadge tone="neutral">Aggregate coverage</StatusBadge>
             </div>
             <h2
               className="text-2xl font-semibold tracking-tight text-foreground"
@@ -116,8 +116,8 @@ export const AnalyticsCoverageMap = ({
             </p>
           </div>
           <div className="rounded-lg border border-info/20 bg-info/10 p-3 text-xs leading-5 text-info lg:max-w-sm">
-            {period} prototype view. Points show approximate city-level locations only. Addresses
-            and Beneficiary-level locations are not shown.
+            {period}. Points show approximate city-level locations only. Addresses and
+            Beneficiary-level locations are not shown.
           </div>
         </div>
       </div>
@@ -305,7 +305,7 @@ const LocationDetailsDialog = ({
         </StatusBadge>
       </div>
       <DialogDescription>
-        {location.region} · {period} prototype summary
+        {location.region} · {period}
       </DialogDescription>
     </DialogHeader>
 
@@ -341,8 +341,8 @@ const LocationDetailsDialog = ({
     </div>
 
     <div className="rounded-lg border border-info/20 bg-info/10 p-3 text-xs leading-5 text-info">
-      Approximate city-level location. This prototype shows summary information only and does not
-      include addresses or Beneficiary-level locations.
+      Approximate city-level location. This view shows summary information only and does not include
+      addresses or Beneficiary-level locations.
     </div>
   </DialogContent>
 )

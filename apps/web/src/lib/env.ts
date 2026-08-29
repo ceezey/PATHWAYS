@@ -14,9 +14,6 @@ export const webEnv = readWebEnv({
   NEXT_PUBLIC_SUPABASE_ANON_KEY:
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? suppliedSupabasePublishableKey,
   NEXT_PUBLIC_API_BASE_URL: process.env.NEXT_PUBLIC_API_BASE_URL,
-  NEXT_PUBLIC_ENABLE_DEV_AUTH_BYPASS: process.env.NEXT_PUBLIC_ENABLE_DEV_AUTH_BYPASS,
-  NEXT_PUBLIC_ENABLE_GUI_PROTOTYPE_MODE: process.env.NEXT_PUBLIC_ENABLE_GUI_PROTOTYPE_MODE,
-  NEXT_PUBLIC_ENABLE_ROLE_PREVIEW: process.env.NEXT_PUBLIC_ENABLE_ROLE_PREVIEW,
   NEXT_PUBLIC_SENTRY_DSN: process.env.NEXT_PUBLIC_SENTRY_DSN,
   STAFF_PORTAL_BASE_URL: process.env.STAFF_PORTAL_BASE_URL,
   WEB_PORT: process.env.WEB_PORT,
@@ -30,8 +27,5 @@ export const webSupabasePublishableKey =
 export const webSetupState = {
   supabaseConfigured:
     Boolean(webEnv.NEXT_PUBLIC_SUPABASE_URL) && Boolean(webSupabasePublishableKey),
-  authBypassEnabled: webEnv.NEXT_PUBLIC_ENABLE_DEV_AUTH_BYPASS,
-  guiPrototypeModeEnabled: webEnv.NEXT_PUBLIC_ENABLE_GUI_PROTOTYPE_MODE,
-  rolePreviewEnabled: webEnv.NEXT_PUBLIC_ENABLE_ROLE_PREVIEW,
   sentryEnabled: Boolean(webEnv.NEXT_PUBLIC_SENTRY_DSN),
 }

@@ -1,7 +1,5 @@
 import { describe, expect, it } from 'vitest'
 
-import { mockBudgets, mockExpenses } from '@/mocks/pathways'
-
 import {
   addIndicatorSchema,
   calculateExpenseTotal,
@@ -14,7 +12,7 @@ describe('phase five workspace utilities', () => {
   it('validates add-indicator inputs', () => {
     const result = addIndicatorSchema.safeParse({
       code: 'NEW-IND',
-      label: 'New prototype indicator',
+      label: 'New indicator',
       baseline: 0,
       target: 100,
       actual: 25,
@@ -35,7 +33,7 @@ describe('phase five workspace utilities', () => {
       {
         id: 'expense-a',
         projectId: 'project-a',
-        description: 'Prototype expense',
+        description: 'Venue expense',
         amount: 125,
         submitter: 'Project Officer A',
         submittedDate: '2026-07-05',
@@ -46,7 +44,7 @@ describe('phase five workspace utilities', () => {
       {
         id: 'expense-b',
         projectId: 'project-a',
-        description: 'Second prototype expense',
+        description: 'Travel expense',
         amount: 75,
         submitter: 'Project Officer A',
         submittedDate: '2026-07-05',
@@ -60,16 +58,8 @@ describe('phase five workspace utilities', () => {
     expect(calculateRemainingBudget(500, total)).toBe(300)
   })
 
-  it('keeps visible mock expense ledgers aligned with budget actual spending', () => {
-    for (const budget of mockBudgets) {
-      const expenseTotal = calculateExpenseTotal(
-        mockExpenses.filter((expense) => expense.projectId === budget.projectId),
-      )
-
-      expect(expenseTotal).toBe(budget.actualSpending)
-      expect(calculateRemainingBudget(budget.plannedAmount, expenseTotal)).toBe(
-        budget.plannedAmount - budget.actualSpending,
-      )
-    }
+  it('handles an empty expense ledger without inventing spending', () => {
+    expect(calculateExpenseTotal([])).toBe(0)
+    expect(calculateRemainingBudget(500, calculateExpenseTotal([]))).toBe(500)
   })
 })

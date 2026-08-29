@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest'
 
 import { canAccessProjectForRole } from '@/lib/rbac/data-scope'
-import { mockSurveyAggregateResults, mockSurveyForms } from '@/mocks/pathways'
-import type { PrototypeRole } from '@/types/prototype-role'
+import type { SurveyAggregateResultSet, SurveyFormDefinition } from '@/types/pathways'
+import type { PathwaysRole } from '@/types/pathways-role'
 
 import {
   buildSurveyReportRows,
@@ -15,26 +15,159 @@ import {
   getSurveyResponseDates,
 } from './survey-report-utils'
 
+// These compact records are isolated to tests and are never bundled as runtime fallback data.
+const testSurveyForms: SurveyFormDefinition[] = [
+  {
+    id: 'form-alpha',
+    title: 'Training Feedback',
+    formType: 'Training Survey',
+    programName: 'Program Alpha',
+    projectId: 'project-alpha',
+    journeyStageId: 'stage-alpha',
+    activityId: 'activity-alpha',
+    source: 'Metadata-driven Collection import',
+    fields: [
+      {
+        id: 'field-confidence',
+        label: 'Confidence after training',
+        responseType: 'Single select',
+        metadataKey: 'training_confidence',
+        required: true,
+        options: ['Confident', 'Needs support'],
+      },
+      {
+        id: 'field-score',
+        label: 'Knowledge score',
+        responseType: 'Numeric score',
+        metadataKey: 'knowledge_score',
+        required: true,
+        minimum: 0,
+        maximum: 100,
+      },
+    ],
+  },
+  {
+    id: 'form-beta',
+    title: 'Readiness Check',
+    formType: 'Pre/Post Assessment',
+    programName: 'Program Beta',
+    projectId: 'project-beta',
+    fields: [
+      {
+        id: 'field-readiness',
+        label: 'Activity readiness',
+        responseType: 'Single select',
+        metadataKey: 'activity_readiness',
+        required: true,
+        options: ['Ready', 'Needs support'],
+      },
+    ],
+    source: 'Metadata-driven Collection import',
+  },
+]
+
+const testSurveyResults: SurveyAggregateResultSet[] = [
+  {
+    id: 'result-alpha',
+    formId: 'form-alpha',
+    projectId: 'project-alpha',
+    location: 'City Alpha',
+    responseDate: '2026-07-15',
+    reportingPeriod: '2026 Q3',
+    responseCount: 10,
+    source: 'Synthetic aggregate mock',
+    questionResults: [
+      {
+        fieldId: 'field-confidence',
+        kind: 'Categorical distribution',
+        responseCount: 10,
+        values: [
+          { label: 'Confident', count: 6 },
+          { label: 'Needs support', count: 4 },
+        ],
+      },
+      {
+        fieldId: 'field-score',
+        kind: 'Numeric summary',
+        responseCount: 10,
+        average: 82,
+        minimum: 55,
+        maximum: 100,
+        scaleLabel: 'out of 100',
+      },
+    ],
+    demographicBreakdowns: [
+      {
+        dimension: 'Sex',
+        values: [
+          { label: 'Female', count: 5 },
+          { label: 'Male', count: 5 },
+        ],
+      },
+    ],
+  },
+  {
+    id: 'result-beta',
+    formId: 'form-beta',
+    projectId: 'project-beta',
+    location: 'City Beta',
+    responseDate: '2026-06-28',
+    reportingPeriod: '2026 Q2',
+    responseCount: 10,
+    source: 'Synthetic aggregate mock',
+    questionResults: [
+      {
+        fieldId: 'field-readiness',
+        kind: 'Categorical distribution',
+        responseCount: 10,
+        values: [
+          { label: 'Ready', count: 5 },
+          { label: 'Needs support', count: 5 },
+        ],
+      },
+    ],
+    demographicBreakdowns: [
+      {
+        dimension: 'Age group',
+        values: [
+          { label: '15-17', count: 5 },
+          { label: '18-24', count: 5 },
+        ],
+      },
+    ],
+  },
+]
+
 describe('survey report helpers', () => {
+  const assignedProjectIds: Partial<Record<PathwaysRole, readonly string[]>> = {
+    'Project Manager': ['project-alpha'],
+    'Project Officer': ['project-alpha'],
+    'Monitoring and Evaluation Officer': ['project-alpha', 'project-beta'],
+  }
+
   it.each([
-    ['Project Manager', ['futuremakers-ncr']],
-    ['Project Officer', ['futuremakers-ncr']],
-    ['Monitoring and Evaluation Officer', ['futuremakers-ncr']],
-    ['Program Manager', ['futuremakers-ncr', 'youth-rise-western-samar']],
-    ['Grant Manager', ['futuremakers-ncr', 'youth-rise-western-samar']],
-    ['System Administrator', ['futuremakers-ncr', 'youth-rise-western-samar']],
+    ['Project Manager', ['project-alpha']],
+    ['Project Officer', ['project-alpha']],
+    ['Monitoring and Evaluation Officer', ['project-alpha', 'project-beta']],
+    ['Program Manager', ['project-alpha', 'project-beta']],
+    ['Grant Manager', ['project-alpha', 'project-beta']],
+    ['System Administrator', ['project-alpha', 'project-beta']],
   ] as const)('limits %s Survey/Form filters to visible project scope', (role, expectedIds) => {
     const visibleFormProjectIds = [
       ...new Set(
-        mockSurveyForms
-          .filter((form) => canAccessProjectForRole(role as PrototypeRole, form.projectId))
+        testSurveyForms
+          .filter((form) =>
+            canAccessProjectForRole(role, form.projectId, assignedProjectIds[role] ?? []),
+          )
           .map((form) => form.projectId),
       ),
     ]
     const visibleResultProjectIds = [
       ...new Set(
-        mockSurveyAggregateResults
-          .filter((result) => canAccessProjectForRole(role as PrototypeRole, result.projectId))
+        testSurveyResults
+          .filter((result) =>
+            canAccessProjectForRole(role, result.projectId, assignedProjectIds[role] ?? []),
+          )
           .map((result) => result.projectId),
       ),
     ]
@@ -44,68 +177,55 @@ describe('survey report helpers', () => {
   })
 
   it('derives internally connected filter options from form metadata and result sets', () => {
-    expect(getSurveyPrograms(mockSurveyForms)).toEqual(['FutureMakers', 'Youth RISE'])
-    expect(getSurveyProjectIds(mockSurveyForms, 'FutureMakers')).toEqual(['futuremakers-ncr'])
+    expect(getSurveyPrograms(testSurveyForms)).toEqual(['Program Alpha', 'Program Beta'])
+    expect(getSurveyProjectIds(testSurveyForms, 'Program Alpha')).toEqual(['project-alpha'])
     expect(
-      getSurveyFormsForProject(mockSurveyForms, 'FutureMakers', 'futuremakers-ncr').map(
+      getSurveyFormsForProject(testSurveyForms, 'Program Alpha', 'project-alpha').map(
         (form) => form.title,
       ),
-    ).toEqual(['Life Skills Training Survey'])
-    expect(getSurveyLocations(mockSurveyAggregateResults, 'form-life-skills-training')).toEqual([
-      'Navotas',
-      'Quezon City',
+    ).toEqual(['Training Feedback'])
+    expect(getSurveyLocations(testSurveyResults, 'form-alpha')).toEqual(['City Alpha'])
+    expect(getSurveyResponseDates(testSurveyResults, 'form-alpha', 'City Alpha')).toEqual([
+      '2026-07-15',
     ])
-    expect(
-      getSurveyResponseDates(mockSurveyAggregateResults, 'form-life-skills-training', 'Navotas'),
-    ).toEqual(['2026-07-15'])
   })
 
-  it('resolves the required Life Skills, FutureMakers, Navotas, and exact-date scenario', () => {
-    const form = mockSurveyForms[0]
-    const selection = getFirstSurveySelection(form.id, mockSurveyAggregateResults)
-    const result = findSurveyResult(mockSurveyAggregateResults, selection)
+  it('selects and resolves the first connected aggregate result', () => {
+    const selection = getFirstSurveySelection('form-alpha', testSurveyResults)
+    const result = findSurveyResult(testSurveyResults, selection)
 
-    expect(form).toMatchObject({
-      title: 'Life Skills Training Survey',
-      programName: 'FutureMakers',
-      projectId: 'futuremakers-ncr',
-      journeyStageId: 'stage-vocational',
-      activityId: 'act-fm-02',
-    })
     expect(selection).toEqual({
-      formId: 'form-life-skills-training',
-      location: 'Navotas',
+      formId: 'form-alpha',
+      location: 'City Alpha',
       responseDate: '2026-07-15',
     })
-    expect(result).toMatchObject({ reportingPeriod: '2026 Q3', responseCount: 40 })
+    expect(result).toMatchObject({ reportingPeriod: '2026 Q3', responseCount: 10 })
   })
 
   it('builds aggregate question rows without Beneficiary identity fields', () => {
-    const form = mockSurveyForms[0]
-    const result = mockSurveyAggregateResults[0]
-    const rows = buildSurveyReportRows(form, result)
+    const rows = buildSurveyReportRows(testSurveyForms[0], testSurveyResults[0])
 
     expect(rows).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
-          question: 'Confidence applying life skills',
+          question: 'Confidence after training',
           resultType: 'Categorical distribution',
-          responses: 40,
+          responses: 10,
         }),
         expect.objectContaining({
-          question: 'Life skills knowledge score',
+          question: 'Knowledge score',
           summary: 'Average 82 out of 100; range 55-100',
         }),
       ]),
     )
-    expect(
-      JSON.stringify({ forms: mockSurveyForms, results: mockSurveyAggregateResults }),
-    ).not.toMatch(/beneficiaryId|beneficiaryCode|firstName|lastName|birthDate|barangay/i)
+    expect(JSON.stringify({ forms: testSurveyForms, results: testSurveyResults })).not.toMatch(
+      /beneficiaryId|beneficiaryCode|firstName|lastName|birthDate|barangay/i,
+    )
   })
 
   it('keeps aggregate counts and metadata relationships internally consistent', () => {
-    for (const result of mockSurveyAggregateResults) {
-      const form = mockSurveyForms.find((candidate) => candidate.id === result.formId)
+    for (const result of testSurveyResults) {
+      const form = testSurveyForms.find((candidate) => candidate.id === result.formId)
 
       expect(form?.projectId).toBe(result.projectId)
       for (const question of result.questionResults) {
@@ -128,12 +248,12 @@ describe('survey report helpers', () => {
 
   it('returns an empty report when no aggregate result matches', () => {
     expect(
-      findSurveyResult(mockSurveyAggregateResults, {
-        formId: 'form-life-skills-training',
-        location: 'Navotas',
+      findSurveyResult(testSurveyResults, {
+        formId: 'form-alpha',
+        location: 'City Alpha',
         responseDate: '2025-01-01',
       }),
     ).toBeUndefined()
-    expect(buildSurveyReportRows(mockSurveyForms[0], undefined)).toEqual([])
+    expect(buildSurveyReportRows(testSurveyForms[0], undefined)).toEqual([])
   })
 })

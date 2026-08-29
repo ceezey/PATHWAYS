@@ -26,7 +26,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { pathwaysClient } from '@/lib/services/mock-pathways-client'
+import { pathwaysClient } from '@/lib/services/pathways-client'
 import type { Activity, ActivityStatus, Indicator, UserRecord } from '@/types/pathways'
 
 import { type ActivityFormSchema, activityFormSchema } from './activity-form-validation'
@@ -45,9 +45,9 @@ const defaultValues: ActivityFormSchema = {
   dueDate: '',
   targetBeneficiaries: 1,
   budgetAllocation: 1,
-  assignedOfficers: 'Project Officer A',
-  connectedIndicators: 'ind-fm-01',
-  journeyStageId: 'stage-entry',
+  assignedOfficers: '',
+  connectedIndicators: '',
+  journeyStageId: '',
   status: 'Planned',
   progress: 0,
   beneficiariesReached: 0,
@@ -102,13 +102,11 @@ export const ActivityFormDialog = ({
 
     form.reset({
       ...defaultValues,
-      connectedIndicators: indicators[0]?.id ?? defaultValues.connectedIndicators,
+      connectedIndicators: indicators[0]?.id ?? '',
     })
   }, [activity, form, indicators, open])
 
   const onSubmit = async (values: ActivityFormSchema) => {
-    // TODO(RBAC): Enforce create, edit, review, and approval permissions.
-    // TODO(ALERTS): Recalculate overdue and progress alerts server-side.
     const assignedTo = splitValues(values.assignedOfficers)
     const indicatorIds = splitValues(values.connectedIndicators)
 
@@ -144,14 +142,12 @@ export const ActivityFormDialog = ({
             journeyStageId: values.journeyStageId,
           })
 
-      toast.success(activity ? 'Activity updated.' : 'Activity created.', {
-        description: `${savedActivity.title} is available in this prototype session.`,
-      })
+      toast.success(activity ? 'Activity updated.' : 'Activity created.')
       onCreatedOrUpdated(savedActivity)
       onOpenChange(false)
     } catch {
-      toast.error('Activity could not be saved.', {
-        description: 'Keep the dialog open and try again.',
+      toast.error('Activity saving is not configured.', {
+        description: 'Your draft remains open. Connect the Activities backend to save it.',
       })
     }
   }
@@ -169,7 +165,7 @@ export const ActivityFormDialog = ({
     <Dialog onOpenChange={onOpenChange} open={open}>
       <DialogShell
         title={activity ? 'Edit activity' : 'Create activity'}
-        description="Save a temporary activity for this project workspace demonstration."
+        description="Complete the activity fields for submission to the project workspace."
       >
         <Form {...form}>
           <form
@@ -333,11 +329,11 @@ export const ActivityFormDialog = ({
                   <FormItem className="lg:col-span-2">
                     <FormLabel>Assigned officers</FormLabel>
                     <FormControl>
-                      <Input placeholder="Project Officer A, Project Officer B" {...field} />
+                      <Input placeholder="Enter assigned staff separated by commas" {...field} />
                     </FormControl>
                     <FormDescription>
-                      Separate names with commas. Available prototype officers:{' '}
-                      {projectOfficerNames || 'Project Officer A'}.
+                      Separate names with commas. Available project officers:{' '}
+                      {projectOfficerNames || 'No project officers are available yet'}.
                     </FormDescription>
                     <FormMessage />
                   </FormItem>

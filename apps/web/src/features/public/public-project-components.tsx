@@ -42,8 +42,10 @@ export const PublicHomeDashboard = ({ projects }: { projects: PublicProjectRecor
             </div>
             <ShieldCheck className="h-5 w-5 text-teal-700" aria-hidden="true" />
           </div>
-          {projects.length > 0 ? (
-            <PublicPortfolioChart projects={projects} />
+          {projects.some((project) => project.selectedIndicators.length > 0) ? (
+            <PublicPortfolioChart
+              projects={projects.filter((project) => project.selectedIndicators.length > 0)}
+            />
           ) : (
             <div className="flex min-h-56 items-center justify-center rounded-md bg-slate-50 p-6 text-center">
               <p className="max-w-xs text-sm leading-6 text-slate-600">
@@ -122,7 +124,14 @@ const PublicProjectCards = ({ projects }: { projects: PublicProjectRecord[] }) =
           <p className="text-sm leading-6 text-slate-600">{project.approvedSummary}</p>
           <div className="grid gap-3 text-sm sm:grid-cols-2">
             <Metric label="Area" value={project.area} />
-            <Metric label="Progress" value={`${project.progressTrend.at(-1) ?? 0}%`} />
+            <Metric
+              label="Progress"
+              value={
+                project.progressTrend.length > 0
+                  ? `${project.progressTrend.at(-1)}%`
+                  : 'Not available'
+              }
+            />
           </div>
           <Button asChild className="w-full sm:w-auto">
             <Link href={`/public/projects/${project.id}`}>

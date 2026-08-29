@@ -23,7 +23,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { usePrototypeLabels } from '@/hooks/use-prototype-labels'
+import { useDisplayLabels } from '@/hooks/use-display-labels'
 import type {
   Activity,
   JourneyStageConfig,
@@ -47,7 +47,7 @@ export const JourneyStagesWorkspace = ({
   activities,
   initialStages,
 }: JourneyStagesWorkspaceProps) => {
-  const { labels } = usePrototypeLabels()
+  const { labels } = useDisplayLabels()
   const [stages, setStages] = useState(initialStages)
   const [selectedStageId, setSelectedStageId] = useState(initialStages[0]?.id ?? '')
   const [saveOpen, setSaveOpen] = useState(false)
@@ -78,19 +78,21 @@ export const JourneyStagesWorkspace = ({
   const addStage = () => {
     const nextOrder = Math.max(0, ...stages.map((stage) => stage.order)) + 1
     const nextStage: JourneyStageConfig = {
-      id: `stage-prototype-${Date.now().toString(36)}`,
+      id: `draft-stage-${Date.now().toString(36)}`,
       projectId: project.id,
       code: `J${nextOrder}`,
-      name: 'New prototype stage',
+      name: 'New draft stage',
       order: nextOrder,
       type: 'Core',
       terminal: false,
       mappedActivityIds: [],
-      description: 'Draft stage created in the local prototype.',
+      description: 'Unsaved stage draft.',
     }
     setStages((current) => [...current, nextStage])
     setSelectedStageId(nextStage.id)
-    toast.info('Prototype stage added.')
+    toast.info('Draft stage added.', {
+      description: 'This change is unsaved and has not updated the project record.',
+    })
   }
 
   const toggleActivity = (activityId: string) => {
@@ -106,10 +108,9 @@ export const JourneyStagesWorkspace = ({
   }
 
   const saveConfiguration = () => {
-    // TODO(DATABASE): Load configurable stages and activity-stage mappings.
     setSaveOpen(false)
-    toast.success('Journey-stage configuration saved locally.', {
-      description: 'This demonstration keeps the changes in your current browser session only.',
+    toast.error('Journey-stage configuration was not saved.', {
+      description: 'The project configuration backend is not configured. Your draft remains.',
     })
   }
 
@@ -372,19 +373,21 @@ export const JourneyStagesWorkspace = ({
           <DialogHeader>
             <DialogTitle>Save journey-stage configuration</DialogTitle>
             <DialogDescription>
-              Confirm these changes for the current browser session. Shared project records are not
-              changed.
+              The project configuration backend is not connected, so this draft cannot update the
+              shared project record.
             </DialogDescription>
           </DialogHeader>
           <div className="rounded-lg border border-border bg-muted/40 p-4 text-sm">
             <p className="font-medium text-foreground">{project.title}</p>
-            <p className="mt-1 text-muted-foreground">{stages.length} stages configured locally.</p>
+            <p className="mt-1 text-muted-foreground">
+              {stages.length} stages in this unsaved draft.
+            </p>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setSaveOpen(false)}>
               Cancel
             </Button>
-            <Button onClick={saveConfiguration}>Confirm save</Button>
+            <Button onClick={saveConfiguration}>Attempt save</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

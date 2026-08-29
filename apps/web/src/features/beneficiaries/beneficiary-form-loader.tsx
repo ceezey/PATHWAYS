@@ -6,30 +6,37 @@ import { useEffect, useState } from 'react'
 
 import { EmptyState } from '@/components/pathways/empty-state'
 import { Button } from '@/components/ui/button'
-import { usePrototypeRole } from '@/hooks/use-prototype-role'
-import { pathwaysClient } from '@/lib/services/mock-pathways-client'
+import { useCurrentRole } from '@/hooks/use-current-role'
+import { pathwaysClient } from '@/lib/services/pathways-client'
 import type { ProjectSummary } from '@/types/pathways'
 
 import { BeneficiaryForm } from './beneficiary-form'
 
 export const BeneficiaryFormLoader = () => {
-  const { role } = usePrototypeRole()
-  const [projects, setProjects] = useState<ProjectSummary[] | null>(null)
+  const { role } = useCurrentRole()
+  const [state, setState] = useState<
+    { status: 'loading' } | { status: 'ready'; projects: ProjectSummary[] } | { status: 'failed' }
+  >({ status: 'loading' })
 
   useEffect(() => {
     let active = true
-    setProjects(null)
+    setState({ status: 'loading' })
+
+    if (!role) {
+      setState({ status: 'failed' })
+      return
+    }
 
     void pathwaysClient
       .getProjectsForRole(role)
       .then((nextProjects) => {
         if (active) {
-          setProjects(nextProjects)
+          setState({ status: 'ready', projects: nextProjects })
         }
       })
       .catch(() => {
         if (active) {
-          setProjects([])
+          setState({ status: 'failed' })
         }
       })
 
@@ -38,7 +45,7 @@ export const BeneficiaryFormLoader = () => {
     }
   }, [role])
 
-  if (projects === null) {
+  if (state.status === 'loading') {
     return (
       <div
         aria-live="polite"
@@ -49,11 +56,28 @@ export const BeneficiaryFormLoader = () => {
     )
   }
 
+  if (state.status === 'failed') {
+    return (
+      <div className="space-y-4 rounded-lg border border-border bg-card p-8 text-center">
+        <EmptyState
+          description="Project choices could not be loaded. The beneficiary backend integration may not be configured."
+          icon={FolderLock}
+          title="Project choices unavailable"
+        />
+        <Button asChild>
+          <Link href="/beneficiaries">Back to Beneficiaries</Link>
+        </Button>
+      </div>
+    )
+  }
+
+  const { projects } = state
+
   if (projects.length === 0) {
     return (
       <div className="space-y-4 rounded-lg border border-border bg-card p-8 text-center">
         <EmptyState
-          description="No projects are assigned to this prototype role, so a Beneficiary enrollment preview cannot be started."
+          description="No projects were returned for your authenticated role. The project integration may not be configured, or no projects are assigned."
           icon={FolderLock}
           title="No assigned projects available"
         />

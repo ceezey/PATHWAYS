@@ -2,7 +2,6 @@
 
 import { ArrowLeft, Save } from 'lucide-react'
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
 import { useMemo, useState } from 'react'
 import { toast } from 'sonner'
 
@@ -47,8 +46,8 @@ type BeneficiaryDraft = {
 }
 
 const initialDraft: BeneficiaryDraft = {
-  code: 'BEN-PROT-',
-  firstName: 'Beneficiary',
+  code: '',
+  firstName: '',
   middleName: '',
   lastName: '',
   sex: '',
@@ -66,7 +65,6 @@ const initialDraft: BeneficiaryDraft = {
 }
 
 export const BeneficiaryForm = ({ projects }: { projects: ProjectSummary[] }) => {
-  const router = useRouter()
   const [draft, setDraft] = useState<BeneficiaryDraft>(initialDraft)
   const [submitted, setSubmitted] = useState(false)
   const [confirmOpen, setConfirmOpen] = useState(false)
@@ -74,7 +72,7 @@ export const BeneficiaryForm = ({ projects }: { projects: ProjectSummary[] }) =>
   const errors = useMemo(() => {
     const nextErrors: string[] = []
 
-    if (!draft.code.trim() || draft.code.trim() === 'BEN-PROT-') {
+    if (!draft.code.trim()) {
       nextErrors.push('Beneficiary code is required.')
     }
     if (!draft.firstName.trim() || !draft.lastName.trim()) {
@@ -96,7 +94,7 @@ export const BeneficiaryForm = ({ projects }: { projects: ProjectSummary[] }) =>
       nextErrors.push('Project enrollment is required.')
     }
     if (!draft.consentToParticipate || !draft.consentToStoreData) {
-      nextErrors.push('Consent flags must be confirmed for this prototype.')
+      nextErrors.push('Consent flags must be confirmed.')
     }
     if (draft.isMinor && !draft.guardianConsent) {
       nextErrors.push('Guardian consent is required when the beneficiary is marked as a minor.')
@@ -124,12 +122,10 @@ export const BeneficiaryForm = ({ projects }: { projects: ProjectSummary[] }) =>
   }
 
   const confirmSave = () => {
-    // TODO(BACKEND): Save beneficiary profile and enrollments.
     setConfirmOpen(false)
-    toast.success('Beneficiary profile preview completed.', {
-      description: 'No shared Beneficiary record was created.',
+    toast.error('Beneficiary profile was not saved.', {
+      description: 'The beneficiary backend integration is not configured. Your draft remains.',
     })
-    router.push('/beneficiaries')
   }
 
   return (
@@ -137,16 +133,16 @@ export const BeneficiaryForm = ({ projects }: { projects: ProjectSummary[] }) =>
       <section className="flex flex-col gap-4 rounded-lg border border-border bg-card p-5 shadow-sm md:flex-row md:items-start md:justify-between">
         <div className="space-y-2">
           <div className="flex flex-wrap gap-2">
-            <StatusBadge tone="neutral">Safe sample entry</StatusBadge>
-            <StatusBadge tone="warning">Preview only</StatusBadge>
+            <StatusBadge tone="neutral">Unsaved draft</StatusBadge>
+            <StatusBadge tone="warning">Backend not configured</StatusBadge>
           </div>
           <div>
             <h1 className="text-3xl font-semibold tracking-tight text-foreground">
               Add beneficiary
             </h1>
             <p className="mt-2 max-w-3xl text-sm leading-6 text-muted-foreground">
-              Create a coded prototype profile with consent and project enrollment fields. Use
-              non-identifying placeholder details only.
+              Prepare a coded profile with consent and project enrollment fields. Submission stays
+              disabled until the beneficiary backend is connected.
             </p>
           </div>
         </div>
@@ -163,7 +159,7 @@ export const BeneficiaryForm = ({ projects }: { projects: ProjectSummary[] }) =>
           <div>
             <h2 className="text-lg font-semibold text-foreground">Profile information</h2>
             <p className="text-sm text-muted-foreground">
-              Required fields are checked in this browser before confirmation.
+              Required fields are checked before submission.
             </p>
           </div>
 
@@ -321,7 +317,7 @@ export const BeneficiaryForm = ({ projects }: { projects: ProjectSummary[] }) =>
         </section>
 
         <aside className="space-y-4 rounded-lg border border-border bg-card p-5 shadow-sm">
-          <h2 className="text-lg font-semibold text-foreground">Prototype preview</h2>
+          <h2 className="text-lg font-semibold text-foreground">Draft preview</h2>
           <div className="space-y-3 text-sm">
             <PreviewRow label="Code" value={draft.code || 'Pending'} />
             <PreviewRow
@@ -344,8 +340,8 @@ export const BeneficiaryForm = ({ projects }: { projects: ProjectSummary[] }) =>
             />
           </div>
           <p className="rounded-lg border border-warning/30 bg-warning/10 p-3 text-xs leading-5 text-warning">
-            This preview uses the current form only and must not include real or identifiable
-            Beneficiary data.
+            This is an unsaved draft. Do not enter real or identifiable beneficiary data until the
+            approved storage integration is configured.
           </p>
         </aside>
       </div>
@@ -353,9 +349,9 @@ export const BeneficiaryForm = ({ projects }: { projects: ProjectSummary[] }) =>
       <Dialog open={confirmOpen} onOpenChange={setConfirmOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Confirm prototype beneficiary profile</DialogTitle>
+            <DialogTitle>Submit beneficiary profile</DialogTitle>
             <DialogDescription>
-              Complete this coded profile preview. No shared Beneficiary record will be created.
+              The beneficiary write endpoint is not configured, so this draft cannot be saved.
             </DialogDescription>
           </DialogHeader>
           <div className="rounded-lg border border-border bg-muted/40 p-4 text-sm">
@@ -369,7 +365,7 @@ export const BeneficiaryForm = ({ projects }: { projects: ProjectSummary[] }) =>
               Cancel
             </Button>
             <Button onClick={confirmSave} type="button">
-              Complete preview
+              Attempt save
             </Button>
           </DialogFooter>
         </DialogContent>

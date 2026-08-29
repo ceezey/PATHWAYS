@@ -18,7 +18,7 @@ import {
 } from 'lucide-react'
 import Image from 'next/image'
 import Link from 'next/link'
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { toast } from 'sonner'
 
 import { ProgressBar } from '@/components/pathways/progress-bar'
@@ -51,7 +51,6 @@ import type {
 
 import {
   PUBLIC_DONATE_CTA_LABEL,
-  getPublicDashboardStorageKey,
   publicCtaDestinations,
   publicDashboardLayoutPresets,
   publicDashboardSections,
@@ -102,28 +101,6 @@ export const PublicProjectDetail = ({
   const [editorOpen, setEditorOpen] = useState(false)
   const [donationOpen, setDonationOpen] = useState(false)
   const [editorError, setEditorError] = useState('')
-  const [hydrated, setHydrated] = useState(!editable)
-
-  useEffect(() => {
-    if (!editable) {
-      setPresentation(defaults)
-      setDraft(defaults)
-      setHydrated(true)
-      return
-    }
-
-    try {
-      const stored = window.localStorage.getItem(getPublicDashboardStorageKey(project.id))
-
-      if (stored) {
-        setPresentation(sanitizePublicDashboardPresentation(JSON.parse(stored), defaults))
-      }
-    } catch {
-      setPresentation(defaults)
-    }
-
-    setHydrated(true)
-  }, [defaults, editable, project.id])
 
   const openEditor = () => {
     if (!editable) {
@@ -193,20 +170,13 @@ export const PublicProjectDetail = ({
 
     const normalized = sanitizePublicDashboardPresentation(draft, defaults)
 
-    try {
-      window.localStorage.setItem(
-        getPublicDashboardStorageKey(project.id),
-        JSON.stringify(normalized),
-      )
-      setPresentation(normalized)
-      setDraft(normalized)
-      setEditorOpen(false)
-      toast.success('Public prototype view updated.', {
-        description: 'The preview changed only in this browser and was not published.',
-      })
-    } catch {
-      setEditorError('This browser could not save the prototype view. Try again.')
-    }
+    setPresentation(normalized)
+    setDraft(normalized)
+    setEditorOpen(false)
+    toast.info('Unsaved staff preview updated.', {
+      description:
+        'Changes are temporary and reset when this page is reloaded. Nothing was published.',
+    })
   }
 
   const restoreDefaults = () => {
@@ -214,17 +184,12 @@ export const PublicProjectDetail = ({
       return
     }
 
-    try {
-      window.localStorage.removeItem(getPublicDashboardStorageKey(project.id))
-      setPresentation(defaults)
-      setDraft(defaults)
-      setEditorOpen(false)
-      toast.success('Default public layout restored.', {
-        description: `The approved ${project.title} presentation is visible again.`,
-      })
-    } catch {
-      setEditorError('This browser could not restore the default view. Try again.')
-    }
+    setPresentation(defaults)
+    setDraft(defaults)
+    setEditorOpen(false)
+    toast.info('Default public layout restored in this preview.', {
+      description: 'The change is temporary and was not published.',
+    })
   }
 
   const sectionContent: Record<PublicDashboardSectionId, React.ReactNode> = {
@@ -251,8 +216,8 @@ export const PublicProjectDetail = ({
                 aria-hidden="true"
               />
               <p className="leading-5">
-                <span className="font-semibold">Staff-only prototype preview.</span> Browser-local
-                changes are not published to the anonymous public page.
+                <span className="font-semibold">Staff-only unsaved preview.</span> Changes are
+                temporary, reset on reload, and are not published to the anonymous public page.
               </p>
             </div>
             <div className="flex flex-col gap-2 sm:flex-row">
@@ -262,13 +227,7 @@ export const PublicProjectDetail = ({
                   Back to project controls
                 </Link>
               </Button>
-              <Button
-                className="gap-2"
-                disabled={!hydrated}
-                onClick={openEditor}
-                size="sm"
-                type="button"
-              >
+              <Button className="gap-2" onClick={openEditor} size="sm" type="button">
                 <SlidersHorizontal className="h-4 w-4" aria-hidden="true" />
                 Edit staff preview
               </Button>
@@ -348,7 +307,14 @@ export const PublicProjectDetail = ({
           </div>
 
           <div className="mt-9 grid overflow-hidden rounded-xl border border-white/15 bg-slate-950/20 sm:grid-cols-3">
-            <HeroMetric label="Approved progress" value={`${project.progressTrend.at(-1) ?? 0}%`} />
+            <HeroMetric
+              label="Approved progress"
+              value={
+                project.progressTrend.length > 0
+                  ? `${project.progressTrend.at(-1)}%`
+                  : 'Not available'
+              }
+            />
             <HeroMetric
               label="Beneficiaries reached"
               value={project.beneficiariesReached.toLocaleString()}
@@ -413,13 +379,13 @@ export const PublicProjectDetail = ({
               <DialogTitle>Edit staff public-dashboard preview</DialogTitle>
               <DialogDescription>
                 Reorder approved sections and update public-facing presentation copy for{' '}
-                {project.title}. Changes stay in this staff browser and are not published.
+                {project.title}. Changes are temporary, reset on reload, and are not published.
               </DialogDescription>
             </DialogHeader>
 
             <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm leading-6 text-amber-950">
-              Use approved, non-sensitive project wording only. This prototype does not provide a
-              publishing workflow or access to internal records.
+              Use approved, non-sensitive project wording only. Publishing persistence is not
+              configured, and this preview does not expose internal records.
             </div>
 
             <div className="space-y-7 py-2">
@@ -591,8 +557,8 @@ export const PublicProjectDetail = ({
                   <div className="rounded-lg border border-teal-200 bg-teal-50 p-4 text-sm leading-6 text-teal-950">
                     <p className="font-semibold">Primary public CTA</p>
                     <p className="mt-1">
-                      {PUBLIC_DONATE_CTA_LABEL} remains fixed and opens a clearly labeled prototype
-                      donation notice until an approved external destination is supplied.
+                      {PUBLIC_DONATE_CTA_LABEL} remains fixed and opens a clearly labeled
+                      not-configured notice until an approved external destination is supplied.
                     </p>
                   </div>
                   <CtaEditor
@@ -624,7 +590,7 @@ export const PublicProjectDetail = ({
                 </Button>
                 <Button className="gap-2" onClick={savePresentation} type="button">
                   <Save className="h-4 w-4" aria-hidden="true" />
-                  Save prototype view
+                  Apply to unsaved preview
                 </Button>
               </div>
             </div>
@@ -637,11 +603,11 @@ export const PublicProjectDetail = ({
           <DialogHeader>
             <DialogTitle>Donate to {project.title}</DialogTitle>
             <DialogDescription>
-              This public prototype does not connect to a payment or fundraising service.
+              A payment or fundraising service is not configured for this public view.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
-            <StatusBadge tone="info">Prototype-only action</StatusBadge>
+            <StatusBadge tone="info">Integration not configured</StatusBadge>
             <p className="text-sm leading-6 text-muted-foreground">
               The organization-approved donation destination will be connected during a future
               deployment step. No payment details are requested or collected here.
@@ -728,13 +694,23 @@ const PublicMediaGallery = ({
   )
 
   if (approvedMedia.length === 0) {
-    return null
+    return (
+      <section aria-labelledby="public-media-title" className="space-y-5">
+        <PublicSectionHeading
+          description="Approved public media will appear here when it is available."
+          eyebrow="Approved public media"
+          id="public-media-title"
+          title="Project moments and places"
+        />
+        <PublicDataEmpty message="No approved public media are available for this project." />
+      </section>
+    )
   }
 
   return (
     <section aria-labelledby="public-media-title" className="space-y-5">
       <PublicSectionHeading
-        description="Only synthetic, non-identifying mock media cleared for this public prototype is shown."
+        description="Only approved, non-sensitive media cleared for public presentation are shown."
         eyebrow="Approved public media"
         id="public-media-title"
         title="Project moments and places"
@@ -799,7 +775,12 @@ const PublicProgress = ({ project }: { project: PublicProjectRecord }) => (
       title="Progress at a glance"
     />
     <div className="grid gap-4 md:grid-cols-3">
-      <DetailMetric label="Approved progress" value={`${project.progressTrend.at(-1) ?? 0}%`} />
+      <DetailMetric
+        label="Approved progress"
+        value={
+          project.progressTrend.length > 0 ? `${project.progressTrend.at(-1)}%` : 'Not available'
+        }
+      />
       <DetailMetric
         label="Beneficiaries reached"
         value={project.beneficiariesReached.toLocaleString()}
@@ -812,7 +793,11 @@ const PublicProgress = ({ project }: { project: PublicProjectRecord }) => (
         <p className="text-sm leading-6 text-slate-600">{project.budgetSummary}</p>
       </CardHeader>
       <CardContent>
-        <PublicProgressTrendChart project={project} />
+        {project.progressTrend.length > 0 ? (
+          <PublicProgressTrendChart project={project} />
+        ) : (
+          <PublicDataEmpty message="No approved progress trend is available yet." />
+        )}
       </CardContent>
     </Card>
   </section>
@@ -826,38 +811,44 @@ const PublicIndicators = ({ project }: { project: PublicProjectRecord }) => (
       id="public-indicators-title"
       title="Selected indicators"
     />
-    <div className="grid gap-5 lg:grid-cols-[0.9fr_1.1fr]">
-      <Card className="border-slate-200 shadow-sm">
-        <CardHeader>
-          <CardTitle>Indicator progress</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <PublicIndicatorChart project={project} />
-        </CardContent>
-      </Card>
-      <Card className="border-slate-200 shadow-sm">
-        <CardHeader>
-          <CardTitle>Approved indicator details</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          {project.selectedIndicators.map((indicator) => (
-            <article
-              className="space-y-3 rounded-lg border border-slate-200 p-4"
-              key={indicator.id}
-            >
-              <div className="flex flex-wrap items-start justify-between gap-2">
-                <p className="max-w-xl font-medium leading-6 text-slate-900">{indicator.label}</p>
-                <StatusBadge tone={indicatorTone(indicator.status)}>{indicator.status}</StatusBadge>
-              </div>
-              <ProgressBar label={indicator.label} tone="info" value={indicator.progress} />
-              <p className="text-xs text-slate-500">
-                {indicator.actualLabel} of {indicator.targetLabel}
-              </p>
-            </article>
-          ))}
-        </CardContent>
-      </Card>
-    </div>
+    {project.selectedIndicators.length > 0 ? (
+      <div className="grid gap-5 lg:grid-cols-[0.9fr_1.1fr]">
+        <Card className="border-slate-200 shadow-sm">
+          <CardHeader>
+            <CardTitle>Indicator progress</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <PublicIndicatorChart project={project} />
+          </CardContent>
+        </Card>
+        <Card className="border-slate-200 shadow-sm">
+          <CardHeader>
+            <CardTitle>Approved indicator details</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {project.selectedIndicators.map((indicator) => (
+              <article
+                className="space-y-3 rounded-lg border border-slate-200 p-4"
+                key={indicator.id}
+              >
+                <div className="flex flex-wrap items-start justify-between gap-2">
+                  <p className="max-w-xl font-medium leading-6 text-slate-900">{indicator.label}</p>
+                  <StatusBadge tone={indicatorTone(indicator.status)}>
+                    {indicator.status}
+                  </StatusBadge>
+                </div>
+                <ProgressBar label={indicator.label} tone="info" value={indicator.progress} />
+                <p className="text-xs text-slate-500">
+                  {indicator.actualLabel} of {indicator.targetLabel}
+                </p>
+              </article>
+            ))}
+          </CardContent>
+        </Card>
+      </div>
+    ) : (
+      <PublicDataEmpty message="No indicators have been approved for public presentation yet." />
+    )}
   </section>
 )
 
@@ -875,22 +866,26 @@ const PublicMilestones = ({ project }: { project: PublicProjectRecord }) => (
           <CardTitle>Public milestones</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          {project.milestones.map((milestone, index) => (
-            <article className="flex items-start gap-4" key={milestone.id}>
-              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-teal-50 text-sm font-semibold text-teal-800">
-                {index + 1}
-              </div>
-              <div className="min-w-0 flex-1 border-b border-slate-100 pb-4 last:border-0">
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <p className="font-medium text-slate-950">{milestone.title}</p>
-                  <StatusBadge tone={milestone.status === 'Completed' ? 'success' : 'info'}>
-                    {milestone.status}
-                  </StatusBadge>
+          {project.milestones.length > 0 ? (
+            project.milestones.map((milestone, index) => (
+              <article className="flex items-start gap-4" key={milestone.id}>
+                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-teal-50 text-sm font-semibold text-teal-800">
+                  {index + 1}
                 </div>
-                <p className="mt-1 text-sm text-slate-500">{milestone.dateLabel}</p>
-              </div>
-            </article>
-          ))}
+                <div className="min-w-0 flex-1 border-b border-slate-100 pb-4 last:border-0">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <p className="font-medium text-slate-950">{milestone.title}</p>
+                    <StatusBadge tone={milestone.status === 'Completed' ? 'success' : 'info'}>
+                      {milestone.status}
+                    </StatusBadge>
+                  </div>
+                  <p className="mt-1 text-sm text-slate-500">{milestone.dateLabel}</p>
+                </div>
+              </article>
+            ))
+          ) : (
+            <p className="text-sm text-slate-600">No public milestones are available yet.</p>
+          )}
         </CardContent>
       </Card>
       <Card className="border-slate-200 bg-teal-950 text-white shadow-sm">
@@ -899,12 +894,18 @@ const PublicMilestones = ({ project }: { project: PublicProjectRecord }) => (
         </CardHeader>
         <CardContent>
           <ul className="space-y-4">
-            {project.accomplishments.map((item) => (
-              <li className="flex gap-3 text-sm leading-7 text-teal-50" key={item}>
-                <BadgeCheck className="mt-1 h-5 w-5 shrink-0 text-teal-300" aria-hidden="true" />
-                <span>{item}</span>
+            {project.accomplishments.length > 0 ? (
+              project.accomplishments.map((item) => (
+                <li className="flex gap-3 text-sm leading-7 text-teal-50" key={item}>
+                  <BadgeCheck className="mt-1 h-5 w-5 shrink-0 text-teal-300" aria-hidden="true" />
+                  <span>{item}</span>
+                </li>
+              ))
+            ) : (
+              <li className="text-sm leading-7 text-teal-50">
+                No accomplishment highlights are available yet.
               </li>
-            ))}
+            )}
           </ul>
         </CardContent>
       </Card>
@@ -950,6 +951,12 @@ const DetailMetric = ({ label, value }: { label: string; value: string }) => (
       <p className="mt-2 text-xl font-semibold leading-7 text-slate-950">{value}</p>
     </CardContent>
   </Card>
+)
+
+const PublicDataEmpty = ({ message }: { message: string }) => (
+  <div className="flex min-h-32 items-center justify-center rounded-lg border border-dashed border-slate-300 bg-white p-6 text-center text-sm text-slate-600">
+    {message}
+  </div>
 )
 
 const EditorSection = ({

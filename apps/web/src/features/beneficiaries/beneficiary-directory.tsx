@@ -31,10 +31,9 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
-import { usePrototypeLabels } from '@/hooks/use-prototype-labels'
-import { usePrototypeRole } from '@/hooks/use-prototype-role'
+import { useCurrentRole } from '@/hooks/use-current-role'
+import { useDisplayLabels } from '@/hooks/use-display-labels'
 import { getAccessProfile } from '@/lib/rbac/can'
-import { scopeBeneficiariesForRole, scopeProjectsForRole } from '@/lib/rbac/data-scope'
 import type {
   Activity,
   BeneficiaryRecord,
@@ -66,20 +65,17 @@ export const BeneficiaryDirectory = ({
   activities,
   stages,
 }: BeneficiaryDirectoryProps) => {
-  const { labels } = usePrototypeLabels()
-  const { role } = usePrototypeRole()
-  const projectAccess = getAccessProfile(role).projectAccess
+  const { labels } = useDisplayLabels()
+  const { role } = useCurrentRole()
+  const projectAccess = role ? getAccessProfile(role).projectAccess : 'assigned-projects'
   const projectAccessLabel =
     projectAccess === 'assigned-projects'
       ? 'Assigned projects'
       : projectAccess === 'organization'
         ? 'All projects'
         : 'Portfolio view'
-  const scopedProjects = useMemo(() => scopeProjectsForRole(projects, role), [projects, role])
-  const scopedBeneficiaries = useMemo(
-    () => scopeBeneficiariesForRole(beneficiaries, role),
-    [beneficiaries, role],
-  )
+  const scopedProjects = projects
+  const scopedBeneficiaries = beneficiaries
   const [search, setSearch] = useState('')
   const [projectId, setProjectId] = useState(allValue)
   const [location, setLocation] = useState(allValue)
@@ -364,7 +360,9 @@ export const BeneficiaryDirectory = ({
                   colSpan={columns.length}
                   className="h-28 text-center text-muted-foreground"
                 >
-                  No Beneficiary records match the current search and filters.
+                  {beneficiaries.length === 0
+                    ? 'No beneficiary records were returned. The backend integration may not be configured, or no records are available to your role.'
+                    : 'No beneficiary records match the current search and filters.'}
                 </TableCell>
               </TableRow>
             )}
