@@ -27,8 +27,8 @@ import {
 } from '@/components/pathways'
 import { Button } from '@/components/ui/button'
 import { Dialog } from '@/components/ui/dialog'
+import { usePrototypeLabels } from '@/hooks/use-prototype-labels'
 import { usePrototypeRole } from '@/hooks/use-prototype-role'
-import { webSetupState } from '@/lib/env'
 import { pathwaysClient } from '@/lib/services/mock-pathways-client'
 import type {
   DashboardAction,
@@ -36,6 +36,9 @@ import type {
   DashboardSeverity,
   RoleDashboardViewModel,
 } from '@/types/pathways'
+import { getPrototypeRoleDisplayName } from '@/types/prototype-role'
+
+import { ExecutiveDashboard } from './executive-dashboard'
 
 const severityTone = (severity?: DashboardSeverity) => {
   if (severity === 'danger') {
@@ -127,7 +130,9 @@ const DashboardListItem = ({
 
 export const RoleDashboard = () => {
   const router = useRouter()
+  const { labels } = usePrototypeLabels()
   const { role } = usePrototypeRole()
+  const roleLabel = getPrototypeRoleDisplayName(role)
   const [dashboard, setDashboard] = useState<RoleDashboardViewModel | null>(null)
   const [status, setStatus] = useState<'loading' | 'success' | 'error'>('loading')
   const [activeAction, setActiveAction] = useState<DashboardAction | null>(null)
@@ -169,12 +174,23 @@ export const RoleDashboard = () => {
       toast.info(action.toastTitle ?? 'Prototype action', {
         description:
           action.toastDescription ??
-          'This action is available as a frontend prototype and is not persisted.',
+          'This demonstration keeps the update in your current browser session only.',
       })
       return
     }
 
     setActiveAction(action)
+  }
+
+  const acknowledgeDialogAction = () => {
+    if (!activeAction) {
+      return
+    }
+
+    toast.success('Preview completed.', {
+      description: `${activeAction.label} was demonstrated without changing shared records.`,
+    })
+    setActiveAction(null)
   }
 
   if (status === 'loading') {
@@ -192,7 +208,7 @@ export const RoleDashboard = () => {
     return (
       <EmptyState
         className="min-h-[360px] rounded-lg border border-border bg-card"
-        description="The dashboard service could not load the role-specific prototype data."
+        description="We could not load this dashboard right now. Reload the page to try again."
         icon={AlertTriangle}
         title="Dashboard data unavailable"
       />
@@ -206,38 +222,35 @@ export const RoleDashboard = () => {
   return (
     <>
       <PageHeader
-        eyebrow="Dashboard"
+        eyebrow={labels.moduleDashboard}
         title={dashboard.heading}
         description={dashboard.summary}
-        actions={
-          <div className="flex flex-wrap gap-2">
-            <StatusBadge tone={webSetupState.guiPrototypeModeEnabled ? 'info' : 'neutral'}>
-              {webSetupState.guiPrototypeModeEnabled ? 'Prototype mode' : 'Supabase mode'}
-            </StatusBadge>
-            <StatusBadge tone="neutral">{role}</StatusBadge>
-          </div>
-        }
+        actions={<StatusBadge tone="neutral">{roleLabel}</StatusBadge>}
       />
-      <section className="rounded-lg border border-border bg-card p-5">
-        <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-          <div className="space-y-1">
-            <p className="text-sm text-muted-foreground">Welcome back,</p>
-            <h2 className="text-2xl font-semibold tracking-tight text-foreground">
-              {dashboard.greetingName}
-            </h2>
-            <p className="text-sm leading-6 text-muted-foreground">
-              Prototype Role Preview controls this content and does not provide authorization.
-            </p>
+      {dashboard.executive ? (
+        <ExecutiveDashboard model={dashboard.executive} summaryAction={dashboard.primaryAction} />
+      ) : (
+        <section className="rounded-lg border border-border bg-card p-5">
+          <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+            <div className="space-y-1">
+              <p className="text-sm text-muted-foreground">Welcome back,</p>
+              <h2 className="text-2xl font-semibold tracking-tight text-foreground">
+                {dashboard.greetingName}
+              </h2>
+              <p className="text-sm leading-6 text-muted-foreground">
+                This view highlights the work and decisions most relevant to this role.
+              </p>
+            </div>
+            {dashboard.primaryAction ? (
+              <ActionButton
+                action={dashboard.primaryAction}
+                onAction={handleAction}
+                variant="default"
+              />
+            ) : null}
           </div>
-          {dashboard.primaryAction ? (
-            <ActionButton
-              action={dashboard.primaryAction}
-              onAction={handleAction}
-              variant="default"
-            />
-          ) : null}
-        </div>
-      </section>
+        </section>
+      )}
       {emptyDashboard ? (
         <EmptyState
           className="min-h-[260px] rounded-lg border border-border bg-card"
@@ -246,71 +259,109 @@ export const RoleDashboard = () => {
           title="No dashboard records"
         />
       ) : null}
-      {dashboard.metrics.length > 0 ? (
+      {!dashboard.executive && dashboard.metrics.length > 0 ? (
         <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
           {dashboard.metrics.map((metric, index) => {
             const Icon = metricIcons[index % metricIcons.length]
 
-            return (
+            const metricCard = (
               <MetricCard
-                key={metric.id}
                 description={metric.helperText}
                 icon={Icon}
+                key={metric.id}
                 label={metric.label}
                 tone={severityTone(metric.severity)}
                 value={String(metric.value)}
               />
             )
+
+            return metric.href ? (
+              <Link
+                className="rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                href={metric.href}
+                key={metric.id}
+              >
+                {metricCard}
+              </Link>
+            ) : (
+              <div key={metric.id}>{metricCard}</div>
+            )
           })}
         </section>
       ) : null}
-      <section className="grid gap-4 xl:grid-cols-2">
-        {dashboard.sections.map((section) => (
-          <SectionCard
-            key={section.id}
-            title={section.title}
-            description={section.description}
-            actions={
-              section.viewAllHref ? (
-                <Button asChild size="sm" variant="outline">
-                  <Link href={section.viewAllHref}>{section.viewAllLabel ?? 'View All'}</Link>
-                </Button>
-              ) : null
-            }
-          >
-            {section.items.length > 0 ? (
-              <div className="space-y-3">
-                {section.items.map((item) => (
-                  <DashboardListItem key={item.id} item={item} onAction={handleAction} />
-                ))}
-              </div>
-            ) : (
-              <EmptyState
-                description={section.emptyText ?? 'No records are currently available.'}
-                icon={ClipboardCheck}
-                title="Nothing to review"
-              />
-            )}
-          </SectionCard>
-        ))}
-      </section>
+      {dashboard.sections.length > 0 ? (
+        <section className="space-y-4" aria-labelledby="operational-detail-title">
+          {dashboard.executive ? (
+            <div className="space-y-1">
+              <p className="text-xs font-semibold uppercase tracking-wide text-primary">
+                Operational detail
+              </p>
+              <h2
+                className="text-2xl font-semibold tracking-tight text-foreground"
+                id="operational-detail-title"
+              >
+                Projects and alerts behind the summary
+              </h2>
+              <p className="text-sm leading-6 text-muted-foreground">
+                Portfolio-wide records remain available for follow-up after the executive review.
+              </p>
+            </div>
+          ) : (
+            <h2 className="sr-only" id="operational-detail-title">
+              Dashboard detail
+            </h2>
+          )}
+          <div className="grid gap-4 xl:grid-cols-2">
+            {dashboard.sections.map((section) => (
+              <SectionCard
+                key={section.id}
+                title={section.title}
+                description={section.description}
+                actions={
+                  section.viewAllHref ? (
+                    <Button asChild size="sm" variant="outline">
+                      <Link href={section.viewAllHref}>{section.viewAllLabel ?? 'View All'}</Link>
+                    </Button>
+                  ) : null
+                }
+              >
+                {section.items.length > 0 ? (
+                  <div className="space-y-3">
+                    {section.items.map((item) => (
+                      <DashboardListItem key={item.id} item={item} onAction={handleAction} />
+                    ))}
+                  </div>
+                ) : (
+                  <EmptyState
+                    description={section.emptyText ?? 'No records are currently available.'}
+                    icon={ClipboardCheck}
+                    title="Nothing to review"
+                  />
+                )}
+              </SectionCard>
+            ))}
+          </div>
+        </section>
+      ) : null}
       <Dialog open={Boolean(activeAction)} onOpenChange={(open) => !open && setActiveAction(null)}>
         {activeAction ? (
           <DialogShell
             title={activeAction.dialogTitle ?? activeAction.label}
             description={
               activeAction.dialogDescription ??
-              'This prototype action is functional as a dialog and does not persist changes.'
+              'This previews the action without changing shared records.'
             }
           >
             <div className="space-y-4">
               <p className="text-sm leading-6 text-muted-foreground">
-                This is a frontend-only prototype interaction. Production data, permission checks,
-                notifications, and audit logs are not updated.
+                Shared project records are not changed, and no notifications are sent.
               </p>
-              <div className="flex justify-end">
-                <Button onClick={() => setActiveAction(null)} type="button">
+              <div className="flex flex-wrap justify-end gap-2">
+                <Button onClick={() => setActiveAction(null)} type="button" variant="outline">
                   Close
+                </Button>
+                <Button onClick={acknowledgeDialogAction} type="button">
+                  Finish preview
                 </Button>
               </div>
             </div>

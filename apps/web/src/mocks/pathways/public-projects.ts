@@ -1,4 +1,8 @@
 import type { PublicProjectRecord } from '@/types/pathways'
+import { mockApprovedPublicMedia } from './public-media'
+
+const approvedMediaForProject = (projectId: string) =>
+  mockApprovedPublicMedia.filter((media) => media.projectId === projectId)
 
 export const mockPublicProjects: PublicProjectRecord[] = [
   {
@@ -71,6 +75,25 @@ export const mockPublicProjects: PublicProjectRecord[] = [
     budgetSummary: '61% utilization based on approved public summary values',
     assessmentSummary: '+24% average improvement in reviewed learning checkpoints',
     publicationState: 'Approved for public preview',
+    approvedMedia: approvedMediaForProject('futuremakers-ncr'),
+    publicPresentation: {
+      eyebrow: 'Skills that open pathways',
+      headline: 'Young people are building practical skills for work and enterprise.',
+      summaryTitle: 'Opportunity starts with practical support',
+      summaryBody:
+        'FutureMakers NCR connects approved skills sessions, mentoring, and employment-readiness support across three urban project areas. This public view shares project-level progress only.',
+      quote:
+        'The sessions gave our youth a clearer picture of the next steps they can take toward work and enterprise.',
+      quoteAttribution: 'Community partner, FutureMakers NCR',
+      closingTitle: 'Follow the progress of youth-focused projects',
+      closingText:
+        'Explore other approved project stories and aggregate progress updates from PATHWAYS.',
+      secondaryCtaLabel: 'Explore PATHWAYS projects',
+      secondaryCtaHref: '/public/projects',
+      layoutPreset: 'story-led',
+      sectionOrder: ['overview', 'media', 'progress', 'indicators', 'milestones'],
+      visibleSections: ['overview', 'media', 'progress', 'indicators', 'milestones'],
+    },
   },
   {
     id: 'youth-rise-western-samar',
@@ -134,5 +157,24 @@ export const mockPublicProjects: PublicProjectRecord[] = [
     budgetSummary: '72% utilization based on approved public summary values',
     assessmentSummary: '+13% average improvement in reviewed learning checkpoints',
     publicationState: 'Approved for public preview',
+    approvedMedia: approvedMediaForProject('youth-rise-western-samar'),
+    publicPresentation: {
+      eyebrow: 'Learning closer to home',
+      headline: 'Community partnerships are helping youth prepare for learning and livelihoods.',
+      summaryTitle: 'Local readiness, shared momentum',
+      summaryBody:
+        'Youth RISE works with community partners to prepare learning sites, coordinate cohorts, and connect young people with livelihood-readiness support. Only approved aggregate updates appear here.',
+      quote:
+        'Working locally helps each learning activity respond to the realities of the community.',
+      quoteAttribution: 'Community facilitator, Youth RISE',
+      closingTitle: 'See how approved project progress connects across communities',
+      closingText:
+        'Browse other public project pages for non-sensitive summaries, milestones, and outcomes.',
+      secondaryCtaLabel: 'Explore PATHWAYS projects',
+      secondaryCtaHref: '/public/projects',
+      layoutPreset: 'compact',
+      sectionOrder: ['overview', 'media', 'milestones', 'indicators', 'progress'],
+      visibleSections: ['overview', 'media', 'milestones', 'indicators', 'progress'],
+    },
   },
 ]

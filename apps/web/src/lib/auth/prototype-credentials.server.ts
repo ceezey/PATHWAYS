@@ -15,6 +15,14 @@ const prototypeCredentialAccounts: PrototypeCredentialAccount[] = [
     password: 'PathwaysDemo!2026',
   },
   {
+    id: 'grant-manager',
+    displayName: 'Grant Manager Demo',
+    role: 'Grant Manager',
+    username: 'grant.manager',
+    email: 'grant.manager@demo.pathways.local',
+    password: 'PathwaysDemo!2026',
+  },
+  {
     id: 'project-manager',
     displayName: 'Project Manager Demo',
     role: 'Project Manager',

@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { useEffect } from 'react'
+import { Suspense, useEffect } from 'react'
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { usePrototypeRole } from '@/hooks/use-prototype-role'
@@ -65,5 +65,15 @@ export const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
     )
   }
 
-  return <RouteAccessGuard role={role}>{children}</RouteAccessGuard>
+  return (
+    <Suspense
+      fallback={
+        <div className="flex min-h-screen items-center justify-center text-sm text-muted-foreground">
+          Preparing dashboard access...
+        </div>
+      }
+    >
+      <RouteAccessGuard role={role}>{children}</RouteAccessGuard>
+    </Suspense>
+  )
 }

@@ -7,3 +7,7 @@ playwright-report
 test-results
 .env
 .env.local
+.tmp
+.git
+.github
+*.log

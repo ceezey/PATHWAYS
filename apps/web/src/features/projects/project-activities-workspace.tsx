@@ -20,6 +20,7 @@ import { EmptyState, FilterBar, ProgressBar, SectionCard, StatusBadge } from '@/
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { usePrototypeLabels } from '@/hooks/use-prototype-labels'
 import { usePrototypeRole } from '@/hooks/use-prototype-role'
 import { can } from '@/lib/rbac/can'
 import { pathwaysClient } from '@/lib/services/mock-pathways-client'
@@ -36,11 +37,12 @@ import { ActivityFormDialog } from './activity-form-dialog'
 import { ActivityProofDialog } from './activity-proof-dialog'
 import {
   type ActivityFilter,
+  activityDueLabel,
   activityFilters,
+  activityNextStep,
+  activityProgressTone,
   activityStatusTone,
   activityStatuses,
-  formatCurrency,
-  formatDate,
 } from './activity-utils'
 import { ProjectWorkspaceHeader } from './project-workspace-header'
 
@@ -75,83 +77,167 @@ const matchesFilter = (activity: Activity, filter: ActivityFilter) => {
 
 const ActivityCard = ({
   activity,
-  indicators,
   onOpen,
 }: {
   activity: Activity
-  indicators: Indicator[]
   onOpen: (activity: Activity) => void
 }) => (
-  <article className="min-w-0 rounded-lg border border-border bg-background p-4 shadow-sm">
+  <article
+    aria-label={`Activity: ${activity.title}`}
+    className="flex min-w-0 flex-col rounded-lg border border-border bg-background p-4 shadow-sm"
+  >
     <div className="flex items-start justify-between gap-3">
-      <div className="min-w-0">
-        <h3 className="break-words text-sm font-semibold leading-6 text-foreground">
-          {activity.title}
-        </h3>
-        <p className="mt-1 line-clamp-2 text-xs leading-5 text-muted-foreground">
-          {activity.description}
-        </p>
+      <h3 className="min-w-0 break-words text-base font-semibold leading-6 text-foreground">
+        {activity.title}
+      </h3>
+      <div className="shrink-0">
+        <StatusBadge tone={activityStatusTone(activity.status)}>{activity.status}</StatusBadge>
       </div>
-      <StatusBadge tone={activityStatusTone(activity.status)}>{activity.status}</StatusBadge>
     </div>
+    <p
+      className={`mt-3 flex items-center gap-2 text-sm font-medium ${
+        activity.status === 'Overdue' ? 'text-danger' : 'text-muted-foreground'
+      }`}
+    >
+      <CalendarClock className="h-4 w-4 shrink-0" aria-hidden="true" />
+      {activityDueLabel(activity.status, activity.dueDate)}
+    </p>
     <div className="mt-4">
       <ProgressBar
-        label="Progress"
-        tone={
-          activity.status === 'Overdue' ? 'danger' : activity.progress >= 80 ? 'success' : 'info'
-        }
+        label="Activity progress"
+        tone={activityProgressTone(activity.status, activity.progress)}
         value={activity.progress}
       />
     </div>
-    <dl className="mt-4 grid gap-3 text-xs text-muted-foreground">
-      <div className="flex items-start gap-2">
-        <UsersRound className="mt-0.5 h-3.5 w-3.5 shrink-0 text-primary" aria-hidden="true" />
+    <dl className="mt-4 border-t border-border pt-3 text-sm">
+      <div className="flex min-w-0 items-start gap-2">
+        <UsersRound className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />
         <div className="min-w-0">
-          <dt>Assigned users</dt>
-          <dd className="break-words font-medium text-foreground">
+          <dt className="text-muted-foreground">
+            {activity.assignedTo.length === 1 ? 'Owner' : 'Owners'}
+          </dt>
+          <dd className="mt-1 break-words font-medium text-foreground">
             {activity.assignedTo.join(', ')}
           </dd>
         </div>
       </div>
-      <div className="flex items-start gap-2">
-        <CalendarClock className="mt-0.5 h-3.5 w-3.5 shrink-0 text-primary" aria-hidden="true" />
-        <div>
-          <dt>Due date</dt>
-          <dd className="font-medium text-foreground">{formatDate(activity.dueDate)}</dd>
-        </div>
-      </div>
-      <div>
-        <dt>Connected indicators</dt>
-        <dd className="mt-1 break-words font-medium text-foreground">
-          {indicatorSummary(activity, indicators) || 'No indicator linked'}
-        </dd>
-      </div>
-      <div className="grid grid-cols-2 gap-3">
-        <div>
-          <dt>Target beneficiaries</dt>
-          <dd className="font-medium text-foreground">{activity.targetBeneficiaries}</dd>
-        </div>
-        <div>
-          <dt>Budget allocation</dt>
-          <dd className="font-medium text-foreground">
-            {formatCurrency(activity.budgetAllocation)}
-          </dd>
-        </div>
-      </div>
     </dl>
-    <div className="mt-4 flex justify-end">
+    <div className="mt-4 border-t border-border pt-3">
+      <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Next step</p>
+      <p className="mt-1 text-sm font-medium leading-5 text-foreground">
+        {activityNextStep(activity.status)}
+      </p>
       <Button
-        className="gap-2"
+        className="mt-3 w-full gap-2 sm:w-auto"
         onClick={() => onOpen(activity)}
         size="sm"
         type="button"
         variant="outline"
       >
         <Eye className="h-4 w-4" aria-hidden="true" />
-        View
+        View details
       </Button>
     </div>
   </article>
+)
+
+const ActivityListRow = ({
+  activity,
+  onOpen,
+}: {
+  activity: Activity
+  onOpen: (activity: Activity) => void
+}) => (
+  <article
+    aria-label={`Activity: ${activity.title}`}
+    className="grid min-w-0 gap-4 rounded-lg border border-border bg-background p-4 shadow-sm md:grid-cols-2 xl:grid-cols-[minmax(0,1.4fr)_minmax(170px,0.7fr)_minmax(180px,0.8fr)_minmax(150px,0.6fr)_auto] xl:items-center"
+  >
+    <div className="min-w-0">
+      <h3 className="break-words text-base font-semibold leading-6 text-foreground">
+        {activity.title}
+      </h3>
+      <p className="mt-2 text-sm leading-5 text-muted-foreground">
+        <span className="font-medium text-foreground">Next:</span>{' '}
+        {activityNextStep(activity.status)}
+      </p>
+    </div>
+    <div className="space-y-2">
+      <StatusBadge tone={activityStatusTone(activity.status)}>{activity.status}</StatusBadge>
+      <p
+        className={`flex items-start gap-2 text-sm ${
+          activity.status === 'Overdue' ? 'font-medium text-danger' : 'text-muted-foreground'
+        }`}
+      >
+        <CalendarClock className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
+        {activityDueLabel(activity.status, activity.dueDate)}
+      </p>
+    </div>
+    <dl className="text-sm">
+      <div className="flex min-w-0 items-start gap-2">
+        <UsersRound className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+        <div className="min-w-0">
+          <dt className="text-muted-foreground">
+            {activity.assignedTo.length === 1 ? 'Owner' : 'Owners'}
+          </dt>
+          <dd className="mt-1 break-words font-medium text-foreground">
+            {activity.assignedTo.join(', ')}
+          </dd>
+        </div>
+      </div>
+    </dl>
+    <ProgressBar
+      label="Progress"
+      tone={activityProgressTone(activity.status, activity.progress)}
+      value={activity.progress}
+    />
+    <div className="flex md:col-span-2 md:justify-end xl:col-span-1">
+      <Button
+        className="w-full gap-2 sm:w-auto"
+        onClick={() => onOpen(activity)}
+        size="sm"
+        type="button"
+        variant="outline"
+      >
+        <Eye className="h-4 w-4" aria-hidden="true" />
+        View details
+      </Button>
+    </div>
+  </article>
+)
+
+const ActivityStatusSummary = ({
+  counts,
+  shownCount,
+  totalCount,
+}: {
+  counts: Record<ActivityStatus, number>
+  shownCount: number
+  totalCount: number
+}) => (
+  <section
+    aria-label="Activity status summary"
+    className="rounded-lg border border-border bg-card p-4 shadow-sm"
+  >
+    <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+      <div>
+        <h2 className="text-sm font-semibold text-foreground">Activity status at a glance</h2>
+        <p className="mt-1 text-xs text-muted-foreground">
+          Showing {shownCount} of {totalCount} activit{totalCount === 1 ? 'y' : 'ies'}
+        </p>
+      </div>
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-5">
+        {activityStatuses.map((status) => (
+          <div
+            className="flex min-w-0 items-center justify-between gap-2 rounded-md border border-border bg-background px-3 py-2"
+            key={status}
+          >
+            <StatusBadge tone={activityStatusTone(status)}>{status}</StatusBadge>
+            <span className="text-sm font-semibold text-foreground">{counts[status]}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  </section>
 )
 
 export const ProjectActivitiesWorkspace = ({
@@ -162,8 +248,10 @@ export const ProjectActivitiesWorkspace = ({
   projectId: string
 }) => {
   const router = useRouter()
+  const { labels } = usePrototypeLabels()
   const { role } = usePrototypeRole()
   const canCreateEdit = can(role, 'activities.create_edit')
+  const canReview = role === 'Project Manager'
   const canSubmitProof = can(role, 'activities.submit_update_proof')
   const [project, setProject] = useState<ProjectDetail | null>(null)
   const [activities, setActivities] = useState<Activity[]>([])
@@ -204,6 +292,10 @@ export const ProjectActivitiesWorkspace = ({
           ? (activityRecords.find((activity) => activity.id === initialActivityId) ?? null)
           : null
         setSelectedActivity(initialActivity)
+
+        if (initialActivityId && !initialActivity) {
+          router.replace(`/projects/${projectId}/activities`)
+        }
       })
       .catch(() => {
         if (!mounted) {
@@ -221,7 +313,7 @@ export const ProjectActivitiesWorkspace = ({
     return () => {
       mounted = false
     }
-  }, [initialActivityId, projectId])
+  }, [initialActivityId, projectId, router])
 
   const filteredActivities = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase()
@@ -242,6 +334,27 @@ export const ProjectActivitiesWorkspace = ({
       return matchesQuery && matchesFilter(activity, filter)
     })
   }, [activities, filter, indicators, query])
+
+  const activityStatusCounts = useMemo(() => {
+    const counts: Record<ActivityStatus, number> = {
+      Planned: 0,
+      'In Progress': 0,
+      'For Review': 0,
+      Overdue: 0,
+      Completed: 0,
+    }
+
+    for (const activity of filteredActivities) {
+      counts[activity.status] += 1
+    }
+
+    return counts
+  }, [filteredActivities])
+
+  const visibleActivityStatuses = useMemo(
+    () => activityStatuses.filter((status) => activityStatusCounts[status] > 0),
+    [activityStatusCounts],
+  )
 
   const upsertActivity = (activity: Activity) => {
     setActivities((currentActivities) => [
@@ -306,7 +419,7 @@ export const ProjectActivitiesWorkspace = ({
     return (
       <>
         <PageHeader
-          eyebrow="Project workspace"
+          eyebrow={labels.projectWorkspace}
           title="Workspace unavailable"
           description="This project workspace is not available in the current prototype session."
           actions={
@@ -327,9 +440,9 @@ export const ProjectActivitiesWorkspace = ({
   return (
     <>
       <PageHeader
-        eyebrow="Project workspace"
-        title="Activity Management"
-        description="Plan, review, and update prototype project activities."
+        eyebrow={labels.projectWorkspace}
+        title={labels.projectActivities}
+        description="Plan, review, and update project activities."
         actions={
           <Button asChild className="gap-2" variant="outline">
             <Link href="/projects">
@@ -340,8 +453,8 @@ export const ProjectActivitiesWorkspace = ({
         }
       />
       <ProjectWorkspaceHeader project={project} />
-      <FilterBar>
-        <div className="relative min-w-0 flex-1">
+      <FilterBar className="md:flex-col md:items-stretch xl:flex-row xl:items-center">
+        <div className="relative min-w-0 flex-1 xl:min-w-72">
           <Search
             className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground"
             aria-hidden="true"
@@ -354,8 +467,12 @@ export const ProjectActivitiesWorkspace = ({
             value={query}
           />
         </div>
-        <Tabs value={filter} onValueChange={(value) => setFilter(value as ActivityFilter)}>
-          <TabsList className="grid h-auto w-full grid-cols-2 md:flex md:w-auto">
+        <Tabs
+          className="w-full xl:w-auto"
+          value={filter}
+          onValueChange={(value) => setFilter(value as ActivityFilter)}
+        >
+          <TabsList className="grid h-auto w-full grid-cols-2 sm:grid-cols-4 xl:flex xl:w-auto">
             {activityFilters.map((item) => (
               <TabsTrigger key={item} value={item}>
                 {item}
@@ -363,27 +480,30 @@ export const ProjectActivitiesWorkspace = ({
             ))}
           </TabsList>
         </Tabs>
-        <div className="flex gap-2">
-          <Button
-            aria-pressed={viewMode === 'board'}
-            onClick={() => setViewMode('board')}
-            size="icon"
-            type="button"
-            variant={viewMode === 'board' ? 'default' : 'outline'}
-          >
-            <LayoutGrid className="h-4 w-4" aria-hidden="true" />
-            <span className="sr-only">Board view</span>
-          </Button>
-          <Button
-            aria-pressed={viewMode === 'list'}
-            onClick={() => setViewMode('list')}
-            size="icon"
-            type="button"
-            variant={viewMode === 'list' ? 'default' : 'outline'}
-          >
-            <List className="h-4 w-4" aria-hidden="true" />
-            <span className="sr-only">List view</span>
-          </Button>
+        <div className="flex w-full items-center justify-between gap-2 sm:justify-end xl:w-auto">
+          <fieldset className="m-0 flex gap-2 border-0 p-0">
+            <legend className="sr-only">Activity view</legend>
+            <Button
+              aria-label="Board view"
+              aria-pressed={viewMode === 'board'}
+              onClick={() => setViewMode('board')}
+              size="icon"
+              type="button"
+              variant={viewMode === 'board' ? 'default' : 'outline'}
+            >
+              <LayoutGrid className="h-4 w-4" aria-hidden="true" />
+            </Button>
+            <Button
+              aria-label="List view"
+              aria-pressed={viewMode === 'list'}
+              onClick={() => setViewMode('list')}
+              size="icon"
+              type="button"
+              variant={viewMode === 'list' ? 'default' : 'outline'}
+            >
+              <List className="h-4 w-4" aria-hidden="true" />
+            </Button>
+          </fieldset>
           {canCreateEdit ? (
             <Button className="gap-2" onClick={openCreate} type="button">
               <Plus className="h-4 w-4" aria-hidden="true" />
@@ -392,6 +512,11 @@ export const ProjectActivitiesWorkspace = ({
           ) : null}
         </div>
       </FilterBar>
+      <ActivityStatusSummary
+        counts={activityStatusCounts}
+        shownCount={filteredActivities.length}
+        totalCount={activities.length}
+      />
       {filteredActivities.length === 0 ? (
         <EmptyState
           description="Create an activity or adjust the search and filter controls."
@@ -400,8 +525,8 @@ export const ProjectActivitiesWorkspace = ({
         />
       ) : null}
       {filteredActivities.length > 0 && viewMode === 'board' ? (
-        <section className="grid gap-4 xl:grid-cols-5">
-          {activityStatuses.map((status) => {
+        <section aria-label="Activity board" className="grid gap-4 lg:grid-cols-2 2xl:grid-cols-3">
+          {visibleActivityStatuses.map((status) => {
             const statusActivities = filteredActivities.filter(
               (activity) => activity.status === status,
             )
@@ -411,24 +536,12 @@ export const ProjectActivitiesWorkspace = ({
                 key={status}
                 title={status}
                 description={`${statusActivities.length} activit${statusActivities.length === 1 ? 'y' : 'ies'}`}
-                className="min-w-0"
-                actions={<StatusBadge tone={activityStatusTone(status)}>{status}</StatusBadge>}
+                className="min-w-0 self-start"
               >
                 <div className="space-y-3">
-                  {statusActivities.length > 0 ? (
-                    statusActivities.map((activity) => (
-                      <ActivityCard
-                        key={activity.id}
-                        activity={activity}
-                        indicators={indicators}
-                        onOpen={openDetail}
-                      />
-                    ))
-                  ) : (
-                    <p className="rounded-lg border border-dashed border-border bg-background p-4 text-sm text-muted-foreground">
-                      No activities in this column.
-                    </p>
-                  )}
+                  {statusActivities.map((activity) => (
+                    <ActivityCard key={activity.id} activity={activity} onOpen={openDetail} />
+                  ))}
                 </div>
               </SectionCard>
             )
@@ -439,44 +552,7 @@ export const ProjectActivitiesWorkspace = ({
         <SectionCard title="Activity list" description="Scan all filtered activities in one view.">
           <div className="space-y-3">
             {filteredActivities.map((activity) => (
-              <div
-                key={activity.id}
-                className="grid gap-4 rounded-lg border border-border bg-background p-4 lg:grid-cols-[1.5fr_0.8fr_0.7fr_0.7fr_auto]"
-              >
-                <div className="min-w-0">
-                  <p className="break-words font-medium text-foreground">{activity.title}</p>
-                  <p className="mt-1 text-sm text-muted-foreground">
-                    {indicatorSummary(activity, indicators) || 'No indicator linked'}
-                  </p>
-                </div>
-                <div className="text-sm">
-                  <p className="text-muted-foreground">Assigned users</p>
-                  <p className="mt-1 break-words font-medium text-foreground">
-                    {activity.assignedTo.join(', ')}
-                  </p>
-                </div>
-                <div className="text-sm">
-                  <p className="text-muted-foreground">Due date</p>
-                  <p className="mt-1 font-medium text-foreground">{formatDate(activity.dueDate)}</p>
-                </div>
-                <div className="space-y-2">
-                  <StatusBadge tone={activityStatusTone(activity.status)}>
-                    {activity.status}
-                  </StatusBadge>
-                  <ProgressBar value={activity.progress} />
-                </div>
-                <div className="flex items-center justify-end">
-                  <Button
-                    className="gap-2"
-                    onClick={() => openDetail(activity)}
-                    size="sm"
-                    type="button"
-                  >
-                    <Eye className="h-4 w-4" aria-hidden="true" />
-                    View
-                  </Button>
-                </div>
-              </div>
+              <ActivityListRow key={activity.id} activity={activity} onOpen={openDetail} />
             ))}
           </div>
         </SectionCard>
@@ -484,6 +560,7 @@ export const ProjectActivitiesWorkspace = ({
       <ActivityDetailPanel
         activity={selectedActivity}
         canEdit={canCreateEdit}
+        canReview={canReview}
         canSubmitProof={canSubmitProof}
         indicators={indicators}
         onEdit={openEdit}

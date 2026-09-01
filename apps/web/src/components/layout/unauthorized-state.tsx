@@ -10,7 +10,7 @@ export const UnauthorizedState = ({ moduleName }: { moduleName: string }) => (
   <div className="flex min-h-[70vh] items-center justify-center p-6">
     <div className="w-full max-w-2xl space-y-4 rounded-lg border border-border bg-card p-8 text-center">
       <EmptyState
-        description={`Your current prototype role cannot access ${moduleName}. No sensitive records were loaded.`}
+        description={`Your current prototype role cannot access ${moduleName}. No protected workspace content is shown.`}
         icon={ShieldAlert}
         title="Unauthorized access"
       />

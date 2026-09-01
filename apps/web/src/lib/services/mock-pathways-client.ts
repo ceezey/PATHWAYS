@@ -3,7 +3,8 @@ import {
   fallbackDashboard,
   mockActivities,
   mockAlerts,
-  mockBeneficiaries,
+  mockAnalyticsLocations,
+  mockBeneficiaryMediaProof,
   mockBeneficiaryRecords,
   mockBudgets,
   mockDashboards,
@@ -19,15 +20,19 @@ import {
   mockRecommendations,
   mockReports,
   mockRules,
+  mockSurveyAggregateResults,
+  mockSurveyForms,
   mockTransparencySections,
   mockUsers,
 } from '@/mocks/pathways'
 import type {
   Activity,
   AlertRecord,
-  Beneficiary,
+  AnalyticsLocationRecord,
   BeneficiaryFilters,
+  BeneficiaryMediaProofRecord,
   BeneficiaryRecord,
+  BeneficiarySadddAggregate,
   BudgetRecord,
   CreateActivityInput,
   CreateProjectInput,
@@ -46,11 +51,26 @@ import type {
   RoleDashboardViewModel,
   RuleDefinition,
   SubmitActivityProofInput,
+  SurveyAggregateFilters,
+  SurveyAggregateResultSet,
+  SurveyFormDefinition,
   TransparencySection,
   UpdateActivityInput,
   UserRecord,
 } from '@/types/pathways'
-import type { PrototypeRole } from '@/types/prototype-role'
+import { type PrototypeRole, isPrototypeRole } from '@/types/prototype-role'
+
+import { can } from '@/lib/rbac/can'
+import {
+  buildBeneficiarySadddAggregatesForRole,
+  registerPrototypeProjectTeamAssignments,
+  scopeBeneficiariesForRole,
+  scopeBeneficiaryMediaForRole,
+  scopeBeneficiaryRecordForRole,
+  scopeProjectRecordsForRole,
+  scopeProjectsForRole,
+} from '@/lib/rbac/data-scope'
+import { readPrototypeUserRecords } from '@/lib/rbac/prototype-user-store'
 
 import { type PathwaysClient, PathwaysClientError } from './pathways-client'
 
@@ -111,7 +131,11 @@ const writeStoredProjects = (projects: ProjectDetail[]) => {
   }
 }
 
-const allProjects = () => [...mockProjects, ...readStoredProjects()]
+const allProjects = () => {
+  const storedProjects = readStoredProjects()
+  storedProjects.forEach(registerPrototypeProjectTeamAssignments)
+  return [...mockProjects, ...storedProjects]
+}
 
 const readStoredActivities = () => {
   if (typeof window === 'undefined') {
@@ -156,23 +180,33 @@ const saveActivity = (activity: Activity) => {
   writeStoredActivities(nextActivities)
 }
 
-const roleProjectIds: Record<PrototypeRole, string[] | 'all'> = {
-  'Program Manager': 'all',
-  'Project Manager': ['futuremakers-ncr', 'youth-rise-western-samar', 'safe-spaces-northern-samar'],
-  'Monitoring and Evaluation Officer': [
-    'futuremakers-ncr',
-    'grassroots-centers-navotas',
-    'safe-spaces-northern-samar',
-  ],
-  'Project Officer': [
-    'futuremakers-ncr',
-    'youth-rise-western-samar',
-    'grassroots-centers-navotas',
-    'girls-lead-metro-manila',
-    'safe-spaces-northern-samar',
-  ],
-  'System Administrator': 'all',
-}
+const filterBeneficiaryRecords = (
+  beneficiaries: BeneficiaryRecord[],
+  filters: BeneficiaryFilters,
+) =>
+  beneficiaries.filter((beneficiary) => {
+    const matchesProject = filters.projectId
+      ? beneficiary.projectIds.includes(filters.projectId)
+      : true
+    const matchesLocation = filters.location ? beneficiary.location === filters.location : true
+    const matchesSex = filters.sex ? beneficiary.sex === filters.sex : true
+    const matchesAgeGroup = filters.ageGroup ? beneficiary.ageGroup === filters.ageGroup : true
+    const matchesDisability = filters.disabilityStatus
+      ? beneficiary.disabilityStatus === filters.disabilityStatus
+      : true
+    const matchesEnrollment = filters.enrollmentStatus
+      ? beneficiary.enrollmentStatus === filters.enrollmentStatus
+      : true
+
+    return (
+      matchesProject &&
+      matchesLocation &&
+      matchesSex &&
+      matchesAgeGroup &&
+      matchesDisability &&
+      matchesEnrollment
+    )
+  })
 
 export class MockPathwaysClient implements PathwaysClient {
   constructor(private readonly artificialDelayMs = 0) {}
@@ -204,15 +238,8 @@ export class MockPathwaysClient implements PathwaysClient {
   async getProjectsForRole(role: string): Promise<ProjectSummary[]> {
     await this.wait()
     const projects = await this.getProjects()
-    const projectIds = roleProjectIds[role as PrototypeRole]
 
-    if (!projectIds || projectIds === 'all') {
-      return projects
-    }
-
-    return projects.filter(
-      (project) => projectIds.includes(project.id) || project.id.startsWith('prototype-'),
-    )
+    return isPrototypeRole(role) ? scopeProjectsForRole(projects, role) : []
   }
 
   async getProject(id: string): Promise<ProjectDetail> {
@@ -255,6 +282,7 @@ export class MockPathwaysClient implements PathwaysClient {
     }
     const nextProjects = [...readStoredProjects(), project]
     writeStoredProjects(nextProjects)
+    registerPrototypeProjectTeamAssignments(project)
 
     return project
   }
@@ -459,73 +487,50 @@ export class MockPathwaysClient implements PathwaysClient {
     return sections.length > 0 ? sections : defaultTransparencySections(projectId)
   }
 
-  async getBeneficiaries(filters: BeneficiaryFilters = {}): Promise<Beneficiary[]> {
+  async getBeneficiaryRecordsForRole(
+    role: PrototypeRole,
+    filters: BeneficiaryFilters = {},
+  ): Promise<BeneficiaryRecord[]> {
     await this.wait()
-
-    return mockBeneficiaries.filter((beneficiary) => {
-      const matchesProject = filters.projectId
-        ? beneficiary.projectIds.includes(filters.projectId)
-        : true
-      const matchesLocation = filters.location ? beneficiary.location === filters.location : true
-      const matchesSex = filters.sex ? beneficiary.sex === filters.sex : true
-      const matchesAgeGroup = filters.ageGroup ? beneficiary.ageGroup === filters.ageGroup : true
-      const matchesDisability = filters.disabilityStatus
-        ? beneficiary.disabilityStatus === filters.disabilityStatus
-        : true
-      const matchesEnrollment = filters.enrollmentStatus
-        ? beneficiary.enrollmentStatus === filters.enrollmentStatus
-        : true
-
-      return (
-        matchesProject &&
-        matchesLocation &&
-        matchesSex &&
-        matchesAgeGroup &&
-        matchesDisability &&
-        matchesEnrollment
-      )
-    })
+    const scopedBeneficiaries = scopeBeneficiariesForRole(mockBeneficiaryRecords, role)
+    return filterBeneficiaryRecords(scopedBeneficiaries, filters)
   }
 
-  async getBeneficiaryRecords(filters: BeneficiaryFilters = {}): Promise<BeneficiaryRecord[]> {
+  async getBeneficiaryRecordForRole(role: PrototypeRole, id: string): Promise<BeneficiaryRecord> {
     await this.wait()
-    // TODO(RBAC): Restrict access to beneficiary-sensitive data.
-
-    return mockBeneficiaryRecords.filter((beneficiary) => {
-      const matchesProject = filters.projectId
-        ? beneficiary.projectIds.includes(filters.projectId)
-        : true
-      const matchesLocation = filters.location ? beneficiary.location === filters.location : true
-      const matchesSex = filters.sex ? beneficiary.sex === filters.sex : true
-      const matchesAgeGroup = filters.ageGroup ? beneficiary.ageGroup === filters.ageGroup : true
-      const matchesDisability = filters.disabilityStatus
-        ? beneficiary.disabilityStatus === filters.disabilityStatus
-        : true
-      const matchesEnrollment = filters.enrollmentStatus
-        ? beneficiary.enrollmentStatus === filters.enrollmentStatus
-        : true
-
-      return (
-        matchesProject &&
-        matchesLocation &&
-        matchesSex &&
-        matchesAgeGroup &&
-        matchesDisability &&
-        matchesEnrollment
-      )
-    })
-  }
-
-  async getBeneficiaryRecord(id: string): Promise<BeneficiaryRecord> {
-    await this.wait()
-    // TODO(RBAC): Restrict access to beneficiary-sensitive data.
     const beneficiary = mockBeneficiaryRecords.find((record) => record.id === id)
 
     if (!beneficiary) {
       throw new PathwaysClientError(`Beneficiary ${id} was not found in mock data.`, 'not_found')
     }
 
-    return beneficiary
+    const scopedBeneficiary = scopeBeneficiaryRecordForRole(beneficiary, role)
+
+    if (!scopedBeneficiary) {
+      throw new PathwaysClientError(
+        'This Beneficiary record is outside the current prototype role scope.',
+        'forbidden',
+      )
+    }
+
+    return scopedBeneficiary
+  }
+
+  async getBeneficiaryMediaProofForRole(
+    role: PrototypeRole,
+    beneficiaryId: string,
+  ): Promise<BeneficiaryMediaProofRecord[]> {
+    const beneficiary = await this.getBeneficiaryRecordForRole(role, beneficiaryId)
+    await this.wait()
+    // TODO(STORAGE): Load private Beneficiary media through approved access-controlled storage.
+    return scopeBeneficiaryMediaForRole(mockBeneficiaryMediaProof, beneficiary, role)
+  }
+
+  async getBeneficiarySadddAggregatesForRole(
+    role: PrototypeRole,
+  ): Promise<BeneficiarySadddAggregate[]> {
+    await this.wait()
+    return buildBeneficiarySadddAggregatesForRole(mockBeneficiaryRecords, role)
   }
 
   async getJourneyStages(projectId: string): Promise<JourneyStageConfig[]> {
@@ -552,9 +557,35 @@ export class MockPathwaysClient implements PathwaysClient {
     return projectId ? mockAlerts.filter((alert) => alert.projectId === projectId) : mockAlerts
   }
 
+  async getAlertsForRole(role: PrototypeRole, projectId?: string): Promise<AlertRecord[]> {
+    await this.wait()
+
+    if (!can(role, 'alerts.outcome.log')) {
+      return []
+    }
+
+    const scopedAlerts = scopeProjectRecordsForRole(mockAlerts, role)
+    return projectId ? scopedAlerts.filter((alert) => alert.projectId === projectId) : scopedAlerts
+  }
+
+  async getAnalyticsLocations(): Promise<AnalyticsLocationRecord[]> {
+    await this.wait()
+    // TODO(BACKEND): Replace aggregate mock coverage locations with approved GIS summaries.
+    return mockAnalyticsLocations
+  }
+
   async getRecommendations(): Promise<RecommendationRecord[]> {
     await this.wait()
     return mockRecommendations
+  }
+
+  async getRecommendationsForRole(role: PrototypeRole): Promise<RecommendationRecord[]> {
+    await this.wait()
+    const visibleAlertIds = new Set((await this.getAlertsForRole(role)).map((alert) => alert.id))
+
+    return mockRecommendations.filter((recommendation) =>
+      visibleAlertIds.has(recommendation.alertId),
+    )
   }
 
   async getRules(): Promise<RuleDefinition[]> {
@@ -566,6 +597,29 @@ export class MockPathwaysClient implements PathwaysClient {
   async getReports(projectId?: string): Promise<ReportRecord[]> {
     await this.wait()
     return projectId ? mockReports.filter((report) => report.projectId === projectId) : mockReports
+  }
+
+  async getSurveyForms(projectId?: string): Promise<SurveyFormDefinition[]> {
+    await this.wait()
+    return projectId
+      ? mockSurveyForms.filter((form) => form.projectId === projectId)
+      : mockSurveyForms
+  }
+
+  async getSurveyAggregateResults(
+    filters: SurveyAggregateFilters = {},
+  ): Promise<SurveyAggregateResultSet[]> {
+    await this.wait()
+    // TODO(BACKEND): Query approved aggregate survey result sets from form submissions.
+    // No individual response or Beneficiary identity fields are returned by this prototype method.
+    return mockSurveyAggregateResults.filter(
+      (result) =>
+        (!filters.formId || result.formId === filters.formId) &&
+        (!filters.projectId || result.projectId === filters.projectId) &&
+        (!filters.location || result.location === filters.location) &&
+        (!filters.responseDate || result.responseDate === filters.responseDate) &&
+        (!filters.reportingPeriod || result.reportingPeriod === filters.reportingPeriod),
+    )
   }
 
   async getPublicProjects(): Promise<PublicProjectRecord[]> {
@@ -592,7 +646,7 @@ export class MockPathwaysClient implements PathwaysClient {
 
   async getUsers(): Promise<UserRecord[]> {
     await this.wait()
-    return mockUsers
+    return readPrototypeUserRecords(mockUsers)
   }
 
   async getDashboard(role: string): Promise<RoleDashboardViewModel> {

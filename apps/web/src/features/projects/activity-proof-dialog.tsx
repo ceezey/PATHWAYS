@@ -71,6 +71,8 @@ export const ActivityProofDialog = ({
       })
       onSubmitted(updatedActivity)
       onOpenChange(false)
+    } catch {
+      setError('The activity update could not be completed. Review the details and try again.')
     } finally {
       setSubmitting(false)
     }
@@ -80,7 +82,7 @@ export const ActivityProofDialog = ({
     <Dialog onOpenChange={onOpenChange} open={open}>
       <DialogShell
         title="Submit Update & Proof"
-        description="Record a local prototype progress update. Files are previewed only and are not uploaded remotely."
+        description="Record a prototype progress update. Files stay on this device and are not uploaded."
       >
         <div className="space-y-5">
           <div className="space-y-2">
@@ -113,7 +115,7 @@ export const ActivityProofDialog = ({
               type="file"
             />
             <p className="text-sm text-muted-foreground">
-              Prototype submission status: selected locally, not uploaded.
+              Prototype status: selected on this device, not uploaded.
             </p>
           </div>
           {files.length > 0 ? (
@@ -128,7 +130,11 @@ export const ActivityProofDialog = ({
               </ul>
             </div>
           ) : null}
-          {error ? <p className="text-sm font-medium text-destructive">{error}</p> : null}
+          {error ? (
+            <p className="text-sm font-medium text-destructive" role="alert">
+              {error}
+            </p>
+          ) : null}
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
               Cancel

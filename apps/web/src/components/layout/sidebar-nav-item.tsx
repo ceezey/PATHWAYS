@@ -30,15 +30,12 @@ export const SidebarNavItem = ({
       )}
       href={item.href}
       onClick={onNavigate}
-      title={compact ? item.label : undefined}
+      title={compact ? item.label : item.description}
     >
       <Icon className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
       {compact ? <span className="sr-only">{item.label}</span> : null}
       {!compact ? (
-        <span className="min-w-0">
-          <span className="block truncate font-medium">{item.label}</span>
-          <span className="mt-0.5 block text-xs leading-4 text-blue-50/60">{item.description}</span>
-        </span>
+        <span className="min-w-0 break-words font-medium leading-5">{item.label}</span>
       ) : null}
     </Link>
   )

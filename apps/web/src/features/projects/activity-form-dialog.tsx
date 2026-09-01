@@ -111,46 +111,53 @@ export const ActivityFormDialog = ({
     // TODO(ALERTS): Recalculate overdue and progress alerts server-side.
     const assignedTo = splitValues(values.assignedOfficers)
     const indicatorIds = splitValues(values.connectedIndicators)
-    const savedActivity = activity
-      ? await pathwaysClient.updateActivity({
-          id: activity.id,
-          projectId,
-          title: values.title,
-          description: values.description,
-          startDate: values.startDate,
-          dueDate: values.dueDate,
-          targetBeneficiaries: values.targetBeneficiaries,
-          budgetAllocation: values.budgetAllocation,
-          assignedTo,
-          indicatorIds,
-          journeyStageId: values.journeyStageId,
-          status: values.status as ActivityStatus,
-          progress: values.progress,
-          beneficiariesReached: values.beneficiariesReached,
-          budgetLogged: values.budgetLogged,
-        })
-      : await pathwaysClient.createActivity({
-          projectId,
-          title: values.title,
-          description: values.description,
-          startDate: values.startDate,
-          dueDate: values.dueDate,
-          targetBeneficiaries: values.targetBeneficiaries,
-          budgetAllocation: values.budgetAllocation,
-          assignedTo,
-          indicatorIds,
-          journeyStageId: values.journeyStageId,
-        })
 
-    toast.success(activity ? 'Activity updated.' : 'Activity created.', {
-      description: `${savedActivity.title} is available in this prototype session.`,
-    })
-    onCreatedOrUpdated(savedActivity)
-    onOpenChange(false)
+    try {
+      const savedActivity = activity
+        ? await pathwaysClient.updateActivity({
+            id: activity.id,
+            projectId,
+            title: values.title,
+            description: values.description,
+            startDate: values.startDate,
+            dueDate: values.dueDate,
+            targetBeneficiaries: values.targetBeneficiaries,
+            budgetAllocation: values.budgetAllocation,
+            assignedTo,
+            indicatorIds,
+            journeyStageId: values.journeyStageId,
+            status: values.status as ActivityStatus,
+            progress: values.progress,
+            beneficiariesReached: values.beneficiariesReached,
+            budgetLogged: values.budgetLogged,
+          })
+        : await pathwaysClient.createActivity({
+            projectId,
+            title: values.title,
+            description: values.description,
+            startDate: values.startDate,
+            dueDate: values.dueDate,
+            targetBeneficiaries: values.targetBeneficiaries,
+            budgetAllocation: values.budgetAllocation,
+            assignedTo,
+            indicatorIds,
+            journeyStageId: values.journeyStageId,
+          })
+
+      toast.success(activity ? 'Activity updated.' : 'Activity created.', {
+        description: `${savedActivity.title} is available in this prototype session.`,
+      })
+      onCreatedOrUpdated(savedActivity)
+      onOpenChange(false)
+    } catch {
+      toast.error('Activity could not be saved.', {
+        description: 'Keep the dialog open and try again.',
+      })
+    }
   }
 
   const projectOfficerNames = users
-    .filter((user) => user.role === 'Project Officer')
+    .filter((user) => user.role === 'Project Officer' && user.accountStatus === 'Active')
     .map((user) => user.name)
     .join(', ')
 
@@ -162,7 +169,7 @@ export const ActivityFormDialog = ({
     <Dialog onOpenChange={onOpenChange} open={open}>
       <DialogShell
         title={activity ? 'Edit activity' : 'Create activity'}
-        description="Save a temporary frontend-only activity for the project workspace."
+        description="Save a temporary activity for this project workspace demonstration."
       >
         <Form {...form}>
           <form
@@ -358,12 +365,12 @@ export const ActivityFormDialog = ({
                 name="journeyStageId"
                 render={({ field }) => (
                   <FormItem className="lg:col-span-2">
-                    <FormLabel>Journey-stage placeholder</FormLabel>
+                    <FormLabel>Journey stage reference</FormLabel>
                     <FormControl>
                       <Input placeholder="stage-entry" {...field} />
                     </FormControl>
                     <FormDescription>
-                      Placeholder only until beneficiary journey stages are implemented.
+                      Use the stage ID from the project&apos;s Beneficiary Journey Tracking setup.
                     </FormDescription>
                     <FormMessage />
                   </FormItem>

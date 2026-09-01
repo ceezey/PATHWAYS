@@ -32,6 +32,42 @@ export const activityStatusTone = (status: ActivityStatus) => {
   return 'neutral'
 }
 
+export const activityProgressTone = (status: ActivityStatus, progress: number) => {
+  if (status === 'Overdue') {
+    return 'danger'
+  }
+
+  if (status === 'Completed' || progress >= 80) {
+    return 'success'
+  }
+
+  if (status === 'For Review') {
+    return 'warning'
+  }
+
+  return 'info'
+}
+
+export const activityNextStep = (status: ActivityStatus) => {
+  if (status === 'Planned') {
+    return 'Confirm readiness and start delivery'
+  }
+
+  if (status === 'In Progress') {
+    return 'Record the next progress update'
+  }
+
+  if (status === 'For Review') {
+    return 'Review the submitted update and proof'
+  }
+
+  if (status === 'Overdue') {
+    return 'Record a recovery update'
+  }
+
+  return 'Confirm the completed activity record'
+}
+
 export const formatCurrency = (value: number) =>
   new Intl.NumberFormat('en-US', {
     currency: 'PHP',
@@ -46,3 +82,6 @@ export const formatDate = (value: string) =>
     year: 'numeric',
     timeZone: 'UTC',
   }).format(new Date(`${value}T00:00:00.000Z`))
+
+export const activityDueLabel = (status: ActivityStatus, dueDate: string) =>
+  status === 'Overdue' ? `Overdue since ${formatDate(dueDate)}` : `Due ${formatDate(dueDate)}`

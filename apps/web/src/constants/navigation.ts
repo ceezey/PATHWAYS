@@ -7,7 +7,9 @@ import {
   Home,
   LineChart,
   ListChecks,
-  Settings,
+  SlidersHorizontal,
+  Type,
+  UserCog,
   UsersRound,
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
@@ -17,9 +19,30 @@ export interface DashboardNavItem extends NavItem {
 }
 
 export interface DashboardNavGroup {
+  id: 'workspace' | 'decision-support' | 'administration'
   label: string
   items: DashboardNavItem[]
 }
+
+export const fixedDashboardNavGroupLabels = {
+  workspace: 'Workspace',
+  decisionSupport: 'Decision Support',
+  administration: 'Administration',
+} as const
+
+export const fixedDashboardNavItemLabels = {
+  dashboard: 'Dashboard',
+  projects: 'Projects',
+  beneficiaries: 'Beneficiaries',
+  collection: 'Collection',
+  analytics: 'Analytics',
+  alerts: 'Alerts',
+  recommendations: 'Recommendations',
+  reports: 'Reports',
+  alertsRepository: 'Alerts Repository',
+  userManagement: 'User Management',
+  editLabels: 'Edit Labels',
+} as const
 
 export const publicNavigation: NavItem[] = [
   {
@@ -34,76 +57,100 @@ export const publicNavigation: NavItem[] = [
   },
 ]
 
-export const dashboardNavGroups: DashboardNavGroup[] = [
+export const createDashboardNavGroups = (): DashboardNavGroup[] => [
   {
-    label: 'Workspace',
+    id: 'workspace',
+    label: fixedDashboardNavGroupLabels.workspace,
     items: [
       {
         href: '/dashboard',
-        label: 'Dashboard',
-        description: 'Portfolio and role-aware workspace overview.',
+        label: fixedDashboardNavItemLabels.dashboard,
+        description: 'Priorities and progress for the selected role.',
         icon: Home,
       },
       {
         href: '/projects',
-        label: 'Projects',
-        description: 'Project Information Management.',
+        label: fixedDashboardNavItemLabels.projects,
+        description: 'Project Information Management workspace.',
         icon: FolderKanban,
       },
       {
         href: '/beneficiaries',
-        label: 'Beneficiaries',
-        description: 'Beneficiary Journey Tracking.',
+        label: fixedDashboardNavItemLabels.beneficiaries,
+        description: 'Beneficiary Journey Tracking records.',
         icon: UsersRound,
       },
       {
         href: '/collection',
-        label: 'Collection',
-        description: 'Metadata-Driven Data Integration.',
+        label: fixedDashboardNavItemLabels.collection,
+        description: 'Metadata-Driven Data Integration workspace.',
         icon: ClipboardList,
       },
     ],
   },
   {
-    label: 'Decision Support',
+    id: 'decision-support',
+    label: fixedDashboardNavGroupLabels.decisionSupport,
     items: [
       {
         href: '/analytics',
-        label: 'Analytics',
-        description: 'SADDD Analysis and project insights.',
+        label: fixedDashboardNavItemLabels.analytics,
+        description: 'SADDD Analysis and project monitoring.',
         icon: BarChart3,
       },
       {
         href: '/alerts',
-        label: 'Alerts',
-        description: 'Rule-based alerts for human review.',
+        label: fixedDashboardNavItemLabels.alerts,
+        description: 'Rule-Based Alerts requiring human review.',
         icon: AlertTriangle,
       },
       {
         href: '/recommendations',
-        label: 'Recommendations',
-        description: 'Predefined rule recommendations and outcomes.',
+        label: fixedDashboardNavItemLabels.recommendations,
+        description: 'Human-reviewed recommendation outcomes.',
         icon: ListChecks,
       },
       {
         href: '/reports',
-        label: 'Reports',
+        label: fixedDashboardNavItemLabels.reports,
         description: 'Human-reviewed reporting outputs.',
         icon: LineChart,
+      },
+      {
+        href: '/alerts/repository',
+        label: fixedDashboardNavItemLabels.alertsRepository,
+        description: 'Review the rules used to surface alerts for human review.',
+        icon: SlidersHorizontal,
       },
     ],
   },
   {
-    label: 'Administration',
+    id: 'administration',
+    label: fixedDashboardNavGroupLabels.administration,
     items: [
       {
-        href: '/settings',
-        label: 'Settings',
-        description: 'Prototype setup and configuration notes.',
-        icon: Settings,
+        href: '/settings/users',
+        label: fixedDashboardNavItemLabels.userManagement,
+        description: 'Review prototype users, roles, and account states.',
+        icon: UserCog,
+      },
+      {
+        href: '/settings/labels',
+        label: fixedDashboardNavItemLabels.editLabels,
+        description: 'Edit approved browser-local page headings.',
+        icon: Type,
       },
     ],
   },
 ]
 
+export const dashboardNavGroups = createDashboardNavGroups()
+
 export const dashboardNavigation = dashboardNavGroups.flatMap((group) => group.items)
+
+export const getDashboardNavigationLabel = (pathname: string) =>
+  createDashboardNavGroups()
+    .flatMap((group) => group.items)
+    .filter((item) => pathname === item.href || pathname.startsWith(`${item.href}/`))
+    .sort((left, right) => right.href.length - left.href.length)[0]?.label ??
+  fixedDashboardNavItemLabels.dashboard

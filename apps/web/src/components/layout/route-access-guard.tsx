@@ -1,6 +1,6 @@
 'use client'
 
-import { usePathname } from 'next/navigation'
+import { usePathname, useSearchParams } from 'next/navigation'
 import { useEffect, useState } from 'react'
 
 import { BeneficiaryAccessGate } from '@/components/layout/beneficiary-access-gate'
@@ -17,10 +17,12 @@ export const RouteAccessGuard = ({
   role: PrototypeRole
 }) => {
   const pathname = usePathname()
+  const searchParams = useSearchParams()
   const [beneficiaryVerified, setBeneficiaryVerified] = useState(() =>
     hasActiveBeneficiaryAccess(role),
   )
-  const access = getRouteAccess(role, pathname)
+  const query = searchParams.toString()
+  const access = getRouteAccess(role, query ? `${pathname}?${query}` : pathname)
   const requiresBeneficiaryStepUp = access.requiresBeneficiaryStepUp === true
 
   useEffect(() => {

@@ -1,6 +1,7 @@
 'use client'
 
 import { Menu, PanelLeftClose, PanelLeftOpen, ShieldCheck } from 'lucide-react'
+import { usePathname } from 'next/navigation'
 import { useState } from 'react'
 
 import { Sidebar } from '@/components/layout/sidebar'
@@ -13,21 +14,27 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet'
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetTitle,
+  SheetTrigger,
+} from '@/components/ui/sheet'
+import { getDashboardNavigationLabel } from '@/constants/navigation'
 import { usePrototypeRole } from '@/hooks/use-prototype-role'
 import { useSession } from '@/hooks/use-session'
 import { cn } from '@/lib/utils'
+import { getPrototypeRoleDisplayName } from '@/types/prototype-role'
 
 export const AppShell = ({ children }: { children: React.ReactNode }) => {
+  const pathname = usePathname()
   const [compact, setCompact] = useState(false)
   const [mobileOpen, setMobileOpen] = useState(false)
-  const { email, isBypassed, isPrototypeSession, signOut } = useSession()
+  const { email, signOut } = useSession()
   const { role } = usePrototypeRole()
-  const sessionLabel = isPrototypeSession
-    ? 'GUI prototype session'
-    : isBypassed
-      ? 'Development auth bypass active'
-      : 'Supabase session placeholder'
+  const roleLabel = getPrototypeRoleDisplayName(role)
+  const workspaceLabel = getDashboardNavigationLabel(pathname)
 
   return (
     <div className="min-h-screen bg-background lg:grid lg:grid-cols-[auto_1fr]">
@@ -46,6 +53,10 @@ export const AppShell = ({ children }: { children: React.ReactNode }) => {
                   </Button>
                 </SheetTrigger>
                 <SheetContent side="left" className="w-[292px] border-0 p-0 sm:max-w-none">
+                  <SheetTitle className="sr-only">Workspace navigation</SheetTitle>
+                  <SheetDescription className="sr-only">
+                    Open a section of the PATHWAYS workspace.
+                  </SheetDescription>
                   <Sidebar onNavigate={() => setMobileOpen(false)} />
                 </SheetContent>
               </Sheet>
@@ -64,10 +75,8 @@ export const AppShell = ({ children }: { children: React.ReactNode }) => {
                 )}
               </Button>
               <div className="min-w-0">
-                <p className="truncate text-sm font-semibold text-foreground">
-                  Project Information Management
-                </p>
-                <p className="truncate text-xs text-muted-foreground">{role} workspace preview</p>
+                <p className="truncate text-sm font-semibold text-foreground">{workspaceLabel}</p>
+                <p className="truncate text-xs text-muted-foreground">{roleLabel}</p>
               </div>
             </div>
             <DropdownMenu>
@@ -80,10 +89,10 @@ export const AppShell = ({ children }: { children: React.ReactNode }) => {
               <DropdownMenuContent align="end">
                 <DropdownMenuLabel>Session</DropdownMenuLabel>
                 <DropdownMenuItem disabled>{email ?? 'No signed-in user'}</DropdownMenuItem>
-                <DropdownMenuItem disabled>{sessionLabel}</DropdownMenuItem>
+                <DropdownMenuItem disabled>{roleLabel}</DropdownMenuItem>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem onClick={() => void signOut()}>
-                  Reset local session
+                  Sign out of prototype
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>

@@ -2,6 +2,7 @@
 
 import { ArrowLeft, Save } from 'lucide-react'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { useMemo, useState } from 'react'
 import { toast } from 'sonner'
 
@@ -65,6 +66,7 @@ const initialDraft: BeneficiaryDraft = {
 }
 
 export const BeneficiaryForm = ({ projects }: { projects: ProjectSummary[] }) => {
+  const router = useRouter()
   const [draft, setDraft] = useState<BeneficiaryDraft>(initialDraft)
   const [submitted, setSubmitted] = useState(false)
   const [confirmOpen, setConfirmOpen] = useState(false)
@@ -124,9 +126,10 @@ export const BeneficiaryForm = ({ projects }: { projects: ProjectSummary[] }) =>
   const confirmSave = () => {
     // TODO(BACKEND): Save beneficiary profile and enrollments.
     setConfirmOpen(false)
-    toast.success('Beneficiary profile staged locally.', {
-      description: 'This prototype does not create a production beneficiary record.',
+    toast.success('Beneficiary profile preview completed.', {
+      description: 'No shared Beneficiary record was created.',
     })
+    router.push('/beneficiaries')
   }
 
   return (
@@ -134,8 +137,8 @@ export const BeneficiaryForm = ({ projects }: { projects: ProjectSummary[] }) =>
       <section className="flex flex-col gap-4 rounded-lg border border-border bg-card p-5 shadow-sm md:flex-row md:items-start md:justify-between">
         <div className="space-y-2">
           <div className="flex flex-wrap gap-2">
-            <StatusBadge tone="neutral">Safe mock entry</StatusBadge>
-            <StatusBadge tone="warning">Not server-saved</StatusBadge>
+            <StatusBadge tone="neutral">Safe sample entry</StatusBadge>
+            <StatusBadge tone="warning">Preview only</StatusBadge>
           </div>
           <div>
             <h1 className="text-3xl font-semibold tracking-tight text-foreground">
@@ -160,13 +163,14 @@ export const BeneficiaryForm = ({ projects }: { projects: ProjectSummary[] }) =>
           <div>
             <h2 className="text-lg font-semibold text-foreground">Profile information</h2>
             <p className="text-sm text-muted-foreground">
-              Required fields are validated in the local prototype before confirmation.
+              Required fields are checked in this browser before confirmation.
             </p>
           </div>
 
           <div className="grid gap-4 md:grid-cols-2">
             <Field label="Beneficiary code" error={submitted && !draft.code.trim()}>
               <Input
+                aria-label="Beneficiary code"
                 value={draft.code}
                 onChange={(event) => updateDraft('code', event.target.value)}
               />
@@ -176,7 +180,7 @@ export const BeneficiaryForm = ({ projects }: { projects: ProjectSummary[] }) =>
                 value={draft.projectId}
                 onValueChange={(value) => updateDraft('projectId', value)}
               >
-                <SelectTrigger>
+                <SelectTrigger aria-label="Project enrollment">
                   <SelectValue placeholder="Select project" />
                 </SelectTrigger>
                 <SelectContent>
@@ -190,25 +194,28 @@ export const BeneficiaryForm = ({ projects }: { projects: ProjectSummary[] }) =>
             </Field>
             <Field label="First name" error={submitted && !draft.firstName.trim()}>
               <Input
+                aria-label="First name"
                 value={draft.firstName}
                 onChange={(event) => updateDraft('firstName', event.target.value)}
               />
             </Field>
             <Field label="Middle name">
               <Input
+                aria-label="Middle name"
                 value={draft.middleName}
                 onChange={(event) => updateDraft('middleName', event.target.value)}
               />
             </Field>
             <Field label="Last name" error={submitted && !draft.lastName.trim()}>
               <Input
+                aria-label="Last name"
                 value={draft.lastName}
                 onChange={(event) => updateDraft('lastName', event.target.value)}
               />
             </Field>
             <Field label="Sex" error={submitted && !draft.sex}>
               <Select value={draft.sex} onValueChange={(value) => updateDraft('sex', value)}>
-                <SelectTrigger>
+                <SelectTrigger aria-label="Sex">
                   <SelectValue placeholder="Select sex" />
                 </SelectTrigger>
                 <SelectContent>
@@ -220,6 +227,7 @@ export const BeneficiaryForm = ({ projects }: { projects: ProjectSummary[] }) =>
             </Field>
             <Field label="Birth date">
               <Input
+                aria-label="Birth date"
                 type="date"
                 value={draft.birthDate}
                 onChange={(event) => updateDraft('birthDate', event.target.value)}
@@ -227,6 +235,7 @@ export const BeneficiaryForm = ({ projects }: { projects: ProjectSummary[] }) =>
             </Field>
             <Field label="Age" error={submitted && !draft.birthDate && !draft.age}>
               <Input
+                aria-label="Age"
                 min="0"
                 type="number"
                 value={draft.age}
@@ -238,7 +247,7 @@ export const BeneficiaryForm = ({ projects }: { projects: ProjectSummary[] }) =>
                 value={draft.disabilityStatus}
                 onValueChange={(value) => updateDraft('disabilityStatus', value)}
               >
-                <SelectTrigger>
+                <SelectTrigger aria-label="Disability status">
                   <SelectValue placeholder="Select status" />
                 </SelectTrigger>
                 <SelectContent>
@@ -250,18 +259,21 @@ export const BeneficiaryForm = ({ projects }: { projects: ProjectSummary[] }) =>
             </Field>
             <Field label="Province" error={submitted && !draft.province.trim()}>
               <Input
+                aria-label="Province"
                 value={draft.province}
                 onChange={(event) => updateDraft('province', event.target.value)}
               />
             </Field>
             <Field label="City or municipality" error={submitted && !draft.city.trim()}>
               <Input
+                aria-label="City or municipality"
                 value={draft.city}
                 onChange={(event) => updateDraft('city', event.target.value)}
               />
             </Field>
             <Field label="Barangay" error={submitted && !draft.barangay.trim()}>
               <Input
+                aria-label="Barangay"
                 value={draft.barangay}
                 onChange={(event) => updateDraft('barangay', event.target.value)}
               />
@@ -292,13 +304,16 @@ export const BeneficiaryForm = ({ projects }: { projects: ProjectSummary[] }) =>
           </div>
 
           {submitted && errors.length > 0 ? (
-            <div className="rounded-lg border border-danger/20 bg-danger/10 p-4 text-sm text-danger">
+            <div
+              className="rounded-lg border border-danger/20 bg-danger/10 p-4 text-sm text-danger"
+              role="alert"
+            >
               {errors[0]}
             </div>
           ) : null}
 
           <div className="flex justify-end">
-            <Button onClick={handleSubmit}>
+            <Button onClick={handleSubmit} type="button">
               <Save className="mr-2 h-4 w-4" aria-hidden="true" />
               Save beneficiary
             </Button>
@@ -329,8 +344,8 @@ export const BeneficiaryForm = ({ projects }: { projects: ProjectSummary[] }) =>
             />
           </div>
           <p className="rounded-lg border border-warning/30 bg-warning/10 p-3 text-xs leading-5 text-warning">
-            This preview uses local form state only and must not include real or identifiable
-            beneficiary data.
+            This preview uses the current form only and must not include real or identifiable
+            Beneficiary data.
           </p>
         </aside>
       </div>
@@ -340,7 +355,7 @@ export const BeneficiaryForm = ({ projects }: { projects: ProjectSummary[] }) =>
           <DialogHeader>
             <DialogTitle>Confirm prototype beneficiary profile</DialogTitle>
             <DialogDescription>
-              Save this coded profile to the local prototype state for demonstration only.
+              Complete this coded profile preview. No shared Beneficiary record will be created.
             </DialogDescription>
           </DialogHeader>
           <div className="rounded-lg border border-border bg-muted/40 p-4 text-sm">
@@ -350,10 +365,12 @@ export const BeneficiaryForm = ({ projects }: { projects: ProjectSummary[] }) =>
             </p>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setConfirmOpen(false)}>
+            <Button type="button" variant="outline" onClick={() => setConfirmOpen(false)}>
               Cancel
             </Button>
-            <Button onClick={confirmSave}>Confirm</Button>
+            <Button onClick={confirmSave} type="button">
+              Complete preview
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

@@ -57,30 +57,55 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
+import { usePrototypeLabels } from '@/hooks/use-prototype-labels'
 import { usePrototypeRole } from '@/hooks/use-prototype-role'
 import { can } from '@/lib/rbac/can'
+import { canAccessProjectForRole } from '@/lib/rbac/data-scope'
 import { reportKindPermissions } from '@/lib/rbac/route-access'
+import { pathwaysClient } from '@/lib/services/mock-pathways-client'
 import type {
+  Activity,
   BeneficiaryRecord,
+  JourneyStageConfig,
   ProjectDetail,
   ProjectIndicator,
   ReportColumnConfig,
   ReportKind,
   ReportRecord,
+  SurveyAggregateResultSet,
+  SurveyFormDefinition,
 } from '@/types/pathways'
+import type { PrototypeRole } from '@/types/prototype-role'
+
+import { SurveyReportOverview } from './survey-report-overview'
+import {
+  type SurveyReportSelection,
+  buildSurveyReportRows,
+  findSurveyResult,
+  getFirstSurveySelection,
+  getSurveyFormsForProject,
+  getSurveyLocations,
+  getSurveyPrograms,
+  getSurveyProjectIds,
+  getSurveyResponseDates,
+} from './survey-report-utils'
 
 type ReportRow = Record<string, string | number>
 
 type ReportingWorkspaceProps = {
+  activities: Activity[]
   initialKind: ReportKind
+  journeyStages: JourneyStageConfig[]
   previewOnly?: boolean
   projects: ProjectDetail[]
   indicators: ProjectIndicator[]
-  beneficiaries: BeneficiaryRecord[]
   reports: ReportRecord[]
+  surveyForms: SurveyFormDefinition[]
+  surveyResults: SurveyAggregateResultSet[]
 }
 
 const allValue = 'all'
+const emptyBeneficiaryRecords: BeneficiaryRecord[] = []
 
 const reportTabs: { kind: ReportKind; label: string; href: string }[] = [
   { kind: 'project-summary', label: 'Project Summary', href: '/reports/project-summary' },
@@ -90,12 +115,18 @@ const reportTabs: { kind: ReportKind; label: string; href: string }[] = [
     label: 'Beneficiary Summary',
     href: '/reports/beneficiary-summary',
   },
+  {
+    kind: 'survey-results',
+    label: 'Survey/Form Results',
+    href: '/reports/survey-results',
+  },
 ]
 
 const reportTitles: Record<ReportKind, string> = {
   'project-summary': 'Project Summary',
   'indicator-summary': 'Indicator Summary',
   'beneficiary-summary': 'Beneficiary Summary',
+  'survey-results': 'Survey/Form Results',
 }
 
 const reportColumns: Record<ReportKind, ReportColumnConfig[]> = {
@@ -124,6 +155,12 @@ const reportColumns: Record<ReportKind, ReportColumnConfig[]> = {
     { id: 'disability', label: 'Disability', enabledByDefault: true },
     { id: 'location', label: 'Location', enabledByDefault: true },
     { id: 'enrollmentStatus', label: 'Enrollment Status', enabledByDefault: true },
+  ],
+  'survey-results': [
+    { id: 'question', label: 'Survey Question', enabledByDefault: true },
+    { id: 'resultType', label: 'Result Type', enabledByDefault: true },
+    { id: 'summary', label: 'Aggregate Result', enabledByDefault: true },
+    { id: 'responses', label: 'Responses', enabledByDefault: true },
   ],
 }
 
@@ -154,7 +191,7 @@ const projectCode = (index: number) => String(index + 1).padStart(3, '0')
 
 const progressLabel = (actual: number, target: number) => {
   const progress = target > 0 ? Math.round((actual / target) * 100) : 0
-  return `${progress}% of target - sourced from mock dataset`
+  return `${progress}% of target - sample reporting data`
 }
 
 const statusTone = (status: string) => {
@@ -170,14 +207,19 @@ const statusTone = (status: string) => {
 }
 
 export const ReportingWorkspace = ({
-  beneficiaries,
+  activities,
   indicators,
   initialKind,
+  journeyStages,
   previewOnly = false,
   projects,
   reports,
+  surveyForms,
+  surveyResults,
 }: ReportingWorkspaceProps) => {
+  const { labels } = usePrototypeLabels()
   const { role } = usePrototypeRole()
+  const canViewBeneficiarySummary = can(role, reportKindPermissions['beneficiary-summary'])
   const visibleReportTabs = useMemo(
     () => reportTabs.filter((tab) => can(role, reportKindPermissions[tab.kind])),
     [role],
@@ -189,6 +231,24 @@ export const ReportingWorkspace = ({
   const [kind, setKind] = useState<ReportKind>(initialVisibleKind)
   const [search, setSearch] = useState('')
   const [projectId, setProjectId] = useState(allValue)
+  const [beneficiaryData, setBeneficiaryData] = useState<{
+    role: PrototypeRole
+    records: BeneficiaryRecord[]
+  } | null>(null)
+  const [beneficiaryLoadState, setBeneficiaryLoadState] = useState<
+    'idle' | 'loading' | 'ready' | 'error'
+  >('idle')
+  const [surveySelection, setSurveySelection] = useState(() => {
+    const initialProjectIds = new Set(
+      projects
+        .filter((project) => canAccessProjectForRole(role, project.id))
+        .map((project) => project.id),
+    )
+    const initialForms = surveyForms.filter((form) => initialProjectIds.has(form.projectId))
+    const initialResults = surveyResults.filter((result) => initialProjectIds.has(result.projectId))
+
+    return getFirstSurveySelection(initialForms[0]?.id ?? '', initialResults)
+  })
   const [indicatorGenerated, setIndicatorGenerated] = useState(initialKind !== 'indicator-summary')
   const [columnDialogOpen, setColumnDialogOpen] = useState(false)
   const [previewOpen, setPreviewOpen] = useState(previewOnly)
@@ -205,19 +265,148 @@ export const ReportingWorkspace = ({
     setProjectId(allValue)
   }, [kind, visibleReportTabs])
 
+  useEffect(() => {
+    if (kind !== 'beneficiary-summary' || !canViewBeneficiarySummary) {
+      setBeneficiaryData(null)
+      setBeneficiaryLoadState('idle')
+      return
+    }
+
+    let active = true
+    setBeneficiaryData(null)
+    setBeneficiaryLoadState('loading')
+
+    pathwaysClient
+      .getBeneficiaryRecordsForRole(role)
+      .then((records) => {
+        if (!active) return
+        setBeneficiaryData({ role, records })
+        setBeneficiaryLoadState('ready')
+      })
+      .catch(() => {
+        if (!active) return
+        setBeneficiaryData(null)
+        setBeneficiaryLoadState('error')
+      })
+
+    return () => {
+      active = false
+    }
+  }, [canViewBeneficiarySummary, kind, role])
+
+  const scopedProjects = useMemo(
+    () => projects.filter((project) => canAccessProjectForRole(role, project.id)),
+    [projects, role],
+  )
+  const scopedProjectIds = useMemo(
+    () => new Set(scopedProjects.map((project) => project.id)),
+    [scopedProjects],
+  )
+  const scopedActivities = useMemo(
+    () => activities.filter((activity) => scopedProjectIds.has(activity.projectId)),
+    [activities, scopedProjectIds],
+  )
+  const scopedIndicators = useMemo(
+    () => indicators.filter((indicator) => scopedProjectIds.has(indicator.projectId)),
+    [indicators, scopedProjectIds],
+  )
+  const scopedJourneyStages = useMemo(
+    () => journeyStages.filter((stage) => scopedProjectIds.has(stage.projectId)),
+    [journeyStages, scopedProjectIds],
+  )
+  const scopedReports = useMemo(
+    () => reports.filter((report) => scopedProjectIds.has(report.projectId)),
+    [reports, scopedProjectIds],
+  )
+  const scopedSurveyForms = useMemo(
+    () => surveyForms.filter((form) => scopedProjectIds.has(form.projectId)),
+    [scopedProjectIds, surveyForms],
+  )
+  const scopedSurveyResults = useMemo(
+    () => surveyResults.filter((result) => scopedProjectIds.has(result.projectId)),
+    [scopedProjectIds, surveyResults],
+  )
+
+  useEffect(() => {
+    const selectedFormIsAccessible = scopedSurveyForms.some(
+      (form) => form.id === surveySelection.formId,
+    )
+    const selectedResultIsAccessible = findSurveyResult(scopedSurveyResults, surveySelection)
+
+    if (selectedFormIsAccessible && selectedResultIsAccessible) {
+      return
+    }
+
+    const nextSelection = getFirstSurveySelection(
+      scopedSurveyForms[0]?.id ?? '',
+      scopedSurveyResults,
+    )
+
+    if (
+      nextSelection.formId !== surveySelection.formId ||
+      nextSelection.location !== surveySelection.location ||
+      nextSelection.responseDate !== surveySelection.responseDate
+    ) {
+      setSurveySelection(nextSelection)
+    }
+  }, [scopedSurveyForms, scopedSurveyResults, surveySelection])
+
+  const effectiveProjectId =
+    projectId === allValue || scopedProjectIds.has(projectId) ? projectId : allValue
+  const beneficiaries =
+    canViewBeneficiarySummary && beneficiaryData?.role === role
+      ? beneficiaryData.records
+      : emptyBeneficiaryRecords
+
   const selectedProject =
-    projectId === allValue ? projects[0] : projects.find((project) => project.id === projectId)
+    effectiveProjectId === allValue
+      ? undefined
+      : scopedProjects.find((project) => project.id === effectiveProjectId)
+  const selectedSurveyForm = scopedSurveyForms.find((form) => form.id === surveySelection.formId)
+  const selectedSurveyResult = findSurveyResult(scopedSurveyResults, surveySelection)
+  const selectedSurveyProject = scopedProjects.find(
+    (project) => project.id === selectedSurveyForm?.projectId,
+  )
+  const selectedSurveyStage = scopedJourneyStages.find(
+    (stage) => stage.id === selectedSurveyForm?.journeyStageId,
+  )
+  const selectedSurveyActivity = scopedActivities.find(
+    (activity) => activity.id === selectedSurveyForm?.activityId,
+  )
+  const surveyPrograms = getSurveyPrograms(scopedSurveyForms)
+  const surveyProjectIds = getSurveyProjectIds(
+    scopedSurveyForms,
+    selectedSurveyForm?.programName ?? surveyPrograms[0] ?? '',
+  )
+  const visibleSurveyForms = getSurveyFormsForProject(
+    scopedSurveyForms,
+    selectedSurveyForm?.programName ?? surveyPrograms[0] ?? '',
+    selectedSurveyForm?.projectId ?? surveyProjectIds[0] ?? '',
+  )
+  const surveyLocations = getSurveyLocations(scopedSurveyResults, surveySelection.formId)
+  const surveyResponseDates = getSurveyResponseDates(
+    scopedSurveyResults,
+    surveySelection.formId,
+    surveySelection.location,
+  )
 
   const rows = useMemo(() => {
     const query = search.trim().toLowerCase()
     const projectTitle = (id: string) =>
-      projects.find((project) => project.id === id)?.title ?? 'Unmapped project'
+      scopedProjects.find((project) => project.id === id)?.title ?? 'Unmapped project'
 
     const matchesQuery = (values: Array<string | number>) =>
       query ? values.join(' ').toLowerCase().includes(query) : true
 
+    if (kind === 'survey-results') {
+      return buildSurveyReportRows(selectedSurveyForm, selectedSurveyResult)
+        .map((row): ReportRow => row)
+        .filter((row) => matchesQuery(Object.values(row)))
+    }
+
     if (kind === 'project-summary') {
-      return projects
+      return scopedProjects
+        .filter((project) => effectiveProjectId === allValue || project.id === effectiveProjectId)
         .map((project, index): ReportRow => {
           const period = splitPeriod(project.period)
 
@@ -239,7 +428,7 @@ export const ReportingWorkspace = ({
         return []
       }
 
-      return indicators
+      return scopedIndicators
         .filter((indicator) =>
           selectedProject ? indicator.projectId === selectedProject.id : true,
         )
@@ -258,7 +447,9 @@ export const ReportingWorkspace = ({
 
     return beneficiaries
       .filter((beneficiary) =>
-        projectId === allValue ? true : beneficiary.projectIds.includes(projectId),
+        effectiveProjectId === allValue
+          ? true
+          : beneficiary.projectIds.includes(effectiveProjectId),
       )
       .map(
         (beneficiary): ReportRow => ({
@@ -274,13 +465,15 @@ export const ReportingWorkspace = ({
       .filter((row) => matchesQuery(Object.values(row)))
   }, [
     beneficiaries,
+    effectiveProjectId,
     indicatorGenerated,
-    indicators,
     kind,
-    projectId,
-    projects,
+    scopedIndicators,
+    scopedProjects,
     search,
     selectedProject,
+    selectedSurveyForm,
+    selectedSurveyResult,
   ])
 
   const activeColumns = useMemo(
@@ -345,14 +538,46 @@ export const ReportingWorkspace = ({
   const generateIndicatorReport = () => {
     setIndicatorGenerated(true)
     toast.success('Indicator report generated locally.', {
-      description: 'This table uses mock project indicator data only.',
+      description: 'This table uses safe sample project data.',
     })
   }
 
-  const saveReport = () => {
+  const selectSurveyForm = (formId: string) => {
+    setSurveySelection(getFirstSurveySelection(formId, scopedSurveyResults))
+  }
+
+  const selectSurveyProgram = (programName: string) => {
+    const nextProjectId = getSurveyProjectIds(scopedSurveyForms, programName)[0]
+    const nextForm = nextProjectId
+      ? getSurveyFormsForProject(scopedSurveyForms, programName, nextProjectId)[0]
+      : undefined
+
+    if (nextForm) selectSurveyForm(nextForm.id)
+  }
+
+  const selectSurveyProject = (nextProjectId: string) => {
+    const nextForm = getSurveyFormsForProject(
+      scopedSurveyForms,
+      selectedSurveyForm?.programName ?? '',
+      nextProjectId,
+    )[0]
+
+    if (nextForm) selectSurveyForm(nextForm.id)
+  }
+
+  const selectSurveyLocation = (location: string) => {
+    setSurveySelection((current) => ({
+      ...current,
+      location,
+      responseDate: getSurveyResponseDates(scopedSurveyResults, current.formId, location)[0] ?? '',
+    }))
+  }
+
+  const finishReportPreview = () => {
     // TODO(BACKEND): Save generated-report history.
-    toast.success('Saved Successfully', {
-      description: 'Prototype save notification only; no backend report history was written.',
+    setPreviewOpen(false)
+    toast.success('Report preview completed.', {
+      description: 'No report was added to shared history.',
     })
   }
 
@@ -373,15 +598,15 @@ export const ReportingWorkspace = ({
     link.click()
     URL.revokeObjectURL(url)
     toast.success('CSV exported from the browser.', {
-      description: 'This is a client-side prototype export.',
+      description: 'The sample report was downloaded to this device.',
     })
   }
 
   const openPrototypeExport = (format: 'PDF' | 'Excel') => {
     // TODO(REPORTING): Generate PDF and spreadsheet reports through the backend.
     setPreviewOpen(true)
-    toast.info(`${format} export is a prototype action.`, {
-      description: 'Preview opened; no backend file generation was requested.',
+    toast.info(`${format} preview opened.`, {
+      description: 'A preview opened; no downloadable file was created.',
     })
   }
 
@@ -396,25 +621,25 @@ export const ReportingWorkspace = ({
       <section className="rounded-lg border border-border bg-card p-5 shadow-sm">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
           <div className="space-y-2">
-            <p className="text-xs font-semibold uppercase text-primary">Reporting</p>
+            <p className="text-xs font-semibold uppercase text-primary">{labels.moduleReports}</p>
             <h1 className="text-3xl font-semibold tracking-tight text-foreground">
-              Reporting workspace
+              {labels.moduleReports}
             </h1>
             <p className="max-w-3xl text-sm leading-6 text-muted-foreground">
-              Build project, indicator, and beneficiary summary reports from safe mock data. PDF and
-              spreadsheet generation are preview-only until backend reporting is connected.
+              Build project, indicator, Beneficiary, and aggregate survey reports from safe sample
+              data. PDF and spreadsheet actions open a preview in this demonstration.
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
             <Button asChild variant="outline">
-              <Link href="/reports/preview">
+              <Link href={`/reports/preview?kind=${kind}`}>
                 <Eye className="mr-2 h-4 w-4" aria-hidden="true" />
-                Preview route
+                Open report preview
               </Link>
             </Button>
-            <Button onClick={saveReport}>
+            <Button onClick={finishReportPreview}>
               <Save className="mr-2 h-4 w-4" aria-hidden="true" />
-              Save
+              Finish preview
             </Button>
           </div>
         </div>
@@ -461,11 +686,11 @@ export const ReportingWorkspace = ({
                   </DropdownMenuItem>
                   <DropdownMenuItem onClick={() => openPrototypeExport('PDF')}>
                     <FileText className="mr-2 h-4 w-4" aria-hidden="true" />
-                    PDF
+                    Preview PDF
                   </DropdownMenuItem>
                   <DropdownMenuItem onClick={() => openPrototypeExport('Excel')}>
                     <FileSpreadsheet className="mr-2 h-4 w-4" aria-hidden="true" />
-                    Excel
+                    Preview Excel
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
@@ -475,51 +700,99 @@ export const ReportingWorkspace = ({
             <div className="space-y-2">
               <CardTitle>{reportTitles[kind]}</CardTitle>
               <p className="text-sm text-muted-foreground">
-                {reports.length} saved prototype report records are available for reference.
+                {kind === 'survey-results'
+                  ? `${scopedSurveyResults.length} aggregate survey result sets are available for review.`
+                  : `${scopedReports.length} saved prototype report records are available for reference.`}
               </p>
             </div>
-            <div className="grid gap-3 md:grid-cols-[220px_220px_auto]">
-              <span className="relative block">
-                <Search
-                  className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground"
-                  aria-hidden="true"
-                />
-                <Input
-                  aria-label={`${reportTitles[kind]} search`}
-                  className="pl-9"
-                  placeholder="Type here"
-                  value={search}
-                  onChange={(event) => setSearch(event.target.value)}
-                />
-              </span>
-              <Select value={projectId} onValueChange={setProjectId}>
-                <SelectTrigger aria-label={`${reportTitles[kind]} project filter`}>
-                  <SelectValue placeholder="Project" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value={allValue}>All projects</SelectItem>
-                  {projects.map((project) => (
-                    <SelectItem key={project.id} value={project.id}>
-                      {project.title}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              {kind === 'indicator-summary' ? (
-                <Button onClick={generateIndicatorReport}>
-                  <Filter className="mr-2 h-4 w-4" aria-hidden="true" />
-                  Generate
-                </Button>
-              ) : (
-                <Button variant="outline" onClick={() => toast.info('Filters applied locally.')}>
-                  <Filter className="mr-2 h-4 w-4" aria-hidden="true" />
-                  Filter
-                </Button>
-              )}
-            </div>
+            {kind === 'survey-results' ? (
+              <SurveyFilters
+                dates={surveyResponseDates}
+                forms={visibleSurveyForms}
+                locations={surveyLocations}
+                onDateChange={(responseDate) =>
+                  setSurveySelection((current) => ({ ...current, responseDate }))
+                }
+                onFormChange={selectSurveyForm}
+                onGenerate={() =>
+                  toast.success('Aggregate survey report generated locally.', {
+                    description: 'No individual response records were loaded.',
+                  })
+                }
+                onLocationChange={selectSurveyLocation}
+                onProgramChange={selectSurveyProgram}
+                onProjectChange={selectSurveyProject}
+                onSearchChange={setSearch}
+                programs={surveyPrograms}
+                projectIds={surveyProjectIds}
+                projects={scopedProjects}
+                search={search}
+                selection={surveySelection}
+                selectedForm={selectedSurveyForm}
+              />
+            ) : (
+              <div className="grid gap-3 md:grid-cols-[220px_220px_auto]">
+                <span className="relative block">
+                  <Search
+                    className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground"
+                    aria-hidden="true"
+                  />
+                  <Input
+                    aria-label={`${reportTitles[kind]} search`}
+                    className="pl-9"
+                    placeholder="Type here"
+                    value={search}
+                    onChange={(event) => setSearch(event.target.value)}
+                  />
+                </span>
+                <Select value={effectiveProjectId} onValueChange={setProjectId}>
+                  <SelectTrigger aria-label={`${reportTitles[kind]} project filter`}>
+                    <SelectValue placeholder="Project" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value={allValue}>All projects</SelectItem>
+                    {scopedProjects.map((project) => (
+                      <SelectItem key={project.id} value={project.id}>
+                        {project.title}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {kind === 'indicator-summary' ? (
+                  <Button onClick={generateIndicatorReport}>
+                    <Filter className="mr-2 h-4 w-4" aria-hidden="true" />
+                    Generate
+                  </Button>
+                ) : (
+                  <Button variant="outline" onClick={() => toast.info('Filters applied locally.')}>
+                    <Filter className="mr-2 h-4 w-4" aria-hidden="true" />
+                    Filter
+                  </Button>
+                )}
+              </div>
+            )}
           </div>
         </CardHeader>
         <CardContent className="space-y-4">
+          {kind === 'survey-results' ? (
+            selectedSurveyForm && selectedSurveyResult ? (
+              <SurveyReportOverview
+                activity={selectedSurveyActivity}
+                form={selectedSurveyForm}
+                journeyStage={selectedSurveyStage}
+                project={selectedSurveyProject}
+                result={selectedSurveyResult}
+              />
+            ) : (
+              <div className="rounded-lg border border-dashed border-border p-6 text-center">
+                <p className="font-medium text-foreground">No aggregate survey results found</p>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  Choose another Survey/Form, location, or response date. No individual response
+                  records are loaded for this report.
+                </p>
+              </div>
+            )
+          ) : null}
           <Table>
             <TableHeader>
               {table.getHeaderGroups().map((headerGroup) => (
@@ -551,9 +824,15 @@ export const ReportingWorkspace = ({
                     colSpan={Math.max(activeColumns.length, 1)}
                     className="h-32 text-center text-muted-foreground"
                   >
-                    {kind === 'indicator-summary'
-                      ? 'Generate a report.'
-                      : 'No report rows match the current filters.'}
+                    {kind === 'beneficiary-summary' && beneficiaryLoadState === 'loading'
+                      ? 'Loading scoped Beneficiary records...'
+                      : kind === 'beneficiary-summary' && beneficiaryLoadState === 'error'
+                        ? 'Scoped Beneficiary records could not be loaded. Try opening this report again.'
+                        : kind === 'indicator-summary'
+                          ? 'Generate a report.'
+                          : kind === 'survey-results'
+                            ? 'No aggregate question summaries match the current filters.'
+                            : 'No report rows match the current filters.'}
                   </TableCell>
                 </TableRow>
               )}
@@ -612,21 +891,31 @@ export const ReportingWorkspace = ({
             ))}
           </div>
           <DialogFooter>
-            <Button onClick={() => setColumnDialogOpen(false)}>Next</Button>
+            <Button onClick={() => setColumnDialogOpen(false)}>Done</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
       <Dialog open={previewOpen} onOpenChange={setPreviewOpen}>
-        <DialogContent className="max-w-4xl">
+        <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-4xl">
           <DialogHeader>
             <DialogTitle>Report Preview</DialogTitle>
             <DialogDescription>
-              Preview uses currently selected columns and mock data. Backend report generation is
-              deferred.
+              The preview uses the selected columns and sample data. Downloadable report files are
+              not created here.
             </DialogDescription>
           </DialogHeader>
-          <div className="border border-border">
+          {kind === 'survey-results' && selectedSurveyForm && selectedSurveyResult ? (
+            <SurveyReportOverview
+              activity={selectedSurveyActivity}
+              compact
+              form={selectedSurveyForm}
+              journeyStage={selectedSurveyStage}
+              project={selectedSurveyProject}
+              result={selectedSurveyResult}
+            />
+          ) : null}
+          <div className="overflow-x-auto border border-border">
             <div className="h-3 bg-success" />
             <div className="p-4">
               <Table>
@@ -638,13 +927,24 @@ export const ReportingWorkspace = ({
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {rows.slice(0, 5).map((row) => (
-                    <TableRow key={activeColumns.map((column) => row[column.id]).join('-')}>
-                      {activeColumns.map((column) => (
-                        <TableCell key={column.id}>{row[column.id]}</TableCell>
-                      ))}
+                  {rows.length > 0 ? (
+                    rows.slice(0, 5).map((row) => (
+                      <TableRow key={activeColumns.map((column) => row[column.id]).join('-')}>
+                        {activeColumns.map((column) => (
+                          <TableCell key={column.id}>{row[column.id]}</TableCell>
+                        ))}
+                      </TableRow>
+                    ))
+                  ) : (
+                    <TableRow>
+                      <TableCell
+                        className="h-24 text-center text-muted-foreground"
+                        colSpan={Math.max(activeColumns.length, 1)}
+                      >
+                        No report rows are available for the selected filters.
+                      </TableCell>
                     </TableRow>
-                  ))}
+                  )}
                 </TableBody>
               </Table>
             </div>
@@ -653,9 +953,9 @@ export const ReportingWorkspace = ({
             <Button variant="outline" onClick={() => setPreviewOpen(false)}>
               Close
             </Button>
-            <Button onClick={saveReport}>
+            <Button onClick={finishReportPreview}>
               <Save className="mr-2 h-4 w-4" aria-hidden="true" />
-              Save
+              Finish preview
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -663,3 +963,155 @@ export const ReportingWorkspace = ({
     </div>
   )
 }
+
+type SurveyFiltersProps = {
+  dates: string[]
+  forms: SurveyFormDefinition[]
+  locations: string[]
+  onDateChange: (value: string) => void
+  onFormChange: (value: string) => void
+  onGenerate: () => void
+  onLocationChange: (value: string) => void
+  onProgramChange: (value: string) => void
+  onProjectChange: (value: string) => void
+  onSearchChange: (value: string) => void
+  programs: string[]
+  projectIds: string[]
+  projects: ProjectDetail[]
+  search: string
+  selection: SurveyReportSelection
+  selectedForm?: SurveyFormDefinition
+}
+
+const SurveyFilters = ({
+  dates,
+  forms,
+  locations,
+  onDateChange,
+  onFormChange,
+  onGenerate,
+  onLocationChange,
+  onProgramChange,
+  onProjectChange,
+  onSearchChange,
+  programs,
+  projectIds,
+  projects,
+  search,
+  selection,
+  selectedForm,
+}: SurveyFiltersProps) => (
+  <div className="grid w-full gap-3 sm:grid-cols-2 xl:max-w-5xl xl:grid-cols-3">
+    <FilterField label="Program">
+      <Select value={selectedForm?.programName ?? ''} onValueChange={onProgramChange}>
+        <SelectTrigger aria-label="Survey results program filter">
+          <SelectValue placeholder="Choose program" />
+        </SelectTrigger>
+        <SelectContent>
+          {programs.map((program) => (
+            <SelectItem key={program} value={program}>
+              {program}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+    </FilterField>
+
+    <FilterField label="Project">
+      <Select value={selectedForm?.projectId ?? ''} onValueChange={onProjectChange}>
+        <SelectTrigger aria-label="Survey results project filter">
+          <SelectValue placeholder="Choose project" />
+        </SelectTrigger>
+        <SelectContent>
+          {projectIds.map((id) => (
+            <SelectItem key={id} value={id}>
+              {projects.find((project) => project.id === id)?.title ?? id}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+    </FilterField>
+
+    <FilterField label="Survey/Form">
+      <Select value={selection.formId} onValueChange={onFormChange}>
+        <SelectTrigger aria-label="Survey results form filter">
+          <SelectValue placeholder="Choose Survey/Form" />
+        </SelectTrigger>
+        <SelectContent>
+          {forms.map((form) => (
+            <SelectItem key={form.id} value={form.id}>
+              {form.title}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+    </FilterField>
+
+    <FilterField label="Location">
+      <Select
+        disabled={locations.length === 0}
+        value={selection.location}
+        onValueChange={onLocationChange}
+      >
+        <SelectTrigger aria-label="Survey results location filter">
+          <SelectValue placeholder="No locations" />
+        </SelectTrigger>
+        <SelectContent>
+          {locations.map((location) => (
+            <SelectItem key={location} value={location}>
+              {location}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+    </FilterField>
+
+    <FilterField label="Exact response date">
+      <Select
+        disabled={dates.length === 0}
+        value={selection.responseDate}
+        onValueChange={onDateChange}
+      >
+        <SelectTrigger aria-label="Survey results response date filter">
+          <SelectValue placeholder="No response dates" />
+        </SelectTrigger>
+        <SelectContent>
+          {dates.map((date) => (
+            <SelectItem key={date} value={date}>
+              {formatDate(date)}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+    </FilterField>
+
+    <FilterField label="Search question summaries">
+      <span className="relative block">
+        <Search
+          className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground"
+          aria-hidden="true"
+        />
+        <Input
+          aria-label="Survey/Form Results search"
+          className="pl-9"
+          placeholder="Search aggregate results"
+          type="search"
+          value={search}
+          onChange={(event) => onSearchChange(event.target.value)}
+        />
+      </span>
+    </FilterField>
+
+    <Button className="sm:col-span-2 xl:col-span-3" onClick={onGenerate}>
+      <Filter className="mr-2 h-4 w-4" aria-hidden="true" />
+      Generate aggregate report
+    </Button>
+  </div>
+)
+
+const FilterField = ({ children, label }: { children: React.ReactNode; label: string }) => (
+  <div className="space-y-2">
+    <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{label}</p>
+    {children}
+  </div>
+)

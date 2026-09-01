@@ -33,6 +33,7 @@ export const ActivityDetailContent = ({
   onEdit,
   onSubmitProof,
   canEdit,
+  canReview,
   canSubmitProof,
 }: {
   activity: Activity
@@ -40,6 +41,7 @@ export const ActivityDetailContent = ({
   onEdit: (activity: Activity) => void
   onSubmitProof: (activity: Activity) => void
   canEdit: boolean
+  canReview: boolean
   canSubmitProof: boolean
 }) => (
   <div className="space-y-5">
@@ -89,7 +91,7 @@ export const ActivityDetailContent = ({
         </dd>
       </div>
       <div className="sm:col-span-2">
-        <dt className="text-muted-foreground">Journey-stage placeholder</dt>
+        <dt className="text-muted-foreground">Journey stage reference</dt>
         <dd className="mt-1 font-medium text-foreground">{activity.journeyStageId}</dd>
       </div>
     </dl>
@@ -136,33 +138,36 @@ export const ActivityDetailContent = ({
           Submit Update & Proof
         </Button>
       ) : null}
-      <Button
-        className="gap-2"
-        onClick={() =>
-          toast.success('Approve complete is a Phase 4 prototype placeholder.', {
-            description:
-              'Final approval will be enforced after RBAC and backend review endpoints exist.',
-          })
-        }
-        type="button"
-        variant="outline"
-      >
-        <CheckCircle2 className="h-4 w-4" aria-hidden="true" />
-        Approve Complete
-      </Button>
-      <Button
-        className="gap-2"
-        onClick={() =>
-          toast.info('Returned for revision in prototype view.', {
-            description: 'This placeholder does not write to the backend.',
-          })
-        }
-        type="button"
-        variant="outline"
-      >
-        <RotateCcw className="h-4 w-4" aria-hidden="true" />
-        Return for Revision
-      </Button>
+      {canReview ? (
+        <>
+          <Button
+            className="gap-2"
+            onClick={() =>
+              toast.success('Completion action previewed.', {
+                description: 'This demonstration does not change shared project records.',
+              })
+            }
+            type="button"
+            variant="outline"
+          >
+            <CheckCircle2 className="h-4 w-4" aria-hidden="true" />
+            Preview Completion
+          </Button>
+          <Button
+            className="gap-2"
+            onClick={() =>
+              toast.info('Revision action previewed.', {
+                description: 'This demonstration does not change shared project records.',
+              })
+            }
+            type="button"
+            variant="outline"
+          >
+            <RotateCcw className="h-4 w-4" aria-hidden="true" />
+            Preview Return
+          </Button>
+        </>
+      ) : null}
     </div>
   </div>
 )
@@ -175,6 +180,7 @@ export const ActivityDetailPanel = ({
   onOpenChange,
   onSubmitProof,
   canEdit,
+  canReview,
   canSubmitProof,
 }: {
   activity: Activity | null
@@ -184,6 +190,7 @@ export const ActivityDetailPanel = ({
   onOpenChange: (open: boolean) => void
   onSubmitProof: (activity: Activity) => void
   canEdit: boolean
+  canReview: boolean
   canSubmitProof: boolean
 }) => (
   <Sheet onOpenChange={onOpenChange} open={open}>
@@ -192,6 +199,7 @@ export const ActivityDetailPanel = ({
         <ActivityDetailContent
           activity={activity}
           canEdit={canEdit}
+          canReview={canReview}
           canSubmitProof={canSubmitProof}
           indicators={indicators}
           onEdit={onEdit}

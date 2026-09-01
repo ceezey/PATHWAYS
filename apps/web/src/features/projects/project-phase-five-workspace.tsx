@@ -7,7 +7,6 @@ import {
   FileText,
   Flag,
   Loader2,
-  Pencil,
   Plus,
   Receipt,
   RotateCcw,
@@ -40,6 +39,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import type { PrototypeLabelKey } from '@/constants/prototype-labels'
+import { usePrototypeLabels } from '@/hooks/use-prototype-labels'
 import { usePrototypeRole } from '@/hooks/use-prototype-role'
 import { can } from '@/lib/rbac/can'
 import { pathwaysClient } from '@/lib/services/mock-pathways-client'
@@ -104,6 +105,14 @@ const viewTitles: Record<PhaseFiveWorkspaceView, { title: string; description: s
     title: 'Transparency',
     description: 'Configure public project sections without beneficiary-sensitive information.',
   },
+}
+
+const viewLabelKeys: Record<PhaseFiveWorkspaceView, PrototypeLabelKey> = {
+  evidence: 'projectEvidence',
+  indicators: 'projectIndicators',
+  'monitor-evaluate': 'projectMonitorEvaluate',
+  budget: 'projectBudget',
+  transparency: 'projectPublicDashboard',
 }
 
 const statusTone = (status: string) => {
@@ -197,6 +206,7 @@ export const ProjectPhaseFiveWorkspace = ({
   projectId: string
   view: PhaseFiveWorkspaceView
 }) => {
+  const { labels } = usePrototypeLabels()
   const { role } = usePrototypeRole()
   const [project, setProject] = useState<ProjectDetail | null>(null)
   const [activities, setActivities] = useState<Activity[]>([])
@@ -314,7 +324,10 @@ export const ProjectPhaseFiveWorkspace = ({
   const canVerifyExpense = can(role, 'budget.expense.verify')
   const canApproveExpense = can(role, 'budget.expense.approve')
   const canPublishTransparency = can(role, 'transparency.publish')
-  const heading = viewTitles[view]
+  const heading = {
+    ...viewTitles[view],
+    title: labels[viewLabelKeys[view]],
+  }
 
   const updateEvidenceStatus = (record: EvidenceRecord, status: EvidenceReviewStatus) => {
     if (!canReviewEvidence) {
@@ -595,7 +608,7 @@ export const ProjectPhaseFiveWorkspace = ({
     return (
       <>
         <PageHeader
-          eyebrow="Project workspace"
+          eyebrow={labels.projectWorkspace}
           title="Workspace unavailable"
           description="This project tab is not available in the current prototype session."
           actions={
@@ -616,7 +629,7 @@ export const ProjectPhaseFiveWorkspace = ({
   return (
     <>
       <PageHeader
-        eyebrow="Project workspace"
+        eyebrow={labels.projectWorkspace}
         title={heading.title}
         description={heading.description}
         actions={
@@ -1216,22 +1229,6 @@ const IndicatorsView = ({
                 .join(', ') || 'None linked yet'}
             </span>
           </div>
-          <div className="mt-4 flex justify-end">
-            <Button
-              className="gap-2"
-              onClick={() =>
-                toast.info('Indicator edit is a Phase 5 prototype placeholder.', {
-                  description: 'Indicator updates will be saved through a backend endpoint later.',
-                })
-              }
-              size="sm"
-              type="button"
-              variant="outline"
-            >
-              <Pencil className="h-4 w-4" aria-hidden="true" />
-              Edit
-            </Button>
-          </div>
         </div>
       ))}
     </div>
@@ -1533,7 +1530,7 @@ const BudgetView = ({
               </p>
             </div>
             <div className="flex flex-wrap justify-end gap-2">
-              {canVerifyExpense ? (
+              {canVerifyExpense && expense.liquidationStatus === 'Pending' ? (
                 <Button
                   onClick={() => onVerifyExpense(expense)}
                   size="sm"
@@ -1543,7 +1540,7 @@ const BudgetView = ({
                   Verify
                 </Button>
               ) : null}
-              {canApproveExpense ? (
+              {canApproveExpense && expense.liquidationStatus === 'Verified' ? (
                 <>
                   <Button onClick={() => onApproveExpense(expense)} size="sm" type="button">
                     Approve
@@ -1648,6 +1645,14 @@ const TransparencyView = ({
     <SectionCard
       title="Preview public content"
       description="No beneficiary-sensitive information is displayed."
+      actions={
+        <Button asChild className="gap-2" size="sm">
+          <Link href={`/projects/${project.id}/transparency/preview`}>
+            <Eye className="h-4 w-4" aria-hidden="true" />
+            Open staff preview
+          </Link>
+        </Button>
+      }
     >
       <div className="space-y-4 text-sm">
         <div className="rounded-lg border border-border bg-background p-3">
@@ -1672,6 +1677,10 @@ const TransparencyView = ({
         <p className="rounded-lg border border-dashed border-border bg-muted/40 p-3 text-muted-foreground">
           Public preview intentionally excludes names, individual beneficiary records, contact
           details, and proof files.
+        </p>
+        <p className="text-xs leading-5 text-muted-foreground">
+          Program Manager and Project Manager can customize the browser-local staff preview. The
+          approved anonymous page remains unchanged until a real publishing workflow is connected.
         </p>
       </div>
     </SectionCard>

@@ -34,6 +34,26 @@ export interface ProjectDetail extends ProjectSummary {
   createdInPrototype?: boolean
 }
 
+export type AnalyticsCoverageStatus = 'Strong' | 'Growing' | 'Limited' | 'Planned'
+
+export interface AnalyticsLocationProjectSummary {
+  projectId: string
+  beneficiariesReached: number
+  deliverySites: number
+  activitiesDelivered: number
+  coverageStatus: AnalyticsCoverageStatus
+}
+
+export interface AnalyticsLocationRecord {
+  id: string
+  name: string
+  region: string
+  latitude: number
+  longitude: number
+  coordinatePrecision: 'Approximate city centroid'
+  projectSummaries: AnalyticsLocationProjectSummary[]
+}
+
 export interface CreateProjectInput {
   title: string
   sector: string
@@ -180,6 +200,29 @@ export interface BeneficiaryNoteRecord {
   note: string
 }
 
+export type BeneficiaryMediaType = 'Photo' | 'Video'
+export type BeneficiaryMediaReviewStatus = 'For Review' | 'Accepted' | 'Needs Clarification'
+
+export interface BeneficiaryMediaProofRecord {
+  id: string
+  beneficiaryId: string
+  projectId: string
+  activityId?: string
+  mediaType: BeneficiaryMediaType
+  fileName: string
+  mimeType: string
+  fileSizeBytes: number
+  capturedAt: string
+  addedAt: string
+  addedBy: string
+  note?: string
+  tags: string[]
+  reviewStatus: BeneficiaryMediaReviewStatus
+  reviewNote?: string
+  durationSeconds?: number
+  source: 'Mock media' | 'Local preview'
+}
+
 export interface BeneficiaryRecord extends Beneficiary {
   firstName: string
   middleName?: string
@@ -197,6 +240,14 @@ export interface BeneficiaryRecord extends Beneficiary {
   participation: BeneficiaryParticipationRecord[]
   assessments: BeneficiaryAssessmentRecord[]
   notes: BeneficiaryNoteRecord[]
+}
+
+export interface BeneficiarySadddAggregate {
+  projectId: string
+  sex: Beneficiary['sex']
+  ageGroup: Beneficiary['ageGroup']
+  disabilityStatus: Beneficiary['disabilityStatus']
+  count: number
 }
 
 export interface Indicator {
@@ -384,7 +435,86 @@ export interface ReportRecord {
   reportingPeriod: string
 }
 
-export type ReportKind = 'project-summary' | 'indicator-summary' | 'beneficiary-summary'
+export type SurveyFormFieldType = 'Single select' | 'Numeric score'
+
+export interface SurveyFormFieldDefinition {
+  id: string
+  label: string
+  responseType: SurveyFormFieldType
+  metadataKey: string
+  required: boolean
+  options?: string[]
+  minimum?: number
+  maximum?: number
+}
+
+export interface SurveyFormDefinition {
+  id: string
+  title: string
+  formType: 'Training Survey' | 'Pre/Post Assessment' | 'Feedback Form'
+  programName: string
+  projectId: string
+  journeyStageId?: string
+  activityId?: string
+  fields: SurveyFormFieldDefinition[]
+  source: 'Metadata-driven Collection prototype'
+}
+
+export interface SurveyAggregateCount {
+  label: string
+  count: number
+}
+
+export interface SurveyCategoricalAggregate {
+  fieldId: string
+  kind: 'Categorical distribution'
+  responseCount: number
+  values: SurveyAggregateCount[]
+}
+
+export interface SurveyNumericAggregate {
+  fieldId: string
+  kind: 'Numeric summary'
+  responseCount: number
+  average: number
+  minimum: number
+  maximum: number
+  scaleLabel: string
+}
+
+export type SurveyQuestionAggregate = SurveyCategoricalAggregate | SurveyNumericAggregate
+
+export interface SurveyDemographicAggregate {
+  dimension: 'Sex' | 'Age group' | 'Disability status'
+  values: SurveyAggregateCount[]
+}
+
+export interface SurveyAggregateResultSet {
+  id: string
+  formId: string
+  projectId: string
+  location: string
+  responseDate: string
+  reportingPeriod: string
+  responseCount: number
+  questionResults: SurveyQuestionAggregate[]
+  demographicBreakdowns: SurveyDemographicAggregate[]
+  source: 'Synthetic aggregate mock'
+}
+
+export interface SurveyAggregateFilters {
+  formId?: string
+  projectId?: string
+  location?: string
+  responseDate?: string
+  reportingPeriod?: string
+}
+
+export type ReportKind =
+  | 'project-summary'
+  | 'indicator-summary'
+  | 'beneficiary-summary'
+  | 'survey-results'
 
 export interface ReportColumnConfig {
   id: string
@@ -408,6 +538,44 @@ export interface PublicMilestone {
   status: 'Completed' | 'In Progress' | 'Planned'
 }
 
+export type PublicDashboardSectionId =
+  | 'overview'
+  | 'media'
+  | 'progress'
+  | 'indicators'
+  | 'milestones'
+
+export type PublicDashboardLayoutPreset = 'story-led' | 'balanced' | 'compact'
+
+export interface PublicDashboardPresentation {
+  eyebrow: string
+  headline: string
+  summaryTitle: string
+  summaryBody: string
+  quote: string
+  quoteAttribution: string
+  closingTitle: string
+  closingText: string
+  secondaryCtaLabel: string
+  secondaryCtaHref: string
+  layoutPreset: PublicDashboardLayoutPreset
+  sectionOrder: PublicDashboardSectionId[]
+  visibleSections: PublicDashboardSectionId[]
+}
+
+export interface PublicBeneficiaryMediaRecord {
+  id: string
+  projectId: string
+  mediaType: 'Photo'
+  src: string
+  alt: string
+  caption: string
+  contextLabel: string
+  approvalState: 'Approved for public presentation'
+  consentScope: 'Public project storytelling'
+  source: 'Synthetic mock media'
+}
+
 export interface PublicProjectRecord {
   id: string
   title: string
@@ -427,13 +595,24 @@ export interface PublicProjectRecord {
   budgetSummary: string
   assessmentSummary: string
   publicationState: 'Approved for public preview'
+  publicPresentation: PublicDashboardPresentation
+  approvedMedia: PublicBeneficiaryMediaRecord[]
 }
 
 export interface UserRecord {
   id: string
   name: string
-  role: string
+  email: string
+  role: PrototypeRole
+  accountStatus: UserAccountStatus
+  signInMethod: 'Prototype password' | 'SSO placeholder'
+  projectIds: string[]
+  projectAccess: string[]
+  createdAt: string
+  lastActiveAt?: string
 }
+
+export type UserAccountStatus = 'Active' | 'Invited' | 'Deactivated'
 
 export interface BeneficiaryFilters {
   projectId?: string
@@ -487,12 +666,44 @@ export interface DashboardSection {
   items: DashboardItem[]
 }
 
+export type ExecutiveDeliveryStatus = 'On Track' | 'At Risk' | 'Behind Schedule'
+export type ExecutiveGoalOutlook =
+  | 'Achievable'
+  | 'Achievable with intervention'
+  | 'Needs recovery plan'
+
+export interface ExecutiveDashboardContext {
+  id: string
+  selectorLabel: string
+  projectId?: string
+  title: string
+  scopeLabel: string
+  deliveryStatus: ExecutiveDeliveryStatus
+  deliverySummary: string
+  goalAchievement: number
+  goalOutlook: ExecutiveGoalOutlook
+  milestonesCompleted: number
+  milestonesTotal: number
+  nextMilestone: string
+  budgetUtilization: number
+  scheduleProgress: number
+  riskLabel: string
+  riskSummary: string
+  riskSeverity: DashboardSeverity
+}
+
+export interface ExecutiveDashboardViewModel {
+  defaultContextId: string
+  contexts: ExecutiveDashboardContext[]
+}
+
 export interface RoleDashboardViewModel {
   role: PrototypeRole
   greetingName: string
   heading: string
   summary: string
   primaryAction?: DashboardAction
+  executive?: ExecutiveDashboardViewModel
   metrics: DashboardMetric[]
   sections: DashboardSection[]
 }

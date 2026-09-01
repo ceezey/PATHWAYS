@@ -1,6 +1,7 @@
 'use client'
 
-import { KeyRound, Loader2, RotateCcw } from 'lucide-react'
+import { ArrowLeft, KeyRound, Loader2, RotateCcw } from 'lucide-react'
+import { useRouter } from 'next/navigation'
 import { useState } from 'react'
 
 import { DialogShell } from '@/components/pathways/dialog-shell'
@@ -12,6 +13,7 @@ import { usePrototypeRole } from '@/hooks/use-prototype-role'
 import { writeBeneficiaryAccess } from '@/lib/auth/beneficiary-step-up'
 
 export const BeneficiaryAccessGate = ({ onVerified }: { onVerified: () => void }) => {
+  const router = useRouter()
   const { role } = usePrototypeRole()
   const [pin, setPin] = useState('')
   const [status, setStatus] = useState<'idle' | 'loading' | 'error' | 'locked'>('idle')
@@ -47,7 +49,7 @@ export const BeneficiaryAccessGate = ({ onVerified }: { onVerified: () => void }
 
   return (
     <div className="flex min-h-[70vh] items-center justify-center p-6">
-      <Dialog open>
+      <Dialog open onOpenChange={(open) => !open && router.push('/dashboard')}>
         <DialogShell
           title="Verify beneficiary module access"
           description="Sensitive beneficiary records are hidden until this short-lived step-up check succeeds."
@@ -80,8 +82,13 @@ export const BeneficiaryAccessGate = ({ onVerified }: { onVerified: () => void }
                 Verification is scoped to beneficiary routes and clears when the role changes or the
                 session ends.
               </p>
+              <p className="text-xs font-medium text-foreground">Client demonstration PIN: 2468</p>
             </div>
             <div className="flex flex-col gap-2 sm:flex-row sm:justify-end">
+              <Button type="button" variant="ghost" onClick={() => router.push('/dashboard')}>
+                <ArrowLeft className="mr-2 h-4 w-4" aria-hidden="true" />
+                Back to dashboard
+              </Button>
               <Button
                 type="button"
                 variant="outline"
@@ -97,6 +104,7 @@ export const BeneficiaryAccessGate = ({ onVerified }: { onVerified: () => void }
               <Button
                 disabled={pin.length < 4 || status === 'loading' || status === 'locked'}
                 onClick={verify}
+                type="button"
               >
                 {status === 'loading' ? (
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden="true" />

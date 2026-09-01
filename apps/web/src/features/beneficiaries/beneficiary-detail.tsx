@@ -29,12 +29,15 @@ import type {
   Activity,
   BeneficiaryAssessmentRecord,
   BeneficiaryEnrollmentStatus,
+  BeneficiaryMediaProofRecord,
   BeneficiaryNoteRecord,
   BeneficiaryParticipationRecord,
   BeneficiaryRecord,
   JourneyStageConfig,
   ProjectSummary,
 } from '@/types/pathways'
+
+import { BeneficiaryMediaProof } from './beneficiary-media-proof'
 
 import {
   deriveCurrentStage,
@@ -51,6 +54,7 @@ type BeneficiaryDetailProps = {
   projects: ProjectSummary[]
   activities: Activity[]
   stages: JourneyStageConfig[]
+  mediaProof: BeneficiaryMediaProofRecord[]
 }
 
 export const BeneficiaryDetail = ({
@@ -58,6 +62,7 @@ export const BeneficiaryDetail = ({
   projects,
   activities,
   stages,
+  mediaProof,
 }: BeneficiaryDetailProps) => {
   const [participation, setParticipation] = useState(beneficiary.participation)
   const [notes, setNotes] = useState(beneficiary.notes)
@@ -304,17 +309,22 @@ export const BeneficiaryDetail = ({
             <section className="rounded-lg border border-border bg-card p-5 shadow-sm">
               <div className="flex items-center justify-between gap-3">
                 <h2 className="text-lg font-semibold text-foreground">Assessments</h2>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => {
-                    setSelectedAssessment(beneficiary.assessments[0] ?? null)
-                    setAssessmentOpen(true)
-                  }}
-                >
-                  <FileText className="mr-2 h-4 w-4" aria-hidden="true" />
-                  View assessment
-                </Button>
+                {beneficiary.assessments.length > 0 ? (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    type="button"
+                    onClick={() => {
+                      setSelectedAssessment(beneficiary.assessments[0] ?? null)
+                      setAssessmentOpen(true)
+                    }}
+                  >
+                    <FileText className="mr-2 h-4 w-4" aria-hidden="true" />
+                    View assessment
+                  </Button>
+                ) : (
+                  <StatusBadge tone="neutral">No assessment available</StatusBadge>
+                )}
               </div>
               <div className="mt-4 space-y-3">
                 {beneficiary.assessments.length > 0 ? (
@@ -336,7 +346,7 @@ export const BeneficiaryDetail = ({
                   ))
                 ) : (
                   <p className="rounded-lg border border-border bg-background p-4 text-sm text-muted-foreground">
-                    No assessment records in this mock profile.
+                    No assessment records are available for this sample profile.
                   </p>
                 )}
               </div>
@@ -350,11 +360,19 @@ export const BeneficiaryDetail = ({
                 </p>
                 <p className="mt-2 text-sm leading-6 text-muted-foreground">
                   Follow-up status is reviewed with participation history and notes. It is displayed
-                  here as a prototype view, not a server-enforced workflow.
+                  here for review and does not change shared records.
                 </p>
               </div>
             </section>
           </div>
+
+          <BeneficiaryMediaProof
+            activities={activities}
+            beneficiaryId={beneficiary.id}
+            mediaProof={mediaProof}
+            projectIds={beneficiary.projectIds}
+            projects={projects}
+          />
 
           <section className="grid gap-6 xl:grid-cols-2">
             <RecordList
@@ -373,7 +391,7 @@ export const BeneficiaryDetail = ({
           <DialogHeader>
             <DialogTitle>Add beneficiary note</DialogTitle>
             <DialogDescription>
-              Notes are stored in local UI state for this prototype session.
+              Notes remain in this browser for the current demonstration.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
@@ -381,7 +399,7 @@ export const BeneficiaryDetail = ({
               value={noteDraft.stageId}
               onValueChange={(value) => setNoteDraft((current) => ({ ...current, stageId: value }))}
             >
-              <SelectTrigger>
+              <SelectTrigger aria-label="Journey stage context">
                 <SelectValue placeholder="Stage context" />
               </SelectTrigger>
               <SelectContent>
@@ -393,6 +411,7 @@ export const BeneficiaryDetail = ({
               </SelectContent>
             </Select>
             <textarea
+              aria-label="Beneficiary note"
               className="min-h-28 w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               placeholder="Note"
               value={noteDraft.note}
@@ -406,7 +425,7 @@ export const BeneficiaryDetail = ({
                 setNoteDraft((current) => ({ ...current, visibility: value }))
               }
             >
-              <SelectTrigger>
+              <SelectTrigger aria-label="Note visibility">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -416,10 +435,12 @@ export const BeneficiaryDetail = ({
             </Select>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setNoteOpen(false)}>
+            <Button type="button" variant="outline" onClick={() => setNoteOpen(false)}>
               Cancel
             </Button>
-            <Button onClick={addNote}>Save note</Button>
+            <Button onClick={addNote} type="button">
+              Save note
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -457,7 +478,7 @@ export const BeneficiaryDetail = ({
           <DialogHeader>
             <DialogTitle>Record participation</DialogTitle>
             <DialogDescription>
-              Activity selection drives the computed journey stage through mock mappings.
+              Activity selection updates the journey stage shown in this demonstration.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
@@ -467,7 +488,7 @@ export const BeneficiaryDetail = ({
                 setParticipationDraft((current) => ({ ...current, activityId: value }))
               }
             >
-              <SelectTrigger>
+              <SelectTrigger aria-label="Participation activity">
                 <SelectValue placeholder="Select activity" />
               </SelectTrigger>
               <SelectContent>
@@ -481,6 +502,7 @@ export const BeneficiaryDetail = ({
             <Label className="space-y-2">
               <span>Date</span>
               <Input
+                aria-label="Participation date"
                 type="date"
                 value={participationDraft.participatedAt}
                 onChange={(event) =>
@@ -491,9 +513,11 @@ export const BeneficiaryDetail = ({
                 }
               />
             </Label>
-            <div className="grid grid-cols-3 gap-2">
+            <fieldset className="grid grid-cols-3 gap-2">
+              <legend className="sr-only">Attendance status</legend>
               {['Present', 'Partial', 'Absent'].map((status) => (
                 <Button
+                  aria-pressed={participationDraft.attendanceStatus === status}
                   key={status}
                   type="button"
                   variant={participationDraft.attendanceStatus === status ? 'default' : 'outline'}
@@ -507,8 +531,9 @@ export const BeneficiaryDetail = ({
                   {status}
                 </Button>
               ))}
-            </div>
+            </fieldset>
             <textarea
+              aria-label="Participation notes"
               className="min-h-24 w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               placeholder="Participation notes"
               value={participationDraft.note}
@@ -518,10 +543,12 @@ export const BeneficiaryDetail = ({
             />
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setParticipationOpen(false)}>
+            <Button type="button" variant="outline" onClick={() => setParticipationOpen(false)}>
               Cancel
             </Button>
-            <Button onClick={recordParticipation}>Save participation</Button>
+            <Button onClick={recordParticipation} type="button">
+              Save participation
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -531,14 +558,14 @@ export const BeneficiaryDetail = ({
           <DialogHeader>
             <DialogTitle>Update enrollment status</DialogTitle>
             <DialogDescription>
-              Status changes are shown locally and are not server-enforced in this prototype.
+              Status changes remain in this browser for the current demonstration.
             </DialogDescription>
           </DialogHeader>
           <Select
             value={nextStatus}
             onValueChange={(value) => setNextStatus(value as BeneficiaryEnrollmentStatus)}
           >
-            <SelectTrigger>
+            <SelectTrigger aria-label="Enrollment status">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -549,10 +576,12 @@ export const BeneficiaryDetail = ({
             </SelectContent>
           </Select>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setStatusOpen(false)}>
+            <Button type="button" variant="outline" onClick={() => setStatusOpen(false)}>
               Cancel
             </Button>
-            <Button onClick={updateStatus}>Apply status</Button>
+            <Button onClick={updateStatus} type="button">
+              Apply status
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

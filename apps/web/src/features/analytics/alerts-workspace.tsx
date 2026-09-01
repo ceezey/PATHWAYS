@@ -1,10 +1,11 @@
 'use client'
 
-import { AlertTriangle, ExternalLink } from 'lucide-react'
+import { AlertTriangle, ExternalLink, Loader2 } from 'lucide-react'
 import Link from 'next/link'
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { toast } from 'sonner'
 
+import { EmptyState } from '@/components/pathways/empty-state'
 import { StatusBadge } from '@/components/pathways/status-badge'
 import { Button } from '@/components/ui/button'
 import {
@@ -16,6 +17,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
 import {
   Select,
   SelectContent,
@@ -23,6 +25,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import { usePrototypeLabels } from '@/hooks/use-prototype-labels'
+import { usePrototypeRole } from '@/hooks/use-prototype-role'
+import { pathwaysClient } from '@/lib/services/mock-pathways-client'
 import type {
   AlertLifecycleStatus,
   AlertRecord,
@@ -55,12 +60,71 @@ type AlertsWorkspaceProps = {
   rules: RuleDefinition[]
 }
 
-export const AlertsWorkspace = ({
+type AlertsWorkspaceData = AlertsWorkspaceProps & { role: string }
+
+export const AlertsWorkspace = () => {
+  const { role } = usePrototypeRole()
+  const [data, setData] = useState<AlertsWorkspaceData | null>(null)
+  const [status, setStatus] = useState<'loading' | 'ready' | 'error'>('loading')
+
+  useEffect(() => {
+    let active = true
+    setStatus('loading')
+    setData(null)
+
+    Promise.all([
+      pathwaysClient.getAlertsForRole(role),
+      pathwaysClient.getProjectsForRole(role),
+      pathwaysClient.getRecommendationsForRole(role),
+      pathwaysClient.getRules(),
+    ])
+      .then(([initialAlerts, projects, recommendations, rules]) => {
+        if (!active) return
+        setData({ initialAlerts, projects, recommendations, role, rules })
+        setStatus('ready')
+      })
+      .catch(() => {
+        if (!active) return
+        setStatus('error')
+      })
+
+    return () => {
+      active = false
+    }
+  }, [role])
+
+  if (status === 'loading') {
+    return (
+      <div className="flex min-h-80 items-center justify-center rounded-lg border border-border bg-card">
+        <div className="flex items-center gap-3 text-sm text-muted-foreground">
+          <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+          Loading scoped alerts...
+        </div>
+      </div>
+    )
+  }
+
+  if (status === 'error' || !data) {
+    return (
+      <EmptyState
+        className="min-h-80 rounded-lg border border-border bg-card"
+        description="The role-scoped alert queue could not be loaded. Reload this page to try again."
+        icon={AlertTriangle}
+        title="Alerts unavailable"
+      />
+    )
+  }
+
+  return <AlertsWorkspaceContent key={data.role} {...data} />
+}
+
+const AlertsWorkspaceContent = ({
   initialAlerts,
   projects,
   recommendations,
   rules,
 }: AlertsWorkspaceProps) => {
+  const { labels } = usePrototypeLabels()
   const [alerts, setAlerts] = useState(initialAlerts)
   const [projectId, setProjectId] = useState(allValue)
   const [status, setStatus] = useState(allValue)
@@ -80,7 +144,7 @@ export const AlertsWorkspace = ({
     [alerts, projectId, status],
   )
   const selectedAlert =
-    alerts.find((alert) => alert.id === selectedAlertId) ?? filteredAlerts[0] ?? alerts[0]
+    filteredAlerts.find((alert) => alert.id === selectedAlertId) ?? filteredAlerts[0]
   const selectedRecommendation = recommendations.find(
     (recommendation) => recommendation.alertId === selectedAlert?.id,
   )
@@ -97,7 +161,7 @@ export const AlertsWorkspace = ({
     )
     setReviewOpen(false)
     toast.success('Alert review updated locally.', {
-      description: 'The lifecycle transition is not server-enforced.',
+      description: 'This demonstration keeps the change in your current browser session only.',
     })
   }
 
@@ -105,12 +169,11 @@ export const AlertsWorkspace = ({
     <div className="space-y-6">
       <section className="flex flex-col gap-4 rounded-lg border border-border bg-card p-5 shadow-sm lg:flex-row lg:items-start lg:justify-between">
         <div className="space-y-2">
-          <div className="flex flex-wrap gap-2">
-            <StatusBadge tone="warning">Active alerts</StatusBadge>
-            <StatusBadge tone="neutral">Human-reviewed lifecycle</StatusBadge>
-          </div>
+          <StatusBadge tone="warning">Human review required</StatusBadge>
           <div>
-            <h1 className="text-3xl font-semibold tracking-tight text-foreground">Active alerts</h1>
+            <h1 className="text-3xl font-semibold tracking-tight text-foreground">
+              {labels.moduleAlerts}
+            </h1>
             <p className="mt-2 max-w-3xl text-sm leading-6 text-muted-foreground">
               Review rule-triggered alerts by severity, project, category, lifecycle status, and
               related project record. No autonomous action is taken.
@@ -118,7 +181,7 @@ export const AlertsWorkspace = ({
           </div>
         </div>
         <Button asChild>
-          <Link href="/recommendations">Open recommendations</Link>
+          <Link href="/recommendations">{labels.moduleRecommendations}</Link>
         </Button>
       </section>
 
@@ -126,7 +189,7 @@ export const AlertsWorkspace = ({
         <div className="space-y-2">
           <span className="text-sm font-medium">Project</span>
           <Select value={projectId} onValueChange={setProjectId}>
-            <SelectTrigger>
+            <SelectTrigger aria-label="Filter alerts by project">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -142,7 +205,7 @@ export const AlertsWorkspace = ({
         <div className="space-y-2">
           <span className="text-sm font-medium">Lifecycle status</span>
           <Select value={status} onValueChange={setStatus}>
-            <SelectTrigger>
+            <SelectTrigger aria-label="Filter alerts by lifecycle status">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -263,12 +326,14 @@ export const AlertsWorkspace = ({
                 >
                   Review action
                 </Button>
-                <Button asChild>
-                  <Link href="/recommendations">
-                    <ExternalLink className="mr-2 h-4 w-4" aria-hidden="true" />
-                    View recommended action
-                  </Link>
-                </Button>
+                {selectedRecommendation ? (
+                  <Button asChild>
+                    <Link href={`/recommendations?recommendation=${selectedRecommendation.id}`}>
+                      <ExternalLink className="mr-2 h-4 w-4" aria-hidden="true" />
+                      View recommended action
+                    </Link>
+                  </Button>
+                ) : null}
               </div>
             </>
           ) : (
@@ -286,32 +351,41 @@ export const AlertsWorkspace = ({
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
-            <Select
-              value={reviewStatus}
-              onValueChange={(value) => setReviewStatus(value as AlertLifecycleStatus)}
-            >
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {lifecycleStatuses.map((item) => (
-                  <SelectItem key={item} value={item}>
-                    {item}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <Input
-              placeholder="Action note"
-              value={actionNote}
-              onChange={(event) => setActionNote(event.target.value)}
-            />
+            <div className="space-y-2">
+              <Label htmlFor="alert-review-status">Review status</Label>
+              <Select
+                value={reviewStatus}
+                onValueChange={(value) => setReviewStatus(value as AlertLifecycleStatus)}
+              >
+                <SelectTrigger id="alert-review-status">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {lifecycleStatuses.map((item) => (
+                    <SelectItem key={item} value={item}>
+                      {item}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="alert-action-note">Action note</Label>
+              <Input
+                id="alert-action-note"
+                placeholder="Add an action note"
+                value={actionNote}
+                onChange={(event) => setActionNote(event.target.value)}
+              />
+            </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setReviewOpen(false)}>
+            <Button type="button" variant="outline" onClick={() => setReviewOpen(false)}>
               Cancel
             </Button>
-            <Button onClick={updateAlert}>Save review</Button>
+            <Button onClick={updateAlert} type="button">
+              Save review
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

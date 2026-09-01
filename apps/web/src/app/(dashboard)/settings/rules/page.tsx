@@ -1,8 +1,5 @@
-import { RuleConfigurationWorkspace } from '@/features/analytics/rule-configuration-workspace'
-import { pathwaysClient } from '@/lib/services/mock-pathways-client'
+import { redirect } from 'next/navigation'
 
-export default async function RulesPage() {
-  const rules = await pathwaysClient.getRules()
-
-  return <RuleConfigurationWorkspace initialRules={rules} />
+export default function RulesCompatibilityPage() {
+  redirect('/alerts/repository')
 }
