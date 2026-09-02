@@ -317,7 +317,7 @@ export const LoginForm = () => {
                   <FormControl>
                     <Input
                       autoComplete="username"
-                      className="border-0 border-b border-border bg-transparent px-0 shadow-none focus-visible:ring-0"
+                      className="border-0 border-b border-border bg-transparent px-0 shadow-none"
                       placeholder={
                         webSetupState.guiPrototypeModeEnabled
                           ? 'program.manager'
@@ -336,34 +336,31 @@ export const LoginForm = () => {
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Password</FormLabel>
-                  <FormControl>
-                    <div className="relative">
+                  <div className="relative">
+                    <FormControl>
                       <Input
-                        aria-label="Password"
-                        autoComplete={
-                          webSetupState.guiPrototypeModeEnabled ? 'current-password' : 'password'
-                        }
-                        className="border-0 border-b border-border bg-transparent px-0 pr-11 shadow-none focus-visible:ring-0"
+                        autoComplete="current-password"
+                        className="border-0 border-b border-border bg-transparent px-0 pr-11 shadow-none"
                         placeholder="Enter your password"
                         type={showPassword ? 'text' : 'password'}
                         {...field}
                       />
-                      <Button
-                        aria-label={showPassword ? 'Hide password' : 'Show password'}
-                        className="absolute right-1 top-1 h-8 w-8"
-                        onClick={() => setShowPassword((value) => !value)}
-                        size="icon"
-                        type="button"
-                        variant="ghost"
-                      >
-                        {showPassword ? (
-                          <EyeOff className="h-4 w-4" aria-hidden="true" />
-                        ) : (
-                          <Eye className="h-4 w-4" aria-hidden="true" />
-                        )}
-                      </Button>
-                    </div>
-                  </FormControl>
+                    </FormControl>
+                    <Button
+                      aria-label={showPassword ? 'Hide password' : 'Show password'}
+                      className="absolute right-1 top-1 h-8 w-8"
+                      onClick={() => setShowPassword((value) => !value)}
+                      size="icon"
+                      type="button"
+                      variant="ghost"
+                    >
+                      {showPassword ? (
+                        <EyeOff className="h-4 w-4" aria-hidden="true" />
+                      ) : (
+                        <Eye className="h-4 w-4" aria-hidden="true" />
+                      )}
+                    </Button>
+                  </div>
                   <FormMessage />
                 </FormItem>
               )}

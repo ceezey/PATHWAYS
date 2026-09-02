@@ -276,6 +276,50 @@ test('public project recovery and presentation links remain navigable', async ({
   await expect(page.getByRole('button', { name: 'Donate Now' })).toBeVisible()
 })
 
+test('login credentials expose labels, errors, autocomplete, and visible keyboard focus', async ({
+  page,
+}) => {
+  await page.goto('/staff/login')
+
+  const identifier = page.getByLabel('Username or email', { exact: true })
+  const password = page.getByLabel('Password', { exact: true })
+  const passwordToggle = page.getByRole('button', { name: 'Show password' })
+
+  await expect(identifier).toHaveAccessibleName('Username or email')
+  await expect(identifier).toHaveAttribute('autocomplete', 'username')
+  await expect(password).toHaveAccessibleName('Password')
+  await expect(password).toHaveAttribute('autocomplete', 'current-password')
+  await expect(password).toHaveAttribute('aria-invalid', 'false')
+  await expect(passwordToggle).toBeVisible()
+
+  const identifierIdleShadow = await identifier.evaluate(
+    (element) => window.getComputedStyle(element).boxShadow,
+  )
+  await page.keyboard.press('Tab')
+  await expect(identifier).toBeFocused()
+  expect(
+    await identifier.evaluate((element) => window.getComputedStyle(element).boxShadow),
+  ).not.toBe(identifierIdleShadow)
+
+  const passwordIdleShadow = await password.evaluate(
+    (element) => window.getComputedStyle(element).boxShadow,
+  )
+  await page.keyboard.press('Tab')
+  await expect(password).toBeFocused()
+  expect(await password.evaluate((element) => window.getComputedStyle(element).boxShadow)).not.toBe(
+    passwordIdleShadow,
+  )
+
+  await password.fill('short')
+  await page.getByRole('button', { name: 'Log In' }).click()
+  await expect(password).toHaveAttribute('aria-invalid', 'true')
+  await expect(password).toHaveAccessibleDescription('Password must be at least 8 characters.')
+
+  await passwordToggle.click()
+  await expect(password).toHaveAttribute('type', 'text')
+  await expect(passwordToggle).toHaveAccessibleName('Hide password')
+})
+
 test('login works and role preview switches through every supported role', async ({ page }) => {
   await page.goto('/login')
   await expect(page).toHaveURL(/\/staff\/login$/)
