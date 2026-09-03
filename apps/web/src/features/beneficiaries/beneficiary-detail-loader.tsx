@@ -4,7 +4,7 @@ import { ShieldAlert, UserRoundX } from 'lucide-react'
 import Link from 'next/link'
 import { useEffect, useState } from 'react'
 
-import { EmptyState } from '@/components/pathways/empty-state'
+import { AsyncState, StatusMessage } from '@/components/pathways'
 import { Button } from '@/components/ui/button'
 import { usePrototypeRole } from '@/hooks/use-prototype-role'
 import { pathwaysClient } from '@/lib/services/mock-pathways-client'
@@ -32,12 +32,15 @@ type DetailState =
   | { status: 'ready'; data: DetailData }
   | { status: 'restricted' }
   | { status: 'unavailable' }
+  | { status: 'error' }
 
 export const BeneficiaryDetailLoader = ({ beneficiaryId }: { beneficiaryId: string }) => {
   const { role } = usePrototypeRole()
   const [state, setState] = useState<DetailState>({ status: 'loading' })
+  const [loadAttempt, setLoadAttempt] = useState(0)
 
   useEffect(() => {
+    void loadAttempt
     let active = true
 
     const loadDetail = async () => {
@@ -73,12 +76,13 @@ export const BeneficiaryDetailLoader = ({ beneficiaryId }: { beneficiaryId: stri
           return
         }
 
-        setState({
-          status:
-            error instanceof PathwaysClientError && error.code === 'forbidden'
-              ? 'restricted'
-              : 'unavailable',
-        })
+        if (error instanceof PathwaysClientError && error.code === 'forbidden') {
+          setState({ status: 'restricted' })
+        } else if (error instanceof PathwaysClientError && error.code === 'not_found') {
+          setState({ status: 'unavailable' })
+        } else {
+          setState({ status: 'error' })
+        }
       }
     }
 
@@ -87,21 +91,38 @@ export const BeneficiaryDetailLoader = ({ beneficiaryId }: { beneficiaryId: stri
     return () => {
       active = false
     }
-  }, [beneficiaryId, role])
+  }, [beneficiaryId, loadAttempt, role])
 
   if (state.status === 'loading') {
     return (
-      <div
-        aria-live="polite"
-        className="rounded-lg border border-border bg-card p-8 text-sm text-muted-foreground"
-      >
-        Checking Beneficiary record access...
-      </div>
+      <AsyncState
+        description="Checking whether this Beneficiary record is available to the current role."
+        icon={ShieldAlert}
+        status="loading"
+        title="Checking Beneficiary record access"
+      />
     )
   }
 
   if (state.status === 'ready') {
-    return <BeneficiaryDetail {...state.data} />
+    return (
+      <>
+        <StatusMessage>Beneficiary record loaded.</StatusMessage>
+        <BeneficiaryDetail {...state.data} />
+      </>
+    )
+  }
+
+  if (state.status === 'error') {
+    return (
+      <AsyncState
+        description="The Beneficiary record could not be loaded. Check your connection and try again."
+        icon={UserRoundX}
+        onRetry={() => setLoadAttempt((attempt) => attempt + 1)}
+        status="error"
+        title="Beneficiary record unavailable"
+      />
+    )
   }
 
   const restricted = state.status === 'restricted'
@@ -109,13 +130,14 @@ export const BeneficiaryDetailLoader = ({ beneficiaryId }: { beneficiaryId: stri
   return (
     <div className="flex min-h-[60vh] items-center justify-center p-6">
       <div className="w-full max-w-2xl space-y-4 rounded-lg border border-border bg-card p-8 text-center">
-        <EmptyState
+        <AsyncState
           description={
             restricted
               ? 'This record is outside the projects assigned to the current prototype role. No Beneficiary details or media were loaded.'
               : 'This Beneficiary record is not available in the current safe sample data.'
           }
           icon={restricted ? ShieldAlert : UserRoundX}
+          status="empty"
           title={restricted ? 'Beneficiary record restricted' : 'Beneficiary record unavailable'}
         />
         <Button asChild>

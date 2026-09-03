@@ -48,16 +48,28 @@ const markerToneClasses: Record<AnalyticsCoverageStatus, string> = {
   Planned: 'border-slate-300 bg-slate-500 text-white shadow-slate-950/20',
 }
 
-const markerOffsets: Record<string, { left: number; top: number }> = {
-  'quezon-city': { left: 4, top: -4 },
-  manila: { left: 0, top: 5 },
-  navotas: { left: -5, top: -2 },
-  mandaluyong: { left: 6, top: 5 },
-  calbayog: { left: -3, top: -3 },
-  catbalogan: { left: 2, top: 2 },
-  basey: { left: 4, top: 5 },
-  catarman: { left: -3, top: -4 },
-  laoang: { left: 4, top: -2 },
+// Approximate city centroids are deliberately offset within their regional clusters so each
+// 44px interaction target remains independently available on the narrow audit working targets.
+const collisionAwareMarkerPositions: Record<string, { left: number; top: number }> = {
+  'quezon-city': { left: 48, top: 26 },
+  manila: { left: 24, top: 41 },
+  navotas: { left: 24, top: 26 },
+  mandaluyong: { left: 48, top: 41 },
+  calbayog: { left: 65, top: 67 },
+  catbalogan: { left: 88, top: 67 },
+  basey: { left: 78, top: 83 },
+  catarman: { left: 70, top: 52 },
+  laoang: { left: 90, top: 52 },
+}
+
+const tooltipPlacement = (left: number) => {
+  if (left <= 30) {
+    return 'left-0 translate-x-0'
+  }
+  if (left >= 70) {
+    return 'right-0 left-auto translate-x-0'
+  }
+  return 'left-1/2 -translate-x-1/2'
 }
 
 const coverageSummary = (location: AnalyticsLocationInsight) => {
@@ -170,7 +182,7 @@ const CoverageMapGraphic = ({
   onSelect: (locationId: string) => void
 }) => (
   <div>
-    <div className="relative mx-auto aspect-[4/5] w-full max-w-5xl overflow-hidden rounded-xl border border-slate-200 bg-[linear-gradient(160deg,#eff6ff,#ecfeff)] shadow-inner sm:aspect-[16/10]">
+    <div className="relative mx-auto aspect-[4/5] w-full max-w-5xl overflow-visible rounded-xl border border-slate-200 bg-[linear-gradient(160deg,#eff6ff,#ecfeff)] shadow-inner sm:aspect-[16/10]">
       <svg
         aria-labelledby="coverage-map-graphic-title coverage-map-graphic-description"
         className="absolute inset-0 h-full w-full"
@@ -213,8 +225,9 @@ const CoverageMapGraphic = ({
       </svg>
 
       {locations.map((location) => {
-        const position = getMapPosition(location.latitude, location.longitude)
-        const offset = markerOffsets[location.id] ?? { left: 0, top: 0 }
+        const position =
+          collisionAwareMarkerPositions[location.id] ??
+          getMapPosition(location.latitude, location.longitude)
         const markerSize = getMarkerSize(location.beneficiariesReached)
         const active = activeLocationId === location.id
         const tooltipId = `coverage-point-${location.id}-tooltip`
@@ -226,25 +239,32 @@ const CoverageMapGraphic = ({
             aria-haspopup="dialog"
             aria-label={`${location.name}: ${formatNumber(location.beneficiariesReached)} Beneficiaries reached, ${location.deliverySites} delivery sites, ${location.coverageStatus} coverage`}
             className={cn(
-              'group absolute flex -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full border-2 font-semibold shadow-lg transition-transform hover:z-20 hover:scale-110 focus-visible:z-20 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-white/90',
-              markerToneClasses[location.coverageStatus],
+              'group absolute flex h-11 w-11 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full font-semibold transition-transform hover:z-20 hover:scale-110 focus-visible:z-20 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-white/90 motion-reduce:hover:scale-100',
               active && 'z-10 ring-4 ring-slate-950/20',
             )}
             key={location.id}
             onClick={() => onSelect(location.id)}
             style={{
-              height: markerSize,
-              left: `${position.left + offset.left}%`,
-              top: `${position.top + offset.top}%`,
-              width: markerSize,
+              left: `${position.left}%`,
+              top: `${position.top}%`,
             }}
             type="button"
           >
-            <span aria-hidden="true" className="text-[10px]">
+            <span
+              aria-hidden="true"
+              className={cn(
+                'flex items-center justify-center rounded-full border-2 text-[10px] shadow-lg',
+                markerToneClasses[location.coverageStatus],
+              )}
+              style={{ height: markerSize, width: markerSize }}
+            >
               {location.projectIds.length}
             </span>
             <span
-              className="pointer-events-none absolute bottom-full left-1/2 z-30 mb-2 hidden w-48 -translate-x-1/2 rounded-lg bg-slate-950 p-2.5 text-left text-white shadow-xl group-hover:block group-focus-visible:block"
+              className={cn(
+                'pointer-events-none absolute bottom-full z-30 mb-2 hidden w-48 rounded-lg bg-slate-950 p-2.5 text-left text-white shadow-xl group-hover:block group-focus-visible:block',
+                tooltipPlacement(position.left),
+              )}
               id={tooltipId}
               role="tooltip"
             >
@@ -276,8 +296,8 @@ const CoverageMapGraphic = ({
       ))}
     </div>
     <p className="mt-2 text-center text-[11px] leading-5 text-muted-foreground">
-      Point size represents total Beneficiary reach. Point numbers show project count. Select a
-      point for details.
+      Point size represents total Beneficiary reach. Point numbers show project count. Nearby city
+      points are offset within their region so each remains selectable. Select a point for details.
     </p>
   </div>
 )

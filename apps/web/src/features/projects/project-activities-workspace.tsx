@@ -16,18 +16,28 @@ import { useRouter } from 'next/navigation'
 import { useEffect, useMemo, useState } from 'react'
 
 import { PageHeader } from '@/components/layout/page-header'
-import { EmptyState, FilterBar, ProgressBar, SectionCard, StatusBadge } from '@/components/pathways'
+import {
+  AsyncState,
+  EmptyState,
+  FilterBar,
+  FilterChoiceGroup,
+  ProgressBar,
+  ResultsAnnouncement,
+  SectionCard,
+  StatusBadge,
+} from '@/components/pathways'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { usePrototypeLabels } from '@/hooks/use-prototype-labels'
 import { usePrototypeRole } from '@/hooks/use-prototype-role'
 import { can } from '@/lib/rbac/can'
 import { pathwaysClient } from '@/lib/services/mock-pathways-client'
+import { PathwaysClientError } from '@/lib/services/pathways-client'
 import type {
   Activity,
   ActivityStatus,
   Indicator,
+  JourneyStageConfig,
   ProjectDetail,
   UserRecord,
 } from '@/types/pathways'
@@ -256,9 +266,10 @@ export const ProjectActivitiesWorkspace = ({
   const [project, setProject] = useState<ProjectDetail | null>(null)
   const [activities, setActivities] = useState<Activity[]>([])
   const [indicators, setIndicators] = useState<Indicator[]>([])
+  const [journeyStages, setJourneyStages] = useState<JourneyStageConfig[]>([])
   const [users, setUsers] = useState<UserRecord[]>([])
   const [loading, setLoading] = useState(true)
-  const [error, setError] = useState(false)
+  const [loadError, setLoadError] = useState<'none' | 'not-found' | 'error'>('none')
   const [query, setQuery] = useState('')
   const [filter, setFilter] = useState<ActivityFilter>('All')
   const [viewMode, setViewMode] = useState<'board' | 'list'>('board')
@@ -267,19 +278,22 @@ export const ProjectActivitiesWorkspace = ({
   const [proofActivity, setProofActivity] = useState<Activity | null>(null)
   const [formOpen, setFormOpen] = useState(false)
   const [proofOpen, setProofOpen] = useState(false)
+  const [loadAttempt, setLoadAttempt] = useState(0)
 
   useEffect(() => {
+    void loadAttempt
     let mounted = true
     setLoading(true)
-    setError(false)
+    setLoadError('none')
 
     Promise.all([
       pathwaysClient.getProject(projectId),
       pathwaysClient.getActivities(projectId),
       pathwaysClient.getIndicators(projectId),
+      pathwaysClient.getJourneyStages(projectId),
       pathwaysClient.getUsers(),
     ])
-      .then(([projectRecord, activityRecords, indicatorRecords, userRecords]) => {
+      .then(([projectRecord, activityRecords, indicatorRecords, stageRecords, userRecords]) => {
         if (!mounted) {
           return
         }
@@ -287,6 +301,7 @@ export const ProjectActivitiesWorkspace = ({
         setProject(projectRecord)
         setActivities(activityRecords)
         setIndicators(indicatorRecords)
+        setJourneyStages(stageRecords)
         setUsers(userRecords)
         const initialActivity = initialActivityId
           ? (activityRecords.find((activity) => activity.id === initialActivityId) ?? null)
@@ -297,12 +312,16 @@ export const ProjectActivitiesWorkspace = ({
           router.replace(`/projects/${projectId}/activities`)
         }
       })
-      .catch(() => {
+      .catch((error) => {
         if (!mounted) {
           return
         }
 
-        setError(true)
+        setLoadError(
+          error instanceof PathwaysClientError && error.code === 'not_found'
+            ? 'not-found'
+            : 'error',
+        )
       })
       .finally(() => {
         if (mounted) {
@@ -313,7 +332,7 @@ export const ProjectActivitiesWorkspace = ({
     return () => {
       mounted = false
     }
-  }, [initialActivityId, projectId, router])
+  }, [initialActivityId, loadAttempt, projectId, router])
 
   const filteredActivities = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase()
@@ -407,15 +426,16 @@ export const ProjectActivitiesWorkspace = ({
 
   if (loading) {
     return (
-      <EmptyState
+      <AsyncState
         description="Loading the project workspace and activities."
         icon={Loader2}
+        status="loading"
         title="Loading activities"
       />
     )
   }
 
-  if (error || !project) {
+  if (loadError === 'error') {
     return (
       <>
         <PageHeader
@@ -428,10 +448,35 @@ export const ProjectActivitiesWorkspace = ({
             </Button>
           }
         />
-        <EmptyState
-          description="Try returning to the project directory and opening another project."
+        <AsyncState
+          description="The project workspace could not be loaded. Check your connection and try again."
           icon={LayoutGrid}
-          title="No workspace data"
+          onRetry={() => setLoadAttempt((attempt) => attempt + 1)}
+          status="error"
+          title="Activities unavailable"
+        />
+      </>
+    )
+  }
+
+  if (loadError === 'not-found' || !project) {
+    return (
+      <>
+        <PageHeader
+          eyebrow={labels.projectWorkspace}
+          title="Project not found"
+          description="This project is not available in the current prototype session."
+          actions={
+            <Button asChild variant="outline">
+              <Link href="/projects">Back to Projects</Link>
+            </Button>
+          }
+        />
+        <AsyncState
+          description="Return to the project directory and choose an available project."
+          icon={LayoutGrid}
+          status="empty"
+          title="No project workspace"
         />
       </>
     )
@@ -467,19 +512,13 @@ export const ProjectActivitiesWorkspace = ({
             value={query}
           />
         </div>
-        <Tabs
-          className="w-full xl:w-auto"
-          value={filter}
+        <FilterChoiceGroup
+          className="grid w-full grid-cols-2 sm:grid-cols-4 xl:flex xl:w-auto"
+          label="Activity status filter"
           onValueChange={(value) => setFilter(value as ActivityFilter)}
-        >
-          <TabsList className="grid h-auto w-full grid-cols-2 sm:grid-cols-4 xl:flex xl:w-auto">
-            {activityFilters.map((item) => (
-              <TabsTrigger key={item} value={item}>
-                {item}
-              </TabsTrigger>
-            ))}
-          </TabsList>
-        </Tabs>
+          options={activityFilters}
+          value={filter}
+        />
         <div className="flex w-full items-center justify-between gap-2 sm:justify-end xl:w-auto">
           <fieldset className="m-0 flex gap-2 border-0 p-0">
             <legend className="sr-only">Activity view</legend>
@@ -516,6 +555,14 @@ export const ProjectActivitiesWorkspace = ({
         counts={activityStatusCounts}
         shownCount={filteredActivities.length}
         totalCount={activities.length}
+      />
+      <ResultsAnnouncement
+        message={
+          filteredActivities.length === 0
+            ? 'No activities match the current search and status filter.'
+            : `${filteredActivities.length} ${filteredActivities.length === 1 ? 'activity matches' : 'activities match'} the current search and status filter.`
+        }
+        settleKey={`${query}|${filter}`}
       />
       {filteredActivities.length === 0 ? (
         <EmptyState
@@ -571,6 +618,7 @@ export const ProjectActivitiesWorkspace = ({
       <ActivityFormDialog
         activity={editingActivity}
         indicators={indicators}
+        journeyStages={journeyStages}
         onCreatedOrUpdated={upsertActivity}
         onOpenChange={setFormOpen}
         open={formOpen}

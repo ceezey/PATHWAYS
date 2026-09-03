@@ -1,10 +1,11 @@
 export default function PublicLoading() {
   return (
-    <main
+    <div
       aria-busy="true"
       aria-label="Loading public dashboard"
       className="min-h-screen bg-slate-50"
     >
+      <h1 className="sr-only">Loading public dashboard</h1>
       <section className="border-b border-slate-200 bg-white">
         <div className="mx-auto w-full max-w-6xl space-y-5 px-4 py-10 sm:px-6">
           <div className="h-5 w-48 animate-pulse rounded bg-slate-200" />
@@ -21,6 +22,6 @@ export default function PublicLoading() {
           />
         ))}
       </section>
-    </main>
+    </div>
   )
 }

@@ -22,11 +22,13 @@ import { toast } from 'sonner'
 
 import { PageHeader } from '@/components/layout/page-header'
 import {
+  AsyncState,
   DialogShell,
   EmptyState,
   ProgressBar,
   SectionCard,
   StatusBadge,
+  StatusMessage,
 } from '@/components/pathways'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogFooter } from '@/components/ui/dialog'
@@ -39,11 +41,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import { Textarea } from '@/components/ui/textarea'
 import type { PrototypeLabelKey } from '@/constants/prototype-labels'
 import { usePrototypeLabels } from '@/hooks/use-prototype-labels'
 import { usePrototypeRole } from '@/hooks/use-prototype-role'
 import { can } from '@/lib/rbac/can'
 import { pathwaysClient } from '@/lib/services/mock-pathways-client'
+import { PathwaysClientError } from '@/lib/services/pathways-client'
 import type {
   Activity,
   AlertRecord,
@@ -170,8 +174,8 @@ const TextArea = ({
   placeholder?: string
   value: string
 }) => (
-  <textarea
-    className="min-h-28 w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+  <Textarea
+    className="min-h-28"
     id={id}
     onChange={(event) => onChange(event.target.value)}
     placeholder={placeholder}
@@ -221,8 +225,10 @@ export const ProjectPhaseFiveWorkspace = ({
   const [expenses, setExpenses] = useState<ExpenseRecord[]>([])
   const [reports, setReports] = useState<ReportRecord[]>([])
   const [transparencySections, setTransparencySections] = useState<TransparencySection[]>([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState(false)
+  const [loadStatus, setLoadStatus] = useState<'loading' | 'ready' | 'not-found' | 'error'>(
+    'loading',
+  )
+  const [loadAttempt, setLoadAttempt] = useState(0)
   const [previewEvidence, setPreviewEvidence] = useState<EvidenceRecord | null>(null)
   const [addIndicatorOpen, setAddIndicatorOpen] = useState(false)
   const [annotationOpen, setAnnotationOpen] = useState(false)
@@ -237,9 +243,9 @@ export const ProjectPhaseFiveWorkspace = ({
   const [receiptFiles, setReceiptFiles] = useState<File[]>([])
 
   useEffect(() => {
+    void loadAttempt
     let mounted = true
-    setLoading(true)
-    setError(false)
+    setLoadStatus('loading')
 
     Promise.all([
       pathwaysClient.getProject(projectId),
@@ -287,23 +293,23 @@ export const ProjectPhaseFiveWorkspace = ({
           setExpenses(expenseRecords)
           setReports(reportRecords)
           setTransparencySections(transparencyRecords)
+          setLoadStatus('ready')
         },
       )
-      .catch(() => {
+      .catch((error) => {
         if (mounted) {
-          setError(true)
-        }
-      })
-      .finally(() => {
-        if (mounted) {
-          setLoading(false)
+          setLoadStatus(
+            error instanceof PathwaysClientError && error.code === 'not_found'
+              ? 'not-found'
+              : 'error',
+          )
         }
       })
 
     return () => {
       mounted = false
     }
-  }, [projectId])
+  }, [loadAttempt, projectId])
 
   const projectAlerts = alerts
   const projectRecommendations = useMemo(() => {
@@ -594,17 +600,18 @@ export const ProjectPhaseFiveWorkspace = ({
     )
   }
 
-  if (loading) {
+  if (loadStatus === 'loading') {
     return (
-      <EmptyState
+      <AsyncState
         description="Loading the project workspace tab."
         icon={Loader2}
+        status="loading"
         title="Loading workspace"
       />
     )
   }
 
-  if (error || !project) {
+  if (loadStatus === 'error') {
     return (
       <>
         <PageHeader
@@ -617,10 +624,35 @@ export const ProjectPhaseFiveWorkspace = ({
             </Button>
           }
         />
-        <EmptyState
-          description="Return to the project directory and open another project."
+        <AsyncState
+          description="The project tab could not be loaded. Check your connection and try again."
           icon={FileText}
-          title="No workspace data"
+          onRetry={() => setLoadAttempt((attempt) => attempt + 1)}
+          status="error"
+          title="Workspace data unavailable"
+        />
+      </>
+    )
+  }
+
+  if (loadStatus === 'not-found' || !project) {
+    return (
+      <>
+        <PageHeader
+          eyebrow={labels.projectWorkspace}
+          title="Project not found"
+          description="This project is not available in the current prototype session."
+          actions={
+            <Button asChild variant="outline">
+              <Link href="/projects">Back to Projects</Link>
+            </Button>
+          }
+        />
+        <AsyncState
+          description="Return to the project directory and choose an available project."
+          icon={FileText}
+          status="empty"
+          title="No project workspace"
         />
       </>
     )
@@ -628,6 +660,7 @@ export const ProjectPhaseFiveWorkspace = ({
 
   return (
     <>
+      <StatusMessage>Project workspace loaded.</StatusMessage>
       <PageHeader
         eyebrow={labels.projectWorkspace}
         title={heading.title}

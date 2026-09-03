@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button'
 
 export default function PublicProjectNotFound() {
   return (
-    <main className="flex min-h-[70vh] items-center bg-slate-50 px-4 py-12 sm:px-6">
+    <div className="flex min-h-[70vh] items-center bg-slate-50 px-4 py-12 sm:px-6">
       <section className="mx-auto w-full max-w-xl rounded-xl border border-slate-200 bg-white p-6 text-center shadow-sm sm:p-10">
         <p className="text-xs font-semibold uppercase tracking-wide text-teal-700">
           Public project
@@ -32,6 +32,6 @@ export default function PublicProjectNotFound() {
           </Button>
         </div>
       </section>
-    </main>
+    </div>
   )
 }

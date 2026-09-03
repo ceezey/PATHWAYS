@@ -21,6 +21,7 @@ import Link from 'next/link'
 import { useEffect, useState } from 'react'
 import { toast } from 'sonner'
 
+import { ConfirmationDialog } from '@/components/pathways/confirmation-dialog'
 import { ProgressBar } from '@/components/pathways/progress-bar'
 import { StatusBadge } from '@/components/pathways/status-badge'
 import { Button } from '@/components/ui/button'
@@ -41,6 +42,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import { Textarea } from '@/components/ui/textarea'
 import { cn } from '@/lib/utils'
 import type {
   PublicDashboardLayoutPreset,
@@ -100,9 +102,13 @@ export const PublicProjectDetail = ({
   const [presentation, setPresentation] = useState(defaults)
   const [draft, setDraft] = useState(defaults)
   const [editorOpen, setEditorOpen] = useState(false)
+  const [discardDialogOpen, setDiscardDialogOpen] = useState(false)
+  const [restoreDialogOpen, setRestoreDialogOpen] = useState(false)
   const [donationOpen, setDonationOpen] = useState(false)
   const [editorError, setEditorError] = useState('')
+  const [draftRecovered, setDraftRecovered] = useState(false)
   const [hydrated, setHydrated] = useState(!editable)
+  const draftStorageKey = `pathways.publicDashboardDraft.${project.id}`
 
   useEffect(() => {
     if (!editable) {
@@ -130,7 +136,28 @@ export const PublicProjectDetail = ({
       return
     }
 
-    setDraft(presentation)
+    let nextDraft = presentation
+    try {
+      const stored = window.sessionStorage.getItem(draftStorageKey)
+      if (stored) {
+        const parsed = JSON.parse(stored) as Partial<PublicDashboardPresentation>
+        const restored = sanitizePublicDashboardPresentation(parsed, presentation)
+        for (const field of requiredTextFields) {
+          if (typeof parsed[field] === 'string') {
+            Object.assign(restored, { [field]: parsed[field] })
+          }
+        }
+        nextDraft = restored
+        setDraftRecovered(true)
+      } else {
+        setDraftRecovered(false)
+      }
+    } catch {
+      window.sessionStorage.removeItem(draftStorageKey)
+      setDraftRecovered(false)
+    }
+
+    setDraft(nextDraft)
     setEditorError('')
     setEditorOpen(true)
   }
@@ -200,6 +227,7 @@ export const PublicProjectDetail = ({
       )
       setPresentation(normalized)
       setDraft(normalized)
+      window.sessionStorage.removeItem(draftStorageKey)
       setEditorOpen(false)
       toast.success('Public prototype view updated.', {
         description: 'The preview changed only in this browser and was not published.',
@@ -216,6 +244,7 @@ export const PublicProjectDetail = ({
 
     try {
       window.localStorage.removeItem(getPublicDashboardStorageKey(project.id))
+      window.sessionStorage.removeItem(draftStorageKey)
       setPresentation(defaults)
       setDraft(defaults)
       setEditorOpen(false)
@@ -226,6 +255,45 @@ export const PublicProjectDetail = ({
       setEditorError('This browser could not restore the default view. Try again.')
     }
   }
+
+  const draftChanged = JSON.stringify(draft) !== JSON.stringify(presentation)
+  const restoreAvailable =
+    JSON.stringify(presentation) !== JSON.stringify(defaults) ||
+    JSON.stringify(draft) !== JSON.stringify(defaults)
+
+  const requestEditorOpenChange = (nextOpen: boolean) => {
+    if (!nextOpen && draftChanged) {
+      setDiscardDialogOpen(true)
+      return
+    }
+
+    setEditorOpen(nextOpen)
+  }
+
+  const discardEditorChanges = () => {
+    window.sessionStorage.removeItem(draftStorageKey)
+    setDraft(presentation)
+    setEditorError('')
+    setDiscardDialogOpen(false)
+    setEditorOpen(false)
+  }
+
+  const confirmRestoreDefaults = () => {
+    setRestoreDialogOpen(false)
+    restoreDefaults()
+  }
+
+  useEffect(() => {
+    if (!editable || !editorOpen) {
+      return
+    }
+
+    if (draftChanged) {
+      window.sessionStorage.setItem(draftStorageKey, JSON.stringify(draft))
+    } else {
+      window.sessionStorage.removeItem(draftStorageKey)
+    }
+  }, [draft, draftChanged, draftStorageKey, editable, editorOpen])
 
   const sectionContent: Record<PublicDashboardSectionId, React.ReactNode> = {
     overview: <PublicOverview project={project} presentation={presentation} />,
@@ -407,7 +475,7 @@ export const PublicProjectDetail = ({
       </section>
 
       {editable ? (
-        <Dialog open={editorOpen} onOpenChange={setEditorOpen}>
+        <Dialog open={editorOpen} onOpenChange={requestEditorOpenChange}>
           <DialogContent className="max-h-[92vh] overflow-y-auto sm:max-w-3xl">
             <DialogHeader>
               <DialogTitle>Edit staff public-dashboard preview</DialogTitle>
@@ -421,6 +489,16 @@ export const PublicProjectDetail = ({
               Use approved, non-sensitive project wording only. This prototype does not provide a
               publishing workflow or access to internal records.
             </div>
+
+            {draftRecovered ? (
+              <output
+                aria-atomic="true"
+                aria-live="polite"
+                className="block rounded-lg border border-info/20 bg-info/10 p-3 text-sm text-info"
+              >
+                Recovered your unsaved public-preview draft from this browser tab.
+              </output>
+            ) : null}
 
             <div className="space-y-7 py-2">
               <EditorSection
@@ -614,12 +692,22 @@ export const PublicProjectDetail = ({
             ) : null}
 
             <div className="flex flex-col-reverse gap-2 border-t border-slate-200 pt-4 sm:flex-row sm:items-center sm:justify-between">
-              <Button className="gap-2" onClick={restoreDefaults} type="button" variant="outline">
+              <Button
+                className="gap-2"
+                disabled={!restoreAvailable}
+                onClick={() => setRestoreDialogOpen(true)}
+                type="button"
+                variant="outline"
+              >
                 <RotateCcw className="h-4 w-4" aria-hidden="true" />
                 Restore project defaults
               </Button>
               <div className="flex flex-col-reverse gap-2 sm:flex-row">
-                <Button onClick={() => setEditorOpen(false)} type="button" variant="outline">
+                <Button
+                  onClick={() => requestEditorOpenChange(false)}
+                  type="button"
+                  variant="outline"
+                >
                   Cancel
                 </Button>
                 <Button className="gap-2" onClick={savePresentation} type="button">
@@ -630,6 +718,33 @@ export const PublicProjectDetail = ({
             </div>
           </DialogContent>
         </Dialog>
+      ) : null}
+
+      {editable ? (
+        <>
+          <ConfirmationDialog
+            cancelLabel="Stay and keep editing"
+            confirmLabel="Discard preview changes"
+            description="Your unsaved public-preview copy, layout, and visibility changes will be lost."
+            onConfirm={discardEditorChanges}
+            onOpenChange={setDiscardDialogOpen}
+            open={discardDialogOpen}
+            title={`Discard changes to ${project.title}?`}
+          />
+          <ConfirmationDialog
+            confirmLabel="Restore project defaults"
+            description="This removes every browser-local public-preview customization for this project and restores its approved default presentation."
+            onConfirm={confirmRestoreDefaults}
+            onOpenChange={setRestoreDialogOpen}
+            open={restoreDialogOpen}
+            title={`Restore defaults for ${project.title}?`}
+          >
+            <p className="rounded-lg border border-border bg-muted/40 p-3 text-sm text-foreground">
+              Affected scope: public story copy, section order and visibility, layout preset, and
+              closing call-to-action customization for {project.title}.
+            </p>
+          </ConfirmationDialog>
+        </>
       ) : null}
 
       <Dialog open={donationOpen} onOpenChange={setDonationOpen}>
@@ -1007,8 +1122,7 @@ const EditorTextarea = ({
 }) => (
   <div className="space-y-2">
     <Label htmlFor={id}>{label}</Label>
-    <textarea
-      className="min-h-24 w-full resize-y rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+    <Textarea
       id={id}
       maxLength={maxLength}
       onChange={(event) => onChange(event.target.value)}

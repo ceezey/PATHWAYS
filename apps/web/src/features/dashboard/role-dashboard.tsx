@@ -195,23 +195,29 @@ export const RoleDashboard = () => {
 
   if (status === 'loading') {
     return (
-      <div className="flex min-h-[360px] items-center justify-center rounded-lg border border-border bg-card">
-        <div className="flex items-center gap-3 text-sm text-muted-foreground">
-          <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
-          Loading role-specific dashboard...
+      <>
+        <h1 className="sr-only">Dashboard</h1>
+        <div className="flex min-h-[360px] items-center justify-center rounded-lg border border-border bg-card">
+          <div className="flex items-center gap-3 text-sm text-muted-foreground">
+            <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+            Loading role-specific dashboard...
+          </div>
         </div>
-      </div>
+      </>
     )
   }
 
   if (status === 'error' || !dashboard) {
     return (
-      <EmptyState
-        className="min-h-[360px] rounded-lg border border-border bg-card"
-        description="We could not load this dashboard right now. Reload the page to try again."
-        icon={AlertTriangle}
-        title="Dashboard data unavailable"
-      />
+      <>
+        <h1 className="sr-only">Dashboard unavailable</h1>
+        <EmptyState
+          className="min-h-[360px] rounded-lg border border-border bg-card"
+          description="We could not load this dashboard right now. Reload the page to try again."
+          icon={AlertTriangle}
+          title="Dashboard data unavailable"
+        />
+      </>
     )
   }
 

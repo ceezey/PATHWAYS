@@ -329,7 +329,7 @@ test('login works and role preview switches through every supported role', async
   const demoAccounts = page.getByRole('dialog', { name: 'Demo accounts' })
   await expect(demoAccounts.getByRole('button', { name: /Grant Manager/ })).toBeVisible()
   await demoAccounts.getByRole('button', { name: /Program Manager/ }).click()
-  await page.keyboard.press('Escape')
+  await expect(demoAccounts).toBeHidden()
   await page.getByLabel('Password', { exact: true }).fill(prototypePassword)
   await page.getByRole('button', { name: 'Log In' }).click()
   await expect(page.getByRole('heading', { name: 'OTP verification' })).toBeVisible()

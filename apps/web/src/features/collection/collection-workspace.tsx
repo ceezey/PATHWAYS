@@ -21,7 +21,7 @@ import { toast } from 'sonner'
 import { compareHeaders, createFileSummary, parseCsv, parseWorkbook } from '@pathways/imports'
 
 import { PageHeader } from '@/components/layout/page-header'
-import { ProgressBar, StatusBadge } from '@/components/pathways'
+import { ConfirmationDialog, ProgressBar, StatusBadge } from '@/components/pathways'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -51,10 +51,19 @@ import { cn } from '@/lib/utils'
 import { mockActivities } from '@/mocks/pathways/activities'
 import { mockProjects } from '@/mocks/pathways/projects'
 
+import {
+  type MappingReadiness,
+  type MappingRow,
+  type MappingStatus,
+  createMappingRows,
+  getMappingReadiness,
+  normalizeImportHeader,
+} from './collection-import-state'
+
 type CollectionMode = 'scratch' | 'import' | 'extend'
 type CollectionView = 'home' | 'forms' | 'builder' | 'import'
 type FieldType = 'text' | 'number' | 'date' | 'single_select' | 'multi_select' | 'boolean'
-type MappingStatus = 'mapped' | 'unmapped' | 'ignored' | 'invalid'
+type ImportStatus = 'idle' | 'reading' | 'ready' | 'error'
 
 interface CollectionWorkspaceProps {
   initialMode?: CollectionMode
@@ -71,13 +80,6 @@ interface FormField {
   sadddField: boolean
   allowedValues: string
   mappingStatus: MappingStatus
-}
-
-interface MappingRow {
-  id: string
-  sourceColumn: string
-  targetField: string
-  status: MappingStatus
 }
 
 interface ParsedImport {
@@ -201,40 +203,21 @@ const statusTone = (status: MappingStatus) => {
   return 'warning'
 }
 
-const normalizeHeader = (value: string) =>
-  value
-    .trim()
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '_')
-    .replace(/^_+|_+$/g, '')
-
 const fieldFromHeader = (header: string, index: number): FormField => ({
-  id: `imported-${index}-${normalizeHeader(header)}`,
+  id: `imported-${index}-${normalizeImportHeader(header)}`,
   label: header.replace(/[_-]+/g, ' ').replace(/\b\w/g, (character) => character.toUpperCase()),
-  code: normalizeHeader(header),
+  code: normalizeImportHeader(header),
   type: header.toLowerCase().includes('date') ? 'date' : 'text',
-  required: ['beneficiary_id', 'activity_date'].includes(normalizeHeader(header)),
-  metadataKey: normalizeHeader(header).includes('beneficiary'),
+  required: ['beneficiary_id', 'activity_date'].includes(normalizeImportHeader(header)),
+  metadataKey: normalizeImportHeader(header).includes('beneficiary'),
   sadddField: ['age', 'sex', 'gender', 'disability'].some((token) =>
-    normalizeHeader(header).includes(token),
+    normalizeImportHeader(header).includes(token),
   ),
   allowedValues: '',
-  mappingStatus: expectedImportHeaders.includes(normalizeHeader(header)) ? 'mapped' : 'unmapped',
+  mappingStatus: expectedImportHeaders.includes(normalizeImportHeader(header))
+    ? 'mapped'
+    : 'unmapped',
 })
-
-const mappingFromHeaders = (headers: string[]) =>
-  headers.map<MappingRow>((header, index) => {
-    const normalized = normalizeHeader(header)
-    const isKnown = expectedImportHeaders.includes(normalized)
-    const isInvalid = normalized.length === 0
-
-    return {
-      id: `mapping-${index}-${normalized || 'blank'}`,
-      sourceColumn: header,
-      targetField: isKnown ? normalized : '',
-      status: isInvalid ? 'invalid' : isKnown ? 'mapped' : 'unmapped',
-    }
-  })
 
 const formatValue = (value: unknown) => {
   if (value === null || value === undefined) {
@@ -264,6 +247,7 @@ export const CollectionWorkspace = ({
   const [selectedFieldId, setSelectedFieldId] = useState(initialFields[0]?.id ?? '')
   const [saveDialogOpen, setSaveDialogOpen] = useState(false)
   const [proceedDialogOpen, setProceedDialogOpen] = useState(false)
+  const [pendingDeleteField, setPendingDeleteField] = useState<FormField | null>(null)
   const [savedNotice, setSavedNotice] = useState('')
   const [savedForms, setSavedForms] = useState<SavedForm[]>([
     {
@@ -278,8 +262,9 @@ export const CollectionWorkspace = ({
   const [parsedImport, setParsedImport] = useState<ParsedImport | null>(null)
   const [mappingRows, setMappingRows] = useState<MappingRow[]>([])
   const [uploadProgress, setUploadProgress] = useState(0)
+  const [importStatus, setImportStatus] = useState<ImportStatus>('idle')
   const [importMessage, setImportMessage] = useState('No source file selected yet.')
-  const fileInputRef = useRef<HTMLInputElement | null>(null)
+  const lastSelectedFileRef = useRef<File | null>(null)
 
   const selectedProject =
     mockProjects.find((project) => project.id === projectId) ?? mockProjects[0]
@@ -298,7 +283,7 @@ export const CollectionWorkspace = ({
 
     const comparison = compareHeaders(
       expectedImportHeaders,
-      parsedImport.headers.map(normalizeHeader),
+      parsedImport.headers.map(normalizeImportHeader),
     )
 
     return createFileSummary(
@@ -312,6 +297,9 @@ export const CollectionWorkspace = ({
       ],
     )
   }, [parsedImport])
+
+  const mappingReadiness = useMemo(() => getMappingReadiness(mappingRows), [mappingRows])
+  const importCanProceed = importStatus === 'ready' && mappingReadiness.canProceed
 
   const updateField = (fieldId: string, patch: Partial<FormField>) => {
     setFields((currentFields) =>
@@ -337,12 +325,32 @@ export const CollectionWorkspace = ({
     setSelectedFieldId(field.id)
   }
 
-  const deleteField = (fieldId: string) => {
-    setFields((currentFields) => {
-      const nextFields = currentFields.filter((field) => field.id !== fieldId)
-      setSelectedFieldId(nextFields[0]?.id ?? '')
-      return nextFields
-    })
+  const requestDeleteField = (fieldId: string) => {
+    setPendingDeleteField(fields.find((field) => field.id === fieldId) ?? null)
+  }
+
+  const confirmDeleteField = () => {
+    if (!pendingDeleteField) {
+      return
+    }
+
+    const deletedIndex = fields.findIndex((field) => field.id === pendingDeleteField.id)
+    const nextFields = fields.filter((field) => field.id !== pendingDeleteField.id)
+    const nextSelectedFieldId =
+      selectedFieldId === pendingDeleteField.id
+        ? (nextFields[Math.min(deletedIndex, nextFields.length - 1)]?.id ?? '')
+        : selectedFieldId
+
+    setFields(nextFields)
+    setSelectedFieldId(nextSelectedFieldId)
+    setPendingDeleteField(null)
+    toast.success(`${pendingDeleteField.label} deleted from this form.`)
+    window.setTimeout(() => {
+      const focusTargetId = nextSelectedFieldId
+        ? `collection-field-choice-${nextSelectedFieldId}`
+        : 'collection-add-field'
+      document.getElementById(focusTargetId)?.focus()
+    }, 0)
   }
 
   const moveField = (fieldId: string, direction: 'up' | 'down') => {
@@ -367,7 +375,9 @@ export const CollectionWorkspace = ({
   }
 
   const parseSelectedFile = async (file: File) => {
+    lastSelectedFileRef.current = file
     setUploadProgress(28)
+    setImportStatus('reading')
     setImportMessage('Reading the file in this browser. Nothing is being uploaded.')
 
     const extension = file.name.split('.').pop()?.toLowerCase()
@@ -400,9 +410,12 @@ export const CollectionWorkspace = ({
       }
 
       setParsedImport(parsed)
-      setMappingRows(mappingFromHeaders(parsed.headers))
+      setMappingRows(createMappingRows(parsed.headers, expectedImportHeaders))
       setUploadProgress(100)
-      setImportMessage('Preview ready. Full production validation is not connected yet.')
+      setImportStatus('ready')
+      setImportMessage(
+        `Preview ready for ${parsed.fileName}. Review every mapping before proceeding.`,
+      )
 
       if (mode === 'extend') {
         const importedFields = parsed.headers.map(fieldFromHeader)
@@ -411,9 +424,19 @@ export const CollectionWorkspace = ({
       }
     } catch (error) {
       setUploadProgress(0)
-      setParsedImport(null)
-      setMappingRows([])
-      setImportMessage(error instanceof Error ? error.message : 'Unable to parse this file.')
+      setImportStatus('error')
+      const message = error instanceof Error ? error.message : 'Unable to parse this file.'
+      setImportMessage(
+        parsedImport
+          ? `${message} Your previous preview and mapping work are retained. Retry or choose a different file.`
+          : `${message} Retry or choose a different file.`,
+      )
+    }
+  }
+
+  const retrySelectedFile = () => {
+    if (lastSelectedFileRef.current) {
+      void parseSelectedFile(lastSelectedFileRef.current)
     }
   }
 
@@ -436,6 +459,10 @@ export const CollectionWorkspace = ({
   }
 
   const confirmImportProceed = () => {
+    if (!importCanProceed) {
+      return
+    }
+
     // TODO(STORAGE): Upload source dataset.
     // TODO(BACKEND): Submit metadata mappings and validation results.
     // TODO(DATABASE): Persist form fields, import batches, and mapping records.
@@ -533,7 +560,7 @@ export const CollectionWorkspace = ({
       {view === 'builder' ? (
         <BuilderView
           addField={addField}
-          deleteField={deleteField}
+          deleteField={requestDeleteField}
           fields={fields}
           formTitle={formTitle}
           formType={formType}
@@ -564,14 +591,16 @@ export const CollectionWorkspace = ({
       {view === 'import' ? (
         <ImportView
           fields={fields}
-          fileInputRef={fileInputRef}
           formTitle={formTitle}
           formType={formType}
+          importCanProceed={importCanProceed}
           importMessage={importMessage}
+          importStatus={importStatus}
           importSummary={importSummary}
           journeyStage={journeyStage}
           linkedActivityId={linkedActivityId}
           mappingRows={mappingRows}
+          mappingReadiness={mappingReadiness}
           mode={mode}
           parsedImport={parsedImport}
           parseSelectedFile={parseSelectedFile}
@@ -587,6 +616,7 @@ export const CollectionWorkspace = ({
           setProceedDialogOpen={setProceedDialogOpen}
           setProjectId={setProjectId}
           setView={setView}
+          retrySelectedFile={retrySelectedFile}
           uploadProgress={uploadProgress}
         />
       ) : null}
@@ -632,6 +662,29 @@ export const CollectionWorkspace = ({
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <ConfirmationDialog
+        confirmLabel={`Delete ${pendingDeleteField?.label ?? 'field'}`}
+        description="This removes the field and its current configuration from this browser-session form."
+        onConfirm={confirmDeleteField}
+        onOpenChange={(open) => {
+          if (!open) {
+            setPendingDeleteField(null)
+          }
+        }}
+        open={Boolean(pendingDeleteField)}
+        title={`Delete ${pendingDeleteField?.label ?? 'this field'}?`}
+      >
+        {pendingDeleteField ? (
+          <div className="rounded-lg border border-border bg-muted/40 p-3 text-sm">
+            <p className="font-medium text-foreground">{pendingDeleteField.label}</p>
+            <p className="mt-1 text-muted-foreground">
+              Field code: {pendingDeleteField.code} · Type:{' '}
+              {dataTypeLabels[pendingDeleteField.type]}
+            </p>
+          </div>
+        ) : null}
+      </ConfirmationDialog>
     </div>
   )
 }
@@ -765,7 +818,7 @@ const BuilderView = ({
   updateField: (fieldId: string, patch: Partial<FormField>) => void
 }) => (
   <div className="grid gap-4 xl:grid-cols-[1fr_300px]">
-    <main className="space-y-4">
+    <div className="space-y-4">
       <FormInfoPanel
         formTitle={formTitle}
         formType={formType}
@@ -808,7 +861,9 @@ const BuilderView = ({
             >
               <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
                 <button
+                  aria-pressed={selectedFieldId === field.id}
                   className="flex flex-1 items-start gap-3 text-left focus:outline-none focus:ring-2 focus:ring-ring"
+                  id={`collection-field-choice-${field.id}`}
                   type="button"
                   onClick={() => setSelectedFieldId(field.id)}
                 >
@@ -819,6 +874,12 @@ const BuilderView = ({
                       {dataTypeLabels[field.type]} | {field.code}
                     </p>
                     <div className="mt-2 flex flex-wrap gap-2">
+                      {selectedFieldId === field.id ? (
+                        <span className="inline-flex items-center gap-1 text-xs font-semibold text-foreground">
+                          <CheckCircle2 className="h-4 w-4" aria-hidden="true" />
+                          Selected
+                        </span>
+                      ) : null}
                       {field.required ? <StatusBadge tone="danger">Required</StatusBadge> : null}
                       {field.metadataKey ? (
                         <StatusBadge tone="info">Metadata key</StatusBadge>
@@ -878,7 +939,7 @@ const BuilderView = ({
         </div>
 
         <div className="mt-4 grid gap-2 md:grid-cols-2">
-          <Button variant="outline" onClick={addField}>
+          <Button id="collection-add-field" variant="outline" onClick={addField}>
             <Plus className="mr-2 h-4 w-4" aria-hidden="true" />
             Add field
           </Button>
@@ -888,7 +949,7 @@ const BuilderView = ({
           </Button>
         </div>
       </div>
-    </main>
+    </div>
 
     <aside className="space-y-4">
       <MetadataMapPanel
@@ -1017,7 +1078,9 @@ const FieldEditor = ({
       <Input
         id={`${field.id}-code`}
         value={field.code}
-        onChange={(event) => updateField(field.id, { code: normalizeHeader(event.target.value) })}
+        onChange={(event) =>
+          updateField(field.id, { code: normalizeImportHeader(event.target.value) })
+        }
       />
     </div>
     <div className="space-y-2">
@@ -1190,14 +1253,16 @@ const FormPreviewPanel = ({ fields, formTitle }: { fields: FormField[]; formTitl
 
 const ImportView = ({
   fields,
-  fileInputRef,
   formTitle,
   formType,
+  importCanProceed,
   importMessage,
+  importStatus,
   importSummary,
   journeyStage,
   linkedActivityId,
   mappingRows,
+  mappingReadiness,
   mode,
   parsedImport,
   parseSelectedFile,
@@ -1213,17 +1278,20 @@ const ImportView = ({
   setProceedDialogOpen,
   setProjectId,
   setView,
+  retrySelectedFile,
   uploadProgress,
 }: {
   fields: FormField[]
-  fileInputRef: React.RefObject<HTMLInputElement | null>
   formTitle: string
   formType: string
+  importCanProceed: boolean
   importMessage: string
+  importStatus: ImportStatus
   importSummary: ReturnType<typeof createFileSummary> | null
   journeyStage: string
   linkedActivityId: string
   mappingRows: MappingRow[]
+  mappingReadiness: MappingReadiness
   mode: CollectionMode
   parsedImport: ParsedImport | null
   parseSelectedFile: (file: File) => Promise<void>
@@ -1239,10 +1307,11 @@ const ImportView = ({
   setProceedDialogOpen: (open: boolean) => void
   setProjectId: (value: string) => void
   setView: (view: CollectionView) => void
+  retrySelectedFile: () => void
   uploadProgress: number
 }) => (
   <div className="grid gap-4 xl:grid-cols-[1fr_300px]">
-    <main className="space-y-4">
+    <div className="space-y-4">
       <FormInfoPanel
         formTitle={formTitle}
         formType={formType}
@@ -1258,19 +1327,6 @@ const ImportView = ({
       />
 
       <div className="rounded-lg border bg-card p-5 shadow-sm">
-        <input
-          ref={fileInputRef}
-          accept=".csv,.xls,.xlsx"
-          className="sr-only"
-          type="file"
-          onChange={(event) => {
-            const file = event.target.files?.[0]
-
-            if (file) {
-              void parseSelectedFile(file)
-            }
-          }}
-        />
         <div className="flex flex-col items-center justify-center rounded-lg border border-dashed bg-muted/30 px-4 py-8 text-center">
           <FileUp className="h-8 w-8 text-primary" aria-hidden="true" />
           <h2 className="mt-3 text-base font-semibold text-foreground">
@@ -1280,8 +1336,27 @@ const ImportView = ({
             The prototype reads CSV, XLS, or XLSX locally, then suggests metadata mappings. No
             production upload is performed.
           </p>
+          <div className="mt-4 w-full max-w-xl space-y-2 text-left">
+            <Label htmlFor="collection-import-file">Source file</Label>
+            <Input
+              accept=".csv,.xls,.xlsx"
+              aria-describedby="collection-import-file-help"
+              id="collection-import-file"
+              type="file"
+              onChange={(event) => {
+                const file = event.target.files?.[0]
+
+                if (file) {
+                  void parseSelectedFile(file)
+                }
+              }}
+            />
+            <p className="text-xs leading-5 text-muted-foreground" id="collection-import-file-help">
+              Choose one CSV, XLS, or XLSX file. It is read locally in this browser and is not
+              uploaded.
+            </p>
+          </div>
           <div className="mt-4 flex flex-wrap justify-center gap-2">
-            <Button onClick={() => fileInputRef.current?.click()}>Select CSV/XLSX file</Button>
             <Button
               variant="outline"
               onClick={() => {
@@ -1295,8 +1370,31 @@ const ImportView = ({
         </div>
 
         <div className="mt-4 space-y-3">
-          <ProgressBar label="File reading progress" value={uploadProgress} />
-          <p className="text-sm text-muted-foreground">{importMessage}</p>
+          <ProgressBar
+            label="File reading progress"
+            tone={
+              importStatus === 'error' ? 'danger' : importStatus === 'ready' ? 'success' : 'info'
+            }
+            value={uploadProgress}
+          />
+          <output
+            aria-atomic="true"
+            aria-live="polite"
+            className={cn(
+              'block rounded-md px-3 py-2 text-sm',
+              importStatus === 'error'
+                ? 'bg-danger/10 font-medium text-danger'
+                : 'bg-muted/40 text-muted-foreground',
+            )}
+            data-import-status={importStatus}
+          >
+            {importMessage}
+          </output>
+          {importStatus === 'error' ? (
+            <Button size="sm" type="button" variant="outline" onClick={retrySelectedFile}>
+              Retry reading file
+            </Button>
+          ) : null}
         </div>
       </div>
 
@@ -1322,8 +1420,10 @@ const ImportView = ({
 
       {mappingRows.length > 0 ? (
         <MappingTable
+          canProceed={importCanProceed}
           fields={fields}
           mappingRows={mappingRows}
+          mappingReadiness={mappingReadiness}
           setMappingRows={setMappingRows}
           setProceedDialogOpen={setProceedDialogOpen}
           setView={setView}
@@ -1332,10 +1432,14 @@ const ImportView = ({
       ) : null}
 
       {parsedImport ? <DataPreview parsedImport={parsedImport} /> : null}
-    </main>
+    </div>
 
     <aside className="space-y-4">
-      <ImportValidationPanel mappingRows={mappingRows} parsedImport={parsedImport} />
+      <ImportValidationPanel
+        canProceed={importCanProceed}
+        mappingReadiness={mappingReadiness}
+        parsedImport={parsedImport}
+      />
       <div className="rounded-lg border bg-card p-4 shadow-sm">
         <p className="text-sm font-semibold text-foreground">Connected to</p>
         <p className="mt-1 text-xs text-muted-foreground">{selectedProject}</p>
@@ -1359,15 +1463,19 @@ const SummaryMetric = ({ label, value }: { label: string; value: string }) => (
 )
 
 const MappingTable = ({
+  canProceed,
   fields,
   mappingRows,
+  mappingReadiness,
   mode,
   setMappingRows,
   setProceedDialogOpen,
   setView,
 }: {
+  canProceed: boolean
   fields: FormField[]
   mappingRows: MappingRow[]
+  mappingReadiness: MappingReadiness
   mode: CollectionMode
   setMappingRows: React.Dispatch<React.SetStateAction<MappingRow[]>>
   setProceedDialogOpen: (open: boolean) => void
@@ -1387,11 +1495,29 @@ const MappingTable = ({
             Extend in builder
           </Button>
         ) : null}
-        <Button size="sm" onClick={() => setProceedDialogOpen(true)}>
+        <Button
+          aria-describedby="mapping-readiness-message"
+          disabled={!canProceed}
+          size="sm"
+          onClick={() => setProceedDialogOpen(true)}
+        >
           Proceed
         </Button>
       </div>
     </div>
+    <p
+      className={cn(
+        'mt-3 rounded-md px-3 py-2 text-sm',
+        canProceed ? 'bg-success/10 text-success' : 'bg-warning/10 text-warning',
+      )}
+      id="mapping-readiness-message"
+    >
+      {canProceed
+        ? mappingReadiness.message
+        : mappingReadiness.canProceed
+          ? 'The current file must finish successfully before proceeding.'
+          : mappingReadiness.message}
+    </p>
     <div className="mt-4 overflow-x-auto">
       <table className="w-full min-w-[720px] text-left text-sm">
         <thead className="text-xs uppercase text-muted-foreground">
@@ -1452,7 +1578,9 @@ const MappingTable = ({
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="mapped">Mapped</SelectItem>
+                    <SelectItem disabled={!row.targetField} value="mapped">
+                      Mapped
+                    </SelectItem>
                     <SelectItem value="unmapped">Unmapped</SelectItem>
                     <SelectItem value="ignored">Ignored</SelectItem>
                     <SelectItem value="invalid">Invalid</SelectItem>
@@ -1501,18 +1629,16 @@ const DataPreview = ({ parsedImport }: { parsedImport: ParsedImport }) => (
 )
 
 const ImportValidationPanel = ({
-  mappingRows,
+  canProceed,
+  mappingReadiness,
   parsedImport,
 }: {
-  mappingRows: MappingRow[]
+  canProceed: boolean
+  mappingReadiness: MappingReadiness
   parsedImport: ParsedImport | null
 }) => {
-  const mapped = mappingRows.filter((row) => row.status === 'mapped').length
-  const ignored = mappingRows.filter((row) => row.status === 'ignored').length
-  const invalid = mappingRows.filter((row) => row.status === 'invalid').length
-  const unmapped = mappingRows.filter((row) => row.status === 'unmapped').length
-  const total = mappingRows.length
-  const progress = total === 0 ? 0 : Math.round((mapped / total) * 100)
+  const { ignored, invalid, mapped, resolved, total, unmapped } = mappingReadiness
+  const progress = total === 0 ? 0 : Math.round((resolved / total) * 100)
 
   return (
     <div className="rounded-lg border bg-card p-4 shadow-sm">
@@ -1521,12 +1647,22 @@ const ImportValidationPanel = ({
           <p className="text-sm font-semibold text-foreground">Validation summary</p>
           <p className="text-xs text-muted-foreground">Mock validation only</p>
         </div>
-        <StatusBadge tone={invalid > 0 ? 'danger' : parsedImport ? 'success' : 'neutral'}>
-          {parsedImport ? 'Preview ready' : 'Waiting'}
+        <StatusBadge
+          tone={
+            invalid > 0
+              ? 'danger'
+              : !canProceed && parsedImport
+                ? 'warning'
+                : parsedImport
+                  ? 'success'
+                  : 'neutral'
+          }
+        >
+          {parsedImport ? (canProceed ? 'Ready to proceed' : 'Needs review') : 'Waiting'}
         </StatusBadge>
       </div>
       <div className="mt-4 space-y-3">
-        <ProgressBar label="Mapped columns" value={progress} />
+        <ProgressBar label="Resolved columns" value={progress} />
         <div className="grid grid-cols-2 gap-2 text-xs">
           <SummaryPill label="Mapped" tone="success" value={mapped} />
           <SummaryPill label="Unmapped" tone="warning" value={unmapped} />

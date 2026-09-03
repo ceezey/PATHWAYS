@@ -11,7 +11,7 @@ import { PublicPortfolioChart } from './public-project-charts'
 export { PublicProjectDetail } from './public-project-detail'
 
 export const PublicHomeDashboard = ({ projects }: { projects: PublicProjectRecord[] }) => (
-  <main className="bg-slate-50">
+  <div className="bg-slate-50">
     <section className="border-b border-slate-200 bg-white">
       <div className="mx-auto grid w-full max-w-6xl gap-8 px-6 py-10 lg:grid-cols-[1.1fr_0.9fr] lg:items-center">
         <div className="space-y-5">
@@ -69,11 +69,11 @@ export const PublicHomeDashboard = ({ projects }: { projects: PublicProjectRecor
       </div>
       <PublicProjectCards projects={projects} />
     </section>
-  </main>
+  </div>
 )
 
 export const PublicProjectsList = ({ projects }: { projects: PublicProjectRecord[] }) => (
-  <main className="bg-slate-50">
+  <div className="bg-slate-50">
     <section className="border-b border-slate-200 bg-white">
       <div className="mx-auto w-full max-w-6xl space-y-3 px-6 py-10">
         <p className="text-xs font-semibold uppercase text-teal-700">Public Programs Dashboard</p>
@@ -86,7 +86,7 @@ export const PublicProjectsList = ({ projects }: { projects: PublicProjectRecord
     <section className="mx-auto w-full max-w-6xl px-6 py-10">
       <PublicProjectCards projects={projects} />
     </section>
-  </main>
+  </div>
 )
 
 const PublicProjectCards = ({ projects }: { projects: PublicProjectRecord[] }) => (

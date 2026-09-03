@@ -3,7 +3,7 @@
 import { zodResolver } from '@hookform/resolvers/zod'
 import { ArrowLeft, Eye, EyeOff, Info, Loader2, LogIn, RotateCcw, UserRound } from 'lucide-react'
 import { useRouter } from 'next/navigation'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { toast } from 'sonner'
 
@@ -46,8 +46,16 @@ export const LoginForm = () => {
     'idle',
   )
   const [otpMessage, setOtpMessage] = useState('')
+  const [loginMessage, setLoginMessage] = useState('')
+  const [demoAccountsOpen, setDemoAccountsOpen] = useState(false)
+  const [selectedDemoAccount, setSelectedDemoAccount] = useState<{
+    roleLabel: string
+    username: string
+  } | null>(null)
   const [resendAvailableAt, setResendAvailableAt] = useState(0)
   const [clockNow, setClockNow] = useState(() => Date.now())
+  const loginButtonRef = useRef<HTMLButtonElement>(null)
+  const otpButtonRef = useRef<HTMLButtonElement>(null)
   const form = useForm<LoginSchema>({
     resolver: zodResolver(loginSchema),
     defaultValues: {
@@ -56,8 +64,8 @@ export const LoginForm = () => {
     },
   })
 
-  const onSubmit = async (values: LoginSchema) => {
-    if (webSetupState.guiPrototypeModeEnabled) {
+  const startPrototypeChallenge = async (values: LoginSchema, failureSurface: 'login' | 'otp') => {
+    try {
       const response = await fetch('/api/prototype-mfa/challenge', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -70,11 +78,15 @@ export const LoginForm = () => {
       }
 
       if (!response.ok || !result.maskedDestination || !result.expiresAt) {
-        form.setError('password', {
-          type: 'validate',
-          message:
-            result.message ?? 'The username, email, or password does not match a demo account.',
-        })
+        const message =
+          result.message ?? 'The username, email, or password does not match a demo account.'
+
+        if (failureSurface === 'otp') {
+          setOtpStatus(response.status === 429 ? 'locked' : 'error')
+          setOtpMessage(message)
+        } else {
+          form.setError('password', { type: 'validate', message })
+        }
         return
       }
 
@@ -91,54 +103,80 @@ export const LoginForm = () => {
       toast.message('Prototype OTP verification required.', {
         description: `Use code 123456 for ${result.maskedDestination}.`,
       })
+    } catch {
+      const message =
+        'The sign-in service could not be reached. Check your connection and try again.'
+
+      if (failureSurface === 'otp') {
+        setOtpStatus('error')
+        setOtpMessage(message)
+      } else {
+        setLoginMessage(message)
+      }
+    }
+  }
+
+  const onSubmit = async (values: LoginSchema) => {
+    setLoginMessage('')
+
+    if (webSetupState.guiPrototypeModeEnabled) {
+      await startPrototypeChallenge(values, 'login')
       return
     }
 
-    if (webSetupState.authBypassEnabled) {
+    try {
+      if (webSetupState.authBypassEnabled) {
+        await refreshSession()
+        toast.success('Development auth bypass is enabled. Opening the dashboard shell.')
+        router.push('/dashboard')
+        return
+      }
+
+      const supabase = getBrowserSupabaseClient()
+
+      if (!supabase) {
+        const message = 'Supabase authentication is not configured for this environment.'
+        setLoginMessage(`${message} Contact your administrator before trying again.`)
+        toast.message('Supabase auth still needs manual setup.', {
+          description: 'Add NEXT_PUBLIC_SUPABASE_URL and a Supabase publishable key first.',
+        })
+        return
+      }
+
+      const emailResult = loginSchema
+        .extend({
+          identifier: loginSchema.shape.identifier.email('Enter a valid staff email.'),
+        })
+        .safeParse(values)
+
+      if (!emailResult.success) {
+        form.setError('identifier', {
+          type: 'validate',
+          message: 'Enter a valid staff email for Supabase sign-in.',
+        })
+        return
+      }
+
+      const { error } = await supabase.auth.signInWithPassword({
+        email: values.identifier,
+        password: values.password,
+      })
+
+      if (error) {
+        const message = 'Sign-in was not completed. Check your credentials and try again.'
+        setLoginMessage(message)
+        toast.error('Could not sign in.', { description: message })
+        return
+      }
+
       await refreshSession()
-      toast.success('Development auth bypass is enabled. Opening the dashboard shell.')
+      toast.success('Session established.')
       router.push('/dashboard')
-      return
+    } catch {
+      setLoginMessage(
+        'The sign-in service could not be reached. Check your connection and try again.',
+      )
     }
-
-    const supabase = getBrowserSupabaseClient()
-
-    if (!supabase) {
-      toast.message('Supabase auth still needs manual setup.', {
-        description: 'Add NEXT_PUBLIC_SUPABASE_URL and a Supabase publishable key first.',
-      })
-      return
-    }
-
-    const emailResult = loginSchema
-      .extend({
-        identifier: loginSchema.shape.identifier.email('Enter a valid staff email.'),
-      })
-      .safeParse(values)
-
-    if (!emailResult.success) {
-      form.setError('identifier', {
-        type: 'validate',
-        message: 'Enter a valid staff email for Supabase sign-in.',
-      })
-      return
-    }
-
-    const { error } = await supabase.auth.signInWithPassword({
-      email: values.identifier,
-      password: values.password,
-    })
-
-    if (error) {
-      toast.error('Could not sign in.', {
-        description: error.message,
-      })
-      return
-    }
-
-    await refreshSession()
-    toast.success('Session established.')
-    router.push('/dashboard')
   }
 
   const verifyOtp = async () => {
@@ -153,39 +191,48 @@ export const LoginForm = () => {
     }
 
     setOtpStatus('loading')
-    const response = await fetch('/api/prototype-mfa/verify', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ otp }),
-    })
-    const result = (await response.json()) as {
-      account?: Parameters<typeof createPrototypeSession>[0]
-      message?: string
-    }
+    setOtpMessage('Verifying the OTP code...')
 
-    if (!response.ok || !result.account) {
-      setOtp('')
-      setOtpStatus(
-        response.status === 410 ? 'expired' : response.status === 429 ? 'locked' : 'error',
+    try {
+      const response = await fetch('/api/prototype-mfa/verify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ otp }),
+      })
+      const result = (await response.json()) as {
+        account?: Parameters<typeof createPrototypeSession>[0]
+        message?: string
+      }
+
+      if (!response.ok || !result.account) {
+        setOtp('')
+        setOtpStatus(
+          response.status === 410 ? 'expired' : response.status === 429 ? 'locked' : 'error',
+        )
+        setOtpMessage(result.message ?? 'The OTP code could not be verified. Try again.')
+        return
+      }
+
+      // TODO(AUTH): Replace the GUI prototype OTP challenge with the finalized Supabase Auth MFA flow.
+      await signInWithPrototype(createPrototypeSession(result.account))
+      setRole(result.account.role)
+      toast.success('Prototype session started after OTP verification.', {
+        description: `${getPrototypeRoleDisplayName(result.account.role)} dashboard preview is ready.`,
+      })
+      window.location.replace('/dashboard')
+    } catch {
+      setOtpStatus('error')
+      setOtpMessage(
+        'The OTP verification service could not be reached. Your code was kept; check your connection and try again.',
       )
-      setOtpMessage(result.message ?? 'The OTP code could not be verified.')
-      return
     }
-
-    // TODO(AUTH): Replace the GUI prototype OTP challenge with the finalized Supabase Auth MFA flow.
-    await signInWithPrototype(createPrototypeSession(result.account))
-    setRole(result.account.role)
-    toast.success('Prototype session started after OTP verification.', {
-      description: `${getPrototypeRoleDisplayName(result.account.role)} dashboard preview is ready.`,
-    })
-    window.location.replace('/dashboard')
   }
 
   const resendOtp = async () => {
     const values = form.getValues()
-    setOtp('')
     setOtpStatus('loading')
-    await onSubmit(values)
+    setOtpMessage('Requesting a new prototype OTP code...')
+    await startPrototypeChallenge(values, 'otp')
   }
 
   useEffect(() => {
@@ -199,6 +246,27 @@ export const LoginForm = () => {
     return () => window.clearInterval(timer)
   }, [mfaChallenge])
 
+  useEffect(() => {
+    if (loginMessage && !form.formState.isSubmitting) {
+      loginButtonRef.current?.focus()
+    }
+  }, [form.formState.isSubmitting, loginMessage])
+
+  useEffect(() => {
+    if (otpStatus === 'error' && otp.length === 6) {
+      otpButtonRef.current?.focus()
+    }
+  }, [otp, otpStatus])
+
+  useEffect(() => {
+    if (demoAccountsOpen || !selectedDemoAccount) {
+      return
+    }
+
+    const frame = window.requestAnimationFrame(() => form.setFocus('identifier'))
+    return () => window.cancelAnimationFrame(frame)
+  }, [demoAccountsOpen, form, selectedDemoAccount])
+
   if (mfaChallenge) {
     const secondsUntilResend = Math.max(0, Math.ceil((resendAvailableAt - clockNow) / 1000))
     const expired = new Date(mfaChallenge.expiresAt).getTime() <= clockNow
@@ -210,7 +278,7 @@ export const LoginForm = () => {
             <UserRound className="h-8 w-8" aria-hidden="true" />
           </div>
           <div>
-            <CardTitle className="text-2xl font-bold tracking-normal text-foreground">
+            <CardTitle as="h1" className="text-2xl font-bold tracking-normal text-foreground">
               OTP verification
             </CardTitle>
             <CardDescription className="mt-2 text-sm">
@@ -219,11 +287,16 @@ export const LoginForm = () => {
           </div>
         </CardHeader>
         <CardContent className="space-y-5">
-          <div className="rounded-lg border border-info/20 bg-info/10 p-4 text-sm leading-6 text-info">
+          <output
+            id="staff-otp-status"
+            aria-atomic="true"
+            aria-live="polite"
+            className="block rounded-lg border border-info/20 bg-info/10 p-4 text-sm leading-6 text-info"
+          >
             {/* TODO(AUTH): Replace the prototype OTP challenge with the finalized organization-approved MFA provider. */}
             {/* TODO(SECURITY): Enforce rate limits, lockout, audit logging, and secure challenge storage server-side. */}
             {expired ? 'This OTP challenge has expired.' : otpMessage}
-          </div>
+          </output>
           <form
             className="space-y-5"
             onSubmit={(event) => {
@@ -232,8 +305,19 @@ export const LoginForm = () => {
             }}
           >
             <div className="space-y-2">
-              <Label htmlFor="staff-otp">Six-digit OTP code</Label>
+              <Label htmlFor="staff-otp">
+                Six-digit OTP code
+                <span aria-hidden="true" className="ml-1 text-danger">
+                  *
+                </span>
+                <span className="sr-only"> (required)</span>
+              </Label>
               <Input
+                aria-describedby="staff-otp-help staff-otp-status"
+                aria-invalid={
+                  otpStatus === 'error' || otpStatus === 'expired' || otpStatus === 'locked'
+                }
+                aria-required="true"
                 id="staff-otp"
                 autoComplete="one-time-code"
                 autoFocus
@@ -244,11 +328,12 @@ export const LoginForm = () => {
                 value={otp}
                 onChange={(event) => setOtp(event.target.value.replace(/\D/g, ''))}
               />
-              <p className="text-xs text-muted-foreground">
+              <p className="text-xs text-muted-foreground" id="staff-otp-help">
                 Password verification alone does not create a staff session.
               </p>
             </div>
             <Button
+              ref={otpButtonRef}
               className="w-full gap-2"
               disabled={otp.length !== 6 || otpStatus === 'loading' || otpStatus === 'locked'}
               type="submit"
@@ -298,9 +383,7 @@ export const LoginForm = () => {
           <UserRound className="h-8 w-8" aria-hidden="true" />
         </div>
         <div>
-          <CardTitle className="text-3xl font-bold tracking-normal text-foreground">
-            PATHWAYS
-          </CardTitle>
+          <p className="text-3xl font-bold tracking-normal text-foreground">PATHWAYS</p>
           <CardDescription className="mt-2 text-sm">Project Information Management</CardDescription>
         </div>
       </CardHeader>
@@ -313,11 +396,11 @@ export const LoginForm = () => {
               name="identifier"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Username or email</FormLabel>
-                  <FormControl>
+                  <FormLabel required>Username or email</FormLabel>
+                  <FormControl aria-required="true">
                     <Input
                       autoComplete="username"
-                      className="border-0 border-b border-border bg-transparent px-0 shadow-none"
+                      className="border-0 border-b border-input bg-transparent px-0 shadow-none"
                       placeholder={
                         webSetupState.guiPrototypeModeEnabled
                           ? 'program.manager'
@@ -335,12 +418,12 @@ export const LoginForm = () => {
               name="password"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Password</FormLabel>
+                  <FormLabel required>Password</FormLabel>
                   <div className="relative">
-                    <FormControl>
+                    <FormControl aria-required="true">
                       <Input
                         autoComplete="current-password"
-                        className="border-0 border-b border-border bg-transparent px-0 pr-11 shadow-none"
+                        className="border-0 border-b border-input bg-transparent px-0 pr-11 shadow-none"
                         placeholder="Enter your password"
                         type={showPassword ? 'text' : 'password'}
                         {...field}
@@ -398,7 +481,21 @@ export const LoginForm = () => {
                   : 'Supabase authentication path'}
               </p>
             </div>
-            <Button className="w-full gap-2" disabled={form.formState.isSubmitting} type="submit">
+            {loginMessage ? (
+              <output
+                aria-atomic="true"
+                aria-live="polite"
+                className="block rounded-lg border border-danger/20 bg-danger/10 p-3 text-sm leading-6 text-danger"
+              >
+                {loginMessage}
+              </output>
+            ) : null}
+            <Button
+              ref={loginButtonRef}
+              className="w-full gap-2"
+              disabled={form.formState.isSubmitting}
+              type="submit"
+            >
               {form.formState.isSubmitting ? (
                 <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
               ) : (
@@ -409,7 +506,7 @@ export const LoginForm = () => {
           </form>
         </Form>
         {webSetupState.guiPrototypeModeEnabled ? (
-          <Dialog>
+          <Dialog onOpenChange={setDemoAccountsOpen} open={demoAccountsOpen}>
             <DialogTrigger asChild>
               <Button className="mt-4 w-full" type="button" variant="outline">
                 Demo Accounts
@@ -425,9 +522,12 @@ export const LoginForm = () => {
                     key={account.id}
                     className="w-full rounded-lg border border-border bg-background p-3 text-left transition-colors hover:border-primary/40 hover:bg-muted/60 focus:outline-none focus:ring-2 focus:ring-ring"
                     onClick={() => {
-                      form.setValue('identifier', account.username)
-                      form.setValue('password', 'PathwaysDemo!2026')
+                      const roleLabel = getPrototypeRoleDisplayName(account.role)
+                      form.setValue('identifier', account.username, { shouldValidate: true })
+                      form.setValue('password', 'PathwaysDemo!2026', { shouldValidate: true })
                       setRole(account.role)
+                      setSelectedDemoAccount({ roleLabel, username: account.username })
+                      setDemoAccountsOpen(false)
                     }}
                     type="button"
                   >
@@ -441,6 +541,16 @@ export const LoginForm = () => {
                 ))}
               </div>
             </DialogShell>
+            {selectedDemoAccount ? (
+              <output
+                aria-atomic="true"
+                aria-live="polite"
+                className="mt-3 block rounded-lg border border-success/20 bg-success/10 p-3 text-sm leading-6 text-success"
+              >
+                Selected {selectedDemoAccount.roleLabel} account ({selectedDemoAccount.username}).
+                The login fields are populated and ready to continue.
+              </output>
+            ) : null}
           </Dialog>
         ) : null}
       </CardContent>

@@ -3,7 +3,7 @@
 import { UsersRound } from 'lucide-react'
 import { useEffect, useState } from 'react'
 
-import { EmptyState } from '@/components/pathways/empty-state'
+import { AsyncState } from '@/components/pathways'
 import { usePrototypeRole } from '@/hooks/use-prototype-role'
 import { pathwaysClient } from '@/lib/services/mock-pathways-client'
 import type {
@@ -34,8 +34,10 @@ export const BeneficiaryDirectoryLoader = () => {
   const [data, setData] = useState<DirectoryData>(emptyDirectoryData)
   const [loading, setLoading] = useState(true)
   const [failed, setFailed] = useState(false)
+  const [loadAttempt, setLoadAttempt] = useState(0)
 
   useEffect(() => {
+    void loadAttempt
     let active = true
 
     const loadDirectory = async () => {
@@ -77,24 +79,26 @@ export const BeneficiaryDirectoryLoader = () => {
     return () => {
       active = false
     }
-  }, [role])
+  }, [loadAttempt, role])
 
   if (loading) {
     return (
-      <div
-        aria-live="polite"
-        className="rounded-lg border border-border bg-card p-8 text-sm text-muted-foreground"
-      >
-        Loading the Beneficiary records available to this prototype role...
-      </div>
+      <AsyncState
+        description="Loading the Beneficiary records available to this prototype role."
+        icon={UsersRound}
+        status="loading"
+        title="Loading Beneficiary records"
+      />
     )
   }
 
   if (failed) {
     return (
-      <EmptyState
-        description="The scoped sample records could not be loaded. Refresh the page to try again."
+      <AsyncState
+        description="The scoped sample records could not be loaded. Check your connection and try again."
         icon={UsersRound}
+        onRetry={() => setLoadAttempt((attempt) => attempt + 1)}
+        status="error"
         title="Beneficiary records unavailable"
       />
     )

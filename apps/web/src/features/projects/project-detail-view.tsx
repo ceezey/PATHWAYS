@@ -5,12 +5,19 @@ import Link from 'next/link'
 import { useEffect, useState } from 'react'
 
 import { PageHeader } from '@/components/layout/page-header'
-import { EmptyState, ProgressBar, SectionCard, StatusBadge } from '@/components/pathways'
+import {
+  AsyncState,
+  ProgressBar,
+  SectionCard,
+  StatusBadge,
+  StatusMessage,
+} from '@/components/pathways'
 import { Button } from '@/components/ui/button'
 import { usePrototypeLabels } from '@/hooks/use-prototype-labels'
 import { usePrototypeRole } from '@/hooks/use-prototype-role'
 import { can } from '@/lib/rbac/can'
 import { pathwaysClient } from '@/lib/services/mock-pathways-client'
+import { PathwaysClientError } from '@/lib/services/pathways-client'
 import type { ProjectDetail } from '@/types/pathways'
 
 import {
@@ -25,9 +32,11 @@ export const ProjectDetailView = ({ projectId }: { projectId: string }) => {
   const { labels } = usePrototypeLabels()
   const { role } = usePrototypeRole()
   const [project, setProject] = useState<ProjectDetail | null>(null)
-  const [status, setStatus] = useState<'loading' | 'success' | 'error'>('loading')
+  const [status, setStatus] = useState<'loading' | 'success' | 'not-found' | 'error'>('loading')
+  const [loadAttempt, setLoadAttempt] = useState(0)
 
   useEffect(() => {
+    void loadAttempt
     let mounted = true
     setStatus('loading')
 
@@ -41,30 +50,59 @@ export const ProjectDetailView = ({ projectId }: { projectId: string }) => {
         setProject(record)
         setStatus('success')
       })
-      .catch(() => {
+      .catch((error) => {
         if (!mounted) {
           return
         }
 
-        setStatus('error')
+        setStatus(
+          error instanceof PathwaysClientError && error.code === 'not_found'
+            ? 'not-found'
+            : 'error',
+        )
       })
 
     return () => {
       mounted = false
     }
-  }, [projectId])
+  }, [loadAttempt, projectId])
 
   if (status === 'loading') {
     return (
-      <EmptyState
+      <AsyncState
         description="Loading the project preview workspace."
         icon={FolderKanban}
+        status="loading"
         title="Loading project"
       />
     )
   }
 
-  if (status === 'error' || !project) {
+  if (status === 'error') {
+    return (
+      <>
+        <PageHeader
+          eyebrow="Projects"
+          title="Project unavailable"
+          description="The project could not be loaded from the current service."
+          actions={
+            <Button asChild variant="outline">
+              <Link href="/projects">Back to projects</Link>
+            </Button>
+          }
+        />
+        <AsyncState
+          description="Check your connection and try loading this project again."
+          icon={FolderKanban}
+          onRetry={() => setLoadAttempt((attempt) => attempt + 1)}
+          status="error"
+          title="Project data unavailable"
+        />
+      </>
+    )
+  }
+
+  if (status === 'not-found' || !project) {
     return (
       <>
         <PageHeader
@@ -77,9 +115,10 @@ export const ProjectDetailView = ({ projectId }: { projectId: string }) => {
             </Button>
           }
         />
-        <EmptyState
+        <AsyncState
           description="Prototype projects created in another browser session may not be available here."
           icon={FolderKanban}
+          status="empty"
           title="No project record"
         />
       </>
@@ -88,6 +127,7 @@ export const ProjectDetailView = ({ projectId }: { projectId: string }) => {
 
   return (
     <>
+      <StatusMessage>Project loaded.</StatusMessage>
       <PageHeader
         eyebrow={labels.projectWorkspace}
         title={project.title}

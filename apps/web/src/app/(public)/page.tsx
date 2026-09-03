@@ -1,5 +1,9 @@
+import type { Metadata } from 'next'
+
 import { PublicHomeDashboard } from '@/features/public/public-project-components'
 import { pathwaysClient } from '@/lib/services/mock-pathways-client'
+
+export const metadata: Metadata = { title: 'Public Impact Overview' }
 
 export default async function HomePage() {
   const projects = await pathwaysClient.getPublicProjects()

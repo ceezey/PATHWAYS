@@ -5,10 +5,18 @@ import Link from 'next/link'
 import { useEffect, useMemo, useState } from 'react'
 
 import { PageHeader } from '@/components/layout/page-header'
-import { EmptyState, FilterBar, ProgressBar, SectionCard, StatusBadge } from '@/components/pathways'
+import {
+  AsyncState,
+  EmptyState,
+  FilterBar,
+  FilterChoiceGroup,
+  ProgressBar,
+  ResultsAnnouncement,
+  SectionCard,
+  StatusBadge,
+} from '@/components/pathways'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { usePrototypeLabels } from '@/hooks/use-prototype-labels'
 import { usePrototypeRole } from '@/hooks/use-prototype-role'
 import { can } from '@/lib/rbac/can'
@@ -41,8 +49,10 @@ export const ProjectDirectory = () => {
   const [query, setQuery] = useState('')
   const [statusFilter, setStatusFilter] = useState<ProjectStatusFilter>('All')
   const [previewProject, setPreviewProject] = useState<ProjectDetail | null>(null)
+  const [loadAttempt, setLoadAttempt] = useState(0)
 
   useEffect(() => {
+    void loadAttempt
     let mounted = true
     setStatus('loading')
 
@@ -67,7 +77,7 @@ export const ProjectDirectory = () => {
     return () => {
       mounted = false
     }
-  }, [role])
+  }, [loadAttempt, role])
 
   const filteredProjects = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase()
@@ -122,30 +132,38 @@ export const ProjectDirectory = () => {
             value={query}
           />
         </div>
-        <Tabs
-          value={statusFilter}
+        <FilterChoiceGroup
+          className="grid w-full grid-cols-2 md:flex md:w-auto"
+          label="Project status filter"
           onValueChange={(value) => setStatusFilter(value as ProjectStatusFilter)}
-        >
-          <TabsList className="grid h-auto w-full grid-cols-2 md:flex md:w-auto">
-            {projectStatusFilters.map((filter) => (
-              <TabsTrigger key={filter} value={filter}>
-                {filter}
-              </TabsTrigger>
-            ))}
-          </TabsList>
-        </Tabs>
+          options={projectStatusFilters}
+          value={statusFilter}
+        />
       </FilterBar>
+      {status === 'success' ? (
+        <ResultsAnnouncement
+          message={
+            filteredProjects.length === 0
+              ? 'No projects match the current search and status filter.'
+              : `${filteredProjects.length} ${filteredProjects.length === 1 ? 'project matches' : 'projects match'} the current search and status filter.`
+          }
+          settleKey={`${query}|${statusFilter}`}
+        />
+      ) : null}
       {status === 'loading' ? (
-        <EmptyState
+        <AsyncState
           description="Loading role-specific project records from the mock service."
           icon={FolderKanban}
+          status="loading"
           title="Loading projects"
         />
       ) : null}
       {status === 'error' ? (
-        <EmptyState
-          description="The project directory could not load prototype records."
+        <AsyncState
+          description="The project directory could not load prototype records. Check your connection and try again."
           icon={FolderKanban}
+          onRetry={() => setLoadAttempt((attempt) => attempt + 1)}
+          status="error"
           title="Project data unavailable"
         />
       ) : null}

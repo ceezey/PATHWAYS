@@ -1,11 +1,12 @@
 'use client'
 
-import { AlertTriangle, ExternalLink, Loader2 } from 'lucide-react'
+import { AlertTriangle, CheckCircle2, ExternalLink, Loader2 } from 'lucide-react'
 import Link from 'next/link'
 import { useEffect, useMemo, useState } from 'react'
 import { toast } from 'sonner'
 
-import { EmptyState } from '@/components/pathways/empty-state'
+import { PageHeader } from '@/components/layout/page-header'
+import { AsyncState, StatusMessage } from '@/components/pathways'
 import { StatusBadge } from '@/components/pathways/status-badge'
 import { Button } from '@/components/ui/button'
 import {
@@ -66,8 +67,10 @@ export const AlertsWorkspace = () => {
   const { role } = usePrototypeRole()
   const [data, setData] = useState<AlertsWorkspaceData | null>(null)
   const [status, setStatus] = useState<'loading' | 'ready' | 'error'>('loading')
+  const [loadAttempt, setLoadAttempt] = useState(0)
 
   useEffect(() => {
+    void loadAttempt
     let active = true
     setStatus('loading')
     setData(null)
@@ -91,31 +94,39 @@ export const AlertsWorkspace = () => {
     return () => {
       active = false
     }
-  }, [role])
+  }, [loadAttempt, role])
 
   if (status === 'loading') {
     return (
-      <div className="flex min-h-80 items-center justify-center rounded-lg border border-border bg-card">
-        <div className="flex items-center gap-3 text-sm text-muted-foreground">
-          <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
-          Loading scoped alerts...
-        </div>
-      </div>
+      <AsyncState
+        className="min-h-80 rounded-lg border border-border bg-card"
+        description="Loading the alert queue available to the current role."
+        icon={Loader2}
+        status="loading"
+        title="Loading scoped alerts"
+      />
     )
   }
 
   if (status === 'error' || !data) {
     return (
-      <EmptyState
+      <AsyncState
         className="min-h-80 rounded-lg border border-border bg-card"
-        description="The role-scoped alert queue could not be loaded. Reload this page to try again."
+        description="The role-scoped alert queue could not be loaded. Check your connection and try again."
         icon={AlertTriangle}
+        onRetry={() => setLoadAttempt((attempt) => attempt + 1)}
+        status="error"
         title="Alerts unavailable"
       />
     )
   }
 
-  return <AlertsWorkspaceContent key={data.role} {...data} />
+  return (
+    <>
+      <StatusMessage>Alert queue loaded.</StatusMessage>
+      <AlertsWorkspaceContent key={data.role} {...data} />
+    </>
+  )
 }
 
 const AlertsWorkspaceContent = ({
@@ -167,23 +178,16 @@ const AlertsWorkspaceContent = ({
 
   return (
     <div className="space-y-6">
-      <section className="flex flex-col gap-4 rounded-lg border border-border bg-card p-5 shadow-sm lg:flex-row lg:items-start lg:justify-between">
-        <div className="space-y-2">
-          <StatusBadge tone="warning">Human review required</StatusBadge>
-          <div>
-            <h1 className="text-3xl font-semibold tracking-tight text-foreground">
-              {labels.moduleAlerts}
-            </h1>
-            <p className="mt-2 max-w-3xl text-sm leading-6 text-muted-foreground">
-              Review rule-triggered alerts by severity, project, category, lifecycle status, and
-              related project record. No autonomous action is taken.
-            </p>
-          </div>
-        </div>
-        <Button asChild>
-          <Link href="/recommendations">{labels.moduleRecommendations}</Link>
-        </Button>
-      </section>
+      <PageHeader
+        actions={
+          <Button asChild>
+            <Link href="/recommendations">{labels.moduleRecommendations}</Link>
+          </Button>
+        }
+        description="Review rule-triggered alerts by severity, project, category, lifecycle status, and related project record. No autonomous action is taken."
+        eyebrow="Human review required"
+        title={labels.moduleAlerts}
+      />
 
       <section className="grid gap-3 rounded-lg border border-border bg-card p-5 shadow-sm md:grid-cols-3">
         <div className="space-y-2">
@@ -229,6 +233,7 @@ const AlertsWorkspaceContent = ({
           {filteredAlerts.length > 0 ? (
             filteredAlerts.map((alert) => (
               <button
+                aria-pressed={alert.id === selectedAlert?.id}
                 key={alert.id}
                 className={`w-full rounded-lg border p-4 text-left transition-colors ${
                   alert.id === selectedAlert?.id
@@ -247,6 +252,12 @@ const AlertsWorkspaceContent = ({
                     </p>
                   </div>
                   <div className="flex flex-wrap gap-2">
+                    {alert.id === selectedAlert?.id ? (
+                      <span className="inline-flex items-center gap-1 text-xs font-semibold text-foreground">
+                        <CheckCircle2 className="h-4 w-4" aria-hidden="true" />
+                        Selected
+                      </span>
+                    ) : null}
                     <StatusBadge tone={alertSeverityTone(alert.severity)}>
                       {alert.severity}
                     </StatusBadge>

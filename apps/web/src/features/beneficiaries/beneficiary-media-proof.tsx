@@ -35,6 +35,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import { Textarea } from '@/components/ui/textarea'
 import type {
   Activity,
   BeneficiaryMediaProofRecord,
@@ -376,8 +377,7 @@ export const BeneficiaryMediaProof = ({
 
             <div className="space-y-2">
               <Label htmlFor="beneficiary-media-note">Evidence note (optional)</Label>
-              <textarea
-                className="min-h-24 w-full resize-y rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              <Textarea
                 id="beneficiary-media-note"
                 maxLength={320}
                 onChange={(event) => setNote(event.target.value)}
@@ -468,8 +468,7 @@ export const BeneficiaryMediaProof = ({
 
             <div className="space-y-2">
               <Label htmlFor="beneficiary-media-review-note">Review note (optional)</Label>
-              <textarea
-                className="min-h-24 w-full resize-y rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              <Textarea
                 id="beneficiary-media-review-note"
                 maxLength={320}
                 onChange={(event) => setReviewNote(event.target.value)}

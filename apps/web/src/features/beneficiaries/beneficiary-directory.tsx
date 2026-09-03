@@ -7,11 +7,13 @@ import {
   getPaginationRowModel,
   useReactTable,
 } from '@tanstack/react-table'
-import { Plus, Search } from 'lucide-react'
+import { Plus, RotateCcw, Search } from 'lucide-react'
 import Link from 'next/link'
 import { useMemo, useState } from 'react'
 
+import { PageHeader } from '@/components/layout/page-header'
 import { ProgressBar } from '@/components/pathways/progress-bar'
+import { ResultsAnnouncement } from '@/components/pathways/results-announcement'
 import { StatusBadge } from '@/components/pathways/status-badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -87,6 +89,14 @@ export const BeneficiaryDirectory = ({
   const [ageGroup, setAgeGroup] = useState(allValue)
   const [disabilityStatus, setDisabilityStatus] = useState(allValue)
   const [enrollmentStatus, setEnrollmentStatus] = useState(allValue)
+  const filtersActive =
+    search !== '' ||
+    projectId !== allValue ||
+    location !== allValue ||
+    sex !== allValue ||
+    ageGroup !== allValue ||
+    disabilityStatus !== allValue ||
+    enrollmentStatus !== allValue
 
   const locations = useMemo(
     () =>
@@ -231,32 +241,32 @@ export const BeneficiaryDirectory = ({
     },
   })
 
+  const clearAllFilters = () => {
+    setSearch('')
+    setProjectId(allValue)
+    setLocation(allValue)
+    setSex(allValue)
+    setAgeGroup(allValue)
+    setDisabilityStatus(allValue)
+    setEnrollmentStatus(allValue)
+    table.setPageIndex(0)
+  }
+
   return (
     <div className="space-y-6">
-      <section className="flex flex-col gap-4 rounded-lg border border-border bg-card p-5 shadow-sm lg:flex-row lg:items-start lg:justify-between">
-        <div className="space-y-2">
-          <StatusBadge tone={projectAccess === 'assigned-projects' ? 'warning' : 'info'}>
-            {projectAccessLabel}
-          </StatusBadge>
-          <div>
-            <h1 className="text-3xl font-semibold tracking-tight text-foreground">
-              {labels.moduleBeneficiaries}
-            </h1>
-            <p className="mt-2 max-w-3xl text-sm leading-6 text-muted-foreground">
-              Find Beneficiary records by name or code, review journey progress, and open a record
-              for journey and assessment details.
-            </p>
-          </div>
-        </div>
-        <div className="flex flex-wrap gap-2">
+      <PageHeader
+        actions={
           <Button asChild>
             <Link href="/beneficiaries/new">
               <Plus className="mr-2 h-4 w-4" aria-hidden="true" />
               Add beneficiary
             </Link>
           </Button>
-        </div>
-      </section>
+        }
+        description="Find Beneficiary records by name or code, review journey progress, and open a record for journey and assessment details."
+        eyebrow={projectAccessLabel}
+        title={labels.moduleBeneficiaries}
+      />
 
       <section className="space-y-4 rounded-lg border border-border bg-card p-5 shadow-sm">
         <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
@@ -332,6 +342,35 @@ export const BeneficiaryDirectory = ({
             <SelectItem value="Exited">Exited</SelectItem>
           </FilterSelect>
         </div>
+
+        <div className="flex justify-end border-t border-border pt-4">
+          <Button
+            disabled={!filtersActive}
+            onClick={clearAllFilters}
+            type="button"
+            variant="outline"
+          >
+            <RotateCcw className="mr-2 h-4 w-4" aria-hidden="true" />
+            Clear all filters
+          </Button>
+        </div>
+
+        <ResultsAnnouncement
+          message={
+            filteredBeneficiaries.length === 0
+              ? 'No Beneficiary records match the current search and filters.'
+              : `${filteredBeneficiaries.length} Beneficiary ${filteredBeneficiaries.length === 1 ? 'record matches' : 'records match'} the current search and filters.`
+          }
+          settleKey={[
+            search,
+            projectId,
+            location,
+            sex,
+            ageGroup,
+            disabilityStatus,
+            enrollmentStatus,
+          ].join('|')}
+        />
 
         <Table>
           <TableHeader>

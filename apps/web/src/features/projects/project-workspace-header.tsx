@@ -16,6 +16,7 @@ import type { ProjectDetail } from '@/types/pathways'
 import { formatNumber, projectHealthTone, projectStatusTone } from './project-utils'
 
 const createWorkspaceTabs = (labels: PrototypeLabels): WorkspaceTabAccess[] => [
+  { label: 'Overview', path: '' },
   { label: labels.projectActivities, path: 'activities', permission: 'activities.view' },
   { label: labels.projectEvidence, path: 'evidence', permission: 'evidence.review' },
   { label: labels.projectIndicators, path: 'indicators', permission: 'indicators.manage' },
@@ -58,7 +59,7 @@ export const ProjectWorkspaceHeader = ({ project }: { project: ProjectDetail }) 
 
   return (
     <section className="rounded-lg border border-border bg-card p-4 shadow-sm sm:p-5">
-      <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
+      <div className="flex flex-col gap-5 xl:flex-row xl:items-start xl:justify-between">
         <div className="min-w-0 space-y-3">
           <div className="flex flex-wrap gap-2">
             <StatusBadge tone={projectStatusTone(project.status)}>{project.status}</StatusBadge>
@@ -73,7 +74,7 @@ export const ProjectWorkspaceHeader = ({ project }: { project: ProjectDetail }) 
             </p>
           </div>
         </div>
-        <div className="grid grid-cols-2 gap-3 text-sm sm:grid-cols-3 lg:min-w-[520px]">
+        <div className="grid grid-cols-2 gap-3 text-sm sm:grid-cols-3 xl:min-w-[520px]">
           <div className="col-span-2 rounded-lg border border-border bg-background p-3 sm:col-span-1">
             <CalendarDays className="mb-2 h-4 w-4 text-primary" aria-hidden="true" />
             <p className="text-muted-foreground">Project period</p>
@@ -98,8 +99,10 @@ export const ProjectWorkspaceHeader = ({ project }: { project: ProjectDetail }) 
       </div>
       <nav className="mt-5 flex gap-2 overflow-x-auto pb-1" aria-label={labels.projectWorkspace}>
         {visibleTabs.map((tab) => {
-          const href = `/projects/${project.id}/${tab.path}`
-          const active = pathname === href || pathname.startsWith(`${href}/`)
+          const href = tab.path ? `/projects/${project.id}/${tab.path}` : `/projects/${project.id}`
+          const active = tab.path
+            ? pathname === href || pathname.startsWith(`${href}/`)
+            : pathname === href
 
           return (
             <Button
@@ -109,7 +112,9 @@ export const ProjectWorkspaceHeader = ({ project }: { project: ProjectDetail }) 
               size="sm"
               variant={active ? 'default' : 'outline'}
             >
-              <Link href={href}>{tab.label}</Link>
+              <Link aria-current={active ? 'page' : undefined} href={href}>
+                {tab.label}
+              </Link>
             </Button>
           )
         })}

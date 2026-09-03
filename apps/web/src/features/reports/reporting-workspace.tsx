@@ -8,6 +8,7 @@ import {
   useReactTable,
 } from '@tanstack/react-table'
 import {
+  CheckCircle2,
   Columns3,
   Download,
   Eye,
@@ -21,6 +22,8 @@ import Link from 'next/link'
 import { useEffect, useMemo, useState } from 'react'
 import { toast } from 'sonner'
 
+import { PageHeader } from '@/components/layout/page-header'
+import { AsyncState, StatusMessage } from '@/components/pathways'
 import { ProgressBar } from '@/components/pathways/progress-bar'
 import { StatusBadge } from '@/components/pathways/status-badge'
 import { Button } from '@/components/ui/button'
@@ -238,6 +241,7 @@ export const ReportingWorkspace = ({
   const [beneficiaryLoadState, setBeneficiaryLoadState] = useState<
     'idle' | 'loading' | 'ready' | 'error'
   >('idle')
+  const [beneficiaryLoadAttempt, setBeneficiaryLoadAttempt] = useState(0)
   const [surveySelection, setSurveySelection] = useState(() => {
     const initialProjectIds = new Set(
       projects
@@ -266,6 +270,7 @@ export const ReportingWorkspace = ({
   }, [kind, visibleReportTabs])
 
   useEffect(() => {
+    void beneficiaryLoadAttempt
     if (kind !== 'beneficiary-summary' || !canViewBeneficiarySummary) {
       setBeneficiaryData(null)
       setBeneficiaryLoadState('idle')
@@ -292,7 +297,7 @@ export const ReportingWorkspace = ({
     return () => {
       active = false
     }
-  }, [canViewBeneficiarySummary, kind, role])
+  }, [beneficiaryLoadAttempt, canViewBeneficiarySummary, kind, role])
 
   const scopedProjects = useMemo(
     () => projects.filter((project) => canAccessProjectForRole(role, project.id)),
@@ -618,18 +623,8 @@ export const ReportingWorkspace = ({
 
   return (
     <div className="space-y-6">
-      <section className="rounded-lg border border-border bg-card p-5 shadow-sm">
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-          <div className="space-y-2">
-            <p className="text-xs font-semibold uppercase text-primary">{labels.moduleReports}</p>
-            <h1 className="text-3xl font-semibold tracking-tight text-foreground">
-              {labels.moduleReports}
-            </h1>
-            <p className="max-w-3xl text-sm leading-6 text-muted-foreground">
-              Build project, indicator, Beneficiary, and aggregate survey reports from safe sample
-              data. PDF and spreadsheet actions open a preview in this demonstration.
-            </p>
-          </div>
+      <PageHeader
+        actions={
           <div className="flex flex-wrap gap-2">
             <Button asChild variant="outline">
               <Link href={`/reports/preview?kind=${kind}`}>
@@ -642,8 +637,11 @@ export const ReportingWorkspace = ({
               Finish preview
             </Button>
           </div>
-        </div>
-      </section>
+        }
+        description="Build project, indicator, Beneficiary, and aggregate survey reports from safe sample data. PDF and spreadsheet actions open a preview in this demonstration."
+        eyebrow="Reporting workspace"
+        title={labels.moduleReports}
+      />
 
       <Card>
         <CardHeader className="space-y-4">
@@ -657,7 +655,13 @@ export const ReportingWorkspace = ({
                   size="sm"
                   onClick={() => switchKind(tab.kind)}
                 >
-                  <Link href={tab.href}>{tab.label}</Link>
+                  <Link aria-current={kind === tab.kind ? 'page' : undefined} href={tab.href}>
+                    {kind === tab.kind ? (
+                      <CheckCircle2 className="mr-2 h-4 w-4" aria-hidden="true" />
+                    ) : null}
+                    {tab.label}
+                    {kind === tab.kind ? <span className="ml-2 text-xs">Current</span> : null}
+                  </Link>
                 </Button>
               ))}
             </nav>
@@ -793,77 +797,97 @@ export const ReportingWorkspace = ({
               </div>
             )
           ) : null}
-          <Table>
-            <TableHeader>
-              {table.getHeaderGroups().map((headerGroup) => (
-                <TableRow key={headerGroup.id}>
-                  {headerGroup.headers.map((header) => (
-                    <TableHead key={header.id}>
-                      {header.isPlaceholder
-                        ? null
-                        : flexRender(header.column.columnDef.header, header.getContext())}
-                    </TableHead>
+          {kind === 'beneficiary-summary' && beneficiaryLoadState === 'loading' ? (
+            <AsyncState
+              description="Loading the Beneficiary records available to this report."
+              icon={FileText}
+              status="loading"
+              title="Loading Beneficiary report records"
+            />
+          ) : null}
+          {kind === 'beneficiary-summary' && beneficiaryLoadState === 'error' ? (
+            <AsyncState
+              description="The scoped Beneficiary records could not be loaded. Check your connection and try again."
+              icon={FileText}
+              onRetry={() => setBeneficiaryLoadAttempt((attempt) => attempt + 1)}
+              status="error"
+              title="Beneficiary report records unavailable"
+            />
+          ) : null}
+          {kind === 'beneficiary-summary' && beneficiaryLoadState === 'ready' ? (
+            <StatusMessage>Beneficiary report records loaded.</StatusMessage>
+          ) : null}
+          {kind !== 'beneficiary-summary' || beneficiaryLoadState === 'ready' ? (
+            <>
+              <Table>
+                <TableHeader>
+                  {table.getHeaderGroups().map((headerGroup) => (
+                    <TableRow key={headerGroup.id}>
+                      {headerGroup.headers.map((header) => (
+                        <TableHead key={header.id}>
+                          {header.isPlaceholder
+                            ? null
+                            : flexRender(header.column.columnDef.header, header.getContext())}
+                        </TableHead>
+                      ))}
+                    </TableRow>
                   ))}
-                </TableRow>
-              ))}
-            </TableHeader>
-            <TableBody>
-              {table.getRowModel().rows.length > 0 ? (
-                table.getRowModel().rows.map((row) => (
-                  <TableRow key={row.id}>
-                    {row.getVisibleCells().map((cell) => (
-                      <TableCell key={cell.id}>
-                        {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                      </TableCell>
-                    ))}
-                  </TableRow>
-                ))
-              ) : (
-                <TableRow>
-                  <TableCell
-                    colSpan={Math.max(activeColumns.length, 1)}
-                    className="h-32 text-center text-muted-foreground"
-                  >
-                    {kind === 'beneficiary-summary' && beneficiaryLoadState === 'loading'
-                      ? 'Loading scoped Beneficiary records...'
-                      : kind === 'beneficiary-summary' && beneficiaryLoadState === 'error'
-                        ? 'Scoped Beneficiary records could not be loaded. Try opening this report again.'
-                        : kind === 'indicator-summary'
+                </TableHeader>
+                <TableBody>
+                  {table.getRowModel().rows.length > 0 ? (
+                    table.getRowModel().rows.map((row) => (
+                      <TableRow key={row.id}>
+                        {row.getVisibleCells().map((cell) => (
+                          <TableCell key={cell.id}>
+                            {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                          </TableCell>
+                        ))}
+                      </TableRow>
+                    ))
+                  ) : (
+                    <TableRow>
+                      <TableCell
+                        colSpan={Math.max(activeColumns.length, 1)}
+                        className="h-32 text-center text-muted-foreground"
+                      >
+                        {kind === 'indicator-summary'
                           ? 'Generate a report.'
                           : kind === 'survey-results'
                             ? 'No aggregate question summaries match the current filters.'
                             : 'No report rows match the current filters.'}
-                  </TableCell>
-                </TableRow>
-              )}
-            </TableBody>
-          </Table>
-          <div className="flex flex-col gap-3 border-t border-border pt-4 text-sm sm:flex-row sm:items-center sm:justify-between">
-            <p className="text-muted-foreground">
-              Showing {table.getRowModel().rows.length} of {rows.length} report rows.
-            </p>
-            <div className="flex items-center gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                disabled={!table.getCanPreviousPage()}
-                onClick={() => table.previousPage()}
-              >
-                Previous
-              </Button>
-              <span className="text-muted-foreground">
-                Page {table.getState().pagination.pageIndex + 1} of {table.getPageCount() || 1}
-              </span>
-              <Button
-                variant="outline"
-                size="sm"
-                disabled={!table.getCanNextPage()}
-                onClick={() => table.nextPage()}
-              >
-                Next
-              </Button>
-            </div>
-          </div>
+                      </TableCell>
+                    </TableRow>
+                  )}
+                </TableBody>
+              </Table>
+              <div className="flex flex-col gap-3 border-t border-border pt-4 text-sm sm:flex-row sm:items-center sm:justify-between">
+                <p className="text-muted-foreground">
+                  Showing {table.getRowModel().rows.length} of {rows.length} report rows.
+                </p>
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={!table.getCanPreviousPage()}
+                    onClick={() => table.previousPage()}
+                  >
+                    Previous
+                  </Button>
+                  <span className="text-muted-foreground">
+                    Page {table.getState().pagination.pageIndex + 1} of {table.getPageCount() || 1}
+                  </span>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={!table.getCanNextPage()}
+                    onClick={() => table.nextPage()}
+                  >
+                    Next
+                  </Button>
+                </div>
+              </div>
+            </>
+          ) : null}
         </CardContent>
       </Card>
 

@@ -5,7 +5,7 @@ import Link from 'next/link'
 import { useEffect, useMemo, useState } from 'react'
 import { toast } from 'sonner'
 
-import { EmptyState } from '@/components/pathways/empty-state'
+import { AsyncState, StatusMessage } from '@/components/pathways'
 import { StatusBadge } from '@/components/pathways/status-badge'
 import { Button } from '@/components/ui/button'
 import {
@@ -64,8 +64,10 @@ export const RecommendationsWorkspace = ({
   const { role } = usePrototypeRole()
   const [data, setData] = useState<RecommendationsWorkspaceData | null>(null)
   const [status, setStatus] = useState<'loading' | 'ready' | 'error'>('loading')
+  const [loadAttempt, setLoadAttempt] = useState(0)
 
   useEffect(() => {
+    void loadAttempt
     let active = true
     setStatus('loading')
     setData(null)
@@ -96,31 +98,39 @@ export const RecommendationsWorkspace = ({
     return () => {
       active = false
     }
-  }, [initialRecommendationId, role])
+  }, [initialRecommendationId, loadAttempt, role])
 
   if (status === 'loading') {
     return (
-      <div className="flex min-h-80 items-center justify-center rounded-lg border border-border bg-card">
-        <div className="flex items-center gap-3 text-sm text-muted-foreground">
-          <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
-          Loading scoped recommendations...
-        </div>
-      </div>
+      <AsyncState
+        className="min-h-80 rounded-lg border border-border bg-card"
+        description="Loading the recommendation queue available to the current role."
+        icon={Loader2}
+        status="loading"
+        title="Loading scoped recommendations"
+      />
     )
   }
 
   if (status === 'error' || !data) {
     return (
-      <EmptyState
+      <AsyncState
         className="min-h-80 rounded-lg border border-border bg-card"
-        description="The role-scoped recommendation queue could not be loaded. Reload this page to try again."
+        description="The role-scoped recommendation queue could not be loaded. Check your connection and try again."
         icon={AlertTriangle}
+        onRetry={() => setLoadAttempt((attempt) => attempt + 1)}
+        status="error"
         title="Recommendations unavailable"
       />
     )
   }
 
-  return <RecommendationsWorkspaceContent key={data.role} {...data} />
+  return (
+    <>
+      <StatusMessage>Recommendation queue loaded.</StatusMessage>
+      <RecommendationsWorkspaceContent key={data.role} {...data} />
+    </>
+  )
 }
 
 const RecommendationsWorkspaceContent = ({
@@ -142,6 +152,7 @@ const RecommendationsWorkspaceContent = ({
   const [outcomeOpen, setOutcomeOpen] = useState(false)
   const [outcome, setOutcome] = useState<RecommendationOutcome>('Accept')
   const [outcomeNote, setOutcomeNote] = useState('')
+  const [outcomeError, setOutcomeError] = useState('')
 
   const filteredRecommendations = useMemo(
     () =>
@@ -164,9 +175,14 @@ const RecommendationsWorkspaceContent = ({
 
   const logOutcome = () => {
     if (!outcomeNote.trim()) {
-      toast.error('Add an outcome note before saving.')
+      setOutcomeError('Add an outcome note before saving.')
+      toast.error('Check the outcome form.', {
+        description: 'The outcome note has an inline error.',
+      })
       return
     }
+
+    setOutcomeError('')
 
     // TODO(BACKEND): Persist recommendation review and outcomes.
     setRecommendations((current) =>
@@ -249,6 +265,7 @@ const RecommendationsWorkspaceContent = ({
 
               return (
                 <button
+                  aria-pressed={recommendation.id === selectedRecommendation?.id}
                   key={recommendation.id}
                   className={`w-full rounded-lg border p-4 text-left transition-colors ${
                     recommendation.id === selectedRecommendation?.id
@@ -266,6 +283,12 @@ const RecommendationsWorkspaceContent = ({
                       </p>
                     </div>
                     <div className="flex flex-wrap gap-2">
+                      {recommendation.id === selectedRecommendation?.id ? (
+                        <span className="inline-flex items-center gap-1 text-xs font-semibold text-foreground">
+                          <CheckCircle2 className="h-4 w-4" aria-hidden="true" />
+                          Selected
+                        </span>
+                      ) : null}
                       <StatusBadge tone="info">{recommendation.reviewStatus}</StatusBadge>
                       {recommendation.outcome ? (
                         <StatusBadge tone="success">{recommendation.outcome}</StatusBadge>
@@ -321,6 +344,7 @@ const RecommendationsWorkspaceContent = ({
                 onClick={() => {
                   setOutcome(selectedRecommendation.outcome ?? 'Accept')
                   setOutcomeNote(selectedRecommendation.outcomeNote ?? '')
+                  setOutcomeError('')
                   setOutcomeOpen(true)
                 }}
               >
@@ -334,7 +358,13 @@ const RecommendationsWorkspaceContent = ({
         </aside>
       </div>
 
-      <Dialog open={outcomeOpen} onOpenChange={setOutcomeOpen}>
+      <Dialog
+        open={outcomeOpen}
+        onOpenChange={(open) => {
+          setOutcomeOpen(open)
+          if (!open) setOutcomeError('')
+        }}
+      >
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Log recommendation outcome</DialogTitle>
@@ -342,14 +372,26 @@ const RecommendationsWorkspaceContent = ({
               Record a human decision for this predefined-rule recommendation.
             </DialogDescription>
           </DialogHeader>
-          <div className="space-y-4">
+          <form
+            className="space-y-4"
+            onSubmit={(event) => {
+              event.preventDefault()
+              logOutcome()
+            }}
+          >
             <div className="space-y-2">
-              <Label htmlFor="recommendation-outcome">Human-reviewed outcome</Label>
+              <Label htmlFor="recommendation-outcome">
+                Human-reviewed outcome
+                <span aria-hidden="true" className="ml-1 text-danger">
+                  *
+                </span>
+                <span className="sr-only"> (required)</span>
+              </Label>
               <Select
                 value={outcome}
                 onValueChange={(value) => setOutcome(value as RecommendationOutcome)}
               >
-                <SelectTrigger id="recommendation-outcome">
+                <SelectTrigger aria-required="true" id="recommendation-outcome">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -362,23 +404,41 @@ const RecommendationsWorkspaceContent = ({
               </Select>
             </div>
             <div className="space-y-2">
-              <Label htmlFor="recommendation-outcome-note">Outcome note</Label>
+              <Label htmlFor="recommendation-outcome-note">
+                Outcome note
+                <span aria-hidden="true" className="ml-1 text-danger">
+                  *
+                </span>
+                <span className="sr-only"> (required)</span>
+              </Label>
               <Input
+                aria-describedby={outcomeError ? 'recommendation-outcome-note-error' : undefined}
+                aria-invalid={Boolean(outcomeError)}
+                aria-required="true"
                 id="recommendation-outcome-note"
                 placeholder="Add an outcome note"
                 value={outcomeNote}
-                onChange={(event) => setOutcomeNote(event.target.value)}
+                onChange={(event) => {
+                  setOutcomeNote(event.target.value)
+                  if (outcomeError) setOutcomeError('')
+                }}
               />
+              {outcomeError ? (
+                <p
+                  className="text-sm font-medium text-danger"
+                  id="recommendation-outcome-note-error"
+                >
+                  {outcomeError}
+                </p>
+              ) : null}
             </div>
-          </div>
-          <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => setOutcomeOpen(false)}>
-              Cancel
-            </Button>
-            <Button onClick={logOutcome} type="button">
-              Save outcome
-            </Button>
-          </DialogFooter>
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => setOutcomeOpen(false)}>
+                Cancel
+              </Button>
+              <Button type="submit">Save outcome</Button>
+            </DialogFooter>
+          </form>
         </DialogContent>
       </Dialog>
     </div>

@@ -46,7 +46,7 @@ export const Sidebar = ({
           {!compact ? (
             <div className="min-w-0">
               <p className="text-xs font-semibold uppercase text-blue-100">PATHWAYS</p>
-              <h1 className="truncate text-xl font-semibold tracking-tight">{APP_NAME}</h1>
+              <p className="truncate text-xl font-semibold tracking-tight">{APP_NAME}</p>
               <p className="mt-1 text-xs leading-4 text-blue-50/70">
                 Project Information Management
               </p>

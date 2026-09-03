@@ -5,6 +5,7 @@ import { usePathname } from 'next/navigation'
 import { useState } from 'react'
 
 import { Sidebar } from '@/components/layout/sidebar'
+import { SkipLink } from '@/components/layout/skip-link'
 import { Button } from '@/components/ui/button'
 import {
   DropdownMenu,
@@ -38,7 +39,8 @@ export const AppShell = ({ children }: { children: React.ReactNode }) => {
 
   return (
     <div className="min-h-screen bg-background lg:grid lg:grid-cols-[auto_1fr]">
-      <div className="hidden lg:block">
+      <SkipLink />
+      <div className="hidden lg:sticky lg:top-0 lg:block lg:h-dvh lg:self-start">
         <Sidebar compact={compact} />
       </div>
       <div className="flex min-h-screen min-w-0 flex-col">
@@ -99,6 +101,8 @@ export const AppShell = ({ children }: { children: React.ReactNode }) => {
           </div>
         </header>
         <main
+          id="main-content"
+          tabIndex={-1}
           className={cn(
             'flex-1 px-4 py-6 md:px-6 md:py-8',
             'bg-[linear-gradient(180deg,hsl(var(--background))_0%,hsl(var(--workspace))_100%)]',

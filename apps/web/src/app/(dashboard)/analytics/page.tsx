@@ -1,5 +1,9 @@
+import type { Metadata } from 'next'
+
 import { AnalyticsDashboard } from '@/features/analytics/analytics-dashboard'
 import { pathwaysClient } from '@/lib/services/mock-pathways-client'
+
+export const metadata: Metadata = { title: 'Analytics Workspace' }
 
 export default async function AnalyticsPage() {
   const projectSummaries = await pathwaysClient.getProjects()

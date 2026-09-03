@@ -11,6 +11,8 @@ import {
 import Link from 'next/link'
 import { useEffect, useMemo, useState } from 'react'
 
+import { PageHeader } from '@/components/layout/page-header'
+import { AsyncState, StatusMessage } from '@/components/pathways'
 import { EmptyState } from '@/components/pathways/empty-state'
 import { MetricCard } from '@/components/pathways/metric-card'
 import { Button } from '@/components/ui/button'
@@ -70,6 +72,8 @@ export const AnalyticsDashboard = ({
   const [period, setPeriod] = useState('Q2 2026')
   const [loading, setLoading] = useState(false)
   const [sadddAggregates, setSadddAggregates] = useState<BeneficiarySadddAggregate[]>([])
+  const [sadddLoadState, setSadddLoadState] = useState<'loading' | 'ready' | 'error'>('loading')
+  const [sadddLoadAttempt, setSadddLoadAttempt] = useState(0)
 
   const roleScopedProjects = useMemo(
     () => projects.filter((project) => canAccessProjectForRole(role, project.id)),
@@ -77,25 +81,28 @@ export const AnalyticsDashboard = ({
   )
 
   useEffect(() => {
+    void sadddLoadAttempt
     let active = true
+    setSadddLoadState('loading')
 
     void pathwaysClient
       .getBeneficiarySadddAggregatesForRole(role)
       .then((aggregates) => {
         if (active) {
           setSadddAggregates(aggregates)
+          setSadddLoadState('ready')
         }
       })
       .catch(() => {
         if (active) {
-          setSadddAggregates([])
+          setSadddLoadState('error')
         }
       })
 
     return () => {
       active = false
     }
-  }, [role])
+  }, [role, sadddLoadAttempt])
 
   useEffect(() => {
     if (projectId !== allValue && !roleScopedProjects.some((project) => project.id === projectId)) {
@@ -161,40 +168,33 @@ export const AnalyticsDashboard = ({
 
   return (
     <div className="space-y-6">
-      <section className="flex flex-col gap-4 rounded-lg border border-border bg-card p-5 shadow-sm lg:flex-row lg:items-start lg:justify-between">
-        <div className="space-y-2">
-          <div>
-            <h1 className="text-3xl font-semibold tracking-tight text-foreground">
-              {labels.moduleAnalytics}
-            </h1>
-            <p className="mt-2 max-w-3xl text-sm leading-6 text-muted-foreground">
-              Project performance, SADDD Analysis, budget utilization, aggregate location coverage,
-              Beneficiary reach, and Rule-Based Alerts for human review.
-            </p>
-          </div>
-        </div>
-        {canReviewAlerts || canViewRules ? (
-          <div className="flex flex-wrap gap-2">
-            {canReviewAlerts ? (
-              <>
-                <Button asChild variant="outline">
-                  <Link href="/alerts">{labels.moduleAlerts}</Link>
+      <PageHeader
+        actions={
+          canReviewAlerts || canViewRules ? (
+            <div className="flex flex-wrap gap-2">
+              {canReviewAlerts ? (
+                <>
+                  <Button asChild variant="outline">
+                    <Link href="/alerts">{labels.moduleAlerts}</Link>
+                  </Button>
+                  <Button asChild variant="outline">
+                    <Link href="/recommendations">{labels.moduleRecommendations}</Link>
+                  </Button>
+                </>
+              ) : null}
+              {canViewRules ? (
+                <Button asChild>
+                  <Link href="/alerts/repository">
+                    {canConfigureRules ? 'Manage alert rules' : 'View alert rules'}
+                  </Link>
                 </Button>
-                <Button asChild variant="outline">
-                  <Link href="/recommendations">{labels.moduleRecommendations}</Link>
-                </Button>
-              </>
-            ) : null}
-            {canViewRules ? (
-              <Button asChild>
-                <Link href="/alerts/repository">
-                  {canConfigureRules ? 'Manage alert rules' : 'View alert rules'}
-                </Link>
-              </Button>
-            ) : null}
-          </div>
-        ) : null}
-      </section>
+              ) : null}
+            </div>
+          ) : undefined
+        }
+        description="Project performance, SADDD Analysis, budget utilization, aggregate location coverage, Beneficiary reach, and Rule-Based Alerts for human review."
+        title={labels.moduleAnalytics}
+      />
 
       <section className="grid gap-3 rounded-lg border border-border bg-card p-5 shadow-sm md:grid-cols-2 xl:grid-cols-[1fr_240px_240px]">
         <div className="space-y-2">
@@ -304,7 +304,29 @@ export const AnalyticsDashboard = ({
               <BudgetUtilizationChart budgets={visibleBudgets} projects={visibleProjects} />
             </ChartPanel>
             <ChartPanel title="SADDD Analysis">
-              <SadddChart aggregates={visibleSadddAggregates} />
+              {sadddLoadState === 'loading' ? (
+                <AsyncState
+                  description="Loading the scoped Beneficiary aggregate data."
+                  icon={UsersRound}
+                  status="loading"
+                  title="Loading SADDD analysis"
+                />
+              ) : null}
+              {sadddLoadState === 'error' ? (
+                <AsyncState
+                  description="The scoped Beneficiary aggregate data could not be loaded. Check your connection and try again."
+                  icon={AlertTriangle}
+                  onRetry={() => setSadddLoadAttempt((attempt) => attempt + 1)}
+                  status="error"
+                  title="SADDD analysis unavailable"
+                />
+              ) : null}
+              {sadddLoadState === 'ready' ? (
+                <>
+                  <StatusMessage>SADDD analysis loaded.</StatusMessage>
+                  <SadddChart aggregates={visibleSadddAggregates} />
+                </>
+              ) : null}
             </ChartPanel>
             <ChartPanel title="Activity completion">
               <ActivityCompletionChart activities={visibleActivities} />

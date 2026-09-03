@@ -25,6 +25,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import { Textarea } from '@/components/ui/textarea'
 import type {
   Activity,
   BeneficiaryAssessmentRecord,
@@ -246,7 +247,7 @@ export const BeneficiaryDetail = ({
           </div>
         </aside>
 
-        <main className="space-y-6">
+        <div className="space-y-6">
           <section className="rounded-lg border border-border bg-card p-5 shadow-sm">
             <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
               <div>
@@ -383,7 +384,7 @@ export const BeneficiaryDetail = ({
             />
             <NoteList notes={notes} stages={stages} />
           </section>
-        </main>
+        </div>
       </div>
 
       <Dialog open={noteOpen} onOpenChange={setNoteOpen}>
@@ -410,9 +411,9 @@ export const BeneficiaryDetail = ({
                 ))}
               </SelectContent>
             </Select>
-            <textarea
+            <Textarea
               aria-label="Beneficiary note"
-              className="min-h-28 w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              className="min-h-28"
               placeholder="Note"
               value={noteDraft.note}
               onChange={(event) =>
@@ -532,9 +533,8 @@ export const BeneficiaryDetail = ({
                 </Button>
               ))}
             </fieldset>
-            <textarea
+            <Textarea
               aria-label="Participation notes"
-              className="min-h-24 w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               placeholder="Participation notes"
               value={participationDraft.note}
               onChange={(event) =>

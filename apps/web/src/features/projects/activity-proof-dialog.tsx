@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button'
 import { Dialog, DialogFooter } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { Textarea } from '@/components/ui/textarea'
 import { pathwaysClient } from '@/lib/services/mock-pathways-client'
 import type { Activity } from '@/types/pathways'
 
@@ -28,6 +29,7 @@ export const ActivityProofDialog = ({
   const [files, setFiles] = useState<File[]>([])
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState('')
+  const noteError = error === 'Enter an update note before submitting proof.'
 
   useEffect(() => {
     if (!activity || !open) {
@@ -84,10 +86,23 @@ export const ActivityProofDialog = ({
         title="Submit Update & Proof"
         description="Record a prototype progress update. Files stay on this device and are not uploaded."
       >
-        <div className="space-y-5">
+        <form
+          className="space-y-5"
+          onSubmit={(event) => {
+            event.preventDefault()
+            void submitUpdate()
+          }}
+        >
           <div className="space-y-2">
-            <Label htmlFor="activity-progress">Completion percentage</Label>
+            <Label htmlFor="activity-progress">
+              Completion percentage
+              <span aria-hidden="true" className="ml-1 text-danger">
+                *
+              </span>
+              <span className="sr-only"> (required)</span>
+            </Label>
             <Input
+              aria-required="true"
               id="activity-progress"
               max={100}
               min={0}
@@ -97,11 +112,23 @@ export const ActivityProofDialog = ({
             />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="activity-note">Update note</Label>
-            <textarea
-              className="min-h-28 w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+            <Label htmlFor="activity-note">
+              Update note
+              <span aria-hidden="true" className="ml-1 text-danger">
+                *
+              </span>
+              <span className="sr-only"> (required)</span>
+            </Label>
+            <Textarea
+              aria-describedby={noteError ? 'activity-note-error' : undefined}
+              aria-invalid={noteError}
+              aria-required="true"
+              className="min-h-28"
               id="activity-note"
-              onChange={(event) => setNote(event.target.value)}
+              onChange={(event) => {
+                setNote(event.target.value)
+                if (noteError) setError('')
+              }}
               placeholder="Summarize completed work, blockers, and submitted proof."
               value={note}
             />
@@ -131,7 +158,11 @@ export const ActivityProofDialog = ({
             </div>
           ) : null}
           {error ? (
-            <p className="text-sm font-medium text-destructive" role="alert">
+            <p
+              className="text-sm font-medium text-destructive"
+              id={noteError ? 'activity-note-error' : undefined}
+              role="alert"
+            >
               {error}
             </p>
           ) : null}
@@ -139,7 +170,7 @@ export const ActivityProofDialog = ({
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
               Cancel
             </Button>
-            <Button className="gap-2" disabled={submitting} onClick={submitUpdate} type="button">
+            <Button className="gap-2" disabled={submitting} type="submit">
               {submitting ? (
                 <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
               ) : (
@@ -148,7 +179,7 @@ export const ActivityProofDialog = ({
               Submit Update
             </Button>
           </DialogFooter>
-        </div>
+        </form>
       </DialogShell>
     </Dialog>
   )

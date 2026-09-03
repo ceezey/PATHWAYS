@@ -7,7 +7,7 @@ export default function AuthCallbackPage() {
     <div className="mx-auto w-full max-w-2xl">
       <Card>
         <CardHeader>
-          <CardTitle>Auth callback placeholder</CardTitle>
+          <CardTitle as="h1">Auth callback placeholder</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4 text-sm leading-6 text-muted-foreground">
           <p>

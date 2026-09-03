@@ -23,6 +23,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import { Textarea } from '@/components/ui/textarea'
 import { usePrototypeLabels } from '@/hooks/use-prototype-labels'
 import type {
   Activity,
@@ -303,8 +304,7 @@ export const JourneyStagesWorkspace = ({
               </Label>
               <Label className="space-y-2">
                 <span>Description</span>
-                <textarea
-                  className="min-h-24 w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                <Textarea
                   value={selectedStage.description}
                   onChange={(event) => updateStage('description', event.target.value)}
                 />

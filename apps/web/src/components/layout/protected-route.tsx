@@ -25,7 +25,7 @@ export const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
       <div className="flex min-h-screen items-center justify-center p-6">
         <Card className="max-w-xl">
           <CardHeader>
-            <CardTitle>Supabase auth setup is still required</CardTitle>
+            <CardTitle as="h1">Supabase auth setup is still required</CardTitle>
             <CardDescription>
               Dashboard routes are scaffolded, but the real session check stays in placeholder mode
               until the Supabase project URL, publishable key, and redirect URLs are configured.

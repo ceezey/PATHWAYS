@@ -1,4 +1,8 @@
+import type { Metadata } from 'next'
+
 import { BeneficiaryDetailLoader } from '@/features/beneficiaries/beneficiary-detail-loader'
+
+export const metadata: Metadata = { title: 'Beneficiary Record' }
 
 export default async function BeneficiaryDetailPage({
   params,

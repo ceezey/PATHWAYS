@@ -1,6 +1,7 @@
 export default function PublicProjectLoading() {
   return (
-    <main aria-busy="true" aria-label="Loading public project" className="min-h-screen bg-slate-50">
+    <div aria-busy="true" aria-label="Loading public project" className="min-h-screen bg-slate-50">
+      <h1 className="sr-only">Loading public project</h1>
       <div className="border-b border-teal-100 bg-teal-50 px-4 py-4 sm:px-6">
         <div className="mx-auto h-5 w-full max-w-6xl animate-pulse rounded bg-teal-100" />
       </div>
@@ -20,6 +21,6 @@ export default function PublicProjectLoading() {
           />
         ))}
       </div>
-    </main>
+    </div>
   )
 }
