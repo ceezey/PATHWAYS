@@ -46,6 +46,7 @@ import type { PrototypeLabelKey } from '@/constants/prototype-labels'
 import { usePrototypeLabels } from '@/hooks/use-prototype-labels'
 import { usePrototypeRole } from '@/hooks/use-prototype-role'
 import { can } from '@/lib/rbac/can'
+import { canAccessProjectForRole } from '@/lib/rbac/data-scope'
 import { pathwaysClient } from '@/lib/services/mock-pathways-client'
 import { PathwaysClientError } from '@/lib/services/pathways-client'
 import type {
@@ -69,9 +70,11 @@ import type {
 } from '@/types/pathways'
 
 import { activityStatusTone, formatCurrency, formatDate } from './activity-utils'
+import { BudgetEditorDialog } from './budget-editor-dialog'
 import {
   addIndicatorSchema,
   annotationSchema,
+  calculateBudgetUtilization,
   calculateExpenseTotal,
   calculateRemainingBudget,
   formalEvaluationSchema,
@@ -319,7 +322,7 @@ export const ProjectPhaseFiveWorkspace = ({
 
   const plannedAmount = budgets[0]?.plannedAmount ?? 0
   const remainingBudget = calculateRemainingBudget(plannedAmount, actualSpending)
-  const utilization = plannedAmount > 0 ? Math.round((actualSpending / plannedAmount) * 100) : 0
+  const utilization = calculateBudgetUtilization(plannedAmount, actualSpending)
   const expenseTotal = calculateExpenseTotal(expenses)
   const canConfigureWeights = can(role, 'monitor_evaluate.full')
   const canReviewEvidence = can(role, 'evidence.review')
@@ -329,6 +332,7 @@ export const ProjectPhaseFiveWorkspace = ({
   const canLogExpense = can(role, 'budget.expense.log')
   const canVerifyExpense = can(role, 'budget.expense.verify')
   const canApproveExpense = can(role, 'budget.expense.approve')
+  const canModifyBudget = can(role, 'budget.full') && canAccessProjectForRole(role, projectId)
   const canPublishTransparency = can(role, 'transparency.publish')
   const heading = {
     ...viewTitles[view],
@@ -717,6 +721,7 @@ export const ProjectPhaseFiveWorkspace = ({
         <BudgetView
           actualSpending={actualSpending}
           alerts={projectAlerts}
+          budgetRecord={budgets[0] ?? null}
           expenseTotal={expenseTotal}
           expenses={expenses}
           outcomes={outcomes}
@@ -728,11 +733,18 @@ export const ProjectPhaseFiveWorkspace = ({
           canApproveExpense={canApproveExpense}
           canLogExpense={canLogExpense}
           canLogRecommendationOutcome={canLogRecommendationOutcome}
+          canModifyBudget={canModifyBudget}
           canVerifyExpense={canVerifyExpense}
           onLogExpense={() => {
             setFormState({ submitter: 'Project Officer A', expenseDate: today() })
             setReceiptFiles([])
             setExpenseOpen(true)
+          }}
+          onBudgetSaved={(updatedBudget) => {
+            setBudgets((current) => [
+              ...current.filter((budget) => budget.id !== updatedBudget.id),
+              updatedBudget,
+            ])
           }}
           onOutcome={(recommendation) => {
             setFormState({ outcome: 'Accept', note: '' })
@@ -775,7 +787,7 @@ export const ProjectPhaseFiveWorkspace = ({
             <p className="text-sm leading-6 text-muted-foreground">
               {previewEvidence.previewSummary}
             </p>
-            <div className="rounded-lg border border-dashed border-border bg-muted/40 p-4 text-sm text-muted-foreground">
+            <div className="rounded-sm border border-dashed border-border bg-surface-subtle p-4 text-sm text-muted-foreground">
               Placeholder preview for {previewEvidence.fileName}
             </div>
           </div>
@@ -869,7 +881,10 @@ export const ProjectPhaseFiveWorkspace = ({
               evidence quality. The score is a prototype review aid and is not server-enforced.
             </p>
             {evaluation.components.map((component) => (
-              <div key={component.id} className="rounded-lg border border-border bg-background p-3">
+              <div
+                key={component.id}
+                className="rounded-sm border border-border bg-surface-subtle p-3"
+              >
                 <p className="font-medium text-foreground">{component.label}</p>
                 <p>{component.value}% weight in the current role-preview model.</p>
               </div>
@@ -1004,7 +1019,7 @@ export const ProjectPhaseFiveWorkspace = ({
             </p>
           </div>
           {receiptFiles.length > 0 ? (
-            <ul className="rounded-lg border border-border bg-background p-3 text-sm text-muted-foreground">
+            <ul className="rounded-sm border border-border bg-surface-subtle p-3 text-sm text-muted-foreground">
               {receiptFiles.map((file) => (
                 <li key={`${file.name}-${file.size}`} className="break-all">
                   {file.name}
@@ -1104,7 +1119,7 @@ const EvidenceView = ({
     >
       <div className="space-y-3">
         {evidence.map((record) => (
-          <div key={record.id} className="rounded-lg border border-border bg-background p-4">
+          <div key={record.id} className="rounded-sm border border-border bg-surface-subtle p-4">
             <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
               <div className="min-w-0">
                 <p className="break-words font-medium text-foreground">{record.reportTitle}</p>
@@ -1185,7 +1200,7 @@ const EvidenceView = ({
           reports.map((report) => (
             <div
               key={report.id}
-              className="rounded-lg border border-border bg-background p-3 text-sm"
+              className="rounded-sm border border-border bg-surface-subtle p-3 text-sm"
             >
               <p className="font-medium text-foreground">{report.title}</p>
               <p className="mt-1 text-muted-foreground">{report.reportingPeriod}</p>
@@ -1224,7 +1239,7 @@ const IndicatorsView = ({
   >
     <div className="grid gap-4 xl:grid-cols-2">
       {indicators.map((indicator) => (
-        <div key={indicator.id} className="rounded-lg border border-border bg-background p-4">
+        <div key={indicator.id} className="rounded-sm border border-border bg-surface-subtle p-4">
           <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
             <div className="min-w-0">
               <p className="text-sm font-medium text-primary">{indicator.code}</p>
@@ -1309,7 +1324,7 @@ const EvaluationView = ({
           tone="warning"
           value={evaluation.supportingEvidence}
         />
-        <div className="rounded-lg border border-border bg-background p-3 text-sm text-muted-foreground">
+        <div className="rounded-sm border border-border bg-surface-subtle p-3 text-sm text-muted-foreground">
           Supporting evidence records:{' '}
           <span className="font-medium text-foreground">{evidenceCount}</span>
         </div>
@@ -1342,7 +1357,7 @@ const EvaluationView = ({
           {evaluation.components.map((component) => (
             <div
               key={component.id}
-              className="grid gap-3 rounded-lg border border-border bg-background p-3 sm:grid-cols-[1fr_120px]"
+              className="grid gap-3 rounded-sm border border-border bg-surface-subtle p-3 sm:grid-cols-[1fr_120px]"
             >
               <div>
                 <p className="font-medium text-foreground">{component.label}</p>
@@ -1366,7 +1381,7 @@ const EvaluationView = ({
             evaluation.annotations.map((annotation) => (
               <div
                 key={annotation.id}
-                className="rounded-lg border border-border bg-background p-3 text-sm"
+                className="rounded-sm border border-border bg-surface-subtle p-3 text-sm"
               >
                 <p className="font-medium text-foreground">{annotation.author}</p>
                 <p className="mt-1 text-muted-foreground">{annotation.note}</p>
@@ -1383,7 +1398,7 @@ const EvaluationView = ({
             evaluation.history.map((entry) => (
               <div
                 key={entry.id}
-                className="rounded-lg border border-border bg-background p-3 text-sm"
+                className="rounded-sm border border-border bg-surface-subtle p-3 text-sm"
               >
                 <div className="flex items-center justify-between gap-3">
                   <p className="font-medium text-foreground">{entry.score}%</p>
@@ -1404,9 +1419,11 @@ const EvaluationView = ({
 const BudgetView = ({
   actualSpending,
   alerts,
+  budgetRecord,
   canApproveExpense,
   canLogExpense,
   canLogRecommendationOutcome,
+  canModifyBudget,
   canVerifyExpense,
   expenseTotal,
   expenses,
@@ -1416,6 +1433,7 @@ const BudgetView = ({
   remainingBudget,
   utilization,
   onApproveExpense,
+  onBudgetSaved,
   onLogExpense,
   onOutcome,
   onRejectExpense,
@@ -1423,9 +1441,11 @@ const BudgetView = ({
 }: {
   actualSpending: number
   alerts: AlertRecord[]
+  budgetRecord: BudgetRecord | null
   canApproveExpense: boolean
   canLogExpense: boolean
   canLogRecommendationOutcome: boolean
+  canModifyBudget: boolean
   canVerifyExpense: boolean
   expenseTotal: number
   expenses: ExpenseRecord[]
@@ -1435,24 +1455,46 @@ const BudgetView = ({
   remainingBudget: number
   utilization: number
   onApproveExpense: (expense: ExpenseRecord) => void
+  onBudgetSaved: (budget: BudgetRecord) => void
   onLogExpense: () => void
   onOutcome: (recommendation: RecommendationRecord) => void
   onRejectExpense: (expense: ExpenseRecord) => void
   onVerifyExpense: (expense: ExpenseRecord) => void
 }) => (
   <div className="space-y-4">
-    <section className="grid gap-4 lg:grid-cols-4">
-      {[
-        ['Planned allocation', formatCurrency(plannedAmount)],
-        ['Actual spending', formatCurrency(actualSpending)],
-        ['Remaining balance', formatCurrency(remainingBudget)],
-        ['Expense ledger total', formatCurrency(expenseTotal)],
-      ].map(([label, value]) => (
-        <div key={label} className="rounded-lg border border-border bg-card p-4 shadow-sm">
-          <p className="text-sm text-muted-foreground">{label}</p>
-          <p className="mt-2 text-2xl font-semibold text-foreground">{value}</p>
+    <section aria-labelledby="budget-summary-title" className="space-y-4">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <h2 className="text-lg font-semibold text-foreground" id="budget-summary-title">
+            Budget summary
+          </h2>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Planned allocation changes are saved in this browser for this prototype.
+          </p>
         </div>
-      ))}
+        {canModifyBudget && budgetRecord ? (
+          <BudgetEditorDialog
+            budget={{ ...budgetRecord, actualSpending }}
+            onSaved={onBudgetSaved}
+          />
+        ) : null}
+      </div>
+      <div className="grid gap-3 border-y border-border bg-card sm:grid-cols-2 lg:grid-cols-4">
+        {[
+          ['Planned allocation', formatCurrency(plannedAmount)],
+          ['Actual spending', formatCurrency(actualSpending)],
+          ['Remaining balance', formatCurrency(remainingBudget)],
+          ['Expense ledger total', formatCurrency(expenseTotal)],
+        ].map(([label, value], index) => (
+          <div
+            key={label}
+            className={`p-4 ${index > 0 ? 'border-t border-border sm:border-t-0 sm:border-l' : ''}`}
+          >
+            <p className="text-sm text-muted-foreground">{label}</p>
+            <p className="mt-2 text-2xl font-semibold tabular-nums text-foreground">{value}</p>
+          </div>
+        ))}
+      </div>
     </section>
     <SectionCard
       title="Budget utilization"
@@ -1471,7 +1513,7 @@ const BudgetView = ({
       >
         <div className="space-y-3">
           {alerts.map((alert) => (
-            <div key={alert.id} className="rounded-lg border border-border bg-background p-3">
+            <div key={alert.id} className="rounded-sm border border-border bg-surface-subtle p-3">
               <div className="flex items-center justify-between gap-3">
                 <p className="font-medium text-foreground">{alert.title}</p>
                 <StatusBadge tone={statusTone(alert.severity)}>{alert.severity}</StatusBadge>
@@ -1493,7 +1535,7 @@ const BudgetView = ({
               return (
                 <div
                   key={recommendation.id}
-                  className="rounded-lg border border-border bg-background p-3"
+                  className="rounded-sm border border-border bg-surface-subtle p-3"
                 >
                   <p className="text-sm text-muted-foreground">{recommendation.text}</p>
                   <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
@@ -1536,7 +1578,7 @@ const BudgetView = ({
         {expenses.map((expense) => (
           <div
             key={expense.id}
-            className="grid gap-4 rounded-lg border border-border bg-background p-4 lg:grid-cols-[1fr_0.6fr_0.6fr_0.5fr_auto]"
+            className="grid gap-4 rounded-sm border border-border bg-surface-subtle p-4 lg:grid-cols-[1fr_0.6fr_0.6fr_0.5fr_auto]"
           >
             <div className="min-w-0">
               <p className="break-words font-medium text-foreground">{expense.description}</p>
@@ -1626,7 +1668,7 @@ const TransparencyView = ({
     >
       <div className="space-y-3">
         {sections.map((section) => (
-          <div key={section.id} className="rounded-lg border border-border bg-background p-4">
+          <div key={section.id} className="rounded-sm border border-border bg-surface-subtle p-4">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
               <div>
                 <p className="font-medium text-foreground">{section.title}</p>
@@ -1688,26 +1730,26 @@ const TransparencyView = ({
       }
     >
       <div className="space-y-4 text-sm">
-        <div className="rounded-lg border border-border bg-background p-3">
+        <div className="rounded-sm border border-border bg-surface-subtle p-3">
           <p className="font-medium text-foreground">{project.title}</p>
           <p className="mt-1 text-muted-foreground">
             {project.area} - {project.sector} - {project.period}
           </p>
         </div>
-        <div className="rounded-lg border border-border bg-background p-3">
+        <div className="rounded-sm border border-border bg-surface-subtle p-3">
           <p className="font-medium text-foreground">Aggregate indicator progress</p>
           <p className="mt-1 text-muted-foreground">
             {indicators.filter((indicator) => indicator.status === 'Met').length} of{' '}
             {indicators.length} indicators met.
           </p>
         </div>
-        <div className="rounded-lg border border-border bg-background p-3">
+        <div className="rounded-sm border border-border bg-surface-subtle p-3">
           <p className="font-medium text-foreground">Budget summary</p>
           <p className="mt-1 text-muted-foreground">
             {formatCurrency(plannedAmount)} planned allocation; {utilization}% utilization.
           </p>
         </div>
-        <p className="rounded-lg border border-dashed border-border bg-muted/40 p-3 text-muted-foreground">
+        <p className="rounded-sm border border-dashed border-border bg-surface-subtle p-3 text-muted-foreground">
           Public preview intentionally excludes names, individual beneficiary records, contact
           details, and proof files.
         </p>

@@ -17,7 +17,7 @@ export const ProgressBar = ({
       {label ? (
         <div className="flex items-center justify-between gap-3 text-sm">
           <span className="font-medium text-foreground">{label}</span>
-          <span className="text-muted-foreground">{safeValue}%</span>
+          <span className="text-muted-foreground tabular-nums">{safeValue}%</span>
         </div>
       ) : null}
       <div
@@ -31,7 +31,7 @@ export const ProgressBar = ({
       >
         <div
           className={cn(
-            'h-full rounded-full transition-all',
+            'h-full rounded-full transition-[width] duration-200 ease-out',
             tone === 'info' && 'bg-info',
             tone === 'success' && 'bg-success',
             tone === 'warning' && 'bg-warning',

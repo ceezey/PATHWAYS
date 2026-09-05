@@ -146,7 +146,7 @@ export const ActivityProofDialog = ({
             </p>
           </div>
           {files.length > 0 ? (
-            <div className="rounded-lg border border-border bg-background p-3">
+            <div className="rounded-sm border border-border bg-surface-subtle p-3">
               <p className="text-sm font-medium text-foreground">Selected file preview</p>
               <ul className="mt-2 space-y-1 text-sm text-muted-foreground">
                 {files.map((file) => (

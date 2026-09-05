@@ -20,13 +20,15 @@ export const PrototypeRoleSwitcher = ({ compact = false }: { compact?: boolean }
   }
 
   return (
-    <div className="rounded-lg border border-white/20 bg-white/10 p-3 text-white shadow-sm">
+    <div className="rounded-sm bg-white/[0.06] p-3 text-white">
       <div className="flex items-start gap-2">
-        <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-blue-100" aria-hidden="true" />
+        <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-navy-muted" aria-hidden="true" />
         {!compact ? (
           <div className="space-y-1">
-            <p className="text-xs font-semibold uppercase text-blue-50">View workspace as</p>
-            <p className="text-xs leading-4 text-blue-50/70">
+            <p className="text-xs font-semibold uppercase tracking-[0.04em] text-white">
+              View workspace as
+            </p>
+            <p className="text-[13px] leading-[18px] text-navy-muted">
               Choose a role for this frontend preview.
             </p>
           </div>
@@ -40,7 +42,7 @@ export const PrototypeRoleSwitcher = ({ compact = false }: { compact?: boolean }
           <Select value={role} onValueChange={(value) => setRole(value as typeof role)}>
             <SelectTrigger
               aria-label="Prototype Role Preview"
-              className="border-white/20 bg-white/10 text-white focus:ring-white/70 [&>span]:truncate"
+              className="border-white/25 bg-navy text-white focus:ring-white focus:ring-offset-navy [&>span]:truncate"
             >
               <SelectValue />
             </SelectTrigger>

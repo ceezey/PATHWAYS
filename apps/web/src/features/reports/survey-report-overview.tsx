@@ -36,7 +36,7 @@ export const SurveyReportOverview = ({
 }: SurveyReportOverviewProps) => (
   <section
     aria-label="Selected survey report context"
-    className="space-y-4 rounded-lg border border-info/20 bg-info/5 p-4"
+    className="space-y-4 rounded-sm border border-info/25 bg-info-subtle p-4"
   >
     <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
       <div>
@@ -49,7 +49,7 @@ export const SurveyReportOverview = ({
           included.
         </p>
       </div>
-      <div className="rounded-md border border-info/20 bg-background px-4 py-3 text-center">
+      <div className="rounded-sm border border-info/25 bg-background px-4 py-3 text-center">
         <p className="text-2xl font-semibold text-foreground">{result.responseCount}</p>
         <p className="text-xs text-muted-foreground">Responses</p>
       </div>
@@ -72,7 +72,10 @@ export const SurveyReportOverview = ({
     {!compact && result.demographicBreakdowns.length > 0 ? (
       <div className="grid gap-3 md:grid-cols-2">
         {result.demographicBreakdowns.map((breakdown) => (
-          <div key={breakdown.dimension} className="rounded-md border border-border bg-card p-3">
+          <div
+            key={breakdown.dimension}
+            className="rounded-sm border border-border bg-background p-3"
+          >
             <p className="text-sm font-medium text-foreground">{breakdown.dimension}</p>
             <ul className="mt-2 space-y-1 text-sm text-muted-foreground">
               {breakdown.values.map((value) => (
@@ -92,7 +95,7 @@ export const SurveyReportOverview = ({
 )
 
 const ContextItem = ({ label, value }: { label: string; value: string }) => (
-  <div className="rounded-md border border-border bg-card p-3">
+  <div className="rounded-sm border border-border bg-surface-subtle p-3">
     <dt className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{label}</dt>
     <dd className="mt-1 font-medium text-foreground">{value}</dd>
   </div>

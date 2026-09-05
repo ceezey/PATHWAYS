@@ -1,4 +1,5 @@
 import type { Metadata } from 'next'
+import localFont from 'next/font/local'
 
 import { APP_DESCRIPTION, APP_NAME } from '@pathways/shared'
 
@@ -8,6 +9,14 @@ import { AppProviders } from '@/providers/app-providers'
 import './globals.css'
 
 initializeWebSentry()
+
+const momoTrustDisplay = localFont({
+  src: './fonts/MomoTrustDisplay-Regular.ttf',
+  variable: '--font-heading',
+  display: 'swap',
+  style: 'normal',
+  weight: '400',
+})
 
 export const metadata: Metadata = {
   title: {
@@ -19,7 +28,7 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="en" suppressHydrationWarning>
+    <html className={momoTrustDisplay.variable} lang="en" suppressHydrationWarning>
       <body>
         <AppProviders>{children}</AppProviders>
       </body>

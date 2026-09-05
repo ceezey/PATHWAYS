@@ -326,6 +326,11 @@ export interface BudgetRecord {
   actualSpending: number
 }
 
+export interface UpdateBudgetAllocationInput {
+  projectId: string
+  plannedAmount: number
+}
+
 export type RecommendationOutcome = 'Accept' | 'Partially Accept' | 'Decline' | 'Escalate'
 
 export interface RecommendationOutcomeRecord {

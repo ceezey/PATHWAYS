@@ -1,4 +1,4 @@
-import type { ActivityStatus } from '@/types/pathways'
+import type { Activity, ActivityStatus, UpdateActivityInput } from '@/types/pathways'
 
 export const activityStatuses: ActivityStatus[] = [
   'Planned',
@@ -85,3 +85,24 @@ export const formatDate = (value: string) =>
 
 export const activityDueLabel = (status: ActivityStatus, dueDate: string) =>
   status === 'Overdue' ? `Overdue since ${formatDate(dueDate)}` : `Due ${formatDate(dueDate)}`
+
+export const buildActivityStatusUpdate = (
+  activity: Activity,
+  status: ActivityStatus,
+): UpdateActivityInput => ({
+  assignedTo: [...activity.assignedTo],
+  beneficiariesReached: activity.beneficiariesReached,
+  budgetAllocation: activity.budgetAllocation,
+  budgetLogged: activity.budgetLogged,
+  description: activity.description,
+  dueDate: activity.dueDate,
+  id: activity.id,
+  indicatorIds: [...activity.indicatorIds],
+  journeyStageId: activity.journeyStageId,
+  progress: activity.progress,
+  projectId: activity.projectId,
+  startDate: activity.startDate,
+  status,
+  targetBeneficiaries: activity.targetBeneficiaries,
+  title: activity.title,
+})

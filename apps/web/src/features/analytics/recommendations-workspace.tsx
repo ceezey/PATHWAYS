@@ -200,7 +200,7 @@ const RecommendationsWorkspaceContent = ({
 
   return (
     <div className="space-y-6">
-      <section className="flex flex-col gap-4 rounded-lg border border-border bg-card p-5 shadow-sm lg:flex-row lg:items-start lg:justify-between">
+      <section className="flex flex-col gap-4 rounded-lg border border-border bg-card p-5 lg:flex-row lg:items-start lg:justify-between">
         <div className="space-y-2">
           <StatusBadge tone="info">Human review required</StatusBadge>
           <div>
@@ -218,11 +218,11 @@ const RecommendationsWorkspaceContent = ({
         </Button>
       </section>
 
-      <section className="rounded-lg border border-info/20 bg-info/10 p-4 text-sm leading-6 text-info">
+      <section className="rounded-sm border border-info/25 bg-info-subtle p-4 text-sm leading-6 text-info">
         {humanReviewDisclaimer} No autonomous action is taken.
       </section>
 
-      <section className="grid gap-3 rounded-lg border border-border bg-card p-5 shadow-sm md:grid-cols-2">
+      <section className="grid gap-3 rounded-lg border border-border bg-card p-5 md:grid-cols-2">
         <div className="space-y-2">
           <span className="text-sm font-medium">Project</span>
           <Select value={projectId} onValueChange={setProjectId}>
@@ -256,7 +256,7 @@ const RecommendationsWorkspaceContent = ({
       </section>
 
       <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_440px]">
-        <section className="space-y-3 rounded-lg border border-border bg-card p-5 shadow-sm">
+        <section className="space-y-3 rounded-lg border border-border bg-card p-5">
           <h2 className="text-lg font-semibold text-foreground">Recommendation queue</h2>
           {filteredRecommendations.length > 0 ? (
             filteredRecommendations.map((recommendation) => {
@@ -267,10 +267,10 @@ const RecommendationsWorkspaceContent = ({
                 <button
                   aria-pressed={recommendation.id === selectedRecommendation?.id}
                   key={recommendation.id}
-                  className={`w-full rounded-lg border p-4 text-left transition-colors ${
+                  className={`w-full rounded-sm border p-4 text-left transition-colors ${
                     recommendation.id === selectedRecommendation?.id
-                      ? 'border-primary bg-primary/10'
-                      : 'border-border bg-background hover:bg-muted/60'
+                      ? 'border-primary bg-primary-subtle'
+                      : 'border-border bg-background hover:bg-surface-subtle'
                   }`}
                   type="button"
                   onClick={() => setSelectedRecommendationId(recommendation.id)}
@@ -299,13 +299,13 @@ const RecommendationsWorkspaceContent = ({
               )
             })
           ) : (
-            <p className="rounded-lg border border-border bg-background p-4 text-sm text-muted-foreground">
+            <p className="rounded-sm border border-border bg-surface-subtle p-4 text-sm text-muted-foreground">
               No recommendations match the current filters.
             </p>
           )}
         </section>
 
-        <aside className="space-y-4 rounded-lg border border-border bg-card p-5 shadow-sm">
+        <aside className="space-y-4 rounded-lg border border-border bg-card p-5">
           {selectedRecommendation && selectedAlert ? (
             <>
               <div className="flex items-start justify-between gap-3">
@@ -335,7 +335,7 @@ const RecommendationsWorkspaceContent = ({
                 {selectedRule?.name ?? selectedRecommendation.ruleId}
               </DetailBlock>
               {selectedRecommendation.outcome ? (
-                <div className="rounded-lg border border-success/20 bg-success/10 p-4 text-sm leading-6 text-success">
+                <div className="rounded-sm border border-success/25 bg-success-subtle p-4 text-sm leading-6 text-success">
                   <p className="font-medium">{selectedRecommendation.outcome}</p>
                   <p className="mt-2">{selectedRecommendation.outcomeNote}</p>
                 </div>
@@ -446,7 +446,7 @@ const RecommendationsWorkspaceContent = ({
 }
 
 const DetailBlock = ({ title, children }: { title: string; children: React.ReactNode }) => (
-  <div className="rounded-lg border border-border bg-background p-4 text-sm leading-6">
+  <div className="rounded-sm border border-border bg-surface-subtle p-4 text-sm leading-6">
     <p className="font-medium text-foreground">{title}</p>
     <p className="mt-2 text-muted-foreground">{children}</p>
   </div>

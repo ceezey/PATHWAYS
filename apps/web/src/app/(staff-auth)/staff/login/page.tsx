@@ -10,7 +10,7 @@ export default function StaffLoginPage() {
     <>
       <SkipLink />
       <main
-        className="flex min-h-screen w-full items-center justify-center bg-[linear-gradient(115deg,#50b7f1_0%,#f7f4ee_48%,#63c3f5_100%)] px-4 py-10"
+        className="flex min-h-dvh w-full items-center justify-center bg-[linear-gradient(135deg,#C8EAF9_0%,#F5FBFE_28%,#FFFFFF_58%,#DCEFFC_100%)] px-4 py-8 sm:py-10"
         id="main-content"
         tabIndex={-1}
       >

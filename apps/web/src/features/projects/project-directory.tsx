@@ -200,7 +200,7 @@ export const ProjectDirectory = () => {
                   </div>
                   <div>
                     <dt className="text-muted-foreground">Beneficiaries reached</dt>
-                    <dd className="mt-1 font-medium text-foreground">
+                    <dd className="mt-1 font-medium tabular-nums text-foreground">
                       {formatNumber(project.beneficiariesReached)}
                     </dd>
                   </div>

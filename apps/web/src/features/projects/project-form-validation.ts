@@ -1,5 +1,7 @@
 import { z } from 'zod'
 
+import type { CreateProjectInput } from '@/types/pathways'
+
 export const projectSetupSchema = z
   .object({
     title: z.string().min(3, 'Enter a project title.'),
@@ -10,10 +12,10 @@ export const projectSetupSchema = z
     status: z.enum(['Active', 'Needs Attention', 'Planned', 'Completed']),
     budgetCode: z.string().min(2, 'Enter a budget code.'),
     description: z.string().min(10, 'Enter a short project description.'),
-    programManager: z.string().min(2, 'Enter the Program Manager.'),
-    projectManager: z.string().min(2, 'Enter the Project Manager.'),
-    monitoringOfficer: z.string().min(2, 'Enter the Monitoring and Evaluation Officer.'),
-    projectOfficers: z.string().min(2, 'Enter at least one Project Officer.'),
+    programManager: z.string().min(2, 'Select the Program Manager.'),
+    projectManager: z.string().min(2, 'Select the Project Manager.'),
+    monitoringOfficer: z.string().min(2, 'Select the Monitoring and Evaluation Officer.'),
+    projectOfficers: z.string().min(2, 'Select at least one Project Officer.'),
   })
   .refine((value) => new Date(value.endDate) >= new Date(value.startDate), {
     message: 'End date must be on or after the start date.',
@@ -21,3 +23,11 @@ export const projectSetupSchema = z
   })
 
 export type ProjectSetupSchema = z.infer<typeof projectSetupSchema>
+
+export const toCreateProjectInput = (values: ProjectSetupSchema): CreateProjectInput => ({
+  ...values,
+  projectOfficers: values.projectOfficers
+    .split(',')
+    .map((officer) => officer.trim())
+    .filter(Boolean),
+})

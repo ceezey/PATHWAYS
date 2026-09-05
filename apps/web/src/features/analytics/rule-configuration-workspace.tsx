@@ -185,7 +185,7 @@ export const RuleConfigurationWorkspace = ({
 
   return (
     <div className="space-y-6">
-      <section className="flex flex-col gap-4 rounded-lg border border-border bg-card p-5 shadow-sm lg:flex-row lg:items-start lg:justify-between">
+      <section className="flex flex-col gap-4 rounded-lg border border-border bg-card p-5 lg:flex-row lg:items-start lg:justify-between">
         <div className="space-y-2">
           <div className="flex flex-wrap gap-2">
             <StatusBadge tone="info">Decision Support</StatusBadge>
@@ -212,7 +212,7 @@ export const RuleConfigurationWorkspace = ({
         ) : null}
       </section>
 
-      <section className="rounded-lg border border-info/20 bg-info/10 p-4 text-sm leading-6 text-info">
+      <section className="rounded-sm border border-info/25 bg-info-subtle p-4 text-sm leading-6 text-info">
         {humanReviewDisclaimer} Rules are predefined conditions configured by people; each alert and
         recommendation requires human review before action is taken.
       </section>
@@ -223,7 +223,7 @@ export const RuleConfigurationWorkspace = ({
           {canConfigureRules ? <TabsTrigger value="create">Create rule</TabsTrigger> : null}
         </TabsList>
         <TabsContent value="repository" className="space-y-6">
-          <section className="rounded-lg border border-border bg-card p-5 shadow-sm">
+          <section className="rounded-lg border border-border bg-card p-5">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <h2 className="text-lg font-semibold text-foreground">
                 {rules.length} rules configured
@@ -237,10 +237,10 @@ export const RuleConfigurationWorkspace = ({
                 <button
                   aria-pressed={selectedRule?.id === rule.id}
                   key={rule.id}
-                  className={`w-full rounded-lg border p-4 text-left transition-colors ${
+                  className={`w-full rounded-sm border p-4 text-left transition-colors ${
                     selectedRule?.id === rule.id
-                      ? 'border-primary bg-primary/10'
-                      : 'border-border bg-background hover:bg-muted/60'
+                      ? 'border-primary bg-primary-subtle'
+                      : 'border-border bg-background hover:bg-surface-subtle'
                   }`}
                   type="button"
                   onClick={() => setSelectedRuleId(rule.id)}
@@ -277,7 +277,7 @@ export const RuleConfigurationWorkspace = ({
 
           {selectedRule ? (
             <section className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_420px]">
-              <div className="rounded-lg border border-border bg-card p-5 shadow-sm">
+              <div className="rounded-lg border border-border bg-card p-5">
                 <h2 className="text-lg font-semibold text-foreground">Selected rule</h2>
                 <div className="mt-4 grid gap-3 md:grid-cols-2">
                   <InfoRow label="Rule name" value={selectedRule.name} />
@@ -292,7 +292,7 @@ export const RuleConfigurationWorkspace = ({
                   <InfoRow label="Severity" value={selectedRule.severity} />
                   <InfoRow label="Status" value={selectedRule.status} />
                 </div>
-                <div className="mt-4 rounded-lg border border-border bg-background p-4 text-sm leading-6">
+                <div className="mt-4 rounded-sm border border-border bg-surface-subtle p-4 text-sm leading-6">
                   <p className="font-medium text-foreground">Suggested action</p>
                   <p className="mt-2 text-muted-foreground">{selectedRule.suggestedAction}</p>
                 </div>
@@ -311,9 +311,9 @@ export const RuleConfigurationWorkspace = ({
                   ) : null}
                 </div>
               </div>
-              <aside className="rounded-lg border border-border bg-card p-5 shadow-sm">
+              <aside className="rounded-lg border border-border bg-card p-5">
                 <h2 className="text-lg font-semibold text-foreground">Trigger history</h2>
-                <div className="mt-4 rounded-lg border border-border bg-background p-4 text-sm">
+                <div className="mt-4 rounded-sm border border-border bg-surface-subtle p-4 text-sm">
                   <p className="text-muted-foreground">Triggered total</p>
                   <p className="mt-1 text-3xl font-semibold text-foreground">
                     {selectedRule.triggeredCount}
@@ -328,7 +328,7 @@ export const RuleConfigurationWorkspace = ({
         </TabsContent>
         {canConfigureRules ? (
           <TabsContent value="create">
-            <section className="rounded-lg border border-border bg-card p-5 shadow-sm">
+            <section className="rounded-lg border border-border bg-card p-5">
               <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
                 <div>
                   <h2 className="text-lg font-semibold text-foreground">Create rule</h2>
@@ -512,7 +512,7 @@ export const RuleConfigurationWorkspace = ({
                 />
               </div>
             </div>
-            <div className="rounded-lg border border-info/20 bg-info/10 p-4 text-sm leading-6 text-info">
+            <div className="rounded-sm border border-info/25 bg-info-subtle p-4 text-sm leading-6 text-info">
               <p className="font-medium">Rule preview</p>
               <p className="mt-2">
                 When {draft.parameter} {operatorCopy(draft.operator)} {draft.threshold}
@@ -567,7 +567,7 @@ const InlineError = ({ id, message }: { id: string; message?: string }) =>
   ) : null
 
 const InfoRow = ({ label, value }: { label: string; value: string }) => (
-  <div className="rounded-lg border border-border bg-background p-3">
+  <div className="rounded-sm border border-border bg-surface-subtle p-3">
     <p className="text-xs uppercase text-muted-foreground">{label}</p>
     <p className="mt-1 font-medium text-foreground">{value}</p>
   </div>

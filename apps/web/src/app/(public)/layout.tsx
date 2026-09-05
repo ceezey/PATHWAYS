@@ -3,7 +3,7 @@ import { SkipLink } from '@/components/layout/skip-link'
 
 export default function PublicLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <div className="min-h-screen">
+    <div className="min-h-dvh bg-surface-subtle">
       <SkipLink />
       <SiteHeader />
       <main id="main-content" tabIndex={-1}>

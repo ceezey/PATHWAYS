@@ -29,6 +29,7 @@ import type {
   SurveyFormDefinition,
   TransparencySection,
   UpdateActivityInput,
+  UpdateBudgetAllocationInput,
   UserRecord,
 } from '@/types/pathways'
 import type { PrototypeRole } from '@/types/prototype-role'
@@ -72,6 +73,7 @@ export interface PathwaysClient {
   getJourneyStages(projectId: string): Promise<JourneyStageConfig[]>
   getIndicators(projectId?: string): Promise<Indicator[]>
   getBudgets(projectId?: string): Promise<BudgetRecord[]>
+  updateBudgetAllocation(input: UpdateBudgetAllocationInput): Promise<BudgetRecord>
   getAlerts(projectId?: string): Promise<AlertRecord[]>
   getAlertsForRole(role: PrototypeRole, projectId?: string): Promise<AlertRecord[]>
   getAnalyticsLocations(): Promise<AnalyticsLocationRecord[]>

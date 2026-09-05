@@ -31,6 +31,7 @@ import { Input } from '@/components/ui/input'
 import { usePrototypeLabels } from '@/hooks/use-prototype-labels'
 import { usePrototypeRole } from '@/hooks/use-prototype-role'
 import { can } from '@/lib/rbac/can'
+import { canAccessProjectForRole } from '@/lib/rbac/data-scope'
 import { pathwaysClient } from '@/lib/services/mock-pathways-client'
 import { PathwaysClientError } from '@/lib/services/pathways-client'
 import type {
@@ -45,6 +46,7 @@ import type {
 import { ActivityDetailPanel } from './activity-detail-panel'
 import { ActivityFormDialog } from './activity-form-dialog'
 import { ActivityProofDialog } from './activity-proof-dialog'
+import { ActivityStatusControl } from './activity-status-control'
 import {
   type ActivityFilter,
   activityDueLabel,
@@ -87,21 +89,33 @@ const matchesFilter = (activity: Activity, filter: ActivityFilter) => {
 
 const ActivityCard = ({
   activity,
+  canChangeStatus,
   onOpen,
+  onStatusChanged,
 }: {
   activity: Activity
+  canChangeStatus: boolean
   onOpen: (activity: Activity) => void
+  onStatusChanged: (activity: Activity) => void
 }) => (
   <article
     aria-label={`Activity: ${activity.title}`}
-    className="flex min-w-0 flex-col rounded-lg border border-border bg-background p-4 shadow-sm"
+    className="flex min-w-0 flex-col rounded-sm border border-border bg-background p-4"
   >
     <div className="flex items-start justify-between gap-3">
       <h3 className="min-w-0 break-words text-base font-semibold leading-6 text-foreground">
         {activity.title}
       </h3>
       <div className="shrink-0">
-        <StatusBadge tone={activityStatusTone(activity.status)}>{activity.status}</StatusBadge>
+        {canChangeStatus ? (
+          <ActivityStatusControl
+            activity={activity}
+            controlId={`activity-status-card-${activity.id}`}
+            onUpdated={onStatusChanged}
+          />
+        ) : (
+          <StatusBadge tone={activityStatusTone(activity.status)}>{activity.status}</StatusBadge>
+        )}
       </div>
     </div>
     <p
@@ -153,14 +167,18 @@ const ActivityCard = ({
 
 const ActivityListRow = ({
   activity,
+  canChangeStatus,
   onOpen,
+  onStatusChanged,
 }: {
   activity: Activity
+  canChangeStatus: boolean
   onOpen: (activity: Activity) => void
+  onStatusChanged: (activity: Activity) => void
 }) => (
   <article
     aria-label={`Activity: ${activity.title}`}
-    className="grid min-w-0 gap-4 rounded-lg border border-border bg-background p-4 shadow-sm md:grid-cols-2 xl:grid-cols-[minmax(0,1.4fr)_minmax(170px,0.7fr)_minmax(180px,0.8fr)_minmax(150px,0.6fr)_auto] xl:items-center"
+    className="grid min-w-0 gap-4 rounded-sm border border-border bg-background p-4 md:grid-cols-2 xl:grid-cols-[minmax(0,1.4fr)_minmax(170px,0.7fr)_minmax(180px,0.8fr)_minmax(150px,0.6fr)_auto] xl:items-center"
   >
     <div className="min-w-0">
       <h3 className="break-words text-base font-semibold leading-6 text-foreground">
@@ -172,7 +190,15 @@ const ActivityListRow = ({
       </p>
     </div>
     <div className="space-y-2">
-      <StatusBadge tone={activityStatusTone(activity.status)}>{activity.status}</StatusBadge>
+      {canChangeStatus ? (
+        <ActivityStatusControl
+          activity={activity}
+          controlId={`activity-status-list-${activity.id}`}
+          onUpdated={onStatusChanged}
+        />
+      ) : (
+        <StatusBadge tone={activityStatusTone(activity.status)}>{activity.status}</StatusBadge>
+      )}
       <p
         className={`flex items-start gap-2 text-sm ${
           activity.status === 'Overdue' ? 'font-medium text-danger' : 'text-muted-foreground'
@@ -226,7 +252,7 @@ const ActivityStatusSummary = ({
 }) => (
   <section
     aria-label="Activity status summary"
-    className="rounded-lg border border-border bg-card p-4 shadow-sm"
+    className="rounded-lg border border-border bg-card p-4"
   >
     <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
       <div>
@@ -238,7 +264,7 @@ const ActivityStatusSummary = ({
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-5">
         {activityStatuses.map((status) => (
           <div
-            className="flex min-w-0 items-center justify-between gap-2 rounded-md border border-border bg-background px-3 py-2"
+            className="flex min-w-0 items-center justify-between gap-2 rounded-sm border border-border bg-surface-subtle px-3 py-2"
             key={status}
           >
             <StatusBadge tone={activityStatusTone(status)}>{status}</StatusBadge>
@@ -261,6 +287,7 @@ export const ProjectActivitiesWorkspace = ({
   const { labels } = usePrototypeLabels()
   const { role } = usePrototypeRole()
   const canCreateEdit = can(role, 'activities.create_edit')
+  const canChangeStatus = canCreateEdit && canAccessProjectForRole(role, projectId)
   const canReview = role === 'Project Manager'
   const canSubmitProof = can(role, 'activities.submit_update_proof')
   const [project, setProject] = useState<ProjectDetail | null>(null)
@@ -375,13 +402,17 @@ export const ProjectActivitiesWorkspace = ({
     [activityStatusCounts],
   )
 
-  const upsertActivity = (activity: Activity) => {
+  const upsertActivity = (activity: Activity, selectActivity = true) => {
     setActivities((currentActivities) => [
       ...currentActivities.filter((item) => item.id !== activity.id),
       activity,
     ])
-    setSelectedActivity(activity)
+    setSelectedActivity((currentActivity) =>
+      currentActivity?.id === activity.id || selectActivity ? activity : currentActivity,
+    )
   }
+
+  const updateActivityStatus = (activity: Activity) => upsertActivity(activity, false)
 
   const openDetail = (activity: Activity) => {
     setSelectedActivity(activity)
@@ -498,7 +529,7 @@ export const ProjectActivitiesWorkspace = ({
         }
       />
       <ProjectWorkspaceHeader project={project} />
-      <FilterBar className="md:flex-col md:items-stretch xl:flex-row xl:items-center">
+      <FilterBar className="min-w-0 md:flex-col md:items-stretch xl:flex-row xl:flex-wrap xl:items-center">
         <div className="relative min-w-0 flex-1 xl:min-w-72">
           <Search
             className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground"
@@ -587,7 +618,13 @@ export const ProjectActivitiesWorkspace = ({
               >
                 <div className="space-y-3">
                   {statusActivities.map((activity) => (
-                    <ActivityCard key={activity.id} activity={activity} onOpen={openDetail} />
+                    <ActivityCard
+                      key={activity.id}
+                      activity={activity}
+                      canChangeStatus={canChangeStatus}
+                      onOpen={openDetail}
+                      onStatusChanged={updateActivityStatus}
+                    />
                   ))}
                 </div>
               </SectionCard>
@@ -599,19 +636,27 @@ export const ProjectActivitiesWorkspace = ({
         <SectionCard title="Activity list" description="Scan all filtered activities in one view.">
           <div className="space-y-3">
             {filteredActivities.map((activity) => (
-              <ActivityListRow key={activity.id} activity={activity} onOpen={openDetail} />
+              <ActivityListRow
+                key={activity.id}
+                activity={activity}
+                canChangeStatus={canChangeStatus}
+                onOpen={openDetail}
+                onStatusChanged={updateActivityStatus}
+              />
             ))}
           </div>
         </SectionCard>
       ) : null}
       <ActivityDetailPanel
         activity={selectedActivity}
+        canChangeStatus={canChangeStatus}
         canEdit={canCreateEdit}
         canReview={canReview}
         canSubmitProof={canSubmitProof}
         indicators={indicators}
         onEdit={openEdit}
         onOpenChange={closeDetail}
+        onStatusChanged={updateActivityStatus}
         onSubmitProof={openProof}
         open={Boolean(selectedActivity)}
       />

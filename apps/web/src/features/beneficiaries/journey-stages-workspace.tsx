@@ -116,7 +116,7 @@ export const JourneyStagesWorkspace = ({
 
   return (
     <div className="space-y-6">
-      <section className="flex flex-col gap-4 rounded-lg border border-border bg-card p-5 shadow-sm lg:flex-row lg:items-start lg:justify-between">
+      <section className="flex flex-col gap-4 rounded-lg border border-border bg-card p-5 lg:flex-row lg:items-start lg:justify-between">
         <div className="space-y-2">
           <StatusBadge tone="info">Project-specific stages</StatusBadge>
           <div>
@@ -141,7 +141,7 @@ export const JourneyStagesWorkspace = ({
         </div>
       </section>
 
-      <section className="rounded-lg border border-border bg-card p-5 shadow-sm">
+      <section className="rounded-lg border border-border bg-card p-5">
         <div className="flex items-center gap-2">
           <GitBranch className="h-5 w-5 text-primary" aria-hidden="true" />
           <h2 className="text-lg font-semibold text-foreground">Stage diagram</h2>
@@ -150,10 +150,10 @@ export const JourneyStagesWorkspace = ({
           {orderedStages.map((stage) => (
             <button
               key={stage.id}
-              className={`rounded-lg border p-4 text-left transition-colors ${
+              className={`rounded-sm border p-4 text-left transition-colors ${
                 stage.id === selectedStage?.id
-                  ? 'border-primary bg-primary/10'
-                  : 'border-border bg-background hover:bg-muted/60'
+                  ? 'border-primary bg-primary-subtle'
+                  : 'border-border bg-background hover:bg-surface-subtle'
               }`}
               aria-pressed={selectedStage?.id === stage.id}
               type="button"
@@ -170,14 +170,14 @@ export const JourneyStagesWorkspace = ({
             </button>
           ))}
         </div>
-        <p className="mt-4 rounded-lg border border-info/20 bg-info/10 p-3 text-sm leading-6 text-info">
+        <p className="mt-4 rounded-sm border border-info/25 bg-info-subtle p-3 text-sm leading-6 text-info">
           Open-ended follow-up can continue after core participation. The interface supports human
           review and beneficiary context, not strict timeline compliance scoring.
         </p>
       </section>
 
       <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_420px]">
-        <section className="rounded-lg border border-border bg-card p-5 shadow-sm">
+        <section className="rounded-lg border border-border bg-card p-5">
           <h2 className="text-lg font-semibold text-foreground">Stage list</h2>
           <div className="mt-4 space-y-3">
             {orderedStages.map((stage) => {
@@ -188,10 +188,10 @@ export const JourneyStagesWorkspace = ({
               return (
                 <button
                   key={stage.id}
-                  className={`w-full rounded-lg border p-4 text-left transition-colors ${
+                  className={`w-full rounded-sm border p-4 text-left transition-colors ${
                     stage.id === selectedStage?.id
-                      ? 'border-primary bg-primary/10'
-                      : 'border-border bg-background hover:bg-muted/60'
+                      ? 'border-primary bg-primary-subtle'
+                      : 'border-border bg-background hover:bg-surface-subtle'
                   }`}
                   aria-pressed={selectedStage?.id === stage.id}
                   type="button"
@@ -223,7 +223,7 @@ export const JourneyStagesWorkspace = ({
           </div>
         </section>
 
-        <aside className="space-y-5 rounded-lg border border-border bg-card p-5 shadow-sm">
+        <aside className="space-y-5 rounded-lg border border-border bg-card p-5">
           <h2 className="text-lg font-semibold text-foreground">Stage details</h2>
           {selectedStage ? (
             <>
@@ -333,7 +333,7 @@ export const JourneyStagesWorkspace = ({
                     </Label>
                   ))
                 ) : (
-                  <p className="rounded-lg border border-warning/30 bg-warning/10 p-3 text-sm text-warning">
+                  <p className="rounded-sm border border-warning/30 bg-warning-subtle p-3 text-sm text-warning">
                     No project activities are available for mapping.
                   </p>
                 )}
@@ -345,12 +345,12 @@ export const JourneyStagesWorkspace = ({
         </aside>
       </div>
 
-      <section className="rounded-lg border border-border bg-card p-5 shadow-sm">
+      <section className="rounded-lg border border-border bg-card p-5">
         <h2 className="text-lg font-semibold text-foreground">Branching preview</h2>
         <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
           {branchStages.length > 0 ? (
             branchStages.map((stage) => (
-              <div key={stage.id} className="rounded-lg border border-border bg-background p-4">
+              <div key={stage.id} className="rounded-sm border border-border bg-surface-subtle p-4">
                 <StatusBadge tone="warning">{stage.code}</StatusBadge>
                 <p className="mt-3 font-semibold text-foreground">{stage.name}</p>
                 <p className="mt-2 text-sm leading-6 text-muted-foreground">
@@ -360,7 +360,7 @@ export const JourneyStagesWorkspace = ({
               </div>
             ))
           ) : (
-            <p className="rounded-lg border border-border bg-background p-4 text-sm text-muted-foreground">
+            <p className="rounded-sm border border-border bg-surface-subtle p-4 text-sm text-muted-foreground">
               No branch stages are configured yet.
             </p>
           )}
@@ -376,7 +376,7 @@ export const JourneyStagesWorkspace = ({
               changed.
             </DialogDescription>
           </DialogHeader>
-          <div className="rounded-lg border border-border bg-muted/40 p-4 text-sm">
+          <div className="rounded-sm border border-border bg-surface-subtle p-4 text-sm">
             <p className="font-medium text-foreground">{project.title}</p>
             <p className="mt-1 text-muted-foreground">{stages.length} stages configured locally.</p>
           </div>

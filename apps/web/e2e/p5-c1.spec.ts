@@ -57,8 +57,8 @@ test.describe('P5-C1 controlled remediation', () => {
     })
 
     await page.goto('/staff/login')
-    const identifier = page.getByLabel('Username or Email')
-    const password = page.getByLabel('Password', { exact: true })
+    const identifier = page.getByLabel(/^Username or email/)
+    const password = page.getByLabel(/^Password/)
     const loginButton = page.getByRole('button', { name: 'Log In' })
     await identifier.fill('program.manager')
     await password.fill(prototypePassword)

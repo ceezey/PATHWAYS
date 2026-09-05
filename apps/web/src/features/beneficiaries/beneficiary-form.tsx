@@ -249,7 +249,7 @@ export const BeneficiaryForm = ({ projects }: { projects: ProjectSummary[] }) =>
 
   return (
     <div className="space-y-6">
-      <section className="flex flex-col gap-4 rounded-lg border border-border bg-card p-5 shadow-sm md:flex-row md:items-start md:justify-between">
+      <section className="flex flex-col gap-4 rounded-lg border border-border bg-card p-5 md:flex-row md:items-start md:justify-between">
         <div className="space-y-2">
           <div className="flex flex-wrap gap-2">
             <StatusBadge tone="neutral">Safe sample entry</StatusBadge>
@@ -277,7 +277,7 @@ export const BeneficiaryForm = ({ projects }: { projects: ProjectSummary[] }) =>
         <output
           aria-atomic="true"
           aria-live="polite"
-          className="block rounded-lg border border-info/20 bg-info/10 p-3 text-sm text-info"
+          className="block rounded-sm border border-info/25 bg-info-subtle p-3 text-sm text-info"
         >
           Recovered your unsaved beneficiary draft from this browser tab.
         </output>
@@ -285,7 +285,7 @@ export const BeneficiaryForm = ({ projects }: { projects: ProjectSummary[] }) =>
 
       <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_360px]">
         <form
-          className="space-y-5 rounded-lg border border-border bg-card p-5 shadow-sm"
+          className="space-y-5 rounded-lg border border-border bg-card p-5"
           noValidate
           onSubmit={handleSubmit}
         >
@@ -473,7 +473,7 @@ export const BeneficiaryForm = ({ projects }: { projects: ProjectSummary[] }) =>
             </Field>
           </div>
 
-          <div className="grid gap-3 rounded-lg border border-border bg-background p-4 md:grid-cols-2">
+          <div className="grid gap-3 rounded-sm border border-border bg-surface-subtle p-4 md:grid-cols-2">
             <ToggleField
               checked={draft.consentToParticipate}
               error={submitted ? fieldErrors.consentToParticipate : undefined}
@@ -508,7 +508,7 @@ export const BeneficiaryForm = ({ projects }: { projects: ProjectSummary[] }) =>
 
           {submitted && validationIssues.length > 0 ? (
             <div
-              className="rounded-lg border border-danger/20 bg-danger/10 p-4 text-sm text-danger"
+              className="rounded-sm border border-danger/25 bg-danger-subtle p-4 text-sm text-danger"
               aria-labelledby="beneficiary-error-summary-title"
               role="alert"
             >
@@ -543,7 +543,7 @@ export const BeneficiaryForm = ({ projects }: { projects: ProjectSummary[] }) =>
           </div>
         </form>
 
-        <aside className="space-y-4 rounded-lg border border-border bg-card p-5 shadow-sm">
+        <aside className="space-y-4 rounded-lg border border-border bg-card p-5">
           <h2 className="text-lg font-semibold text-foreground">Prototype preview</h2>
           <div className="space-y-3 text-sm">
             <PreviewRow label="Code" value={draft.code || 'Pending'} />
@@ -566,7 +566,7 @@ export const BeneficiaryForm = ({ projects }: { projects: ProjectSummary[] }) =>
               }
             />
           </div>
-          <p className="rounded-lg border border-warning/30 bg-warning/10 p-3 text-xs leading-5 text-warning">
+          <p className="rounded-sm border border-warning/30 bg-warning-subtle p-3 text-xs leading-5 text-warning">
             This preview uses the current form only and must not include real or identifiable
             Beneficiary data.
           </p>
@@ -581,7 +581,7 @@ export const BeneficiaryForm = ({ projects }: { projects: ProjectSummary[] }) =>
               Complete this coded profile preview. No shared Beneficiary record will be created.
             </DialogDescription>
           </DialogHeader>
-          <div className="rounded-lg border border-border bg-muted/40 p-4 text-sm">
+          <div className="rounded-sm border border-border bg-surface-subtle p-4 text-sm">
             <p className="font-medium">{draft.code}</p>
             <p className="mt-1 text-muted-foreground">
               {[draft.firstName, draft.middleName, draft.lastName].filter(Boolean).join(' ')}

@@ -45,6 +45,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
 import {
   Select,
   SelectContent,
@@ -735,33 +736,39 @@ export const ReportingWorkspace = ({
                 selectedForm={selectedSurveyForm}
               />
             ) : (
-              <div className="grid gap-3 md:grid-cols-[220px_220px_auto]">
-                <span className="relative block">
-                  <Search
-                    className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground"
-                    aria-hidden="true"
-                  />
-                  <Input
-                    aria-label={`${reportTitles[kind]} search`}
-                    className="pl-9"
-                    placeholder="Type here"
-                    value={search}
-                    onChange={(event) => setSearch(event.target.value)}
-                  />
-                </span>
-                <Select value={effectiveProjectId} onValueChange={setProjectId}>
-                  <SelectTrigger aria-label={`${reportTitles[kind]} project filter`}>
-                    <SelectValue placeholder="Project" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value={allValue}>All projects</SelectItem>
-                    {scopedProjects.map((project) => (
-                      <SelectItem key={project.id} value={project.id}>
-                        {project.title}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+              <div className="grid gap-3 md:grid-cols-[220px_220px_auto] md:items-end">
+                <div className="space-y-2">
+                  <Label htmlFor="report-search">Search reports</Label>
+                  <span className="relative block">
+                    <Search
+                      className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground"
+                      aria-hidden="true"
+                    />
+                    <Input
+                      className="pl-9"
+                      id="report-search"
+                      placeholder="Type here"
+                      value={search}
+                      onChange={(event) => setSearch(event.target.value)}
+                    />
+                  </span>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="report-project-filter">Project</Label>
+                  <Select value={effectiveProjectId} onValueChange={setProjectId}>
+                    <SelectTrigger id="report-project-filter">
+                      <SelectValue placeholder="Project" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value={allValue}>All projects</SelectItem>
+                      {scopedProjects.map((project) => (
+                        <SelectItem key={project.id} value={project.id}>
+                          {project.title}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
                 {kind === 'indicator-summary' ? (
                   <Button onClick={generateIndicatorReport}>
                     <Filter className="mr-2 h-4 w-4" aria-hidden="true" />
@@ -788,7 +795,7 @@ export const ReportingWorkspace = ({
                 result={selectedSurveyResult}
               />
             ) : (
-              <div className="rounded-lg border border-dashed border-border p-6 text-center">
+              <div className="rounded-sm border border-dashed border-border bg-surface-subtle p-6 text-center">
                 <p className="font-medium text-foreground">No aggregate survey results found</p>
                 <p className="mt-1 text-sm text-muted-foreground">
                   Choose another Survey/Form, location, or response date. No individual response
@@ -903,7 +910,7 @@ export const ReportingWorkspace = ({
             {reportColumns[kind].map((column) => (
               <label
                 key={column.id}
-                className="flex items-center gap-3 rounded-md border border-border p-3 text-sm"
+                className="flex items-center gap-3 rounded-sm border border-border bg-surface-subtle p-3 text-sm"
               >
                 <input
                   type="checkbox"

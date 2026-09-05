@@ -517,8 +517,8 @@ export const CollectionWorkspace = ({
           <Link
             key={item.id}
             className={cn(
-              'rounded-lg border bg-card p-4 text-left shadow-sm transition hover:border-primary/50 hover:bg-primary/5 focus:outline-none focus:ring-2 focus:ring-ring',
-              mode === item.id && 'border-primary bg-primary/10',
+              'rounded-lg border bg-card p-4 text-left transition-colors hover:border-primary/50 hover:bg-primary-subtle focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
+              mode === item.id && 'border-primary bg-primary-subtle',
             )}
             href={item.href}
             onClick={() => openBuilder(item.id)}
@@ -537,7 +537,7 @@ export const CollectionWorkspace = ({
       </div>
 
       {savedNotice ? (
-        <div className="flex items-center justify-between rounded-lg border border-success/20 bg-success/10 px-4 py-3 text-sm text-success">
+        <div className="flex items-center justify-between rounded-sm border border-success/25 bg-success-subtle px-4 py-3 text-sm text-success">
           <span className="flex items-center gap-2">
             <CheckCircle2 className="h-4 w-4" aria-hidden="true" />
             {savedNotice}
@@ -630,7 +630,7 @@ export const CollectionWorkspace = ({
               form definitions or mappings.
             </DialogDescription>
           </DialogHeader>
-          <div className="rounded-lg border bg-muted/40 p-4 text-sm">
+          <div className="rounded-sm border bg-surface-subtle p-4 text-sm">
             <p className="font-medium text-foreground">{formTitle}</p>
             <p className="mt-1 text-muted-foreground">
               {fields.length} fields, {mappedCount} mapped, {sadddCount} SADDD fields.
@@ -676,7 +676,7 @@ export const CollectionWorkspace = ({
         title={`Delete ${pendingDeleteField?.label ?? 'this field'}?`}
       >
         {pendingDeleteField ? (
-          <div className="rounded-lg border border-border bg-muted/40 p-3 text-sm">
+          <div className="rounded-sm border border-border bg-surface-subtle p-3 text-sm">
             <p className="font-medium text-foreground">{pendingDeleteField.label}</p>
             <p className="mt-1 text-muted-foreground">
               Field code: {pendingDeleteField.code} · Type:{' '}
@@ -700,7 +700,7 @@ const FormsGeneratorView = ({
   onImport: (mode: CollectionMode) => void
   savedForms: SavedForm[]
 }) => (
-  <div className="rounded-lg border bg-card p-5 shadow-sm">
+  <div className="rounded-lg border bg-card p-5">
     <div className="flex flex-col gap-3 border-b pb-4 sm:flex-row sm:items-center sm:justify-between">
       <div>
         <p className="text-xs font-semibold uppercase text-muted-foreground">Form Generator</p>
@@ -734,10 +734,10 @@ const FormsGeneratorView = ({
       {savedForms.map((form) => (
         <div
           key={form.id}
-          className="grid gap-3 rounded-lg border bg-muted/30 p-4 text-sm md:grid-cols-[1fr_auto]"
+          className="grid gap-3 rounded-sm border bg-surface-subtle p-4 text-sm md:grid-cols-[1fr_auto]"
         >
           <div className="flex items-start gap-3">
-            <div className="flex h-9 w-9 items-center justify-center rounded-md bg-primary/10 text-primary">
+            <div className="flex h-9 w-9 items-center justify-center rounded-sm bg-primary-subtle text-primary">
               <Database className="h-4 w-4" aria-hidden="true" />
             </div>
             <div>
@@ -833,7 +833,7 @@ const BuilderView = ({
         setProjectId={setProjectId}
       />
 
-      <div className="rounded-lg border bg-card p-4 shadow-sm">
+      <div className="rounded-lg border bg-card p-4">
         <div className="flex flex-col gap-3 border-b pb-3 md:flex-row md:items-center md:justify-between">
           <div>
             <p className="text-xs font-semibold uppercase text-muted-foreground">
@@ -855,8 +855,8 @@ const BuilderView = ({
             <div
               key={field.id}
               className={cn(
-                'rounded-lg border bg-background p-3 transition',
-                selectedFieldId === field.id && 'border-primary bg-primary/5',
+                'rounded-sm border bg-background p-3 transition',
+                selectedFieldId === field.id && 'border-primary bg-primary-subtle',
               )}
             >
               <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
@@ -989,7 +989,7 @@ const FormInfoPanel = ({
   setLinkedActivityId: (value: string) => void
   setProjectId: (value: string) => void
 }) => (
-  <div className="rounded-lg border bg-card p-4 shadow-sm">
+  <div className="rounded-lg border bg-card p-4">
     <div className="grid gap-4 md:grid-cols-2">
       <div className="space-y-2">
         <Label htmlFor="form-title">Form information</Label>
@@ -1156,7 +1156,7 @@ const ToggleRow = ({
   label: string
   onChange: (checked: boolean) => void
 }) => (
-  <label className="flex items-center justify-between gap-3 rounded-lg border bg-muted/30 px-3 py-2 text-sm">
+  <label className="flex items-center justify-between gap-3 rounded-sm border bg-surface-subtle px-3 py-2 text-sm">
     <span className="font-medium text-foreground">{label}</span>
     <input
       checked={checked}
@@ -1180,7 +1180,7 @@ const MetadataMapPanel = ({
   selectedField?: FormField
   selectedProject: string
 }) => (
-  <div className="rounded-lg border bg-card p-4 shadow-sm">
+  <div className="rounded-lg border bg-card p-4">
     <div className="flex items-center justify-between gap-3">
       <div>
         <p className="text-sm font-semibold text-foreground">Metadata map</p>
@@ -1189,7 +1189,7 @@ const MetadataMapPanel = ({
       <StatusBadge tone="info">Mock</StatusBadge>
     </div>
     <div className="mt-4 space-y-3 text-sm">
-      <div className="rounded-lg bg-muted/40 p-3">
+      <div className="rounded-sm bg-surface-subtle p-3">
         <div className="grid grid-cols-2 gap-2 text-xs text-muted-foreground">
           <span>Total fields</span>
           <span className="text-right font-medium text-foreground">{fields.length}</span>
@@ -1210,7 +1210,7 @@ const MetadataMapPanel = ({
       </div>
       <div>
         <p className="text-xs font-semibold uppercase text-muted-foreground">Selected field</p>
-        <div className="mt-2 rounded-lg border bg-background p-3">
+        <div className="mt-2 rounded-sm border bg-surface-subtle p-3">
           <p className="font-medium text-foreground">
             {selectedField?.label ?? 'No field selected'}
           </p>
@@ -1223,7 +1223,7 @@ const MetadataMapPanel = ({
       </div>
       <div className="space-y-2">
         {metadataConnections.map((item) => (
-          <div key={item} className="rounded-md bg-info/10 px-3 py-2 text-xs text-info">
+          <div key={item} className="rounded-sm bg-info-subtle px-3 py-2 text-xs text-info">
             {item}
           </div>
         ))}
@@ -1233,14 +1233,14 @@ const MetadataMapPanel = ({
 )
 
 const FormPreviewPanel = ({ fields, formTitle }: { fields: FormField[]; formTitle: string }) => (
-  <div className="rounded-lg border bg-card p-4 shadow-sm">
+  <div className="rounded-lg border bg-card p-4">
     <p className="text-sm font-semibold text-foreground">Form preview</p>
     <p className="mt-1 text-xs text-muted-foreground">{formTitle}</p>
     <div className="mt-4 space-y-3">
       {fields.slice(0, 4).map((field) => (
-        <div key={field.id} className="rounded-lg border bg-background p-3">
+        <div key={field.id} className="rounded-sm border bg-surface-subtle p-3">
           <Label>{field.label}</Label>
-          <div className="mt-2 h-9 rounded-md border bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
+          <div className="mt-2 h-9 rounded-sm border bg-background px-3 py-2 text-xs text-muted-foreground">
             {field.type.includes('select')
               ? field.allowedValues || 'Option 1, Option 2'
               : dataTypeLabels[field.type]}
@@ -1326,8 +1326,8 @@ const ImportView = ({
         setProjectId={setProjectId}
       />
 
-      <div className="rounded-lg border bg-card p-5 shadow-sm">
-        <div className="flex flex-col items-center justify-center rounded-lg border border-dashed bg-muted/30 px-4 py-8 text-center">
+      <div className="rounded-lg border bg-card p-5">
+        <div className="flex flex-col items-center justify-center rounded-sm border border-dashed bg-surface-subtle px-4 py-8 text-center">
           <FileUp className="h-8 w-8 text-primary" aria-hidden="true" />
           <h2 className="mt-3 text-base font-semibold text-foreground">
             Upload your existing form file
@@ -1383,8 +1383,8 @@ const ImportView = ({
             className={cn(
               'block rounded-md px-3 py-2 text-sm',
               importStatus === 'error'
-                ? 'bg-danger/10 font-medium text-danger'
-                : 'bg-muted/40 text-muted-foreground',
+                ? 'bg-danger-subtle font-medium text-danger'
+                : 'bg-surface-subtle text-muted-foreground',
             )}
             data-import-status={importStatus}
           >
@@ -1399,7 +1399,7 @@ const ImportView = ({
       </div>
 
       {importSummary ? (
-        <div className="rounded-lg border bg-card p-4 shadow-sm">
+        <div className="rounded-lg border bg-card p-4">
           <div className="grid gap-4 md:grid-cols-3">
             <SummaryMetric label="File" value={importSummary.fileName} />
             <SummaryMetric label="Rows" value={String(importSummary.totalRows)} />
@@ -1411,7 +1411,7 @@ const ImportView = ({
             </p>
           ) : null}
           {importSummary.warnings.length > 0 ? (
-            <div className="mt-3 rounded-lg bg-warning/10 p-3 text-xs text-warning">
+            <div className="mt-3 rounded-sm bg-warning-subtle p-3 text-xs text-warning">
               {importSummary.warnings.join(' ')}
             </div>
           ) : null}
@@ -1440,12 +1440,12 @@ const ImportView = ({
         mappingReadiness={mappingReadiness}
         parsedImport={parsedImport}
       />
-      <div className="rounded-lg border bg-card p-4 shadow-sm">
+      <div className="rounded-lg border bg-card p-4">
         <p className="text-sm font-semibold text-foreground">Connected to</p>
         <p className="mt-1 text-xs text-muted-foreground">{selectedProject}</p>
         <div className="mt-3 space-y-2">
           {metadataConnections.map((item) => (
-            <div key={item} className="rounded-md bg-info/10 px-3 py-2 text-xs text-info">
+            <div key={item} className="rounded-sm bg-info-subtle px-3 py-2 text-xs text-info">
               {item}
             </div>
           ))}
@@ -1456,7 +1456,7 @@ const ImportView = ({
 )
 
 const SummaryMetric = ({ label, value }: { label: string; value: string }) => (
-  <div className="rounded-lg bg-muted/40 p-3">
+  <div className="rounded-sm bg-surface-subtle p-3">
     <p className="text-xs font-medium uppercase text-muted-foreground">{label}</p>
     <p className="mt-1 break-words text-sm font-semibold text-foreground">{value}</p>
   </div>
@@ -1481,7 +1481,7 @@ const MappingTable = ({
   setProceedDialogOpen: (open: boolean) => void
   setView: (view: CollectionView) => void
 }) => (
-  <div className="rounded-lg border bg-card p-4 shadow-sm">
+  <div className="rounded-lg border bg-card p-4">
     <div className="flex flex-col gap-3 border-b pb-3 md:flex-row md:items-center md:justify-between">
       <div>
         <h2 className="text-lg font-semibold text-foreground">Metadata mapping</h2>
@@ -1508,7 +1508,7 @@ const MappingTable = ({
     <p
       className={cn(
         'mt-3 rounded-md px-3 py-2 text-sm',
-        canProceed ? 'bg-success/10 text-success' : 'bg-warning/10 text-warning',
+        canProceed ? 'bg-success-subtle text-success' : 'bg-warning-subtle text-warning',
       )}
       id="mapping-readiness-message"
     >
@@ -1596,7 +1596,7 @@ const MappingTable = ({
 )
 
 const DataPreview = ({ parsedImport }: { parsedImport: ParsedImport }) => (
-  <div className="rounded-lg border bg-card p-4 shadow-sm">
+  <div className="rounded-lg border bg-card p-4">
     <h2 className="text-lg font-semibold text-foreground">Data preview</h2>
     <p className="mt-1 text-sm text-muted-foreground">
       First rows are shown client-side for prototype review only.
@@ -1641,7 +1641,7 @@ const ImportValidationPanel = ({
   const progress = total === 0 ? 0 : Math.round((resolved / total) * 100)
 
   return (
-    <div className="rounded-lg border bg-card p-4 shadow-sm">
+    <div className="rounded-lg border bg-card p-4">
       <div className="flex items-center justify-between gap-3">
         <div>
           <p className="text-sm font-semibold text-foreground">Validation summary</p>
@@ -1669,7 +1669,7 @@ const ImportValidationPanel = ({
           <SummaryPill label="Ignored" tone="neutral" value={ignored} />
           <SummaryPill label="Invalid" tone="danger" value={invalid} />
         </div>
-        <p className="rounded-lg bg-muted/40 p-3 text-xs leading-5 text-muted-foreground">
+        <p className="rounded-sm bg-surface-subtle p-3 text-xs leading-5 text-muted-foreground">
           This demonstration checks column headings and preview rows only. Full production
           validation is not connected yet.
         </p>
@@ -1687,7 +1687,7 @@ const SummaryPill = ({
   tone: 'success' | 'warning' | 'neutral' | 'danger'
   value: number
 }) => (
-  <div className="rounded-lg border bg-background p-2">
+  <div className="rounded-sm border bg-surface-subtle p-2">
     <p className="text-muted-foreground">{label}</p>
     <p
       className={cn(

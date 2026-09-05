@@ -4,6 +4,7 @@ import { mockBudgets, mockExpenses } from '@/mocks/pathways'
 
 import {
   addIndicatorSchema,
+  calculateBudgetUtilization,
   calculateExpenseTotal,
   calculateRemainingBudget,
   logExpenseSchema,
@@ -58,6 +59,11 @@ describe('phase five workspace utilities', () => {
 
     expect(total).toBe(200)
     expect(calculateRemainingBudget(500, total)).toBe(300)
+  })
+
+  it('keeps utilization mathematically truthful above 100 percent', () => {
+    expect(calculateBudgetUtilization(1_000, 1_250)).toBe(125)
+    expect(calculateBudgetUtilization(0, 1_250)).toBe(0)
   })
 
   it('keeps visible mock expense ledgers aligned with budget actual spending', () => {

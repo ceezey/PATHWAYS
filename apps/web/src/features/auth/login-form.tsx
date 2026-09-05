@@ -1,12 +1,13 @@
 'use client'
 
 import { zodResolver } from '@hookform/resolvers/zod'
-import { ArrowLeft, Eye, EyeOff, Info, Loader2, LogIn, RotateCcw, UserRound } from 'lucide-react'
+import { ArrowLeft, Eye, EyeOff, Info, Loader2, LogIn, RotateCcw } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { useEffect, useRef, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { toast } from 'sonner'
 
+import { BrandMark } from '@/components/pathways/brand-mark'
 import { DialogShell } from '@/components/pathways/dialog-shell'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -55,6 +56,7 @@ export const LoginForm = () => {
   const [resendAvailableAt, setResendAvailableAt] = useState(0)
   const [clockNow, setClockNow] = useState(() => Date.now())
   const loginButtonRef = useRef<HTMLButtonElement>(null)
+  const otpInputRef = useRef<HTMLInputElement>(null)
   const otpButtonRef = useRef<HTMLButtonElement>(null)
   const form = useForm<LoginSchema>({
     resolver: zodResolver(loginSchema),
@@ -255,6 +257,11 @@ export const LoginForm = () => {
   useEffect(() => {
     if (otpStatus === 'error' && otp.length === 6) {
       otpButtonRef.current?.focus()
+    } else if (
+      (otpStatus === 'error' || otpStatus === 'expired' || otpStatus === 'locked') &&
+      otp.length === 0
+    ) {
+      otpInputRef.current?.focus()
     }
   }, [otp, otpStatus])
 
@@ -272,33 +279,34 @@ export const LoginForm = () => {
     const expired = new Date(mfaChallenge.expiresAt).getTime() <= clockNow
 
     return (
-      <Card className="w-full max-w-[430px] rounded-lg border-white/70 bg-white/95 shadow-xl backdrop-blur">
-        <CardHeader className="items-center space-y-3 pb-4 text-center">
-          <div className="flex h-14 w-14 items-center justify-center rounded-lg bg-primary text-primary-foreground shadow-sm">
-            <UserRound className="h-8 w-8" aria-hidden="true" />
-          </div>
-          <div>
-            <CardTitle as="h1" className="text-2xl font-bold tracking-normal text-foreground">
+      <Card className="w-full max-w-[440px] rounded-md border-border bg-card shadow-dialog">
+        <CardHeader className="flex flex-col items-center space-y-2 p-6 pb-4 text-center">
+          <BrandMark className="h-11 w-11" priority />
+          <div className="space-y-1">
+            <p className="font-heading text-3xl font-normal leading-[2.125rem] tracking-normal text-foreground">
+              PATHWAYS
+            </p>
+            <CardTitle as="h1" className="text-xl leading-7 tracking-normal text-foreground">
               OTP verification
             </CardTitle>
-            <CardDescription className="mt-2 text-sm">
+            <CardDescription className="mx-auto max-w-[34ch] text-[13px] leading-[1.125rem]">
               Enter the six-digit prototype code for {mfaChallenge.maskedDestination}.
             </CardDescription>
           </div>
         </CardHeader>
-        <CardContent className="space-y-5">
+        <CardContent className="space-y-4 p-6 pt-0">
           <output
             id="staff-otp-status"
             aria-atomic="true"
             aria-live="polite"
-            className="block rounded-lg border border-info/20 bg-info/10 p-4 text-sm leading-6 text-info"
+            className="block rounded-sm border border-info/25 bg-info-subtle px-3 py-2 text-[13px] leading-5 text-info"
           >
             {/* TODO(AUTH): Replace the prototype OTP challenge with the finalized organization-approved MFA provider. */}
             {/* TODO(SECURITY): Enforce rate limits, lockout, audit logging, and secure challenge storage server-side. */}
             {expired ? 'This OTP challenge has expired.' : otpMessage}
           </output>
           <form
-            className="space-y-5"
+            className="space-y-4"
             onSubmit={(event) => {
               event.preventDefault()
               void verifyOtp()
@@ -313,6 +321,7 @@ export const LoginForm = () => {
                 <span className="sr-only"> (required)</span>
               </Label>
               <Input
+                ref={otpInputRef}
                 aria-describedby="staff-otp-help staff-otp-status"
                 aria-invalid={
                   otpStatus === 'error' || otpStatus === 'expired' || otpStatus === 'locked'
@@ -321,14 +330,17 @@ export const LoginForm = () => {
                 id="staff-otp"
                 autoComplete="one-time-code"
                 autoFocus
-                className="text-center text-2xl tracking-[0.45em]"
+                className="h-14 rounded-md bg-white pl-[0.55em] text-center text-2xl font-medium tabular-nums tracking-[0.55em]"
                 inputMode="numeric"
                 maxLength={6}
                 placeholder="000000"
                 value={otp}
                 onChange={(event) => setOtp(event.target.value.replace(/\D/g, ''))}
               />
-              <p className="text-xs text-muted-foreground" id="staff-otp-help">
+              <p
+                className="text-[13px] leading-[1.125rem] text-muted-foreground"
+                id="staff-otp-help"
+              >
                 Password verification alone does not create a staff session.
               </p>
             </div>
@@ -377,20 +389,22 @@ export const LoginForm = () => {
   }
 
   return (
-    <Card className="w-full max-w-[430px] rounded-lg border-white/70 bg-white/95 shadow-xl backdrop-blur">
-      <CardHeader className="items-center space-y-3 pb-4 text-center">
-        <div className="flex h-14 w-14 items-center justify-center rounded-lg bg-primary text-primary-foreground shadow-sm">
-          <UserRound className="h-8 w-8" aria-hidden="true" />
-        </div>
+    <Card className="w-full max-w-[440px] rounded-md border-border bg-card shadow-dialog">
+      <CardHeader className="flex flex-col items-center space-y-2 p-6 pb-4 text-center">
+        <BrandMark className="h-11 w-11" priority />
         <div>
-          <p className="text-3xl font-bold tracking-normal text-foreground">PATHWAYS</p>
-          <CardDescription className="mt-2 text-sm">Project Information Management</CardDescription>
+          <p className="font-heading text-3xl font-normal leading-[2.125rem] tracking-normal text-foreground">
+            PATHWAYS
+          </p>
+          <CardDescription className="mt-1 text-[13px] leading-[1.125rem]">
+            Project Information Management
+          </CardDescription>
         </div>
       </CardHeader>
-      <CardContent className="space-y-5">
-        <h1 className="text-lg font-semibold text-foreground">Sign in to PATHWAYS</h1>
+      <CardContent className="space-y-4 p-6 pt-0">
+        <h1 className="text-xl leading-7 text-foreground">Sign in to PATHWAYS</h1>
         <Form {...form}>
-          <form className="space-y-5" onSubmit={form.handleSubmit(onSubmit)}>
+          <form className="space-y-4" onSubmit={form.handleSubmit(onSubmit)}>
             <FormField
               control={form.control}
               name="identifier"
@@ -400,7 +414,7 @@ export const LoginForm = () => {
                   <FormControl aria-required="true">
                     <Input
                       autoComplete="username"
-                      className="border-0 border-b border-input bg-transparent px-0 shadow-none"
+                      className="rounded-none border-0 border-b border-input bg-transparent px-0 focus-visible:border-b-2 focus-visible:border-primary"
                       placeholder={
                         webSetupState.guiPrototypeModeEnabled
                           ? 'program.manager'
@@ -423,7 +437,7 @@ export const LoginForm = () => {
                     <FormControl aria-required="true">
                       <Input
                         autoComplete="current-password"
-                        className="border-0 border-b border-input bg-transparent px-0 pr-11 shadow-none"
+                        className="rounded-none border-0 border-b border-input bg-transparent px-0 pr-12 focus-visible:border-b-2 focus-visible:border-primary"
                         placeholder="Enter your password"
                         type={showPassword ? 'text' : 'password'}
                         {...field}
@@ -431,7 +445,7 @@ export const LoginForm = () => {
                     </FormControl>
                     <Button
                       aria-label={showPassword ? 'Hide password' : 'Show password'}
-                      className="absolute right-1 top-1 h-8 w-8"
+                      className="absolute right-0 top-0 h-11 w-11 rounded-sm"
                       onClick={() => setShowPassword((value) => !value)}
                       size="icon"
                       type="button"
@@ -452,7 +466,7 @@ export const LoginForm = () => {
               <Dialog>
                 <DialogTrigger asChild>
                   <Button
-                    className="w-fit px-0 underline-offset-4 hover:underline"
+                    className="w-fit px-0 text-link underline underline-offset-4 hover:bg-transparent hover:text-primary-active active:bg-transparent"
                     type="button"
                     variant="ghost"
                   >
@@ -474,7 +488,7 @@ export const LoginForm = () => {
                   </p>
                 </DialogShell>
               </Dialog>
-              <p className="inline-flex items-center gap-2 text-xs text-muted-foreground">
+              <p className="inline-flex items-center gap-2 text-[13px] leading-[1.125rem] text-muted-foreground">
                 <Info className="h-3.5 w-3.5" aria-hidden="true" />
                 {webSetupState.guiPrototypeModeEnabled
                   ? 'Prototype authentication only'
@@ -485,7 +499,7 @@ export const LoginForm = () => {
               <output
                 aria-atomic="true"
                 aria-live="polite"
-                className="block rounded-lg border border-danger/20 bg-danger/10 p-3 text-sm leading-6 text-danger"
+                className="block rounded-sm border border-danger/25 bg-danger-subtle p-3 text-sm leading-6 text-danger"
               >
                 {loginMessage}
               </output>
@@ -508,7 +522,7 @@ export const LoginForm = () => {
         {webSetupState.guiPrototypeModeEnabled ? (
           <Dialog onOpenChange={setDemoAccountsOpen} open={demoAccountsOpen}>
             <DialogTrigger asChild>
-              <Button className="mt-4 w-full" type="button" variant="outline">
+              <Button className="w-full" type="button" variant="outline">
                 Demo Accounts
               </Button>
             </DialogTrigger>
@@ -545,7 +559,7 @@ export const LoginForm = () => {
               <output
                 aria-atomic="true"
                 aria-live="polite"
-                className="mt-3 block rounded-lg border border-success/20 bg-success/10 p-3 text-sm leading-6 text-success"
+                className="mt-3 block rounded-sm border border-success/25 bg-success-subtle p-3 text-sm leading-6 text-success"
               >
                 Selected {selectedDemoAccount.roleLabel} account ({selectedDemoAccount.username}).
                 The login fields are populated and ready to continue.

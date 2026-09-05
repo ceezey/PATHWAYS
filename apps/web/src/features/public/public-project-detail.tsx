@@ -302,20 +302,18 @@ export const PublicProjectDetail = ({
     indicators: <PublicIndicators project={project} />,
     milestones: <PublicMilestones project={project} />,
   }
-  const Root = editable ? 'div' : 'main'
-
   return (
-    <Root
-      className="min-h-screen bg-slate-50"
+    <div
+      className="min-h-dvh bg-surface-subtle"
       data-public-layout={presentation.layoutPreset}
       data-public-mode={mode}
     >
       {editable ? (
-        <section className="border-b border-blue-200 bg-blue-50">
+        <section className="border-b border-info/25 bg-info-subtle">
           <div className="mx-auto flex w-full max-w-7xl flex-col gap-3 px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-6">
-            <div className="flex min-w-0 items-start gap-3 text-sm text-blue-950 sm:items-center">
+            <div className="flex min-w-0 items-start gap-3 text-sm text-info sm:items-center">
               <ShieldCheck
-                className="mt-0.5 h-5 w-5 shrink-0 text-blue-700 sm:mt-0"
+                className="mt-0.5 h-5 w-5 shrink-0 text-info sm:mt-0"
                 aria-hidden="true"
               />
               <p className="leading-5">
@@ -344,12 +342,9 @@ export const PublicProjectDetail = ({
           </div>
         </section>
       ) : (
-        <section className="border-b border-teal-100 bg-teal-50">
-          <div className="mx-auto flex w-full max-w-7xl items-start gap-3 px-4 py-3 text-sm text-teal-950 sm:items-center sm:px-6">
-            <ShieldCheck
-              className="mt-0.5 h-5 w-5 shrink-0 text-teal-700 sm:mt-0"
-              aria-hidden="true"
-            />
+        <section className="border-b border-info/25 bg-info-subtle">
+          <div className="mx-auto flex w-full max-w-7xl items-start gap-3 px-4 py-3 text-sm text-info sm:items-center sm:px-6">
+            <ShieldCheck className="mt-0.5 h-5 w-5 shrink-0 text-info sm:mt-0" aria-hidden="true" />
             <p className="leading-5">
               <span className="font-semibold">Approved public view.</span> Aggregate, non-sensitive
               project information only.
@@ -358,7 +353,7 @@ export const PublicProjectDetail = ({
         </section>
       )}
 
-      <section className="overflow-hidden bg-[radial-gradient(circle_at_top_right,#2563eb_0,transparent_38%),linear-gradient(135deg,#082f49,#115e59_62%,#0f766e)] text-white">
+      <section className="overflow-hidden border-b border-navy bg-navy text-navy-foreground">
         <div
           className={cn(
             'mx-auto w-full px-4 py-8 sm:px-6 sm:py-12',
@@ -367,7 +362,7 @@ export const PublicProjectDetail = ({
         >
           <nav
             aria-label="Breadcrumb"
-            className="mb-8 flex flex-wrap items-center gap-2 text-sm text-teal-50/80"
+            className="mb-8 flex flex-wrap items-center gap-2 text-sm text-navy-muted"
           >
             <Link className="transition-colors hover:text-white" href="/">
               Home
@@ -377,21 +372,23 @@ export const PublicProjectDetail = ({
               Public projects
             </Link>
             <span aria-hidden="true">/</span>
-            <span className="text-white">{project.title}</span>
+            <span aria-current="page" className="text-white">
+              {project.title}
+            </span>
           </nav>
 
           <div className="grid gap-8 lg:grid-cols-[minmax(0,1.15fr)_minmax(300px,0.85fr)] lg:items-end">
             <div className="min-w-0 space-y-5">
               <div className="flex flex-wrap items-center gap-2">
-                <span className="rounded-full border border-white/20 bg-white/10 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-teal-50">
+                <span className="text-xs font-semibold uppercase tracking-wide text-primary-subtle">
                   {presentation.eyebrow}
                 </span>
-                <span className="rounded-full border border-emerald-200/30 bg-emerald-300/10 px-3 py-1 text-xs font-medium text-emerald-50">
+                <span className="rounded-full border border-white/30 px-3 py-1 text-xs font-medium text-white">
                   {project.publicationState}
                 </span>
               </div>
               <div className="space-y-3">
-                <p className="text-sm font-semibold uppercase tracking-[0.18em] text-teal-100">
+                <p className="text-sm font-semibold uppercase tracking-[0.18em] text-navy-muted">
                   {project.sector} · {project.area}
                 </p>
                 <h1 className="text-4xl font-semibold tracking-tight sm:text-5xl lg:text-6xl">
@@ -400,22 +397,22 @@ export const PublicProjectDetail = ({
                 <p className="max-w-3xl text-xl font-medium leading-8 text-white sm:text-2xl">
                   {presentation.headline}
                 </p>
-                <p className="max-w-2xl text-sm leading-7 text-teal-50/90">{project.tagline}</p>
+                <p className="max-w-2xl text-base leading-7 text-navy-muted">{project.tagline}</p>
               </div>
             </div>
 
-            <blockquote className="rounded-2xl border border-white/20 bg-white/10 p-6 shadow-xl backdrop-blur-sm">
-              <MessageSquareQuote className="h-8 w-8 text-teal-200" aria-hidden="true" />
+            <blockquote className="rounded-lg border border-white/20 bg-white/5 p-6">
+              <MessageSquareQuote className="h-8 w-8 text-primary-subtle" aria-hidden="true" />
               <p className="mt-5 text-lg font-medium leading-8 text-white">
                 “{presentation.quote}”
               </p>
-              <footer className="mt-5 border-t border-white/15 pt-4 text-sm text-teal-100">
+              <footer className="mt-5 border-t border-white/15 pt-4 text-sm text-navy-muted">
                 {presentation.quoteAttribution}
               </footer>
             </blockquote>
           </div>
 
-          <div className="mt-9 grid overflow-hidden rounded-xl border border-white/15 bg-slate-950/20 sm:grid-cols-3">
+          <div className="mt-9 grid overflow-hidden rounded-lg border border-white/20 bg-white/5 sm:grid-cols-3">
             <HeroMetric label="Approved progress" value={`${project.progressTrend.at(-1) ?? 0}%`} />
             <HeroMetric
               label="Beneficiaries reached"
@@ -442,7 +439,7 @@ export const PublicProjectDetail = ({
           ))}
       </div>
 
-      <section className="border-t border-slate-700 bg-slate-950 text-white">
+      <section className="border-t border-navy bg-navy text-navy-foreground">
         <div
           className={cn(
             'mx-auto grid w-full gap-7 px-4 py-10 sm:px-6 md:grid-cols-[minmax(0,1fr)_auto] md:items-center md:py-14',
@@ -450,13 +447,15 @@ export const PublicProjectDetail = ({
           )}
         >
           <div className="space-y-3">
-            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-teal-300">
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-primary-subtle">
               Support this work
             </p>
             <h2 className="max-w-3xl text-3xl font-semibold tracking-tight">
               {presentation.closingTitle}
             </h2>
-            <p className="max-w-2xl text-sm leading-7 text-slate-300">{presentation.closingText}</p>
+            <p className="max-w-2xl text-base leading-7 text-navy-muted">
+              {presentation.closingText}
+            </p>
           </div>
           <div className="flex flex-col gap-3 sm:flex-row md:flex-col">
             <Button className="gap-2" onClick={() => setDonationOpen(true)} variant="secondary">
@@ -465,7 +464,7 @@ export const PublicProjectDetail = ({
             </Button>
             <Button
               asChild
-              className="border-slate-500 bg-transparent text-white hover:bg-white/10"
+              className="border-white/40 bg-transparent text-white hover:bg-white/10"
               variant="outline"
             >
               <Link href={presentation.secondaryCtaHref}>{presentation.secondaryCtaLabel}</Link>
@@ -485,7 +484,7 @@ export const PublicProjectDetail = ({
               </DialogDescription>
             </DialogHeader>
 
-            <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm leading-6 text-amber-950">
+            <div className="rounded-sm border border-warning/30 bg-warning-subtle p-3 text-sm leading-6 text-warning">
               Use approved, non-sensitive project wording only. This prototype does not provide a
               publishing workflow or access to internal records.
             </div>
@@ -494,7 +493,7 @@ export const PublicProjectDetail = ({
               <output
                 aria-atomic="true"
                 aria-live="polite"
-                className="block rounded-lg border border-info/20 bg-info/10 p-3 text-sm text-info"
+                className="block rounded-sm border border-info/25 bg-info-subtle p-3 text-sm text-info"
               >
                 Recovered your unsaved public-preview draft from this browser tab.
               </output>
@@ -590,16 +589,16 @@ export const PublicProjectDetail = ({
 
                     return (
                       <div
-                        className="flex flex-col gap-3 rounded-lg border border-slate-200 bg-white p-3 sm:flex-row sm:items-center"
+                        className="flex flex-col gap-3 rounded-sm border border-border bg-card p-3 sm:flex-row sm:items-center"
                         key={section.id}
                       >
                         <div className="flex min-w-0 flex-1 items-start gap-3">
-                          <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-slate-100 text-sm font-semibold text-slate-700">
+                          <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-sm bg-muted text-sm font-semibold text-muted-foreground">
                             {index + 1}
                           </div>
                           <div className="min-w-0">
-                            <p className="font-medium text-slate-950">{section.label}</p>
-                            <p className="text-xs leading-5 text-slate-500">
+                            <p className="font-medium text-foreground">{section.label}</p>
+                            <p className="text-xs leading-5 text-muted-foreground">
                               {section.description}
                             </p>
                           </div>
@@ -666,7 +665,7 @@ export const PublicProjectDetail = ({
                   value={draft.closingText}
                 />
                 <div className="grid gap-4 md:grid-cols-[0.8fr_1.2fr]">
-                  <div className="rounded-lg border border-teal-200 bg-teal-50 p-4 text-sm leading-6 text-teal-950">
+                  <div className="rounded-sm border border-info/25 bg-info-subtle p-4 text-sm leading-6 text-info">
                     <p className="font-semibold">Primary public CTA</p>
                     <p className="mt-1">
                       {PUBLIC_DONATE_CTA_LABEL} remains fixed and opens a clearly labeled prototype
@@ -691,7 +690,7 @@ export const PublicProjectDetail = ({
               </p>
             ) : null}
 
-            <div className="flex flex-col-reverse gap-2 border-t border-slate-200 pt-4 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex flex-col-reverse gap-2 border-t border-border pt-4 sm:flex-row sm:items-center sm:justify-between">
               <Button
                 className="gap-2"
                 disabled={!restoreAvailable}
@@ -739,7 +738,7 @@ export const PublicProjectDetail = ({
             open={restoreDialogOpen}
             title={`Restore defaults for ${project.title}?`}
           >
-            <p className="rounded-lg border border-border bg-muted/40 p-3 text-sm text-foreground">
+            <p className="rounded-sm border border-border bg-surface-subtle p-3 text-sm text-foreground">
               Affected scope: public story copy, section order and visibility, layout preset, and
               closing call-to-action customization for {project.title}.
             </p>
@@ -769,7 +768,7 @@ export const PublicProjectDetail = ({
           </div>
         </DialogContent>
       </Dialog>
-    </Root>
+    </div>
   )
 }
 
@@ -784,45 +783,45 @@ const PublicOverview = ({
     aria-labelledby="public-overview-title"
     className="grid gap-5 lg:grid-cols-[1.25fr_0.75fr]"
   >
-    <Card className="overflow-hidden border-slate-200 shadow-sm">
+    <Card className="overflow-hidden border-border">
       <CardContent className="space-y-6 p-6 sm:p-8">
         <SectionEyebrow>Project overview</SectionEyebrow>
         <div className="space-y-3">
           <h2
-            className="text-3xl font-semibold tracking-tight text-slate-950"
+            className="text-3xl font-semibold tracking-tight text-foreground"
             id="public-overview-title"
           >
             About the Project
           </h2>
-          <h3 className="text-xl font-medium text-teal-800">{presentation.summaryTitle}</h3>
+          <h3 className="text-xl font-medium text-primary-active">{presentation.summaryTitle}</h3>
         </div>
-        <p className="text-base leading-8 text-slate-700">{presentation.summaryBody}</p>
-        <p className="border-l-2 border-teal-600 pl-4 text-sm leading-7 text-slate-600">
+        <p className="text-base leading-8 text-foreground">{presentation.summaryBody}</p>
+        <p className="border-l-2 border-primary pl-4 text-sm leading-7 text-muted-foreground">
           {project.description}
         </p>
       </CardContent>
     </Card>
 
-    <Card className="border-slate-200 bg-white shadow-sm">
+    <Card className="border-border bg-card">
       <CardHeader>
         <CardTitle>Where the project works</CardTitle>
       </CardHeader>
       <CardContent className="space-y-5">
         <div className="space-y-3">
           {project.projectAreas.map((area) => (
-            <div className="flex items-center gap-3 text-sm text-slate-700" key={area}>
-              <span className="flex h-8 w-8 items-center justify-center rounded-full bg-teal-50 text-teal-700">
+            <div className="flex items-center gap-3 text-base text-foreground" key={area}>
+              <span className="flex h-8 w-8 items-center justify-center rounded-full bg-primary-subtle text-primary">
                 <MapPin className="h-4 w-4" aria-hidden="true" />
               </span>
               {area}
             </div>
           ))}
         </div>
-        <div className="border-t border-slate-200 pt-4">
-          <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+        <div className="border-t border-border pt-4">
+          <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
             Project period
           </p>
-          <p className="mt-1 text-sm font-medium text-slate-900">{project.timeframe}</p>
+          <p className="mt-1 text-base font-medium text-foreground">{project.timeframe}</p>
         </div>
       </CardContent>
     </Card>
@@ -864,12 +863,12 @@ const PublicMediaGallery = ({
       >
         {approvedMedia.map((media) => (
           <figure
-            className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm"
+            className="overflow-hidden rounded-lg border border-border bg-card"
             key={media.id}
           >
             <div
               className={cn(
-                'relative overflow-hidden bg-slate-200',
+                'relative overflow-hidden bg-secondary',
                 layoutPreset === 'story-led' ? 'aspect-[16/7]' : 'aspect-video',
               )}
             >
@@ -884,19 +883,19 @@ const PublicMediaGallery = ({
                 }
                 src={media.src}
               />
-              <span className="absolute left-3 top-3 rounded-full border border-white/40 bg-slate-950/65 px-3 py-1 text-xs font-semibold text-white backdrop-blur-sm">
+              <span className="absolute left-3 top-3 rounded-full border border-white/40 bg-navy/85 px-3 py-1 text-xs font-semibold text-white">
                 {media.contextLabel}
               </span>
             </div>
             <figcaption className={cn('space-y-3 p-5', layoutPreset === 'compact' && 'p-4')}>
               <div className="flex flex-wrap items-center gap-2">
                 <StatusBadge tone="success">{media.approvalState}</StatusBadge>
-                <span className="inline-flex items-center gap-1.5 text-xs font-medium text-slate-500">
+                <span className="inline-flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
                   <ImageIcon className="h-3.5 w-3.5" aria-hidden="true" />
                   {media.source}
                 </span>
               </div>
-              <p className="text-sm leading-6 text-slate-700">{media.caption}</p>
+              <p className="text-base leading-7 text-foreground">{media.caption}</p>
             </figcaption>
           </figure>
         ))}
@@ -921,10 +920,10 @@ const PublicProgress = ({ project }: { project: PublicProjectRecord }) => (
       />
       <DetailMetric label="Reviewed assessment" value={project.assessmentSummary} />
     </div>
-    <Card className="border-slate-200 shadow-sm">
+    <Card className="border-border">
       <CardHeader className="space-y-2">
         <CardTitle>Approved progress trend</CardTitle>
-        <p className="text-sm leading-6 text-slate-600">{project.budgetSummary}</p>
+        <p className="text-sm leading-6 text-muted-foreground">{project.budgetSummary}</p>
       </CardHeader>
       <CardContent>
         <PublicProgressTrendChart project={project} />
@@ -942,7 +941,7 @@ const PublicIndicators = ({ project }: { project: PublicProjectRecord }) => (
       title="Selected indicators"
     />
     <div className="grid gap-5 lg:grid-cols-[0.9fr_1.1fr]">
-      <Card className="border-slate-200 shadow-sm">
+      <Card className="border-border">
         <CardHeader>
           <CardTitle>Indicator progress</CardTitle>
         </CardHeader>
@@ -950,22 +949,22 @@ const PublicIndicators = ({ project }: { project: PublicProjectRecord }) => (
           <PublicIndicatorChart project={project} />
         </CardContent>
       </Card>
-      <Card className="border-slate-200 shadow-sm">
+      <Card className="border-border">
         <CardHeader>
           <CardTitle>Approved indicator details</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
           {project.selectedIndicators.map((indicator) => (
             <article
-              className="space-y-3 rounded-lg border border-slate-200 p-4"
+              className="space-y-3 rounded-sm border border-border bg-surface-subtle p-4"
               key={indicator.id}
             >
               <div className="flex flex-wrap items-start justify-between gap-2">
-                <p className="max-w-xl font-medium leading-6 text-slate-900">{indicator.label}</p>
+                <p className="max-w-xl font-medium leading-6 text-foreground">{indicator.label}</p>
                 <StatusBadge tone={indicatorTone(indicator.status)}>{indicator.status}</StatusBadge>
               </div>
               <ProgressBar label={indicator.label} tone="info" value={indicator.progress} />
-              <p className="text-xs text-slate-500">
+              <p className="text-xs text-muted-foreground">
                 {indicator.actualLabel} of {indicator.targetLabel}
               </p>
             </article>
@@ -985,38 +984,38 @@ const PublicMilestones = ({ project }: { project: PublicProjectRecord }) => (
       title="Milestones and accomplishments"
     />
     <div className="grid gap-5 lg:grid-cols-2">
-      <Card className="border-slate-200 shadow-sm">
+      <Card className="border-border">
         <CardHeader>
           <CardTitle>Public milestones</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
           {project.milestones.map((milestone, index) => (
             <article className="flex items-start gap-4" key={milestone.id}>
-              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-teal-50 text-sm font-semibold text-teal-800">
+              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary-subtle text-sm font-semibold text-primary-active">
                 {index + 1}
               </div>
-              <div className="min-w-0 flex-1 border-b border-slate-100 pb-4 last:border-0">
+              <div className="min-w-0 flex-1 border-b border-border pb-4 last:border-0">
                 <div className="flex flex-wrap items-center justify-between gap-2">
-                  <p className="font-medium text-slate-950">{milestone.title}</p>
+                  <p className="font-medium text-foreground">{milestone.title}</p>
                   <StatusBadge tone={milestone.status === 'Completed' ? 'success' : 'info'}>
                     {milestone.status}
                   </StatusBadge>
                 </div>
-                <p className="mt-1 text-sm text-slate-500">{milestone.dateLabel}</p>
+                <p className="mt-1 text-sm text-muted-foreground">{milestone.dateLabel}</p>
               </div>
             </article>
           ))}
         </CardContent>
       </Card>
-      <Card className="border-slate-200 bg-teal-950 text-white shadow-sm">
+      <Card className="border-info/25 bg-info-subtle text-foreground">
         <CardHeader>
-          <CardTitle className="text-white">Accomplishment highlights</CardTitle>
+          <CardTitle>Accomplishment highlights</CardTitle>
         </CardHeader>
         <CardContent>
           <ul className="space-y-4">
             {project.accomplishments.map((item) => (
-              <li className="flex gap-3 text-sm leading-7 text-teal-50" key={item}>
-                <BadgeCheck className="mt-1 h-5 w-5 shrink-0 text-teal-300" aria-hidden="true" />
+              <li className="flex gap-3 text-base leading-7 text-foreground" key={item}>
+                <BadgeCheck className="mt-1 h-5 w-5 shrink-0 text-info" aria-hidden="true" />
                 <span>{item}</span>
               </li>
             ))}
@@ -1040,29 +1039,29 @@ const PublicSectionHeading = ({
 }) => (
   <div className="max-w-3xl space-y-2">
     <SectionEyebrow>{eyebrow}</SectionEyebrow>
-    <h2 className="text-3xl font-semibold tracking-tight text-slate-950" id={id}>
+    <h2 className="text-3xl font-semibold tracking-tight text-foreground" id={id}>
       {title}
     </h2>
-    <p className="text-sm leading-6 text-slate-600">{description}</p>
+    <p className="text-base leading-7 text-muted-foreground">{description}</p>
   </div>
 )
 
 const SectionEyebrow = ({ children }: { children: React.ReactNode }) => (
-  <p className="text-xs font-semibold uppercase tracking-[0.16em] text-teal-700">{children}</p>
+  <p className="text-xs font-semibold uppercase tracking-[0.16em] text-primary">{children}</p>
 )
 
 const HeroMetric = ({ label, value }: { label: string; value: string }) => (
   <div className="min-w-0 border-b border-white/15 p-4 last:border-b-0 sm:border-b-0 sm:border-r sm:last:border-r-0 sm:p-5">
-    <p className="text-xs font-semibold uppercase tracking-wide text-teal-100">{label}</p>
+    <p className="text-xs font-semibold uppercase tracking-wide text-navy-muted">{label}</p>
     <p className="mt-2 break-words text-base font-semibold leading-6 text-white">{value}</p>
   </div>
 )
 
 const DetailMetric = ({ label, value }: { label: string; value: string }) => (
-  <Card className="border-slate-200 shadow-sm">
+  <Card className="border-border">
     <CardContent className="p-5">
-      <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">{label}</p>
-      <p className="mt-2 text-xl font-semibold leading-7 text-slate-950">{value}</p>
+      <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{label}</p>
+      <p className="mt-2 text-xl font-semibold leading-7 text-foreground">{value}</p>
     </CardContent>
   </Card>
 )
@@ -1076,9 +1075,9 @@ const EditorSection = ({
   description: string
   title: string
 }) => (
-  <fieldset className="space-y-4 rounded-lg border border-slate-200 bg-slate-50/60 p-4 sm:p-5">
-    <legend className="px-1 text-base font-semibold text-slate-950">{title}</legend>
-    <p className="text-sm leading-6 text-slate-600">{description}</p>
+  <fieldset className="space-y-4 rounded-sm border border-border bg-surface-subtle p-4 sm:p-5">
+    <legend className="px-1 text-base font-semibold text-foreground">{title}</legend>
+    <p className="text-sm leading-6 text-muted-foreground">{description}</p>
     {children}
   </fieldset>
 )
@@ -1146,8 +1145,8 @@ const CtaEditor = ({
   onLabelChange: (value: string) => void
   value: string
 }) => (
-  <fieldset className="space-y-3 rounded-lg border border-slate-200 bg-white p-4">
-    <legend className="px-1 text-sm font-semibold text-slate-950">{label}</legend>
+  <fieldset className="space-y-3 rounded-sm border border-border bg-card p-4">
+    <legend className="px-1 text-sm font-semibold text-foreground">{label}</legend>
     <EditorField
       id={`${id}-label`}
       label="Button label"

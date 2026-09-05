@@ -89,7 +89,7 @@ const DashboardListItem = ({
   item: DashboardItem
   onAction: (action: DashboardAction) => void
 }) => (
-  <div className="rounded-lg border border-border bg-background p-4">
+  <div className="border-b border-border py-4 first:pt-0 last:border-b-0 last:pb-0">
     <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
       <div className="min-w-0 space-y-1">
         {item.href ? (
@@ -104,7 +104,9 @@ const DashboardListItem = ({
           <h3 className="text-sm font-semibold text-foreground">{item.title}</h3>
         )}
         <p className="text-sm leading-5 text-muted-foreground">{item.description}</p>
-        {item.meta ? <p className="text-xs text-muted-foreground">{item.meta}</p> : null}
+        {item.meta ? (
+          <p className="text-[13px] leading-[18px] text-muted-foreground">{item.meta}</p>
+        ) : null}
       </div>
       {item.status ? (
         <StatusBadge tone={statusTone(item.severity)}>{item.status}</StatusBadge>
@@ -236,14 +238,14 @@ export const RoleDashboard = () => {
       {dashboard.executive ? (
         <ExecutiveDashboard model={dashboard.executive} summaryAction={dashboard.primaryAction} />
       ) : (
-        <section className="rounded-lg border border-border bg-card p-5">
+        <section className="rounded-lg border border-border border-l-2 border-l-primary bg-card p-5">
           <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
             <div className="space-y-1">
               <p className="text-sm text-muted-foreground">Welcome back,</p>
-              <h2 className="text-2xl font-semibold tracking-tight text-foreground">
+              <h2 className="font-heading text-2xl font-normal leading-8 tracking-normal text-foreground">
                 {dashboard.greetingName}
               </h2>
-              <p className="text-sm leading-6 text-muted-foreground">
+              <p className="text-base leading-6 text-muted-foreground">
                 This view highlights the work and decisions most relevant to this role.
               </p>
             </div>
@@ -303,12 +305,12 @@ export const RoleDashboard = () => {
                 Operational detail
               </p>
               <h2
-                className="text-2xl font-semibold tracking-tight text-foreground"
+                className="font-heading text-2xl font-normal leading-8 tracking-normal text-foreground"
                 id="operational-detail-title"
               >
                 Projects and alerts behind the summary
               </h2>
-              <p className="text-sm leading-6 text-muted-foreground">
+              <p className="text-base leading-6 text-muted-foreground">
                 Portfolio-wide records remain available for follow-up after the executive review.
               </p>
             </div>
@@ -332,7 +334,7 @@ export const RoleDashboard = () => {
                 }
               >
                 {section.items.length > 0 ? (
-                  <div className="space-y-3">
+                  <div>
                     {section.items.map((item) => (
                       <DashboardListItem key={item.id} item={item} onAction={handleAction} />
                     ))}

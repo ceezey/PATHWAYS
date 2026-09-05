@@ -281,13 +281,13 @@ test('login credentials expose labels, errors, autocomplete, and visible keyboar
 }) => {
   await page.goto('/staff/login')
 
-  const identifier = page.getByLabel('Username or email', { exact: true })
-  const password = page.getByLabel('Password', { exact: true })
+  const identifier = page.getByLabel(/^Username or email/)
+  const password = page.getByLabel(/^Password/)
   const passwordToggle = page.getByRole('button', { name: 'Show password' })
 
-  await expect(identifier).toHaveAccessibleName('Username or email')
+  await expect(identifier).toHaveAccessibleName(/^Username or email/)
   await expect(identifier).toHaveAttribute('autocomplete', 'username')
-  await expect(password).toHaveAccessibleName('Password')
+  await expect(password).toHaveAccessibleName(/^Password/)
   await expect(password).toHaveAttribute('autocomplete', 'current-password')
   await expect(password).toHaveAttribute('aria-invalid', 'false')
   await expect(passwordToggle).toBeVisible()
@@ -295,6 +295,8 @@ test('login credentials expose labels, errors, autocomplete, and visible keyboar
   const identifierIdleShadow = await identifier.evaluate(
     (element) => window.getComputedStyle(element).boxShadow,
   )
+  await page.keyboard.press('Tab')
+  await expect(page.getByRole('link', { name: 'Skip to main content' })).toBeFocused()
   await page.keyboard.press('Tab')
   await expect(identifier).toBeFocused()
   expect(
@@ -317,7 +319,7 @@ test('login credentials expose labels, errors, autocomplete, and visible keyboar
 
   await passwordToggle.click()
   await expect(password).toHaveAttribute('type', 'text')
-  await expect(passwordToggle).toHaveAccessibleName('Hide password')
+  await expect(page.getByRole('button', { name: 'Hide password' })).toBeVisible()
 })
 
 test('login works and role preview switches through every supported role', async ({ page }) => {
@@ -330,7 +332,7 @@ test('login works and role preview switches through every supported role', async
   await expect(demoAccounts.getByRole('button', { name: /Grant Manager/ })).toBeVisible()
   await demoAccounts.getByRole('button', { name: /Program Manager/ }).click()
   await expect(demoAccounts).toBeHidden()
-  await page.getByLabel('Password', { exact: true }).fill(prototypePassword)
+  await page.getByLabel(/^Password/).fill(prototypePassword)
   await page.getByRole('button', { name: 'Log In' }).click()
   await expect(page.getByRole('heading', { name: 'OTP verification' })).toBeVisible()
   await page.getByLabel('Six-digit OTP code').fill('123456')
@@ -1049,6 +1051,8 @@ test('System Administrator can edit the approved page headings while fixed label
   await expect(page.getByRole('heading', { level: 1, name: 'Page Heading Settings' })).toBeVisible()
 
   await page.getByRole('button', { name: 'Restore defaults' }).click()
+  const restoreDialog = page.getByRole('dialog', { name: 'Restore default page headings?' })
+  await restoreDialog.getByRole('button', { name: 'Restore all heading defaults' }).click()
   await page.goto('/collection')
   await expect(
     page.getByRole('heading', { name: 'Metadata-Driven Data Integration' }),

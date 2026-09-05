@@ -58,7 +58,10 @@ export const ProjectWorkspaceHeader = ({ project }: { project: ProjectDetail }) 
       : 0
 
   return (
-    <section className="rounded-lg border border-border bg-card p-4 shadow-sm sm:p-5">
+    <section
+      aria-label={`${project.title} workspace summary`}
+      className="min-w-0 max-w-full overflow-x-hidden rounded-lg border border-border bg-card p-4 sm:p-5"
+    >
       <div className="flex flex-col gap-5 xl:flex-row xl:items-start xl:justify-between">
         <div className="min-w-0 space-y-3">
           <div className="flex flex-wrap gap-2">
@@ -66,28 +69,28 @@ export const ProjectWorkspaceHeader = ({ project }: { project: ProjectDetail }) 
             <StatusBadge tone={projectHealthTone(project.health)}>{project.health}</StatusBadge>
           </div>
           <div>
-            <h1 className="text-2xl font-semibold tracking-tight text-foreground sm:text-3xl">
+            <h2 className="text-2xl font-semibold tracking-tight text-foreground sm:text-3xl">
               {project.title}
-            </h1>
+            </h2>
             <p className="mt-2 max-w-3xl text-sm leading-6 text-muted-foreground">
               {project.description}
             </p>
           </div>
         </div>
         <div className="grid grid-cols-2 gap-3 text-sm sm:grid-cols-3 xl:min-w-[520px]">
-          <div className="col-span-2 rounded-lg border border-border bg-background p-3 sm:col-span-1">
+          <div className="col-span-2 rounded-sm border border-border bg-surface-subtle p-3 sm:col-span-1">
             <CalendarDays className="mb-2 h-4 w-4 text-primary" aria-hidden="true" />
             <p className="text-muted-foreground">Project period</p>
             <p className="mt-1 font-medium text-foreground">{project.period}</p>
           </div>
-          <div className="rounded-lg border border-border bg-background p-3">
+          <div className="rounded-sm border border-border bg-surface-subtle p-3">
             <UsersRound className="mb-2 h-4 w-4 text-primary" aria-hidden="true" />
             <p className="text-muted-foreground">Target beneficiaries</p>
             <p className="mt-1 font-medium text-foreground">
               {formatNumber(project.targetBeneficiaries)}
             </p>
           </div>
-          <div className="rounded-lg border border-border bg-background p-3">
+          <div className="rounded-sm border border-border bg-surface-subtle p-3">
             <Target className="mb-2 h-4 w-4 text-primary" aria-hidden="true" />
             <p className="text-muted-foreground">Overall progress</p>
             <p className="mt-1 font-medium text-foreground">{project.timelineProgress}%</p>
@@ -97,7 +100,10 @@ export const ProjectWorkspaceHeader = ({ project }: { project: ProjectDetail }) 
       <div className="mt-5">
         <ProgressBar label="Beneficiary reach" tone="success" value={beneficiaryProgress} />
       </div>
-      <nav className="mt-5 flex gap-2 overflow-x-auto pb-1" aria-label={labels.projectWorkspace}>
+      <nav
+        className="mt-5 flex w-full max-w-full gap-2 overflow-x-auto pb-1"
+        aria-label={labels.projectWorkspace}
+      >
         {visibleTabs.map((tab) => {
           const href = tab.path ? `/projects/${project.id}/${tab.path}` : `/projects/${project.id}`
           const active = tab.path

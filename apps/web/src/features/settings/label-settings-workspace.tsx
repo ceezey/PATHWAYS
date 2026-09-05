@@ -143,7 +143,7 @@ export const LabelSettingsWorkspace = () => {
               </div>
             </SectionCard>
 
-            <div className="rounded-lg border border-info/20 bg-info/10 p-4 text-sm leading-6 text-info">
+            <div className="rounded-sm border border-info/25 bg-info-subtle p-4 text-sm leading-6 text-info">
               <div className="flex items-start gap-3">
                 <Type className="mt-1 h-4 w-4 shrink-0" aria-hidden="true" />
                 <p>
@@ -161,7 +161,7 @@ export const LabelSettingsWorkspace = () => {
           </p>
         ) : null}
 
-        <div className="sticky bottom-4 flex flex-col-reverse gap-2 rounded-lg border border-border bg-background/95 p-3 shadow-lg backdrop-blur sm:flex-row sm:items-center sm:justify-end">
+        <div className="sticky bottom-4 flex flex-col-reverse gap-2 rounded-lg border border-border bg-card p-3 sm:flex-row sm:items-center sm:justify-end">
           <Button
             className="gap-2"
             disabled={!hydrated || !restoreAvailable}
@@ -186,7 +186,7 @@ export const LabelSettingsWorkspace = () => {
         open={resetDialogOpen}
         title="Restore default page headings?"
       >
-        <p className="rounded-lg border border-border bg-muted/40 p-3 text-sm text-foreground">
+        <p className="rounded-sm border border-border bg-surface-subtle p-3 text-sm text-foreground">
           Affected scope: every editable dashboard, project, beneficiary, collection, analytics,
           alert, recommendation, report, and administration page heading.
         </p>
@@ -203,10 +203,13 @@ const PreviewGroup = ({
   items: { id: string; label: string }[]
 }) => (
   <div>
-    <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{label}</p>
+    <p className="text-sm font-semibold text-muted-foreground">{label}</p>
     <div className="mt-2 space-y-1">
       {items.map((item) => (
-        <p className="rounded-md bg-muted/60 px-3 py-2 font-medium text-foreground" key={item.id}>
+        <p
+          className="rounded-sm bg-surface-subtle px-3 py-2 font-medium text-foreground"
+          key={item.id}
+        >
           {item.label}
         </p>
       ))}

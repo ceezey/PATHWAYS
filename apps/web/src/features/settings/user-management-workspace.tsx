@@ -323,7 +323,7 @@ export const UserManagementWorkspace = ({
 
       <section
         aria-label="Prototype administration notice"
-        className="rounded-lg border border-info/20 bg-info/10 p-4 text-sm leading-6 text-info"
+        className="rounded-sm border border-info/25 bg-info-subtle p-4 text-sm leading-6 text-info"
       >
         <div className="flex items-start gap-3">
           <ShieldCheck className="mt-1 h-4 w-4 shrink-0" aria-hidden="true" />
@@ -429,7 +429,10 @@ export const UserManagementWorkspace = ({
                 const count = users.filter((user) => user.role === summary.role).length
 
                 return (
-                  <div className="rounded-lg border border-border p-3" key={summary.role}>
+                  <div
+                    className="rounded-sm border border-border bg-surface-subtle p-3"
+                    key={summary.role}
+                  >
                     <div className="flex items-start justify-between gap-3">
                       <p className="text-sm font-semibold leading-5 text-foreground">
                         {getPrototypeRoleDisplayName(summary.role)}
@@ -498,7 +501,7 @@ export const UserManagementWorkspace = ({
                 navigation, and any real account remain unchanged.
               </DialogDescription>
             </DialogHeader>
-            <div className="rounded-lg border border-warning/30 bg-warning/10 p-3 text-sm leading-6 text-warning">
+            <div className="rounded-sm border border-warning/30 bg-warning-subtle p-3 text-sm leading-6 text-warning">
               No sign-in account or access rule will be changed.
             </div>
             <DialogFooter>
@@ -530,7 +533,7 @@ const AccountMetric = ({
       <p className="text-sm text-muted-foreground">{label}</p>
       <p className="mt-1 text-2xl font-semibold text-foreground">{value}</p>
     </div>
-    <span className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10 text-primary">
+    <span className="flex h-10 w-10 items-center justify-center rounded-sm bg-primary-subtle text-primary">
       <Icon className="h-5 w-5" aria-hidden="true" />
     </span>
   </div>
@@ -553,7 +556,7 @@ const UserAccountRow = ({
 }) => (
   <li className="flex flex-col gap-4 p-4 sm:flex-row sm:items-center sm:justify-between">
     <div className="flex min-w-0 items-start gap-3">
-      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary/10 text-sm font-semibold text-primary">
+      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary-subtle text-sm font-semibold text-primary">
         {getUserInitials(user.name)}
       </div>
       <div className="min-w-0">
@@ -724,13 +727,13 @@ const UserEditorDialog = ({
                 Saving updates the browser-local scoped preview for this role.
               </p>
               {projects.length > 0 ? (
-                <div className="grid gap-2 rounded-lg border border-border p-3">
+                <div className="grid gap-2 rounded-sm border border-border bg-surface-subtle p-3">
                   {projects.map((project) => {
                     const checked = editor.projectIds.includes(project.id)
 
                     return (
                       <label
-                        className="flex cursor-pointer items-start gap-3 rounded-md p-2 hover:bg-muted/60"
+                        className="flex cursor-pointer items-start gap-3 rounded-sm p-2 hover:bg-background"
                         key={project.id}
                       >
                         <input
@@ -760,13 +763,13 @@ const UserEditorDialog = ({
                   })}
                 </div>
               ) : (
-                <p className="rounded-lg border border-warning/30 bg-warning/10 p-3 text-sm text-warning">
+                <p className="rounded-sm border border-warning/30 bg-warning-subtle p-3 text-sm text-warning">
                   No permitted projects are available for this role assignment.
                 </p>
               )}
             </fieldset>
           ) : (
-            <div className="rounded-lg border border-border bg-muted/40 p-3 text-sm leading-6 text-muted-foreground">
+            <div className="rounded-sm border border-border bg-surface-subtle p-3 text-sm leading-6 text-muted-foreground">
               {getPrototypeRoleDisplayName(editor.role)} uses its fixed organization or portfolio
               scope and does not receive individual project assignments.
             </div>
@@ -802,8 +805,8 @@ const UserDetailDialog = ({ onClose, user }: { onClose: () => void; user?: UserR
             Review account information without opening an editing workflow.
           </DialogDescription>
         </DialogHeader>
-        <div className="flex items-start gap-3 rounded-lg border border-border p-4">
-          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-primary/10 font-semibold text-primary">
+        <div className="flex items-start gap-3 rounded-sm border border-border bg-surface-subtle p-4">
+          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-primary-subtle font-semibold text-primary">
             {getUserInitials(user.name)}
           </div>
           <div className="min-w-0">
@@ -857,8 +860,8 @@ const DetailItem = ({
   label: string
   value: string
 }) => (
-  <div className="rounded-lg border border-border p-3">
-    <dt className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+  <div className="rounded-sm border border-border bg-surface-subtle p-3">
+    <dt className="flex items-center gap-2 text-sm font-semibold text-muted-foreground">
       <Icon className="h-3.5 w-3.5" aria-hidden="true" />
       {label}
     </dt>

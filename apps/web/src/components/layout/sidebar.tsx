@@ -3,10 +3,9 @@
 import { ShieldCheck } from 'lucide-react'
 import { usePathname } from 'next/navigation'
 
-import { APP_NAME } from '@pathways/shared'
-
 import { PrototypeRoleSwitcher } from '@/components/layout/prototype-role-switcher'
 import { SidebarNavItem } from '@/components/layout/sidebar-nav-item'
+import { BrandMark } from '@/components/pathways'
 import { createDashboardNavGroups } from '@/constants/navigation'
 import { usePrototypeRole } from '@/hooks/use-prototype-role'
 import { useSession } from '@/hooks/use-session'
@@ -34,25 +33,22 @@ export const Sidebar = ({
   return (
     <aside
       className={cn(
-        'flex h-full flex-col overflow-y-auto bg-[linear-gradient(180deg,#0a3d73_0%,#075a9c_48%,#082f5f_100%)] text-white',
+        'flex h-full flex-col overflow-y-auto bg-navy text-navy-foreground',
         compact ? 'w-[86px]' : 'w-[292px]',
       )}
     >
       <div className={cn('border-b border-white/10 p-5', compact && 'px-3')}>
         <div className={cn('flex items-center gap-3', compact && 'justify-center')}>
-          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-white text-lg font-bold text-[#075a9c] shadow-sm">
-            P
-          </div>
+          <BrandMark className="h-11 w-11 brightness-0 invert" priority />
           {!compact ? (
             <div className="min-w-0">
-              <p className="text-xs font-semibold uppercase text-blue-100">PATHWAYS</p>
-              <p className="truncate text-xl font-semibold tracking-tight">{APP_NAME}</p>
-              <p className="mt-1 text-xs leading-4 text-blue-50/70">
+              <p className="truncate font-heading text-xl font-normal tracking-normal">PATHWAYS</p>
+              <p className="mt-1 text-[13px] leading-5 text-navy-muted">
                 Project Information Management
               </p>
             </div>
           ) : (
-            <span className="sr-only">{APP_NAME}</span>
+            <span className="sr-only">PATHWAYS Project Information Management</span>
           )}
         </div>
       </div>
@@ -60,7 +56,7 @@ export const Sidebar = ({
         {visibleNavGroups.map((group) => (
           <div key={group.id} className="space-y-2">
             {!compact ? (
-              <p className="px-3 text-[0.68rem] font-semibold uppercase text-blue-100/80">
+              <p className="px-3 text-xs font-semibold uppercase tracking-[0.04em] text-navy-muted">
                 {group.label}
               </p>
             ) : null}
@@ -84,15 +80,15 @@ export const Sidebar = ({
       </nav>
       <div className={cn('space-y-3 border-t border-white/10 p-4', compact && 'px-3')}>
         <PrototypeRoleSwitcher compact={compact} />
-        <div className="rounded-lg border border-white/20 bg-slate-950/20 p-3">
+        <div className="border-t border-white/10 px-3 pt-3">
           <div className={cn('flex items-start gap-3', compact && 'justify-center')}>
-            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-white/10">
-              <ShieldCheck className="h-4 w-4 text-blue-100" aria-hidden="true" />
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-sm border border-white/15">
+              <ShieldCheck className="h-4 w-4 text-navy-muted" aria-hidden="true" />
             </div>
             {!compact ? (
               <div className="min-w-0">
                 <p className="truncate text-sm font-medium">{email ?? 'Prototype user'}</p>
-                <p className="mt-1 text-xs leading-4 text-blue-50/70">{roleLabel}</p>
+                <p className="mt-1 text-[13px] leading-[18px] text-navy-muted">{roleLabel}</p>
               </div>
             ) : (
               <span className="sr-only">{email ?? 'Prototype user'}</span>

@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button'
 import { Sheet } from '@/components/ui/sheet'
 import type { Activity, Indicator } from '@/types/pathways'
 
+import { ActivityStatusControl } from './activity-status-control'
 import { activityStatusTone, formatCurrency, formatDate } from './activity-utils'
 
 const indicatorLabel = (indicatorIds: string[], indicators: Indicator[]) =>
@@ -31,8 +32,10 @@ export const ActivityDetailContent = ({
   activity,
   indicators,
   onEdit,
+  onStatusChanged,
   onSubmitProof,
   canEdit,
+  canChangeStatus,
   canReview,
   canSubmitProof,
 }: {
@@ -41,12 +44,22 @@ export const ActivityDetailContent = ({
   onEdit: (activity: Activity) => void
   onSubmitProof: (activity: Activity) => void
   canEdit: boolean
+  canChangeStatus: boolean
   canReview: boolean
   canSubmitProof: boolean
+  onStatusChanged: (activity: Activity) => void
 }) => (
   <div className="space-y-5">
     <div className="flex flex-wrap gap-2">
-      <StatusBadge tone={activityStatusTone(activity.status)}>{activity.status}</StatusBadge>
+      {canChangeStatus ? (
+        <ActivityStatusControl
+          activity={activity}
+          controlId={`activity-status-detail-${activity.id}`}
+          onUpdated={onStatusChanged}
+        />
+      ) : (
+        <StatusBadge tone={activityStatusTone(activity.status)}>{activity.status}</StatusBadge>
+      )}
       <StatusBadge tone="info">Prototype activity</StatusBadge>
     </div>
     <p className="text-sm leading-6 text-muted-foreground">{activity.description}</p>
@@ -95,7 +108,7 @@ export const ActivityDetailContent = ({
         <dd className="mt-1 font-medium text-foreground">{activity.journeyStageId}</dd>
       </div>
     </dl>
-    <div className="rounded-lg border border-border bg-background p-4">
+    <div className="rounded-sm border border-border bg-surface-subtle p-4">
       <div className="flex items-start gap-3">
         <FileText className="mt-0.5 h-4 w-4 shrink-0 text-primary" aria-hidden="true" />
         <div>
@@ -106,7 +119,7 @@ export const ActivityDetailContent = ({
       {activity.submittedProof.length > 0 ? (
         <ul className="mt-3 space-y-2 text-sm text-muted-foreground">
           {activity.submittedProof.map((proof) => (
-            <li key={proof.id} className="break-all rounded-md bg-muted/50 px-3 py-2">
+            <li key={proof.id} className="break-all rounded-sm bg-background px-3 py-2">
               {proof.fileName} - {proof.status}
             </li>
           ))}
@@ -114,11 +127,11 @@ export const ActivityDetailContent = ({
       ) : null}
     </div>
     {activity.updateNotes.length > 0 ? (
-      <div className="rounded-lg border border-border bg-background p-4">
+      <div className="rounded-sm border border-border bg-surface-subtle p-4">
         <p className="text-sm font-medium text-foreground">Update history</p>
         <ul className="mt-3 space-y-2 text-sm text-muted-foreground">
           {activity.updateNotes.map((update) => (
-            <li key={update.id} className="rounded-md bg-muted/50 px-3 py-2">
+            <li key={update.id} className="rounded-sm bg-background px-3 py-2">
               {update.progress}% - {update.note}
             </li>
           ))}
@@ -178,8 +191,10 @@ export const ActivityDetailPanel = ({
   open,
   onEdit,
   onOpenChange,
+  onStatusChanged,
   onSubmitProof,
   canEdit,
+  canChangeStatus,
   canReview,
   canSubmitProof,
 }: {
@@ -190,20 +205,24 @@ export const ActivityDetailPanel = ({
   onOpenChange: (open: boolean) => void
   onSubmitProof: (activity: Activity) => void
   canEdit: boolean
+  canChangeStatus: boolean
   canReview: boolean
   canSubmitProof: boolean
+  onStatusChanged: (activity: Activity) => void
 }) => (
   <Sheet onOpenChange={onOpenChange} open={open}>
     {activity ? (
       <SidePanel title={activity.title} description={`${activity.status} activity detail`}>
         <ActivityDetailContent
           activity={activity}
+          canChangeStatus={canChangeStatus}
           canEdit={canEdit}
           canReview={canReview}
           canSubmitProof={canSubmitProof}
           indicators={indicators}
           onEdit={onEdit}
           onSubmitProof={onSubmitProof}
+          onStatusChanged={onStatusChanged}
         />
       </SidePanel>
     ) : null}

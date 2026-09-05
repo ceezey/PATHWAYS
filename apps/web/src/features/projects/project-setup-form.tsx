@@ -4,7 +4,7 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { ArrowLeft, Loader2, Save } from 'lucide-react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { toast } from 'sonner'
 
@@ -14,7 +14,6 @@ import { Button } from '@/components/ui/button'
 import {
   Form,
   FormControl,
-  FormDescription,
   FormField,
   FormItem,
   FormLabel,
@@ -29,9 +28,14 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { pathwaysClient } from '@/lib/services/mock-pathways-client'
-import type { ProjectStatus } from '@/types/pathways'
+import type { ProjectStatus, UserRecord } from '@/types/pathways'
 
-import { type ProjectSetupSchema, projectSetupSchema } from './project-form-validation'
+import {
+  type ProjectSetupSchema,
+  projectSetupSchema,
+  toCreateProjectInput,
+} from './project-form-validation'
+import { ProjectTeamSelectors, validateProjectTeamSelections } from './project-team-selectors'
 
 const projectStatuses: ProjectStatus[] = ['Active', 'Needs Attention', 'Planned', 'Completed']
 const projectDraftStorageKey = 'pathways.projectSetupDraft'
@@ -44,9 +48,9 @@ const projectDefaultValues: ProjectSetupSchema = {
   status: 'Planned',
   budgetCode: '',
   description: '',
-  programManager: 'Program Manager A',
-  projectManager: 'Project Manager A',
-  monitoringOfficer: 'Monitoring and Evaluation Officer A',
+  programManager: '',
+  projectManager: '',
+  monitoringOfficer: '',
   projectOfficers: '',
 }
 
@@ -54,10 +58,36 @@ export const ProjectSetupForm = () => {
   const router = useRouter()
   const [draftHydrated, setDraftHydrated] = useState(false)
   const [draftRecovered, setDraftRecovered] = useState(false)
+  const [teamUsers, setTeamUsers] = useState<UserRecord[]>([])
+  const [teamDirectoryStatus, setTeamDirectoryStatus] = useState<'loading' | 'ready' | 'error'>(
+    'loading',
+  )
+  const teamDirectoryRequested = useRef(false)
   const form = useForm<ProjectSetupSchema>({
     resolver: zodResolver(projectSetupSchema),
     defaultValues: projectDefaultValues,
   })
+
+  const loadTeamDirectory = useCallback(async () => {
+    setTeamDirectoryStatus('loading')
+
+    try {
+      const users = await pathwaysClient.getUsers()
+      setTeamUsers(users)
+      setTeamDirectoryStatus('ready')
+    } catch {
+      setTeamDirectoryStatus('error')
+    }
+  }, [])
+
+  useEffect(() => {
+    if (teamDirectoryRequested.current) {
+      return
+    }
+
+    teamDirectoryRequested.current = true
+    void loadTeamDirectory()
+  }, [loadTeamDirectory])
 
   useEffect(() => {
     try {
@@ -105,19 +135,43 @@ export const ProjectSetupForm = () => {
   }, [draftHydrated, form])
 
   const onSubmit = async (values: ProjectSetupSchema) => {
+    if (teamDirectoryStatus !== 'ready') {
+      form.setError('programManager', {
+        message: 'Load the team directory before selecting project members.',
+        type: 'teamDirectory',
+      })
+      form.setFocus('programManager')
+      return
+    }
+
+    const teamErrors = validateProjectTeamSelections(values, teamUsers)
+    const teamFields = [
+      'programManager',
+      'projectManager',
+      'monitoringOfficer',
+      'projectOfficers',
+    ] as const
+
+    for (const fieldName of teamFields) {
+      const message = teamErrors[fieldName]
+      if (message) {
+        form.setError(fieldName, { message, type: 'teamEligibility' })
+      }
+    }
+
+    const firstInvalidTeamField = teamFields.find((fieldName) => teamErrors[fieldName])
+    if (firstInvalidTeamField) {
+      form.setFocus(firstInvalidTeamField)
+      return
+    }
+
     // TODO(BACKEND): Submit project creation to NestJS projects endpoint.
     // TODO(RBAC): Restrict project creation to authorized roles.
     // TODO(DATABASE): Persist project and project-team relationships.
-    const project = await pathwaysClient.createProject({
-      ...values,
-      projectOfficers: values.projectOfficers
-        .split(',')
-        .map((officer) => officer.trim())
-        .filter(Boolean),
-    })
+    const project = await pathwaysClient.createProject(toCreateProjectInput(values))
 
     toast.success('Prototype project created.', {
-      description: `${project.title} is available during this browser session.`,
+      description: `${project.title} was saved in this browser on this device.`,
     })
     window.sessionStorage.removeItem(projectDraftStorageKey)
     router.push(`/projects/${project.id}`)
@@ -128,7 +182,7 @@ export const ProjectSetupForm = () => {
       <PageHeader
         eyebrow="Project setup"
         title="Create project"
-        description="Create a temporary project record for this browser session."
+        description="Create a temporary project record saved in this browser on this device."
         actions={
           <Button asChild className="gap-2" variant="outline">
             <Link href="/projects">
@@ -142,7 +196,7 @@ export const ProjectSetupForm = () => {
         <output
           aria-atomic="true"
           aria-live="polite"
-          className="mb-4 block rounded-lg border border-info/20 bg-info/10 p-3 text-sm text-info"
+          className="mb-4 block rounded-sm border border-info/25 bg-info-subtle p-3 text-sm text-info"
         >
           Recovered your unsaved project draft from this browser tab.
         </output>
@@ -274,70 +328,24 @@ export const ProjectSetupForm = () => {
                 )}
               />
             </div>
-            <div className="space-y-4 rounded-lg border border-border bg-background p-4">
+            <div className="space-y-4 rounded-sm border border-border bg-surface-subtle p-4">
               <div>
                 <h2 className="text-lg font-semibold text-foreground">Project team</h2>
                 <p className="mt-1 text-sm text-muted-foreground">
                   Names are prototype labels and do not create user accounts.
                 </p>
               </div>
-              <div className="grid gap-5 lg:grid-cols-2">
-                <FormField
-                  control={form.control}
-                  name="programManager"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel required>Program Manager</FormLabel>
-                      <FormControl aria-required="true">
-                        <Input {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="projectManager"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel required>Project Manager</FormLabel>
-                      <FormControl aria-required="true">
-                        <Input {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="monitoringOfficer"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel required>Monitoring and Evaluation Officer</FormLabel>
-                      <FormControl aria-required="true">
-                        <Input {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="projectOfficers"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel required>Project Officers</FormLabel>
-                      <FormControl aria-required="true">
-                        <Input placeholder="Project Officer A, Project Officer B" {...field} />
-                      </FormControl>
-                      <FormDescription>
-                        Separate multiple Project Officers with commas.
-                      </FormDescription>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              </div>
+              <ProjectTeamSelectors
+                control={form.control}
+                loadError={
+                  teamDirectoryStatus === 'error'
+                    ? 'The team directory could not be loaded. Retry before assigning members.'
+                    : null
+                }
+                loading={teamDirectoryStatus === 'loading'}
+                onRetry={() => void loadTeamDirectory()}
+                users={teamUsers}
+              />
             </div>
             <div className="flex justify-end">
               <Button className="gap-2" disabled={form.formState.isSubmitting} type="submit">

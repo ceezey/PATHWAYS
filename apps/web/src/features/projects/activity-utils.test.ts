@@ -1,6 +1,13 @@
 import { describe, expect, it } from 'vitest'
 
-import { activityDueLabel, activityNextStep, activityProgressTone } from './activity-utils'
+import { mockActivities } from '@/mocks/pathways/activities'
+
+import {
+  activityDueLabel,
+  activityNextStep,
+  activityProgressTone,
+  buildActivityStatusUpdate,
+} from './activity-utils'
 
 describe('activity card presentation helpers', () => {
   it('provides a clear next step for every activity status', () => {
@@ -21,5 +28,33 @@ describe('activity card presentation helpers', () => {
   it('makes overdue dates explicit without changing normal due dates', () => {
     expect(activityDueLabel('Overdue', '2026-06-15')).toBe('Overdue since Jun 15, 2026')
     expect(activityDueLabel('In Progress', '2026-08-30')).toBe('Due Aug 30, 2026')
+  })
+
+  it('builds a one-record status update without changing related activity fields', () => {
+    const activity = mockActivities[1]
+    if (!activity) {
+      throw new Error('Expected activity fixture.')
+    }
+
+    const update = buildActivityStatusUpdate(activity, 'Completed')
+
+    expect(update).toEqual({
+      assignedTo: activity.assignedTo,
+      beneficiariesReached: activity.beneficiariesReached,
+      budgetAllocation: activity.budgetAllocation,
+      budgetLogged: activity.budgetLogged,
+      description: activity.description,
+      dueDate: activity.dueDate,
+      id: activity.id,
+      indicatorIds: activity.indicatorIds,
+      journeyStageId: activity.journeyStageId,
+      progress: activity.progress,
+      projectId: activity.projectId,
+      startDate: activity.startDate,
+      status: 'Completed',
+      targetBeneficiaries: activity.targetBeneficiaries,
+      title: activity.title,
+    })
+    expect(activity.status).toBe('In Progress')
   })
 })

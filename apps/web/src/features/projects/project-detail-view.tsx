@@ -165,21 +165,21 @@ export const ProjectDetailView = ({ projectId }: { projectId: string }) => {
         >
           <div className="space-y-5">
             <div className="grid gap-4 sm:grid-cols-3">
-              <div className="rounded-lg border border-border bg-background p-4">
+              <div className="rounded-sm border border-border bg-surface-subtle p-4">
                 <p className="text-sm text-muted-foreground">KPI achievement</p>
-                <p className="mt-2 text-2xl font-semibold text-foreground">
+                <p className="mt-2 text-2xl font-semibold tabular-nums text-foreground">
                   {project.kpiAchievement}%
                 </p>
               </div>
-              <div className="rounded-lg border border-border bg-background p-4">
+              <div className="rounded-sm border border-border bg-surface-subtle p-4">
                 <p className="text-sm text-muted-foreground">Beneficiaries reached</p>
-                <p className="mt-2 text-2xl font-semibold text-foreground">
+                <p className="mt-2 text-2xl font-semibold tabular-nums text-foreground">
                   {formatNumber(project.beneficiariesReached)}
                 </p>
               </div>
-              <div className="rounded-lg border border-border bg-background p-4">
+              <div className="rounded-sm border border-border bg-surface-subtle p-4">
                 <p className="text-sm text-muted-foreground">Budget utilization</p>
-                <p className="mt-2 text-2xl font-semibold text-foreground">
+                <p className="mt-2 text-2xl font-semibold tabular-nums text-foreground">
                   {project.budgetUtilization}%
                 </p>
               </div>
@@ -202,7 +202,7 @@ export const ProjectDetailView = ({ projectId }: { projectId: string }) => {
                 }
               />
             </div>
-            <div className="rounded-lg border border-border bg-muted/40 p-4 text-sm leading-6 text-muted-foreground">
+            <div className="rounded-sm border border-border bg-surface-subtle p-4 text-sm leading-6 text-muted-foreground">
               {projectHealthSignal(project)}
             </div>
           </div>

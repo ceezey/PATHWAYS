@@ -196,7 +196,7 @@ export const AnalyticsDashboard = ({
         title={labels.moduleAnalytics}
       />
 
-      <section className="grid gap-3 rounded-lg border border-border bg-card p-5 shadow-sm md:grid-cols-2 xl:grid-cols-[1fr_240px_240px]">
+      <section className="grid gap-3 rounded-lg border border-border bg-card p-5 md:grid-cols-2 xl:grid-cols-[1fr_240px_240px]">
         <div className="space-y-2">
           <span className="text-sm font-medium">Project filter</span>
           <Select
@@ -229,13 +229,13 @@ export const AnalyticsDashboard = ({
             </SelectContent>
           </Select>
         </div>
-        <div className="rounded-lg border border-info/20 bg-info/10 p-3 text-sm leading-6 text-info">
+        <div className="rounded-sm border border-info/25 bg-info-subtle p-3 text-sm leading-6 text-info">
           {humanReviewDisclaimer}
         </div>
       </section>
 
       {loading ? (
-        <section className="rounded-lg border border-border bg-card p-8 shadow-sm">
+        <section className="rounded-lg border border-border bg-card p-8">
           <div className="grid gap-4 md:grid-cols-3">
             {loadingKeys.map((key) => (
               <div key={key} className="h-28 animate-pulse rounded-lg bg-muted" />
@@ -342,7 +342,7 @@ export const AnalyticsDashboard = ({
 }
 
 const ChartPanel = ({ title, children }: { title: string; children: React.ReactNode }) => (
-  <section className="rounded-lg border border-border bg-card p-5 shadow-sm">
+  <section className="overflow-hidden rounded-lg border border-border bg-card p-5">
     <h2 className="text-lg font-semibold text-foreground">{title}</h2>
     <div className="mt-4">{children}</div>
   </section>

@@ -161,7 +161,7 @@ export const BeneficiaryDetail = ({
 
   return (
     <div className="space-y-6">
-      <section className="flex flex-col gap-4 rounded-lg border border-border bg-card p-5 shadow-sm lg:flex-row lg:items-start lg:justify-between">
+      <section className="flex flex-col gap-4 rounded-lg border border-border bg-card p-5 lg:flex-row lg:items-start lg:justify-between">
         <div className="space-y-3">
           <div className="flex flex-wrap gap-2">
             <StatusBadge tone={enrollmentTone(enrollmentStatus)}>{enrollmentStatus}</StatusBadge>
@@ -200,7 +200,7 @@ export const BeneficiaryDetail = ({
       </section>
 
       <div className="grid gap-6 xl:grid-cols-[360px_minmax(0,1fr)]">
-        <aside className="space-y-4 rounded-lg border border-border bg-card p-5 shadow-sm">
+        <aside className="space-y-4 rounded-lg border border-border bg-card p-5">
           <h2 className="text-lg font-semibold text-foreground">Profile summary</h2>
           <div className="grid gap-3 text-sm">
             <SummaryRow label="Beneficiary code" value={beneficiary.code} />
@@ -226,7 +226,7 @@ export const BeneficiaryDetail = ({
               }
             />
           </div>
-          <div className="rounded-lg border border-border bg-background p-4">
+          <div className="rounded-sm border border-border bg-surface-subtle p-4">
             <p className="text-xs uppercase text-muted-foreground">Project enrollment</p>
             {beneficiary.enrollments.map((enrollment) => (
               <div key={enrollment.id} className="mt-3 space-y-2">
@@ -248,7 +248,7 @@ export const BeneficiaryDetail = ({
         </aside>
 
         <div className="space-y-6">
-          <section className="rounded-lg border border-border bg-card p-5 shadow-sm">
+          <section className="rounded-lg border border-border bg-card p-5">
             <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
               <div>
                 <h2 className="text-lg font-semibold text-foreground">Journey timeline</h2>
@@ -257,7 +257,7 @@ export const BeneficiaryDetail = ({
                   activity-to-stage mappings.
                 </p>
               </div>
-              <div className="rounded-lg border border-border bg-background p-3 text-sm">
+              <div className="rounded-sm border border-border bg-surface-subtle p-3 text-sm">
                 <p className="text-muted-foreground">Current computed stage</p>
                 <p className="mt-1 font-semibold text-foreground">
                   {currentStage?.code} · {currentStage?.name}
@@ -281,12 +281,12 @@ export const BeneficiaryDetail = ({
                   return (
                     <div
                       key={stage.id}
-                      className={`rounded-lg border p-4 ${
+                      className={`rounded-sm border p-4 ${
                         active
-                          ? 'border-primary bg-primary/10'
+                          ? 'border-primary bg-primary-subtle'
                           : reached
-                            ? 'border-success/30 bg-success/10'
-                            : 'border-border bg-background'
+                            ? 'border-success/30 bg-success-subtle'
+                            : 'border-border bg-surface-subtle'
                       }`}
                     >
                       <div className="flex items-start justify-between gap-3">
@@ -300,14 +300,14 @@ export const BeneficiaryDetail = ({
                   )
                 })}
             </div>
-            <p className="mt-4 rounded-lg border border-info/20 bg-info/10 p-3 text-sm leading-6 text-info">
+            <p className="mt-4 rounded-sm border border-info/25 bg-info-subtle p-3 text-sm leading-6 text-info">
               Follow-up stages are open-ended and reviewed by people; they are not strict timeline
               compliance gates.
             </p>
           </section>
 
           <div className="grid gap-6 xl:grid-cols-2">
-            <section className="rounded-lg border border-border bg-card p-5 shadow-sm">
+            <section className="rounded-lg border border-border bg-card p-5">
               <div className="flex items-center justify-between gap-3">
                 <h2 className="text-lg font-semibold text-foreground">Assessments</h2>
                 {beneficiary.assessments.length > 0 ? (
@@ -332,7 +332,7 @@ export const BeneficiaryDetail = ({
                   beneficiary.assessments.map((assessment) => (
                     <button
                       key={assessment.id}
-                      className="w-full rounded-lg border border-border bg-background p-4 text-left transition-colors hover:bg-muted/60"
+                      className="w-full rounded-sm border border-border bg-background p-4 text-left transition-colors hover:bg-surface-subtle"
                       type="button"
                       onClick={() => {
                         setSelectedAssessment(assessment)
@@ -346,16 +346,16 @@ export const BeneficiaryDetail = ({
                     </button>
                   ))
                 ) : (
-                  <p className="rounded-lg border border-border bg-background p-4 text-sm text-muted-foreground">
+                  <p className="rounded-sm border border-border bg-surface-subtle p-4 text-sm text-muted-foreground">
                     No assessment records are available for this sample profile.
                   </p>
                 )}
               </div>
             </section>
 
-            <section className="rounded-lg border border-border bg-card p-5 shadow-sm">
+            <section className="rounded-lg border border-border bg-card p-5">
               <h2 className="text-lg font-semibold text-foreground">Follow-up status</h2>
-              <div className="mt-4 rounded-lg border border-border bg-background p-4">
+              <div className="mt-4 rounded-sm border border-border bg-surface-subtle p-4">
                 <p className="font-medium text-foreground">
                   {latestEnrollment?.followUpStatus ?? 'Not due'}
                 </p>
@@ -456,7 +456,7 @@ export const BeneficiaryDetail = ({
           </DialogHeader>
           {selectedAssessment ? (
             <div className="space-y-4">
-              <div className="rounded-lg border border-border bg-background p-4">
+              <div className="rounded-sm border border-border bg-surface-subtle p-4">
                 <p className="text-sm text-muted-foreground">Score</p>
                 <p className="mt-1 text-3xl font-semibold text-foreground">
                   {selectedAssessment.score}%
@@ -464,7 +464,7 @@ export const BeneficiaryDetail = ({
               </div>
               <SummaryRow label="Source" value={selectedAssessment.source} />
               <SummaryRow label="Reviewed date" value={formatDate(selectedAssessment.assessedAt)} />
-              <p className="rounded-lg border border-border bg-muted/40 p-4 text-sm leading-6">
+              <p className="rounded-sm border border-border bg-surface-subtle p-4 text-sm leading-6">
                 {selectedAssessment.note}
               </p>
             </div>
@@ -590,7 +590,7 @@ export const BeneficiaryDetail = ({
 }
 
 const SummaryRow = ({ label, value }: { label: string; value?: string }) => (
-  <div className="rounded-lg border border-border bg-background p-3">
+  <div className="rounded-sm border border-border bg-surface-subtle p-3">
     <p className="text-xs uppercase text-muted-foreground">{label}</p>
     <p className="mt-1 font-medium text-foreground">{value || 'Not recorded'}</p>
   </div>
@@ -607,7 +607,7 @@ const RecordList = ({
   stages: JourneyStageConfig[]
   title: string
 }) => (
-  <section className="rounded-lg border border-border bg-card p-5 shadow-sm">
+  <section className="rounded-lg border border-border bg-card p-5">
     <h2 className="text-lg font-semibold text-foreground">{title}</h2>
     <div className="mt-4 space-y-3">
       {participation.length > 0 ? (
@@ -619,7 +619,10 @@ const RecordList = ({
             const stage = stageForActivity(record.activityId, stages, activities)
 
             return (
-              <div key={record.id} className="rounded-lg border border-border bg-background p-4">
+              <div
+                key={record.id}
+                className="rounded-sm border border-border bg-surface-subtle p-4"
+              >
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div>
                     <p className="font-medium text-foreground">
@@ -638,7 +641,7 @@ const RecordList = ({
             )
           })
       ) : (
-        <p className="rounded-lg border border-border bg-background p-4 text-sm text-muted-foreground">
+        <p className="rounded-sm border border-border bg-surface-subtle p-4 text-sm text-muted-foreground">
           No participation history in this coded mock profile.
         </p>
       )}
@@ -650,7 +653,7 @@ const NoteList = ({
   notes,
   stages,
 }: { notes: BeneficiaryNoteRecord[]; stages: JourneyStageConfig[] }) => (
-  <section className="rounded-lg border border-border bg-card p-5 shadow-sm">
+  <section className="rounded-lg border border-border bg-card p-5">
     <h2 className="text-lg font-semibold text-foreground">Notes</h2>
     <div className="mt-4 space-y-3">
       {notes.length > 0 ? (
@@ -658,7 +661,7 @@ const NoteList = ({
           const stage = stages.find((item) => item.id === note.stageId)
 
           return (
-            <div key={note.id} className="rounded-lg border border-border bg-background p-4">
+            <div key={note.id} className="rounded-sm border border-border bg-surface-subtle p-4">
               <div className="flex flex-wrap items-center gap-2">
                 <StatusBadge tone="neutral">{note.visibility}</StatusBadge>
                 {stage ? (
@@ -673,7 +676,7 @@ const NoteList = ({
           )
         })
       ) : (
-        <p className="rounded-lg border border-border bg-background p-4 text-sm text-muted-foreground">
+        <p className="rounded-sm border border-border bg-surface-subtle p-4 text-sm text-muted-foreground">
           No notes have been added for this mock profile.
         </p>
       )}

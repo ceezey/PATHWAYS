@@ -25,7 +25,7 @@ export const FilterChoiceGroup = ({
     <div
       aria-label={label}
       className={cn(
-        'inline-flex h-auto items-center justify-center rounded-md bg-muted p-1 text-muted-foreground',
+        'inline-flex h-auto items-center justify-center rounded-md border border-border bg-card p-1 text-muted-foreground',
         className,
       )}
       role="radiogroup"
@@ -40,7 +40,7 @@ export const FilterChoiceGroup = ({
             type="radio"
             value={option}
           />
-          <span className="inline-flex items-center justify-center whitespace-nowrap rounded-sm px-3 py-1.5 text-sm font-medium transition-all peer-checked:bg-background peer-checked:text-foreground peer-checked:shadow-sm peer-focus-visible:outline-none peer-focus-visible:ring-2 peer-focus-visible:ring-ring">
+          <span className="inline-flex min-h-10 items-center justify-center whitespace-nowrap rounded-sm px-3 py-2 text-sm font-medium transition-[background-color,color,box-shadow] duration-150 peer-checked:bg-primary-subtle peer-checked:text-light-blue-foreground peer-focus-visible:outline-none peer-focus-visible:ring-2 peer-focus-visible:ring-ring peer-focus-visible:ring-offset-2">
             {option}
           </span>
         </label>

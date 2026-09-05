@@ -223,9 +223,9 @@ export const BeneficiaryMediaProof = ({
   return (
     <section
       aria-labelledby="beneficiary-media-title"
-      className="overflow-hidden rounded-lg border border-border bg-card shadow-sm"
+      className="overflow-hidden rounded-lg border border-border bg-card"
     >
-      <div className="border-b border-border bg-muted/30 p-5">
+      <div className="border-b border-border bg-surface-subtle p-5">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
           <div className="space-y-2">
             <div className="flex flex-wrap items-center gap-2">
@@ -237,7 +237,7 @@ export const BeneficiaryMediaProof = ({
             <h2 className="text-xl font-semibold text-foreground" id="beneficiary-media-title">
               Media proof
             </h2>
-            <p className="max-w-3xl text-sm leading-6 text-muted-foreground">
+            <p className="max-w-3xl text-base leading-6 text-muted-foreground">
               Review photos and videos connected to this Beneficiary record. Mock items and local
               previews remain private to the internal prototype.
             </p>
@@ -247,7 +247,7 @@ export const BeneficiaryMediaProof = ({
             Add local media
           </Button>
         </div>
-        <div className="mt-4 flex items-start gap-3 rounded-lg border border-info/20 bg-info/10 p-3 text-xs leading-5 text-info">
+        <div className="mt-4 flex items-start gap-3 rounded-sm border border-info/25 bg-info-subtle p-3 text-xs leading-5 text-info">
           <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
           <p>
             Prototype only: files selected here are previewed locally and are not uploaded, synced,
@@ -333,7 +333,7 @@ export const BeneficiaryMediaProof = ({
             </div>
 
             {selectedFiles.length > 0 ? (
-              <div className="space-y-2 rounded-lg border border-border bg-background p-3">
+              <div className="space-y-2 rounded-sm border border-border bg-surface-subtle p-3">
                 <p className="text-sm font-medium text-foreground">Selected local files</p>
                 {selectedFiles.map((file) => (
                   <div
@@ -508,7 +508,7 @@ const MediaProofCard = ({
   return (
     <article
       aria-label={`Media proof: ${item.fileName}`}
-      className="flex min-w-0 flex-col overflow-hidden rounded-lg border border-border bg-background"
+      className="flex min-w-0 flex-col overflow-hidden rounded-sm border border-border bg-background"
     >
       <MediaPreview item={item} />
       <div className="flex flex-1 flex-col p-4">
@@ -533,7 +533,7 @@ const MediaProofCard = ({
           <div className="mt-3 flex flex-wrap gap-1.5">
             {item.tags.map((tag) => (
               <span
-                className="rounded-full border border-border bg-muted/40 px-2 py-1 text-[11px] font-medium text-muted-foreground"
+                className="rounded-full border border-border bg-muted/40 px-2 py-1 text-xs font-medium text-muted-foreground"
                 key={tag}
               >
                 {tag}
@@ -611,9 +611,8 @@ const MediaPreview = ({
 
   return (
     <div
-      className={`${previewClassName} relative flex items-center justify-center overflow-hidden bg-[linear-gradient(135deg,#0f766e,#1d4ed8)] text-white`}
+      className={`${previewClassName} relative flex items-center justify-center overflow-hidden bg-navy text-navy-foreground`}
     >
-      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(255,255,255,0.28),transparent_42%)]" />
       <div className="relative flex flex-col items-center gap-3 text-center">
         {item.mediaType === 'Video' ? (
           <span className="flex h-14 w-14 items-center justify-center rounded-full border border-white/30 bg-slate-950/35">
@@ -627,7 +626,7 @@ const MediaPreview = ({
           <p className="mt-1 text-xs text-white/80">Mock media · no remote file loaded</p>
         </div>
       </div>
-      <span className="absolute left-3 top-3 rounded-full border border-white/30 bg-slate-950/30 px-2 py-1 text-[10px] font-semibold uppercase tracking-wide">
+      <span className="absolute left-3 top-3 rounded-full border border-white/30 bg-slate-950/30 px-2 py-1 text-xs font-semibold uppercase tracking-wide">
         Mock proof
       </span>
     </div>
@@ -648,14 +647,14 @@ const MediaKpi = ({
       <p className="text-sm font-medium text-muted-foreground">{label}</p>
       <p className="mt-1 text-2xl font-semibold text-foreground">{value}</p>
     </div>
-    <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10 text-primary">
+    <span className="flex h-9 w-9 items-center justify-center rounded-sm bg-primary-subtle text-primary">
       <Icon className="h-4 w-4" aria-hidden="true" />
     </span>
   </article>
 )
 
 const MetadataRow = ({ label, value }: { label: string; value: string }) => (
-  <div className="rounded-lg border border-border bg-background p-3">
+  <div className="rounded-sm border border-border bg-surface-subtle p-3">
     <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{label}</p>
     <p className="mt-1 break-words text-sm font-medium text-foreground">{value}</p>
   </div>

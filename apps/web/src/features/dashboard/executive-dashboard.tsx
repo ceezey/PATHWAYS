@@ -36,11 +36,11 @@ const statusTone = (status: ExecutiveDashboardContext['deliveryStatus']) => {
 }
 
 const riskToneClasses: Record<DashboardSeverity, string> = {
-  neutral: 'border-border bg-muted/40 text-foreground',
-  info: 'border-info/20 bg-info/10 text-info',
-  success: 'border-success/20 bg-success/10 text-success',
-  warning: 'border-warning/30 bg-warning/10 text-warning',
-  danger: 'border-danger/20 bg-danger/10 text-danger',
+  neutral: 'border-border bg-surface-subtle text-foreground',
+  info: 'border-info/20 bg-info-subtle text-info',
+  success: 'border-success/20 bg-success-subtle text-success',
+  warning: 'border-warning/30 bg-warning-subtle text-warning',
+  danger: 'border-danger/20 bg-danger-subtle text-danger',
 }
 
 export const ExecutiveDashboard = ({
@@ -65,9 +65,9 @@ export const ExecutiveDashboard = ({
     <div className="space-y-5">
       <section
         aria-labelledby="executive-summary-title"
-        className="overflow-hidden rounded-lg border border-border bg-card shadow-sm"
+        className="overflow-hidden rounded-lg border border-border border-t-2 border-t-primary bg-card"
       >
-        <div className="border-b border-border bg-muted/30 p-5">
+        <div className="border-b border-border bg-surface-subtle p-5">
           <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
             <div className="min-w-0 space-y-2" aria-live="polite">
               <div className="flex flex-wrap items-center gap-2">
@@ -79,13 +79,13 @@ export const ExecutiveDashboard = ({
                 </StatusBadge>
               </div>
               <h2
-                className="text-2xl font-semibold tracking-tight text-foreground"
+                className="font-heading text-2xl font-normal leading-8 tracking-normal text-foreground"
                 id="executive-summary-title"
               >
                 {context.title}
               </h2>
               <p className="text-sm font-medium text-muted-foreground">{context.scopeLabel}</p>
-              <p className="max-w-3xl text-sm leading-6 text-muted-foreground">
+              <p className="max-w-3xl text-base leading-6 text-muted-foreground">
                 {context.deliverySummary}
               </p>
             </div>
@@ -150,7 +150,9 @@ export const ExecutiveDashboard = ({
         <div className="flex min-w-0 items-start gap-3">
           <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0" aria-hidden="true" />
           <div>
-            <h2 className="font-semibold">{context.riskLabel}</h2>
+            <h2 className="font-heading text-lg font-normal leading-[1.625rem]">
+              {context.riskLabel}
+            </h2>
             <p className="mt-1 text-sm leading-6 opacity-90">{context.riskSummary}</p>
           </div>
         </div>
@@ -186,17 +188,17 @@ const ExecutiveSignal = ({
     <div className="flex items-start justify-between gap-3">
       <div className="min-w-0">
         <p className="text-sm font-medium text-muted-foreground">{label}</p>
-        <p className="mt-2 break-words text-xl font-semibold tracking-tight text-foreground">
+        <p className="mt-2 break-words text-xl font-semibold tracking-tight tabular-nums text-foreground">
           {value}
         </p>
       </div>
       <div
         className={cn(
-          'flex h-9 w-9 shrink-0 items-center justify-center rounded-lg',
-          tone === 'info' && 'bg-info/10 text-info',
-          tone === 'success' && 'bg-success/10 text-success',
-          tone === 'warning' && 'bg-warning/20 text-warning',
-          tone === 'danger' && 'bg-danger/10 text-danger',
+          'flex h-9 w-9 shrink-0 items-center justify-center rounded-sm',
+          tone === 'info' && 'bg-info-subtle text-info',
+          tone === 'success' && 'bg-success-subtle text-success',
+          tone === 'warning' && 'bg-warning-subtle text-warning',
+          tone === 'danger' && 'bg-danger-subtle text-danger',
         )}
       >
         <Icon className="h-4 w-4" aria-hidden="true" />

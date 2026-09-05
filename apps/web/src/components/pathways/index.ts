@@ -1,5 +1,6 @@
 export { DialogShell } from './dialog-shell'
 export { AsyncState } from './async-state'
+export { BrandMark } from './brand-mark'
 export { ConfirmationDialog } from './confirmation-dialog'
 export { EmptyState } from './empty-state'
 export { FilterBar } from './filter-bar'

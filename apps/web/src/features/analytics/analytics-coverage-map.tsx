@@ -42,10 +42,10 @@ const coverageTone = (status: AnalyticsCoverageStatus) => {
 }
 
 const markerToneClasses: Record<AnalyticsCoverageStatus, string> = {
-  Strong: 'border-emerald-200 bg-emerald-600 text-white shadow-emerald-950/20',
-  Growing: 'border-blue-200 bg-blue-600 text-white shadow-blue-950/20',
-  Limited: 'border-amber-200 bg-amber-500 text-slate-950 shadow-amber-950/20',
-  Planned: 'border-slate-300 bg-slate-500 text-white shadow-slate-950/20',
+  Strong: 'border-success/30 bg-success text-success-foreground shadow-sm',
+  Growing: 'border-primary/30 bg-primary text-primary-foreground shadow-sm',
+  Limited: 'border-warning/30 bg-warning text-warning-foreground shadow-sm',
+  Planned: 'border-input bg-muted-foreground text-white shadow-sm',
 }
 
 // Approximate city centroids are deliberately offset within their regional clusters so each
@@ -106,9 +106,9 @@ export const AnalyticsCoverageMap = ({
   return (
     <section
       aria-labelledby="coverage-map-title"
-      className="overflow-hidden rounded-lg border border-border bg-card shadow-sm"
+      className="overflow-hidden rounded-lg border border-border bg-card"
     >
-      <div className="border-b border-border bg-muted/30 p-5">
+      <div className="border-b border-border bg-surface-subtle p-5">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
           <div className="space-y-2">
             <div className="flex flex-wrap items-center gap-2">
@@ -123,11 +123,11 @@ export const AnalyticsCoverageMap = ({
             >
               Project reach by location
             </h2>
-            <p className="max-w-3xl text-sm leading-6 text-muted-foreground">
+            <p className="max-w-3xl text-base leading-6 text-muted-foreground">
               Point to a location for a quick overview, or select it for full details.
             </p>
           </div>
-          <div className="rounded-lg border border-info/20 bg-info/10 p-3 text-xs leading-5 text-info lg:max-w-sm">
+          <div className="rounded-sm border border-info/25 bg-info-subtle p-3 text-sm leading-5 text-info lg:max-w-sm">
             {period} prototype view. Points show approximate city-level locations only. Addresses
             and Beneficiary-level locations are not shown.
           </div>
@@ -182,7 +182,7 @@ const CoverageMapGraphic = ({
   onSelect: (locationId: string) => void
 }) => (
   <div>
-    <div className="relative mx-auto aspect-[4/5] w-full max-w-5xl overflow-visible rounded-xl border border-slate-200 bg-[linear-gradient(160deg,#eff6ff,#ecfeff)] shadow-inner sm:aspect-[16/10]">
+    <div className="relative mx-auto aspect-[4/5] w-full max-w-5xl overflow-visible rounded-sm border border-border bg-surface-subtle sm:aspect-[16/10]">
       <svg
         aria-labelledby="coverage-map-graphic-title coverage-map-graphic-description"
         className="absolute inset-0 h-full w-full"
@@ -197,11 +197,11 @@ const CoverageMapGraphic = ({
         </desc>
         <defs>
           <pattern height="10" id="map-grid" patternUnits="userSpaceOnUse" width="10">
-            <path d="M 10 0 L 0 0 0 10" fill="none" stroke="#cbd5e1" strokeWidth="0.25" />
+            <path d="M 10 0 L 0 0 0 10" fill="none" stroke="#D6DEE6" strokeWidth="0.25" />
           </pattern>
         </defs>
         <rect fill="url(#map-grid)" height="100" width="100" />
-        <g fill="#ffffff" stroke="#94a3b8" strokeLinejoin="round" strokeWidth="0.7">
+        <g fill="#FFFFFF" stroke="#8696A6" strokeLinejoin="round" strokeWidth="0.7">
           <path d="M39 7 48 5 55 11 57 20 53 28 57 35 50 42 43 38 39 30 34 25 36 15Z" />
           <path d="M45 44 50 43 52 49 48 53 44 50Z" />
           <path d="M20 49 25 45 27 53 24 61 20 68 16 74 13 72 16 62Z" />
@@ -213,13 +213,13 @@ const CoverageMapGraphic = ({
           <path d="M69 70 75 69 77 74 72 77 68 75Z" />
           <path d="M61 79 69 75 79 77 88 83 91 91 84 95 74 92 67 96 58 91 55 85Z" />
         </g>
-        <text fill="#64748b" fontSize="3" fontWeight="600" x="35" y="4">
+        <text fill="#526779" fontSize="3" fontWeight="600" x="35" y="4">
           LUZON
         </text>
-        <text fill="#64748b" fontSize="3" fontWeight="600" x="59" y="50">
+        <text fill="#526779" fontSize="3" fontWeight="600" x="59" y="50">
           VISAYAS
         </text>
-        <text fill="#64748b" fontSize="3" fontWeight="600" x="66" y="99">
+        <text fill="#526779" fontSize="3" fontWeight="600" x="66" y="99">
           MINDANAO
         </text>
       </svg>
@@ -240,7 +240,7 @@ const CoverageMapGraphic = ({
             aria-label={`${location.name}: ${formatNumber(location.beneficiariesReached)} Beneficiaries reached, ${location.deliverySites} delivery sites, ${location.coverageStatus} coverage`}
             className={cn(
               'group absolute flex h-11 w-11 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full font-semibold transition-transform hover:z-20 hover:scale-110 focus-visible:z-20 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-white/90 motion-reduce:hover:scale-100',
-              active && 'z-10 ring-4 ring-slate-950/20',
+              active && 'z-10 ring-4 ring-primary/25',
             )}
             key={location.id}
             onClick={() => onSelect(location.id)}
@@ -253,7 +253,7 @@ const CoverageMapGraphic = ({
             <span
               aria-hidden="true"
               className={cn(
-                'flex items-center justify-center rounded-full border-2 text-[10px] shadow-lg',
+                'flex items-center justify-center rounded-full border-2 text-xs shadow-sm',
                 markerToneClasses[location.coverageStatus],
               )}
               style={{ height: markerSize, width: markerSize }}
@@ -262,21 +262,21 @@ const CoverageMapGraphic = ({
             </span>
             <span
               className={cn(
-                'pointer-events-none absolute bottom-full z-30 mb-2 hidden w-48 rounded-lg bg-slate-950 p-2.5 text-left text-white shadow-xl group-hover:block group-focus-visible:block',
+                'pointer-events-none absolute bottom-full z-30 mb-2 hidden w-48 rounded-sm bg-navy p-2.5 text-left text-navy-foreground shadow-popover group-hover:block group-focus-visible:block',
                 tooltipPlacement(position.left),
               )}
               id={tooltipId}
               role="tooltip"
             >
               <span className="block text-xs font-semibold">{location.name}</span>
-              <span className="mt-0.5 block text-[10px] font-normal text-slate-300">
+              <span className="mt-0.5 block text-xs font-normal text-navy-muted">
                 {location.region}
               </span>
-              <span className="mt-2 block text-[11px] font-medium">
+              <span className="mt-2 block text-xs font-medium">
                 {formatNumber(location.beneficiariesReached)} Beneficiaries ·{' '}
                 {location.deliverySites} site{location.deliverySites === 1 ? '' : 's'}
               </span>
-              <span className="mt-0.5 block text-[10px] font-normal text-slate-300">
+              <span className="mt-0.5 block text-xs font-normal text-navy-muted">
                 {location.coverageStatus} coverage · {location.activitiesDelivered} activities
               </span>
             </span>
@@ -295,7 +295,7 @@ const CoverageMapGraphic = ({
         </span>
       ))}
     </div>
-    <p className="mt-2 text-center text-[11px] leading-5 text-muted-foreground">
+    <p className="mt-2 text-center text-xs leading-5 text-muted-foreground">
       Point size represents total Beneficiary reach. Point numbers show project count. Nearby city
       points are offset within their region so each remains selectable. Select a point for details.
     </p>
@@ -341,7 +341,7 @@ const LocationDetailsDialog = ({
       />
     </div>
 
-    <div className="space-y-2 rounded-lg border border-border bg-muted/20 p-4">
+    <div className="space-y-2 rounded-sm border border-border bg-surface-subtle p-4">
       <h3 className="font-semibold text-foreground">Coverage overview</h3>
       <p className="text-sm leading-6 text-muted-foreground">{coverageSummary(location)}</p>
     </div>
@@ -360,7 +360,7 @@ const LocationDetailsDialog = ({
       </div>
     </div>
 
-    <div className="rounded-lg border border-info/20 bg-info/10 p-3 text-xs leading-5 text-info">
+    <div className="rounded-sm border border-info/25 bg-info-subtle p-3 text-xs leading-5 text-info">
       Approximate city-level location. This prototype shows summary information only and does not
       include addresses or Beneficiary-level locations.
     </div>
@@ -368,7 +368,7 @@ const LocationDetailsDialog = ({
 )
 
 const LocationMetric = ({ label, value }: { label: string; value: string }) => (
-  <div className="rounded-lg border border-border bg-background p-3">
+  <div className="rounded-sm border border-border bg-surface-subtle p-3">
     <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">{label}</p>
     <p className="mt-1 font-semibold text-foreground">{value}</p>
   </div>

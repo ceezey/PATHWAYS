@@ -16,21 +16,23 @@ export const MetricCard = ({
   icon?: LucideIcon
   tone?: 'info' | 'success' | 'warning' | 'danger'
 }) => (
-  <Card className="rounded-lg">
+  <Card>
     <CardContent className="flex items-start justify-between gap-4 p-5">
       <div className="min-w-0">
         <p className="text-sm font-medium text-muted-foreground">{label}</p>
-        <p className="mt-2 text-3xl font-semibold tracking-tight text-foreground">{value}</p>
+        <p className="mt-2 text-3xl font-semibold tracking-tight text-foreground tabular-nums">
+          {value}
+        </p>
         <p className="mt-2 text-sm leading-5 text-muted-foreground">{description}</p>
       </div>
       {Icon ? (
         <div
           className={cn(
-            'flex h-10 w-10 shrink-0 items-center justify-center rounded-lg',
-            tone === 'info' && 'bg-info/10 text-info',
-            tone === 'success' && 'bg-success/10 text-success',
-            tone === 'warning' && 'bg-warning/20 text-warning',
-            tone === 'danger' && 'bg-danger/10 text-danger',
+            'flex h-10 w-10 shrink-0 items-center justify-center rounded-sm',
+            tone === 'info' && 'bg-info-subtle text-info',
+            tone === 'success' && 'bg-success-subtle text-success',
+            tone === 'warning' && 'bg-warning-subtle text-warning',
+            tone === 'danger' && 'bg-danger-subtle text-danger',
           )}
         >
           <Icon className="h-5 w-5" aria-hidden="true" />

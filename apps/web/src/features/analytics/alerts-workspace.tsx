@@ -189,7 +189,7 @@ const AlertsWorkspaceContent = ({
         title={labels.moduleAlerts}
       />
 
-      <section className="grid gap-3 rounded-lg border border-border bg-card p-5 shadow-sm md:grid-cols-3">
+      <section className="grid gap-3 rounded-lg border border-border bg-card p-5 md:grid-cols-3">
         <div className="space-y-2">
           <span className="text-sm font-medium">Project</span>
           <Select value={projectId} onValueChange={setProjectId}>
@@ -222,23 +222,23 @@ const AlertsWorkspaceContent = ({
             </SelectContent>
           </Select>
         </div>
-        <div className="rounded-lg border border-info/20 bg-info/10 p-3 text-sm leading-6 text-info">
+        <div className="rounded-sm border border-info/25 bg-info-subtle p-3 text-sm leading-6 text-info">
           {humanReviewDisclaimer}
         </div>
       </section>
 
       <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_420px]">
-        <section className="space-y-3 rounded-lg border border-border bg-card p-5 shadow-sm">
+        <section className="space-y-3 rounded-lg border border-border bg-card p-5">
           <h2 className="text-lg font-semibold text-foreground">Alert queue</h2>
           {filteredAlerts.length > 0 ? (
             filteredAlerts.map((alert) => (
               <button
                 aria-pressed={alert.id === selectedAlert?.id}
                 key={alert.id}
-                className={`w-full rounded-lg border p-4 text-left transition-colors ${
+                className={`w-full rounded-sm border p-4 text-left transition-colors ${
                   alert.id === selectedAlert?.id
-                    ? 'border-primary bg-primary/10'
-                    : 'border-border bg-background hover:bg-muted/60'
+                    ? 'border-primary bg-primary-subtle'
+                    : 'border-border bg-background hover:bg-surface-subtle'
                 }`}
                 type="button"
                 onClick={() => setSelectedAlertId(alert.id)}
@@ -270,13 +270,13 @@ const AlertsWorkspaceContent = ({
               </button>
             ))
           ) : (
-            <p className="rounded-lg border border-border bg-background p-4 text-sm text-muted-foreground">
+            <p className="rounded-sm border border-border bg-surface-subtle p-4 text-sm text-muted-foreground">
               No alerts match the current filters.
             </p>
           )}
         </section>
 
-        <aside className="space-y-4 rounded-lg border border-border bg-card p-5 shadow-sm">
+        <aside className="space-y-4 rounded-lg border border-border bg-card p-5">
           {selectedAlert ? (
             <>
               <div className="flex items-start justify-between gap-3">
@@ -296,7 +296,7 @@ const AlertsWorkspaceContent = ({
                   {selectedAlert.lifecycleStatus}
                 </StatusBadge>
               </div>
-              <div className="rounded-lg border border-border bg-background p-4 text-sm">
+              <div className="rounded-sm border border-border bg-surface-subtle p-4 text-sm">
                 <p className="font-medium text-foreground">{selectedAlert.title}</p>
                 <dl className="mt-4 grid gap-3">
                   <InfoRow label="Created" value={formatDate(selectedAlert.createdAt)} />
@@ -310,7 +310,7 @@ const AlertsWorkspaceContent = ({
                   <InfoRow label="Rule" value={selectedRule?.name ?? selectedAlert.ruleId} />
                 </dl>
               </div>
-              <div className="rounded-lg border border-info/20 bg-info/10 p-4 text-sm leading-6 text-info">
+              <div className="rounded-sm border border-info/25 bg-info-subtle p-4 text-sm leading-6 text-info">
                 {selectedRecommendation ? (
                   <>
                     <p className="font-medium">Recommended action</p>
@@ -322,7 +322,7 @@ const AlertsWorkspaceContent = ({
                 )}
               </div>
               {selectedAlert.actionNote ? (
-                <p className="rounded-lg border border-border bg-muted/40 p-3 text-sm leading-6">
+                <p className="rounded-sm border border-border bg-surface-subtle p-3 text-sm leading-6">
                   {selectedAlert.actionNote}
                 </p>
               ) : null}
@@ -338,7 +338,10 @@ const AlertsWorkspaceContent = ({
                   Review action
                 </Button>
                 {selectedRecommendation ? (
-                  <Button asChild>
+                  <Button
+                    asChild
+                    className="h-auto min-h-11 max-w-full whitespace-normal text-center"
+                  >
                     <Link href={`/recommendations?recommendation=${selectedRecommendation.id}`}>
                       <ExternalLink className="mr-2 h-4 w-4" aria-hidden="true" />
                       View recommended action

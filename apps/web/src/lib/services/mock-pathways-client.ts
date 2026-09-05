@@ -56,6 +56,7 @@ import type {
   SurveyFormDefinition,
   TransparencySection,
   UpdateActivityInput,
+  UpdateBudgetAllocationInput,
   UserRecord,
 } from '@/types/pathways'
 import { type PrototypeRole, isPrototypeRole } from '@/types/prototype-role'
@@ -76,8 +77,10 @@ import { type PathwaysClient, PathwaysClientError } from './pathways-client'
 
 const PROJECT_STORAGE_KEY = 'pathways.prototypeProjects'
 const ACTIVITY_STORAGE_KEY = 'pathways.prototypeActivities'
+const BUDGET_STORAGE_KEY = 'pathways.prototypeBudgets'
 let inMemoryPrototypeProjects: ProjectDetail[] = []
 let inMemoryPrototypeActivities: Activity[] = []
+let inMemoryBudgetOverrides: UpdateBudgetAllocationInput[] = []
 
 const delay = (milliseconds: number) =>
   new Promise<void>((resolve) => {
@@ -178,6 +181,61 @@ const saveActivity = (activity: Activity) => {
     activity,
   ]
   writeStoredActivities(nextActivities)
+}
+
+const validBudgetOverride = (value: unknown): value is UpdateBudgetAllocationInput => {
+  if (!value || typeof value !== 'object') {
+    return false
+  }
+
+  const candidate = value as Partial<UpdateBudgetAllocationInput>
+  return (
+    typeof candidate.projectId === 'string' &&
+    candidate.projectId.length > 0 &&
+    typeof candidate.plannedAmount === 'number' &&
+    Number.isSafeInteger(candidate.plannedAmount) &&
+    candidate.plannedAmount >= 1
+  )
+}
+
+const readBudgetOverrides = () => {
+  if (typeof window === 'undefined') {
+    return inMemoryBudgetOverrides
+  }
+
+  const stored = window.localStorage.getItem(BUDGET_STORAGE_KEY)
+  if (!stored) {
+    inMemoryBudgetOverrides = []
+    return inMemoryBudgetOverrides
+  }
+
+  try {
+    const parsed = JSON.parse(stored) as unknown
+    inMemoryBudgetOverrides = Array.isArray(parsed) ? parsed.filter(validBudgetOverride) : []
+  } catch {
+    inMemoryBudgetOverrides = []
+  }
+
+  return inMemoryBudgetOverrides
+}
+
+const writeBudgetOverrides = (overrides: UpdateBudgetAllocationInput[]) => {
+  inMemoryBudgetOverrides = overrides
+
+  if (typeof window !== 'undefined') {
+    window.localStorage.setItem(BUDGET_STORAGE_KEY, JSON.stringify(overrides))
+  }
+}
+
+const allBudgets = () => {
+  const overrides = new Map(
+    readBudgetOverrides().map((override) => [override.projectId, override.plannedAmount]),
+  )
+
+  return mockBudgets.map((budget) => ({
+    ...budget,
+    plannedAmount: overrides.get(budget.projectId) ?? budget.plannedAmount,
+  }))
 }
 
 const filterBeneficiaryRecords = (
@@ -548,7 +606,31 @@ export class MockPathwaysClient implements PathwaysClient {
 
   async getBudgets(projectId?: string): Promise<BudgetRecord[]> {
     await this.wait()
-    return projectId ? mockBudgets.filter((budget) => budget.projectId === projectId) : mockBudgets
+    const budgets = allBudgets()
+    return projectId ? budgets.filter((budget) => budget.projectId === projectId) : budgets
+  }
+
+  async updateBudgetAllocation(input: UpdateBudgetAllocationInput): Promise<BudgetRecord> {
+    await this.wait()
+
+    if (!validBudgetOverride(input)) {
+      throw new PathwaysClientError('Enter a valid planned allocation.', 'mock_failure')
+    }
+
+    const budget = mockBudgets.find((record) => record.projectId === input.projectId)
+    if (!budget) {
+      throw new PathwaysClientError(
+        `Budget for project ${input.projectId} was not found in mock data.`,
+        'not_found',
+      )
+    }
+
+    writeBudgetOverrides([
+      ...readBudgetOverrides().filter((override) => override.projectId !== input.projectId),
+      input,
+    ])
+
+    return { ...budget, plannedAmount: input.plannedAmount }
   }
 
   async getAlerts(projectId?: string): Promise<AlertRecord[]> {

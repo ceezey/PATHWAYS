@@ -265,7 +265,7 @@ export const ActivityFormDialog = ({
                 <output
                   aria-atomic="true"
                   aria-live="polite"
-                  className="block rounded-lg border border-info/20 bg-info/10 p-3 text-sm text-info"
+                  className="block rounded-sm border border-info/25 bg-info-subtle p-3 text-sm text-info"
                 >
                   Recovered your unsaved activity draft from this browser tab.
                 </output>

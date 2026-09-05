@@ -21,7 +21,7 @@ type ChartProps = {
 }
 
 const grid = { left: 16, right: 16, top: 28, bottom: 18, containLabel: true }
-const colors = ['#0f766e', '#2563eb', '#f59e0b', '#dc2626', '#7c3aed']
+const colors = ['#0072CE', '#0B2E4F', '#8A4B08', '#B42318', '#526779']
 
 export const ProjectPerformanceTrendChart = ({ projects }: Pick<ChartProps, 'projects'>) => {
   const visibleProjects = projects.slice(0, 4)
@@ -78,7 +78,7 @@ export const BudgetUtilizationChart = ({
             legendLabels,
           ),
         },
-        color: ['#2563eb', '#f59e0b'],
+        color: ['#0072CE', '#8A4B08'],
         tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' } },
         ...legendLayout,
         xAxis: { type: 'value' },
@@ -191,7 +191,7 @@ export const AlertCountsChart = ({ alerts }: Pick<ChartProps, 'alerts'>) => {
           enabled: true,
           description: 'Rule-Based Alert totals grouped by severity.',
         },
-        color: ['#dc2626', '#f59e0b', '#2563eb'],
+        color: ['#B42318', '#8A4B08', '#005EA8'],
         tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' } },
         grid,
         xAxis: { type: 'category', data: severities },
