@@ -10,6 +10,7 @@
     "lint": "biome check .",
     "test": "vitest run --passWithNoTests",
     "typecheck": "tsc --noEmit",
+    "db:check": "node -r ts-node/register -r tsconfig-paths/register prisma/check-connection.ts",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate deploy",
     "prisma:seed": "prisma db seed"
@@ -22,7 +23,7 @@
     "@nestjs/swagger": "^7.4.2",
     "@pathways/config": "workspace:*",
     "@pathways/shared": "workspace:*",
-    "@prisma/client": "^6.6.0",
+    "@prisma/client": "6.19.2",
     "@sentry/nestjs": "^8.53.0",
     "@supabase/supabase-js": "^2.49.1",
     "class-transformer": "^0.5.1",
@@ -45,7 +46,7 @@
     "@types/cookie-parser": "^1.4.8",
     "@types/node": "^24.0.15",
     "dotenv": "^16.6.1",
-    "prisma": "^6.6.0",
+    "prisma": "6.19.2",
     "ts-node": "^10.9.2",
     "tsconfig-paths": "^4.2.0",
     "typescript": "^5.9.3"

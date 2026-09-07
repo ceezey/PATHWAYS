@@ -11,6 +11,8 @@ jobs:
   validate:
     runs-on: ubuntu-latest
     env:
+      DATABASE_URL: postgresql://postgres@127.0.0.1:5432/pathways_phase4_phase6_ci?sslmode=disable
+      DIRECT_URL: postgresql://postgres@127.0.0.1:5432/pathways_phase4_phase6_ci?sslmode=disable
       NEXT_PUBLIC_API_BASE_URL: http://localhost:4000/api
       ENABLE_SWAGGER: 'false'
       API_PORT: '4000'
@@ -19,6 +21,23 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+
+      - name: Start loopback-only PostgreSQL 18
+        shell: bash
+        run: |
+          docker run --detach --rm --name pathways-phase6-ci-postgres \
+            --network host \
+            --env POSTGRES_DB=pathways_phase4_phase6_ci \
+            --env POSTGRES_HOST_AUTH_METHOD=trust \
+            --env POSTGRES_USER=postgres \
+            postgres:18 -c listen_addresses=127.0.0.1
+          for attempt in {1..30}; do
+            if docker exec pathways-phase6-ci-postgres pg_isready -q -h 127.0.0.1 -U postgres -d pathways_phase4_phase6_ci; then
+              break
+            fi
+            sleep 1
+          done
+          docker exec pathways-phase6-ci-postgres pg_isready -q -h 127.0.0.1 -U postgres -d pathways_phase4_phase6_ci
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
@@ -33,6 +52,48 @@ jobs:
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
+
+      - name: Validate Prisma baseline
+        run: |
+          pnpm --filter @pathways/api exec prisma validate --schema prisma/schema.prisma
+          pnpm --filter @pathways/api exec prisma generate --schema prisma/schema.prisma
+
+      - name: Replay role-aware migrations and check physical diff
+        shell: bash
+        run: |
+          docker exec -i pathways-phase6-ci-postgres psql -X -h 127.0.0.1 -U postgres -d pathways_phase4_phase6_ci -v ON_ERROR_STOP=1 < apps/api/prisma/tests/security-adapter-local-bootstrap.sql
+          stage="$GITHUB_WORKSPACE/.tmp/phase6-ci/migrations"
+          mkdir -p "$stage"
+          cp apps/api/prisma/migrations/migration_lock.toml "$stage/"
+          for migration in 0001_init 0002_pathways_foundation 0003_pathways_projects_collection 0004_pathways_finance_evaluation_decisions; do
+            cp -R "apps/api/prisma/migrations/$migration" "$stage/"
+          done
+          export PATHWAYS_PHASE6_REPLAY_MIGRATIONS="$stage"
+          migration_url_variable='DIRECT_URL'
+          migration_url="postgresql://prisma@127.0.0.1:5432/pathways_phase4_phase6_ci?sslmode=disable&connection_limit=1"
+          export "$migration_url_variable=$migration_url"
+          pnpm --filter @pathways/api exec prisma migrate deploy --config "$GITHUB_WORKSPACE/infra/supabase/phase6/prisma.replay.config.ts"
+          cp -R apps/api/prisma/migrations/0005_supabase_security_adapter "$stage/"
+          migration_url="postgresql://postgres@127.0.0.1:5432/pathways_phase4_phase6_ci?sslmode=disable&connection_limit=1"
+          export "$migration_url_variable=$migration_url"
+          pnpm --filter @pathways/api exec prisma migrate deploy --config "$GITHUB_WORKSPACE/infra/supabase/phase6/prisma.replay.config.ts"
+          cp -R apps/api/prisma/migrations/0006_retire_legacy_public_application_tables "$stage/"
+          migration_url="postgresql://prisma@127.0.0.1:5432/pathways_phase4_phase6_ci?sslmode=disable&connection_limit=1"
+          export "$migration_url_variable=$migration_url"
+          pnpm --filter @pathways/api exec prisma migrate deploy --config "$GITHUB_WORKSPACE/infra/supabase/phase6/prisma.replay.config.ts"
+          pnpm --filter @pathways/api exec prisma migrate status --config "$GITHUB_WORKSPACE/infra/supabase/phase6/prisma.replay.config.ts"
+          docker exec pathways-phase6-ci-postgres createdb -h 127.0.0.1 -U postgres -T pathways_phase4_phase6_ci pathways_phase4_phase6_diff
+          docker exec pathways-phase6-ci-postgres psql -X -h 127.0.0.1 -U postgres -d pathways_phase4_phase6_diff -v ON_ERROR_STOP=1 -c 'ALTER TABLE pathways.system_users DROP CONSTRAINT system_users_auth_user_id_fkey'
+          diff_url="postgresql://prisma@127.0.0.1:5432/pathways_phase4_phase6_diff?sslmode=disable"
+          pnpm --filter @pathways/api exec prisma migrate diff --from-url "$diff_url" --to-schema-datamodel "$GITHUB_WORKSPACE/apps/api/prisma/schema.prisma" --exit-code
+
+      - name: Check committed files for secret assignments
+        shell: bash
+        run: |
+          if git grep -I -q -E '(SUPABASE_SERVICE_ROLE_KEY|SUPABASE_JWT_SECRET|DATABASE_URL|DIRECT_URL|SHADOW_DATABASE_URL)=[^[:space:]]+' -- ':!*.example' ':!*.test.ts'; then
+            echo 'Potential committed secret assignment detected.'
+            exit 1
+          fi
 
       - name: Lint
         run: pnpm lint

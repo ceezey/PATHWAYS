@@ -135,6 +135,9 @@ Shared values you will usually need:
 - `SUPABASE_SERVICE_ROLE_KEY`
 - `DATABASE_URL`
 - `DIRECT_URL`
+- `SHADOW_DATABASE_URL` for a disposable local PostgreSQL shadow database only
+
+`DATABASE_URL` belongs to the NestJS runtime identity. `DIRECT_URL` belongs to the Prisma migration owner. For PATHWAYS-dev, both approved connections use the Supavisor Session Pooler on port `5432`, but they must not share the same PostgreSQL role. Never use PATHWAYS-dev or production as the shadow database, and never commit complete connection URLs.
 
 Helpful docs:
 - See `infra/environment.md` for which variables belong to root, web, and api
@@ -154,19 +157,11 @@ This teaches Prisma how to talk to your database schema.
 pnpm --filter @pathways/api prisma:generate
 ```
 
-### 8. Run the database migration
-This creates the tables in your connected Supabase Postgres database.
+### 8. Follow the controlled database workflow
+Do not run a migration as a generic setup shortcut. Read `docs/SOURCE_OF_TRUTH.md` and `docs/PHASE_TODO.md`, then execute only the single phase covered by an exact authorization phrase. Never use `prisma migrate reset` or `prisma db push` in this workflow.
 
-```powershell
-pnpm --filter @pathways/api prisma:migrate
-```
-
-### 9. Add starter data
-This puts in helpful starting records like roles and a development admin record.
-
-```powershell
-pnpm --filter @pathways/api prisma:seed
-```
+### 9. Do not bootstrap users through the legacy seed
+The legacy seed is intentionally disabled. Canonical roles and permissions are introduced only in DBAdmin Phase 5, and Supabase Auth credentials are never created by Prisma seed code.
 
 ### 10. Start both apps together
 This starts the website and the API at the same time.
@@ -214,8 +209,8 @@ pnpm dev:api
 If all of these are true, your local setup is probably good:
 - dependencies installed without errors
 - Prisma client generated
-- migration completed
-- seed completed
+- Prisma schema validated
+- the currently authorized DBAdmin phase, if any, completed with a `PASS` report
 - homepage opens
 - login page opens
 - API health route responds
@@ -229,12 +224,14 @@ If all of these are true, your local setup is probably good:
 
 ## Troubleshooting
 - If `pnpm install` fails, check your Node.js version and make sure pnpm is installed
-- If Prisma fails, double-check `DATABASE_URL` and `DIRECT_URL`
+- If Prisma runtime startup fails, check the runtime `DATABASE_URL`. If a migration command fails, check the separately provisioned `DIRECT_URL`. For history diffs, confirm `SHADOW_DATABASE_URL` is disposable and local.
 - If auth fails, double-check your Supabase URL, anon key, redirect URL, and enabled auth provider
 - If storage fails, make sure the buckets exist and the bucket names match the env values
 - If `localhost:3000` or `localhost:4000` is busy, use the temporary port steps above
 
 ## Useful Documents
-- `TODO.md`: the setup checklist and verification record
+- `docs/SOURCE_OF_TRUTH.md`: locked DBAdmin decisions and permanent safety invariants
+- `docs/PHASE_TODO.md`: the only DBAdmin progress checklist and authorization sequence
+- `docs/PHASE_REPORT_TEMPLATE_CHAT_ONLY.md`: required chat-only phase report format
 - `infra/environment.md`: environment variable guide
 - `infra/supabase/HUMAN_SETUP.md`: Supabase setup notes

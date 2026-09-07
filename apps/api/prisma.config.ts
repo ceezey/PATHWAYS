@@ -15,10 +15,6 @@ for (const envFile of [
   loadEnv({ path: envFile, override: false })
 }
 
-// Supabase's hosted connection can time out on Prisma's advisory lock step.
-// Disabling it keeps one-developer setup flows unblocked for migrate deploy.
-process.env.PRISMA_SCHEMA_DISABLE_ADVISORY_LOCK ??= '1'
-
 export default defineConfig({
   schema: path.join(currentDir, 'prisma', 'schema.prisma'),
   migrations: {
@@ -26,6 +22,11 @@ export default defineConfig({
     seed: 'node -r ts-node/register -r tsconfig-paths/register prisma/seed.ts',
   },
   datasource: {
-    url: env('DATABASE_URL'),
+    url: env('DIRECT_URL'),
   },
+  // datasource: {
+  //   provider: 'postgresql',
+  //   url: process.env.DATABASE_URL,
+  //   directUrl: process.env.DIRECT_URL
+  // },
 })

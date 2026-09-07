@@ -1,89 +1,74 @@
 import {
   type CanActivate,
   type ExecutionContext,
+  ForbiddenException,
   Inject,
   Injectable,
-  ServiceUnavailableException,
   UnauthorizedException,
 } from '@nestjs/common'
 import { Reflector } from '@nestjs/core'
-import { createClient } from '@supabase/supabase-js'
 
-import { readApiEnv } from '@pathways/config'
-import { AppRole } from '@pathways/shared'
-
-import { IS_PUBLIC_KEY } from '@app/common/decorators/public.decorator'
-
-interface AppRequestUser {
-  id: string
-  email?: string
-  roles: AppRole[]
-}
-
-interface AppRequest {
-  headers?: {
-    authorization?: string
-  }
-  user?: AppRequestUser
-}
-
-const appRoles = new Set<string>(Object.values(AppRole))
-
-const readRoles = (metadata: Record<string, unknown>): AppRole[] => {
-  const candidates = [metadata.role, ...(Array.isArray(metadata.roles) ? metadata.roles : [])]
-
-  return [
-    ...new Set(
-      candidates.filter((role): role is AppRole => typeof role === 'string' && appRoles.has(role)),
-    ),
-  ]
-}
+import { ApplicationProfileService } from '../../modules/auth/application-profile.service'
+import { hasAtomicPermission } from '../../modules/auth/authorization-policy'
+import {
+  type AuthenticatedRequest,
+  DEVELOPER_AUTH_UUID,
+  developerApplicationAccessEnabled,
+} from '../../modules/auth/developer-access'
+import { TokenAuthService } from '../../modules/auth/token-auth.service'
+import { AUTH_BOUNDARY_KEY } from '../decorators/auth-boundary.decorator'
+import { PERMISSION_KEY } from '../decorators/permission.decorator'
+import { IS_PUBLIC_KEY } from '../decorators/public.decorator'
 
 @Injectable()
 export class SupabaseAuthGuard implements CanActivate {
-  constructor(@Inject(Reflector) private readonly reflector: Reflector) {}
+  constructor(
+    @Inject(Reflector) private readonly reflector: Reflector,
+    @Inject(TokenAuthService) private readonly tokens: TokenAuthService,
+    @Inject(ApplicationProfileService) private readonly profiles: ApplicationProfileService,
+  ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
-    const isPublic = this.reflector.getAllAndOverride<boolean>(IS_PUBLIC_KEY, [
-      context.getHandler(),
-      context.getClass(),
-    ])
+    const request = context.switchToHttp().getRequest<AuthenticatedRequest>()
+    request.user = undefined
+    request.auth = undefined
+    const handlers = [context.getHandler(), context.getClass()]
+    if (this.reflector.getAllAndOverride<boolean>(IS_PUBLIC_KEY, handlers)) return true
 
-    if (isPublic) {
-      return true
+    const header = request.headers?.authorization
+    if (typeof header !== 'string' || !/^Bearer [^\s]+$/i.test(header) || header.length > 16_384) {
+      throw new UnauthorizedException('A bearer token is required.')
     }
-
-    const request = context.switchToHttp().getRequest<AppRequest>()
-    const env = readApiEnv(process.env)
-    const authHeader = String(request.headers?.authorization ?? '')
-    const token = authHeader.startsWith('Bearer ') ? authHeader.slice('Bearer '.length).trim() : ''
-
-    if (!token) {
-      throw new UnauthorizedException('Missing bearer token.')
+    const identity = await this.tokens.verify(header.slice(7))
+    if (identity.id !== DEVELOPER_AUTH_UUID) {
+      throw new ForbiddenException('This developer preparation is not available to this identity.')
     }
-
-    if (!env.SUPABASE_URL || !env.SUPABASE_SERVICE_ROLE_KEY) {
-      throw new ServiceUnavailableException('Supabase authentication is not configured.')
+    const boundary = this.reflector.getAllAndOverride<string>(AUTH_BOUNDARY_KEY, handlers)
+    request.auth = identity
+    if (boundary === 'mfa-setup') return true
+    if (identity.aal !== 'aal2') {
+      throw new ForbiddenException('MFA verification is required before application access.')
     }
-
-    const supabase = createClient(env.SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY, {
-      auth: {
-        autoRefreshToken: false,
-        persistSession: false,
-      },
-    })
-    const { data, error } = await supabase.auth.getUser(token)
-
-    if (error || !data.user) {
-      throw new UnauthorizedException('Invalid or expired bearer token.')
+    if (!developerApplicationAccessEnabled()) {
+      throw new ForbiddenException('Application access remains blocked by the onboarding gate.')
     }
-
-    request.user = {
-      id: data.user.id,
-      email: data.user.email,
-      roles: readRoles(data.user.app_metadata),
+    const permission = this.reflector.getAllAndOverride<string>(PERMISSION_KEY, handlers)
+    if (boundary !== 'profile' && !permission) {
+      throw new ForbiddenException('This application operation has not been authorized.')
     }
-
+    request.user = await this.profiles.resolve(
+      identity.id,
+      request.headers['x-pathways-organization-id'],
+      request.headers['x-pathways-user-id'],
+    )
+    if (
+      permission &&
+      (request.user.roles.length !== 1 ||
+        !hasAtomicPermission(request.user.roles[0], request.user.permissions, permission))
+    ) {
+      request.user = undefined
+      throw new ForbiddenException('Required application permission is missing.')
+    }
     return true
   }
 }

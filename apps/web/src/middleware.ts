@@ -1,6 +1,6 @@
 import type { NextRequest } from 'next/server'
 
-import { updateSession } from './src/lib/middleware'
+import { updateSession } from './lib/middleware'
 
 export async function middleware(request: NextRequest) {
   return updateSession(request)
@@ -8,6 +8,8 @@ export async function middleware(request: NextRequest) {
 
 export const config = {
   matcher: [
+    '/workspace',
+    '/auth/mfa',
     '/dashboard/:path*',
     '/projects/:path*',
     '/beneficiaries/:path*',

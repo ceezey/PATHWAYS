@@ -13,13 +13,15 @@ import { RouteAccessGuard } from './route-access-guard'
 export const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
   const router = useRouter()
   const { configured, status } = useSession()
-  const { assignedProjectIds, role } = useCurrentRole()
+  const { access, assignedProjectIds, role } = useCurrentRole()
 
   useEffect(() => {
     if (configured && status === 'unauthenticated') {
       router.replace('/staff/login')
+    } else if (configured && status === 'authenticated' && access === 'mfa_required') {
+      router.replace('/auth/mfa')
     }
-  }, [configured, router, status])
+  }, [access, configured, router, status])
 
   if (!configured) {
     return (
@@ -50,10 +52,10 @@ export const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
     )
   }
 
-  if (status === 'loading') {
+  if (status === 'loading' || (status === 'authenticated' && access === 'loading')) {
     return (
       <div className="flex min-h-screen items-center justify-center text-sm text-muted-foreground">
-        Preparing dashboard shell...
+        Verifying MFA and database-backed access...
       </div>
     )
   }
@@ -66,23 +68,23 @@ export const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
     )
   }
 
-  if (!role) {
+  if (access !== 'ready' || !role) {
     return (
       <div className="flex min-h-screen items-center justify-center p-6">
         <Card className="max-w-xl">
           <CardHeader>
-            <CardTitle>Authenticated role required</CardTitle>
+            <CardTitle>Protected access has not been granted</CardTitle>
             <CardDescription>
-              This session does not contain a recognized PATHWAYS role in Supabase app metadata.
+              A verified MFA session and an active database-backed PATHWAYS profile are required.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4 text-sm leading-6 text-muted-foreground">
             <p>
-              Protected content remains hidden. Ask an administrator to assign a supported role,
-              then sign in again.
+              Protected content remains hidden. Complete MFA verification; application access also
+              requires separately approved provisioning. Supabase metadata cannot grant a role.
             </p>
             <Button asChild variant="outline">
-              <Link href="/staff/login">Return to staff login</Link>
+              <Link href="/auth/mfa">Review secure access</Link>
             </Button>
           </CardContent>
         </Card>

@@ -2,15 +2,14 @@
 
 import { zodResolver } from '@hookform/resolvers/zod'
 import { Eye, EyeOff, Info, Loader2, LogIn, UserRound } from 'lucide-react'
+import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { toast } from 'sonner'
 
-import { DialogShell } from '@/components/pathways/dialog-shell'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { Dialog, DialogTrigger } from '@/components/ui/dialog'
 import {
   Form,
   FormControl,
@@ -20,13 +19,11 @@ import {
   FormMessage,
 } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
-import { useSession } from '@/hooks/use-session'
 import { getBrowserSupabaseClient } from '@/lib/supabase/client'
 import { type LoginSchema, loginSchema } from './login-validation'
 
 export const LoginForm = () => {
   const router = useRouter()
-  const { refreshSession } = useSession()
   const [showPassword, setShowPassword] = useState(false)
   const form = useForm<LoginSchema>({
     resolver: zodResolver(loginSchema),
@@ -46,21 +43,24 @@ export const LoginForm = () => {
       return
     }
 
-    const { error } = await supabase.auth.signInWithPassword({
-      email: values.identifier,
-      password: values.password,
-    })
-
-    if (error) {
-      toast.error('Could not sign in.', {
-        description: error.message,
+    try {
+      const { error } = await supabase.auth.signInWithPassword({
+        email: values.identifier,
+        password: values.password,
       })
-      return
+      form.resetField('password')
+      if (error) {
+        toast.error('Could not sign in. Check your credentials and try again.')
+        return
+      }
+      // Password-only authentication never grants access to the dashboard.
+      router.replace('/auth/mfa')
+    } catch {
+      form.resetField('password')
+      toast.error('Could not sign in.', {
+        description: 'Authentication is unavailable. No application access was granted.',
+      })
     }
-
-    await refreshSession()
-    toast.success('Session established.')
-    router.push('/dashboard')
   }
 
   return (
@@ -136,26 +136,13 @@ export const LoginForm = () => {
               )}
             />
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <Dialog>
-                <DialogTrigger asChild>
-                  <Button
-                    className="w-fit px-0 underline-offset-4 hover:underline"
-                    type="button"
-                    variant="ghost"
-                  >
-                    Forgot Password?
-                  </Button>
-                </DialogTrigger>
-                <DialogShell
-                  title="Password recovery"
-                  description="Password recovery is not yet available in this application."
-                >
-                  <p className="text-sm leading-6 text-muted-foreground">
-                    Ask the System Administrator to confirm the Supabase password recovery settings
-                    for your environment.
-                  </p>
-                </DialogShell>
-              </Dialog>
+              <Button
+                asChild
+                className="w-fit px-0 underline-offset-4 hover:underline"
+                variant="ghost"
+              >
+                <Link href="/staff/forgot-password">Forgot Password?</Link>
+              </Button>
               <p className="inline-flex items-center gap-2 text-xs text-muted-foreground">
                 <Info className="h-3.5 w-3.5" aria-hidden="true" />
                 Supabase authentication

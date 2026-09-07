@@ -3,6 +3,7 @@
 import { Menu, PanelLeftClose, PanelLeftOpen, ShieldCheck } from 'lucide-react'
 import { usePathname } from 'next/navigation'
 import { useState } from 'react'
+import { toast } from 'sonner'
 
 import { Sidebar } from '@/components/layout/sidebar'
 import { Button } from '@/components/ui/button'
@@ -91,7 +92,17 @@ export const AppShell = ({ children }: { children: React.ReactNode }) => {
                 <DropdownMenuItem disabled>{email ?? 'No signed-in user'}</DropdownMenuItem>
                 <DropdownMenuItem disabled>{roleLabel}</DropdownMenuItem>
                 <DropdownMenuSeparator />
-                <DropdownMenuItem onClick={() => void signOut()}>Sign out</DropdownMenuItem>
+                <DropdownMenuItem
+                  onClick={() =>
+                    void signOut().catch(() => {
+                      toast.error(
+                        'Sign-out could not be confirmed. Close this private browser window.',
+                      )
+                    })
+                  }
+                >
+                  Sign out
+                </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
           </div>

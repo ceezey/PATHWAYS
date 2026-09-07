@@ -1,9 +1,8 @@
 'use client'
 
 import type { Session } from '@supabase/supabase-js'
-import { createContext, useContext, useEffect, useState } from 'react'
+import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react'
 
-import { webSetupState } from '@/lib/env'
 import { getBrowserSupabaseClient } from '@/lib/supabase/client'
 import type { SessionContextValue } from '@/types/auth'
 
@@ -12,28 +11,39 @@ const SessionContext = createContext<SessionContextValue | null>(null)
 export const SessionProvider = ({ children }: { children: React.ReactNode }) => {
   const [session, setSession] = useState<Session | null>(null)
   const [status, setStatus] = useState<SessionContextValue['status']>('loading')
+  const revision = useRef(0)
   const supabase = getBrowserSupabaseClient()
 
-  const refreshSession = async () => {
+  const refreshSession = useCallback(async () => {
+    const requestRevision = ++revision.current
     if (!supabase) {
       setSession(null)
       setStatus('unauthenticated')
       return
     }
 
-    const { data, error } = await supabase.auth.getSession()
-    const nextSession = error ? null : data.session
-    setSession(nextSession)
-    setStatus(nextSession ? 'authenticated' : 'unauthenticated')
-  }
+    try {
+      const { data, error } = await supabase.auth.getSession()
+      if (requestRevision !== revision.current) return
+      const nextSession = error ? null : data.session
+      setSession(nextSession)
+      setStatus(nextSession ? 'authenticated' : 'unauthenticated')
+    } catch {
+      if (requestRevision !== revision.current) return
+      setSession(null)
+      setStatus('unauthenticated')
+    }
+  }, [supabase])
 
   const signOut = async () => {
-    if (supabase) {
-      await supabase.auth.signOut()
-    }
-
+    ++revision.current
     setSession(null)
     setStatus('unauthenticated')
+    if (supabase) {
+      const { error } = await supabase.auth.signOut({ scope: 'local' })
+      if (error)
+        throw new Error('Sign-out could not be confirmed. Close this private browser window.')
+    }
   }
 
   useEffect(() => {
@@ -43,37 +53,28 @@ export const SessionProvider = ({ children }: { children: React.ReactNode }) => 
       return
     }
 
-    let mounted = true
-
-    void supabase.auth.getSession().then(({ data, error }) => {
-      if (!mounted) {
-        return
-      }
-
-      const nextSession = error ? null : data.session
-      setSession(nextSession)
-      setStatus(nextSession ? 'authenticated' : 'unauthenticated')
-    })
+    void refreshSession()
 
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((_event, nextSession) => {
+      ++revision.current
       setSession(nextSession)
       setStatus(nextSession ? 'authenticated' : 'unauthenticated')
     })
 
     return () => {
-      mounted = false
+      ++revision.current
       subscription.unsubscribe()
     }
-  }, [supabase])
+  }, [refreshSession, supabase])
 
   return (
     <SessionContext.Provider
       value={{
         session,
         status,
-        configured: webSetupState.supabaseConfigured,
+        configured: Boolean(supabase),
         email: session?.user.email ?? null,
         refreshSession,
         signOut,

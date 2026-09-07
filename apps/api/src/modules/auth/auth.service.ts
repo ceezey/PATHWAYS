@@ -1,17 +1,16 @@
 import { Injectable } from '@nestjs/common'
-
-import { readApiEnv } from '@pathways/config'
+import { developerApplicationAccessEnabled } from './developer-access'
 
 @Injectable()
 export class AuthService {
   getStatus() {
-    const env = readApiEnv(process.env)
-
     return {
       provider: 'supabase-auth',
-      jwtVerificationEnabled: Boolean(env.SUPABASE_JWT_SECRET),
-      callbackPlaceholder: '/auth/callback',
-      note: 'Replace the placeholder guard behavior with real JWT verification once Supabase setup is complete.',
+      jwtVerificationEnabled: true,
+      mfaRequired: true,
+      authorizationSource: 'pathways-database',
+      developerWorkspaceEnabled: developerApplicationAccessEnabled(),
+      businessWritesEnabled: false,
     }
   }
 }

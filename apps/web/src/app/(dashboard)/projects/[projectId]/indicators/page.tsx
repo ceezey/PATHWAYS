@@ -1,4 +1,4 @@
-import { ProjectPhaseFiveWorkspace } from '@/features/projects/project-phase-five-workspace'
+import { ProjectPhaseFiveWorkspace } from '@/features/projects/project-review-workspace'
 
 export default async function ProjectIndicatorsPage({
   params,

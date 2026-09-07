@@ -9,6 +9,7 @@ import { Logger } from 'nestjs-pino'
 import { readApiEnv } from '@pathways/config'
 
 import { AppModule } from '@app/app.module'
+import { listenOnIpv4Loopback } from '@app/common/network/local-listener'
 import { initializeApiSentry } from '@app/common/sentry'
 
 async function bootstrap() {
@@ -35,6 +36,7 @@ async function bootstrap() {
     origin: true,
     credentials: true,
   })
+  app.enableShutdownHooks()
 
   if (env.ENABLE_SWAGGER) {
     const config = new DocumentBuilder()
@@ -47,7 +49,7 @@ async function bootstrap() {
     SwaggerModule.setup(`${env.API_PREFIX}/docs`, app, document)
   }
 
-  await app.listen(env.API_PORT)
+  await listenOnIpv4Loopback(app, env.API_PORT)
 }
 
 void bootstrap()

@@ -10,7 +10,7 @@ export const webEnvSchema = z.object({
   NEXT_PUBLIC_SUPABASE_ANON_KEY: optionalString,
   NEXT_PUBLIC_API_BASE_URL: optionalUrl
     .or(z.string().startsWith('/'))
-    .default('http://localhost:4000/api'),
+    .default('http://127.0.0.1:4000/api'),
   NEXT_PUBLIC_SENTRY_DSN: optionalString,
   STAFF_PORTAL_BASE_URL: optionalUrl,
   WEB_PORT: z.coerce.number().default(3000),
@@ -28,8 +28,6 @@ export const apiEnvSchema = z.object({
   SUPABASE_URL: optionalUrl,
   SUPABASE_SERVICE_ROLE_KEY: optionalString,
   SUPABASE_JWT_SECRET: optionalString,
-  DEV_ADMIN_EMAIL: z.string().email().default('admin@example.com'),
-  DEV_ADMIN_SUPABASE_ID: z.string().default('00000000-0000-0000-0000-000000000000'),
   SENTRY_DSN_API: optionalString,
   UPLOADS_BUCKET: z.string().default('uploads'),
   REPORTS_BUCKET: z.string().default('reports'),

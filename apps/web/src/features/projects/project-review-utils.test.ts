@@ -6,9 +6,9 @@ import {
   calculateRemainingBudget,
   logExpenseSchema,
   recommendationOutcomeSchema,
-} from './phase-five-utils'
+} from './project-review-utils'
 
-describe('phase five workspace utilities', () => {
+describe('project review workspace utilities', () => {
   it('validates add-indicator inputs', () => {
     const result = addIndicatorSchema.safeParse({
       code: 'NEW-IND',

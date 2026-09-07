@@ -29,7 +29,7 @@ import { PrismaModule } from '@app/prisma/prisma.module'
     LoggerModule.forRoot({
       pinoHttp: {
         level: process.env.NODE_ENV === 'production' ? 'info' : 'debug',
-        redact: ['req.headers.authorization'],
+        redact: ['req.headers.authorization', 'req.headers.cookie', 'res.headers["set-cookie"]'],
         transport:
           process.env.NODE_ENV === 'production'
             ? undefined
