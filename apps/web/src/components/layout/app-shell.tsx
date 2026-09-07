@@ -1,8 +1,10 @@
 'use client'
 
-import { Menu, PanelLeftClose, PanelLeftOpen, ShieldCheck } from 'lucide-react'
+import { CircleUserRound, Menu, PanelLeftClose, PanelLeftOpen, ShieldCheck } from 'lucide-react'
+import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useState } from 'react'
+import { toast } from 'sonner'
 
 import { Sidebar } from '@/components/layout/sidebar'
 import { SkipLink } from '@/components/layout/skip-link'
@@ -25,6 +27,7 @@ import {
 import { getDashboardNavigationLabel } from '@/constants/navigation'
 import { usePrototypeRole } from '@/hooks/use-prototype-role'
 import { useSession } from '@/hooks/use-session'
+import { getAccessScopeLabel } from '@/lib/auth/access-context'
 import { cn } from '@/lib/utils'
 import { getPrototypeRoleDisplayName } from '@/types/prototype-role'
 
@@ -32,10 +35,22 @@ export const AppShell = ({ children }: { children: React.ReactNode }) => {
   const pathname = usePathname()
   const [compact, setCompact] = useState(false)
   const [mobileOpen, setMobileOpen] = useState(false)
-  const { email, signOut } = useSession()
+  const { email, prototypeModeEnabled, signOut } = useSession()
   const { role } = usePrototypeRole()
   const roleLabel = getPrototypeRoleDisplayName(role)
   const workspaceLabel = getDashboardNavigationLabel(pathname)
+  const scopeLabel = getAccessScopeLabel(role, prototypeModeEnabled)
+
+  const handleSignOut = async () => {
+    try {
+      await signOut()
+      window.location.assign('/staff/login')
+    } catch (error) {
+      toast.error('Sign out could not be completed.', {
+        description: error instanceof Error ? error.message : 'Check the service and try again.',
+      })
+    }
+  }
 
   return (
     <div className="min-h-dvh bg-background lg:grid lg:grid-cols-[auto_1fr]">
@@ -54,7 +69,10 @@ export const AppShell = ({ children }: { children: React.ReactNode }) => {
                     <span className="sr-only">Open navigation</span>
                   </Button>
                 </SheetTrigger>
-                <SheetContent side="left" className="w-[292px] border-0 p-0 sm:max-w-none">
+                <SheetContent
+                  side="left"
+                  className="w-[292px] border-0 p-0 sm:max-w-none [&>button]:text-white [&>button]:hover:bg-white/10 [&>button]:hover:text-white [&>button]:focus-visible:ring-white [&>button]:focus-visible:ring-offset-navy"
+                >
                   <SheetTitle className="sr-only">Workspace navigation</SheetTitle>
                   <SheetDescription className="sr-only">
                     Open a section of the PATHWAYS workspace.
@@ -79,7 +97,7 @@ export const AppShell = ({ children }: { children: React.ReactNode }) => {
               <div className="min-w-0">
                 <p className="truncate text-sm font-semibold text-foreground">{workspaceLabel}</p>
                 <p className="truncate text-[13px] leading-[18px] text-muted-foreground">
-                  {roleLabel}
+                  {roleLabel} · {scopeLabel}
                 </p>
               </div>
             </div>
@@ -94,10 +112,15 @@ export const AppShell = ({ children }: { children: React.ReactNode }) => {
                 <DropdownMenuLabel>Session</DropdownMenuLabel>
                 <DropdownMenuItem disabled>{email ?? 'No signed-in user'}</DropdownMenuItem>
                 <DropdownMenuItem disabled>{roleLabel}</DropdownMenuItem>
+                <DropdownMenuItem disabled>{scopeLabel}</DropdownMenuItem>
                 <DropdownMenuSeparator />
-                <DropdownMenuItem onClick={() => void signOut()}>
-                  Sign out of prototype
+                <DropdownMenuItem asChild>
+                  <Link className="gap-2" href="/settings/profile">
+                    <CircleUserRound className="h-4 w-4" aria-hidden="true" />
+                    My Profile
+                  </Link>
                 </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => void handleSignOut()}>Sign out</DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
           </div>

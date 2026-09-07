@@ -27,11 +27,17 @@ export const webSupabasePublishableKey =
   webEnv.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ||
   webEnv.NEXT_PUBLIC_SUPABASE_ANON_KEY
 
+const guiPrototypeModeEnabled =
+  process.env.NODE_ENV !== 'production' && webEnv.NEXT_PUBLIC_ENABLE_GUI_PROTOTYPE_MODE
+
 export const webSetupState = {
   supabaseConfigured:
     Boolean(webEnv.NEXT_PUBLIC_SUPABASE_URL) && Boolean(webSupabasePublishableKey),
-  authBypassEnabled: webEnv.NEXT_PUBLIC_ENABLE_DEV_AUTH_BYPASS,
-  guiPrototypeModeEnabled: webEnv.NEXT_PUBLIC_ENABLE_GUI_PROTOTYPE_MODE,
-  rolePreviewEnabled: webEnv.NEXT_PUBLIC_ENABLE_ROLE_PREVIEW,
+  authBypassEnabled:
+    process.env.NODE_ENV !== 'production' &&
+    !guiPrototypeModeEnabled &&
+    webEnv.NEXT_PUBLIC_ENABLE_DEV_AUTH_BYPASS,
+  guiPrototypeModeEnabled,
+  rolePreviewEnabled: guiPrototypeModeEnabled && webEnv.NEXT_PUBLIC_ENABLE_ROLE_PREVIEW,
   sentryEnabled: Boolean(webEnv.NEXT_PUBLIC_SENTRY_DSN),
 }

@@ -14,12 +14,16 @@ describe('navigation constants', () => {
       '/projects',
       '/beneficiaries',
       '/collection',
+      '/indicators',
       '/analytics',
       '/alerts',
       '/recommendations',
       '/reports',
       '/alerts/repository',
+      '/transparency',
       '/settings/users',
+      '/settings/audit',
+      '/settings/backups',
       '/settings/labels',
     ])
     expect(dashboardNavigation.map((item) => item.label)).toEqual([
@@ -27,12 +31,16 @@ describe('navigation constants', () => {
       'Projects',
       'Beneficiaries',
       'Collection',
+      'Indicator Library',
       'Analytics',
       'Alerts',
       'Recommendations',
       'Reports',
       'Alerts Repository',
+      'Public Tracker',
       'User Management',
+      'Audit Log',
+      'Backup & Recovery',
       'Edit Labels',
     ])
   })
@@ -64,5 +72,8 @@ describe('navigation constants', () => {
     expect(getDashboardNavigationLabel('/collection/import')).toBe('Collection')
     expect(getDashboardNavigationLabel('/settings/users')).toBe('User Management')
     expect(getDashboardNavigationLabel('/alerts/repository')).toBe('Alerts Repository')
+    expect(getDashboardNavigationLabel('/settings/audit')).toBe('Audit Log')
+    expect(getDashboardNavigationLabel('/settings/backups')).toBe('Backup & Recovery')
+    expect(getDashboardNavigationLabel('/transparency')).toBe('Public Tracker')
   })
 })

@@ -55,6 +55,17 @@ export const SessionProvider = ({ children }: { children: React.ReactNode }) => 
     setStatus('authenticated')
   }
 
+  const updatePrototypeProfile: SessionContextValue['updatePrototypeProfile'] = async (profile) => {
+    if (!webSetupState.guiPrototypeModeEnabled || !prototypeSession) {
+      return false
+    }
+
+    const nextPrototypeSession = { ...prototypeSession, ...profile }
+    writePrototypeSession(nextPrototypeSession)
+    setPrototypeSession(nextPrototypeSession)
+    return true
+  }
+
   const signOut = async () => {
     if (webSetupState.guiPrototypeModeEnabled) {
       clearPrototypeSession()
@@ -144,6 +155,7 @@ export const SessionProvider = ({ children }: { children: React.ReactNode }) => 
           (webSetupState.authBypassEnabled ? DEV_BYPASS_EMAIL : null),
         refreshSession,
         signInWithPrototype,
+        updatePrototypeProfile,
         signOut,
       }}
     >

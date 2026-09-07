@@ -1,7 +1,7 @@
 /* @vitest-environment jsdom */
 
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { mockActivities } from '@/mocks/pathways/activities'
 import { mockBeneficiaryRecords, mockJourneyStages } from '@/mocks/pathways/beneficiaries'
@@ -10,6 +10,12 @@ import { PrototypeLabelsProvider } from '@/providers/prototype-labels-provider'
 import { PrototypeRoleProvider } from '@/providers/prototype-role-provider'
 
 import { BeneficiaryDirectory } from './beneficiary-directory'
+
+vi.mock('@/lib/env', () => ({
+  webSetupState: {
+    rolePreviewEnabled: true,
+  },
+}))
 
 afterEach(() => {
   cleanup()

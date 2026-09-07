@@ -506,9 +506,14 @@ export const CollectionWorkspace = ({
         title={labels.moduleCollection}
         description="Build digital forms, map imported files, and preview validation without uploading source data."
         actions={
-          <Button asChild size="sm">
-            <Link href="/collection/forms">Forms</Link>
-          </Button>
+          <>
+            <Button asChild size="sm" variant="outline">
+              <Link href="/collection/entry">Encode data</Link>
+            </Button>
+            <Button asChild size="sm">
+              <Link href="/collection/forms">Forms</Link>
+            </Button>
+          </>
         }
       />
 

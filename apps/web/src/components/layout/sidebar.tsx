@@ -9,6 +9,7 @@ import { BrandMark } from '@/components/pathways'
 import { createDashboardNavGroups } from '@/constants/navigation'
 import { usePrototypeRole } from '@/hooks/use-prototype-role'
 import { useSession } from '@/hooks/use-session'
+import { getAccessScopeLabel } from '@/lib/auth/access-context'
 import { filterDashboardNavGroups } from '@/lib/rbac/route-access'
 import { cn } from '@/lib/utils'
 import { getPrototypeRoleDisplayName } from '@/types/prototype-role'
@@ -21,10 +22,11 @@ export const Sidebar = ({
   onNavigate?: () => void
 }) => {
   const pathname = usePathname()
-  const { email } = useSession()
+  const { email, prototypeModeEnabled } = useSession()
   const { role } = usePrototypeRole()
   const visibleNavGroups = filterDashboardNavGroups(createDashboardNavGroups(), role)
   const roleLabel = getPrototypeRoleDisplayName(role)
+  const scopeLabel = getAccessScopeLabel(role, prototypeModeEnabled)
   const activeHref = visibleNavGroups
     .flatMap((group) => group.items)
     .filter((item) => pathname === item.href || pathname.startsWith(`${item.href}/`))
@@ -89,6 +91,7 @@ export const Sidebar = ({
               <div className="min-w-0">
                 <p className="truncate text-sm font-medium">{email ?? 'Prototype user'}</p>
                 <p className="mt-1 text-[13px] leading-[18px] text-navy-muted">{roleLabel}</p>
+                <p className="text-[12px] leading-[18px] text-navy-muted">{scopeLabel}</p>
               </div>
             ) : (
               <span className="sr-only">{email ?? 'Prototype user'}</span>

@@ -143,6 +143,11 @@ const routeChecks: Array<{
     allowed: (role) => can(role, 'collection.view'),
   },
   {
+    test: (pathname) => pathname.startsWith('/indicators'),
+    moduleName: 'Indicator Library',
+    allowed: (role) => canAny(role, ['indicators.manage', 'analytics.view']),
+  },
+  {
     test: (pathname) => pathname.startsWith('/analytics'),
     moduleName: 'Analytics',
     allowed: (role) => can(role, 'analytics.view'),
@@ -186,6 +191,26 @@ const routeChecks: Array<{
     test: (pathname) => pathname.startsWith('/reports'),
     moduleName: 'Reports',
     allowed: (role) => can(role, 'reports.view'),
+  },
+  {
+    test: (pathname) => pathname.startsWith('/transparency'),
+    moduleName: 'Public Tracker',
+    allowed: (role) => canAny(role, ['transparency.preview', 'transparency.publish']),
+  },
+  {
+    test: (pathname) => pathname === '/settings/profile',
+    moduleName: 'My Profile',
+    allowed: () => true,
+  },
+  {
+    test: (pathname) => pathname === '/settings/audit',
+    moduleName: 'Audit Log',
+    allowed: (role) => role === 'System Administrator',
+  },
+  {
+    test: (pathname) => pathname === '/settings/backups',
+    moduleName: 'Backup & Recovery',
+    allowed: (role) => role === 'System Administrator',
   },
   {
     test: (pathname) => pathname === '/settings/rules',
@@ -244,12 +269,16 @@ const navPermissions: Record<string, PermissionCode | PermissionCode[] | undefin
   '/projects': 'projects.view',
   '/beneficiaries': ['beneficiaries.scoped_view', 'beneficiaries.full_view'],
   '/collection': 'collection.view',
+  '/indicators': ['indicators.manage', 'analytics.view'],
   '/analytics': 'analytics.view',
   '/alerts': 'alerts.outcome.log',
   '/recommendations': 'alerts.outcome.log',
   '/reports': 'reports.view',
   '/alerts/repository': 'rules.view',
+  '/transparency': ['transparency.preview', 'transparency.publish'],
   '/settings/users': 'settings.users.manage',
+  '/settings/audit': 'settings.view',
+  '/settings/backups': 'settings.view',
   '/settings/labels': 'settings.view',
 }
 

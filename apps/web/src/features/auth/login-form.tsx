@@ -2,6 +2,7 @@
 
 import { zodResolver } from '@hookform/resolvers/zod'
 import { ArrowLeft, Eye, EyeOff, Info, Loader2, LogIn, RotateCcw } from 'lucide-react'
+import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useEffect, useRef, useState } from 'react'
 import { useForm } from 'react-hook-form'
@@ -463,31 +464,13 @@ export const LoginForm = () => {
               )}
             />
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <Dialog>
-                <DialogTrigger asChild>
-                  <Button
-                    className="w-fit px-0 text-link underline underline-offset-4 hover:bg-transparent hover:text-primary-active active:bg-transparent"
-                    type="button"
-                    variant="ghost"
-                  >
-                    Forgot Password?
-                  </Button>
-                </DialogTrigger>
-                <DialogShell
-                  title="Password recovery"
-                  description={
-                    webSetupState.guiPrototypeModeEnabled
-                      ? 'Prototype mode does not send recovery emails.'
-                      : 'Use the finalized Supabase recovery flow once production auth is configured.'
-                  }
-                >
-                  <p className="text-sm leading-6 text-muted-foreground">
-                    {webSetupState.guiPrototypeModeEnabled
-                      ? 'Choose one of the safe demo accounts and use the listed prototype password. No real account is changed.'
-                      : 'Ask the System Administrator to confirm the Supabase password recovery settings for your environment.'}
-                  </p>
-                </DialogShell>
-              </Dialog>
+              <Button
+                asChild
+                className="w-fit px-0 text-link underline underline-offset-4 hover:bg-transparent hover:text-primary-active active:bg-transparent"
+                variant="ghost"
+              >
+                <Link href="/staff/recover">Forgot Password?</Link>
+              </Button>
               <p className="inline-flex items-center gap-2 text-[13px] leading-[1.125rem] text-muted-foreground">
                 <Info className="h-3.5 w-3.5" aria-hidden="true" />
                 {webSetupState.guiPrototypeModeEnabled

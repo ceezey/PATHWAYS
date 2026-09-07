@@ -5,6 +5,7 @@ import type { PrototypeRole } from '@/types/prototype-role'
 export type SessionStatus = 'loading' | 'authenticated' | 'unauthenticated'
 
 export interface PrototypeSession {
+  contactNumber?: string
   email: string
   displayName: string
   role: PrototypeRole
@@ -22,5 +23,8 @@ export interface SessionContextValue {
   email: string | null
   refreshSession: () => Promise<void>
   signInWithPrototype: (session: PrototypeSession) => Promise<void>
+  updatePrototypeProfile: (
+    profile: Pick<PrototypeSession, 'contactNumber' | 'displayName' | 'email'>,
+  ) => Promise<boolean>
   signOut: () => Promise<void>
 }

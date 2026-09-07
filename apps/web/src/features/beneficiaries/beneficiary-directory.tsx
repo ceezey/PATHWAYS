@@ -256,12 +256,17 @@ export const BeneficiaryDirectory = ({
     <div className="space-y-6">
       <PageHeader
         actions={
-          <Button asChild>
-            <Link href="/beneficiaries/new">
-              <Plus className="mr-2 h-4 w-4" aria-hidden="true" />
-              Add beneficiary
-            </Link>
-          </Button>
+          <>
+            <Button asChild variant="outline">
+              <Link href="/beneficiaries/duplicates">Review possible duplicates</Link>
+            </Button>
+            <Button asChild>
+              <Link href="/beneficiaries/new">
+                <Plus className="mr-2 h-4 w-4" aria-hidden="true" />
+                Add beneficiary
+              </Link>
+            </Button>
+          </>
         }
         description="Find Beneficiary records by name or code, review journey progress, and open a record for journey and assessment details."
         eyebrow={projectAccessLabel}

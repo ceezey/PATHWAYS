@@ -3,10 +3,14 @@ import {
   AlertTriangle,
   BarChart3,
   ClipboardList,
+  DatabaseBackup,
   FolderKanban,
   Home,
+  LibraryBig,
   LineChart,
   ListChecks,
+  ScrollText,
+  Share2,
   SlidersHorizontal,
   Type,
   UserCog,
@@ -42,6 +46,10 @@ export const fixedDashboardNavItemLabels = {
   alertsRepository: 'Alerts Repository',
   userManagement: 'User Management',
   editLabels: 'Edit Labels',
+  indicatorLibrary: 'Indicator Library',
+  publicTracker: 'Public Tracker',
+  auditLog: 'Audit Log',
+  backupRecovery: 'Backup & Recovery',
 } as const
 
 export const publicNavigation: NavItem[] = [
@@ -86,6 +94,12 @@ export const createDashboardNavGroups = (): DashboardNavGroup[] => [
         description: 'Metadata-Driven Data Integration workspace.',
         icon: ClipboardList,
       },
+      {
+        href: '/indicators',
+        label: fixedDashboardNavItemLabels.indicatorLibrary,
+        description: 'Review reusable indicator definitions and project assignments.',
+        icon: LibraryBig,
+      },
     ],
   },
   {
@@ -122,6 +136,12 @@ export const createDashboardNavGroups = (): DashboardNavGroup[] => [
         description: 'Review the rules used to surface alerts for human review.',
         icon: SlidersHorizontal,
       },
+      {
+        href: '/transparency',
+        label: fixedDashboardNavItemLabels.publicTracker,
+        description: 'Review projects prepared for public visibility.',
+        icon: Share2,
+      },
     ],
   },
   {
@@ -133,6 +153,18 @@ export const createDashboardNavGroups = (): DashboardNavGroup[] => [
         label: fixedDashboardNavItemLabels.userManagement,
         description: 'Review prototype users, roles, and account states.',
         icon: UserCog,
+      },
+      {
+        href: '/settings/audit',
+        label: fixedDashboardNavItemLabels.auditLog,
+        description: 'Inspect significant prototype actions and system events.',
+        icon: ScrollText,
+      },
+      {
+        href: '/settings/backups',
+        label: fixedDashboardNavItemLabels.backupRecovery,
+        description: 'Review backup readiness and recovery safeguards.',
+        icon: DatabaseBackup,
       },
       {
         href: '/settings/labels',
@@ -149,8 +181,10 @@ export const dashboardNavGroups = createDashboardNavGroups()
 export const dashboardNavigation = dashboardNavGroups.flatMap((group) => group.items)
 
 export const getDashboardNavigationLabel = (pathname: string) =>
-  createDashboardNavGroups()
-    .flatMap((group) => group.items)
-    .filter((item) => pathname === item.href || pathname.startsWith(`${item.href}/`))
-    .sort((left, right) => right.href.length - left.href.length)[0]?.label ??
-  fixedDashboardNavItemLabels.dashboard
+  pathname === '/settings/profile'
+    ? 'My Profile'
+    : (createDashboardNavGroups()
+        .flatMap((group) => group.items)
+        .filter((item) => pathname === item.href || pathname.startsWith(`${item.href}/`))
+        .sort((left, right) => right.href.length - left.href.length)[0]?.label ??
+      fixedDashboardNavItemLabels.dashboard)

@@ -50,6 +50,7 @@ const config: Config = {
         'destructive-foreground': 'hsl(var(--destructive-foreground))',
         'disabled-foreground': 'hsl(var(--disabled-foreground))',
         border: 'hsl(var(--border))',
+        'border-strong': 'hsl(var(--border-strong))',
         input: 'hsl(var(--input))',
         ring: 'hsl(var(--ring))',
       },

@@ -428,6 +428,28 @@ describe('prototype RBAC matrix', () => {
     })
   })
 
+  it('keeps frontend-only administrative review routes limited to System Administrator', () => {
+    for (const path of ['/settings/audit', '/settings/backups']) {
+      expect(getRouteAccess('System Administrator', path)).toMatchObject({ allowed: true })
+      expect(getRouteAccess('Program Manager', path)).toMatchObject({ allowed: false })
+    }
+  })
+
+  it('exposes the indicator library and public review queue to relevant preview roles', () => {
+    expect(getRouteAccess('Monitoring and Evaluation Officer', '/indicators')).toMatchObject({
+      allowed: true,
+      moduleName: 'Indicator Library',
+    })
+    expect(getRouteAccess('Grant Manager', '/transparency')).toMatchObject({
+      allowed: true,
+      moduleName: 'Public Tracker',
+    })
+    expect(getRouteAccess('Project Officer', '/transparency')).toMatchObject({
+      allowed: false,
+      moduleName: 'Public Tracker',
+    })
+  })
+
   it('exposes User Management only to roles with account authority', () => {
     for (const role of ['System Administrator', 'Program Manager', 'Project Manager'] as const) {
       expect(getRouteAccess(role, '/settings/users')).toMatchObject({
