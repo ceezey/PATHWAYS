@@ -17,9 +17,12 @@ import {
 } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { resolveDuplicate } from '@/lib/demo-state/beneficiaries'
 
 type DuplicateCandidate = {
   id: string
+  leftId: string
+  rightId: string
   confidence: 'High' | 'Medium'
   reasons: string[]
   left: PersonSummary
@@ -39,6 +42,8 @@ type PersonSummary = {
 const candidates: DuplicateCandidate[] = [
   {
     id: 'DUP-0041',
+    leftId: 'ben-001',
+    rightId: 'ben-004',
     confidence: 'High',
     reasons: ['Same contact number', 'Matching birth date', 'Similar normalized name'],
     left: {
@@ -62,6 +67,8 @@ const candidates: DuplicateCandidate[] = [
   },
   {
     id: 'DUP-0038',
+    leftId: 'ben-002',
+    rightId: 'ben-003',
     confidence: 'Medium',
     reasons: ['Matching name', 'Nearby location', 'Different contact number'],
     left: {
@@ -107,12 +114,18 @@ export const DuplicateResolutionWorkspace = () => {
   const selected = candidates.find((candidate) => candidate.id === selectedId) ?? visible[0]
 
   const confirmDecision = () => {
-    setNotice(
-      decision === 'link'
-        ? 'Linkage decision recorded in this browser preview only. No profiles were merged.'
-        : 'Records marked distinct in this browser preview only. No profile was changed.',
-    )
-    setDecision(null)
+    if (!selected || !decision) return
+    try {
+      resolveDuplicate(selected.leftId, selected.rightId, decision)
+      setNotice(
+        decision === 'link'
+          ? 'Profiles merged in browser-local demo data; linked enrollments and history were retained.'
+          : 'Profiles marked distinct; the review decision was added to local history.',
+      )
+      setDecision(null)
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : 'Decision could not be saved.')
+    }
   }
 
   return (
@@ -132,8 +145,8 @@ export const DuplicateResolutionWorkspace = () => {
       />
 
       <div className="rounded-lg border border-warning/25 bg-warning-subtle px-4 py-3 text-sm leading-6 text-warning">
-        This workspace uses synthetic profiles. Decisions stay in the current browser session and
-        never merge or update beneficiary records.
+        This workspace uses fictional profiles. Project Managers may merge profiles; other allowed
+        beneficiary roles can inspect the queue and flag a match for management review.
       </div>
 
       {notice ? (
@@ -194,7 +207,7 @@ export const DuplicateResolutionWorkspace = () => {
 
         <SectionCard
           title={selected ? `Compare ${selected.id}` : 'Record comparison'}
-          description="Review differences and matching evidence before choosing a non-destructive preview outcome."
+          description="Review differences and matching evidence before retaining or merging records."
         >
           {selected ? (
             <div className="space-y-6">
@@ -216,7 +229,7 @@ export const DuplicateResolutionWorkspace = () => {
                 </Button>
                 <Button type="button" onClick={() => setDecision('link')}>
                   <Link2 className="mr-2 h-4 w-4" aria-hidden="true" />
-                  Flag as the same person
+                  Merge linked profiles
                 </Button>
               </div>
             </div>
@@ -234,15 +247,15 @@ export const DuplicateResolutionWorkspace = () => {
             </DialogTitle>
             <DialogDescription>
               {decision === 'link'
-                ? 'This preview records a linkage decision only. A real merge requires resolved authority, survivorship rules, server validation, and an audit event.'
-                : 'This preview marks the match reviewed only for this browser session.'}
+                ? 'The right profile will be merged into the existing profile. Enrollments, participation, assessments, and notes are retained; this demo action is audited.'
+                : 'Both profiles will remain and the reviewed decision will be retained in browser-local history.'}
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
             <Button variant="outline" onClick={() => setDecision(null)}>
               Cancel
             </Button>
-            <Button onClick={confirmDecision}>Confirm preview decision</Button>
+            <Button onClick={confirmDecision}>Confirm decision</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

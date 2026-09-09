@@ -1,15 +1,21 @@
 /* @vitest-environment jsdom */
 
-import { cleanup, fireEvent, render, screen } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, within } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
+import {
+  createDemoBaseline,
+  getDemoState,
+  resetDemo,
+  switchDemoAccount,
+} from '@/lib/demo-state/store'
 import { mockProjects } from '@/mocks/pathways/projects'
 
 import { BeneficiaryForm } from './beneficiary-form'
 
-vi.mock('next/navigation', () => ({
-  useRouter: () => ({ push: vi.fn() }),
-}))
+const { routerPush } = vi.hoisted(() => ({ routerPush: vi.fn() }))
+
+vi.mock('next/navigation', () => ({ useRouter: () => ({ push: routerPush }) }))
 
 vi.mock('sonner', () => ({
   toast: { error: vi.fn(), success: vi.fn() },
@@ -17,7 +23,9 @@ vi.mock('sonner', () => ({
 
 afterEach(() => {
   cleanup()
+  window.localStorage.clear()
   window.sessionStorage.clear()
+  routerPush.mockClear()
 })
 
 describe('BeneficiaryForm', () => {
@@ -74,5 +82,52 @@ describe('BeneficiaryForm', () => {
       'BEN-PROT-RECOVERED',
     )
     expect((screen.getByLabelText(/Last name/) as HTMLInputElement).value).toBe('Preserved')
+  })
+
+  it('uses the add-beneficiary form with an existing profile prefilled in edit mode', () => {
+    const beneficiary = createDemoBaseline().beneficiaries[0]
+
+    render(<BeneficiaryForm beneficiary={beneficiary} projects={mockProjects} />)
+
+    expect(screen.getByRole('heading', { name: 'Edit beneficiary profile' })).toBeTruthy()
+    expect((screen.getByLabelText(/Beneficiary code/) as HTMLInputElement).value).toBe(
+      beneficiary.code,
+    )
+    expect((screen.getByLabelText(/First name/) as HTMLInputElement).value).toBe(
+      beneficiary.firstName,
+    )
+    expect((screen.getByLabelText(/Last name/) as HTMLInputElement).value).toBe(
+      beneficiary.lastName,
+    )
+    expect(screen.getByRole('button', { name: 'Save changes' })).toBeTruthy()
+    expect(screen.getByRole('link', { name: 'Back to profile' }).getAttribute('href')).toBe(
+      `/beneficiaries/${beneficiary.id}`,
+    )
+  })
+
+  it('saves edited fields to the same beneficiary record and returns to its profile', () => {
+    resetDemo()
+    switchDemoAccount('project-officer')
+    const beneficiary = getDemoState().beneficiaries.find((record) =>
+      record.projectIds.includes('futuremakers-ncr'),
+    )
+    expect(beneficiary).toBeDefined()
+    if (!beneficiary) return
+
+    render(<BeneficiaryForm beneficiary={beneficiary} projects={mockProjects} />)
+
+    fireEvent.change(screen.getByLabelText(/City or municipality/), {
+      target: { value: 'Updated Demo City' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Save changes' }))
+
+    const confirmation = screen.getByRole('dialog')
+    expect(within(confirmation).getByText('Confirm profile changes')).toBeTruthy()
+    fireEvent.click(within(confirmation).getByRole('button', { name: 'Save changes' }))
+
+    expect(getDemoState().beneficiaries.find((record) => record.id === beneficiary.id)?.city).toBe(
+      'Updated Demo City',
+    )
+    expect(routerPush).toHaveBeenCalledWith(`/beneficiaries/${beneficiary.id}`)
   })
 })

@@ -1,6 +1,19 @@
 'use client'
 
-import { ArrowLeft, ClipboardCheck, FileText, MessageSquarePlus, UserCheck } from 'lucide-react'
+import {
+  addBeneficiaryNote,
+  recordBeneficiaryParticipation,
+  setBeneficiaryStatus,
+} from '@/lib/demo-state/beneficiaries'
+import { getDemoState } from '@/lib/demo-state/store'
+import {
+  ArrowLeft,
+  ClipboardCheck,
+  FileText,
+  MessageSquarePlus,
+  Pencil,
+  UserCheck,
+} from 'lucide-react'
 import Link from 'next/link'
 import { useMemo, useState } from 'react'
 import { toast } from 'sonner'
@@ -75,6 +88,7 @@ export const BeneficiaryDetail = ({
   const [selectedAssessment, setSelectedAssessment] = useState<BeneficiaryAssessmentRecord | null>(
     beneficiary.assessments[0] ?? null,
   )
+  const [selectedStage, setSelectedStage] = useState<JourneyStageConfig | null>(null)
   const [noteDraft, setNoteDraft] = useState({
     stageId: stages[0]?.id ?? '',
     visibility: 'Project team',
@@ -106,24 +120,31 @@ export const BeneficiaryDetail = ({
       toast.error('Add a note before saving.')
       return
     }
+    if (
+      projects.some(
+        (project) => beneficiary.projectIds.includes(project.id) && project.status === 'Completed',
+      ) &&
+      !window.confirm(
+        'This beneficiary is linked to a completed project. Save the journey note anyway?',
+      )
+    )
+      return
 
-    // TODO(BACKEND): Save participation and assessment records.
-    const note: BeneficiaryNoteRecord = {
-      id: `note-prototype-${Date.now().toString(36)}`,
-      beneficiaryId: beneficiary.id,
-      projectId: beneficiary.projectIds[0],
-      stageId: noteDraft.stageId,
-      author: 'Prototype user',
-      createdAt: new Date().toISOString().slice(0, 10),
-      visibility: noteDraft.visibility as BeneficiaryNoteRecord['visibility'],
-      note: noteDraft.note,
+    try {
+      addBeneficiaryNote(
+        beneficiary.id,
+        noteDraft.stageId,
+        noteDraft.visibility as BeneficiaryNoteRecord['visibility'],
+        noteDraft.note,
+      )
+      const saved = getDemoState().beneficiaries.find((record) => record.id === beneficiary.id)
+      setNotes(saved?.notes ?? notes)
+      setNoteDraft((current) => ({ ...current, note: '' }))
+      setNoteOpen(false)
+      toast.success('Beneficiary note saved to demo data.')
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Note could not be saved.')
     }
-    setNotes((current) => [note, ...current])
-    setNoteDraft((current) => ({ ...current, note: '' }))
-    setNoteOpen(false)
-    toast.success('Note added locally.', {
-      description: 'This is a prototype-only beneficiary note.',
-    })
   }
 
   const recordParticipation = () => {
@@ -131,32 +152,43 @@ export const BeneficiaryDetail = ({
       toast.error('Select an activity and date.')
       return
     }
+    if (
+      projects.some(
+        (project) => beneficiary.projectIds.includes(project.id) && project.status === 'Completed',
+      ) &&
+      !window.confirm('This project is completed. Record the participation update anyway?')
+    )
+      return
 
-    // TODO(BACKEND): Save participation and assessment records.
     const activity = activities.find((item) => item.id === participationDraft.activityId)
-    const record: BeneficiaryParticipationRecord = {
-      id: `part-prototype-${Date.now().toString(36)}`,
-      beneficiaryId: beneficiary.id,
-      projectId: activity?.projectId ?? beneficiary.projectIds[0],
-      activityId: participationDraft.activityId,
-      participatedAt: participationDraft.participatedAt,
-      attendanceStatus:
-        participationDraft.attendanceStatus as BeneficiaryParticipationRecord['attendanceStatus'],
-      note: participationDraft.note || 'Prototype participation recorded.',
+    try {
+      recordBeneficiaryParticipation(beneficiary.id, {
+        activityId: participationDraft.activityId,
+        participatedAt: participationDraft.participatedAt,
+        attendanceStatus:
+          participationDraft.attendanceStatus as BeneficiaryParticipationRecord['attendanceStatus'],
+        note: participationDraft.note || 'Participation recorded.',
+      })
+      const saved = getDemoState().beneficiaries.find((record) => record.id === beneficiary.id)
+      setParticipation(saved?.participation ?? participation)
+      setParticipationOpen(false)
+      toast.success(
+        `Participation saved${activity ? ` for ${activity.title}` : ''}; journey progress recalculated.`,
+      )
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Participation could not be saved.')
     }
-    setParticipation((current) => [...current, record])
-    setParticipationOpen(false)
-    toast.success('Participation recorded locally.', {
-      description: 'Current journey stage was recalculated from the activity mapping.',
-    })
   }
 
   const updateStatus = () => {
-    setEnrollmentStatus(nextStatus)
-    setStatusOpen(false)
-    toast.success('Enrollment status updated in prototype.', {
-      description: 'This transition is visible only in the current UI session.',
-    })
+    try {
+      setBeneficiaryStatus(beneficiary.id, nextStatus)
+      setEnrollmentStatus(nextStatus)
+      setStatusOpen(false)
+      toast.success('Enrollment status saved to demo data.')
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Status could not be updated.')
+    }
   }
 
   return (
@@ -201,7 +233,15 @@ export const BeneficiaryDetail = ({
 
       <div className="grid gap-6 xl:grid-cols-[360px_minmax(0,1fr)]">
         <aside className="space-y-4 rounded-lg border border-border bg-card p-5">
-          <h2 className="text-lg font-semibold text-foreground">Profile summary</h2>
+          <div className="flex items-center justify-between gap-3">
+            <h2 className="text-lg font-semibold text-foreground">Profile summary</h2>
+            <Button asChild size="sm" variant="outline">
+              <Link href={`/beneficiaries/${beneficiary.id}/edit`}>
+                <Pencil className="mr-2 h-4 w-4" aria-hidden="true" />
+                Edit Profile
+              </Link>
+            </Button>
+          </div>
           <div className="grid gap-3 text-sm">
             <SummaryRow label="Beneficiary code" value={beneficiary.code} />
             <SummaryRow
@@ -248,6 +288,13 @@ export const BeneficiaryDetail = ({
         </aside>
 
         <div className="space-y-6">
+          {beneficiary.sex === 'Prefer not to say' ||
+          beneficiary.disabilityStatus === 'Not disclosed' ? (
+            <div className="rounded-lg border border-warning/30 bg-warning-subtle p-4 text-sm text-warning">
+              SADDD completeness warning: one or more sex, age, or disability dimensions are not
+              disclosed for this profile.
+            </div>
+          ) : null}
           <section className="rounded-lg border border-border bg-card p-5">
             <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
               <div>
@@ -279,8 +326,10 @@ export const BeneficiaryDetail = ({
                   const active = currentStage?.id === stage.id
 
                   return (
-                    <div
+                    <button
                       key={stage.id}
+                      type="button"
+                      onClick={() => setSelectedStage(stage)}
                       className={`rounded-sm border p-4 ${
                         active
                           ? 'border-primary bg-primary-subtle'
@@ -296,7 +345,8 @@ export const BeneficiaryDetail = ({
                         </div>
                         <StatusBadge tone={stageTypeTone(stage.type)}>{stage.type}</StatusBadge>
                       </div>
-                    </div>
+                      <span className="mt-3 block text-xs font-medium">Open stage details</span>
+                    </button>
                   )
                 })}
             </div>
@@ -386,6 +436,59 @@ export const BeneficiaryDetail = ({
           </section>
         </div>
       </div>
+
+      <Dialog
+        open={Boolean(selectedStage)}
+        onOpenChange={(open) => !open && setSelectedStage(null)}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>
+              {selectedStage?.code} · {selectedStage?.name}
+            </DialogTitle>
+            <DialogDescription>{selectedStage?.description}</DialogDescription>
+          </DialogHeader>
+          {selectedStage ? (
+            <div className="space-y-4 text-sm">
+              <p>
+                Required activity completion:{' '}
+                {
+                  participation.filter(
+                    (record) =>
+                      selectedStage.mappedActivityIds.includes(record.activityId) &&
+                      record.attendanceStatus !== 'Absent',
+                  ).length
+                }
+                /{selectedStage.mappedActivityIds.length}
+              </p>
+              <ul className="space-y-2">
+                {activities
+                  .filter((activity) => selectedStage.mappedActivityIds.includes(activity.id))
+                  .map((activity) => (
+                    <li className="rounded border p-3" key={activity.id}>
+                      <strong>{activity.title}</strong>
+                      <br />
+                      Participation:{' '}
+                      {participation.find((record) => record.activityId === activity.id)
+                        ?.participatedAt ?? 'Not started'}
+                    </li>
+                  ))}
+              </ul>
+              {beneficiary.assessments
+                .filter((assessment) => assessment.stageId === selectedStage.id)
+                .map((assessment) => (
+                  <p className="rounded border p-3" key={assessment.id}>
+                    Assessment: {assessment.title} · {assessment.score}%
+                  </p>
+                ))}
+              <p className="rounded border border-info/25 bg-info-subtle p-3 text-info">
+                Data ripple: encoded/imported participation → journey stage calculation →
+                beneficiary and analytics views.
+              </p>
+            </div>
+          ) : null}
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={noteOpen} onOpenChange={setNoteOpen}>
         <DialogContent>

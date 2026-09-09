@@ -26,7 +26,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import type { ProjectSummary } from '@/types/pathways'
+import { possibleDuplicates, saveBeneficiary } from '@/lib/demo-state/beneficiaries'
+import type { BeneficiaryRecord, ProjectSummary } from '@/types/pathways'
 
 type BeneficiaryDraft = {
   code: string
@@ -67,6 +68,35 @@ const initialDraft: BeneficiaryDraft = {
 }
 const beneficiaryDraftStorageKey = 'pathways.beneficiaryDraft'
 
+const draftFromBeneficiary = (
+  beneficiary: BeneficiaryRecord,
+  projects: ProjectSummary[],
+): BeneficiaryDraft => ({
+  code: beneficiary.code,
+  firstName: beneficiary.firstName,
+  middleName: beneficiary.middleName ?? '',
+  lastName: beneficiary.lastName,
+  sex: beneficiary.sex,
+  birthDate: beneficiary.birthDate ?? '',
+  age: beneficiary.age === undefined ? '' : String(beneficiary.age),
+  disabilityStatus: beneficiary.disabilityStatus,
+  province: beneficiary.province,
+  city: beneficiary.city,
+  barangay: beneficiary.barangay,
+  consentToParticipate: beneficiary.consentToParticipate,
+  consentToStoreData: beneficiary.consentToStoreData,
+  isMinor: beneficiary.isMinor,
+  guardianConsent: beneficiary.guardianConsent,
+  projectId:
+    beneficiary.enrollments.find((enrollment) =>
+      projects.some((project) => project.id === enrollment.projectId),
+    )?.projectId ??
+    beneficiary.projectIds.find((projectId) =>
+      projects.some((project) => project.id === projectId),
+    ) ??
+    '',
+})
+
 type BeneficiaryFieldKey =
   | 'code'
   | 'projectId'
@@ -105,23 +135,42 @@ const fieldIds: Record<BeneficiaryFieldKey, string> = {
   guardianConsent: 'beneficiary-guardian-consent',
 }
 
-export const BeneficiaryForm = ({ projects }: { projects: ProjectSummary[] }) => {
+export const BeneficiaryForm = ({
+  projects,
+  beneficiary,
+}: {
+  projects: ProjectSummary[]
+  beneficiary?: BeneficiaryRecord
+}) => {
   const router = useRouter()
-  const [draft, setDraft] = useState<BeneficiaryDraft>(initialDraft)
+  const startingDraft = useMemo(
+    () => (beneficiary ? draftFromBeneficiary(beneficiary, projects) : initialDraft),
+    [beneficiary, projects],
+  )
+  const draftStorageKey = beneficiary
+    ? `${beneficiaryDraftStorageKey}.${beneficiary.id}`
+    : beneficiaryDraftStorageKey
+  const [draft, setDraft] = useState<BeneficiaryDraft>(startingDraft)
   const [draftHydrated, setDraftHydrated] = useState(false)
   const [draftRecovered, setDraftRecovered] = useState(false)
   const [submitted, setSubmitted] = useState(false)
   const [confirmOpen, setConfirmOpen] = useState(false)
+  const [confirmDistinct, setConfirmDistinct] = useState(false)
 
   useEffect(() => {
+    setDraft(startingDraft)
+    setDraftRecovered(false)
+    setSubmitted(false)
+    setConfirmDistinct(false)
+
     try {
-      const stored = window.sessionStorage.getItem(beneficiaryDraftStorageKey)
+      const stored = window.sessionStorage.getItem(draftStorageKey)
       if (stored) {
         const parsed = JSON.parse(stored) as Partial<Record<keyof BeneficiaryDraft, unknown>>
-        const restored = { ...initialDraft }
+        const restored = { ...startingDraft }
 
-        for (const key of Object.keys(initialDraft) as Array<keyof BeneficiaryDraft>) {
-          if (typeof parsed[key] === typeof initialDraft[key]) {
+        for (const key of Object.keys(startingDraft) as Array<keyof BeneficiaryDraft>) {
+          if (typeof parsed[key] === typeof startingDraft[key]) {
             Object.assign(restored, { [key]: parsed[key] })
           }
         }
@@ -130,23 +179,23 @@ export const BeneficiaryForm = ({ projects }: { projects: ProjectSummary[] }) =>
         setDraftRecovered(true)
       }
     } catch {
-      window.sessionStorage.removeItem(beneficiaryDraftStorageKey)
+      window.sessionStorage.removeItem(draftStorageKey)
     } finally {
       setDraftHydrated(true)
     }
-  }, [])
+  }, [draftStorageKey, startingDraft])
 
   useEffect(() => {
     if (!draftHydrated) {
       return
     }
 
-    if (JSON.stringify(draft) === JSON.stringify(initialDraft)) {
-      window.sessionStorage.removeItem(beneficiaryDraftStorageKey)
+    if (JSON.stringify(draft) === JSON.stringify(startingDraft)) {
+      window.sessionStorage.removeItem(draftStorageKey)
     } else {
-      window.sessionStorage.setItem(beneficiaryDraftStorageKey, JSON.stringify(draft))
+      window.sessionStorage.setItem(draftStorageKey, JSON.stringify(draft))
     }
-  }, [draft, draftHydrated])
+  }, [draft, draftHydrated, draftStorageKey, startingDraft])
 
   const validationIssues = useMemo(() => {
     const issues: ValidationIssue[] = []
@@ -238,13 +287,34 @@ export const BeneficiaryForm = ({ projects }: { projects: ProjectSummary[] }) =>
   }
 
   const confirmSave = () => {
-    // TODO(BACKEND): Save beneficiary profile and enrollments.
-    setConfirmOpen(false)
-    window.sessionStorage.removeItem(beneficiaryDraftStorageKey)
-    toast.success('Beneficiary profile preview completed.', {
-      description: 'No shared Beneficiary record was created.',
-    })
-    router.push('/beneficiaries')
+    try {
+      const record = saveBeneficiary(
+        {
+          ...draft,
+          middleName: draft.middleName || undefined,
+          age: draft.age ? Number(draft.age) : undefined,
+          sex: draft.sex as 'Female' | 'Male' | 'Prefer not to say',
+          disabilityStatus: draft.disabilityStatus as
+            | 'With disability'
+            | 'Without disability'
+            | 'Not disclosed',
+        },
+        confirmDistinct,
+        beneficiary?.id,
+      )
+      setConfirmOpen(false)
+      window.sessionStorage.removeItem(draftStorageKey)
+      toast.success(
+        beneficiary
+          ? 'Beneficiary profile changes saved to demo data.'
+          : 'Beneficiary profile saved to demo data.',
+      )
+      router.push(`/beneficiaries/${record.id}`)
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Beneficiary could not be saved.'
+      if (message.startsWith('Possible duplicate:')) setConfirmDistinct(true)
+      toast.error(message)
+    }
   }
 
   return (
@@ -252,23 +322,26 @@ export const BeneficiaryForm = ({ projects }: { projects: ProjectSummary[] }) =>
       <section className="flex flex-col gap-4 rounded-lg border border-border bg-card p-5 md:flex-row md:items-start md:justify-between">
         <div className="space-y-2">
           <div className="flex flex-wrap gap-2">
-            <StatusBadge tone="neutral">Safe sample entry</StatusBadge>
-            <StatusBadge tone="warning">Preview only</StatusBadge>
+            <StatusBadge tone="neutral">Fictional demo entry</StatusBadge>
+            <StatusBadge tone="info">
+              {beneficiary ? 'Editing saved profile' : 'Saved in this browser'}
+            </StatusBadge>
           </div>
           <div>
             <h1 className="text-3xl font-semibold tracking-tight text-foreground">
-              Add beneficiary
+              {beneficiary ? 'Edit beneficiary profile' : 'Add beneficiary'}
             </h1>
             <p className="mt-2 max-w-3xl text-sm leading-6 text-muted-foreground">
-              Create a coded prototype profile with consent and project enrollment fields. Use
-              non-identifying placeholder details only.
+              {beneficiary
+                ? 'Update this coded prototype profile using the existing consent and project enrollment fields.'
+                : 'Create a coded prototype profile with consent and project enrollment fields. Use non-identifying placeholder details only.'}
             </p>
           </div>
         </div>
         <Button asChild variant="outline">
-          <Link href="/beneficiaries">
+          <Link href={beneficiary ? `/beneficiaries/${beneficiary.id}` : '/beneficiaries'}>
             <ArrowLeft className="mr-2 h-4 w-4" aria-hidden="true" />
-            Back to directory
+            {beneficiary ? 'Back to profile' : 'Back to directory'}
           </Link>
         </Button>
       </section>
@@ -538,13 +611,13 @@ export const BeneficiaryForm = ({ projects }: { projects: ProjectSummary[] }) =>
           <div className="flex justify-end">
             <Button type="submit">
               <Save className="mr-2 h-4 w-4" aria-hidden="true" />
-              Save beneficiary
+              {beneficiary ? 'Save changes' : 'Save beneficiary'}
             </Button>
           </div>
         </form>
 
         <aside className="space-y-4 rounded-lg border border-border bg-card p-5">
-          <h2 className="text-lg font-semibold text-foreground">Prototype preview</h2>
+          <h2 className="text-lg font-semibold text-foreground">Profile preview</h2>
           <div className="space-y-3 text-sm">
             <PreviewRow label="Code" value={draft.code || 'Pending'} />
             <PreviewRow
@@ -567,8 +640,7 @@ export const BeneficiaryForm = ({ projects }: { projects: ProjectSummary[] }) =>
             />
           </div>
           <p className="rounded-sm border border-warning/30 bg-warning-subtle p-3 text-xs leading-5 text-warning">
-            This preview uses the current form only and must not include real or identifiable
-            Beneficiary data.
+            Demo only. Use fictional, non-identifying beneficiary data.
           </p>
         </aside>
       </div>
@@ -576,9 +648,22 @@ export const BeneficiaryForm = ({ projects }: { projects: ProjectSummary[] }) =>
       <Dialog open={confirmOpen} onOpenChange={setConfirmOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Confirm prototype beneficiary profile</DialogTitle>
+            <DialogTitle>
+              {confirmDistinct
+                ? 'Confirm distinct beneficiary'
+                : beneficiary
+                  ? 'Confirm profile changes'
+                  : 'Confirm beneficiary profile'}
+            </DialogTitle>
             <DialogDescription>
-              Complete this coded profile preview. No shared Beneficiary record will be created.
+              {confirmDistinct
+                ? `A possible duplicate exists: ${possibleDuplicates(draft)
+                    .filter((record) => record.id !== beneficiary?.id)
+                    .map((record) => record.code)
+                    .join(', ')}. Confirm only after reviewing the existing profile.`
+                : beneficiary
+                  ? 'Save these profile changes to shared browser-local demo data.'
+                  : 'Save this coded profile and project enrollment to shared browser-local demo data.'}
             </DialogDescription>
           </DialogHeader>
           <div className="rounded-sm border border-border bg-surface-subtle p-4 text-sm">
@@ -592,7 +677,11 @@ export const BeneficiaryForm = ({ projects }: { projects: ProjectSummary[] }) =>
               Cancel
             </Button>
             <Button onClick={confirmSave} type="button">
-              Complete preview
+              {confirmDistinct
+                ? 'Save as distinct person'
+                : beneficiary
+                  ? 'Save changes'
+                  : 'Save beneficiary'}
             </Button>
           </DialogFooter>
         </DialogContent>

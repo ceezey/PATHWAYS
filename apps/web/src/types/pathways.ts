@@ -23,6 +23,10 @@ export interface ProjectSummary {
 }
 
 export interface ProjectDetail extends ProjectSummary {
+  objectives?: string
+  partners?: string
+  archived?: boolean
+  projectBudget?: number
   description: string
   programManager: string
   monitoringOfficer: string
@@ -55,13 +59,17 @@ export interface AnalyticsLocationRecord {
 }
 
 export interface CreateProjectInput {
+  objectives?: string
+  partners?: string
+  projectBudget?: number
+  confirmDuplicate?: boolean
   title: string
   sector: string
   area: string
   startDate: string
   endDate: string
   status: ProjectStatus
-  budgetCode: string
+  budgetCode?: string
   description: string
   programManager: string
   projectManager: string
@@ -70,6 +78,9 @@ export interface CreateProjectInput {
 }
 
 export interface Activity {
+  overrideJustification?: string
+  progressApproval?: 'For Review' | 'Approved' | 'For Correction'
+  correctionReason?: string
   id: string
   projectId: string
   title: string
@@ -105,6 +116,7 @@ export interface ActivityUpdateNote {
 }
 
 export interface CreateActivityInput {
+  overrideJustification?: string
   projectId: string
   title: string
   description: string
@@ -251,6 +263,10 @@ export interface BeneficiarySadddAggregate {
 }
 
 export interface Indicator {
+  description?: string
+  unit?: string
+  disaggregation?: string
+  dataSource?: string
   id: string
   projectId: string
   code: string

@@ -28,6 +28,8 @@ import {
 } from '@/components/ui/select'
 import { usePrototypeLabels } from '@/hooks/use-prototype-labels'
 import { usePrototypeRole } from '@/hooks/use-prototype-role'
+import { canOutcome, decideAlert, reviewAlert } from '@/lib/demo-state/monitoring'
+import { getDemoState } from '@/lib/demo-state/store'
 import { pathwaysClient } from '@/lib/services/mock-pathways-client'
 import type {
   AlertLifecycleStatus,
@@ -162,18 +164,19 @@ const AlertsWorkspaceContent = ({
   const selectedRule = rules.find((rule) => rule.id === selectedAlert?.ruleId)
 
   const updateAlert = () => {
-    // TODO(BACKEND): Persist rule definitions and lifecycle transitions.
-    setAlerts((current) =>
-      current.map((alert) =>
-        alert.id === selectedAlert?.id
-          ? { ...alert, lifecycleStatus: reviewStatus, actionNote }
-          : alert,
-      ),
-    )
-    setReviewOpen(false)
-    toast.success('Alert review updated locally.', {
-      description: 'This demonstration keeps the change in your current browser session only.',
-    })
+    if (!selectedAlert) return
+    try {
+      if (reviewStatus === 'Reviewed') reviewAlert(selectedAlert.id)
+      else if (reviewStatus === 'Resolved') decideAlert(selectedAlert.id, 'Accept', actionNote)
+      else if (reviewStatus === 'Dismissed') decideAlert(selectedAlert.id, 'Decline', actionNote)
+      else if (reviewStatus === 'Actioned') decideAlert(selectedAlert.id, 'Escalate', actionNote)
+      else throw new Error('Auto-resolved is set only when the configured condition clears.')
+      setAlerts(getDemoState().alerts)
+      setReviewOpen(false)
+      toast.success('Alert transition saved to shared demo state.')
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Alert review could not be saved.')
+    }
   }
 
   return (
@@ -361,7 +364,8 @@ const AlertsWorkspaceContent = ({
           <DialogHeader>
             <DialogTitle>Review alert lifecycle</DialogTitle>
             <DialogDescription>
-              This records a local prototype status and action note only.
+              Reviewing is available to monitoring actors. Outcome transitions are reserved for
+              Project and Program Managers.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
@@ -375,11 +379,17 @@ const AlertsWorkspaceContent = ({
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {lifecycleStatuses.map((item) => (
-                    <SelectItem key={item} value={item}>
-                      {item}
-                    </SelectItem>
-                  ))}
+                  {lifecycleStatuses
+                    .filter(
+                      (item) =>
+                        item === 'Reviewed' ||
+                        (canOutcome() && ['Actioned', 'Resolved', 'Dismissed'].includes(item)),
+                    )
+                    .map((item) => (
+                      <SelectItem key={item} value={item}>
+                        {item}
+                      </SelectItem>
+                    ))}
                 </SelectContent>
               </Select>
             </div>

@@ -20,6 +20,52 @@ type ChartProps = {
   alerts: AlertRecord[]
 }
 
+export interface DescriptiveAnalysisRow {
+  id: string
+  label: string
+  value: number
+}
+
+export const DescriptiveAnalysisChart = ({
+  rows,
+  type,
+  title,
+  unit,
+}: {
+  rows: DescriptiveAnalysisRow[]
+  type: 'bar' | 'line'
+  title: string
+  unit: string
+}) => (
+  <ReactECharts
+    className="h-[320px] w-full"
+    option={{
+      animation: false,
+      aria: {
+        enabled: true,
+        description: `${title}. ${rows.map((row) => `${row.label}: ${row.value} ${unit}`).join('; ')}.`,
+      },
+      color: ['#0072CE'],
+      tooltip: {
+        trigger: 'axis',
+        valueFormatter: (value: number) => `${value.toLocaleString()} ${unit}`,
+      },
+      grid,
+      xAxis: { type: 'category', data: rows.map((row) => row.label) },
+      yAxis: { type: 'value', min: 0, name: unit },
+      series: [
+        {
+          name: title,
+          type,
+          data: rows.map((row) => row.value),
+          smooth: type === 'line',
+          areaStyle: type === 'line' ? { opacity: 0.08 } : undefined,
+        },
+      ],
+    }}
+  />
+)
+
 const grid = { left: 16, right: 16, top: 28, bottom: 18, containLabel: true }
 const colors = ['#0072CE', '#0B2E4F', '#8A4B08', '#B42318', '#526779']
 

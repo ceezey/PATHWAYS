@@ -59,7 +59,9 @@ const indicators: IndicatorDefinition[] = [
   },
 ]
 
-export const IndicatorLibraryWorkspace = () => {
+import { ConnectedIndicatorWorkspace } from './connected-delivery-workspace'
+export const IndicatorLibraryWorkspace = ConnectedIndicatorWorkspace
+const LegacyIndicatorLibraryWorkspace = () => {
   const [query, setQuery] = useState('')
   const [selectedCode, setSelectedCode] = useState(indicators[0]?.code ?? '')
   const visibleIndicators = useMemo(() => {

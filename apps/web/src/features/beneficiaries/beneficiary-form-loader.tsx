@@ -8,40 +8,56 @@ import { AsyncState, StatusMessage } from '@/components/pathways'
 import { Button } from '@/components/ui/button'
 import { usePrototypeRole } from '@/hooks/use-prototype-role'
 import { pathwaysClient } from '@/lib/services/mock-pathways-client'
-import type { ProjectSummary } from '@/types/pathways'
+import { PathwaysClientError } from '@/lib/services/pathways-client'
+import type { BeneficiaryRecord, ProjectSummary } from '@/types/pathways'
 
 import { BeneficiaryForm } from './beneficiary-form'
 
-export const BeneficiaryFormLoader = () => {
+export const BeneficiaryFormLoader = ({ beneficiaryId }: { beneficiaryId?: string }) => {
   const { role } = usePrototypeRole()
   const [projects, setProjects] = useState<ProjectSummary[] | null>(null)
-  const [loadState, setLoadState] = useState<'loading' | 'ready' | 'error'>('loading')
+  const [beneficiary, setBeneficiary] = useState<BeneficiaryRecord | undefined>()
+  const [loadState, setLoadState] = useState<
+    'loading' | 'ready' | 'restricted' | 'unavailable' | 'error'
+  >('loading')
   const [loadAttempt, setLoadAttempt] = useState(0)
 
   useEffect(() => {
     void loadAttempt
     let active = true
     setProjects(null)
+    setBeneficiary(undefined)
     setLoadState('loading')
 
-    void pathwaysClient
-      .getProjectsForRole(role)
-      .then((nextProjects) => {
+    void Promise.all([
+      pathwaysClient.getProjectsForRole(role),
+      beneficiaryId
+        ? pathwaysClient.getBeneficiaryRecordForRole(role, beneficiaryId)
+        : Promise.resolve(undefined),
+    ])
+      .then(([nextProjects, nextBeneficiary]) => {
         if (active) {
           setProjects(nextProjects)
+          setBeneficiary(nextBeneficiary)
           setLoadState('ready')
         }
       })
-      .catch(() => {
+      .catch((error) => {
         if (active) {
-          setLoadState('error')
+          if (error instanceof PathwaysClientError && error.code === 'forbidden') {
+            setLoadState('restricted')
+          } else if (error instanceof PathwaysClientError && error.code === 'not_found') {
+            setLoadState('unavailable')
+          } else {
+            setLoadState('error')
+          }
         }
       })
 
     return () => {
       active = false
     }
-  }, [loadAttempt, role])
+  }, [beneficiaryId, loadAttempt, role])
 
   if (loadState === 'loading') {
     return (
@@ -51,6 +67,27 @@ export const BeneficiaryFormLoader = () => {
         status="loading"
         title="Loading assigned projects"
       />
+    )
+  }
+
+  if (loadState === 'restricted' || loadState === 'unavailable') {
+    const restricted = loadState === 'restricted'
+    return (
+      <div className="space-y-4 rounded-lg border border-border bg-card p-8 text-center">
+        <AsyncState
+          description={
+            restricted
+              ? 'This beneficiary profile is outside the projects assigned to the current role.'
+              : 'This beneficiary profile is not available in the current demo data.'
+          }
+          icon={FolderLock}
+          status="empty"
+          title={restricted ? 'Beneficiary profile restricted' : 'Beneficiary profile unavailable'}
+        />
+        <Button asChild>
+          <Link href="/beneficiaries">Back to Beneficiaries</Link>
+        </Button>
+      </div>
     )
   }
 
@@ -85,7 +122,7 @@ export const BeneficiaryFormLoader = () => {
   return (
     <>
       <StatusMessage>Assigned project choices loaded.</StatusMessage>
-      <BeneficiaryForm projects={projects} />
+      <BeneficiaryForm beneficiary={beneficiary} projects={projects} />
     </>
   )
 }

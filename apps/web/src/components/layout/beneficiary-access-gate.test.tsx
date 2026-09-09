@@ -28,52 +28,39 @@ vi.mock('@/components/ui/dialog', () => ({
 }))
 
 vi.mock('@/hooks/use-prototype-role', () => ({
-  usePrototypeRole: () => ({ role: 'M&E' }),
+  usePrototypeRole: () => ({ role: 'Monitoring and Evaluation Officer' }),
 }))
 
 vi.mock('@/lib/auth/beneficiary-step-up', () => ({ writeBeneficiaryAccess }))
 
 import { BeneficiaryAccessGate } from './beneficiary-access-gate'
 
-const originalFetch = globalThis.fetch
-
 afterEach(() => {
   cleanup()
   vi.clearAllMocks()
-  globalThis.fetch = originalFetch
 })
 
 describe('BeneficiaryAccessGate', () => {
-  it('retains a safe PIN, restores controls, and permits retry after a rejected request', async () => {
-    const fetchMock = vi
-      .fn()
-      .mockRejectedValueOnce(new TypeError('network unavailable'))
-      .mockResolvedValueOnce({
-        ok: true,
-        status: 200,
-        json: vi.fn().mockResolvedValue({ ok: true, expiresAt: '2026-09-03T12:00:00.000Z' }),
-      })
-    globalThis.fetch = fetchMock as unknown as typeof fetch
+  it('keeps details hidden after a wrong local PIN and permits retry with the fictional PIN', async () => {
     const onVerified = vi.fn()
 
     render(<BeneficiaryAccessGate onVerified={onVerified} />)
     const pin = screen.getByRole('textbox', { name: 'Beneficiary access PIN' })
     const verify = screen.getByRole('button', { name: 'Verify and enter' })
 
-    fireEvent.change(pin, { target: { value: '2468' } })
+    fireEvent.change(pin, { target: { value: '9999' } })
     fireEvent.click(verify)
 
     expect(
       await screen.findByText(
-        'The beneficiary access service could not be reached. Check your connection and try again.',
+        'The PIN is incorrect. Personal details remain hidden; try the fictional demo PIN shown below.',
       ),
     ).toBeTruthy()
-    expect((pin as HTMLInputElement).value).toBe('2468')
-    expect(verify.hasAttribute('disabled')).toBe(false)
+    expect((pin as HTMLInputElement).value).toBe('')
+    fireEvent.change(pin, { target: { value: '2468' } })
 
     fireEvent.click(verify)
     await waitFor(() => expect(onVerified).toHaveBeenCalledTimes(1))
-    expect(fetchMock).toHaveBeenCalledTimes(2)
-    expect(writeBeneficiaryAccess).toHaveBeenCalledWith('M&E', '2026-09-03T12:00:00.000Z')
+    expect(writeBeneficiaryAccess).toHaveBeenCalledWith('Monitoring and Evaluation Officer')
   })
 })

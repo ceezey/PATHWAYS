@@ -27,6 +27,13 @@ import {
 } from '@/components/ui/select'
 import { usePrototypeLabels } from '@/hooks/use-prototype-labels'
 import { usePrototypeRole } from '@/hooks/use-prototype-role'
+import {
+  canOutcome,
+  decideRecommendation,
+  outcomeRecipients,
+  reviewRecommendation,
+} from '@/lib/demo-state/monitoring'
+import { getDemoState } from '@/lib/demo-state/store'
 import { pathwaysClient } from '@/lib/services/mock-pathways-client'
 import type {
   AlertRecord,
@@ -184,18 +191,18 @@ const RecommendationsWorkspaceContent = ({
 
     setOutcomeError('')
 
-    // TODO(BACKEND): Persist recommendation review and outcomes.
-    setRecommendations((current) =>
-      current.map((recommendation) =>
-        recommendation.id === selectedRecommendation?.id
-          ? { ...recommendation, outcome, outcomeNote, reviewStatus: 'Actioned' }
-          : recommendation,
-      ),
-    )
-    setOutcomeOpen(false)
-    toast.success('Recommendation outcome logged locally.', {
-      description: 'Human decision recorded for this prototype view.',
-    })
+    if (!selectedRecommendation) return
+    try {
+      decideRecommendation(selectedRecommendation.id, outcome, outcomeNote)
+      setRecommendations(getDemoState().recommendations)
+      setOutcomeOpen(false)
+      toast.success('Recommendation outcome saved and linked alert updated.', {
+        description:
+          'Named demo recipients received an in-app notification and the transition was audited.',
+      })
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Outcome could not be saved.')
+    }
   }
 
   return (
@@ -340,17 +347,41 @@ const RecommendationsWorkspaceContent = ({
                   <p className="mt-2">{selectedRecommendation.outcomeNote}</p>
                 </div>
               ) : null}
-              <Button
-                onClick={() => {
-                  setOutcome(selectedRecommendation.outcome ?? 'Accept')
-                  setOutcomeNote(selectedRecommendation.outcomeNote ?? '')
-                  setOutcomeError('')
-                  setOutcomeOpen(true)
-                }}
-              >
-                <CheckCircle2 className="mr-2 h-4 w-4" aria-hidden="true" />
-                Log outcome
-              </Button>
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    try {
+                      reviewRecommendation(selectedRecommendation.id)
+                      setRecommendations(getDemoState().recommendations)
+                      toast.success('Recommendation marked reviewed.')
+                    } catch (error) {
+                      toast.error(
+                        error instanceof Error ? error.message : 'Review could not be saved.',
+                      )
+                    }
+                  }}
+                >
+                  Review recommendation
+                </Button>
+                {canOutcome() ? (
+                  <Button
+                    onClick={() => {
+                      setOutcome(selectedRecommendation.outcome ?? 'Accept')
+                      setOutcomeNote(selectedRecommendation.outcomeNote ?? '')
+                      setOutcomeError('')
+                      setOutcomeOpen(true)
+                    }}
+                  >
+                    <CheckCircle2 className="mr-2 h-4 w-4" aria-hidden="true" />
+                    Log outcome
+                  </Button>
+                ) : (
+                  <p className="self-center text-sm text-muted-foreground">
+                    Outcome controls are reserved for Project and Program Managers.
+                  </p>
+                )}
+              </div>
             </>
           ) : (
             <p className="text-sm text-muted-foreground">Select a recommendation to review.</p>
@@ -403,6 +434,18 @@ const RecommendationsWorkspaceContent = ({
                 </SelectContent>
               </Select>
             </div>
+            {selectedAlert ? (
+              <div className="rounded-sm border border-info/25 bg-info-subtle p-3 text-sm text-info">
+                <p className="font-medium">Notification impact preview</p>
+                <p className="mt-1">
+                  {outcomeRecipients(selectedAlert.projectId)
+                    .map((recipient) => recipient.name)
+                    .join(', ') || 'No active project recipients'}{' '}
+                  will receive: “Recommendation decision: {outcome}.{' '}
+                  {outcomeNote || '[your justification]'}”
+                </p>
+              </div>
+            ) : null}
             <div className="space-y-2">
               <Label htmlFor="recommendation-outcome-note">
                 Outcome note

@@ -4,6 +4,8 @@
     "ignore": [
       "node_modules",
       ".next",
+      ".next-review",
+      ".next-review-*",
       "dist",
       "coverage",
       ".pnpm-store",

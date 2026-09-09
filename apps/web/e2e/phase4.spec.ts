@@ -26,9 +26,11 @@ test.describe('Phase 4 approved staff workflows', () => {
     await expect(page.getByRole('textbox', { name: /Program Manager/ })).toHaveCount(0)
 
     await page.getByRole('textbox', { name: /Project title/ }).fill('Phase Four Team Test')
+    await page.getByRole('textbox', { name: /Objectives/ }).fill('Verify project team selection')
+    await page.getByRole('textbox', { name: /Implementing partners/ }).fill('Fictional Partner')
+    await page.getByRole('spinbutton', { name: /Project budget/ }).fill('100000')
     await page.getByRole('textbox', { name: /Sector/ }).fill('Education')
     await page.getByRole('textbox', { name: /Implementation area/ }).fill('Metro Manila')
-    await page.getByRole('textbox', { name: /Budget code/ }).fill('P4-TEAM-001')
     await page.getByLabel(/Start date/).fill('2026-09-01')
     await page.getByLabel(/End date/).fill('2026-12-01')
     await page

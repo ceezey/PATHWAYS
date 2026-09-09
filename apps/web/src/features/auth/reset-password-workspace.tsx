@@ -18,6 +18,8 @@ import {
   FormMessage,
 } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
+import { resetDemoPassword, resetTokenState } from '@/lib/demo-state/accounts'
+import { useDemoState } from '@/lib/demo-state/use-demo-state'
 import { type ResetPasswordValues, resetPasswordSchema } from './account-access-validation'
 import { StaffAuthFrame } from './staff-auth-frame'
 
@@ -42,7 +44,9 @@ const readResetState = (value: string | null): ResetState =>
   value === 'valid' || value === 'expired' || value === 'used' ? value : 'invalid'
 
 export const ResetPasswordWorkspace = () => {
-  const state = readResetState(useSearchParams().get('state'))
+  const token = useSearchParams().get('token')
+  const demo = useDemoState()
+  const state = resetTokenState(token, demo)
   const [showPassword, setShowPassword] = useState(false)
   const [validated, setValidated] = useState(false)
   const form = useForm<ResetPasswordValues>({
@@ -50,7 +54,7 @@ export const ResetPasswordWorkspace = () => {
     defaultValues: { password: '', confirmPassword: '' },
   })
 
-  if (state !== 'valid') {
+  if (state !== 'valid' && !validated) {
     const copy = stateCopy[state]
     return (
       <StaffAuthFrame title="Reset your password" description="Review the recovery-link state.">
@@ -68,8 +72,7 @@ export const ResetPasswordWorkspace = () => {
             <Link href="/staff/recover">Request a new recovery link</Link>
           </Button>
           <p className="text-sm leading-6 text-muted-foreground">
-            This state is a frontend representation. Server expiry and single-use enforcement are
-            not available in this phase.
+            Demo data: expiry and one-time use are enforced in this browser's local state.
           </p>
         </div>
       </StaffAuthFrame>
@@ -87,10 +90,10 @@ export const ResetPasswordWorkspace = () => {
             <div className="flex items-start gap-3">
               <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0" aria-hidden="true" />
               <div className="space-y-1">
-                <h2 className="font-semibold">Password format validated</h2>
+                <h2 className="font-semibold">Password updated</h2>
                 <p className="text-sm leading-6">
-                  No password was changed. Provider verification, saving, link invalidation, and
-                  audit logging are outside this frontend-only phase.
+                  Your fictional credential is updated, the reset link is invalidated, and the
+                  change is recorded in the local audit trail.
                 </p>
               </div>
             </div>
@@ -101,7 +104,20 @@ export const ResetPasswordWorkspace = () => {
         </div>
       ) : (
         <Form {...form}>
-          <form className="space-y-5" onSubmit={form.handleSubmit(() => setValidated(true))}>
+          <form
+            className="space-y-5"
+            onSubmit={form.handleSubmit(({ password, confirmPassword }) => {
+              try {
+                resetDemoPassword(token ?? '', password, confirmPassword)
+                setValidated(true)
+              } catch (error) {
+                form.setError('password', {
+                  message:
+                    error instanceof Error ? error.message : 'Password could not be changed.',
+                })
+              }
+            })}
+          >
             <FormField
               control={form.control}
               name="password"
@@ -133,7 +149,7 @@ export const ResetPasswordWorkspace = () => {
                     </Button>
                   </div>
                   <FormDescription>
-                    Use 15–64 characters with uppercase, lowercase, number, and symbol characters.
+                    Use 12–64 characters with uppercase, lowercase, number, and symbol characters.
                   </FormDescription>
                   <FormMessage />
                 </FormItem>

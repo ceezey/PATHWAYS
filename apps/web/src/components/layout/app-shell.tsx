@@ -95,7 +95,12 @@ export const AppShell = ({ children }: { children: React.ReactNode }) => {
                 )}
               </Button>
               <div className="min-w-0">
-                <p className="truncate text-sm font-semibold text-foreground">{workspaceLabel}</p>
+                <p className="truncate text-sm font-semibold text-foreground">
+                  {workspaceLabel}{' '}
+                  <span className="ml-2 rounded bg-primary-subtle px-2 py-1 text-xs font-normal">
+                    Demo data
+                  </span>
+                </p>
                 <p className="truncate text-[13px] leading-[18px] text-muted-foreground">
                   {roleLabel} · {scopeLabel}
                 </p>

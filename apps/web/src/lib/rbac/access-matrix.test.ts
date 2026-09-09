@@ -24,8 +24,8 @@ describe('prototype RBAC matrix', () => {
   it.each([
     ['Project Officer', 'budget.expense.log', true],
     ['Project Officer', 'monitor_evaluate.view', false],
-    ['Project Officer', 'reports.view', true],
-    ['Project Officer', 'reports.beneficiary_summary.view', true],
+    ['Project Officer', 'reports.view', false],
+    ['Project Officer', 'reports.beneficiary_summary.view', false],
     ['Project Officer', 'reports.project_summary.view', false],
     ['Project Officer', 'reports.indicator_summary.view', false],
     ['Monitoring and Evaluation Officer', 'budget.expense.verify', true],
@@ -36,9 +36,9 @@ describe('prototype RBAC matrix', () => {
     ['Project Manager', 'settings.users.manage', true],
     ['Program Manager', 'budget.portfolio_view', true],
     ['Program Manager', 'activities.view', true],
-    ['Program Manager', 'collection.view', true],
+    ['Program Manager', 'collection.view', false],
     ['Program Manager', 'transparency.preview', true],
-    ['Program Manager', 'transparency.publish', false],
+    ['Program Manager', 'transparency.publish', true],
     ['Program Manager', 'settings.users.manage', true],
     ['System Administrator', 'rules.configure', true],
     ['System Administrator', 'collection.view', true],
@@ -49,8 +49,8 @@ describe('prototype RBAC matrix', () => {
     ['Grant Manager', 'reports.view', true],
     ['Grant Manager', 'reports.project_summary.view', true],
     ['Grant Manager', 'reports.indicator_summary.view', true],
-    ['Grant Manager', 'reports.beneficiary_summary.view', false],
-    ['Grant Manager', 'activities.view', false],
+    ['Grant Manager', 'reports.beneficiary_summary.view', true],
+    ['Grant Manager', 'activities.view', true],
     ['Grant Manager', 'collection.view', false],
     ['Grant Manager', 'settings.view', false],
     ['Grant Manager', 'settings.users.manage', false],
@@ -196,7 +196,7 @@ describe('prototype RBAC matrix', () => {
     })
     expect(getRouteAccess('Monitoring and Evaluation Officer', '/alerts/repository')).toMatchObject(
       {
-        allowed: true,
+        allowed: false,
         moduleName: 'Alerts Repository',
       },
     )
@@ -295,11 +295,11 @@ describe('prototype RBAC matrix', () => {
     expect(
       getRouteAccess('Grant Manager', '/reports/preview?kind=beneficiary-summary'),
     ).toMatchObject({
-      allowed: false,
+      allowed: true,
       moduleName: 'Beneficiary Summary preview',
     })
     expect(getRouteAccess('Grant Manager', '/reports/beneficiary-summary')).toMatchObject({
-      allowed: false,
+      allowed: true,
       moduleName: 'Beneficiary Summary',
     })
     expect(getRouteAccess('Grant Manager', '/beneficiaries')).toMatchObject({
@@ -307,7 +307,7 @@ describe('prototype RBAC matrix', () => {
       moduleName: 'Beneficiaries',
     })
     expect(getRouteAccess('Grant Manager', '/projects/futuremakers-ncr/activities')).toMatchObject({
-      allowed: false,
+      allowed: true,
       moduleName: 'Activities',
     })
     expect(getRouteAccess('Grant Manager', '/settings/users')).toMatchObject({
@@ -315,11 +315,11 @@ describe('prototype RBAC matrix', () => {
       moduleName: 'User Management',
     })
     expect(getRouteAccess('Grant Manager', '/alerts')).toMatchObject({
-      allowed: false,
+      allowed: true,
       moduleName: 'Alerts',
     })
     expect(getRouteAccess('Grant Manager', '/recommendations')).toMatchObject({
-      allowed: false,
+      allowed: true,
       moduleName: 'Recommendations',
     })
   })
@@ -330,7 +330,7 @@ describe('prototype RBAC matrix', () => {
       moduleName: 'Beneficiaries',
     })
     expect(getRouteAccess('Program Manager', '/reports/beneficiary-summary')).toMatchObject({
-      allowed: false,
+      allowed: true,
       moduleName: 'Beneficiary Summary',
     })
     expect(getRouteAccess('Program Manager', '/reports/survey-results')).toMatchObject({
@@ -361,13 +361,13 @@ describe('prototype RBAC matrix', () => {
     ).toMatchObject({ allowed: false, moduleName: 'Public dashboard preview' })
   })
 
-  it('keeps Project Officer detailed reports limited while allowing aggregate survey results', () => {
+  it('keeps Project Officer outside monitoring report routes', () => {
     expect(getRouteAccess('Project Officer', '/reports')).toMatchObject({
-      allowed: true,
+      allowed: false,
       moduleName: 'Reports',
     })
     expect(getRouteAccess('Project Officer', '/reports/beneficiary-summary')).toMatchObject({
-      allowed: true,
+      allowed: false,
       moduleName: 'Beneficiary Summary',
     })
     expect(getRouteAccess('Project Officer', '/reports/project-summary')).toMatchObject({
@@ -379,19 +379,19 @@ describe('prototype RBAC matrix', () => {
       moduleName: 'Indicator Summary',
     })
     expect(getRouteAccess('Project Officer', '/reports/survey-results')).toMatchObject({
-      allowed: true,
+      allowed: false,
       moduleName: 'Survey/Form Results',
     })
   })
 
-  it('requires beneficiary step-up for authorized non-administrator roles', () => {
+  it('requires beneficiary step-up only for the Evaluation Center path', () => {
     expect(getRouteAccess('Project Manager', '/beneficiaries')).toMatchObject({
       allowed: true,
-      requiresBeneficiaryStepUp: true,
-    })
-    expect(getRouteAccess('System Administrator', '/beneficiaries')).toMatchObject({
-      allowed: true,
       requiresBeneficiaryStepUp: false,
+    })
+    expect(getRouteAccess('Project Manager', '/beneficiaries/evaluation-center')).toMatchObject({
+      allowed: true,
+      requiresBeneficiaryStepUp: true,
     })
     expect(
       getRouteAccess(
@@ -400,13 +400,11 @@ describe('prototype RBAC matrix', () => {
       ),
     ).toMatchObject({
       allowed: true,
-      requiresBeneficiaryStepUp: true,
+      requiresBeneficiaryStepUp: false,
     })
   })
 
   it.each([
-    'Program Manager',
-    'Project Manager',
     'Monitoring and Evaluation Officer',
     'Project Officer',
     'System Administrator',

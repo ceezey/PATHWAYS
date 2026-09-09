@@ -1,4 +1,7 @@
+import type { DemoAction } from '@/lib/demo-state/permissions'
+
 export type PermissionCode =
+  | DemoAction
   | 'budget.expense.log'
   | 'budget.expense.view'
   | 'budget.expense.verify'

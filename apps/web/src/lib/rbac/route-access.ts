@@ -61,6 +61,11 @@ const routeChecks: Array<{
   requiresBeneficiaryStepUp?: (role: PrototypeRole) => boolean
 }> = [
   {
+    test: (pathname) => /^\/projects\/[^/]+\/edit$/.test(pathname),
+    moduleName: 'Edit project profile',
+    allowed: (role, pathname) => can(role, 'projects.edit') && canAccessProjectPath(role, pathname),
+  },
+  {
     test: (pathname) => pathname === '/dashboard',
     moduleName: 'Dashboard',
     allowed: () => true,
@@ -96,7 +101,7 @@ const routeChecks: Array<{
     test: (pathname) => /^\/projects\/[^/]+\/indicators/.test(pathname),
     moduleName: 'Target indicators',
     allowed: (role, pathname) =>
-      can(role, 'indicators.manage') && canAccessProjectPath(role, pathname),
+      can(role, 'indicators.view') && canAccessProjectPath(role, pathname),
   },
   {
     test: (pathname) => /^\/projects\/[^/]+\/monitor-evaluate/.test(pathname),
@@ -131,11 +136,21 @@ const routeChecks: Array<{
       canAny(role, ['transparency.preview', 'transparency.publish']),
   },
   {
+    test: (pathname) => pathname.startsWith('/beneficiaries/evaluation-center'),
+    moduleName: 'Evaluation Center beneficiary lookup',
+    allowed: hasBeneficiaryPermission,
+    requiresBeneficiaryStepUp: () => true,
+  },
+  {
     test: (pathname) => pathname.startsWith('/beneficiaries'),
     moduleName: 'Beneficiaries',
     allowed: hasBeneficiaryPermission,
-    requiresBeneficiaryStepUp: (role) =>
-      role !== 'System Administrator' && hasBeneficiaryPermission(role),
+    requiresBeneficiaryStepUp: () => false,
+  },
+  {
+    test: (pathname) => pathname.startsWith('/collection/entry'),
+    moduleName: 'Encode project data',
+    allowed: (role) => can(role, 'entries.encode'),
   },
   {
     test: (pathname) => pathname.startsWith('/collection'),
@@ -145,7 +160,7 @@ const routeChecks: Array<{
   {
     test: (pathname) => pathname.startsWith('/indicators'),
     moduleName: 'Indicator Library',
-    allowed: (role) => canAny(role, ['indicators.manage', 'analytics.view']),
+    allowed: (role) => can(role, 'indicators.view'),
   },
   {
     test: (pathname) => pathname.startsWith('/analytics'),
@@ -160,12 +175,12 @@ const routeChecks: Array<{
   {
     test: (pathname) => pathname.startsWith('/alerts'),
     moduleName: 'Alerts',
-    allowed: (role) => can(role, 'alerts.outcome.log'),
+    allowed: (role) => can(role, 'alerts.review'),
   },
   {
     test: (pathname) => pathname.startsWith('/recommendations'),
     moduleName: 'Recommendations',
-    allowed: (role) => can(role, 'alerts.outcome.log'),
+    allowed: (role) => can(role, 'recommendations.review'),
   },
   {
     test: (pathname) => pathname === '/reports/project-summary',
@@ -244,8 +259,7 @@ export const getRouteAccess = (role: PrototypeRole, pathname: string): RouteAcce
     return {
       allowed,
       moduleName: `${reportKindModuleNames[reportKind]} preview`,
-      requiresBeneficiaryStepUp:
-        allowed && reportKind === 'beneficiary-summary' ? role !== 'System Administrator' : false,
+      requiresBeneficiaryStepUp: false,
     }
   }
 
@@ -269,10 +283,10 @@ const navPermissions: Record<string, PermissionCode | PermissionCode[] | undefin
   '/projects': 'projects.view',
   '/beneficiaries': ['beneficiaries.scoped_view', 'beneficiaries.full_view'],
   '/collection': 'collection.view',
-  '/indicators': ['indicators.manage', 'analytics.view'],
+  '/indicators': 'indicators.view',
   '/analytics': 'analytics.view',
-  '/alerts': 'alerts.outcome.log',
-  '/recommendations': 'alerts.outcome.log',
+  '/alerts': 'alerts.review',
+  '/recommendations': 'recommendations.review',
   '/reports': 'reports.view',
   '/alerts/repository': 'rules.view',
   '/transparency': ['transparency.preview', 'transparency.publish'],

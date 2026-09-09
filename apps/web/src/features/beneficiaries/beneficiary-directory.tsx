@@ -258,6 +258,9 @@ export const BeneficiaryDirectory = ({
         actions={
           <>
             <Button asChild variant="outline">
+              <Link href="/beneficiaries/evaluation-center">Evaluation Center lookup</Link>
+            </Button>
+            <Button asChild variant="outline">
               <Link href="/beneficiaries/duplicates">Review possible duplicates</Link>
             </Button>
             <Button asChild>

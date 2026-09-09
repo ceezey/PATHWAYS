@@ -1,266 +1,317 @@
 'use client'
-
-import { ArrowLeft, CheckCircle2, Save } from 'lucide-react'
-import Link from 'next/link'
-import { type ReactNode, useEffect, useState } from 'react'
-
 import { PageHeader } from '@/components/layout/page-header'
-import { SectionCard, StatusBadge } from '@/components/pathways'
+import { SectionCard } from '@/components/pathways'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
-import { Textarea } from '@/components/ui/textarea'
+import { duplicateEntry, saveEntry, validateEntry } from '@/lib/demo-state/collection'
+import { type DemoEntry, currentAccount, visibleDemoProjects } from '@/lib/demo-state/store'
+import { useDemoState } from '@/lib/demo-state/use-demo-state'
+import { useState } from 'react'
 
-const storageKey = 'pathways.frontend.manual-entry-draft'
-
-type EntryDraft = {
-  projectId: string
-  beneficiaryCode: string
-  activityDate: string
-  attendanceStatus: string
-  preTestScore: string
-  postTestScore: string
-  note: string
+const blank: Omit<DemoEntry, 'id'> = {
+  projectId: '',
+  formId: '',
+  beneficiaryId: '',
+  activityId: '',
+  date: '',
+  values: {},
+  status: 'Draft',
+  source: 'Manual',
+  dataType: 'activity',
 }
-
-const emptyDraft: EntryDraft = {
-  projectId: 'futuremakers-ncr',
-  beneficiaryCode: '',
-  activityDate: '',
-  attendanceStatus: '',
-  preTestScore: '',
-  postTestScore: '',
-  note: '',
-}
-
-export const ManualDataEntryWorkspace = () => {
-  const [draft, setDraft] = useState<EntryDraft>(emptyDraft)
+export function ManualDataEntryWorkspace() {
+  const state = useDemoState()
+  const actor = currentAccount(state)
+  const [draft, setDraft] = useState(blank)
+  const [id, setId] = useState<string>()
+  const [errors, setErrors] = useState<string[]>([])
   const [message, setMessage] = useState('')
-  const [errors, setErrors] = useState<Record<string, string>>({})
-
-  useEffect(() => {
-    const stored = window.localStorage.getItem(storageKey)
-    if (!stored) return
-    try {
-      setDraft({ ...emptyDraft, ...(JSON.parse(stored) as Partial<EntryDraft>) })
-      setMessage('Restored an unfinished browser-local draft.')
-    } catch {
-      window.localStorage.removeItem(storageKey)
+  const [details, setDetails] = useState(false)
+  const form = state.forms.find((f) => f.id === draft.formId)
+  const activity = state.activities.find((a) => a.id === draft.activityId)
+  const save = (submit: boolean) => {
+    const input = {
+      ...draft,
+      status: submit ? ('Submitted' as const) : ('Draft' as const),
+      values: { ...draft.values, beneficiary_id: draft.beneficiaryId, activity_date: draft.date },
     }
-  }, [])
-
-  const update = (field: keyof EntryDraft, value: string) => {
-    setDraft((current) => ({ ...current, [field]: value }))
-    setErrors((current) => ({ ...current, [field]: '' }))
-    setMessage('')
-  }
-
-  const saveDraft = () => {
-    window.localStorage.setItem(storageKey, JSON.stringify(draft))
-    setMessage('Draft saved in this browser only. No project record was changed.')
-  }
-
-  const validate = () => {
-    const nextErrors: Record<string, string> = {}
-    if (!draft.beneficiaryCode.trim()) nextErrors.beneficiaryCode = 'Beneficiary code is required.'
-    if (!draft.activityDate) nextErrors.activityDate = 'Activity date is required.'
-    if (!draft.attendanceStatus) nextErrors.attendanceStatus = 'Attendance status is required.'
-    for (const field of ['preTestScore', 'postTestScore'] as const) {
-      const value = Number(draft[field])
-      if (draft[field] && (!Number.isFinite(value) || value < 0 || value > 100)) {
-        nextErrors[field] = 'Enter a score from 0 to 100.'
-      }
-    }
-    setErrors(nextErrors)
-    if (Object.keys(nextErrors).length) {
-      setMessage('Review the highlighted fields before continuing.')
-      return
-    }
-    setMessage(
-      'Validation passed. Submission remains unavailable until a project data service is connected.',
+    const issues = submit ? validateEntry(state, input) : []
+    setErrors(issues)
+    if (issues.length) return
+    const duplicate = submit && duplicateEntry(state, input, id)
+    if (
+      duplicate &&
+      !window.confirm(
+        'A participant record exists for this activity and date. Confirm another record? Cancel to revise.',
+      )
     )
+      return
+    try {
+      const entry = saveEntry(input, id, duplicate)
+      setId(submit ? undefined : entry.id)
+      setMessage(
+        submit
+          ? `Record ${entry.id} submitted. Project, journey, indicators and audit updated locally.`
+          : `Draft ${entry.id} saved without validation. Resume after refresh.`,
+      )
+      if (submit) setDraft(blank)
+    } catch (error) {
+      setErrors([error instanceof Error ? error.message : 'Record could not be saved.'])
+    }
   }
-
+  const valueField = (key: string, value: string) =>
+    setDraft({ ...draft, values: { ...draft.values, [key]: value } })
   return (
     <div className="space-y-6">
       <PageHeader
-        eyebrow="Collection / Manual entry"
         title="Encode Project Data"
-        description="Record one beneficiary participation result with a resumable local draft and field-level validation."
-        actions={
-          <Button asChild variant="outline">
-            <Link href="/collection">
-              <ArrowLeft className="mr-2 h-4 w-4" aria-hidden="true" />
-              Back to Collection
-            </Link>
-          </Button>
-        }
+        description="Demo data · save partial drafts or submit validated project-linked records."
       />
-
-      <div className="rounded-lg border border-warning/25 bg-warning-subtle px-4 py-3 text-sm leading-6 text-warning">
-        Drafts stay in this browser. Validation does not create, update, or submit a PATHWAYS
-        record.
-      </div>
-
-      <SectionCard
-        title="Participation record"
-        description="Required fields are marked. Scores remain optional when an assessment was not administered."
-      >
-        <div className="grid gap-5 md:grid-cols-2">
-          <Field label="Project" htmlFor="entry-project" required>
-            <Select value={draft.projectId} onValueChange={(value) => update('projectId', value)}>
-              <SelectTrigger id="entry-project">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="futuremakers-ncr">FutureMakers NCR</SelectItem>
-                <SelectItem value="youth-rise-western-samar">Youth RISE - Western Samar</SelectItem>
-                <SelectItem value="safe-spaces-northern-samar">
-                  Safe Spaces - Northern Samar
-                </SelectItem>
-              </SelectContent>
-            </Select>
-          </Field>
-          <Field
-            label="Beneficiary code"
-            htmlFor="beneficiary-code"
-            required
-            error={errors.beneficiaryCode}
-          >
-            <Input
-              id="beneficiary-code"
-              value={draft.beneficiaryCode}
-              onChange={(event) => update('beneficiaryCode', event.target.value)}
-              aria-invalid={Boolean(errors.beneficiaryCode)}
-              aria-describedby={errors.beneficiaryCode ? 'beneficiary-code-error' : undefined}
-            />
-          </Field>
-          <Field label="Activity date" htmlFor="activity-date" required error={errors.activityDate}>
-            <Input
-              id="activity-date"
-              type="date"
-              value={draft.activityDate}
-              onChange={(event) => update('activityDate', event.target.value)}
-              aria-invalid={Boolean(errors.activityDate)}
-              aria-describedby={errors.activityDate ? 'activity-date-error' : undefined}
-            />
-          </Field>
-          <Field
-            label="Attendance status"
-            htmlFor="attendance-status"
-            required
-            error={errors.attendanceStatus}
-          >
-            <Select
-              value={draft.attendanceStatus}
-              onValueChange={(value) => update('attendanceStatus', value)}
-            >
-              <SelectTrigger
-                id="attendance-status"
-                aria-invalid={Boolean(errors.attendanceStatus)}
-                aria-describedby={errors.attendanceStatus ? 'attendance-status-error' : undefined}
+      <SectionCard title="Resume your drafts">
+        <div className="flex flex-wrap gap-2">
+          {state.entries
+            .filter((e) => e.status === 'Draft' && e.ownerId === actor?.id)
+            .map((e) => (
+              <Button
+                key={e.id}
+                variant="outline"
+                onClick={() => {
+                  setId(e.id)
+                  setDraft(e)
+                  setErrors([])
+                }}
               >
-                <SelectValue placeholder="Select a status" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="Present">Present</SelectItem>
-                <SelectItem value="Partial">Partial</SelectItem>
-                <SelectItem value="Absent">Absent</SelectItem>
-                <SelectItem value="Excused">Excused</SelectItem>
-              </SelectContent>
-            </Select>
-          </Field>
-          <Field label="Pre-test score" htmlFor="pre-test-score" error={errors.preTestScore}>
-            <Input
-              id="pre-test-score"
-              inputMode="decimal"
-              value={draft.preTestScore}
-              onChange={(event) => update('preTestScore', event.target.value)}
-              aria-invalid={Boolean(errors.preTestScore)}
-              aria-describedby={errors.preTestScore ? 'pre-test-score-error' : undefined}
-            />
-          </Field>
-          <Field label="Post-test score" htmlFor="post-test-score" error={errors.postTestScore}>
-            <Input
-              id="post-test-score"
-              inputMode="decimal"
-              value={draft.postTestScore}
-              onChange={(event) => update('postTestScore', event.target.value)}
-              aria-invalid={Boolean(errors.postTestScore)}
-              aria-describedby={errors.postTestScore ? 'post-test-score-error' : undefined}
-            />
-          </Field>
-          <Field label="Note" htmlFor="entry-note" className="md:col-span-2">
-            <Textarea
-              id="entry-note"
-              rows={4}
-              value={draft.note}
-              onChange={(event) => update('note', event.target.value)}
-            />
-          </Field>
-        </div>
-        {message ? (
-          <output className="mt-5 flex items-start gap-2 rounded-md border bg-muted px-4 py-3 text-sm leading-6">
-            <CheckCircle2 className="mt-1 h-4 w-4 shrink-0 text-primary" aria-hidden="true" />
-            <span>{message}</span>
-          </output>
-        ) : null}
-        <div className="mt-6 flex flex-wrap justify-end gap-3">
-          <Button type="button" variant="outline" onClick={saveDraft}>
-            <Save className="mr-2 h-4 w-4" aria-hidden="true" />
-            Save local draft
-          </Button>
-          <Button type="button" onClick={validate}>
-            Validate entry
-          </Button>
+                Resume {e.id}
+              </Button>
+            ))}
         </div>
       </SectionCard>
-
-      <div className="flex flex-wrap gap-2">
-        <StatusBadge tone="neutral">Draft-capable</StatusBadge>
-        <StatusBadge tone="neutral">No server submission</StatusBadge>
-        <StatusBadge tone="neutral">Synthetic project choices</StatusBadge>
+      <div className="grid items-start gap-6 xl:grid-cols-[minmax(0,1fr)_320px]">
+        <SectionCard title="Data entry">
+          <form
+            className="space-y-4"
+            onSubmit={(e) => {
+              e.preventDefault()
+              save(true)
+            }}
+            noValidate
+          >
+            <label className="block" htmlFor="entry-project">
+              Project
+              <select
+                id="entry-project"
+                className="block w-full rounded border p-2"
+                value={draft.projectId}
+                onChange={(e) => {
+                  setDraft({ ...blank, projectId: e.target.value })
+                  setId(undefined)
+                }}
+              >
+                <option value="">Select project</option>
+                {visibleDemoProjects(state).map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.title}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="block">
+              Data type
+              <select
+                className="block w-full rounded border p-2"
+                value={draft.dataType}
+                onChange={(e) =>
+                  setDraft({ ...draft, dataType: e.target.value as DemoEntry['dataType'] })
+                }
+              >
+                <option value="project">Project record</option>
+                <option value="activity">Activity record</option>
+                <option value="participant">Participant record</option>
+              </select>
+            </label>
+            <label className="block">
+              Published form (optional)
+              <select
+                className="block w-full rounded border p-2"
+                value={draft.formId}
+                onChange={(e) => setDraft({ ...draft, formId: e.target.value })}
+              >
+                <option value="">Standard project data fields</option>
+                {state.forms
+                  .filter((f) => f.projectId === draft.projectId && f.status === 'Published')
+                  .map((f) => (
+                    <option key={f.id} value={f.id}>
+                      {f.title}
+                    </option>
+                  ))}
+              </select>
+            </label>
+            <label className="block" htmlFor="entry-date">
+              Record date
+              <Input
+                id="entry-date"
+                type="date"
+                value={draft.date}
+                onChange={(e) => setDraft({ ...draft, date: e.target.value })}
+              />
+            </label>
+            {draft.dataType !== 'project' ? (
+              <>
+                <label className="block">
+                  Activity
+                  <select
+                    className="block w-full rounded border p-2"
+                    value={draft.activityId}
+                    onChange={(e) => setDraft({ ...draft, activityId: e.target.value })}
+                  >
+                    <option value="">Select activity</option>
+                    {state.activities
+                      .filter((a) => a.projectId === draft.projectId)
+                      .map((a) => (
+                        <option key={a.id} value={a.id}>
+                          {a.title}
+                        </option>
+                      ))}
+                  </select>
+                </label>
+                <label className="block">
+                  Participant
+                  <select
+                    className="block w-full rounded border p-2"
+                    value={draft.beneficiaryId}
+                    onChange={(e) => setDraft({ ...draft, beneficiaryId: e.target.value })}
+                  >
+                    <option value="">Select participant</option>
+                    {state.beneficiaries
+                      .filter((b) => b.projectIds.includes(draft.projectId))
+                      .map((b) => (
+                        <option key={b.id} value={b.id}>
+                          {b.code} · {b.displayName}
+                        </option>
+                      ))}
+                  </select>
+                </label>
+                <label className="block">
+                  Attendance
+                  <select
+                    className="block w-full rounded border p-2"
+                    value={draft.values.attendance_status ?? ''}
+                    onChange={(e) => valueField('attendance_status', e.target.value)}
+                  >
+                    <option value="">Select attendance</option>
+                    {['Present', 'Partial', 'Absent'].map((v) => (
+                      <option key={v}>{v}</option>
+                    ))}
+                  </select>
+                </label>
+                {['pre_test_score', 'post_test_score'].map((key) => (
+                  <label className="block" htmlFor={`entry-${key}`} key={key}>
+                    {key === 'pre_test_score' ? 'Pre-assessment score' : 'Post-assessment score'}
+                    <Input
+                      id={`entry-${key}`}
+                      type="number"
+                      min="0"
+                      max="100"
+                      value={draft.values[key] ?? ''}
+                      onChange={(e) => valueField(key, e.target.value)}
+                    />
+                  </label>
+                ))}
+              </>
+            ) : null}
+            <label className="block" htmlFor="entry-notes">
+              Record notes
+              <Input
+                id="entry-notes"
+                value={draft.values.note ?? ''}
+                onChange={(e) => valueField('note', e.target.value)}
+              />
+            </label>
+            {form?.fields
+              .filter(
+                (f) =>
+                  ![
+                    'beneficiary_id',
+                    'activity_date',
+                    'attendance_status',
+                    'pre_test_score',
+                    'post_test_score',
+                  ].includes(f.code ?? f.id),
+              )
+              .map((f) => (
+                <label className="block" htmlFor={`entry-field-${f.id}`} key={f.id}>
+                  {f.label}
+                  {f.required ? ' *' : ''}
+                  {f.type === 'single_select' ? (
+                    <select
+                      id={`entry-field-${f.id}`}
+                      className="block w-full rounded border p-2"
+                      value={draft.values[f.code ?? f.id] ?? ''}
+                      onChange={(e) => valueField(f.code ?? f.id, e.target.value)}
+                    >
+                      <option value="">Choose</option>
+                      {f.options.map((v) => (
+                        <option key={v}>{v}</option>
+                      ))}
+                    </select>
+                  ) : (
+                    <Input
+                      id={`entry-field-${f.id}`}
+                      type={f.type === 'number' || f.type === 'date' ? f.type : 'text'}
+                      value={draft.values[f.code ?? f.id] ?? ''}
+                      onChange={(e) => valueField(f.code ?? f.id, e.target.value)}
+                    />
+                  )}
+                </label>
+              ))}
+            {errors.length ? (
+              <div
+                role="alert"
+                className="rounded border border-danger/30 bg-danger-subtle p-3 text-danger"
+              >
+                <h3 className="font-semibold">Correct these fields</h3>
+                <ul>
+                  {errors.map((error) => (
+                    <li key={error}>{error}</li>
+                  ))}
+                </ul>
+              </div>
+            ) : null}
+            <output>{message}</output>
+            <div className="flex flex-wrap gap-3">
+              <Button type="button" variant="outline" onClick={() => save(false)}>
+                Save as draft
+              </Button>
+              <Button type="submit">Submit record</Button>
+            </div>
+          </form>
+        </SectionCard>
+        <aside className="sticky top-24">
+          <SectionCard title="Activity details">
+            <Button variant="outline" onClick={() => setDetails(!details)}>
+              {details ? 'Hide activity details' : 'View activity details'}
+            </Button>
+            {details ? (
+              activity ? (
+                <div className="mt-3">
+                  <h3>{activity.title}</h3>
+                  <p>{activity.description}</p>
+                  <p>
+                    {activity.startDate} – {activity.dueDate}
+                  </p>
+                  <p>{activity.progress}% complete</p>
+                </div>
+              ) : (
+                <p>Select an activity to inspect it.</p>
+              )
+            ) : null}
+            <p className="mt-3 text-sm">
+              Saving produces a local audit event. Only the System Administrator can review the
+              global audit ledger.
+            </p>
+          </SectionCard>
+        </aside>
       </div>
     </div>
   )
 }
-
-const Field = ({
-  label,
-  htmlFor,
-  required,
-  error,
-  className,
-  children,
-}: {
-  label: string
-  htmlFor: string
-  required?: boolean
-  error?: string
-  className?: string
-  children: ReactNode
-}) => (
-  <div className={`space-y-2 ${className ?? ''}`}>
-    <Label htmlFor={htmlFor}>
-      {label}
-      {required ? (
-        <span className="ml-1 text-danger" aria-hidden="true">
-          *
-        </span>
-      ) : null}
-    </Label>
-    {children}
-    {error ? (
-      <p id={`${htmlFor}-error`} className="text-sm text-danger">
-        {error}
-      </p>
-    ) : null}
-  </div>
-)

@@ -73,6 +73,15 @@ import {
   userAccountStatusTone,
 } from './user-management-utils'
 
+import {
+  authorizeDemoAccount,
+  deactivateDemoAccount,
+  managedDemoAccounts,
+  saveDemoAccount,
+} from '@/lib/demo-state/accounts'
+import { currentAccount } from '@/lib/demo-state/store'
+import { useDemoState } from '@/lib/demo-state/use-demo-state'
+
 type EditorMode = 'create' | 'edit'
 
 interface UserEditorState {
@@ -113,7 +122,18 @@ export const UserManagementWorkspace = ({
 }) => {
   const { labels } = usePrototypeLabels()
   const { role: actorRole } = usePrototypeRole()
-  const [users, setUsers] = useState(initialUsers)
+  const demo = useDemoState()
+  const users: UserRecord[] = managedDemoAccounts(demo).map((a) => ({
+    id: a.id,
+    name: a.name,
+    email: a.email,
+    role: a.role,
+    accountStatus: a.status,
+    signInMethod: 'Prototype password',
+    projectIds: a.projectIds,
+    projectAccess: a.projectIds.map((id) => demo.projects.find((p) => p.id === id)?.title ?? id),
+    createdAt: new Date(demo.clock).toISOString(),
+  }))
   const [query, setQuery] = useState('')
   const [statusFilter, setStatusFilter] = useState<UserStatusFilter>('All')
   const [editor, setEditor] = useState<UserEditorState | null>(null)
@@ -124,14 +144,9 @@ export const UserManagementWorkspace = ({
   const canCreateUsers = manageableRoles.length > 0
   const administrationSummary = getUserAdministrationSummary(actorRole)
   const assignableProjects = useMemo(
-    () =>
-      editor ? getAssignableProjects(actorRole, editor.role, initialProjects) : initialProjects,
-    [actorRole, editor, initialProjects],
+    () => (editor ? getAssignableProjects(actorRole, editor.role, demo.projects) : demo.projects),
+    [actorRole, demo.projects, editor],
   )
-
-  useEffect(() => {
-    setUsers(readPrototypeUserRecords(initialUsers))
-  }, [initialUsers])
 
   const filteredUsers = useMemo(
     () => filterUserRecords(users, query, statusFilter),
@@ -142,14 +157,6 @@ export const UserManagementWorkspace = ({
   const activeCount = users.filter((user) => user.accountStatus === 'Active').length
   const invitedCount = users.filter((user) => user.accountStatus === 'Invited').length
   const deactivatedCount = users.filter((user) => user.accountStatus === 'Deactivated').length
-
-  const commitUsers = (updater: (current: UserRecord[]) => UserRecord[]) => {
-    setUsers((current) => {
-      const nextUsers = updater(current)
-      writePrototypeUserRecords(nextUsers)
-      return nextUsers
-    })
-  }
 
   const openCreate = () => {
     const defaultRole = manageableRoles[0]
@@ -222,79 +229,44 @@ export const UserManagementWorkspace = ({
       return
     }
 
-    const projectIds = isProjectAssignableRole(editor.role) ? selectedProjectIds : []
-    const projectAccess = getProjectAccessLabels(editor.role, projectIds, initialProjects)
-
-    if (editor.mode === 'create') {
-      const createdUser: UserRecord = {
-        id: `prototype-user-${Date.now()}`,
-        name,
-        email,
-        role: editor.role,
-        accountStatus: 'Invited',
-        signInMethod: editor.signInMethod,
-        projectIds,
-        projectAccess,
-        createdAt: new Date().toISOString(),
-      }
-      commitUsers((current) => [createdUser, ...current])
-      toast.success('Prototype user created.', {
-        description:
-          'Saved in this browser for client review. No identity or invitation was created.',
-      })
-    } else {
-      commitUsers((current) =>
-        current.map((user) =>
-          user.id === editor.userId
-            ? {
-                ...user,
-                name,
-                email,
-                role: editor.role,
-                signInMethod: editor.signInMethod,
-                projectIds,
-                projectAccess,
-              }
-            : user,
-        ),
+    const projectIds = isProjectAssignableRole(editor.role)
+      ? selectedProjectIds
+      : (currentAccount(demo)?.projectIds ?? [])
+    try {
+      saveDemoAccount(
+        { name, email, role: editor.role, projectIds },
+        editor.mode === 'edit' ? editor.userId : undefined,
       )
-      toast.success('Prototype user updated.', {
-        description: 'Browser-local changes now inform the selected role preview scope.',
-      })
+      toast.success(
+        editor.mode === 'create'
+          ? 'Demo account created. Authorize it to enable sign-in.'
+          : 'Account updated. Permissions apply immediately.',
+      )
+    } catch (error) {
+      setEditorError(error instanceof Error ? error.message : 'Account could not be saved.')
+      return
     }
-
-    if (isProjectAssignableRole(editor.role)) {
-      setPrototypeProjectAssignments(editor.role as ProjectAssignableRole, projectIds)
-    }
-
     setEditor(null)
     setEditorError('')
   }
 
   const deactivate = () => {
     if (!deactivateUser) return
-
-    commitUsers((current) =>
-      current.map((user) =>
-        user.id === deactivateUser.id ? { ...user, accountStatus: 'Deactivated' } : user,
-      ),
-    )
-    setDeactivateUserId(null)
-    toast.success('Prototype account deactivated.', {
-      description:
-        'The browser-local directory changed. No sign-in account or server session changed.',
-    })
+    try {
+      deactivateDemoAccount(deactivateUser.id)
+      setDeactivateUserId(null)
+      toast.success('Account deactivated. Local sign-in revoked.')
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Deactivation failed.')
+    }
   }
-
   const reactivate = (user: UserRecord) => {
-    commitUsers((current) =>
-      current.map((record) =>
-        record.id === user.id ? { ...record, accountStatus: 'Active' } : record,
-      ),
-    )
-    toast.success('Prototype account reactivated.', {
-      description: 'This status is saved only in the current browser prototype.',
-    })
+    try {
+      authorizeDemoAccount(user.id)
+      toast.success('Account authorized. Local sign-in is active.')
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Authorization failed.')
+    }
   }
 
   const clearFilters = () => {
@@ -330,8 +302,8 @@ export const UserManagementWorkspace = ({
           <div>
             <p className="font-medium">{administrationSummary}</p>
             <p className="mt-1">
-              Prototype configuration only. Changes stay in this browser and do not create
-              identities, send invitations, change sign-in access, or enforce server permissions.
+              Demo data: account changes affect local sign-in and assigned project access
+              immediately. Credentials and notices are fictional and never sent externally.
             </p>
           </div>
         </div>
@@ -609,10 +581,10 @@ const UserAccountRow = ({
               Edit prototype user
             </DropdownMenuItem>
             <DropdownMenuSeparator />
-            {user.accountStatus === 'Deactivated' ? (
+            {user.accountStatus !== 'Active' ? (
               <DropdownMenuItem onSelect={onReactivate}>
                 <RotateCcw className="mr-2 h-4 w-4" aria-hidden="true" />
-                Reactivate locally
+                Authorize account
               </DropdownMenuItem>
             ) : (
               <DropdownMenuItem className="text-destructive" onSelect={onDeactivate}>

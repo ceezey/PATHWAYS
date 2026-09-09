@@ -60,6 +60,11 @@ import {
   normalizeImportHeader,
 } from './collection-import-state'
 
+import { importEntries, saveForm } from '@/lib/demo-state/collection'
+import { type ExportFormat, exportDemoArtifact } from '@/lib/demo-state/exports'
+import { getDemoState, visibleDemoProjects } from '@/lib/demo-state/store'
+import { useDemoState } from '@/lib/demo-state/use-demo-state'
+
 type CollectionMode = 'scratch' | 'import' | 'extend'
 type CollectionView = 'home' | 'forms' | 'builder' | 'import'
 type FieldType = 'text' | 'number' | 'date' | 'single_select' | 'multi_select' | 'boolean'
@@ -233,6 +238,13 @@ export const CollectionWorkspace = ({
 }: CollectionWorkspaceProps) => {
   const { labels } = usePrototypeLabels()
   const [mode, setMode] = useState<CollectionMode>(initialMode)
+  const demo = useDemoState()
+  const mockProjects = visibleDemoProjects(demo)
+  const mockActivities = demo.activities
+  const [editingFormId, setEditingFormId] = useState<string>()
+  const [indicatorIds, setIndicatorIds] = useState<string[]>([])
+  const [exportFormat, setExportFormat] = useState<ExportFormat>('csv')
+  const [duplicateDecision, setDuplicateDecision] = useState<'pending' | 'skip' | 'keep'>('pending')
   const [view, setView] = useState<CollectionView>(initialView)
   const [formTitle, setFormTitle] = useState('Journey 1 - Intake & Assessment Form')
   const [formType, setFormType] = useState('Pre/Post Assessment')
@@ -249,16 +261,42 @@ export const CollectionWorkspace = ({
   const [proceedDialogOpen, setProceedDialogOpen] = useState(false)
   const [pendingDeleteField, setPendingDeleteField] = useState<FormField | null>(null)
   const [savedNotice, setSavedNotice] = useState('')
-  const [savedForms, setSavedForms] = useState<SavedForm[]>([
-    {
-      id: 'saved-journey-1',
-      title: 'Journey 1 - Forms',
-      type: 'Training Survey',
-      project: 'FutureMakers NCR',
-      fieldCount: 5,
-      savedAt: '2026-06-22',
-    },
-  ])
+  const savedForms: SavedForm[] = demo.forms
+    .filter((f) => mockProjects.some((p) => p.id === f.projectId))
+    .map((f) => ({
+      id: f.id,
+      title: f.title,
+      type: f.status,
+      project: mockProjects.find((p) => p.id === f.projectId)?.title ?? f.projectId,
+      fieldCount: f.fields.length,
+      savedAt: 'Saved locally',
+    }))
+  const openSavedForm = (summary: SavedForm) => {
+    const form = demo.forms.find((f) => f.id === summary.id)
+    if (!form) return
+    setEditingFormId(form.id)
+    setProjectId(form.projectId)
+    setFormTitle(form.title)
+    setIndicatorIds(form.indicatorIds ?? [])
+    setFields(
+      form.fields.map((f) => ({
+        id: f.id,
+        code: f.code ?? f.id,
+        label: f.label,
+        type: f.type as FieldType,
+        required: f.required,
+        allowedValues: f.options.join(', '),
+        metadataKey: f.code === 'beneficiary_id',
+        sadddField: false,
+        mappingStatus: 'mapped',
+      })),
+    )
+    setView('builder')
+    if (form.responseCount)
+      setSavedNotice(
+        'This form has existing data. Field editing is locked; the saved structure is available for review and export.',
+      )
+  }
   const [parsedImport, setParsedImport] = useState<ParsedImport | null>(null)
   const [mappingRows, setMappingRows] = useState<MappingRow[]>([])
   const [uploadProgress, setUploadProgress] = useState(0)
@@ -441,62 +479,89 @@ export const CollectionWorkspace = ({
   }
 
   const savePrototypeForm = () => {
-    // TODO(BACKEND): Create and update digital form definitions.
-    // TODO(DATABASE): Persist form fields, import batches, and mapping records.
-    const savedForm: SavedForm = {
-      id: `saved-${Date.now()}`,
-      title: formTitle || 'Untitled collection form',
-      type: formType,
-      project: selectedProject?.title ?? 'Unassigned project',
-      fieldCount: fields.length,
-      savedAt: 'Prototype session',
+    try {
+      saveForm(
+        {
+          title: formTitle,
+          description: formType,
+          projectId,
+          status: 'Published',
+          indicatorIds,
+          fields: fields.map((f) => ({
+            id: f.id,
+            code: f.code,
+            label: f.label,
+            type: f.type,
+            required: f.required,
+            options: f.allowedValues
+              .split(',')
+              .map((v) => v.trim())
+              .filter(Boolean),
+          })),
+        },
+        editingFormId,
+      )
+      setSaveDialogOpen(false)
+      setSavedNotice(
+        'Form published and linked to the project. It is available for data collection.',
+      )
+      setView('forms')
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Form could not be published.')
     }
-
-    setSavedForms((currentForms) => [savedForm, ...currentForms])
-    setSaveDialogOpen(false)
-    setSavedNotice('Saved successfully in this prototype session.')
-    setView('forms')
   }
-
   const confirmImportProceed = () => {
-    if (!importCanProceed) {
-      return
+    if (!parsedImport || !importCanProceed) return
+    try {
+      const inputs = parsedImport.rows.map((row) => {
+        const values: Record<string, string> = {}
+        for (const mapping of mappingRows.filter((m) => m.status === 'mapped'))
+          values[mapping.targetField] = String(row[mapping.sourceColumn] ?? '')
+        return {
+          projectId,
+          formId: '',
+          activityId: linkedActivityId,
+          beneficiaryId: values.beneficiary_id ?? '',
+          date: values.activity_date ?? '',
+          values,
+          status: 'Submitted' as const,
+          source: 'Import' as const,
+        }
+      })
+      const summary = importEntries(projectId, parsedImport.fileName, inputs, duplicateDecision)
+      const rejected = new Set(summary.issues.map((issue) => issue.row - 1))
+      setParsedImport({
+        ...parsedImport,
+        rows: parsedImport.rows.filter((_row, index) => rejected.has(index)),
+      })
+      setSavedNotice(
+        `Imported ${summary.accepted}; isolated ${summary.rejected} rows for correction. ${summary.issues.map((i) => `Row ${i.row}: ${i.errors.join(' ')}`).join(' ')}`,
+      )
+      setProceedDialogOpen(false)
+    } catch (error) {
+      setImportMessage(error instanceof Error ? error.message : 'Import failed.')
+      setProceedDialogOpen(false)
     }
-
-    // TODO(STORAGE): Upload source dataset.
-    // TODO(BACKEND): Submit metadata mappings and validation results.
-    // TODO(DATABASE): Persist form fields, import batches, and mapping records.
-    setProceedDialogOpen(false)
-    setSavedNotice('Import mapping marked ready for future production validation.')
   }
-
-  const downloadSavedForm = (form: SavedForm) => {
-    const summary = JSON.stringify(
-      {
-        ...form,
-        note: 'Prototype summary created in this browser; no shared record was changed.',
-      },
-      null,
-      2,
-    )
-    const downloadUrl = URL.createObjectURL(
-      new Blob([summary], { type: 'application/json;charset=utf-8' }),
-    )
-    const anchor = document.createElement('a')
-    const fileName = form.title
-      .toLowerCase()
-      .replace(/[^a-z0-9]+/g, '-')
-      .replace(/^-|-$/g, '')
-
-    anchor.href = downloadUrl
-    anchor.download = `${fileName || 'collection-form'}-summary.json`
-    document.body.append(anchor)
-    anchor.click()
-    anchor.remove()
-    window.setTimeout(() => URL.revokeObjectURL(downloadUrl), 0)
-    toast.success('Form summary downloaded.', {
-      description: 'The summary was created in your browser for this prototype.',
-    })
+  const downloadSavedForm = (summary: SavedForm) => {
+    const form = demo.forms.find((f) => f.id === summary.id)
+    if (!form) return
+    try {
+      exportDemoArtifact(
+        form.title,
+        [
+          ['Project', form.projectId],
+          ['Form', form.title, form.status],
+          ['Field', 'Question type', 'Required', 'Options'],
+          ...form.fields.map((f) => [f.label, f.type, String(f.required), f.options.join('; ')]),
+        ],
+        exportFormat,
+        form.projectId,
+        true,
+      )
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Export failed. Retry.')
+    }
   }
 
   return (
@@ -504,7 +569,7 @@ export const CollectionWorkspace = ({
       <PageHeader
         eyebrow="Data workspace"
         title={labels.moduleCollection}
-        description="Build digital forms, map imported files, and preview validation without uploading source data."
+        description="Build and publish project forms, encode data, and import validated browser-local CSV/XLS/XLSX datasets."
         actions={
           <>
             <Button asChild size="sm" variant="outline">
@@ -555,75 +620,170 @@ export const CollectionWorkspace = ({
 
       {view === 'forms' || view === 'home' ? (
         <FormsGeneratorView
-          onCreate={() => openBuilder('scratch')}
+          onOpen={openSavedForm}
+          onCreate={() => {
+            setEditingFormId(undefined)
+            setFields(initialFields)
+            openBuilder('scratch')
+          }}
           onDownload={downloadSavedForm}
           onImport={(nextMode) => openBuilder(nextMode)}
           savedForms={savedForms}
         />
       ) : null}
 
+      <label className="block text-sm">
+        Download format{' '}
+        <select
+          className="ml-2 rounded border p-2"
+          value={exportFormat}
+          onChange={(e) => setExportFormat(e.target.value as ExportFormat)}
+        >
+          {(['csv', 'xlsx', 'xls', 'pdf'] as const).map((f) => (
+            <option key={f} value={f}>
+              {f.toUpperCase()}
+            </option>
+          ))}
+        </select>
+      </label>
       {view === 'builder' ? (
-        <BuilderView
-          addField={addField}
-          deleteField={requestDeleteField}
-          fields={fields}
-          formTitle={formTitle}
-          formType={formType}
-          journeyStage={journeyStage}
-          linkedActivityId={linkedActivityId}
-          metadataCount={metadataCount}
-          metadataCoverage={metadataCoverage}
-          mappedCount={mappedCount}
-          mode={mode}
-          moveField={moveField}
-          projectActivities={projectActivities}
-          projectId={projectId}
-          sadddCount={sadddCount}
-          selectedField={selectedField}
-          selectedFieldId={selectedFieldId}
-          selectedProject={selectedProject?.title ?? 'FutureMakers NCR'}
-          setFormTitle={setFormTitle}
-          setFormType={setFormType}
-          setJourneyStage={setJourneyStage}
-          setLinkedActivityId={setLinkedActivityId}
-          setProjectId={setProjectId}
-          setSaveDialogOpen={setSaveDialogOpen}
-          setSelectedFieldId={setSelectedFieldId}
-          updateField={updateField}
-        />
+        <fieldset
+          disabled={Boolean(demo.forms.find((f) => f.id === editingFormId)?.responseCount)}
+          className="space-y-4"
+        >
+          <legend className="font-semibold">Form configuration</legend>
+          <div>
+            <p>Linked indicators</p>
+            {demo.indicators
+              .filter((i) => i.projectId === projectId)
+              .map((i) => (
+                <label className="mr-4 inline-flex gap-2" key={i.id}>
+                  <input
+                    type="checkbox"
+                    checked={indicatorIds.includes(i.id)}
+                    onChange={(e) =>
+                      setIndicatorIds(
+                        e.target.checked
+                          ? [...indicatorIds, i.id]
+                          : indicatorIds.filter((id) => id !== i.id),
+                      )
+                    }
+                  />
+                  {i.label}
+                </label>
+              ))}
+          </div>
+          <BuilderView
+            addField={addField}
+            deleteField={requestDeleteField}
+            fields={fields}
+            formTitle={formTitle}
+            formType={formType}
+            journeyStage={journeyStage}
+            linkedActivityId={linkedActivityId}
+            metadataCount={metadataCount}
+            metadataCoverage={metadataCoverage}
+            mappedCount={mappedCount}
+            mode={mode}
+            moveField={moveField}
+            projectActivities={projectActivities}
+            projectId={projectId}
+            sadddCount={sadddCount}
+            selectedField={selectedField}
+            selectedFieldId={selectedFieldId}
+            selectedProject={selectedProject?.title ?? 'FutureMakers NCR'}
+            setFormTitle={setFormTitle}
+            setFormType={setFormType}
+            setJourneyStage={setJourneyStage}
+            setLinkedActivityId={setLinkedActivityId}
+            setProjectId={setProjectId}
+            setSaveDialogOpen={setSaveDialogOpen}
+            setSelectedFieldId={setSelectedFieldId}
+            updateField={updateField}
+          />
+        </fieldset>
       ) : null}
 
       {view === 'import' ? (
-        <ImportView
-          fields={fields}
-          formTitle={formTitle}
-          formType={formType}
-          importCanProceed={importCanProceed}
-          importMessage={importMessage}
-          importStatus={importStatus}
-          importSummary={importSummary}
-          journeyStage={journeyStage}
-          linkedActivityId={linkedActivityId}
-          mappingRows={mappingRows}
-          mappingReadiness={mappingReadiness}
-          mode={mode}
-          parsedImport={parsedImport}
-          parseSelectedFile={parseSelectedFile}
-          projectActivities={projectActivities}
-          projectId={projectId}
-          selectedProject={selectedProject?.title ?? 'FutureMakers NCR'}
-          setFormTitle={setFormTitle}
-          setFormType={setFormType}
-          setJourneyStage={setJourneyStage}
-          setLinkedActivityId={setLinkedActivityId}
-          setMappingRows={setMappingRows}
-          setMode={setMode}
-          setProceedDialogOpen={setProceedDialogOpen}
-          setProjectId={setProjectId}
-          setView={setView}
-          retrySelectedFile={retrySelectedFile}
-          uploadProgress={uploadProgress}
-        />
+        <div className="space-y-4">
+          <label>
+            Duplicate records decision{' '}
+            <select
+              className="rounded border p-2"
+              value={duplicateDecision}
+              onChange={(e) => setDuplicateDecision(e.target.value as 'pending' | 'skip' | 'keep')}
+            >
+              <option value="pending">Decide when duplicates are flagged</option>
+              <option value="skip">Skip duplicates</option>
+              <option value="keep">Keep confirmed duplicates</option>
+            </select>
+          </label>
+          {parsedImport?.rows.length ? (
+            <details>
+              <summary>Correct isolated data before reprocessing</summary>
+              <div className="overflow-x-auto">
+                <table>
+                  <tbody>
+                    {parsedImport.rows.map((row, index) => (
+                      <tr
+                        key={parsedImport.headers
+                          .map((column) => `${column}:${String(row[column] ?? '')}`)
+                          .join('|')}
+                      >
+                        {parsedImport.headers.map((column) => (
+                          <td key={column}>
+                            <Input
+                              aria-label={`Row ${index + 1}: ${column}`}
+                              value={String(row[column] ?? '')}
+                              onChange={(e) =>
+                                setParsedImport({
+                                  ...parsedImport,
+                                  rows: parsedImport.rows.map((r, ri) =>
+                                    ri === index ? { ...r, [column]: e.target.value } : r,
+                                  ),
+                                })
+                              }
+                            />
+                          </td>
+                        ))}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </details>
+          ) : null}
+          <ImportView
+            fields={fields}
+            formTitle={formTitle}
+            formType={formType}
+            importCanProceed={importCanProceed}
+            importMessage={importMessage}
+            importStatus={importStatus}
+            importSummary={importSummary}
+            journeyStage={journeyStage}
+            linkedActivityId={linkedActivityId}
+            mappingRows={mappingRows}
+            mappingReadiness={mappingReadiness}
+            mode={mode}
+            parsedImport={parsedImport}
+            parseSelectedFile={parseSelectedFile}
+            projectActivities={projectActivities}
+            projectId={projectId}
+            selectedProject={selectedProject?.title ?? 'FutureMakers NCR'}
+            setFormTitle={setFormTitle}
+            setFormType={setFormType}
+            setJourneyStage={setJourneyStage}
+            setLinkedActivityId={setLinkedActivityId}
+            setMappingRows={setMappingRows}
+            setMode={setMode}
+            setProceedDialogOpen={setProceedDialogOpen}
+            setProjectId={setProjectId}
+            setView={setView}
+            retrySelectedFile={retrySelectedFile}
+            uploadProgress={uploadProgress}
+          />
+        </div>
       ) : null}
 
       <Dialog open={saveDialogOpen} onOpenChange={setSaveDialogOpen}>
@@ -631,8 +791,8 @@ export const CollectionWorkspace = ({
           <DialogHeader>
             <DialogTitle>Proceed with Save As?</DialogTitle>
             <DialogDescription>
-              This saves the form for the current browser session only. It does not change shared
-              form definitions or mappings.
+              This publishes the validated form to shared browser-local demo data and makes it
+              available to the data-entry workflow.
             </DialogDescription>
           </DialogHeader>
           <div className="rounded-sm border bg-surface-subtle p-4 text-sm">
@@ -655,8 +815,8 @@ export const CollectionWorkspace = ({
           <DialogHeader>
             <DialogTitle>Review mapped fields?</DialogTitle>
             <DialogDescription>
-              This prototype marks the mapping as ready, but it does not upload the source dataset
-              or run production validation.
+              Valid rows will be committed to shared browser-local demo data; invalid rows remain
+              isolated for correction and reprocessing.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
@@ -695,11 +855,13 @@ export const CollectionWorkspace = ({
 }
 
 const FormsGeneratorView = ({
+  onOpen,
   onCreate,
   onDownload,
   onImport,
   savedForms,
 }: {
+  onOpen: (form: SavedForm) => void
   onCreate: () => void
   onDownload: (form: SavedForm) => void
   onImport: (mode: CollectionMode) => void
@@ -754,11 +916,11 @@ const FormsGeneratorView = ({
             </div>
           </div>
           <div className="flex items-center gap-2">
-            <Button asChild size="sm" variant="outline">
-              <Link href="/collection/forms/new">Open form builder</Link>
+            <Button size="sm" variant="outline" onClick={() => onOpen(form)}>
+              Open form
             </Button>
             <Button size="sm" variant="outline" onClick={() => onDownload(form)}>
-              Download summary
+              Export form
             </Button>
           </div>
         </div>
@@ -1027,7 +1189,7 @@ const FormInfoPanel = ({
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            {mockProjects.map((project) => (
+            {visibleDemoProjects().map((project) => (
               <SelectItem key={project.id} value={project.id}>
                 {project.title}
               </SelectItem>

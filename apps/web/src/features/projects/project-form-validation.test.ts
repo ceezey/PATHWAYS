@@ -11,7 +11,6 @@ describe('project setup validation', () => {
       startDate: '',
       endDate: '',
       status: 'Planned',
-      budgetCode: '',
       description: '',
       programManager: '',
       projectManager: '',
@@ -30,7 +29,6 @@ describe('project setup validation', () => {
       startDate: '2026-12-01',
       endDate: '2026-08-01',
       status: 'Planned',
-      budgetCode: 'PP-2026',
       description: 'Prototype setup validation project.',
       programManager: 'Program Manager A',
       projectManager: 'Project Manager A',
@@ -43,13 +41,15 @@ describe('project setup validation', () => {
 
   it('preserves manager names and adapts selected Project Officers to the existing array shape', () => {
     const input = toCreateProjectInput({
+      objectives: 'Develop youth skills',
+      partners: 'Fictional Partner',
+      projectBudget: '100000',
       title: 'Prototype Project',
       sector: 'Education',
       area: 'Navotas',
       startDate: '2026-08-01',
       endDate: '2026-12-01',
       status: 'Planned',
-      budgetCode: 'PP-2026',
       description: 'Prototype setup validation project.',
       programManager: 'Program Manager A',
       projectManager: 'Project Manager A',
@@ -63,5 +63,6 @@ describe('project setup validation', () => {
       projectManager: 'Project Manager A',
       projectOfficers: ['Project Officer A', 'Project Officer B'],
     })
+    expect(input).not.toHaveProperty('budgetCode')
   })
 })

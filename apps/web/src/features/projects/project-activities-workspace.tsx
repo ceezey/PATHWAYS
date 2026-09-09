@@ -20,7 +20,6 @@ import {
   AsyncState,
   EmptyState,
   FilterBar,
-  FilterChoiceGroup,
   ProgressBar,
   ResultsAnnouncement,
   SectionCard,
@@ -28,8 +27,16 @@ import {
 } from '@/components/pathways'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import { usePrototypeLabels } from '@/hooks/use-prototype-labels'
 import { usePrototypeRole } from '@/hooks/use-prototype-role'
+import { currentAccount } from '@/lib/demo-state/store'
 import { can } from '@/lib/rbac/can'
 import { canAccessProjectForRole } from '@/lib/rbac/data-scope'
 import { pathwaysClient } from '@/lib/services/mock-pathways-client'
@@ -43,6 +50,7 @@ import type {
   UserRecord,
 } from '@/types/pathways'
 
+import { useDemoState } from '@/lib/demo-state/use-demo-state'
 import { ActivityDetailPanel } from './activity-detail-panel'
 import { ActivityFormDialog } from './activity-form-dialog'
 import { ActivityProofDialog } from './activity-proof-dialog'
@@ -56,9 +64,8 @@ import {
   activityStatusTone,
   activityStatuses,
 } from './activity-utils'
+import { MilestoneProgressPanel } from './milestone-progress-panel'
 import { ProjectWorkspaceHeader } from './project-workspace-header'
-
-const projectOfficerName = 'Project Officer A'
 
 const indicatorSummary = (activity: Activity, indicators: Indicator[]) =>
   activity.indicatorIds
@@ -71,9 +78,13 @@ const indicatorSummary = (activity: Activity, indicators: Indicator[]) =>
 const attentionActivity = (activity: Activity) =>
   activity.status === 'Overdue' || activity.status === 'For Review' || activity.progress < 50
 
-const matchesFilter = (activity: Activity, filter: ActivityFilter) => {
+const matchesFilter = (
+  activity: Activity,
+  filter: ActivityFilter,
+  currentMemberNames: string[],
+) => {
   if (filter === 'Mine') {
-    return activity.assignedTo.includes(projectOfficerName)
+    return activity.assignedTo.some((name) => currentMemberNames.includes(name))
   }
 
   if (filter === 'Overdue') {
@@ -242,11 +253,15 @@ const ActivityListRow = ({
 )
 
 const ActivityStatusSummary = ({
+  activeStatus,
   counts,
+  onStatusChange,
   shownCount,
   totalCount,
 }: {
+  activeStatus: ActivityStatus | null
   counts: Record<ActivityStatus, number>
+  onStatusChange: (status: ActivityStatus | null) => void
   shownCount: number
   totalCount: number
 }) => (
@@ -262,15 +277,26 @@ const ActivityStatusSummary = ({
         </p>
       </div>
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-5">
-        {activityStatuses.map((status) => (
-          <div
-            className="flex min-w-0 items-center justify-between gap-2 rounded-sm border border-border bg-surface-subtle px-3 py-2"
-            key={status}
-          >
-            <StatusBadge tone={activityStatusTone(status)}>{status}</StatusBadge>
-            <span className="text-sm font-semibold text-foreground">{counts[status]}</span>
-          </div>
-        ))}
+        {activityStatuses.map((status) => {
+          const selected = activeStatus === status
+          return (
+            <button
+              aria-label={`Filter activities by ${status} status, ${counts[status]} ${counts[status] === 1 ? 'activity' : 'activities'}`}
+              aria-pressed={selected}
+              className={`flex min-w-0 items-center justify-between gap-2 rounded-sm border px-3 py-2 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ${
+                selected
+                  ? 'border-primary bg-primary-subtle shadow-sm'
+                  : 'border-border bg-surface-subtle hover:border-primary/50 hover:bg-muted/60'
+              }`}
+              key={status}
+              onClick={() => onStatusChange(selected ? null : status)}
+              type="button"
+            >
+              <StatusBadge tone={activityStatusTone(status)}>{status}</StatusBadge>
+              <span className="text-sm font-semibold text-foreground">{counts[status]}</span>
+            </button>
+          )
+        })}
       </div>
     </div>
   </section>
@@ -283,6 +309,8 @@ export const ProjectActivitiesWorkspace = ({
   initialActivityId?: string
   projectId: string
 }) => {
+  const demo = useDemoState()
+  const activeAccount = currentAccount(demo)
   const router = useRouter()
   const { labels } = usePrototypeLabels()
   const { role } = usePrototypeRole()
@@ -299,6 +327,7 @@ export const ProjectActivitiesWorkspace = ({
   const [loadError, setLoadError] = useState<'none' | 'not-found' | 'error'>('none')
   const [query, setQuery] = useState('')
   const [filter, setFilter] = useState<ActivityFilter>('All')
+  const [statusFilter, setStatusFilter] = useState<ActivityStatus | null>(null)
   const [viewMode, setViewMode] = useState<'board' | 'list'>('board')
   const [selectedActivity, setSelectedActivity] = useState<Activity | null>(null)
   const [editingActivity, setEditingActivity] = useState<Activity | null>(null)
@@ -306,6 +335,21 @@ export const ProjectActivitiesWorkspace = ({
   const [formOpen, setFormOpen] = useState(false)
   const [proofOpen, setProofOpen] = useState(false)
   const [loadAttempt, setLoadAttempt] = useState(0)
+  const currentMemberNames = useMemo(() => {
+    if (!activeAccount) return []
+    if (!project) return [activeAccount.name]
+
+    const assignedNamesByRole = {
+      'Program Manager': [project.programManager],
+      'Project Manager': [project.projectManager],
+      'Monitoring and Evaluation Officer': [project.monitoringOfficer],
+      'Project Officer': project.projectOfficers,
+      'Grant Manager': [],
+      'System Administrator': [],
+    }
+
+    return [...new Set([activeAccount.name, ...assignedNamesByRole[activeAccount.role]])]
+  }, [activeAccount, project])
 
   useEffect(() => {
     void loadAttempt
@@ -377,11 +421,28 @@ export const ProjectActivitiesWorkspace = ({
             .includes(normalizedQuery)
         : true
 
-      return matchesQuery && matchesFilter(activity, filter)
+      const matchesStatus = statusFilter ? activity.status === statusFilter : true
+      return matchesQuery && matchesStatus && matchesFilter(activity, filter, currentMemberNames)
     })
-  }, [activities, filter, indicators, query])
+  }, [activities, currentMemberNames, filter, indicators, query, statusFilter])
 
   const activityStatusCounts = useMemo(() => {
+    const counts: Record<ActivityStatus, number> = {
+      Planned: 0,
+      'In Progress': 0,
+      'For Review': 0,
+      Overdue: 0,
+      Completed: 0,
+    }
+
+    for (const activity of activities) {
+      counts[activity.status] += 1
+    }
+
+    return counts
+  }, [activities])
+
+  const filteredActivityStatusCounts = useMemo(() => {
     const counts: Record<ActivityStatus, number> = {
       Planned: 0,
       'In Progress': 0,
@@ -398,8 +459,8 @@ export const ProjectActivitiesWorkspace = ({
   }, [filteredActivities])
 
   const visibleActivityStatuses = useMemo(
-    () => activityStatuses.filter((status) => activityStatusCounts[status] > 0),
-    [activityStatusCounts],
+    () => activityStatuses.filter((status) => filteredActivityStatusCounts[status] > 0),
+    [filteredActivityStatusCounts],
   )
 
   const upsertActivity = (activity: Activity, selectActivity = true) => {
@@ -529,8 +590,9 @@ export const ProjectActivitiesWorkspace = ({
         }
       />
       <ProjectWorkspaceHeader project={project} />
-      <FilterBar className="min-w-0 md:flex-col md:items-stretch xl:flex-row xl:flex-wrap xl:items-center">
-        <div className="relative min-w-0 flex-1 xl:min-w-72">
+      <MilestoneProgressPanel projectId={projectId} />
+      <FilterBar className="min-w-0 !grid gap-4 md:!grid-cols-[minmax(0,1fr)_minmax(13rem,16rem)] md:items-end xl:!grid-cols-[minmax(20rem,1fr)_minmax(13rem,16rem)_auto]">
+        <div className="relative min-w-0">
           <Search
             className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground"
             aria-hidden="true"
@@ -543,14 +605,30 @@ export const ProjectActivitiesWorkspace = ({
             value={query}
           />
         </div>
-        <FilterChoiceGroup
-          className="grid w-full grid-cols-2 sm:grid-cols-4 xl:flex xl:w-auto"
-          label="Activity status filter"
-          onValueChange={(value) => setFilter(value as ActivityFilter)}
-          options={activityFilters}
-          value={filter}
-        />
-        <div className="flex w-full items-center justify-between gap-2 sm:justify-end xl:w-auto">
+        <div className="min-w-0 space-y-1.5">
+          <label className="text-sm font-medium text-foreground" htmlFor="activity-list-filter">
+            Activity List
+          </label>
+          <Select
+            onValueChange={(value) => {
+              setFilter(value as ActivityFilter)
+              setStatusFilter(null)
+            }}
+            value={filter}
+          >
+            <SelectTrigger id="activity-list-filter">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {activityFilters.map((option) => (
+                <SelectItem key={option} value={option}>
+                  {option}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="flex min-w-0 flex-wrap items-center gap-2 md:col-span-2 md:justify-end xl:col-span-1 xl:flex-nowrap">
           <fieldset className="m-0 flex gap-2 border-0 p-0">
             <legend className="sr-only">Activity view</legend>
             <Button
@@ -575,7 +653,7 @@ export const ProjectActivitiesWorkspace = ({
             </Button>
           </fieldset>
           {canCreateEdit ? (
-            <Button className="gap-2" onClick={openCreate} type="button">
+            <Button className="gap-2 whitespace-nowrap" onClick={openCreate} type="button">
               <Plus className="h-4 w-4" aria-hidden="true" />
               New Activity
             </Button>
@@ -583,7 +661,12 @@ export const ProjectActivitiesWorkspace = ({
         </div>
       </FilterBar>
       <ActivityStatusSummary
+        activeStatus={statusFilter}
         counts={activityStatusCounts}
+        onStatusChange={(status) => {
+          setStatusFilter(status)
+          if (status) setFilter('All')
+        }}
         shownCount={filteredActivities.length}
         totalCount={activities.length}
       />

@@ -27,6 +27,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Textarea } from '@/components/ui/textarea'
 import { usePrototypeLabels } from '@/hooks/use-prototype-labels'
 import { usePrototypeRole } from '@/hooks/use-prototype-role'
+import { saveRule as persistRule } from '@/lib/demo-state/monitoring'
+import { getDemoState } from '@/lib/demo-state/store'
 import { can } from '@/lib/rbac/can'
 import type {
   RuleCategory,
@@ -146,27 +148,18 @@ export const RuleConfigurationWorkspace = ({
       return
     }
 
-    // TODO(RBAC): Restrict rule configuration to authorized administrators.
-    // TODO(BACKEND): Persist rule definitions and lifecycle transitions.
-    if (editingRuleId) {
-      setRules((current) =>
-        current.map((rule) => (rule.id === editingRuleId ? { ...rule, ...draft } : rule)),
-      )
-      setSelectedRuleId(editingRuleId)
-    } else {
-      const rule: RuleDefinition = {
-        ...draft,
-        id: `rule-prototype-${Date.now().toString(36)}`,
-        triggeredCount: 0,
-      }
-      setRules((current) => [rule, ...current])
-      setSelectedRuleId(rule.id)
+    try {
+      const saved = persistRule(draft, editingRuleId ?? undefined)
+      setRules(getDemoState().rules)
+      setSelectedRuleId(saved.id)
+      setDialogOpen(false)
+      toast.success(editingRuleId ? 'Rule updated and applied.' : 'Rule created and applied.', {
+        description:
+          'Subsequent local evaluations use this configuration and the audit event was recorded.',
+      })
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Rule could not be saved.')
     }
-
-    setDialogOpen(false)
-    toast.success(editingRuleId ? 'Rule updated locally.' : 'Prototype rule created.', {
-      description: 'This demonstration keeps the rule in your current browser session only.',
-    })
   }
 
   const toggleRuleStatus = (rule: RuleDefinition) => {
@@ -175,12 +168,14 @@ export const RuleConfigurationWorkspace = ({
       return
     }
 
-    // TODO(BACKEND): Persist rule definitions and lifecycle transitions.
     const nextStatus: RuleStatus = rule.status === 'Active' ? 'Inactive' : 'Active'
-    setRules((current) =>
-      current.map((item) => (item.id === rule.id ? { ...item, status: nextStatus } : item)),
-    )
-    toast.success(`Rule marked ${nextStatus.toLowerCase()} locally.`)
+    try {
+      persistRule({ ...rule, status: nextStatus }, rule.id)
+      setRules(getDemoState().rules)
+      toast.success(`Rule marked ${nextStatus.toLowerCase()} and applied.`)
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Rule status could not be changed.')
+    }
   }
 
   return (

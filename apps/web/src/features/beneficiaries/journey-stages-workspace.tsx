@@ -25,6 +25,7 @@ import {
 } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
 import { usePrototypeLabels } from '@/hooks/use-prototype-labels'
+import { saveJourneyStages } from '@/lib/demo-state/beneficiaries'
 import type {
   Activity,
   JourneyStageConfig,
@@ -107,11 +108,13 @@ export const JourneyStagesWorkspace = ({
   }
 
   const saveConfiguration = () => {
-    // TODO(DATABASE): Load configurable stages and activity-stage mappings.
-    setSaveOpen(false)
-    toast.success('Journey-stage configuration saved locally.', {
-      description: 'This demonstration keeps the changes in your current browser session only.',
-    })
+    try {
+      saveJourneyStages(project.id, stages)
+      setSaveOpen(false)
+      toast.success('Journey-stage configuration saved to demo data.')
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Journey stages could not be saved.')
+    }
   }
 
   return (

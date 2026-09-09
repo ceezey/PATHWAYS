@@ -1,11 +1,12 @@
+import { demoPolicy } from '@/lib/demo-state/store'
 import { z } from 'zod'
 
 const passwordMessage =
-  'Use 15–64 characters with uppercase, lowercase, number, and symbol characters.'
+  'Use 12–64 characters with uppercase, lowercase, number, and symbol characters.'
 
 export const strongPasswordSchema = z
   .string()
-  .min(15, passwordMessage)
+  .min(demoPolicy.passwordMin, passwordMessage)
   .max(64, passwordMessage)
   .regex(/[a-z]/, passwordMessage)
   .regex(/[A-Z]/, passwordMessage)

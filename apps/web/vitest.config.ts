@@ -1,6 +1,9 @@
 import path from 'node:path'
+import { fileURLToPath } from 'node:url'
 
 import { defineConfig } from 'vitest/config'
+
+const configDirectory = fileURLToPath(new URL('.', import.meta.url))
 
 export default defineConfig({
   esbuild: {
@@ -8,11 +11,11 @@ export default defineConfig({
   },
   resolve: {
     alias: {
-      '@': path.resolve(__dirname, 'src'),
-      '@pathways/config': path.resolve(__dirname, '../../packages/config/src/index.ts'),
-      '@pathways/imports': path.resolve(__dirname, '../../packages/imports/src/index.ts'),
-      '@pathways/shared': path.resolve(__dirname, '../../packages/shared/src/index.ts'),
-      '@pathways/ui': path.resolve(__dirname, '../../packages/ui/src/index.ts'),
+      '@': path.resolve(configDirectory, 'src'),
+      '@pathways/config': path.resolve(configDirectory, '../../packages/config/src/index.ts'),
+      '@pathways/imports': path.resolve(configDirectory, '../../packages/imports/src/index.ts'),
+      '@pathways/shared': path.resolve(configDirectory, '../../packages/shared/src/index.ts'),
+      '@pathways/ui': path.resolve(configDirectory, '../../packages/ui/src/index.ts'),
     },
   },
   test: {

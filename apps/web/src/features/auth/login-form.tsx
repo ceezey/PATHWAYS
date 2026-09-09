@@ -28,6 +28,7 @@ import { usePrototypeRole } from '@/hooks/use-prototype-role'
 import { useSession } from '@/hooks/use-session'
 import { publicPrototypeAccounts } from '@/lib/auth/prototype-accounts'
 import { createPrototypeSession } from '@/lib/auth/prototype-session'
+import { loginDemo } from '@/lib/demo-state/accounts'
 import { webSetupState } from '@/lib/env'
 import { getBrowserSupabaseClient } from '@/lib/supabase/client'
 import { getPrototypeRoleDisplayName } from '@/types/prototype-role'
@@ -123,7 +124,14 @@ export const LoginForm = () => {
     setLoginMessage('')
 
     if (webSetupState.guiPrototypeModeEnabled) {
-      await startPrototypeChallenge(values, 'login')
+      try {
+        const account = loginDemo(values.identifier, values.password)
+        setRole(account.role)
+        await signInWithPrototype(createPrototypeSession({ ...account, displayName: account.name }))
+        router.push('/dashboard')
+      } catch (error) {
+        setLoginMessage(error instanceof Error ? error.message : 'Demo sign-in failed. Retry.')
+      }
       return
     }
 

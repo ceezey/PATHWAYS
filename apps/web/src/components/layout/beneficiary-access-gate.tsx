@@ -35,25 +35,16 @@ export const BeneficiaryAccessGate = ({ onVerified }: { onVerified: () => void }
     setMessage('Verifying beneficiary access...')
 
     try {
-      const response = await fetch('/api/beneficiary-step-up/verify', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ pin, role }),
-      })
-      const result = (await response.json()) as {
-        ok?: boolean
-        expiresAt?: string
-        message?: string
-      }
-
-      if (!response.ok || !result.ok) {
-        setStatus(response.status === 429 ? 'locked' : 'error')
-        setMessage(result.message ?? 'The PIN could not be verified. Check the PIN and try again.')
+      await Promise.resolve()
+      if (pin !== '2468') {
+        setStatus('error')
+        setMessage(
+          'The PIN is incorrect. Personal details remain hidden; try the fictional demo PIN shown below.',
+        )
         setPin('')
         return
       }
-
-      writeBeneficiaryAccess(role, result.expiresAt)
+      writeBeneficiaryAccess(role)
       onVerified()
     } catch {
       setStatus('error')
@@ -76,9 +67,6 @@ export const BeneficiaryAccessGate = ({ onVerified }: { onVerified: () => void }
               aria-live="polite"
               className="block rounded-lg border border-warning/20 bg-warning/10 p-4 text-sm leading-6 text-warning"
             >
-              {/* TODO(AUTH): Replace prototype beneficiary PIN verification with organization-approved step-up authentication. */}
-              {/* TODO(SECURITY): Store step-up verification state securely and enforce it server-side. */}
-              {/* TODO(AUDIT): Record beneficiary-module access and failed verification attempts. */}
               {message}
             </output>
             <div className="space-y-2">

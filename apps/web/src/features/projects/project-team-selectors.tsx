@@ -145,18 +145,33 @@ const SingleTeamSelector = ({
               value={selectedUser?.id ?? ''}
             >
               <FormControl aria-required="true">
-                <SelectTrigger onBlur={field.onBlur} ref={field.ref}>
+                <SelectTrigger
+                  className="min-w-0 overflow-hidden"
+                  onBlur={field.onBlur}
+                  ref={field.ref}
+                >
                   <SelectValue
                     placeholder={optionPlaceholder(role, loading, loadError, options.length)}
-                  />
+                  >
+                    {selectedUser ? (
+                      <span className="block min-w-0 truncate pr-2 font-medium">
+                        {selectedUser.name}
+                      </span>
+                    ) : null}
+                  </SelectValue>
                 </SelectTrigger>
               </FormControl>
-              <SelectContent>
+              <SelectContent className="max-w-[calc(100vw-2rem)] sm:min-w-[var(--radix-select-trigger-width)]">
                 {options.map((user) => (
                   <SelectItem key={user.id} value={user.id}>
-                    <span className="flex min-w-0 flex-col">
-                      <span className="font-medium">{user.name}</span>
-                      <span className="truncate text-xs text-muted-foreground">{user.email}</span>
+                    <span className="flex min-w-0 max-w-full flex-col overflow-hidden">
+                      <span className="truncate font-medium">{user.name}</span>
+                      <span
+                        className="block truncate text-xs text-muted-foreground"
+                        title={user.email}
+                      >
+                        {user.email}
+                      </span>
                     </span>
                   </SelectItem>
                 ))}

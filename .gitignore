@@ -1,6 +1,8 @@
 node_modules
 .pnpm-store
 .next
+.next-review
+.next-review-*
 dist
 coverage
 .turbo

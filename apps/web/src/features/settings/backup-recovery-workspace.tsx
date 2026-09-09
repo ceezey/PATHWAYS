@@ -1,10 +1,11 @@
 'use client'
 
-import { AlertTriangle, CheckCircle2, DatabaseBackup, RotateCcw, ShieldCheck } from 'lucide-react'
-import { useState } from 'react'
+import { AlertTriangle, DatabaseBackup, Download, RotateCcw, Upload } from 'lucide-react'
+import { useRef, useState } from 'react'
+import { toast } from 'sonner'
 
 import { PageHeader } from '@/components/layout/page-header'
-import { SectionCard, StatusBadge } from '@/components/pathways'
+import { EmptyState, SectionCard, StatusBadge } from '@/components/pathways'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -14,55 +15,65 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
-
-type BackupRecord = {
-  id: string
-  createdAt: string
-  scope: string
-  size: string
-  status: 'Verified' | 'Check required'
-  creator: string
-}
-
-const backups: BackupRecord[] = [
-  {
-    id: 'BKP-2026-09-07-2300',
-    createdAt: '07 Sep 2026, 11:00 PM',
-    scope: 'Prototype organization snapshot',
-    size: '18.4 MB',
-    status: 'Verified',
-    creator: 'Scheduled preview',
-  },
-  {
-    id: 'BKP-2026-09-06-2300',
-    createdAt: '06 Sep 2026, 11:00 PM',
-    scope: 'Prototype organization snapshot',
-    size: '18.1 MB',
-    status: 'Verified',
-    creator: 'Scheduled preview',
-  },
-  {
-    id: 'BKP-2026-09-05-2300',
-    createdAt: '05 Sep 2026, 11:00 PM',
-    scope: 'Prototype organization snapshot',
-    size: '17.9 MB',
-    status: 'Check required',
-    creator: 'Scheduled preview',
-  },
-]
+import {
+  createBackup,
+  downloadBackup,
+  importBackupFile,
+  restoreBackup,
+} from '@/lib/demo-state/administration'
+import { useDemoState } from '@/lib/demo-state/use-demo-state'
 
 export const BackupRecoveryWorkspace = () => {
-  const [selected, setSelected] = useState(backups[0])
+  const state = useDemoState()
+  const [selectedId, setSelectedId] = useState('')
   const [restoreOpen, setRestoreOpen] = useState(false)
   const [message, setMessage] = useState('')
+  const inputRef = useRef<HTMLInputElement>(null)
+  const selected = state.backups.find((backup) => backup.id === selectedId) ?? state.backups[0]
 
-  const unavailable = (action: 'backup' | 'restore') => {
-    setRestoreOpen(false)
-    setMessage(
-      action === 'backup'
-        ? 'Backup creation is unavailable because no storage service is connected. No operation started.'
-        : 'Restore is unavailable because no isolated recovery service is connected. The current state was not changed.',
-    )
+  const create = () => {
+    try {
+      const backup = createBackup()
+      setSelectedId(backup.id)
+      downloadBackup(backup.payload, backup.name)
+      setMessage('Backup created and downloaded. Integrity verification passed.')
+      toast.success('Backup created, verified, retained locally, and downloaded.')
+    } catch (error) {
+      const failure = error instanceof Error ? error.message : 'Backup could not be created.'
+      setMessage(failure)
+      toast.error(failure)
+    }
+  }
+  const restore = () => {
+    if (!selected) return
+    try {
+      restoreBackup(selected.id)
+      setRestoreOpen(false)
+      setMessage('Backup restored atomically. Connected demo screens now use the recovered state.')
+      toast.success(
+        'Backup restored atomically. Connected demo screens now use the recovered state.',
+      )
+    } catch (error) {
+      const failure =
+        error instanceof Error ? error.message : 'Restore failed; current state was retained.'
+      setMessage(failure)
+      toast.error(failure)
+    }
+  }
+  const importFile = async (file?: File) => {
+    if (!file) return
+    try {
+      const backup = importBackupFile(await file.text(), file.name)
+      setSelectedId(backup.id)
+      setMessage('Recovery file validated and added.')
+      toast.success('Recovery file validated and added.')
+    } catch (error) {
+      const failure = error instanceof Error ? error.message : 'Recovery file could not be added.'
+      setMessage(failure)
+      toast.error(failure)
+    } finally {
+      if (inputRef.current) inputRef.current.value = ''
+    }
   }
 
   return (
@@ -70,135 +81,139 @@ export const BackupRecoveryWorkspace = () => {
       <PageHeader
         eyebrow="Administration / Continuity"
         title="Backup & Recovery"
-        description="Review recovery readiness, inspect synthetic backup metadata, and understand restore impact before any operation."
+        description="Create, download, validate, and atomically restore browser-local PATHWAYS demo state."
         actions={
-          <Button onClick={() => unavailable('backup')}>
-            <DatabaseBackup className="mr-2 h-4 w-4" aria-hidden="true" />
-            Create backup
-          </Button>
-        }
-      />
-
-      <div className="rounded-lg border border-warning/25 bg-warning-subtle px-4 py-3 text-sm leading-6 text-warning">
-        No backup storage or restore target is connected. The inventory below is synthetic and every
-        operation stops safely without changing data.
-      </div>
-      {message ? (
-        <output className="flex items-start gap-2 rounded-lg border border-danger/25 bg-danger-subtle px-4 py-3 text-sm leading-6 text-danger">
-          <AlertTriangle className="mt-1 h-4 w-4 shrink-0" aria-hidden="true" />
-          {message}
-        </output>
-      ) : null}
-
-      <div className="grid gap-6 xl:grid-cols-[minmax(0,1.05fr)_minmax(340px,0.65fr)]">
-        <SectionCard
-          title="Backup inventory"
-          description="Synthetic records demonstrate the planned chronology and integrity states."
-        >
-          <section className="overflow-x-auto rounded-md border" aria-label="Backup inventory">
-            <table className="w-full min-w-[640px] text-left text-sm">
-              <thead className="bg-muted text-xs uppercase tracking-wide text-muted-foreground">
-                <tr>
-                  <th className="px-4 py-3">Backup</th>
-                  <th className="px-4 py-3">Created</th>
-                  <th className="px-4 py-3">Size</th>
-                  <th className="px-4 py-3">Integrity</th>
-                  <th className="px-4 py-3">
-                    <span className="sr-only">Select</span>
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="divide-y">
-                {backups.map((backup) => (
-                  <tr
-                    key={backup.id}
-                    className={selected.id === backup.id ? 'bg-primary-subtle' : undefined}
-                  >
-                    <td className="px-4 py-3 font-mono text-xs">{backup.id}</td>
-                    <td className="px-4 py-3">{backup.createdAt}</td>
-                    <td className="px-4 py-3">{backup.size}</td>
-                    <td className="px-4 py-3">
-                      <StatusBadge tone={backup.status === 'Verified' ? 'success' : 'warning'}>
-                        {backup.status}
-                      </StatusBadge>
-                    </td>
-                    <td className="px-4 py-3 text-right">
-                      <Button size="sm" variant="ghost" onClick={() => setSelected(backup)}>
-                        Review
-                      </Button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </section>
-        </SectionCard>
-
-        <SectionCard
-          title="Recovery impact"
-          description="The selected target must be verified again before a real restore."
-        >
-          <div className="space-y-5">
-            <div className="flex items-center gap-3">
-              <span className="flex h-10 w-10 items-center justify-center rounded-sm bg-primary-subtle text-primary">
-                <ShieldCheck className="h-5 w-5" aria-hidden="true" />
-              </span>
-              <div>
-                <p className="font-mono text-sm font-semibold">{selected.id}</p>
-                <p className="text-sm text-muted-foreground">{selected.status}</p>
-              </div>
-            </div>
-            <dl className="space-y-3 text-sm">
-              <div>
-                <dt className="text-muted-foreground">Snapshot scope</dt>
-                <dd className="mt-1 font-medium">{selected.scope}</dd>
-              </div>
-              <div>
-                <dt className="text-muted-foreground">Created by</dt>
-                <dd className="mt-1 font-medium">{selected.creator}</dd>
-              </div>
-              <div>
-                <dt className="text-muted-foreground">Expected consequence</dt>
-                <dd className="mt-1 leading-6">
-                  A real restore could replace current PATHWAYS state. Atomic restore, integrity
-                  verification, rollback, and failure preservation are not connected here.
-                </dd>
-              </div>
-            </dl>
-            <Button className="w-full" variant="destructive" onClick={() => setRestoreOpen(true)}>
-              <RotateCcw className="mr-2 h-4 w-4" aria-hidden="true" />
-              Review restore
+          <div className="flex flex-wrap gap-2">
+            <input
+              className="sr-only"
+              ref={inputRef}
+              type="file"
+              accept="application/json,.json"
+              onChange={(event) => void importFile(event.target.files?.[0])}
+            />
+            <Button variant="outline" onClick={() => inputRef.current?.click()}>
+              <Upload className="mr-2 h-4 w-4" />
+              Add recovery file
+            </Button>
+            <Button onClick={create}>
+              <DatabaseBackup className="mr-2 h-4 w-4" />
+              Create & download backup
             </Button>
           </div>
+        }
+      />
+      <div className="rounded-lg border border-info/25 bg-info-subtle px-4 py-3 text-sm text-info">
+        Demo data only. Backups are JSON snapshots created and restored entirely in this browser; no
+        cloud storage is contacted. Active scenario: <strong>{state.scenario}</strong>.
+      </div>
+      <output className="block text-sm" aria-live="polite">
+        {message}
+      </output>
+      <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_380px]">
+        <SectionCard
+          title="Recovery points"
+          description={`${state.backups.length} validated browser-local backup${state.backups.length === 1 ? '' : 's'}.`}
+        >
+          {state.backups.length ? (
+            <div className="overflow-x-auto rounded-md border">
+              <table className="w-full min-w-[620px] text-left text-sm">
+                <thead className="bg-muted">
+                  <tr>
+                    <th className="p-3">File</th>
+                    <th className="p-3">Created</th>
+                    <th className="p-3">Size</th>
+                    <th className="p-3">Integrity</th>
+                    <th className="p-3">Action</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {state.backups.map((backup) => (
+                    <tr
+                      className={selected?.id === backup.id ? 'bg-primary-subtle' : ''}
+                      key={backup.id}
+                    >
+                      <td className="p-3 font-mono text-xs">{backup.name}</td>
+                      <td className="p-3">{new Date(backup.at).toLocaleString()}</td>
+                      <td className="p-3">
+                        {Math.ceil(new Blob([backup.payload]).size / 1024)} KiB
+                      </td>
+                      <td className="p-3">
+                        <StatusBadge tone="success">{backup.checksum}</StatusBadge>
+                      </td>
+                      <td className="p-3">
+                        <Button size="sm" variant="ghost" onClick={() => setSelectedId(backup.id)}>
+                          Select
+                        </Button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <EmptyState
+              title="No recovery point yet"
+              description="Create a backup or add a compatible local JSON recovery file."
+            />
+          )}
+        </SectionCard>
+        <SectionCard
+          title="Recovery impact"
+          description="Restore always validates before replacing current state."
+        >
+          {selected ? (
+            <div className="space-y-4">
+              <p className="font-mono text-sm">{selected.name}</p>
+              <p className="text-sm text-muted-foreground">
+                A successful restore replaces current demo records while retaining the recovery
+                inventory. A failed validation or simulated restore failure preserves the current
+                state.
+              </p>
+              <div className="grid gap-2">
+                <Button
+                  variant="outline"
+                  onClick={() => downloadBackup(selected.payload, selected.name)}
+                >
+                  <Download className="mr-2 h-4 w-4" />
+                  Download selected
+                </Button>
+                <Button variant="destructive" onClick={() => setRestoreOpen(true)}>
+                  <RotateCcw className="mr-2 h-4 w-4" />
+                  Restore selected
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <p className="text-sm text-muted-foreground">Select or create a recovery point.</p>
+          )}
         </SectionCard>
       </div>
-
-      <div className="grid gap-4 md:grid-cols-3">
-        <ReadinessItem title="Storage" state="Not connected" ready={false} />
-        <ReadinessItem title="Integrity check" state="Preview only" ready={false} />
-        <ReadinessItem title="Failure preservation" state="UI specified" ready />
-      </div>
-
+      {state.scenario.startsWith('backup') || state.scenario === 'restore-failure' ? (
+        <div className="flex gap-2 rounded-lg border border-warning/30 bg-warning-subtle p-4 text-sm text-warning">
+          <AlertTriangle className="h-4 w-4 shrink-0" />
+          This deterministic review scenario makes the next related operation fail without partial
+          state changes.
+        </div>
+      ) : null}
       <Dialog open={restoreOpen} onOpenChange={setRestoreOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Restore {selected.id}?</DialogTitle>
+            <DialogTitle>Restore {selected?.name}?</DialogTitle>
             <DialogDescription>
-              A real restore would require an explicitly approved disposable target, a verified
-              recovery point, and operational authorization. This frontend preview will stop without
-              changing state.
+              This replaces the current browser-local organization snapshot after checksum and
+              schema validation.
             </DialogDescription>
           </DialogHeader>
-          <div className="rounded-md border border-danger/25 bg-danger-subtle p-4 text-sm leading-6 text-danger">
-            Target: current PATHWAYS organization state. Consequence: replacement of data created
-            after {selected.createdAt}.
+          <div className="rounded-md border border-danger/25 bg-danger-subtle p-4 text-sm text-danger">
+            Current revision: {state.revision}. Changes made after the recovery point will be
+            replaced on success.
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setRestoreOpen(false)}>
               Cancel
             </Button>
-            <Button variant="destructive" onClick={() => unavailable('restore')}>
-              Confirm preview check
+            <Button variant="destructive" onClick={restore}>
+              Confirm restore
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -206,21 +221,3 @@ export const BackupRecoveryWorkspace = () => {
     </div>
   )
 }
-
-const ReadinessItem = ({
-  title,
-  state,
-  ready,
-}: { title: string; state: string; ready: boolean }) => (
-  <div className="rounded-lg border bg-card p-4">
-    <div className="flex items-center justify-between gap-3">
-      <p className="font-semibold">{title}</p>
-      {ready ? (
-        <CheckCircle2 className="h-4 w-4 text-success" aria-hidden="true" />
-      ) : (
-        <AlertTriangle className="h-4 w-4 text-warning" aria-hidden="true" />
-      )}
-    </div>
-    <p className="mt-2 text-sm text-muted-foreground">{state}</p>
-  </div>
-)

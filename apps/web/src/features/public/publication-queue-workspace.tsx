@@ -1,155 +1,244 @@
 'use client'
 
-import { Eye, Search, ShieldCheck } from 'lucide-react'
+import { Eye, Save, Search, Send, ShieldCheck, Undo2 } from 'lucide-react'
 import Link from 'next/link'
 import { useMemo, useState } from 'react'
+import { toast } from 'sonner'
 
 import { PageHeader } from '@/components/layout/page-header'
 import { EmptyState, SectionCard, StatusBadge } from '@/components/pathways'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { mockProjects } from '@/mocks/pathways/projects'
-
-const publicationStateByProject: Record<
-  string,
-  { state: string; tone: 'success' | 'warning' | 'neutral'; version: string; review: string }
-> = {
-  'futuremakers-ncr': {
-    state: 'Published',
-    tone: 'success',
-    version: 'v4',
-    review: 'Approved 07 Sep 2026',
-  },
-  'youth-rise-western-samar': {
-    state: 'Needs re-approval',
-    tone: 'warning',
-    version: 'v3 draft',
-    review: 'Project details changed',
-  },
-  'grassroots-centers-navotas': {
-    state: 'In review',
-    tone: 'warning',
-    version: 'v2',
-    review: 'Submitted 06 Sep 2026',
-  },
-  'girls-lead-metro-manila': {
-    state: 'Incomplete',
-    tone: 'neutral',
-    version: 'v1 draft',
-    review: 'Missing approved highlights',
-  },
-  'safe-spaces-northern-samar': {
-    state: 'Not public',
-    tone: 'neutral',
-    version: 'No version',
-    review: 'Disclosure review required',
-  },
-}
+import { Textarea } from '@/components/ui/textarea'
+import {
+  approvePublication,
+  publishPublication,
+  unpublishPublication,
+  updatePublication,
+} from '@/lib/demo-state/administration'
+import { useDemoState } from '@/lib/demo-state/use-demo-state'
 
 export const PublicationQueueWorkspace = () => {
+  const data = useDemoState()
   const [query, setQuery] = useState('')
-  const visibleProjects = useMemo(() => {
-    const normalized = query.trim().toLocaleLowerCase()
-    return normalized
-      ? mockProjects.filter((project) =>
-          [project.title, project.area, project.sector].some((value) =>
-            value.toLocaleLowerCase().includes(normalized),
-          ),
+  const [selectedId, setSelectedId] = useState(data.publications[0]?.projectId ?? '')
+  const selected =
+    data.publications.find((row) => row.projectId === selectedId) ?? data.publications[0]
+  const [tagline, setTagline] = useState(selected?.draft.tagline ?? '')
+  const [summary, setSummary] = useState(selected?.draft.approvedSummary ?? '')
+  const actor = data.accounts.find((account) => account.id === data.session?.accountId)
+  const visible = useMemo(
+    () =>
+      data.publications.filter((publication) => {
+        const project = data.projects.find((row) => row.id === publication.projectId)
+        const inScope = Boolean(actor?.projectIds.includes(publication.projectId))
+        return (
+          inScope &&
+          (!query.trim() ||
+            [project?.title, project?.area, project?.sector].some((value) =>
+              value?.toLowerCase().includes(query.toLowerCase()),
+            ))
         )
-      : mockProjects
-  }, [query])
+      }),
+    [actor?.projectIds, data.projects, data.publications, query],
+  )
+  const select = (id: string) => {
+    const row = data.publications.find((publication) => publication.projectId === id)
+    setSelectedId(id)
+    setTagline(row?.draft.tagline ?? '')
+    setSummary(row?.draft.approvedSummary ?? '')
+  }
+  const act = (operation: () => void, success: string) => {
+    try {
+      operation()
+      toast.success(success)
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Publication action failed.')
+    }
+  }
+  const stateLabel = selected?.published
+    ? selected.approvedRevision === selected.revision
+      ? 'Published'
+      : 'Published · draft needs re-approval'
+    : selected?.approvedRevision === selected?.revision
+      ? 'Approved, not public'
+      : 'Draft'
 
   return (
     <div className="space-y-6">
       <PageHeader
         eyebrow="Public accountability"
         title="Public Tracker Review"
-        description="Review which project summaries are prepared, awaiting approval, published, or withheld from the anonymous portal."
-      />
-
-      <div className="rounded-lg border border-info/25 bg-info-subtle px-4 py-3 text-sm leading-6 text-info">
-        Publication states are synthetic. Preview edits stay in this browser, and no action
-        publishes, unpublishes, or changes public data.
-      </div>
-
-      <SectionCard
-        title="Review queue"
-        description={`${visibleProjects.length} project${visibleProjects.length === 1 ? '' : 's'} available in this preview.`}
+        description="Edit an allowlisted public projection, approve the exact revision, and publish or withdraw it from the anonymous portal."
         actions={
           <Button asChild variant="outline">
             <Link href="/public/projects" target="_blank">
-              <Eye className="mr-2 h-4 w-4" aria-hidden="true" />
+              <Eye className="mr-2 h-4 w-4" />
               Open anonymous portal
             </Link>
           </Button>
         }
-      >
-        <div className="mb-5 max-w-md space-y-2">
-          <Label htmlFor="publication-search">Search projects</Label>
-          <span className="relative block">
-            <Search
-              className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground"
-              aria-hidden="true"
-            />
-            <Input
-              id="publication-search"
-              className="pl-9"
-              type="search"
-              value={query}
-              onChange={(event) => setQuery(event.target.value)}
-            />
-          </span>
-        </div>
-        {visibleProjects.length ? (
-          <div className="divide-y rounded-md border">
-            {visibleProjects.map((project) => {
-              const publication = publicationStateByProject[project.id] ?? {
-                state: 'Not public',
-                tone: 'neutral' as const,
-                version: 'No version',
-                review: 'Review required',
-              }
-              return (
-                <article
-                  key={project.id}
-                  className="grid gap-4 p-4 md:grid-cols-[minmax(0,1fr)_auto] md:items-center"
-                >
-                  <div className="min-w-0">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <h2 className="font-semibold">{project.title}</h2>
-                      <StatusBadge tone={publication.tone}>{publication.state}</StatusBadge>
-                    </div>
-                    <p className="mt-1 text-sm text-muted-foreground">
-                      {project.area} · {project.sector}
-                    </p>
-                    <div className="mt-3 flex flex-wrap gap-x-5 gap-y-1 text-xs text-muted-foreground">
-                      <span>Public version: {publication.version}</span>
-                      <span>{publication.review}</span>
-                    </div>
-                  </div>
-                  <div className="flex flex-wrap gap-2">
-                    <Button asChild size="sm" variant="outline">
-                      <Link href={`/projects/${project.id}/transparency`}>Review fields</Link>
-                    </Button>
-                    <Button asChild size="sm">
-                      <Link href={`/projects/${project.id}/transparency/preview`}>
-                        <ShieldCheck className="mr-2 h-4 w-4" aria-hidden="true" />
-                        Preview
-                      </Link>
-                    </Button>
-                  </div>
-                </article>
-              )
-            })}
+      />
+      <div className="rounded-lg border border-info/25 bg-info-subtle p-4 text-sm text-info">
+        Demo data only. Publication changes update the browser-local anonymous view; no external
+        site or notification service is used. Active scenario: <strong>{data.scenario}</strong>.
+      </div>
+      <div className="grid gap-6 xl:grid-cols-[360px_minmax(0,1fr)]">
+        <SectionCard
+          title="Review queue"
+          description={`${visible.length} scoped project publication records.`}
+        >
+          <Label className="space-y-2">
+            <span>Search projects</span>
+            <span className="relative block">
+              <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+              <Input
+                className="pl-9"
+                value={query}
+                onChange={(event) => setQuery(event.target.value)}
+              />
+            </span>
+          </Label>
+          <div className="mt-4 space-y-2">
+            {visible.length ? (
+              visible.map((publication) => {
+                const project = data.projects.find((row) => row.id === publication.projectId)
+                const label = publication.published
+                  ? publication.approvedRevision === publication.revision
+                    ? 'Published'
+                    : 'Needs re-approval'
+                  : publication.approvedRevision === publication.revision
+                    ? 'Approved'
+                    : 'Draft'
+                return (
+                  <button
+                    type="button"
+                    className={`w-full rounded-md border p-4 text-left ${selected?.projectId === publication.projectId ? 'border-primary bg-primary-subtle' : ''}`}
+                    key={publication.projectId}
+                    onClick={() => select(publication.projectId)}
+                  >
+                    <span className="font-semibold">
+                      {project?.title ?? publication.draft.title}
+                    </span>
+                    <span className="mt-2 flex items-center justify-between">
+                      <span className="text-xs text-muted-foreground">
+                        Revision {publication.revision}
+                      </span>
+                      <StatusBadge
+                        tone={
+                          label === 'Published'
+                            ? 'success'
+                            : label === 'Needs re-approval'
+                              ? 'warning'
+                              : 'neutral'
+                        }
+                      >
+                        {label}
+                      </StatusBadge>
+                    </span>
+                  </button>
+                )
+              })
+            ) : (
+              <EmptyState
+                title="No projects match"
+                description="Try another title, area, or sector."
+              />
+            )}
           </div>
-        ) : (
-          <EmptyState
-            title="No projects match"
-            description="Try a project name, area, or sector."
-          />
-        )}
-      </SectionCard>
+        </SectionCard>
+        <SectionCard
+          title={selected?.draft.title ?? 'Public content'}
+          description="Only this curated projection can cross into the anonymous route; internal notes, people, expenses, and audit events are excluded."
+        >
+          {selected ? (
+            <div className="space-y-5">
+              <div className="flex flex-wrap items-center gap-2">
+                <StatusBadge tone={stateLabel.startsWith('Published') ? 'success' : 'warning'}>
+                  {stateLabel}
+                </StatusBadge>
+                <span className="text-sm text-muted-foreground">
+                  Draft revision {selected.revision}; approved revision{' '}
+                  {selected.approvedRevision ?? 'none'}
+                </span>
+              </div>
+              <Label className="space-y-2">
+                <span>Public tagline</span>
+                <Input value={tagline} onChange={(event) => setTagline(event.target.value)} />
+              </Label>
+              <Label className="space-y-2">
+                <span>Approved public summary</span>
+                <Textarea
+                  rows={6}
+                  value={summary}
+                  onChange={(event) => setSummary(event.target.value)}
+                />
+              </Label>
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  variant="outline"
+                  onClick={() =>
+                    act(
+                      () =>
+                        updatePublication(selected.projectId, {
+                          tagline,
+                          approvedSummary: summary,
+                        }),
+                      'Draft saved; this new revision now requires approval.',
+                    )
+                  }
+                >
+                  <Save className="mr-2 h-4 w-4" />
+                  Save draft
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={() =>
+                    act(
+                      () => approvePublication(selected.projectId),
+                      'Current public revision approved.',
+                    )
+                  }
+                >
+                  <ShieldCheck className="mr-2 h-4 w-4" />
+                  Approve revision
+                </Button>
+                <Button
+                  onClick={() =>
+                    act(
+                      () => publishPublication(selected.projectId),
+                      'Approved revision published to the anonymous local portal.',
+                    )
+                  }
+                >
+                  <Send className="mr-2 h-4 w-4" />
+                  Publish
+                </Button>
+                {selected.published ? (
+                  <Button
+                    variant="destructive"
+                    onClick={() =>
+                      act(
+                        () => unpublishPublication(selected.projectId),
+                        'Project removed from the anonymous local portal.',
+                      )
+                    }
+                  >
+                    <Undo2 className="mr-2 h-4 w-4" />
+                    Unpublish
+                  </Button>
+                ) : null}
+              </div>
+              <Button asChild variant="ghost">
+                <Link href={`/projects/${selected.projectId}/transparency/preview`}>
+                  Open full staff preview
+                </Link>
+              </Button>
+            </div>
+          ) : null}
+        </SectionCard>
+      </div>
     </div>
   )
 }

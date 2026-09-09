@@ -96,7 +96,7 @@ describe('prototype project assignments and data scope', () => {
     expect(beneficiaryIds('Grant Manager')).toEqual([])
   })
 
-  it('scopes individual Beneficiary records to assignments and preserves administrator access', () => {
+  it('scopes individual Beneficiary records to the exact UC012 actors', () => {
     const futureMakersBeneficiaryIds = mockBeneficiaryRecords
       .filter((beneficiary) => beneficiary.projectIds.includes('futuremakers-ncr'))
       .map((beneficiary) => beneficiary.id)
@@ -111,9 +111,7 @@ describe('prototype project assignments and data scope', () => {
     expect(beneficiaryIds('Project Manager')).toEqual(futureMakersBeneficiaryIds)
     expect(beneficiaryIds('Project Officer')).toEqual(futureMakersBeneficiaryIds)
     expect(beneficiaryIds('Monitoring and Evaluation Officer')).toEqual(monitoredBeneficiaryIds)
-    expect(beneficiaryIds('System Administrator')).toEqual(
-      mockBeneficiaryRecords.map((beneficiary) => beneficiary.id),
-    )
+    expect(beneficiaryIds('System Administrator')).toEqual([])
   })
 
   it('uses the same assignment check for direct Beneficiary record access', () => {
@@ -121,7 +119,7 @@ describe('prototype project assignments and data scope', () => {
     const youthRise = beneficiaryById('ben-002')
     const navotas = beneficiaryById('ben-003')
 
-    expect(canAccessBeneficiaryForRole('System Administrator', youthRise)).toBe(true)
+    expect(canAccessBeneficiaryForRole('System Administrator', youthRise)).toBe(false)
     expect(canAccessBeneficiaryForRole('Program Manager', futureMakers)).toBe(false)
     expect(canAccessBeneficiaryForRole('Grant Manager', futureMakers)).toBe(false)
     expect(canAccessBeneficiaryForRole('Project Manager', futureMakers)).toBe(true)

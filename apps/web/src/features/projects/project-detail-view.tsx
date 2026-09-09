@@ -15,11 +15,16 @@ import {
 import { Button } from '@/components/ui/button'
 import { usePrototypeLabels } from '@/hooks/use-prototype-labels'
 import { usePrototypeRole } from '@/hooks/use-prototype-role'
+import { hasAction } from '@/lib/demo-state/permissions'
+import { archiveProject } from '@/lib/demo-state/projects'
+import { useDemoState } from '@/lib/demo-state/use-demo-state'
 import { can } from '@/lib/rbac/can'
 import { pathwaysClient } from '@/lib/services/mock-pathways-client'
 import { PathwaysClientError } from '@/lib/services/pathways-client'
 import type { ProjectDetail } from '@/types/pathways'
+import { toast } from 'sonner'
 
+import { ProjectTeamEditorDialog } from './project-team-editor-dialog'
 import {
   formatNumber,
   projectHealthSignal,
@@ -29,14 +34,17 @@ import {
 import { ProjectWorkspaceHeader } from './project-workspace-header'
 
 export const ProjectDetailView = ({ projectId }: { projectId: string }) => {
+  const demo = useDemoState()
   const { labels } = usePrototypeLabels()
   const { role } = usePrototypeRole()
+  const canManageProjectTeam = hasAction(role, 'projects.team.manage')
   const [project, setProject] = useState<ProjectDetail | null>(null)
   const [status, setStatus] = useState<'loading' | 'success' | 'not-found' | 'error'>('loading')
   const [loadAttempt, setLoadAttempt] = useState(0)
 
   useEffect(() => {
     void loadAttempt
+    void demo.revision
     let mounted = true
     setStatus('loading')
 
@@ -65,7 +73,7 @@ export const ProjectDetailView = ({ projectId }: { projectId: string }) => {
     return () => {
       mounted = false
     }
-  }, [loadAttempt, projectId])
+  }, [loadAttempt, projectId, demo.revision])
 
   if (status === 'loading') {
     return (
@@ -149,6 +157,37 @@ export const ProjectDetailView = ({ projectId }: { projectId: string }) => {
         }
       />
       <ProjectWorkspaceHeader project={project} />
+      {can(role, 'projects.edit') ? (
+        <div className="my-4 flex flex-wrap items-center gap-3">
+          {!project.archived ? (
+            <Button asChild variant="outline">
+              <Link href={`/projects/${project.id}/edit`}>Edit project profile</Link>
+            </Button>
+          ) : (
+            <StatusBadge tone="neutral">Archived · read-only</StatusBadge>
+          )}
+          <Button
+            variant="outline"
+            onClick={() => {
+              if (
+                !window.confirm(
+                  project.archived
+                    ? 'Unarchive this project?'
+                    : 'Archive this project? It remains visible for reference and becomes read-only.',
+                )
+              )
+                return
+              try {
+                archiveProject(project.id, !project.archived)
+              } catch (error) {
+                toast.error(error instanceof Error ? error.message : 'Archive failed.')
+              }
+            }}
+          >
+            {project.archived ? 'Unarchive project' : 'Archive project'}
+          </Button>
+        </div>
+      ) : null}
       <section className="grid gap-4 lg:grid-cols-[1.2fr_0.8fr]">
         <SectionCard
           title="Project preview"
@@ -210,6 +249,7 @@ export const ProjectDetailView = ({ projectId }: { projectId: string }) => {
         <SectionCard
           title="Project team"
           description="Prototype role assignments for this project."
+          actions={canManageProjectTeam ? <ProjectTeamEditorDialog project={project} /> : null}
         >
           <dl className="space-y-4 text-sm">
             <div>

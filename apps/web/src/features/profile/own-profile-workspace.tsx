@@ -27,6 +27,8 @@ import {
   profileSchema,
 } from './profile-validation'
 
+import { changeDemoPassword, updateDemoProfile } from '@/lib/demo-state/accounts'
+
 type Notice = { tone: 'success' | 'info' | 'error'; message: string } | null
 
 const noticeStyles = {
@@ -93,12 +95,16 @@ export const OwnProfileWorkspace = () => {
 
   const saveProfile = async (values: ProfileValues) => {
     setProfileNotice(null)
-    const updated = await updatePrototypeProfile(values)
-    if (!updated) {
+    try {
+      updateDemoProfile({
+        name: values.displayName,
+        email: values.email,
+        contact: values.contactNumber,
+      })
+    } catch (error) {
       setProfileNotice({
         tone: 'error',
-        message:
-          'Profile changes were not saved. The profile service is unavailable in this frontend-only phase.',
+        message: error instanceof Error ? error.message : 'Profile could not be saved.',
       })
       return
     }
@@ -106,17 +112,24 @@ export const OwnProfileWorkspace = () => {
     setProfileNotice({
       tone: 'success',
       message:
-        'Prototype profile updated in this browser only. No server profile or audit record was changed.',
+        'Profile and local sign-in email updated. The change is recorded in the local audit trail.',
     })
   }
 
-  const validatePasswordChange = () => {
-    setPasswordNotice({
-      tone: 'info',
-      message:
-        'Password fields are valid. No credential was changed because current-password verification and the provider service are outside this frontend-only phase.',
-    })
-    passwordForm.reset()
+  const validatePasswordChange = (values: ChangePasswordValues) => {
+    try {
+      changeDemoPassword(values.currentPassword, values.newPassword, values.confirmPassword)
+      setPasswordNotice({
+        tone: 'success',
+        message: 'Demo password changed. Use the new password on your next sign-in.',
+      })
+      passwordForm.reset()
+    } catch (error) {
+      setPasswordNotice({
+        tone: 'error',
+        message: error instanceof Error ? error.message : 'Password could not be changed.',
+      })
+    }
   }
 
   return (
@@ -202,7 +215,7 @@ export const OwnProfileWorkspace = () => {
                   type="submit"
                 >
                   <Save className="h-4 w-4" aria-hidden="true" />
-                  {isPrototypeSession ? 'Update browser profile' : 'Save profile'}
+                  Save profile
                 </Button>
               </div>
             </form>
@@ -249,7 +262,7 @@ export const OwnProfileWorkspace = () => {
                       />
                     </FormControl>
                     <FormDescription>
-                      Use 15–64 characters with uppercase, lowercase, number, and symbol characters.
+                      Use 12–64 characters with uppercase, lowercase, number, and symbol characters.
                     </FormDescription>
                     <FormMessage />
                   </FormItem>
@@ -287,7 +300,7 @@ export const OwnProfileWorkspace = () => {
               </Button>
               {passwordNotice ? <FormNotice notice={passwordNotice} /> : null}
               <Button className="w-full" type="submit">
-                Validate password change
+                Change password
               </Button>
             </form>
           </Form>

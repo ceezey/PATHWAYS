@@ -40,6 +40,7 @@ import { type ActivityFormSchema, createActivityFormSchema } from './activity-fo
 import { activityStatuses } from './activity-utils'
 
 const defaultValues: ActivityFormSchema = {
+  overrideJustification: '',
   title: '',
   description: '',
   startDate: '',
@@ -195,6 +196,7 @@ export const ActivityFormDialog = ({
       const savedActivity = activity
         ? await pathwaysClient.updateActivity({
             id: activity.id,
+            overrideJustification: values.overrideJustification,
             projectId,
             title: values.title,
             description: values.description,
@@ -211,6 +213,7 @@ export const ActivityFormDialog = ({
             budgetLogged: values.budgetLogged,
           })
         : await pathwaysClient.createActivity({
+            overrideJustification: values.overrideJustification,
             projectId,
             title: values.title,
             description: values.description,
@@ -229,9 +232,9 @@ export const ActivityFormDialog = ({
       window.sessionStorage.removeItem(draftStorageKey)
       onCreatedOrUpdated(savedActivity)
       onOpenChange(false)
-    } catch {
+    } catch (error) {
       toast.error('Activity could not be saved.', {
-        description: 'Keep the dialog open and try again.',
+        description: error instanceof Error ? error.message : 'Keep the dialog open and try again.',
       })
     }
   }
@@ -261,6 +264,23 @@ export const ActivityFormDialog = ({
         >
           <Form {...form}>
             <form className="space-y-5" onSubmit={form.handleSubmit(onSubmit)}>
+              <FormField
+                control={form.control}
+                name="overrideJustification"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Timeline override justification</FormLabel>
+                    <FormControl>
+                      <Input {...field} value={field.value ?? ''} />
+                    </FormControl>
+                    <FormDescription>
+                      Required only when activity dates fall outside the project timeline. The
+                      variance is retained for review.
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
               {draftRecovered ? (
                 <output
                   aria-atomic="true"

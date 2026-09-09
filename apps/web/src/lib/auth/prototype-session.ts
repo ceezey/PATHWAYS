@@ -1,7 +1,12 @@
 import type { PrototypeAccountPublic } from '@/lib/auth/prototype-accounts'
+import {
+  appendAudit,
+  commitDemo,
+  currentAccount,
+  getDemoState,
+  switchDemoAccount,
+} from '@/lib/demo-state/store'
 import type { PrototypeSession } from '@/types/auth'
-
-const STORAGE_KEY = 'pathways.prototypeSession'
 
 export const createPrototypeSession = (account: PrototypeAccountPublic): PrototypeSession => ({
   email: account.email,
@@ -15,23 +20,18 @@ export const readPrototypeSession = (): PrototypeSession | null => {
     return null
   }
 
-  const stored = window.localStorage.getItem(STORAGE_KEY)
-
-  if (!stored) {
-    return null
-  }
-
-  try {
-    const parsed = JSON.parse(stored) as PrototypeSession
-
-    if (!parsed.email || !parsed.displayName || !parsed.role || !parsed.signedInAt) {
-      return null
+  const demo = getDemoState()
+  const account = currentAccount(demo)
+  if (account && account.status === 'Active' && demo.session) {
+    return {
+      email: account.email,
+      displayName: account.name,
+      role: account.role,
+      contactNumber: account.contact,
+      signedInAt: demo.session.signedInAt,
     }
-
-    return parsed
-  } catch {
-    return null
   }
+  return null
 }
 
 export const writePrototypeSession = (session: PrototypeSession) => {
@@ -39,7 +39,10 @@ export const writePrototypeSession = (session: PrototypeSession) => {
     return
   }
 
-  window.localStorage.setItem(STORAGE_KEY, JSON.stringify(session))
+  const account = getDemoState().accounts.find(
+    (a) => a.email === session.email && a.status === 'Active',
+  )
+  if (account) switchDemoAccount(account.id)
 }
 
 export const clearPrototypeSession = () => {
@@ -47,5 +50,13 @@ export const clearPrototypeSession = () => {
     return
   }
 
-  window.localStorage.removeItem(STORAGE_KEY)
+  const state = structuredClone(getDemoState())
+  appendAudit(state, {
+    action: 'logout',
+    module: 'accounts',
+    outcome: 'Success',
+    details: 'Local session ended.',
+  })
+  state.session = null
+  commitDemo(state)
 }

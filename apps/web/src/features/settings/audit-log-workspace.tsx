@@ -1,7 +1,9 @@
 'use client'
 
+import { transactDemo } from '@/lib/demo-state/store'
+import { useDemoState } from '@/lib/demo-state/use-demo-state'
 import { CalendarDays, FilterX, ScrollText, Search } from 'lucide-react'
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 
 import { PageHeader } from '@/components/layout/page-header'
 import { EmptyState, SectionCard, StatusBadge } from '@/components/pathways'
@@ -35,64 +37,6 @@ type AuditEvent = {
   correlationId: string
 }
 
-const events: AuditEvent[] = [
-  {
-    id: 'AUD-2026-0918',
-    at: '2026-09-08T09:42:00+08:00',
-    actor: 'System Administrator A',
-    action: 'Updated role assignment',
-    module: 'User Management',
-    target: 'Project Officer C',
-    outcome: 'Succeeded',
-    summary: 'Added Youth RISE - Western Samar to the visible project scope.',
-    correlationId: 'req-76d9f1',
-  },
-  {
-    id: 'AUD-2026-0917',
-    at: '2026-09-08T09:18:00+08:00',
-    actor: 'Project Manager A',
-    action: 'Attempted archive',
-    module: 'Projects',
-    target: 'FutureMakers NCR',
-    outcome: 'Denied',
-    summary: 'The current preview role did not have authority for the requested state change.',
-    correlationId: 'req-44a218',
-  },
-  {
-    id: 'AUD-2026-0916',
-    at: '2026-09-08T08:55:00+08:00',
-    actor: 'Monitoring and Evaluation Officer A',
-    action: 'Reviewed evidence',
-    module: 'Evidence',
-    target: 'ACT-FM-02 / EV-184',
-    outcome: 'Succeeded',
-    summary: 'Marked the submitted attendance proof as reviewed in the prototype workspace.',
-    correlationId: 'req-e23b01',
-  },
-  {
-    id: 'AUD-2026-0915',
-    at: '2026-09-07T16:31:00+08:00',
-    actor: 'System',
-    action: 'Import validation',
-    module: 'Collection',
-    target: 'youth-intake-september.csv',
-    outcome: 'Failed',
-    summary: 'Validation stopped because two required field mappings were missing.',
-    correlationId: 'batch-f13a90',
-  },
-  {
-    id: 'AUD-2026-0914',
-    at: '2026-09-07T14:06:00+08:00',
-    actor: 'Program Manager A',
-    action: 'Viewed monitoring dashboard',
-    module: 'Analytics',
-    target: 'Portfolio / Q3 2026',
-    outcome: 'Succeeded',
-    summary: 'Opened the portfolio monitoring view with the Q3 reporting-period filter.',
-    correlationId: 'req-91cd20',
-  },
-]
-
 const dateFormatter = new Intl.DateTimeFormat('en-PH', {
   dateStyle: 'medium',
   timeStyle: 'short',
@@ -106,6 +50,40 @@ const outcomeTone = (outcome: AuditEvent['outcome']) => {
 }
 
 export const AuditLogWorkspace = () => {
+  const demo = useDemoState()
+  const [from, setFrom] = useState('')
+  const [to, setTo] = useState('')
+  const [page, setPage] = useState(0)
+  const [accessError, setAccessError] = useState('')
+  const logged = useRef(false)
+  const events: AuditEvent[] = useMemo(
+    () =>
+      demo.audits
+        .slice()
+        .reverse()
+        .map((e) => ({
+          ...e,
+          target: e.entityId ?? e.projectId ?? 'Workspace',
+          summary: e.details,
+          correlationId: e.id,
+          outcome:
+            e.outcome === 'Success' ? 'Succeeded' : e.outcome === 'Denied' ? 'Denied' : 'Failed',
+        })),
+    [demo.audits],
+  )
+  useEffect(() => {
+    if (logged.current) return
+    logged.current = true
+    try {
+      transactDemo('audit.view', undefined, undefined, (state) => {
+        if (state.scenario === 'retrieval-failure')
+          throw new Error('Demo audit retrieval failed. Clear the scenario and retry.')
+      })
+    } catch (e) {
+      setAccessError(e instanceof Error ? e.message : 'Audit access failed.')
+    }
+  }, [])
+
   const [query, setQuery] = useState('')
   const [moduleFilter, setModuleFilter] = useState('All')
   const [outcomeFilter, setOutcomeFilter] = useState('All')
@@ -121,14 +99,19 @@ export const AuditLogWorkspace = () => {
         )
       return (
         matchesQuery &&
+        (!from || event.at.slice(0, 10) >= from) &&
+        (!to || event.at.slice(0, 10) <= to) &&
         (moduleFilter === 'All' || event.module === moduleFilter) &&
         (outcomeFilter === 'All' || event.outcome === outcomeFilter)
       )
     })
-  }, [moduleFilter, outcomeFilter, query])
+  }, [moduleFilter, outcomeFilter, query, from, to, events])
 
   const clearFilters = () => {
     setQuery('')
+    setFrom('')
+    setTo('')
+    setPage(0)
     setModuleFilter('All')
     setOutcomeFilter('All')
   }
@@ -142,10 +125,42 @@ export const AuditLogWorkspace = () => {
       />
 
       <div className="rounded-lg border border-info/25 bg-info-subtle px-4 py-3 text-sm leading-6 text-info">
-        This read-only preview uses synthetic events. Live event capture, retention, export, and
-        access logging require the operational audit service.
+        Demo data: this read-only ledger records actual local actions. Viewing it records one access
+        event.
       </div>
 
+      {accessError ? (
+        <div role="alert">
+          {accessError}
+          <Button onClick={() => window.location.reload()}>Retry audit access</Button>
+        </div>
+      ) : null}
+      <div className="grid gap-3 sm:grid-cols-2">
+        <label htmlFor="audit-from-date">
+          From date
+          <Input
+            id="audit-from-date"
+            type="date"
+            value={from}
+            onChange={(e) => {
+              setFrom(e.target.value)
+              setPage(0)
+            }}
+          />
+        </label>
+        <label htmlFor="audit-to-date">
+          To date
+          <Input
+            id="audit-to-date"
+            type="date"
+            value={to}
+            onChange={(e) => {
+              setTo(e.target.value)
+              setPage(0)
+            }}
+          />
+        </label>
+      </div>
       <SectionCard
         title="Event filters"
         description="Narrow the visible preview without changing any audit record."
@@ -180,13 +195,11 @@ export const AuditLogWorkspace = () => {
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                {['All', 'User Management', 'Projects', 'Evidence', 'Collection', 'Analytics'].map(
-                  (item) => (
-                    <SelectItem key={item} value={item}>
-                      {item}
-                    </SelectItem>
-                  ),
-                )}
+                {['All', ...new Set(events.map((e) => e.module))].map((item) => (
+                  <SelectItem key={item} value={item}>
+                    {item}
+                  </SelectItem>
+                ))}
               </SelectContent>
             </Select>
           </div>
@@ -212,7 +225,7 @@ export const AuditLogWorkspace = () => {
         title="Significant events"
         description={`${visibleEvents.length} synthetic event${visibleEvents.length === 1 ? '' : 's'} shown, newest first.`}
       >
-        {visibleEvents.length ? (
+        {visibleEvents.length && !accessError ? (
           <section className="overflow-x-auto rounded-md border" aria-label="Audit events">
             <table className="w-full min-w-[760px] text-left text-sm">
               <thead className="bg-muted text-xs uppercase tracking-wide text-muted-foreground">
@@ -228,7 +241,7 @@ export const AuditLogWorkspace = () => {
                 </tr>
               </thead>
               <tbody className="divide-y">
-                {visibleEvents.map((event) => (
+                {visibleEvents.slice(page * 10, (page + 1) * 10).map((event) => (
                   <tr key={event.id}>
                     <td className="whitespace-nowrap px-4 py-3 text-muted-foreground">
                       {dateFormatter.format(new Date(event.at))}
@@ -261,6 +274,21 @@ export const AuditLogWorkspace = () => {
         )}
       </SectionCard>
 
+      <div className="flex items-center gap-3">
+        <Button variant="outline" disabled={page === 0} onClick={() => setPage(page - 1)}>
+          Previous page
+        </Button>
+        <span>
+          Page {page + 1} of {Math.max(1, Math.ceil(visibleEvents.length / 10))}
+        </span>
+        <Button
+          variant="outline"
+          disabled={(page + 1) * 10 >= visibleEvents.length}
+          onClick={() => setPage(page + 1)}
+        >
+          Next page
+        </Button>
+      </div>
       <Dialog open={Boolean(selected)} onOpenChange={(open) => !open && setSelected(null)}>
         <DialogContent>
           <DialogHeader>

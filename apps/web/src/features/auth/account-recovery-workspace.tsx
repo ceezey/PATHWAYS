@@ -17,12 +17,12 @@ import {
   FormMessage,
 } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
+import { recoveryResponse, requestDemoReset } from '@/lib/demo-state/accounts'
 import { webSetupState } from '@/lib/env'
 import { type RecoveryRequestValues, recoveryRequestSchema } from './account-access-validation'
 import { StaffAuthFrame } from './staff-auth-frame'
 
-const genericResponse =
-  'If an active PATHWAYS account matches that address, recovery instructions will be available through the configured recovery service.'
+const genericResponse = recoveryResponse
 
 export const AccountRecoveryWorkspace = () => {
   const [submitted, setSubmitted] = useState(false)
@@ -50,8 +50,8 @@ export const AccountRecoveryWorkspace = () => {
             </div>
           </output>
           <p className="text-sm leading-6 text-muted-foreground">
-            This frontend preview does not send email, create a recovery token, or confirm whether
-            an account exists.
+            Demo data: no email is sent. Local reset links are available in the separate fictional
+            inbox for review.
           </p>
           <div className="flex flex-col gap-3 sm:flex-row">
             <Button asChild className="sm:flex-1" variant="outline">
@@ -59,7 +59,7 @@ export const AccountRecoveryWorkspace = () => {
             </Button>
             {webSetupState.guiPrototypeModeEnabled ? (
               <Button asChild className="sm:flex-1">
-                <Link href="/staff/reset-password?state=valid">Review reset-screen preview</Link>
+                <Link href="/review/demo-controls">Open fictional demo inbox</Link>
               </Button>
             ) : null}
           </div>
@@ -78,7 +78,13 @@ export const AccountRecoveryWorkspace = () => {
         </section>
       ) : (
         <Form {...form}>
-          <form className="space-y-5" onSubmit={form.handleSubmit(() => setSubmitted(true))}>
+          <form
+            className="space-y-5"
+            onSubmit={form.handleSubmit(({ email }) => {
+              requestDemoReset(email)
+              setSubmitted(true)
+            })}
+          >
             <FormField
               control={form.control}
               name="email"
@@ -103,10 +109,10 @@ export const AccountRecoveryWorkspace = () => {
             <div className="rounded-md border border-primary/20 bg-primary-subtle p-3 text-sm leading-6 text-light-blue-foreground">
               <span className="inline-flex items-center gap-2 font-semibold">
                 <Mail className="h-4 w-4" aria-hidden="true" />
-                Frontend preview
+                Demo data
               </span>
               <p className="mt-1">
-                Submitting validates this form only. No recovery message or account lookup occurs.
+                Recovery changes only browser-local fictional credentials. No email is sent.
               </p>
             </div>
             <Button className="w-full" type="submit">

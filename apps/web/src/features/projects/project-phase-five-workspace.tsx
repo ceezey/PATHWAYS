@@ -13,8 +13,6 @@ import {
   Save,
   ShieldCheck,
   SlidersHorizontal,
-  ToggleLeft,
-  ToggleRight,
 } from 'lucide-react'
 import Link from 'next/link'
 import { type ReactNode, useEffect, useMemo, useState } from 'react'
@@ -206,7 +204,24 @@ const SimpleDialog = ({
   </Dialog>
 )
 
-export const ProjectPhaseFiveWorkspace = ({
+import {
+  ConnectedBudgetWorkspace,
+  ConnectedIndicatorWorkspace,
+} from './connected-delivery-workspace'
+
+export const ProjectPhaseFiveWorkspace = (props: {
+  projectId: string
+  view: PhaseFiveWorkspaceView
+}) =>
+  props.view === 'budget' ? (
+    <ConnectedBudgetWorkspace projectId={props.projectId} />
+  ) : props.view === 'indicators' ? (
+    <ConnectedIndicatorWorkspace projectId={props.projectId} />
+  ) : (
+    <LegacyProjectPhaseFiveWorkspace {...props} />
+  )
+
+const LegacyProjectPhaseFiveWorkspace = ({
   projectId,
   view,
 }: {
@@ -1641,6 +1656,38 @@ const BudgetView = ({
   </div>
 )
 
+const VisibilityControl = ({
+  onChange,
+  section,
+}: {
+  onChange: () => void
+  section: TransparencySection
+}) => (
+  <button
+    aria-checked={section.visible}
+    aria-label={`Public visibility for ${section.title}`}
+    className="flex min-h-11 w-full items-center justify-between gap-3 rounded-md border border-border bg-background px-3 py-2 text-left transition-colors hover:border-primary/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+    onClick={onChange}
+    role="switch"
+    type="button"
+  >
+    <span className="min-w-0">
+      <span className="block text-xs font-medium text-muted-foreground">Public visibility</span>
+      <span className="block text-sm font-semibold text-foreground">
+        {section.visible ? 'Visible' : 'Hidden'}
+      </span>
+    </span>
+    <span
+      aria-hidden="true"
+      className={`relative h-6 w-11 shrink-0 rounded-full transition-colors ${section.visible ? 'bg-primary' : 'bg-muted-foreground/35'}`}
+    >
+      <span
+        className={`absolute top-1 h-4 w-4 rounded-full bg-white shadow-sm transition-transform ${section.visible ? 'translate-x-6' : 'translate-x-1'}`}
+      />
+    </span>
+  </button>
+)
+
 const TransparencyView = ({
   canPublishTransparency,
   indicators,
@@ -1668,52 +1715,56 @@ const TransparencyView = ({
     >
       <div className="space-y-3">
         {sections.map((section) => (
-          <div key={section.id} className="rounded-sm border border-border bg-surface-subtle p-4">
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-              <div>
-                <p className="font-medium text-foreground">{section.title}</p>
-                <p className="mt-1 text-sm text-muted-foreground">{section.summary}</p>
+          <article
+            key={section.id}
+            className="rounded-md border border-border bg-surface-subtle p-4 sm:p-5"
+          >
+            <div className="min-w-0">
+              <h3 className="font-semibold text-foreground">{section.title}</h3>
+              <p className="mt-1 max-w-2xl text-sm leading-6 text-muted-foreground">
+                {section.summary}
+              </p>
+            </div>
+            {canPublishTransparency ? (
+              <div className="mt-4 grid gap-4 border-t border-border pt-4 lg:grid-cols-[minmax(10rem,0.55fr)_minmax(20rem,1fr)] lg:items-end">
+                <VisibilityControl
+                  onChange={() => onUpdate(section, { visible: !section.visible })}
+                  section={section}
+                />
+                <fieldset className="min-w-0">
+                  <legend className="mb-2 text-xs font-medium text-muted-foreground">
+                    Review status
+                  </legend>
+                  <div className="grid grid-cols-3 gap-2">
+                    {(['Draft', 'Pending Review', 'Approved'] as TransparencyApprovalState[]).map(
+                      (state) => (
+                        <Button
+                          aria-pressed={section.approvalState === state}
+                          className="min-w-0 whitespace-nowrap px-2"
+                          key={state}
+                          onClick={() => onUpdate(section, { approvalState: state })}
+                          size="sm"
+                          type="button"
+                          variant={section.approvalState === state ? 'default' : 'outline'}
+                        >
+                          {state}
+                        </Button>
+                      ),
+                    )}
+                  </div>
+                </fieldset>
               </div>
-              <div className="flex flex-wrap gap-2">
+            ) : (
+              <div className="mt-4 flex flex-wrap gap-2 border-t border-border pt-4">
                 <StatusBadge tone={statusTone(section.approvalState)}>
                   {section.approvalState}
                 </StatusBadge>
-                {canPublishTransparency ? (
-                  <Button
-                    className="gap-2"
-                    onClick={() => onUpdate(section, { visible: !section.visible })}
-                    size="sm"
-                    type="button"
-                    variant="outline"
-                  >
-                    {section.visible ? (
-                      <ToggleRight className="h-4 w-4" aria-hidden="true" />
-                    ) : (
-                      <ToggleLeft className="h-4 w-4" aria-hidden="true" />
-                    )}
-                    {section.visible ? 'Visible' : 'Hidden'}
-                  </Button>
-                ) : null}
+                <StatusBadge tone={section.visible ? 'success' : 'neutral'}>
+                  {section.visible ? 'Visible' : 'Hidden'}
+                </StatusBadge>
               </div>
-            </div>
-            <div className="mt-3 flex flex-wrap justify-end gap-2">
-              {canPublishTransparency
-                ? (['Draft', 'Pending Review', 'Approved'] as TransparencyApprovalState[]).map(
-                    (state) => (
-                      <Button
-                        key={state}
-                        onClick={() => onUpdate(section, { approvalState: state })}
-                        size="sm"
-                        type="button"
-                        variant={section.approvalState === state ? 'default' : 'outline'}
-                      >
-                        {state}
-                      </Button>
-                    ),
-                  )
-                : null}
-            </div>
-          </div>
+            )}
+          </article>
         ))}
       </div>
     </SectionCard>

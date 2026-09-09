@@ -7,7 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "biome check .",
-    "test": "vitest run --passWithNoTests",
+    "test": "vitest run --passWithNoTests --configLoader runner",
     "typecheck": "tsc --noEmit",
     "e2e": "playwright test --config ../../playwright.config.ts"
   },

@@ -27,6 +27,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import { saveProject } from '@/lib/demo-state/projects'
+import { getDemoState } from '@/lib/demo-state/store'
 import { pathwaysClient } from '@/lib/services/mock-pathways-client'
 import type { ProjectStatus, UserRecord } from '@/types/pathways'
 
@@ -40,13 +42,15 @@ import { ProjectTeamSelectors, validateProjectTeamSelections } from './project-t
 const projectStatuses: ProjectStatus[] = ['Active', 'Needs Attention', 'Planned', 'Completed']
 const projectDraftStorageKey = 'pathways.projectSetupDraft'
 const projectDefaultValues: ProjectSetupSchema = {
+  objectives: '',
+  partners: '',
+  projectBudget: '',
   title: '',
   sector: '',
   area: '',
   startDate: '',
   endDate: '',
   status: 'Planned',
-  budgetCode: '',
   description: '',
   programManager: '',
   projectManager: '',
@@ -54,7 +58,7 @@ const projectDefaultValues: ProjectSetupSchema = {
   projectOfficers: '',
 }
 
-export const ProjectSetupForm = () => {
+export const ProjectSetupForm = ({ projectId }: { projectId?: string }) => {
   const router = useRouter()
   const [draftHydrated, setDraftHydrated] = useState(false)
   const [draftRecovered, setDraftRecovered] = useState(false)
@@ -90,6 +94,24 @@ export const ProjectSetupForm = () => {
   }, [loadTeamDirectory])
 
   useEffect(() => {
+    if (projectId) {
+      const project = getDemoState().projects.find((p) => p.id === projectId)
+      if (project)
+        form.reset({
+          ...projectDefaultValues,
+          ...project,
+          objectives: project.objectives ?? project.description,
+          partners: project.partners ?? '',
+          projectBudget: String(
+            getDemoState().budgets.find((b) => b.projectId === projectId)?.plannedAmount ?? '',
+          ),
+          startDate: project.startDate ?? '2026-01-01',
+          endDate: project.endDate ?? '2026-12-31',
+          projectOfficers: project.projectOfficers.join(','),
+        })
+      setDraftHydrated(true)
+      return
+    }
     try {
       const stored = window.sessionStorage.getItem(projectDraftStorageKey)
       if (stored) {
@@ -115,10 +137,10 @@ export const ProjectSetupForm = () => {
     } finally {
       setDraftHydrated(true)
     }
-  }, [form])
+  }, [form, projectId])
 
   useEffect(() => {
-    if (!draftHydrated) {
+    if (!draftHydrated || projectId) {
       return
     }
 
@@ -132,7 +154,7 @@ export const ProjectSetupForm = () => {
     })
 
     return () => subscription.unsubscribe()
-  }, [draftHydrated, form])
+  }, [draftHydrated, form, projectId])
 
   const onSubmit = async (values: ProjectSetupSchema) => {
     if (teamDirectoryStatus !== 'ready') {
@@ -165,23 +187,35 @@ export const ProjectSetupForm = () => {
       return
     }
 
-    // TODO(BACKEND): Submit project creation to NestJS projects endpoint.
-    // TODO(RBAC): Restrict project creation to authorized roles.
-    // TODO(DATABASE): Persist project and project-team relationships.
-    const project = await pathwaysClient.createProject(toCreateProjectInput(values))
-
-    toast.success('Prototype project created.', {
-      description: `${project.title} was saved in this browser on this device.`,
-    })
-    window.sessionStorage.removeItem(projectDraftStorageKey)
-    router.push(`/projects/${project.id}`)
+    const duplicate = getDemoState().projects.some(
+      (p) =>
+        p.id !== projectId && p.title.trim().toLowerCase() === values.title.trim().toLowerCase(),
+    )
+    if (
+      duplicate &&
+      !window.confirm('A project with this name exists. Save with the same name? Cancel to revise.')
+    )
+      return
+    try {
+      const project = saveProject(
+        { ...toCreateProjectInput(values), confirmDuplicate: duplicate },
+        projectId,
+      )
+      toast.success('Project profile and budget saved.')
+      window.sessionStorage.removeItem(projectDraftStorageKey)
+      router.push(`/projects/${project.id}`)
+    } catch (error) {
+      form.setError('title', {
+        message: error instanceof Error ? error.message : 'Project could not be saved.',
+      })
+    }
   }
 
   return (
     <>
       <PageHeader
         eyebrow="Project setup"
-        title="Create project"
+        title={projectId ? 'Edit project profile' : 'Create project'}
         description="Create a temporary project record saved in this browser on this device."
         actions={
           <Button asChild className="gap-2" variant="outline">
@@ -209,6 +243,32 @@ export const ProjectSetupForm = () => {
         <Form {...form}>
           <form className="space-y-6" onSubmit={form.handleSubmit(onSubmit)}>
             <div className="grid gap-5 lg:grid-cols-2">
+              {(['objectives', 'partners', 'projectBudget'] as const).map((name) => (
+                <FormField
+                  key={name}
+                  control={form.control}
+                  name={name}
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel required>
+                        {name === 'projectBudget'
+                          ? 'Project budget (PHP)'
+                          : name === 'objectives'
+                            ? 'Objectives'
+                            : 'Implementing partners'}
+                      </FormLabel>
+                      <FormControl>
+                        <Input
+                          type={name === 'projectBudget' ? 'number' : 'text'}
+                          step={name === 'projectBudget' ? '0.01' : undefined}
+                          {...field}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              ))}
               <FormField
                 control={form.control}
                 name="title"
@@ -243,19 +303,6 @@ export const ProjectSetupForm = () => {
                     <FormLabel required>Implementation area</FormLabel>
                     <FormControl aria-required="true">
                       <Input placeholder="Metro Manila" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="budgetCode"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel required>Budget code</FormLabel>
-                    <FormControl aria-required="true">
-                      <Input placeholder="PRJ-2026-001" {...field} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>

@@ -43,6 +43,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
+import { useDemoState } from '@/lib/demo-state/use-demo-state'
 import { cn } from '@/lib/utils'
 import type {
   PublicDashboardLayoutPreset,
@@ -92,11 +93,20 @@ type PublicProjectDetailMode = 'public' | 'staff-preview'
 
 export const PublicProjectDetail = ({
   mode = 'public',
-  project,
+  project: initialProject,
 }: {
   mode?: PublicProjectDetailMode
   project: PublicProjectRecord
 }) => {
+  const state = useDemoState()
+  const publication = state.publications.find((row) => row.projectId === initialProject.id)
+  const publicProject = publication?.published
+  const unavailable =
+    mode === 'public' && (state.scenario === 'public-maintenance' || !publicProject)
+  const project =
+    mode === 'staff-preview'
+      ? (publication?.draft ?? initialProject)
+      : (publicProject ?? initialProject)
   const defaults = project.publicPresentation
   const editable = mode === 'staff-preview'
   const [presentation, setPresentation] = useState(defaults)
@@ -302,6 +312,20 @@ export const PublicProjectDetail = ({
     indicators: <PublicIndicators project={project} />,
     milestones: <PublicMilestones project={project} />,
   }
+  if (unavailable)
+    return (
+      <div className="mx-auto my-16 max-w-2xl rounded-lg border border-warning/30 bg-warning-subtle p-8 text-center">
+        <h1 className="text-2xl font-semibold">Project story unavailable</h1>
+        <p className="mt-2 text-muted-foreground">
+          This project is not currently published, or the public tracker is in its local maintenance
+          scenario.
+        </p>
+        <Button asChild className="mt-5" variant="outline">
+          <Link href="/public/projects">Return to public projects</Link>
+        </Button>
+      </div>
+    )
+
   return (
     <div
       className="min-h-dvh bg-surface-subtle"

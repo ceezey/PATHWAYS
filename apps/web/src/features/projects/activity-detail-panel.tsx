@@ -1,5 +1,7 @@
 'use client'
 
+import { approveProgress } from '@/lib/demo-state/projects'
+import { getDemoState } from '@/lib/demo-state/store'
 import { CheckCircle2, FileText, Pencil, RotateCcw, UploadCloud } from 'lucide-react'
 import { toast } from 'sonner'
 
@@ -155,29 +157,43 @@ export const ActivityDetailContent = ({
         <>
           <Button
             className="gap-2"
-            onClick={() =>
-              toast.success('Completion action previewed.', {
-                description: 'This demonstration does not change shared project records.',
-              })
-            }
+            onClick={() => {
+              try {
+                approveProgress(activity.id, true)
+                const saved = getDemoState().activities.find((item) => item.id === activity.id)
+                if (saved) onStatusChanged(saved)
+                toast.success('Progress approved and activity state updated.')
+              } catch (error) {
+                toast.error(error instanceof Error ? error.message : 'Progress approval failed.')
+              }
+            }}
             type="button"
             variant="outline"
           >
             <CheckCircle2 className="h-4 w-4" aria-hidden="true" />
-            Preview Completion
+            Approve progress
           </Button>
           <Button
             className="gap-2"
-            onClick={() =>
-              toast.info('Revision action previewed.', {
-                description: 'This demonstration does not change shared project records.',
-              })
-            }
+            onClick={() => {
+              const reason = window.prompt('Enter the correction reason for the Project Officer:')
+              if (reason === null) return
+              try {
+                approveProgress(activity.id, false, reason)
+                const saved = getDemoState().activities.find((item) => item.id === activity.id)
+                if (saved) onStatusChanged(saved)
+                toast.success('Progress returned for correction with a reason.')
+              } catch (error) {
+                toast.error(
+                  error instanceof Error ? error.message : 'Progress could not be returned.',
+                )
+              }
+            }}
             type="button"
             variant="outline"
           >
             <RotateCcw className="h-4 w-4" aria-hidden="true" />
-            Preview Return
+            Return for correction
           </Button>
         </>
       ) : null}

@@ -2,6 +2,7 @@ import { z } from 'zod'
 
 const activityFormBaseSchema = z
   .object({
+    overrideJustification: z.string().optional(),
     title: z.string().min(3, 'Enter an activity title.'),
     description: z.string().min(10, 'Enter a short activity description.'),
     startDate: z.string().min(1, 'Choose a start date.'),

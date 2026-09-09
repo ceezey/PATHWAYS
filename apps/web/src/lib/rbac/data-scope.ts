@@ -1,3 +1,5 @@
+import { hasAction } from '@/lib/demo-state/permissions'
+import { currentAccount, getDemoState } from '@/lib/demo-state/store'
 import type {
   BeneficiaryMediaProofRecord,
   BeneficiaryRecord,
@@ -150,6 +152,10 @@ export const resetPrototypeProjectAssignmentOverrides = () => {
 }
 
 export const getAssignedProjectIds = (role: PrototypeRole): readonly string[] => {
+  if (typeof window !== 'undefined') {
+    const actor = currentAccount(getDemoState())
+    if (actor) return actor.role === role && actor.status === 'Active' ? actor.projectIds : []
+  }
   const assignableRole = role as ProjectAssignableRole
   const inMemoryOverride = projectAssignmentOverridesByRole.get(assignableRole)
 
@@ -172,6 +178,13 @@ export const getAssignedProjectIds = (role: PrototypeRole): readonly string[] =>
 }
 
 export const canAccessProjectForRole = (role: PrototypeRole, projectId: string) => {
+  if (typeof window !== 'undefined') {
+    const actor = currentAccount(getDemoState())
+    if (actor)
+      return (
+        actor.role === role && actor.status === 'Active' && actor.projectIds.includes(projectId)
+      )
+  }
   const { projectAccess } = getAccessProfile(role)
 
   if (projectAccess === 'organization' || projectAccess === 'portfolio') {
@@ -202,6 +215,7 @@ export const scopeBeneficiaryRecordForRole = (
   beneficiary: BeneficiaryRecord,
   role: PrototypeRole,
 ): BeneficiaryRecord | null => {
+  if (!hasAction(role, 'beneficiaries.view')) return null
   const { beneficiaryDataAccess } = getAccessProfile(role)
 
   if (beneficiaryDataAccess === 'all-records') {

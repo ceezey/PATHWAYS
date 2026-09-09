@@ -27,8 +27,9 @@ export const webSupabasePublishableKey =
   webEnv.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ||
   webEnv.NEXT_PUBLIC_SUPABASE_ANON_KEY
 
-const guiPrototypeModeEnabled =
-  process.env.NODE_ENV !== 'production' && webEnv.NEXT_PUBLIC_ENABLE_GUI_PROTOTYPE_MODE
+// This frontend deliverable intentionally uses fictional browser-local data.
+// No authentication provider or production service is required to review it.
+const guiPrototypeModeEnabled = true
 
 export const webSetupState = {
   supabaseConfigured:

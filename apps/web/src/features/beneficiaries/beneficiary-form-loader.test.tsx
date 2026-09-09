@@ -3,7 +3,8 @@
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
-const { getProjectsForRole } = vi.hoisted(() => ({
+const { getBeneficiaryRecordForRole, getProjectsForRole } = vi.hoisted(() => ({
+  getBeneficiaryRecordForRole: vi.fn(),
   getProjectsForRole: vi.fn(),
 }))
 
@@ -18,12 +19,20 @@ vi.mock('@/hooks/use-prototype-role', () => ({
 }))
 
 vi.mock('@/lib/services/mock-pathways-client', () => ({
-  pathwaysClient: { getProjectsForRole },
+  pathwaysClient: { getBeneficiaryRecordForRole, getProjectsForRole },
 }))
 
 vi.mock('./beneficiary-form', () => ({
-  BeneficiaryForm: ({ projects }: { projects: Array<{ id: string }> }) => (
-    <div data-testid="beneficiary-form">{projects.length} project choices loaded</div>
+  BeneficiaryForm: ({
+    beneficiary,
+    projects,
+  }: {
+    beneficiary?: { id: string }
+    projects: Array<{ id: string }>
+  }) => (
+    <div data-beneficiary-id={beneficiary?.id} data-testid="beneficiary-form">
+      {projects.length} project choices loaded
+    </div>
   ),
 }))
 
@@ -60,5 +69,16 @@ describe('BeneficiaryFormLoader', () => {
 
     expect(await screen.findByText('No assigned projects available')).toBeTruthy()
     expect(screen.queryByText('Project choices unavailable')).toBeNull()
+  })
+
+  it('loads the scoped existing profile for the edit form', async () => {
+    getProjectsForRole.mockResolvedValueOnce([{ id: 'project-1' }])
+    getBeneficiaryRecordForRole.mockResolvedValueOnce({ id: 'beneficiary-1' })
+
+    render(<BeneficiaryFormLoader beneficiaryId="beneficiary-1" />)
+
+    const form = await screen.findByTestId('beneficiary-form')
+    expect(form.getAttribute('data-beneficiary-id')).toBe('beneficiary-1')
+    expect(getBeneficiaryRecordForRole).toHaveBeenCalledWith('M&E', 'beneficiary-1')
   })
 })

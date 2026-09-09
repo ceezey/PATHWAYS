@@ -1,5 +1,7 @@
 'use client'
 
+import { type ExportFormat, exportDemoArtifact } from '@/lib/demo-state/exports'
+import { saveGeneratedReport } from '@/lib/demo-state/reports'
 import {
   type ColumnDef,
   flexRender,
@@ -63,6 +65,7 @@ import {
 } from '@/components/ui/table'
 import { usePrototypeLabels } from '@/hooks/use-prototype-labels'
 import { usePrototypeRole } from '@/hooks/use-prototype-role'
+import { useDemoState } from '@/lib/demo-state/use-demo-state'
 import { can } from '@/lib/rbac/can'
 import { canAccessProjectForRole } from '@/lib/rbac/data-scope'
 import { reportKindPermissions } from '@/lib/rbac/route-access'
@@ -211,18 +214,39 @@ const statusTone = (status: string) => {
 }
 
 export const ReportingWorkspace = ({
-  activities,
-  indicators,
+  activities: initialActivities,
+  indicators: initialIndicators,
   initialKind,
-  journeyStages,
+  journeyStages: initialJourneyStages,
   previewOnly = false,
-  projects,
+  projects: initialProjects,
   reports,
   surveyForms,
   surveyResults,
 }: ReportingWorkspaceProps) => {
   const { labels } = usePrototypeLabels()
   const { role } = usePrototypeRole()
+  const demo = useDemoState()
+  const projects =
+    demo.scenario === 'empty-data' ? [] : demo.projects.length ? demo.projects : initialProjects
+  const activities =
+    demo.scenario === 'empty-data'
+      ? []
+      : demo.activities.length
+        ? demo.activities
+        : initialActivities
+  const indicators =
+    demo.scenario === 'empty-data'
+      ? []
+      : demo.projectIndicators.length
+        ? demo.projectIndicators
+        : initialIndicators
+  const journeyStages =
+    demo.scenario === 'empty-data'
+      ? []
+      : demo.journeys.length
+        ? demo.journeys
+        : initialJourneyStages
   const canViewBeneficiarySummary = can(role, reportKindPermissions['beneficiary-summary'])
   const visibleReportTabs = useMemo(
     () => reportTabs.filter((tab) => can(role, reportKindPermissions[tab.kind])),
@@ -307,6 +331,10 @@ export const ReportingWorkspace = ({
   const scopedProjectIds = useMemo(
     () => new Set(scopedProjects.map((project) => project.id)),
     [scopedProjects],
+  )
+  const generatedReportHistory = demo.reports.filter(
+    (report) =>
+      report.projectIds.length > 0 && report.projectIds.every((id) => scopedProjectIds.has(id)),
   )
   const scopedActivities = useMemo(
     () => activities.filter((activity) => scopedProjectIds.has(activity.projectId)),
@@ -580,40 +608,37 @@ export const ReportingWorkspace = ({
   }
 
   const finishReportPreview = () => {
-    // TODO(BACKEND): Save generated-report history.
-    setPreviewOpen(false)
-    toast.success('Report preview completed.', {
-      description: 'No report was added to shared history.',
-    })
+    try {
+      saveGeneratedReport(
+        kind,
+        selectedProject ? [selectedProject.id] : scopedProjects.map((project) => project.id),
+        activeColumns.map((column) => column.label),
+        rows.map((row) => activeColumns.map((column) => String(row[column.id] ?? ''))),
+        { project: effectiveProjectId, search, reportKind: kind },
+      )
+      setPreviewOpen(false)
+      toast.success('Report generated and added to browser-local history.')
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Report could not be generated.')
+    }
   }
 
-  const exportCsv = () => {
+  const exportReport = (format: ExportFormat) => {
     const headers = activeColumns.map((column) => column.label)
-    const csvRows = rows.map((row) =>
-      activeColumns
-        .map((column) => `"${String(row[column.id] ?? '').replaceAll('"', '""')}"`)
-        .join(','),
-    )
-    const blob = new Blob([[headers.join(','), ...csvRows].join('\n')], {
-      type: 'text/csv;charset=utf-8',
-    })
-    const url = URL.createObjectURL(blob)
-    const link = document.createElement('a')
-    link.href = url
-    link.download = `${kind}-prototype-report.csv`
-    link.click()
-    URL.revokeObjectURL(url)
-    toast.success('CSV exported from the browser.', {
-      description: 'The sample report was downloaded to this device.',
-    })
-  }
-
-  const openPrototypeExport = (format: 'PDF' | 'Excel') => {
-    // TODO(REPORTING): Generate PDF and spreadsheet reports through the backend.
-    setPreviewOpen(true)
-    toast.info(`${format} preview opened.`, {
-      description: 'A preview opened; no downloadable file was created.',
-    })
+    try {
+      exportDemoArtifact(
+        `${kind}-report`,
+        [
+          headers,
+          ...rows.map((row) => activeColumns.map((column) => String(row[column.id] ?? ''))),
+        ],
+        format,
+        selectedProject?.id,
+      )
+      toast.success(`${format.toUpperCase()} report downloaded.`)
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Export could not be generated.')
+    }
   }
 
   const switchKind = (nextKind: ReportKind) => {
@@ -635,14 +660,42 @@ export const ReportingWorkspace = ({
             </Button>
             <Button onClick={finishReportPreview}>
               <Save className="mr-2 h-4 w-4" aria-hidden="true" />
-              Finish preview
+              Save report snapshot
             </Button>
           </div>
         }
-        description="Build project, indicator, Beneficiary, and aggregate survey reports from safe sample data. PDF and spreadsheet actions open a preview in this demonstration."
+        description="Build, preview, retain, and export project, indicator, Beneficiary, and aggregate survey reports from fictional browser-local data."
         eyebrow="Reporting workspace"
         title={labels.moduleReports}
       />
+
+      <Card data-testid="generated-report-history">
+        <CardHeader>
+          <CardTitle>Generated report history</CardTitle>
+          <p className="text-sm text-muted-foreground">
+            {generatedReportHistory.length} browser-local snapshot
+            {generatedReportHistory.length === 1 ? '' : 's'} in your active project scope.
+          </p>
+        </CardHeader>
+        {generatedReportHistory.length ? (
+          <CardContent>
+            <ul className="divide-y rounded-md border text-sm">
+              {generatedReportHistory.slice(0, 5).map((report) => (
+                <li
+                  className="flex flex-wrap items-center justify-between gap-2 p-3"
+                  key={report.id}
+                >
+                  <span className="font-medium">{report.title}</span>
+                  <span className="text-muted-foreground">
+                    {report.rows.length} row{report.rows.length === 1 ? '' : 's'} ·{' '}
+                    {new Date(report.createdAt).toLocaleString()}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </CardContent>
+        ) : null}
+      </Card>
 
       <Card>
         <CardHeader className="space-y-4">
@@ -683,19 +736,23 @@ export const ReportingWorkspace = ({
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end">
-                  <DropdownMenuLabel>Prototype export</DropdownMenuLabel>
+                  <DropdownMenuLabel>Download report</DropdownMenuLabel>
                   <DropdownMenuSeparator />
-                  <DropdownMenuItem onClick={exportCsv}>
+                  <DropdownMenuItem onClick={() => exportReport('csv')}>
                     <FileText className="mr-2 h-4 w-4" aria-hidden="true" />
                     CSV
                   </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => openPrototypeExport('PDF')}>
-                    <FileText className="mr-2 h-4 w-4" aria-hidden="true" />
-                    Preview PDF
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => openPrototypeExport('Excel')}>
+                  <DropdownMenuItem onClick={() => exportReport('xlsx')}>
                     <FileSpreadsheet className="mr-2 h-4 w-4" aria-hidden="true" />
-                    Preview Excel
+                    XLSX
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => exportReport('xls')}>
+                    <FileSpreadsheet className="mr-2 h-4 w-4" aria-hidden="true" />
+                    XLS
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => exportReport('pdf')}>
+                    <FileText className="mr-2 h-4 w-4" aria-hidden="true" />
+                    PDF
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
@@ -986,7 +1043,7 @@ export const ReportingWorkspace = ({
             </Button>
             <Button onClick={finishReportPreview}>
               <Save className="mr-2 h-4 w-4" aria-hidden="true" />
-              Finish preview
+              Save report snapshot
             </Button>
           </DialogFooter>
         </DialogContent>

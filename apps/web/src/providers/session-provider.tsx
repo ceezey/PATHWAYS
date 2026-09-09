@@ -9,6 +9,7 @@ import {
   readPrototypeSession,
   writePrototypeSession,
 } from '@/lib/auth/prototype-session'
+import { subscribeDemo } from '@/lib/demo-state/store'
 import { webSetupState } from '@/lib/env'
 import { getBrowserSupabaseClient } from '@/lib/supabase/client'
 import type { PrototypeSession, SessionContextValue } from '@/types/auth'
@@ -21,7 +22,7 @@ export const SessionProvider = ({ children }: { children: React.ReactNode }) => 
   const [session, setSession] = useState<Session | null>(null)
   const [prototypeSession, setPrototypeSession] = useState<PrototypeSession | null>(null)
   const [status, setStatus] = useState<SessionContextValue['status']>('loading')
-  const supabase = getBrowserSupabaseClient()
+  const supabase = webSetupState.guiPrototypeModeEnabled ? null : getBrowserSupabaseClient()
 
   const refreshSession = async () => {
     if (webSetupState.guiPrototypeModeEnabled) {
@@ -95,11 +96,14 @@ export const SessionProvider = ({ children }: { children: React.ReactNode }) => 
 
   useEffect(() => {
     if (webSetupState.guiPrototypeModeEnabled) {
-      const storedPrototypeSession = readPrototypeSession()
-      setPrototypeSession(storedPrototypeSession)
-      setSession(null)
-      setStatus(storedPrototypeSession ? 'authenticated' : 'unauthenticated')
-      return
+      const sync = () => {
+        const storedPrototypeSession = readPrototypeSession()
+        setPrototypeSession(storedPrototypeSession)
+        setSession(null)
+        setStatus(storedPrototypeSession ? 'authenticated' : 'unauthenticated')
+      }
+      sync()
+      return subscribeDemo(sync)
     }
 
     if (webSetupState.authBypassEnabled) {

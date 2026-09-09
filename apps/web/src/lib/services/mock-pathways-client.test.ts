@@ -1,9 +1,15 @@
-import { describe, expect, it } from 'vitest'
+// @vitest-environment jsdom
+import { beforeEach, describe, expect, it } from 'vitest'
 
+import { resetDemo, switchDemoAccount } from '@/lib/demo-state/store'
 import { MockPathwaysClient } from './mock-pathways-client'
 
 describe('MockPathwaysClient dashboard data', () => {
   const client = new MockPathwaysClient()
+  beforeEach(() => {
+    localStorage.clear()
+    resetDemo()
+  })
 
   it('maps supported roles to role-specific dashboard headings', async () => {
     await expect(client.getDashboard('Program Manager')).resolves.toMatchObject({
@@ -124,24 +130,27 @@ describe('MockPathwaysClient dashboard data', () => {
         .then((recommendations) => recommendations.map((recommendation) => recommendation.id)),
     ).resolves.toEqual(['rec-fm-low-kpi', 'rec-fm-bootcamp'])
 
-    for (const role of ['Program Manager', 'System Administrator'] as const) {
+    for (const role of ['Program Manager', 'Grant Manager', 'System Administrator'] as const) {
       await expect(client.getAlertsForRole(role)).resolves.toHaveLength(6)
       await expect(client.getRecommendationsForRole(role)).resolves.toHaveLength(
         allRecommendationCount,
       )
     }
 
-    for (const role of [
-      'Project Officer',
-      'Monitoring and Evaluation Officer',
-      'Grant Manager',
-    ] as const) {
+    await expect(client.getAlertsForRole('Monitoring and Evaluation Officer')).resolves.not.toEqual(
+      [],
+    )
+    await expect(
+      client.getRecommendationsForRole('Monitoring and Evaluation Officer'),
+    ).resolves.not.toEqual([])
+    for (const role of ['Project Officer'] as const) {
       await expect(client.getAlertsForRole(role)).resolves.toEqual([])
       await expect(client.getRecommendationsForRole(role)).resolves.toEqual([])
     }
   })
 
   it('creates and reads a temporary prototype project', async () => {
+    switchDemoAccount('project-manager')
     const project = await client.createProject({
       title: 'Prototype Community Project',
       sector: 'Community Resilience',
@@ -151,10 +160,13 @@ describe('MockPathwaysClient dashboard data', () => {
       status: 'Planned',
       budgetCode: 'PCP-2026',
       description: 'Temporary prototype project for the Phase 3 setup flow.',
-      programManager: 'Program Manager A',
-      projectManager: 'Project Manager A',
-      monitoringOfficer: 'Monitoring and Evaluation Officer A',
-      projectOfficers: ['Project Officer A'],
+      objectives: 'Exercise project creation.',
+      partners: 'Fictional partner',
+      projectBudget: 500000,
+      programManager: 'Program Manager Demo',
+      projectManager: 'Project Manager Demo',
+      monitoringOfficer: 'Monitoring Officer Demo',
+      projectOfficers: ['Project Officer Demo'],
     })
 
     await expect(client.getProject(project.id)).resolves.toMatchObject({
@@ -166,11 +178,13 @@ describe('MockPathwaysClient dashboard data', () => {
         .getProjectsForRole('Project Manager')
         .then((projects) => projects.map((record) => record.id)),
     ).resolves.toContain(project.id)
+    switchDemoAccount('monitoring-evaluation-officer')
     await expect(
       client
         .getProjectsForRole('Monitoring and Evaluation Officer')
         .then((projects) => projects.map((record) => record.id)),
     ).resolves.toContain(project.id)
+    switchDemoAccount('project-officer')
     await expect(
       client
         .getProjectsForRole('Project Officer')
@@ -179,6 +193,7 @@ describe('MockPathwaysClient dashboard data', () => {
   })
 
   it('creates, edits, and reads a temporary prototype activity', async () => {
+    switchDemoAccount('project-manager')
     const activity = await client.createActivity({
       projectId: 'futuremakers-ncr',
       title: 'Prototype activity test',
@@ -212,6 +227,7 @@ describe('MockPathwaysClient dashboard data', () => {
   })
 
   it('submits a local prototype activity proof record without uploading files', async () => {
+    switchDemoAccount('project-officer')
     const activity = await client.createActivity({
       projectId: 'futuremakers-ncr',
       title: 'Prototype proof activity',
@@ -309,14 +325,14 @@ describe('MockPathwaysClient dashboard data', () => {
   })
 
   it('serves private mock photo and video proof for a Beneficiary record', async () => {
-    const media = await client.getBeneficiaryMediaProofForRole('System Administrator', 'ben-001')
+    const media = await client.getBeneficiaryMediaProofForRole('Project Manager', 'ben-001')
 
     expect(media).toHaveLength(3)
     expect(media.map((item) => item.mediaType)).toEqual(expect.arrayContaining(['Photo', 'Video']))
     expect(media.every((item) => item.beneficiaryId === 'ben-001')).toBe(true)
     expect(media.every((item) => item.source === 'Mock media')).toBe(true)
     await expect(
-      client.getBeneficiaryMediaProofForRole('System Administrator', 'unknown-beneficiary'),
+      client.getBeneficiaryMediaProofForRole('Project Manager', 'unknown-beneficiary'),
     ).rejects.toMatchObject({ code: 'not_found' })
   })
 
@@ -338,11 +354,7 @@ describe('MockPathwaysClient dashboard data', () => {
         .getBeneficiaryRecordsForRole('Monitoring and Evaluation Officer')
         .then((records) => records.map((record) => record.id)),
     ).resolves.toEqual(expect.arrayContaining(['ben-001', 'ben-003']))
-    await expect(
-      client
-        .getBeneficiaryRecordsForRole('System Administrator')
-        .then((records) => records.map((record) => record.id)),
-    ).resolves.toEqual(expect.arrayContaining(['ben-001', 'ben-002', 'ben-003']))
+    await expect(client.getBeneficiaryRecordsForRole('System Administrator')).resolves.toEqual([])
   })
 
   it('applies filters after Beneficiary authorization scope', async () => {
@@ -393,15 +405,15 @@ describe('MockPathwaysClient dashboard data', () => {
   it('returns typed prototype users with visible account states', async () => {
     const users = await client.getUsers()
 
-    expect(users).toHaveLength(7)
+    expect(users).toHaveLength(6)
     expect(users.filter((user) => user.accountStatus === 'Active')).toHaveLength(6)
-    expect(users.filter((user) => user.accountStatus === 'Invited')).toHaveLength(1)
+    expect(users.filter((user) => user.accountStatus === 'Invited')).toHaveLength(0)
     expect(users.every((user) => user.email && user.projectAccess.length > 0)).toBe(true)
     expect(users).toContainEqual(
       expect.objectContaining({
-        id: 'user-grant-manager-a',
+        id: 'grant-manager',
         role: 'Grant Manager',
-        projectAccess: ['Organization grant portfolio'],
+        projectAccess: expect.arrayContaining(['futuremakers-ncr']),
       }),
     )
   })
