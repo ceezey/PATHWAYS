@@ -198,6 +198,33 @@ describe('I03 linked delivery workflow', () => {
 })
 
 describe('I04 collection and import', () => {
+  it('saves imported questionnaire structures as editable draft forms', () => {
+    switchDemoAccount('project-officer')
+    const form = saveForm({
+      projectId: 'futuremakers-ncr',
+      title: 'Youth Skills Assessment Form',
+      description: 'Pre/Post Assessment',
+      status: 'Draft',
+      indicatorIds: [],
+      fields: [
+        {
+          id: 'imported-beneficiary-id',
+          code: 'beneficiary_id',
+          label: 'Beneficiary ID',
+          type: 'text',
+          required: true,
+          options: [],
+        },
+      ],
+    })
+
+    expect(form.status).toBe('Draft')
+    expect(getDemoState().forms.find((row) => row.id === form.id)).toMatchObject({
+      status: 'Draft',
+      title: 'Youth Skills Assessment Form',
+    })
+  })
+
   it('publishes a form, keeps unvalidated drafts, and propagates a valid entry', () => {
     switchDemoAccount('project-officer')
     const form = saveForm({

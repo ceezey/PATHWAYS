@@ -12,7 +12,11 @@ import {
 
 export function saveForm(input: Omit<DemoForm, 'id' | 'responseCount'>, id?: string) {
   return transactDemo(id ? 'forms.edit' : 'forms.create', input.projectId, id, (state, actor) => {
-    assertAction(actor, 'forms.publish', input.projectId)
+    assertAction(
+      actor,
+      input.status === 'Published' ? 'forms.publish' : id ? 'forms.edit' : 'forms.create',
+      input.projectId,
+    )
     const existing = state.forms.find((f) => f.id === id)
     if (existing?.responseCount)
       throw new Error(
@@ -26,7 +30,7 @@ export function saveForm(input: Omit<DemoForm, 'id' | 'responseCount'>, id?: str
       )
     )
       throw new Error(
-        'Complete the form title, fields, question types and choice options before publishing.',
+        'Complete the form title, fields, question types and choice options before saving.',
       )
     const codes = input.fields.map((f) => f.code ?? f.id)
     if (new Set(codes).size !== codes.length) throw new Error('Field codes must be unique.')
@@ -42,7 +46,6 @@ export function saveForm(input: Omit<DemoForm, 'id' | 'responseCount'>, id?: str
     const form = {
       ...input,
       id: id ?? nextId(state, 'form'),
-      status: 'Published' as const,
       responseCount: 0,
     }
     state.forms = [...state.forms.filter((f) => f.id !== id), form]

@@ -3,6 +3,7 @@
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
+import { getDemoState, resetDemo, switchDemoAccount } from '@/lib/demo-state/store'
 import { PrototypeLabelsProvider } from '@/providers/prototype-labels-provider'
 
 import { CollectionWorkspace } from './collection-workspace'
@@ -23,6 +24,42 @@ const csvFile = (name: string, readText: () => Promise<string>) => {
 }
 
 describe('collection import workspace', () => {
+  it('creates a Forms draft from a header-only questionnaire file', async () => {
+    localStorage.clear()
+    resetDemo()
+    switchDemoAccount('project-officer')
+    renderImportWorkspace()
+
+    fireEvent.change(screen.getByLabelText('Source file'), {
+      target: {
+        files: [
+          csvFile(
+            'PATHWAYS_Youth_Skills_Assessment_Form.csv',
+            async () =>
+              'beneficiary_id,attendance_status,pre_test_score,post_test_score,activity_date',
+          ),
+        ],
+      },
+    })
+
+    await waitFor(() => {
+      expect(screen.getByText(/Questionnaire structure ready/)).toBeTruthy()
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Create Draft' }))
+    const dialog = screen.getByRole('dialog', { name: 'Create draft form?' })
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Create Draft' }))
+
+    await waitFor(() => {
+      expect(screen.getByText('Youth Skills Assessment Form')).toBeTruthy()
+    })
+    expect(screen.getByText(/Status: Draft/)).toBeTruthy()
+    expect(getDemoState().forms.at(-1)).toMatchObject({
+      status: 'Draft',
+      title: 'Youth Skills Assessment Form',
+    })
+    expect(getDemoState().forms.at(-1)?.fields).toHaveLength(5)
+  })
+
   it('uses one visible labelled chooser and reports reading, completion, and mapping readiness', async () => {
     renderImportWorkspace()
 
@@ -49,9 +86,7 @@ describe('collection import workspace', () => {
     fireEvent.change(chooser, { target: { files: [file] } })
 
     await waitFor(() => {
-      expect(
-        screen.getByText('Reading the selected file.'),
-      ).toBeTruthy()
+      expect(screen.getByText('Reading the selected file.')).toBeTruthy()
     })
     expect(
       screen

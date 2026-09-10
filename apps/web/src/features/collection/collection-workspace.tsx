@@ -208,21 +208,47 @@ const statusTone = (status: MappingStatus) => {
   return 'warning'
 }
 
-const fieldFromHeader = (header: string, index: number): FormField => ({
-  id: `imported-${index}-${normalizeImportHeader(header)}`,
-  label: header.replace(/[_-]+/g, ' ').replace(/\b\w/g, (character) => character.toUpperCase()),
-  code: normalizeImportHeader(header),
-  type: header.toLowerCase().includes('date') ? 'date' : 'text',
-  required: ['beneficiary_id', 'activity_date'].includes(normalizeImportHeader(header)),
-  metadataKey: normalizeImportHeader(header).includes('beneficiary'),
-  sadddField: ['age', 'sex', 'gender', 'disability'].some((token) =>
-    normalizeImportHeader(header).includes(token),
-  ),
-  allowedValues: '',
-  mappingStatus: expectedImportHeaders.includes(normalizeImportHeader(header))
-    ? 'mapped'
-    : 'unmapped',
-})
+const importedFieldLabels: Record<string, string> = {
+  beneficiary_id: 'Beneficiary ID',
+  attendance_status: 'Attendance status',
+  pre_test_score: 'Pre-test score',
+  post_test_score: 'Post-test score',
+  activity_date: 'Activity date',
+}
+
+const fieldFromHeader = (header: string, index: number): FormField => {
+  const code = normalizeImportHeader(header)
+
+  return {
+    id: `imported-${index}-${code}`,
+    label:
+      importedFieldLabels[code] ??
+      header.replace(/[_-]+/g, ' ').replace(/\b\w/g, (character) => character.toUpperCase()),
+    code,
+    type:
+      code === 'attendance_status'
+        ? 'single_select'
+        : code.includes('score')
+          ? 'number'
+          : code.includes('date')
+            ? 'date'
+            : 'text',
+    required: ['beneficiary_id', 'activity_date'].includes(code),
+    metadataKey: code.includes('beneficiary'),
+    sadddField: ['age', 'sex', 'gender', 'disability'].some((token) => code.includes(token)),
+    allowedValues: code === 'attendance_status' ? 'Present, Partial, Absent' : '',
+    mappingStatus: expectedImportHeaders.includes(code) ? 'mapped' : 'unmapped',
+  }
+}
+
+const formTitleFromFileName = (fileName: string) =>
+  fileName
+    .replace(/\.[^.]+$/, '')
+    .replace(/^pathways[\s_-]+/i, '')
+    .replace(/[_-]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .replace(/\b\w/g, (character) => character.toUpperCase()) || 'Imported Questionnaire'
 
 const formatValue = (value: unknown) => {
   if (value === null || value === undefined) {
@@ -452,7 +478,9 @@ export const CollectionWorkspace = ({
       setUploadProgress(100)
       setImportStatus('ready')
       setImportMessage(
-        `Preview ready for ${parsed.fileName}. Review every mapping before proceeding.`,
+        parsed.rows.length === 0
+          ? `Questionnaire structure ready for ${parsed.fileName}. Review the field mappings before creating the Draft.`
+          : `Preview ready for ${parsed.fileName}. Review every mapping before proceeding.`,
       )
 
       if (mode === 'extend') {
@@ -513,6 +541,38 @@ export const CollectionWorkspace = ({
   const confirmImportProceed = () => {
     if (!parsedImport || !importCanProceed) return
     try {
+      if (parsedImport.rows.length === 0) {
+        const importedFields = mappingRows
+          .filter((mapping) => mapping.status === 'mapped')
+          .map((mapping, index) => fieldFromHeader(mapping.targetField, index))
+        const importedTitle = formTitleFromFileName(parsedImport.fileName)
+        saveForm({
+          title: importedTitle,
+          description: formType,
+          projectId,
+          status: 'Draft',
+          indicatorIds,
+          fields: importedFields.map((field) => ({
+            id: field.id,
+            code: field.code,
+            label: field.label,
+            type: field.type,
+            required: field.required,
+            options: field.allowedValues
+              .split(',')
+              .map((value) => value.trim())
+              .filter(Boolean),
+          })),
+        })
+        setFields(importedFields)
+        setSelectedFieldId(importedFields[0]?.id ?? '')
+        setFormTitle(importedTitle)
+        setSavedNotice(`Draft form "${importedTitle}" created from ${parsedImport.fileName}.`)
+        setProceedDialogOpen(false)
+        setView('forms')
+        return
+      }
+
       const inputs = parsedImport.rows.map((row) => {
         const values: Record<string, string> = {}
         for (const mapping of mappingRows.filter((m) => m.status === 'mapped'))
@@ -812,17 +872,22 @@ export const CollectionWorkspace = ({
       <Dialog open={proceedDialogOpen} onOpenChange={setProceedDialogOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Review mapped fields?</DialogTitle>
+            <DialogTitle>
+              {parsedImport?.rows.length === 0 ? 'Create draft form?' : 'Review mapped fields?'}
+            </DialogTitle>
             <DialogDescription>
-              Valid rows will be imported; invalid rows remain isolated for correction and
-              reprocessing.
+              {parsedImport?.rows.length === 0
+                ? 'The mapped columns will become questionnaire fields. You can edit the Draft from Forms before publishing.'
+                : 'Valid rows will be imported; invalid rows remain isolated for correction and reprocessing.'}
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
             <Button variant="outline" onClick={() => setProceedDialogOpen(false)}>
               Cancel
             </Button>
-            <Button onClick={confirmImportProceed}>Proceed</Button>
+            <Button onClick={confirmImportProceed}>
+              {parsedImport?.rows.length === 0 ? 'Create Draft' : 'Proceed'}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -909,7 +974,7 @@ const FormsGeneratorView = ({
             <div>
               <p className="font-medium text-foreground">{form.title}</p>
               <p className="mt-1 text-muted-foreground">
-                Form type: {form.type} | {form.project} | {form.fieldCount} fields | Saved:{' '}
+                Status: {form.type} | {form.project} | {form.fieldCount} fields | Saved:{' '}
                 {form.savedAt}
               </p>
             </div>
@@ -1585,6 +1650,7 @@ const ImportView = ({
       {mappingRows.length > 0 ? (
         <MappingTable
           canProceed={importCanProceed}
+          createsDraft={parsedImport?.rows.length === 0}
           fields={fields}
           mappingRows={mappingRows}
           mappingReadiness={mappingReadiness}
@@ -1628,6 +1694,7 @@ const SummaryMetric = ({ label, value }: { label: string; value: string }) => (
 
 const MappingTable = ({
   canProceed,
+  createsDraft,
   fields,
   mappingRows,
   mappingReadiness,
@@ -1637,6 +1704,7 @@ const MappingTable = ({
   setView,
 }: {
   canProceed: boolean
+  createsDraft: boolean
   fields: FormField[]
   mappingRows: MappingRow[]
   mappingReadiness: MappingReadiness
@@ -1665,7 +1733,7 @@ const MappingTable = ({
           size="sm"
           onClick={() => setProceedDialogOpen(true)}
         >
-          Proceed
+          {createsDraft ? 'Create Draft' : 'Proceed'}
         </Button>
       </div>
     </div>
