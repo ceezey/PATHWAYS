@@ -133,7 +133,7 @@ export const mockDashboards: Record<PrototypeRole, RoleDashboardViewModel> = {
         id: 'active-projects',
         label: 'Active projects',
         value: 4,
-        helperText: 'Across PATHWAYS prototype portfolio',
+        helperText: 'Across the PATHWAYS portfolio',
         severity: 'info',
         href: '/projects',
       },
@@ -234,8 +234,7 @@ export const mockDashboards: Record<PrototypeRole, RoleDashboardViewModel> = {
               label: 'Preview Decision',
               kind: 'dialog',
               dialogTitle: 'Decision required',
-              dialogDescription:
-                'This demonstration keeps the decision in your current browser session only.',
+              dialogDescription: 'Review the available evidence before recording the decision.',
             },
           },
           {
@@ -251,7 +250,7 @@ export const mockDashboards: Record<PrototypeRole, RoleDashboardViewModel> = {
               kind: 'dialog',
               dialogTitle: 'Training site validation alert',
               dialogDescription:
-                'Site readiness has not been confirmed. This alert is generated from prototype rules and requires human review.',
+                'Site readiness has not been confirmed. Review the alert and record the appropriate action.',
             },
           },
         ],
@@ -260,7 +259,7 @@ export const mockDashboards: Record<PrototypeRole, RoleDashboardViewModel> = {
   },
   'Grant Manager': {
     role: 'Grant Manager',
-    greetingName: 'Grant Manager Demo',
+    greetingName: 'Grant Manager',
     heading: 'Grant Manager dashboard',
     summary:
       'Review high-level grant and portfolio signals using aggregate information only. Beneficiary records and account administration are not available in this view.',
@@ -296,7 +295,7 @@ export const mockDashboards: Record<PrototypeRole, RoleDashboardViewModel> = {
         id: 'grant-reporting-period',
         label: 'Reporting period',
         value: 'Q3 2026',
-        helperText: 'Current prototype portfolio summary',
+        helperText: 'Current portfolio summary',
         severity: 'neutral',
       },
     ],
@@ -358,7 +357,7 @@ export const mockDashboards: Record<PrototypeRole, RoleDashboardViewModel> = {
   },
   'Project Manager': {
     role: 'Project Manager',
-    greetingName: 'Project Manager Demo',
+    greetingName: 'Project Manager',
     heading: 'Project Manager dashboard',
     summary:
       'Approvals, project-health queues, budget alerts, and overdue work for assigned projects.',
@@ -415,7 +414,7 @@ export const mockDashboards: Record<PrototypeRole, RoleDashboardViewModel> = {
       {
         id: 'approval-queue',
         title: 'Pending approval queue',
-        description: 'Review submitted items and demonstrate the next decision.',
+        description: 'Review submitted items and record the next decision.',
         items: [
           {
             id: 'proof-approval-01',
@@ -429,8 +428,7 @@ export const mockDashboards: Record<PrototypeRole, RoleDashboardViewModel> = {
               label: 'Preview Approval',
               kind: 'dialog',
               dialogTitle: 'Approve proof bundle',
-              dialogDescription:
-                'This demonstration keeps the approval in your current browser session only.',
+              dialogDescription: 'Review the proof bundle before recording the approval.',
             },
             secondaryAction: {
               id: 'review-proof',
@@ -452,9 +450,8 @@ export const mockDashboards: Record<PrototypeRole, RoleDashboardViewModel> = {
               id: 'log-budget-outcome',
               label: 'Preview Outcome',
               kind: 'dialog',
-              dialogTitle: 'Log prototype outcome',
-              dialogDescription:
-                'This demonstration records the review outcome for this session only. Saving decisions and enforcing Project Manager access will be connected during production development.',
+              dialogTitle: 'Log review outcome',
+              dialogDescription: 'Record the decision and supporting context for this review.',
             },
             secondaryAction: {
               id: 'go-budget-module',
@@ -469,7 +466,7 @@ export const mockDashboards: Record<PrototypeRole, RoleDashboardViewModel> = {
   },
   'Monitoring and Evaluation Officer': {
     role: 'Monitoring and Evaluation Officer',
-    greetingName: 'Monitoring and Evaluation Officer Demo',
+    greetingName: 'Monitoring and Evaluation Officer',
     heading: 'Monitoring and Evaluation Officer dashboard',
     summary: 'Alert review, proof queues, evaluation snapshots, and imported dataset status.',
     metrics: [
@@ -530,8 +527,7 @@ export const mockDashboards: Record<PrototypeRole, RoleDashboardViewModel> = {
               label: 'Preview Flag',
               kind: 'dialog',
               dialogTitle: 'Flag alert',
-              dialogDescription:
-                'This demonstration records the flag in your current browser session only.',
+              dialogDescription: 'Record a flag for follow-up by the responsible project team.',
             },
           },
         ],
@@ -555,8 +551,7 @@ export const mockDashboards: Record<PrototypeRole, RoleDashboardViewModel> = {
               label: 'Review',
               kind: 'dialog',
               dialogTitle: 'Proof review',
-              dialogDescription:
-                'This demonstration shows evidence details only. Approved private media storage will be connected during production development.',
+              dialogDescription: 'Review the submitted evidence details and record the outcome.',
             },
           },
           {
@@ -574,7 +569,7 @@ export const mockDashboards: Record<PrototypeRole, RoleDashboardViewModel> = {
   },
   'Project Officer': {
     role: 'Project Officer',
-    greetingName: 'Project Officer Demo',
+    greetingName: 'Project Officer',
     heading: 'Project Officer dashboard',
     summary: 'Assigned activities, attention notices, and recent submission status.',
     metrics: [
@@ -582,7 +577,7 @@ export const mockDashboards: Record<PrototypeRole, RoleDashboardViewModel> = {
         id: 'assigned-activities',
         label: 'Assigned activities',
         value: 7,
-        helperText: 'Activities assigned to prototype officer',
+        helperText: 'Activities assigned to the current officer',
         severity: 'info',
       },
       {
@@ -603,7 +598,7 @@ export const mockDashboards: Record<PrototypeRole, RoleDashboardViewModel> = {
         id: 'submissions-month',
         label: 'Submissions this month',
         value: 14,
-        helperText: 'Prototype activity updates',
+        helperText: 'Activity updates recorded this month',
         severity: 'success',
       },
     ],
@@ -644,7 +639,7 @@ export const mockDashboards: Record<PrototypeRole, RoleDashboardViewModel> = {
               kind: 'dialog',
               dialogTitle: 'Completed orientation summary',
               dialogDescription:
-                'This demonstration summarizes the completed activity and its accepted prototype proof.',
+                'Review the completed activity and its accepted supporting evidence.',
             },
           },
         ],
@@ -666,8 +661,7 @@ export const mockDashboards: Record<PrototypeRole, RoleDashboardViewModel> = {
               label: 'Preview Resolution',
               kind: 'dialog',
               dialogTitle: 'Resolve flagged proof',
-              dialogDescription:
-                'This demonstration does not upload files. Approved private media storage will be connected during production development.',
+              dialogDescription: 'Review the flagged evidence and record the resolution.',
             },
           },
           {
@@ -684,10 +678,9 @@ export const mockDashboards: Record<PrototypeRole, RoleDashboardViewModel> = {
   },
   'System Administrator': {
     role: 'System Administrator',
-    greetingName: 'System Administrator Demo',
+    greetingName: 'System Administrator',
     heading: 'System Administrator dashboard',
-    summary:
-      'Review prototype users, approved page headings, alert rules, and production-planning notes.',
+    summary: 'Review users, approved page headings, alert rules, and administrative records.',
     primaryAction: {
       id: 'open-user-management',
       label: 'Manage Users',
@@ -697,7 +690,7 @@ export const mockDashboards: Record<PrototypeRole, RoleDashboardViewModel> = {
     metrics: [
       {
         id: 'prototype-users',
-        label: 'Prototype users',
+        label: 'User accounts',
         value: 7,
         helperText: 'Six active and one invited account',
         severity: 'info',
@@ -708,13 +701,6 @@ export const mockDashboards: Record<PrototypeRole, RoleDashboardViewModel> = {
         value: 6,
         helperText: 'Display-only role assignment options',
         severity: 'success',
-      },
-      {
-        id: 'production-connections',
-        label: 'Production connections',
-        value: 'Planned',
-        helperText: 'Account controls are not connected yet',
-        severity: 'warning',
       },
       {
         id: 'sample-data',
@@ -728,7 +714,7 @@ export const mockDashboards: Record<PrototypeRole, RoleDashboardViewModel> = {
       {
         id: 'administration-tools',
         title: 'Administration',
-        description: 'Clear entry points for prototype-only administration tasks.',
+        description: 'User, label, and alert-rule administration.',
         viewAllHref: '/settings/users',
         viewAllLabel: 'Open user management',
         items: [
@@ -736,7 +722,7 @@ export const mockDashboards: Record<PrototypeRole, RoleDashboardViewModel> = {
             id: 'user-management-ready',
             title: 'User Management',
             description: 'Review users, roles, account status, and temporary account actions.',
-            meta: 'Prototype configuration',
+            meta: 'Account administration',
             status: 'Available',
             severity: 'success',
             href: '/settings/users',
@@ -744,8 +730,8 @@ export const mockDashboards: Record<PrototypeRole, RoleDashboardViewModel> = {
           {
             id: 'edit-page-headings',
             title: 'Edit Labels',
-            description: 'Edit the approved page headings saved in this browser.',
-            meta: 'Prototype configuration',
+            description: 'Edit approved page headings.',
+            meta: 'Interface configuration',
             status: 'Available',
             severity: 'success',
             href: '/settings/labels',
@@ -759,15 +745,6 @@ export const mockDashboards: Record<PrototypeRole, RoleDashboardViewModel> = {
             severity: 'success',
             href: '/alerts/repository',
           },
-          {
-            id: 'prototype-boundary',
-            title: 'Production access controls',
-            description:
-              'The production system will securely verify identities, roles, and account actions.',
-            meta: 'Production planning note',
-            status: 'Documented',
-            severity: 'info',
-          },
         ],
       },
     ],
@@ -776,10 +753,9 @@ export const mockDashboards: Record<PrototypeRole, RoleDashboardViewModel> = {
 
 export const fallbackDashboard: RoleDashboardViewModel = {
   role: 'Program Manager',
-  greetingName: 'Prototype User',
+  greetingName: 'User',
   heading: 'Dashboard unavailable for selected role',
-  summary:
-    'The selected role is not recognized. Choose a supported Prototype Role Preview option to continue.',
+  summary: 'The selected role is not recognized. Sign in with a supported account to continue.',
   metrics: [],
   sections: [
     {

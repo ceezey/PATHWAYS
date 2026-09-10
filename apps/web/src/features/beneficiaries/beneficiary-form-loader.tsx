@@ -62,7 +62,7 @@ export const BeneficiaryFormLoader = ({ beneficiaryId }: { beneficiaryId?: strin
   if (loadState === 'loading') {
     return (
       <AsyncState
-        description="Loading the project choices assigned to this prototype role."
+        description="Loading the projects available to this account."
         icon={FolderLock}
         status="loading"
         title="Loading assigned projects"
@@ -78,7 +78,7 @@ export const BeneficiaryFormLoader = ({ beneficiaryId }: { beneficiaryId?: strin
           description={
             restricted
               ? 'This beneficiary profile is outside the projects assigned to the current role.'
-              : 'This beneficiary profile is not available in the current demo data.'
+              : 'This beneficiary profile is not available.'
           }
           icon={FolderLock}
           status="empty"
@@ -107,7 +107,7 @@ export const BeneficiaryFormLoader = ({ beneficiaryId }: { beneficiaryId?: strin
     return (
       <div className="space-y-4 rounded-lg border border-border bg-card p-8 text-center">
         <AsyncState
-          description="No projects are assigned to this prototype role, so a Beneficiary enrollment preview cannot be started."
+          description="No projects are assigned to this account, so a beneficiary enrollment cannot be started."
           icon={FolderLock}
           status="empty"
           title="No assigned projects available"

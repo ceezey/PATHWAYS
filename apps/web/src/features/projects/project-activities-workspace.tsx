@@ -519,7 +519,7 @@ export const ProjectActivitiesWorkspace = ({
   if (loading) {
     return (
       <AsyncState
-        description="Loading the project workspace and activities."
+        description="Loading project activities."
         icon={Loader2}
         status="loading"
         title="Loading activities"
@@ -531,9 +531,8 @@ export const ProjectActivitiesWorkspace = ({
     return (
       <>
         <PageHeader
-          eyebrow={labels.projectWorkspace}
           title="Workspace unavailable"
-          description="This project workspace is not available in the current prototype session."
+          description="This project is currently unavailable."
           actions={
             <Button asChild variant="outline">
               <Link href="/projects">Back to Projects</Link>
@@ -541,7 +540,7 @@ export const ProjectActivitiesWorkspace = ({
           }
         />
         <AsyncState
-          description="The project workspace could not be loaded. Check your connection and try again."
+          description="The project could not be loaded. Check your connection and try again."
           icon={LayoutGrid}
           onRetry={() => setLoadAttempt((attempt) => attempt + 1)}
           status="error"
@@ -555,9 +554,8 @@ export const ProjectActivitiesWorkspace = ({
     return (
       <>
         <PageHeader
-          eyebrow={labels.projectWorkspace}
           title="Project not found"
-          description="This project is not available in the current prototype session."
+          description="This project is not available to the current account."
           actions={
             <Button asChild variant="outline">
               <Link href="/projects">Back to Projects</Link>
@@ -568,7 +566,7 @@ export const ProjectActivitiesWorkspace = ({
           description="Return to the project directory and choose an available project."
           icon={LayoutGrid}
           status="empty"
-          title="No project workspace"
+          title="Project unavailable"
         />
       </>
     )
@@ -577,9 +575,7 @@ export const ProjectActivitiesWorkspace = ({
   return (
     <>
       <PageHeader
-        eyebrow={labels.projectWorkspace}
         title={labels.projectActivities}
-        description="Plan, review, and update project activities."
         actions={
           <Button asChild className="gap-2" variant="outline">
             <Link href="/projects">

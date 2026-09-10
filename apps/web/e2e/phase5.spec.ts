@@ -82,7 +82,7 @@ test.describe('Phase 5 public and authentication contract', () => {
     }
 
     await seedPrototypeSession(page)
-    await page.goto('/projects/futuremakers-ncr/transparency/preview')
+    await page.goto('/transparency/futuremakers-ncr/preview')
     await expect(page.getByRole('main')).toHaveCount(1)
     await expect(page.getByText('Staff-only prototype preview.')).toBeVisible()
     await expect(page.getByRole('button', { name: 'Edit staff preview' })).toBeVisible()

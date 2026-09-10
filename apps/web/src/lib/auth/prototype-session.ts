@@ -55,7 +55,7 @@ export const clearPrototypeSession = () => {
     action: 'logout',
     module: 'accounts',
     outcome: 'Success',
-    details: 'Local session ended.',
+    details: 'Session ended.',
   })
   state.session = null
   commitDemo(state)

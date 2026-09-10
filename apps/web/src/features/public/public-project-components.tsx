@@ -33,8 +33,7 @@ const MaintenanceNotice = () => (
     <Wrench className="mx-auto h-8 w-8" />
     <h1 className="mt-4 text-2xl font-semibold">Public tracker temporarily unavailable</h1>
     <p className="mt-2">
-      The demonstration is in its maintenance scenario. No login is required; clear the scenario
-      from staff review controls to restore the approved public view.
+      Public project information is temporarily unavailable. Please try again later.
     </p>
   </div>
 )
@@ -52,7 +51,7 @@ export const PublicHomeDashboard = ({
             <StatusBadge tone="success">Approved public project information</StatusBadge>
             <div className="space-y-3">
               <h1 className="text-4xl font-semibold tracking-tight text-foreground sm:text-5xl">
-                PATHWAYS Public Project Dashboard
+                PATHWAYS Public Projects
               </h1>
               <p className="max-w-2xl text-base leading-7 text-muted-foreground">
                 Browse HDO project summaries, selected indicators, milestones, and accomplishments
@@ -116,8 +115,7 @@ export const PublicProjectsList = ({ projects: fallback }: { projects: PublicPro
     <div className="bg-surface-subtle">
       <section className="border-b border-border bg-background">
         <div className="mx-auto w-full max-w-6xl space-y-3 px-4 py-10 sm:px-6 sm:py-14">
-          <p className="text-xs font-semibold uppercase text-primary">Public Programs Dashboard</p>
-          <h1 className="text-4xl font-semibold tracking-tight text-foreground">Projects</h1>
+          <h1 className="text-4xl font-semibold tracking-tight text-foreground">Public projects</h1>
           <p className="max-w-3xl text-base leading-7 text-muted-foreground">
             These pages share approved, non-sensitive project information for public review.
           </p>

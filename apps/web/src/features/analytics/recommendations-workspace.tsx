@@ -198,7 +198,7 @@ const RecommendationsWorkspaceContent = ({
       setOutcomeOpen(false)
       toast.success('Recommendation outcome saved and linked alert updated.', {
         description:
-          'Named demo recipients received an in-app notification and the transition was audited.',
+          'Named recipients received an in-app notification and the transition was audited.',
       })
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Outcome could not be saved.')

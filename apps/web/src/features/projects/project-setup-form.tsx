@@ -9,7 +9,7 @@ import { useForm } from 'react-hook-form'
 import { toast } from 'sonner'
 
 import { PageHeader } from '@/components/layout/page-header'
-import { SectionCard, StatusBadge } from '@/components/pathways'
+import { SectionCard } from '@/components/pathways'
 import { Button } from '@/components/ui/button'
 import {
   Form,
@@ -216,7 +216,7 @@ export const ProjectSetupForm = ({ projectId }: { projectId?: string }) => {
       <PageHeader
         eyebrow="Project setup"
         title={projectId ? 'Edit project profile' : 'Create project'}
-        description="Create a temporary project record saved in this browser on this device."
+        description="Create the project profile, delivery period, budget, and team assignments."
         actions={
           <Button asChild className="gap-2" variant="outline">
             <Link href="/projects">
@@ -232,13 +232,12 @@ export const ProjectSetupForm = ({ projectId }: { projectId?: string }) => {
           aria-live="polite"
           className="mb-4 block rounded-sm border border-info/25 bg-info-subtle p-3 text-sm text-info"
         >
-          Recovered your unsaved project draft from this browser tab.
+          Recovered your unsaved project draft.
         </output>
       ) : null}
       <SectionCard
         title="Project information"
-        description="Required fields are validated before the temporary project is created."
-        actions={<StatusBadge tone="info">Prototype only</StatusBadge>}
+        description="Required fields are validated before the project is saved."
       >
         <Form {...form}>
           <form className="space-y-6" onSubmit={form.handleSubmit(onSubmit)}>
@@ -379,7 +378,7 @@ export const ProjectSetupForm = ({ projectId }: { projectId?: string }) => {
               <div>
                 <h2 className="text-lg font-semibold text-foreground">Project team</h2>
                 <p className="mt-1 text-sm text-muted-foreground">
-                  Names are prototype labels and do not create user accounts.
+                  Assigned names identify the project team and do not create user accounts.
                 </p>
               </div>
               <ProjectTeamSelectors

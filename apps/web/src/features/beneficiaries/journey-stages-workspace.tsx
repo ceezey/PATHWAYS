@@ -83,16 +83,16 @@ export const JourneyStagesWorkspace = ({
       id: `stage-prototype-${Date.now().toString(36)}`,
       projectId: project.id,
       code: `J${nextOrder}`,
-      name: 'New prototype stage',
+      name: 'New journey stage',
       order: nextOrder,
       type: 'Core',
       terminal: false,
       mappedActivityIds: [],
-      description: 'Draft stage created in the local prototype.',
+      description: 'Draft journey stage.',
     }
     setStages((current) => [...current, nextStage])
     setSelectedStageId(nextStage.id)
-    toast.info('Prototype stage added.')
+    toast.info('Journey stage added.')
   }
 
   const toggleActivity = (activityId: string) => {
@@ -111,7 +111,7 @@ export const JourneyStagesWorkspace = ({
     try {
       saveJourneyStages(project.id, stages)
       setSaveOpen(false)
-      toast.success('Journey-stage configuration saved to demo data.')
+      toast.success('Journey-stage configuration saved.')
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Journey stages could not be saved.')
     }
@@ -375,13 +375,12 @@ export const JourneyStagesWorkspace = ({
           <DialogHeader>
             <DialogTitle>Save journey-stage configuration</DialogTitle>
             <DialogDescription>
-              Confirm these changes for the current browser session. Shared project records are not
-              changed.
+              Confirm this journey-stage configuration. Other project records are not changed.
             </DialogDescription>
           </DialogHeader>
           <div className="rounded-sm border border-border bg-surface-subtle p-4 text-sm">
             <p className="font-medium text-foreground">{project.title}</p>
-            <p className="mt-1 text-muted-foreground">{stages.length} stages configured locally.</p>
+            <p className="mt-1 text-muted-foreground">{stages.length} stages configured.</p>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setSaveOpen(false)}>

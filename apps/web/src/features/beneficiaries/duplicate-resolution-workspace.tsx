@@ -119,8 +119,8 @@ export const DuplicateResolutionWorkspace = () => {
       resolveDuplicate(selected.leftId, selected.rightId, decision)
       setNotice(
         decision === 'link'
-          ? 'Profiles merged in browser-local demo data; linked enrollments and history were retained.'
-          : 'Profiles marked distinct; the review decision was added to local history.',
+          ? 'Profiles merged; linked enrollments and history were retained.'
+          : 'Profiles marked distinct; the review decision was added to the history.',
       )
       setDecision(null)
     } catch (error) {
@@ -145,8 +145,8 @@ export const DuplicateResolutionWorkspace = () => {
       />
 
       <div className="rounded-lg border border-warning/25 bg-warning-subtle px-4 py-3 text-sm leading-6 text-warning">
-        This workspace uses fictional profiles. Project Managers may merge profiles; other allowed
-        beneficiary roles can inspect the queue and flag a match for management review.
+        Project Managers may merge profiles; other authorized beneficiary roles can inspect the
+        queue and flag a match for management review.
       </div>
 
       {notice ? (
@@ -247,8 +247,8 @@ export const DuplicateResolutionWorkspace = () => {
             </DialogTitle>
             <DialogDescription>
               {decision === 'link'
-                ? 'The right profile will be merged into the existing profile. Enrollments, participation, assessments, and notes are retained; this demo action is audited.'
-                : 'Both profiles will remain and the reviewed decision will be retained in browser-local history.'}
+                ? 'The right profile will be merged into the existing profile. Enrollments, participation, assessments, and notes are retained, and the action is audited.'
+                : 'Both profiles will remain and the reviewed decision will be retained in history.'}
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>

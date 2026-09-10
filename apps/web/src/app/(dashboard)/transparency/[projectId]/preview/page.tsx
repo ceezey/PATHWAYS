@@ -24,16 +24,14 @@ export default async function StaffPublicProjectPreviewPage({
       return (
         <>
           <PageHeader
-            eyebrow="Public Project Dashboard"
+            eyebrow="Public Tracker"
             title="Public preview unavailable"
-            description="This project does not yet have an approved public prototype record."
+            description="This project does not yet have an approved public record."
           />
           <EmptyState
             action={
               <Button asChild variant="outline">
-                <Link href={`/projects/${projectId}/transparency`}>
-                  Back to public dashboard controls
-                </Link>
+                <Link href="/transparency">Back to Public Tracker</Link>
               </Button>
             }
             className="min-h-80 rounded-lg border border-border bg-card"

@@ -40,11 +40,6 @@ const createWorkspaceTabs = (labels: PrototypeLabels): WorkspaceTabAccess[] => [
     path: 'journey-stages',
     anyPermissions: ['activities.create_edit', 'monitor_evaluate.full'],
   },
-  {
-    label: labels.projectPublicDashboard,
-    path: 'transparency',
-    anyPermissions: ['transparency.preview', 'transparency.publish'],
-  },
 ]
 
 export const ProjectWorkspaceHeader = ({ project }: { project: ProjectDetail }) => {
@@ -102,7 +97,7 @@ export const ProjectWorkspaceHeader = ({ project }: { project: ProjectDetail }) 
       </div>
       <nav
         className="mt-5 flex w-full max-w-full gap-2 overflow-x-auto pb-1"
-        aria-label={labels.projectWorkspace}
+        aria-label="Project navigation"
       >
         {visibleTabs.map((tab) => {
           const href = tab.path ? `/projects/${project.id}/${tab.path}` : `/projects/${project.id}`

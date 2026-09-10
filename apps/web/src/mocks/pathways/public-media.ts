@@ -6,9 +6,9 @@ export const mockApprovedPublicMedia: PublicBeneficiaryMediaRecord[] = [
     projectId: 'futuremakers-ncr',
     mediaType: 'Photo',
     src: '/media/futuremakers-skills-workshop.png',
-    alt: 'A fictional group of adult learners taking part in a facilitated skills workshop.',
+    alt: 'A group of adult learners taking part in a facilitated skills workshop.',
     caption:
-      'A facilitated skills workshop represented with synthetic mock media for this public prototype.',
+      'A facilitated skills workshop with participants completing guided activities.',
     contextLabel: 'Skills workshop',
     approvalState: 'Approved for public presentation',
     consentScope: 'Public project storytelling',
@@ -19,9 +19,9 @@ export const mockApprovedPublicMedia: PublicBeneficiaryMediaRecord[] = [
     projectId: 'youth-rise-western-samar',
     mediaType: 'Photo',
     src: '/media/youth-rise-learning-site.png',
-    alt: 'Two fictional adult staff members preparing a community learning site.',
+    alt: 'Two adult staff members preparing a community learning site.',
     caption:
-      'A community learning site prepared for scheduled activities, represented with synthetic mock media.',
+      'A community learning site prepared for scheduled activities.',
     contextLabel: 'Learning-site readiness',
     approvalState: 'Approved for public presentation',
     consentScope: 'Public project storytelling',

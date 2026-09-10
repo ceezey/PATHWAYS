@@ -25,7 +25,7 @@ describe('login validation', () => {
         id: 'grant-manager',
         role: 'Grant Manager',
         username: 'grant.manager',
-        email: 'grant.manager@demo.pathways.local',
+        email: 'grant.manager@pathways.example',
       }),
     )
   })

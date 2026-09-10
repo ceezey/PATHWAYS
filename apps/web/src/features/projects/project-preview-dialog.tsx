@@ -36,9 +36,6 @@ export const ProjectPreviewDialog = ({
           <div className="flex flex-wrap gap-2">
             <StatusBadge tone={projectStatusTone(project.status)}>{project.status}</StatusBadge>
             <StatusBadge tone={projectHealthTone(project.health)}>{project.health}</StatusBadge>
-            {project.createdInPrototype ? (
-              <StatusBadge tone="info">Prototype record</StatusBadge>
-            ) : null}
           </div>
           <dl className="grid gap-3 text-sm sm:grid-cols-2">
             <div>

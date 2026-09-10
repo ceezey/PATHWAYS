@@ -84,7 +84,7 @@ export const BeneficiaryDirectoryLoader = () => {
   if (loading) {
     return (
       <AsyncState
-        description="Loading the Beneficiary records available to this prototype role."
+        description="Loading the beneficiary records available to this account."
         icon={UsersRound}
         status="loading"
         title="Loading Beneficiary records"

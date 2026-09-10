@@ -207,12 +207,12 @@ export const UserManagementWorkspace = ({
     if (
       users.some((user) => user.email.toLocaleLowerCase() === email && user.id !== editor.userId)
     ) {
-      setEditorError('That email already belongs to another prototype user.')
+      setEditorError('That email already belongs to another user.')
       return
     }
 
     if (!manageableRoles.includes(editor.role)) {
-      setEditorError('That target role is not available to your current prototype role.')
+      setEditorError('That target role is not available to your current role.')
       return
     }
 
@@ -239,7 +239,7 @@ export const UserManagementWorkspace = ({
       )
       toast.success(
         editor.mode === 'create'
-          ? 'Demo account created. Authorize it to enable sign-in.'
+          ? 'Account created. Authorize it to enable sign-in.'
           : 'Account updated. Permissions apply immediately.',
       )
     } catch (error) {
@@ -255,7 +255,7 @@ export const UserManagementWorkspace = ({
     try {
       deactivateDemoAccount(deactivateUser.id)
       setDeactivateUserId(null)
-      toast.success('Account deactivated. Local sign-in revoked.')
+      toast.success('Account deactivated. Sign-in access revoked.')
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Deactivation failed.')
     }
@@ -263,7 +263,7 @@ export const UserManagementWorkspace = ({
   const reactivate = (user: UserRecord) => {
     try {
       authorizeDemoAccount(user.id)
-      toast.success('Account authorized. Local sign-in is active.')
+      toast.success('Account authorized. Sign-in access is active.')
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Authorization failed.')
     }
@@ -279,10 +279,9 @@ export const UserManagementWorkspace = ({
       <PageHeader
         eyebrow="Administration"
         title={labels.moduleUserManagement}
-        description="Review prototype users, role assignments, account status, and access-scope labels in one place."
+        description={administrationSummary}
         actions={
           <div className="flex flex-wrap items-center gap-2">
-            <StatusBadge tone="info">Prototype only</StatusBadge>
             {canCreateUsers ? (
               <Button className="gap-2" onClick={openCreate} size="sm" type="button">
                 <Plus className="h-4 w-4" aria-hidden="true" />
@@ -292,22 +291,6 @@ export const UserManagementWorkspace = ({
           </div>
         }
       />
-
-      <section
-        aria-label="Prototype administration notice"
-        className="rounded-sm border border-info/25 bg-info-subtle p-4 text-sm leading-6 text-info"
-      >
-        <div className="flex items-start gap-3">
-          <ShieldCheck className="mt-1 h-4 w-4 shrink-0" aria-hidden="true" />
-          <div>
-            <p className="font-medium">{administrationSummary}</p>
-            <p className="mt-1">
-              Demo data: account changes affect local sign-in and assigned project access
-              immediately. Credentials and notices are fictional and never sent externally.
-            </p>
-          </div>
-        </div>
-      </section>
 
       <section
         aria-label="User account summary"
@@ -322,7 +305,7 @@ export const UserManagementWorkspace = ({
       <section className="grid min-w-0 gap-4 xl:grid-cols-[minmax(0,1fr)_340px]">
         <SectionCard
           title="User accounts"
-          description="Search the prototype directory. Actions are available only for roles and projects inside your authority."
+          description="Search accounts within your administrative authority."
           actions={<StatusBadge tone="neutral">{filteredUsers.length} shown</StatusBadge>}
         >
           <div className="mb-4 grid gap-3 sm:grid-cols-[minmax(0,1fr)_180px]">
@@ -338,7 +321,7 @@ export const UserManagementWorkspace = ({
                 placeholder="Search users, roles, or projects"
                 value={query}
               />
-              <span className="sr-only">Search prototype users</span>
+              <span className="sr-only">Search users</span>
             </label>
             <Select
               onValueChange={(value) => setStatusFilter(value as UserStatusFilter)}
@@ -359,7 +342,7 @@ export const UserManagementWorkspace = ({
           {filteredUsers.length > 0 ? (
             <ul
               className="divide-y divide-border rounded-lg border border-border"
-              aria-label="Prototype users"
+              aria-label="User accounts"
             >
               {filteredUsers.map((user) => (
                 <UserAccountRow
@@ -371,7 +354,7 @@ export const UserManagementWorkspace = ({
                   unavailableReason={
                     canManageUserRecord(actorRole, user)
                       ? undefined
-                      : 'Your current prototype role cannot authorize this account or its project scope.'
+                      : 'Your current role cannot authorize this account or its project scope.'
                   }
                   user={user}
                 />
@@ -386,7 +369,7 @@ export const UserManagementWorkspace = ({
               }
               description="Try a different name, email, role, project, or account state."
               icon={Search}
-              title="No prototype users match"
+              title="No users match"
             />
           )}
         </SectionCard>
@@ -394,7 +377,7 @@ export const UserManagementWorkspace = ({
         <aside className="space-y-4" aria-label="Role profiles and administration links">
           <SectionCard
             title="Role profiles"
-            description="Plain-language role assignment options shown in the prototype."
+            description="Role assignment options and their responsibilities."
           >
             <div className="space-y-3">
               {prototypeRoleSummaries.map((summary) => {
@@ -420,12 +403,9 @@ export const UserManagementWorkspace = ({
                 )
               })}
             </div>
-            <p className="mt-4 text-xs leading-5 text-muted-foreground">
-              These descriptions support client review only. They do not change real account access.
-            </p>
           </SectionCard>
 
-          <SectionCard title="Administration links" description="Related prototype configuration.">
+          <SectionCard title="Administration links" description="Related configuration.">
             <div className="grid gap-2">
               {can(actorRole, 'settings.view') ? (
                 <Button asChild className="justify-start" variant="outline">
@@ -467,21 +447,17 @@ export const UserManagementWorkspace = ({
         {deactivateUser ? (
           <DialogContent>
             <DialogHeader>
-              <DialogTitle>Deactivate prototype account?</DialogTitle>
+              <DialogTitle>Deactivate account?</DialogTitle>
               <DialogDescription>
-                {deactivateUser.name} will appear as deactivated on this page. The current session,
-                navigation, and any real account remain unchanged.
+                {deactivateUser.name} will lose sign-in access until the account is authorized again.
               </DialogDescription>
             </DialogHeader>
-            <div className="rounded-sm border border-warning/30 bg-warning-subtle p-3 text-sm leading-6 text-warning">
-              No sign-in account or access rule will be changed.
-            </div>
             <DialogFooter>
               <Button onClick={() => setDeactivateUserId(null)} type="button" variant="outline">
                 Cancel
               </Button>
               <Button onClick={deactivate} type="button" variant="destructive">
-                Deactivate locally
+                Deactivate account
               </Button>
             </DialogFooter>
           </DialogContent>
@@ -578,7 +554,7 @@ const UserAccountRow = ({
             <DropdownMenuLabel>Account actions</DropdownMenuLabel>
             <DropdownMenuItem onSelect={onEdit}>
               <Pencil className="mr-2 h-4 w-4" aria-hidden="true" />
-              Edit prototype user
+              Edit user
             </DropdownMenuItem>
             <DropdownMenuSeparator />
             {user.accountStatus !== 'Active' ? (
@@ -589,7 +565,7 @@ const UserAccountRow = ({
             ) : (
               <DropdownMenuItem className="text-destructive" onSelect={onDeactivate}>
                 <UserX className="mr-2 h-4 w-4" aria-hidden="true" />
-                Deactivate locally
+                Deactivate account
               </DropdownMenuItem>
             )}
           </DropdownMenuContent>
@@ -621,13 +597,12 @@ const UserEditorDialog = ({
       <DialogContent className="max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>
-            {editor.mode === 'create' ? 'Create prototype user' : 'Edit prototype user'}
+            {editor.mode === 'create' ? 'Create user' : 'Edit user'}
           </DialogTitle>
           <DialogDescription>
             {editor.mode === 'create'
-              ? 'Add an invited account to this page for client review.'
-              : 'Update this account record locally for client review.'}{' '}
-            Changes stay in this browser; nothing is added to a shared account directory.
+              ? 'Add an invited account and assign its role and project access.'
+              : 'Update this account record, role, and project access.'}
           </DialogDescription>
         </DialogHeader>
 
@@ -683,8 +658,8 @@ const UserEditorDialog = ({
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="Prototype password">Prototype password</SelectItem>
-                <SelectItem value="SSO placeholder">SSO placeholder</SelectItem>
+                <SelectItem value="Prototype password">Password</SelectItem>
+                <SelectItem value="SSO placeholder">Single sign-on (SSO)</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -696,7 +671,7 @@ const UserEditorDialog = ({
                 {editor.role === 'Monitoring and Evaluation Officer'
                   ? ' Multiple projects may be selected.'
                   : ''}{' '}
-                Saving updates the browser-local scoped preview for this role.
+                Changes apply when the account is saved.
               </p>
               {projects.length > 0 ? (
                 <div className="grid gap-2 rounded-sm border border-border bg-surface-subtle p-3">
@@ -759,7 +734,7 @@ const UserEditorDialog = ({
             Cancel
           </Button>
           <Button onClick={onSave} type="button">
-            {editor.mode === 'create' ? 'Create locally' : 'Save local changes'}
+            {editor.mode === 'create' ? 'Create account' : 'Save changes'}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -772,7 +747,7 @@ const UserDetailDialog = ({ onClose, user }: { onClose: () => void; user?: UserR
     {user ? (
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Prototype account details</DialogTitle>
+          <DialogTitle>Account details</DialogTitle>
           <DialogDescription>
             Review account information without opening an editing workflow.
           </DialogDescription>
@@ -797,7 +772,11 @@ const UserDetailDialog = ({ onClose, user }: { onClose: () => void; user?: UserR
             label="Role"
             value={getPrototypeRoleDisplayName(user.role)}
           />
-          <DetailItem icon={KeyRound} label="Sign-in method" value={user.signInMethod} />
+          <DetailItem
+            icon={KeyRound}
+            label="Sign-in method"
+            value={user.signInMethod === 'Prototype password' ? 'Password' : 'Single sign-on (SSO)'}
+          />
           <DetailItem
             icon={Building2}
             label="Access labels"
@@ -809,10 +788,6 @@ const UserDetailDialog = ({ onClose, user }: { onClose: () => void; user?: UserR
             value={formatAccountDate(user.lastActiveAt)}
           />
         </dl>
-        <p className="text-xs leading-5 text-muted-foreground">
-          These are safe sample accounts. Secure sign-in, invitation delivery, and enforced roles
-          remain part of production planning.
-        </p>
         <DialogFooter>
           <Button onClick={onClose} type="button">
             Close

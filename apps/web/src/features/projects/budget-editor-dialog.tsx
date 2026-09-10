@@ -76,9 +76,7 @@ export const BudgetEditorDialog = ({
       })
       onSaved(updated)
       setOpen(false)
-      toast.success('Planned allocation updated.', {
-        description: 'The prototype value was saved in this browser on this device.',
-      })
+      toast.success('Planned allocation updated.')
     } catch {
       setSaveError('The planned allocation could not be saved. Check the value and try again.')
     }
@@ -125,8 +123,7 @@ export const BudgetEditorDialog = ({
                     />
                   </FormControl>
                   <FormDescription>
-                    Enter a whole amount in Philippine pesos. Planned allocation changes are saved
-                    in this browser for this prototype.
+                    Enter a whole amount in Philippine pesos.
                   </FormDescription>
                   <FormMessage />
                 </FormItem>

@@ -22,7 +22,7 @@ export const publicDashboardSections: ReadonlyArray<{
   {
     id: 'media',
     label: 'Approved project media',
-    description: 'Safe, non-identifying mock media approved for public presentation',
+    description: 'Approved, non-identifying media for public presentation',
   },
   {
     id: 'progress',

@@ -133,7 +133,7 @@ export const BeneficiaryDetailLoader = ({ beneficiaryId }: { beneficiaryId: stri
         <AsyncState
           description={
             restricted
-              ? 'This record is outside the projects assigned to the current prototype role. No Beneficiary details or media were loaded.'
+              ? 'This record is outside the projects assigned to the current account. No beneficiary details or media were loaded.'
               : 'This Beneficiary record is not available in the current safe sample data.'
           }
           icon={restricted ? ShieldAlert : UserRoundX}

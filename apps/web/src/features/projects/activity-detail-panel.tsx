@@ -62,7 +62,6 @@ export const ActivityDetailContent = ({
       ) : (
         <StatusBadge tone={activityStatusTone(activity.status)}>{activity.status}</StatusBadge>
       )}
-      <StatusBadge tone="info">Prototype activity</StatusBadge>
     </div>
     <p className="text-sm leading-6 text-muted-foreground">{activity.description}</p>
     <ProgressBar

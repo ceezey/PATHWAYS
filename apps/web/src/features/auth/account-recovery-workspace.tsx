@@ -1,7 +1,7 @@
 'use client'
 
 import { zodResolver } from '@hookform/resolvers/zod'
-import { CheckCircle2, Mail } from 'lucide-react'
+import { CheckCircle2 } from 'lucide-react'
 import Link from 'next/link'
 import { useState } from 'react'
 import { useForm } from 'react-hook-form'
@@ -49,17 +49,13 @@ export const AccountRecoveryWorkspace = () => {
               </div>
             </div>
           </output>
-          <p className="text-sm leading-6 text-muted-foreground">
-            Demo data: no email is sent. Local reset links are available in the separate fictional
-            inbox for review.
-          </p>
           <div className="flex flex-col gap-3 sm:flex-row">
             <Button asChild className="sm:flex-1" variant="outline">
               <Link href="/staff/login">Return to sign in</Link>
             </Button>
             {webSetupState.guiPrototypeModeEnabled ? (
               <Button asChild className="sm:flex-1">
-                <Link href="/review/demo-controls">Open fictional demo inbox</Link>
+                <Link href="/review/demo-controls">Open recovery inbox</Link>
               </Button>
             ) : null}
           </div>
@@ -106,15 +102,6 @@ export const AccountRecoveryWorkspace = () => {
                 </FormItem>
               )}
             />
-            <div className="rounded-md border border-primary/20 bg-primary-subtle p-3 text-sm leading-6 text-light-blue-foreground">
-              <span className="inline-flex items-center gap-2 font-semibold">
-                <Mail className="h-4 w-4" aria-hidden="true" />
-                Demo data
-              </span>
-              <p className="mt-1">
-                Recovery changes only browser-local fictional credentials. No email is sent.
-              </p>
-            </div>
             <Button className="w-full" type="submit">
               Continue
             </Button>

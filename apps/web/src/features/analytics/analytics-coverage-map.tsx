@@ -81,7 +81,7 @@ const coverageSummary = (location: AnalyticsLocationInsight) => {
     case 'Limited':
       return 'Coverage remains limited and may need a site-readiness or delivery follow-up.'
     case 'Planned':
-      return 'This location is included in the plan, but delivery has not started in this prototype view.'
+      return 'This location is included in the plan, but delivery has not started.'
   }
 }
 
@@ -111,12 +111,9 @@ export const AnalyticsCoverageMap = ({
       <div className="border-b border-border bg-surface-subtle p-5">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
           <div className="space-y-2">
-            <div className="flex flex-wrap items-center gap-2">
-              <p className="text-xs font-semibold uppercase tracking-wide text-primary">
-                Location coverage
-              </p>
-              <StatusBadge tone="neutral">Prototype map</StatusBadge>
-            </div>
+            <p className="text-xs font-semibold uppercase tracking-wide text-primary">
+              Location coverage
+            </p>
             <h2
               className="text-2xl font-semibold tracking-tight text-foreground"
               id="coverage-map-title"
@@ -128,8 +125,8 @@ export const AnalyticsCoverageMap = ({
             </p>
           </div>
           <div className="rounded-sm border border-info/25 bg-info-subtle p-3 text-sm leading-5 text-info lg:max-w-sm">
-            {period} prototype view. Points show approximate city-level locations only. Addresses
-            and Beneficiary-level locations are not shown.
+            {period}. Points show approximate city-level locations only. Addresses and
+            beneficiary-level locations are not shown.
           </div>
         </div>
       </div>
@@ -325,7 +322,7 @@ const LocationDetailsDialog = ({
         </StatusBadge>
       </div>
       <DialogDescription>
-        {location.region} · {period} prototype summary
+        {location.region} · {period}
       </DialogDescription>
     </DialogHeader>
 
@@ -361,8 +358,8 @@ const LocationDetailsDialog = ({
     </div>
 
     <div className="rounded-sm border border-info/25 bg-info-subtle p-3 text-xs leading-5 text-info">
-      Approximate city-level location. This prototype shows summary information only and does not
-      include addresses or Beneficiary-level locations.
+      Approximate city-level location. This summary does not include addresses or
+      beneficiary-level locations.
     </div>
   </DialogContent>
 )

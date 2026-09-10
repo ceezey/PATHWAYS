@@ -65,11 +65,11 @@ export const ActivityProofDialog = ({
         fileNames: files.map((file) => file.name),
       })
 
-      toast.success('Update submitted for prototype review.', {
+      toast.success('Progress update submitted.', {
         description:
           files.length > 0
-            ? `${files.length} proof file${files.length === 1 ? '' : 's'} selected locally.`
-            : 'Progress note submitted without a remote upload.',
+            ? `${files.length} proof file${files.length === 1 ? '' : 's'} selected for review.`
+            : 'Progress note submitted without an evidence file.',
       })
       onSubmitted(updatedActivity)
       onOpenChange(false)
@@ -84,7 +84,7 @@ export const ActivityProofDialog = ({
     <Dialog onOpenChange={onOpenChange} open={open}>
       <DialogShell
         title="Submit Update & Proof"
-        description="Record a prototype progress update. Files stay on this device and are not uploaded."
+        description="Record a progress update and attach supporting evidence for review."
       >
         <form
           className="space-y-5"
@@ -142,7 +142,7 @@ export const ActivityProofDialog = ({
               type="file"
             />
             <p className="text-sm text-muted-foreground">
-              Prototype status: selected on this device, not uploaded.
+              Selected for review.
             </p>
           </div>
           {files.length > 0 ? (

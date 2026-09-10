@@ -33,12 +33,12 @@ import {
 } from './project-utils'
 
 const directoryDescription = {
-  'Program Manager': 'Portfolio projects across the prototype workspace.',
+  'Program Manager': 'Projects across the assigned portfolio.',
   'Grant Manager': 'High-level grant and project portfolio summaries.',
   'Project Manager': 'Assigned projects and project setup entry point.',
   'Monitoring and Evaluation Officer': 'Projects assigned for monitoring and evaluation review.',
   'Project Officer': 'Projects with assigned field activities and implementation tasks.',
-  'System Administrator': 'All prototype projects for setup and configuration review.',
+  'System Administrator': 'All projects available for administration.',
 } as const
 
 export const ProjectDirectory = () => {
@@ -104,7 +104,6 @@ export const ProjectDirectory = () => {
   return (
     <>
       <PageHeader
-        eyebrow={labels.projectWorkspace}
         title={labels.moduleProjects}
         description={directoryDescription[role]}
         actions={
@@ -152,7 +151,7 @@ export const ProjectDirectory = () => {
       ) : null}
       {status === 'loading' ? (
         <AsyncState
-          description="Loading role-specific project records from the mock service."
+          description="Loading available project records."
           icon={FolderKanban}
           status="loading"
           title="Loading projects"
@@ -160,7 +159,7 @@ export const ProjectDirectory = () => {
       ) : null}
       {status === 'error' ? (
         <AsyncState
-          description="The project directory could not load prototype records. Check your connection and try again."
+          description="The project directory could not be loaded. Check your connection and try again."
           icon={FolderKanban}
           onRetry={() => setLoadAttempt((attempt) => attempt + 1)}
           status="error"

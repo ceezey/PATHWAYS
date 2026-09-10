@@ -37,7 +37,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { usePrototypeLabels } from '@/hooks/use-prototype-labels'
 import { usePrototypeRole } from '@/hooks/use-prototype-role'
 import {
   dashboardChartMeta,
@@ -114,7 +113,6 @@ const SavedMonitoringCharts = ({
 }) => {
   const [draggedId, setDraggedId] = useState<string>()
   const [message, setMessage] = useState('')
-  const project = demo.projects.find((record) => record.id === projectId)
   const charts = demo.dashboardCharts
     .filter((chart) => chart.projectId === projectId)
     .sort((left, right) => left.order - right.order)
@@ -142,9 +140,9 @@ const SavedMonitoringCharts = ({
     return (
       <div className="mt-6 border-t border-border pt-6">
         <EmptyState
-          description="Select one project above to view the charts saved specifically to that project."
+          description="Select a project above to view its saved charts."
           icon={BarChart3}
-          title="Choose a project dashboard"
+          title="Choose a project"
         />
       </div>
     )
@@ -155,12 +153,8 @@ const SavedMonitoringCharts = ({
       <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <h3 className="text-lg font-semibold" id="saved-charts-title">
-            Monitoring dashboard charts
+            Monitoring charts
           </h3>
-          <p className="mt-1 text-sm text-muted-foreground">
-            {project?.title} · drag cards to reorder; use the width control to fit one or two charts
-            per row. Chart height remains fixed.
-          </p>
         </div>
         <Button asChild size="sm" variant="outline">
           <Link href="/analytics">Add a chart</Link>
@@ -190,7 +184,6 @@ const SavedMonitoringCharts = ({
                 className={`overflow-hidden rounded-lg border border-border bg-background p-4 ${chart.width === 'full' ? 'lg:col-span-2' : 'lg:col-span-1'}`}
                 draggable
                 key={chart.id}
-                title="Drag this chart to rearrange the project dashboard"
                 onDragEnd={() => setDraggedId(undefined)}
                 onDragOver={(event) => {
                   if (draggedId && draggedId !== chart.id) event.preventDefault()
@@ -222,9 +215,6 @@ const SavedMonitoringCharts = ({
                       <p className="text-xs text-muted-foreground">
                         {chart.period}
                         {indicator ? ` · ${indicator.code} · ${indicator.label}` : ''}
-                      </p>
-                      <p className="mt-1 text-xs font-medium text-muted-foreground">
-                        Drag to rearrange, or use Earlier and Later.
                       </p>
                     </div>
                   </div>
@@ -355,8 +345,8 @@ const ConnectedMonitoringSnapshot = ({
       recordDemoAccess(
         'monitoring.view',
         demo.scenario === 'retrieval-failure'
-          ? 'Project monitoring retrieval failed in the selected local scenario.'
-          : 'Viewed the connected browser-local project monitoring snapshot.',
+          ? 'Project monitoring retrieval failed.'
+          : 'Viewed the project monitoring summary.',
         { outcome: demo.scenario === 'retrieval-failure' ? 'Failure' : 'Success' },
       )
     } catch {
@@ -369,7 +359,7 @@ const ConnectedMonitoringSnapshot = ({
     return (
       <EmptyState
         className="rounded-lg border border-border bg-card"
-        description="The connected monitoring summary could not be retrieved. Clear the local review scenario and retry."
+        description="The monitoring summary could not be retrieved. Try again or contact your administrator."
         icon={AlertTriangle}
         title="Monitoring data unavailable"
       />
@@ -397,13 +387,9 @@ const ConnectedMonitoringSnapshot = ({
     : 0
 
   return (
-    <SectionCard
-      title="Connected project monitoring"
-      description="Live demo data from authorized projects; expense verification, activities, participants, alerts, and reset operations update these values."
-      actions={<StatusBadge tone="info">Active scope</StatusBadge>}
-    >
-      <div className="mb-4 grid gap-3 md:grid-cols-[minmax(0,1fr)_minmax(260px,0.5fr)] md:items-end">
-        <div>
+    <SectionCard title="Project monitoring">
+      <div className="mb-4 max-w-xl">
+        <div className="space-y-1.5">
           <label className="text-sm font-medium" htmlFor="dashboard-project-scope">
             Project scope
           </label>
@@ -421,10 +407,6 @@ const ConnectedMonitoringSnapshot = ({
             </SelectContent>
           </Select>
         </div>
-        <p className="rounded-sm border border-info/25 bg-info-subtle p-3 text-sm text-info">
-          {selectedProjects.length} project{selectedProjects.length === 1 ? '' : 's'} ·
-          browser-local revision {demo.revision}
-        </p>
       </div>
       {selectedProjects.length ? (
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
@@ -459,7 +441,7 @@ const ConnectedMonitoringSnapshot = ({
         </div>
       ) : (
         <EmptyState
-          description="Choose another account or reset the demo baseline to restore authorized project data."
+          description="No projects are assigned to this account. Contact an administrator to review project access."
           icon={FolderKanban}
           title="No authorized projects"
         />
@@ -540,7 +522,6 @@ const DashboardListItem = ({
 
 export const RoleDashboard = () => {
   const router = useRouter()
-  const { labels } = usePrototypeLabels()
   const { role } = usePrototypeRole()
   const roleLabel = getPrototypeRoleDisplayName(role)
   const [dashboard, setDashboard] = useState<RoleDashboardViewModel | null>(null)
@@ -588,7 +569,7 @@ export const RoleDashboard = () => {
         <div className="flex min-h-[360px] items-center justify-center rounded-lg border border-border bg-card">
           <div className="flex items-center gap-3 text-sm text-muted-foreground">
             <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
-            Loading role-specific dashboard...
+            Loading dashboard...
           </div>
         </div>
       </>
@@ -616,40 +597,25 @@ export const RoleDashboard = () => {
   return (
     <>
       <PageHeader
-        eyebrow={labels.moduleDashboard}
-        title={dashboard.heading}
-        description={dashboard.summary}
-        actions={<StatusBadge tone="neutral">{roleLabel}</StatusBadge>}
+        actions={
+          !dashboard.executive && dashboard.primaryAction ? (
+            <ActionButton
+              action={dashboard.primaryAction}
+              onAction={handleAction}
+              variant="default"
+            />
+          ) : undefined
+        }
+        title={roleLabel}
       />
       <ConnectedMonitoringSnapshot role={role} />
       {dashboard.executive ? (
         <ExecutiveDashboard model={dashboard.executive} summaryAction={dashboard.primaryAction} />
-      ) : (
-        <section className="rounded-lg border border-border border-l-2 border-l-primary bg-card p-5">
-          <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-            <div className="space-y-1">
-              <p className="text-sm text-muted-foreground">Welcome back,</p>
-              <h2 className="font-heading text-2xl font-normal leading-8 tracking-normal text-foreground">
-                {dashboard.greetingName}
-              </h2>
-              <p className="text-base leading-6 text-muted-foreground">
-                This view highlights the work and decisions most relevant to this role.
-              </p>
-            </div>
-            {dashboard.primaryAction ? (
-              <ActionButton
-                action={dashboard.primaryAction}
-                onAction={handleAction}
-                variant="default"
-              />
-            ) : null}
-          </div>
-        </section>
-      )}
+      ) : null}
       {emptyDashboard ? (
         <EmptyState
           className="min-h-[260px] rounded-lg border border-border bg-card"
-          description="Switch to a supported prototype role to load dashboard data."
+          description="No dashboard records are available for this account."
           icon={ShieldCheck}
           title="No dashboard records"
         />
@@ -659,27 +625,16 @@ export const RoleDashboard = () => {
           {dashboard.metrics.map((metric, index) => {
             const Icon = metricIcons[index % metricIcons.length]
 
-            const metricCard = (
+            return (
               <MetricCard
                 description={metric.helperText}
+                href={metric.href}
                 icon={Icon}
                 key={metric.id}
                 label={metric.label}
                 tone={severityTone(metric.severity)}
                 value={String(metric.value)}
               />
-            )
-
-            return metric.href ? (
-              <Link
-                className="rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-                href={metric.href}
-                key={metric.id}
-              >
-                {metricCard}
-              </Link>
-            ) : (
-              <div key={metric.id}>{metricCard}</div>
             )
           })}
         </section>

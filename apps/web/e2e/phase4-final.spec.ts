@@ -21,7 +21,7 @@ async function resetAndSwitch(page: Page, accountId: string) {
   await page.goto('/review/demo-controls')
   await expect(page.getByRole('status')).toContainText('Review controls ready.', { timeout: 20000 })
   page.once('dialog', (dialog) => dialog.accept())
-  await page.getByRole('button', { name: 'Reset demo data' }).click()
+  await page.getByRole('button', { name: 'Reset review data' }).click()
   await switchAccount(page, accountId)
 }
 
@@ -124,8 +124,8 @@ test('Phase 4: connected dashboard, four analysis views, four visualizations, an
   test.setTimeout(150000)
   await resetAndSwitch(page, 'grant-manager')
   await page.goto('/dashboard')
-  await expect(page.getByRole('heading', { name: 'Connected project monitoring' })).toBeVisible()
-  await expect(page.getByText(/browser-local revision/)).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Project monitoring' })).toBeVisible()
+  await expect(page.getByText(/browser-local revision/)).toHaveCount(0)
   await page.screenshot({
     path: info.outputPath('01-connected-dashboard-desktop.png'),
     fullPage: true,
@@ -189,7 +189,7 @@ test('Phase 4: form and report downloads are real files with matching local hist
   await page.goto('/reports/project-summary')
   await page.getByRole('button', { name: 'Save report snapshot' }).first().click()
   await expect(page.getByTestId('generated-report-history')).toContainText(
-    '1 browser-local snapshot',
+    '1 report snapshot',
   )
   for (const format of ['csv', 'xlsx', 'xls', 'pdf']) {
     await page.getByRole('button', { name: 'Export' }).click()
@@ -234,7 +234,7 @@ test('Phase 4: backup/restore and publication/public projection cover distinct f
   await page.goto('/settings/backups')
   await page.getByRole('button', { name: 'Restore selected' }).click()
   await page.getByRole('button', { name: 'Confirm restore' }).click()
-  await expect(page.locator('output[aria-live="polite"]')).toContainText(/restored atomically/i)
+  await expect(page.locator('output[aria-live="polite"]')).toContainText(/Backup restored/i)
   await page.goto('/transparency')
   await expect(page.getByLabel('Public tagline')).toHaveValue(originalTagline)
 

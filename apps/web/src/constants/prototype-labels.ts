@@ -17,7 +17,6 @@ export const defaultPrototypeLabels = {
   projectMonitorEvaluate: 'Monitoring & Evaluation',
   projectBudget: 'Budget',
   projectJourneyStages: 'Journey Stages',
-  projectPublicDashboard: 'Public Project Dashboard',
 } as const
 
 export type PrototypeLabelKey = keyof typeof defaultPrototypeLabels
@@ -99,12 +98,12 @@ export const prototypeLabelGroups: PrototypeLabelGroup[] = [
       {
         key: 'moduleUserManagement',
         label: 'User Management page heading',
-        helperText: 'Heading for prototype user and role records.',
+        helperText: 'Heading for user and role records.',
       },
       {
         key: 'moduleLabelSettings',
         label: 'Edit Labels page heading',
-        helperText: 'Heading for this browser-local page-heading editor.',
+        helperText: 'Heading for the page-heading editor.',
       },
     ],
   },

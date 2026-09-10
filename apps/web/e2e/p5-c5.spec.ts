@@ -128,7 +128,7 @@ test.describe('P5-C5 controlled remediation', () => {
   }) => {
     test.setTimeout(120_000)
     await seedPrototypeSession(page, 'Program Manager')
-    const previewPath = '/projects/futuremakers-ncr/transparency/preview'
+    const previewPath = '/transparency/futuremakers-ncr/preview'
     await page.goto(previewPath)
 
     await page.getByRole('button', { name: 'Edit staff preview' }).click()
@@ -155,7 +155,7 @@ test.describe('P5-C5 controlled remediation', () => {
     await discard.getByRole('button', { name: 'Stay and keep editing' }).click()
     await expect(editor.getByLabel('Public headline')).toHaveValue('Protected public preview draft')
 
-    await page.goto('/projects/futuremakers-ncr/transparency')
+    await page.goto('/transparency')
     await page.goto(previewPath)
     await page.getByRole('button', { name: 'Edit staff preview' }).click()
     editor = page.getByRole('dialog', { name: 'Edit staff public-dashboard preview' })

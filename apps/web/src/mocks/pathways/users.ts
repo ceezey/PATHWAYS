@@ -4,7 +4,7 @@ export const mockUsers: UserRecord[] = [
   {
     id: 'user-program-manager-a',
     name: 'Program Manager A',
-    email: 'program.manager.a@demo.pathways.local',
+    email: 'program.manager.a@pathways.example',
     role: 'Program Manager',
     accountStatus: 'Active',
     signInMethod: 'Prototype password',
@@ -16,7 +16,7 @@ export const mockUsers: UserRecord[] = [
   {
     id: 'user-grant-manager-a',
     name: 'Grant Manager A',
-    email: 'grant.manager.a@demo.pathways.local',
+    email: 'grant.manager.a@pathways.example',
     role: 'Grant Manager',
     accountStatus: 'Active',
     signInMethod: 'Prototype password',
@@ -28,7 +28,7 @@ export const mockUsers: UserRecord[] = [
   {
     id: 'user-project-manager-a',
     name: 'Project Manager A',
-    email: 'project.manager.a@demo.pathways.local',
+    email: 'project.manager.a@pathways.example',
     role: 'Project Manager',
     accountStatus: 'Active',
     signInMethod: 'Prototype password',
@@ -40,7 +40,7 @@ export const mockUsers: UserRecord[] = [
   {
     id: 'user-me-officer-a',
     name: 'Monitoring and Evaluation Officer A',
-    email: 'monitoring.officer.a@demo.pathways.local',
+    email: 'monitoring.officer.a@pathways.example',
     role: 'Monitoring and Evaluation Officer',
     accountStatus: 'Active',
     signInMethod: 'SSO placeholder',
@@ -52,7 +52,7 @@ export const mockUsers: UserRecord[] = [
   {
     id: 'user-project-officer-a',
     name: 'Project Officer A',
-    email: 'project.officer.a@demo.pathways.local',
+    email: 'project.officer.a@pathways.example',
     role: 'Project Officer',
     accountStatus: 'Active',
     signInMethod: 'Prototype password',
@@ -64,7 +64,7 @@ export const mockUsers: UserRecord[] = [
   {
     id: 'user-system-admin-a',
     name: 'System Administrator A',
-    email: 'system.admin.a@demo.pathways.local',
+    email: 'system.admin.a@pathways.example',
     role: 'System Administrator',
     accountStatus: 'Active',
     signInMethod: 'SSO placeholder',
@@ -76,7 +76,7 @@ export const mockUsers: UserRecord[] = [
   {
     id: 'user-project-officer-invited',
     name: 'Project Officer Invite',
-    email: 'new.project.officer@demo.pathways.local',
+    email: 'new.project.officer@pathways.example',
     role: 'Project Officer',
     accountStatus: 'Invited',
     signInMethod: 'Prototype password',

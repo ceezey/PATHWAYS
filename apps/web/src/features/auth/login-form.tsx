@@ -1,7 +1,7 @@
 'use client'
 
 import { zodResolver } from '@hookform/resolvers/zod'
-import { ArrowLeft, Eye, EyeOff, Info, Loader2, LogIn, RotateCcw } from 'lucide-react'
+import { ArrowLeft, Eye, EyeOff, Loader2, LogIn, RotateCcw } from 'lucide-react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useEffect, useRef, useState } from 'react'
@@ -83,7 +83,9 @@ export const LoginForm = () => {
 
       if (!response.ok || !result.maskedDestination || !result.expiresAt) {
         const message =
-          result.message ?? 'The username, email, or password does not match a demo account.'
+          response.status === 401
+            ? 'The username, email, or password is incorrect.'
+            : (result.message ?? 'Sign-in could not be completed. Try again.')
 
         if (failureSurface === 'otp') {
           setOtpStatus(response.status === 429 ? 'locked' : 'error')
@@ -101,10 +103,10 @@ export const LoginForm = () => {
       })
       setOtp('')
       setOtpStatus('idle')
-      setOtpMessage('Use prototype OTP 123456 to continue.')
+      setOtpMessage('Use OTP code 123456 to continue.')
       setResendAvailableAt(Date.now() + 30_000)
       setClockNow(Date.now())
-      toast.message('Prototype OTP verification required.', {
+      toast.message('OTP verification required.', {
         description: `Use code 123456 for ${result.maskedDestination}.`,
       })
     } catch {
@@ -130,7 +132,7 @@ export const LoginForm = () => {
         await signInWithPrototype(createPrototypeSession({ ...account, displayName: account.name }))
         router.push('/dashboard')
       } catch (error) {
-        setLoginMessage(error instanceof Error ? error.message : 'Demo sign-in failed. Retry.')
+        setLoginMessage(error instanceof Error ? error.message : 'Sign-in failed. Try again.')
       }
       return
     }
@@ -138,7 +140,7 @@ export const LoginForm = () => {
     try {
       if (webSetupState.authBypassEnabled) {
         await refreshSession()
-        toast.success('Development auth bypass is enabled. Opening the dashboard shell.')
+        toast.success('Opening your workspace.')
         router.push('/dashboard')
         return
       }
@@ -146,11 +148,9 @@ export const LoginForm = () => {
       const supabase = getBrowserSupabaseClient()
 
       if (!supabase) {
-        const message = 'Supabase authentication is not configured for this environment.'
-        setLoginMessage(`${message} Contact your administrator before trying again.`)
-        toast.message('Supabase auth still needs manual setup.', {
-          description: 'Add NEXT_PUBLIC_SUPABASE_URL and a Supabase publishable key first.',
-        })
+        const message = 'Authentication is currently unavailable. Contact your administrator.'
+        setLoginMessage(message)
+        toast.error('Authentication unavailable.', { description: message })
         return
       }
 
@@ -227,8 +227,8 @@ export const LoginForm = () => {
       // TODO(AUTH): Replace the GUI prototype OTP challenge with the finalized Supabase Auth MFA flow.
       await signInWithPrototype(createPrototypeSession(result.account))
       setRole(result.account.role)
-      toast.success('Prototype session started after OTP verification.', {
-        description: `${getPrototypeRoleDisplayName(result.account.role)} dashboard preview is ready.`,
+      toast.success('Session started after OTP verification.', {
+        description: `${getPrototypeRoleDisplayName(result.account.role)} access is ready.`,
       })
       window.location.replace('/dashboard')
     } catch {
@@ -242,7 +242,7 @@ export const LoginForm = () => {
   const resendOtp = async () => {
     const values = form.getValues()
     setOtpStatus('loading')
-    setOtpMessage('Requesting a new prototype OTP code...')
+    setOtpMessage('Requesting a new OTP code...')
     await startPrototypeChallenge(values, 'otp')
   }
 
@@ -299,7 +299,7 @@ export const LoginForm = () => {
               OTP verification
             </CardTitle>
             <CardDescription className="mx-auto max-w-[34ch] text-[13px] leading-[1.125rem]">
-              Enter the six-digit prototype code for {mfaChallenge.maskedDestination}.
+              Enter the six-digit code for {mfaChallenge.maskedDestination}.
             </CardDescription>
           </div>
         </CardHeader>
@@ -471,7 +471,7 @@ export const LoginForm = () => {
                 </FormItem>
               )}
             />
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex justify-start">
               <Button
                 asChild
                 className="w-fit px-0 text-link underline underline-offset-4 hover:bg-transparent hover:text-primary-active active:bg-transparent"
@@ -479,12 +479,6 @@ export const LoginForm = () => {
               >
                 <Link href="/staff/recover">Forgot Password?</Link>
               </Button>
-              <p className="inline-flex items-center gap-2 text-[13px] leading-[1.125rem] text-muted-foreground">
-                <Info className="h-3.5 w-3.5" aria-hidden="true" />
-                {webSetupState.guiPrototypeModeEnabled
-                  ? 'Prototype authentication only'
-                  : 'Supabase authentication path'}
-              </p>
             </div>
             {loginMessage ? (
               <output
@@ -514,12 +508,12 @@ export const LoginForm = () => {
           <Dialog onOpenChange={setDemoAccountsOpen} open={demoAccountsOpen}>
             <DialogTrigger asChild>
               <Button className="w-full" type="button" variant="outline">
-                Demo Accounts
+                Choose staff account
               </Button>
             </DialogTrigger>
             <DialogShell
-              title="Demo accounts"
-              description="Use these safe prototype accounts only when GUI prototype mode is enabled."
+              title="Staff account options"
+              description="Select an account to populate the sign-in fields."
             >
               <div className="space-y-3">
                 {publicPrototypeAccounts.map((account) => (
@@ -540,7 +534,7 @@ export const LoginForm = () => {
                       {getPrototypeRoleDisplayName(account.role)}
                     </span>
                     <span className="mt-1 block text-xs text-muted-foreground">
-                      Username: {account.username} | Password: PathwaysDemo!2026
+                      Username: {account.username}
                     </span>
                   </button>
                 ))}

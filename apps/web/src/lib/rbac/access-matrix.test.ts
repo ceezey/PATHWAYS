@@ -343,22 +343,19 @@ describe('prototype RBAC matrix', () => {
     })
   })
 
-  it('limits the staff public-dashboard preview to designated internal roles', () => {
+  it('limits the Public Tracker staff preview to designated internal roles and project scope', () => {
     expect(
-      getRouteAccess('Program Manager', '/projects/futuremakers-ncr/transparency/preview'),
-    ).toMatchObject({ allowed: true, moduleName: 'Public dashboard preview' })
+      getRouteAccess('Program Manager', '/transparency/futuremakers-ncr/preview'),
+    ).toMatchObject({ allowed: true, moduleName: 'Public Tracker preview' })
     expect(
-      getRouteAccess('Project Manager', '/projects/futuremakers-ncr/transparency/preview'),
-    ).toMatchObject({ allowed: true, moduleName: 'Public dashboard preview' })
+      getRouteAccess('Project Manager', '/transparency/futuremakers-ncr/preview'),
+    ).toMatchObject({ allowed: true, moduleName: 'Public Tracker preview' })
     expect(
-      getRouteAccess(
-        'Project Manager',
-        '/projects/grassroots-centers-navotas/transparency/preview',
-      ),
-    ).toMatchObject({ allowed: false, moduleName: 'Public dashboard preview' })
+      getRouteAccess('Project Manager', '/transparency/grassroots-centers-navotas/preview'),
+    ).toMatchObject({ allowed: false, moduleName: 'Public Tracker preview' })
     expect(
-      getRouteAccess('Project Officer', '/projects/futuremakers-ncr/transparency/preview'),
-    ).toMatchObject({ allowed: false, moduleName: 'Public dashboard preview' })
+      getRouteAccess('Project Officer', '/transparency/futuremakers-ncr/preview'),
+    ).toMatchObject({ allowed: false, moduleName: 'Public Tracker preview' })
   })
 
   it('keeps Project Officer outside monitoring report routes', () => {

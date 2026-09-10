@@ -239,11 +239,11 @@ export const PublicProjectDetail = ({
       setDraft(normalized)
       window.sessionStorage.removeItem(draftStorageKey)
       setEditorOpen(false)
-      toast.success('Public prototype view updated.', {
-        description: 'The preview changed only in this browser and was not published.',
+      toast.success('Public preview updated.', {
+        description: 'The changes remain unpublished.',
       })
     } catch {
-      setEditorError('This browser could not save the prototype view. Try again.')
+      setEditorError('The public preview could not be saved. Try again.')
     }
   }
 
@@ -262,7 +262,7 @@ export const PublicProjectDetail = ({
         description: `The approved ${project.title} presentation is visible again.`,
       })
     } catch {
-      setEditorError('This browser could not restore the default view. Try again.')
+      setEditorError('The default view could not be restored. Try again.')
     }
   }
 
@@ -317,8 +317,7 @@ export const PublicProjectDetail = ({
       <div className="mx-auto my-16 max-w-2xl rounded-lg border border-warning/30 bg-warning-subtle p-8 text-center">
         <h1 className="text-2xl font-semibold">Project story unavailable</h1>
         <p className="mt-2 text-muted-foreground">
-          This project is not currently published, or the public tracker is in its local maintenance
-          scenario.
+          This project is not currently published or the public tracker is temporarily unavailable.
         </p>
         <Button asChild className="mt-5" variant="outline">
           <Link href="/public/projects">Return to public projects</Link>
@@ -341,15 +340,15 @@ export const PublicProjectDetail = ({
                 aria-hidden="true"
               />
               <p className="leading-5">
-                <span className="font-semibold">Staff-only prototype preview.</span> Browser-local
-                changes are not published to the anonymous public page.
+                <span className="font-semibold">Staff preview.</span> Changes are not visible on the
+                public page until they are approved and published.
               </p>
             </div>
             <div className="flex flex-col gap-2 sm:flex-row">
               <Button asChild className="gap-2" size="sm" variant="outline">
-                <Link href={`/projects/${project.id}/transparency`}>
+                <Link href="/transparency">
                   <ArrowLeft className="h-4 w-4" aria-hidden="true" />
-                  Back to project controls
+                  Back to Public Tracker
                 </Link>
               </Button>
               <Button
@@ -504,13 +503,13 @@ export const PublicProjectDetail = ({
               <DialogTitle>Edit staff public-dashboard preview</DialogTitle>
               <DialogDescription>
                 Reorder approved sections and update public-facing presentation copy for{' '}
-                {project.title}. Changes stay in this staff browser and are not published.
+                {project.title}. Changes remain in preview until they are published.
               </DialogDescription>
             </DialogHeader>
 
             <div className="rounded-sm border border-warning/30 bg-warning-subtle p-3 text-sm leading-6 text-warning">
-              Use approved, non-sensitive project wording only. This prototype does not provide a
-              publishing workflow or access to internal records.
+              Use approved, non-sensitive project wording only. Internal project records are not
+              available in this editor.
             </div>
 
             {draftRecovered ? (
@@ -519,7 +518,7 @@ export const PublicProjectDetail = ({
                 aria-live="polite"
                 className="block rounded-sm border border-info/25 bg-info-subtle p-3 text-sm text-info"
               >
-                Recovered your unsaved public-preview draft from this browser tab.
+                Recovered your unsaved public-preview draft.
               </output>
             ) : null}
 
@@ -692,8 +691,8 @@ export const PublicProjectDetail = ({
                   <div className="rounded-sm border border-info/25 bg-info-subtle p-4 text-sm leading-6 text-info">
                     <p className="font-semibold">Primary public CTA</p>
                     <p className="mt-1">
-                      {PUBLIC_DONATE_CTA_LABEL} remains fixed and opens a clearly labeled prototype
-                      donation notice until an approved external destination is supplied.
+                      {PUBLIC_DONATE_CTA_LABEL} remains fixed until an approved donation destination
+                      is available.
                     </p>
                   </div>
                   <CtaEditor
@@ -735,7 +734,7 @@ export const PublicProjectDetail = ({
                 </Button>
                 <Button className="gap-2" onClick={savePresentation} type="button">
                   <Save className="h-4 w-4" aria-hidden="true" />
-                  Save prototype view
+                  Save preview
                 </Button>
               </div>
             </div>
@@ -756,7 +755,7 @@ export const PublicProjectDetail = ({
           />
           <ConfirmationDialog
             confirmLabel="Restore project defaults"
-            description="This removes every browser-local public-preview customization for this project and restores its approved default presentation."
+            description="This removes every public-preview customization for this project and restores its approved default presentation."
             onConfirm={confirmRestoreDefaults}
             onOpenChange={setRestoreDialogOpen}
             open={restoreDialogOpen}
@@ -775,14 +774,12 @@ export const PublicProjectDetail = ({
           <DialogHeader>
             <DialogTitle>Donate to {project.title}</DialogTitle>
             <DialogDescription>
-              This public prototype does not connect to a payment or fundraising service.
+              Donations are not currently available through PATHWAYS.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
-            <StatusBadge tone="info">Prototype-only action</StatusBadge>
             <p className="text-sm leading-6 text-muted-foreground">
-              The organization-approved donation destination will be connected during a future
-              deployment step. No payment details are requested or collected here.
+              No payment details are requested or collected here.
             </p>
             <div className="flex justify-end">
               <Button onClick={() => setDonationOpen(false)} type="button">
@@ -872,7 +869,7 @@ const PublicMediaGallery = ({
   return (
     <section aria-labelledby="public-media-title" className="space-y-5">
       <PublicSectionHeading
-        description="Only synthetic, non-identifying mock media cleared for this public prototype is shown."
+        description="Only approved, non-identifying media is shown."
         eyebrow="Approved public media"
         id="public-media-title"
         title="Project moments and places"
@@ -916,7 +913,7 @@ const PublicMediaGallery = ({
                 <StatusBadge tone="success">{media.approvalState}</StatusBadge>
                 <span className="inline-flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
                   <ImageIcon className="h-3.5 w-3.5" aria-hidden="true" />
-                  {media.source}
+                  Approved media
                 </span>
               </div>
               <p className="text-base leading-7 text-foreground">{media.caption}</p>

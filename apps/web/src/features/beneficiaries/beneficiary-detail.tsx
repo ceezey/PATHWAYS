@@ -141,7 +141,7 @@ export const BeneficiaryDetail = ({
       setNotes(saved?.notes ?? notes)
       setNoteDraft((current) => ({ ...current, note: '' }))
       setNoteOpen(false)
-      toast.success('Beneficiary note saved to demo data.')
+      toast.success('Beneficiary note saved.')
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Note could not be saved.')
     }
@@ -185,7 +185,7 @@ export const BeneficiaryDetail = ({
       setBeneficiaryStatus(beneficiary.id, nextStatus)
       setEnrollmentStatus(nextStatus)
       setStatusOpen(false)
-      toast.success('Enrollment status saved to demo data.')
+      toast.success('Enrollment status saved.')
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Status could not be updated.')
     }
@@ -494,9 +494,7 @@ export const BeneficiaryDetail = ({
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Add beneficiary note</DialogTitle>
-            <DialogDescription>
-              Notes remain in this browser for the current demonstration.
-            </DialogDescription>
+            <DialogDescription>Add context for the selected journey stage.</DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
             <Select
@@ -553,9 +551,7 @@ export const BeneficiaryDetail = ({
         <DialogContent>
           <DialogHeader>
             <DialogTitle>{selectedAssessment?.title ?? 'Assessment record'}</DialogTitle>
-            <DialogDescription>
-              Human-reviewed assessment basis for the prototype.
-            </DialogDescription>
+            <DialogDescription>Human-reviewed assessment basis.</DialogDescription>
           </DialogHeader>
           {selectedAssessment ? (
             <div className="space-y-4">
@@ -582,7 +578,7 @@ export const BeneficiaryDetail = ({
           <DialogHeader>
             <DialogTitle>Record participation</DialogTitle>
             <DialogDescription>
-              Activity selection updates the journey stage shown in this demonstration.
+              Select the activity and attendance outcome for this participation record.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
@@ -661,7 +657,7 @@ export const BeneficiaryDetail = ({
           <DialogHeader>
             <DialogTitle>Update enrollment status</DialogTitle>
             <DialogDescription>
-              Status changes remain in this browser for the current demonstration.
+              Select the beneficiary&apos;s current enrollment status.
             </DialogDescription>
           </DialogHeader>
           <Select
@@ -745,7 +741,7 @@ const RecordList = ({
           })
       ) : (
         <p className="rounded-sm border border-border bg-surface-subtle p-4 text-sm text-muted-foreground">
-          No participation history in this coded mock profile.
+          No participation history is available for this coded profile.
         </p>
       )}
     </div>
@@ -780,7 +776,7 @@ const NoteList = ({
         })
       ) : (
         <p className="rounded-sm border border-border bg-surface-subtle p-4 text-sm text-muted-foreground">
-          No notes have been added for this mock profile.
+          No notes have been added for this profile.
         </p>
       )}
     </div>

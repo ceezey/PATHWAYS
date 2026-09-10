@@ -49,7 +49,7 @@ export const ActivityStatusControl = ({
         document.getElementById(controlId)?.focus()
       })
       toast.success('Activity status updated.', {
-        description: `${activity.title} is now ${status}. The change was saved in this browser.`,
+        description: `${activity.title} is now ${status}.`,
       })
     } catch {
       setError(`Could not update ${activity.title}. The status remains ${activity.status}.`)

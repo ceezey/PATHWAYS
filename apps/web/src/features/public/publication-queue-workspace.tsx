@@ -80,10 +80,6 @@ export const PublicationQueueWorkspace = () => {
           </Button>
         }
       />
-      <div className="rounded-lg border border-info/25 bg-info-subtle p-4 text-sm text-info">
-        Demo data only. Publication changes update the browser-local anonymous view; no external
-        site or notification service is used. Active scenario: <strong>{data.scenario}</strong>.
-      </div>
       <div className="grid gap-6 xl:grid-cols-[360px_minmax(0,1fr)]">
         <SectionCard
           title="Review queue"
@@ -208,7 +204,7 @@ export const PublicationQueueWorkspace = () => {
                   onClick={() =>
                     act(
                       () => publishPublication(selected.projectId),
-                      'Approved revision published to the anonymous local portal.',
+                      'Approved revision published to the anonymous public portal.',
                     )
                   }
                 >
@@ -221,7 +217,7 @@ export const PublicationQueueWorkspace = () => {
                     onClick={() =>
                       act(
                         () => unpublishPublication(selected.projectId),
-                        'Project removed from the anonymous local portal.',
+                        'Project removed from the public portal.',
                       )
                     }
                   >
@@ -231,7 +227,7 @@ export const PublicationQueueWorkspace = () => {
                 ) : null}
               </div>
               <Button asChild variant="ghost">
-                <Link href={`/projects/${selected.projectId}/transparency/preview`}>
+                <Link href={`/transparency/${selected.projectId}/preview`}>
                   Open full staff preview
                 </Link>
               </Button>

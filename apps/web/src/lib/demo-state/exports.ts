@@ -19,7 +19,7 @@ const ascii = (value: string) =>
 export function toPdfBytes(title: string, rows: string[][]): Uint8Array {
   const lines = [
     title,
-    'PATHWAYS - Demo data',
+    'PATHWAYS',
     '',
     ...rows.flatMap((row) => {
       const text = row.join(' | ')
@@ -96,7 +96,7 @@ export function exportDemoArtifact(
         throw new Error('Export generation failed. Clear the review scenario and retry.')
       const result = artifactBytes(title, rows, format)
       if (state.scenario === 'export-too-large' || result.byteLength > demoPolicy.exportMaxBytes)
-        throw new Error('Export exceeds the 5 MiB demo limit. Narrow the selected scope.')
+        throw new Error('Export exceeds the 5 MiB limit. Narrow the selected scope.')
       return result
     },
   )

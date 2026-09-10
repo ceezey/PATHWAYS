@@ -1,7 +1,7 @@
 'use client'
 
 import { zodResolver } from '@hookform/resolvers/zod'
-import { AlertTriangle, CheckCircle2, Eye, EyeOff, ShieldCheck } from 'lucide-react'
+import { AlertTriangle, CheckCircle2, Eye, EyeOff } from 'lucide-react'
 import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
 import { useState } from 'react'
@@ -36,7 +36,7 @@ const stateCopy: Record<Exclude<ResetState, 'valid'>, { title: string; descripti
   },
   invalid: {
     title: 'This recovery link is not valid',
-    description: 'The link is missing or cannot be recognized by this frontend preview.',
+    description: 'The link is missing or cannot be recognized. Request a new recovery link.',
   },
 }
 
@@ -71,9 +71,6 @@ export const ResetPasswordWorkspace = () => {
           <Button asChild className="w-full">
             <Link href="/staff/recover">Request a new recovery link</Link>
           </Button>
-          <p className="text-sm leading-6 text-muted-foreground">
-            Demo data: expiry and one-time use are enforced in this browser's local state.
-          </p>
         </div>
       </StaffAuthFrame>
     )
@@ -92,8 +89,7 @@ export const ResetPasswordWorkspace = () => {
               <div className="space-y-1">
                 <h2 className="font-semibold">Password updated</h2>
                 <p className="text-sm leading-6">
-                  Your fictional credential is updated, the reset link is invalidated, and the
-                  change is recorded in the local audit trail.
+                  Your password has been updated and the recovery link is no longer valid.
                 </p>
               </div>
             </div>
@@ -172,15 +168,8 @@ export const ResetPasswordWorkspace = () => {
                 </FormItem>
               )}
             />
-            <div className="rounded-md border border-primary/20 bg-primary-subtle p-3 text-sm leading-6 text-light-blue-foreground">
-              <span className="inline-flex items-center gap-2 font-semibold">
-                <ShieldCheck className="h-4 w-4" aria-hidden="true" />
-                Frontend validation only
-              </span>
-              <p className="mt-1">Continuing checks these fields without changing a credential.</p>
-            </div>
             <Button className="w-full" type="submit">
-              Validate new password
+              Update password
             </Button>
           </form>
         </Form>

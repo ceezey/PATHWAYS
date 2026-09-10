@@ -24,11 +24,11 @@ export function EvaluationCenterLookup() {
       <PageHeader
         eyebrow="Evaluation Center"
         title="Beneficiary code lookup"
-        description="The short-lived fictional PIN gate is completed before any personal details are loaded."
+        description="The short-lived PIN check is completed before any personal details are loaded."
       />
       <SectionCard
         title="Find a beneficiary"
-        description="Use an exact fictional beneficiary code within your authorized projects."
+        description="Enter an exact beneficiary code within your authorized projects."
       >
         <form
           className="flex flex-col gap-3 sm:flex-row"

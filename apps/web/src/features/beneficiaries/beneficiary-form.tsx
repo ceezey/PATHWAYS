@@ -304,11 +304,7 @@ export const BeneficiaryForm = ({
       )
       setConfirmOpen(false)
       window.sessionStorage.removeItem(draftStorageKey)
-      toast.success(
-        beneficiary
-          ? 'Beneficiary profile changes saved to demo data.'
-          : 'Beneficiary profile saved to demo data.',
-      )
+      toast.success(beneficiary ? 'Beneficiary profile updated.' : 'Beneficiary profile saved.')
       router.push(`/beneficiaries/${record.id}`)
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Beneficiary could not be saved.'
@@ -321,20 +317,14 @@ export const BeneficiaryForm = ({
     <div className="space-y-6">
       <section className="flex flex-col gap-4 rounded-lg border border-border bg-card p-5 md:flex-row md:items-start md:justify-between">
         <div className="space-y-2">
-          <div className="flex flex-wrap gap-2">
-            <StatusBadge tone="neutral">Fictional demo entry</StatusBadge>
-            <StatusBadge tone="info">
-              {beneficiary ? 'Editing saved profile' : 'Saved in this browser'}
-            </StatusBadge>
-          </div>
           <div>
             <h1 className="text-3xl font-semibold tracking-tight text-foreground">
               {beneficiary ? 'Edit beneficiary profile' : 'Add beneficiary'}
             </h1>
             <p className="mt-2 max-w-3xl text-sm leading-6 text-muted-foreground">
               {beneficiary
-                ? 'Update this coded prototype profile using the existing consent and project enrollment fields.'
-                : 'Create a coded prototype profile with consent and project enrollment fields. Use non-identifying placeholder details only.'}
+                ? 'Update this coded profile using the existing consent and project enrollment fields.'
+                : 'Create a coded profile with consent and project enrollment fields.'}
             </p>
           </div>
         </div>
@@ -352,7 +342,7 @@ export const BeneficiaryForm = ({
           aria-live="polite"
           className="block rounded-sm border border-info/25 bg-info-subtle p-3 text-sm text-info"
         >
-          Recovered your unsaved beneficiary draft from this browser tab.
+          Recovered your unsaved beneficiary draft.
         </output>
       ) : null}
 
@@ -365,7 +355,7 @@ export const BeneficiaryForm = ({
           <div>
             <h2 className="text-lg font-semibold text-foreground">Profile information</h2>
             <p className="text-sm text-muted-foreground">
-              Required fields are checked in this browser before confirmation.
+              Required fields are checked before confirmation.
             </p>
           </div>
 
@@ -639,9 +629,6 @@ export const BeneficiaryForm = ({
               }
             />
           </div>
-          <p className="rounded-sm border border-warning/30 bg-warning-subtle p-3 text-xs leading-5 text-warning">
-            Demo only. Use fictional, non-identifying beneficiary data.
-          </p>
         </aside>
       </div>
 
@@ -662,8 +649,8 @@ export const BeneficiaryForm = ({
                     .map((record) => record.code)
                     .join(', ')}. Confirm only after reviewing the existing profile.`
                 : beneficiary
-                  ? 'Save these profile changes to shared browser-local demo data.'
-                  : 'Save this coded profile and project enrollment to shared browser-local demo data.'}
+                  ? 'Save these profile changes.'
+                  : 'Save this coded profile and project enrollment.'}
             </DialogDescription>
           </DialogHeader>
           <div className="rounded-sm border border-border bg-surface-subtle p-4 text-sm">

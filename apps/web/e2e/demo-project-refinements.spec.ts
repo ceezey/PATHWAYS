@@ -17,7 +17,7 @@ async function resetAndSwitch(page: Page, accountId: string) {
   await page.goto('/review/demo-controls')
   await expect(page.getByRole('status')).toContainText('Review controls ready.')
   page.once('dialog', (dialog) => dialog.accept())
-  await page.getByRole('button', { name: 'Reset demo data' }).click()
+  await page.getByRole('button', { name: 'Reset review data' }).click()
   await page.getByLabel('Fictional account').selectOption(accountId)
 }
 
@@ -43,15 +43,15 @@ test('project team reassignment is scoped, persists, and is hidden from disallow
   await expect(projectManagerField).toContainText('Project Manager A')
   await expect(projectManagerField).not.toContainText('@existing.demo.pathways.local')
   await page.getByRole('combobox', { name: /^Monitoring and Evaluation Officer/ }).click()
-  await page.getByRole('option', { name: /^Monitoring Officer Demo/ }).click()
+  await page.getByRole('option', { name: /^Ana Villanueva/ }).click()
   await page.getByRole('button', { name: 'Save assignments' }).click()
 
   await expect(page.getByText('Project team assignments updated.')).toBeVisible()
-  await expect(page.getByText('Monitoring Officer Demo', { exact: true })).toBeVisible()
-  await expect(page.getByRole('heading', { level: 1, name: 'FutureMakers NCR' })).toBeVisible()
+  await expect(page.getByText('Ana Villanueva', { exact: true })).toBeVisible()
+  await expect(page.getByRole('heading', { level: 1, name: 'Project overview' })).toBeVisible()
   await page.reload()
-  await expect(page.getByText('Monitoring Officer Demo', { exact: true })).toBeVisible()
-  await expect(page.getByRole('heading', { level: 1, name: 'FutureMakers NCR' })).toBeVisible()
+  await expect(page.getByText('Ana Villanueva', { exact: true })).toBeVisible()
+  await expect(page.getByRole('heading', { level: 1, name: 'Project overview' })).toBeVisible()
 
   for (const accountId of ['grant-manager', 'program-manager', 'system-administrator']) {
     await switchAccount(page, accountId)
@@ -123,28 +123,23 @@ test('activity status summary filters the activity list for every status', async
   await expect(summary.getByRole('button', { pressed: true })).toHaveCount(0)
 })
 
-test('public project section controls are separated and responsive', async ({ page }) => {
-  await page.setViewportSize({ width: 768, height: 900 })
+test('project workspace uses the central Public Tracker instead of a duplicate project tab', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1280, height: 900 })
   await resetAndSwitch(page, 'project-manager')
-  await page.goto('/projects/futuremakers-ncr/transparency')
+  await page.goto('/projects/futuremakers-ncr')
 
-  const visibilityControls = page.getByRole('switch', { name: /^Public visibility for/ })
-  await expect(visibilityControls).toHaveCount(3)
-  const firstVisibility = visibilityControls.first()
-  const initialVisibility = await firstVisibility.getAttribute('aria-checked')
-  await firstVisibility.click()
-  await expect(firstVisibility).toHaveAttribute(
-    'aria-checked',
-    initialVisibility === 'true' ? 'false' : 'true',
-  )
+  await expect(page.getByRole('link', { name: 'Public Project Dashboard' })).toHaveCount(0)
+  await expect(page.getByRole('link', { name: 'Public Tracker' })).toBeVisible()
 
-  const firstDraft = page.getByRole('button', { name: 'Draft', exact: true }).first()
-  await firstDraft.click()
-  await expect(firstDraft).toHaveAttribute('aria-pressed', 'true')
-  await expect(page.getByRole('button', { name: /^(Visible|Hidden)$/ })).toHaveCount(0)
-  expect(
-    await page.evaluate(
-      () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
-    ),
-  ).toBe(0)
+  await page.getByRole('link', { name: 'Public Tracker' }).click()
+  await expect(page).toHaveURL(/\/transparency$/)
+  await expect(page.getByRole('heading', { name: 'Public Tracker Review' })).toBeVisible()
+
+  const previewLink = page.getByRole('link', { name: 'Open full staff preview' })
+  await expect(previewLink).toHaveAttribute('href', '/transparency/futuremakers-ncr/preview')
+  await previewLink.click()
+  await expect(page).toHaveURL(/\/transparency\/futuremakers-ncr\/preview$/, { timeout: 15000 })
+  await expect(page.getByText('Staff preview.')).toBeVisible()
 })

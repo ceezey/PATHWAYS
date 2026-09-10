@@ -14,7 +14,7 @@ const previewRows = formatPmerlRows([
 export const PmerlPreview = () => (
   <Card>
     <CardHeader>
-      <CardTitle>PMERL export placeholder</CardTitle>
+      <CardTitle>PMERL export</CardTitle>
     </CardHeader>
     <CardContent>
       <pre className="overflow-auto rounded-xl bg-slate-950 p-4 text-xs text-slate-100">

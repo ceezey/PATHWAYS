@@ -77,7 +77,7 @@ export const AuditLogWorkspace = () => {
     try {
       transactDemo('audit.view', undefined, undefined, (state) => {
         if (state.scenario === 'retrieval-failure')
-          throw new Error('Demo audit retrieval failed. Clear the scenario and retry.')
+          throw new Error('Audit records could not be loaded. Clear the review scenario and retry.')
       })
     } catch (e) {
       setAccessError(e instanceof Error ? e.message : 'Audit access failed.')
@@ -123,11 +123,6 @@ export const AuditLogWorkspace = () => {
         title="Audit Log"
         description="Review significant account, project, evidence, collection, and monitoring events in chronological order."
       />
-
-      <div className="rounded-lg border border-info/25 bg-info-subtle px-4 py-3 text-sm leading-6 text-info">
-        Demo data: this read-only ledger records actual local actions. Viewing it records one access
-        event.
-      </div>
 
       {accessError ? (
         <div role="alert">

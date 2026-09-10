@@ -216,7 +216,7 @@ export class MockPathwaysClient implements PathwaysClient {
     const project = allProjects().find((item) => item.id === id)
 
     if (!project) {
-      throw new PathwaysClientError(`Project ${id} was not found in mock data.`, 'not_found')
+      throw new PathwaysClientError(`Project ${id} could not be found.`, 'not_found')
     }
 
     return project
@@ -240,7 +240,7 @@ export class MockPathwaysClient implements PathwaysClient {
 
     if (!activity) {
       throw new PathwaysClientError(
-        `Activity ${activityId} was not found in mock data.`,
+        `Activity ${activityId} could not be found.`,
         'not_found',
       )
     }
@@ -284,7 +284,7 @@ export class MockPathwaysClient implements PathwaysClient {
     )
 
     if (!current) {
-      throw new PathwaysClientError(`Activity ${input.id} was not found in mock data.`, 'not_found')
+      throw new PathwaysClientError(`Activity ${input.id} could not be found.`, 'not_found')
     }
 
     const activity: Activity = {
@@ -316,7 +316,7 @@ export class MockPathwaysClient implements PathwaysClient {
 
     if (!current) {
       throw new PathwaysClientError(
-        `Activity ${input.activityId} was not found in mock data.`,
+        `Activity ${input.activityId} could not be found.`,
         'not_found',
       )
     }
@@ -440,14 +440,14 @@ export class MockPathwaysClient implements PathwaysClient {
     const beneficiary = getDemoState().beneficiaries.find((record) => record.id === id)
 
     if (!beneficiary) {
-      throw new PathwaysClientError(`Beneficiary ${id} was not found in mock data.`, 'not_found')
+      throw new PathwaysClientError(`Beneficiary ${id} could not be found.`, 'not_found')
     }
 
     const scopedBeneficiary = scopeBeneficiaryRecordForRole(beneficiary, role)
 
     if (!scopedBeneficiary) {
       throw new PathwaysClientError(
-        'This Beneficiary record is outside the current prototype role scope.',
+        'This beneficiary record is outside your authorized project scope.',
         'forbidden',
       )
     }
@@ -501,7 +501,7 @@ export class MockPathwaysClient implements PathwaysClient {
     const budget = getDemoState().budgets.find((record) => record.projectId === input.projectId)
     if (!budget) {
       throw new PathwaysClientError(
-        `Budget for project ${input.projectId} was not found in mock data.`,
+        `Budget for project ${input.projectId} could not be found.`,
         'not_found',
       )
     }
@@ -599,7 +599,7 @@ export class MockPathwaysClient implements PathwaysClient {
     const project = mockPublicProjects.find((item) => item.id === id)
 
     if (!project) {
-      throw new PathwaysClientError(`Public project ${id} was not found in mock data.`, 'not_found')
+      throw new PathwaysClientError(`Public project ${id} could not be found.`, 'not_found')
     }
 
     return project

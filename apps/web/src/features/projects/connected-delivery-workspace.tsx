@@ -58,7 +58,7 @@ export function ConnectedBudgetWorkspace({ projectId }: { projectId: string }) {
     <div className="space-y-6">
       <PageHeader
         title="Budget & Expense Ledger"
-        description="Demo data · verified expenses update the shared project budget."
+        description="Verified expenses update the shared project budget."
       />
       <ProjectWorkspaceHeader project={project} />
       <SectionCard title="Project budget">
@@ -254,7 +254,7 @@ export function ConnectedIndicatorWorkspace({ projectId }: { projectId?: string 
     <div className="space-y-6">
       <PageHeader
         title={projectId ? 'Target Indicators' : 'Indicator Library'}
-        description="Demo data · definitions and measured targets remain distinct. Project Managers have read-only access."
+        description="Definitions and measured targets remain distinct. Project Managers have read-only access."
       />
       {workspaceProject ? <ProjectWorkspaceHeader project={workspaceProject} /> : null}
       <div className="grid gap-3 sm:grid-cols-2">

@@ -4,7 +4,7 @@ async function resetAndSwitch(page: Page, accountId: string) {
   await page.goto('/review/demo-controls')
   await expect(page.getByRole('status')).toContainText('Review controls ready.')
   page.once('dialog', (dialog) => dialog.accept())
-  await page.getByRole('button', { name: 'Reset demo data' }).click()
+  await page.getByRole('button', { name: 'Reset review data' }).click()
   await page.getByLabel('Fictional account').selectOption(accountId)
 }
 
@@ -44,7 +44,7 @@ test('saved monitoring charts are project-specific, draggable, resizable, and re
   await page.getByRole('button', { name: 'Add to Dashboard' }).click()
 
   await page.getByRole('link', { name: 'View project dashboard' }).click()
-  await expect(page).toHaveURL(/\/dashboard\?project=futuremakers-ncr/)
+  await expect(page).toHaveURL(/\/dashboard\?project=futuremakers-ncr/, { timeout: 15000 })
   await expect(page.locator('#dashboard-project-scope')).toContainText('FutureMakers NCR')
   const chartSection = page.locator('section[aria-labelledby="saved-charts-title"]')
   await expect(

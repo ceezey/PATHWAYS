@@ -59,7 +59,7 @@ export const projectHealthSignal = ({
     return 'Watch signal: timeline progress is moving ahead of measured KPI achievement.'
   }
 
-  return 'On-track signal: KPI, budget, and timeline indicators are within prototype tolerance.'
+  return 'KPI, budget, and timeline indicators are within the defined tolerance.'
 }
 
 export const formatNumber = (value: number) => new Intl.NumberFormat('en-US').format(value)

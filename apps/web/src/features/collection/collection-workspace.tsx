@@ -269,7 +269,7 @@ export const CollectionWorkspace = ({
       type: f.status,
       project: mockProjects.find((p) => p.id === f.projectId)?.title ?? f.projectId,
       fieldCount: f.fields.length,
-      savedAt: 'Saved locally',
+      savedAt: 'Saved',
     }))
   const openSavedForm = (summary: SavedForm) => {
     const form = demo.forms.find((f) => f.id === summary.id)
@@ -331,7 +331,7 @@ export const CollectionWorkspace = ({
       parsedImport.rows,
       [
         ...parsedImport.errors,
-        ...(comparison.matches ? [] : ['Mock validation found headers that need review.']),
+        ...(comparison.matches ? [] : ['Validation found headers that need review.']),
       ],
     )
   }, [parsedImport])
@@ -416,7 +416,7 @@ export const CollectionWorkspace = ({
     lastSelectedFileRef.current = file
     setUploadProgress(28)
     setImportStatus('reading')
-    setImportMessage('Reading the file in this browser. Nothing is being uploaded.')
+    setImportMessage('Reading the selected file.')
 
     const extension = file.name.split('.').pop()?.toLowerCase()
     let parsed: ParsedImport
@@ -444,7 +444,7 @@ export const CollectionWorkspace = ({
           sheetNames: result.sheetNames,
         }
       } else {
-        throw new Error('Choose a CSV, XLS, or XLSX file for this prototype.')
+        throw new Error('Choose a CSV, XLS, or XLSX file.')
       }
 
       setParsedImport(parsed)
@@ -569,7 +569,7 @@ export const CollectionWorkspace = ({
       <PageHeader
         eyebrow="Data workspace"
         title={labels.moduleCollection}
-        description="Build and publish project forms, encode data, and import validated browser-local CSV/XLS/XLSX datasets."
+        description="Build and publish project forms, encode data, and import validated CSV, XLS, or XLSX datasets."
         actions={
           <>
             <Button asChild size="sm" variant="outline">
@@ -791,8 +791,7 @@ export const CollectionWorkspace = ({
           <DialogHeader>
             <DialogTitle>Proceed with Save As?</DialogTitle>
             <DialogDescription>
-              This publishes the validated form to shared browser-local demo data and makes it
-              available to the data-entry workflow.
+              This publishes the validated form and makes it available to the data-entry workflow.
             </DialogDescription>
           </DialogHeader>
           <div className="rounded-sm border bg-surface-subtle p-4 text-sm">
@@ -815,8 +814,8 @@ export const CollectionWorkspace = ({
           <DialogHeader>
             <DialogTitle>Review mapped fields?</DialogTitle>
             <DialogDescription>
-              Valid rows will be committed to shared browser-local demo data; invalid rows remain
-              isolated for correction and reprocessing.
+              Valid rows will be imported; invalid rows remain isolated for correction and
+              reprocessing.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
@@ -830,7 +829,7 @@ export const CollectionWorkspace = ({
 
       <ConfirmationDialog
         confirmLabel={`Delete ${pendingDeleteField?.label ?? 'field'}`}
-        description="This removes the field and its current configuration from this browser-session form."
+        description="This removes the field and its current configuration from the form."
         onConfirm={confirmDeleteField}
         onOpenChange={(open) => {
           if (!open) {
@@ -1351,9 +1350,9 @@ const MetadataMapPanel = ({
     <div className="flex items-center justify-between gap-3">
       <div>
         <p className="text-sm font-semibold text-foreground">Metadata map</p>
-        <p className="text-xs text-muted-foreground">Live prototype summary</p>
+        <p className="text-xs text-muted-foreground">Current field summary</p>
       </div>
-      <StatusBadge tone="info">Mock</StatusBadge>
+      <StatusBadge tone="info">Current</StatusBadge>
     </div>
     <div className="mt-4 space-y-3 text-sm">
       <div className="rounded-sm bg-surface-subtle p-3">
@@ -1500,8 +1499,7 @@ const ImportView = ({
             Upload your existing form file
           </h2>
           <p className="mt-1 max-w-xl text-sm text-muted-foreground">
-            The prototype reads CSV, XLS, or XLSX locally, then suggests metadata mappings. No
-            production upload is performed.
+            Select a CSV, XLS, or XLSX file to review and map its columns before import.
           </p>
           <div className="mt-4 w-full max-w-xl space-y-2 text-left">
             <Label htmlFor="collection-import-file">Source file</Label>
@@ -1519,8 +1517,7 @@ const ImportView = ({
               }}
             />
             <p className="text-xs leading-5 text-muted-foreground" id="collection-import-file-help">
-              Choose one CSV, XLS, or XLSX file. It is read locally in this browser and is not
-              uploaded.
+              Choose one CSV, XLS, or XLSX file.
             </p>
           </div>
           <div className="mt-4 flex flex-wrap justify-center gap-2">
@@ -1653,7 +1650,7 @@ const MappingTable = ({
       <div>
         <h2 className="text-lg font-semibold text-foreground">Metadata mapping</h2>
         <p className="text-sm text-muted-foreground">
-          Review source columns, target fields, and mock validation states.
+          Review source columns, target fields, and validation states.
         </p>
       </div>
       <div className="flex gap-2">
@@ -1766,7 +1763,7 @@ const DataPreview = ({ parsedImport }: { parsedImport: ParsedImport }) => (
   <div className="rounded-lg border bg-card p-4">
     <h2 className="text-lg font-semibold text-foreground">Data preview</h2>
     <p className="mt-1 text-sm text-muted-foreground">
-      First rows are shown client-side for prototype review only.
+      The first rows are shown for mapping and validation review.
     </p>
     <div className="mt-4 overflow-x-auto">
       <table className="w-full min-w-[720px] text-left text-sm">
@@ -1812,7 +1809,7 @@ const ImportValidationPanel = ({
       <div className="flex items-center justify-between gap-3">
         <div>
           <p className="text-sm font-semibold text-foreground">Validation summary</p>
-          <p className="text-xs text-muted-foreground">Mock validation only</p>
+          <p className="text-xs text-muted-foreground">Column and row checks</p>
         </div>
         <StatusBadge
           tone={
@@ -1837,8 +1834,7 @@ const ImportValidationPanel = ({
           <SummaryPill label="Invalid" tone="danger" value={invalid} />
         </div>
         <p className="rounded-sm bg-surface-subtle p-3 text-xs leading-5 text-muted-foreground">
-          This demonstration checks column headings and preview rows only. Full production
-          validation is not connected yet.
+          Validation checks column headings and preview rows before import.
         </p>
       </div>
     </div>

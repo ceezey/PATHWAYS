@@ -1,5 +1,5 @@
 import { PageHeader } from '@/components/layout/page-header'
-import { LoadingSkeleton, SectionCard, StatusBadge } from '@/components/pathways'
+import { LoadingSkeleton, SectionCard } from '@/components/pathways'
 
 export default function UserManagementLoading() {
   return (
@@ -7,8 +7,7 @@ export default function UserManagementLoading() {
       <PageHeader
         eyebrow="Administration"
         title="User Management"
-        description="Loading prototype users, role assignments, and account states."
-        actions={<StatusBadge tone="info">Prototype only</StatusBadge>}
+        description="Loading users, role assignments, and account states."
       />
       <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         {[0, 1, 2, 3].map((item) => (

@@ -112,7 +112,7 @@ export const OwnProfileWorkspace = () => {
     setProfileNotice({
       tone: 'success',
       message:
-        'Profile and local sign-in email updated. The change is recorded in the local audit trail.',
+        'Profile updated. The change is recorded in the audit trail.',
     })
   }
 
@@ -121,7 +121,7 @@ export const OwnProfileWorkspace = () => {
       changeDemoPassword(values.currentPassword, values.newPassword, values.confirmPassword)
       setPasswordNotice({
         tone: 'success',
-        message: 'Demo password changed. Use the new password on your next sign-in.',
+        message: 'Password changed. Use the new password on your next sign-in.',
       })
       passwordForm.reset()
     } catch (error) {
@@ -137,7 +137,7 @@ export const OwnProfileWorkspace = () => {
       <PageHeader
         eyebrow="Account settings"
         title="My Profile"
-        description="Review your contact details and password-change requirements. Prototype edits stay in this browser."
+        description="Review your contact details and password-change requirements."
       />
 
       <div className="grid gap-6 xl:grid-cols-[minmax(0,1.15fr)_minmax(360px,0.85fr)]">
@@ -191,7 +191,7 @@ export const OwnProfileWorkspace = () => {
                       <Input autoComplete="email" inputMode="email" {...field} />
                     </FormControl>
                     <FormDescription>
-                      This is the contact email shown in your current frontend session.
+                      This contact email is shown with your account details.
                     </FormDescription>
                     <FormMessage />
                   </FormItem>
@@ -310,7 +310,7 @@ export const OwnProfileWorkspace = () => {
       <ConfirmationDialog
         confirmLabel="Discard changes"
         confirmVariant="destructive"
-        description="Your unsaved profile edits in this browser will be removed."
+        description="Your unsaved profile edits will be removed."
         onConfirm={() => {
           profileForm.reset(currentProfile)
           setProfileNotice({ tone: 'info', message: 'Unsaved profile changes were discarded.' })

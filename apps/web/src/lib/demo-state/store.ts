@@ -77,7 +77,7 @@ export interface DemoNotice {
   recipientId: string
   recipient: string
   message: string
-  status: 'Delivered locally' | 'Delivery failed'
+  status: 'Delivered' | 'Delivery failed'
   href?: string
 }
 export interface ResetToken {
@@ -198,8 +198,8 @@ export function createDemoBaseline() {
     scenario: 'baseline' as DemoScenario,
     organization: 'hdo-demo',
     organizations: [
-      { id: 'hdo-demo', name: 'PATHWAYS Demo Foundation' },
-      { id: 'partner-demo', name: 'Community Futures Demo' },
+      { id: 'hdo-demo', name: 'PATHWAYS Foundation' },
+      { id: 'partner-demo', name: 'Community Futures' },
     ],
     session: null as { accountId: string; signedInAt: string; pinExpiresAt?: number } | null,
     accounts,
@@ -280,13 +280,15 @@ export function getDemoState(): DemoState {
     if (raw) {
       const parsed = migrateDemoState(JSON.parse(raw))
       if (!validateDemoState(parsed))
-        throw new Error('Unsupported or invalid demo data. Reset from review controls.')
+        throw new Error(
+          'Saved workspace data could not be loaded. Contact an administrator and try again.',
+        )
       cached = parsed
     } else cached = createDemoBaseline()
     storageError = null
     return cached
   } catch (error) {
-    storageError = error instanceof Error ? error.message : 'Browser storage is unavailable.'
+    storageError = error instanceof Error ? error.message : 'Changes could not be saved. Try again.'
     return cached ?? serverBaseline
   }
 }
@@ -319,10 +321,18 @@ export function migrateDemoState(value: unknown): unknown {
           }
         })
       : state.accounts
+    const notifications = Array.isArray(state.notifications)
+      ? state.notifications.map((notice) =>
+          notice && typeof notice === 'object' && notice.status === 'Delivered locally'
+            ? { ...notice, status: 'Delivered' }
+            : notice,
+        )
+      : state.notifications
 
     return {
       ...state,
       accounts,
+      notifications,
       dashboardCharts: state.dashboardCharts ?? [],
       teamScopeVersion: 1,
     }
@@ -346,7 +356,7 @@ export function subscribeDemo(listener: () => void) {
 
 /** Persist before publishing. A failed write cannot partially update the in-memory projection. */
 export function commitDemo(next: DemoState) {
-  if (typeof window === 'undefined') throw new Error('Demo changes require browser-local storage.')
+  if (typeof window === 'undefined') throw new Error('Changes cannot be saved in this session.')
   const raw = JSON.stringify(next)
   localStorage.setItem(DEMO_KEY, raw)
   cachedRaw = raw
@@ -370,7 +380,7 @@ export function appendAudit(
     id: nextId(state, 'audit'),
     at: demoTime(state),
     actorId: actor?.id ?? 'anonymous',
-    actor: actor?.name ?? 'Anonymous demo user',
+    actor: actor?.name ?? 'Anonymous user',
     role: actor?.role ?? 'External stakeholder',
   })
 }
@@ -387,7 +397,7 @@ export function notifyLocally(
     recipient: recipient.name,
     message,
     href,
-    status: state.scenario === 'notification-failure' ? 'Delivery failed' : 'Delivered locally',
+    status: state.scenario === 'notification-failure' ? 'Delivery failed' : 'Delivered',
   })
 }
 
@@ -408,7 +418,7 @@ export function transactDemo<T>(
     else assertAction(actor, action, projectId)
     if (next.scenario === 'save-failure')
       throw new Error(
-        'Demo save failed. Your previous data is unchanged; retry after clearing the scenario.',
+        'Changes could not be saved. Your previous data is unchanged; clear the review scenario and retry.',
       )
     const result = operation(next, actor as DemoAccount)
     next.revision += 1
@@ -420,7 +430,7 @@ export function transactDemo<T>(
         projectId,
         entityId,
         outcome: 'Success',
-        details: 'Browser-local change committed.',
+        details: 'Change saved.',
       },
       actor,
     )
@@ -510,7 +520,7 @@ export function switchDemoAccount(accountId: string | null) {
   const next = structuredClone(getDemoState())
   const actor = next.accounts.find((a) => a.id === accountId)
   if (accountId && (!actor || actor.status !== 'Active'))
-    throw new Error('Select an active fictional account.')
+    throw new Error('Select an active account.')
   next.session = actor ? { accountId: actor.id, signedInAt: demoTime(next) } : null
   commitDemo(next)
 }

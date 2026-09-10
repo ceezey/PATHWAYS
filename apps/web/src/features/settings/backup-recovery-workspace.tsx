@@ -1,6 +1,6 @@
 'use client'
 
-import { AlertTriangle, DatabaseBackup, Download, RotateCcw, Upload } from 'lucide-react'
+import { DatabaseBackup, Download, RotateCcw, Upload } from 'lucide-react'
 import { useRef, useState } from 'react'
 import { toast } from 'sonner'
 
@@ -37,7 +37,7 @@ export const BackupRecoveryWorkspace = () => {
       setSelectedId(backup.id)
       downloadBackup(backup.payload, backup.name)
       setMessage('Backup created and downloaded. Integrity verification passed.')
-      toast.success('Backup created, verified, retained locally, and downloaded.')
+      toast.success('Backup created, verified, and downloaded.')
     } catch (error) {
       const failure = error instanceof Error ? error.message : 'Backup could not be created.'
       setMessage(failure)
@@ -49,9 +49,9 @@ export const BackupRecoveryWorkspace = () => {
     try {
       restoreBackup(selected.id)
       setRestoreOpen(false)
-      setMessage('Backup restored atomically. Connected demo screens now use the recovered state.')
+      setMessage('Backup restored. The recovered data is now available.')
       toast.success(
-        'Backup restored atomically. Connected demo screens now use the recovered state.',
+        'Backup restored. The recovered data is now available.',
       )
     } catch (error) {
       const failure =
@@ -81,7 +81,7 @@ export const BackupRecoveryWorkspace = () => {
       <PageHeader
         eyebrow="Administration / Continuity"
         title="Backup & Recovery"
-        description="Create, download, validate, and atomically restore browser-local PATHWAYS demo state."
+        description="Create, download, validate, and restore PATHWAYS recovery points."
         actions={
           <div className="flex flex-wrap gap-2">
             <input
@@ -102,17 +102,13 @@ export const BackupRecoveryWorkspace = () => {
           </div>
         }
       />
-      <div className="rounded-lg border border-info/25 bg-info-subtle px-4 py-3 text-sm text-info">
-        Demo data only. Backups are JSON snapshots created and restored entirely in this browser; no
-        cloud storage is contacted. Active scenario: <strong>{state.scenario}</strong>.
-      </div>
       <output className="block text-sm" aria-live="polite">
         {message}
       </output>
       <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_380px]">
         <SectionCard
           title="Recovery points"
-          description={`${state.backups.length} validated browser-local backup${state.backups.length === 1 ? '' : 's'}.`}
+          description={`${state.backups.length} validated recovery point${state.backups.length === 1 ? '' : 's'}.`}
         >
           {state.backups.length ? (
             <div className="overflow-x-auto rounded-md border">
@@ -153,7 +149,7 @@ export const BackupRecoveryWorkspace = () => {
           ) : (
             <EmptyState
               title="No recovery point yet"
-              description="Create a backup or add a compatible local JSON recovery file."
+              description="Create a backup or add a compatible JSON recovery file."
             />
           )}
         </SectionCard>
@@ -165,9 +161,8 @@ export const BackupRecoveryWorkspace = () => {
             <div className="space-y-4">
               <p className="font-mono text-sm">{selected.name}</p>
               <p className="text-sm text-muted-foreground">
-                A successful restore replaces current demo records while retaining the recovery
-                inventory. A failed validation or simulated restore failure preserves the current
-                state.
+                A successful restore replaces current records while retaining the recovery
+                inventory. A validation or restore failure preserves the current state.
               </p>
               <div className="grid gap-2">
                 <Button
@@ -188,20 +183,12 @@ export const BackupRecoveryWorkspace = () => {
           )}
         </SectionCard>
       </div>
-      {state.scenario.startsWith('backup') || state.scenario === 'restore-failure' ? (
-        <div className="flex gap-2 rounded-lg border border-warning/30 bg-warning-subtle p-4 text-sm text-warning">
-          <AlertTriangle className="h-4 w-4 shrink-0" />
-          This deterministic review scenario makes the next related operation fail without partial
-          state changes.
-        </div>
-      ) : null}
       <Dialog open={restoreOpen} onOpenChange={setRestoreOpen}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Restore {selected?.name}?</DialogTitle>
             <DialogDescription>
-              This replaces the current browser-local organization snapshot after checksum and
-              schema validation.
+              This replaces the current organization snapshot after checksum and schema validation.
             </DialogDescription>
           </DialogHeader>
           <div className="rounded-md border border-danger/25 bg-danger-subtle p-4 text-sm text-danger">

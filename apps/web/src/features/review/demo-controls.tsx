@@ -31,10 +31,10 @@ export function DemoControls() {
   }
   return (
     <main className="mx-auto max-w-4xl space-y-6 p-6">
-      <h1 className="text-2xl font-semibold">Local demo review controls</h1>
+      <h1 className="text-2xl font-semibold">Review controls</h1>
       <p>
-        Fictional data only. These controls deliberately simulate account switching and failures;
-        they are not production security or services.
+        This isolated review area uses fictional records and deterministic scenarios; it does not
+        connect to production security, messaging, storage, or payment services.
       </p>
       <div className="flex gap-4">
         <Link className="underline" href="/dashboard">
@@ -83,7 +83,7 @@ export function DemoControls() {
       </p>
       <div className="flex flex-wrap gap-3">
         <Button disabled={!ready} onClick={() => run(() => advanceDemoClock(16))}>
-          Advance demo clock 16 minutes
+          Advance review clock 16 minutes
         </Button>
         <Button
           disabled={!ready}
@@ -91,17 +91,18 @@ export function DemoControls() {
           onClick={() => {
             if (
               window.confirm(
-                'Reset all fictional records and sign out? This removes only the versioned demo dataset.',
+                'Reset all review records and sign out? This restores the approved baseline.',
               )
             )
               run(resetDemo)
           }}
         >
-          Reset demo data
+          Reset review data
         </Button>
       </div>
       <p>
-        Demo clock: {new Date(state.clock).toISOString()}. Password: PathwaysDemo!2026. Reset expiry{' '}
+        Review clock: {new Date(state.clock).toISOString()}. Account password: PathwaysDemo!2026.
+        Beneficiary access PIN: 2468. Reset expiry{' '}
         {demoPolicy.resetMinutes} minutes, PIN {demoPolicy.pinMinutes} minutes; password 12–64
         characters with upper/lowercase, number and symbol. SADDD warning{' '}
         {demoPolicy.sadddMissingPercent}%; export limit 5 MiB.
@@ -112,8 +113,7 @@ export function DemoControls() {
           (ready ? 'Review controls ready.' : 'Loading review controls.')}
       </output>
       <section className="space-y-3">
-        <h2 className="text-xl font-semibold">Fictional notification inboxes</h2>
-        <p>Review-only view of named demo recipients. No external messages are sent.</p>
+        <h2 className="text-xl font-semibold">Review notification inboxes</h2>
         {state.notifications.length === 0 ? (
           <p>No fictional notifications yet.</p>
         ) : (
@@ -124,9 +124,7 @@ export function DemoControls() {
               </h3>
               <p>{notice.message}</p>
               {notice.href ? (
-                <Link className="underline" href={notice.href}>
-                  Open local link
-                </Link>
+                <Link className="underline" href={notice.href}>Open record</Link>
               ) : null}
             </article>
           ))

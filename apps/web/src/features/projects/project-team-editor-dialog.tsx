@@ -80,7 +80,7 @@ const teamDirectory = (
     users.push({
       id: `existing-${member.role}-${slug}`,
       name: member.name,
-      email: `${slug}@existing.demo.pathways.local`,
+      email: `${slug}@pathways.example`,
       role: member.role as PrototypeRole,
       accountStatus: 'Active',
       signInMethod: 'SSO placeholder',
@@ -145,7 +145,7 @@ export const ProjectTeamEditorDialog = ({ project }: { project: ProjectDetail })
         <DialogHeader>
           <DialogTitle>Edit project team</DialogTitle>
           <DialogDescription>
-            Reassign active members for {project.title}. Changes update this project's local access
+            Reassign active members for {project.title}. Changes update this project's access
             and future activity assignment choices.
           </DialogDescription>
         </DialogHeader>

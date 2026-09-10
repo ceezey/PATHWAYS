@@ -149,14 +149,11 @@ test('Program Manager customizes a browser-local staff preview without changing 
 }) => {
   test.setTimeout(90_000)
   await seedPrototypeSession(page, 'Program Manager')
-  await page.goto('/projects/futuremakers-ncr/transparency')
-  const previewLink = page.getByRole('link', { name: 'Open staff preview' })
-  await expect(previewLink).toHaveAttribute(
-    'href',
-    '/projects/futuremakers-ncr/transparency/preview',
-  )
+  await page.goto('/transparency')
+  const previewLink = page.getByRole('link', { name: 'Open full staff preview' })
+  await expect(previewLink).toHaveAttribute('href', '/transparency/futuremakers-ncr/preview')
   await Promise.all([
-    page.waitForURL(/\/projects\/futuremakers-ncr\/transparency\/preview$/, { timeout: 30_000 }),
+    page.waitForURL(/\/transparency\/futuremakers-ncr\/preview$/, { timeout: 30_000 }),
     previewLink.click(),
   ])
 
@@ -217,7 +214,7 @@ test('Program Manager customizes a browser-local staff preview without changing 
   )
   await expect(page.getByRole('button', { name: 'Edit staff preview' })).toHaveCount(0)
 
-  await page.goto('/projects/youth-rise-western-samar/transparency/preview')
+  await page.goto('/transparency/youth-rise-western-samar/preview')
   await expect(page.getByText('A public story shaped for stakeholder review')).toHaveCount(0)
   await expect(page.locator('[data-public-mode="staff-preview"]')).toHaveAttribute(
     'data-public-layout',
@@ -235,7 +232,7 @@ test('Program Manager customizes a browser-local staff preview without changing 
 
 test('public-dashboard staff preview rejects a non-designated internal role', async ({ page }) => {
   await seedPrototypeSession(page, 'Project Officer')
-  await page.goto('/projects/futuremakers-ncr/transparency/preview')
+  await page.goto('/transparency/futuremakers-ncr/preview')
 
   await expect(page.getByText('Unauthorized access', { exact: true })).toBeVisible()
   await expect(page.getByText('Staff-only prototype preview.')).toHaveCount(0)
@@ -532,7 +529,7 @@ for (const scenario of [
     await expect(page.getByText('Unauthorized access', { exact: true })).toBeVisible()
 
     if (scenario.role === 'Project Manager') {
-      await page.goto(`/projects/${scenario.unassignedId}/transparency/preview`)
+      await page.goto(`/transparency/${scenario.unassignedId}/preview`)
       await expect(page.getByText('Unauthorized access', { exact: true })).toBeVisible()
       await expect(page.getByText('Staff-only prototype preview.')).toHaveCount(0)
     }
@@ -647,14 +644,10 @@ test('project directory, workspace tabs, and activity dialog are navigable', asy
   await page.keyboard.press('Escape')
   await expect(page).toHaveURL(/\/projects\/futuremakers-ncr\/activities$/)
 
-  for (const tab of [
-    'Monitoring & Evaluation',
-    'Budget',
-    'Journey Stages',
-    'Public Project Dashboard',
-  ]) {
+  for (const tab of ['Monitoring & Evaluation', 'Budget', 'Journey Stages']) {
     await expect(page.getByRole('link', { name: tab })).toBeVisible()
   }
+  await expect(page.getByRole('link', { name: 'Public Project Dashboard' })).toHaveCount(0)
 
   await page.getByRole('button', { name: 'New Activity' }).click()
   await expect(page.getByRole('heading', { name: 'Create activity' })).toBeVisible()

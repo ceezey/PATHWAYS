@@ -5,7 +5,7 @@ import type { LucideIcon } from 'lucide-react'
 import Link from 'next/link'
 import { useState } from 'react'
 
-import { ProgressBar, StatusBadge } from '@/components/pathways'
+import { MetricTooltip, ProgressBar, StatusBadge } from '@/components/pathways'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
 import {
@@ -187,7 +187,10 @@ const ExecutiveSignal = ({
   <article className="min-w-0 bg-card p-5">
     <div className="flex items-start justify-between gap-3">
       <div className="min-w-0">
-        <p className="text-sm font-medium text-muted-foreground">{label}</p>
+        <div className="flex items-center gap-1">
+          <p className="text-sm font-medium text-muted-foreground">{label}</p>
+          <MetricTooltip label={label}>{helperText}</MetricTooltip>
+        </div>
         <p className="mt-2 break-words text-xl font-semibold tracking-tight tabular-nums text-foreground">
           {value}
         </p>
@@ -204,7 +207,6 @@ const ExecutiveSignal = ({
         <Icon className="h-4 w-4" aria-hidden="true" />
       </div>
     </div>
-    <p className="mt-2 text-sm leading-5 text-muted-foreground">{helperText}</p>
     {typeof progress === 'number' ? (
       <div className="mt-4">
         <ProgressBar label={label} tone={tone} value={progress} />

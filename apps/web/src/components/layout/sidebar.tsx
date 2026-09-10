@@ -3,7 +3,6 @@
 import { ShieldCheck } from 'lucide-react'
 import { usePathname } from 'next/navigation'
 
-import { PrototypeRoleSwitcher } from '@/components/layout/prototype-role-switcher'
 import { SidebarNavItem } from '@/components/layout/sidebar-nav-item'
 import { BrandMark } from '@/components/pathways'
 import { createDashboardNavGroups } from '@/constants/navigation'
@@ -81,7 +80,6 @@ export const Sidebar = ({
         ))}
       </nav>
       <div className={cn('space-y-3 border-t border-white/10 p-4', compact && 'px-3')}>
-        <PrototypeRoleSwitcher compact={compact} />
         <div className="border-t border-white/10 px-3 pt-3">
           <div className={cn('flex items-start gap-3', compact && 'justify-center')}>
             <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-sm border border-white/15">
@@ -89,12 +87,12 @@ export const Sidebar = ({
             </div>
             {!compact ? (
               <div className="min-w-0">
-                <p className="truncate text-sm font-medium">{email ?? 'Prototype user'}</p>
+                <p className="truncate text-sm font-medium">{email ?? 'Signed-in user'}</p>
                 <p className="mt-1 text-[13px] leading-[18px] text-navy-muted">{roleLabel}</p>
                 <p className="text-[12px] leading-[18px] text-navy-muted">{scopeLabel}</p>
               </div>
             ) : (
-              <span className="sr-only">{email ?? 'Prototype user'}</span>
+              <span className="sr-only">{email ?? 'Signed-in user'}</span>
             )}
           </div>
         </div>

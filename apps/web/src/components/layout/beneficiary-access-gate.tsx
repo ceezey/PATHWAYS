@@ -38,9 +38,7 @@ export const BeneficiaryAccessGate = ({ onVerified }: { onVerified: () => void }
       await Promise.resolve()
       if (pin !== '2468') {
         setStatus('error')
-        setMessage(
-          'The PIN is incorrect. Personal details remain hidden; try the fictional demo PIN shown below.',
-        )
+        setMessage('The PIN is incorrect. Personal details remain hidden; check the PIN and retry.')
         setPin('')
         return
       }
@@ -90,7 +88,6 @@ export const BeneficiaryAccessGate = ({ onVerified }: { onVerified: () => void }
                 Verification is scoped to beneficiary routes and clears when the role changes or the
                 session ends.
               </p>
-              <p className="text-xs font-medium text-foreground">Client demonstration PIN: 2468</p>
             </div>
             <div className="flex flex-col gap-2 sm:flex-row sm:justify-end">
               <Button type="button" variant="ghost" onClick={() => router.push('/dashboard')}>

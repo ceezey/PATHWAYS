@@ -32,7 +32,7 @@ describe('collection import workspace', () => {
     expect(chooser.className).not.toContain('sr-only')
     expect(helpId).toBe('collection-import-file-help')
     expect(document.getElementById(helpId ?? '')?.textContent).toContain(
-      'It is read locally in this browser',
+      'Choose one CSV, XLS, or XLSX file.',
     )
 
     chooser.focus()
@@ -50,7 +50,7 @@ describe('collection import workspace', () => {
 
     await waitFor(() => {
       expect(
-        screen.getByText('Reading the file in this browser. Nothing is being uploaded.'),
+        screen.getByText('Reading the selected file.'),
       ).toBeTruthy()
     })
     expect(

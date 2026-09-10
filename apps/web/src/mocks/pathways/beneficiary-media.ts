@@ -16,7 +16,7 @@ export const mockBeneficiaryMediaProof: BeneficiaryMediaProofRecord[] = [
     note: 'Wide session view showing the learning setup and facilitated group activity.',
     tags: ['Skills session', 'Attendance context'],
     reviewStatus: 'Accepted',
-    reviewNote: 'Accepted as contextual participation proof for this prototype record.',
+    reviewNote: 'Accepted as contextual participation proof for this record.',
     source: 'Mock media',
   },
   {
@@ -86,7 +86,7 @@ export const mockBeneficiaryMediaProof: BeneficiaryMediaProofRecord[] = [
     note: 'Brief walkthrough of the training area before the scheduled cohort activity.',
     tags: ['Site walkthrough'],
     reviewStatus: 'Needs Clarification',
-    reviewNote: 'Accessibility marker is not visible in this mock clip.',
+    reviewNote: 'The accessibility marker is not visible in this clip.',
     durationSeconds: 58,
     source: 'Mock media',
   },

@@ -201,7 +201,7 @@ export function importEntries(
 ) {
   return transactDemo('imports.run', projectId, filename, (state, actor) => {
     if (state.scenario === 'import-failure')
-      throw new Error('Demo import failed. Correct or retry the retained dataset.')
+      throw new Error('Import failed. Correct or retry the retained dataset.')
     const rejected: { row: number; errors: string[] }[] = []
     let accepted = 0
     inputs.forEach((input, index) => {

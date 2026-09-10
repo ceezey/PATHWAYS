@@ -35,7 +35,7 @@ export const prototypeRoleSummaries: PrototypeRoleSummary[] = [
   },
   {
     role: 'System Administrator',
-    description: 'Prototype configuration, user records, labels, and future integration setup.',
+    description: 'System configuration, user records, labels, and administrative access.',
   },
 ]
 
@@ -109,11 +109,11 @@ export const getUserAdministrationSummary = (actorRole: PrototypeRole) => {
   const roles = getManageableUserRoles(actorRole)
 
   if (roles.length === 0) {
-    return 'This role has no prototype account creation, authorization, or assignment controls.'
+    return 'This role has no account creation, authorization, or assignment controls.'
   }
 
   if (actorRole === 'System Administrator') {
-    return 'You can create and authorize every supported prototype role and configure relevant project assignments.'
+    return 'You can create and authorize every supported role and configure project assignments.'
   }
 
   return `You can create and authorize ${roles.join(' and ')} accounts within your permitted project scope.`

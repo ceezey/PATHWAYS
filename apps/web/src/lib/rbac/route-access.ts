@@ -49,6 +49,9 @@ const hasBeneficiaryPermission = (role: PrototypeRole) =>
 const getProjectIdFromPath = (pathname: string) =>
   /^\/projects\/([^/]+)/.exec(pathname)?.[1] ?? null
 
+const getPublicTrackerProjectIdFromPath = (pathname: string) =>
+  /^\/transparency\/([^/]+)/.exec(pathname)?.[1] ?? null
+
 const canAccessProjectPath = (role: PrototypeRole, pathname: string) => {
   const projectId = getProjectIdFromPath(pathname)
   return projectId ? canAccessProjectForRole(role, projectId) : true
@@ -130,10 +133,8 @@ const routeChecks: Array<{
   },
   {
     test: (pathname) => /^\/projects\/[^/]+\/transparency/.test(pathname),
-    moduleName: 'Public dashboard preview',
-    allowed: (role, pathname) =>
-      canAccessProjectPath(role, pathname) &&
-      canAny(role, ['transparency.preview', 'transparency.publish']),
+    moduleName: 'Public Tracker',
+    allowed: () => false,
   },
   {
     test: (pathname) => pathname.startsWith('/beneficiaries/evaluation-center'),
@@ -206,6 +207,19 @@ const routeChecks: Array<{
     test: (pathname) => pathname.startsWith('/reports'),
     moduleName: 'Reports',
     allowed: (role) => can(role, 'reports.view'),
+  },
+  {
+    test: (pathname) => /^\/transparency\/[^/]+\/preview$/.test(pathname),
+    moduleName: 'Public Tracker preview',
+    allowed: (role, pathname) => {
+      const projectId = getPublicTrackerProjectIdFromPath(pathname)
+      if (!projectId) return false
+
+      return (
+        canAccessProjectForRole(role, projectId) &&
+        canAny(role, ['transparency.preview', 'transparency.publish'])
+      )
+    },
   },
   {
     test: (pathname) => pathname.startsWith('/transparency'),

@@ -19,7 +19,6 @@ describe('prototype labels', () => {
       moduleRecommendations: 'Human-reviewed recommendation',
       moduleUserManagement: 'User Management',
       projectMonitorEvaluate: 'Monitoring & Evaluation',
-      projectPublicDashboard: 'Public Project Dashboard',
       projectWorkspace: 'Project Workspace',
     })
   })

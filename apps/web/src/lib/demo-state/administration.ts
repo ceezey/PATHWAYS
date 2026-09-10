@@ -22,7 +22,7 @@ const checksum = (text: string) => {
 export function createBackup() {
   return transactDemo('backup.create', undefined, undefined, (state) => {
     if (state.scenario === 'backup-storage-unavailable')
-      throw new Error('Browser backup storage is unavailable. No backup was created.')
+      throw new Error('Backup storage is unavailable. No backup was created.')
     if (state.scenario === 'backup-create-failure')
       throw new Error(
         'Backup creation failed before commit. Existing state and backups are unchanged.',
@@ -31,7 +31,7 @@ export function createBackup() {
     const backup = {
       id: nextId(state, 'backup'),
       at: demoTime(state),
-      name: `pathways-demo-backup-${state.revision}.json`,
+      name: `pathways-backup-${state.revision}.json`,
       payload,
       checksum: checksum(payload),
     }
@@ -75,7 +75,7 @@ export function restoreBackup(id: string) {
 export function importBackupFile(payload: string, name: string) {
   const candidate = migrateDemoState(JSON.parse(payload))
   if (!validateDemoState(candidate))
-    throw new Error('Selected file is not a compatible PATHWAYS demo backup.')
+    throw new Error('Selected file is not a compatible PATHWAYS backup.')
   const next = structuredClone(getDemoState())
   const actor = currentAccount(next)
   if (!actor || actor.role !== 'System Administrator')
@@ -95,7 +95,7 @@ export function importBackupFile(payload: string, name: string) {
       module: 'backup',
       entityId: backup.id,
       outcome: 'Success',
-      details: 'Local recovery file validated and added.',
+      details: 'Recovery file validated and added.',
     },
     actor,
   )

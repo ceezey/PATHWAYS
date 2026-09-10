@@ -24,7 +24,7 @@ export const mockActivities: Activity[] = [
         fileName: 'orientation-attendance-summary.pdf',
         status: 'Accepted',
         submittedAt: '2026-02-15',
-        note: 'Attendance and baseline summary accepted for prototype review.',
+        note: 'Attendance and baseline summary accepted for review.',
       },
     ],
     updateNotes: [

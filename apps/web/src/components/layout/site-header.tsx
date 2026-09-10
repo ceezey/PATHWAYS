@@ -13,11 +13,11 @@ export const SiteHeader = () => {
     <header className="sticky top-0 z-40 border-b border-border bg-background">
       <div className="mx-auto flex w-full max-w-6xl flex-col gap-3 px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-6">
         <Link
-          aria-label="HDO Public Dashboard, PATHWAYS home"
+          aria-label="HDO Public Portal, PATHWAYS home"
           className="w-fit rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
           href="/"
         >
-          <p className="text-xs font-semibold uppercase text-primary">HDO Public Dashboard</p>
+          <p className="text-xs font-semibold uppercase text-primary">HDO Public Portal</p>
           <p className="mt-0.5 text-lg font-semibold leading-5 text-foreground">PATHWAYS</p>
         </Link>
         <nav

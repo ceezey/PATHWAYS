@@ -27,7 +27,7 @@ export const passwordError = (password: string) =>
 export function loginDemo(identifier: string, password: string) {
   const state = structuredClone(getDemoState())
   if (state.scenario === 'login-unavailable')
-    throw new Error('Demo connection unavailable. Retry after clearing the review scenario.')
+    throw new Error('The sign-in service is unavailable. Try again later.')
   const account = state.accounts.find((a) =>
     [a.email.toLowerCase(), a.username.toLowerCase()].includes(identifier.trim().toLowerCase()),
   )
@@ -61,7 +61,7 @@ export function loginDemo(identifier: string, password: string) {
       action: 'login',
       module: 'accounts',
       outcome: 'Success',
-      details: 'Local demo session created.',
+      details: 'Staff session created.',
     },
     valid,
   )
@@ -70,7 +70,7 @@ export function loginDemo(identifier: string, password: string) {
 }
 
 export const recoveryResponse =
-  'If an active account matches that address, a reset link has been placed in its fictional demo inbox. No email is sent.'
+  'If an active account matches that address, recovery instructions are available in the recovery inbox.'
 export function requestDemoReset(email: string) {
   const state = structuredClone(getDemoState())
   const account = state.accounts.find(
@@ -87,7 +87,7 @@ export function requestDemoReset(email: string) {
     notifyLocally(
       state,
       account,
-      'Reset your PATHWAYS demo password. This link expires in 15 demo minutes and can be used once.',
+      'Reset your PATHWAYS password. This link expires in 15 minutes and can be used once.',
       `/staff/reset-password?token=${token.id}`,
     )
     appendAudit(
@@ -96,7 +96,7 @@ export function requestDemoReset(email: string) {
         action: 'reset.request',
         module: 'accounts',
         outcome: 'Success',
-        details: 'Fictional reset link issued.',
+        details: 'Password recovery link issued.',
       },
       account,
     )
@@ -137,7 +137,7 @@ export function resetDemoPassword(id: string, password: string, confirmation: st
       action: 'password.reset',
       module: 'accounts',
       outcome: 'Success',
-      details: 'Local credential changed; reset links invalidated.',
+      details: 'Password changed; recovery links invalidated.',
     },
     account,
   )
@@ -226,7 +226,7 @@ export function saveDemoAccount(
       notifyLocally(
         state,
         account,
-        `Your fictional account has been created and awaits authorization. Demo password: ${DEMO_PASSWORD}`,
+        `Your account has been created and awaits authorization. Temporary password: ${DEMO_PASSWORD}`,
       )
     }
     return account.id
@@ -237,7 +237,7 @@ export function authorizeDemoAccount(id: string) {
     const account = managedDemoAccounts(state).find((a) => a.id === id)
     if (!account) throw new Error('This account is outside your management scope.')
     account.status = 'Active'
-    notifyLocally(state, account, 'Your fictional PATHWAYS account is authorized and active.')
+    notifyLocally(state, account, 'Your PATHWAYS account is authorized and active.')
   })
 }
 export function deactivateDemoAccount(id: string) {

@@ -51,7 +51,7 @@ export function ManualDataEntryWorkspace() {
       setId(submit ? undefined : entry.id)
       setMessage(
         submit
-          ? `Record ${entry.id} submitted. Project, journey, indicators and audit updated locally.`
+          ? `Record ${entry.id} submitted. Project, journey, indicators, and audit updated.`
           : `Draft ${entry.id} saved without validation. Resume after refresh.`,
       )
       if (submit) setDraft(blank)
@@ -65,7 +65,7 @@ export function ManualDataEntryWorkspace() {
     <div className="space-y-6">
       <PageHeader
         title="Encode Project Data"
-        description="Demo data · save partial drafts or submit validated project-linked records."
+        description="Save partial drafts or submit validated project-linked records."
       />
       <SectionCard title="Resume your drafts">
         <div className="flex flex-wrap gap-2">
@@ -306,7 +306,7 @@ export function ManualDataEntryWorkspace() {
               )
             ) : null}
             <p className="mt-3 text-sm">
-              Saving produces a local audit event. Only the System Administrator can review the
+              Saving produces an audit event. Only the System Administrator can review the
               global audit ledger.
             </p>
           </SectionCard>

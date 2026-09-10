@@ -53,7 +53,7 @@ describe('BeneficiaryAccessGate', () => {
 
     expect(
       await screen.findByText(
-        'The PIN is incorrect. Personal details remain hidden; try the fictional demo PIN shown below.',
+        'The PIN is incorrect. Personal details remain hidden; check the PIN and retry.',
       ),
     ).toBeTruthy()
     expect((pin as HTMLInputElement).value).toBe('')

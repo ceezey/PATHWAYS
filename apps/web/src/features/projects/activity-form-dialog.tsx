@@ -227,7 +227,7 @@ export const ActivityFormDialog = ({
           })
 
       toast.success(activity ? 'Activity updated.' : 'Activity created.', {
-        description: `${savedActivity.title} is available in this prototype session.`,
+        description: `${savedActivity.title} is available in the project activity list.`,
       })
       window.sessionStorage.removeItem(draftStorageKey)
       onCreatedOrUpdated(savedActivity)
@@ -260,7 +260,7 @@ export const ActivityFormDialog = ({
       <Dialog onOpenChange={requestOpenChange} open={open}>
         <DialogShell
           title={activity ? 'Edit activity' : 'Create activity'}
-          description="Save a temporary activity for this project workspace demonstration."
+          description="Review the activity details before saving them to this project."
         >
           <Form {...form}>
             <form className="space-y-5" onSubmit={form.handleSubmit(onSubmit)}>
@@ -287,7 +287,7 @@ export const ActivityFormDialog = ({
                   aria-live="polite"
                   className="block rounded-sm border border-info/25 bg-info-subtle p-3 text-sm text-info"
                 >
-                  Recovered your unsaved activity draft from this browser tab.
+                  Recovered your unsaved activity draft.
                 </output>
               ) : null}
               <div className="grid gap-4 lg:grid-cols-2">

@@ -151,13 +151,13 @@ export const createDashboardNavGroups = (): DashboardNavGroup[] => [
       {
         href: '/settings/users',
         label: fixedDashboardNavItemLabels.userManagement,
-        description: 'Review prototype users, roles, and account states.',
+        description: 'Review users, roles, and account states.',
         icon: UserCog,
       },
       {
         href: '/settings/audit',
         label: fixedDashboardNavItemLabels.auditLog,
-        description: 'Inspect significant prototype actions and system events.',
+        description: 'Inspect significant account actions and system events.',
         icon: ScrollText,
       },
       {
@@ -169,7 +169,7 @@ export const createDashboardNavGroups = (): DashboardNavGroup[] => [
       {
         href: '/settings/labels',
         label: fixedDashboardNavItemLabels.editLabels,
-        description: 'Edit approved browser-local page headings.',
+        description: 'Edit approved page headings.',
         icon: Type,
       },
     ],

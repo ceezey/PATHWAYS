@@ -59,9 +59,7 @@ export const LabelSettingsWorkspace = () => {
     }
 
     saveLabels(draft)
-    toast.success('Page headings saved.', {
-      description: 'The selected internal page headings now update in this browser.',
-    })
+    toast.success('Page headings saved.')
   }
 
   const reset = () => {
@@ -81,11 +79,10 @@ export const LabelSettingsWorkspace = () => {
         <PageHeader
           eyebrow="Administration"
           title={labels.moduleLabelSettings}
-          description="Edit the approved internal page headings for this prototype. Only the System Administrator can open this workspace. Sidebar labels and section titles stay fixed."
+          description="Edit approved internal page headings. Sidebar labels and section titles remain fixed."
           actions={
             <div className="flex flex-wrap gap-2">
               <StatusBadge tone="info">System Administrator</StatusBadge>
-              <StatusBadge tone="neutral">Browser-local prototype</StatusBadge>
               <Button asChild size="sm" variant="outline">
                 <Link href="/settings/users">Open User Management</Link>
               </Button>
@@ -180,7 +177,7 @@ export const LabelSettingsWorkspace = () => {
       </form>
       <ConfirmationDialog
         confirmLabel="Restore all heading defaults"
-        description={`This replaces ${editableLabelDefinitions.length} editable page headings with the PATHWAYS defaults in this browser.`}
+        description={`This replaces ${editableLabelDefinitions.length} editable page headings with the PATHWAYS defaults.`}
         onConfirm={reset}
         onOpenChange={setResetDialogOpen}
         open={resetDialogOpen}

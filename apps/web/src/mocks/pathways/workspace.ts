@@ -210,7 +210,7 @@ export const mockExpenses: ExpenseRecord[] = [
     expenseDate: '2026-06-15',
     hasReceipt: false,
     liquidationStatus: 'Rejected',
-    rejectionReason: 'Receipt placeholder is required for prototype verification.',
+    rejectionReason: 'A receipt is required for verification.',
   },
   {
     id: 'exp-yr-learning-kits',

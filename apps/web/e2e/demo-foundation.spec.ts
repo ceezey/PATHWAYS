@@ -32,9 +32,7 @@ test('I01/I02: local login, profile propagation, audit, role denial and reset', 
     .getByLabel('Email address', { exact: false })
     .fill('revised.officer@demo.pathways.local')
   await page.getByRole('button', { name: 'Save profile', exact: true }).click()
-  await expect(
-    page.getByText('Profile and local sign-in email updated.', { exact: false }),
-  ).toBeVisible()
+  await expect(page.getByText('Profile updated.', { exact: false })).toBeVisible()
   await page.reload()
   await expect(page.getByLabel('Email address', { exact: false })).toHaveValue(
     'revised.officer@demo.pathways.local',

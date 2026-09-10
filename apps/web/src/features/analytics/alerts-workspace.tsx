@@ -173,7 +173,7 @@ const AlertsWorkspaceContent = ({
       else throw new Error('Auto-resolved is set only when the configured condition clears.')
       setAlerts(getDemoState().alerts)
       setReviewOpen(false)
-      toast.success('Alert transition saved to shared demo state.')
+      toast.success('Alert status updated.')
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Alert review could not be saved.')
     }

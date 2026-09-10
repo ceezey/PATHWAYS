@@ -129,7 +129,7 @@ describe('I02 local credential and scoped account flows', () => {
   it('locks on the fifth consecutive invalid credential and resets with a one-use link', () => {
     for (let i = 0; i < 5; i++) expect(() => loginDemo('project.officer', 'wrong')).toThrow()
     expect(() => loginDemo('project.officer', DEMO_PASSWORD)).toThrow('locked')
-    requestDemoReset('project.officer@demo.pathways.local')
+    requestDemoReset('project.officer@pathways.example')
     const id = getDemoState().resetTokens[0].id
     expect(() => resetDemoPassword(id, 'weak', 'weak')).toThrow('12')
     resetDemoPassword(id, 'NewPassword!123', 'NewPassword!123')
@@ -138,18 +138,18 @@ describe('I02 local credential and scoped account flows', () => {
     expect(loginDemo('project.officer', 'NewPassword!123').role).toBe('Project Officer')
   })
   it('gives generic recovery response and enforces expiry with a reissue path', () => {
-    expect(requestDemoReset('unknown@demo.pathways.local')).toBe(
-      requestDemoReset('project.officer@demo.pathways.local'),
+    expect(requestDemoReset('unknown@pathways.example')).toBe(
+      requestDemoReset('project.officer@pathways.example'),
     )
     const token = getDemoState().resetTokens[0]
     advanceDemoClock(16)
     expect(resetTokenState(token.id)).toBe('expired')
-    requestDemoReset('project.officer@demo.pathways.local')
+    requestDemoReset('project.officer@pathways.example')
     expect(resetTokenState(getDemoState().resetTokens[1].id)).toBe('valid')
   })
   it('distinguishes outage and inactive accounts', () => {
     setDemoScenario('login-unavailable')
-    expect(() => loginDemo('project.officer', DEMO_PASSWORD)).toThrow('connection')
+    expect(() => loginDemo('project.officer', DEMO_PASSWORD)).toThrow('unavailable')
     setDemoScenario('baseline')
     switchDemoAccount('project-manager')
     deactivateDemoAccount('project-officer')
@@ -183,7 +183,7 @@ describe('I02 local credential and scoped account flows', () => {
       'scope',
     )
     expect(() =>
-      saveDemoAccount({ ...input, email: 'project.officer@demo.pathways.local' }),
+      saveDemoAccount({ ...input, email: 'project.officer@pathways.example' }),
     ).toThrow('already')
     expect(managedDemoAccounts().some((a) => a.role === 'System Administrator')).toBe(false)
     switchDemoAccount('system-administrator')
@@ -196,7 +196,7 @@ describe('I02 local credential and scoped account flows', () => {
       email: 'revised@demo.pathways.local',
       contact: '09171234567',
     })
-    expect(() => loginDemo('project.officer@demo.pathways.local', DEMO_PASSWORD)).toThrow(
+    expect(() => loginDemo('project.officer@pathways.example', DEMO_PASSWORD)).toThrow(
       'incorrect',
     )
     expect(loginDemo('revised@demo.pathways.local', DEMO_PASSWORD).name).toBe(

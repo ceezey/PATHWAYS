@@ -180,7 +180,7 @@ const defaultVisibleColumns = Object.fromEntries(
 
 const formatDate = (value?: string) => {
   if (!value) {
-    return 'Prototype date'
+    return 'Date unavailable'
   }
 
   return new Intl.DateTimeFormat('en-US', {
@@ -191,7 +191,7 @@ const formatDate = (value?: string) => {
 
 const splitPeriod = (period: string) => {
   const [startDate, endDate] = period.split(' - ')
-  return { startDate: startDate ?? 'Prototype start', endDate: endDate ?? 'Prototype end' }
+  return { startDate: startDate ?? 'Start unavailable', endDate: endDate ?? 'End unavailable' }
 }
 
 const projectCode = (index: number) => String(index + 1).padStart(3, '0')
@@ -571,7 +571,7 @@ export const ReportingWorkspace = ({
 
   const generateIndicatorReport = () => {
     setIndicatorGenerated(true)
-    toast.success('Indicator report generated locally.', {
+    toast.success('Indicator report generated.', {
       description: 'This table uses safe sample project data.',
     })
   }
@@ -617,7 +617,7 @@ export const ReportingWorkspace = ({
         { project: effectiveProjectId, search, reportKind: kind },
       )
       setPreviewOpen(false)
-      toast.success('Report generated and added to browser-local history.')
+      toast.success('Report generated and added to report history.')
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Report could not be generated.')
     }
@@ -664,7 +664,7 @@ export const ReportingWorkspace = ({
             </Button>
           </div>
         }
-        description="Build, preview, retain, and export project, indicator, Beneficiary, and aggregate survey reports from fictional browser-local data."
+        description="Build, preview, retain, and export project, indicator, beneficiary, and aggregate survey reports."
         eyebrow="Reporting workspace"
         title={labels.moduleReports}
       />
@@ -673,7 +673,7 @@ export const ReportingWorkspace = ({
         <CardHeader>
           <CardTitle>Generated report history</CardTitle>
           <p className="text-sm text-muted-foreground">
-            {generatedReportHistory.length} browser-local snapshot
+            {generatedReportHistory.length} report snapshot
             {generatedReportHistory.length === 1 ? '' : 's'} in your active project scope.
           </p>
         </CardHeader>
@@ -764,7 +764,7 @@ export const ReportingWorkspace = ({
               <p className="text-sm text-muted-foreground">
                 {kind === 'survey-results'
                   ? `${scopedSurveyResults.length} aggregate survey result sets are available for review.`
-                  : `${scopedReports.length} saved prototype report records are available for reference.`}
+                  : `${scopedReports.length} saved report records are available for reference.`}
               </p>
             </div>
             {kind === 'survey-results' ? (
@@ -777,7 +777,7 @@ export const ReportingWorkspace = ({
                 }
                 onFormChange={selectSurveyForm}
                 onGenerate={() =>
-                  toast.success('Aggregate survey report generated locally.', {
+                  toast.success('Aggregate survey report generated.', {
                     description: 'No individual response records were loaded.',
                   })
                 }
@@ -832,7 +832,7 @@ export const ReportingWorkspace = ({
                     Generate
                   </Button>
                 ) : (
-                  <Button variant="outline" onClick={() => toast.info('Filters applied locally.')}>
+                  <Button variant="outline" onClick={() => toast.info('Filters applied.')}>
                     <Filter className="mr-2 h-4 w-4" aria-hidden="true" />
                     Filter
                   </Button>
@@ -960,7 +960,7 @@ export const ReportingWorkspace = ({
           <DialogHeader>
             <DialogTitle>Select columns</DialogTitle>
             <DialogDescription>
-              Choose the columns shown in this saved prototype report view.
+              Choose the columns shown in this saved report view.
             </DialogDescription>
           </DialogHeader>
           <div className="grid gap-3 sm:grid-cols-2">

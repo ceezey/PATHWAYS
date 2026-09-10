@@ -25,16 +25,13 @@ export const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
       <div className="flex min-h-screen items-center justify-center p-6">
         <Card className="max-w-xl">
           <CardHeader>
-            <CardTitle as="h1">Supabase auth setup is still required</CardTitle>
+            <CardTitle as="h1">Staff access is unavailable</CardTitle>
             <CardDescription>
-              Dashboard routes are scaffolded, but the real session check stays in placeholder mode
-              until the Supabase project URL, publishable key, and redirect URLs are configured.
+              Authentication is not configured for this environment.
             </CardDescription>
           </CardHeader>
           <CardContent className="text-sm leading-6 text-muted-foreground">
-            Continue the human setup in Supabase, then reload this route. The reserved redirect
-            target is
-            <code className="mx-1 rounded bg-muted px-2 py-1 text-foreground">/auth/callback</code>.
+            Contact your administrator, then reload this page when staff access is available.
             <div className="mt-4">
               <Link
                 className="font-medium text-primary underline-offset-4 hover:underline"

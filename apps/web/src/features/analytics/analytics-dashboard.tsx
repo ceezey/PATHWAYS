@@ -134,13 +134,9 @@ export const AnalyticsDashboard = ({
       ],
     ] as const) {
       try {
-        recordDemoAccess(
-          action,
-          failed ? `${details} Local scenario reported a failure.` : details,
-          {
-            outcome: failed ? 'Failure' : 'Success',
-          },
-        )
+        recordDemoAccess(action, failed ? `${details} Monitoring request failed.` : details, {
+          outcome: failed ? 'Failure' : 'Success',
+        })
       } catch {
         // The route guard owns denied-route feedback; the ledger records the attempt.
       }
@@ -367,7 +363,7 @@ export const AnalyticsDashboard = ({
     return (
       <AsyncState
         className="min-h-80 rounded-lg border border-border bg-card"
-        description="The local visualization renderer was intentionally interrupted. Clear the scenario and retry."
+        description="The visualization could not be rendered. Clear the review scenario and retry."
         icon={AlertTriangle}
         status="error"
         title="Analytics rendering failed"
@@ -378,7 +374,7 @@ export const AnalyticsDashboard = ({
     return (
       <AsyncState
         className="min-h-80 rounded-lg border border-border bg-card"
-        description="The authorized monitoring dataset could not be retrieved in this deterministic local scenario. Clear the scenario and retry. The failed access is recorded in the audit trail."
+        description="The authorized monitoring data could not be retrieved. Clear the review scenario and retry. The failed access is recorded in the audit trail."
         icon={AlertTriangle}
         status="error"
         title="Analytics data unavailable"
@@ -524,21 +520,20 @@ export const AnalyticsDashboard = ({
             </SelectContent>
           </Select>
         </div>
-        <div className="rounded-sm border border-info/25 bg-info-subtle p-3 text-sm leading-6 text-info">
-          Active scope:{' '}
-          {projectId === allValue ? 'all authorized projects' : visibleProjects[0]?.title}
+        <div className="rounded-sm border border-border bg-surface-subtle p-3 text-sm leading-6 text-muted-foreground">
+          Project: {projectId === allValue ? 'all authorized projects' : visibleProjects[0]?.title}
           {' · '}
           {period}
         </div>
         <div className="flex flex-col gap-2 border-t border-border pt-4 md:col-span-2 md:flex-row md:items-center md:justify-between xl:col-span-4">
           <p className="text-sm text-muted-foreground">
             {projectId === allValue
-              ? 'Choose one project to save this chart to its Monitoring Dashboard.'
+              ? 'Choose one project before saving this chart.'
               : visualizationType === 'table' || visualizationType === 'map'
-                ? 'Choose Bar chart or Line chart before adding it to the Monitoring Dashboard.'
+                ? 'Choose Bar chart or Line chart before saving this chart.'
                 : analysisRows.length === 0
-                  ? 'This selection needs data before it can be added to the Monitoring Dashboard.'
-                  : `Save this chart only to ${visibleProjects[0]?.title}'s Monitoring Dashboard.`}
+                  ? 'This selection needs data before the chart can be saved.'
+                  : `This chart will be saved to ${visibleProjects[0]?.title}.`}
           </p>
           <div className="flex flex-wrap gap-2">
             {projectId !== allValue && savedChartCount > 0 ? (
@@ -665,12 +660,8 @@ export const AnalyticsDashboard = ({
           <section className="space-y-6" aria-labelledby="fixed-monitoring-charts-title">
             <div>
               <h2 className="text-lg font-semibold" id="fixed-monitoring-charts-title">
-                Fixed monitoring charts
+                Monitoring charts
               </h2>
-              <p className="mt-1 text-sm text-muted-foreground">
-                These required views stay full width, keep a fixed height, and cannot be edited or
-                rearranged.
-              </p>
             </div>
             <ChartPanel title="Project performance trend">
               <ProjectPerformanceTrendChart projects={visibleProjects} />

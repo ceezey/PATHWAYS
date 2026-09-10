@@ -70,7 +70,7 @@ const emptyDraft: RuleDraft = {
   status: 'Active',
   suggestedAction:
     'Review beneficiary outreach strategy and intensify vocational track engagement.',
-  description: 'Prototype rule created from the rule configuration form.',
+  description: 'Rule created from the configuration form.',
 }
 
 export const RuleConfigurationWorkspace = ({
@@ -153,10 +153,7 @@ export const RuleConfigurationWorkspace = ({
       setRules(getDemoState().rules)
       setSelectedRuleId(saved.id)
       setDialogOpen(false)
-      toast.success(editingRuleId ? 'Rule updated and applied.' : 'Rule created and applied.', {
-        description:
-          'Subsequent local evaluations use this configuration and the audit event was recorded.',
-      })
+      toast.success(editingRuleId ? 'Rule updated and applied.' : 'Rule created and applied.')
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Rule could not be saved.')
     }
@@ -194,8 +191,7 @@ export const RuleConfigurationWorkspace = ({
             </h1>
             <p className="mt-2 max-w-3xl text-sm leading-6 text-muted-foreground">
               Review predefined alert and recommendation rules for human-reviewed decision support.
-              System Administrators can demonstrate prototype-only configuration; no autonomous
-              action is taken.
+              System Administrators can configure rules; no autonomous action is taken.
             </p>
           </div>
         </div>
@@ -328,7 +324,7 @@ export const RuleConfigurationWorkspace = ({
                 <div>
                   <h2 className="text-lg font-semibold text-foreground">Create rule</h2>
                   <p className="mt-1 text-sm text-muted-foreground">
-                    Open the rule form to create a prototype rule definition.
+                    Open the rule form to create a rule definition.
                   </p>
                 </div>
                 <Button onClick={openCreate}>

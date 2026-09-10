@@ -124,13 +124,13 @@ export const BeneficiaryMediaProof = ({
 
     if (files.some((file) => !isSupportedBeneficiaryMedia(file.type))) {
       setSelectedFiles([])
-      setAddError('Use JPG, PNG, or MP4 files for this prototype preview.')
+      setAddError('Use JPG, PNG, or MP4 files.')
       return
     }
 
     if (files.some((file) => file.size > maxLocalFileSize)) {
       setSelectedFiles([])
-      setAddError('Each local preview must be 50 MB or smaller.')
+      setAddError('Each selected file must be 50 MB or smaller.')
       return
     }
 
@@ -140,7 +140,7 @@ export const BeneficiaryMediaProof = ({
 
   const addLocalMedia = () => {
     if (selectedFiles.length === 0) {
-      setAddError('Choose at least one photo or video for the local preview.')
+      setAddError('Choose at least one photo or video.')
       return
     }
 
@@ -174,7 +174,7 @@ export const BeneficiaryMediaProof = ({
         fileSizeBytes: file.size,
         capturedAt,
         addedAt: now.toISOString().slice(0, 10),
-        addedBy: 'Prototype user',
+        addedBy: 'Staff user',
         note: note.trim() || undefined,
         tags: parsedTags,
         reviewStatus: 'For Review',
@@ -189,9 +189,9 @@ export const BeneficiaryMediaProof = ({
     setFilter('All')
     setAddOpen(false)
     toast.success(
-      `${localItems.length} local media preview${localItems.length === 1 ? '' : 's'} added.`,
+      `${localItems.length} media preview${localItems.length === 1 ? '' : 's'} added.`,
       {
-        description: 'Nothing was uploaded or synced; previews remain in this browser session.',
+        description: 'Selected files are available for review.',
       },
     )
   }
@@ -215,9 +215,7 @@ export const BeneficiaryMediaProof = ({
       ),
     )
     setSelectedMediaId(null)
-    toast.success('Media review updated locally.', {
-      description: 'The review status is not saved to a server in this prototype.',
-    })
+    toast.success('Media review updated.')
   }
 
   return (
@@ -228,31 +226,25 @@ export const BeneficiaryMediaProof = ({
       <div className="border-b border-border bg-surface-subtle p-5">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
           <div className="space-y-2">
-            <div className="flex flex-wrap items-center gap-2">
-              <p className="text-xs font-semibold uppercase tracking-wide text-primary">
-                Beneficiary evidence
-              </p>
-              <StatusBadge tone="neutral">Frontend prototype</StatusBadge>
-            </div>
+            <p className="text-xs font-semibold uppercase tracking-wide text-primary">
+              Beneficiary evidence
+            </p>
             <h2 className="text-xl font-semibold text-foreground" id="beneficiary-media-title">
               Media proof
             </h2>
             <p className="max-w-3xl text-base leading-6 text-muted-foreground">
-              Review photos and videos connected to this Beneficiary record. Mock items and local
-              previews remain private to the internal prototype.
+              Review photos and videos connected to this beneficiary record. Media remains private
+              to authorized staff.
             </p>
           </div>
           <Button className="w-full gap-2 sm:w-auto" onClick={openAddDialog} type="button">
             <UploadCloud className="h-4 w-4" aria-hidden="true" />
-            Add local media
+            Add media
           </Button>
         </div>
         <div className="mt-4 flex items-start gap-3 rounded-sm border border-info/25 bg-info-subtle p-3 text-xs leading-5 text-info">
           <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
-          <p>
-            Prototype only: files selected here are previewed locally and are not uploaded, synced,
-            or published.
-          </p>
+          <p>Selected files are review-only and are not published.</p>
         </div>
       </div>
 
@@ -297,10 +289,10 @@ export const BeneficiaryMediaProof = ({
           <EmptyState
             action={
               <Button onClick={openAddDialog} type="button" variant="outline">
-                Add local media
+                Add media
               </Button>
             }
-            description={`Add a local ${filter.toLowerCase()} preview to show how it will appear in this Beneficiary record.`}
+            description={`Add a ${filter.toLowerCase()} to this beneficiary record.`}
             icon={filter === 'Video' ? Video : Camera}
             title={`No ${filter.toLowerCase()} proof items`}
           />
@@ -310,10 +302,9 @@ export const BeneficiaryMediaProof = ({
       <Dialog onOpenChange={setAddOpen} open={addOpen}>
         <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl">
           <DialogHeader>
-            <DialogTitle>Add local media preview</DialogTitle>
+            <DialogTitle>Add media</DialogTitle>
             <DialogDescription>
-              Choose photos or videos to demonstrate the Beneficiary evidence-review experience.
-              Files stay in this browser session and are not uploaded.
+              Choose photos or videos for beneficiary evidence review.
             </DialogDescription>
           </DialogHeader>
 
@@ -328,13 +319,13 @@ export const BeneficiaryMediaProof = ({
                 type="file"
               />
               <p className="text-xs leading-5 text-muted-foreground">
-                JPG, PNG, or MP4 · up to four files · 50 MB per local preview.
+                JPG, PNG, or MP4 · up to four files · 50 MB per file.
               </p>
             </div>
 
             {selectedFiles.length > 0 ? (
               <div className="space-y-2 rounded-sm border border-border bg-surface-subtle p-3">
-                <p className="text-sm font-medium text-foreground">Selected local files</p>
+                <p className="text-sm font-medium text-foreground">Selected files</p>
                 {selectedFiles.map((file) => (
                   <div
                     className="flex items-center justify-between gap-3 text-sm text-muted-foreground"
@@ -411,7 +402,7 @@ export const BeneficiaryMediaProof = ({
             </Button>
             <Button className="gap-2" onClick={addLocalMedia} type="button">
               <UploadCloud className="h-4 w-4" aria-hidden="true" />
-              Add to prototype record
+              Add to record
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -430,7 +421,7 @@ export const BeneficiaryMediaProof = ({
             <DialogHeader>
               <DialogTitle>Review media proof</DialogTitle>
               <DialogDescription>
-                Review {selectedMedia.fileName}. Status and notes are local prototype changes only.
+                Review {selectedMedia.fileName} and record its status and notes.
               </DialogDescription>
             </DialogHeader>
 
@@ -481,7 +472,7 @@ export const BeneficiaryMediaProof = ({
                 Close
               </Button>
               <Button onClick={saveReview} type="button">
-                Save local review
+                Save review
               </Button>
             </DialogFooter>
           </DialogContent>
@@ -549,7 +540,8 @@ const MediaProofCard = ({
           </p>
           <p className="flex items-center gap-2">
             <HardDrive className="h-3.5 w-3.5" aria-hidden="true" />
-            {item.source} · {projectTitle(item.projectId, projects)}
+            {item.source === 'Mock media' ? 'Reference media' : 'Session media'} ·{' '}
+            {projectTitle(item.projectId, projects)}
           </p>
           {activity ? (
             <p className="flex items-start gap-2">
@@ -588,7 +580,7 @@ const MediaPreview = ({
       <div className={previewClassName}>
         {/* Blob URLs are browser-local and cannot use the Next.js image optimizer. */}
         <img
-          alt={`Local proof preview: ${item.fileName}`}
+          alt={`Selected proof preview: ${item.fileName}`}
           className="h-full w-full object-cover"
           src={item.previewUrl}
         />
@@ -599,7 +591,7 @@ const MediaPreview = ({
   if (item.previewUrl && item.mediaType === 'Video') {
     return (
       <video
-        aria-label={`Local video proof preview: ${item.fileName}`}
+        aria-label={`Selected video proof preview: ${item.fileName}`}
         className={`${previewClassName} w-full bg-slate-950 object-contain`}
         controls
         muted
@@ -622,12 +614,12 @@ const MediaPreview = ({
           <Camera className="h-11 w-11" aria-hidden="true" />
         )}
         <div>
-          <p className="text-sm font-semibold">{item.mediaType} preview placeholder</p>
-          <p className="mt-1 text-xs text-white/80">Mock media · no remote file loaded</p>
+          <p className="text-sm font-semibold">{item.mediaType} preview unavailable</p>
+          <p className="mt-1 text-xs text-white/80">No file is available for this record</p>
         </div>
       </div>
       <span className="absolute left-3 top-3 rounded-full border border-white/30 bg-slate-950/30 px-2 py-1 text-xs font-semibold uppercase tracking-wide">
-        Mock proof
+        Reference media
       </span>
     </div>
   )

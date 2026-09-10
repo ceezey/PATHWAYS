@@ -7,17 +7,10 @@ export default function AuthCallbackPage() {
     <div className="mx-auto w-full max-w-2xl">
       <Card>
         <CardHeader>
-          <CardTitle as="h1">Auth callback placeholder</CardTitle>
+          <CardTitle as="h1">Sign-in could not be completed</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4 text-sm leading-6 text-muted-foreground">
-          <p>
-            This route is intentionally reserved for Supabase Auth redirect handling once you
-            configure your Site URL and redirect URLs in the Supabase dashboard.
-          </p>
-          <p>
-            After that human setup is complete, you can replace this page with the real session
-            exchange and redirect flow.
-          </p>
+          <p>Return to the staff sign-in page and try again.</p>
           <Link
             className="font-medium text-primary underline-offset-4 hover:underline"
             href="/login"

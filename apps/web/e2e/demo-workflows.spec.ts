@@ -17,7 +17,7 @@ async function resetAndSwitch(page: Page, accountId: string) {
   await page.goto('/review/demo-controls')
   await expect(page.getByRole('status')).toContainText('Review controls ready.')
   page.once('dialog', (dialog) => dialog.accept())
-  await page.getByRole('button', { name: 'Reset demo data' }).click()
+  await page.getByRole('button', { name: 'Reset review data' }).click()
   await page.getByLabel('Fictional account').selectOption(accountId)
   await expect
     .poll(() =>
@@ -110,7 +110,7 @@ test('I09: backup failure preserves state and approved content reaches anonymous
   const download = page.waitForEvent('download')
   await page.getByRole('button', { name: 'Create & download backup' }).click()
   expect((await download).suggestedFilename()).toMatch(/\.json$/)
-  await expect(page.getByText(/pathways-demo-backup/).first()).toBeVisible()
+  await expect(page.getByText(/pathways-backup/).first()).toBeVisible()
 
   await page.goto('/review/demo-controls')
   await expect(page.getByRole('status')).toContainText('Review controls ready.')

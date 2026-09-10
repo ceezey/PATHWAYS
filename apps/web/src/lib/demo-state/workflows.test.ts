@@ -44,10 +44,10 @@ beforeEach(() => {
 describe('I03 linked delivery workflow', () => {
   it('restricts modular project-team reassignment and propagates selected member scope', () => {
     const assignment = {
-      programManager: 'Program Manager Demo',
-      projectManager: 'Project Manager Demo',
-      monitoringOfficer: 'Monitoring Officer Demo',
-      projectOfficers: ['Project Officer Demo'],
+      programManager: 'Maria Santos',
+      projectManager: 'Carlo Mendoza',
+      monitoringOfficer: 'Ana Villanueva',
+      projectOfficers: ['Paolo Cruz'],
     }
 
     for (const accountId of [
@@ -115,10 +115,10 @@ describe('I03 linked delivery workflow', () => {
       status: 'Planned',
       budgetCode: 'DEMO-SCOPE-01',
       description: 'A fictional project used to verify selected team assignments.',
-      programManager: 'Program Manager Demo',
-      projectManager: 'Project Manager Demo',
-      monitoringOfficer: 'Monitoring Officer Demo',
-      projectOfficers: ['Project Officer Demo'],
+      programManager: 'Maria Santos',
+      projectManager: 'Carlo Mendoza',
+      monitoringOfficer: 'Ana Villanueva',
+      projectOfficers: ['Paolo Cruz'],
     })
     const state = getDemoState()
     expect(

@@ -63,8 +63,6 @@ import type {
   RecommendationOutcomeRecord,
   RecommendationRecord,
   ReportRecord,
-  TransparencyApprovalState,
-  TransparencySection,
 } from '@/types/pathways'
 
 import { activityStatusTone, formatCurrency, formatDate } from './activity-utils'
@@ -82,17 +80,12 @@ import {
 } from './phase-five-utils'
 import { ProjectWorkspaceHeader } from './project-workspace-header'
 
-export type PhaseFiveWorkspaceView =
-  | 'evidence'
-  | 'indicators'
-  | 'monitor-evaluate'
-  | 'budget'
-  | 'transparency'
+export type PhaseFiveWorkspaceView = 'evidence' | 'indicators' | 'monitor-evaluate' | 'budget'
 
 const viewTitles: Record<PhaseFiveWorkspaceView, { title: string; description: string }> = {
   evidence: {
     title: 'Evidence & Reports',
-    description: 'Review activity proof, file placeholders, and report records.',
+    description: 'Review activity evidence and report records.',
   },
   indicators: {
     title: 'Target Indicators',
@@ -106,10 +99,6 @@ const viewTitles: Record<PhaseFiveWorkspaceView, { title: string; description: s
     title: 'Budget & Expense Ledger',
     description: 'Review allocations, recommendation outcomes, expenses, and liquidation status.',
   },
-  transparency: {
-    title: 'Transparency',
-    description: 'Configure public project sections without beneficiary-sensitive information.',
-  },
 }
 
 const viewLabelKeys: Record<PhaseFiveWorkspaceView, PrototypeLabelKey> = {
@@ -117,7 +106,6 @@ const viewLabelKeys: Record<PhaseFiveWorkspaceView, PrototypeLabelKey> = {
   indicators: 'projectIndicators',
   'monitor-evaluate': 'projectMonitorEvaluate',
   budget: 'projectBudget',
-  transparency: 'projectPublicDashboard',
 }
 
 const statusTone = (status: string) => {
@@ -242,7 +230,6 @@ const LegacyProjectPhaseFiveWorkspace = ({
   const [outcomes, setOutcomes] = useState<RecommendationOutcomeRecord[]>([])
   const [expenses, setExpenses] = useState<ExpenseRecord[]>([])
   const [reports, setReports] = useState<ReportRecord[]>([])
-  const [transparencySections, setTransparencySections] = useState<TransparencySection[]>([])
   const [loadStatus, setLoadStatus] = useState<'loading' | 'ready' | 'not-found' | 'error'>(
     'loading',
   )
@@ -277,7 +264,6 @@ const LegacyProjectPhaseFiveWorkspace = ({
       pathwaysClient.getRecommendationOutcomes(projectId),
       pathwaysClient.getExpenses(projectId),
       pathwaysClient.getReports(projectId),
-      pathwaysClient.getTransparencySections(projectId),
     ])
       .then(
         ([
@@ -292,7 +278,6 @@ const LegacyProjectPhaseFiveWorkspace = ({
           outcomeRecords,
           expenseRecords,
           reportRecords,
-          transparencyRecords,
         ]) => {
           if (!mounted) {
             return
@@ -310,7 +295,6 @@ const LegacyProjectPhaseFiveWorkspace = ({
           setOutcomes(outcomeRecords)
           setExpenses(expenseRecords)
           setReports(reportRecords)
-          setTransparencySections(transparencyRecords)
           setLoadStatus('ready')
         },
       )
@@ -348,7 +332,6 @@ const LegacyProjectPhaseFiveWorkspace = ({
   const canVerifyExpense = can(role, 'budget.expense.verify')
   const canApproveExpense = can(role, 'budget.expense.approve')
   const canModifyBudget = can(role, 'budget.full') && canAccessProjectForRole(role, projectId)
-  const canPublishTransparency = can(role, 'transparency.publish')
   const heading = {
     ...viewTitles[view],
     title: labels[viewLabelKeys[view]],
@@ -363,9 +346,7 @@ const LegacyProjectPhaseFiveWorkspace = ({
     setEvidence((current) =>
       current.map((item) => (item.id === record.id ? { ...item, status } : item)),
     )
-    toast.success(`Evidence marked ${status.toLowerCase()}.`, {
-      description: 'Prototype status transition only; no server enforcement occurred.',
-    })
+    toast.success(`Evidence marked ${status.toLowerCase()}.`)
   }
 
   const addIndicator = () => {
@@ -406,9 +387,7 @@ const LegacyProjectPhaseFiveWorkspace = ({
     setIndicators((current) => [...current, indicator])
     setFormState({})
     setAddIndicatorOpen(false)
-    toast.success('Prototype indicator added.', {
-      description: 'The indicator is available in local workspace state only.',
-    })
+    toast.success('Indicator added.')
   }
 
   const addAnnotation = () => {
@@ -434,9 +413,7 @@ const LegacyProjectPhaseFiveWorkspace = ({
     })
     setFormState({})
     setAnnotationOpen(false)
-    toast.success('Annotation added.', {
-      description: 'This is a local human-review note for the prototype.',
-    })
+    toast.success('Annotation added.')
   }
 
   const saveFormalEvaluation = () => {
@@ -469,9 +446,7 @@ const LegacyProjectPhaseFiveWorkspace = ({
     })
     setFormState({})
     setFormalEvaluationOpen(false)
-    toast.success('Formal evaluation saved locally.', {
-      description: 'The score is progress-based and human-reviewed in this prototype.',
-    })
+    toast.success('Formal evaluation saved.')
   }
 
   const updateWeight = (weightId: string, value: number) => {
@@ -521,9 +496,7 @@ const LegacyProjectPhaseFiveWorkspace = ({
     )
     setFormState({})
     setOutcomeRecommendation(null)
-    toast.success('Recommendation outcome logged.', {
-      description: 'Lifecycle status changed visibly in prototype state only.',
-    })
+    toast.success('Recommendation outcome logged.')
   }
 
   const logExpense = () => {
@@ -558,8 +531,8 @@ const LegacyProjectPhaseFiveWorkspace = ({
     setReceiptFiles([])
     setFormState({})
     setExpenseOpen(false)
-    toast.success('Expense logged locally.', {
-      description: 'Receipt files are previewed by name only and are not uploaded.',
+    toast.success('Expense logged.', {
+      description: 'Receipt file names are available for review.',
     })
   }
 
@@ -585,9 +558,7 @@ const LegacyProjectPhaseFiveWorkspace = ({
         item.id === expense.id ? { ...item, liquidationStatus, rejectionReason } : item,
       ),
     )
-    toast.success(`Expense marked ${liquidationStatus.toLowerCase()}.`, {
-      description: 'Prototype transition only; no server authorization was enforced.',
-    })
+    toast.success(`Expense marked ${liquidationStatus.toLowerCase()}.`)
   }
 
   const rejectExpenseWithReason = () => {
@@ -603,26 +574,10 @@ const LegacyProjectPhaseFiveWorkspace = ({
     setFormState({})
   }
 
-  const updateTransparency = (
-    section: TransparencySection,
-    patch: Partial<Pick<TransparencySection, 'approvalState' | 'visible'>>,
-  ) => {
-    if (!canPublishTransparency) {
-      toast.error('Transparency publishing is not available for this role.')
-      return
-    }
-
-    // TODO(DATABASE): Load transparency visibility configuration.
-    // TODO(RBAC): Enforce reviewer, verifier, approver, and publisher roles.
-    setTransparencySections((current) =>
-      current.map((item) => (item.id === section.id ? { ...item, ...patch } : item)),
-    )
-  }
-
   if (loadStatus === 'loading') {
     return (
       <AsyncState
-        description="Loading the project workspace tab."
+        description="Loading project information."
         icon={Loader2}
         status="loading"
         title="Loading workspace"
@@ -634,9 +589,8 @@ const LegacyProjectPhaseFiveWorkspace = ({
     return (
       <>
         <PageHeader
-          eyebrow={labels.projectWorkspace}
           title="Workspace unavailable"
-          description="This project tab is not available in the current prototype session."
+          description="This project is currently unavailable."
           actions={
             <Button asChild variant="outline">
               <Link href="/projects">Back to Projects</Link>
@@ -658,9 +612,8 @@ const LegacyProjectPhaseFiveWorkspace = ({
     return (
       <>
         <PageHeader
-          eyebrow={labels.projectWorkspace}
           title="Project not found"
-          description="This project is not available in the current prototype session."
+          description="This project is not available to the current account."
           actions={
             <Button asChild variant="outline">
               <Link href="/projects">Back to Projects</Link>
@@ -671,7 +624,7 @@ const LegacyProjectPhaseFiveWorkspace = ({
           description="Return to the project directory and choose an available project."
           icon={FileText}
           status="empty"
-          title="No project workspace"
+          title="Project unavailable"
         />
       </>
     )
@@ -679,11 +632,9 @@ const LegacyProjectPhaseFiveWorkspace = ({
 
   return (
     <>
-      <StatusMessage>Project workspace loaded.</StatusMessage>
+      <StatusMessage>Project information loaded.</StatusMessage>
       <PageHeader
-        eyebrow={labels.projectWorkspace}
         title={heading.title}
-        description={heading.description}
         actions={
           <Button asChild className="gap-2" variant="outline">
             <Link href="/projects">
@@ -772,20 +723,8 @@ const LegacyProjectPhaseFiveWorkspace = ({
           onVerifyExpense={(expense) => updateExpenseStatus(expense, 'Verified')}
         />
       ) : null}
-      {view === 'transparency' ? (
-        <TransparencyView
-          indicators={indicators}
-          plannedAmount={plannedAmount}
-          project={project}
-          sections={transparencySections}
-          utilization={utilization}
-          canPublishTransparency={canPublishTransparency}
-          onUpdate={updateTransparency}
-        />
-      ) : null}
-
       <SimpleDialog
-        description="File preview placeholders do not fetch remote storage files."
+        description="Review the available evidence summary and file details."
         onOpenChange={(open) => {
           if (!open) {
             setPreviewEvidence(null)
@@ -803,14 +742,14 @@ const LegacyProjectPhaseFiveWorkspace = ({
               {previewEvidence.previewSummary}
             </p>
             <div className="rounded-sm border border-dashed border-border bg-surface-subtle p-4 text-sm text-muted-foreground">
-              Placeholder preview for {previewEvidence.fileName}
+              File preview unavailable for {previewEvidence.fileName}
             </div>
           </div>
         ) : null}
       </SimpleDialog>
 
       <SimpleDialog
-        description="Add a temporary local indicator configuration for this project."
+        description="Add an indicator configuration for this project."
         onOpenChange={setAddIndicatorOpen}
         open={addIndicatorOpen}
         title="Add Indicator"
@@ -893,7 +832,7 @@ const LegacyProjectPhaseFiveWorkspace = ({
           <div className="space-y-4 text-sm leading-6 text-muted-foreground">
             <p>
               Current score blends journey progression, indicator achievement, and supporting
-              evidence quality. The score is a prototype review aid and is not server-enforced.
+              evidence quality. Review the supporting records before using the score in a decision.
             </p>
             {evaluation.components.map((component) => (
               <div
@@ -901,7 +840,7 @@ const LegacyProjectPhaseFiveWorkspace = ({
                 className="rounded-sm border border-border bg-surface-subtle p-3"
               >
                 <p className="font-medium text-foreground">{component.label}</p>
-                <p>{component.value}% weight in the current role-preview model.</p>
+                <p>{component.value}% weight in the current evaluation model.</p>
               </div>
             ))}
           </div>
@@ -909,7 +848,7 @@ const LegacyProjectPhaseFiveWorkspace = ({
       </SimpleDialog>
 
       <SimpleDialog
-        description="Save a formal progress review in local prototype state."
+        description="Save a formal progress review for this project."
         onOpenChange={setFormalEvaluationOpen}
         open={formalEvaluationOpen}
         title="Formal Evaluation"
@@ -987,7 +926,7 @@ const LegacyProjectPhaseFiveWorkspace = ({
       </SimpleDialog>
 
       <SimpleDialog
-        description="Project Officer expense logging is local to this prototype session."
+        description="Record a project expense and its supporting receipt details."
         onOpenChange={setExpenseOpen}
         open={expenseOpen}
         title="Project Officer Log Expense"
@@ -1054,7 +993,7 @@ const LegacyProjectPhaseFiveWorkspace = ({
       </SimpleDialog>
 
       <SimpleDialog
-        description="Provide a visible prototype reason for rejecting this expense."
+        description="Provide the reason this expense requires correction."
         onOpenChange={(open) => {
           if (!open) {
             setRejectExpense(null)
@@ -1130,7 +1069,7 @@ const EvidenceView = ({
   <section className="grid gap-4 xl:grid-cols-[1.4fr_0.6fr]">
     <SectionCard
       title="Activity evidence list"
-      description="Proof review actions are prototype transitions."
+      description="Review submitted activity evidence and record its status."
     >
       <div className="space-y-3">
         {evidence.map((record) => (
@@ -1364,8 +1303,8 @@ const EvaluationView = ({
         title="Evaluation weights"
         description={
           canConfigureWeights
-            ? 'Role preview allows local weight adjustment.'
-            : 'View-only for this role preview.'
+            ? 'Adjust the evaluation component weights.'
+            : 'You have view-only access to these weights.'
         }
       >
         <div className="space-y-3">
@@ -1484,7 +1423,7 @@ const BudgetView = ({
             Budget summary
           </h2>
           <p className="mt-1 text-sm text-muted-foreground">
-            Planned allocation changes are saved in this browser for this prototype.
+            Current project allocation and spending.
           </p>
         </div>
         {canModifyBudget && budgetRecord ? (
@@ -1513,7 +1452,7 @@ const BudgetView = ({
     </section>
     <SectionCard
       title="Budget utilization"
-      description="Budget records remain local and internally consistent."
+      description="Current utilization against the planned allocation."
     >
       <ProgressBar
         label="Utilization"
@@ -1540,7 +1479,7 @@ const BudgetView = ({
       </SectionCard>
       <SectionCard
         title="Recommendation prompts"
-        description="Outcome lifecycle is local prototype state."
+        description="Record the reviewed outcome for each recommendation."
       >
         <div className="space-y-3">
           {recommendations.length > 0 ? (
@@ -1579,7 +1518,7 @@ const BudgetView = ({
     </section>
     <SectionCard
       title="Expense Ledger"
-      description="Liquidation status transitions are demonstrated without server enforcement."
+      description="Review expense submission and liquidation status."
       actions={
         canLogExpense ? (
           <Button className="gap-2" onClick={onLogExpense} type="button">
@@ -1654,161 +1593,4 @@ const BudgetView = ({
       </div>
     </SectionCard>
   </div>
-)
-
-const VisibilityControl = ({
-  onChange,
-  section,
-}: {
-  onChange: () => void
-  section: TransparencySection
-}) => (
-  <button
-    aria-checked={section.visible}
-    aria-label={`Public visibility for ${section.title}`}
-    className="flex min-h-11 w-full items-center justify-between gap-3 rounded-md border border-border bg-background px-3 py-2 text-left transition-colors hover:border-primary/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-    onClick={onChange}
-    role="switch"
-    type="button"
-  >
-    <span className="min-w-0">
-      <span className="block text-xs font-medium text-muted-foreground">Public visibility</span>
-      <span className="block text-sm font-semibold text-foreground">
-        {section.visible ? 'Visible' : 'Hidden'}
-      </span>
-    </span>
-    <span
-      aria-hidden="true"
-      className={`relative h-6 w-11 shrink-0 rounded-full transition-colors ${section.visible ? 'bg-primary' : 'bg-muted-foreground/35'}`}
-    >
-      <span
-        className={`absolute top-1 h-4 w-4 rounded-full bg-white shadow-sm transition-transform ${section.visible ? 'translate-x-6' : 'translate-x-1'}`}
-      />
-    </span>
-  </button>
-)
-
-const TransparencyView = ({
-  canPublishTransparency,
-  indicators,
-  plannedAmount,
-  project,
-  sections,
-  utilization,
-  onUpdate,
-}: {
-  canPublishTransparency: boolean
-  indicators: ProjectIndicator[]
-  plannedAmount: number
-  project: ProjectDetail
-  sections: TransparencySection[]
-  utilization: number
-  onUpdate: (
-    section: TransparencySection,
-    patch: Partial<Pick<TransparencySection, 'approvalState' | 'visible'>>,
-  ) => void
-}) => (
-  <section className="grid gap-4 xl:grid-cols-[1fr_0.8fr]">
-    <SectionCard
-      title="Project information sections"
-      description="Toggle public visibility for safe aggregate content."
-    >
-      <div className="space-y-3">
-        {sections.map((section) => (
-          <article
-            key={section.id}
-            className="rounded-md border border-border bg-surface-subtle p-4 sm:p-5"
-          >
-            <div className="min-w-0">
-              <h3 className="font-semibold text-foreground">{section.title}</h3>
-              <p className="mt-1 max-w-2xl text-sm leading-6 text-muted-foreground">
-                {section.summary}
-              </p>
-            </div>
-            {canPublishTransparency ? (
-              <div className="mt-4 grid gap-4 border-t border-border pt-4 lg:grid-cols-[minmax(10rem,0.55fr)_minmax(20rem,1fr)] lg:items-end">
-                <VisibilityControl
-                  onChange={() => onUpdate(section, { visible: !section.visible })}
-                  section={section}
-                />
-                <fieldset className="min-w-0">
-                  <legend className="mb-2 text-xs font-medium text-muted-foreground">
-                    Review status
-                  </legend>
-                  <div className="grid grid-cols-3 gap-2">
-                    {(['Draft', 'Pending Review', 'Approved'] as TransparencyApprovalState[]).map(
-                      (state) => (
-                        <Button
-                          aria-pressed={section.approvalState === state}
-                          className="min-w-0 whitespace-nowrap px-2"
-                          key={state}
-                          onClick={() => onUpdate(section, { approvalState: state })}
-                          size="sm"
-                          type="button"
-                          variant={section.approvalState === state ? 'default' : 'outline'}
-                        >
-                          {state}
-                        </Button>
-                      ),
-                    )}
-                  </div>
-                </fieldset>
-              </div>
-            ) : (
-              <div className="mt-4 flex flex-wrap gap-2 border-t border-border pt-4">
-                <StatusBadge tone={statusTone(section.approvalState)}>
-                  {section.approvalState}
-                </StatusBadge>
-                <StatusBadge tone={section.visible ? 'success' : 'neutral'}>
-                  {section.visible ? 'Visible' : 'Hidden'}
-                </StatusBadge>
-              </div>
-            )}
-          </article>
-        ))}
-      </div>
-    </SectionCard>
-    <SectionCard
-      title="Preview public content"
-      description="No beneficiary-sensitive information is displayed."
-      actions={
-        <Button asChild className="gap-2" size="sm">
-          <Link href={`/projects/${project.id}/transparency/preview`}>
-            <Eye className="h-4 w-4" aria-hidden="true" />
-            Open staff preview
-          </Link>
-        </Button>
-      }
-    >
-      <div className="space-y-4 text-sm">
-        <div className="rounded-sm border border-border bg-surface-subtle p-3">
-          <p className="font-medium text-foreground">{project.title}</p>
-          <p className="mt-1 text-muted-foreground">
-            {project.area} - {project.sector} - {project.period}
-          </p>
-        </div>
-        <div className="rounded-sm border border-border bg-surface-subtle p-3">
-          <p className="font-medium text-foreground">Aggregate indicator progress</p>
-          <p className="mt-1 text-muted-foreground">
-            {indicators.filter((indicator) => indicator.status === 'Met').length} of{' '}
-            {indicators.length} indicators met.
-          </p>
-        </div>
-        <div className="rounded-sm border border-border bg-surface-subtle p-3">
-          <p className="font-medium text-foreground">Budget summary</p>
-          <p className="mt-1 text-muted-foreground">
-            {formatCurrency(plannedAmount)} planned allocation; {utilization}% utilization.
-          </p>
-        </div>
-        <p className="rounded-sm border border-dashed border-border bg-surface-subtle p-3 text-muted-foreground">
-          Public preview intentionally excludes names, individual beneficiary records, contact
-          details, and proof files.
-        </p>
-        <p className="text-xs leading-5 text-muted-foreground">
-          Program Manager and Project Manager can customize the browser-local staff preview. The
-          approved anonymous page remains unchanged until a real publishing workflow is connected.
-        </p>
-      </div>
-    </SectionCard>
-  </section>
 )

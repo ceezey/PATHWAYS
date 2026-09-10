@@ -13,7 +13,6 @@ import {
   StatusMessage,
 } from '@/components/pathways'
 import { Button } from '@/components/ui/button'
-import { usePrototypeLabels } from '@/hooks/use-prototype-labels'
 import { usePrototypeRole } from '@/hooks/use-prototype-role'
 import { hasAction } from '@/lib/demo-state/permissions'
 import { archiveProject } from '@/lib/demo-state/projects'
@@ -35,7 +34,6 @@ import { ProjectWorkspaceHeader } from './project-workspace-header'
 
 export const ProjectDetailView = ({ projectId }: { projectId: string }) => {
   const demo = useDemoState()
-  const { labels } = usePrototypeLabels()
   const { role } = usePrototypeRole()
   const canManageProjectTeam = hasAction(role, 'projects.team.manage')
   const [project, setProject] = useState<ProjectDetail | null>(null)
@@ -114,9 +112,8 @@ export const ProjectDetailView = ({ projectId }: { projectId: string }) => {
     return (
       <>
         <PageHeader
-          eyebrow="Projects"
           title="Project not found"
-          description="This project is not available in the current prototype session."
+          description="This project is not available to the current account."
           actions={
             <Button asChild variant="outline">
               <Link href="/projects">Back to projects</Link>
@@ -124,7 +121,7 @@ export const ProjectDetailView = ({ projectId }: { projectId: string }) => {
           }
         />
         <AsyncState
-          description="Prototype projects created in another browser session may not be available here."
+          description="Return to the project directory and choose an available project."
           icon={FolderKanban}
           status="empty"
           title="No project record"
@@ -137,9 +134,7 @@ export const ProjectDetailView = ({ projectId }: { projectId: string }) => {
     <>
       <StatusMessage>Project loaded.</StatusMessage>
       <PageHeader
-        eyebrow={labels.projectWorkspace}
-        title={project.title}
-        description={project.description}
+        title="Project overview"
         actions={
           <div className="flex flex-wrap gap-2">
             <Button asChild className="gap-2" variant="outline">
@@ -196,9 +191,6 @@ export const ProjectDetailView = ({ projectId }: { projectId: string }) => {
             <div className="flex flex-wrap gap-2">
               <StatusBadge tone={projectStatusTone(project.status)}>{project.status}</StatusBadge>
               <StatusBadge tone={projectHealthTone(project.health)}>{project.health}</StatusBadge>
-              {project.createdInPrototype ? (
-                <StatusBadge tone="info">Prototype record</StatusBadge>
-              ) : null}
             </div>
           }
         >
@@ -248,7 +240,7 @@ export const ProjectDetailView = ({ projectId }: { projectId: string }) => {
         </SectionCard>
         <SectionCard
           title="Project team"
-          description="Prototype role assignments for this project."
+          description="Assigned project team members."
           actions={canManageProjectTeam ? <ProjectTeamEditorDialog project={project} /> : null}
         >
           <dl className="space-y-4 text-sm">
@@ -296,14 +288,11 @@ export const ProjectDetailView = ({ projectId }: { projectId: string }) => {
             </div>
           </div>
         </SectionCard>
-        <SectionCard
-          title="Workspace modules"
-          description="Project workspace tabs are available now."
-        >
+        <SectionCard title="Project modules" description="Available based on your role.">
           <p className="text-sm leading-6 text-muted-foreground">
             Activities, evidence, target indicators, monitoring and evaluation, budget, Beneficiary
-            Journey Tracking stages, and public transparency are available according to the selected
-            role.
+            Journey Tracking stages are available here according to the selected role. Public
+            publishing is managed from the role-scoped Public Tracker.
           </p>
         </SectionCard>
       </section>
