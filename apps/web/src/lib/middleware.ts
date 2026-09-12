@@ -14,9 +14,20 @@ import {
   workspacePermissions,
 } from '@/features/auth/workspace-access'
 import { webEnv, webSupabasePublishableKey } from '@/lib/env'
+import { type NavigationStage, recordNavigationDenial } from '@/lib/rbac/navigation-diagnostic'
+import {
+  RouteCheckError,
+  getVerifiedRouteAccess,
+  isPublicPath,
+  matchRoute,
+  requestRouteCheck,
+} from '@/lib/rbac/route-access'
 
 export async function updateSession(request: NextRequest) {
-  const redirect = (path: string, source?: NextResponse) => {
+  if (isPublicPath(request.nextUrl.pathname)) return NextResponse.next()
+  let stage: NavigationStage = 'CONFIGURATION'
+  const denied = (error?: unknown) => recordNavigationDenial('MIDDLEWARE', stage, error)
+  const redirect = (path: string, source?: NextResponse, clearContext = true) => {
     // NextRequest can normalize 127.0.0.1 to localhost. Preserve only the
     // explicitly approved incoming loopback Host; never trust an arbitrary host.
     const url = new URL(request.url)
@@ -25,11 +36,14 @@ export async function updateSession(request: NextRequest) {
     url.search = ''
     const response = NextResponse.redirect(url)
     for (const cookie of source?.cookies.getAll() ?? []) response.cookies.set(cookie)
+    if (clearContext)
+      response.cookies.set(contextCookieName, '', { path: '/', maxAge: 0, sameSite: 'strict' })
     response.headers.set('Cache-Control', 'private, no-store')
     response.headers.set('Referrer-Policy', 'no-referrer')
     return response
   }
   if (webEnv.NEXT_PUBLIC_SUPABASE_URL !== developerSupabaseUrl || !webSupabasePublishableKey) {
+    denied()
     return redirect('/staff/login')
   }
 
@@ -44,7 +58,7 @@ export async function updateSession(request: NextRequest) {
       getAll() {
         return request.cookies.getAll()
       },
-      setAll(cookiesToSet) {
+      setAll(cookiesToSet, cacheHeaders) {
         for (const { name, value } of cookiesToSet) {
           request.cookies.set(name, value)
         }
@@ -56,6 +70,8 @@ export async function updateSession(request: NextRequest) {
         for (const { name, value, options } of cookiesToSet) {
           supabaseResponse.cookies.set(name, value, options)
         }
+        for (const [name, value] of Object.entries(cacheHeaders ?? {}))
+          supabaseResponse.headers.set(name, value)
       },
     },
   })
@@ -67,28 +83,46 @@ export async function updateSession(request: NextRequest) {
   // IMPORTANT: If you remove getClaims() and you use server-side rendering
   // with the Supabase client, your users may be randomly logged out.
   try {
+    stage = 'CLAIMS'
     const { data, error } = await supabase.auth.getClaims()
-    if (error || !data?.claims) return redirect('/staff/login', supabaseResponse)
+    if (error || !data?.claims) {
+      denied()
+      return redirect('/staff/login', supabaseResponse)
+    }
     const claims = data.claims
+    stage = 'IDENTITY'
     if (
       claims.iss !== `${developerSupabaseUrl}/auth/v1` ||
       claims.aud !== 'authenticated' ||
       claims.is_anonymous !== false
     ) {
+      denied()
       return redirect('/staff/login', supabaseResponse)
     }
-    if (request.nextUrl.pathname === '/workspace') {
-      if (claims.sub !== developerAuthUserId || claims.aal !== 'aal2')
+    if (request.nextUrl.pathname !== '/auth/mfa') {
+      stage = 'ASSURANCE'
+      if (claims.sub !== developerAuthUserId || claims.aal !== 'aal2') {
+        denied()
         return redirect('/auth/mfa', supabaseResponse)
+      }
+      stage = 'CONTEXT'
       const context = decodeWorkspaceContext(
         request.cookies.get(contextCookieName)?.value,
         claims.sub,
       )
-      if (!context) return redirect('/auth/mfa', supabaseResponse)
+      if (!context) {
+        denied()
+        return redirect('/auth/mfa', supabaseResponse)
+      }
       // getSession supplies a bearer for the API; it is never itself proof of
       // authorization. NestJS verifies signature/current identity/MFA + database.
+      stage = 'SESSION'
       const session = await supabase.auth.getSession()
-      if (session.error || !session.data.session) return redirect('/staff/login', supabaseResponse)
+      if (session.error || !session.data.session) {
+        denied()
+        return redirect('/staff/login', supabaseResponse)
+      }
+      stage = 'PROFILE'
       const api = new URL(webEnv.NEXT_PUBLIC_API_BASE_URL)
       if (api.hostname === 'localhost') api.hostname = '127.0.0.1'
       const profile = parseApplicationProfile(
@@ -106,13 +140,43 @@ export async function updateSession(request: NextRequest) {
         profile.organizationId !== context.organizationId ||
         !workspacePermissions(profile).readProjects
       ) {
+        denied()
         return redirect('/auth/mfa', supabaseResponse)
       }
-    } else if (request.nextUrl.pathname !== '/auth/mfa') {
-      // Unimplemented prototype modules remain closed before any RSC render.
-      return redirect('/auth/mfa', supabaseResponse)
+      if (request.nextUrl.pathname !== '/workspace') {
+        stage = 'ROUTE_POLICY'
+        const query = new URLSearchParams(request.nextUrl.search)
+        query.delete('_rsc')
+        const path = request.nextUrl.pathname + (query.size ? `?${query}` : '')
+        const selection = matchRoute(path)
+        if (!selection || !getVerifiedRouteAccess(profile, path).allowed) {
+          denied()
+          return redirect('/unauthorized', supabaseResponse, false)
+        }
+        try {
+          stage = 'ROUTE_API'
+          await requestRouteCheck(
+            api.toString(),
+            session.data.session.access_token,
+            context,
+            selection,
+          )
+        } catch (error) {
+          denied(error)
+          if (error instanceof RouteCheckError && error.status === 401)
+            return redirect('/staff/login', supabaseResponse)
+          if (error instanceof RouteCheckError && [403, 404].includes(error.status))
+            return redirect(
+              selection.route === 'unauthorized' ? '/auth/mfa' : '/unauthorized',
+              supabaseResponse,
+              selection.route === 'unauthorized',
+            )
+          return redirect('/auth/mfa', supabaseResponse)
+        }
+      }
     }
   } catch (error) {
+    denied(error)
     if (error instanceof AuthAccessError && error.status !== 401) {
       // An API denial/outage is not a lost Auth session. Keep the valid session
       // and return to the MFA/profile check for a safe, visible retry.

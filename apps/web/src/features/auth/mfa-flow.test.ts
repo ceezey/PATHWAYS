@@ -70,6 +70,33 @@ describe('TOTP verification', () => {
     )
   })
 
+  it.each(['incorrect', 'expired', 'replayed', 'rate-limited', 'brute-force-limited'])(
+    'fails closed without an automatic retry when the provider rejects a %s attempt',
+    async (reason) => {
+      // Model provider denial, not a claim that this test exercises hosted throttling.
+      const { calls, mfa } = createMfaMock()
+      const log = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+      try {
+        calls.challenge.mockResolvedValueOnce({ error: { message: reason } })
+        await expect(verifyTotpCode(mfa, 'existing', '123456', vi.fn())).rejects.toThrow(
+          'Could not start verification. Please try again.',
+        )
+        expect(calls.challenge).toHaveBeenCalledTimes(1)
+        expect(calls.verify).not.toHaveBeenCalled()
+
+        calls.verify.mockResolvedValueOnce({ error: { message: reason } })
+        await expect(verifyTotpCode(mfa, 'existing', '123456', vi.fn())).rejects.toThrow(
+          'The code was not accepted. Try the next authenticator code.',
+        )
+        expect(calls.challenge).toHaveBeenCalledTimes(2)
+        expect(calls.verify).toHaveBeenCalledTimes(1)
+        expect(log.mock.calls.length).toBe(0)
+      } finally {
+        log.mockRestore()
+      }
+    },
+  )
+
   it('renders only an inline SVG image, never HTML or a remote QR service', () => {
     expect(getQrImageSource('<svg><title>test fixture</title></svg>')).toMatch(
       /^data:image\/svg\+xml;utf-8,/,

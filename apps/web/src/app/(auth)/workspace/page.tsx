@@ -1,5 +1,9 @@
-import { AuthorizedWorkspace } from '@/features/auth/authorized-workspace'
+import { requireServerRoute } from '@/lib/rbac/server-access'
+import { redirect } from 'next/navigation'
 
-export default function WorkspacePage() {
-  return <AuthorizedWorkspace />
+export const dynamic = 'force-dynamic'
+
+export default async function WorkspacePage() {
+  await requireServerRoute({ route: 'dashboard' })
+  redirect('/dashboard')
 }

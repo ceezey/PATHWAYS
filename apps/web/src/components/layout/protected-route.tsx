@@ -8,7 +8,44 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { useCurrentRole } from '@/hooks/use-current-role'
 import { useSession } from '@/hooks/use-session'
+import { visibleFeatures } from '@/lib/rbac/route-access'
 import { RouteAccessGuard } from './route-access-guard'
+
+export function FeatureDirectory() {
+  const { profile } = useCurrentRole()
+  if (!profile) return null
+  return (
+    <section aria-labelledby="feature-directory" className="mb-8 space-y-4">
+      <h2 id="feature-directory" className="text-xl font-semibold">
+        Development feature directory
+      </h2>
+      <p className="text-sm text-muted-foreground">
+        Prototype-only · Backend pending. Project-specific tools require an authorized project
+        selection; no identifiers need to be entered.
+      </p>
+      <ul className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+        {visibleFeatures(profile).map((feature) => (
+          <li key={feature.title} className="rounded-lg border bg-card p-4">
+            <span className="text-xs text-muted-foreground">{feature.group}</span>
+            <Link
+              prefetch={false}
+              href={feature.href}
+              className="block font-medium underline-offset-4 hover:underline"
+            >
+              {feature.title}
+            </Link>
+            {feature.route === 'monitoring' ? (
+              <p className="text-sm text-muted-foreground">
+                Select an authorized project to open monitoring tools. An empty project list is
+                valid.
+              </p>
+            ) : null}
+          </li>
+        ))}
+      </ul>
+    </section>
+  )
+}
 
 export const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
   const router = useRouter()
@@ -55,7 +92,7 @@ export const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
   if (status === 'loading' || (status === 'authenticated' && access === 'loading')) {
     return (
       <div className="flex min-h-screen items-center justify-center text-sm text-muted-foreground">
-        Verifying MFA and database-backed access...
+        <output aria-live="polite">Verifying MFA and database-backed access...</output>
       </div>
     )
   }
@@ -73,7 +110,11 @@ export const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
       <div className="flex min-h-screen items-center justify-center p-6">
         <Card className="max-w-xl">
           <CardHeader>
-            <CardTitle>Protected access has not been granted</CardTitle>
+            <CardTitle>
+              {access === 'no_workspace'
+                ? 'No authorized workspace'
+                : 'Protected access has not been granted'}
+            </CardTitle>
             <CardDescription>
               A verified MFA session and an active database-backed PATHWAYS profile are required.
             </CardDescription>

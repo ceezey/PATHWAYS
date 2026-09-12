@@ -35,6 +35,13 @@ GRANT USAGE, CREATE ON SCHEMA public TO prisma;
 CREATE SCHEMA auth AUTHORIZATION supabase_auth_admin;
 CREATE TABLE auth.users (id uuid PRIMARY KEY);
 ALTER TABLE auth.users OWNER TO supabase_auth_admin;
+CREATE TABLE auth.sessions (
+  id uuid PRIMARY KEY,
+  user_id uuid NOT NULL REFERENCES auth.users(id),
+  not_after timestamptz
+);
+ALTER TABLE auth.sessions OWNER TO supabase_auth_admin;
+ALTER TABLE auth.sessions ENABLE ROW LEVEL SECURITY;
 CREATE FUNCTION auth.uid() RETURNS uuid LANGUAGE sql STABLE AS $$
   SELECT coalesce(
     nullif(current_setting('request.jwt.claim.sub',true),''),
@@ -44,6 +51,7 @@ $$;
 ALTER FUNCTION auth.uid() OWNER TO supabase_auth_admin;
 GRANT USAGE ON SCHEMA auth TO postgres;
 GRANT REFERENCES(id) ON auth.users TO postgres;
+GRANT SELECT ON auth.sessions TO postgres;
 
 -- Empty provider-shaped fixture for actual-login negative access tests. This
 -- is not a real Storage object and is never created on a hosted database.

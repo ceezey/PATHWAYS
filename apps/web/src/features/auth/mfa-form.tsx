@@ -1,6 +1,6 @@
 'use client'
 
-import { ShieldCheck } from 'lucide-react'
+import { LoaderCircle, ShieldCheck } from 'lucide-react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useEffect, useRef, useState } from 'react'
@@ -15,7 +15,6 @@ import { getBrowserSupabaseClient } from '@/lib/supabase/client'
 import {
   AuthAccessError,
   type MfaStatus,
-  applicationContextSchema,
   developerAuthUserId,
   parseMfaStatus,
   requestAuthJson,
@@ -31,7 +30,14 @@ interface FactorChoice {
 export function MfaForm() {
   const router = useRouter()
   const { session, status, configured, refreshSession, signOut } = useSession()
-  const { access, accessError, setApplicationContext, refreshAccess } = useCurrentRole()
+  const {
+    access,
+    accessError,
+    accessRefreshing,
+    refreshAccess,
+    claimWorkspaceHandoff,
+    resetWorkspaceHandoff,
+  } = useCurrentRole()
   const supabase = getBrowserSupabaseClient()
   const token = session?.access_token ?? null
   const tokenRef = useRef(token)
@@ -55,8 +61,9 @@ export function MfaForm() {
   const [factorId, setFactorId] = useState('')
   const [code, setCode] = useState('')
   const [error, setError] = useState('')
-  const [organizationId, setOrganizationId] = useState('')
-  const [userId, setUserId] = useState('')
+  const handoffAttempted = useRef(false)
+  const handoffUser = useRef(session?.user.id)
+  const [handoff, setHandoff] = useState<'idle' | 'opening' | 'stalled'>('idle')
   const allowedAccount = session?.user.id === developerAuthUserId
   const current = check?.token === token && check?.refresh === refresh ? check : null
   const privateEnrollment = enrollment?.token === token ? enrollment : null
@@ -64,6 +71,60 @@ export function MfaForm() {
   const choices = verifiedFactors.length
     ? verifiedFactors
     : (current?.factors.filter((factor) => factor.factor_type === 'totp') ?? [])
+
+  useEffect(() => {
+    if (handoffUser.current !== session?.user.id) {
+      handoffUser.current = session?.user.id
+      handoffAttempted.current = false
+      setHandoff('idle')
+    }
+  }, [session?.user.id])
+
+  useEffect(() => {
+    if (current?.status.aal === 'aal1') {
+      handoffAttempted.current = false
+      setHandoff('idle')
+    }
+    if (
+      !configured ||
+      status !== 'authenticated' ||
+      !allowedAccount ||
+      current?.status.aal !== 'aal2' ||
+      !current.status.applicationAccessEnabled ||
+      access !== 'ready' ||
+      accessRefreshing ||
+      handoffAttempted.current
+    )
+      return
+    handoffAttempted.current = true
+    if (!claimWorkspaceHandoff()) {
+      setHandoff('stalled')
+      return
+    }
+    setHandoff('opening')
+    try {
+      // Fixed destination only. /workspace independently checks the live
+      // session/context and dashboard capability before redirecting there.
+      router.replace('/workspace')
+    } catch {
+      setHandoff('stalled')
+    }
+  }, [
+    configured,
+    status,
+    allowedAccount,
+    current,
+    access,
+    accessRefreshing,
+    claimWorkspaceHandoff,
+    router,
+  ])
+
+  useEffect(() => {
+    if (handoff !== 'opening') return
+    const timeout = window.setTimeout(() => setHandoff('stalled'), 30_000)
+    return () => window.clearTimeout(timeout)
+  }, [handoff])
 
   useEffect(() => {
     const controller = new AbortController()
@@ -76,8 +137,6 @@ export function MfaForm() {
     setFactorId('')
     setCheck(null)
     setError('')
-    setOrganizationId('')
-    setUserId('')
     if (!supabase || !token || !allowedAccount) return () => controller.abort()
 
     const inspect = async () => {
@@ -129,7 +188,12 @@ export function MfaForm() {
       setCheck(null)
     }
     window.addEventListener('pagehide', clearPrivateState)
-    return () => window.removeEventListener('pagehide', clearPrivateState)
+    const recheckRestoredPage = () => setRefresh((value) => value + 1)
+    window.addEventListener('pageshow', recheckRestoredPage)
+    return () => {
+      window.removeEventListener('pagehide', clearPrivateState)
+      window.removeEventListener('pageshow', recheckRestoredPage)
+    }
   }, [])
 
   const assertCurrentSession = async (expectedToken: string, expectedOperation: number) => {
@@ -307,63 +371,41 @@ export function MfaForm() {
             ) : access === 'ready' ? (
               <div className="space-y-3">
                 <p>Your identity and application access are verified.</p>
-                <Button asChild>
-                  <Link href="/workspace">Open your workspace</Link>
-                </Button>
+                {handoff === 'stalled' ? (
+                  <p role="alert">
+                    Dashboard navigation could not be completed. Recheck securely to try again, or
+                    sign out. No additional access was granted.
+                  </p>
+                ) : (
+                  <output className="flex items-center gap-2" aria-live="polite" aria-busy="true">
+                    <LoaderCircle
+                      className="h-5 w-5 animate-spin motion-reduce:animate-none"
+                      aria-hidden="true"
+                    />
+                    Opening your dashboard...
+                  </output>
+                )}
               </div>
             ) : (
-              <form
-                className="space-y-3"
-                aria-busy={access === 'loading'}
-                onSubmit={(event) => {
-                  event.preventDefault()
-                  const selected = applicationContextSchema.safeParse({ userId, organizationId })
-                  if (!selected.success) {
-                    setError(
-                      'Enter the provisioned application user UUID and organization UUID, not the Auth UUID or organization code.',
-                    )
-                    return
-                  }
-                  setError('')
-                  setApplicationContext(selected.data)
-                }}
-              >
-                <p>
-                  Access is not yet verified. If provisioning is complete, enter the reviewed
-                  database identifiers. These are selectors only; the API checks their linkage and
-                  permissions.
-                </p>
-                <label className="block text-sm" htmlFor="mfa-user-context">
-                  Application user UUID
-                </label>
-                <Input
-                  id="mfa-user-context"
-                  autoComplete="off"
-                  value={userId}
-                  onChange={(event) => setUserId(event.target.value.trim())}
-                />
-                <label className="block text-sm" htmlFor="mfa-organization-context">
-                  Organization UUID
-                </label>
-                <Input
-                  id="mfa-organization-context"
-                  autoComplete="off"
-                  value={organizationId}
-                  onChange={(event) => setOrganizationId(event.target.value.trim())}
-                />
-                <Button type="submit" disabled={access === 'loading'}>
-                  {access === 'loading'
-                    ? 'Verifying provisioned access...'
-                    : 'Verify provisioned access'}
-                </Button>
+              <div className="space-y-3" aria-busy={access === 'loading'}>
                 {access === 'loading' ? (
-                  <output>Checking your application profile with the local API...</output>
+                  <output>Finding your authorized workspace...</output>
+                ) : access === 'no_workspace' ? (
+                  <output>
+                    No authorized workspace is available. Ask the development administrator to
+                    review your access, or sign out. You can recheck after access is updated.
+                  </output>
                 ) : accessError ? (
                   <p className="text-sm text-destructive" role="alert">
                     {accessError}
                   </p>
-                ) : null}
-              </form>
+                ) : (
+                  <output>
+                    Workspace access is not available. Recheck securely or ask the development
+                    administrator for help.
+                  </output>
+                )}
+              </div>
             )}
           </div>
         ) : (
@@ -480,6 +522,9 @@ export function MfaForm() {
               variant="ghost"
               disabled={busy}
               onClick={() => {
+                handoffAttempted.current = false
+                resetWorkspaceHandoff()
+                setHandoff('idle')
                 setRefresh((value) => value + 1)
                 refreshAccess()
               }}

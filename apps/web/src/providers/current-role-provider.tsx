@@ -1,47 +1,49 @@
 'use client'
 
+import { usePathname } from 'next/navigation'
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react'
 
 import {
-  type ApplicationContext,
   type ApplicationProfile,
   AuthAccessError,
-  applicationContextSchema,
   getProfileRole,
   hasCurrentProfile,
-  parseApplicationProfile,
   parseMfaStatus,
   requestAuthJson,
 } from '@/features/auth/auth-access'
 import {
+  clearWorkspaceContext,
   contextCookieName,
-  decodeWorkspaceContext,
   encodeWorkspaceContext,
+  resolveWorkspaceProfile,
 } from '@/features/auth/workspace-access'
 import { useSession } from '@/hooks/use-session'
 import { webEnv } from '@/lib/env'
+import { isInternalPath } from '@/lib/rbac/route-access'
 import type { PathwaysRole } from '@/types/pathways-role'
 
 interface CurrentRoleContextValue {
   role: PathwaysRole | null
   assignedProjectIds: readonly string[]
   profile: ApplicationProfile | null
-  access: 'loading' | 'mfa_required' | 'blocked' | 'ready'
+  access: 'loading' | 'mfa_required' | 'blocked' | 'no_workspace' | 'ready'
   accessError: string | null
-  setApplicationContext: (context: ApplicationContext) => void
   refreshAccess: () => void
+  accessRefreshing: boolean
+  claimWorkspaceHandoff: () => boolean
+  resetWorkspaceHandoff: () => void
 }
 
 const CurrentRoleContext = createContext<CurrentRoleContextValue | null>(null)
 
 export const CurrentRoleProvider = ({ children }: { children: React.ReactNode }) => {
   const { session, status: sessionStatus } = useSession()
-  const [selection, setSelection] = useState<{
-    authUserId: string
-    context: ApplicationContext
-  } | null>(null)
+  const pathname = usePathname()
+  // Public routes never start internal membership discovery.
+  const internal = isInternalPath(pathname)
   const [result, setResult] = useState<{
     token: string
+    subject: string
     refresh: number
     access: CurrentRoleContextValue['access']
     profile: ApplicationProfile | null
@@ -50,40 +52,48 @@ export const CurrentRoleProvider = ({ children }: { children: React.ReactNode })
   const [refresh, setRefresh] = useState(0)
   const sessionRef = useRef(session)
   sessionRef.current = session
-
-  const setApplicationContext = useCallback((context: ApplicationContext) => {
-    const authUserId = sessionRef.current?.user.id
-    if (!authUserId) return
-    setResult(null)
-    setRefresh((value) => value + 1)
-    setSelection({ authUserId, context: applicationContextSchema.parse(context) })
+  const operation = useRef(0)
+  const revalidationInFlight = useRef(false)
+  // UX-only, in-memory loop guard shared across MFA page remounts. This never
+  // authorizes a route or persists trust; the server still checks every entry.
+  const handoffSubject = useRef<string | null>(null)
+  const resetWorkspaceHandoff = useCallback(() => {
+    handoffSubject.current = null
   }, [])
+  useEffect(() => {
+    if (handoffSubject.current !== session?.user.id) handoffSubject.current = null
+  }, [session?.user.id])
   const refreshAccess = useCallback(() => {
-    setResult(null)
+    // Focus, pageshow and the interval can fire together. One authoritative
+    // revalidation is enough; keep the verified view stable while it runs.
+    if (revalidationInFlight.current) return
+    revalidationInFlight.current = true
+    ++operation.current
     setRefresh((value) => value + 1)
   }, [])
 
   useEffect(() => {
-    // Initial hydration is not sign-out. Keep non-secret selectors until the
-    // session provider knows whether a returning user is authenticated.
-    if (sessionStatus === 'loading') return
-    if (!session) {
-      setResult(null)
-      setSelection(null)
-      document.cookie = `${contextCookieName}=; Path=/; SameSite=Strict; Max-Age=0`
-      return
-    }
+    const revision = ++operation.current
     const controller = new AbortController()
+    if (sessionStatus === 'loading') {
+      revalidationInFlight.current = false
+      setResult(null)
+      return () => controller.abort()
+    }
+    if (!session || !internal) {
+      revalidationInFlight.current = false
+      setResult(null)
+      clearWorkspaceContext()
+      return () => controller.abort()
+    }
+    revalidationInFlight.current = true
     const token = session.access_token
-    const authUserId = session.user.id
-    const stored = document.cookie
-      .split('; ')
-      .find((part) => part.startsWith(`${contextCookieName}=`))
-      ?.slice(contextCookieName.length + 1)
-    const context =
-      selection?.authUserId === authUserId
-        ? selection.context
-        : decodeWorkspaceContext(stored, authUserId)
+    const subject = session.user.id
+    const active = () =>
+      !controller.signal.aborted &&
+      operation.current === revision &&
+      sessionRef.current?.access_token === token &&
+      sessionRef.current?.user.id === subject
     const load = async () => {
       try {
         const status = parseMfaStatus(
@@ -94,10 +104,14 @@ export const CurrentRoleProvider = ({ children }: { children: React.ReactNode })
             controller.signal,
           ),
         )
-        if (controller.signal.aborted) return
+        if (!active()) return
+        if (status.authUserId !== subject) throw new AuthAccessError(403)
         if (status.aal !== 'aal2' || !status.applicationAccessEnabled) {
+          if (status.aal !== 'aal2') resetWorkspaceHandoff()
+          clearWorkspaceContext()
           setResult({
             token,
+            subject,
             refresh,
             profile: null,
             error: null,
@@ -105,78 +119,102 @@ export const CurrentRoleProvider = ({ children }: { children: React.ReactNode })
           })
           return
         }
-        if (!context) {
-          setResult({ token, refresh, profile: null, access: 'blocked', error: null })
+        const profile = await resolveWorkspaceProfile(
+          webEnv.NEXT_PUBLIC_API_BASE_URL,
+          token,
+          subject,
+          controller.signal,
+        )
+        if (!active()) return
+        if (!profile) {
+          clearWorkspaceContext()
+          setResult({ token, subject, refresh, profile: null, access: 'no_workspace', error: null })
           return
         }
-        const profile = parseApplicationProfile(
-          await requestAuthJson(
-            webEnv.NEXT_PUBLIC_API_BASE_URL,
-            '/auth/me',
-            token,
-            controller.signal,
-            context,
-          ),
-        )
-        if (
-          profile.id !== authUserId ||
-          profile.userId !== context.userId ||
-          profile.organizationId !== context.organizationId
-        ) {
-          throw new Error('Application context mismatch.')
-        }
-        if (!controller.signal.aborted) {
-          document.cookie = `${contextCookieName}=${encodeWorkspaceContext(profile)}; Path=/; SameSite=Strict`
-          setResult({ token, refresh, access: 'ready', profile, error: null })
-        }
+        // Non-secret SSR hint only; the API revalidates this selection each time.
+        document.cookie = `${contextCookieName}=${encodeWorkspaceContext(profile)}; Path=/; SameSite=Strict${location.protocol === 'https:' ? '; Secure' : ''}`
+        setResult({ token, subject, refresh, access: 'ready', profile, error: null })
       } catch (error) {
-        if (!controller.signal.aborted)
-          setResult({
-            token,
-            refresh,
-            access: 'blocked',
-            profile: null,
-            error:
-              error instanceof AuthAccessError
-                ? error.message
-                : 'The API returned an unexpected application profile. No protected access was granted.',
-          })
+        if (!active()) return
+        clearWorkspaceContext()
+        setResult({
+          token,
+          subject,
+          refresh,
+          access: 'blocked',
+          profile: null,
+          error:
+            error instanceof AuthAccessError
+              ? error.message
+              : 'Workspace verification is unavailable. Retry or ask the development administrator for help. No protected access was granted.',
+        })
+      } finally {
+        if (operation.current === revision) revalidationInFlight.current = false
       }
     }
     void load()
     return () => controller.abort()
-  }, [session, sessionStatus, selection, refresh])
+  }, [session, sessionStatus, internal, refresh, resetWorkspaceHandoff])
 
   useEffect(() => {
-    if (!session) return
+    if (!session || !internal) return
     const revalidate = () => {
       if (document.visibilityState === 'visible') refreshAccess()
     }
+    const clear = () => {
+      ++operation.current
+      revalidationInFlight.current = false
+      clearWorkspaceContext()
+      setResult(null)
+    }
     const interval = window.setInterval(revalidate, 30_000)
     window.addEventListener('focus', revalidate)
+    window.addEventListener('pageshow', revalidate)
+    window.addEventListener('pagehide', clear)
     return () => {
       window.clearInterval(interval)
       window.removeEventListener('focus', revalidate)
+      window.removeEventListener('pageshow', revalidate)
+      window.removeEventListener('pagehide', clear)
     }
-  }, [session, refreshAccess])
+  }, [session, internal, refreshAccess])
 
-  // No previous profile survives a token/account change, including the render
-  // before the next effect cancels an old request. Metadata is never authority.
+  // Reject stale authority even during the render before effect cancellation.
   const current =
-    hasCurrentProfile(result?.token, session?.access_token) && result?.refresh === refresh
+    internal &&
+    sessionStatus === 'authenticated' &&
+    hasCurrentProfile(result?.token, session?.access_token) &&
+    result?.subject === session?.user.id
       ? result
       : null
   const profile = current?.access === 'ready' ? current.profile : null
+  const accessRefreshing = current?.refresh !== refresh
+  const claimWorkspaceHandoff = useCallback(() => {
+    const subject = sessionRef.current?.user.id
+    if (
+      !profile ||
+      accessRefreshing ||
+      current?.token !== sessionRef.current?.access_token ||
+      current?.subject !== subject ||
+      !subject ||
+      handoffSubject.current === subject
+    )
+      return false
+    handoffSubject.current = subject
+    return true
+  }, [profile, accessRefreshing, current?.token, current?.subject])
   return (
     <CurrentRoleContext.Provider
       value={{
         role: profile ? getProfileRole(profile) : null,
         assignedProjectIds: profile?.assignedProjectIds ?? [],
         profile,
-        access: current?.access ?? (session ? 'loading' : 'blocked'),
+        access: current?.access ?? (internal && session ? 'loading' : 'blocked'),
         accessError: current?.error ?? null,
-        setApplicationContext,
         refreshAccess,
+        accessRefreshing,
+        claimWorkspaceHandoff,
+        resetWorkspaceHandoff,
       }}
     >
       {children}

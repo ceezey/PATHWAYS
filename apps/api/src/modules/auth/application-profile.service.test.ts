@@ -14,10 +14,11 @@ function setup() {
   const profile = {
     id: userId,
     organizationId,
+    organization: { name: 'Synthetic workspace' },
     fullName: 'Synthetic application user',
     role: {
       code: 'PROJECT_OFFICER',
-      rolePermissions: [{ permission: { code: 'PROJECT_READ' } }],
+      rolePermissions: [{ permission: { code: 'projects.read' } }],
     },
   }
   const transaction = {
@@ -73,6 +74,7 @@ describe('ApplicationProfileService', () => {
       select: {
         id: true,
         organizationId: true,
+        organization: { select: { name: true } },
         fullName: true,
         role: {
           select: {
@@ -119,9 +121,10 @@ describe('ApplicationProfileService', () => {
       aal: 'aal2',
       userId,
       organizationId,
+      organizationName: 'Synthetic workspace',
       fullName: 'Synthetic application user',
       roles: ['PROJECT_OFFICER'],
-      permissions: ['PROJECT_READ'],
+      permissions: ['projects.read'],
       assignedProjectIds: [projectId],
     })
   })
@@ -162,7 +165,7 @@ describe('ApplicationProfileService', () => {
       if (stage === 'assignments')
         transaction.userProjectAssignment.findMany.mockRejectedValue(error)
       await expect(service.resolve(subject, organizationId, userId)).rejects.toThrow(
-        /^Application access is unavailable for this identity and context\.$/,
+        /^Application access verification is temporarily unavailable\. Retry shortly\.$/,
       )
     }
     expect(warning.mock.calls).toEqual(
@@ -189,14 +192,77 @@ describe('ApplicationProfileService', () => {
     expect(warning).toHaveBeenCalledExactlyOnceWith({
       event: 'PATHWAYS_PROFILE_LOOKUP_DENIED',
       reason: 'P2028',
+      transactionFailure: 'UNCLASSIFIED',
     })
     withVerifiedContext.mockRejectedValue({ code: 'private-unrecognized-code' })
     await expect(service.resolve(subject, organizationId, userId)).rejects.toBeInstanceOf(
-      ForbiddenException,
+      ServiceUnavailableException,
     )
     expect(warning).toHaveBeenLastCalledWith({
       event: 'PATHWAYS_PROFILE_LOOKUP_DENIED',
       reason: 'CONTEXT_OR_PROFILE_UNAVAILABLE',
+    })
+  })
+
+  it('treats only an explicit runtime-link denial as absent membership', async () => {
+    const { service, withVerifiedContext } = setup()
+    withVerifiedContext.mockRejectedValue(
+      new Error('Database context is not linked to an active application identity.'),
+    )
+    await expect(service.resolve(subject, organizationId, userId)).rejects.toBeInstanceOf(
+      ForbiddenException,
+    )
+  })
+
+  it('intersects active database grants with the canonical role ceiling', async () => {
+    const { service, transaction, profile } = setup()
+    transaction.systemUser.findFirst.mockResolvedValue({
+      ...profile,
+      role: {
+        code: 'GRANT_MANAGER',
+        rolePermissions: ['projects.read', 'beneficiaries.records.read', '*'].map((code) => ({
+          permission: { code },
+        })),
+      },
+    })
+    await expect(service.resolve(subject, organizationId, userId)).resolves.toMatchObject({
+      permissions: ['projects.read'],
+    })
+  })
+
+  it.each([
+    ['Unable to start a transaction in the given time.', 'ACQUISITION_TIMEOUT'],
+    [
+      'Transaction already closed: A query cannot be executed on an expired transaction.',
+      'EXECUTION_EXPIRED',
+    ],
+  ])('reports only a bounded transaction subtype %#', async (detail, kind) => {
+    const { service, withVerifiedContext } = setup()
+    const warning = vi.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined)
+    withVerifiedContext.mockRejectedValue({
+      code: 'P2028',
+      meta: { error: detail },
+      message: 'SYNTHETIC_SECRET',
+    })
+    await expect(service.resolve(subject, organizationId, userId)).rejects.toMatchObject({
+      status: 503,
+      message: 'Application access verification is temporarily unavailable. Retry shortly.',
+    })
+    expect(warning).toHaveBeenCalledExactlyOnceWith({
+      event: 'PATHWAYS_PROFILE_LOOKUP_DENIED',
+      reason: 'P2028',
+      transactionFailure: kind,
+    })
+  })
+
+  it('retains a fixed denial when diagnostic output throws', async () => {
+    const { service, withVerifiedContext } = setup()
+    vi.spyOn(Logger.prototype, 'warn').mockImplementation(() => {
+      throw new Error('SYNTHETIC_SECRET')
+    })
+    withVerifiedContext.mockRejectedValue({ code: 'P2028' })
+    await expect(service.resolve(subject, organizationId, userId)).rejects.toMatchObject({
+      status: 503,
     })
   })
 })

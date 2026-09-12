@@ -183,9 +183,10 @@ describe.skipIf(!enabled)(
                 aal: 'aal2',
                 userId: userA,
                 organizationId: orgA,
+                organizationName: 'Synthetic local MFA organization A',
                 fullName: 'Synthetic local A',
                 roles: ['PROJECT_OFFICER'],
-                permissions: ['MFA_SYNTHETIC_READ'],
+                permissions: [],
                 assignedProjectIds: [fixtureId(100)],
               })
               await expect(service.resolve(subjectB, orgB, userB)).resolves.toMatchObject({
@@ -203,7 +204,7 @@ describe.skipIf(!enabled)(
                 ['not-a-uuid', orgA, userA],
               ]) {
                 await expect(service.resolve(subject, organization, user)).rejects.toThrow(
-                  'Application access is unavailable for this identity and context.',
+                  /Application access is unavailable|A provisioned application context is required/,
                 )
               }
 

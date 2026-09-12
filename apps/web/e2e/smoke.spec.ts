@@ -1,5 +1,7 @@
 import { expect, test } from '@playwright/test'
 
+import { waitForExactNavigation } from './navigation'
+
 test('public dashboard remains navigable with no published projects', async ({ page }) => {
   await page.goto('/')
 
@@ -12,6 +14,7 @@ test('public dashboard remains navigable with no published projects', async ({ p
   await expect(page.getByText('Prototype Role Preview')).toHaveCount(0)
 
   await page.getByRole('link', { name: 'View projects' }).click()
+  await waitForExactNavigation(page, 'http://127.0.0.1:3000/public/projects')
   await expect(page).toHaveURL(/\/public\/projects$/)
   await expect(page.getByRole('heading', { level: 1, name: 'Projects' })).toBeVisible()
   await expect(
@@ -46,7 +49,9 @@ test('legacy login redirects to the real staff sign-in form', async ({ page }) =
 
   await expect(page).toHaveURL(/\/staff\/login$/)
   await expect(page.getByRole('heading', { name: 'Sign in to PATHWAYS' })).toBeVisible()
-  await expect(page.getByText('Supabase authentication', { exact: true })).toBeVisible()
+  await expect(
+    page.getByText('Supabase password and TOTP authentication', { exact: true }),
+  ).toBeVisible()
   await expect(page.getByText(/demo account|one-time code|role preview/i)).toHaveCount(0)
 })
 
@@ -55,6 +60,7 @@ test('local password recovery is styled, explicit, and fails closed without a re
 }) => {
   await page.goto('/staff/login')
   await page.getByRole('link', { name: 'Forgot Password?' }).click()
+  await waitForExactNavigation(page, 'http://127.0.0.1:3000/staff/forgot-password')
 
   await expect(page).toHaveURL('http://127.0.0.1:3000/staff/forgot-password')
   await expect(page.getByRole('heading', { name: 'Reset your password' })).toBeVisible()

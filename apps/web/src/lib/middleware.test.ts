@@ -35,7 +35,11 @@ beforeEach(() => {
     return { auth: { getClaims: mock.claims, getSession: mock.session } }
   })
 })
-afterEach(() => vi.unstubAllGlobals())
+afterEach(() => {
+  vi.unstubAllGlobals()
+  vi.unstubAllEnvs()
+  vi.restoreAllMocks()
+})
 
 describe('workspace middleware server authority', () => {
   const profile: ApplicationProfile = {
@@ -75,6 +79,78 @@ describe('workspace middleware server authority', () => {
       expect.objectContaining({ cache: 'no-store', redirect: 'error' }),
     )
   })
+  it('classifies a profile outage at the middleware boundary with no private contents', async () => {
+    vi.stubEnv('NODE_ENV', 'development')
+    const output = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+    mock.fetch.mockResolvedValue(new Response('SYNTHETIC_PRIVATE_PROVIDER_BODY', { status: 503 }))
+    const response = await updateSession(request())
+    expect(response.headers.get('location')).toBe('http://127.0.0.1:3000/auth/mfa')
+    expect(response.headers.get('cache-control')).toBe('private, no-store')
+    expect(response.cookies.get('pathways-context')?.value).toBe('')
+    expect(output).toHaveBeenCalledExactlyOnceWith('PATHWAYS_NAVIGATION_DENIED', {
+      boundary: 'MIDDLEWARE',
+      stage: 'PROFILE',
+      reason: 'HTTP_503',
+    })
+    expect(JSON.stringify(output.mock.calls)).not.toContain('SYNTHETIC_PRIVATE_PROVIDER_BODY')
+  })
+  it('distinguishes a missing context from a middleware route API outage', async () => {
+    vi.stubEnv('NODE_ENV', 'development')
+    const output = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+    await updateSession(new NextRequest('http://127.0.0.1:3000/dashboard'))
+    expect(output).toHaveBeenLastCalledWith('PATHWAYS_NAVIGATION_DENIED', {
+      boundary: 'MIDDLEWARE',
+      stage: 'CONTEXT',
+      reason: 'CHECK_REJECTED',
+    })
+    output.mockClear()
+    mock.fetch
+      .mockResolvedValueOnce(Response.json({ user: profile }))
+      .mockResolvedValueOnce(new Response('', { status: 503 }))
+    const response = await updateSession(
+      new NextRequest('http://127.0.0.1:3000/dashboard', {
+        headers: { cookie: `pathways-context=${encodeWorkspaceContext(profile)}` },
+      }),
+    )
+    expect(new URL(response.headers.get('location') ?? '').pathname).toBe('/auth/mfa')
+    expect(output).toHaveBeenCalledExactlyOnceWith('PATHWAYS_NAVIGATION_DENIED', {
+      boundary: 'MIDDLEWARE',
+      stage: 'ROUTE_API',
+      reason: 'HTTP_503',
+    })
+  })
+  it('does not emit operational denial logs for public or successful MFA requests', async () => {
+    vi.stubEnv('NODE_ENV', 'development')
+    const output = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+    await updateSession(new NextRequest('http://127.0.0.1:3000/public/projects'))
+    await updateSession(new NextRequest('http://127.0.0.1:3000/auth/mfa'))
+    expect(output).not.toHaveBeenCalled()
+  })
+  it('revalidates a direct protected route independently of navigation and marks it private', async () => {
+    const direct = () =>
+      new NextRequest('http://127.0.0.1:3000/dashboard', {
+        headers: {
+          host: '127.0.0.1:3000',
+          cookie: `pathways-context=${encodeWorkspaceContext(profile)}`,
+        },
+      })
+    mock.fetch.mockResolvedValueOnce(Response.json({ user: profile })).mockResolvedValueOnce(
+      Response.json({
+        route: 'dashboard',
+        presentation: 'prototype-only',
+        beneficiaryAccess: 'records-or-none',
+      }),
+    )
+    const response = await updateSession(direct())
+    expect(response.headers.get('location')).toBeNull()
+    expect(response.headers.get('cache-control')).toBe('private, no-store')
+    expect(new URL(mock.fetch.mock.calls[1][0]).pathname).toBe('/api/access/route-check')
+    mock.fetch
+      .mockResolvedValueOnce(Response.json({ user: profile }))
+      .mockResolvedValueOnce(new Response('', { status: 403 }))
+    const revoked = await updateSession(direct())
+    expect(revoked.headers.get('location')).toBe('http://127.0.0.1:3000/unauthorized')
+  })
   it.each([
     { permissions: [] },
     { organizationId: '50000000-0000-4000-8000-000000000005' },
@@ -89,11 +165,33 @@ describe('workspace middleware server authority', () => {
     'fails closed when the authority denies %i',
     async (status) => {
       mock.fetch.mockResolvedValue(new Response('', { status }))
-      expect((await updateSession(request())).headers.get('location')).toBe(
+      const response = await updateSession(request())
+      expect(response.headers.get('location')).toBe(
         status === 401 ? 'http://127.0.0.1:3000/staff/login' : 'http://127.0.0.1:3000/auth/mfa',
       )
+      expect(response.cookies.get('pathways-context')?.value).toBe('')
+      expect(response.cookies.get('test-session')?.value).toBe('test-cookie')
     },
   )
+  it('clears a stale selection when the authority revokes membership between page requests', async () => {
+    expect((await updateSession(request())).headers.get('location')).toBeNull()
+    mock.fetch.mockResolvedValue(new Response('', { status: 403 }))
+    const denied = await updateSession(request())
+    expect(denied.headers.get('location')).toBe('http://127.0.0.1:3000/auth/mfa')
+    expect(denied.cookies.get('pathways-context')?.value).toBe('')
+    expect(mock.fetch).toHaveBeenCalledTimes(2)
+  })
+  it.each([
+    '/workspace',
+    '/projects/50000000-0000-4000-8000-000000000005',
+    '/beneficiaries/50000000-0000-4000-8000-000000000005',
+  ])('keeps missing-context and unassigned business deep links closed: %s', async (path) => {
+    const response = await updateSession(
+      new NextRequest(`http://127.0.0.1:3000${path}`, { headers: { host: '127.0.0.1:3000' } }),
+    )
+    expect(response.headers.get('location')).toBe('http://127.0.0.1:3000/auth/mfa')
+    expect(mock.fetch).not.toHaveBeenCalled()
+  })
   it('does not request business authority for a testing identity or password-only session', async () => {
     for (const claims of [
       { ...validClaims, aal: 'aal1' },

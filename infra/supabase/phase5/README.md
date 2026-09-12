@@ -49,10 +49,12 @@ values without disclosing them; it is not a claim about all historical output.
 ## Separate reviewed live operations
 
 `Invoke-AuthorizationBootstrap.ps1` uses the protected administrator connection. It guards the
-exact target, role, migration hashes, ledger, catalog, zero business counts,
-state-aware legacy retirement, preserved provider inventory and MFA before and
-after its transaction. It never prints the connection or email. `Check` and
-`Verify` use read-only transactions. Phase 5 write actions fail closed after 0006.
+exact target, role, migration hashes, ledger, catalog, current-table bootstrap
+counts, preserved legacy/provider inventory and MFA before and after its
+transaction. It never prints the connection or email. `Check` and `Verify` use
+read-only transactions. The exact completed session-liveness 0006 ledger row is
+accepted after its separately authorized deployment; every other later or
+changed migration still fails closed.
 
 Run each separately, reviewing its sanitized result before continuing:
 

@@ -1,3 +1,5 @@
+import { type ProtectedPageProps, requireServerPage } from '@/lib/rbac/server-access'
+
 import { RouteOff } from 'lucide-react'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
@@ -9,7 +11,7 @@ import { JourneyStagesWorkspace } from '@/features/beneficiaries/journey-stages-
 import { ProjectWorkspaceHeader } from '@/features/projects/project-workspace-header'
 import { PathwaysClientError, pathwaysClient } from '@/lib/services/pathways-client'
 
-export default async function ProjectJourneyStagesPage({
+async function ProjectJourneyStagesPage({
   params,
 }: {
   params: Promise<{ projectId: string }>
@@ -58,4 +60,11 @@ export default async function ProjectJourneyStagesPage({
 
     throw error
   }
+}
+
+export const dynamic = 'force-dynamic'
+
+export default async function ProtectedPage(props: ProtectedPageProps) {
+  await requireServerPage('journey', props)
+  return ProjectJourneyStagesPage(props as Parameters<typeof ProjectJourneyStagesPage>[0])
 }

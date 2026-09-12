@@ -1,7 +1,9 @@
--- Phase 6: optional, destructive retirement of the 15 superseded public
--- application tables. The surrounding operator runbook verifies the exact
--- PATHWAYS-dev target, backup/restore evidence, migration ledger and provider
--- inventories. This transaction independently fails closed on physical drift.
+-- DEFERRED REVIEW ARTIFACT -- NOT AN ACTIVE PRISMA MIGRATION.
+-- The 15 legacy public application tables contain preserved development data.
+-- This historical, unapplied SQL was removed from the executable migration
+-- chain during the Stage 4 session-liveness resequencing. Do not run it.
+-- Any future retirement requires a new data-classification/migration decision,
+-- a new migration identity, fresh backup/restore evidence, and authorization.
 BEGIN;
 
 SET LOCAL lock_timeout = '5s';

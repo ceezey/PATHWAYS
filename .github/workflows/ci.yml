@@ -58,7 +58,7 @@ jobs:
           pnpm --filter @pathways/api exec prisma validate --schema prisma/schema.prisma
           pnpm --filter @pathways/api exec prisma generate --schema prisma/schema.prisma
 
-      - name: Replay role-aware migrations and check physical diff
+      - name: Replay role-aware migrations and verify the preserved legacy boundary
         shell: bash
         run: |
           docker exec -i pathways-phase6-ci-postgres psql -X -h 127.0.0.1 -U postgres -d pathways_phase4_phase6_ci -v ON_ERROR_STOP=1 < apps/api/prisma/tests/security-adapter-local-bootstrap.sql
@@ -77,15 +77,13 @@ jobs:
           migration_url="postgresql://postgres@127.0.0.1:5432/pathways_phase4_phase6_ci?sslmode=disable&connection_limit=1"
           export "$migration_url_variable=$migration_url"
           pnpm --filter @pathways/api exec prisma migrate deploy --config "$GITHUB_WORKSPACE/infra/supabase/phase6/prisma.replay.config.ts"
-          cp -R apps/api/prisma/migrations/0006_retire_legacy_public_application_tables "$stage/"
-          migration_url="postgresql://prisma@127.0.0.1:5432/pathways_phase4_phase6_ci?sslmode=disable&connection_limit=1"
+          cp -R apps/api/prisma/migrations/0006_auth_session_liveness "$stage/"
+          migration_url="postgresql://postgres@127.0.0.1:5432/pathways_phase4_phase6_ci?sslmode=disable&connection_limit=1"
           export "$migration_url_variable=$migration_url"
           pnpm --filter @pathways/api exec prisma migrate deploy --config "$GITHUB_WORKSPACE/infra/supabase/phase6/prisma.replay.config.ts"
           pnpm --filter @pathways/api exec prisma migrate status --config "$GITHUB_WORKSPACE/infra/supabase/phase6/prisma.replay.config.ts"
-          docker exec pathways-phase6-ci-postgres createdb -h 127.0.0.1 -U postgres -T pathways_phase4_phase6_ci pathways_phase4_phase6_diff
-          docker exec pathways-phase6-ci-postgres psql -X -h 127.0.0.1 -U postgres -d pathways_phase4_phase6_diff -v ON_ERROR_STOP=1 -c 'ALTER TABLE pathways.system_users DROP CONSTRAINT system_users_auth_user_id_fkey'
-          diff_url="postgresql://prisma@127.0.0.1:5432/pathways_phase4_phase6_diff?sslmode=disable"
-          pnpm --filter @pathways/api exec prisma migrate diff --from-url "$diff_url" --to-schema-datamodel "$GITHUB_WORKSPACE/apps/api/prisma/schema.prisma" --exit-code
+          result="$(docker exec pathways-phase6-ci-postgres psql -X -q -A -t -h 127.0.0.1 -U postgres -d pathways_phase4_phase6_ci -v ON_ERROR_STOP=1 -c \"SELECT (SELECT count(*) FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname='pathways' AND c.relkind='r')=39 AND (SELECT count(*) FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname='public' AND c.relkind='r' AND c.relname<>'_prisma_migrations')=15 AND (SELECT count(*) FROM public._prisma_migrations WHERE finished_at IS NOT NULL AND rolled_back_at IS NULL)=6 AND (SELECT count(*) FROM public._prisma_migrations)=6 AND to_regprocedure('pathways.runtime_auth_session_live(uuid,uuid)') IS NOT NULL AND has_function_privilege('pathways_runtime','pathways.runtime_auth_session_live(uuid,uuid)','EXECUTE') AND NOT has_table_privilege('pathways_runtime','auth.sessions','SELECT');\")"
+          test "$result" = "t"
 
       - name: Check committed files for secret assignments
         shell: bash

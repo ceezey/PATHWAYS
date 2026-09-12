@@ -4,6 +4,7 @@ import {
   phase5Checksums,
   phase5Failure,
   phase5LedgerState,
+  sessionLivenessMigration,
   validatePhase5Url,
 } from './authorization-bootstrap-runner'
 
@@ -77,49 +78,55 @@ describe('Phase 5 fail-closed operator guard', () => {
       checksum: phase5Checksums[name],
       finished_at: new Date('2026-09-01T00:00:00Z'),
       rolled_back_at: null,
-      applied_steps_count: name === '0001_init' ? 0 : 1,
+      applied_steps_count: name === '0001_init' ? 1 : 0,
       expected_failure: false,
       logs_absent: true,
     }
   }
 
-  function preRetirementLedger(): Phase5LedgerRow[] {
+  function foundationLedger(): Phase5LedgerRow[] {
     return [
       completed('0001_init'),
       completed('0002_pathways_foundation'),
-      {
-        ...completed('0002_pathways_foundation'),
-        finished_at: null,
-        rolled_back_at: new Date('2026-09-01T00:00:01Z'),
-        applied_steps_count: 0,
-        expected_failure: true,
-        logs_absent: false,
-      },
       completed('0003_pathways_projects_collection'),
       completed('0004_pathways_finance_evaluation_decisions'),
       completed('0005_supabase_security_adapter'),
     ]
   }
 
-  it('accepts only coherent pre-0006 and completed post-0006 ledger states', () => {
-    const before = preRetirementLedger()
-    expect(phase5LedgerState(before)).toBe('PRE_0006')
+  it('accepts only the exact completed 0001-0005 foundation ledger', () => {
+    expect(phase5LedgerState(foundationLedger())).toBe('FOUNDATION_READY')
     expect(
-      phase5LedgerState([...before, completed('0006_retire_legacy_public_application_tables')]),
-    ).toBe('POST_0006')
+      phase5LedgerState([
+        ...foundationLedger(),
+        {
+          ...completed('0005_supabase_security_adapter'),
+          migration_name: sessionLivenessMigration.name,
+          checksum: sessionLivenessMigration.checksum,
+          applied_steps_count: 1,
+        },
+      ]),
+    ).toBe('FOUNDATION_READY')
   })
 
-  it('rejects unresolved, failed, duplicate, drifted and unexpected retirement history', () => {
-    const before = preRetirementLedger()
-    const retirement = completed('0006_retire_legacy_public_application_tables')
+  it('rejects unresolved, failed, duplicate, drifted and unexpected history', () => {
+    const before = foundationLedger()
+    const migration = completed('0005_supabase_security_adapter')
     const invalidRows: Phase5LedgerRow[][] = [
-      [...before, { ...retirement, finished_at: null }],
-      [...before, { ...retirement, rolled_back_at: new Date() }],
-      [...before, { ...retirement, checksum: '0'.repeat(64) }],
-      [...before, { ...retirement, logs_absent: false }],
-      [...before, { ...retirement, applied_steps_count: 0 }],
-      [...before, retirement, retirement],
-      [...before, { ...retirement, migration_name: 'unexpected' }],
+      before.map((row, index) => (index === 4 ? { ...row, finished_at: null } : row)),
+      before.map((row, index) => (index === 4 ? { ...row, rolled_back_at: new Date() } : row)),
+      before.map((row, index) => (index === 4 ? { ...row, checksum: '0'.repeat(64) } : row)),
+      before.map((row, index) => (index === 4 ? { ...row, logs_absent: false } : row)),
+      [...before, migration],
+      [...before.slice(0, 4), { ...migration, migration_name: 'unexpected' }],
+      [
+        ...before,
+        {
+          ...migration,
+          migration_name: sessionLivenessMigration.name,
+          checksum: '0'.repeat(64),
+        },
+      ],
     ]
     for (const rows of invalidRows) expect(() => phase5LedgerState(rows)).toThrow()
   })

@@ -5,8 +5,11 @@ import { roleAccessProfiles } from './access-matrix'
 import { can, canConfigureProjectAssignmentsForRole, canCreateOrAuthorizeRole } from './can'
 import { getRouteAccess } from './route-access'
 
-const testProjectIds = ['project-alpha', 'project-beta']
-const projectManagerAssignments = ['project-alpha']
+const testProjectIds = [
+  '10000000-0000-4000-8000-000000000001',
+  '10000000-0000-4000-8000-000000000002',
+]
+const projectManagerAssignments = ['10000000-0000-4000-8000-000000000001']
 
 describe('RBAC matrix', () => {
   it.each([
@@ -170,12 +173,20 @@ describe('RBAC matrix', () => {
   })
 
   it('denies direct routes for disallowed modules', () => {
-    expect(getRouteAccess('Program Manager', '/projects/project-alpha/activities')).toMatchObject({
+    expect(
+      getRouteAccess(
+        'Program Manager',
+        '/projects/10000000-0000-4000-8000-000000000001/activities',
+      ),
+    ).toMatchObject({
       allowed: true,
       moduleName: 'Activities',
     })
     expect(
-      getRouteAccess('Project Officer', '/projects/project-alpha/monitor-evaluate'),
+      getRouteAccess(
+        'Project Officer',
+        '/projects/10000000-0000-4000-8000-000000000001/monitor-evaluate',
+      ),
     ).toMatchObject({
       allowed: false,
       moduleName: 'Monitor & Evaluate',
@@ -194,13 +205,21 @@ describe('RBAC matrix', () => {
 
   it('denies Project Manager direct routes outside the assigned project scope', () => {
     expect(
-      getRouteAccess('Project Manager', '/projects/project-alpha', projectManagerAssignments),
+      getRouteAccess(
+        'Project Manager',
+        '/projects/10000000-0000-4000-8000-000000000001',
+        projectManagerAssignments,
+      ),
     ).toMatchObject({
       allowed: true,
       moduleName: 'Projects',
     })
     expect(
-      getRouteAccess('Project Manager', '/projects/project-beta', projectManagerAssignments),
+      getRouteAccess(
+        'Project Manager',
+        '/projects/10000000-0000-4000-8000-000000000002',
+        projectManagerAssignments,
+      ),
     ).toMatchObject({
       allowed: false,
       moduleName: 'Projects',
@@ -208,7 +227,7 @@ describe('RBAC matrix', () => {
     expect(
       getRouteAccess(
         'Project Manager',
-        '/projects/project-beta/activities',
+        '/projects/10000000-0000-4000-8000-000000000002/activities',
         projectManagerAssignments,
       ),
     ).toMatchObject({
@@ -218,8 +237,8 @@ describe('RBAC matrix', () => {
   })
 
   it.each([
-    ['Project Manager', 'project-beta'],
-    ['Project Officer', 'project-beta'],
+    ['Project Manager', '10000000-0000-4000-8000-000000000002'],
+    ['Project Officer', '10000000-0000-4000-8000-000000000002'],
     ['Monitoring and Evaluation Officer', 'project-gamma'],
   ] as const)('denies every unassigned project workspace path for %s', (role, projectId) => {
     for (const suffix of [
@@ -286,7 +305,9 @@ describe('RBAC matrix', () => {
       allowed: false,
       moduleName: 'Beneficiaries',
     })
-    expect(getRouteAccess('Grant Manager', '/projects/project-alpha/activities')).toMatchObject({
+    expect(
+      getRouteAccess('Grant Manager', '/projects/10000000-0000-4000-8000-000000000001/activities'),
+    ).toMatchObject({
       allowed: false,
       moduleName: 'Activities',
     })
@@ -325,24 +346,30 @@ describe('RBAC matrix', () => {
 
   it('limits the staff public-dashboard preview to designated internal roles', () => {
     expect(
-      getRouteAccess('Program Manager', '/projects/project-alpha/transparency/preview'),
+      getRouteAccess(
+        'Program Manager',
+        '/projects/10000000-0000-4000-8000-000000000001/transparency/preview',
+      ),
     ).toMatchObject({ allowed: true, moduleName: 'Public dashboard preview' })
     expect(
       getRouteAccess(
         'Project Manager',
-        '/projects/project-alpha/transparency/preview',
+        '/projects/10000000-0000-4000-8000-000000000001/transparency/preview',
         projectManagerAssignments,
       ),
     ).toMatchObject({ allowed: true, moduleName: 'Public dashboard preview' })
     expect(
       getRouteAccess(
         'Project Manager',
-        '/projects/project-beta/transparency/preview',
+        '/projects/10000000-0000-4000-8000-000000000002/transparency/preview',
         projectManagerAssignments,
       ),
     ).toMatchObject({ allowed: false, moduleName: 'Public dashboard preview' })
     expect(
-      getRouteAccess('Project Officer', '/projects/project-alpha/transparency/preview'),
+      getRouteAccess(
+        'Project Officer',
+        '/projects/10000000-0000-4000-8000-000000000001/transparency/preview',
+      ),
     ).toMatchObject({ allowed: false, moduleName: 'Public dashboard preview' })
   })
 
@@ -369,10 +396,10 @@ describe('RBAC matrix', () => {
     })
   })
 
-  it('requires beneficiary step-up for authorized non-administrator roles', () => {
+  it('uses the verified API AAL2 boundary rather than the obsolete Beneficiary UI gate', () => {
     expect(getRouteAccess('Project Manager', '/beneficiaries')).toMatchObject({
       allowed: true,
-      requiresBeneficiaryStepUp: true,
+      requiresBeneficiaryStepUp: false,
     })
     expect(getRouteAccess('System Administrator', '/beneficiaries')).toMatchObject({
       allowed: true,
@@ -385,7 +412,7 @@ describe('RBAC matrix', () => {
       ),
     ).toMatchObject({
       allowed: true,
-      requiresBeneficiaryStepUp: true,
+      requiresBeneficiaryStepUp: false,
     })
   })
 

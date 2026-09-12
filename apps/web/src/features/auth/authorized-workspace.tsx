@@ -9,6 +9,7 @@ import Link from 'next/link'
 import { useEffect, useState } from 'react'
 import {
   type AuthorizedProject,
+  clearWorkspaceContext,
   requestAuthorizedProjects,
   workspacePermissions,
 } from './workspace-access'
@@ -37,12 +38,16 @@ export function AuthorizedWorkspace() {
         if (!controller.signal.aborted) setResult({ token, profile, projects, denied: false })
       })
       .catch(() => {
-        if (!controller.signal.aborted) setResult({ token, profile, projects: [], denied: true })
+        if (!controller.signal.aborted) {
+          clearWorkspaceContext()
+          setResult({ token, profile, projects: [], denied: true })
+        }
       })
     return () => controller.abort()
   }, [access, profile, token])
   const current = result?.token === token && result?.profile === profile ? result : null
   const allowed = access === 'ready' && profile && workspacePermissions(profile).readProjects
+  if (access === 'loading') return <output>Verifying your current workspace access...</output>
   if (!allowed || current?.denied) {
     return (
       <Card className="w-full">

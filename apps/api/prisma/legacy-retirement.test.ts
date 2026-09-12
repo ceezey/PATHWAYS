@@ -2,12 +2,11 @@ import { createHash } from 'node:crypto'
 import fs from 'node:fs'
 import path from 'node:path'
 import { describe, expect, it } from 'vitest'
-import { phase5Checksums } from './authorization-bootstrap-runner'
 import { validatePhase6MigrationUrl } from './legacy-retirement-target'
 
 const migrationPath = path.join(
   __dirname,
-  'migrations/0006_retire_legacy_public_application_tables/migration.sql',
+  '../../../infra/supabase/legacy-retirement/deferred-retire-legacy-public-application-tables.sql',
 )
 const migration = fs.readFileSync(migrationPath, 'utf8')
 const schema = fs.readFileSync(path.join(__dirname, 'schema.prisma'), 'utf8')
@@ -29,7 +28,23 @@ const approvedDrops = [
   'User',
 ]
 
-describe('Phase 6 destructive migration contract', () => {
+describe('Deferred legacy-table retirement contract', () => {
+  it('is outside the executable Prisma history and explicitly refuses use', () => {
+    const directories = fs
+      .readdirSync(path.join(__dirname, 'migrations'), { withFileTypes: true })
+      .filter((entry) => entry.isDirectory())
+      .map((entry) => entry.name)
+      .sort()
+    expect(directories).toEqual([
+      '0001_init',
+      '0002_pathways_foundation',
+      '0003_pathways_projects_collection',
+      '0004_pathways_finance_evaluation_decisions',
+      '0005_supabase_security_adapter',
+      '0006_auth_session_liveness',
+    ])
+    expect(migration).toContain('DEFERRED REVIEW ARTIFACT -- NOT AN ACTIVE PRISMA MIGRATION')
+  })
   it('contains only the 15 explicit reviewed DROP TABLE RESTRICT statements', () => {
     const drops = [...migration.matchAll(/^DROP TABLE public\."([A-Za-z]+)" RESTRICT;$/gm)].map(
       (match) => match[1],
@@ -55,10 +70,10 @@ describe('Phase 6 destructive migration contract', () => {
     expect(schema).not.toMatch(/^model Legacy/m)
     expect(schema.match(/^model /gm)).toHaveLength(39)
     const checksum = createHash('sha256').update(migration).digest('hex')
-    expect(checksum).toBe(phase5Checksums['0006_retire_legacy_public_application_tables'])
+    expect(checksum).toBe('9d1a3688fbe3aa9692e615a4e33c182d8544006245bef54a371579fb65fab253')
   })
 
-  it('accepts only the exact protected PATHWAYS-dev migration target', () => {
+  it('rejects every hosted migration target while retirement is deferred', () => {
     const fixture = () => {
       const url = new URL('postgresql://aws-1-ap-southeast-2.pooler.supabase.com:5432/postgres')
       url.username = 'prisma.pdqwsknbzkdtiwjjibqt'
@@ -68,7 +83,7 @@ describe('Phase 6 destructive migration contract', () => {
       url.searchParams.set('connection_limit', '1')
       return url
     }
-    expect(validatePhase6MigrationUrl(fixture().toString())).toBe(fixture().toString())
+    expect(() => validatePhase6MigrationUrl(fixture().toString())).toThrow(/deferred/)
     const invalid = [
       (url: URL) => {
         url.hostname = 'example.invalid'
@@ -104,7 +119,8 @@ describe('Phase 6 destructive migration contract', () => {
     for (const mutate of invalid) {
       const url = fixture()
       mutate(url)
-      expect(() => validatePhase6MigrationUrl(url.toString())).toThrow()
+      expect(() => validatePhase6MigrationUrl(url.toString())).toThrow(/deferred/)
     }
+    expect(() => validatePhase6MigrationUrl(undefined)).toThrow(/deferred/)
   })
 })

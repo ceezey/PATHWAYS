@@ -22,8 +22,9 @@ export const Sidebar = ({
 }) => {
   const pathname = usePathname()
   const { email } = useSession()
-  const { role } = useCurrentRole()
-  const visibleNavGroups = role ? filterDashboardNavGroups(createDashboardNavGroups(), role) : []
+  const { role, profile } = useCurrentRole()
+  const visibleNavGroups =
+    role && profile ? filterDashboardNavGroups(createDashboardNavGroups(), role, profile) : []
   const roleLabel = role ? getPathwaysRoleDisplayName(role) : 'Role unavailable'
   const activeHref = visibleNavGroups
     .flatMap((group) => group.items)

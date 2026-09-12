@@ -53,7 +53,7 @@ export class AuthAccessError extends Error {
       status === 401
         ? 'Your session was not accepted (401). Sign in again and complete TOTP.'
         : status === 403
-          ? 'Access was denied (403). Check the application user UUID and organization UUID; do not use your Auth UUID or PLAN_PH.'
+          ? 'Access was denied (403). Ask the development administrator to review your workspace access, or sign out and try the approved account.'
           : status === 503
             ? 'Application access verification is temporarily unavailable (503). Wait a moment and retry; do not change your password or provision another account.'
             : status === 'timeout'
@@ -72,7 +72,9 @@ export const parseMfaStatus = (value: unknown): MfaStatus => mfaStatusSchema.par
 export const parseApplicationProfile = (value: unknown): ApplicationProfile =>
   profileSchema.parse(value).user
 
-export const getLocalAuthEndpoint = (baseUrl: string, path: '/auth/mfa/status' | '/auth/me') => {
+type AuthPath = '/auth/mfa/status' | '/auth/me' | '/auth/workspaces'
+
+export const getLocalAuthEndpoint = (baseUrl: string, path: AuthPath) => {
   const url = new URL(baseUrl)
   if (
     !['localhost', '127.0.0.1', '[::1]'].includes(url.hostname) ||
@@ -93,13 +95,14 @@ export const getLocalAuthEndpoint = (baseUrl: string, path: '/auth/mfa/status' |
 
 export async function requestAuthJson(
   baseUrl: string,
-  path: '/auth/mfa/status' | '/auth/me',
+  path: AuthPath,
   token: string,
   signal?: AbortSignal,
   context?: ApplicationContext,
   fetcher: typeof fetch = fetch,
 ): Promise<unknown> {
   const headers: Record<string, string> = { Authorization: `Bearer ${token}` }
+  if (path === '/auth/workspaces' && context) throw new AuthAccessError(400)
   if (context) {
     const selected = applicationContextSchema.parse(context)
     // Selectors only. The API must verify their linkage to the authenticated subject.

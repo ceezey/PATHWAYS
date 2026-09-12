@@ -1,3 +1,5 @@
+import { type ProtectedPageProps, requireServerPage } from '@/lib/rbac/server-access'
+
 import { EyeOff } from 'lucide-react'
 import Link from 'next/link'
 
@@ -7,7 +9,7 @@ import { Button } from '@/components/ui/button'
 import { PublicProjectDetail } from '@/features/public/public-project-components'
 import { PathwaysClientError, pathwaysClient } from '@/lib/services/pathways-client'
 
-export default async function StaffPublicProjectPreviewPage({
+async function StaffPublicProjectPreviewPage({
   params,
 }: {
   params: Promise<{ projectId: string }>
@@ -49,4 +51,11 @@ export default async function StaffPublicProjectPreviewPage({
 
     throw error
   }
+}
+
+export const dynamic = 'force-dynamic'
+
+export default async function ProtectedPage(props: ProtectedPageProps) {
+  await requireServerPage('transparencyPreview', props)
+  return StaffPublicProjectPreviewPage(props as Parameters<typeof StaffPublicProjectPreviewPage>[0])
 }

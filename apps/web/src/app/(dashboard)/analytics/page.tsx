@@ -1,10 +1,12 @@
+import { type ProtectedPageProps, requireServerPage } from '@/lib/rbac/server-access'
+
 import { BarChart3 } from 'lucide-react'
 
 import { EmptyState } from '@/components/pathways/empty-state'
 import { AnalyticsDashboard } from '@/features/analytics/analytics-dashboard'
 import { pathwaysClient } from '@/lib/services/pathways-client'
 
-export default async function AnalyticsPage() {
+async function AnalyticsPage() {
   try {
     const projectSummaries = await pathwaysClient.getProjects()
     const [projects, budgets, alerts, locations] = await Promise.all([
@@ -36,4 +38,11 @@ export default async function AnalyticsPage() {
       />
     )
   }
+}
+
+export const dynamic = 'force-dynamic'
+
+export default async function ProtectedPage(props: ProtectedPageProps) {
+  await requireServerPage('analytics', props)
+  return AnalyticsPage()
 }

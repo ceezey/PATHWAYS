@@ -8,7 +8,6 @@ import {
 } from '@nestjs/common'
 import { Reflector } from '@nestjs/core'
 
-import { ApplicationProfileService } from '../../modules/auth/application-profile.service'
 import { hasAtomicPermission } from '../../modules/auth/authorization-policy'
 import {
   type AuthenticatedRequest,
@@ -16,6 +15,7 @@ import {
   developerApplicationAccessEnabled,
 } from '../../modules/auth/developer-access'
 import { TokenAuthService } from '../../modules/auth/token-auth.service'
+import { WorkspaceResolutionService } from '../../modules/auth/workspace-resolution.service'
 import { AUTH_BOUNDARY_KEY } from '../decorators/auth-boundary.decorator'
 import { PERMISSION_KEY } from '../decorators/permission.decorator'
 import { IS_PUBLIC_KEY } from '../decorators/public.decorator'
@@ -25,7 +25,7 @@ export class SupabaseAuthGuard implements CanActivate {
   constructor(
     @Inject(Reflector) private readonly reflector: Reflector,
     @Inject(TokenAuthService) private readonly tokens: TokenAuthService,
-    @Inject(ApplicationProfileService) private readonly profiles: ApplicationProfileService,
+    @Inject(WorkspaceResolutionService) private readonly workspaces: WorkspaceResolutionService,
   ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
@@ -34,6 +34,11 @@ export class SupabaseAuthGuard implements CanActivate {
     request.auth = undefined
     const handlers = [context.getHandler(), context.getClass()]
     if (this.reflector.getAllAndOverride<boolean>(IS_PUBLIC_KEY, handlers)) return true
+    // Set before validation so denials/outages are private too, not just 200s.
+    context
+      .switchToHttp()
+      .getResponse<{ setHeader: (name: string, value: string) => void }>()
+      .setHeader('Cache-Control', 'private, no-store')
 
     const header = request.headers?.authorization
     if (typeof header !== 'string' || !/^Bearer [^\s]+$/i.test(header) || header.length > 16_384) {
@@ -53,11 +58,12 @@ export class SupabaseAuthGuard implements CanActivate {
       throw new ForbiddenException('Application access remains blocked by the onboarding gate.')
     }
     const permission = this.reflector.getAllAndOverride<string>(PERMISSION_KEY, handlers)
+    if (boundary === 'workspace-discovery' && !permission) return true
     if (boundary !== 'profile' && !permission) {
       throw new ForbiddenException('This application operation has not been authorized.')
     }
-    request.user = await this.profiles.resolve(
-      identity.id,
+    request.user = await this.workspaces.resolveSelection(
+      identity,
       request.headers['x-pathways-organization-id'],
       request.headers['x-pathways-user-id'],
     )

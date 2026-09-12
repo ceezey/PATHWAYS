@@ -78,7 +78,7 @@ export class PrismaService extends PrismaClient implements OnModuleInit, OnModul
       },
       {
         // A protected page can overlap its server and browser checks on the
-        // single-connection Session Pooler. Keep queue/work time bounded without
+        // bounded development pool. Keep queue/work time bounded without
         // Prisma's 2s/5s defaults turning valid remote profile reads into P2028.
         maxWait: 5_000,
         timeout: 10_000,

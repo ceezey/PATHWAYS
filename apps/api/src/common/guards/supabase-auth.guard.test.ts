@@ -18,9 +18,13 @@ import { AuthService } from '../../modules/auth/auth.service'
 import {
   type ApplicationIdentity,
   DEVELOPER_AUTH_UUID,
+  DEVELOPER_SUPABASE_URL,
   type VerifiedAuthIdentity,
 } from '../../modules/auth/developer-access'
+import { RouteAccessController } from '../../modules/auth/route-access.controller'
+import { RouteAccessService } from '../../modules/auth/route-access.service'
 import { TokenAuthService } from '../../modules/auth/token-auth.service'
+import { WorkspaceResolutionService } from '../../modules/auth/workspace-resolution.service'
 import { RequirePermission } from '../decorators/permission.decorator'
 import { Public } from '../decorators/public.decorator'
 import { SupabaseAuthGuard } from './supabase-auth.guard'
@@ -62,6 +66,7 @@ const profile: ApplicationIdentity = {
 }
 const tokens = { verify: vi.fn<(token: string) => Promise<VerifiedAuthIdentity>>() }
 const profiles = { resolve: vi.fn() }
+const routeChecks = { check: vi.fn() }
 let app: INestApplication
 let port: number
 
@@ -96,10 +101,12 @@ const get = (path: string, headers: Record<string, string> = {}) =>
 
 beforeAll(async () => {
   const module = await Test.createTestingModule({
-    controllers: [AuthController, BoundaryTestController],
+    controllers: [AuthController, BoundaryTestController, RouteAccessController],
     providers: [
       { provide: TokenAuthService, useValue: tokens },
       { provide: ApplicationProfileService, useValue: profiles },
+      { provide: RouteAccessService, useValue: routeChecks },
+      WorkspaceResolutionService,
       { provide: AuthService, useValue: { getStatus: () => ({ authenticated: true }) } },
       { provide: APP_GUARD, useClass: SupabaseAuthGuard },
     ],
@@ -110,24 +117,137 @@ beforeAll(async () => {
 })
 
 beforeEach(() => {
+  vi.stubEnv('NODE_ENV', 'development')
+  vi.stubEnv('SUPABASE_URL', DEVELOPER_SUPABASE_URL)
+  vi.stubEnv('PATHWAYS_DEVELOPER_WORKSPACE_RESOLUTION_ENABLED', 'true')
+  vi.stubEnv(
+    'PATHWAYS_DEVELOPER_WORKSPACE_CANDIDATES',
+    JSON.stringify([{ authUserId: DEVELOPER_AUTH_UUID, userId, organizationId }]),
+  )
   vi.stubEnv('PATHWAYS_DEVELOPER_ACCESS_ENABLED', '')
   tokens.verify.mockReset().mockResolvedValue({ id: DEVELOPER_AUTH_UUID, aal: 'aal1' })
   profiles.resolve.mockReset().mockResolvedValue(profile)
+  routeChecks.check.mockReset().mockResolvedValue({
+    route: 'dashboard',
+    presentation: 'prototype-only',
+    beneficiaryAccess: 'records-or-none',
+  })
 })
 
 afterEach(() => vi.unstubAllEnvs())
 afterAll(async () => app?.close())
 
 describe('SupabaseAuthGuard local HTTP fail-closed boundary', () => {
+  it('independently guards the route-check endpoint, including revocation and forged selection', async () => {
+    const path = '/access/route-check?route=dashboard'
+    const headers = {
+      authorization: 'Bearer local-test-token',
+      'x-pathways-user-id': userId,
+      'x-pathways-organization-id': organizationId,
+    }
+    expect((await get(path)).status).toBe(401)
+    expect((await get(path, headers)).status).toBe(403)
+    expect(routeChecks.check).not.toHaveBeenCalled()
+    vi.stubEnv('PATHWAYS_DEVELOPER_ACCESS_ENABLED', 'true')
+    tokens.verify.mockResolvedValue({ id: DEVELOPER_AUTH_UUID, aal: 'aal2' })
+    const permitted = await get(path, headers)
+    expect(permitted.status).toBe(200)
+    expect(permitted.cacheControl).toBe('private, no-store')
+    expect(routeChecks.check).toHaveBeenCalledTimes(1)
+    expect(
+      (
+        await get(path, {
+          ...headers,
+          'x-pathways-organization-id': '90000000-0000-4000-8000-000000000009',
+        })
+      ).status,
+    ).toBe(403)
+    profiles.resolve.mockRejectedValue(new ForbiddenException())
+    expect((await get(path, headers)).status).toBe(403)
+    expect(routeChecks.check).toHaveBeenCalledTimes(1)
+    tokens.verify.mockRejectedValue(new UnauthorizedException())
+    expect((await get(path, headers)).status).toBe(401)
+  })
+  it('discovers without selectors only after verified password/AAL2 and keeps responses private', async () => {
+    expect((await get('/auth/workspaces')).status).toBe(401)
+    expect(
+      (await get('/auth/workspaces', { authorization: 'Bearer local-test-token' })).status,
+    ).toBe(403)
+    expect(profiles.resolve).not.toHaveBeenCalled()
+    vi.stubEnv('PATHWAYS_DEVELOPER_ACCESS_ENABLED', 'true')
+    tokens.verify.mockResolvedValue({ id: DEVELOPER_AUTH_UUID, aal: 'aal2' })
+    const result = await get('/auth/workspaces', { authorization: 'Bearer local-test-token' })
+    expect(result.status).toBe(200)
+    expect(result.cacheControl).toBe('private, no-store')
+    expect(result.body).toEqual({
+      authUserId: DEVELOPER_AUTH_UUID,
+      prototypeOnly: true,
+      workspaces: [{ organizationId, userId, displayName: 'Development workspace' }],
+    })
+  })
+
+  it('rejects caller-supplied subject/search/selectors without performing a database read', async () => {
+    vi.stubEnv('PATHWAYS_DEVELOPER_ACCESS_ENABLED', 'true')
+    tokens.verify.mockResolvedValue({ id: DEVELOPER_AUTH_UUID, aal: 'aal2' })
+    for (const [path, extra] of [
+      ['/auth/workspaces?authUserId=forged', {}],
+      ['/auth/workspaces?organizationId=forged', {}],
+      ['/auth/workspaces', { 'x-pathways-organization-id': organizationId }],
+    ] as const) {
+      const result = await get(path, { authorization: 'Bearer local-test-token', ...extra })
+      expect(result.status).toBe(400)
+      expect(result.cacheControl).toBe('private, no-store')
+    }
+    expect(profiles.resolve).not.toHaveBeenCalled()
+  })
+
+  it('revalidates each protected request and denies removed membership despite a prior success', async () => {
+    vi.stubEnv('PATHWAYS_DEVELOPER_ACCESS_ENABLED', 'true')
+    tokens.verify.mockResolvedValue({ id: DEVELOPER_AUTH_UUID, aal: 'aal2' })
+    const headers = {
+      authorization: 'Bearer local-test-token',
+      'x-pathways-user-id': userId,
+      'x-pathways-organization-id': organizationId,
+    }
+    expect((await get('/auth/me', headers)).status).toBe(200)
+    profiles.resolve.mockRejectedValue(new ForbiddenException())
+    const denied = await get('/auth/me', headers)
+    expect(denied.status).toBe(403)
+    expect(denied.cacheControl).toBe('private, no-store')
+    expect(denied.body).not.toHaveProperty('user')
+    expect(profiles.resolve).toHaveBeenCalledTimes(2)
+  })
+
+  it('returns unavailable rather than an empty workspace list for a database outage', async () => {
+    vi.stubEnv('PATHWAYS_DEVELOPER_ACCESS_ENABLED', 'true')
+    tokens.verify.mockResolvedValue({ id: DEVELOPER_AUTH_UUID, aal: 'aal2' })
+    profiles.resolve.mockRejectedValue(new Error('private-database-detail'))
+    const result = await get('/auth/workspaces', { authorization: 'Bearer local-test-token' })
+    expect(result.status).toBe(503)
+    expect(result.cacheControl).toBe('private, no-store')
+    expect(JSON.stringify(result.body)).not.toMatch(/private-database-detail|workspaces/)
+  })
   it('checks explicit atomic permission before a reviewed handler, without an admin bypass', async () => {
     vi.stubEnv('PATHWAYS_DEVELOPER_ACCESS_ENABLED', 'true')
     tokens.verify.mockResolvedValue({ id: DEVELOPER_AUTH_UUID, aal: 'aal2' })
     expect(
-      (await get('/boundary-test/reviewed', { authorization: 'Bearer local-test-token' })).status,
+      (
+        await get('/boundary-test/reviewed', {
+          authorization: 'Bearer local-test-token',
+          'x-pathways-user-id': userId,
+          'x-pathways-organization-id': organizationId,
+        })
+      ).status,
     ).toBe(200)
     profiles.resolve.mockResolvedValue({ ...profile, permissions: [] })
     expect(
-      (await get('/boundary-test/reviewed', { authorization: 'Bearer local-test-token' })).status,
+      (
+        await get('/boundary-test/reviewed', {
+          authorization: 'Bearer local-test-token',
+          'x-pathways-user-id': userId,
+          'x-pathways-organization-id': organizationId,
+        })
+      ).status,
     ).toBe(403)
     profiles.resolve.mockResolvedValue({
       ...profile,
@@ -135,7 +255,13 @@ describe('SupabaseAuthGuard local HTTP fail-closed boundary', () => {
       permissions: ['projects.read'],
     })
     expect(
-      (await get('/boundary-test/reviewed', { authorization: 'Bearer local-test-token' })).status,
+      (
+        await get('/boundary-test/reviewed', {
+          authorization: 'Bearer local-test-token',
+          'x-pathways-user-id': userId,
+          'x-pathways-organization-id': organizationId,
+        })
+      ).status,
     ).toBe(403)
   })
   it('keeps explicitly public health independent of Auth and business queries', async () => {
@@ -165,7 +291,7 @@ describe('SupabaseAuthGuard local HTTP fail-closed boundary', () => {
   it('permits only minimal setup state for the selected aal1 identity', async () => {
     const result = await get('/auth/mfa/status', { authorization: 'Bearer local-test-token' })
     expect(result.status).toBe(200)
-    expect(result.cacheControl).toBe('no-store')
+    expect(result.cacheControl).toBe('private, no-store')
     expect(result.body).toEqual({
       authUserId: DEVELOPER_AUTH_UUID,
       aal: 'aal1',
@@ -231,7 +357,7 @@ describe('SupabaseAuthGuard local HTTP fail-closed boundary', () => {
       'x-pathways-user-id': userId,
     })
     expect(result.status).toBe(200)
-    expect(result.cacheControl).toBe('no-store')
+    expect(result.cacheControl).toBe('private, no-store')
     expect(result.body).toEqual({ user: profile })
     expect(profiles.resolve).toHaveBeenCalledExactlyOnceWith(
       DEVELOPER_AUTH_UUID,
@@ -247,13 +373,17 @@ describe('SupabaseAuthGuard local HTTP fail-closed boundary', () => {
     profiles.resolve.mockRejectedValue(
       new ForbiddenException('Application context is unavailable.'),
     )
-    const result = await get('/auth/me', { authorization: 'Bearer local-test-token' })
+    const result = await get('/auth/me', {
+      authorization: 'Bearer local-test-token',
+      'x-pathways-user-id': userId,
+      'x-pathways-organization-id': organizationId,
+    })
     expect(result.status).toBe(403)
     expect(result.body).not.toHaveProperty('user')
     expect(profiles.resolve).toHaveBeenCalledExactlyOnceWith(
       DEVELOPER_AUTH_UUID,
-      undefined,
-      undefined,
+      organizationId,
+      userId,
     )
   })
 })

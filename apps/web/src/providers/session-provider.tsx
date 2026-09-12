@@ -4,6 +4,7 @@ import type { Session } from '@supabase/supabase-js'
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react'
 
 import { getBrowserSupabaseClient } from '@/lib/supabase/client'
+import { validateRestoredSession } from '@/lib/supabase/session-restoration'
 import type { SessionContextValue } from '@/types/auth'
 
 const SessionContext = createContext<SessionContextValue | null>(null)
@@ -12,31 +13,29 @@ export const SessionProvider = ({ children }: { children: React.ReactNode }) => 
   const [session, setSession] = useState<Session | null>(null)
   const [status, setStatus] = useState<SessionContextValue['status']>('loading')
   const revision = useRef(0)
+  const validatedAccessToken = useRef<string | null>(null)
   const supabase = getBrowserSupabaseClient()
 
   const refreshSession = useCallback(async () => {
     const requestRevision = ++revision.current
     if (!supabase) {
+      validatedAccessToken.current = null
       setSession(null)
       setStatus('unauthenticated')
-      return
+      return null
     }
 
-    try {
-      const { data, error } = await supabase.auth.getSession()
-      if (requestRevision !== revision.current) return
-      const nextSession = error ? null : data.session
-      setSession(nextSession)
-      setStatus(nextSession ? 'authenticated' : 'unauthenticated')
-    } catch {
-      if (requestRevision !== revision.current) return
-      setSession(null)
-      setStatus('unauthenticated')
-    }
+    const nextSession = await validateRestoredSession(supabase.auth)
+    if (requestRevision !== revision.current) return null
+    validatedAccessToken.current = nextSession?.access_token ?? null
+    setSession(nextSession)
+    setStatus(nextSession ? 'authenticated' : 'unauthenticated')
+    return nextSession
   }, [supabase])
 
   const signOut = async () => {
     ++revision.current
+    validatedAccessToken.current = null
     setSession(null)
     setStatus('unauthenticated')
     if (supabase) {
@@ -48,6 +47,7 @@ export const SessionProvider = ({ children }: { children: React.ReactNode }) => 
 
   useEffect(() => {
     if (!supabase) {
+      validatedAccessToken.current = null
       setSession(null)
       setStatus('unauthenticated')
       return
@@ -59,12 +59,28 @@ export const SessionProvider = ({ children }: { children: React.ReactNode }) => 
       data: { subscription },
     } = supabase.auth.onAuthStateChange((_event, nextSession) => {
       ++revision.current
-      setSession(nextSession)
-      setStatus(nextSession ? 'authenticated' : 'unauthenticated')
+      if (!nextSession) {
+        validatedAccessToken.current = null
+        setSession(null)
+        setStatus('unauthenticated')
+        return
+      }
+      if (validatedAccessToken.current === nextSession.access_token) {
+        setSession(nextSession)
+        setStatus('authenticated')
+        return
+      }
+
+      // Auth callbacks must stay synchronous. Validate new/restored cookie state
+      // online in a separate task before exposing it as authenticated.
+      setSession(null)
+      setStatus('loading')
+      window.setTimeout(() => void refreshSession(), 0)
     })
 
     return () => {
       ++revision.current
+      validatedAccessToken.current = null
       subscription.unsubscribe()
     }
   }, [refreshSession, supabase])

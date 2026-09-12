@@ -8,7 +8,8 @@ import {
 import type { Prisma } from '@prisma/client'
 
 import { PrismaService } from '../../prisma/prisma.service'
-import { isCanonicalRole } from './authorization-policy'
+import { prismaDiagnosticCode, transactionDiagnostic } from '../../prisma/transaction-diagnostic'
+import { hasAtomicPermission, isCanonicalRole } from './authorization-policy'
 import { type ApplicationIdentity, UUID_PATTERN } from './developer-access'
 
 /** Re-read inside each business transaction; never authorize from cached roles. */
@@ -31,6 +32,7 @@ export async function readApplicationProfile(
     select: {
       id: true,
       organizationId: true,
+      organization: { select: { name: true } },
       fullName: true,
       role: {
         select: {
@@ -62,9 +64,12 @@ export async function readApplicationProfile(
     aal: 'aal2',
     userId: profile.id,
     organizationId: profile.organizationId,
+    organizationName: profile.organization.name,
     fullName: profile.fullName,
     roles: [profile.role.code],
-    permissions: profile.role.rolePermissions.map(({ permission }) => permission.code),
+    permissions: profile.role.rolePermissions
+      .map(({ permission }) => permission.code)
+      .filter((code) => hasAtomicPermission(profile.role.code, [code], code)),
     assignedProjectIds: [...new Set(assignments.map(({ projectId }) => projectId))],
   }
 }
@@ -81,6 +86,8 @@ export class ApplicationProfileService {
     userSelector: unknown,
   ): Promise<ApplicationIdentity> {
     if (
+      typeof authSubject !== 'string' ||
+      !UUID_PATTERN.test(authSubject) ||
       typeof organizationSelector !== 'string' ||
       typeof userSelector !== 'string' ||
       !UUID_PATTERN.test(organizationSelector) ||
@@ -100,21 +107,28 @@ export class ApplicationProfileService {
     } catch (error) {
       // Fixed diagnostics only: never serialize provider errors, SQL, headers,
       // selectors, JWTs or connection settings into logs or public responses.
-      const code =
-        error && typeof error === 'object' && 'code' in error && typeof error.code === 'string'
-          ? error.code
-          : ''
-      this.logger.warn({
-        event: 'PATHWAYS_PROFILE_LOOKUP_DENIED',
-        reason: /^P\d{4}$/.test(code) ? code : 'CONTEXT_OR_PROFILE_UNAVAILABLE',
-      })
-      if (code === 'P2028' || code === 'P2024') {
-        throw new ServiceUnavailableException(
-          'Application access verification is temporarily unavailable. Retry shortly.',
+      const code = prismaDiagnosticCode(error)
+      try {
+        this.logger.warn({
+          event: 'PATHWAYS_PROFILE_LOOKUP_DENIED',
+          reason: code || 'CONTEXT_OR_PROFILE_UNAVAILABLE',
+          ...transactionDiagnostic(error),
+        })
+      } catch {
+        // Diagnostics must not expose provider errors or change the denial.
+      }
+      if (
+        error instanceof ForbiddenException ||
+        (error instanceof Error &&
+          error.message === 'Database context is not linked to an active application identity.')
+      ) {
+        throw new ForbiddenException(
+          'Application access is unavailable for this identity and context.',
         )
       }
-      throw new ForbiddenException(
-        'Application access is unavailable for this identity and context.',
+      // A database/configuration outage must never masquerade as zero membership.
+      throw new ServiceUnavailableException(
+        'Application access verification is temporarily unavailable. Retry shortly.',
       )
     }
   }

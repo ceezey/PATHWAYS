@@ -49,8 +49,11 @@ const createWorkspaceTabs = (labels: DisplayLabels): WorkspaceTabAccess[] => [
 export const ProjectWorkspaceHeader = ({ project }: { project: ProjectDetail }) => {
   const pathname = usePathname()
   const { labels } = useDisplayLabels()
-  const { role } = useCurrentRole()
-  const visibleTabs = role ? filterWorkspaceTabs(createWorkspaceTabs(labels), role) : []
+  const { role, profile } = useCurrentRole()
+  const visibleTabs =
+    role && profile
+      ? filterWorkspaceTabs(createWorkspaceTabs(labels), role, profile, project.id)
+      : []
   const beneficiaryProgress =
     project.targetBeneficiaries > 0
       ? Math.round((project.beneficiariesReached / project.targetBeneficiaries) * 100)

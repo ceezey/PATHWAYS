@@ -19,12 +19,12 @@ export const phase5Checksums = {
     '8c94bde1e4f402610a57be39bae5c07977c5c6aeac4e2a96638da1396c66f08b',
   '0005_supabase_security_adapter':
     '6e942cfd46833375f5e0d4bbf4f66b84f28a90fc614472974fc309cf98610bdc',
-  '0006_retire_legacy_public_application_tables':
-    '7af145cffa9f7b430bc3fb6d7d716a1f7966c595b7674fa0467c13db4a3f0e81',
 } as const
-const preRetirementMigrations = Object.entries(phase5Checksums).filter(
-  ([name]) => name !== '0006_retire_legacy_public_application_tables',
-)
+const requiredMigrations = Object.entries(phase5Checksums)
+export const sessionLivenessMigration = {
+  name: '0006_auth_session_liveness',
+  checksum: '8034f7910e09fae33c6f10d7bec434cf0bc65555e057aa2dd262d35a9b8ade00',
+} as const
 const legacy = [
   'AuditLog',
   'FormMetadata',
@@ -56,10 +56,12 @@ export type Phase5LedgerRow = {
 }
 
 export function phase5LedgerState(ledger: Phase5LedgerRow[]) {
-  for (const [name, checksum] of preRetirementMigrations) {
+  for (const [name, checksum] of requiredMigrations) {
     const rows = ledger.filter((row) => row.migration_name === name)
     const completed = rows.find((row) => row.finished_at && !row.rolled_back_at)
-    const expectedSteps = name === '0001_init' ? 0 : 1
+    // 0001 was deployed normally. 0002-0005 were subsequently reconciled
+    // with guarded `resolve --applied`, which records zero applied SQL steps.
+    const expectedSteps = name === '0001_init' ? 1 : 0
     if (
       rows.filter((row) => row.finished_at && !row.rolled_back_at).length !== 1 ||
       rows.some((row) => row.checksum !== checksum || (!row.finished_at && !row.rolled_back_at)) ||
@@ -69,43 +71,36 @@ export function phase5LedgerState(ledger: Phase5LedgerRow[]) {
       throw new Error('Completed migration history differs.')
     }
   }
-  const failedRows = ledger.filter((row) => row.rolled_back_at)
-  const failed = failedRows[0]
+  const approvedNames = new Set([...Object.keys(phase5Checksums), sessionLivenessMigration.name])
+  const livenessRows = ledger.filter((row) => row.migration_name === sessionLivenessMigration.name)
   if (
-    failedRows.length !== 1 ||
-    failed?.migration_name !== '0002_pathways_foundation' ||
-    failed.finished_at ||
-    failed.applied_steps_count !== 0 ||
-    !failed.expected_failure ||
-    failed.logs_absent
+    livenessRows.length > 1 ||
+    livenessRows.some(
+      (row) =>
+        row.checksum !== sessionLivenessMigration.checksum ||
+        !row.finished_at ||
+        Boolean(row.rolled_back_at) ||
+        row.expected_failure ||
+        !row.logs_absent ||
+        row.applied_steps_count !== 1,
+    )
   ) {
-    throw new Error('Original failed attempt differs.')
+    throw new Error('Session-liveness migration history differs.')
   }
-  const retirementRows = ledger.filter(
-    (row) => row.migration_name === '0006_retire_legacy_public_application_tables',
-  )
-  const retirementState =
-    retirementRows.length === 0
-      ? 'PRE_0006'
-      : retirementRows.length === 1 &&
-          retirementRows[0].checksum ===
-            phase5Checksums['0006_retire_legacy_public_application_tables'] &&
-          retirementRows[0].finished_at &&
-          !retirementRows[0].rolled_back_at &&
-          retirementRows[0].applied_steps_count === 1 &&
-          retirementRows[0].logs_absent
-        ? 'POST_0006'
-        : 'INVALID'
-  const expectedLedgerLength = retirementState === 'POST_0006' ? 7 : 6
-  const approvedNames = new Set(Object.keys(phase5Checksums))
   if (
-    retirementState === 'INVALID' ||
-    ledger.length !== expectedLedgerLength ||
-    ledger.some((row) => !approvedNames.has(row.migration_name))
+    ![requiredMigrations.length, requiredMigrations.length + 1].includes(ledger.length) ||
+    ledger.some(
+      (row) =>
+        !approvedNames.has(row.migration_name) ||
+        Boolean(row.rolled_back_at) ||
+        !row.finished_at ||
+        row.expected_failure ||
+        !row.logs_absent,
+    )
   ) {
     throw new Error('Ledger shape differs.')
   }
-  return retirementState
+  return 'FOUNDATION_READY' as const
 }
 
 export function phase5Failure(error: unknown) {
@@ -165,7 +160,7 @@ async function preflight(tx: Prisma.TransactionClient) {
       coalesce(position('42501' IN logs)>0,false) AS expected_failure,
       coalesce(logs,'')='' AS logs_absent FROM public._prisma_migrations
   `
-  const retirementState = phase5LedgerState(ledger)
+  phase5LedgerState(ledger)
   const tables = await tx.$queryRaw<Array<{ name: string; safe: boolean }>>`
     SELECT c.relname AS name,c.relowner='prisma'::regrole AND c.relrowsecurity AS safe
     FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace
@@ -193,10 +188,7 @@ async function preflight(tx: Prisma.TransactionClient) {
     SELECT c.relname AS name FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace
     WHERE n.nspname='public' AND c.relkind='r' ORDER BY c.relname
   `
-  const expectedPublicTables =
-    retirementState === 'PRE_0006'
-      ? [...legacy, '_prisma_migrations'].sort()
-      : ['_prisma_migrations']
+  const expectedPublicTables = [...legacy, '_prisma_migrations'].sort()
   if (
     publicTables.length !== expectedPublicTables.length ||
     publicTables.some((table, index) => table.name !== expectedPublicTables[index])
@@ -206,16 +198,12 @@ async function preflight(tx: Prisma.TransactionClient) {
   phase5Stage = 'business_counts'
   // One network round trip for all fixed allowlisted counts. Separate SELECTs
   // exhausted the bounded interactive transaction on the remote Session Pooler.
-  const countQueries = [
-    ...approvedTargetNames
-      .filter((table) => !writable.includes(table))
-      .map((name) => Prisma.sql`SELECT count(*) AS count FROM ${Prisma.raw(`pathways."${name}"`)}`),
-    ...(retirementState === 'PRE_0006'
-      ? legacy.map(
-          (name) => Prisma.sql`SELECT count(*) AS count FROM ${Prisma.raw(`public."${name}"`)}`,
-        )
-      : []),
-  ]
+  // Legacy public data is preserved and is not an authorization-bootstrap
+  // precondition. Only the reviewed, non-writable current tables must remain
+  // empty before the one-account development bootstrap.
+  const countQueries = approvedTargetNames
+    .filter((table) => !writable.includes(table))
+    .map((name) => Prisma.sql`SELECT count(*) AS count FROM ${Prisma.raw(`pathways."${name}"`)}`)
   const counts = await tx.$queryRaw<Array<{ count: bigint }>>(
     Prisma.join(countQueries, ' UNION ALL '),
   )
@@ -239,7 +227,7 @@ async function preflight(tx: Prisma.TransactionClient) {
   `
   phase5Stage = 'provider_inventory'
   if (!provider.safe) throw new Error('Preserved provider inventory or MFA differs.')
-  return retirementState
+  return 'FOUNDATION_READY' as const
 }
 
 async function run() {
@@ -247,13 +235,13 @@ async function run() {
   if (!['Check', 'Seed', 'Organization', 'Administrator', 'Verify'].includes(action))
     throw new Error('Unknown Phase 5 operation.')
   const root = path.resolve(__dirname, '../../..')
-  const todo = fs
-    .readFileSync(path.join(root, 'docs/PHASE_TODO.md'), 'utf8')
-    .split('## Phase 4')[1]
-    ?.split('## Phase 5')[0]
-  if (!todo?.includes('- [x] Phase result is `PASS`.') || todo.includes('- [ ]'))
-    throw new Error('Phase 4 gate differs.')
-  for (const [migration, expected] of Object.entries(phase5Checksums)) {
+  const todo = fs.readFileSync(path.join(root, 'docs/TODO.md'), 'utf8')
+  if (!todo.includes('- [x] **Gate: Workspace context PASS**'))
+    throw new Error('Workspace-context gate differs.')
+  for (const [migration, expected] of [
+    ...Object.entries(phase5Checksums),
+    [sessionLivenessMigration.name, sessionLivenessMigration.checksum],
+  ]) {
     if (
       createHash('sha256')
         .update(fs.readFileSync(path.join(__dirname, 'migrations', migration, 'migration.sql')))
@@ -279,10 +267,7 @@ async function run() {
     const result = await client.$transaction(
       async (tx) => {
         if (!mutation) await tx.$executeRaw`SET TRANSACTION READ ONLY`
-        const retirementState = await preflight(tx)
-        if (mutation && retirementState !== 'PRE_0006') {
-          throw new Error('Phase 5 writes are closed after legacy retirement.')
-        }
+        await preflight(tx)
         let result: unknown = { preflight: 'PASS' }
         if (action === 'Seed') {
           phase5Stage = 'canonical_seed'

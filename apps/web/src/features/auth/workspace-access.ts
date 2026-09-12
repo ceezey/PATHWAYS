@@ -2,15 +2,71 @@ import { z } from 'zod'
 import {
   type ApplicationContext,
   type ApplicationProfile,
+  AuthAccessError,
   applicationContextSchema,
   developerAuthUserId,
   getLocalAuthEndpoint,
+  parseApplicationProfile,
+  requestAuthJson,
 } from './auth-access'
 
 export const contextCookieName = 'pathways-context'
-const selectionSchema = applicationContextSchema.extend({
-  authUserId: z.literal(developerAuthUserId),
-})
+const selectionSchema = applicationContextSchema
+  .extend({
+    authUserId: z.literal(developerAuthUserId),
+  })
+  .strict()
+
+const resolutionSchema = z
+  .object({
+    authUserId: z.literal(developerAuthUserId),
+    prototypeOnly: z.literal(true),
+    workspaces: z
+      .array(applicationContextSchema.extend({ displayName: z.string().min(1).max(120) }).strict())
+      .max(1),
+  })
+  .strict()
+
+export function parseWorkspaceResolution(value: unknown, subject: string) {
+  const result = resolutionSchema.safeParse(value)
+  if (!result.success || result.data.authUserId !== subject) throw new AuthAccessError(503)
+  return result.data.workspaces[0] ?? null
+}
+
+/** D1: zero denies, one auto-selects, multiple/malformed fails closed. No browser
+ * context is an input. /me independently revalidates the returned selectors.
+ */
+export async function resolveWorkspaceProfile(
+  baseUrl: string,
+  token: string,
+  subject: string,
+  signal: AbortSignal,
+  fetcher: typeof fetch = fetch,
+): Promise<ApplicationProfile | null> {
+  const workspace = parseWorkspaceResolution(
+    await requestAuthJson(baseUrl, '/auth/workspaces', token, signal, undefined, fetcher),
+    subject,
+  )
+  if (signal.aborted) throw new AuthAccessError('network')
+  if (!workspace) return null
+  const profile = parseApplicationProfile(
+    await requestAuthJson(baseUrl, '/auth/me', token, signal, workspace, fetcher),
+  )
+  if (signal.aborted) throw new AuthAccessError('network')
+  if (
+    profile.id !== subject ||
+    profile.userId !== workspace.userId ||
+    profile.organizationId !== workspace.organizationId ||
+    !workspacePermissions(profile).readProjects
+  ) {
+    throw new AuthAccessError(403)
+  }
+  return profile
+}
+
+export const clearWorkspaceContext = () => {
+  document.cookie = `${contextCookieName}=; Path=/; SameSite=Strict; Max-Age=0`
+}
 
 /** Non-secret selectors only. A forged cookie confers no authority: /auth/me
  * verifies the UUID relationship, lifecycle, role and permissions afresh.

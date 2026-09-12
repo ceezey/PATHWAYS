@@ -26,6 +26,10 @@ export const apiEnvSchema = z.object({
   DATABASE_URL: optionalString,
   DIRECT_URL: optionalString,
   SUPABASE_URL: optionalUrl,
+  // Server-only Prototype D1 inputs. Parsing/approval checks occur in the
+  // resolver so malformed settings produce a sanitized unavailable response.
+  PATHWAYS_DEVELOPER_WORKSPACE_CANDIDATES: optionalString,
+  PATHWAYS_DEVELOPER_WORKSPACE_RESOLUTION_ENABLED: z.enum(['true', 'false']).default('false'),
   SUPABASE_SERVICE_ROLE_KEY: optionalString,
   SUPABASE_JWT_SECRET: optionalString,
   SENTRY_DSN_API: optionalString,

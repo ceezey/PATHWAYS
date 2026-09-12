@@ -17,6 +17,7 @@ export interface ApplicationIdentity extends VerifiedAuthIdentity {
   aal: 'aal2'
   userId: string
   organizationId: string
+  organizationName?: string
   fullName: string
   roles: string[]
   permissions: string[]

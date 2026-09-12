@@ -1,10 +1,18 @@
-import { Injectable, ServiceUnavailableException, UnauthorizedException } from '@nestjs/common'
+import {
+  Inject,
+  Injectable,
+  ServiceUnavailableException,
+  UnauthorizedException,
+} from '@nestjs/common'
 import { createClient } from '@supabase/supabase-js'
 
 import { DEVELOPER_SUPABASE_URL, UUID_PATTERN, type VerifiedAuthIdentity } from './developer-access'
+import { SessionLivenessService } from './session-liveness.service'
 
 @Injectable()
 export class TokenAuthService {
+  constructor(@Inject(SessionLivenessService) private readonly sessions: SessionLivenessService) {}
+
   async verify(token: string): Promise<VerifiedAuthIdentity> {
     // Never parse the entire environment into errors that could contain secrets.
     const url = process.env.SUPABASE_URL
@@ -18,19 +26,44 @@ export class TokenAuthService {
         'Approved development authentication is not configured.',
       )
     }
+    let verified: { identity: VerifiedAuthIdentity; sessionId: string }
     try {
       const supabase = createClient(url, key, {
         auth: { autoRefreshToken: false, persistSession: false, detectSessionInUrl: false },
         global: {
           // Bounded Auth reads only; never redirect bearer credentials.
-          fetch: (input, init) =>
-            fetch(input, { ...init, redirect: 'error', signal: AbortSignal.timeout(10_000) }),
+          fetch: async (input, init) => {
+            try {
+              return await fetch(input, {
+                ...init,
+                redirect: 'error',
+                signal: AbortSignal.timeout(10_000),
+              })
+            } catch {
+              // Auth JS logs rejected fetch errors before our outer catch. Convert
+              // transport failure to an empty denial, never a provider diagnostic.
+              return new Response(null, { status: 503 })
+            }
+          },
         },
       })
       const result = await supabase.auth.getClaims(token)
       if (result.error || !result.data) throw new Error('Invalid token')
       const claims = result.data.claims
       const now = Date.now() / 1000
+      // AAL alone does not distinguish password from passwordless OTP/magic-link
+      // sessions. PATHWAYS requires the signed session history to include password.
+      const hasPasswordAuthentication =
+        Array.isArray(claims.amr) &&
+        claims.amr.some(
+          (method) =>
+            typeof method === 'object' &&
+            method !== null &&
+            method.method === 'password' &&
+            typeof method.timestamp === 'number' &&
+            Number.isFinite(method.timestamp) &&
+            method.timestamp <= now + 30,
+        )
       if (
         claims.iss !== `${DEVELOPER_SUPABASE_URL}/auth/v1` ||
         claims.aud !== 'authenticated' ||
@@ -48,7 +81,8 @@ export class TokenAuthService {
         claims.iat > now + 30 ||
         (claims.nbf !== undefined &&
           (typeof claims.nbf !== 'number' || !Number.isFinite(claims.nbf) || claims.nbf > now)) ||
-        (claims.aal !== 'aal1' && claims.aal !== 'aal2')
+        (claims.aal !== 'aal1' && claims.aal !== 'aal2') ||
+        !hasPasswordAuthentication
       ) {
         throw new Error('Invalid claims')
       }
@@ -66,10 +100,14 @@ export class TokenAuthService {
       ) {
         throw new Error('Invalid current identity')
       }
-      return { id: claims.sub, aal: claims.aal }
+      verified = { identity: { id: claims.sub, aal: claims.aal }, sessionId: claims.session_id }
     } catch {
       // Discard provider errors; they can contain tokens or request details.
       throw new UnauthorizedException('Invalid or expired authentication. Sign in again.')
     }
+    // Keep infrastructure failures as sanitized 503s. An unexpired signed JWT
+    // must not bypass a committed session removal, missing helper or DB outage.
+    await this.sessions.assertLive(verified.identity.id, verified.sessionId)
+    return verified.identity
   }
 }

@@ -7,6 +7,6 @@ export interface SessionContextValue {
   status: SessionStatus
   configured: boolean
   email: string | null
-  refreshSession: () => Promise<void>
+  refreshSession: () => Promise<Session | null>
   signOut: () => Promise<void>
 }
