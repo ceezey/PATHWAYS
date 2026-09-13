@@ -19,7 +19,9 @@
       "@pathways/shared": ["../../packages/shared/src/index.ts"],
       "@pathways/shared/*": ["../../packages/shared/src/*"],
       "@pathways/config": ["../../packages/config/src/index.ts"],
-      "@pathways/config/*": ["../../packages/config/src/*"]
+      "@pathways/config/*": ["../../packages/config/src/*"],
+      "@pathways/imports": ["../../packages/imports/src/index.ts"],
+      "@pathways/imports/*": ["../../packages/imports/src/*"]
     }
   },
   "include": ["src/**/*.ts", "prisma/**/*.ts"],

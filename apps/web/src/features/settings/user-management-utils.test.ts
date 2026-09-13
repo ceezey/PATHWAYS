@@ -43,7 +43,7 @@ const makeUser = (
   email: `${id}@example.test`,
   role,
   accountStatus,
-  signInMethod: 'Single sign-on',
+  signInMethod: 'Supabase account',
   projectIds,
   projectAccess: projectIds.map(
     (projectId) => testProjects.find((project) => project.id === projectId)?.title ?? projectId,

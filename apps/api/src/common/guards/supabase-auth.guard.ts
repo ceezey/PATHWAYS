@@ -9,11 +9,7 @@ import {
 import { Reflector } from '@nestjs/core'
 
 import { hasAtomicPermission } from '../../modules/auth/authorization-policy'
-import {
-  type AuthenticatedRequest,
-  DEVELOPER_AUTH_UUID,
-  developerApplicationAccessEnabled,
-} from '../../modules/auth/developer-access'
+import type { AuthenticatedRequest } from '../../modules/auth/developer-access'
 import { TokenAuthService } from '../../modules/auth/token-auth.service'
 import { WorkspaceResolutionService } from '../../modules/auth/workspace-resolution.service'
 import { AUTH_BOUNDARY_KEY } from '../decorators/auth-boundary.decorator'
@@ -45,17 +41,11 @@ export class SupabaseAuthGuard implements CanActivate {
       throw new UnauthorizedException('A bearer token is required.')
     }
     const identity = await this.tokens.verify(header.slice(7))
-    if (identity.id !== DEVELOPER_AUTH_UUID) {
-      throw new ForbiddenException('This developer preparation is not available to this identity.')
-    }
     const boundary = this.reflector.getAllAndOverride<string>(AUTH_BOUNDARY_KEY, handlers)
     request.auth = identity
     if (boundary === 'mfa-setup') return true
     if (identity.aal !== 'aal2') {
       throw new ForbiddenException('MFA verification is required before application access.')
-    }
-    if (!developerApplicationAccessEnabled()) {
-      throw new ForbiddenException('Application access remains blocked by the onboarding gate.')
     }
     const permission = this.reflector.getAllAndOverride<string>(PERMISSION_KEY, handlers)
     if (boundary === 'workspace-discovery' && !permission) return true

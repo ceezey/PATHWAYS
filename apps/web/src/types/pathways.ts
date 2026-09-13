@@ -8,7 +8,9 @@ export type DashboardSeverity = 'neutral' | 'info' | 'success' | 'warning' | 'da
 export type DashboardActionKind = 'dialog' | 'navigate' | 'toast'
 
 export interface ProjectSummary {
+  metricsAvailable?: boolean
   id: string
+  code?: string
   title: string
   area: string
   sector: string
@@ -21,10 +23,13 @@ export interface ProjectSummary {
   beneficiaryReachPercentage?: number
   budgetUtilization: number
   timelineProgress: number
+  updatedAt?: string
+  programId?: string | null
 }
 
 export interface ProjectDetail extends ProjectSummary {
   description: string
+  objectives?: string
   programManager: string
   monitoringOfficer: string
   projectOfficers: string[]
@@ -55,18 +60,15 @@ export interface AnalyticsLocationRecord {
 }
 
 export interface CreateProjectInput {
+  code: string
   title: string
-  sector: string
-  area: string
-  startDate: string
-  endDate: string
+  implementationArea?: string
+  objectives?: string
+  startDate?: string
+  endDate?: string
   status: ProjectStatus
-  budgetCode: string
-  description: string
-  programManager: string
-  projectManager: string
-  monitoringOfficer: string
-  projectOfficers: string[]
+  description?: string
+  programId?: string
 }
 
 export interface Activity {
@@ -139,7 +141,7 @@ export interface Beneficiary {
   projectIds: string[]
   location: string
   sex: 'Female' | 'Male' | 'Prefer not to say'
-  ageGroup: '10-14' | '15-17' | '18-24' | '25+'
+  ageGroup: '10-14' | '15-17' | '18-24' | '25+' | 'Not classified'
   disabilityStatus: 'With disability' | 'Without disability' | 'Not disclosed'
   enrollmentStatus: BeneficiaryEnrollmentStatus
 }
@@ -224,6 +226,7 @@ export interface BeneficiaryMediaProofRecord {
 }
 
 export interface BeneficiaryRecord extends Beneficiary {
+  subjectType: 'INDIVIDUAL' | 'GROUP' | 'COMMUNITY' | 'UNSPECIFIED_LEGACY'
   firstName: string
   middleName?: string
   lastName: string
@@ -240,6 +243,34 @@ export interface BeneficiaryRecord extends Beneficiary {
   participation: BeneficiaryParticipationRecord[]
   assessments: BeneficiaryAssessmentRecord[]
   notes: BeneficiaryNoteRecord[]
+  updatedAt: string
+  consentProvenance: Array<{
+    kind: 'PARTICIPATION' | 'DATA_PROCESSING' | 'GUARDIAN'
+    source: 'DIRECT_ENTRY' | 'IMPORTED_DATASET'
+    recordedAt: string
+  }>
+}
+
+export interface RegisterBeneficiaryInput {
+  formId: string
+  clientRegistrationId: string
+  values: Record<string, unknown>
+}
+
+export interface UpdateBeneficiaryInput {
+  subjectType: 'INDIVIDUAL' | 'GROUP' | 'COMMUNITY'
+  displayName?: string
+  firstName?: string
+  middleName?: string
+  lastName?: string
+  sex: 'MALE' | 'FEMALE' | 'OTHER' | 'PREFER_NOT_TO_SAY' | 'NOT_SPECIFIED'
+  birthDate?: string
+  ageAtRegistration?: number
+  disabilityStatus: 'WITH_DISABILITY' | 'WITHOUT_DISABILITY' | 'NOT_SPECIFIED'
+  locationBarangay?: string
+  locationCityMunicipality?: string
+  locationProvince?: string
+  expectedUpdatedAt: string
 }
 
 export interface BeneficiarySadddAggregate {
@@ -460,6 +491,172 @@ export interface SurveyFormDefinition {
   source?: string
 }
 
+export type FormFieldDataType =
+  | 'TEXT'
+  | 'LONG_TEXT'
+  | 'INTEGER'
+  | 'DECIMAL'
+  | 'DATE'
+  | 'BOOLEAN'
+  | 'SELECT'
+  | 'MULTIPLE_SELECT'
+
+export type DigitalFormType =
+  | 'BENEFICIARY_REGISTRATION'
+  | 'TRAINING_SURVEY'
+  | 'PRE_TEST'
+  | 'POST_TEST'
+  | 'OUTCOME_MONITORING'
+  | 'ACTIVITY_MONITORING'
+  | 'OTHER'
+
+export interface DigitalFormFieldDefinition {
+  id?: string
+  code: string
+  label: string
+  dataType: FormFieldDataType
+  required: boolean
+  metadataKey: boolean
+  sadddField: boolean
+  allowedValues?: string[] | null
+  minimumValue?: string | null
+  maximumValue?: string | null
+  minimumDate?: string | null
+  maximumDate?: string | null
+  minimumLength?: number | null
+  maximumLength?: number | null
+  sequence?: number
+}
+
+export interface DigitalFormDefinition {
+  id: string
+  projectId: string
+  code: string
+  version: number
+  name: string
+  description: string | null
+  formType: DigitalFormType
+  status: 'DRAFT' | 'PUBLISHED' | 'ARCHIVED'
+  activityId: string | null
+  journeyStageId: string | null
+  publishedAt?: string
+  archivedAt?: string
+  updatedAt: string
+  createdByCurrentUser: boolean
+  fields: DigitalFormFieldDefinition[]
+}
+
+export interface SaveDigitalFormInput {
+  code: string
+  name: string
+  description?: string
+  formType: DigitalFormType
+  activityId?: string
+  journeyStageId?: string
+  fields: DigitalFormFieldDefinition[]
+}
+
+export interface FormValidationError {
+  fieldCode: string
+  code: string
+  message: string
+}
+
+export interface FormValidationResult {
+  valid: boolean
+  values: Record<string, string | number | boolean | string[] | null>
+  errors: FormValidationError[]
+}
+
+export interface DirectFormSubmission {
+  id: string
+  clientSubmissionId: string
+  status: 'DRAFT' | 'VALIDATED'
+  formId: string
+  formVersion: number
+  submittedAt?: string
+  updatedAt: string
+  values: Record<string, string | number | boolean | string[] | null>
+}
+
+export type ImportBatchStatus =
+  | 'UPLOADING'
+  | 'UPLOADED'
+  | 'MAPPED'
+  | 'VALIDATING'
+  | 'VALIDATED'
+  | 'PROCESSING'
+  | 'PARTIALLY_PROCESSED'
+  | 'PROCESSED'
+  | 'RECOVERY_REQUIRED'
+  | 'FAILED'
+
+export interface ImportBatchDefinition {
+  id: string
+  projectId: string
+  formId: string
+  formVersion: number
+  formCode: string
+  formName: string
+  formType: DigitalFormType
+  originalFileName: string
+  fileType: 'CSV' | 'XLSX' | 'XLS'
+  clientImportId: string
+  storageStatus: 'RESERVED' | 'STORED' | 'RECOVERY_REQUIRED' | 'FAILED'
+  status: ImportBatchStatus
+  mappingRevision: number
+  validationRevision: number
+  validatedMappingRevision: number | null
+  processingRevision: number
+  totals: {
+    rows: number
+    valid: number
+    invalid: number
+    processed: number
+    unprocessed: number
+    failed: number
+  }
+  failureCode: string | null
+  uploadedAt: string
+  validatedAt?: string
+  processedAt?: string
+  updatedAt: string
+  sourceHeaders?: string[]
+  mappings?: Array<{
+    sourceFieldName: string
+    status: 'MAPPED' | 'IGNORED'
+    revision: number
+    targetField: { code: string; label: string } | null
+    validationMessage: string | null
+  }>
+}
+
+export interface ImportRowDefinition {
+  id: string
+  rowNumber: number
+  rawData: Record<string, string | number | boolean | null>
+  status: 'PENDING' | 'VALID' | 'INVALID' | 'PROCESSING' | 'UNPROCESSED' | 'PROCESSED' | 'FAILED'
+  validationErrors: FormValidationError[]
+  mappingRevision: number
+  validationRevision: number
+  processingAttempts: number
+  processingErrorCode: string | null
+  updatedAt: string
+}
+
+export interface ImportRowsPage {
+  offset: number
+  take: number
+  total: number
+  rows: ImportRowDefinition[]
+}
+
+export interface ImportMappingInput {
+  sourceFieldName: string
+  targetFieldCode?: string
+  ignored: boolean
+}
+
 export interface SurveyAggregateCount {
   label: string
   count: number
@@ -601,20 +798,36 @@ export interface PublicProjectRecord {
 
 export interface UserRecord {
   id: string
+  authUserId?: string | null
   name: string
   email: string
   role: PathwaysRole
   accountStatus: UserAccountStatus
-  signInMethod: 'Password' | 'Single sign-on' | 'Magic link'
+  signInMethod: 'Supabase account'
   projectIds: string[]
   projectAccess: string[]
   createdAt: string
   lastActiveAt?: string
 }
 
-export type UserAccountStatus = 'Active' | 'Invited' | 'Deactivated'
+export type UserAccountStatus = 'Active' | 'Invited' | 'Suspended' | 'Deactivated' | 'Archived'
+
+export interface AuthorizeExistingUserInput {
+  authUserId: string
+  fullName: string
+  role: PathwaysRole
+  projectIds: string[]
+}
+
+export interface UpdateAuthorizedUserInput {
+  fullName?: string
+  role: PathwaysRole
+  accountStatus: 'Active' | 'Deactivated'
+  projectIds: string[]
+}
 
 export interface BeneficiaryFilters {
+  search?: string
   projectId?: string
   location?: string
   sex?: Beneficiary['sex']

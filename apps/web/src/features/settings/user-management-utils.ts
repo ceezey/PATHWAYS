@@ -132,6 +132,7 @@ export const getUserAdministrationSummary = (actorRole: PathwaysRole) => {
 export const userAccountStatusTone = (status: UserAccountStatus) => {
   if (status === 'Active') return 'success' as const
   if (status === 'Invited') return 'info' as const
+  if (status === 'Suspended') return 'warning' as const
   return 'neutral' as const
 }
 

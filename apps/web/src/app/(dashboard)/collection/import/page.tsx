@@ -1,23 +1,20 @@
 import { type ProtectedPageProps, requireServerPage } from '@/lib/rbac/server-access'
 
 import { CollectionWorkspace } from '@/features/collection/collection-workspace'
+import { ImportWorkspace } from '@/features/collection/import-workspace'
 
-interface CollectionImportPageProps {
-  searchParams: Promise<{
-    mode?: string
-  }>
-}
-
-async function CollectionImportPage({ searchParams }: CollectionImportPageProps) {
-  const params = await searchParams
-  const initialMode = params.mode === 'extend' ? 'extend' : 'import'
-
-  return <CollectionWorkspace initialMode={initialMode} initialView="import" />
+function CollectionImportPage({ extend }: { extend: boolean }) {
+  return extend ? (
+    <CollectionWorkspace initialMode="extend" initialView="import" />
+  ) : (
+    <ImportWorkspace />
+  )
 }
 
 export const dynamic = 'force-dynamic'
 
 export default async function ProtectedPage(props: ProtectedPageProps) {
   await requireServerPage('imports', props)
-  return CollectionImportPage(props as Parameters<typeof CollectionImportPage>[0])
+  const mode = (await props.searchParams)?.mode
+  return <CollectionImportPage extend={mode === 'extend'} />
 }

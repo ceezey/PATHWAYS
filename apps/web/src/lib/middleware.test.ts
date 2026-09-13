@@ -16,12 +16,14 @@ vi.mock('@/lib/env', () => ({
   webSupabasePublishableKey: 'publishable-test-fixture',
 }))
 
-import { type ApplicationProfile, developerAuthUserId } from '@/features/auth/auth-access'
+import type { ApplicationProfile } from '@/features/auth/auth-access'
+import { testAuthUserId } from '@/features/auth/auth-access.test-fixtures'
+const developerAuthUserId = testAuthUserId
 import { encodeWorkspaceContext } from '@/features/auth/workspace-access'
 import { updateSession } from './middleware'
 
 const validClaims = {
-  sub: developerAuthUserId,
+  sub: testAuthUserId,
   iss: 'https://pdqwsknbzkdtiwjjibqt.supabase.co/auth/v1',
   aud: 'authenticated',
   is_anonymous: false,
@@ -137,7 +139,7 @@ describe('workspace middleware server authority', () => {
     mock.fetch.mockResolvedValueOnce(Response.json({ user: profile })).mockResolvedValueOnce(
       Response.json({
         route: 'dashboard',
-        presentation: 'prototype-only',
+        authorization: 'database-verified',
         beneficiaryAccess: 'records-or-none',
       }),
     )

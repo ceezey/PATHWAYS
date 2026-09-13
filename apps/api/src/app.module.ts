@@ -11,6 +11,7 @@ import { SupabaseAuthGuard } from '@app/common/guards/supabase-auth.guard'
 import { SentryInterceptor } from '@app/common/interceptors/sentry.interceptor'
 import { AuditModule } from '@app/modules/audit/audit.module'
 import { AuthModule } from '@app/modules/auth/auth.module'
+import { BeneficiariesModule } from '@app/modules/beneficiaries/beneficiaries.module'
 import { DashboardsModule } from '@app/modules/dashboards/dashboards.module'
 import { HealthModule } from '@app/modules/health/health.module'
 import { ImportsModule } from '@app/modules/imports/imports.module'
@@ -148,6 +149,7 @@ export function createPathwaysPinoHttpOptions(environment = process.env.NODE_ENV
     PrismaModule,
     HealthModule,
     AuthModule,
+    BeneficiariesModule,
     UsersModule,
     ParticipantsModule,
     ProgramsModule,

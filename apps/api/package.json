@@ -22,6 +22,7 @@
     "@nestjs/platform-express": "^10.4.15",
     "@nestjs/swagger": "^7.4.2",
     "@pathways/config": "workspace:*",
+    "@pathways/imports": "workspace:*",
     "@pathways/shared": "workspace:*",
     "@prisma/client": "6.19.2",
     "@sentry/nestjs": "^8.53.0",

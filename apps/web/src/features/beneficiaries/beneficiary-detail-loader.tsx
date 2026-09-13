@@ -8,124 +8,89 @@ import { EmptyState } from '@/components/pathways/empty-state'
 import { Button } from '@/components/ui/button'
 import { useCurrentRole } from '@/hooks/use-current-role'
 import { PathwaysClientError, pathwaysClient } from '@/lib/services/pathways-client'
-import type {
-  Activity,
-  BeneficiaryMediaProofRecord,
-  BeneficiaryRecord,
-  JourneyStageConfig,
-  ProjectSummary,
-} from '@/types/pathways'
-
+import type { BeneficiaryRecord, ProjectSummary } from '@/types/pathways'
 import { BeneficiaryDetail } from './beneficiary-detail'
 
-type DetailData = {
-  beneficiary: BeneficiaryRecord
-  projects: ProjectSummary[]
-  activities: Activity[]
-  stages: JourneyStageConfig[]
-  mediaProof: BeneficiaryMediaProofRecord[]
-}
-
-type DetailState =
+type State =
   | { status: 'loading' }
-  | { status: 'ready'; data: DetailData }
-  | { status: 'restricted' }
-  | { status: 'unavailable' }
+  | {
+      status: 'ready'
+      beneficiary: BeneficiaryRecord
+      projects: ProjectSummary[]
+      projectId: string
+    }
+  | { status: 'restricted' | 'unavailable' }
 
-export const BeneficiaryDetailLoader = ({ beneficiaryId }: { beneficiaryId: string }) => {
+export const BeneficiaryDetailLoader = ({
+  beneficiaryId,
+  requestedProjectId,
+}: { beneficiaryId: string; requestedProjectId?: string }) => {
   const { role } = useCurrentRole()
-  const [state, setState] = useState<DetailState>({ status: 'loading' })
-
+  const [state, setState] = useState<State>({ status: 'loading' })
   useEffect(() => {
     let active = true
-
-    const loadDetail = async () => {
-      setState({ status: 'loading' })
-
-      if (!role) {
-        setState({ status: 'restricted' })
-        return
-      }
-
-      try {
-        const beneficiary = await pathwaysClient.getBeneficiaryRecordForRole(role, beneficiaryId)
-        const [projects, mediaProof, activityGroups, stageGroups] = await Promise.all([
-          pathwaysClient.getProjectsForRole(role),
-          pathwaysClient.getBeneficiaryMediaProofForRole(role, beneficiaryId),
-          Promise.all(
-            beneficiary.projectIds.map((projectId) => pathwaysClient.getActivities(projectId)),
-          ),
-          Promise.all(
-            beneficiary.projectIds.map((projectId) => pathwaysClient.getJourneyStages(projectId)),
-          ),
-        ])
-
-        if (active) {
-          setState({
-            status: 'ready',
-            data: {
-              beneficiary,
-              projects,
-              mediaProof,
-              activities: activityGroups.flat(),
-              stages: stageGroups.flat(),
-            },
-          })
-        }
-      } catch (error) {
-        if (!active) {
-          return
-        }
-
+    if (!role) return
+    setState({ status: 'loading' })
+    void pathwaysClient
+      .getProjectsForRole(role)
+      .then(async (projects) => {
+        const projectId =
+          requestedProjectId && projects.some((project) => project.id === requestedProjectId)
+            ? requestedProjectId
+            : projects[0]?.id
+        if (!projectId)
+          throw new PathwaysClientError('No project detail scope is available.', 'forbidden')
+        const beneficiary = await pathwaysClient.getBeneficiaryRecordForRole(
+          role,
+          projectId,
+          beneficiaryId,
+        )
+        if (active) setState({ status: 'ready', beneficiary, projects, projectId })
+      })
+      .catch((cause) => {
+        if (!active) return
         setState({
           status:
-            error instanceof PathwaysClientError && error.code === 'forbidden'
+            cause instanceof PathwaysClientError && ['forbidden', 'not_found'].includes(cause.code)
               ? 'restricted'
               : 'unavailable',
         })
-      }
-    }
-
-    void loadDetail()
-
+      })
     return () => {
       active = false
     }
-  }, [beneficiaryId, role])
+  }, [beneficiaryId, requestedProjectId, role])
 
-  if (state.status === 'loading') {
+  if (!role || state.status === 'loading')
     return (
-      <div
-        aria-live="polite"
-        className="rounded-lg border border-border bg-card p-8 text-sm text-muted-foreground"
-      >
+      <p className="rounded-lg border border-border bg-card p-8 text-sm text-muted-foreground">
         Checking Beneficiary record access...
-      </div>
+      </p>
     )
-  }
-
-  if (state.status === 'ready') {
-    return <BeneficiaryDetail {...state.data} />
-  }
-
+  if (state.status === 'ready')
+    return (
+      <BeneficiaryDetail
+        initial={state.beneficiary}
+        projects={state.projects}
+        projectId={state.projectId}
+        role={role}
+      />
+    )
   const restricted = state.status === 'restricted'
-
   return (
-    <div className="flex min-h-[60vh] items-center justify-center p-6">
-      <div className="w-full max-w-2xl space-y-4 rounded-lg border border-border bg-card p-8 text-center">
-        <EmptyState
-          description={
-            restricted
-              ? 'This record is outside the projects assigned to your authenticated role. No beneficiary details or media were loaded.'
-              : 'This beneficiary record is unavailable because its backend integration is not configured or the record does not exist.'
-          }
-          icon={restricted ? ShieldAlert : UserRoundX}
-          title={restricted ? 'Beneficiary record restricted' : 'Beneficiary record unavailable'}
-        />
-        <Button asChild>
-          <Link href="/beneficiaries">Back to Beneficiaries</Link>
-        </Button>
-      </div>
+    <div className="space-y-4">
+      <EmptyState
+        icon={restricted ? ShieldAlert : UserRoundX}
+        title={restricted ? 'Beneficiary record restricted' : 'Beneficiary record unavailable'}
+        description={
+          restricted
+            ? 'No beneficiary details from another project or organization were returned.'
+            : 'The record could not be loaded.'
+        }
+      />
+      <Button asChild>
+        <Link href="/beneficiaries">Back to Beneficiaries</Link>
+      </Button>
     </div>
   )
 }

@@ -27,21 +27,29 @@ async function bootstrap() {
   app.useGlobalPipes(
     new ValidationPipe({
       whitelist: true,
+      forbidNonWhitelisted: true,
       transform: true,
       forbidUnknownValues: false,
     }),
   )
   app.setGlobalPrefix(env.API_PREFIX)
   app.enableCors({
-    origin: true,
-    credentials: true,
+    origin: ['http://127.0.0.1:3000', 'http://localhost:3000'],
+    credentials: false,
+    methods: ['GET', 'POST', 'PATCH', 'OPTIONS'],
+    allowedHeaders: [
+      'Authorization',
+      'Content-Type',
+      'X-Pathways-Organization-Id',
+      'X-Pathways-User-Id',
+    ],
   })
   app.enableShutdownHooks()
 
   if (env.ENABLE_SWAGGER) {
     const config = new DocumentBuilder()
       .setTitle('PATHWAYS API')
-      .setDescription('Development-ready scaffold for the PATHWAYS backend.')
+      .setDescription('PATHWAYS backend API.')
       .setVersion('0.1.0')
       .build()
 

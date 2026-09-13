@@ -25,6 +25,7 @@ import { RouteAccessController } from '../../modules/auth/route-access.controlle
 import { RouteAccessService } from '../../modules/auth/route-access.service'
 import { TokenAuthService } from '../../modules/auth/token-auth.service'
 import { WorkspaceResolutionService } from '../../modules/auth/workspace-resolution.service'
+import { PrismaService } from '../../prisma/prisma.service'
 import { RequirePermission } from '../decorators/permission.decorator'
 import { Public } from '../decorators/public.decorator'
 import { SupabaseAuthGuard } from './supabase-auth.guard'
@@ -66,6 +67,7 @@ const profile: ApplicationIdentity = {
 }
 const tokens = { verify: vi.fn<(token: string) => Promise<VerifiedAuthIdentity>>() }
 const profiles = { resolve: vi.fn() }
+const prisma = { discoverWorkspace: vi.fn() }
 const routeChecks = { check: vi.fn() }
 let app: INestApplication
 let port: number
@@ -105,6 +107,7 @@ beforeAll(async () => {
     providers: [
       { provide: TokenAuthService, useValue: tokens },
       { provide: ApplicationProfileService, useValue: profiles },
+      { provide: PrismaService, useValue: prisma },
       { provide: RouteAccessService, useValue: routeChecks },
       WorkspaceResolutionService,
       { provide: AuthService, useValue: { getStatus: () => ({ authenticated: true }) } },
@@ -127,9 +130,10 @@ beforeEach(() => {
   vi.stubEnv('PATHWAYS_DEVELOPER_ACCESS_ENABLED', '')
   tokens.verify.mockReset().mockResolvedValue({ id: DEVELOPER_AUTH_UUID, aal: 'aal1' })
   profiles.resolve.mockReset().mockResolvedValue(profile)
+  prisma.discoverWorkspace.mockReset().mockResolvedValue([{ organizationId, userId }])
   routeChecks.check.mockReset().mockResolvedValue({
     route: 'dashboard',
-    presentation: 'prototype-only',
+    authorization: 'database-verified',
     beneficiaryAccess: 'records-or-none',
   })
 })
@@ -181,8 +185,7 @@ describe('SupabaseAuthGuard local HTTP fail-closed boundary', () => {
     expect(result.cacheControl).toBe('private, no-store')
     expect(result.body).toEqual({
       authUserId: DEVELOPER_AUTH_UUID,
-      prototypeOnly: true,
-      workspaces: [{ organizationId, userId, displayName: 'Development workspace' }],
+      workspaces: [{ organizationId, userId, displayName: 'PATHWAYS workspace' }],
     })
   })
 
@@ -296,19 +299,20 @@ describe('SupabaseAuthGuard local HTTP fail-closed boundary', () => {
       authUserId: DEVELOPER_AUTH_UUID,
       aal: 'aal1',
       enrollmentAllowed: true,
-      applicationAccessEnabled: false,
+      applicationAccessEnabled: true,
     })
     expect(profiles.resolve).not.toHaveBeenCalled()
   })
 
-  it('rejects other authenticated identities even for MFA setup', async () => {
+  it('permits MFA setup for another verified non-anonymous identity', async () => {
+    const otherId = '50000000-0000-4000-8000-000000000005'
     tokens.verify.mockResolvedValue({
-      id: '50000000-0000-4000-8000-000000000005',
+      id: otherId,
       aal: 'aal2',
     })
-    expect(
-      (await get('/auth/mfa/status', { authorization: 'Bearer local-test-token' })).status,
-    ).toBe(403)
+    const result = await get('/auth/mfa/status', { authorization: 'Bearer local-test-token' })
+    expect(result.status).toBe(200)
+    expect(result.body.authUserId).toBe(otherId)
     expect(profiles.resolve).not.toHaveBeenCalled()
   })
 
@@ -324,14 +328,17 @@ describe('SupabaseAuthGuard local HTTP fail-closed boundary', () => {
   )
 
   it.each(['', 'false', 'TRUE', '1', ' true '])(
-    'keeps application access closed unless exactly enabled %#',
+    'does not use the retired developer gate as runtime authority %#',
     async (setting) => {
       vi.stubEnv('PATHWAYS_DEVELOPER_ACCESS_ENABLED', setting)
       tokens.verify.mockResolvedValue({ id: DEVELOPER_AUTH_UUID, aal: 'aal2' })
-      const result = await get('/auth/me', { authorization: 'Bearer local-test-token' })
-      expect(result.status).toBe(403)
-      expect(result.body.message).toContain('onboarding gate')
-      expect(profiles.resolve).not.toHaveBeenCalled()
+      const result = await get('/auth/me', {
+        authorization: 'Bearer local-test-token',
+        'x-pathways-organization-id': organizationId,
+        'x-pathways-user-id': userId,
+      })
+      expect(result.status).toBe(200)
+      expect(profiles.resolve).toHaveBeenCalled()
     },
   )
 

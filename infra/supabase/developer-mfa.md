@@ -22,18 +22,17 @@ administrator by email or assume an Auth/dashboard login grants an app role.
    verifies the supplied token using `getClaims(token)` and fresh `getUser(token)`.
    Issuer, audience, expiry, session identifier, subject and non-anonymous status
    are checked. Auth errors are sanitized; tokens are never echoed.
-2. Only the selected account can use this developer preparation. Its UUID allows
-   MFA setup, not business access. The only pre-MFA application API route is
+2. The recorded account was used for the reviewed developer bootstrap. Its UUID
+   does not itself grant business access. The only pre-MFA application API route is
    `GET /api/auth/mfa/status`; it returns setup state, no business/profile data.
    Public health remains public.
 3. All protected routes require signed `aal2` and a currently verified TOTP
    factor. A password-only session, stale token with a removed factor, or browser
    assertion of MFA cannot bypass the server.
-4. `PATHWAYS_DEVELOPER_ACCESS_ENABLED` defaults to **false** when unset. Do not set
-   it to `true` until a separate documented developer-only onboarding exception
-   and the applicable provisioning work are explicitly approved and completed.
-   This switch is not an approval, password-security substitute, or admin grant.
-5. After that later approval, `/api/auth/me` requires both context selector
+4. Workspace discovery uses the verified Auth subject and current database linkage;
+   there is no environment-variable access switch or developer allowlist. Discovery
+   never creates a profile, assigns a role, or weakens MFA.
+5. `/api/auth/me` requires both context selector
    headers: `X-Pathways-Organization-Id` and `X-Pathways-User-Id`. They are UUIDs
    returned by the separately reviewed bootstrap, never passwords. Existing 0005
    RLS verifies their exact linkage to the verified Auth subject. A guessed,
@@ -43,11 +42,9 @@ administrator by email or assume an Auth/dashboard login grants an app role.
    come from the database. Neither `app_metadata` nor `user_metadata` supplies
    authority. Client context selectors are kept in memory and must be re-entered
    after a full reload until a later reviewed context-discovery design exists.
-7. Business handlers remain denied until their separate Phase 5 permission and
-   project-scope contracts are implemented and reviewed. This preparation does
-   not claim complete business authorization or aggregate-only access enforcement.
-   Next.js middleware also redirects every protected business page to `/auth/mfa`
-   before server rendering, even for `aal2`. Its entry point is
+7. Business handlers require their database permissions and project-scope contracts.
+   Next.js middleware redirects protected business pages to `/auth/mfa` before
+   server rendering when the session is below `aal2`. Its entry point is
    `apps/web/src/middleware.ts`, alongside `src/app`; a root-level file would not
    be loaded by this project's build.
 8. Enrollment happens only on an explicit click; existing verified factors are

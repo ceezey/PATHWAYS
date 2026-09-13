@@ -1,7 +1,6 @@
 import 'server-only'
 import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
-import { developerAuthUserId, developerSupabaseUrl } from '../../features/auth/auth-access'
 import { contextCookieName, decodeWorkspaceContext } from '../../features/auth/workspace-access'
 import { webEnv } from '../env'
 import { createClient } from '../server'
@@ -34,6 +33,7 @@ export async function requireServerPage(route: RouteKey, props: ProtectedPagePro
 
 // No React/global cache: each protected page render revalidates through the API.
 export async function requireServerRoute(selection: RouteSelection) {
+  const configuredSupabaseUrl = (webEnv.NEXT_PUBLIC_SUPABASE_URL ?? '').replace(/\/$/, '')
   let target = '/auth/mfa'
   let stage: NavigationStage = 'CONFIGURATION'
   try {
@@ -44,8 +44,8 @@ export async function requireServerRoute(selection: RouteSelection) {
     const identity = claims.data.claims
     stage = 'IDENTITY'
     if (
-      identity.sub !== developerAuthUserId ||
-      identity.iss !== `${developerSupabaseUrl}/auth/v1` ||
+      typeof identity.sub !== 'string' ||
+      identity.iss !== `${configuredSupabaseUrl}/auth/v1` ||
       identity.aud !== 'authenticated' ||
       identity.is_anonymous !== false
     )

@@ -46,6 +46,7 @@ const makeBeneficiary = (
   sex: BeneficiaryRecord['sex'] = 'Female',
 ): BeneficiaryRecord => ({
   id,
+  subjectType: 'INDIVIDUAL',
   code: `TEST-${id}`,
   displayName: `Test ${id}`,
   firstName: 'Test',
@@ -68,6 +69,8 @@ const makeBeneficiary = (
   participation: [],
   assessments: [],
   notes: [],
+  updatedAt: '2026-09-13T00:00:00.000Z',
+  consentProvenance: [],
 })
 
 const testBeneficiaries = [

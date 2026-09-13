@@ -1,5 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
-import { developerAuthUserId, requestAuthJson } from './auth-access'
+import { requestAuthJson } from './auth-access'
+import { testAuthUserId } from './auth-access.test-fixtures'
+const developerAuthUserId = testAuthUserId
 import { parseWorkspaceResolution, resolveWorkspaceProfile } from './workspace-access'
 
 const base = 'http://127.0.0.1:4000/api'
@@ -8,9 +10,9 @@ const workspace = {
   organizationId: '30000000-0000-4000-8000-000000000003',
   displayName: 'Synthetic workspace',
 }
-const resolution = { authUserId: developerAuthUserId, prototypeOnly: true, workspaces: [workspace] }
+const resolution = { authUserId: testAuthUserId, workspaces: [workspace] }
 const profile = {
-  id: developerAuthUserId,
+  id: testAuthUserId,
   aal: 'aal2',
   ...workspace,
   fullName: 'Fixture',

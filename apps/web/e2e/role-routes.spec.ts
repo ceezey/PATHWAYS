@@ -72,7 +72,7 @@ async function mount(page: Page, role: CanonicalRole = 'SYSTEM_ADMINISTRATOR') {
           state.status === 200
             ? {
                 route: url.searchParams.get('route'),
-                presentation: 'prototype-only',
+                authorization: 'database-verified',
                 beneficiaryAccess: 'records-or-none',
               }
             : { message: 'private-provider-detail-must-not-render' },

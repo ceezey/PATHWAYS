@@ -42,6 +42,11 @@ describe('Deferred legacy-table retirement contract', () => {
       '0004_pathways_finance_evaluation_decisions',
       '0005_supabase_security_adapter',
       '0006_auth_session_liveness',
+      '0007_core_workspace_foundation',
+      '0008_metadata_forms_direct_entry',
+      '0009_import_state_enums',
+      '0010_secure_import_pipeline',
+      '0011_beneficiary_registration',
     ])
     expect(migration).toContain('DEFERRED REVIEW ARTIFACT -- NOT AN ACTIVE PRISMA MIGRATION')
   })
@@ -68,7 +73,7 @@ describe('Deferred legacy-table retirement contract', () => {
 
   it('keeps the datamodel and verifier aligned with the reviewed migration', () => {
     expect(schema).not.toMatch(/^model Legacy/m)
-    expect(schema.match(/^model /gm)).toHaveLength(39)
+    expect(schema.match(/^model /gm)).toHaveLength(41)
     const checksum = createHash('sha256').update(migration).digest('hex')
     expect(checksum).toBe('9d1a3688fbe3aa9692e615a4e33c182d8544006245bef54a371579fb65fab253')
   })

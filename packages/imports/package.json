@@ -4,6 +4,18 @@
   "private": true,
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "require": "./dist/index.js",
+      "default": "./dist/index.js"
+    },
+    "./server": {
+      "types": "./dist/server.d.ts",
+      "require": "./dist/server.js",
+      "default": "./dist/server.js"
+    }
+  },
   "files": ["dist"],
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
@@ -13,7 +25,7 @@
   },
   "dependencies": {
     "@pathways/shared": "workspace:*",
-    "papaparse": "^5.5.3",
-    "xlsx": "^0.18.5"
+    "papaparse": "5.7.0",
+    "xlsx": "https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz"
   }
 }

@@ -12,13 +12,7 @@ import { useCurrentRole } from '@/hooks/use-current-role'
 import { useSession } from '@/hooks/use-session'
 import { webEnv } from '@/lib/env'
 import { getBrowserSupabaseClient } from '@/lib/supabase/client'
-import {
-  AuthAccessError,
-  type MfaStatus,
-  developerAuthUserId,
-  parseMfaStatus,
-  requestAuthJson,
-} from './auth-access'
+import { AuthAccessError, type MfaStatus, parseMfaStatus, requestAuthJson } from './auth-access'
 import { getQrImageSource, getVerifiedTotpFactors, isTotpCode, verifyTotpCode } from './mfa-flow'
 
 interface FactorChoice {
@@ -64,7 +58,8 @@ export function MfaForm() {
   const handoffAttempted = useRef(false)
   const handoffUser = useRef(session?.user.id)
   const [handoff, setHandoff] = useState<'idle' | 'opening' | 'stalled'>('idle')
-  const allowedAccount = session?.user.id === developerAuthUserId
+  const currentUserId = session?.user.id
+  const allowedAccount = Boolean(currentUserId)
   const current = check?.token === token && check?.refresh === refresh ? check : null
   const privateEnrollment = enrollment?.token === token ? enrollment : null
   const verifiedFactors = getVerifiedTotpFactors(current?.factors ?? [])
@@ -208,7 +203,7 @@ export function MfaForm() {
     if (
       result.error ||
       result.data.session?.access_token !== expectedToken ||
-      result.data.session.user.id !== developerAuthUserId ||
+      result.data.session.user.id !== currentUserId ||
       tokenRef.current !== expectedToken ||
       operation.current !== expectedOperation
     ) {
@@ -332,10 +327,9 @@ export function MfaForm() {
     <Card className="mx-auto w-full max-w-xl" data-private="true">
       <CardHeader>
         <ShieldCheck className="mb-2 h-9 w-9 text-primary" aria-hidden="true" />
-        <CardTitle>Developer security check</CardTitle>
+        <CardTitle>Security check</CardTitle>
         <CardDescription>
-          MFA setup for the one approved PATHWAYS-dev account. This page does not create an
-          organization, assign an administrator role, or enable real-user onboarding.
+          Verify multi-factor authentication before opening your authorized PATHWAYS workspace.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-5">
@@ -345,16 +339,11 @@ export function MfaForm() {
           </p>
         )}
         {!configured ? (
-          <p>The approved development authentication connection is not configured.</p>
+          <p>The authentication connection is not configured.</p>
         ) : status === 'loading' ? (
           <output>Checking your session...</output>
         ) : !session ? (
-          <p>Sign in with the designated developer account before setting up MFA.</p>
-        ) : !allowedAccount ? (
-          <p role="alert">
-            This is not the designated developer account. Sign out and use the approved account. No
-            setup or protected access is allowed.
-          </p>
+          <p>Sign in before setting up MFA.</p>
         ) : !current ? (
           <output>
             {error ? 'Verification is blocked.' : 'Checking the local API before MFA setup...'}
@@ -364,9 +353,8 @@ export function MfaForm() {
             <output>MFA session verified by the API (aal2).</output>
             {!current.status.applicationAccessEnabled ? (
               <p>
-                Application access is still disabled. The separately approved administrator
-                provisioning and access gate must be completed next. No business data is available
-                here.
+                Application access is currently unavailable. Ask an administrator to review your
+                active profile and workspace assignment.
               </p>
             ) : access === 'ready' ? (
               <div className="space-y-3">
@@ -392,8 +380,8 @@ export function MfaForm() {
                   <output>Finding your authorized workspace...</output>
                 ) : access === 'no_workspace' ? (
                   <output>
-                    No authorized workspace is available. Ask the development administrator to
-                    review your access, or sign out. You can recheck after access is updated.
+                    No authorized workspace is available. Ask an administrator to review your
+                    access, or sign out. You can recheck after access is updated.
                   </output>
                 ) : accessError ? (
                   <p className="text-sm text-destructive" role="alert">
@@ -534,8 +522,8 @@ export function MfaForm() {
           )}
         </div>
         <p className="text-xs text-muted-foreground">
-          Keep this setup private. MFA is not leaked-password protection; the
-          no-real-user-onboarding gate remains in effect.
+          Keep this setup private. MFA is not leaked-password protection; the workspace
+          authorization is checked again on every protected request.
         </p>
       </CardContent>
     </Card>

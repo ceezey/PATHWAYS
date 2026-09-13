@@ -1,7 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { developerAuthUserId } from '@/features/auth/auth-access'
+vi.mock('@/lib/env', () => ({
+  webEnv: { NEXT_PUBLIC_SUPABASE_URL: 'https://pdqwsknbzkdtiwjjibqt.supabase.co' },
+  webSupabasePublishableKey: 'publishable-test-fixture',
+}))
+
+import { testAuthUserId } from '@/features/auth/auth-access.test-fixtures'
+const developerAuthUserId = testAuthUserId
 import { localPasswordRecoveryOrigin } from '@/features/auth/password-recovery'
 import {
   clearPasswordRecoveryIntent,

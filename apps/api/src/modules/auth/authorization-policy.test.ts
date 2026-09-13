@@ -40,6 +40,25 @@ describe('canonical least-privilege policy ceiling', () => {
       expect(rolePermissions[role as CanonicalRole]).not.toContain('reports.beneficiary.read')
     },
   )
+  it('keeps raw import review with M&E and outside executive aggregate-only roles', () => {
+    expect(rolePermissions.MONITORING_AND_EVALUATION_OFFICER).toEqual(
+      expect.arrayContaining([
+        'imports.read',
+        'imports.upload',
+        'imports.review',
+        'imports.process',
+      ]),
+    )
+    expect(rolePermissions.SYSTEM_ADMINISTRATOR).toEqual(
+      expect.arrayContaining(['imports.read', 'imports.upload']),
+    )
+    expect(rolePermissions.SYSTEM_ADMINISTRATOR).not.toContain('imports.review')
+    expect(rolePermissions.SYSTEM_ADMINISTRATOR).not.toContain('imports.process')
+    for (const role of ['PROGRAM_MANAGER', 'GRANT_MANAGER'] as const) {
+      expect(rolePermissions[role]).not.toContain('imports.read')
+      expect(rolePermissions[role]).not.toContain('imports.review')
+    }
+  })
   it('enforces the exact account-administration and assignment role matrix', () => {
     for (const actor of Object.keys(roleNames) as CanonicalRole[]) {
       for (const target of Object.keys(roleNames) as CanonicalRole[]) {

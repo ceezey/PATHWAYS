@@ -2,11 +2,6 @@ import { z } from 'zod'
 
 import type { PathwaysRole } from '@/types/pathways-role'
 
-// This preparation is deliberately restricted to the one reviewed development identity.
-// It does not provision a PATHWAYS profile or authorize general onboarding.
-export const developerAuthUserId = '56ad4c1a-113f-401b-84e8-1d2135f174c1'
-export const developerSupabaseUrl = 'https://pdqwsknbzkdtiwjjibqt.supabase.co'
-
 const uuid = z.string().uuid()
 const canonicalRoles = {
   SYSTEM_ADMINISTRATOR: 'System Administrator',
@@ -18,7 +13,7 @@ const canonicalRoles = {
 } as const satisfies Record<string, PathwaysRole>
 
 const mfaStatusSchema = z.object({
-  authUserId: z.literal(developerAuthUserId),
+  authUserId: uuid,
   aal: z.enum(['aal1', 'aal2']),
   enrollmentAllowed: z.literal(true),
   applicationAccessEnabled: z.boolean(),
@@ -26,7 +21,7 @@ const mfaStatusSchema = z.object({
 
 const profileSchema = z.object({
   user: z.object({
-    id: z.literal(developerAuthUserId),
+    id: uuid,
     userId: uuid,
     organizationId: uuid,
     fullName: z.string().min(1),
@@ -53,7 +48,7 @@ export class AuthAccessError extends Error {
       status === 401
         ? 'Your session was not accepted (401). Sign in again and complete TOTP.'
         : status === 403
-          ? 'Access was denied (403). Ask the development administrator to review your workspace access, or sign out and try the approved account.'
+          ? 'Access was denied (403). Ask an administrator to review your workspace access, or sign out and try again.'
           : status === 503
             ? 'Application access verification is temporarily unavailable (503). Wait a moment and retry; do not change your password or provision another account.'
             : status === 'timeout'

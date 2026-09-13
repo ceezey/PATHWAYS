@@ -373,8 +373,8 @@ export const JourneyStagesWorkspace = ({
           <DialogHeader>
             <DialogTitle>Save journey-stage configuration</DialogTitle>
             <DialogDescription>
-              The project configuration backend is not connected, so this draft cannot update the
-              shared project record.
+              Saving project configuration is not available, so this draft cannot update the shared
+              project record.
             </DialogDescription>
           </DialogHeader>
           <div className="rounded-lg border border-border bg-muted/40 p-4 text-sm">

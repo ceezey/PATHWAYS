@@ -17,13 +17,17 @@ vi.mock('next/navigation', () => ({
 vi.mock('../server', () => ({
   createClient: async () => ({ auth: { getClaims: mock.claims, getSession: mock.session } }),
 }))
-vi.mock('../env', () => ({ webEnv: { NEXT_PUBLIC_API_BASE_URL: 'http://127.0.0.1:4000/api' } }))
+vi.mock('../env', () => ({
+  webEnv: {
+    NEXT_PUBLIC_API_BASE_URL: 'http://127.0.0.1:4000/api',
+    NEXT_PUBLIC_SUPABASE_URL: 'https://pdqwsknbzkdtiwjjibqt.supabase.co',
+  },
+}))
 import { rolePermissions } from '../../../../api/src/modules/auth/authorization-policy'
-import {
-  type ApplicationProfile,
-  developerAuthUserId,
-  developerSupabaseUrl,
-} from '../../features/auth/auth-access'
+import type { ApplicationProfile } from '../../features/auth/auth-access'
+import { testAuthUserId, testSupabaseUrl } from '../../features/auth/auth-access.test-fixtures'
+const developerAuthUserId = testAuthUserId
+const developerSupabaseUrl = testSupabaseUrl
 import { encodeWorkspaceContext } from '../../features/auth/workspace-access'
 import {
   canonicalFeatures,
@@ -66,7 +70,7 @@ beforeEach(() => {
   mock.fetch.mockImplementation(async (url) =>
     Response.json({
       route: new URL(url).searchParams.get('route'),
-      presentation: 'prototype-only',
+      authorization: 'database-verified',
       beneficiaryAccess: 'records-or-none',
     }),
   )

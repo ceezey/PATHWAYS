@@ -81,7 +81,9 @@ export const routePolicy = {
     'project',
   ),
   beneficiaries: entry('/beneficiaries', 'Beneficiaries', ['beneficiaries.records.read']),
-  beneficiaryCreate: entry('/beneficiaries/new', 'Beneficiary registration', []),
+  beneficiaryCreate: entry('/beneficiaries/new', 'Beneficiary registration', [
+    'beneficiaries.records.register',
+  ]),
   beneficiary: entry(
     '/beneficiaries/:beneficiaryId',
     'Beneficiary profile and journey',
@@ -89,9 +91,21 @@ export const routePolicy = {
     'beneficiary',
   ),
   collection: entry('/collection', 'Collection', ['collection.read']),
-  forms: entry('/collection/forms', 'Forms', ['collection.read']),
-  formCreate: entry('/collection/forms/new', 'Form setup', ['collection.read']),
-  imports: entry('/collection/import', 'Metadata-Driven Data Integration', ['collection.read']),
+  forms: entry('/collection/forms', 'Forms', ['forms.read']),
+  formCreate: entry('/collection/forms/new', 'Form setup', ['forms.manage']),
+  form: entry(
+    '/collection/projects/:projectId/forms/:formId',
+    'Form definition',
+    ['forms.read'],
+    'project',
+  ),
+  formEntry: entry(
+    '/collection/projects/:projectId/forms/:formId/entries/new',
+    'Direct data entry',
+    ['submissions.write'],
+    'project',
+  ),
+  imports: entry('/collection/import', 'Metadata-Driven Data Integration', ['imports.read']),
   analytics: entry('/analytics', 'Analytics', ['analytics.read']),
   alerts: entry('/alerts', 'Alerts', ['recommendations.outcome.record']),
   recommendations: entry('/recommendations', 'Recommendations', ['recommendations.outcome.record']),
@@ -115,6 +129,7 @@ export type RouteKey = keyof typeof routePolicy
 export type RouteSelection = {
   route: RouteKey
   projectId?: string
+  formId?: string
   activityId?: string
   beneficiaryId?: string
   kind?: 'project-summary' | 'indicator-summary' | 'beneficiary-summary' | 'survey-results'
@@ -437,7 +452,7 @@ export const filterWorkspaceTabs = <T extends WorkspaceTabAccess>(
 }
 export type RouteDecision = {
   route: RouteKey
-  presentation: 'prototype-only'
+  authorization: 'database-verified'
   beneficiaryAccess: 'aggregate-only' | 'records-or-none'
 }
 export type RouteCheckFailure =
@@ -530,8 +545,8 @@ export async function requestRouteCheck(
       typeof body !== 'object' ||
       !('route' in body) ||
       body.route !== selection.route ||
-      !('presentation' in body) ||
-      body.presentation !== 'prototype-only' ||
+      !('authorization' in body) ||
+      body.authorization !== 'database-verified' ||
       !('beneficiaryAccess' in body) ||
       (body.beneficiaryAccess !== 'aggregate-only' &&
         body.beneficiaryAccess !== 'records-or-none') ||

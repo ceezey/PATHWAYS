@@ -4,7 +4,6 @@ import {
   type ApplicationProfile,
   AuthAccessError,
   applicationContextSchema,
-  developerAuthUserId,
   getLocalAuthEndpoint,
   parseApplicationProfile,
   requestAuthJson,
@@ -13,14 +12,13 @@ import {
 export const contextCookieName = 'pathways-context'
 const selectionSchema = applicationContextSchema
   .extend({
-    authUserId: z.literal(developerAuthUserId),
+    authUserId: z.string().uuid(),
   })
   .strict()
 
 const resolutionSchema = z
   .object({
-    authUserId: z.literal(developerAuthUserId),
-    prototypeOnly: z.literal(true),
+    authUserId: z.string().uuid(),
     workspaces: z
       .array(applicationContextSchema.extend({ displayName: z.string().min(1).max(120) }).strict())
       .max(1),
@@ -95,8 +93,8 @@ export function encodeWorkspaceContext(profile: ApplicationProfile) {
 }
 
 export function workspacePermissions(profile: ApplicationProfile | null) {
-  // The server's current permission list controls this live UI. The prototype
-  // role-only access matrix does not supply missing permissions.
+  // The server's current permission list controls this live UI. The role-only
+  // access matrix does not supply missing permissions.
   return { readProjects: profile?.permissions.includes('projects.read') === true }
 }
 

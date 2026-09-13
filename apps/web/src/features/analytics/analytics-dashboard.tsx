@@ -162,6 +162,17 @@ export const AnalyticsDashboard = ({
   const canViewRules = role ? can(role, 'rules.view') : false
   const canConfigureRules = role ? can(role, 'rules.configure') : false
 
+  if (projects.some((project) => project.metricsAvailable !== true)) {
+    return (
+      <EmptyState
+        className="min-h-80 rounded-lg border border-border bg-card"
+        description="Persisted monitoring metrics are not available for these project profiles."
+        icon={BarChart3}
+        title="Analytics unavailable"
+      />
+    )
+  }
+
   return (
     <div className="space-y-6">
       <section className="flex flex-col gap-4 rounded-lg border border-border bg-card p-5 shadow-sm lg:flex-row lg:items-start lg:justify-between">

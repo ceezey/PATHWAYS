@@ -3,8 +3,6 @@ import { type NextRequest, NextResponse } from 'next/server'
 
 import {
   AuthAccessError,
-  developerAuthUserId,
-  developerSupabaseUrl,
   parseApplicationProfile,
   requestAuthJson,
 } from '@/features/auth/auth-access'
@@ -24,6 +22,7 @@ import {
 } from '@/lib/rbac/route-access'
 
 export async function updateSession(request: NextRequest) {
+  const configuredSupabaseUrl = (webEnv.NEXT_PUBLIC_SUPABASE_URL ?? '').replace(/\/$/, '')
   if (isPublicPath(request.nextUrl.pathname)) return NextResponse.next()
   let stage: NavigationStage = 'CONFIGURATION'
   const denied = (error?: unknown) => recordNavigationDenial('MIDDLEWARE', stage, error)
@@ -42,7 +41,7 @@ export async function updateSession(request: NextRequest) {
     response.headers.set('Referrer-Policy', 'no-referrer')
     return response
   }
-  if (webEnv.NEXT_PUBLIC_SUPABASE_URL !== developerSupabaseUrl || !webSupabasePublishableKey) {
+  if (!configuredSupabaseUrl || !webSupabasePublishableKey) {
     denied()
     return redirect('/staff/login')
   }
@@ -92,7 +91,7 @@ export async function updateSession(request: NextRequest) {
     const claims = data.claims
     stage = 'IDENTITY'
     if (
-      claims.iss !== `${developerSupabaseUrl}/auth/v1` ||
+      claims.iss !== `${configuredSupabaseUrl}/auth/v1` ||
       claims.aud !== 'authenticated' ||
       claims.is_anonymous !== false
     ) {
@@ -101,7 +100,7 @@ export async function updateSession(request: NextRequest) {
     }
     if (request.nextUrl.pathname !== '/auth/mfa') {
       stage = 'ASSURANCE'
-      if (claims.sub !== developerAuthUserId || claims.aal !== 'aal2') {
+      if (typeof claims.sub !== 'string' || claims.aal !== 'aal2') {
         denied()
         return redirect('/auth/mfa', supabaseResponse)
       }

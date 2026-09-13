@@ -4,12 +4,21 @@ import { BeneficiaryDetailLoader } from '@/features/beneficiaries/beneficiary-de
 
 async function BeneficiaryDetailPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ beneficiaryId: string }>
+  searchParams?: Promise<Record<string, string | string[] | undefined>>
 }) {
   const { beneficiaryId } = await params
+  const query = await searchParams
+  const requestedProjectId = typeof query?.projectId === 'string' ? query.projectId : undefined
 
-  return <BeneficiaryDetailLoader beneficiaryId={beneficiaryId} />
+  return (
+    <BeneficiaryDetailLoader
+      beneficiaryId={beneficiaryId}
+      requestedProjectId={requestedProjectId}
+    />
+  )
 }
 
 export const dynamic = 'force-dynamic'

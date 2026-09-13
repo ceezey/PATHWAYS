@@ -1,6 +1,5 @@
 import { type NextRequest, NextResponse } from 'next/server'
 
-import { developerAuthUserId } from '@/features/auth/auth-access'
 import { localPasswordRecoveryOrigin, passwordUpdatePath } from '@/features/auth/password-recovery'
 import {
   applyPendingAuthCookies,
@@ -74,14 +73,15 @@ export async function GET(request: NextRequest) {
       : { data: null, error: null }
     const recoveryIdentity = getRecoveryIdentityFromVerifiedClaims(
       claimsResult.data?.claims,
-      developerAuthUserId,
+      user?.id ?? '',
     )
 
     if (
       result.error ||
       claimsResult.error ||
       !session ||
-      user?.id !== developerAuthUserId ||
+      !user ||
+      session.user.id !== user.id ||
       (isCodeFlow && redirectType !== 'PASSWORD_RECOVERY') ||
       !recoveryIdentity
     ) {

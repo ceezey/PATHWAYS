@@ -72,41 +72,20 @@ Backend-specific values used by the NestJS app:
 
 ## Notes
 
-### Stage 3 D1 workspace candidates (Prototype-only, server-side)
+### Workspace discovery (server-side)
 
-The approved rollout supports only the designated development Auth identity and
-zero or one database-verified workspace. It does not add membership rows, an
-administrator role, a chooser, production access, or an RLS bypass.
-
-`apps/api/src/modules/auth/workspace-resolution.service.ts` requires all of:
-
-- `NODE_ENV=development`, the exact already-approved `SUPABASE_URL`, and the
-  existing separately reviewed `PATHWAYS_DEVELOPER_ACCESS_ENABLED=true` gate;
-- `PATHWAYS_DEVELOPER_WORKSPACE_RESOLUTION_ENABLED=true` (default: `false`);
-- server-only `PATHWAYS_DEVELOPER_WORKSPACE_CANDIDATES`: a JSON array of strict
-  `{ "authUserId": "<approved-existing-auth-subject>", "organizationId": "<existing-organization-id>", "userId": "<existing-system-user-id>" }`
-  candidates from reviewed provisioning evidence. Replace placeholders privately;
-  do not paste identifiers or credentials into chat. No `NEXT_PUBLIC_` equivalent.
+`apps/api/src/modules/auth/workspace-resolution.service.ts` resolves zero or one
+active database-linked workspace for the verified Supabase Auth subject. It does
+not use a developer allowlist, client metadata, or an environment-variable grant.
+Multiple linked active profiles fail closed. Every selected protected request
+revalidates the profile, role, permissions, and scope through the dedicated
+`NOBYPASSRLS` runtime connection.
 
 Use the ignored `apps/api/.env.local` or the protected launcher's parent process
 environment; restart the API through `infra/supabase/security-adapter/Start-DevRuntime.ps1`
 using its existing documented invocation and dedicated non-owner runtime credential.
 The launcher runs the compiled API: rebuild after code changes. Do not run a
 migration or use a migration-owner/service-role credential for discovery.
-
-The candidate array is bounded to eight entries/8192 characters. Duplicates,
-unknown fields, malformed identifiers, a foreign subject, unapproved environment,
-missing configuration, or multiple validated profiles return a sanitized unavailable
-response. An explicit `[]` or candidates rejected by current RLS/profile/permission
-checks return zero workspaces, which denies entry. Configuration never grants
-membership; every selected protected request repeats database validation.
-
-As of the Stage 3 implementation pass, no candidate configuration or opt-in flag
-was found in the existing root/API environment files; parent/runtime process
-configuration is unverified. No environment file was modified. Before live
-verification, obtain approval for the separate `apps/api/src/app.module.ts` logging
-redaction gap recorded in `docs/SOURCE_OF_TRUTH.md`. Do not enable access solely to
-make a test pass, invent identifiers, or provision a user under this configuration step.
 
 ### Existing environment notes
 

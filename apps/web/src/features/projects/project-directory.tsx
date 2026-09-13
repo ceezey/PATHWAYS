@@ -1,11 +1,11 @@
 'use client'
 
-import { ArrowRight, Eye, FolderKanban, Plus, Search } from 'lucide-react'
+import { ArrowRight, FolderKanban, Plus, Search } from 'lucide-react'
 import Link from 'next/link'
 import { useEffect, useMemo, useState } from 'react'
 
 import { PageHeader } from '@/components/layout/page-header'
-import { EmptyState, FilterBar, ProgressBar, SectionCard, StatusBadge } from '@/components/pathways'
+import { EmptyState, FilterBar, SectionCard, StatusBadge } from '@/components/pathways'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
@@ -13,96 +13,64 @@ import { useCurrentRole } from '@/hooks/use-current-role'
 import { useDisplayLabels } from '@/hooks/use-display-labels'
 import { can } from '@/lib/rbac/can'
 import { pathwaysClient } from '@/lib/services/pathways-client'
-import type { ProjectDetail, ProjectStatus, ProjectSummary } from '@/types/pathways'
+import type { ProjectStatus, ProjectSummary } from '@/types/pathways'
+import { type ProjectStatusFilter, projectStatusFilters, projectStatusTone } from './project-utils'
 
-import { ProjectPreviewDialog } from './project-preview-dialog'
-import {
-  type ProjectStatusFilter,
-  formatNumber,
-  projectHealthTone,
-  projectStatusFilters,
-  projectStatusTone,
-} from './project-utils'
-
-const directoryDescription = {
-  'Program Manager': 'Portfolio projects across the organization.',
-  'Grant Manager': 'High-level grant and project portfolio summaries.',
-  'Project Manager': 'Assigned projects and project setup entry point.',
-  'Monitoring and Evaluation Officer': 'Projects assigned for monitoring and evaluation review.',
-  'Project Officer': 'Projects with assigned field activities and implementation tasks.',
-  'System Administrator': 'All projects available for setup and configuration review.',
+const descriptions = {
+  'Program Manager': 'Program and portfolio projects available to your account.',
+  'Grant Manager': 'Authorized grant and project portfolio profiles.',
+  'Project Manager': 'Assigned project profiles and project setup.',
+  'Monitoring and Evaluation Officer': 'Projects assigned for monitoring and evaluation.',
+  'Project Officer': 'Projects assigned for field implementation.',
+  'System Administrator': 'Organization project profiles and setup.',
 } as const
 
-export const ProjectDirectory = () => {
+export function ProjectDirectory() {
   const { labels } = useDisplayLabels()
   const { role } = useCurrentRole()
   const [projects, setProjects] = useState<ProjectSummary[]>([])
   const [status, setStatus] = useState<'loading' | 'success' | 'error'>('loading')
   const [query, setQuery] = useState('')
   const [statusFilter, setStatusFilter] = useState<ProjectStatusFilter>('All')
-  const [previewProject, setPreviewProject] = useState<ProjectDetail | null>(null)
 
   useEffect(() => {
-    let mounted = true
+    let active = true
+    if (!role) return
     setStatus('loading')
-
-    if (!role) {
-      setProjects([])
-      setStatus('error')
-      return
-    }
-
     pathwaysClient
       .getProjectsForRole(role)
       .then((records) => {
-        if (!mounted) {
-          return
-        }
-
+        if (!active) return
         setProjects(records)
         setStatus('success')
       })
       .catch(() => {
-        if (!mounted) {
-          return
-        }
-
-        setStatus('error')
+        if (active) setStatus('error')
       })
-
     return () => {
-      mounted = false
+      active = false
     }
   }, [role])
 
-  const filteredProjects = useMemo(() => {
-    const normalizedQuery = query.trim().toLowerCase()
-
-    return projects.filter((project) => {
-      const matchesQuery = normalizedQuery
-        ? [project.title, project.area, project.sector, project.projectManager]
+  const filtered = useMemo(() => {
+    const term = query.trim().toLowerCase()
+    return projects.filter(
+      (project) =>
+        (!term ||
+          [project.code, project.title, project.area, project.projectManager]
             .join(' ')
             .toLowerCase()
-            .includes(normalizedQuery)
-        : true
-      const matchesStatus =
-        statusFilter === 'All' ? true : project.status === (statusFilter as ProjectStatus)
-
-      return matchesQuery && matchesStatus
-    })
+            .includes(term)) &&
+        (statusFilter === 'All' || project.status === (statusFilter as ProjectStatus)),
+    )
   }, [projects, query, statusFilter])
-
-  const openPreview = async (projectId: string) => {
-    const project = await pathwaysClient.getProject(projectId)
-    setPreviewProject(project)
-  }
 
   return (
     <>
       <PageHeader
         eyebrow={labels.projectWorkspace}
         title={labels.moduleProjects}
-        description={role ? directoryDescription[role] : 'A recognized staff role is required.'}
+        description={role ? descriptions[role] : 'A recognized staff role is required.'}
         actions={
           role && can(role, 'projects.create') ? (
             <Button asChild className="gap-2">
@@ -115,19 +83,19 @@ export const ProjectDirectory = () => {
         }
       />
       <FilterBar>
-        <div className="relative min-w-0 flex-1">
+        <label className="relative min-w-0 flex-1" htmlFor="project-search">
           <Search
-            className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground"
+            className="absolute left-3 top-3 h-4 w-4 text-muted-foreground"
             aria-hidden="true"
           />
           <Input
-            aria-label="Search projects"
+            id="project-search"
             className="pl-9"
             onChange={(event) => setQuery(event.target.value)}
-            placeholder="Search by project, area, sector, or manager"
+            placeholder="Search by code, title, area, or manager"
             value={query}
           />
-        </div>
+        </label>
         <Tabs
           value={statusFilter}
           onValueChange={(value) => setStatusFilter(value as ProjectStatusFilter)}
@@ -143,125 +111,62 @@ export const ProjectDirectory = () => {
       </FilterBar>
       {status === 'loading' ? (
         <EmptyState
-          description="Loading the project records available to your account."
+          description="Checking your project scope."
           icon={FolderKanban}
           title="Loading projects"
         />
       ) : null}
       {status === 'error' ? (
         <EmptyState
-          description="The project directory could not load records from the Projects backend."
+          description="Project profiles could not be loaded from the current workspace."
           icon={FolderKanban}
           title="Project data unavailable"
         />
       ) : null}
-      {status === 'success' && filteredProjects.length === 0 ? (
+      {status === 'success' && filtered.length === 0 ? (
         <EmptyState
           description={
-            projects.length === 0
-              ? 'No project records are available to your account.'
-              : 'Try another search term or status filter.'
+            projects.length
+              ? 'Try another search or status filter.'
+              : 'No project profiles are available to your account.'
           }
           icon={FolderKanban}
-          title={
-            projects.length === 0 ? 'No projects yet' : 'No projects match the current filters'
-          }
+          title="No projects found"
         />
       ) : null}
-      {status === 'success' && filteredProjects.length > 0 ? (
+      {status === 'success' && filtered.length ? (
         <section className="grid gap-4 xl:grid-cols-2">
-          {filteredProjects.map((project) => (
+          {filtered.map((project) => (
             <SectionCard
               key={project.id}
               title={project.title}
-              description={`${project.area} - ${project.sector}`}
+              description={[project.code, project.area].filter(Boolean).join(' · ')}
               actions={
-                <div className="flex flex-wrap gap-2">
-                  <StatusBadge tone={projectStatusTone(project.status)}>
-                    {project.status}
-                  </StatusBadge>
-                  <StatusBadge tone={projectHealthTone(project.health)}>
-                    {project.health}
-                  </StatusBadge>
-                </div>
+                <StatusBadge tone={projectStatusTone(project.status)}>{project.status}</StatusBadge>
               }
             >
-              <div className="space-y-5">
-                <dl className="grid gap-3 text-sm sm:grid-cols-3">
-                  <div>
-                    <dt className="text-muted-foreground">Project Manager</dt>
-                    <dd className="mt-1 font-medium text-foreground">{project.projectManager}</dd>
-                  </div>
-                  <div>
-                    <dt className="text-muted-foreground">Beneficiaries reached</dt>
-                    <dd className="mt-1 font-medium text-foreground">
-                      {formatNumber(project.beneficiariesReached)}
-                    </dd>
-                  </div>
-                  <div>
-                    <dt className="text-muted-foreground">Period</dt>
-                    <dd className="mt-1 font-medium text-foreground">{project.period}</dd>
-                  </div>
-                </dl>
-                <div className="grid gap-4 sm:grid-cols-2">
-                  <ProgressBar
-                    label="KPI achievement"
-                    tone="success"
-                    value={project.kpiAchievement}
-                  />
-                  <ProgressBar
-                    label="Budget utilization"
-                    tone={project.budgetUtilization > 80 ? 'warning' : 'info'}
-                    value={project.budgetUtilization}
-                  />
-                  <ProgressBar label="Timeline progress" value={project.timelineProgress} />
-                  {typeof project.beneficiaryReachPercentage === 'number' ? (
-                    <ProgressBar
-                      label="Beneficiary reach"
-                      tone="success"
-                      value={project.beneficiaryReachPercentage}
-                    />
-                  ) : null}
+              <dl className="grid gap-3 text-sm sm:grid-cols-2">
+                <div>
+                  <dt className="text-muted-foreground">Project Manager</dt>
+                  <dd className="mt-1 font-medium">{project.projectManager}</dd>
                 </div>
-                <div className="flex flex-wrap justify-end gap-2">
-                  <Button
-                    className="gap-2"
-                    onClick={() => void openPreview(project.id)}
-                    type="button"
-                    variant="outline"
-                  >
-                    <Eye className="h-4 w-4" aria-hidden="true" />
-                    Quick Preview
-                  </Button>
-                  <Button asChild className="gap-2">
-                    <Link
-                      href={
-                        role && can(role, 'activities.view')
-                          ? `/projects/${project.id}/activities`
-                          : `/projects/${project.id}`
-                      }
-                    >
-                      {role && can(role, 'activities.view')
-                        ? 'Open Workspace'
-                        : 'View Project Summary'}
-                      <ArrowRight className="h-4 w-4" aria-hidden="true" />
-                    </Link>
-                  </Button>
+                <div>
+                  <dt className="text-muted-foreground">Period</dt>
+                  <dd className="mt-1 font-medium">{project.period}</dd>
                 </div>
+              </dl>
+              <div className="mt-5 flex justify-end">
+                <Button asChild className="gap-2">
+                  <Link href={`/projects/${project.id}`}>
+                    View project profile
+                    <ArrowRight className="h-4 w-4" aria-hidden="true" />
+                  </Link>
+                </Button>
               </div>
             </SectionCard>
           ))}
         </section>
       ) : null}
-      <ProjectPreviewDialog
-        onOpenChange={(open) => {
-          if (!open) {
-            setPreviewProject(null)
-          }
-        }}
-        open={Boolean(previewProject)}
-        project={previewProject}
-      />
     </>
   )
 }

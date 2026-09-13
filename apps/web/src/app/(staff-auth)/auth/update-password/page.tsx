@@ -4,7 +4,6 @@ import Link from 'next/link'
 
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { developerAuthUserId, developerSupabaseUrl } from '@/features/auth/auth-access'
 import { PasswordUpdateForm } from '@/features/auth/password-update-form'
 import { StaffAuthShell } from '@/features/auth/staff-auth-shell'
 import { webEnv, webSupabasePublishableKey } from '@/lib/env'
@@ -25,18 +24,14 @@ export const metadata: Metadata = {
 async function hasApprovedRecoverySession() {
   const cookieStore = await cookies()
   const intent = cookieStore.get(passwordRecoveryIntentCookie)?.value
-  if (
-    !intent ||
-    webEnv.NEXT_PUBLIC_SUPABASE_URL !== developerSupabaseUrl ||
-    !webSupabasePublishableKey
-  ) {
+  if (!intent || !webSupabasePublishableKey) {
     return false
   }
 
   try {
     const supabase = await createClient()
     const { data: userData, error: userError } = await supabase.auth.getUser()
-    if (userError || userData.user?.id !== developerAuthUserId) return false
+    if (userError || !userData.user) return false
 
     const { data: sessionData, error: sessionError } = await supabase.auth.getSession()
     if (sessionError || !sessionData.session) return false
@@ -46,7 +41,7 @@ async function hasApprovedRecoverySession() {
     )
     const recoveryIdentity = getRecoveryIdentityFromVerifiedClaims(
       claimsData?.claims,
-      developerAuthUserId,
+      userData.user.id,
     )
     return Boolean(
       !claimsError &&
@@ -71,7 +66,7 @@ export default async function UpdatePasswordPage() {
             <CardTitle>Recovery link unavailable</CardTitle>
             <CardDescription>
               This link is expired, already used, belongs to another browser, or was not issued for
-              the approved developer account.
+              the signed-in account.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">

@@ -6,17 +6,13 @@ describe('project setup validation', () => {
   it('requires project setup fields', () => {
     const result = projectSetupSchema.safeParse({
       title: '',
-      sector: '',
-      area: '',
+      code: '',
+      implementationArea: '',
       startDate: '',
       endDate: '',
       status: 'Planned',
-      budgetCode: '',
       description: '',
-      programManager: '',
-      projectManager: '',
-      monitoringOfficer: '',
-      projectOfficers: '',
+      objectives: '',
     })
 
     expect(result.success).toBe(false)
@@ -25,17 +21,13 @@ describe('project setup validation', () => {
   it('rejects an end date before the start date', () => {
     const result = projectSetupSchema.safeParse({
       title: 'Community Resilience Project',
-      sector: 'Education',
-      area: 'Navotas',
+      code: 'CRP-2026',
+      implementationArea: 'Navotas',
       startDate: '2026-12-01',
       endDate: '2026-08-01',
       status: 'Planned',
-      budgetCode: 'PP-2026',
       description: 'Project setup validation record.',
-      programManager: 'Program Manager A',
-      projectManager: 'Project Manager A',
-      monitoringOfficer: 'Monitoring and Evaluation Officer A',
-      projectOfficers: 'Project Officer A',
+      objectives: 'Provide a clear project objective.',
     })
 
     expect(result.success).toBe(false)

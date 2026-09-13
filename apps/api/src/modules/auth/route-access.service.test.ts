@@ -36,12 +36,12 @@ const service = new RouteAccessService({
 const common = 'dashboard unauthorized projects project analytics reports surveyReport'
 // Independent, explicit expected route matrix; no expectations computed from the policy under test.
 const allowed: Record<CanonicalRole, string> = {
-  SYSTEM_ADMINISTRATOR: `${common} activities activity budget journey monitoring beneficiaries beneficiary collection forms formCreate imports alerts recommendations rules settingsRules projectReport indicatorReport beneficiaryReport reportPreview users labels settings`,
-  PROGRAM_MANAGER: `${common} activities activity budget journey monitoring transparency transparencyPreview collection forms formCreate imports alerts recommendations rules settingsRules projectReport indicatorReport users`,
+  SYSTEM_ADMINISTRATOR: `${common} projectCreate activities activity budget journey monitoring beneficiaries beneficiaryCreate beneficiary collection forms formCreate form formEntry imports alerts recommendations rules settingsRules projectReport indicatorReport beneficiaryReport reportPreview users labels settings`,
+  PROGRAM_MANAGER: `${common} activities activity budget journey monitoring transparency transparencyPreview collection forms form alerts recommendations rules settingsRules projectReport indicatorReport users`,
   GRANT_MANAGER: `${common} budget projectReport indicatorReport`,
-  PROJECT_MANAGER: `${common} projectCreate activities activity budget journey monitoring transparency transparencyPreview beneficiaries beneficiary collection forms formCreate imports alerts recommendations rules settingsRules projectReport indicatorReport beneficiaryReport reportPreview users`,
-  MONITORING_AND_EVALUATION_OFFICER: `${common} activities activity evidence indicators budget journey monitoring beneficiaries beneficiary collection forms formCreate imports rules settingsRules projectReport indicatorReport beneficiaryReport reportPreview`,
-  PROJECT_OFFICER: `${common} activities activity budget beneficiaries beneficiary collection forms formCreate imports beneficiaryReport reportPreview`,
+  PROJECT_MANAGER: `${common} projectCreate activities activity budget journey monitoring transparency transparencyPreview beneficiaries beneficiaryCreate beneficiary collection forms formCreate form formEntry imports alerts recommendations rules settingsRules projectReport indicatorReport beneficiaryReport reportPreview users`,
+  MONITORING_AND_EVALUATION_OFFICER: `${common} activities activity evidence indicators budget journey monitoring beneficiaries beneficiaryCreate beneficiary collection forms formCreate form formEntry imports rules settingsRules projectReport indicatorReport beneficiaryReport reportPreview`,
+  PROJECT_OFFICER: `${common} activities activity budget beneficiaries beneficiaryCreate beneficiary collection forms form formEntry imports beneficiaryReport reportPreview`,
 }
 const select = (route: RouteKey): RouteSelection => ({
   route,
@@ -66,7 +66,7 @@ describe('central policy: every locked role against every protected entry route'
         if (allowed[role].split(' ').includes(route)) {
           expect(await result).toEqual({
             route,
-            presentation: 'prototype-only',
+            authorization: 'database-verified',
             beneficiaryAccess: ['PROGRAM_MANAGER', 'GRANT_MANAGER'].includes(role)
               ? 'aggregate-only'
               : 'records-or-none',

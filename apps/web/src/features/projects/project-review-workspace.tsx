@@ -86,7 +86,7 @@ export type PhaseFiveWorkspaceView =
 const viewTitles: Record<PhaseFiveWorkspaceView, { title: string; description: string }> = {
   evidence: {
     title: 'Evidence & Reports',
-    description: 'Review activity proof, file placeholders, and report records.',
+    description: 'Review activity proof, attached files, and report records.',
   },
   indicators: {
     title: 'Target Indicators',
@@ -278,6 +278,11 @@ export const ProjectPhaseFiveWorkspace = ({
           transparencyRecords,
         ]) => {
           if (!mounted) {
+            return
+          }
+
+          if (projectRecord.metricsAvailable !== true) {
+            setError(true)
             return
           }
 
@@ -640,7 +645,7 @@ export const ProjectPhaseFiveWorkspace = ({
               {previewEvidence.previewSummary}
             </p>
             <div className="rounded-lg border border-dashed border-border bg-muted/40 p-4 text-sm text-muted-foreground">
-              Placeholder preview for {previewEvidence.fileName}
+              File preview is unavailable for {previewEvidence.fileName}
             </div>
           </div>
         ) : null}

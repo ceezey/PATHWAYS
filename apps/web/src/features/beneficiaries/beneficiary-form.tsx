@@ -2,19 +2,11 @@
 
 import { ArrowLeft, Save } from 'lucide-react'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { useMemo, useState } from 'react'
 import { toast } from 'sonner'
 
-import { StatusBadge } from '@/components/pathways/status-badge'
 import { Button } from '@/components/ui/button'
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import {
@@ -24,395 +16,433 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import type { ProjectSummary } from '@/types/pathways'
+import { PathwaysClientError, pathwaysClient } from '@/lib/services/pathways-client'
+import type { DigitalFormDefinition, ProjectSummary } from '@/types/pathways'
+import type { PathwaysRole } from '@/types/pathways-role'
 
-type BeneficiaryDraft = {
+type Draft = {
+  projectId: string
+  formId: string
+  operation: 'CREATE' | 'LINK' | 'UPDATE'
+  subjectType: 'INDIVIDUAL' | 'GROUP' | 'COMMUNITY'
   code: string
+  displayName: string
   firstName: string
   middleName: string
   lastName: string
   sex: string
   birthDate: string
   age: string
-  disabilityStatus: string
+  disability: string
   province: string
   city: string
   barangay: string
-  consentToParticipate: boolean
-  consentToStoreData: boolean
+  enrollmentDate: string
+  externalType: string
+  externalValue: string
+  consent: boolean
+  dataConsent: boolean
   isMinor: boolean
   guardianConsent: boolean
-  projectId: string
 }
 
-const initialDraft: BeneficiaryDraft = {
-  code: '',
-  firstName: '',
-  middleName: '',
-  lastName: '',
-  sex: '',
-  birthDate: '',
-  age: '',
-  disabilityStatus: '',
-  province: '',
-  city: '',
-  barangay: '',
-  consentToParticipate: false,
-  consentToStoreData: false,
-  isMinor: false,
-  guardianConsent: false,
-  projectId: '',
-}
+export const BeneficiaryForm = ({
+  projects,
+  forms,
+  role,
+}: { projects: ProjectSummary[]; forms: DigitalFormDefinition[]; role: PathwaysRole }) => {
+  const router = useRouter()
+  const firstProject = projects[0]?.id ?? ''
+  const [clientRegistrationId] = useState(() => crypto.randomUUID())
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState('')
+  const [draft, setDraft] = useState<Draft>({
+    projectId: firstProject,
+    formId: forms.find((form) => form.projectId === firstProject)?.id ?? '',
+    operation: 'CREATE',
+    subjectType: 'INDIVIDUAL',
+    code: '',
+    displayName: '',
+    firstName: '',
+    middleName: '',
+    lastName: '',
+    sex: 'NOT_SPECIFIED',
+    birthDate: '',
+    age: '',
+    disability: 'NOT_SPECIFIED',
+    province: '',
+    city: '',
+    barangay: '',
+    enrollmentDate: new Date().toISOString().slice(0, 10),
+    externalType: '',
+    externalValue: '',
+    consent: false,
+    dataConsent: false,
+    isMinor: false,
+    guardianConsent: false,
+  })
+  const projectForms = useMemo(
+    () => forms.filter((form) => form.projectId === draft.projectId),
+    [draft.projectId, forms],
+  )
+  const selectedForm = projectForms.find((form) => form.id === draft.formId)
+  const codes = new Set(selectedForm?.fields.map((field) => field.code) ?? [])
+  const requiredContract = [
+    'registration_operation',
+    'beneficiary_code',
+    'subject_type',
+    'consent_recorded',
+    'data_processing_consent_recorded',
+    'enrollment_date',
+  ]
+  const contractReady = requiredContract.every((code) => codes.has(code))
+  const canReviewIdentity = ['System Administrator', 'Monitoring and Evaluation Officer'].includes(
+    role,
+  )
+  const individual = draft.subjectType === 'INDIVIDUAL'
+  const update = <K extends keyof Draft>(key: K, value: Draft[K]) =>
+    setDraft((current) => ({ ...current, [key]: value }))
 
-export const BeneficiaryForm = ({ projects }: { projects: ProjectSummary[] }) => {
-  const [draft, setDraft] = useState<BeneficiaryDraft>(initialDraft)
-  const [submitted, setSubmitted] = useState(false)
-  const [confirmOpen, setConfirmOpen] = useState(false)
+  const selectProject = (projectId: string) =>
+    setDraft((current) => ({
+      ...current,
+      projectId,
+      formId: forms.find((form) => form.projectId === projectId)?.id ?? '',
+    }))
 
-  const errors = useMemo(() => {
-    const nextErrors: string[] = []
-
-    if (!draft.code.trim()) {
-      nextErrors.push('Beneficiary code is required.')
-    }
-    if (!draft.firstName.trim() || !draft.lastName.trim()) {
-      nextErrors.push('Name fields are required.')
-    }
-    if (!draft.sex) {
-      nextErrors.push('Sex is required.')
-    }
-    if (!draft.birthDate && !draft.age) {
-      nextErrors.push('Birth date or age is required.')
-    }
-    if (!draft.disabilityStatus) {
-      nextErrors.push('Disability status is required.')
-    }
-    if (!draft.province.trim() || !draft.city.trim() || !draft.barangay.trim()) {
-      nextErrors.push('Location fields are required.')
-    }
-    if (!draft.projectId) {
-      nextErrors.push('Project enrollment is required.')
-    }
-    if (!draft.consentToParticipate || !draft.consentToStoreData) {
-      nextErrors.push('Consent flags must be confirmed.')
-    }
-    if (draft.isMinor && !draft.guardianConsent) {
-      nextErrors.push('Guardian consent is required when the beneficiary is marked as a minor.')
-    }
-
-    return nextErrors
-  }, [draft])
-
-  const updateDraft = <Key extends keyof BeneficiaryDraft>(
-    key: Key,
-    value: BeneficiaryDraft[Key],
-  ) => setDraft((current) => ({ ...current, [key]: value }))
-
-  const handleSubmit = () => {
-    setSubmitted(true)
-
-    if (errors.length > 0) {
-      toast.error('Check beneficiary form fields.', {
-        description: errors[0],
-      })
+  const save = async () => {
+    setError('')
+    if (!selectedForm || !contractReady) {
+      setError('Select a published registration form with the required domain fields.')
       return
     }
-
-    setConfirmOpen(true)
-  }
-
-  const confirmSave = () => {
-    setConfirmOpen(false)
-    toast.error('Beneficiary profile was not saved.', {
-      description: 'The beneficiary backend integration is not configured. Your draft remains.',
-    })
+    if (!draft.code.trim() || !draft.consent || !draft.dataConsent) {
+      setError('Code and both explicit consent confirmations are required.')
+      return
+    }
+    if (
+      individual &&
+      (!draft.firstName.trim() || !draft.lastName.trim() || (!draft.birthDate && !draft.age))
+    ) {
+      setError('Individuals require first and last names plus a birth date or age.')
+      return
+    }
+    if (!individual && !draft.displayName.trim()) {
+      setError('Groups and communities require a display name.')
+      return
+    }
+    if (draft.isMinor !== draft.guardianConsent) {
+      setError('Guardian consent must be confirmed exactly when the record is a minor.')
+      return
+    }
+    const candidates: Record<string, unknown> = {
+      registration_operation: draft.operation,
+      beneficiary_code: draft.code.trim().toUpperCase(),
+      subject_type: draft.subjectType,
+      display_name: draft.displayName.trim() || null,
+      first_name: individual ? draft.firstName.trim() : null,
+      middle_name: individual ? draft.middleName.trim() || null : null,
+      last_name: individual ? draft.lastName.trim() : null,
+      sex: individual ? draft.sex : 'NOT_SPECIFIED',
+      birth_date: individual && draft.birthDate ? draft.birthDate : null,
+      age_at_registration: individual && draft.age ? Number(draft.age) : null,
+      disability_status: draft.disability,
+      location_barangay: draft.barangay.trim() || null,
+      location_city_municipality: draft.city.trim() || null,
+      location_province: draft.province.trim() || null,
+      consent_recorded: draft.consent,
+      data_processing_consent_recorded: draft.dataConsent,
+      is_minor: individual && draft.isMinor,
+      guardian_consent_recorded: individual && draft.guardianConsent,
+      enrollment_date: draft.enrollmentDate,
+      external_identifier_type: draft.externalType.trim().toUpperCase() || null,
+      external_identifier_value: draft.externalValue.trim() || null,
+      profile_update_fields:
+        draft.operation === 'UPDATE'
+          ? [
+              'display_name',
+              'first_name',
+              'middle_name',
+              'last_name',
+              'sex',
+              'birth_date',
+              'age_at_registration',
+              'disability_status',
+              'location_barangay',
+              'location_city_municipality',
+              'location_province',
+            ]
+          : null,
+    }
+    const values = Object.fromEntries(
+      Object.entries(candidates).filter(([code]) => codes.has(code)),
+    )
+    setSaving(true)
+    try {
+      const record = await pathwaysClient.registerBeneficiary(draft.projectId, {
+        formId: draft.formId,
+        clientRegistrationId,
+        values,
+      })
+      toast.success('Beneficiary registration saved.')
+      router.push(`/beneficiaries/${record.id}?projectId=${encodeURIComponent(draft.projectId)}`)
+    } catch (cause) {
+      setError(
+        cause instanceof PathwaysClientError ? cause.message : 'Registration could not be saved.',
+      )
+    } finally {
+      setSaving(false)
+    }
   }
 
   return (
     <div className="space-y-6">
-      <section className="flex flex-col gap-4 rounded-lg border border-border bg-card p-5 shadow-sm md:flex-row md:items-start md:justify-between">
-        <div className="space-y-2">
-          <div className="flex flex-wrap gap-2">
-            <StatusBadge tone="neutral">Unsaved draft</StatusBadge>
-            <StatusBadge tone="warning">Backend not configured</StatusBadge>
-          </div>
-          <div>
-            <h1 className="text-3xl font-semibold tracking-tight text-foreground">
-              Add beneficiary
-            </h1>
-            <p className="mt-2 max-w-3xl text-sm leading-6 text-muted-foreground">
-              Prepare a coded profile with consent and project enrollment fields. Submission stays
-              disabled until the beneficiary backend is connected.
-            </p>
-          </div>
+      <section className="flex items-start justify-between gap-4 rounded-lg border border-border bg-card p-5">
+        <div>
+          <h1 className="text-3xl font-semibold">Register beneficiary</h1>
+          <p className="mt-2 text-sm text-muted-foreground">
+            Create, explicitly link, or explicitly update through a published versioned form.
+          </p>
         </div>
         <Button asChild variant="outline">
           <Link href="/beneficiaries">
-            <ArrowLeft className="mr-2 h-4 w-4" aria-hidden="true" />
-            Back to directory
+            <ArrowLeft className="mr-2 h-4 w-4" />
+            Directory
           </Link>
         </Button>
       </section>
-
-      <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_360px]">
-        <section className="space-y-5 rounded-lg border border-border bg-card p-5 shadow-sm">
-          <div>
-            <h2 className="text-lg font-semibold text-foreground">Profile information</h2>
-            <p className="text-sm text-muted-foreground">
-              Required fields are checked before submission.
-            </p>
-          </div>
-
-          <div className="grid gap-4 md:grid-cols-2">
-            <Field label="Beneficiary code" error={submitted && !draft.code.trim()}>
-              <Input
-                aria-label="Beneficiary code"
-                value={draft.code}
-                onChange={(event) => updateDraft('code', event.target.value)}
-              />
-            </Field>
-            <Field label="Project enrollment" error={submitted && !draft.projectId}>
-              <Select
-                value={draft.projectId}
-                onValueChange={(value) => updateDraft('projectId', value)}
-              >
-                <SelectTrigger aria-label="Project enrollment">
-                  <SelectValue placeholder="Select project" />
-                </SelectTrigger>
-                <SelectContent>
-                  {projects.map((project) => (
-                    <SelectItem key={project.id} value={project.id}>
-                      {project.title}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </Field>
-            <Field label="First name" error={submitted && !draft.firstName.trim()}>
-              <Input
-                aria-label="First name"
-                value={draft.firstName}
-                onChange={(event) => updateDraft('firstName', event.target.value)}
-              />
-            </Field>
-            <Field label="Middle name">
-              <Input
-                aria-label="Middle name"
-                value={draft.middleName}
-                onChange={(event) => updateDraft('middleName', event.target.value)}
-              />
-            </Field>
-            <Field label="Last name" error={submitted && !draft.lastName.trim()}>
-              <Input
-                aria-label="Last name"
-                value={draft.lastName}
-                onChange={(event) => updateDraft('lastName', event.target.value)}
-              />
-            </Field>
-            <Field label="Sex" error={submitted && !draft.sex}>
-              <Select value={draft.sex} onValueChange={(value) => updateDraft('sex', value)}>
-                <SelectTrigger aria-label="Sex">
-                  <SelectValue placeholder="Select sex" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="Female">Female</SelectItem>
-                  <SelectItem value="Male">Male</SelectItem>
-                  <SelectItem value="Prefer not to say">Prefer not to say</SelectItem>
-                </SelectContent>
-              </Select>
-            </Field>
-            <Field label="Birth date">
-              <Input
-                aria-label="Birth date"
-                type="date"
-                value={draft.birthDate}
-                onChange={(event) => updateDraft('birthDate', event.target.value)}
-              />
-            </Field>
-            <Field label="Age" error={submitted && !draft.birthDate && !draft.age}>
-              <Input
-                aria-label="Age"
-                min="0"
-                type="number"
-                value={draft.age}
-                onChange={(event) => updateDraft('age', event.target.value)}
-              />
-            </Field>
-            <Field label="Disability status" error={submitted && !draft.disabilityStatus}>
-              <Select
-                value={draft.disabilityStatus}
-                onValueChange={(value) => updateDraft('disabilityStatus', value)}
-              >
-                <SelectTrigger aria-label="Disability status">
-                  <SelectValue placeholder="Select status" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="With disability">With disability</SelectItem>
-                  <SelectItem value="Without disability">Without disability</SelectItem>
-                  <SelectItem value="Not disclosed">Not disclosed</SelectItem>
-                </SelectContent>
-              </Select>
-            </Field>
-            <Field label="Province" error={submitted && !draft.province.trim()}>
-              <Input
-                aria-label="Province"
-                value={draft.province}
-                onChange={(event) => updateDraft('province', event.target.value)}
-              />
-            </Field>
-            <Field label="City or municipality" error={submitted && !draft.city.trim()}>
-              <Input
-                aria-label="City or municipality"
-                value={draft.city}
-                onChange={(event) => updateDraft('city', event.target.value)}
-              />
-            </Field>
-            <Field label="Barangay" error={submitted && !draft.barangay.trim()}>
-              <Input
-                aria-label="Barangay"
-                value={draft.barangay}
-                onChange={(event) => updateDraft('barangay', event.target.value)}
-              />
-            </Field>
-          </div>
-
-          <div className="grid gap-3 rounded-lg border border-border bg-background p-4 md:grid-cols-2">
-            <ToggleField
-              checked={draft.consentToParticipate}
-              label="Beneficiary consent confirmed"
-              onChange={(checked) => updateDraft('consentToParticipate', checked)}
-            />
-            <ToggleField
-              checked={draft.consentToStoreData}
-              label="Data storage consent confirmed"
-              onChange={(checked) => updateDraft('consentToStoreData', checked)}
-            />
-            <ToggleField
-              checked={draft.isMinor}
-              label="Beneficiary is a minor"
-              onChange={(checked) => updateDraft('isMinor', checked)}
-            />
-            <ToggleField
-              checked={draft.guardianConsent}
-              label="Guardian consent confirmed"
-              onChange={(checked) => updateDraft('guardianConsent', checked)}
-            />
-          </div>
-
-          {submitted && errors.length > 0 ? (
-            <div
-              className="rounded-lg border border-danger/20 bg-danger/10 p-4 text-sm text-danger"
-              role="alert"
+      <section className="space-y-5 rounded-lg border border-border bg-card p-5">
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+          <Field label="Project">
+            <Select value={draft.projectId} onValueChange={selectProject}>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {projects.map((p) => (
+                  <SelectItem key={p.id} value={p.id}>
+                    {p.title}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </Field>
+          <Field label="Published registration form">
+            <Select value={draft.formId} onValueChange={(v) => update('formId', v)}>
+              <SelectTrigger>
+                <SelectValue placeholder="Select form" />
+              </SelectTrigger>
+              <SelectContent>
+                {projectForms.map((f) => (
+                  <SelectItem key={f.id} value={f.id}>
+                    {f.name} · v{f.version}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </Field>
+          <Field label="Operation">
+            <Select
+              value={draft.operation}
+              onValueChange={(v) => update('operation', v as Draft['operation'])}
             >
-              {errors[0]}
-            </div>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="CREATE">Create new</SelectItem>
+                {canReviewIdentity ? (
+                  <>
+                    <SelectItem value="LINK">Link exact existing</SelectItem>
+                    <SelectItem value="UPDATE">Explicit profile update</SelectItem>
+                  </>
+                ) : null}
+              </SelectContent>
+            </Select>
+          </Field>
+          <Field label="Subject type">
+            <Select
+              value={draft.subjectType}
+              onValueChange={(v) => update('subjectType', v as Draft['subjectType'])}
+            >
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="INDIVIDUAL">Individual</SelectItem>
+                <SelectItem value="GROUP">Group</SelectItem>
+                <SelectItem value="COMMUNITY">Community</SelectItem>
+              </SelectContent>
+            </Select>
+          </Field>
+          <Field label="Beneficiary code">
+            <Input value={draft.code} onChange={(e) => update('code', e.target.value)} />
+          </Field>
+          <Field label="Display name">
+            <Input
+              value={draft.displayName}
+              onChange={(e) => update('displayName', e.target.value)}
+            />
+          </Field>
+          {individual ? (
+            <>
+              <Field label="First name">
+                <Input
+                  value={draft.firstName}
+                  onChange={(e) => update('firstName', e.target.value)}
+                />
+              </Field>
+              <Field label="Middle name">
+                <Input
+                  value={draft.middleName}
+                  onChange={(e) => update('middleName', e.target.value)}
+                />
+              </Field>
+              <Field label="Last name">
+                <Input
+                  value={draft.lastName}
+                  onChange={(e) => update('lastName', e.target.value)}
+                />
+              </Field>
+              <Field label="Sex">
+                <Select value={draft.sex} onValueChange={(v) => update('sex', v)}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {['FEMALE', 'MALE', 'OTHER', 'PREFER_NOT_TO_SAY', 'NOT_SPECIFIED'].map((v) => (
+                      <SelectItem key={v} value={v}>
+                        {v.replaceAll('_', ' ')}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </Field>
+              <Field label="Birth date">
+                <Input
+                  type="date"
+                  value={draft.birthDate}
+                  onChange={(e) => update('birthDate', e.target.value)}
+                />
+              </Field>
+              <Field label="Age at registration">
+                <Input
+                  type="number"
+                  min="0"
+                  max="130"
+                  value={draft.age}
+                  onChange={(e) => update('age', e.target.value)}
+                />
+              </Field>
+            </>
           ) : null}
-
-          <div className="flex justify-end">
-            <Button onClick={handleSubmit} type="button">
-              <Save className="mr-2 h-4 w-4" aria-hidden="true" />
-              Save beneficiary
-            </Button>
-          </div>
-        </section>
-
-        <aside className="space-y-4 rounded-lg border border-border bg-card p-5 shadow-sm">
-          <h2 className="text-lg font-semibold text-foreground">Draft preview</h2>
-          <div className="space-y-3 text-sm">
-            <PreviewRow label="Code" value={draft.code || 'Pending'} />
-            <PreviewRow
-              label="Name"
-              value={[draft.firstName, draft.middleName, draft.lastName].filter(Boolean).join(' ')}
+          <Field label="Disability status">
+            <Select value={draft.disability} onValueChange={(v) => update('disability', v)}>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {['WITH_DISABILITY', 'WITHOUT_DISABILITY', 'NOT_SPECIFIED'].map((v) => (
+                  <SelectItem key={v} value={v}>
+                    {v.replaceAll('_', ' ')}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </Field>
+          <Field label="Enrollment date">
+            <Input
+              type="date"
+              value={draft.enrollmentDate}
+              onChange={(e) => update('enrollmentDate', e.target.value)}
             />
-            <PreviewRow
-              label="Project"
-              value={projects.find((item) => item.id === draft.projectId)?.title}
+          </Field>
+          <Field label="Province">
+            <Input value={draft.province} onChange={(e) => update('province', e.target.value)} />
+          </Field>
+          <Field label="City or municipality">
+            <Input value={draft.city} onChange={(e) => update('city', e.target.value)} />
+          </Field>
+          <Field label="Barangay">
+            <Input value={draft.barangay} onChange={(e) => update('barangay', e.target.value)} />
+          </Field>
+          <Field label="External identifier namespace">
+            <Input
+              value={draft.externalType}
+              onChange={(e) => update('externalType', e.target.value)}
+              placeholder="e.g. PARTNER_CASE_ID"
             />
-            <PreviewRow
-              label="Location"
-              value={[draft.barangay, draft.city, draft.province].filter(Boolean).join(', ')}
+          </Field>
+          <Field label="External identifier value">
+            <Input
+              value={draft.externalValue}
+              onChange={(e) => update('externalValue', e.target.value)}
             />
-            <PreviewRow
-              label="Consent"
-              value={
-                draft.consentToParticipate && draft.consentToStoreData ? 'Confirmed' : 'Pending'
-              }
-            />
-          </div>
-          <p className="rounded-lg border border-warning/30 bg-warning/10 p-3 text-xs leading-5 text-warning">
-            This is an unsaved draft. Do not enter real or identifiable beneficiary data until the
-            approved storage integration is configured.
+          </Field>
+        </div>
+        <div className="grid gap-3 md:grid-cols-2">
+          <Check
+            label="Participation consent recorded"
+            checked={draft.consent}
+            onChange={(v) => update('consent', v)}
+          />
+          <Check
+            label="Data-processing consent recorded"
+            checked={draft.dataConsent}
+            onChange={(v) => update('dataConsent', v)}
+          />
+          {individual ? (
+            <>
+              <Check
+                label="Record is a minor"
+                checked={draft.isMinor}
+                onChange={(v) => update('isMinor', v)}
+              />
+              <Check
+                label="Guardian consent recorded"
+                checked={draft.guardianConsent}
+                onChange={(v) => update('guardianConsent', v)}
+              />
+            </>
+          ) : null}
+        </div>
+        {!contractReady && draft.formId ? (
+          <p className="rounded-md border border-warning/30 bg-warning/10 p-3 text-sm text-warning">
+            This form is published but does not contain the required registration contract.
           </p>
-        </aside>
-      </div>
-
-      <Dialog open={confirmOpen} onOpenChange={setConfirmOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Submit beneficiary profile</DialogTitle>
-            <DialogDescription>
-              The beneficiary write endpoint is not configured, so this draft cannot be saved.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="rounded-lg border border-border bg-muted/40 p-4 text-sm">
-            <p className="font-medium">{draft.code}</p>
-            <p className="mt-1 text-muted-foreground">
-              {[draft.firstName, draft.middleName, draft.lastName].filter(Boolean).join(' ')}
-            </p>
-          </div>
-          <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => setConfirmOpen(false)}>
-              Cancel
-            </Button>
-            <Button onClick={confirmSave} type="button">
-              Attempt save
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+        ) : null}
+        {error ? (
+          <p
+            role="alert"
+            className="rounded-md border border-danger/30 bg-danger/10 p-3 text-sm text-danger"
+          >
+            {error}
+          </p>
+        ) : null}
+        <div className="flex justify-end">
+          <Button disabled={saving || !contractReady} onClick={() => void save()}>
+            <Save className="mr-2 h-4 w-4" />
+            {saving ? 'Saving...' : 'Save registration'}
+          </Button>
+        </div>
+      </section>
     </div>
   )
 }
 
-const Field = ({
-  label,
-  error = false,
-  children,
-}: {
-  label: string
-  error?: boolean
-  children: React.ReactNode
-}) => (
+const Field = ({ label, children }: { label: string; children: React.ReactNode }) => (
   <div className="space-y-2">
-    <span className="text-sm font-medium text-foreground">{label}</span>
+    <span className="text-sm font-medium">{label}</span>
     {children}
-    {error ? <span className="text-xs text-danger">Required</span> : null}
   </div>
 )
-
-const ToggleField = ({
-  checked,
+const Check = ({
   label,
+  checked,
   onChange,
-}: {
-  checked: boolean
-  label: string
-  onChange: (checked: boolean) => void
-}) => (
-  <Label className="flex items-center gap-3 rounded-md border border-border bg-card p-3 text-sm">
-    <input
-      className="h-4 w-4 rounded border-border"
-      type="checkbox"
-      checked={checked}
-      onChange={(event) => onChange(event.target.checked)}
-    />
+}: { label: string; checked: boolean; onChange: (value: boolean) => void }) => (
+  <Label className="flex items-center gap-3 rounded-md border border-border p-3">
+    <input type="checkbox" checked={checked} onChange={(event) => onChange(event.target.checked)} />
     {label}
   </Label>
-)
-
-const PreviewRow = ({ label, value }: { label: string; value?: string }) => (
-  <div className="rounded-md border border-border bg-background p-3">
-    <p className="text-xs uppercase text-muted-foreground">{label}</p>
-    <p className="mt-1 font-medium text-foreground">{value || 'Pending'}</p>
-  </div>
 )

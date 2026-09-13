@@ -6,7 +6,7 @@ import {
 } from '@nestjs/common'
 import { createClient } from '@supabase/supabase-js'
 
-import { DEVELOPER_SUPABASE_URL, UUID_PATTERN, type VerifiedAuthIdentity } from './developer-access'
+import { UUID_PATTERN, type VerifiedAuthIdentity } from './developer-access'
 import { SessionLivenessService } from './session-liveness.service'
 
 @Injectable()
@@ -21,14 +21,21 @@ export class TokenAuthService {
       process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY ||
       process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ||
       process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-    if (url !== DEVELOPER_SUPABASE_URL || !key) {
-      throw new ServiceUnavailableException(
-        'Approved development authentication is not configured.',
-      )
+    let authOrigin: string
+    try {
+      const configured = new URL(url ?? '')
+      if (configured.protocol !== 'https:' || configured.username || configured.password)
+        throw new Error()
+      authOrigin = configured.origin
+    } catch {
+      throw new ServiceUnavailableException('Authentication is not configured.')
+    }
+    if (!key) {
+      throw new ServiceUnavailableException('Authentication is not configured.')
     }
     let verified: { identity: VerifiedAuthIdentity; sessionId: string }
     try {
-      const supabase = createClient(url, key, {
+      const supabase = createClient(authOrigin, key, {
         auth: { autoRefreshToken: false, persistSession: false, detectSessionInUrl: false },
         global: {
           // Bounded Auth reads only; never redirect bearer credentials.
@@ -65,7 +72,7 @@ export class TokenAuthService {
             method.timestamp <= now + 30,
         )
       if (
-        claims.iss !== `${DEVELOPER_SUPABASE_URL}/auth/v1` ||
+        claims.iss !== `${authOrigin}/auth/v1` ||
         claims.aud !== 'authenticated' ||
         claims.role !== 'authenticated' ||
         typeof claims.sub !== 'string' ||

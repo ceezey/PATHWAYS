@@ -10,7 +10,7 @@ export const activityFormSchema = z
     budgetAllocation: z.coerce.number().min(1, 'Enter an activity budget.'),
     assignedOfficers: z.string().min(2, 'Enter at least one assigned officer.'),
     connectedIndicators: z.string().min(2, 'Enter at least one indicator code or ID.'),
-    journeyStageId: z.string().min(2, 'Enter a journey-stage placeholder.'),
+    journeyStageId: z.string().min(2, 'Enter a journey-stage reference.'),
     status: z
       .enum(['Planned', 'In Progress', 'For Review', 'Overdue', 'Completed'])
       .default('Planned'),

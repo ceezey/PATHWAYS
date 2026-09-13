@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
-import { type ApplicationProfile, developerAuthUserId } from './auth-access'
+import type { ApplicationProfile } from './auth-access'
+import { testAuthUserId } from './auth-access.test-fixtures'
 import {
   decodeWorkspaceContext,
   encodeWorkspaceContext,
@@ -8,7 +9,7 @@ import {
 } from './workspace-access'
 
 const profile: ApplicationProfile = {
-  id: developerAuthUserId,
+  id: testAuthUserId,
   aal: 'aal2',
   userId: '40000000-0000-4000-8000-000000000004',
   organizationId: '30000000-0000-4000-8000-000000000003',

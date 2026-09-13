@@ -1,13 +1,8 @@
 import type { PathwaysRole } from '@/types/pathways-role'
-import {
-  type ProjectAssignableRole,
-  fallbackAccessProfile,
-  roleAccessProfiles,
-} from './access-matrix'
+import { type ProjectAssignableRole, roleAccessProfiles } from './access-matrix'
 import type { PermissionCode } from './permissions'
 
-export const getAccessProfile = (role: PathwaysRole) =>
-  roleAccessProfiles[role] ?? fallbackAccessProfile
+export const getAccessProfile = (role: PathwaysRole) => roleAccessProfiles[role]
 
 export const can = (role: PathwaysRole, permission: PermissionCode) =>
   getAccessProfile(role).permissions.includes(permission)

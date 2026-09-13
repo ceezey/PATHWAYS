@@ -116,7 +116,7 @@ export class RouteAccessService {
           stage = 'TRANSACTION_COMPLETION'
           return {
             route: selected.route,
-            presentation: 'prototype-only',
+            authorization: 'database-verified',
             beneficiaryAccess: isAggregateOnly(profile) ? 'aggregate-only' : 'records-or-none',
           }
         },

@@ -139,7 +139,7 @@ export function RouteAccessGuard({
   return (
     <>
       <aside role="note" className="mb-6 rounded-lg border border-border bg-muted p-4">
-        <strong>Prototype-only · Backend pending</strong>
+        <strong>Feature unavailable</strong>
         <p>
           These development screens do not enable business-data persistence. Available data and
           actions remain subject to server authorization.

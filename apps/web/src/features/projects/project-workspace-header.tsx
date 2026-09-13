@@ -1,10 +1,9 @@
 'use client'
 
-import { CalendarDays, Target, UsersRound } from 'lucide-react'
+import { CalendarDays } from 'lucide-react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 
-import { ProgressBar } from '@/components/pathways/progress-bar'
 import { StatusBadge } from '@/components/pathways/status-badge'
 import { Button } from '@/components/ui/button'
 import type { DisplayLabels } from '@/constants/display-labels'
@@ -13,7 +12,7 @@ import { useDisplayLabels } from '@/hooks/use-display-labels'
 import { type WorkspaceTabAccess, filterWorkspaceTabs } from '@/lib/rbac/route-access'
 import type { ProjectDetail } from '@/types/pathways'
 
-import { formatNumber, projectHealthTone, projectStatusTone } from './project-utils'
+import { projectStatusTone } from './project-utils'
 
 const createWorkspaceTabs = (labels: DisplayLabels): WorkspaceTabAccess[] => [
   { label: labels.projectActivities, path: 'activities', permission: 'activities.view' },
@@ -54,10 +53,6 @@ export const ProjectWorkspaceHeader = ({ project }: { project: ProjectDetail }) 
     role && profile
       ? filterWorkspaceTabs(createWorkspaceTabs(labels), role, profile, project.id)
       : []
-  const beneficiaryProgress =
-    project.targetBeneficiaries > 0
-      ? Math.round((project.beneficiariesReached / project.targetBeneficiaries) * 100)
-      : 0
 
   return (
     <section className="rounded-lg border border-border bg-card p-4 shadow-sm sm:p-5">
@@ -65,7 +60,6 @@ export const ProjectWorkspaceHeader = ({ project }: { project: ProjectDetail }) 
         <div className="min-w-0 space-y-3">
           <div className="flex flex-wrap gap-2">
             <StatusBadge tone={projectStatusTone(project.status)}>{project.status}</StatusBadge>
-            <StatusBadge tone={projectHealthTone(project.health)}>{project.health}</StatusBadge>
           </div>
           <div>
             <h1 className="text-2xl font-semibold tracking-tight text-foreground sm:text-3xl">
@@ -76,28 +70,13 @@ export const ProjectWorkspaceHeader = ({ project }: { project: ProjectDetail }) 
             </p>
           </div>
         </div>
-        <div className="grid grid-cols-2 gap-3 text-sm sm:grid-cols-3 lg:min-w-[520px]">
-          <div className="col-span-2 rounded-lg border border-border bg-background p-3 sm:col-span-1">
+        <div className="text-sm lg:min-w-[260px]">
+          <div className="rounded-lg border border-border bg-background p-3">
             <CalendarDays className="mb-2 h-4 w-4 text-primary" aria-hidden="true" />
             <p className="text-muted-foreground">Project period</p>
             <p className="mt-1 font-medium text-foreground">{project.period}</p>
           </div>
-          <div className="rounded-lg border border-border bg-background p-3">
-            <UsersRound className="mb-2 h-4 w-4 text-primary" aria-hidden="true" />
-            <p className="text-muted-foreground">Target beneficiaries</p>
-            <p className="mt-1 font-medium text-foreground">
-              {formatNumber(project.targetBeneficiaries)}
-            </p>
-          </div>
-          <div className="rounded-lg border border-border bg-background p-3">
-            <Target className="mb-2 h-4 w-4 text-primary" aria-hidden="true" />
-            <p className="text-muted-foreground">Overall progress</p>
-            <p className="mt-1 font-medium text-foreground">{project.timelineProgress}%</p>
-          </div>
         </div>
-      </div>
-      <div className="mt-5">
-        <ProgressBar label="Beneficiary reach" tone="success" value={beneficiaryProgress} />
       </div>
       <nav className="mt-5 flex gap-2 overflow-x-auto pb-1" aria-label={labels.projectWorkspace}>
         {visibleTabs.map((tab) => {

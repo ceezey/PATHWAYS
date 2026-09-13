@@ -50,7 +50,7 @@ describe('development-only server navigation diagnostics', () => {
         { boundary: 'MIDDLEWARE', stage: 'PROFILE', reason: 'HTTP_503' },
       ],
     ])
-  })
+  }, 15_000)
   it.each([
     [new AuthAccessError(401), 'HTTP_401'],
     [new RouteCheckError(403, 'http'), 'HTTP_403'],

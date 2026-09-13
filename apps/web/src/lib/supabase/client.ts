@@ -1,17 +1,17 @@
 import { createBrowserClient } from '@supabase/ssr'
 import type { SupabaseClient } from '@supabase/supabase-js'
 
-import { developerSupabaseUrl } from '@/features/auth/auth-access'
 import { webEnv, webSupabasePublishableKey } from '@/lib/env'
 
 let browserClient: SupabaseClient | null | undefined
 
 export const getBrowserSupabaseClient = (): SupabaseClient | null => {
+  const configuredSupabaseUrl = (webEnv.NEXT_PUBLIC_SUPABASE_URL ?? '').replace(/\/$/, '')
   if (browserClient !== undefined) {
     return browserClient
   }
 
-  if (webEnv.NEXT_PUBLIC_SUPABASE_URL !== developerSupabaseUrl || !webSupabasePublishableKey) {
+  if (!configuredSupabaseUrl || !webSupabasePublishableKey) {
     browserClient = null
     return browserClient
   }

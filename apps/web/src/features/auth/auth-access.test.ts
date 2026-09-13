@@ -3,7 +3,6 @@ import { describe, expect, it, vi } from 'vitest'
 import {
   AuthAccessError,
   applicationContextSchema,
-  developerAuthUserId,
   getLocalAuthEndpoint,
   getProfileRole,
   hasCurrentProfile,
@@ -11,9 +10,11 @@ import {
   parseMfaStatus,
   requestAuthJson,
 } from './auth-access'
+import { testAuthUserId } from './auth-access.test-fixtures'
+const developerAuthUserId = testAuthUserId
 
 const profile = {
-  id: developerAuthUserId,
+  id: testAuthUserId,
   userId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
   organizationId: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
   fullName: 'Test Developer',
@@ -23,8 +24,8 @@ const profile = {
   aal: 'aal2',
 }
 
-describe('database-authoritative developer access', () => {
-  it('accepts only the designated server-verified aal2 application profile', () => {
+describe('database-authoritative application access', () => {
+  it('accepts a server-verified aal2 application profile', () => {
     const parsed = parseApplicationProfile({ user: profile })
     expect(getProfileRole(parsed)).toBe('System Administrator')
     expect(parsed.permissions).toEqual(['test.read'])
@@ -32,7 +33,6 @@ describe('database-authoritative developer access', () => {
 
   it.each([
     { aal: 'aal1' },
-    { id: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc' },
     { roles: ['admin'] },
     { roles: ['UNKNOWN_ROLE'] },
     { roles: [] },
@@ -57,7 +57,7 @@ describe('database-authoritative developer access', () => {
     ).toThrow()
   })
 
-  it('rejects another identity and disabled enrollment status', () => {
+  it('accepts any UUID identity while preserving the enrollment contract', () => {
     const status = {
       authUserId: developerAuthUserId,
       aal: 'aal1',
@@ -65,7 +65,9 @@ describe('database-authoritative developer access', () => {
       applicationAccessEnabled: false,
     }
     expect(parseMfaStatus(status).applicationAccessEnabled).toBe(false)
-    expect(() => parseMfaStatus({ ...status, authUserId: profile.userId })).toThrow()
+    expect(parseMfaStatus({ ...status, authUserId: profile.userId }).authUserId).toBe(
+      profile.userId,
+    )
     expect(() => parseMfaStatus({ ...status, enrollmentAllowed: false })).toThrow()
   })
 

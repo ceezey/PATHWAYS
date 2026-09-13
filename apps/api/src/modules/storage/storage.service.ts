@@ -33,6 +33,37 @@ export class StorageService {
     return data
   }
 
+  async uploadPrivateFile(
+    bucket: string,
+    path: string,
+    body: Buffer | Uint8Array,
+    contentType: string,
+  ) {
+    const client = this.getClient()
+    const { data: bucketInfo, error: bucketError } = await client.storage.getBucket(bucket)
+    if (bucketError || !bucketInfo || bucketInfo.public) {
+      throw new Error('The configured upload bucket is unavailable or not private.')
+    }
+    const { data, error } = await client.storage.from(bucket).upload(path, body, {
+      contentType,
+      upsert: false,
+      cacheControl: 'no-store',
+    })
+    if (error) throw error
+    return data
+  }
+
+  async downloadPrivateFile(bucket: string, path: string) {
+    const client = this.getClient()
+    const { data: bucketInfo, error: bucketError } = await client.storage.getBucket(bucket)
+    if (bucketError || !bucketInfo || bucketInfo.public) {
+      throw new Error('The configured upload bucket is unavailable or not private.')
+    }
+    const { data, error } = await client.storage.from(bucket).download(path)
+    if (error) throw error
+    return Buffer.from(await data.arrayBuffer())
+  }
+
   async deleteFile(bucket: string, path: string) {
     const client = this.getClient()
     const { error } = await client.storage.from(bucket).remove([path])

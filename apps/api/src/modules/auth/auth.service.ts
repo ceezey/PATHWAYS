@@ -1,5 +1,4 @@
 import { Injectable } from '@nestjs/common'
-import { developerApplicationAccessEnabled } from './developer-access'
 
 @Injectable()
 export class AuthService {
@@ -9,7 +8,7 @@ export class AuthService {
       jwtVerificationEnabled: true,
       mfaRequired: true,
       authorizationSource: 'pathways-database',
-      developerWorkspaceEnabled: developerApplicationAccessEnabled(),
+      workspaceAccessEnabled: true,
       businessWritesEnabled: false,
     }
   }

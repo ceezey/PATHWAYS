@@ -3,16 +3,16 @@
 import { zodResolver } from '@hookform/resolvers/zod'
 import { ArrowLeft, Loader2, Save } from 'lucide-react'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { useForm } from 'react-hook-form'
 import { toast } from 'sonner'
 
 import { PageHeader } from '@/components/layout/page-header'
-import { SectionCard, StatusBadge } from '@/components/pathways'
+import { SectionCard } from '@/components/pathways'
 import { Button } from '@/components/ui/button'
 import {
   Form,
   FormControl,
-  FormDescription,
   FormField,
   FormItem,
   FormLabel,
@@ -28,42 +28,35 @@ import {
 } from '@/components/ui/select'
 import { pathwaysClient } from '@/lib/services/pathways-client'
 import type { ProjectStatus } from '@/types/pathways'
-
 import { type ProjectSetupSchema, projectSetupSchema } from './project-form-validation'
 
 const projectStatuses: ProjectStatus[] = ['Active', 'Needs Attention', 'Planned', 'Completed']
 
 export const ProjectSetupForm = () => {
+  const router = useRouter()
   const form = useForm<ProjectSetupSchema>({
     resolver: zodResolver(projectSetupSchema),
     defaultValues: {
+      code: '',
       title: '',
-      sector: '',
-      area: '',
+      implementationArea: '',
       startDate: '',
       endDate: '',
       status: 'Planned',
-      budgetCode: '',
       description: '',
-      programManager: '',
-      projectManager: '',
-      monitoringOfficer: '',
-      projectOfficers: '',
+      objectives: '',
     },
   })
 
   const onSubmit = async (values: ProjectSetupSchema) => {
     try {
-      await pathwaysClient.createProject({
-        ...values,
-        projectOfficers: values.projectOfficers
-          .split(',')
-          .map((officer) => officer.trim())
-          .filter(Boolean),
-      })
+      const project = await pathwaysClient.createProject(values)
+      toast.success('Project saved.', { description: 'The project profile is now persisted.' })
+      router.push(`/projects/${project.id}`)
+      router.refresh()
     } catch {
-      toast.error('Project creation is not configured.', {
-        description: 'Your entries remain in the form. Connect the Projects backend to save them.',
+      toast.error('Project could not be saved.', {
+        description: 'Your entries remain available. Reload your access and try again.',
       })
     }
   }
@@ -73,7 +66,7 @@ export const ProjectSetupForm = () => {
       <PageHeader
         eyebrow="Project setup"
         title="Create project"
-        description="Enter the project details that will be saved once the Projects backend is connected."
+        description="Create a private project profile inside your authorized organization."
         actions={
           <Button asChild className="gap-2" variant="outline">
             <Link href="/projects">
@@ -85,89 +78,28 @@ export const ProjectSetupForm = () => {
       />
       <SectionCard
         title="Project information"
-        description="Required fields are validated before the project can be submitted."
-        actions={<StatusBadge tone="info">Backend pending</StatusBadge>}
+        description="Required fields are validated by both the browser and API."
       >
         <Form {...form}>
           <form className="space-y-6" onSubmit={form.handleSubmit(onSubmit)}>
             <div className="grid gap-5 lg:grid-cols-2">
-              <FormField
+              <TextField
+                control={form.control}
+                name="code"
+                label="Project code"
+                placeholder="PRJ-2026-001"
+              />
+              <TextField
                 control={form.control}
                 name="title"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Project title</FormLabel>
-                    <FormControl>
-                      <Input placeholder="Community Resilience Project" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
+                label="Project title"
+                placeholder="Community Resilience Project"
               />
-              <FormField
+              <TextField
                 control={form.control}
-                name="sector"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Sector</FormLabel>
-                    <FormControl>
-                      <Input placeholder="Education and Skills" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="area"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Implementation area</FormLabel>
-                    <FormControl>
-                      <Input placeholder="Metro Manila" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="budgetCode"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Budget code</FormLabel>
-                    <FormControl>
-                      <Input placeholder="PRJ-2026-001" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="startDate"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Start date</FormLabel>
-                    <FormControl>
-                      <Input type="date" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="endDate"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>End date</FormLabel>
-                    <FormControl>
-                      <Input type="date" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
+                name="implementationArea"
+                label="Implementation area"
+                placeholder="Metro Manila"
               />
               <FormField
                 control={form.control}
@@ -193,101 +125,67 @@ export const ProjectSetupForm = () => {
                   </FormItem>
                 )}
               />
-              <FormField
-                control={form.control}
-                name="description"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Description</FormLabel>
-                    <FormControl>
-                      <Input
-                        placeholder="Short project purpose and implementation scope"
-                        {...field}
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
+              <TextField control={form.control} name="startDate" label="Start date" type="date" />
+              <TextField control={form.control} name="endDate" label="End date" type="date" />
             </div>
-            <div className="space-y-4 rounded-lg border border-border bg-background p-4">
-              <div>
-                <h2 className="text-lg font-semibold text-foreground">Project team</h2>
-                <p className="mt-1 text-sm text-muted-foreground">
-                  Assignments will be validated against real staff accounts by the backend.
-                </p>
-              </div>
-              <div className="grid gap-5 lg:grid-cols-2">
-                <FormField
-                  control={form.control}
-                  name="programManager"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Program Manager</FormLabel>
-                      <FormControl>
-                        <Input {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="projectManager"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Project Manager</FormLabel>
-                      <FormControl>
-                        <Input {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="monitoringOfficer"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Monitoring and Evaluation Officer</FormLabel>
-                      <FormControl>
-                        <Input {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="projectOfficers"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Project Officers</FormLabel>
-                      <FormControl>
-                        <Input placeholder="Enter staff names separated by commas" {...field} />
-                      </FormControl>
-                      <FormDescription>
-                        Separate multiple Project Officers with commas.
-                      </FormDescription>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              </div>
-            </div>
-            <div className="flex justify-end">
+            <TextField
+              control={form.control}
+              name="description"
+              label="Description"
+              placeholder="Describe the project scope and intended participants."
+            />
+            <TextField
+              control={form.control}
+              name="objectives"
+              label="Objectives"
+              placeholder="Describe the project objectives."
+            />
+            <div className="flex justify-end gap-3">
+              <Button asChild variant="outline">
+                <Link href="/projects">Cancel</Link>
+              </Button>
               <Button className="gap-2" disabled={form.formState.isSubmitting} type="submit">
                 {form.formState.isSubmitting ? (
                   <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
                 ) : (
                   <Save className="h-4 w-4" aria-hidden="true" />
                 )}
-                {form.formState.isSubmitting ? 'Creating...' : 'Create Project'}
+                Save project
               </Button>
             </div>
           </form>
         </Form>
       </SectionCard>
     </>
+  )
+}
+
+function TextField({
+  control,
+  name,
+  label,
+  placeholder,
+  type = 'text',
+}: {
+  control: ReturnType<typeof useForm<ProjectSetupSchema>>['control']
+  name: keyof ProjectSetupSchema
+  label: string
+  placeholder?: string
+  type?: string
+}) {
+  return (
+    <FormField
+      control={control}
+      name={name}
+      render={({ field }) => (
+        <FormItem>
+          <FormLabel>{label}</FormLabel>
+          <FormControl>
+            <Input {...field} placeholder={placeholder} type={type} />
+          </FormControl>
+          <FormMessage />
+        </FormItem>
+      )}
+    />
   )
 }

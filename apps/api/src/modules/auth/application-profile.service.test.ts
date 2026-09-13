@@ -89,6 +89,20 @@ describe('ApplicationProfileService', () => {
     })
   })
 
+  it.each(['SUSPENDED', 'DEACTIVATED', 'ARCHIVED'] as const)(
+    'denies a linked %s account instead of reusing prior authority',
+    async (accountStatus) => {
+      const { service, transaction, profile } = setup()
+      transaction.systemUser.findFirst.mockImplementation(({ where }) =>
+        where.accountStatus === accountStatus ? profile : null,
+      )
+      await expect(service.resolve(subject, organizationId, userId)).rejects.toThrow(
+        'Application access is unavailable for this identity and context.',
+      )
+      expect(transaction.userProjectAssignment.findMany).not.toHaveBeenCalled()
+    },
+  )
+
   it('requires active, started, unended assignments to unarchived same-organization projects', async () => {
     vi.useFakeTimers()
     const now = new Date('2026-09-05T12:00:00.000Z')

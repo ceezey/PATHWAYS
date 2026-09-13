@@ -72,6 +72,8 @@ model Organization {
   formSubmission_organization FormSubmission[] @relation("FormSubmission_organization")
   formResponseValue_organization FormResponseValue[] @relation("FormResponseValue_organization")
   beneficiary_organization Beneficiary[] @relation("Beneficiary_organization")
+  beneficiaryIdentifier_organization BeneficiaryIdentifier[] @relation("BeneficiaryIdentifier_organization")
+  beneficiaryConsentRecord_organization BeneficiaryConsentRecord[] @relation("BeneficiaryConsentRecord_organization")
   beneficiaryProjectEnrollment_organization BeneficiaryProjectEnrollment[] @relation("BeneficiaryProjectEnrollment_organization")
   journeyStage_organization JourneyStage[] @relation("JourneyStage_organization")
   activityJourneyStageMapping_organization ActivityJourneyStageMapping[] @relation("ActivityJourneyStageMapping_organization")
@@ -186,10 +188,13 @@ model SystemUser {
   digitalForm_createdBy DigitalForm[] @relation("DigitalForm_createdBy")
   digitalForm_publishedBy DigitalForm[] @relation("DigitalForm_publishedBy")
   dataImportBatch_uploadedBy DataImportBatch[] @relation("DataImportBatch_uploadedBy")
+  dataImportBatch_reviewedBy DataImportBatch[] @relation("DataImportBatch_reviewedBy")
   dataImportRow_validatedBy DataImportRow[] @relation("DataImportRow_validatedBy")
   formSubmission_submittedBy FormSubmission[] @relation("FormSubmission_submittedBy")
   formSubmission_validatedBy FormSubmission[] @relation("FormSubmission_validatedBy")
   beneficiary_createdBy Beneficiary[] @relation("Beneficiary_createdBy")
+  beneficiaryIdentifier_createdBy BeneficiaryIdentifier[] @relation("BeneficiaryIdentifier_createdBy")
+  beneficiaryConsentRecord_recordedBy BeneficiaryConsentRecord[] @relation("BeneficiaryConsentRecord_recordedBy")
   beneficiaryProjectEnrollment_recordedBy BeneficiaryProjectEnrollment[] @relation("BeneficiaryProjectEnrollment_recordedBy")
   journeyStage_createdBy JourneyStage[] @relation("JourneyStage_createdBy")
   activityJourneyStageMapping_createdBy ActivityJourneyStageMapping[] @relation("ActivityJourneyStageMapping_createdBy")
@@ -391,10 +396,14 @@ enum ImportFileType {
 }
 
 enum ImportStatus {
+  UPLOADING
   UPLOADED
   MAPPED
   VALIDATED
+  PROCESSING
+  PARTIALLY_PROCESSED
   PROCESSED
+  RECOVERY_REQUIRED
   FAILED
 
   @@map("import_status")
@@ -405,9 +414,22 @@ enum ImportRowStatus {
   PENDING
   VALID
   INVALID
+  PROCESSING
+  UNPROCESSED
   PROCESSED
+  FAILED
 
   @@map("import_row_status")
+  @@schema("pathways")
+}
+
+enum ImportStorageStatus {
+  RESERVED
+  STORED
+  RECOVERY_REQUIRED
+  FAILED
+
+  @@map("import_storage_status")
   @@schema("pathways")
 }
 
@@ -447,6 +469,33 @@ enum BeneficiarySex {
   NOT_SPECIFIED
 
   @@map("beneficiary_sex")
+  @@schema("pathways")
+}
+
+enum BeneficiarySubjectType {
+  INDIVIDUAL
+  GROUP
+  COMMUNITY
+  UNSPECIFIED_LEGACY
+
+  @@map("beneficiary_subject_type")
+  @@schema("pathways")
+}
+
+enum BeneficiaryConsentKind {
+  PARTICIPATION
+  DATA_PROCESSING
+  GUARDIAN
+
+  @@map("beneficiary_consent_kind")
+  @@schema("pathways")
+}
+
+enum BeneficiaryRecordSource {
+  DIRECT_ENTRY
+  IMPORTED_DATASET
+
+  @@map("beneficiary_record_source")
   @@schema("pathways")
 }
 
@@ -601,6 +650,7 @@ model Project {
   metadataMapping_project MetadataMapping[] @relation("MetadataMapping_project")
   formSubmission_project FormSubmission[] @relation("FormSubmission_project")
   formResponseValue_project FormResponseValue[] @relation("FormResponseValue_project")
+  beneficiaryConsentRecord_project BeneficiaryConsentRecord[] @relation("BeneficiaryConsentRecord_project")
   beneficiaryProjectEnrollment_project BeneficiaryProjectEnrollment[] @relation("BeneficiaryProjectEnrollment_project")
   journeyStage_project JourneyStage[] @relation("JourneyStage_project")
   activityJourneyStageMapping_project ActivityJourneyStageMapping[] @relation("ActivityJourneyStageMapping_project")
@@ -809,6 +859,7 @@ model DigitalForm {
   formResponseValue_form FormResponseValue[] @relation("FormResponseValue_form")
 
   @@unique([organizationId, projectId, id], map: "digital_forms_scope_key")
+  @@unique([organizationId, projectId, id, version], map: "digital_forms_version_scope_key")
   @@unique([organizationId, projectId, code, version], map: "digital_forms_project_version_key")
   @@index([organizationId, projectId, status], map: "digital_forms_project_status_idx")
   @@index([organizationId, createdById], map: "digital_forms_created_by_idx")
@@ -833,6 +884,10 @@ model FormField {
   allowedValues Json? @map("allowed_values")
   minimumValue Decimal? @map("minimum_value") @db.Decimal(18, 4)
   maximumValue Decimal? @map("maximum_value") @db.Decimal(18, 4)
+  minimumDate DateTime? @map("minimum_date") @db.Date
+  maximumDate DateTime? @map("maximum_date") @db.Date
+  minimumLength Int? @map("minimum_length")
+  maximumLength Int? @map("maximum_length")
   sequenceNo Int @map("sequence_no")
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
@@ -856,11 +911,33 @@ model DataImportBatch {
   organizationId String @map("organization_id") @db.Uuid
   projectId String @map("project_id") @db.Uuid
   formId String @map("form_id") @db.Uuid
+  formVersion Int @map("form_version")
   sourceSystem ImportSource @map("source_system") @default(SPREADSHEET)
   originalFileName String @map("original_file_name")
   fileType ImportFileType @map("file_type") @default(CSV)
+  sourceChecksum String @map("source_checksum") @db.Char(64)
+  clientImportId String @map("client_import_id") @db.Uuid
+  storageBucket String @map("storage_bucket")
+  storageObjectKey String @map("storage_object_key")
+  storageStatus ImportStorageStatus @map("storage_status") @default(RESERVED)
+  sourceHeaders Json @map("source_headers") @default("[]")
   uploadedById String @map("uploaded_by_id") @db.Uuid
-  status ImportStatus  @default(UPLOADED)
+  reviewedById String? @map("reviewed_by_id") @db.Uuid
+  status ImportStatus  @default(UPLOADING)
+  mappingRevision Int @map("mapping_revision") @default(0)
+  validationRevision Int @map("validation_revision") @default(0)
+  validatedMappingRevision Int? @map("validated_mapping_revision")
+  processingRevision Int @map("processing_revision") @default(0)
+  processingClaimId String? @map("processing_claim_id") @db.Uuid
+  processingClaimedAt DateTime? @map("processing_claimed_at") @db.Timestamptz(3)
+  processingAttempts Int @map("processing_attempts") @default(0)
+  totalRows Int @map("total_rows") @default(0)
+  validRows Int @map("valid_rows") @default(0)
+  invalidRows Int @map("invalid_rows") @default(0)
+  processedRows Int @map("processed_rows") @default(0)
+  unprocessedRows Int @map("unprocessed_rows") @default(0)
+  failedRows Int @map("failed_rows") @default(0)
+  failureCode String? @map("failure_code")
   validationNotes String? @map("validation_notes")
   uploadedAt DateTime @map("uploaded_at") @default(now()) @db.Timestamptz(3)
   validatedAt DateTime? @map("validated_at")  @db.Timestamptz(3)
@@ -870,15 +947,21 @@ model DataImportBatch {
   organization Organization @relation("DataImportBatch_organization", fields: [organizationId], references: [id], onDelete: Restrict, onUpdate: Restrict, map: "data_import_batches_organization_fk")
   project Project @relation("DataImportBatch_project", fields: [organizationId, projectId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict, map: "data_import_batches_project_fk")
   uploadedBy SystemUser @relation("DataImportBatch_uploadedBy", fields: [organizationId, uploadedById], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict, map: "data_import_batches_uploaded_by_fk")
-  form DigitalForm @relation("DataImportBatch_form", fields: [organizationId, projectId, formId], references: [organizationId, projectId, id], onDelete: Restrict, onUpdate: Restrict, map: "data_import_batches_form_fk")
+  reviewedBy SystemUser? @relation("DataImportBatch_reviewedBy", fields: [organizationId, reviewedById], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict, map: "data_import_batches_reviewed_by_fk")
+  form DigitalForm @relation("DataImportBatch_form", fields: [organizationId, projectId, formId, formVersion], references: [organizationId, projectId, id, version], onDelete: Restrict, onUpdate: Restrict, map: "data_import_batches_form_fk")
   dataImportRow_importBatch DataImportRow[] @relation("DataImportRow_importBatch")
   metadataMapping_importBatch MetadataMapping[] @relation("MetadataMapping_importBatch")
   formSubmission_importBatch FormSubmission[] @relation("FormSubmission_importBatch")
 
   @@unique([organizationId, projectId, id], map: "data_import_batches_scope_key")
   @@unique([organizationId, projectId, formId, id], map: "data_import_batches_form_scope_key")
+  @@unique([organizationId, uploadedById, clientImportId], map: "data_import_batches_client_key")
+  @@unique([storageBucket, storageObjectKey], map: "data_import_batches_storage_object_key")
   @@index([organizationId, projectId, status], map: "data_import_batches_project_status_idx")
+  @@index([organizationId, projectId, createdAt(sort: Desc), id], map: "data_import_batches_project_created_idx")
+  @@index([organizationId, projectId, formId, formVersion], map: "data_import_batches_form_version_idx")
   @@index([organizationId, uploadedById], map: "data_import_batches_uploaded_by_idx")
+  @@index([organizationId, reviewedById], map: "data_import_batches_reviewed_by_idx")
   @@map("data_import_batches")
   @@schema("pathways")
 }
@@ -890,9 +973,17 @@ model DataImportRow {
   formId String @map("form_id") @db.Uuid
   importBatchId String @map("import_batch_id") @db.Uuid
   rowNumber Int @map("row_number")
+  sourceChecksum String @map("source_checksum") @db.Char(64)
   rawData Json @map("raw_data")
+  normalizedData Json? @map("normalized_data")
   status ImportRowStatus  @default(PENDING)
   validationErrors Json @map("validation_errors") @default("[]")
+  mappingRevision Int @map("mapping_revision") @default(0)
+  validationRevision Int @map("validation_revision") @default(0)
+  processingClaimId String? @map("processing_claim_id") @db.Uuid
+  processingClaimedAt DateTime? @map("processing_claimed_at") @db.Timestamptz(3)
+  processingAttempts Int @map("processing_attempts") @default(0)
+  processingErrorCode String? @map("processing_error_code")
   validatedById String? @map("validated_by_id") @db.Uuid
   validatedAt DateTime? @map("validated_at")  @db.Timestamptz(3)
   processedAt DateTime? @map("processed_at")  @db.Timestamptz(3)
@@ -920,6 +1011,7 @@ model MetadataMapping {
   projectId String @map("project_id") @db.Uuid
   formId String @map("form_id") @db.Uuid
   importBatchId String @map("import_batch_id") @db.Uuid
+  revision Int @default(0)
   sourceFieldName String @map("source_field_name")
   targetFieldId String? @map("target_field_id") @db.Uuid
   targetSystemField String? @map("target_system_field")
@@ -934,7 +1026,7 @@ model MetadataMapping {
   targetField FormField? @relation("MetadataMapping_targetField", fields: [organizationId, projectId, formId, targetFieldId], references: [organizationId, projectId, formId, id], onDelete: Restrict, onUpdate: Restrict, map: "metadata_mappings_target_field_fk")
 
   @@unique([organizationId, projectId, id], map: "metadata_mappings_scope_key")
-  @@unique([importBatchId, sourceFieldName], map: "metadata_mappings_batch_source_key")
+  @@unique([importBatchId, revision, sourceFieldName], map: "metadata_mappings_batch_revision_source_key")
   @@index([organizationId, projectId, formId], map: "metadata_mappings_form_idx")
   @@index([organizationId, projectId, formId, importBatchId], map: "metadata_mappings_import_batch_idx")
   @@index([organizationId, projectId, formId, targetFieldId], map: "metadata_mappings_target_field_idx")
@@ -949,6 +1041,8 @@ model FormSubmission {
   organizationId String @map("organization_id") @db.Uuid
   projectId String @map("project_id") @db.Uuid
   formId String @map("form_id") @db.Uuid
+  formVersion Int @map("form_version")
+  clientSubmissionId String @map("client_submission_id") @db.Uuid
   importBatchId String? @map("import_batch_id") @db.Uuid
   importRowId String? @map("import_row_id") @db.Uuid
   enrollmentId String? @map("enrollment_id") @db.Uuid
@@ -956,7 +1050,7 @@ model FormSubmission {
   source SubmissionSource  @default(DIRECT_ENCODING)
   status SubmissionStatus  @default(DRAFT)
   isDummyRecord Boolean @map("is_dummy_record") @default(false)
-  submittedAt DateTime @map("submitted_at") @default(now()) @db.Timestamptz(3)
+  submittedAt DateTime? @map("submitted_at") @db.Timestamptz(3)
   validatedById String? @map("validated_by_id") @db.Uuid
   validatedAt DateTime? @map("validated_at")  @db.Timestamptz(3)
   processedAt DateTime? @map("processed_at")  @db.Timestamptz(3)
@@ -967,14 +1061,16 @@ model FormSubmission {
   project Project @relation("FormSubmission_project", fields: [organizationId, projectId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict, map: "form_submissions_project_fk")
   submittedBy SystemUser @relation("FormSubmission_submittedBy", fields: [organizationId, submittedById], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict, map: "form_submissions_submitted_by_fk")
   validatedBy SystemUser? @relation("FormSubmission_validatedBy", fields: [organizationId, validatedById], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict, map: "form_submissions_validated_by_fk")
-  form DigitalForm @relation("FormSubmission_form", fields: [organizationId, projectId, formId], references: [organizationId, projectId, id], onDelete: Restrict, onUpdate: Restrict, map: "form_submissions_form_fk")
+  form DigitalForm @relation("FormSubmission_form", fields: [organizationId, projectId, formId, formVersion], references: [organizationId, projectId, id, version], onDelete: Restrict, onUpdate: Restrict, map: "form_submissions_form_fk")
   importBatch DataImportBatch? @relation("FormSubmission_importBatch", fields: [organizationId, projectId, formId, importBatchId], references: [organizationId, projectId, formId, id], onDelete: Restrict, onUpdate: Restrict, map: "form_submissions_import_batch_fk")
   importRow DataImportRow? @relation("FormSubmission_importRow", fields: [organizationId, projectId, formId, importBatchId, importRowId], references: [organizationId, projectId, formId, importBatchId, id], onDelete: Restrict, onUpdate: Restrict, map: "form_submissions_import_row_fk")
   enrollment BeneficiaryProjectEnrollment? @relation("FormSubmission_enrollment", fields: [organizationId, projectId, enrollmentId], references: [organizationId, projectId, id], onDelete: Restrict, onUpdate: Restrict, map: "form_submissions_enrollment_fk")
   formResponseValue_submission FormResponseValue[] @relation("FormResponseValue_submission")
+  beneficiaryConsentRecord_submission BeneficiaryConsentRecord[] @relation("BeneficiaryConsentRecord_submission")
 
   @@unique([organizationId, projectId, id], map: "form_submissions_scope_key")
   @@unique([organizationId, projectId, formId, id], map: "form_submissions_form_scope_key")
+  @@unique([organizationId, submittedById, clientSubmissionId], map: "form_submissions_client_key")
   @@unique([importRowId], map: "form_submissions_import_row_key")
   @@index([organizationId, projectId, status, submittedAt], map: "form_submissions_status_submitted_idx")
   @@index([organizationId, submittedById], map: "form_submissions_submitted_by_idx")
@@ -1015,6 +1111,8 @@ model Beneficiary {
   id String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   organizationId String @map("organization_id") @db.Uuid
   code String
+  subjectType BeneficiarySubjectType @map("subject_type") @default(UNSPECIFIED_LEGACY)
+  displayName String? @map("display_name")
   firstName String? @map("first_name")
   middleName String? @map("middle_name")
   lastName String? @map("last_name")
@@ -1027,6 +1125,7 @@ model Beneficiary {
   locationProvince String? @map("location_province")
   status ProfileStatus  @default(ACTIVE)
   consentRecorded Boolean @map("consent_recorded") @default(false)
+  dataProcessingConsentRecorded Boolean @map("data_processing_consent_recorded") @default(false)
   isMinor Boolean @map("is_minor") @default(false)
   guardianConsentRecorded Boolean @map("guardian_consent_recorded") @default(false)
   isDummyRecord Boolean @map("is_dummy_record") @default(false)
@@ -1037,12 +1136,36 @@ model Beneficiary {
   organization Organization @relation("Beneficiary_organization", fields: [organizationId], references: [id], onDelete: Restrict, onUpdate: Restrict, map: "beneficiaries_organization_fk")
   createdBy SystemUser? @relation("Beneficiary_createdBy", fields: [organizationId, createdById], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict, map: "beneficiaries_created_by_fk")
   beneficiaryProjectEnrollment_beneficiary BeneficiaryProjectEnrollment[] @relation("BeneficiaryProjectEnrollment_beneficiary")
+  beneficiaryIdentifier_beneficiary BeneficiaryIdentifier[] @relation("BeneficiaryIdentifier_beneficiary")
+  beneficiaryConsentRecord_beneficiary BeneficiaryConsentRecord[] @relation("BeneficiaryConsentRecord_beneficiary")
 
   @@unique([organizationId, id], map: "beneficiaries_scope_key")
   @@unique([organizationId, code], map: "beneficiaries_org_code_key")
   @@index([organizationId, status], map: "beneficiaries_org_status_idx")
+  @@index([organizationId, displayName, code], map: "beneficiaries_org_display_name_idx")
   @@index([organizationId, createdById], map: "beneficiaries_created_by_idx")
   @@map("beneficiaries")
+  @@schema("pathways")
+}
+
+model BeneficiaryIdentifier {
+  id String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String @map("organization_id") @db.Uuid
+  beneficiaryId String @map("beneficiary_id") @db.Uuid
+  identifierType String @map("identifier_type")
+  normalizedValue String @map("normalized_value")
+  displayValue String @map("display_value")
+  source BeneficiaryRecordSource
+  createdById String @map("created_by_id") @db.Uuid
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  organization Organization @relation("BeneficiaryIdentifier_organization", fields: [organizationId], references: [id], onDelete: Restrict, onUpdate: Restrict, map: "beneficiary_identifiers_organization_fk")
+  beneficiary Beneficiary @relation("BeneficiaryIdentifier_beneficiary", fields: [organizationId, beneficiaryId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict, map: "beneficiary_identifiers_beneficiary_fk")
+  createdBy SystemUser @relation("BeneficiaryIdentifier_createdBy", fields: [organizationId, createdById], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict, map: "beneficiary_identifiers_created_by_fk")
+
+  @@unique([organizationId, identifierType, normalizedValue], map: "beneficiary_identifiers_org_type_value_key")
+  @@index([organizationId, beneficiaryId], map: "beneficiary_identifiers_beneficiary_idx")
+  @@index([organizationId, createdById], map: "beneficiary_identifiers_created_by_idx")
+  @@map("beneficiary_identifiers")
   @@schema("pathways")
 }
 
@@ -1066,6 +1189,7 @@ model BeneficiaryProjectEnrollment {
   recordedBy SystemUser @relation("BeneficiaryProjectEnrollment_recordedBy", fields: [organizationId, recordedById], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict, map: "beneficiary_project_enrollments_recorded_by_fk")
   beneficiary Beneficiary @relation("BeneficiaryProjectEnrollment_beneficiary", fields: [organizationId, beneficiaryId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict, map: "beneficiary_project_enrollments_beneficiary_fk")
   formSubmission_enrollment FormSubmission[] @relation("FormSubmission_enrollment")
+  beneficiaryConsentRecord_enrollment BeneficiaryConsentRecord[] @relation("BeneficiaryConsentRecord_enrollment")
   beneficiaryActivityParticipation_enrollment BeneficiaryActivityParticipation[] @relation("BeneficiaryActivityParticipation_enrollment")
   beneficiaryJourneyEvent_enrollment BeneficiaryJourneyEvent[] @relation("BeneficiaryJourneyEvent_enrollment")
 
@@ -1075,6 +1199,32 @@ model BeneficiaryProjectEnrollment {
   @@index([organizationId, recordedById], map: "beneficiary_project_enrollments_recorded_by_idx")
   @@index([organizationId, beneficiaryId], map: "beneficiary_project_enrollments_beneficiary_idx")
   @@map("beneficiary_project_enrollments")
+  @@schema("pathways")
+}
+
+model BeneficiaryConsentRecord {
+  id String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String @map("organization_id") @db.Uuid
+  projectId String @map("project_id") @db.Uuid
+  beneficiaryId String @map("beneficiary_id") @db.Uuid
+  enrollmentId String @map("enrollment_id") @db.Uuid
+  submissionId String @map("submission_id") @db.Uuid
+  kind BeneficiaryConsentKind
+  source BeneficiaryRecordSource
+  recordedById String @map("recorded_by_id") @db.Uuid
+  recordedAt DateTime @map("recorded_at") @db.Timestamptz(3)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  organization Organization @relation("BeneficiaryConsentRecord_organization", fields: [organizationId], references: [id], onDelete: Restrict, onUpdate: Restrict, map: "beneficiary_consent_records_organization_fk")
+  project Project @relation("BeneficiaryConsentRecord_project", fields: [organizationId, projectId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict, map: "beneficiary_consent_records_project_fk")
+  beneficiary Beneficiary @relation("BeneficiaryConsentRecord_beneficiary", fields: [organizationId, beneficiaryId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict, map: "beneficiary_consent_records_beneficiary_fk")
+  enrollment BeneficiaryProjectEnrollment @relation("BeneficiaryConsentRecord_enrollment", fields: [organizationId, projectId, enrollmentId], references: [organizationId, projectId, id], onDelete: Restrict, onUpdate: Restrict, map: "beneficiary_consent_records_enrollment_fk")
+  submission FormSubmission @relation("BeneficiaryConsentRecord_submission", fields: [organizationId, projectId, submissionId], references: [organizationId, projectId, id], onDelete: Restrict, onUpdate: Restrict, map: "beneficiary_consent_records_submission_fk")
+  recordedBy SystemUser @relation("BeneficiaryConsentRecord_recordedBy", fields: [organizationId, recordedById], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict, map: "beneficiary_consent_records_recorded_by_fk")
+
+  @@unique([submissionId, kind], map: "beneficiary_consent_records_submission_kind_key")
+  @@index([organizationId, projectId, beneficiaryId, recordedAt], map: "beneficiary_consent_records_project_beneficiary_idx")
+  @@index([organizationId, recordedById], map: "beneficiary_consent_records_recorded_by_idx")
+  @@map("beneficiary_consent_records")
   @@schema("pathways")
 }
 

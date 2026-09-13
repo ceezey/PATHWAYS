@@ -25,19 +25,19 @@ import {
   passwordRecoveryIntentCookie,
   resetPasswordRecoveryGrantsForTesting,
 } from '@/lib/supabase/recovery-server'
-import { developerAuthUserId } from './auth-access'
+import { testAuthUserId } from './auth-access.test-fixtures'
 import { localPasswordRecoveryOrigin } from './password-recovery'
 
 const session = {
   access_token: 'test-only-session-token',
   refresh_token: 'test-only-refresh-token',
-  user: { id: developerAuthUserId },
+  user: { id: testAuthUserId },
 }
 const recoveryClaims = {
   amr: [{ method: 'recovery', timestamp: 1 }],
   iss: 'https://pdqwsknbzkdtiwjjibqt.supabase.co/auth/v1',
   session_id: 'test-only-session-id',
-  sub: developerAuthUserId,
+  sub: testAuthUserId,
 }
 
 beforeEach(() => {

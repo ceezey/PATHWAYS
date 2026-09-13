@@ -2,7 +2,7 @@ import { Injectable, type OnModuleDestroy, type OnModuleInit } from '@nestjs/com
 import { type Prisma, PrismaClient } from '@prisma/client'
 
 /** Internal backend context only. The caller must first verify the Auth subject.
- * Atomic permissions and project assignments remain the Phase 5 boundary.
+ * Authorized operations recheck current permissions and active assignments in this context.
  */
 export interface VerifiedDatabaseContext {
   authSubject: string
@@ -83,6 +83,25 @@ export class PrismaService extends PrismaClient implements OnModuleInit, OnModul
         maxWait: 5_000,
         timeout: 10_000,
       },
+    )
+  }
+
+  async discoverWorkspace(authSubject: string) {
+    if (!uuid.test(authSubject)) throw new Error('Workspace discovery requires a verified UUID.')
+    return this.$transaction(
+      async (transaction) => {
+        await transaction.$queryRaw`
+        SELECT set_config('request.jwt.claim.sub', ${authSubject.toLowerCase()}, true),
+          set_config('request.jwt.claims', '', true),
+          set_config('app.organization_id', '', true),
+          set_config('app.user_id', '', true)
+      `
+        return transaction.$queryRaw<Array<{ userId: string; organizationId: string }>>`
+        SELECT user_id::text AS "userId", organization_id::text AS "organizationId"
+        FROM pathways.p1_workspace_for_auth()
+      `
+      },
+      { maxWait: 5_000, timeout: 10_000 },
     )
   }
 }

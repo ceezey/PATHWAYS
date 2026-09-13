@@ -225,6 +225,7 @@ export const roleAccessProfiles: Record<PathwaysRole, RoleAccessProfile> = {
     role: 'System Administrator',
     permissions: [
       'projects.view',
+      'projects.create',
       'activities.view',
       'activities.create_edit',
       'budget.full',
@@ -262,24 +263,5 @@ export const roleAccessProfiles: Record<PathwaysRole, RoleAccessProfile> = {
       evaluation: 'none',
       transparency: 'none',
     },
-  },
-}
-
-export const fallbackAccessProfile: RoleAccessProfile = {
-  role: 'Project Officer',
-  permissions: [],
-  dataScopes: [],
-  projectAccess: 'assigned-projects',
-  beneficiaryDataAccess: 'aggregate-only',
-  userAdministration: noUserAdministration,
-  modules: {
-    budget: 'none',
-    monitorEvaluate: 'none',
-    rules: 'none',
-    beneficiaries: 'none',
-    alerts: 'none',
-    activities: 'none',
-    evaluation: 'none',
-    transparency: 'none',
   },
 }

@@ -1,6 +1,5 @@
 import { type NextRequest, NextResponse } from 'next/server'
 
-import { developerAuthUserId } from '@/features/auth/auth-access'
 import { passwordUpdateRequestSchema } from '@/features/auth/password-recovery'
 import {
   applyPendingAuthCookies,
@@ -81,14 +80,15 @@ export async function POST(request: NextRequest) {
       : { data: null, error: null }
     const recoveryIdentity = getRecoveryIdentityFromVerifiedClaims(
       claimsResult.data?.claims,
-      developerAuthUserId,
+      userData.user?.id ?? '',
     )
 
     if (
       userError ||
       sessionError ||
       claimsResult.error ||
-      userData.user?.id !== developerAuthUserId ||
+      !userData.user ||
+      session?.user.id !== userData.user.id ||
       !session ||
       !recoveryIdentity ||
       !consumePasswordRecoveryGrant(intent, userData.user.id, recoveryIdentity.sessionId)

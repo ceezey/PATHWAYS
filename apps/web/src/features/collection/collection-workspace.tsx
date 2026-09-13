@@ -46,32 +46,38 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import { useCurrentRole } from '@/hooks/use-current-role'
 import { useDisplayLabels } from '@/hooks/use-display-labels'
 import { pathwaysClient } from '@/lib/services/pathways-client'
 import { cn } from '@/lib/utils'
-import type { Activity, ProjectSummary } from '@/types/pathways'
+import type {
+  Activity,
+  DigitalFormDefinition,
+  DigitalFormType,
+  ProjectSummary,
+} from '@/types/pathways'
+
+import {
+  type BuilderFieldType,
+  type BuilderFormField,
+  formTypeLabels,
+  fromDigitalForm,
+  toDigitalFormInput,
+} from './digital-form-contract'
 
 type CollectionMode = 'scratch' | 'import' | 'extend'
 type CollectionView = 'home' | 'forms' | 'builder' | 'import'
-type FieldType = 'text' | 'number' | 'date' | 'single_select' | 'multi_select' | 'boolean'
+type FieldType = BuilderFieldType
 type MappingStatus = 'mapped' | 'unmapped' | 'ignored' | 'invalid'
 
 interface CollectionWorkspaceProps {
   initialMode?: CollectionMode
   initialView?: CollectionView
+  initialProjectId?: string
+  initialFormId?: string
 }
 
-interface FormField {
-  id: string
-  label: string
-  code: string
-  type: FieldType
-  required: boolean
-  metadataKey: boolean
-  sadddField: boolean
-  allowedValues: string
-  mappingStatus: MappingStatus
-}
+type FormField = BuilderFormField
 
 interface MappingRow {
   id: string
@@ -87,15 +93,6 @@ interface ParsedImport {
   rows: Record<string, unknown>[]
   errors: string[]
   sheetNames?: string[]
-}
-
-interface SavedForm {
-  id: string
-  title: string
-  type: string
-  project: string
-  fieldCount: number
-  savedAt: string
 }
 
 const expectedImportHeaders = [
@@ -144,7 +141,9 @@ const modeDetails: Array<{
 
 const dataTypeLabels: Record<FieldType, string> = {
   text: 'Text',
-  number: 'Number',
+  long_text: 'Long text',
+  integer: 'Integer',
+  decimal: 'Decimal',
   date: 'Date',
   single_select: 'Single select',
   multi_select: 'Multiple select',
@@ -185,6 +184,10 @@ const fieldFromHeader = (header: string, index: number): FormField => ({
     normalizeHeader(header).includes(token),
   ),
   allowedValues: '',
+  minimumValue: '',
+  maximumValue: '',
+  minimumLength: '',
+  maximumLength: '',
   mappingStatus: expectedImportHeaders.includes(normalizeHeader(header)) ? 'mapped' : 'unmapped',
 })
 
@@ -213,13 +216,20 @@ const formatValue = (value: unknown) => {
 export const CollectionWorkspace = ({
   initialMode = 'scratch',
   initialView = 'home',
+  initialProjectId = '',
+  initialFormId = '',
 }: CollectionWorkspaceProps) => {
   const { labels } = useDisplayLabels()
+  const { profile } = useCurrentRole()
+  const canManageForms = profile?.permissions.includes('forms.manage') === true
+  const canPublishForms = profile?.permissions.includes('forms.publish') === true
+  const canWriteSubmissions = profile?.permissions.includes('submissions.write') === true
   const [mode, setMode] = useState<CollectionMode>(initialMode)
   const [view, setView] = useState<CollectionView>(initialView)
   const [formTitle, setFormTitle] = useState('')
-  const [formType, setFormType] = useState('')
-  const [projectId, setProjectId] = useState('')
+  const [formCode, setFormCode] = useState('')
+  const [formType, setFormType] = useState<DigitalFormType>('OTHER')
+  const [projectId, setProjectId] = useState(initialProjectId)
   const [journeyStage, setJourneyStage] = useState('')
   const [linkedActivityId, setLinkedActivityId] = useState('')
   const [projects, setProjects] = useState<ProjectSummary[]>([])
@@ -232,7 +242,12 @@ export const CollectionWorkspace = ({
   const [saveDialogOpen, setSaveDialogOpen] = useState(false)
   const [proceedDialogOpen, setProceedDialogOpen] = useState(false)
   const [savedNotice, setSavedNotice] = useState('')
-  const [savedForms] = useState<SavedForm[]>([])
+  const [savedForms, setSavedForms] = useState<DigitalFormDefinition[]>([])
+  const [formsLoadStatus, setFormsLoadStatus] = useState<'idle' | 'loading' | 'ready' | 'error'>(
+    'idle',
+  )
+  const [activeForm, setActiveForm] = useState<DigitalFormDefinition | null>(null)
+  const [savePending, setSavePending] = useState(false)
   const [parsedImport, setParsedImport] = useState<ParsedImport | null>(null)
   const [mappingRows, setMappingRows] = useState<MappingRow[]>([])
   const [uploadProgress, setUploadProgress] = useState(0)
@@ -323,6 +338,10 @@ export const CollectionWorkspace = ({
       metadataKey: false,
       sadddField: false,
       allowedValues: '',
+      minimumValue: '',
+      maximumValue: '',
+      minimumLength: '',
+      maximumLength: '',
       mappingStatus: 'unmapped',
     }
 
@@ -395,7 +414,9 @@ export const CollectionWorkspace = ({
       setParsedImport(parsed)
       setMappingRows(mappingFromHeaders(parsed.headers))
       setUploadProgress(100)
-      setImportMessage('Preview ready. Full production validation is not connected yet.')
+      setImportMessage(
+        'Structure preview ready. Save the resulting form before using it for data collection.',
+      )
 
       if (mode === 'extend') {
         const importedFields = parsed.headers.map(fieldFromHeader)
@@ -410,11 +431,98 @@ export const CollectionWorkspace = ({
     }
   }
 
-  const requestFormSave = () => {
-    setSaveDialogOpen(false)
-    setSavedNotice(
-      'Form saving is not configured. Your unsaved draft remains in the current workspace.',
-    )
+  useEffect(() => {
+    if (!projectId) return
+    let active = true
+    setFormsLoadStatus('loading')
+    pathwaysClient
+      .getDigitalForms(projectId)
+      .then(async (forms) => {
+        if (!active) return
+        setSavedForms(forms)
+        setFormsLoadStatus('ready')
+        if (initialFormId) {
+          const form = await pathwaysClient.getDigitalForm(projectId, initialFormId)
+          if (!active) return
+          setActiveForm(form)
+          setFormCode(form.code)
+          setFormTitle(form.name)
+          setFormType(form.formType)
+          setLinkedActivityId(form.activityId ?? '')
+          setJourneyStage(form.journeyStageId ?? '')
+          const hydratedFields = fromDigitalForm(form)
+          setFields(hydratedFields)
+          setSelectedFieldId(hydratedFields[0]?.id ?? '')
+        }
+      })
+      .catch(() => {
+        if (active) setFormsLoadStatus('error')
+      })
+    return () => {
+      active = false
+    }
+  }, [initialFormId, projectId])
+
+  const requestFormSave = async () => {
+    setSavePending(true)
+    try {
+      const input = toDigitalFormInput({
+        code: formCode,
+        name: formTitle,
+        formType,
+        activityId: linkedActivityId,
+        journeyStageId: journeyStage,
+        fields,
+      })
+      const form = activeForm
+        ? await pathwaysClient.updateDigitalForm(projectId, activeForm.id, {
+            ...input,
+            expectedUpdatedAt: activeForm.updatedAt,
+          })
+        : await pathwaysClient.createDigitalForm(projectId, input)
+      setActiveForm(form)
+      setSavedForms((current) => [form, ...current.filter((item) => item.id !== form.id)])
+      window.history.replaceState({}, '', `/collection/projects/${projectId}/forms/${form.id}`)
+      setSaveDialogOpen(false)
+      setSavedNotice(`Draft ${form.code} version ${form.version} was saved to PATHWAYS.`)
+    } catch (error) {
+      setSavedNotice(error instanceof Error ? error.message : 'The form draft could not be saved.')
+    } finally {
+      setSavePending(false)
+    }
+  }
+
+  const refreshForm = (form: DigitalFormDefinition) => {
+    setSavedForms((current) => [form, ...current.filter((item) => item.id !== form.id)])
+    if (activeForm?.id === form.id) setActiveForm(form)
+  }
+
+  const publishForm = async (form: DigitalFormDefinition) => {
+    try {
+      refreshForm(await pathwaysClient.publishDigitalForm(projectId, form.id, form.updatedAt))
+      setSavedNotice(`Version ${form.version} was published.`)
+    } catch (error) {
+      setSavedNotice(error instanceof Error ? error.message : 'The form could not be published.')
+    }
+  }
+
+  const archiveForm = async (form: DigitalFormDefinition) => {
+    try {
+      refreshForm(await pathwaysClient.archiveDigitalForm(projectId, form.id, form.updatedAt))
+      setSavedNotice(`Version ${form.version} was archived.`)
+    } catch (error) {
+      setSavedNotice(error instanceof Error ? error.message : 'The form could not be archived.')
+    }
+  }
+
+  const createVersion = async (form: DigitalFormDefinition) => {
+    try {
+      const draft = await pathwaysClient.createDigitalFormVersion(projectId, form.id)
+      refreshForm(draft)
+      window.location.assign(`/collection/projects/${projectId}/forms/${draft.id}`)
+    } catch (error) {
+      setSavedNotice(error instanceof Error ? error.message : 'A new version could not be created.')
+    }
   }
 
   const confirmImportProceed = () => {
@@ -424,7 +532,7 @@ export const CollectionWorkspace = ({
     )
   }
 
-  const downloadSavedForm = (form: SavedForm) => {
+  const downloadSavedForm = (form: DigitalFormDefinition) => {
     const summary = JSON.stringify(
       {
         ...form,
@@ -437,7 +545,7 @@ export const CollectionWorkspace = ({
       new Blob([summary], { type: 'application/json;charset=utf-8' }),
     )
     const anchor = document.createElement('a')
-    const fileName = form.title
+    const fileName = form.name
       .toLowerCase()
       .replace(/[^a-z0-9]+/g, '-')
       .replace(/^-|-$/g, '')
@@ -458,7 +566,7 @@ export const CollectionWorkspace = ({
       <PageHeader
         eyebrow="Data workspace"
         title={labels.moduleCollection}
-        description="Build digital forms, map imported files, and preview validation without uploading source data."
+        description="Build versioned digital forms and prepare metadata-aware collection workflows."
         actions={
           <Button asChild size="sm">
             <Link href="/collection/forms">Forms</Link>
@@ -485,7 +593,6 @@ export const CollectionWorkspace = ({
               mode === item.id && 'border-primary bg-primary/10',
             )}
             href={item.href}
-            onClick={() => openBuilder(item.id)}
           >
             <div className="flex items-start justify-between gap-3">
               <div>
@@ -514,9 +621,17 @@ export const CollectionWorkspace = ({
 
       {view === 'forms' || view === 'home' ? (
         <FormsGeneratorView
+          formsLoadStatus={formsLoadStatus}
+          canManageForms={canManageForms}
+          canPublishForms={canPublishForms}
+          canWriteSubmissions={canWriteSubmissions}
+          onArchive={archiveForm}
           onCreate={() => openBuilder('scratch')}
+          onCreateVersion={createVersion}
           onDownload={downloadSavedForm}
           onImport={(nextMode) => openBuilder(nextMode)}
+          onPublish={publishForm}
+          projectId={projectId}
           savedForms={savedForms}
         />
       ) : null}
@@ -526,6 +641,8 @@ export const CollectionWorkspace = ({
           addField={addField}
           deleteField={deleteField}
           fields={fields}
+          readOnly={!canManageForms}
+          formCode={formCode}
           formTitle={formTitle}
           formType={formType}
           journeyStage={journeyStage}
@@ -543,6 +660,7 @@ export const CollectionWorkspace = ({
           selectedFieldId={selectedFieldId}
           selectedProject={selectedProject?.title ?? 'No project selected'}
           setFormTitle={setFormTitle}
+          setFormCode={setFormCode}
           setFormType={setFormType}
           setJourneyStage={setJourneyStage}
           setLinkedActivityId={setLinkedActivityId}
@@ -557,6 +675,7 @@ export const CollectionWorkspace = ({
         <ImportView
           fields={fields}
           fileInputRef={fileInputRef}
+          formCode={formCode}
           formTitle={formTitle}
           formType={formType}
           importMessage={importMessage}
@@ -571,6 +690,7 @@ export const CollectionWorkspace = ({
           projectActivities={projectActivities}
           projectId={projectId}
           selectedProject={selectedProject?.title ?? 'No project selected'}
+          setFormCode={setFormCode}
           setFormTitle={setFormTitle}
           setFormType={setFormType}
           setJourneyStage={setJourneyStage}
@@ -589,12 +709,12 @@ export const CollectionWorkspace = ({
           <DialogHeader>
             <DialogTitle>Proceed with Save As?</DialogTitle>
             <DialogDescription>
-              Form persistence is not connected. Proceeding will keep this as an unsaved draft and
-              will not change shared form definitions or mappings.
+              The form definition will be validated by the server and saved as a project-owned
+              draft. Published definitions are preserved as immutable versions.
             </DialogDescription>
           </DialogHeader>
           <div className="rounded-lg border bg-muted/40 p-4 text-sm">
-            <p className="font-medium text-foreground">{formTitle}</p>
+            <p className="font-medium text-foreground">{formTitle || 'Untitled form'}</p>
             <p className="mt-1 text-muted-foreground">
               {fields.length} fields, {mappedCount} mapped, {sadddCount} SADDD fields.
             </p>
@@ -603,7 +723,9 @@ export const CollectionWorkspace = ({
             <Button variant="outline" onClick={() => setSaveDialogOpen(false)}>
               Cancel
             </Button>
-            <Button onClick={requestFormSave}>Proceed</Button>
+            <Button disabled={savePending} onClick={() => void requestFormSave()}>
+              {savePending ? 'Saving...' : 'Save draft'}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -613,7 +735,7 @@ export const CollectionWorkspace = ({
           <DialogHeader>
             <DialogTitle>Review mapped fields?</DialogTitle>
             <DialogDescription>
-              Import submission is not connected. The source dataset stays on this device and only
+              Import submission is not available. The source dataset stays on this device and only
               the local parsing and mapping preview is available.
             </DialogDescription>
           </DialogHeader>
@@ -630,15 +752,31 @@ export const CollectionWorkspace = ({
 }
 
 const FormsGeneratorView = ({
+  canManageForms,
+  canPublishForms,
+  canWriteSubmissions,
+  formsLoadStatus,
+  onArchive,
   onCreate,
+  onCreateVersion,
   onDownload,
   onImport,
+  onPublish,
+  projectId,
   savedForms,
 }: {
+  canManageForms: boolean
+  canPublishForms: boolean
+  canWriteSubmissions: boolean
+  formsLoadStatus: 'idle' | 'loading' | 'ready' | 'error'
+  onArchive: (form: DigitalFormDefinition) => Promise<void>
   onCreate: () => void
-  onDownload: (form: SavedForm) => void
+  onCreateVersion: (form: DigitalFormDefinition) => Promise<void>
+  onDownload: (form: DigitalFormDefinition) => void
   onImport: (mode: CollectionMode) => void
-  savedForms: SavedForm[]
+  onPublish: (form: DigitalFormDefinition) => Promise<void>
+  projectId: string
+  savedForms: DigitalFormDefinition[]
 }) => (
   <div className="rounded-lg border bg-card p-5 shadow-sm">
     <div className="flex flex-col gap-3 border-b pb-4 sm:flex-row sm:items-center sm:justify-between">
@@ -654,10 +792,12 @@ const FormsGeneratorView = ({
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="w-48">
-          <DropdownMenuItem onClick={onCreate}>
-            <ListPlus className="mr-2 h-4 w-4" aria-hidden="true" />
-            Create New
-          </DropdownMenuItem>
+          {canManageForms ? (
+            <DropdownMenuItem onClick={onCreate}>
+              <ListPlus className="mr-2 h-4 w-4" aria-hidden="true" />
+              Create New
+            </DropdownMenuItem>
+          ) : null}
           <DropdownMenuItem onClick={() => onImport('import')}>
             <FileSpreadsheet className="mr-2 h-4 w-4" aria-hidden="true" />
             Import .xlsx
@@ -674,10 +814,17 @@ const FormsGeneratorView = ({
       {savedForms.length === 0 ? (
         <div className="rounded-lg border border-dashed bg-muted/20 p-6 text-center">
           <Database className="mx-auto h-6 w-6 text-muted-foreground" aria-hidden="true" />
-          <p className="mt-3 text-sm font-medium text-foreground">No saved forms yet</p>
+          <p className="mt-3 text-sm font-medium text-foreground">
+            {formsLoadStatus === 'loading'
+              ? 'Loading saved forms...'
+              : formsLoadStatus === 'error'
+                ? 'Saved forms could not be loaded'
+                : 'No saved forms yet'}
+          </p>
           <p className="mt-1 text-xs leading-5 text-muted-foreground">
-            Create a form draft or import a file. Saved forms will appear after the Collection
-            backend is connected.
+            {formsLoadStatus === 'error'
+              ? 'Check your connection and access, then reload this page.'
+              : 'Create a form draft or extend a locally inspected structure.'}
           </p>
         </div>
       ) : null}
@@ -691,17 +838,53 @@ const FormsGeneratorView = ({
               <Database className="h-4 w-4" aria-hidden="true" />
             </div>
             <div>
-              <p className="font-medium text-foreground">{form.title}</p>
+              <p className="font-medium text-foreground">{form.name}</p>
               <p className="mt-1 text-muted-foreground">
-                Form type: {form.type} | {form.project} | {form.fieldCount} fields | Saved:{' '}
-                {form.savedAt}
+                {formTypeLabels[form.formType]} | Version {form.version} | {form.fields.length}{' '}
+                fields | {form.status}
               </p>
             </div>
           </div>
           <div className="flex items-center gap-2">
             <Button asChild size="sm" variant="outline">
-              <Link href="/collection/forms/new">Open form builder</Link>
+              <Link href={`/collection/projects/${projectId}/forms/${form.id}`}>
+                {form.status === 'DRAFT' ? 'Edit draft' : 'View definition'}
+              </Link>
             </Button>
+            {form.status === 'DRAFT' && canPublishForms && !form.createdByCurrentUser ? (
+              <Button size="sm" variant="outline" onClick={() => void onPublish(form)}>
+                Publish
+              </Button>
+            ) : null}
+            {form.status === 'PUBLISHED' ? (
+              <>
+                {canWriteSubmissions ? (
+                  <Button asChild size="sm" variant="outline">
+                    <Link
+                      href={
+                        form.formType === 'BENEFICIARY_REGISTRATION'
+                          ? '/beneficiaries/new'
+                          : `/collection/projects/${projectId}/forms/${form.id}/entries/new`
+                      }
+                    >
+                      {form.formType === 'BENEFICIARY_REGISTRATION'
+                        ? 'Register beneficiary'
+                        : 'Enter data'}
+                    </Link>
+                  </Button>
+                ) : null}
+                {canManageForms ? (
+                  <Button size="sm" variant="outline" onClick={() => void onCreateVersion(form)}>
+                    New version
+                  </Button>
+                ) : null}
+              </>
+            ) : null}
+            {form.status !== 'ARCHIVED' && canManageForms ? (
+              <Button size="sm" variant="outline" onClick={() => void onArchive(form)}>
+                Archive
+              </Button>
+            ) : null}
             <Button size="sm" variant="outline" onClick={() => onDownload(form)}>
               Download summary
             </Button>
@@ -716,6 +899,7 @@ const BuilderView = ({
   addField,
   deleteField,
   fields,
+  formCode,
   formTitle,
   formType,
   journeyStage,
@@ -728,11 +912,13 @@ const BuilderView = ({
   projects,
   projectActivities,
   projectId,
+  readOnly,
   sadddCount,
   selectedField,
   selectedFieldId,
   selectedProject,
   setFormTitle,
+  setFormCode,
   setFormType,
   setJourneyStage,
   setLinkedActivityId,
@@ -744,8 +930,9 @@ const BuilderView = ({
   addField: () => void
   deleteField: (fieldId: string) => void
   fields: FormField[]
+  formCode: string
   formTitle: string
-  formType: string
+  formType: DigitalFormType
   journeyStage: string
   linkedActivityId: string
   metadataCount: number
@@ -756,12 +943,14 @@ const BuilderView = ({
   projects: ProjectSummary[]
   projectActivities: Activity[]
   projectId: string
+  readOnly: boolean
   sadddCount: number
   selectedField?: FormField
   selectedFieldId: string
   selectedProject: string
   setFormTitle: (value: string) => void
-  setFormType: (value: string) => void
+  setFormCode: (value: string) => void
+  setFormType: (value: DigitalFormType) => void
   setJourneyStage: (value: string) => void
   setLinkedActivityId: (value: string) => void
   setProjectId: (value: string) => void
@@ -772,6 +961,7 @@ const BuilderView = ({
   <div className="grid gap-4 xl:grid-cols-[1fr_300px]">
     <main className="space-y-4">
       <FormInfoPanel
+        formCode={formCode}
         formTitle={formTitle}
         formType={formType}
         journeyStage={journeyStage}
@@ -779,6 +969,8 @@ const BuilderView = ({
         projects={projects}
         projectActivities={projectActivities}
         projectId={projectId}
+        readOnly={readOnly}
+        setFormCode={setFormCode}
         setFormTitle={setFormTitle}
         setFormType={setFormType}
         setJourneyStage={setJourneyStage}
@@ -841,7 +1033,7 @@ const BuilderView = ({
                 <div className="flex items-center gap-1">
                   <Button
                     aria-label={`Move ${field.label} up`}
-                    disabled={index === 0}
+                    disabled={readOnly || index === 0}
                     size="icon"
                     variant="ghost"
                     onClick={() => moveField(field.id, 'up')}
@@ -850,23 +1042,26 @@ const BuilderView = ({
                   </Button>
                   <Button
                     aria-label={`Move ${field.label} down`}
-                    disabled={index === fields.length - 1}
+                    disabled={readOnly || index === fields.length - 1}
                     size="icon"
                     variant="ghost"
                     onClick={() => moveField(field.id, 'down')}
                   >
                     <ArrowDown className="h-4 w-4" aria-hidden="true" />
                   </Button>
-                  <Button
-                    aria-label={`Edit ${field.label}`}
-                    size="icon"
-                    variant="ghost"
-                    onClick={() => setSelectedFieldId(field.id)}
-                  >
-                    <Pencil className="h-4 w-4" aria-hidden="true" />
-                  </Button>
+                  {!readOnly ? (
+                    <Button
+                      aria-label={`Edit ${field.label}`}
+                      size="icon"
+                      variant="ghost"
+                      onClick={() => setSelectedFieldId(field.id)}
+                    >
+                      <Pencil className="h-4 w-4" aria-hidden="true" />
+                    </Button>
+                  ) : null}
                   <Button
                     aria-label={`Delete ${field.label}`}
+                    disabled={readOnly}
                     size="icon"
                     variant="ghost"
                     onClick={() => deleteField(field.id)}
@@ -876,23 +1071,29 @@ const BuilderView = ({
                 </div>
               </div>
 
-              {selectedFieldId === field.id ? (
+              {selectedFieldId === field.id && !readOnly ? (
                 <FieldEditor field={field} updateField={updateField} />
               ) : null}
             </div>
           ))}
         </div>
 
-        <div className="mt-4 grid gap-2 md:grid-cols-2">
-          <Button variant="outline" onClick={addField}>
-            <Plus className="mr-2 h-4 w-4" aria-hidden="true" />
-            Add field
-          </Button>
-          <Button onClick={() => setSaveDialogOpen(true)}>
-            <Save className="mr-2 h-4 w-4" aria-hidden="true" />
-            Save As
-          </Button>
-        </div>
+        {readOnly ? (
+          <p className="mt-4 rounded-lg border bg-muted/30 p-3 text-sm text-muted-foreground">
+            This definition is read-only for your current PATHWAYS permissions.
+          </p>
+        ) : (
+          <div className="mt-4 grid gap-2 md:grid-cols-2">
+            <Button variant="outline" onClick={addField}>
+              <Plus className="mr-2 h-4 w-4" aria-hidden="true" />
+              Add field
+            </Button>
+            <Button onClick={() => setSaveDialogOpen(true)}>
+              <Save className="mr-2 h-4 w-4" aria-hidden="true" />
+              Save As
+            </Button>
+          </div>
+        )}
       </div>
     </main>
 
@@ -910,6 +1111,7 @@ const BuilderView = ({
 )
 
 const FormInfoPanel = ({
+  formCode,
   formTitle,
   formType,
   journeyStage,
@@ -917,21 +1119,26 @@ const FormInfoPanel = ({
   projects,
   projectActivities,
   projectId,
+  readOnly = false,
+  setFormCode,
   setFormTitle,
   setFormType,
   setJourneyStage,
   setLinkedActivityId,
   setProjectId,
 }: {
+  formCode: string
   formTitle: string
-  formType: string
+  formType: DigitalFormType
   journeyStage: string
   linkedActivityId: string
   projects: ProjectSummary[]
   projectActivities: Activity[]
   projectId: string
+  readOnly?: boolean
+  setFormCode: (value: string) => void
   setFormTitle: (value: string) => void
-  setFormType: (value: string) => void
+  setFormType: (value: DigitalFormType) => void
   setJourneyStage: (value: string) => void
   setLinkedActivityId: (value: string) => void
   setProjectId: (value: string) => void
@@ -941,30 +1148,44 @@ const FormInfoPanel = ({
       <div className="space-y-2">
         <Label htmlFor="form-title">Form information</Label>
         <Input
+          disabled={readOnly}
           id="form-title"
           value={formTitle}
           onChange={(event) => setFormTitle(event.target.value)}
         />
       </div>
       <div className="space-y-2">
+        <Label htmlFor="form-code">Form code</Label>
+        <Input
+          disabled={readOnly}
+          id="form-code"
+          placeholder="monitoring_form"
+          value={formCode}
+          onChange={(event) => setFormCode(normalizeHeader(event.target.value))}
+        />
+      </div>
+      <div className="space-y-2">
         <Label>Form type</Label>
-        <Select value={formType} onValueChange={setFormType}>
+        <Select
+          disabled={readOnly}
+          value={formType}
+          onValueChange={(value) => setFormType(value as DigitalFormType)}
+        >
           <SelectTrigger>
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="Pre/Post Assessment">Pre/Post Assessment</SelectItem>
-            <SelectItem value="Training Survey">Training Survey</SelectItem>
-            <SelectItem value="Attendance and Activity Update">
-              Attendance and Activity Update
-            </SelectItem>
-            <SelectItem value="Beneficiary Intake">Beneficiary Intake</SelectItem>
+            {Object.entries(formTypeLabels).map(([value, label]) => (
+              <SelectItem key={value} value={value}>
+                {label}
+              </SelectItem>
+            ))}
           </SelectContent>
         </Select>
       </div>
       <div className="space-y-2">
         <Label>Project selection</Label>
-        <Select value={projectId} onValueChange={setProjectId}>
+        <Select disabled={readOnly} value={projectId} onValueChange={setProjectId}>
           <SelectTrigger>
             <SelectValue />
           </SelectTrigger>
@@ -980,6 +1201,7 @@ const FormInfoPanel = ({
       <div className="space-y-2">
         <Label htmlFor="journey-stage">Journey stage</Label>
         <Input
+          disabled={readOnly}
           id="journey-stage"
           value={journeyStage}
           onChange={(event) => setJourneyStage(event.target.value)}
@@ -987,7 +1209,7 @@ const FormInfoPanel = ({
       </div>
       <div className="space-y-2 md:col-span-2">
         <Label>Linked activity</Label>
-        <Select value={linkedActivityId} onValueChange={setLinkedActivityId}>
+        <Select disabled={readOnly} value={linkedActivityId} onValueChange={setLinkedActivityId}>
           <SelectTrigger>
             <SelectValue placeholder="Select an activity" />
           </SelectTrigger>
@@ -1072,6 +1294,50 @@ const FieldEditor = ({
         onChange={(event) => updateField(field.id, { allowedValues: event.target.value })}
       />
     </div>
+    {field.type === 'text' || field.type === 'long_text' || field.type === 'multi_select' ? (
+      <>
+        <div className="space-y-2">
+          <Label htmlFor={`${field.id}-minimum-length`}>Minimum length/items</Label>
+          <Input
+            id={`${field.id}-minimum-length`}
+            inputMode="numeric"
+            value={field.minimumLength}
+            onChange={(event) => updateField(field.id, { minimumLength: event.target.value })}
+          />
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor={`${field.id}-maximum-length`}>Maximum length/items</Label>
+          <Input
+            id={`${field.id}-maximum-length`}
+            inputMode="numeric"
+            value={field.maximumLength}
+            onChange={(event) => updateField(field.id, { maximumLength: event.target.value })}
+          />
+        </div>
+      </>
+    ) : null}
+    {field.type === 'integer' || field.type === 'decimal' || field.type === 'date' ? (
+      <>
+        <div className="space-y-2">
+          <Label htmlFor={`${field.id}-minimum-value`}>Minimum value</Label>
+          <Input
+            id={`${field.id}-minimum-value`}
+            placeholder={field.type === 'date' ? 'YYYY-MM-DD' : undefined}
+            value={field.minimumValue}
+            onChange={(event) => updateField(field.id, { minimumValue: event.target.value })}
+          />
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor={`${field.id}-maximum-value`}>Maximum value</Label>
+          <Input
+            id={`${field.id}-maximum-value`}
+            placeholder={field.type === 'date' ? 'YYYY-MM-DD' : undefined}
+            value={field.maximumValue}
+            onChange={(event) => updateField(field.id, { maximumValue: event.target.value })}
+          />
+        </div>
+      </>
+    ) : null}
     <div className="grid gap-2 sm:grid-cols-3 md:col-span-2">
       <ToggleRow
         checked={field.required}
@@ -1199,6 +1465,7 @@ const FormPreviewPanel = ({ fields, formTitle }: { fields: FormField[]; formTitl
 const ImportView = ({
   fields,
   fileInputRef,
+  formCode,
   formTitle,
   formType,
   importMessage,
@@ -1213,6 +1480,7 @@ const ImportView = ({
   projectActivities,
   projectId,
   selectedProject,
+  setFormCode,
   setFormTitle,
   setFormType,
   setJourneyStage,
@@ -1226,8 +1494,9 @@ const ImportView = ({
 }: {
   fields: FormField[]
   fileInputRef: React.RefObject<HTMLInputElement | null>
+  formCode: string
   formTitle: string
-  formType: string
+  formType: DigitalFormType
   importMessage: string
   importSummary: ReturnType<typeof createFileSummary> | null
   journeyStage: string
@@ -1240,8 +1509,9 @@ const ImportView = ({
   projectActivities: Activity[]
   projectId: string
   selectedProject: string
+  setFormCode: (value: string) => void
   setFormTitle: (value: string) => void
-  setFormType: (value: string) => void
+  setFormType: (value: DigitalFormType) => void
   setJourneyStage: (value: string) => void
   setLinkedActivityId: (value: string) => void
   setMappingRows: React.Dispatch<React.SetStateAction<MappingRow[]>>
@@ -1254,6 +1524,7 @@ const ImportView = ({
   <div className="grid gap-4 xl:grid-cols-[1fr_300px]">
     <main className="space-y-4">
       <FormInfoPanel
+        formCode={formCode}
         formTitle={formTitle}
         formType={formType}
         journeyStage={journeyStage}
@@ -1261,6 +1532,7 @@ const ImportView = ({
         projects={projects}
         projectActivities={projectActivities}
         projectId={projectId}
+        setFormCode={setFormCode}
         setFormTitle={setFormTitle}
         setFormType={setFormType}
         setJourneyStage={setJourneyStage}
@@ -1288,8 +1560,8 @@ const ImportView = ({
             Upload your existing form file
           </h2>
           <p className="mt-1 max-w-xl text-sm text-muted-foreground">
-            PATHWAYS reads CSV, XLS, or XLSX locally, then suggests metadata mappings. No source
-            data is uploaded until the import backend is connected.
+            PATHWAYS reads CSV, XLS, or XLSX locally, then suggests metadata mappings. This preview
+            does not upload source data.
           </p>
           <div className="mt-4 flex flex-wrap justify-center gap-2">
             <Button onClick={() => fileInputRef.current?.click()}>Select CSV/XLSX file</Button>

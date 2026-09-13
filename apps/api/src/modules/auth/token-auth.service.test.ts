@@ -319,12 +319,12 @@ describe('TokenAuthService cryptographic verification and current identity', () 
     },
   )
 
-  it('rejects a non-approved project before any network request', async () => {
+  it('rejects a token whose issuer does not match the configured project', async () => {
     vi.stubEnv('SUPABASE_URL', 'https://another-project.example')
     await expect(new TokenAuthService(sessions).verify(signedToken())).rejects.toThrow(
-      ServiceUnavailableException,
+      UnauthorizedException,
     )
-    expect(fetchMock).not.toHaveBeenCalled()
+    expect(fetchMock).toHaveBeenCalled()
   })
 
   it('does not fall back to an administrator secret when public keys are missing', async () => {

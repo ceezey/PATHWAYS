@@ -11,7 +11,7 @@ const context = {
 }
 const decision: RouteDecision = {
   route: 'dashboard',
-  presentation: 'prototype-only',
+  authorization: 'database-verified',
   beneficiaryAccess: 'records-or-none',
 }
 const canary = 'SYNTHETIC_PRIVATE_TRANSPORT_CONTENT'

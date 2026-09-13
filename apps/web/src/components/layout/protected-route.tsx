@@ -17,11 +17,11 @@ export function FeatureDirectory() {
   return (
     <section aria-labelledby="feature-directory" className="mb-8 space-y-4">
       <h2 id="feature-directory" className="text-xl font-semibold">
-        Development feature directory
+        Available workspace features
       </h2>
       <p className="text-sm text-muted-foreground">
-        Prototype-only · Backend pending. Project-specific tools require an authorized project
-        selection; no identifiers need to be entered.
+        Features without persisted backend support remain unavailable. Project-specific tools
+        require an authorized project selection; no identifiers need to be entered.
       </p>
       <ul className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
         {visibleFeatures(profile).map((feature) => (
@@ -65,15 +65,15 @@ export const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
       <div className="flex min-h-screen items-center justify-center p-6">
         <Card className="max-w-xl">
           <CardHeader>
-            <CardTitle>Supabase auth setup is still required</CardTitle>
+            <CardTitle>Authentication configuration required</CardTitle>
             <CardDescription>
-              Dashboard routes are scaffolded, but the real session check stays in placeholder mode
-              until the Supabase project URL, publishable key, and redirect URLs are configured.
+              Protected access is unavailable until the Supabase project URL, publishable key, and
+              redirect URLs are configured.
             </CardDescription>
           </CardHeader>
           <CardContent className="text-sm leading-6 text-muted-foreground">
-            Continue the human setup in Supabase, then reload this route. The reserved redirect
-            target is
+            Complete the authentication configuration in Supabase, then reload this route. The
+            redirect target is
             <code className="mx-1 rounded bg-muted px-2 py-1 text-foreground">/auth/callback</code>.
             <div className="mt-4">
               <Link

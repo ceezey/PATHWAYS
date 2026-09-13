@@ -12,7 +12,7 @@ import { ApiOkResponse, ApiTags } from '@nestjs/swagger'
 
 import { AuthBoundary } from '../../common/decorators/auth-boundary.decorator'
 import { AuthService } from './auth.service'
-import { type AuthenticatedRequest, developerApplicationAccessEnabled } from './developer-access'
+import type { AuthenticatedRequest } from './developer-access'
 import { WorkspaceResolutionService } from './workspace-resolution.service'
 
 @ApiTags('auth')
@@ -27,7 +27,7 @@ export class AuthController {
   @AuthBoundary('workspace-discovery')
   @Header('Cache-Control', 'private, no-store')
   @ApiOkResponse({
-    description: 'Prototype-only: zero or one current, database-verified workspace.',
+    description: 'Zero or one current, database-verified workspace.',
   })
   getWorkspaces(@Req() request: AuthenticatedRequest, @Query() query: Record<string, unknown>) {
     if (!request.auth) throw new UnauthorizedException('Verified authentication required.')
@@ -50,7 +50,7 @@ export class AuthController {
       authUserId: request.auth?.id,
       aal: request.auth?.aal,
       enrollmentAllowed: true,
-      applicationAccessEnabled: developerApplicationAccessEnabled(),
+      applicationAccessEnabled: true,
     }
   }
 

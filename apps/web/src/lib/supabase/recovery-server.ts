@@ -3,7 +3,6 @@ import { createHash, randomBytes, timingSafeEqual } from 'node:crypto'
 import { type CookieOptions, createServerClient } from '@supabase/ssr'
 import type { NextRequest, NextResponse } from 'next/server'
 
-import { developerSupabaseUrl } from '@/features/auth/auth-access'
 import { localPasswordRecoveryOrigin } from '@/features/auth/password-recovery'
 import { webEnv, webSupabasePublishableKey } from '@/lib/env'
 
@@ -23,6 +22,7 @@ type RecoveryGrantGlobal = typeof globalThis & {
 
 const grantGlobal = globalThis as RecoveryGrantGlobal
 const recoveryGrantPattern = /^[A-Za-z0-9_-]{43}$/
+const configuredSupabaseUrl = (webEnv.NEXT_PUBLIC_SUPABASE_URL ?? '').replace(/\/$/, '')
 
 const getRecoveryGrantStore = () => {
   grantGlobal.__PATHWAYS_LOCAL_PASSWORD_RECOVERY_GRANTS_V1__ ??= new Map()
@@ -149,7 +149,7 @@ export const getRecoveryIdentityFromVerifiedClaims = (
 ): VerifiedRecoveryIdentity | null => {
   if (!claims || typeof claims !== 'object' || Array.isArray(claims)) return null
   const payload = claims as Record<string, unknown>
-  const expectedIssuer = `${developerSupabaseUrl}/auth/v1`
+  const expectedIssuer = `${configuredSupabaseUrl}/auth/v1`
   if (
     payload.iss !== expectedIssuer ||
     payload.sub !== expectedUserId ||
@@ -204,11 +204,11 @@ export const recoveryAuthFetch: typeof fetch = async (input, init) => {
 }
 
 export function createRecoveryRouteClient(request: NextRequest, pending: PendingAuthResponse) {
-  if (webEnv.NEXT_PUBLIC_SUPABASE_URL !== developerSupabaseUrl || !webSupabasePublishableKey) {
+  if (!configuredSupabaseUrl || !webSupabasePublishableKey) {
     throw new Error('The approved PATHWAYS-dev Auth client is unavailable.')
   }
 
-  return createServerClient(developerSupabaseUrl, webSupabasePublishableKey, {
+  return createServerClient(configuredSupabaseUrl, webSupabasePublishableKey, {
     global: { fetch: recoveryAuthFetch },
     cookies: {
       getAll() {

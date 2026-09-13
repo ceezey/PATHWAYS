@@ -1,21 +1,16 @@
 import { ForbiddenException, ServiceUnavailableException } from '@nestjs/common'
 import type { Prisma } from '@prisma/client'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { PrismaService } from '../../prisma/prisma.service'
 import type { ApplicationProfileService } from './application-profile.service'
 import { AuthorizedDataService } from './authorized-data.service'
-import {
-  type ApplicationIdentity,
-  DEVELOPER_AUTH_UUID,
-  DEVELOPER_SUPABASE_URL,
-} from './developer-access'
+import { type ApplicationIdentity, DEVELOPER_AUTH_UUID } from './developer-access'
 import { WorkspaceResolutionService } from './workspace-resolution.service'
 
 const organizationId = '30000000-0000-4000-8000-000000000003'
 const userId = '40000000-0000-4000-8000-000000000004'
 const foreignId = '50000000-0000-4000-8000-000000000005'
 const identity = { id: DEVELOPER_AUTH_UUID, aal: 'aal2' as const }
-const candidate = { authUserId: identity.id, organizationId, userId }
 const profile: ApplicationIdentity = {
   ...identity,
   organizationId,
@@ -27,87 +22,41 @@ const profile: ApplicationIdentity = {
   assignedProjectIds: [],
 }
 const profiles = { resolve: vi.fn() }
-const service = new WorkspaceResolutionService(profiles as unknown as ApplicationProfileService)
-const configure = (value: unknown) =>
-  vi.stubEnv('PATHWAYS_DEVELOPER_WORKSPACE_CANDIDATES', JSON.stringify(value))
+const prisma = { discoverWorkspace: vi.fn() }
+const service = new WorkspaceResolutionService(
+  prisma as unknown as PrismaService,
+  profiles as unknown as ApplicationProfileService,
+)
 
 beforeEach(() => {
-  vi.stubEnv('NODE_ENV', 'development')
-  vi.stubEnv('SUPABASE_URL', DEVELOPER_SUPABASE_URL)
-  vi.stubEnv('PATHWAYS_DEVELOPER_ACCESS_ENABLED', 'true')
-  vi.stubEnv('PATHWAYS_DEVELOPER_WORKSPACE_RESOLUTION_ENABLED', 'true')
-  configure([candidate])
+  prisma.discoverWorkspace.mockReset().mockResolvedValue([{ organizationId, userId }])
   profiles.resolve.mockReset().mockResolvedValue(profile)
 })
-afterEach(() => vi.unstubAllEnvs())
 
-describe('Prototype-only D1 candidate resolution (no live resources)', () => {
+describe('verified-subject workspace resolution (no live resources)', () => {
   it('returns only the database-validated workspace context and a safe label', async () => {
     await expect(service.discover(identity)).resolves.toEqual({
       authUserId: identity.id,
-      prototypeOnly: true,
       workspaces: [{ organizationId, userId, displayName: 'Synthetic workspace' }],
     })
+    expect(prisma.discoverWorkspace).toHaveBeenCalledExactlyOnceWith(identity.id)
     expect(profiles.resolve).toHaveBeenCalledExactlyOnceWith(identity.id, organizationId, userId)
   })
-  it('distinguishes an explicit empty candidate set from unavailable configuration', async () => {
-    configure([])
+  it('returns zero workspaces only for an explicit empty database result', async () => {
+    prisma.discoverWorkspace.mockResolvedValue([])
     expect((await service.discover(identity)).workspaces).toEqual([])
     expect(profiles.resolve).not.toHaveBeenCalled()
-    vi.stubEnv('PATHWAYS_DEVELOPER_WORKSPACE_CANDIDATES', '')
-    await expect(service.discover(identity)).rejects.toBeInstanceOf(ServiceUnavailableException)
   })
-  it.each(['revoked', 'disabled user', 'inactive organization', 'inactive role', 'wrong linkage'])(
-    'rejects a candidate when runtime/profile authority denies %s',
-    async () => {
-      profiles.resolve.mockRejectedValue(new ForbiddenException())
-      expect((await service.discover(identity)).workspaces).toEqual([])
-      await expect(
-        service.resolveSelection(identity, organizationId, userId),
-      ).rejects.toBeInstanceOf(ForbiddenException)
-    },
-  )
-  it.each([
-    {},
-    null,
-    'bad',
-    [candidate, candidate],
-    [{ ...candidate, authUserId: foreignId }],
-    [{ ...candidate, userId: 'bad' }],
-    [{ ...candidate, role: 'SYSTEM_ADMINISTRATOR' }],
-  ])('rejects malformed, duplicate, foreign-subject or extra configuration %#', async (value) => {
-    configure(value)
-    await expect(service.discover(identity)).rejects.toBeInstanceOf(ServiceUnavailableException)
-    expect(profiles.resolve).not.toHaveBeenCalled()
-  })
-  it.each([
-    ['NODE_ENV', 'production'],
-    ['NODE_ENV', 'test'],
-    ['NODE_ENV', ''],
-    ['SUPABASE_URL', 'https://example.invalid'],
-    ['PATHWAYS_DEVELOPER_WORKSPACE_RESOLUTION_ENABLED', 'false'],
-    ['PATHWAYS_DEVELOPER_WORKSPACE_RESOLUTION_ENABLED', 'TRUE'],
-  ])('fails closed before DB access for unapproved %s=%s', async (key, value) => {
-    vi.stubEnv(key, value)
-    await expect(service.discover(identity)).rejects.toBeInstanceOf(ServiceUnavailableException)
-    expect(profiles.resolve).not.toHaveBeenCalled()
-  })
-  it('requires designated AAL2 and the existing access gate even when called directly', async () => {
+  it('requires AAL2 even when called directly', async () => {
     await expect(service.discover({ ...identity, aal: 'aal1' })).rejects.toBeInstanceOf(
       ForbiddenException,
     )
-    await expect(service.discover({ ...identity, id: foreignId })).rejects.toBeInstanceOf(
-      ForbiddenException,
-    )
-    vi.stubEnv('PATHWAYS_DEVELOPER_ACCESS_ENABLED', 'false')
-    await expect(service.discover(identity)).rejects.toBeInstanceOf(ForbiddenException)
-    expect(profiles.resolve).not.toHaveBeenCalled()
   })
-  it('does not choose the first of multiple valid memberships', async () => {
-    configure([candidate, { ...candidate, organizationId: foreignId }])
-    profiles.resolve
-      .mockResolvedValueOnce(profile)
-      .mockResolvedValueOnce({ ...profile, organizationId: foreignId })
+  it('fails closed rather than selecting one of multiple linked profiles', async () => {
+    prisma.discoverWorkspace.mockResolvedValue([
+      { organizationId, userId },
+      { organizationId: foreignId, userId: foreignId },
+    ])
     await expect(service.discover(identity)).rejects.toBeInstanceOf(ServiceUnavailableException)
   })
   it.each([undefined, '', 'fabricated', [organizationId], foreignId])(
@@ -124,7 +73,7 @@ describe('Prototype-only D1 candidate resolution (no live resources)', () => {
       service.resolveSelection(identity, organizationId, foreignId),
     ).rejects.toBeInstanceOf(ForbiddenException)
   })
-  it('rechecks revocation, permissions, role and assignment changes between requests', async () => {
+  it('rechecks permissions, role and assignment changes between requests', async () => {
     await expect(service.resolveSelection(identity, organizationId, userId)).resolves.toEqual(
       profile,
     )
@@ -142,12 +91,11 @@ describe('Prototype-only D1 candidate resolution (no live resources)', () => {
       ForbiddenException,
     )
     profiles.resolve.mockRejectedValue(new ForbiddenException())
-    expect((await service.discover(identity)).workspaces).toEqual([])
-    expect(profiles.resolve).toHaveBeenCalledTimes(4)
+    await expect(service.discover(identity)).rejects.toBeInstanceOf(ForbiddenException)
   })
-  it('does not reuse a previously selected context after removal from server candidates', async () => {
+  it('does not reuse a selected context after profile removal', async () => {
     await service.resolveSelection(identity, organizationId, userId)
-    configure([])
+    prisma.discoverWorkspace.mockResolvedValue([])
     await expect(service.resolveSelection(identity, organizationId, userId)).rejects.toBeInstanceOf(
       ForbiddenException,
     )
@@ -163,10 +111,16 @@ describe('Prototype-only D1 candidate resolution (no live resources)', () => {
   })
   it.each([
     new Error('private provider detail'),
-    new ServiceUnavailableException(),
+    new ServiceUnavailableException('private provider detail'),
     { code: 'private' },
   ])('never treats unknown failures as zero membership %#', async (error) => {
     profiles.resolve.mockRejectedValue(error)
+    await expect(service.discover(identity)).rejects.toThrow(
+      'Workspace verification is temporarily unavailable.',
+    )
+  })
+  it('sanitizes discovery failures', async () => {
+    prisma.discoverWorkspace.mockRejectedValue(new Error('private database detail'))
     await expect(service.discover(identity)).rejects.toThrow(
       'Workspace verification is temporarily unavailable.',
     )
