@@ -3,8 +3,8 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "nest start --watch --entryFile apps/api/src/main",
-    "start:dev": "nest start --watch --entryFile apps/api/src/main",
+    "dev": "nest build && powershell.exe -NoProfile -File ../../infra/supabase/security-adapter/Start-DevRuntime.ps1 -Action Start",
+    "start:dev": "nest build && powershell.exe -NoProfile -File ../../infra/supabase/security-adapter/Start-DevRuntime.ps1 -Action Start",
     "build": "nest build",
     "start": "node dist/apps/api/src/main.js",
     "lint": "biome check .",

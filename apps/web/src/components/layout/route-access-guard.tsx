@@ -22,7 +22,7 @@ export function RouteAccessGuard({
   const pathname = usePathname()
   const params = useSearchParams()
   const { session } = useSession()
-  const { profile, refreshAccess } = useCurrentRole()
+  const { profile, refreshAccess, accessRefreshing } = useCurrentRole()
   const query = new URLSearchParams(params.toString())
   query.delete('_rsc')
   const path = pathname + (query.size ? `?${query.toString()}` : '')
@@ -46,11 +46,12 @@ export function RouteAccessGuard({
     error?: number
   } | null>(null)
   useEffect(() => {
-    let controller = new AbortController()
-    let pending = false
+    const controller = new AbortController()
+    if (accessRefreshing) return () => controller.abort()
+
     const selection = matchRoute(path)
     const check = async () => {
-      if (pending || document.visibilityState === 'hidden') return
+      if (document.visibilityState === 'hidden') return
       if (
         !token ||
         !profile ||
@@ -61,48 +62,27 @@ export function RouteAccessGuard({
         setState({ key, error: 403 })
         return
       }
-      pending = true
-      const requestController = controller
+
       try {
         const decision = await requestRouteCheck(
           webEnv.NEXT_PUBLIC_API_BASE_URL,
           token,
           profile,
           selection,
-          requestController.signal,
+          controller.signal,
         )
-        if (!requestController.signal.aborted) setState({ key, decision })
+        if (!controller.signal.aborted) setState({ key, decision })
       } catch (error) {
-        if (!requestController.signal.aborted) {
+        if (!controller.signal.aborted) {
           clearWorkspaceContext()
           setState({ key, error: error instanceof RouteCheckError ? error.status : 503 })
         }
-      } finally {
-        if (requestController === controller) pending = false
       }
     }
+
     void check()
-    const recheck = () => {
-      if (controller.signal.aborted) controller = new AbortController()
-      void check()
-    }
-    const hide = () => {
-      setState(null)
-      controller.abort()
-      pending = false
-    }
-    const timer = setInterval(recheck, 30000)
-    window.addEventListener('focus', recheck)
-    window.addEventListener('pageshow', recheck)
-    window.addEventListener('pagehide', hide)
-    return () => {
-      controller.abort()
-      clearInterval(timer)
-      window.removeEventListener('focus', recheck)
-      window.removeEventListener('pageshow', recheck)
-      window.removeEventListener('pagehide', hide)
-    }
-  }, [key, path, profile, token, session?.user.id])
+    return () => controller.abort()
+  }, [accessRefreshing, key, path, profile, token, session?.user.id])
   const current = state?.key === key ? state : null
   if (!current) return <output aria-live="polite">Verifying current route access…</output>
   if (current.error === 401)

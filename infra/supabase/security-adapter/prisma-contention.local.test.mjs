@@ -9,6 +9,7 @@ import { fileURLToPath } from 'node:url'
 import vm from 'node:vm'
 
 const filename = fileURLToPath(import.meta.url)
+const isEntry = Boolean(process.argv[1]) && path.resolve(process.argv[1]) === filename
 const repository = path.resolve(path.dirname(filename), '../../..')
 const port = 55458
 const pgBin = 'C:/Program Files/PostgreSQL/18/bin'
@@ -54,7 +55,7 @@ function targetUrl(connectionLimit) {
   return url.href
 }
 
-function cleanEnvironment(directory) {
+export function cleanEnvironment(directory) {
   return {
     SystemRoot: process.env.SystemRoot,
     ComSpec: 'C:\\Windows\\System32\\cmd.exe',
@@ -68,7 +69,7 @@ function cleanEnvironment(directory) {
   }
 }
 
-async function portFree() {
+export async function portFree() {
   return new Promise((resolve) => {
     const server = net.createServer()
     server.once('error', () => resolve(false))
@@ -76,21 +77,22 @@ async function portFree() {
   })
 }
 
-function privateCommand(tool, args, directory, input) {
+export function privateCommand(tool, args, directory, input) {
   const result = spawnSync(path.join(pgBin, `${tool}.exe`), args, {
     cwd: directory,
     env: cleanEnvironment(directory),
     input,
     encoding: 'utf8',
     windowsHide: true,
-    timeout: 25_000,
+    stdio: tool === 'initdb' || tool === 'pg_ctl' ? 'ignore' : 'pipe',
+    timeout: tool === 'initdb' ? 60_000 : 25_000,
     maxBuffer: 1_000_000,
   })
   check(!result.error && result.status === 0, `LOCAL_${tool.toUpperCase()}_FAILED`)
-  return result.stdout.trim()
+  return (result.stdout ?? '').trim()
 }
 
-function sql(directory, input) {
+export function sql(directory, input) {
   return privateCommand(
     'psql',
     [
@@ -117,7 +119,7 @@ function sql(directory, input) {
 
 // Deliberately incomplete synthetic schema, NOT a migration or an RLS rehearsal.
 // Only columns touched by the real profile queries and fake helper prerequisites.
-const fixture = `
+export const fixture = `
 CREATE SCHEMA pathways;
 CREATE TYPE pathways.organization_status AS ENUM ('ACTIVE','INACTIVE','ARCHIVED');
 CREATE TYPE pathways.account_status AS ENUM ('INVITED','ACTIVE','SUSPENDED','DEACTIVATED','ARCHIVED');
@@ -150,7 +152,7 @@ $$;
 
 // Use the installed engine/model mappings without generated-client .env discovery.
 // No AppModule, ConfigModule, Auth client, launcher, or credential helper is loaded.
-function offlineServices() {
+export function offlineServices() {
   const apiRequire = createRequire(path.join(repository, 'apps/api/package.json'))
   check(apiRequire('@prisma/client/package.json').version === '6.19.2', 'VERSION_DRIFT')
   const runtime = apiRequire('@prisma/client/runtime/library')
@@ -236,6 +238,7 @@ function offlineServices() {
     ...from('prisma/transaction-diagnostic'),
     ...from('modules/auth/session-liveness.service'),
     ...from('modules/auth/application-profile.service'),
+    policy: from('modules/auth/authorization-policy'),
     Logger: apiRequire('@nestjs/common').Logger,
   }
 }
@@ -544,7 +547,7 @@ async function runIsolatedWorker(directory) {
   })
 }
 
-if (process.argv[2] === '--synthetic-worker') {
+if (isEntry && process.argv[2] === '--synthetic-worker') {
   let result
   try {
     const directory = path.resolve(process.argv[3] ?? '')
@@ -569,7 +572,7 @@ if (process.argv[2] === '--synthetic-worker') {
     process.exitCode = 1
   }
   process.stdout.write(JSON.stringify(result))
-} else {
+} else if (isEntry) {
   const { test } = await import('node:test')
   test('bounded error classification never returns provider text', () => {
     assert.equal(

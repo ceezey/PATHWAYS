@@ -38,6 +38,8 @@ const CurrentRoleContext = createContext<CurrentRoleContextValue | null>(null)
 
 export const CurrentRoleProvider = ({ children }: { children: React.ReactNode }) => {
   const { session, status: sessionStatus } = useSession()
+  const token = session?.access_token ?? null
+  const subject = session?.user.id ?? null
   const pathname = usePathname()
   // Public routes never start internal membership discovery.
   const internal = isInternalPath(pathname)
@@ -61,8 +63,8 @@ export const CurrentRoleProvider = ({ children }: { children: React.ReactNode })
     handoffSubject.current = null
   }, [])
   useEffect(() => {
-    if (handoffSubject.current !== session?.user.id) handoffSubject.current = null
-  }, [session?.user.id])
+    if (handoffSubject.current !== subject) handoffSubject.current = null
+  }, [subject])
   const refreshAccess = useCallback(() => {
     // Focus, pageshow and the interval can fire together. One authoritative
     // revalidation is enough; keep the verified view stable while it runs.
@@ -80,15 +82,13 @@ export const CurrentRoleProvider = ({ children }: { children: React.ReactNode })
       setResult(null)
       return () => controller.abort()
     }
-    if (!session || !internal) {
+    if (!token || !subject || !internal) {
       revalidationInFlight.current = false
       setResult(null)
       clearWorkspaceContext()
       return () => controller.abort()
     }
     revalidationInFlight.current = true
-    const token = session.access_token
-    const subject = session.user.id
     const active = () =>
       !controller.signal.aborted &&
       operation.current === revision &&
@@ -154,30 +154,30 @@ export const CurrentRoleProvider = ({ children }: { children: React.ReactNode })
     }
     void load()
     return () => controller.abort()
-  }, [session, sessionStatus, internal, refresh, resetWorkspaceHandoff])
+  }, [token, subject, sessionStatus, internal, refresh, resetWorkspaceHandoff])
 
   useEffect(() => {
-    if (!session || !internal) return
+    if (!token || !subject || !internal) return
     const revalidate = () => {
       if (document.visibilityState === 'visible') refreshAccess()
     }
-    const clear = () => {
+    const pause = () => {
+      // Invalidate any in-flight result without discarding the last verified
+      // workspace view. pageshow/focus will revalidate when the page is active.
       ++operation.current
       revalidationInFlight.current = false
-      clearWorkspaceContext()
-      setResult(null)
     }
     const interval = window.setInterval(revalidate, 30_000)
     window.addEventListener('focus', revalidate)
     window.addEventListener('pageshow', revalidate)
-    window.addEventListener('pagehide', clear)
+    window.addEventListener('pagehide', pause)
     return () => {
       window.clearInterval(interval)
       window.removeEventListener('focus', revalidate)
       window.removeEventListener('pageshow', revalidate)
-      window.removeEventListener('pagehide', clear)
+      window.removeEventListener('pagehide', pause)
     }
-  }, [session, internal, refreshAccess])
+  }, [token, subject, internal, refreshAccess])
 
   // Reject stale authority even during the render before effect cancellation.
   const current =

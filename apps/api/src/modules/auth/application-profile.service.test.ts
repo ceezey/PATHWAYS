@@ -22,7 +22,7 @@ function setup() {
     },
   }
   const transaction = {
-    systemUser: { findFirst: vi.fn().mockResolvedValue(profile) },
+    $queryRaw: vi.fn().mockResolvedValue([profile]),
     userProjectAssignment: { findMany: vi.fn().mockResolvedValue([{ projectId }]) },
   }
   const withVerifiedContext = vi.fn(
@@ -61,40 +61,25 @@ describe('ApplicationProfileService', () => {
       { authSubject: subject, organizationId, userId },
       expect.any(Function),
     )
-    expect(transaction.systemUser.findFirst).toHaveBeenCalledWith({
-      where: {
-        id: userId,
-        authUserId: subject,
-        organizationId,
-        accountStatus: 'ACTIVE',
-        archivedAt: null,
-        organization: { status: 'ACTIVE', archivedAt: null },
-        role: { isActive: true },
-      },
-      select: {
-        id: true,
-        organizationId: true,
-        organization: { select: { name: true } },
-        fullName: true,
-        role: {
-          select: {
-            code: true,
-            rolePermissions: {
-              where: { permission: { isActive: true } },
-              select: { permission: { select: { code: true } } },
-            },
-          },
-        },
-      },
-    })
+    expect(transaction.$queryRaw).toHaveBeenCalledTimes(1)
+    const [parts, ...parameters] = transaction.$queryRaw.mock.calls[0]
+    expect(parameters).toEqual([userId, subject, organizationId])
+    const sql = parts.join('?')
+    expect(sql).toContain('u.id = ?::uuid AND u.auth_user_id = ?::uuid')
+    expect(sql).toContain('u.organization_id = ?::uuid')
+    expect(sql).toContain("u.account_status = 'ACTIVE' AND u.archived_at IS NULL")
+    expect(sql).toContain("o.status = 'ACTIVE' AND o.archived_at IS NULL AND r.is_active")
+    expect(sql).toContain('p.id = rp.permission_id AND p.is_active')
+    expect(sql).toContain('rp.role_id = r.id')
+    for (const value of parameters) expect(sql).not.toContain(value)
   })
 
   it.each(['SUSPENDED', 'DEACTIVATED', 'ARCHIVED'] as const)(
     'denies a linked %s account instead of reusing prior authority',
     async (accountStatus) => {
       const { service, transaction, profile } = setup()
-      transaction.systemUser.findFirst.mockImplementation(({ where }) =>
-        where.accountStatus === accountStatus ? profile : null,
+      transaction.$queryRaw.mockImplementation((parts) =>
+        parts.join('').includes(`u.account_status = '${accountStatus}'`) ? [profile] : [],
       )
       await expect(service.resolve(subject, organizationId, userId)).rejects.toThrow(
         'Application access is unavailable for this identity and context.',
@@ -124,11 +109,13 @@ describe('ApplicationProfileService', () => {
 
   it('returns only database authority, without merging token or profile metadata', async () => {
     const { service, transaction, profile } = setup()
-    transaction.systemUser.findFirst.mockResolvedValue({
-      ...profile,
-      app_metadata: { roles: ['SYSTEM_ADMINISTRATOR'], permissions: ['EVERYTHING'] },
-      user_metadata: { organizationId: 'attacker-controlled', assignedProjectIds: ['other'] },
-    })
+    transaction.$queryRaw.mockResolvedValue([
+      {
+        ...profile,
+        app_metadata: { roles: ['SYSTEM_ADMINISTRATOR'], permissions: ['EVERYTHING'] },
+        user_metadata: { organizationId: 'attacker-controlled', assignedProjectIds: ['other'] },
+      },
+    ])
     transaction.userProjectAssignment.findMany.mockResolvedValue([{ projectId }, { projectId }])
     await expect(service.resolve(subject, organizationId, userId)).resolves.toEqual({
       id: subject,
@@ -145,10 +132,12 @@ describe('ApplicationProfileService', () => {
 
   it('does not invent permission or assignment grants for an empty database result', async () => {
     const { service, transaction, profile } = setup()
-    transaction.systemUser.findFirst.mockResolvedValue({
-      ...profile,
-      role: { code: 'SYSTEM_ADMINISTRATOR', rolePermissions: [] },
-    })
+    transaction.$queryRaw.mockResolvedValue([
+      {
+        ...profile,
+        role: { code: 'SYSTEM_ADMINISTRATOR', rolePermissions: [] },
+      },
+    ])
     transaction.userProjectAssignment.findMany.mockResolvedValue([])
     await expect(service.resolve(subject, organizationId, userId)).resolves.toMatchObject({
       roles: ['SYSTEM_ADMINISTRATOR'],
@@ -161,7 +150,7 @@ describe('ApplicationProfileService', () => {
     'denies missing profiles and non-canonical database roles',
     async (role) => {
       const { service, transaction, profile } = setup()
-      transaction.systemUser.findFirst.mockResolvedValue(role ? { ...profile, role } : null)
+      transaction.$queryRaw.mockResolvedValue(role ? [{ ...profile, role }] : [])
       await expect(service.resolve(subject, organizationId, userId)).rejects.toThrow(
         'Application access is unavailable for this identity and context.',
       )
@@ -175,7 +164,7 @@ describe('ApplicationProfileService', () => {
       const { service, transaction, withVerifiedContext } = setup()
       const error = new Error('Synthetic sensitive provider diagnostics must not be returned')
       if (stage === 'context') withVerifiedContext.mockRejectedValue(error)
-      if (stage === 'profile') transaction.systemUser.findFirst.mockRejectedValue(error)
+      if (stage === 'profile') transaction.$queryRaw.mockRejectedValue(error)
       if (stage === 'assignments')
         transaction.userProjectAssignment.findMany.mockRejectedValue(error)
       await expect(service.resolve(subject, organizationId, userId)).rejects.toThrow(
@@ -230,15 +219,17 @@ describe('ApplicationProfileService', () => {
 
   it('intersects active database grants with the canonical role ceiling', async () => {
     const { service, transaction, profile } = setup()
-    transaction.systemUser.findFirst.mockResolvedValue({
-      ...profile,
-      role: {
-        code: 'GRANT_MANAGER',
-        rolePermissions: ['projects.read', 'beneficiaries.records.read', '*'].map((code) => ({
-          permission: { code },
-        })),
+    transaction.$queryRaw.mockResolvedValue([
+      {
+        ...profile,
+        role: {
+          code: 'GRANT_MANAGER',
+          rolePermissions: ['projects.read', 'beneficiaries.records.read', '*'].map((code) => ({
+            permission: { code },
+          })),
+        },
       },
-    })
+    ])
     await expect(service.resolve(subject, organizationId, userId)).resolves.toMatchObject({
       permissions: ['projects.read'],
     })
@@ -278,5 +269,30 @@ describe('ApplicationProfileService', () => {
     await expect(service.resolve(subject, organizationId, userId)).rejects.toMatchObject({
       status: 503,
     })
+  })
+
+  it('rejects unexpected multiple profile rows rather than selecting one', async () => {
+    const { service, transaction, profile } = setup()
+    transaction.$queryRaw.mockResolvedValue([profile, profile])
+    await expect(service.resolve(subject, organizationId, userId)).rejects.toBeInstanceOf(
+      ForbiddenException,
+    )
+    expect(transaction.userProjectAssignment.findMany).not.toHaveBeenCalled()
+  })
+
+  it('re-reads profile, role grants and assignments on every call', async () => {
+    const { service, transaction, profile } = setup()
+    await service.resolve(subject, organizationId, userId)
+    transaction.$queryRaw.mockResolvedValue([
+      { ...profile, role: { code: 'GRANT_MANAGER', rolePermissions: [] } },
+    ])
+    transaction.userProjectAssignment.findMany.mockResolvedValue([])
+    await expect(service.resolve(subject, organizationId, userId)).resolves.toMatchObject({
+      roles: ['GRANT_MANAGER'],
+      permissions: [],
+      assignedProjectIds: [],
+    })
+    expect(transaction.$queryRaw).toHaveBeenCalledTimes(2)
+    expect(transaction.userProjectAssignment.findMany).toHaveBeenCalledTimes(2)
   })
 })

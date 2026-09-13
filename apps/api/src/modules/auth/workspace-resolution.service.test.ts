@@ -144,7 +144,7 @@ describe('Stage 3 preserves transaction-level role/project scope', () => {
       },
     }
     const tx = {
-      systemUser: { findFirst: vi.fn().mockResolvedValue(row) },
+      $queryRaw: vi.fn().mockResolvedValue([row]),
       userProjectAssignment: { findMany: vi.fn().mockResolvedValue([]) },
       project: {
         findFirst: vi.fn().mockResolvedValue(null),
@@ -191,7 +191,7 @@ describe('Stage 3 preserves transaction-level role/project scope', () => {
   })
   it('denies a role revoked inside the business transaction after guard success', async () => {
     const { service, tx } = dataService('SYSTEM_ADMINISTRATOR')
-    tx.systemUser.findFirst.mockResolvedValue(null)
+    tx.$queryRaw.mockResolvedValue([])
     await expect(service.projects(profile)).rejects.toBeInstanceOf(ForbiddenException)
     expect(tx.project.findMany).not.toHaveBeenCalled()
   })
