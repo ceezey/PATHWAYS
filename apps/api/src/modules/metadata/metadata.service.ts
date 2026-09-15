@@ -11,6 +11,7 @@ import { Prisma } from '@prisma/client'
 import { projectScope } from '@app/modules/auth/authorized-data.service'
 import { withAuthorizedOperation } from '@app/modules/auth/authorized-operation'
 import { type ApplicationIdentity, UUID_PATTERN } from '@app/modules/auth/developer-access'
+import { ParticipantsService } from '@app/modules/participants/participants.service'
 import { PrismaService } from '@app/prisma/prisma.service'
 import {
   type FormFieldValidationContract,
@@ -173,7 +174,10 @@ function sameValues(
 
 @Injectable()
 export class MetadataService {
-  constructor(@Inject(PrismaService) private readonly prisma: PrismaService) {}
+  constructor(
+    @Inject(PrismaService) private readonly prisma: PrismaService,
+    @Inject(ParticipantsService) private readonly participants: ParticipantsService,
+  ) {}
 
   listForms(identity: ApplicationIdentity, projectId: string) {
     return withAuthorizedOperation(this.prisma, identity, 'forms.read', async (tx, actor) => {
@@ -656,6 +660,24 @@ export class MetadataService {
         )
         this.assertValues(validation)
         const expected = this.expectedDate(input.expectedUpdatedAt)
+        if (form.formType === 'ACTIVITY_MONITORING') {
+          if (submission.updatedAt !== expected.toISOString()) {
+            throw new ConflictException('Draft changed; reload before submitting.')
+          }
+          await this.participants.promoteParticipation(tx, actor, {
+            projectId: form.projectId,
+            form: {
+              id: form.id,
+              version: form.version,
+              activityId: form.activityId,
+              journeyStageId: form.journeyStageId,
+            },
+            submissionId: submission.id,
+            values: validation.values,
+            validatedById: actor.userId,
+          })
+          return this.findSubmission(tx, actor, form, submission.id)
+        }
         const now = new Date()
         const changed = await tx.formSubmission.updateMany({
           where: {

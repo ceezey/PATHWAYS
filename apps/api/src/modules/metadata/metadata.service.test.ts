@@ -101,7 +101,12 @@ describe('P02 metadata service', () => {
     formResponseValue: { deleteMany: vi.fn(), createMany: vi.fn() },
     auditLog: { create: vi.fn() },
   }
-  const service = new MetadataService({} as PrismaService)
+  const service = new MetadataService(
+    {} as PrismaService,
+    {
+      promoteParticipation: vi.fn(),
+    } as never,
+  )
 
   beforeEach(() => {
     vi.clearAllMocks()

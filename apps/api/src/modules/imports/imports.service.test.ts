@@ -138,6 +138,7 @@ describe('P03 import service', () => {
       {} as PrismaService,
       storage as unknown as StorageService,
       beneficiaries as unknown as BeneficiariesService,
+      { promoteParticipation: vi.fn() } as never,
     )
     tx.project.findFirst.mockResolvedValue({ id: projectId })
     tx.$queryRaw.mockResolvedValue([{ id: batchId }])

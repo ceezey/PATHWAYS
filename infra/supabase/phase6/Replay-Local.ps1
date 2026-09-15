@@ -118,17 +118,24 @@ try {
         -v ON_ERROR_STOP=1 -v VERBOSITY=verbose -f (Join-Path $phase6Root 'apps/api/prisma/migrations/0011_beneficiary_registration/migration.sql')
       throw '0011 P04 replay failed.'
     }
+    Copy-Item -LiteralPath (Join-Path $phase6Root 'apps/api/prisma/migrations/0012_project_activity_journeys') -Destination $phase6Stage -Recurse
+    pnpm --filter @pathways/api exec prisma migrate deploy --config $phase6Config
+    if ($LASTEXITCODE -ne 0) {
+      & "$phase6Bin\psql.exe" -X -w -q -A -t -h 127.0.0.1 -p $phase6Port -U postgres -d $phase6Database `
+        -c "SELECT coalesce(logs,'') FROM public._prisma_migrations WHERE migration_name='0012_project_activity_journeys' ORDER BY started_at DESC LIMIT 1"
+      throw '0012 P05 replay failed.'
+    }
     pnpm --filter @pathways/api exec prisma migrate status --config $phase6Config
     if ($LASTEXITCODE -ne 0) { throw 'Replay migration status failed.' }
   } finally { Pop-Location }
 
   $phase6Post = @'
 SELECT (SELECT count(*) FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace
-        WHERE n.nspname='pathways' AND c.relkind='r')=41
+        WHERE n.nspname='pathways' AND c.relkind='r')=42
  AND (SELECT count(*) FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace
       WHERE n.nspname='public' AND c.relkind='r')=16
  AND to_regclass('public._prisma_migrations') IS NOT NULL
- AND (SELECT count(*) FROM public._prisma_migrations)=11
+ AND (SELECT count(*) FROM public._prisma_migrations)=12
  AND (SELECT count(*) FROM public._prisma_migrations WHERE finished_at IS NULL AND rolled_back_at IS NULL)=0
  AND EXISTS(SELECT FROM pg_extension WHERE extname='pgcrypto')
  AND to_regprocedure('pathways.runtime_auth_session_live(uuid,uuid)') IS NOT NULL
@@ -145,6 +152,10 @@ SELECT (SELECT count(*) FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamesp
  AND EXISTS(SELECT FROM pg_trigger WHERE tgname='p04_beneficiary' AND tgenabled='O')
  AND EXISTS(SELECT FROM pg_trigger WHERE tgname='p04_identifier' AND tgenabled='O')
  AND EXISTS(SELECT FROM pg_trigger WHERE tgname='p04_consent' AND tgenabled='O')
+ AND to_regclass('pathways.activity_updates') IS NOT NULL
+ AND EXISTS(SELECT FROM pg_trigger WHERE tgname='p05_stage_freeze' AND tgenabled='O')
+ AND EXISTS(SELECT FROM pg_trigger WHERE tgname='p05_journey_snapshot' AND tgenabled='O')
+ AND has_function_privilege('pathways_runtime','pathways.p05_has_project_permission(text,uuid)','EXECUTE')
  AND has_function_privilege('pathways_runtime','pathways.p04_can_read_beneficiary(uuid)','EXECUTE')
  AND has_function_privilege('pathways_runtime','pathways.p04_can_mutate_beneficiary(text,uuid)','EXECUTE')
  AND NOT has_table_privilege('anon','pathways.beneficiary_identifiers','SELECT')
@@ -197,11 +208,13 @@ SELECT (SELECT count(*) FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamesp
   Invoke-LocalSql ([IO.File]::ReadAllText((Join-Path $phase6Root 'apps/api/prisma/tests/metadata-forms-runtime.sql'))) $phase6Database
   Invoke-LocalSql ([IO.File]::ReadAllText((Join-Path $phase6Root 'apps/api/prisma/tests/import-pipeline-runtime.sql'))) $phase6Database
   Invoke-LocalSql ([IO.File]::ReadAllText((Join-Path $phase6Root 'apps/api/prisma/tests/beneficiary-registration-runtime.sql'))) $phase6Database
+  Invoke-LocalSql ([IO.File]::ReadAllText((Join-Path $phase6Root 'apps/api/prisma/tests/project-activity-journey-runtime.sql'))) $phase6Database
   Write-Output 'PHASE6_LOCAL_REPLAY=PASS'
   Write-Output 'CORE_FOUNDATION_RUNTIME=PASS'
   Write-Output 'METADATA_FORMS_RUNTIME=PASS'
   Write-Output 'IMPORT_PIPELINE_RUNTIME=PASS'
   Write-Output 'BENEFICIARY_REGISTRATION_RUNTIME=PASS'
+  Write-Output 'PROJECT_ACTIVITY_JOURNEY_RUNTIME=PASS'
   Write-Output 'LEGACY_TABLE_PRESERVATION=PASS'
   $phase6Exit = 0
 } catch {

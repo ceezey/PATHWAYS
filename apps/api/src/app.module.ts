@@ -9,6 +9,7 @@ import { LoggerModule } from 'nestjs-pino'
 import { RolesGuard } from '@app/common/guards/roles.guard'
 import { SupabaseAuthGuard } from '@app/common/guards/supabase-auth.guard'
 import { SentryInterceptor } from '@app/common/interceptors/sentry.interceptor'
+import { ActivitiesModule } from '@app/modules/activities/activities.module'
 import { AuditModule } from '@app/modules/audit/audit.module'
 import { AuthModule } from '@app/modules/auth/auth.module'
 import { BeneficiariesModule } from '@app/modules/beneficiaries/beneficiaries.module'
@@ -149,6 +150,7 @@ export function createPathwaysPinoHttpOptions(environment = process.env.NODE_ENV
     PrismaModule,
     HealthModule,
     AuthModule,
+    ActivitiesModule,
     BeneficiariesModule,
     UsersModule,
     ParticipantsModule,

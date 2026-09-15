@@ -79,6 +79,7 @@ model Organization {
   activityJourneyStageMapping_organization ActivityJourneyStageMapping[] @relation("ActivityJourneyStageMapping_organization")
   beneficiaryActivityParticipation_organization BeneficiaryActivityParticipation[] @relation("BeneficiaryActivityParticipation_organization")
   beneficiaryJourneyEvent_organization BeneficiaryJourneyEvent[] @relation("BeneficiaryJourneyEvent_organization")
+  activityUpdate_organization ActivityUpdate[] @relation("ActivityUpdate_organization")
 
   @@index([status], map: "organizations_status_idx")
   @@map("organizations")
@@ -200,6 +201,8 @@ model SystemUser {
   activityJourneyStageMapping_createdBy ActivityJourneyStageMapping[] @relation("ActivityJourneyStageMapping_createdBy")
   beneficiaryActivityParticipation_recordedBy BeneficiaryActivityParticipation[] @relation("BeneficiaryActivityParticipation_recordedBy")
   beneficiaryJourneyEvent_recordedBy BeneficiaryJourneyEvent[] @relation("BeneficiaryJourneyEvent_recordedBy")
+  activityUpdate_submittedBy ActivityUpdate[] @relation("ActivityUpdate_submittedBy")
+  activityUpdate_reviewedBy ActivityUpdate[] @relation("ActivityUpdate_reviewedBy")
   userProjectAssignment_user UserProjectAssignment[] @relation("UserProjectAssignment_user")
 
   @@unique([organizationId, id], map: "system_users_organization_id_id_key")
@@ -656,6 +659,7 @@ model Project {
   activityJourneyStageMapping_project ActivityJourneyStageMapping[] @relation("ActivityJourneyStageMapping_project")
   beneficiaryActivityParticipation_project BeneficiaryActivityParticipation[] @relation("BeneficiaryActivityParticipation_project")
   beneficiaryJourneyEvent_project BeneficiaryJourneyEvent[] @relation("BeneficiaryJourneyEvent_project")
+  activityUpdate_project ActivityUpdate[] @relation("ActivityUpdate_project")
 
   @@unique([organizationId, id], map: "projects_scope_key")
   @@unique([organizationId, code], map: "projects_org_code_key")
@@ -714,6 +718,7 @@ model ProjectActivity {
   actualStartDate DateTime? @map("actual_start_date") @db.Date
   actualEndDate DateTime? @map("actual_end_date") @db.Date
   status ActivityStatus  @default(NOT_STARTED)
+  progressPercent Int @map("progress_percent") @default(0)
   createdById String? @map("created_by_id") @db.Uuid
   reviewedById String? @map("reviewed_by_id") @db.Uuid
   reviewedAt DateTime? @map("reviewed_at")  @db.Timestamptz(3)
@@ -731,6 +736,7 @@ model ProjectActivity {
   activityJourneyStageMapping_activity ActivityJourneyStageMapping[] @relation("ActivityJourneyStageMapping_activity")
   beneficiaryActivityParticipation_activity BeneficiaryActivityParticipation[] @relation("BeneficiaryActivityParticipation_activity")
   beneficiaryJourneyEvent_activity BeneficiaryJourneyEvent[] @relation("BeneficiaryJourneyEvent_activity")
+  activityUpdate_activity ActivityUpdate[] @relation("ActivityUpdate_activity")
 
   @@unique([organizationId, projectId, id], map: "project_activities_scope_key")
   @@unique([organizationId, projectId, code], map: "project_activities_project_code_key")
@@ -738,6 +744,39 @@ model ProjectActivity {
   @@index([organizationId, createdById], map: "project_activities_created_by_idx")
   @@index([organizationId, reviewedById], map: "project_activities_reviewed_by_idx")
   @@map("project_activities")
+  @@schema("pathways")
+}
+
+model ActivityUpdate {
+  id String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String @map("organization_id") @db.Uuid
+  projectId String @map("project_id") @db.Uuid
+  activityId String @map("activity_id") @db.Uuid
+  clientUpdateId String @map("client_update_id") @db.Uuid
+  progressPercent Int @map("progress_percent")
+  note String
+  status ReviewStatus @default(PENDING)
+  submittedById String @map("submitted_by_id") @db.Uuid
+  submittedAt DateTime @default(now()) @map("submitted_at") @db.Timestamptz(3)
+  reviewedById String? @map("reviewed_by_id") @db.Uuid
+  reviewedAt DateTime? @map("reviewed_at") @db.Timestamptz(3)
+  reviewReason String? @map("review_reason")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
+  organization Organization @relation("ActivityUpdate_organization", fields: [organizationId], references: [id], onDelete: Restrict, onUpdate: Restrict, map: "activity_updates_organization_fk")
+  project Project @relation("ActivityUpdate_project", fields: [organizationId, projectId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict, map: "activity_updates_project_fk")
+  activity ProjectActivity @relation("ActivityUpdate_activity", fields: [organizationId, projectId, activityId], references: [organizationId, projectId, id], onDelete: Restrict, onUpdate: Restrict, map: "activity_updates_activity_fk")
+  submittedBy SystemUser @relation("ActivityUpdate_submittedBy", fields: [organizationId, submittedById], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict, map: "activity_updates_submitted_by_fk")
+  reviewedBy SystemUser? @relation("ActivityUpdate_reviewedBy", fields: [organizationId, reviewedById], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict, map: "activity_updates_reviewed_by_fk")
+  evidenceMedia_update EvidenceMedia[] @relation("EvidenceMedia_activityUpdate")
+
+  @@unique([organizationId, projectId, activityId, id], map: "activity_updates_scope_key")
+  @@unique([organizationId, submittedById, clientUpdateId], map: "activity_updates_client_key")
+  @@index([organizationId, projectId, activityId, submittedAt], map: "activity_updates_activity_time_idx")
+  @@index([organizationId, projectId, status, submittedAt], map: "activity_updates_review_idx")
+  @@index([organizationId, submittedById], map: "activity_updates_submitted_by_idx")
+  @@index([organizationId, reviewedById], map: "activity_updates_reviewed_by_idx")
+  @@map("activity_updates")
   @@schema("pathways")
 }
 
@@ -1067,6 +1106,7 @@ model FormSubmission {
   enrollment BeneficiaryProjectEnrollment? @relation("FormSubmission_enrollment", fields: [organizationId, projectId, enrollmentId], references: [organizationId, projectId, id], onDelete: Restrict, onUpdate: Restrict, map: "form_submissions_enrollment_fk")
   formResponseValue_submission FormResponseValue[] @relation("FormResponseValue_submission")
   beneficiaryConsentRecord_submission BeneficiaryConsentRecord[] @relation("BeneficiaryConsentRecord_submission")
+  beneficiaryActivityParticipation_sourceSubmission BeneficiaryActivityParticipation[] @relation("BeneficiaryActivityParticipation_sourceSubmission")
 
   @@unique([organizationId, projectId, id], map: "form_submissions_scope_key")
   @@unique([organizationId, projectId, formId, id], map: "form_submissions_form_scope_key")
@@ -1298,6 +1338,7 @@ model BeneficiaryActivityParticipation {
   participationDate DateTime @map("participation_date") @db.Date
   progressStatus ProgressStatus @map("progress_status") @default(IN_PROGRESS)
   progressNotes String? @map("progress_notes")
+  sourceSubmissionId String? @unique(map: "beneficiary_activity_participations_submission_key") @map("source_submission_id") @db.Uuid
   recordedById String @map("recorded_by_id") @db.Uuid
   recordedAt DateTime @map("recorded_at") @default(now()) @db.Timestamptz(3)
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
@@ -1307,6 +1348,7 @@ model BeneficiaryActivityParticipation {
   recordedBy SystemUser @relation("BeneficiaryActivityParticipation_recordedBy", fields: [organizationId, recordedById], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict, map: "beneficiary_activity_participations_recorded_by_fk")
   enrollment BeneficiaryProjectEnrollment @relation("BeneficiaryActivityParticipation_enrollment", fields: [organizationId, projectId, enrollmentId], references: [organizationId, projectId, id], onDelete: Restrict, onUpdate: Restrict, map: "beneficiary_activity_participations_enrollment_fk")
   activity ProjectActivity @relation("BeneficiaryActivityParticipation_activity", fields: [organizationId, projectId, activityId], references: [organizationId, projectId, id], onDelete: Restrict, onUpdate: Restrict, map: "beneficiary_activity_participations_activity_fk")
+  sourceSubmission FormSubmission? @relation("BeneficiaryActivityParticipation_sourceSubmission", fields: [organizationId, projectId, sourceSubmissionId], references: [organizationId, projectId, id], onDelete: Restrict, onUpdate: Restrict, map: "beneficiary_activity_participations_submission_fk")
   beneficiaryJourneyEvent_participation BeneficiaryJourneyEvent[] @relation("BeneficiaryJourneyEvent_participation")
 
   @@unique([organizationId, projectId, id], map: "beneficiary_activity_participations_scope_key")
@@ -1314,6 +1356,7 @@ model BeneficiaryActivityParticipation {
   @@unique([enrollmentId, activityId, participationDate], map: "beneficiary_activity_participations_attendance_key")
   @@index([organizationId, projectId, activityId, participationDate], map: "beneficiary_activity_participations_activity_date_idx")
   @@index([organizationId, recordedById], map: "beneficiary_activity_participations_recorded_by_idx")
+  @@index([organizationId, projectId, sourceSubmissionId], map: "beneficiary_activity_participations_submission_idx")
   @@map("beneficiary_activity_participations")
   @@schema("pathways")
 }
@@ -1329,6 +1372,12 @@ model BeneficiaryJourneyEvent {
   eventType JourneyEventType @map("event_type")
   eventDate DateTime @map("event_date") @db.Date
   description String?
+  stageCodeSnapshot String? @map("stage_code_snapshot")
+  stageNameSnapshot String? @map("stage_name_snapshot")
+  activityCodeSnapshot String? @map("activity_code_snapshot")
+  activityTitleSnapshot String? @map("activity_title_snapshot")
+  correctsEventId String? @map("corrects_event_id") @db.Uuid
+  correctionReason String? @map("correction_reason")
   recordedById String @map("recorded_by_id") @db.Uuid
   recordedAt DateTime @map("recorded_at") @default(now()) @db.Timestamptz(3)
   organization Organization @relation("BeneficiaryJourneyEvent_organization", fields: [organizationId], references: [id], onDelete: Restrict, onUpdate: Restrict, map: "beneficiary_journey_events_organization_fk")
@@ -1339,6 +1388,8 @@ model BeneficiaryJourneyEvent {
   stage JourneyStage? @relation("BeneficiaryJourneyEvent_stage", fields: [organizationId, projectId, stageId], references: [organizationId, projectId, id], onDelete: Restrict, onUpdate: Restrict, map: "beneficiary_journey_events_stage_fk")
   participation BeneficiaryActivityParticipation? @relation("BeneficiaryJourneyEvent_participation", fields: [organizationId, projectId, enrollmentId, activityId, participationId], references: [organizationId, projectId, enrollmentId, activityId, id], onDelete: Restrict, onUpdate: Restrict, map: "beneficiary_journey_events_participation_fk")
   activityStage ActivityJourneyStageMapping? @relation("BeneficiaryJourneyEvent_activityStage", fields: [organizationId, projectId, activityId, stageId], references: [organizationId, projectId, activityId, stageId], onDelete: Restrict, onUpdate: Restrict, map: "beneficiary_journey_events_activity_stage_fk")
+  correctsEvent BeneficiaryJourneyEvent? @relation("BeneficiaryJourneyEvent_correction", fields: [organizationId, projectId, correctsEventId], references: [organizationId, projectId, id], onDelete: Restrict, onUpdate: Restrict, map: "beneficiary_journey_events_correction_fk")
+  correctionEvents BeneficiaryJourneyEvent[] @relation("BeneficiaryJourneyEvent_correction")
 
   @@unique([organizationId, projectId, id], map: "beneficiary_journey_events_scope_key")
   @@index([organizationId, projectId, enrollmentId, eventDate], map: "beneficiary_journey_events_enrollment_date_idx")
@@ -1347,6 +1398,7 @@ model BeneficiaryJourneyEvent {
   @@index([organizationId, projectId, stageId], map: "beneficiary_journey_events_stage_idx")
   @@index([organizationId, projectId, enrollmentId, activityId, participationId], map: "beneficiary_journey_events_participation_idx")
   @@index([organizationId, projectId, activityId, stageId], map: "beneficiary_journey_events_activity_stage_idx")
+  @@index([organizationId, projectId, correctsEventId], map: "beneficiary_journey_events_correction_idx")
   @@map("beneficiary_journey_events")
   @@schema("pathways")
 }
@@ -1911,6 +1963,7 @@ model EvidenceMedia {
   organizationId String @map("organization_id") @db.Uuid
   projectId String @map("project_id") @db.Uuid
   activityId String? @map("activity_id") @db.Uuid
+  activityUpdateId String? @map("activity_update_id") @db.Uuid
   enrollmentId String? @map("enrollment_id") @db.Uuid
   expenseId String? @map("expense_id") @db.Uuid
   sourceSubmissionId String? @map("source_submission_id") @db.Uuid
@@ -1921,6 +1974,7 @@ model EvidenceMedia {
   sha256 String @db.Char(64)
   byteSize BigInt @map("byte_size")
   contentType String @map("content_type")
+  storageReady Boolean @map("storage_ready") @default(false)
   description String?
   consentConfirmed Boolean @map("consent_confirmed") @default(false)
   isIdentifying Boolean @map("is_identifying") @default(true)
@@ -1946,6 +2000,7 @@ model EvidenceMedia {
   organization Organization @relation("EvidenceMedia_organization", fields: [organizationId], references: [id], onDelete: Restrict, onUpdate: Restrict, map: "evidence_media_organization_fkey")
   project Project @relation("EvidenceMedia_project", fields: [organizationId, projectId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict, map: "evidence_media_project_fkey")
   activity ProjectActivity? @relation("EvidenceMedia_activity", fields: [organizationId, projectId, activityId], references: [organizationId, projectId, id], onDelete: Restrict, onUpdate: Restrict, map: "evidence_media_activity_fkey")
+  activityUpdate ActivityUpdate? @relation("EvidenceMedia_activityUpdate", fields: [organizationId, projectId, activityId, activityUpdateId], references: [organizationId, projectId, activityId, id], onDelete: Restrict, onUpdate: Restrict, map: "evidence_media_activity_update_fk")
   enrollment BeneficiaryProjectEnrollment? @relation("EvidenceMedia_enrollment", fields: [organizationId, projectId, enrollmentId], references: [organizationId, projectId, id], onDelete: Restrict, onUpdate: Restrict, map: "evidence_media_enrollment_fkey")
   expense BudgetExpenseEntry? @relation("EvidenceMedia_expense", fields: [organizationId, projectId, expenseId], references: [organizationId, projectId, id], onDelete: Restrict, onUpdate: Restrict, map: "evidence_media_expense_fkey")
   sourceSubmission FormSubmission? @relation("EvidenceMedia_sourceSubmission", fields: [organizationId, projectId, sourceSubmissionId], references: [organizationId, projectId, id], onDelete: Restrict, onUpdate: Restrict, map: "evidence_media_source_submission_fkey")
@@ -1961,6 +2016,7 @@ model EvidenceMedia {
   @@unique([organizationId, projectId, id], map: "evidence_media_scope_key")
   @@unique([bucket, objectKey], map: "evidence_media_unique_1")
   @@index([organizationId, projectId, activityId], map: "evidence_media_ref_1_idx")
+  @@index([organizationId, projectId, activityId, activityUpdateId], map: "evidence_media_activity_update_idx")
   @@index([organizationId, projectId, enrollmentId], map: "evidence_media_ref_2_idx")
   @@index([organizationId, projectId, expenseId], map: "evidence_media_ref_3_idx")
   @@index([organizationId, projectId, sourceSubmissionId], map: "evidence_media_ref_4_idx")

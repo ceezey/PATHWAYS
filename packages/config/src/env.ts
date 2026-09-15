@@ -30,6 +30,8 @@ export const apiEnvSchema = z.object({
   SUPABASE_JWT_SECRET: optionalString,
   SENTRY_DSN_API: optionalString,
   UPLOADS_BUCKET: z.string().default('uploads'),
+  EVIDENCE_BUCKET: z.string().default('pathways-private'),
+  BUSINESS_TIME_ZONE: z.string().default('Asia/Manila'),
   REPORTS_BUCKET: z.string().default('reports'),
   PARTICIPANT_CARDS_BUCKET: z.string().default('participant-cards'),
   ASSETS_BUCKET: z.string().default('assets'),

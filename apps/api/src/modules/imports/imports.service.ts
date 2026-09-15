@@ -17,6 +17,7 @@ import { projectScope } from '@app/modules/auth/authorized-data.service'
 import { withAuthorizedOperation } from '@app/modules/auth/authorized-operation'
 import { type ApplicationIdentity, UUID_PATTERN } from '@app/modules/auth/developer-access'
 import { BeneficiariesService } from '@app/modules/beneficiaries/beneficiaries.service'
+import { ParticipantsService } from '@app/modules/participants/participants.service'
 import { StorageService } from '@app/modules/storage/storage.service'
 import { PrismaService } from '@app/prisma/prisma.service'
 import { readApiEnv } from '@pathways/config'
@@ -229,6 +230,7 @@ export class ImportsService {
     @Inject(PrismaService) private readonly prisma: PrismaService,
     @Inject(StorageService) private readonly storage: StorageService,
     @Inject(BeneficiariesService) private readonly beneficiaries: BeneficiariesService,
+    @Inject(ParticipantsService) private readonly participants: ParticipantsService,
   ) {}
 
   listBatches(identity: ApplicationIdentity, projectId: string) {
@@ -729,6 +731,15 @@ export class ImportsService {
             claim.claimId,
             input.expectedValidationRevision,
           )
+        } else if (claim.participationHandler) {
+          await this.promoteParticipationRow(
+            identity,
+            projectId,
+            batchId,
+            rowId,
+            claim.claimId,
+            input.expectedValidationRevision,
+          )
         } else {
           await this.promoteGenericRow(
             identity,
@@ -949,7 +960,13 @@ export class ImportsService {
         throw new ConflictException('The current mapping has not been validated.')
       }
       if (batch.status === 'PROCESSED') {
-        return { complete: true, rowIds: [], claimId: '', registrationHandler: false }
+        return {
+          complete: true,
+          rowIds: [],
+          claimId: '',
+          registrationHandler: false,
+          participationHandler: false,
+        }
       }
       if (!['VALIDATED', 'PARTIALLY_PROCESSED', 'PROCESSING'].includes(batch.status)) {
         throw new ConflictException('This import is not ready for processing.')
@@ -1000,7 +1017,13 @@ export class ImportsService {
       })
       if (candidates.length === 0) {
         await this.reconcileBatch(tx, batch.id)
-        return { complete: true, rowIds: [], claimId: '', registrationHandler: false }
+        return {
+          complete: true,
+          rowIds: [],
+          claimId: '',
+          registrationHandler: false,
+          participationHandler: false,
+        }
       }
       const claimId = randomUUID()
       const claimedAt = new Date()
@@ -1033,6 +1056,7 @@ export class ImportsService {
         rowIds,
         claimId,
         registrationHandler: batch.form.formType === 'BENEFICIARY_REGISTRATION',
+        participationHandler: batch.form.formType === 'ACTIVITY_MONITORING',
       }
     })
   }
@@ -1133,6 +1157,155 @@ export class ImportsService {
             beneficiaryId: outcome.beneficiaryId,
             enrollmentId: outcome.enrollmentId,
             submissionId: outcome.submissionId,
+          },
+        },
+      })
+    })
+  }
+
+  private promoteParticipationRow(
+    identity: ApplicationIdentity,
+    projectId: string,
+    batchId: string,
+    rowId: string,
+    claimId: string,
+    validationRevision: number,
+  ) {
+    return withAuthorizedOperation(this.prisma, identity, 'imports.process', async (tx, actor) => {
+      const batch = await this.requireBatchWithHeaders(tx, actor, projectId, batchId)
+      if (
+        batch.status !== 'PROCESSING' ||
+        batch.processingClaimId !== claimId ||
+        batch.validationRevision !== validationRevision ||
+        batch.validatedMappingRevision !== batch.mappingRevision ||
+        !batch.reviewedById ||
+        batch.form.formType !== 'ACTIVITY_MONITORING'
+      )
+        throw new ConflictException('The participation processing claim is stale.')
+      const row = await tx.dataImportRow.findFirst({
+        where: {
+          id: rowId,
+          organizationId: actor.organizationId,
+          projectId: batch.projectId,
+          importBatchId: batch.id,
+          status: 'PROCESSING',
+          processingClaimId: claimId,
+          mappingRevision: batch.mappingRevision,
+          validationRevision: batch.validationRevision,
+        },
+        select: { id: true, rowNumber: true, normalizedData: true },
+      })
+      if (!row) throw new ConflictException('The participation row claim is unavailable.')
+      const existing = await tx.formSubmission.findUnique({
+        where: { importRowId: row.id },
+        select: { id: true },
+      })
+      if (existing) {
+        const participation = await tx.beneficiaryActivityParticipation.findUnique({
+          where: { sourceSubmissionId: existing.id },
+          select: { id: true },
+        })
+        if (!participation)
+          throw new ConflictException(
+            'The imported submission is missing its participation effect.',
+          )
+        await tx.dataImportRow.update({
+          where: { id: row.id },
+          data: {
+            status: 'PROCESSED',
+            processedAt: new Date(),
+            processingClaimId: null,
+            processingClaimedAt: null,
+            processingErrorCode: null,
+          },
+        })
+        return
+      }
+      const values = safeRawData(row.normalizedData as Prisma.JsonValue)
+      const fields = await tx.formField.findMany({
+        where: {
+          organizationId: actor.organizationId,
+          projectId: batch.projectId,
+          formId: batch.formId,
+        },
+        select: fieldSelection,
+        orderBy: { sequenceNo: 'asc' },
+        take: IMPORT_ENGINEERING_LIMITS.maxColumns,
+      })
+      const verified = normalizeImportedRow(fields.map(contract), values)
+      if (!verified.valid) throw new ConflictException('The normalized row no longer validates.')
+      const form = await tx.digitalForm.findFirst({
+        where: {
+          id: batch.formId,
+          organizationId: actor.organizationId,
+          projectId: batch.projectId,
+          version: batch.formVersion,
+          formType: 'ACTIVITY_MONITORING',
+          status: 'PUBLISHED',
+        },
+        select: { id: true, version: true, activityId: true, journeyStageId: true },
+      })
+      if (!form) throw new ConflictException('The activity-monitoring form version is unavailable.')
+      const submission = await tx.formSubmission.create({
+        data: {
+          organizationId: actor.organizationId,
+          projectId: batch.projectId,
+          formId: batch.formId,
+          formVersion: batch.formVersion,
+          clientSubmissionId: row.id,
+          importBatchId: batch.id,
+          importRowId: row.id,
+          submittedById: actor.userId,
+          source: 'IMPORTED_DATASET',
+          status: 'DRAFT',
+        },
+        select: { id: true },
+      })
+      await tx.formResponseValue.createMany({
+        data: fields.map((field) => ({
+          organizationId: actor.organizationId,
+          projectId: batch.projectId,
+          formId: batch.formId,
+          submissionId: submission.id,
+          fieldId: field.id,
+          value:
+            verified.values[field.code] === null
+              ? Prisma.JsonNull
+              : (verified.values[field.code] as Prisma.InputJsonValue),
+        })),
+      })
+      const outcome = await this.participants.promoteParticipation(tx, actor, {
+        projectId: batch.projectId,
+        form,
+        submissionId: submission.id,
+        values: verified.values,
+        validatedById: batch.reviewedById,
+      })
+      const finishedAt = new Date()
+      await tx.dataImportRow.update({
+        where: { id: row.id },
+        data: {
+          status: 'PROCESSED',
+          processedAt: finishedAt,
+          processingErrorCode: null,
+          processingClaimId: null,
+          processingClaimedAt: null,
+        },
+      })
+      await tx.auditLog.create({
+        data: {
+          organizationId: actor.organizationId,
+          actorUserId: actor.userId,
+          projectId: batch.projectId,
+          action: 'IMPORT_PARTICIPATION_ROW_COMMITTED',
+          entityType: 'DataImportRow',
+          entityId: row.id,
+          changes: {
+            importBatchId: batch.id,
+            sourceRowNumber: row.rowNumber,
+            participationId: outcome.participationId,
+            enrollmentId: outcome.enrollmentId,
+            submissionId: submission.id,
           },
         },
       })

@@ -78,10 +78,13 @@ BEGIN
   IF NOT pathways.p1_can_manage_role('71000000-0000-4000-8000-000000000023') THEN
     RAISE EXCEPTION 'System Administrator role ceiling failed';
   END IF;
-  UPDATE pathways.system_users SET full_name='Forbidden self update'
-  WHERE id='71000000-0000-4000-8000-000000000031';
-  GET DIAGNOSTICS affected = ROW_COUNT;
-  IF affected <> 0 THEN RAISE EXCEPTION 'Runtime self-administration was not denied'; END IF;
+  BEGIN
+    UPDATE pathways.system_users SET full_name='Forbidden self update'
+    WHERE id='71000000-0000-4000-8000-000000000031';
+    GET DIAGNOSTICS affected = ROW_COUNT;
+    IF affected <> 0 THEN RAISE EXCEPTION 'Runtime self-administration was not denied'; END IF;
+  EXCEPTION WHEN insufficient_privilege THEN NULL;
+  END;
   BEGIN
     INSERT INTO pathways.system_users(
       organization_id,role_id,auth_user_id,full_name,email,account_status,activated_at
