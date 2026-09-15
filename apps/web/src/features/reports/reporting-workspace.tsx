@@ -1,5 +1,7 @@
 'use client'
 
+import { formatMetricCell } from '@pathways/shared'
+
 import {
   type ColumnDef,
   flexRender,
@@ -189,11 +191,6 @@ const splitPeriod = (period: string) => {
 }
 
 const projectCode = (index: number) => String(index + 1).padStart(3, '0')
-
-const progressLabel = (actual: number, target: number) => {
-  const progress = target > 0 ? Math.round((actual / target) * 100) : 0
-  return `${progress}% of target`
-}
 
 const statusTone = (status: string) => {
   if (['On Track', 'Met', 'Completed', 'Active'].includes(status)) {
@@ -440,10 +437,10 @@ export const ReportingWorkspace = ({
         .map(
           (indicator, index): ReportRow => ({
             id: projectCode(index),
-            indicator: indicator.label,
-            target: indicator.target,
-            actualProgress: progressLabel(indicator.actual, indicator.target),
-            status: indicator.status === 'Needs Review' ? 'Monitoring' : indicator.status,
+            indicator: indicator.name,
+            target: indicator.target ?? 'Not set',
+            actualProgress: formatMetricCell(indicator.progress),
+            status: indicator.status,
             project: projectTitle(indicator.projectId),
           }),
         )

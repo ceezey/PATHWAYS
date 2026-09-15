@@ -83,3 +83,37 @@ counting the same NOT NULL property twice. Do not omit CHECK/FK constraints.
 
 Do not run behavioral tests against PATHWAYS-dev. Live verification uses only
 catalogs, zero counts, checksums, ledger evidence, and `prisma migrate status`.
+
+
+## P06 candidate — project indicators and SADDD (migration 0013)
+
+`project-indicator-dashboard-runtime.sql` is a new candidate suite, not a recorded PASS.
+Run it only through the updated `infra/supabase/phase6/Replay-Local.ps1`; it refuses any
+other database/port/user. The harness replays 0001–0013 into its guarded loopback
+PostgreSQL 18 scratch cluster on port 55448 and removes that environment afterward.
+This is not a live API database and never authorizes PATHWAYS-dev writes.
+
+The suite supplies synthetic two-organization/six-role records, 30 individuals with
+60 shared project enrollments, independent age-band and sum/average/ratio expectations,
+source-submission/natural-key retry rejection, draft exclusion, journey-date versus
+participation-date correction checks, ambiguous correction rejection, append-only
+manual values, rollback, permission/foreign-project denial and next-request revocation.
+Owner-only tests exercise the private G4 calculator. Runtime-equivalent checks prove
+the sensitive-release wrappers stay MISSING/null and cannot execute private calculators.
+G4 is confirmed; overlapping-query release policy remains G8, so this is not acceptance
+of an available sensitive SADDD dashboard. It also is not a full concurrency or real
+Auth/Storage test. Add the missing adversarial/end-to-end cases before closing P06/P07.
+
+The script uses a transaction and rolls back its fixture rows. `EXPLAIN (ANALYZE,
+BUFFERS, FORMAT JSON)` and `\timing` produce actual local helper-execution evidence
+when run. A function-call plan is not an inspection of every nested SQL plan, and
+neither its timing nor a 3-second timeout is an HTTP-latency or capacity claim. Inspect
+nested source-query plans separately when investigating performance on larger approved
+synthetic fixtures. Record environment, rows, duration, buffers and actual exit status;
+do not copy expected markers into evidence. Only a successful command may emit the
+harness's `PROJECT_INDICATOR_DASHBOARD_RUNTIME=PASS` marker.
+
+The supplied package's Windows installer, SQL and Prisma schema have not been executed
+in the preparation environment. Full repository checks and the isolated replay remain
+required. Preserve earlier migration files/checksums; 0013 is a forward candidate, not
+permission to reset/rebaseline or change the `public` migration ledger routing.

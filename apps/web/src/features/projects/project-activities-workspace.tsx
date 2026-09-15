@@ -252,8 +252,9 @@ export const ProjectActivitiesWorkspace = ({
 }) => {
   const router = useRouter()
   const { labels } = useDisplayLabels()
-  const { role } = useCurrentRole()
+  const { role, profile } = useCurrentRole()
   const { email } = useSession()
+  const canReadIndicators = profile?.permissions.includes('monitoring.read') === true
   const canCreateEdit = role ? can(role, 'activities.create_edit') : false
   const canReview = role === 'Project Manager'
   const canSubmitProof = role ? can(role, 'activities.submit_update_proof') : false
@@ -280,7 +281,7 @@ export const ProjectActivitiesWorkspace = ({
     Promise.all([
       pathwaysClient.getProject(projectId),
       pathwaysClient.getActivities(projectId),
-      pathwaysClient.getIndicators(projectId),
+      canReadIndicators ? pathwaysClient.getIndicators(projectId) : Promise.resolve([]),
       pathwaysClient.getUsers(),
     ])
       .then(([projectRecord, activityRecords, indicatorRecords, userRecords]) => {
@@ -317,7 +318,7 @@ export const ProjectActivitiesWorkspace = ({
     return () => {
       mounted = false
     }
-  }, [initialActivityId, projectId, router])
+  }, [canReadIndicators, initialActivityId, projectId, router])
 
   const filteredActivities = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase()

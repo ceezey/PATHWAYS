@@ -424,7 +424,6 @@ export class ParticipantsService {
         submittedAt: now,
         validatedById: input.validatedById,
         validatedAt: now,
-        processedAt: now,
       },
     })
     await tx.auditLog.create({

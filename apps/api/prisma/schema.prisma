@@ -30,6 +30,8 @@ enum AccountStatus {
 }
 
 model Organization {
+  indicatorBindings ProjectIndicatorBinding[] @relation("P06BindingOrganization")
+  indicatorMeasurements ProjectIndicatorMeasurement[] @relation("P06MeasurementOrganization")
   projectBudgetRecord_organization ProjectBudgetRecord[] @relation("ProjectBudgetRecord_organization")
   budgetExpenseEntry_organization BudgetExpenseEntry[] @relation("BudgetExpenseEntry_organization")
   assessmentResult_organization AssessmentResult[] @relation("AssessmentResult_organization")
@@ -129,6 +131,8 @@ model RolePermission {
 }
 
 model SystemUser {
+  indicatorBindings ProjectIndicatorBinding[] @relation("P06BindingCreator")
+  indicatorMeasurements ProjectIndicatorMeasurement[] @relation("P06MeasurementRecorder")
   projectBudgetRecord_recordedBy ProjectBudgetRecord[] @relation("ProjectBudgetRecord_recordedBy")
   budgetExpenseEntry_submittedBy BudgetExpenseEntry[] @relation("BudgetExpenseEntry_submittedBy")
   budgetExpenseEntry_verifiedBy BudgetExpenseEntry[] @relation("BudgetExpenseEntry_verifiedBy")
@@ -602,6 +606,8 @@ model Program {
 }
 
 model Project {
+  indicatorBindings ProjectIndicatorBinding[] @relation("P06BindingProject")
+  indicatorMeasurements ProjectIndicatorMeasurement[] @relation("P06MeasurementProject")
   projectBudgetRecord_project ProjectBudgetRecord[] @relation("ProjectBudgetRecord_project")
   budgetExpenseEntry_project BudgetExpenseEntry[] @relation("BudgetExpenseEntry_project")
   assessmentResult_project AssessmentResult[] @relation("AssessmentResult_project")
@@ -701,6 +707,7 @@ model UserProjectAssignment {
 }
 
 model ProjectActivity {
+  indicatorBindings ProjectIndicatorBinding[] @relation("P06BindingActivity")
   projectBudgetRecord_activity ProjectBudgetRecord[] @relation("ProjectBudgetRecord_activity")
   assessmentResult_activity AssessmentResult[] @relation("AssessmentResult_activity")
   ruleBasedAlert_activity RuleBasedAlert[] @relation("RuleBasedAlert_activity")
@@ -829,6 +836,16 @@ model ProjectMilestone {
 }
 
 model ProjectIndicator {
+  // P06: null mode denotes an unreviewed legacy definition. Legacy actual/current are not authoritative.
+  measurementMode String? @map("measurement_mode")
+  numericKind String? @map("numeric_kind")
+  direction String?
+  displayPrecision Int? @map("display_precision")
+  periodStart DateTime? @map("period_start") @db.Date
+  periodEnd DateTime? @map("period_end") @db.Date
+  revision Int @default(1)
+  binding ProjectIndicatorBinding? @relation("P06IndicatorBinding")
+  measurements ProjectIndicatorMeasurement[] @relation("P06IndicatorMeasurement")
   ruleBasedAlert_indicator RuleBasedAlert[] @relation("RuleBasedAlert_indicator")
   id String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   organizationId String @map("organization_id") @db.Uuid
@@ -866,6 +883,7 @@ model ProjectIndicator {
 }
 
 model DigitalForm {
+  indicatorBindings ProjectIndicatorBinding[] @relation("P06BindingForm")
   report_form Report[] @relation("Report_form")
   id String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   organizationId String @map("organization_id") @db.Uuid
@@ -910,6 +928,7 @@ model DigitalForm {
 }
 
 model FormField {
+  indicatorBindings ProjectIndicatorBinding[] @relation("P06BindingField")
   id String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   organizationId String @map("organization_id") @db.Uuid
   projectId String @map("project_id") @db.Uuid
@@ -1240,6 +1259,7 @@ model BeneficiaryProjectEnrollment {
   @@index([organizationId, beneficiaryId], map: "beneficiary_project_enrollments_beneficiary_idx")
   @@map("beneficiary_project_enrollments")
   @@schema("pathways")
+  @@index([organizationId, projectId, enrollmentDate, endedDate], map: "p06_enrollments_period_idx")
 }
 
 model BeneficiaryConsentRecord {
@@ -2081,5 +2101,62 @@ model Report {
   @@index([organizationId, generatedById], map: "reports_ref_7_idx")
   @@index([organizationId, projectId, type, generatedAt], map: "reports_ref_8_idx")
   @@map("reports")
+  @@schema("pathways")
+}
+
+// P06 bindings are immutable, system-allowlisted recipes; no executable tenant expressions.
+model ProjectIndicatorBinding {
+  id String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String @map("organization_id") @db.Uuid
+  projectId String @map("project_id") @db.Uuid
+  indicatorId String @map("indicator_id") @db.Uuid
+  recipe String
+  contractVersion String @default("p06.v1") @map("contract_version")
+  activityId String? @map("activity_id") @db.Uuid
+  formId String? @map("form_id") @db.Uuid
+  formVersion Int? @map("form_version")
+  fieldId String? @map("field_id") @db.Uuid
+  createdById String @map("created_by_id") @db.Uuid
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  organization Organization @relation("P06BindingOrganization", fields: [organizationId], references: [id], onDelete: Restrict, onUpdate: Restrict, map: "p06_bindings_org_fk")
+  project Project @relation("P06BindingProject", fields: [organizationId, projectId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict, map: "p06_bindings_project_fk")
+  indicator ProjectIndicator @relation("P06IndicatorBinding", fields: [organizationId, projectId, indicatorId], references: [organizationId, projectId, id], onDelete: Restrict, onUpdate: Restrict, map: "p06_bindings_indicator_fk")
+  activity ProjectActivity? @relation("P06BindingActivity", fields: [organizationId, projectId, activityId], references: [organizationId, projectId, id], onDelete: Restrict, onUpdate: Restrict, map: "p06_bindings_activity_fk")
+  form DigitalForm? @relation("P06BindingForm", fields: [organizationId, projectId, formId, formVersion], references: [organizationId, projectId, id, version], onDelete: Restrict, onUpdate: Restrict, map: "p06_bindings_form_fk")
+  field FormField? @relation("P06BindingField", fields: [organizationId, projectId, formId, fieldId], references: [organizationId, projectId, formId, id], onDelete: Restrict, onUpdate: Restrict, map: "p06_bindings_field_fk")
+  createdBy SystemUser @relation("P06BindingCreator", fields: [organizationId, createdById], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict, map: "p06_bindings_creator_fk")
+  @@unique([organizationId, projectId, indicatorId], map: "p06_bindings_indicator_key")
+  @@index([organizationId, projectId, formId, fieldId], map: "p06_bindings_source_idx")
+  @@map("project_indicator_bindings")
+  @@schema("pathways")
+}
+
+// Append-only manual values. One root per indicator/period; one successor per corrected value.
+model ProjectIndicatorMeasurement {
+  id String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String @map("organization_id") @db.Uuid
+  projectId String @map("project_id") @db.Uuid
+  indicatorId String @map("indicator_id") @db.Uuid
+  periodStart DateTime @map("period_start") @db.Date
+  periodEnd DateTime @map("period_end") @db.Date
+  value Decimal @db.Decimal(18,4)
+  source String
+  note String?
+  clientMeasurementId String @map("client_measurement_id") @db.Uuid
+  requestHash String @map("request_hash") @db.Char(64)
+  correctsMeasurementId String? @unique(map: "p06_measurements_successor_key") @map("corrects_measurement_id") @db.Uuid
+  correctionReason String? @map("correction_reason")
+  recordedById String @map("recorded_by_id") @db.Uuid
+  recordedAt DateTime @default(now()) @map("recorded_at") @db.Timestamptz(3)
+  organization Organization @relation("P06MeasurementOrganization", fields: [organizationId], references: [id], onDelete: Restrict, onUpdate: Restrict, map: "p06_measurements_org_fk")
+  project Project @relation("P06MeasurementProject", fields: [organizationId, projectId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict, map: "p06_measurements_project_fk")
+  indicator ProjectIndicator @relation("P06IndicatorMeasurement", fields: [organizationId, projectId, indicatorId], references: [organizationId, projectId, id], onDelete: Restrict, onUpdate: Restrict, map: "p06_measurements_indicator_fk")
+  recordedBy SystemUser @relation("P06MeasurementRecorder", fields: [organizationId, recordedById], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict, map: "p06_measurements_recorder_fk")
+  correctsMeasurement ProjectIndicatorMeasurement? @relation("P06MeasurementCorrection", fields: [organizationId, projectId, indicatorId, correctsMeasurementId], references: [organizationId, projectId, indicatorId, id], onDelete: Restrict, onUpdate: Restrict, map: "p06_measurements_correction_fk")
+  corrections ProjectIndicatorMeasurement[] @relation("P06MeasurementCorrection")
+  @@unique([organizationId, projectId, indicatorId, id], map: "p06_measurements_scope_key")
+  @@unique([organizationId, recordedById, clientMeasurementId], map: "p06_measurements_client_key")
+  @@index([organizationId, projectId, indicatorId, periodStart, periodEnd], map: "p06_measurements_period_idx")
+  @@map("project_indicator_measurements")
   @@schema("pathways")
 }

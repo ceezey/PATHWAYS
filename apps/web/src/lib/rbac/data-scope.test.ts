@@ -3,7 +3,6 @@ import { describe, expect, it } from 'vitest'
 import type { BeneficiaryRecord, ProjectSummary } from '@/types/pathways'
 import type { PathwaysRole } from '@/types/pathways-role'
 import {
-  buildBeneficiarySadddAggregatesForRole,
   canAccessBeneficiaryForRole,
   canAccessProjectForRole,
   canConfigureProjectAssignment,
@@ -231,16 +230,6 @@ describe('RBAC project assignments and data scope', () => {
     ).toBe(false)
   })
 
-  it('builds aggregate SADDD counts without Beneficiary identity fields', () => {
-    const aggregates = buildBeneficiarySadddAggregatesForRole(testBeneficiaries, 'Grant Manager')
-    const serialized = JSON.stringify(aggregates)
-
-    expect(aggregates.length).toBeGreaterThan(0)
-    expect(aggregates.every((item) => item.count > 0)).toBe(true)
-    expect(serialized).not.toMatch(
-      /beneficiaryId|beneficiaryCode|displayName|firstName|lastName|birthDate|barangay|notes|assessments|media/i,
-    )
-  })
 
   it('limits project-assignment authority by target role and actor project scope', () => {
     expect(

@@ -47,7 +47,7 @@ export const routePolicy = {
   indicators: entry(
     '/projects/:projectId/indicators',
     'Target indicators',
-    ['indicators.create', 'indicators.update'],
+    ['monitoring.read'],
     'project',
   ),
   monitoring: entry(

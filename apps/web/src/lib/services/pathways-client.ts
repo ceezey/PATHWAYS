@@ -1,3 +1,17 @@
+import {
+  type CreateIndicatorInput,
+  type DashboardQuery,
+  type ManualMeasurementInput,
+  type MonitoringDashboard,
+  type SadddDashboard,
+  type UpdateIndicatorInput,
+  dashboardQuerySchema,
+  formatMetricCell,
+  monitoringDashboardSchema,
+  monitoringIndicatorListSchema,
+  monitoringIndicatorSchema,
+  sadddDashboardSchema,
+} from '@pathways/shared'
 import { contextCookieName, decodeWorkspaceContext } from '@/features/auth/workspace-access'
 import { webEnv } from '@/lib/env'
 import { getBrowserSupabaseClient } from '@/lib/supabase/client'
@@ -77,7 +91,28 @@ export interface PathwaysClient {
   updateActivity(input: UpdateActivityInput): Promise<Activity>
   submitActivityProof(input: SubmitActivityProofInput): Promise<Activity>
   getEvidence(projectId: string): Promise<EvidenceRecord[]>
-  getProjectIndicators(projectId: string): Promise<ProjectIndicator[]>
+  getProjectIndicator(projectId: string, indicatorId: string): Promise<ProjectIndicator>
+  createProjectIndicator(
+    projectId: string,
+    input: CreateIndicatorInput,
+  ): Promise<ProjectIndicator>
+  updateProjectIndicator(
+    projectId: string,
+    indicatorId: string,
+    input: UpdateIndicatorInput,
+  ): Promise<ProjectIndicator>
+  recordIndicatorMeasurement(
+    projectId: string,
+    indicatorId: string,
+    input: ManualMeasurementInput,
+  ): Promise<ProjectIndicator>
+  archiveProjectIndicator(
+    projectId: string,
+    indicatorId: string,
+    expectedRevision: number,
+  ): Promise<ProjectIndicator>
+  getMonitoringDashboard(query?: DashboardQuery): Promise<MonitoringDashboard>
+  getSadddDashboard(query?: DashboardQuery): Promise<SadddDashboard>
   getEvaluation(projectId: string): Promise<EvaluationRecord>
   getExpenses(projectId: string): Promise<ExpenseRecord[]>
   getRecommendationOutcomes(projectId: string): Promise<RecommendationOutcomeRecord[]>
@@ -110,7 +145,10 @@ export interface PathwaysClient {
     role: PathwaysRole,
     beneficiaryId: string,
   ): Promise<BeneficiaryMediaProofRecord[]>
-  getBeneficiarySadddAggregatesForRole(role: PathwaysRole): Promise<BeneficiarySadddAggregate[]>
+  getBeneficiarySadddAggregatesForRole(
+    role: PathwaysRole,
+    query?: DashboardQuery,
+  ): Promise<BeneficiarySadddAggregate>
   getJourneyStages(projectId: string): Promise<JourneyStageConfig[]>
   getIndicators(projectId?: string): Promise<Indicator[]>
   getBudgets(projectId?: string): Promise<BudgetRecord[]>
@@ -277,8 +315,97 @@ class BackendReadyPathwaysClient implements PathwaysClient {
     return []
   }
 
-  async getProjectIndicators(_projectId: string): Promise<ProjectIndicator[]> {
-    return []
+  async getProjectIndicators(projectId: string): Promise<ProjectIndicator[]> {
+    return monitoringIndicatorListSchema.parse(
+      await requestFoundation(`/projects/${encodeURIComponent(projectId)}/indicators`),
+    )
+  }
+
+  async getProjectIndicator(
+    projectId: string,
+    indicatorId: string,
+  ): Promise<ProjectIndicator> {
+    return monitoringIndicatorSchema.parse(
+      await requestFoundation(
+        `/projects/${encodeURIComponent(projectId)}/indicators/${encodeURIComponent(indicatorId)}`,
+      ),
+    )
+  }
+
+  async createProjectIndicator(
+    projectId: string,
+    input: CreateIndicatorInput,
+  ): Promise<ProjectIndicator> {
+    return monitoringIndicatorSchema.parse(
+      await requestFoundation(`/projects/${encodeURIComponent(projectId)}/indicators`, {
+        method: 'POST',
+        body: JSON.stringify(input),
+      }),
+    )
+  }
+
+  async updateProjectIndicator(
+    projectId: string,
+    indicatorId: string,
+    input: UpdateIndicatorInput,
+  ): Promise<ProjectIndicator> {
+    return monitoringIndicatorSchema.parse(
+      await requestFoundation(
+        `/projects/${encodeURIComponent(projectId)}/indicators/${encodeURIComponent(indicatorId)}`,
+        {
+          method: 'PATCH',
+          body: JSON.stringify(input),
+        },
+      ),
+    )
+  }
+
+  async recordIndicatorMeasurement(
+    projectId: string,
+    indicatorId: string,
+    input: ManualMeasurementInput,
+  ): Promise<ProjectIndicator> {
+    return monitoringIndicatorSchema.parse(
+      await requestFoundation(
+        `/projects/${encodeURIComponent(projectId)}/indicators/${encodeURIComponent(indicatorId)}/measurements`,
+        {
+          method: 'POST',
+          body: JSON.stringify(input),
+        },
+      ),
+    )
+  }
+
+  async archiveProjectIndicator(
+    projectId: string,
+    indicatorId: string,
+    expectedRevision: number,
+  ): Promise<ProjectIndicator> {
+    return monitoringIndicatorSchema.parse(
+      await requestFoundation(
+        `/projects/${encodeURIComponent(projectId)}/indicators/${encodeURIComponent(indicatorId)}/archive`,
+        {
+          method: 'POST',
+          body: JSON.stringify({ expectedRevision }),
+        },
+      ),
+    )
+  }
+
+  async getMonitoringDashboard(
+    query: DashboardQuery = {},
+  ): Promise<MonitoringDashboard> {
+    return monitoringDashboardSchema.parse(
+      await requestFoundation(`/dashboards/monitoring${monitoringQuery(query)}`),
+    )
+  }
+
+  async getSadddDashboard(
+    query: DashboardQuery = {},
+  ): Promise<SadddDashboard> {
+    return sadddDashboardSchema.parse(
+      await requestFoundation(`/dashboards/saddd${monitoringQuery(query)}`),
+    )
   }
 
   async getEvaluation(_projectId: string): Promise<EvaluationRecord> {
@@ -368,16 +495,29 @@ class BackendReadyPathwaysClient implements PathwaysClient {
 
   async getBeneficiarySadddAggregatesForRole(
     _role: PathwaysRole,
-  ): Promise<BeneficiarySadddAggregate[]> {
-    return []
+    query: DashboardQuery = {},
+  ): Promise<BeneficiarySadddAggregate> {
+    // Compatibility entry point only: the role is never transmitted or trusted.
+    return this.getSadddDashboard(query)
   }
 
   async getJourneyStages(_projectId: string): Promise<JourneyStageConfig[]> {
     return []
   }
 
-  async getIndicators(_projectId?: string): Promise<Indicator[]> {
-    return []
+  async getIndicators(projectId?: string): Promise<Indicator[]> {
+    if (!projectId) {
+      throw new PathwaysClientError('Project scope is required.', 'invalid')
+    }
+
+    return (await this.getProjectIndicators(projectId)).map(
+      ({ id, projectId: scope, code, name }) => ({
+        id,
+        projectId: scope,
+        code,
+        label: name,
+      }),
+    )
   }
 
   async getBudgets(_projectId?: string): Promise<BudgetRecord[]> {
@@ -651,8 +791,63 @@ class BackendReadyPathwaysClient implements PathwaysClient {
     )
   }
 
-  async getDashboard(_role: PathwaysRole): Promise<RoleDashboardViewModel> {
-    throw backendNotConfigured('Dashboard aggregates')
+  async getDashboard(role: PathwaysRole): Promise<RoleDashboardViewModel> {
+    // Role changes labels only. Authority and all values come from the current authenticated API request.
+    const result: MonitoringDashboard = monitoringDashboardSchema.parse(
+      await requestFoundation('/dashboards/home'),
+    )
+
+    return {
+      role,
+      greetingName: role,
+      heading: 'Project monitoring overview',
+      summary: `${result.periodStart} to ${result.periodEnd} · ${result.businessTimeZone}. Current operational states; no automated success rating.`,
+      primaryAction: {
+        id: 'monitoring',
+        label: 'Open monitoring',
+        kind: 'navigate',
+        href: '/analytics',
+      },
+      metrics: [
+        {
+          id: 'projects',
+          label: 'Authorized projects',
+          value: String(result.scopeProjectCount),
+          helperText: 'Server-derived current project scope.',
+        },
+        {
+          id: 'participation',
+          label: 'Participation records',
+          value: formatMetricCell(result.participationRecords),
+          helperText: 'Committed records, not a count of people.',
+        },
+        {
+          id: 'attending',
+          label: 'Distinct attending individuals',
+          value: formatMetricCell(result.attendingIndividuals),
+          helperText: 'Present/completed attendance; deduplicated across projects.',
+        },
+        {
+          id: 'enrolled',
+          label: 'Enrolled individuals',
+          value: formatMetricCell(result.enrolledIndividuals),
+          helperText: 'Enrollment overlaps this period; privacy suppression applies.',
+        },
+      ],
+      sections: [
+        {
+          id: 'projects',
+          title: 'Authorized project workspaces',
+          emptyText: 'No projects are currently in your authorized scope.',
+          items: result.projects.map((project) => ({
+            id: project.id,
+            title: project.title,
+            description: project.code,
+            href: `/projects/${project.id}`,
+          })),
+        },
+      ],
+    }
   }
 }
 
@@ -963,4 +1158,22 @@ function parseUsers(value: unknown) {
   if (!Array.isArray(value) || value.length > 200)
     throw new PathwaysClientError('Invalid user response.', 'network')
   return value.map((row) => mapUser(row as ApiUser))
+}
+
+/** Fixed filter allowlist; no role, organization, demographic, formula or field selectors. */
+function monitoringQuery(input: DashboardQuery): string {
+  const query = dashboardQuerySchema.parse(input)
+  const search = new URLSearchParams()
+
+  const allowedKeys = ['projectId', 'programId', 'periodStart', 'periodEnd'] as const
+
+  for (const key of allowedKeys) {
+    const value = query[key]
+
+    if (typeof value === 'string') {
+      search.set(key, value)
+    }
+  }
+
+  return search.size ? `?${search.toString()}` : ''
 }

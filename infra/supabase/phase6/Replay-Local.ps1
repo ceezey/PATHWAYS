@@ -125,17 +125,20 @@ try {
         -c "SELECT coalesce(logs,'') FROM public._prisma_migrations WHERE migration_name='0012_project_activity_journeys' ORDER BY started_at DESC LIMIT 1"
       throw '0012 P05 replay failed.'
     }
+    Copy-Item -LiteralPath (Join-Path $phase6Root 'apps/api/prisma/migrations/0013_project_indicators_saddd_dashboard') -Destination $phase6Stage -Recurse
+    pnpm --filter @pathways/api exec prisma migrate deploy --config $phase6Config
+    if ($LASTEXITCODE -ne 0) { throw '0013 P06 replay failed. Inspect the failed migration; do not reset a managed database.' }
     pnpm --filter @pathways/api exec prisma migrate status --config $phase6Config
     if ($LASTEXITCODE -ne 0) { throw 'Replay migration status failed.' }
   } finally { Pop-Location }
 
   $phase6Post = @'
 SELECT (SELECT count(*) FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace
-        WHERE n.nspname='pathways' AND c.relkind='r')=42
+        WHERE n.nspname='pathways' AND c.relkind='r')=44
  AND (SELECT count(*) FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace
       WHERE n.nspname='public' AND c.relkind='r')=16
  AND to_regclass('public._prisma_migrations') IS NOT NULL
- AND (SELECT count(*) FROM public._prisma_migrations)=12
+ AND (SELECT count(*) FROM public._prisma_migrations)=13
  AND (SELECT count(*) FROM public._prisma_migrations WHERE finished_at IS NULL AND rolled_back_at IS NULL)=0
  AND EXISTS(SELECT FROM pg_extension WHERE extname='pgcrypto')
  AND to_regprocedure('pathways.runtime_auth_session_live(uuid,uuid)') IS NOT NULL
@@ -155,6 +158,13 @@ SELECT (SELECT count(*) FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamesp
  AND to_regclass('pathways.activity_updates') IS NOT NULL
  AND EXISTS(SELECT FROM pg_trigger WHERE tgname='p05_stage_freeze' AND tgenabled='O')
  AND EXISTS(SELECT FROM pg_trigger WHERE tgname='p05_journey_snapshot' AND tgenabled='O')
+ AND to_regclass('pathways.project_indicator_bindings') IS NOT NULL
+ AND to_regclass('pathways.project_indicator_measurements') IS NOT NULL
+ AND EXISTS(SELECT FROM pg_trigger WHERE tgname='p06_measurement' AND tgenabled='O')
+ AND EXISTS(SELECT FROM pg_class WHERE oid='pathways.project_indicator_measurements'::regclass AND relrowsecurity AND relforcerowsecurity)
+ AND has_function_privilege('pathways_runtime','pathways.p06_saddd(uuid,uuid[],date,date,text)','EXECUTE')
+ AND NOT has_function_privilege('pathways_runtime','pathways.p06_compute_saddd(uuid,uuid[],date,date,text)','EXECUTE')
+ AND NOT has_table_privilege('pathways_runtime','pathways.project_indicator_measurements','DELETE')
  AND has_function_privilege('pathways_runtime','pathways.p05_has_project_permission(text,uuid)','EXECUTE')
  AND has_function_privilege('pathways_runtime','pathways.p04_can_read_beneficiary(uuid)','EXECUTE')
  AND has_function_privilege('pathways_runtime','pathways.p04_can_mutate_beneficiary(text,uuid)','EXECUTE')
@@ -215,6 +225,8 @@ SELECT (SELECT count(*) FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamesp
   Write-Output 'IMPORT_PIPELINE_RUNTIME=PASS'
   Write-Output 'BENEFICIARY_REGISTRATION_RUNTIME=PASS'
   Write-Output 'PROJECT_ACTIVITY_JOURNEY_RUNTIME=PASS'
+  Invoke-LocalSql ([IO.File]::ReadAllText((Join-Path $phase6Root 'apps/api/prisma/tests/project-indicator-dashboard-runtime.sql'))) $phase6Database
+  Write-Output 'PROJECT_INDICATOR_DASHBOARD_RUNTIME=PASS' 
   Write-Output 'LEGACY_TABLE_PRESERVATION=PASS'
   $phase6Exit = 0
 } catch {

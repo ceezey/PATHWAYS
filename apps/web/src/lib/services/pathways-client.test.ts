@@ -19,15 +19,12 @@ describe('PATHWAYS frontend data boundary', () => {
     const collections = await Promise.all([
       pathwaysClient.getActivities('project-id'),
       pathwaysClient.getEvidence('project-id'),
-      pathwaysClient.getProjectIndicators('project-id'),
       pathwaysClient.getExpenses('project-id'),
       pathwaysClient.getRecommendationOutcomes('project-id'),
       pathwaysClient.getTransparencySections('project-id'),
       pathwaysClient.getBeneficiaryRecordsForRole('Program Manager'),
       pathwaysClient.getBeneficiaryMediaProofForRole('Program Manager', 'beneficiary-id'),
-      pathwaysClient.getBeneficiarySadddAggregatesForRole('Program Manager'),
       pathwaysClient.getJourneyStages('project-id'),
-      pathwaysClient.getIndicators(),
       pathwaysClient.getBudgets(),
       pathwaysClient.getAlerts(),
       pathwaysClient.getRecommendations(),
@@ -108,7 +105,7 @@ describe('PATHWAYS frontend data boundary', () => {
       PathwaysClientError,
     )
     await expect(pathwaysClient.getDashboard('Program Manager')).rejects.toMatchObject({
-      code: 'not_configured',
+  code: 'unauthorized',
     })
   })
 

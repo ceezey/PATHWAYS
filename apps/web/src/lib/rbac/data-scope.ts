@@ -1,7 +1,6 @@
 import type {
   BeneficiaryMediaProofRecord,
   BeneficiaryRecord,
-  BeneficiarySadddAggregate,
   ProjectSummary,
 } from '@/types/pathways'
 import type { PathwaysRole } from '@/types/pathways-role'
@@ -108,39 +107,8 @@ export const scopeBeneficiaryMediaForRole = (
   )
 }
 
-export const buildBeneficiarySadddAggregatesForRole = (
-  beneficiaries: BeneficiaryRecord[],
-  role: PathwaysRole,
-  assignedProjectIds: AssignedProjectIds = [],
-): BeneficiarySadddAggregate[] => {
-  const aggregateCounts = new Map<string, BeneficiarySadddAggregate>()
-
-  for (const beneficiary of beneficiaries) {
-    const accessibleProjectIds = beneficiary.projectIds.filter((projectId) =>
-      canAccessProjectForRole(role, projectId, assignedProjectIds),
-    )
-
-    for (const projectId of accessibleProjectIds) {
-      const key = [
-        projectId,
-        beneficiary.sex,
-        beneficiary.ageGroup,
-        beneficiary.disabilityStatus,
-      ].join('::')
-      const current = aggregateCounts.get(key)
-
-      aggregateCounts.set(key, {
-        projectId,
-        sex: beneficiary.sex,
-        ageGroup: beneficiary.ageGroup,
-        disabilityStatus: beneficiary.disabilityStatus,
-        count: (current?.count ?? 0) + 1,
-      })
-    }
-  }
-
-  return [...aggregateCounts.values()]
-}
+// SADDD must come from /dashboards/saddd. Raw Beneficiary arrays are never an
+// acceptable analytics input, even for a role with beneficiary-detail permission.
 
 export const canConfigureProjectAssignment = (
   actorRole: PathwaysRole,

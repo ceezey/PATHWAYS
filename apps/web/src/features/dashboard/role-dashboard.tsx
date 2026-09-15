@@ -13,7 +13,7 @@ import {
 } from 'lucide-react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { useEffect, useState } from 'react'
+import { useCallback, useState } from 'react'
 import { toast } from 'sonner'
 
 import { PageHeader } from '@/components/layout/page-header'
@@ -34,9 +34,10 @@ import type {
   DashboardAction,
   DashboardItem,
   DashboardSeverity,
-  RoleDashboardViewModel,
 } from '@/types/pathways'
 import { getPathwaysRoleDisplayName } from '@/types/pathways-role'
+
+import { useMonitoringRead } from '@/features/analytics/use-monitoring-read'
 
 import { ExecutiveDashboard } from './executive-dashboard'
 
@@ -133,42 +134,10 @@ export const RoleDashboard = () => {
   const { labels } = useDisplayLabels()
   const { role } = useCurrentRole()
   const roleLabel = role ? getPathwaysRoleDisplayName(role) : 'Role unavailable'
-  const [dashboard, setDashboard] = useState<RoleDashboardViewModel | null>(null)
-  const [status, setStatus] = useState<'loading' | 'success' | 'error'>('loading')
   const [activeAction, setActiveAction] = useState<DashboardAction | null>(null)
-
-  useEffect(() => {
-    let mounted = true
-    setStatus('loading')
-
-    if (!role) {
-      setDashboard(null)
-      setStatus('error')
-      return
-    }
-
-    pathwaysClient
-      .getDashboard(role)
-      .then((viewModel) => {
-        if (!mounted) {
-          return
-        }
-
-        setDashboard(viewModel)
-        setStatus('success')
-      })
-      .catch(() => {
-        if (!mounted) {
-          return
-        }
-
-        setStatus('error')
-      })
-
-    return () => {
-      mounted = false
-    }
-  }, [role])
+  const load = useCallback(() => role ? pathwaysClient.getDashboard(role) : Promise.reject(new Error('Role unavailable.')), [role])
+  const { data: dashboard, error, loading, reload } = useMonitoringRead('home-dashboard', load)
+  const status = error ? 'error' : !dashboard ? 'loading' : 'success'
 
   const handleAction = (action: DashboardAction) => {
     if (action.kind === 'navigate' && action.href) {
@@ -201,7 +170,7 @@ export const RoleDashboard = () => {
     return (
       <EmptyState
         className="min-h-[360px] rounded-lg border border-border bg-card"
-        description="Dashboard aggregates are unavailable until the dashboard backend is connected."
+        description="Dashboard aggregates could not be verified. This view requires analytics access and the migrated monitoring API."
         icon={AlertTriangle}
         title="Dashboard data unavailable"
       />
@@ -218,7 +187,7 @@ export const RoleDashboard = () => {
         eyebrow={labels.moduleDashboard}
         title={dashboard.heading}
         description={dashboard.summary}
-        actions={<StatusBadge tone="neutral">{roleLabel}</StatusBadge>}
+        actions={<><StatusBadge tone="neutral">{roleLabel}</StatusBadge><Button type="button" variant="outline" disabled={loading} onClick={reload}>Refresh monitoring</Button></>}
       />
       {dashboard.executive ? (
         <ExecutiveDashboard model={dashboard.executive} summaryAction={dashboard.primaryAction} />

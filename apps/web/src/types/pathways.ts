@@ -1,3 +1,4 @@
+import type { MonitoringIndicator, SadddDashboard } from '@pathways/shared'
 import type { PathwaysRole } from '@/types/pathways-role'
 
 export type ProjectStatus = 'Active' | 'Needs Attention' | 'Planned' | 'Completed'
@@ -273,21 +274,15 @@ export interface UpdateBeneficiaryInput {
   expectedUpdatedAt: string
 }
 
-export interface BeneficiarySadddAggregate {
-  projectId: string
-  sex: Beneficiary['sex']
-  ageGroup: Beneficiary['ageGroup']
-  disabilityStatus: Beneficiary['disabilityStatus']
-  count: number
-}
+/** P06 aggregate-only server response. No raw demographic cross-product contract. */
+export type BeneficiarySadddAggregate = SadddDashboard
 
+/** Activity links need definition identity only, not a second numeric authority. */
 export interface Indicator {
   id: string
   projectId: string
   code: string
   label: string
-  target: number
-  actual: number
 }
 
 export type EvidenceReviewStatus = 'Submitted' | 'Validated' | 'Flagged' | 'Approved' | 'Returned'
@@ -304,19 +299,8 @@ export interface EvidenceRecord {
   previewSummary: string
 }
 
-export type IndicatorStatus = 'On Track' | 'Needs Review' | 'Met'
-
-export interface ProjectIndicator {
-  id: string
-  projectId: string
-  code: string
-  label: string
-  baseline: number
-  target: number
-  actual: number
-  status: IndicatorStatus
-  connectedActivityIds: string[]
-}
+export type IndicatorStatus = MonitoringIndicator['status']
+export type ProjectIndicator = MonitoringIndicator
 
 export interface EvaluationWeight {
   id: string

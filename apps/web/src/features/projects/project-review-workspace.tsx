@@ -1,5 +1,7 @@
 'use client'
 
+import { formatMetricCell } from '@pathways/shared'
+
 import {
   ArrowLeft,
   CheckCircle2,
@@ -133,9 +135,6 @@ const statusTone = (status: string) => {
 
   return 'neutral'
 }
-
-const progressForIndicator = (indicator: ProjectIndicator) =>
-  indicator.target > 0 ? Math.min(100, Math.round((indicator.actual / indicator.target) * 100)) : 0
 
 const today = () => new Date().toISOString().slice(0, 10)
 
@@ -1105,7 +1104,7 @@ const IndicatorsView = ({
               <div className="min-w-0">
                 <p className="text-sm font-medium text-primary">{indicator.code}</p>
                 <h2 className="mt-1 break-words text-lg font-semibold text-foreground">
-                  {indicator.label}
+                  {indicator.name}
                 </h2>
               </div>
               <StatusBadge tone={statusTone(indicator.status)}>{indicator.status}</StatusBadge>
@@ -1113,24 +1112,24 @@ const IndicatorsView = ({
             <dl className="mt-4 grid gap-3 text-sm sm:grid-cols-3">
               <div>
                 <dt className="text-muted-foreground">Baseline</dt>
-                <dd className="mt-1 font-medium text-foreground">{indicator.baseline}</dd>
+                <dd className="mt-1 font-medium text-foreground">{indicator.baseline ?? 'Not set'}</dd>
               </div>
               <div>
                 <dt className="text-muted-foreground">Target</dt>
-                <dd className="mt-1 font-medium text-foreground">{indicator.target}</dd>
+                <dd className="mt-1 font-medium text-foreground">{indicator.target ?? 'Not set'}</dd>
               </div>
               <div>
                 <dt className="text-muted-foreground">Actual/current value</dt>
-                <dd className="mt-1 font-medium text-foreground">{indicator.actual}</dd>
+                <dd className="mt-1 font-medium text-foreground">{formatMetricCell(indicator.current)}</dd>
               </div>
             </dl>
             <div className="mt-4">
-              <ProgressBar label="Indicator progress" value={progressForIndicator(indicator)} />
+              <p>Progress toward configured change: {formatMetricCell(indicator.progress)}{indicator.progress.value !== null ? '%' : ''}</p>
             </div>
             <div className="mt-4 text-sm text-muted-foreground">
               Connected activities:{' '}
               <span className="font-medium text-foreground">
-                {indicator.connectedActivityIds
+                {(indicator.binding?.activityId ? [indicator.binding.activityId] : [])
                   .map(
                     (activityId) =>
                       activities.find((activity) => activity.id === activityId)?.title ??
@@ -1617,8 +1616,8 @@ const TransparencyView = ({
         <div className="rounded-lg border border-border bg-background p-3">
           <p className="font-medium text-foreground">Aggregate indicator progress</p>
           <p className="mt-1 text-muted-foreground">
-            {indicators.filter((indicator) => indicator.status === 'Met').length} of{' '}
-            {indicators.length} indicators met.
+            {indicators.filter((indicator) => indicator.current.value !== null).length} of{' '}
+            {indicators.length} indicators with a current measurement.
           </p>
         </div>
         <div className="rounded-lg border border-border bg-background p-3">

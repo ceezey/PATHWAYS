@@ -118,6 +118,12 @@ describe('P05 participation promotion contract', () => {
         data: expect.objectContaining({ enrollmentId, status: 'VALIDATED' }),
       }),
     )
+
+    const submissionUpdate =
+      tx.formSubmission.update.mock.calls[0]?.[0]
+
+    expect(submissionUpdate?.data).not.toHaveProperty('processedAt')
+    
     expect(tx.auditLog.create).toHaveBeenCalledOnce()
   })
 
