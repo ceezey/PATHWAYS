@@ -230,7 +230,6 @@ describe('RBAC project assignments and data scope', () => {
     ).toBe(false)
   })
 
-
   it('limits project-assignment authority by target role and actor project scope', () => {
     expect(
       canConfigureProjectAssignment('System Administrator', 'Project Manager', 'project-alpha'),

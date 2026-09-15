@@ -224,7 +224,6 @@ export const rolePermissions: Record<CanonicalRole, readonly AtomicPermission[]>
     'submissions.write',
     'imports.read',
     'imports.upload',
-    'analytics.read',
     'reports.read',
     'reports.beneficiary.read',
   ],

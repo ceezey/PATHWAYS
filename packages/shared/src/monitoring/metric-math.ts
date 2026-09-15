@@ -1,5 +1,11 @@
 /** P06 exact arithmetic. JSON carries decimal strings, never floating-point measurements. */
-export const numericKinds = ['COUNT', 'SIGNED_CHANGE', 'PERCENTAGE', 'RATIO', 'NON_NEGATIVE'] as const
+export const numericKinds = [
+  'COUNT',
+  'SIGNED_CHANGE',
+  'PERCENTAGE',
+  'RATIO',
+  'NON_NEGATIVE',
+] as const
 export type NumericKind = (typeof numericKinds)[number]
 export type MetricDirection = 'HIGHER_IS_BETTER' | 'LOWER_IS_BETTER' | 'DESCRIPTIVE'
 export type MetricState = 'AVAILABLE' | 'ZERO' | 'MISSING' | 'NOT_APPLICABLE' | 'SUPPRESSED'
@@ -41,7 +47,7 @@ export function normalizeMetricDecimal(value: string, kind: NumericKind): string
 /** Round once, to four places, half away from zero. Denominator must be non-zero. */
 function divideRounded(numerator: bigint, denominator: bigint): bigint {
   if (denominator === 0n) throw new Error('Zero denominator.')
-  const negative = (numerator < 0n) !== (denominator < 0n)
+  const negative = numerator < 0n !== denominator < 0n
   const n = numerator < 0n ? -numerator : numerator
   const d = denominator < 0n ? -denominator : denominator
   const value = n / d + ((n % d) * 2n >= d ? 1n : 0n)
@@ -72,7 +78,10 @@ export function indicatorProgress(
   const t = scaledDecimal(target)
   const delta = t - b
   if (delta === 0n) return { state: 'NOT_APPLICABLE', value: null, reason: 'ZERO_DENOMINATOR' }
-  if ((direction === 'HIGHER_IS_BETTER' && delta < 0n) || (direction === 'LOWER_IS_BETTER' && delta > 0n)) {
+  if (
+    (direction === 'HIGHER_IS_BETTER' && delta < 0n) ||
+    (direction === 'LOWER_IS_BETTER' && delta > 0n)
+  ) {
     return { state: 'NOT_APPLICABLE', value: null, reason: 'DIRECTION_CONFLICT' }
   }
   const numerator = (scaledDecimal(actual.value) - b) * 100n * scale
@@ -91,7 +100,10 @@ export function isCalendarDate(value: string): boolean {
 }
 export function businessCalendarDate(now: Date, timeZone: string): string {
   const parts = new Intl.DateTimeFormat('en-CA', {
-    timeZone, year: 'numeric', month: '2-digit', day: '2-digit',
+    timeZone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
   }).formatToParts(now)
   const part = (type: string) => parts.find((item) => item.type === type)?.value
   return `${part('year')}-${part('month')}-${part('day')}`

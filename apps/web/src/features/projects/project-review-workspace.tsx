@@ -1112,19 +1112,28 @@ const IndicatorsView = ({
             <dl className="mt-4 grid gap-3 text-sm sm:grid-cols-3">
               <div>
                 <dt className="text-muted-foreground">Baseline</dt>
-                <dd className="mt-1 font-medium text-foreground">{indicator.baseline ?? 'Not set'}</dd>
+                <dd className="mt-1 font-medium text-foreground">
+                  {indicator.baseline ?? 'Not set'}
+                </dd>
               </div>
               <div>
                 <dt className="text-muted-foreground">Target</dt>
-                <dd className="mt-1 font-medium text-foreground">{indicator.target ?? 'Not set'}</dd>
+                <dd className="mt-1 font-medium text-foreground">
+                  {indicator.target ?? 'Not set'}
+                </dd>
               </div>
               <div>
                 <dt className="text-muted-foreground">Actual/current value</dt>
-                <dd className="mt-1 font-medium text-foreground">{formatMetricCell(indicator.current)}</dd>
+                <dd className="mt-1 font-medium text-foreground">
+                  {formatMetricCell(indicator.current)}
+                </dd>
               </div>
             </dl>
             <div className="mt-4">
-              <p>Progress toward configured change: {formatMetricCell(indicator.progress)}{indicator.progress.value !== null ? '%' : ''}</p>
+              <p>
+                Progress toward configured change: {formatMetricCell(indicator.progress)}
+                {indicator.progress.value !== null ? '%' : ''}
+              </p>
             </div>
             <div className="mt-4 text-sm text-muted-foreground">
               Connected activities:{' '}

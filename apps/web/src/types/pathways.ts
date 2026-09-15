@@ -1,5 +1,5 @@
-import type { MonitoringIndicator, SadddDashboard } from '@pathways/shared'
 import type { PathwaysRole } from '@/types/pathways-role'
+import type { MonitoringIndicator, SadddDashboard } from '@pathways/shared'
 
 export type ProjectStatus = 'Active' | 'Needs Attention' | 'Planned' | 'Completed'
 export type HealthStatus = 'On Track' | 'At Risk' | 'Critical'

@@ -1,17 +1,3 @@
-import {
-  type CreateIndicatorInput,
-  type DashboardQuery,
-  type ManualMeasurementInput,
-  type MonitoringDashboard,
-  type SadddDashboard,
-  type UpdateIndicatorInput,
-  dashboardQuerySchema,
-  formatMetricCell,
-  monitoringDashboardSchema,
-  monitoringIndicatorListSchema,
-  monitoringIndicatorSchema,
-  sadddDashboardSchema,
-} from '@pathways/shared'
 import { contextCookieName, decodeWorkspaceContext } from '@/features/auth/workspace-access'
 import { webEnv } from '@/lib/env'
 import { getBrowserSupabaseClient } from '@/lib/supabase/client'
@@ -62,6 +48,20 @@ import type {
   UserRecord,
 } from '@/types/pathways'
 import type { PathwaysRole } from '@/types/pathways-role'
+import {
+  type CreateIndicatorInput,
+  type DashboardQuery,
+  type ManualMeasurementInput,
+  type MonitoringDashboard,
+  type SadddDashboard,
+  type UpdateIndicatorInput,
+  dashboardQuerySchema,
+  formatMetricCell,
+  monitoringDashboardSchema,
+  monitoringIndicatorListSchema,
+  monitoringIndicatorSchema,
+  sadddDashboardSchema,
+} from '@pathways/shared'
 
 export class PathwaysClientError extends Error {
   constructor(
@@ -91,11 +91,9 @@ export interface PathwaysClient {
   updateActivity(input: UpdateActivityInput): Promise<Activity>
   submitActivityProof(input: SubmitActivityProofInput): Promise<Activity>
   getEvidence(projectId: string): Promise<EvidenceRecord[]>
+  getProjectIndicators(projectId: string): Promise<ProjectIndicator[]>
   getProjectIndicator(projectId: string, indicatorId: string): Promise<ProjectIndicator>
-  createProjectIndicator(
-    projectId: string,
-    input: CreateIndicatorInput,
-  ): Promise<ProjectIndicator>
+  createProjectIndicator(projectId: string, input: CreateIndicatorInput): Promise<ProjectIndicator>
   updateProjectIndicator(
     projectId: string,
     indicatorId: string,
@@ -321,10 +319,7 @@ class BackendReadyPathwaysClient implements PathwaysClient {
     )
   }
 
-  async getProjectIndicator(
-    projectId: string,
-    indicatorId: string,
-  ): Promise<ProjectIndicator> {
+  async getProjectIndicator(projectId: string, indicatorId: string): Promise<ProjectIndicator> {
     return monitoringIndicatorSchema.parse(
       await requestFoundation(
         `/projects/${encodeURIComponent(projectId)}/indicators/${encodeURIComponent(indicatorId)}`,
@@ -392,17 +387,13 @@ class BackendReadyPathwaysClient implements PathwaysClient {
     )
   }
 
-  async getMonitoringDashboard(
-    query: DashboardQuery = {},
-  ): Promise<MonitoringDashboard> {
+  async getMonitoringDashboard(query: DashboardQuery = {}): Promise<MonitoringDashboard> {
     return monitoringDashboardSchema.parse(
       await requestFoundation(`/dashboards/monitoring${monitoringQuery(query)}`),
     )
   }
 
-  async getSadddDashboard(
-    query: DashboardQuery = {},
-  ): Promise<SadddDashboard> {
+  async getSadddDashboard(query: DashboardQuery = {}): Promise<SadddDashboard> {
     return sadddDashboardSchema.parse(
       await requestFoundation(`/dashboards/saddd${monitoringQuery(query)}`),
     )

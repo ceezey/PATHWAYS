@@ -105,7 +105,7 @@ describe('PATHWAYS frontend data boundary', () => {
       PathwaysClientError,
     )
     await expect(pathwaysClient.getDashboard('Program Manager')).rejects.toMatchObject({
-  code: 'unauthorized',
+      code: 'unauthorized',
     })
   })
 

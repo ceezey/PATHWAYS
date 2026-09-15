@@ -30,11 +30,7 @@ import { Dialog } from '@/components/ui/dialog'
 import { useCurrentRole } from '@/hooks/use-current-role'
 import { useDisplayLabels } from '@/hooks/use-display-labels'
 import { pathwaysClient } from '@/lib/services/pathways-client'
-import type {
-  DashboardAction,
-  DashboardItem,
-  DashboardSeverity,
-} from '@/types/pathways'
+import type { DashboardAction, DashboardItem, DashboardSeverity } from '@/types/pathways'
 import { getPathwaysRoleDisplayName } from '@/types/pathways-role'
 
 import { useMonitoringRead } from '@/features/analytics/use-monitoring-read'
@@ -135,7 +131,11 @@ export const RoleDashboard = () => {
   const { role } = useCurrentRole()
   const roleLabel = role ? getPathwaysRoleDisplayName(role) : 'Role unavailable'
   const [activeAction, setActiveAction] = useState<DashboardAction | null>(null)
-  const load = useCallback(() => role ? pathwaysClient.getDashboard(role) : Promise.reject(new Error('Role unavailable.')), [role])
+  const load = useCallback(
+    () =>
+      role ? pathwaysClient.getDashboard(role) : Promise.reject(new Error('Role unavailable.')),
+    [role],
+  )
   const { data: dashboard, error, loading, reload } = useMonitoringRead('home-dashboard', load)
   const status = error ? 'error' : !dashboard ? 'loading' : 'success'
 
@@ -187,7 +187,14 @@ export const RoleDashboard = () => {
         eyebrow={labels.moduleDashboard}
         title={dashboard.heading}
         description={dashboard.summary}
-        actions={<><StatusBadge tone="neutral">{roleLabel}</StatusBadge><Button type="button" variant="outline" disabled={loading} onClick={reload}>Refresh monitoring</Button></>}
+        actions={
+          <>
+            <StatusBadge tone="neutral">{roleLabel}</StatusBadge>
+            <Button type="button" variant="outline" disabled={loading} onClick={reload}>
+              Refresh monitoring
+            </Button>
+          </>
+        }
       />
       {dashboard.executive ? (
         <ExecutiveDashboard model={dashboard.executive} summaryAction={dashboard.primaryAction} />

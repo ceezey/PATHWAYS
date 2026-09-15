@@ -78,4 +78,9 @@ describe('canonical least-privilege policy ceiling', () => {
       }
     }
   })
+  it('does not grant analytics to Project Officer even with an overbroad permission array', () => {
+    expect(hasAtomicPermission('PROJECT_OFFICER', ['analytics.read'], 'analytics.read')).toBe(false)
+
+    expect(rolePermissions.PROJECT_OFFICER).not.toContain('analytics.read')
+  })
 })

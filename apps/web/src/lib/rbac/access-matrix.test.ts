@@ -15,6 +15,7 @@ describe('RBAC matrix', () => {
   it.each([
     ['Project Officer', 'budget.expense.log', true],
     ['Project Officer', 'monitor_evaluate.view', false],
+    ['Project Officer', 'analytics.view', false],
     ['Project Officer', 'reports.view', true],
     ['Project Officer', 'reports.beneficiary_summary.view', true],
     ['Project Officer', 'reports.project_summary.view', false],

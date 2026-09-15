@@ -59,7 +59,6 @@ export const roleAccessProfiles: Record<PathwaysRole, RoleAccessProfile> = {
       'budget.expense.log',
       'beneficiaries.scoped_view',
       'collection.view',
-      'analytics.view',
       'reports.view',
       'reports.beneficiary_summary.view',
     ],

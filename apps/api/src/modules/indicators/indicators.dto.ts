@@ -11,8 +11,18 @@ import type { z } from 'zod'
 export function parseIndicatorInput<T>(schema: z.ZodType<T>, input: unknown): T {
   const result = schema.safeParse(input)
   if (!result.success) {
-    throw new BadRequestException({ message: 'Invalid indicator request.', issues: result.error.issues.slice(0, 5).map((issue) => ({ field: issue.path.join('.'), message: issue.message })) })
+    throw new BadRequestException({
+      message: 'Invalid indicator request.',
+      issues: result.error.issues
+        .slice(0, 5)
+        .map((issue) => ({ field: issue.path.join('.'), message: issue.message })),
+    })
   }
   return result.data
 }
-export { archiveIndicatorSchema, createIndicatorSchema, manualMeasurementSchema, updateIndicatorSchema }
+export {
+  archiveIndicatorSchema,
+  createIndicatorSchema,
+  manualMeasurementSchema,
+  updateIndicatorSchema,
+}
