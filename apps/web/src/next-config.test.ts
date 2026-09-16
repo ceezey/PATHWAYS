@@ -71,6 +71,8 @@ describe('Next build-directory isolation', () => {
       })),
     )
     expect(privateAuthSurfacePaths).toContain('/staff/login')
+    expect(privateAuthSurfacePaths).toContain('/auth/mfa')
+    expect(privateAuthSurfacePaths).toContain('/auth/access-unavailable')
     expect(privateAuthSurfacePaths).not.toContain('/auth/otp/:path*')
     expect(passwordRecoveryResponseHeaders).toContainEqual({
       key: 'Cache-Control',

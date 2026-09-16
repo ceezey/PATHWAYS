@@ -81,11 +81,37 @@ afterEach(() => {
   vi.restoreAllMocks()
 })
 describe('request-scoped server page authority', () => {
+  it('keeps next-request revocation enforced after optimistic middleware admission', async () => {
+    await requireServerRoute({ route: 'dashboard' })
+    mock.fetch.mockResolvedValueOnce(new Response('', { status: 403 }))
+    await expect(requireServerRoute({ route: 'dashboard' })).rejects.toThrow(
+      'REDIRECT:/unauthorized',
+    )
+    expect(mock.fetch).toHaveBeenCalledTimes(2)
+  })
+  it('routes actual aal1 to MFA rather than treating it as a service outage', async () => {
+    mock.claims.mockResolvedValueOnce({ data: { claims: { ...claims, aal: 'aal1' } } })
+    await expect(requireServerRoute({ route: 'dashboard' })).rejects.toThrow('REDIRECT:/auth/mfa')
+    expect(mock.fetch).not.toHaveBeenCalled()
+  })
+  it('does not turn an Auth provider outage into another login challenge', async () => {
+    mock.claims.mockResolvedValueOnce({
+      data: null,
+      error: { status: 503, message: 'PRIVATE_PROVIDER_BODY' },
+    })
+    await expect(requireServerRoute({ route: 'dashboard' })).rejects.toThrow(
+      'REDIRECT:/auth/access-unavailable',
+    )
+    expect(mock.fetch).not.toHaveBeenCalled()
+  })
+
   it('classifies a server-only route outage separately from successful browser/MFA checks', async () => {
     vi.stubEnv('NODE_ENV', 'development')
     const output = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
     mock.fetch.mockResolvedValue(new Response('SYNTHETIC_PRIVATE_PROVIDER_BODY', { status: 503 }))
-    await expect(requireServerRoute({ route: 'dashboard' })).rejects.toThrow('REDIRECT:/auth/mfa')
+    await expect(requireServerRoute({ route: 'dashboard' })).rejects.toThrow(
+      'REDIRECT:/auth/access-unavailable',
+    )
     expect(output).toHaveBeenCalledExactlyOnceWith('PATHWAYS_NAVIGATION_DENIED', {
       boundary: 'SERVER_PAGE',
       stage: 'ROUTE_API',
@@ -97,9 +123,7 @@ describe('request-scoped server page authority', () => {
     vi.stubEnv('NODE_ENV', 'development')
     const output = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
     mock.cookie.mockReturnValue(undefined)
-    await expect(requireServerRoute({ route: 'dashboard' })).rejects.toThrow(
-      'REDIRECT:/unauthorized',
-    )
+    await expect(requireServerRoute({ route: 'dashboard' })).rejects.toThrow('REDIRECT:/auth/mfa')
     expect(output).toHaveBeenCalledExactlyOnceWith('PATHWAYS_NAVIGATION_DENIED', {
       boundary: 'SERVER_PAGE',
       stage: 'CONTEXT',
@@ -140,7 +164,7 @@ describe('request-scoped server page authority', () => {
             ? '/staff/login'
             : [403, 404].includes(status)
               ? '/unauthorized'
-              : '/auth/mfa'
+              : '/auth/access-unavailable'
         }`,
       )
     },
@@ -148,7 +172,7 @@ describe('request-scoped server page authority', () => {
   it('does not turn the unauthorized route into a redirect loop', async () => {
     mock.fetch.mockResolvedValue(new Response('', { status: 403 }))
     await expect(requireServerRoute({ route: 'unauthorized' })).rejects.toThrow(
-      'REDIRECT:/auth/mfa',
+      'REDIRECT:/auth/access-unavailable',
     )
   })
   it.each([{ sub: id }, { iss: 'untrusted' }, { aal: 'aal1' }, { is_anonymous: true }])(
@@ -193,7 +217,9 @@ describe('request-scoped server page authority', () => {
   })
   it('fails closed on a malformed route-check reply without exposing provider contents', async () => {
     mock.fetch.mockResolvedValue(Response.json({ sensitive: 'do-not-show' }))
-    await expect(requireServerRoute({ route: 'dashboard' })).rejects.toThrow('REDIRECT:/auth/mfa')
+    await expect(requireServerRoute({ route: 'dashboard' })).rejects.toThrow(
+      'REDIRECT:/auth/access-unavailable',
+    )
   })
 })
 describe('finite route and feature contract', () => {

@@ -19,7 +19,7 @@ export function useMonitoringRead<T>(selection: string, load: () => Promise<T>) 
     profile?.assignedProjectIds,
   ])
   const [revision, setRevision] = useState(0)
-  const key = `${authority}:${selection}`
+  const key = `${authority}:${selection}:${revision}`
   const ready = access === 'ready' && Boolean(profile && session)
   const [state, setState] = useState<{ key: string; data: T | null; error: string | null } | null>(
     null,

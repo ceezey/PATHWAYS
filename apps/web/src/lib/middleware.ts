@@ -1,34 +1,26 @@
 import { createServerClient } from '@supabase/ssr'
 import { type NextRequest, NextResponse } from 'next/server'
 
-import {
-  AuthAccessError,
-  parseApplicationProfile,
-  requestAuthJson,
-} from '@/features/auth/auth-access'
-import {
-  contextCookieName,
-  decodeWorkspaceContext,
-  workspacePermissions,
-} from '@/features/auth/workspace-access'
+import { contextCookieName, decodeWorkspaceContext } from '@/features/auth/workspace-access'
 import { webEnv, webSupabasePublishableKey } from '@/lib/env'
+import { ACCESS_UNAVAILABLE_PATH, providerFailureStatus } from '@/lib/rbac/access-recovery'
 import { type NavigationStage, recordNavigationDenial } from '@/lib/rbac/navigation-diagnostic'
-import {
-  RouteCheckError,
-  getVerifiedRouteAccess,
-  isPublicPath,
-  matchRoute,
-  requestRouteCheck,
-} from '@/lib/rbac/route-access'
+import { RouteCheckError, isPublicPath, matchRoute } from '@/lib/rbac/route-access'
 
+/** Optimistic navigation gate only. Every protected data page and API keeps
+ * its existing current-session/database/object authorization before data access.
+ * No /auth/me or route-check RPC is repeated here for navigation/prefetches.
+ */
 export async function updateSession(request: NextRequest) {
-  const configuredSupabaseUrl = (webEnv.NEXT_PUBLIC_SUPABASE_URL ?? '').replace(/\/$/, '')
-  if (isPublicPath(request.nextUrl.pathname)) return NextResponse.next()
+  if (
+    isPublicPath(request.nextUrl.pathname) ||
+    request.nextUrl.pathname === ACCESS_UNAVAILABLE_PATH
+  )
+    return NextResponse.next()
+  const configuredUrl = (webEnv.NEXT_PUBLIC_SUPABASE_URL ?? '').replace(/\/$/, '')
   let stage: NavigationStage = 'CONFIGURATION'
   const denied = (error?: unknown) => recordNavigationDenial('MIDDLEWARE', stage, error)
-  const redirect = (path: string, source?: NextResponse, clearContext = true) => {
-    // NextRequest can normalize 127.0.0.1 to localhost. Preserve only the
-    // explicitly approved incoming loopback Host; never trust an arbitrary host.
+  const redirect = (path: string, source?: NextResponse, clearContext = false) => {
     const url = new URL(request.url)
     if (request.headers.get('host') === '127.0.0.1:3000') url.host = '127.0.0.1:3000'
     url.pathname = path
@@ -41,68 +33,50 @@ export async function updateSession(request: NextRequest) {
     response.headers.set('Referrer-Policy', 'no-referrer')
     return response
   }
-  if (!configuredSupabaseUrl || !webSupabasePublishableKey) {
+  if (!configuredUrl || !webSupabasePublishableKey) {
     denied()
-    return redirect('/staff/login')
+    return redirect(ACCESS_UNAVAILABLE_PATH)
   }
-
-  let supabaseResponse = NextResponse.next({
-    request,
-  })
-
-  // With Fluid compute, don't put this client in a global environment
-  // variable. Always create a new one on each request.
-  const supabase = createServerClient(webEnv.NEXT_PUBLIC_SUPABASE_URL, webSupabasePublishableKey, {
-    cookies: {
-      getAll() {
-        return request.cookies.getAll()
-      },
-      setAll(cookiesToSet, cacheHeaders) {
-        for (const { name, value } of cookiesToSet) {
-          request.cookies.set(name, value)
-        }
-
-        supabaseResponse = NextResponse.next({
-          request,
-        })
-
-        for (const { name, value, options } of cookiesToSet) {
-          supabaseResponse.cookies.set(name, value, options)
-        }
-        for (const [name, value] of Object.entries(cacheHeaders ?? {}))
-          supabaseResponse.headers.set(name, value)
-      },
-    },
-  })
-
-  // Do not run code between createServerClient and
-  // supabase.auth.getClaims(). A simple mistake could make it very hard to debug
-  // issues with users being randomly logged out.
-
-  // IMPORTANT: If you remove getClaims() and you use server-side rendering
-  // with the Supabase client, your users may be randomly logged out.
+  let response = NextResponse.next({ request })
   try {
+    const supabase = createServerClient(configuredUrl, webSupabasePublishableKey, {
+      cookies: {
+        getAll: () => request.cookies.getAll(),
+        setAll(cookiesToSet, cacheHeaders) {
+          for (const { name, value } of cookiesToSet) request.cookies.set(name, value)
+          response = NextResponse.next({ request })
+          for (const { name, value, options } of cookiesToSet)
+            response.cookies.set(name, value, options)
+          for (const [name, value] of Object.entries(cacheHeaders ?? {}))
+            response.headers.set(name, value)
+        },
+      },
+    })
+    // Keep immediately after createServerClient so refreshed cookies propagate.
     stage = 'CLAIMS'
     const { data, error } = await supabase.auth.getClaims()
-    if (error || !data?.claims) {
+    if (error) throw new RouteCheckError(providerFailureStatus(error), 'http')
+    if (!data?.claims) {
       denied()
-      return redirect('/staff/login', supabaseResponse)
+      return redirect('/staff/login', response, true)
     }
     const claims = data.claims
     stage = 'IDENTITY'
     if (
-      claims.iss !== `${configuredSupabaseUrl}/auth/v1` ||
+      typeof claims.sub !== 'string' ||
+      !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(claims.sub) ||
+      claims.iss !== `${configuredUrl}/auth/v1` ||
       claims.aud !== 'authenticated' ||
       claims.is_anonymous !== false
     ) {
       denied()
-      return redirect('/staff/login', supabaseResponse)
+      return redirect('/staff/login', response, true)
     }
     if (request.nextUrl.pathname !== '/auth/mfa') {
       stage = 'ASSURANCE'
-      if (typeof claims.sub !== 'string' || claims.aal !== 'aal2') {
+      if (claims.aal !== 'aal2') {
         denied()
-        return redirect('/auth/mfa', supabaseResponse)
+        return redirect('/auth/mfa', response, true)
       }
       stage = 'CONTEXT'
       const context = decodeWorkspaceContext(
@@ -111,93 +85,27 @@ export async function updateSession(request: NextRequest) {
       )
       if (!context) {
         denied()
-        return redirect('/auth/mfa', supabaseResponse)
-      }
-      // getSession supplies a bearer for the API; it is never itself proof of
-      // authorization. NestJS verifies signature/current identity/MFA + database.
-      stage = 'SESSION'
-      const session = await supabase.auth.getSession()
-      if (session.error || !session.data.session) {
-        denied()
-        return redirect('/staff/login', supabaseResponse)
-      }
-      stage = 'PROFILE'
-      const api = new URL(webEnv.NEXT_PUBLIC_API_BASE_URL)
-      if (api.hostname === 'localhost') api.hostname = '127.0.0.1'
-      const profile = parseApplicationProfile(
-        await requestAuthJson(
-          api.toString(),
-          '/auth/me',
-          session.data.session.access_token,
-          AbortSignal.timeout(15_000),
-          context,
-        ),
-      )
-      if (
-        profile.id !== claims.sub ||
-        profile.userId !== context.userId ||
-        profile.organizationId !== context.organizationId ||
-        !workspacePermissions(profile).readProjects
-      ) {
-        denied()
-        return redirect('/auth/mfa', supabaseResponse)
+        // Bootstrap missing selectors; aal2 users are not asked for a new code.
+        return redirect('/auth/mfa', response, true)
       }
       if (request.nextUrl.pathname !== '/workspace') {
         stage = 'ROUTE_POLICY'
         const query = new URLSearchParams(request.nextUrl.search)
         query.delete('_rsc')
         const path = request.nextUrl.pathname + (query.size ? `?${query}` : '')
-        const selection = matchRoute(path)
-        if (!selection || !getVerifiedRouteAccess(profile, path).allowed) {
+        if (!matchRoute(path)) {
           denied()
-          return redirect('/unauthorized', supabaseResponse, false)
-        }
-        try {
-          stage = 'ROUTE_API'
-          await requestRouteCheck(
-            api.toString(),
-            session.data.session.access_token,
-            context,
-            selection,
-          )
-        } catch (error) {
-          denied(error)
-          if (error instanceof RouteCheckError && error.status === 401)
-            return redirect('/staff/login', supabaseResponse)
-          if (error instanceof RouteCheckError && [403, 404].includes(error.status))
-            return redirect(
-              selection.route === 'unauthorized' ? '/auth/mfa' : '/unauthorized',
-              supabaseResponse,
-              selection.route === 'unauthorized',
-            )
-          return redirect('/auth/mfa', supabaseResponse)
+          return redirect('/unauthorized', response)
         }
       }
     }
   } catch (error) {
     denied(error)
-    if (error instanceof AuthAccessError && error.status !== 401) {
-      // An API denial/outage is not a lost Auth session. Keep the valid session
-      // and return to the MFA/profile check for a safe, visible retry.
-      return redirect('/auth/mfa', supabaseResponse)
-    }
-    return redirect('/staff/login', supabaseResponse)
+    if (error instanceof RouteCheckError && error.status === 401)
+      return redirect('/staff/login', response, true)
+    return redirect(ACCESS_UNAVAILABLE_PATH, response)
   }
-
-  // IMPORTANT: You *must* return the supabaseResponse object as it is.
-  // If you're creating a new response object with NextResponse.next() make sure to:
-  // 1. Pass the request in it, like so:
-  //    const myNewResponse = NextResponse.next({ request })
-  // 2. Copy over the cookies, like so:
-  //    myNewResponse.cookies.setAll(supabaseResponse.cookies.getAll())
-  // 3. Change the myNewResponse object to fit your needs, but avoid changing
-  //    the cookies!
-  // 4. Finally:
-  //    return myNewResponse
-  // If this is not done, you may be causing the browser and server to go out
-  // of sync and terminate the user's session prematurely!
-
-  supabaseResponse.headers.set('Cache-Control', 'private, no-store')
-  supabaseResponse.headers.set('Referrer-Policy', 'no-referrer')
-  return supabaseResponse
+  response.headers.set('Cache-Control', 'private, no-store')
+  response.headers.set('Referrer-Policy', 'no-referrer')
+  return response
 }

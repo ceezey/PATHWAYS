@@ -26,6 +26,7 @@ export function MfaForm() {
   const { session, status, configured, refreshSession, signOut } = useSession()
   const {
     access,
+    mfaStatus,
     accessError,
     accessRefreshing,
     refreshAccess,
@@ -59,8 +60,17 @@ export function MfaForm() {
   const handoffUser = useRef(session?.user.id)
   const [handoff, setHandoff] = useState<'idle' | 'opening' | 'stalled'>('idle')
   const currentUserId = session?.user.id
+  const sessionSubject = currentUserId ?? null
   const allowedAccount = Boolean(currentUserId)
-  const current = check?.token === token && check?.refresh === refresh ? check : null
+  const current =
+    mfaStatus &&
+    check?.token === token &&
+    check?.refresh === refresh &&
+    check.status.authUserId === mfaStatus.authUserId &&
+    check.status.aal === mfaStatus.aal &&
+    check.status.applicationAccessEnabled === mfaStatus.applicationAccessEnabled
+      ? check
+      : null
   const privateEnrollment = enrollment?.token === token ? enrollment : null
   const verifiedFactors = getVerifiedTotpFactors(current?.factors ?? [])
   const choices = verifiedFactors.length
@@ -132,18 +142,14 @@ export function MfaForm() {
     setFactorId('')
     setCheck(null)
     setError('')
-    if (!supabase || !token || !allowedAccount) return () => controller.abort()
+    if (!supabase || !token || !allowedAccount || !mfaStatus) return () => controller.abort()
 
     const inspect = async () => {
       try {
-        const result = parseMfaStatus(
-          await requestAuthJson(
-            webEnv.NEXT_PUBLIC_API_BASE_URL,
-            '/auth/mfa/status',
-            token,
-            controller.signal,
-          ),
-        )
+        // The provider owns routine MFA/profile verification. Only explicit
+        // enrollment/verification actions below request a fresh MFA precondition.
+        const result = mfaStatus
+        if (!result || result.authUserId !== sessionSubject) return
         if (controller.signal.aborted || currentOperation !== operation.current) return
         let factors: FactorChoice[] = []
         if (result.aal !== 'aal2') {
@@ -172,7 +178,7 @@ export function MfaForm() {
       controller.abort()
       ++operation.current
     }
-  }, [allowedAccount, supabase, token, refresh])
+  }, [allowedAccount, supabase, token, refresh, mfaStatus, sessionSubject])
 
   useEffect(() => {
     const clearPrivateState = () => {
@@ -231,7 +237,8 @@ export function MfaForm() {
       const fresh = parseMfaStatus(
         await requestAuthJson(webEnv.NEXT_PUBLIC_API_BASE_URL, '/auth/mfa/status', token),
       )
-      if (fresh.aal !== 'aal1') throw new Error('No enrollment is needed.')
+      if (fresh.authUserId !== currentUserId || fresh.aal !== 'aal1')
+        throw new Error('No enrollment is needed.')
       await assertCurrentSession(token, currentOperation)
       const existing = await supabase.auth.mfa.listFactors()
       if (existing.error || existing.data.all.length !== 0) {
@@ -280,7 +287,8 @@ export function MfaForm() {
       const fresh = parseMfaStatus(
         await requestAuthJson(webEnv.NEXT_PUBLIC_API_BASE_URL, '/auth/mfa/status', token),
       )
-      if (fresh.aal !== 'aal1') throw new Error('Recheck the current session.')
+      if (fresh.authUserId !== currentUserId || fresh.aal !== 'aal1')
+        throw new Error('Recheck the current session.')
       await verifyTotpCode(supabase.auth.mfa, selectedFactor, submittedCode, () =>
         assertCurrentSession(token, currentOperation),
       )
@@ -345,9 +353,15 @@ export function MfaForm() {
         ) : !session ? (
           <p>Sign in before setting up MFA.</p>
         ) : !current ? (
-          <output>
-            {error ? 'Verification is blocked.' : 'Checking the local API before MFA setup...'}
-          </output>
+          accessError ? (
+            <p role="alert">{accessError}</p>
+          ) : (
+            <output>
+              {error
+                ? 'Verification is blocked.'
+                : 'Checking current session and workspace access...'}
+            </output>
+          )
         ) : current.status.aal === 'aal2' ? (
           <div className="space-y-4">
             <output>MFA session verified by the API (aal2).</output>
@@ -360,10 +374,17 @@ export function MfaForm() {
               <div className="space-y-3">
                 <p>Your identity and application access are verified.</p>
                 {handoff === 'stalled' ? (
-                  <p role="alert">
-                    Dashboard navigation could not be completed. Recheck securely to try again, or
-                    sign out. No additional access was granted.
-                  </p>
+                  <div className="space-y-3">
+                    <p role="alert">
+                      Your sign-in check completed, but the workspace could not open. Retry opening
+                      it below. Access will be checked again.
+                    </p>
+                    {!accessRefreshing && (
+                      <Button asChild variant="outline">
+                        <a href="/workspace">Retry opening workspace</a>
+                      </Button>
+                    )}
+                  </div>
                 ) : (
                   <output className="flex items-center gap-2" aria-live="polite" aria-busy="true">
                     <LoaderCircle
@@ -508,7 +529,7 @@ export function MfaForm() {
             <Button
               type="button"
               variant="ghost"
-              disabled={busy}
+              disabled={busy || accessRefreshing}
               onClick={() => {
                 handoffAttempted.current = false
                 resetWorkspaceHandoff()

@@ -1,6 +1,5 @@
 'use client'
 
-import { clearWorkspaceContext } from '@/features/auth/workspace-access'
 import { useCurrentRole } from '@/hooks/use-current-role'
 import { useSession } from '@/hooks/use-session'
 import { webEnv } from '@/lib/env'
@@ -11,27 +10,27 @@ import {
   matchRoute,
   requestRouteCheck,
 } from '@/lib/rbac/route-access'
-import type { PathwaysRole } from '@/types/pathways-role'
 import { usePathname, useSearchParams } from 'next/navigation'
 import { useEffect, useState } from 'react'
 import { UnauthorizedState } from './unauthorized-state'
 
-export function RouteAccessGuard({
-  children,
-}: { children: React.ReactNode; role: PathwaysRole; assignedProjectIds: readonly string[] }) {
+/** Content boundary only. AppShell lives outside this guard and owns no domain data. */
+export function RouteAccessGuard({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
   const params = useSearchParams()
   const { session } = useSession()
-  const { profile, refreshAccess, accessRefreshing } = useCurrentRole()
+  const { profile, refreshAccess, accessRefreshing, verificationRevision, resetWorkspaceHandoff } =
+    useCurrentRole()
   const query = new URLSearchParams(params.toString())
   query.delete('_rsc')
   const path = pathname + (query.size ? `?${query.toString()}` : '')
   const token = session?.access_token
+  const subject = session?.user.id
   const [retry, setRetry] = useState(0)
   const key = JSON.stringify([
     path,
     token,
-    session?.user.id,
+    subject,
     retry,
     profile?.id,
     profile?.userId,
@@ -42,27 +41,28 @@ export function RouteAccessGuard({
   ])
   const [state, setState] = useState<{
     key: string
+    revision: number
     decision?: RouteDecision
     error?: number
   } | null>(null)
   useEffect(() => {
     const controller = new AbortController()
+    // The provider is the only timer/focus owner. Follow its completed check,
+    // rather than running a second interval or competing discovery sequence.
     if (accessRefreshing) return () => controller.abort()
-
     const selection = matchRoute(path)
     const check = async () => {
       if (document.visibilityState === 'hidden') return
       if (
         !token ||
         !profile ||
-        profile.id !== session?.user.id ||
+        profile.id !== subject ||
         !selection ||
         !getVerifiedRouteAccess(profile, path).allowed
       ) {
-        setState({ key, error: 403 })
+        setState({ key, revision: verificationRevision, error: 403 })
         return
       }
-
       try {
         const decision = await requestRouteCheck(
           webEnv.NEXT_PUBLIC_API_BASE_URL,
@@ -71,18 +71,35 @@ export function RouteAccessGuard({
           selection,
           controller.signal,
         )
-        if (!controller.signal.aborted) setState({ key, decision })
-      } catch (error) {
         if (!controller.signal.aborted) {
-          clearWorkspaceContext()
-          setState({ key, error: error instanceof RouteCheckError ? error.status : 503 })
+          setState({ key, revision: verificationRevision, decision })
+          // Confirmed workspace entry releases the one-attempt MFA handoff latch.
+          resetWorkspaceHandoff()
         }
+      } catch (error) {
+        if (controller.signal.aborted) return
+        // Cancellation is not denial. Outages/route denials must not destroy a
+        // valid workspace selector and send the user through MFA again.
+        if (error instanceof RouteCheckError && error.failure === 'cancelled') return
+        setState({
+          key,
+          revision: verificationRevision,
+          error: error instanceof RouteCheckError ? error.status : 503,
+        })
       }
     }
-
     void check()
     return () => controller.abort()
-  }, [accessRefreshing, key, path, profile, token, session?.user.id])
+  }, [
+    accessRefreshing,
+    verificationRevision,
+    key,
+    path,
+    profile,
+    token,
+    subject,
+    resetWorkspaceHandoff,
+  ])
   const current = state?.key === key ? state : null
   if (!current) return <output aria-live="polite">Verifying current route access…</output>
   if (current.error === 401)
@@ -103,9 +120,10 @@ export function RouteAccessGuard({
     return (
       <section role="alert">
         <h2>Access verification unavailable</h2>
-        <p>No protected content is shown.</p>
+        <p>No protected content is shown. Your session has not been reset.</p>
         <button
           type="button"
+          disabled={accessRefreshing}
           onClick={() => {
             setState(null)
             setRetry((value) => value + 1)
@@ -118,13 +136,11 @@ export function RouteAccessGuard({
     )
   return (
     <>
-      <aside role="note" className="mb-6 rounded-lg border border-border bg-muted p-4">
-        <strong>Feature unavailable</strong>
-        <p>
-          These development screens do not enable business-data persistence. Available data and
-          actions remain subject to server authorization.
-        </p>
-      </aside>
+      {(accessRefreshing || current.revision !== verificationRevision) && (
+        <output className="text-sm text-muted-foreground" aria-live="polite">
+          Rechecking current access…
+        </output>
+      )}
       {children}
     </>
   )

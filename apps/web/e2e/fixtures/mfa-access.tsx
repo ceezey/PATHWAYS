@@ -53,7 +53,9 @@ export const useSession = () => {
     },
   }
 }
-export const usePathname = () => useSyncExternalStore(subscribe, snapshot).path
+export const usePathname = () => useSyncExternalStore(subscribe, snapshot).path.split('?')[0]
+export const useSearchParams = () =>
+  new URLSearchParams(useSyncExternalStore(subscribe, snapshot).path.split('?')[1])
 export const useFormRevision = () => useSyncExternalStore(subscribe, snapshot).formRevision
 export const getBrowserSupabaseClient = () => client
 export const webEnv = { NEXT_PUBLIC_API_BASE_URL: 'http://127.0.0.1:4000/api' }
@@ -67,6 +69,9 @@ const router = {
   },
 }
 export const useRouter = () => router
-export default function Link(props: AnchorHTMLAttributes<HTMLAnchorElement>) {
+export default function Link({
+  prefetch: _prefetch,
+  ...props
+}: AnchorHTMLAttributes<HTMLAnchorElement> & { prefetch?: boolean }) {
   return <a {...props} />
 }

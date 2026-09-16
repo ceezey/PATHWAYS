@@ -33,6 +33,7 @@ describe('Next.js middleware entry point', () => {
 
   it.each([
     '/staff/login',
+    '/auth/access-unavailable',
     '/staff/forgot-password',
     '/auth/recovery/callback',
     '/auth/recovery/complete',

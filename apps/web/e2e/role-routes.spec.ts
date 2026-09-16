@@ -93,10 +93,10 @@ const entries = [
   ['/beneficiaries', 'SJEO'],
   [`/beneficiaries/${id}`, 'SJEO'],
   ['/collection/forms', 'SPJEO'],
-  ['/collection/import', 'SPJEO'],
+  ['/collection/import', 'SJEO'],
   [`/projects/${id}/monitor-evaluate`, 'SPJE'],
-  ['/analytics', 'SPGJEO'],
-  ['/analytics', 'SPGJEO'],
+  ['/analytics', 'SPGJE'],
+  ['/analytics', 'SPGJE'],
   ['/alerts/repository', 'SPJE'],
   ['/recommendations', 'SPJ'],
   ['/reports', 'SPGJEO'],
@@ -127,7 +127,7 @@ for (const role of Object.keys(roleCodes) as CanonicalRole[]) {
         await expect(page.getByRole('heading', { name: 'Protected fixture content' })).toBeVisible()
         await expect(
           page.getByText('Prototype-only · Backend pending', { exact: true }),
-        ).toBeVisible()
+        ).toHaveCount(0)
       } else {
         await expect(page.getByRole('heading', { name: 'Unauthorized access' })).toBeVisible()
         await expect(page.getByRole('heading', { name: 'Protected fixture content' })).toHaveCount(
@@ -209,7 +209,8 @@ test('loading, no membership and failed context resolution never flash protected
   await expect(
     page.getByText('Protected access has not been granted', { exact: true }),
   ).toBeVisible()
-  await expect(page.getByRole('link', { name: 'Review secure access' })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Retry secure access' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Protected fixture content' })).toHaveCount(0)
 })
 
 test('two tabs independently recheck current server denial', async ({ page, context }) => {

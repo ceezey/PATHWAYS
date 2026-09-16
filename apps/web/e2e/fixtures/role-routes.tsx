@@ -8,6 +8,7 @@ type State = {
   token: string | null
   subject: string
   access: string
+  verificationRevision: number
 }
 let state: State = {
   profile: null,
@@ -15,11 +16,29 @@ let state: State = {
   token: 'synthetic-token',
   subject: '10000000-0000-4000-8000-000000000001',
   access: 'ready',
+  verificationRevision: 1,
 }
 const listeners = new Set<() => void>()
 window.addEventListener('fixture-state', (event) => {
   state = { ...state, ...(event as CustomEvent).detail }
   for (const listener of listeners) listener()
+})
+const publish = () => {
+  for (const listener of listeners) listener()
+}
+const refreshAccess = () => {
+  state = { ...state, verificationRevision: state.verificationRevision + 1 }
+  publish()
+}
+const resetWorkspaceHandoff = () => undefined
+window.addEventListener('focus', refreshAccess)
+window.addEventListener('pagehide', () => {
+  state = { ...state, access: 'loading' }
+  publish()
+})
+window.addEventListener('pageshow', () => {
+  state = { ...state, access: 'ready' }
+  refreshAccess()
 })
 const subscribe = (listener: () => void) => {
   listeners.add(listener)
@@ -43,12 +62,16 @@ export const useCurrentRole = () => {
     role: current.profile ? 'Project Officer' : null,
     assignedProjectIds: current.profile?.assignedProjectIds ?? [],
     access: current.access,
-    refreshAccess: () => undefined,
+    refreshAccess,
+    resetWorkspaceHandoff,
+    accessRefreshing: false,
+    verificationRevision: current.verificationRevision,
   }
 }
 export const usePathname = () => useState().path.split('?')[0]
 export const useSearchParams = () => new URLSearchParams(useState().path.split('?')[1])
-export const useRouter = () => ({ replace: () => undefined })
+const router = { replace: () => undefined }
+export const useRouter = () => router
 export const webEnv = { NEXT_PUBLIC_API_BASE_URL: 'http://127.0.0.1:4000/api' }
 export default function Link({
   prefetch: _prefetch,

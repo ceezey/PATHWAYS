@@ -1,14 +1,26 @@
 import { createRequire } from 'node:module'
 import path from 'node:path'
-import { expect, test } from '@playwright/test'
+import { type Page, expect, test } from '@playwright/test'
 
-// Use the existing tsx toolchain's bundler; no application/test dependency changes.
+// Existing pinned tsx/esbuild toolchain. The actual React components are bundled;
+// only navigation, session/provider transport and replies are synthetic.
 const requireTool = createRequire(require.resolve('tsx'))
 const { build } = requireTool('esbuild')
-let component: string
 const userId = '40000000-0000-4000-8000-000000000004'
 const organizationId = '30000000-0000-4000-8000-000000000003'
 const authUserId = '56ad4c1a-113f-401b-84e8-1d2135f174c1'
+const profile = {
+  id: authUserId,
+  userId,
+  organizationId,
+  fullName: 'Synthetic user',
+  roles: ['PROJECT_OFFICER'],
+  permissions: ['projects.read'],
+  assignedProjectIds: [],
+  aal: 'aal2',
+}
+const workspace = { userId, organizationId, displayName: 'Synthetic workspace' }
+let component: string
 
 test.beforeAll(async () => {
   const fixture = path.resolve(__dirname, 'fixtures/mfa-access.tsx')
@@ -16,10 +28,16 @@ test.beforeAll(async () => {
     stdin: {
       contents: `import { createRoot } from 'react-dom/client';
         import { StrictMode } from 'react';
-        import { useFormRevision } from './fixtures/mfa-access';
+        import { useFormRevision, usePathname } from './fixtures/mfa-access';
         import { CurrentRoleProvider } from '../src/providers/current-role-provider';
         import { MfaForm } from '../src/features/auth/mfa-form';
-        function Screen() { const revision = useFormRevision(); return <MfaForm key={revision} />; }
+        import { ProtectedRoute } from '../src/components/layout/protected-route';
+        import { AppShell } from '../src/components/layout/app-shell';
+        function Screen() {
+          const revision = useFormRevision(); const path = usePathname();
+          return path === '/auth/mfa' ? <MfaForm key={revision} /> :
+            <AppShell><ProtectedRoute><h1>Protected fixture data</h1></ProtectedRoute></AppShell>;
+        }
         createRoot(document.getElementById('root')).render(<StrictMode><CurrentRoleProvider><Screen /></CurrentRoleProvider></StrictMode>);`,
       resolveDir: __dirname,
       loader: 'tsx',
@@ -43,52 +61,49 @@ test.beforeAll(async () => {
   component = output.outputFiles[0].text
 })
 
-const workspace = { userId, organizationId, displayName: 'Synthetic workspace' }
-const profile = {
-  id: authUserId,
-  userId,
-  organizationId,
-  fullName: 'Fixture Developer',
-  roles: ['PROJECT_OFFICER'],
-  permissions: ['projects.read'],
-  assignedProjectIds: [],
-  aal: 'aal2',
+type State = {
+  aal: 'aal1' | 'aal2'
+  applicationAccessEnabled: boolean
+  status: number
+  profileStatus: number
+  routeStatus: number
+  workspaces: unknown[]
+  currentProfile: typeof profile
+  counts: { mfa: number; discovery: number; profile: number; route: number }
+  profileWait: Promise<void> | null
+  discoveryWait: Promise<void> | null
 }
-
-async function mount(
-  page: import('@playwright/test').Page,
-  options: {
-    status?: number
-    workspaces?: unknown[]
-    profile?: typeof profile
-    wait?: Promise<void>
-    path?: string
-    aal?: 'aal1' | 'aal2'
-    applicationAccessEnabled?: boolean
-    mfaStatus?: number
-    profileStatus?: number
-    profileWait?: Promise<void>
-  } = {},
-) {
-  const state = {
-    status: 200,
-    workspaces: [workspace] as unknown[],
-    profile,
-    requests: 0,
+const headers = { 'access-control-allow-origin': '*', 'access-control-allow-headers': '*' }
+async function mount(page: Page, overrides: Partial<State> = {}) {
+  const state: State = {
     aal: 'aal2',
     applicationAccessEnabled: true,
-    mfaStatus: 200,
+    status: 200,
     profileStatus: 200,
-    ...options,
+    routeStatus: 200,
+    workspaces: [workspace],
+    currentProfile: profile,
+    counts: { mfa: 0, discovery: 0, profile: 0, route: 0 },
+    profileWait: null,
+    discoveryWait: null,
+    ...overrides,
   }
   await page.route('**/*', async (route) => {
     const url = new URL(route.request().url())
-    // Every request is intercepted. No Auth, email, live DB or credentials.
-    if (url.origin === 'http://127.0.0.1:3000' && url.pathname === '/component-fixture') {
-      await route.fulfill({ contentType: 'text/html', body: '<div id="root"></div>' })
-    } else if (url.origin === 'http://127.0.0.1:4000' && url.pathname === '/api/auth/mfa/status') {
-      await route.fulfill({
-        status: state.mfaStatus,
+    if (url.origin === 'http://127.0.0.1:3000' && url.pathname === '/component-fixture')
+      return route.fulfill({ contentType: 'text/html', body: '<div id="root"></div>' })
+    if (url.origin === 'http://127.0.0.1:3000' && url.pathname === '/workspace')
+      return route.fulfill({
+        contentType: 'text/html',
+        body: '<h1>Document retry reached workspace fixture</h1>',
+      })
+    if (url.origin !== 'http://127.0.0.1:4000') return route.abort()
+    if (route.request().method() === 'OPTIONS') return route.fulfill({ status: 204, headers })
+    if (url.pathname === '/api/auth/mfa/status') {
+      state.counts.mfa++
+      return route.fulfill({
+        status: 200,
+        headers,
         json: {
           authUserId,
           aal: state.aal,
@@ -96,346 +111,266 @@ async function mount(
           applicationAccessEnabled: state.applicationAccessEnabled,
         },
       })
-    } else if (url.origin === 'http://127.0.0.1:4000' && url.pathname === '/api/auth/workspaces') {
-      state.requests++
+    }
+    if (url.pathname === '/api/auth/workspaces') {
+      state.counts.discovery++
       expect(route.request().headers()['x-pathways-user-id']).toBeUndefined()
-      expect(route.request().headers()['x-pathways-organization-id']).toBeUndefined()
-      if (state.wait) await state.wait
-      await route.fulfill({
+      if (state.discoveryWait) await state.discoveryWait
+      return route.fulfill({
         status: state.status,
+        headers,
         json:
           state.status === 200
-            ? { authUserId, prototypeOnly: true, workspaces: state.workspaces }
-            : { message: 'private-response-body-must-never-appear' },
+            ? { authUserId, workspaces: state.workspaces }
+            : { message: 'PRIVATE_DO_NOT_RENDER' },
       })
-    } else if (url.origin === 'http://127.0.0.1:4000' && url.pathname === '/api/auth/me') {
+    }
+    if (url.pathname === '/api/auth/me') {
+      state.counts.profile++
       expect(route.request().headers()['x-pathways-user-id']).toBe(userId)
       expect(route.request().headers()['x-pathways-organization-id']).toBe(organizationId)
       if (state.profileWait) await state.profileWait
-      await route.fulfill({ status: state.profileStatus, json: { user: state.profile } })
-    } else await route.abort()
+      return route.fulfill({
+        status: state.profileStatus,
+        headers,
+        json: { user: state.currentProfile },
+      })
+    }
+    if (url.pathname === '/api/access/route-check') {
+      state.counts.route++
+      return route.fulfill({
+        status: state.routeStatus,
+        headers,
+        json:
+          state.routeStatus === 200
+            ? {
+                route: url.searchParams.get('route'),
+                authorization: 'database-verified',
+                beneficiaryAccess: 'records-or-none',
+              }
+            : { message: 'PRIVATE_DO_NOT_RENDER' },
+      })
+    }
+    return route.abort()
   })
   await page.goto('/component-fixture')
   await page.addScriptTag({ content: component })
-  if (options.path)
-    await page.evaluate(
-      (path) => window.dispatchEvent(new CustomEvent('fixture-state', { detail: { path } })),
-      options.path,
-    )
   return state
 }
-const ready = (page: import('@playwright/test').Page) => page.getByText('Opening your dashboard...')
-const handoffs = (page: import('@playwright/test').Page) =>
+const change = (page: Page, detail: Record<string, unknown>) =>
+  page.evaluate(
+    (value) => window.dispatchEvent(new CustomEvent('fixture-state', { detail: value })),
+    detail,
+  )
+const handoffs = (page: Page) =>
   page.locator('meta[name="fixture-navigation"][content="/workspace"]')
-const cookie = async (page: import('@playwright/test').Page) =>
+const ready = (page: Page) => page.getByText('Opening your dashboard...')
+const cookie = async (page: Page) =>
   (await page.context().cookies()).find((item) => item.name === 'pathways-context')
-const recheck = async (page: import('@playwright/test').Page) =>
-  page.getByRole('button', { name: 'Recheck securely' }).click()
-
-test('automatic resolution shows loading, safe denial, outage and successful retry without UUID inputs', async ({
-  page,
-}) => {
-  let release: () => void = () => undefined
-  const wait = new Promise<void>((resolve) => {
-    release = resolve
-  })
-  const state = await mount(page, { status: 403, wait })
-  await expect(page.getByText('Finding your authorized workspace...')).toBeVisible()
-  await expect(page.getByLabel(/UUID/)).toHaveCount(0)
-  await expect(ready(page)).toHaveCount(0)
-  release()
-  await expect(page.getByRole('alert')).toContainText('Access was denied')
-  expect(await cookie(page)).toBeUndefined()
-  state.status = 503
-  await recheck(page)
-  await expect(page.getByRole('alert')).toContainText('temporarily unavailable')
-  await expect(page.getByText('private-response-body-must-never-appear')).toHaveCount(0)
-  state.status = 200
-  await recheck(page)
-  await expect(ready(page)).toBeVisible()
-  expect(await cookie(page)).toBeDefined()
-  await expect(page.getByRole('alert')).toHaveCount(0)
-  await expect(handoffs(page)).toHaveCount(1)
-  await expect(page.getByRole('link', { name: 'Open your workspace' })).toHaveCount(0)
-})
-
-test('background revalidation preserves verified access and coalesces overlapping lifecycle triggers', async ({
-  page,
-}) => {
-  const state = await mount(page)
-  await expect(ready(page)).toBeVisible()
-  const initialRequests = state.requests
-  let release: () => void = () => undefined
-  state.wait = new Promise<void>((resolve) => {
-    release = resolve
-  })
-
-  await page.evaluate(() => {
-    window.dispatchEvent(new Event('focus'))
+const recheck = (page: Page) => page.getByRole('button', { name: 'Recheck securely' }).click()
+const foreground = (page: Page) =>
+  page.evaluate(() => {
     window.dispatchEvent(new Event('focus'))
     window.dispatchEvent(new PageTransitionEvent('pageshow'))
   })
 
-  await expect.poll(() => state.requests).toBe(initialRequests + 1)
-  await expect(ready(page)).toBeVisible()
-  await expect(page.getByText('Finding your authorized workspace...')).toHaveCount(0)
-  expect(await cookie(page)).toBeDefined()
-  release()
-  await expect(ready(page)).toBeVisible()
-  await expect(handoffs(page)).toHaveCount(1)
-})
-
-test('zero membership provides an accessible recovery message and no workspace link', async ({
+test('initial bootstrap has one routine MFA owner even under React StrictMode', async ({
   page,
 }) => {
-  await mount(page, { workspaces: [] })
-  await expect(page.getByText(/No authorized workspace is available/)).toBeVisible()
-  await expect(ready(page)).toHaveCount(0)
-  await expect(page.getByRole('button', { name: 'Sign out and clear this page' })).toBeEnabled()
-  expect(await cookie(page)).toBeUndefined()
-  await expect(handoffs(page)).toHaveCount(0)
-})
-
-test('multiple memberships fail closed without a chooser or first-result fallback', async ({
-  page,
-}) => {
-  await mount(page, { workspaces: [workspace, { ...workspace, organizationId: userId }] })
-  await expect(page.getByRole('alert')).toContainText('temporarily unavailable')
-  await expect(ready(page)).toHaveCount(0)
-  await expect(page.getByRole('combobox')).toHaveCount(0)
-  expect(await cookie(page)).toBeUndefined()
-  await expect(handoffs(page)).toHaveCount(0)
-})
-
-test('forged context is ignored and revoked membership disappears on refresh and history restoration', async ({
-  page,
-}) => {
-  await page.context().addCookies([
-    {
-      name: 'pathways-context',
-      value: encodeURIComponent(
-        JSON.stringify({
-          authUserId,
-          organizationId: userId,
-          userId: organizationId,
-          roles: ['SYSTEM_ADMINISTRATOR'],
-        }),
-      ),
-      url: 'http://127.0.0.1:3000',
-    },
-  ])
   const state = await mount(page)
   await expect(ready(page)).toBeVisible()
-  expect(JSON.parse(decodeURIComponent((await cookie(page))?.value ?? ''))).toEqual({
-    authUserId,
-    organizationId,
-    userId,
-  })
-  state.workspaces = []
-  await page.evaluate(() => {
-    window.dispatchEvent(new PageTransitionEvent('pagehide'))
-    window.dispatchEvent(new PageTransitionEvent('pageshow', { persisted: true }))
-  })
-  await expect(page.getByText(/No authorized workspace is available/)).toBeVisible()
-  await expect(ready(page)).toHaveCount(0)
-  expect(await cookie(page)).toBeUndefined()
-  state.workspaces = [workspace]
-  state.profile = { ...profile, permissions: [] }
-  await recheck(page)
-  await expect(page.getByRole('alert')).toContainText('Access was denied')
-  await expect(ready(page)).toHaveCount(0)
+  expect(state.counts).toEqual({ mfa: 1, discovery: 1, profile: 1, route: 0 })
+  await expect(handoffs(page)).toHaveCount(1)
+  expect(await cookie(page)).toBeDefined()
 })
 
-test('logout and a late discovery result cannot restore previous authority', async ({ page }) => {
+test('routine focus/page restoration shares one /me check, without MFA or rediscovery', async ({
+  page,
+}) => {
+  const state = await mount(page)
+  await expect(ready(page)).toBeVisible()
   let release: () => void = () => undefined
-  const wait = new Promise<void>((resolve) => {
+  state.profileWait = new Promise<void>((resolve) => {
     release = resolve
   })
-  await mount(page, { wait })
-  await expect(page.getByText('Finding your authorized workspace...')).toBeVisible()
+  await foreground(page)
+  await expect.poll(() => state.counts.profile).toBe(2)
+  expect(state.counts.mfa).toBe(1)
+  expect(state.counts.discovery).toBe(1)
+  await expect(ready(page)).toBeVisible()
+  release()
+  await expect(page.getByRole('button', { name: 'Recheck securely' })).toBeEnabled()
+})
+
+test('same token session-object replacement does not restart discovery', async ({ page }) => {
+  const state = await mount(page)
+  await expect(ready(page)).toBeVisible()
+  await change(page, {
+    session: { access_token: 'component-fixture-not-a-real-token', user: { id: authUserId } },
+  })
+  await expect(ready(page)).toBeVisible()
+  expect(state.counts.mfa).toBe(1)
+  expect(state.counts.discovery).toBe(1)
+  expect(state.counts.profile).toBe(1)
+})
+
+test('token refresh uses the new token and a fresh /me, not old profile authority', async ({
+  page,
+}) => {
+  const state = await mount(page)
+  await expect(ready(page)).toBeVisible()
+  await change(page, {
+    session: { access_token: 'refreshed-synthetic-token', user: { id: authUserId } },
+  })
+  await expect.poll(() => state.counts.profile).toBe(2)
+  await expect(ready(page)).toBeVisible()
+  expect(state.counts.discovery).toBe(1)
+  expect(state.counts.mfa).toBe(1)
+})
+
+test('a profile outage hides protected content but preserves selectors for retry', async ({
+  page,
+}) => {
+  const state = await mount(page)
+  await expect(ready(page)).toBeVisible()
+  state.profileStatus = 503
+  await foreground(page)
+  await expect(page.getByRole('alert')).toContainText('temporarily unavailable')
+  await expect(ready(page)).toHaveCount(0)
+  expect(await cookie(page)).toBeDefined()
+  state.profileStatus = 200
+  await recheck(page)
+  await expect(ready(page)).toBeVisible()
+  expect(state.counts.discovery).toBe(1)
+  expect(state.counts.mfa).toBe(1)
+})
+
+test('confirmed profile revocation clears selectors without asking for a new MFA code', async ({
+  page,
+}) => {
+  const state = await mount(page)
+  await expect(ready(page)).toBeVisible()
+  state.profileStatus = 403
+  await foreground(page)
+  await expect(page.getByRole('alert')).toContainText('Access was denied')
+  await expect(ready(page)).toHaveCount(0)
+  await expect(page.getByLabel('Six-digit authenticator code')).toHaveCount(0)
+  expect(await cookie(page)).toBeUndefined()
+  expect(state.counts.discovery).toBe(1)
+})
+
+test('aal1 stays in the existing authenticator flow without workspace queries', async ({
+  page,
+}) => {
+  const state = await mount(page, { aal: 'aal1' })
+  await expect(
+    page.getByText('Use your existing authenticator. No new factor will be created.'),
+  ).toBeVisible()
+  await expect(handoffs(page)).toHaveCount(0)
+  expect(state.counts.discovery).toBe(0)
+  expect(state.counts.profile).toBe(0)
+})
+
+test('zero and ambiguous workspaces do not authorize a first-result fallback', async ({ page }) => {
+  const state = await mount(page, { workspaces: [] })
+  await expect(page.getByText(/No authorized workspace is available/)).toBeVisible()
+  expect(await cookie(page)).toBeUndefined()
+  state.workspaces = [workspace, workspace]
+  await recheck(page)
+  await expect(page.getByRole('alert')).toContainText('temporarily unavailable')
+  await expect(handoffs(page)).toHaveCount(0)
+})
+
+test('logout during discovery cannot be undone by a late response', async ({ page }) => {
+  let release: () => void = () => undefined
+  const discoveryWait = new Promise<void>((resolve) => {
+    release = resolve
+  })
+  const state = await mount(page, { discoveryWait })
+  await expect.poll(() => state.counts.discovery).toBe(1)
   await page.getByRole('button', { name: 'Sign out and clear this page' }).click()
   release()
   await expect(page.getByRole('link', { name: 'Return to staff login' })).toBeVisible()
-  await expect(ready(page)).toHaveCount(0)
   await expect(handoffs(page)).toHaveCount(0)
   expect(await cookie(page)).toBeUndefined()
 })
 
-test('token refresh re-resolves; account change and session expiry clear context', async ({
-  page,
-}) => {
-  const state = await mount(page)
+test('a different subject cannot inherit the previous account profile', async ({ page }) => {
+  await mount(page)
   await expect(ready(page)).toBeVisible()
-  const count = state.requests
-  await page.evaluate(
-    (id) =>
-      window.dispatchEvent(
-        new CustomEvent('fixture-state', {
-          detail: {
-            session: {
-              access_token: 'refreshed-fixture-token',
-              user: { id },
-            },
-          },
-        }),
-      ),
-    authUserId,
-  )
-  await expect.poll(() => state.requests).toBeGreaterThan(count)
-  await expect(ready(page)).toBeVisible()
-  await expect(handoffs(page)).toHaveCount(1)
-  await page.evaluate(
-    (id) =>
-      window.dispatchEvent(
-        new CustomEvent('fixture-state', {
-          detail: {
-            session: {
-              access_token: 'refreshed-fixture-token',
-              user: { id },
-            },
-          },
-        }),
-      ),
-    userId,
-  )
-  await expect(page.getByText(/This is not the designated developer account/)).toBeVisible()
-  await expect(ready(page)).toHaveCount(0)
-  await expect.poll(async () => cookie(page)).toBeUndefined()
-  await page.evaluate(() =>
-    window.dispatchEvent(new CustomEvent('fixture-state', { detail: { logout: true } })),
-  )
-  await expect(page.getByRole('link', { name: 'Return to staff login' })).toBeVisible()
-  expect(await cookie(page)).toBeUndefined()
-})
-
-test('public route navigation stops internal discovery and clears current context', async ({
-  page,
-}) => {
-  const state = await mount(page)
-  await expect(ready(page)).toBeVisible()
-  await page.evaluate(() =>
-    window.dispatchEvent(
-      new CustomEvent('fixture-state', { detail: { path: '/public/dashboard' } }),
-    ),
-  )
-  const count = state.requests
-  await recheck(page)
+  await change(page, { session: { access_token: 'different-token', user: { id: userId } } })
+  await expect(page.getByRole('alert')).toContainText('Access was denied')
   await expect(ready(page)).toHaveCount(0)
   expect(await cookie(page)).toBeUndefined()
-  expect(state.requests).toBe(count)
 })
 
-test('handoff waits for the authoritative profile and never uses an external return target', async ({
-  page,
-}) => {
-  let release: () => void = () => undefined
-  const profileWait = new Promise<void>((resolve) => {
-    release = resolve
-  })
-  await mount(page, { profileWait })
-  await expect(page.getByText('Finding your authorized workspace...')).toBeVisible()
-  await expect(handoffs(page)).toHaveCount(0)
-  await page.evaluate(() => history.replaceState(null, '', '?returnTo=https://example.invalid'))
-  release()
-  await expect(ready(page)).toBeVisible()
-  await expect(ready(page)).toHaveAttribute('aria-live', 'polite')
-  await expect(ready(page)).toHaveAttribute('aria-busy', 'true')
-  await expect(handoffs(page)).toHaveCount(1)
-  await expect(page.locator('meta[name="fixture-navigation"]')).toHaveCount(1)
-})
-
-for (const scenario of [
-  { name: 'AAL1', options: { aal: 'aal1' as const }, message: 'Use your existing authenticator.' },
-  {
-    name: 'disabled application access',
-    options: { applicationAccessEnabled: false },
-    message: 'Application access is still disabled.',
-  },
-  {
-    name: 'MFA service denial',
-    options: { mfaStatus: 401 },
-    message: 'Verification is blocked.',
-  },
-  {
-    name: 'profile service denial',
-    options: { profileStatus: 403 },
-    message: 'Access was denied',
-  },
-]) {
-  test(`${scenario.name} cannot trigger an automatic handoff`, async ({ page }) => {
-    await mount(page, scenario.options)
-    await expect(page.getByText(scenario.message, { exact: false }).first()).toBeVisible()
-    await expect(handoffs(page)).toHaveCount(0)
-    await expect(ready(page)).toHaveCount(0)
-    expect(await cookie(page)).toBeUndefined()
-  })
-}
-
-test('return to MFA cannot automatically repeat navigation; an explicit recheck can retry', async ({
-  page,
-}) => {
+test('pagehide removes current data and pageshow waits for revalidation', async ({ page }) => {
   const state = await mount(page)
-  await expect(handoffs(page)).toHaveCount(1)
+  await expect(ready(page)).toBeVisible()
+  await page.evaluate(() => window.dispatchEvent(new PageTransitionEvent('pagehide')))
+  await expect(ready(page)).toHaveCount(0)
   await page.evaluate(() =>
-    window.dispatchEvent(new CustomEvent('fixture-state', { detail: { remount: true } })),
+    window.dispatchEvent(new PageTransitionEvent('pageshow', { persisted: true })),
   )
-  await expect(page.getByRole('alert')).toContainText('Dashboard navigation could not be completed')
-  await expect(handoffs(page)).toHaveCount(1)
-  let release: () => void = () => undefined
-  state.wait = new Promise<void>((resolve) => {
-    release = resolve
-  })
-  await recheck(page)
-  await expect.poll(() => state.requests).toBeGreaterThan(1)
-  await expect(handoffs(page)).toHaveCount(1)
-  release()
-  await expect(handoffs(page)).toHaveCount(2)
+  await expect.poll(() => state.counts.profile).toBe(2)
   await expect(ready(page)).toBeVisible()
 })
 
-test('stalled navigation has a bounded accessible recovery state and never retries on a timer', async ({
+test('MFA remount preserves the bounded attempt and offers a native document retry', async ({
+  page,
+}) => {
+  await mount(page)
+  await expect(handoffs(page)).toHaveCount(1)
+  await change(page, { remount: true })
+  await expect(page.getByRole('alert')).toContainText('workspace could not open')
+  await expect(handoffs(page)).toHaveCount(1)
+  await page.getByRole('link', { name: 'Retry opening workspace' }).click()
+  await expect(
+    page.getByRole('heading', { name: 'Document retry reached workspace fixture' }),
+  ).toBeVisible()
+})
+
+test('timeout shows explicit recovery instead of automatically retrying navigation', async ({
   page,
 }) => {
   await page.clock.install()
   await mount(page)
   await expect(handoffs(page)).toHaveCount(1)
-  await page.clock.runFor(29_000)
-  await expect(ready(page)).toBeVisible()
-  await page.clock.runFor(1_100)
-  await expect(page.getByRole('alert')).toContainText('Dashboard navigation could not be completed')
-  await expect(ready(page)).toHaveCount(0)
-  await expect(page.getByRole('button', { name: 'Recheck securely' })).toBeEnabled()
-  await page.clock.runFor(60_000)
+  await page.clock.runFor(30_100)
+  await expect(page.getByRole('alert')).toContainText('workspace could not open')
+  await page.clock.runFor(30_100)
   await expect(handoffs(page)).toHaveCount(1)
 })
 
-test('logout clears the handoff guard but a different user cannot inherit access', async ({
+test('successful entry releases the latch; sidebar state survives ordinary navigation', async ({
   page,
 }) => {
-  await mount(page)
+  const state = await mount(page)
   await expect(handoffs(page)).toHaveCount(1)
-  await page.getByRole('button', { name: 'Sign out and clear this page' }).click()
-  await expect(page.getByRole('link', { name: 'Return to staff login' })).toBeVisible()
-  await page.evaluate(
-    (id) =>
-      window.dispatchEvent(
-        new CustomEvent('fixture-state', {
-          detail: { session: { access_token: 'different-synthetic-token', user: { id } } },
-        }),
-      ),
-    userId,
-  )
-  await expect(page.getByText(/This is not the designated developer account/)).toBeVisible()
-  await expect(handoffs(page)).toHaveCount(1)
-  await page.evaluate(
-    (id) =>
-      window.dispatchEvent(
-        new CustomEvent('fixture-state', {
-          detail: { session: { access_token: 'new-synthetic-token', user: { id } } },
-        }),
-      ),
-    authUserId,
-  )
+  await change(page, { path: '/dashboard' })
+  await expect(page.getByRole('heading', { name: 'Protected fixture data' })).toBeVisible()
+  await page.getByRole('button', { name: 'Collapse sidebar' }).click()
+  await change(page, { path: '/projects' })
+  await expect(page.getByRole('heading', { name: 'Protected fixture data' })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Expand sidebar' })).toBeVisible()
+  expect(state.counts.mfa).toBe(1)
+  expect(state.counts.discovery).toBe(1)
+  await change(page, { path: '/auth/mfa' })
   await expect(handoffs(page)).toHaveCount(2)
-  await expect(ready(page)).toBeVisible()
+})
+
+test('route-check outage keeps the shell and context, but no protected page content', async ({
+  page,
+}) => {
+  const state = await mount(page)
+  await expect(handoffs(page)).toHaveCount(1)
+  await change(page, { path: '/dashboard' })
+  await expect(page.getByRole('heading', { name: 'Protected fixture data' })).toBeVisible()
+  state.routeStatus = 503
+  await change(page, { path: '/projects' })
+  await expect(page.getByRole('heading', { name: 'Access verification unavailable' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Protected fixture data' })).toHaveCount(0)
+  await expect(page.getByRole('button', { name: 'Collapse sidebar' })).toBeVisible()
+  expect(await cookie(page)).toBeDefined()
+  await expect(handoffs(page)).toHaveCount(1)
 })

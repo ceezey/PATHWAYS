@@ -20,6 +20,8 @@ export const privateAuthSurfacePaths = [
   '/staff/login',
   '/staff/forgot-password',
   '/auth/update-password',
+  '/auth/mfa',
+  '/auth/access-unavailable',
   '/auth/recovery/:path*',
 ]
 

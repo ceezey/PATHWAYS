@@ -4,6 +4,7 @@ import { redirect } from 'next/navigation'
 import { contextCookieName, decodeWorkspaceContext } from '../../features/auth/workspace-access'
 import { webEnv } from '../env'
 import { createClient } from '../server'
+import { ACCESS_UNAVAILABLE_PATH, providerFailureStatus } from './access-recovery'
 import { type NavigationStage, recordNavigationDenial } from './navigation-diagnostic'
 import {
   RouteCheckError,
@@ -34,13 +35,14 @@ export async function requireServerPage(route: RouteKey, props: ProtectedPagePro
 // No React/global cache: each protected page render revalidates through the API.
 export async function requireServerRoute(selection: RouteSelection) {
   const configuredSupabaseUrl = (webEnv.NEXT_PUBLIC_SUPABASE_URL ?? '').replace(/\/$/, '')
-  let target = '/auth/mfa'
+  let target = ACCESS_UNAVAILABLE_PATH
   let stage: NavigationStage = 'CONFIGURATION'
   try {
     const supabase = await createClient()
     stage = 'CLAIMS'
     const claims = await supabase.auth.getClaims()
-    if (claims.error || !claims.data?.claims) throw new RouteCheckError(401)
+    if (claims.error) throw new RouteCheckError(providerFailureStatus(claims.error))
+    if (!claims.data?.claims) throw new RouteCheckError(401)
     const identity = claims.data.claims
     stage = 'IDENTITY'
     if (
@@ -60,7 +62,8 @@ export async function requireServerRoute(selection: RouteSelection) {
     // session, current membership and object scope independently on every call.
     stage = 'SESSION'
     const session = await supabase.auth.getSession()
-    if (session.error || !session.data.session) throw new RouteCheckError(401)
+    if (session.error) throw new RouteCheckError(providerFailureStatus(session.error))
+    if (!session.data.session) throw new RouteCheckError(401)
     stage = 'ROUTE_API'
     return await requestRouteCheck(
       webEnv.NEXT_PUBLIC_API_BASE_URL,
@@ -71,12 +74,15 @@ export async function requireServerRoute(selection: RouteSelection) {
   } catch (error) {
     recordNavigationDenial('SERVER_PAGE', stage, error)
     if (error instanceof RouteCheckError && error.status === 401) target = '/staff/login'
+    else if (stage === 'ASSURANCE' || stage === 'CONTEXT') target = '/auth/mfa'
     else if (
       error instanceof RouteCheckError &&
       [403, 404].includes(error.status) &&
       selection.route !== 'unauthorized'
     )
       target = '/unauthorized'
+    // Outages and a denied /unauthorized page go to a public-data-free recovery
+    // surface, never back into a new MFA challenge or an automatic redirect loop.
   }
   redirect(target)
 }

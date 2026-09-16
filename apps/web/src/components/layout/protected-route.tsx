@@ -50,10 +50,10 @@ export function FeatureDirectory() {
 export const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
   const router = useRouter()
   const { configured, status } = useSession()
-  const { access, assignedProjectIds, role } = useCurrentRole()
+  const { access, accessError, accessRefreshing, refreshAccess, role } = useCurrentRole()
 
   useEffect(() => {
-    if (configured && status === 'unauthenticated') {
+    if (configured && (status === 'unauthenticated' || access === 'session_expired')) {
       router.replace('/staff/login')
     } else if (configured && status === 'authenticated' && access === 'mfa_required') {
       router.replace('/auth/mfa')
@@ -62,7 +62,7 @@ export const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
 
   if (!configured) {
     return (
-      <div className="flex min-h-screen items-center justify-center p-6">
+      <div className="flex min-h-40 items-center justify-center p-6">
         <Card className="max-w-xl">
           <CardHeader>
             <CardTitle>Authentication configuration required</CardTitle>
@@ -91,15 +91,15 @@ export const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
 
   if (status === 'loading' || (status === 'authenticated' && access === 'loading')) {
     return (
-      <div className="flex min-h-screen items-center justify-center text-sm text-muted-foreground">
+      <div className="flex min-h-40 items-center justify-center text-sm text-muted-foreground">
         <output aria-live="polite">Verifying MFA and database-backed access...</output>
       </div>
     )
   }
 
-  if (status === 'unauthenticated') {
+  if (status === 'unauthenticated' || access === 'session_expired') {
     return (
-      <div className="flex min-h-screen items-center justify-center text-sm text-muted-foreground">
+      <div className="flex min-h-40 items-center justify-center text-sm text-muted-foreground">
         Redirecting to login...
       </div>
     )
@@ -107,26 +107,41 @@ export const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
 
   if (access !== 'ready' || !role) {
     return (
-      <div className="flex min-h-screen items-center justify-center p-6">
+      <div className="flex min-h-40 items-center justify-center p-6">
         <Card className="max-w-xl">
           <CardHeader>
             <CardTitle>
-              {access === 'no_workspace'
-                ? 'No authorized workspace'
-                : 'Protected access has not been granted'}
+              {access === 'unavailable'
+                ? 'Access verification temporarily unavailable'
+                : access === 'no_workspace'
+                  ? 'No authorized workspace'
+                  : 'Protected access has not been granted'}
             </CardTitle>
             <CardDescription>
-              A verified MFA session and an active database-backed PATHWAYS profile are required.
+              Protected content stays hidden until current access can be verified.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4 text-sm leading-6 text-muted-foreground">
             <p>
-              Protected content remains hidden. Complete MFA verification; application access also
-              requires separately approved provisioning. Supabase metadata cannot grant a role.
+              {accessError ??
+                (access === 'mfa_required'
+                  ? 'Complete MFA to open your workspace.'
+                  : 'An active database-backed profile and current permissions are required. No additional access has been granted.')}
             </p>
-            <Button asChild variant="outline">
-              <Link href="/auth/mfa">Review secure access</Link>
-            </Button>
+            {access === 'mfa_required' ? (
+              <Button asChild variant="outline">
+                <Link href="/auth/mfa">Complete MFA</Link>
+              </Button>
+            ) : (
+              <Button
+                type="button"
+                variant="outline"
+                disabled={accessRefreshing}
+                onClick={refreshAccess}
+              >
+                Retry secure access
+              </Button>
+            )}
           </CardContent>
         </Card>
       </div>
@@ -136,14 +151,12 @@ export const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
   return (
     <Suspense
       fallback={
-        <div className="flex min-h-screen items-center justify-center text-sm text-muted-foreground">
+        <div className="flex min-h-40 items-center justify-center text-sm text-muted-foreground">
           Preparing dashboard access...
         </div>
       }
     >
-      <RouteAccessGuard assignedProjectIds={assignedProjectIds} role={role}>
-        {children}
-      </RouteAccessGuard>
+      <RouteAccessGuard>{children}</RouteAccessGuard>
     </Suspense>
   )
 }
