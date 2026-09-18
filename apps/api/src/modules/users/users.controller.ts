@@ -12,7 +12,8 @@ import {
 
 import { RequirePermission } from '@app/common/decorators/permission.decorator'
 import type { AuthenticatedRequest } from '@app/modules/auth/developer-access'
-import type { AuthorizeExistingUserDto, UpdateAuthorizedUserDto } from './users.dto'
+// biome-ignore lint/style/useImportType: Nest validation needs the DTO constructors at runtime.
+import { AuthorizeExistingUserDto, UpdateAuthorizedUserDto } from './users.dto'
 import { UsersService } from './users.service'
 
 function profile(request: AuthenticatedRequest) {

@@ -12,7 +12,8 @@ import {
 
 import { RequirePermission } from '@app/common/decorators/permission.decorator'
 import type { AuthenticatedRequest } from '@app/modules/auth/developer-access'
-import type { CreateProjectDto, UpdateProjectDto } from './projects.dto'
+// biome-ignore lint/style/useImportType: Nest validation needs the DTO constructors at runtime.
+import { CreateProjectDto, UpdateProjectDto } from './projects.dto'
 import { ProjectsService } from './projects.service'
 
 function profile(request: AuthenticatedRequest) {

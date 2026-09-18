@@ -16,7 +16,8 @@ import { FilesInterceptor } from '@nestjs/platform-express'
 
 import { RequirePermission } from '@app/common/decorators/permission.decorator'
 import type { AuthenticatedRequest } from '@app/modules/auth/developer-access'
-import type {
+// biome-ignore lint/style/useImportType: Nest validation needs the DTO constructors at runtime.
+import {
   CreateActivityDto,
   ReviewActivityUpdateDto,
   SaveMilestoneDto,
@@ -24,8 +25,8 @@ import type {
   TransitionActivityDto,
   UpdateActivityDto,
   UpdateMilestoneDto,
-  UploadedProofFile,
 } from './activities.dto'
+import type { UploadedProofFile } from './activities.dto'
 import { ActivitiesService } from './activities.service'
 
 function profile(request: AuthenticatedRequest) {

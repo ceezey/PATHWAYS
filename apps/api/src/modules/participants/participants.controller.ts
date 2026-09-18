@@ -11,9 +11,11 @@ import {
 } from '@nestjs/common'
 
 import { RequirePermission } from '@app/common/decorators/permission.decorator'
-import type { SaveJourneyConfigurationDto } from '@app/modules/activities/activities.dto'
+// biome-ignore lint/style/useImportType: Nest validation needs the DTO constructor at runtime.
+import { SaveJourneyConfigurationDto } from '@app/modules/activities/activities.dto'
 import type { AuthenticatedRequest } from '@app/modules/auth/developer-access'
-import type { CorrectJourneyEventDto, EnrollmentJourneyEventDto } from './participants.dto'
+// biome-ignore lint/style/useImportType: Nest validation needs the DTO constructors at runtime.
+import { CorrectJourneyEventDto, EnrollmentJourneyEventDto } from './participants.dto'
 import { ParticipantsService } from './participants.service'
 
 function profile(request: AuthenticatedRequest) {
