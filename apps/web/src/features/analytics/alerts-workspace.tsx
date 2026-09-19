@@ -29,12 +29,7 @@ import type {
   RuleDefinition,
 } from '@/types/pathways'
 
-import {
-  alertSeverityTone,
-  formatDate,
-  humanReviewDisclaimer,
-  lifecycleTone,
-} from './analytics-utils'
+import { alertSeverityTone, formatDate, lifecycleTone } from './analytics-utils'
 
 const allValue = 'all'
 const lifecycleStatuses: AlertLifecycleStatus[] = ['New', 'Reviewed']
@@ -176,7 +171,7 @@ const AlertsWorkspaceContent = ({
         title={labels.moduleAlerts}
       />
 
-      <section className="grid gap-3 rounded-lg border border-border bg-card p-5 md:grid-cols-3">
+      <section className="grid gap-4 rounded-lg border border-border bg-card p-5 md:grid-cols-2">
         <div className="space-y-2">
           <span className="text-sm font-medium">Project</span>
           <Select value={projectId} onValueChange={setProjectId}>
@@ -207,9 +202,6 @@ const AlertsWorkspaceContent = ({
               ))}
             </SelectContent>
           </Select>
-        </div>
-        <div className="rounded-sm border border-info/25 bg-info-subtle p-3 text-sm leading-6 text-info">
-          {humanReviewDisclaimer}
         </div>
       </section>
 

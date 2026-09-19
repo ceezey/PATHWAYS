@@ -721,16 +721,9 @@ export const ReportingWorkspace = ({
               </DropdownMenu>
             </fieldset>
           </div>
-          <div className="flex flex-col gap-3 xl:flex-row xl:items-end xl:justify-between">
-            <div className="space-y-2">
-              <CardTitle>{reportTitles[kind]}</CardTitle>
-              <p className="text-sm text-muted-foreground">
-                {kind === 'survey-results'
-                  ? `${scopedSurveyResults.length} aggregate survey result sets are available for review.`
-                  : `${scopedReports.length} saved report records are available for reference.`}
-              </p>
-            </div>
-            {kind === 'survey-results' ? (
+          {kind === 'survey-results' ? (
+            <div className="space-y-4">
+              <CardTitle className="sr-only">{reportTitles[kind]}</CardTitle>
               <SurveyFilters
                 dates={surveyResponseDates}
                 forms={visibleSurveyForms}
@@ -755,7 +748,15 @@ export const ReportingWorkspace = ({
                 selection={surveySelection}
                 selectedForm={selectedSurveyForm}
               />
-            ) : (
+            </div>
+          ) : (
+            <div className="flex flex-col gap-3 xl:flex-row xl:items-end xl:justify-between">
+              <div className="space-y-2">
+                <CardTitle>{reportTitles[kind]}</CardTitle>
+                <p className="text-sm text-muted-foreground">
+                  {scopedReports.length} saved report records are available for reference.
+                </p>
+              </div>
               <div className="grid gap-3 md:grid-cols-[220px_220px_auto] md:items-end">
                 <div className="space-y-2">
                   <Label htmlFor="report-search">Search reports</Label>
@@ -795,8 +796,8 @@ export const ReportingWorkspace = ({
                   </Button>
                 ) : null}
               </div>
-            )}
-          </div>
+            </div>
+          )}
         </CardHeader>
         <CardContent className="space-y-4">
           {kind === 'survey-results' ? (
@@ -1046,111 +1047,115 @@ const SurveyFilters = ({
   selection,
   selectedForm,
 }: SurveyFiltersProps) => (
-  <div className="grid w-full gap-3 sm:grid-cols-2 xl:max-w-5xl xl:grid-cols-3">
-    <FilterField label="Program">
-      <Select value={selectedForm?.programName ?? ''} onValueChange={onProgramChange}>
-        <SelectTrigger aria-label="Survey results program filter">
-          <SelectValue placeholder="Choose program" />
-        </SelectTrigger>
-        <SelectContent>
-          {programs.map((program) => (
-            <SelectItem key={program} value={program}>
-              {program}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
-    </FilterField>
+  <div className="w-full space-y-4">
+    <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+      <FilterField label="Program">
+        <Select value={selectedForm?.programName ?? ''} onValueChange={onProgramChange}>
+          <SelectTrigger aria-label="Survey results program filter">
+            <SelectValue placeholder="Choose program" />
+          </SelectTrigger>
+          <SelectContent>
+            {programs.map((program) => (
+              <SelectItem key={program} value={program}>
+                {program}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </FilterField>
 
-    <FilterField label="Project">
-      <Select value={selectedForm?.projectId ?? ''} onValueChange={onProjectChange}>
-        <SelectTrigger aria-label="Survey results project filter">
-          <SelectValue placeholder="Choose project" />
-        </SelectTrigger>
-        <SelectContent>
-          {projectIds.map((id) => (
-            <SelectItem key={id} value={id}>
-              {projects.find((project) => project.id === id)?.title ?? id}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
-    </FilterField>
+      <FilterField label="Project">
+        <Select value={selectedForm?.projectId ?? ''} onValueChange={onProjectChange}>
+          <SelectTrigger aria-label="Survey results project filter">
+            <SelectValue placeholder="Choose project" />
+          </SelectTrigger>
+          <SelectContent>
+            {projectIds.map((id) => (
+              <SelectItem key={id} value={id}>
+                {projects.find((project) => project.id === id)?.title ?? id}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </FilterField>
 
-    <FilterField label="Survey/Form">
-      <Select value={selection.formId} onValueChange={onFormChange}>
-        <SelectTrigger aria-label="Survey results form filter">
-          <SelectValue placeholder="Choose Survey/Form" />
-        </SelectTrigger>
-        <SelectContent>
-          {forms.map((form) => (
-            <SelectItem key={form.id} value={form.id}>
-              {form.title}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
-    </FilterField>
+      <FilterField label="Survey/Form">
+        <Select value={selection.formId} onValueChange={onFormChange}>
+          <SelectTrigger aria-label="Survey results form filter">
+            <SelectValue placeholder="Choose Survey/Form" />
+          </SelectTrigger>
+          <SelectContent>
+            {forms.map((form) => (
+              <SelectItem key={form.id} value={form.id}>
+                {form.title}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </FilterField>
 
-    <FilterField label="Location">
-      <Select
-        disabled={locations.length === 0}
-        value={selection.location}
-        onValueChange={onLocationChange}
-      >
-        <SelectTrigger aria-label="Survey results location filter">
-          <SelectValue placeholder="No locations" />
-        </SelectTrigger>
-        <SelectContent>
-          {locations.map((location) => (
-            <SelectItem key={location} value={location}>
-              {location}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
-    </FilterField>
+      <FilterField label="Location">
+        <Select
+          disabled={locations.length === 0}
+          value={selection.location}
+          onValueChange={onLocationChange}
+        >
+          <SelectTrigger aria-label="Survey results location filter">
+            <SelectValue placeholder="No locations" />
+          </SelectTrigger>
+          <SelectContent>
+            {locations.map((location) => (
+              <SelectItem key={location} value={location}>
+                {location}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </FilterField>
 
-    <FilterField label="Exact response date">
-      <Select
-        disabled={dates.length === 0}
-        value={selection.responseDate}
-        onValueChange={onDateChange}
-      >
-        <SelectTrigger aria-label="Survey results response date filter">
-          <SelectValue placeholder="No response dates" />
-        </SelectTrigger>
-        <SelectContent>
-          {dates.map((date) => (
-            <SelectItem key={date} value={date}>
-              {formatDate(date)}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
-    </FilterField>
+      <FilterField label="Exact response date">
+        <Select
+          disabled={dates.length === 0}
+          value={selection.responseDate}
+          onValueChange={onDateChange}
+        >
+          <SelectTrigger aria-label="Survey results response date filter">
+            <SelectValue placeholder="No response dates" />
+          </SelectTrigger>
+          <SelectContent>
+            {dates.map((date) => (
+              <SelectItem key={date} value={date}>
+                {formatDate(date)}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </FilterField>
 
-    <FilterField label="Search question summaries">
-      <span className="relative block">
-        <Search
-          className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground"
-          aria-hidden="true"
-        />
-        <Input
-          aria-label="Survey/Form Results search"
-          className="pl-9"
-          placeholder="Search aggregate results"
-          type="search"
-          value={search}
-          onChange={(event) => onSearchChange(event.target.value)}
-        />
-      </span>
-    </FilterField>
+      <FilterField label="Search question summaries">
+        <span className="relative block">
+          <Search
+            className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground"
+            aria-hidden="true"
+          />
+          <Input
+            aria-label="Survey/Form Results search"
+            className="pl-9"
+            placeholder="Search aggregate results"
+            type="search"
+            value={search}
+            onChange={(event) => onSearchChange(event.target.value)}
+          />
+        </span>
+      </FilterField>
+    </div>
 
-    <Button className="sm:col-span-2 xl:col-span-3" onClick={onGenerate}>
-      <Filter className="mr-2 h-4 w-4" aria-hidden="true" />
-      Generate aggregate report
-    </Button>
+    <div className="flex justify-end">
+      <Button className="w-full sm:w-auto" onClick={onGenerate} size="sm">
+        <Filter className="mr-2 h-4 w-4" aria-hidden="true" />
+        Generate aggregate report
+      </Button>
+    </div>
   </div>
 )
 
