@@ -145,8 +145,8 @@ export const ProjectTeamEditorDialog = ({ project }: { project: ProjectDetail })
         <DialogHeader>
           <DialogTitle>Edit project team</DialogTitle>
           <DialogDescription>
-            Reassign active members for {project.title}. Changes update this project's access
-            and future activity assignment choices.
+            Reassign active members for {project.title}. Changes update this project's access and
+            future activity assignment choices.
           </DialogDescription>
         </DialogHeader>
         <Form {...form}>

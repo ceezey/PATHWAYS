@@ -4,6 +4,7 @@ import { CheckCircle2, Pencil, Plus, Power, Save } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { toast } from 'sonner'
 
+import { PageHeader } from '@/components/layout/page-header'
 import { StatusBadge } from '@/components/pathways/status-badge'
 import { Button } from '@/components/ui/button'
 import {
@@ -23,7 +24,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Textarea } from '@/components/ui/textarea'
 import { usePrototypeLabels } from '@/hooks/use-prototype-labels'
 import { usePrototypeRole } from '@/hooks/use-prototype-role'
@@ -177,165 +177,141 @@ export const RuleConfigurationWorkspace = ({
 
   return (
     <div className="space-y-6">
-      <section className="flex flex-col gap-4 rounded-lg border border-border bg-card p-5 lg:flex-row lg:items-start lg:justify-between">
-        <div className="space-y-2">
-          <div className="flex flex-wrap gap-2">
-            <StatusBadge tone="info">Decision Support</StatusBadge>
+      <PageHeader
+        actions={
+          <div className="flex flex-wrap items-center gap-2">
             <StatusBadge tone={canConfigureRules ? 'neutral' : 'warning'}>
               {canConfigureRules ? 'Configuration access' : 'View-only access'}
             </StatusBadge>
+            {canConfigureRules ? (
+              <Button onClick={openCreate}>
+                <Plus className="mr-2 h-4 w-4" aria-hidden="true" />
+                Create rule
+              </Button>
+            ) : null}
           </div>
-          <div>
-            <h1 className="text-3xl font-semibold tracking-tight text-foreground">
-              {labels.moduleAlertsRepository}
-            </h1>
-            <p className="mt-2 max-w-3xl text-sm leading-6 text-muted-foreground">
-              Review predefined alert and recommendation rules for human-reviewed decision support.
-              System Administrators can configure rules; no autonomous action is taken.
-            </p>
-          </div>
-        </div>
-        {canConfigureRules ? (
-          <Button onClick={openCreate}>
-            <Plus className="mr-2 h-4 w-4" aria-hidden="true" />
-            Create rule
-          </Button>
-        ) : null}
-      </section>
+        }
+        description="Review predefined alert and recommendation rules for human-reviewed decision support. System Administrators can configure rules; no autonomous action is taken."
+        editableLabelKey="moduleAlertsRepository"
+        eyebrow="Decision Support"
+        title={labels.moduleAlertsRepository}
+      />
 
       <section className="rounded-sm border border-info/25 bg-info-subtle p-4 text-sm leading-6 text-info">
         {humanReviewDisclaimer} Rules are predefined conditions configured by people; each alert and
         recommendation requires human review before action is taken.
       </section>
 
-      <Tabs className="space-y-4" defaultValue="repository">
-        <TabsList>
-          <TabsTrigger value="repository">Alerts Repository</TabsTrigger>
-          {canConfigureRules ? <TabsTrigger value="create">Create rule</TabsTrigger> : null}
-        </TabsList>
-        <TabsContent value="repository" className="space-y-6">
-          <section className="rounded-lg border border-border bg-card p-5">
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <h2 className="text-lg font-semibold text-foreground">
-                {rules.length} rules configured
-              </h2>
-              <p className="text-sm text-muted-foreground">
-                {activeCount} active · {rules.length - activeCount} inactive
-              </p>
-            </div>
-            <div className="mt-4 space-y-3">
-              {rules.map((rule) => (
-                <button
-                  aria-pressed={selectedRule?.id === rule.id}
-                  key={rule.id}
-                  className={`w-full rounded-sm border p-4 text-left transition-colors ${
-                    selectedRule?.id === rule.id
-                      ? 'border-primary bg-primary-subtle'
-                      : 'border-border bg-background hover:bg-surface-subtle'
-                  }`}
-                  type="button"
-                  onClick={() => setSelectedRuleId(rule.id)}
-                >
-                  <div className="flex flex-wrap items-start justify-between gap-3">
-                    <div>
-                      <p className="font-semibold text-foreground">{rule.name}</p>
-                      <p className="mt-1 text-sm text-muted-foreground">
-                        {rule.category} · {rule.parameter} {operatorCopy(rule.operator)}{' '}
-                        {rule.threshold}
-                        {rule.upperThreshold ? ` to ${rule.upperThreshold}` : ''}
-                      </p>
-                    </div>
-                    <div className="flex flex-wrap gap-2">
-                      {selectedRule?.id === rule.id ? (
-                        <span className="inline-flex items-center gap-1 text-xs font-semibold text-foreground">
-                          <CheckCircle2 className="h-4 w-4" aria-hidden="true" />
-                          Selected
-                        </span>
-                      ) : null}
-                      <StatusBadge tone={ruleSeverityTone(rule.severity)}>
-                        {rule.severity}
-                      </StatusBadge>
-                      <StatusBadge tone={ruleStatusTone(rule.status)}>{rule.status}</StatusBadge>
-                    </div>
+      <div className="grid min-w-0 gap-6 xl:grid-cols-[minmax(320px,0.9fr)_minmax(0,1.35fr)] xl:items-start">
+        <section className="min-w-0 rounded-lg border border-border bg-card p-5">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <h2 className="text-lg font-semibold text-foreground">
+              {rules.length} rules configured
+            </h2>
+            <p className="text-sm text-muted-foreground">
+              {activeCount} active · {rules.length - activeCount} inactive
+            </p>
+          </div>
+          <div className="mt-4 max-h-[680px] space-y-3 overflow-y-auto pr-1">
+            {rules.map((rule) => (
+              <button
+                aria-controls="selected-rule-detail"
+                aria-pressed={selectedRule?.id === rule.id}
+                key={rule.id}
+                className={`w-full rounded-sm border p-4 text-left transition-colors ${
+                  selectedRule?.id === rule.id
+                    ? 'border-primary bg-primary-subtle'
+                    : 'border-border bg-background hover:bg-surface-subtle'
+                }`}
+                type="button"
+                onClick={() => setSelectedRuleId(rule.id)}
+              >
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="font-semibold text-foreground">{rule.name}</p>
+                    <p className="mt-1 text-sm text-muted-foreground">
+                      {rule.category} · {rule.parameter} {operatorCopy(rule.operator)}{' '}
+                      {rule.threshold}
+                      {rule.upperThreshold ? ` to ${rule.upperThreshold}` : ''}
+                    </p>
                   </div>
-                  <p className="mt-3 text-sm leading-6 text-muted-foreground">
-                    {rule.suggestedAction}
-                  </p>
-                </button>
-              ))}
-            </div>
-          </section>
+                  <div className="flex flex-wrap gap-2">
+                    {selectedRule?.id === rule.id ? (
+                      <span className="inline-flex items-center gap-1 text-xs font-semibold text-foreground">
+                        <CheckCircle2 className="h-4 w-4" aria-hidden="true" />
+                        Selected
+                      </span>
+                    ) : null}
+                    <StatusBadge tone={ruleSeverityTone(rule.severity)}>
+                      {rule.severity}
+                    </StatusBadge>
+                    <StatusBadge tone={ruleStatusTone(rule.status)}>{rule.status}</StatusBadge>
+                  </div>
+                </div>
+                <p className="mt-3 text-sm leading-6 text-muted-foreground">
+                  {rule.suggestedAction}
+                </p>
+              </button>
+            ))}
+          </div>
+        </section>
 
-          {selectedRule ? (
-            <section className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_420px]">
-              <div className="rounded-lg border border-border bg-card p-5">
-                <h2 className="text-lg font-semibold text-foreground">Selected rule</h2>
-                <div className="mt-4 grid gap-3 md:grid-cols-2">
-                  <InfoRow label="Rule name" value={selectedRule.name} />
-                  <InfoRow label="Category" value={selectedRule.category} />
-                  <InfoRow label="Parameter" value={selectedRule.parameter} />
-                  <InfoRow label="Operator" value={selectedRule.operator} />
-                  <InfoRow label="Threshold" value={`${selectedRule.threshold}`} />
-                  <InfoRow
-                    label="Optional upper threshold"
-                    value={selectedRule.upperThreshold ? `${selectedRule.upperThreshold}` : 'None'}
-                  />
-                  <InfoRow label="Severity" value={selectedRule.severity} />
-                  <InfoRow label="Status" value={selectedRule.status} />
-                </div>
-                <div className="mt-4 rounded-sm border border-border bg-surface-subtle p-4 text-sm leading-6">
-                  <p className="font-medium text-foreground">Suggested action</p>
-                  <p className="mt-2 text-muted-foreground">{selectedRule.suggestedAction}</p>
-                </div>
-                <div className="mt-4 flex flex-wrap gap-2">
-                  {canConfigureRules ? (
-                    <>
-                      <Button variant="outline" onClick={() => openEdit(selectedRule)}>
-                        <Pencil className="mr-2 h-4 w-4" aria-hidden="true" />
-                        Edit rule
-                      </Button>
-                      <Button variant="outline" onClick={() => toggleRuleStatus(selectedRule)}>
-                        <Power className="mr-2 h-4 w-4" aria-hidden="true" />
-                        {selectedRule.status === 'Active' ? 'Deactivate' : 'Activate'}
-                      </Button>
-                    </>
-                  ) : null}
-                </div>
-              </div>
-              <aside className="rounded-lg border border-border bg-card p-5">
-                <h2 className="text-lg font-semibold text-foreground">Trigger history</h2>
-                <div className="mt-4 rounded-sm border border-border bg-surface-subtle p-4 text-sm">
+        {selectedRule ? (
+          <section
+            aria-live="polite"
+            className="min-w-0 rounded-lg border border-border bg-card p-5"
+            id="selected-rule-detail"
+          >
+            <h2 className="text-lg font-semibold text-foreground">Selected rule</h2>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Details update here when another rule is selected.
+            </p>
+            <div className="mt-4 grid gap-3 md:grid-cols-2">
+              <InfoRow label="Rule name" value={selectedRule.name} />
+              <InfoRow label="Category" value={selectedRule.category} />
+              <InfoRow label="Parameter" value={selectedRule.parameter} />
+              <InfoRow label="Operator" value={selectedRule.operator} />
+              <InfoRow label="Threshold" value={`${selectedRule.threshold}`} />
+              <InfoRow
+                label="Optional upper threshold"
+                value={selectedRule.upperThreshold ? `${selectedRule.upperThreshold}` : 'None'}
+              />
+              <InfoRow label="Severity" value={selectedRule.severity} />
+              <InfoRow label="Status" value={selectedRule.status} />
+            </div>
+            <div className="mt-4 rounded-sm border border-border bg-surface-subtle p-4 text-sm leading-6">
+              <p className="font-medium text-foreground">Suggested action</p>
+              <p className="mt-2 text-muted-foreground">{selectedRule.suggestedAction}</p>
+            </div>
+            <div className="mt-4 rounded-sm border border-border bg-surface-subtle p-4 text-sm">
+              <p className="font-medium text-foreground">Trigger history</p>
+              <div className="mt-3 flex flex-wrap items-end justify-between gap-3">
+                <div>
                   <p className="text-muted-foreground">Triggered total</p>
                   <p className="mt-1 text-3xl font-semibold text-foreground">
                     {selectedRule.triggeredCount}
                   </p>
-                  <p className="mt-3 text-muted-foreground">
-                    Last triggered: {selectedRule.lastTriggeredAt ?? 'Not yet triggered'}
-                  </p>
                 </div>
-              </aside>
-            </section>
-          ) : null}
-        </TabsContent>
-        {canConfigureRules ? (
-          <TabsContent value="create">
-            <section className="rounded-lg border border-border bg-card p-5">
-              <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-                <div>
-                  <h2 className="text-lg font-semibold text-foreground">Create rule</h2>
-                  <p className="mt-1 text-sm text-muted-foreground">
-                    Open the rule form to create a rule definition.
-                  </p>
-                </div>
-                <Button onClick={openCreate}>
-                  <Plus className="mr-2 h-4 w-4" aria-hidden="true" />
-                  New rule
+                <p className="text-muted-foreground">
+                  Last triggered: {selectedRule.lastTriggeredAt ?? 'Not yet triggered'}
+                </p>
+              </div>
+            </div>
+            {canConfigureRules ? (
+              <div className="mt-4 flex flex-wrap gap-2">
+                <Button variant="outline" onClick={() => openEdit(selectedRule)}>
+                  <Pencil className="mr-2 h-4 w-4" aria-hidden="true" />
+                  Edit rule
+                </Button>
+                <Button variant="outline" onClick={() => toggleRuleStatus(selectedRule)}>
+                  <Power className="mr-2 h-4 w-4" aria-hidden="true" />
+                  {selectedRule.status === 'Active' ? 'Deactivate' : 'Activate'}
                 </Button>
               </div>
-            </section>
-          </TabsContent>
+            ) : null}
+          </section>
         ) : null}
-      </Tabs>
+      </div>
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl">

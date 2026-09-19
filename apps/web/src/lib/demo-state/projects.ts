@@ -1,4 +1,11 @@
-import type { Activity, CreateProjectInput, Indicator } from '@/types/pathways'
+import type {
+  Activity,
+  ActivityProof,
+  ActivityStatus,
+  CreateProjectInput,
+  Indicator,
+  SubmitActivityProofInput,
+} from '@/types/pathways'
 import { assertAction } from './permissions'
 import {
   type DemoExpense,
@@ -191,6 +198,279 @@ export function validateActivity(state: DemoState, activity: Activity) {
       'Dates fall outside the project timeline. Provide an override justification to continue.',
     )
 }
+
+const proofProgress = (activity: Activity, proof: ActivityProof) =>
+  proof.progress ?? activity.progress
+
+const latestProof = (activity: Activity) => activity.submittedProof.at(-1)
+
+const incompleteStatus = (
+  state: DemoState,
+  activity: Activity,
+  progress: number,
+): ActivityStatus => {
+  if (Date.parse(`${activity.dueDate}T23:59:59.999Z`) < state.clock) return 'Overdue'
+  return progress > 0 ? 'In Progress' : 'Planned'
+}
+
+export function submitActivityProof(input: SubmitActivityProofInput) {
+  const activity = getDemoState().activities.find((record) => record.id === input.activityId)
+  return transactDemo('proof.submit', activity?.projectId, input.activityId, (state, actor) => {
+    const record = state.activities.find((candidate) => candidate.id === input.activityId)
+    if (!record) throw new Error('Activity not found.')
+    if (record.status === 'Completed') throw new Error('Completed activities are read-only.')
+    if (!input.note.trim()) throw new Error('Enter an update note before submitting proof.')
+    const remainingBeneficiaries = Math.max(
+      0,
+      record.targetBeneficiaries - record.beneficiariesReached,
+    )
+    const hasSessionCount = input.beneficiariesReachedThisSession !== undefined
+    const sessionCount = input.beneficiariesReachedThisSession ?? 0
+    const legacyProgress = input.progress ?? Number.NaN
+    if (
+      hasSessionCount &&
+      (!Number.isInteger(sessionCount) || sessionCount < 0 || sessionCount > remainingBeneficiaries)
+    )
+      throw new Error(
+        `Beneficiaries reached this session must be a whole number between 0 and ${remainingBeneficiaries}.`,
+      )
+    if (
+      !hasSessionCount &&
+      (!Number.isFinite(legacyProgress) || legacyProgress < 0 || legacyProgress > 100)
+    )
+      throw new Error('Progress must be between 0 and 100 percent.')
+    if (!input.fileNames.length) throw new Error('Attach at least one proof-of-conduct file.')
+
+    for (const earlierProof of record.submittedProof) {
+      if (earlierProof.status === 'Submitted' || earlierProof.status === 'Validated') {
+        earlierProof.status = 'Superseded'
+        earlierProof.returnReason = 'Superseded by a newer Project Officer submission.'
+      }
+    }
+
+    const version =
+      record.submittedProof.reduce((highest, proof, index) => {
+        const candidate = proof.version ?? index + 1
+        return Math.max(highest, candidate)
+      }, 0) + 1
+    const submittedAt = demoTime(state)
+    const priorActivityStatus =
+      record.status === 'For Review'
+        ? incompleteStatus(state, record, record.progress)
+        : record.status
+    const beneficiariesReachedTotal = hasSessionCount
+      ? record.beneficiariesReached + sessionCount
+      : record.beneficiariesReached
+    const calculatedProgress = hasSessionCount
+      ? Math.min(
+          100,
+          Math.round((beneficiariesReachedTotal / Math.max(1, record.targetBeneficiaries)) * 100),
+        )
+      : legacyProgress
+    const proof: ActivityProof = {
+      id: nextId(state, `proof-${record.id}`),
+      fileName: input.fileNames[0] ?? 'Progress update note',
+      fileNames: [...input.fileNames],
+      files: input.files ? structuredClone(input.files) : undefined,
+      status: 'Submitted',
+      submittedAt,
+      submittedBy: actor.id,
+      progress: calculatedProgress,
+      beneficiariesReachedThisSession: hasSessionCount ? sessionCount : undefined,
+      beneficiariesReachedTotal: hasSessionCount ? beneficiariesReachedTotal : undefined,
+      version,
+      priorActivityStatus,
+      note: input.note.trim(),
+    }
+
+    // The proposed values remain on the exact proof version until M&E validates it.
+    // This prevents an unreviewed submission from changing the activity record.
+    record.correctionReason = ''
+    record.submittedProof.push(proof)
+
+    return structuredClone(record)
+  })
+}
+
+export function validateActivityProof(activityId: string, proofId: string) {
+  const activity = getDemoState().activities.find((record) => record.id === activityId)
+  return transactDemo('proof.validate', activity?.projectId, proofId, (state, actor) => {
+    const record = state.activities.find((candidate) => candidate.id === activityId)
+    if (!record) throw new Error('Activity not found.')
+    const proof = record.submittedProof.find((candidate) => candidate.id === proofId)
+    if (!proof) throw new Error('Proof log not found.')
+    if (latestProof(record)?.id !== proof.id)
+      throw new Error('This proof version is stale. Review the latest submission instead.')
+    if (proof.status !== 'Submitted')
+      throw new Error('Only a submitted proof log can be validated.')
+
+    proof.status = 'Validated'
+    proof.progress = proofProgress(record, proof)
+    proof.version ??= record.submittedProof.indexOf(proof) + 1
+    proof.priorActivityStatus ??= record.status
+    proof.validatedAt = demoTime(state)
+    proof.validatedBy = actor.id
+    record.progress = proof.progress
+    if (proof.beneficiariesReachedTotal !== undefined)
+      record.beneficiariesReached = proof.beneficiariesReachedTotal
+    record.status =
+      proof.progress === 100 ? 'For Review' : incompleteStatus(state, record, proof.progress)
+    record.progressApproval = proof.progress === 100 ? 'For Review' : undefined
+    record.updateNotes.push({
+      id: nextId(state, 'note'),
+      note: proof.note?.trim() || 'M&E validated the submitted proof.',
+      progress: proof.progress,
+      submittedAt: proof.validatedAt,
+    })
+
+    for (const manager of state.accounts.filter(
+      (account) =>
+        account.role === 'Project Manager' && account.projectIds.includes(record.projectId),
+    )) {
+      notifyLocally(
+        state,
+        manager,
+        `${record.title}: proof version ${proof.version} validated by M&E.`,
+        `/projects/${record.projectId}/activities/${record.id}?review=${proof.id}`,
+      )
+    }
+
+    return structuredClone(record)
+  })
+}
+
+export function flagActivityProof(activityId: string, proofId: string) {
+  const activity = getDemoState().activities.find((record) => record.id === activityId)
+  return transactDemo('proof.validate', activity?.projectId, proofId, (state, actor) => {
+    const record = state.activities.find((candidate) => candidate.id === activityId)
+    if (!record) throw new Error('Activity not found.')
+    const proof = record.submittedProof.find((candidate) => candidate.id === proofId)
+    if (!proof) throw new Error('Proof log not found.')
+    if (latestProof(record)?.id !== proof.id)
+      throw new Error('This proof version is stale. Review the latest submission instead.')
+    if (proof.status !== 'Submitted') throw new Error('Only a submitted proof log can be flagged.')
+
+    proof.status = 'Flagged'
+    proof.validatedAt = demoTime(state)
+    proof.validatedBy = actor.id
+    proof.returnReason = 'M&E marked this submission as insufficient. Submit a corrected proof.'
+    record.progressApproval = 'For Correction'
+    record.correctionReason = proof.returnReason
+    record.status = proof.priorActivityStatus ?? incompleteStatus(state, record, record.progress)
+
+    const submitter = proof.submittedBy
+      ? state.accounts.find((account) => account.id === proof.submittedBy)
+      : undefined
+    if (submitter)
+      notifyLocally(
+        state,
+        submitter,
+        `${record.title}: proof version ${proof.version ?? record.submittedProof.length} was flagged as insufficient by M&E.`,
+        `/projects/${record.projectId}/activities/${record.id}?proof=${proof.id}&action=correct`,
+      )
+    return structuredClone(record)
+  })
+}
+
+export function requestActivityExtension(activityId: string) {
+  const activity = getDemoState().activities.find((record) => record.id === activityId)
+  return transactDemo(
+    'activities.extension.request',
+    activity?.projectId,
+    activityId,
+    (state, actor) => {
+      const record = state.activities.find((candidate) => candidate.id === activityId)
+      if (!record) throw new Error('Activity not found.')
+      if (record.status === 'Completed')
+        throw new Error('Completed activities cannot request an extension.')
+      if (record.extensionRequestedAt)
+        throw new Error('An extension request has already been sent for this activity.')
+      record.extensionRequestedAt = demoTime(state)
+      record.extensionRequestedBy = actor.id
+      for (const manager of state.accounts.filter(
+        (account) =>
+          account.role === 'Project Manager' && account.projectIds.includes(record.projectId),
+      ))
+        notifyLocally(
+          state,
+          manager,
+          `${record.title}: ${actor.name} requested a schedule extension.`,
+          `/projects/${record.projectId}/activities/${record.id}`,
+        )
+      return structuredClone(record)
+    },
+  )
+}
+
+export function reviewValidatedActivityProof(
+  activityId: string,
+  proofId: string,
+  approved: boolean,
+  reason = '',
+) {
+  const activity = getDemoState().activities.find((record) => record.id === activityId)
+  return transactDemo(
+    approved ? 'proof.approve' : 'proof.return',
+    activity?.projectId,
+    proofId,
+    (state, actor) => {
+      const record = state.activities.find((candidate) => candidate.id === activityId)
+      if (!record) throw new Error('Activity not found.')
+      const proof = record.submittedProof.find((candidate) => candidate.id === proofId)
+      if (!proof) throw new Error('Proof log not found.')
+      if (latestProof(record)?.id !== proof.id)
+        throw new Error('This proof version is stale. Review the latest submission instead.')
+      if (proof.status !== 'Validated')
+        throw new Error('Only the exact M&E-validated proof version can be decided.')
+      if (!approved && !reason.trim()) throw new Error('A correction reason is required.')
+      const completesActivity = approved && proofProgress(record, proof) === 100
+
+      proof.status = approved ? 'Approved' : 'Returned'
+      proof.reviewedAt = demoTime(state)
+      proof.reviewedBy = actor.id
+      proof.returnReason = approved ? '' : reason.trim()
+      record.progressApproval = approved ? 'Approved' : 'For Correction'
+      record.correctionReason = approved ? '' : reason.trim()
+      record.status = approved
+        ? completesActivity
+          ? 'Completed'
+          : incompleteStatus(state, record, proofProgress(record, proof))
+        : (proof.priorActivityStatus ?? incompleteStatus(state, record, record.progress))
+      record.updateNotes.push({
+        id: nextId(state, 'review'),
+        note: approved
+          ? completesActivity
+            ? `Proof version ${proof.version ?? record.submittedProof.length} approved and completed.`
+            : `Proof version ${proof.version ?? record.submittedProof.length} approved.`
+          : `Proof version ${proof.version ?? record.submittedProof.length} returned: ${reason.trim()}`,
+        progress: proofProgress(record, proof),
+        submittedAt: demoTime(state),
+      })
+
+      const submitter = proof.submittedBy
+        ? state.accounts.find((account) => account.id === proof.submittedBy)
+        : state.accounts.find(
+            (account) =>
+              account.role === 'Project Officer' &&
+              account.projectIds.includes(record.projectId) &&
+              record.assignedTo.includes(account.name),
+          )
+      if (submitter) {
+        notifyLocally(
+          state,
+          submitter,
+          approved
+            ? `${record.title}: proof version ${proof.version ?? record.submittedProof.length} approved.`
+            : `${record.title}: proof version ${proof.version ?? record.submittedProof.length} returned for revision. ${reason.trim()}`,
+          `/projects/${record.projectId}/activities/${record.id}`,
+        )
+      }
+
+      return structuredClone(record)
+    },
+  )
+}
+
 export function saveExpense(
   input: Omit<DemoExpense, 'id' | 'status' | 'reason' | 'counted' | 'submittedBy'>,
   id?: string,
@@ -228,13 +508,23 @@ export function saveExpense(
     const expense: DemoExpense = {
       ...input,
       id: id ?? nextId(state, 'expense'),
-      status: state.expenseRule.verificationRequired ? 'For Verification' : 'Verified',
+      status: 'For Verification',
       reason: '',
       counted: false,
       submittedBy: actor.id,
     }
     state.expenses = [...state.expenses.filter((e) => e.id !== id), expense]
-    if (expense.status === 'Verified') countExpense(state, expense)
+    for (const reviewer of state.accounts.filter(
+      (account) =>
+        account.role === 'Monitoring and Evaluation Officer' &&
+        account.projectIds.includes(input.projectId),
+    ))
+      notifyLocally(
+        state,
+        reviewer,
+        `${actor.name} submitted ${input.category} expense for validation.`,
+        `/projects/${input.projectId}/activities/${input.activityId}?expense=${expense.id}`,
+      )
     return expense
   })
 }
@@ -269,6 +559,113 @@ export function reviewExpense(id: string, verified: boolean, reason = '') {
       if (recipient) notifyLocally(state, recipient, `Expense ${id}: ${record.status}. ${reason}`)
     },
   )
+}
+
+export type ExpenseDecision = 'Approve' | 'Reject' | 'Partial' | 'Escalate'
+
+const countApprovedExpense = (state: DemoState, expense: DemoExpense, approvedAmount: number) => {
+  if (expense.counted) throw new Error('This expense decision has already updated the budget.')
+  const budget = state.budgets.find((record) => record.projectId === expense.projectId)
+  if (!budget || approvedAmount > budget.plannedAmount - budget.actualSpending)
+    throw new Error('Available budget changed. Review the expense before deciding again.')
+
+  budget.actualSpending += approvedAmount
+  expense.counted = true
+  expense.approvedAmount = approvedAmount
+  expense.rejectedAmount = expense.amount - approvedAmount
+
+  const project = state.projects.find((record) => record.id === expense.projectId)
+  if (!project) throw new Error('Linked project is unavailable.')
+  project.budgetUtilization = Math.round((budget.actualSpending / budget.plannedAmount) * 100)
+
+  const activity = state.activities.find((record) => record.id === expense.activityId)
+  if (activity) activity.budgetLogged += approvedAmount
+}
+
+export function decideExpense(
+  id: string,
+  decision: ExpenseDecision,
+  options: { approvedAmount?: number; reason?: string } = {},
+) {
+  const snapshot = getDemoState().expenses.find((expense) => expense.id === id)
+  const action = snapshot?.status === 'Escalated' ? 'expenses.escalation_decide' : 'expenses.review'
+
+  return transactDemo(action, snapshot?.projectId, id, (state, actor) => {
+    const expense = state.expenses.find((record) => record.id === id)
+    if (!expense) throw new Error('Expense not found.')
+    const isEscalationDecision = expense.status === 'Escalated'
+
+    if (isEscalationDecision) {
+      if (actor.role !== 'Program Manager')
+        throw new Error('Only the Program Manager can decide an escalated expense.')
+      if (decision === 'Escalate') throw new Error('An escalated expense needs a final decision.')
+    } else {
+      if (expense.status !== 'Pending Review')
+        throw new Error('Only pending expenses can be reviewed.')
+      if (actor.role !== 'Project Manager')
+        throw new Error('Only the Project Manager can review a submitted expense.')
+    }
+
+    if (expense.submittedBy === actor.id) throw new Error('You cannot review your own expense.')
+
+    const reason = options.reason?.trim() ?? ''
+    if (decision !== 'Approve' && !reason) throw new Error(`${decision} requires a reason.`)
+
+    if (decision === 'Partial') {
+      const approvedAmount = options.approvedAmount
+      if (
+        approvedAmount === undefined ||
+        !Number.isFinite(approvedAmount) ||
+        approvedAmount <= 0 ||
+        approvedAmount >= expense.amount
+      )
+        throw new Error(
+          'Partial approval must be greater than zero and less than the submitted amount.',
+        )
+      countApprovedExpense(state, expense, approvedAmount)
+      expense.status = 'Partially Approved'
+    } else if (decision === 'Approve') {
+      countApprovedExpense(state, expense, expense.amount)
+      expense.status = 'Approved'
+    } else if (decision === 'Reject') {
+      expense.approvedAmount = 0
+      expense.rejectedAmount = expense.amount
+      expense.status = 'Rejected'
+    } else {
+      expense.approvedAmount = 0
+      expense.rejectedAmount = expense.amount
+      expense.status = 'Escalated'
+    }
+
+    expense.reason = reason
+    expense.reviewedBy = actor.id
+    expense.reviewedAt = demoTime(state)
+
+    if (decision === 'Escalate') {
+      const programManager = state.accounts.find(
+        (account) =>
+          account.role === 'Program Manager' && account.projectIds.includes(expense.projectId),
+      )
+      if (programManager)
+        notifyLocally(
+          state,
+          programManager,
+          `Expense ${expense.id} was escalated for your decision. ${reason}`,
+          `/projects/${expense.projectId}/budget`,
+        )
+    }
+
+    const submitter = state.accounts.find((account) => account.id === expense.submittedBy)
+    if (submitter)
+      notifyLocally(
+        state,
+        submitter,
+        `Expense ${expense.id}: ${expense.status}.${reason ? ` ${reason}` : ''}`,
+        `/projects/${expense.projectId}/activities/${expense.activityId}`,
+      )
+
+    return structuredClone(expense)
+  })
 }
 export function approveProgress(id: string, approved: boolean, reason = '') {
   const activity = getDemoState().activities.find((a) => a.id === id)
@@ -311,6 +708,89 @@ export function saveIndicator(input: Omit<Indicator, 'id'>, id?: string) {
     const record = { ...input, id: id ?? nextId(state, 'indicator') }
     state.indicators = [...state.indicators.filter((i) => i.id !== id), record]
     return record
+  })
+}
+export type MultiProjectIndicatorInput = Pick<
+  Indicator,
+  'label' | 'description' | 'unit' | 'disaggregation' | 'dataSource' | 'target'
+>
+
+export function saveIndicatorForProjects(
+  input: MultiProjectIndicatorInput,
+  projectIds: string[],
+  sourceId?: string,
+) {
+  const selectedProjectIds = [...new Set(projectIds)]
+  return transactDemo('indicators.manage', selectedProjectIds[0], sourceId, (state, actor) => {
+    if (!selectedProjectIds.length) throw new Error('Select at least one authorized project.')
+    if (
+      ![input.label, input.description, input.unit, input.disaggregation, input.dataSource].every(
+        (value) => value?.trim(),
+      )
+    )
+      throw new Error(
+        'Name, description, unit, disaggregation requirements and data source are required.',
+      )
+    if (!Number.isFinite(input.target) || input.target < 0)
+      throw new Error('Target must be a non-negative number.')
+
+    const source = sourceId ? state.indicators.find((indicator) => indicator.id === sourceId) : null
+    if (sourceId && !source) throw new Error('The indicator being edited is no longer available.')
+    if (source) assertAction(actor, 'indicators.manage', source.projectId)
+
+    for (const projectId of selectedProjectIds) {
+      if (!state.projects.some((project) => project.id === projectId && !project.archived))
+        throw new Error('Every selected project must be active and available.')
+      assertAction(actor, 'indicators.manage', projectId)
+    }
+
+    const code = source?.code ?? `IND-${state.sequence + 1}`
+    const duplicateCopies = selectedProjectIds.filter(
+      (projectId) =>
+        state.indicators.filter(
+          (indicator) => indicator.projectId === projectId && indicator.code === code,
+        ).length > 1,
+    )
+    if (duplicateCopies.length)
+      throw new Error('Duplicate project indicator copies must be resolved before saving.')
+
+    const saved = selectedProjectIds.map((projectId) => {
+      const existing = state.indicators.find(
+        (indicator) => indicator.projectId === projectId && indicator.code === code,
+      )
+      const record: Indicator = {
+        ...input,
+        id: existing?.id ?? nextId(state, 'indicator'),
+        projectId,
+        code,
+        actual: existing?.actual ?? 0,
+      }
+      state.indicators = [
+        ...state.indicators.filter((indicator) => indicator.id !== record.id),
+        record,
+      ]
+
+      const measured = state.projectIndicators.find(
+        (indicator) => indicator.projectId === projectId && indicator.code === code,
+      )
+      state.projectIndicators = [
+        ...state.projectIndicators.filter((indicator) => indicator.id !== measured?.id),
+        {
+          id: measured?.id ?? nextId(state, 'project-indicator'),
+          projectId,
+          code,
+          label: input.label,
+          baseline: measured?.baseline ?? 0,
+          target: input.target,
+          actual: measured?.actual ?? 0,
+          status: measured?.status ?? 'On Track',
+          connectedActivityIds: measured?.connectedActivityIds ?? [],
+        },
+      ]
+      return record
+    })
+
+    return structuredClone(saved)
   })
 }
 export function reuseIndicator(id: string, projectId: string) {

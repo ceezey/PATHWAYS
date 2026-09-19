@@ -7,6 +7,7 @@ import {
   activityNextStep,
   activityProgressTone,
   buildActivityStatusUpdate,
+  formatDate,
 } from './activity-utils'
 
 describe('activity card presentation helpers', () => {
@@ -28,6 +29,21 @@ describe('activity card presentation helpers', () => {
   it('makes overdue dates explicit without changing normal due dates', () => {
     expect(activityDueLabel('Overdue', '2026-06-15')).toBe('Overdue since Jun 15, 2026')
     expect(activityDueLabel('In Progress', '2026-08-30')).toBe('Due Aug 30, 2026')
+  })
+
+  it('formats date-only and timestamp values without throwing', () => {
+    expect(formatDate('2026-06-18')).toBe('Jun 18, 2026')
+    expect(formatDate('2026-06-18T14:30:00.000Z')).toBe('Jun 18, 2026')
+  })
+
+  it('uses a safe fallback for missing, malformed, or impossible dates', () => {
+    expect(formatDate(undefined)).toBe('Date unavailable')
+    expect(formatDate(null)).toBe('Date unavailable')
+    expect(formatDate('')).toBe('Date unavailable')
+    expect(formatDate('not-a-date')).toBe('Date unavailable')
+    expect(formatDate('2026-02-31')).toBe('Date unavailable')
+    expect(activityDueLabel('Overdue', '')).toBe('Overdue · date unavailable')
+    expect(activityDueLabel('In Progress', '')).toBe('Due date unavailable')
   })
 
   it('builds a one-record status update without changing related activity fields', () => {

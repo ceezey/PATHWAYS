@@ -9,7 +9,8 @@ import {
 } from '@tanstack/react-table'
 import { Plus, RotateCcw, Search } from 'lucide-react'
 import Link from 'next/link'
-import { useMemo, useState } from 'react'
+import { useSearchParams } from 'next/navigation'
+import { useEffect, useMemo, useState } from 'react'
 
 import { PageHeader } from '@/components/layout/page-header'
 import { ProgressBar } from '@/components/pathways/progress-bar'
@@ -35,6 +36,8 @@ import {
 } from '@/components/ui/table'
 import { usePrototypeLabels } from '@/hooks/use-prototype-labels'
 import { usePrototypeRole } from '@/hooks/use-prototype-role'
+import { useSafeProjectSelection } from '@/hooks/use-safe-project-selection'
+import { hasAction } from '@/lib/demo-state/permissions'
 import { getAccessProfile } from '@/lib/rbac/can'
 import { scopeBeneficiariesForRole, scopeProjectsForRole } from '@/lib/rbac/data-scope'
 import type {
@@ -54,6 +57,8 @@ import {
 } from './beneficiary-utils'
 
 const allValue = 'all'
+const safeFilterValue = (value: string | null, allowed: string[]) =>
+  value && allowed.includes(value) ? value : allValue
 
 type BeneficiaryDirectoryProps = {
   beneficiaries: BeneficiaryRecord[]
@@ -70,6 +75,8 @@ export const BeneficiaryDirectory = ({
 }: BeneficiaryDirectoryProps) => {
   const { labels } = usePrototypeLabels()
   const { role } = usePrototypeRole()
+  const searchParams = useSearchParams()
+  const readParam = (name: string) => searchParams?.get(name) ?? null
   const projectAccess = getAccessProfile(role).projectAccess
   const projectAccessLabel =
     projectAccess === 'assigned-projects'
@@ -82,16 +89,30 @@ export const BeneficiaryDirectory = ({
     () => scopeBeneficiariesForRole(beneficiaries, role),
     [beneficiaries, role],
   )
-  const [search, setSearch] = useState('')
-  const [projectId, setProjectId] = useState(allValue)
-  const [location, setLocation] = useState(allValue)
-  const [sex, setSex] = useState(allValue)
-  const [ageGroup, setAgeGroup] = useState(allValue)
-  const [disabilityStatus, setDisabilityStatus] = useState(allValue)
-  const [enrollmentStatus, setEnrollmentStatus] = useState(allValue)
+  const [search, setSearch] = useState(readParam('q') ?? '')
+  const [projectId, setProjectId] = useSafeProjectSelection(
+    scopedProjects.map((project) => project.id),
+    readParam('project') ?? undefined,
+  )
+  const [location, setLocation] = useState(readParam('location') ?? allValue)
+  const [sex, setSex] = useState(() =>
+    safeFilterValue(readParam('sex'), ['Female', 'Male', 'Prefer not to say']),
+  )
+  const [ageGroup, setAgeGroup] = useState(() =>
+    safeFilterValue(readParam('age'), ['10-14', '15-17', '18-24', '25+']),
+  )
+  const [disabilityStatus, setDisabilityStatus] = useState(() =>
+    safeFilterValue(readParam('disability'), [
+      'With disability',
+      'Without disability',
+      'Not disclosed',
+    ]),
+  )
+  const [enrollmentStatus, setEnrollmentStatus] = useState(() =>
+    safeFilterValue(readParam('status'), ['Active', 'Pending Review', 'Completed', 'Exited']),
+  )
   const filtersActive =
     search !== '' ||
-    projectId !== allValue ||
     location !== allValue ||
     sex !== allValue ||
     ageGroup !== allValue ||
@@ -104,12 +125,17 @@ export const BeneficiaryDirectory = ({
     [scopedBeneficiaries],
   )
 
+  useEffect(() => {
+    if (location !== allValue && !locations.includes(location)) {
+      setLocation(allValue)
+    }
+  }, [location, locations])
+
   const filteredBeneficiaries = useMemo(
     () =>
       scopedBeneficiaries.filter((beneficiary) => {
         const matchesSearch = matchesBeneficiarySearch(beneficiary, search)
-        const matchesProject =
-          projectId === allValue ? true : beneficiary.projectIds.includes(projectId)
+        const matchesProject = beneficiary.projectIds.includes(projectId)
         const matchesLocation = location === allValue ? true : beneficiary.location === location
         const matchesSex = sex === allValue ? true : beneficiary.sex === sex
         const matchesAgeGroup = ageGroup === allValue ? true : beneficiary.ageGroup === ageGroup
@@ -147,12 +173,7 @@ export const BeneficiaryDirectory = ({
         accessorKey: 'displayName',
         cell: ({ row }) => (
           <div className="space-y-1">
-            <Link
-              className="font-semibold text-primary underline-offset-4 hover:underline"
-              href={`/beneficiaries/${row.original.id}`}
-            >
-              {row.original.displayName}
-            </Link>
+            <p className="font-semibold text-foreground">{row.original.displayName}</p>
             <p className="text-xs text-muted-foreground">
               {row.original.code} · {row.original.location}
             </p>
@@ -228,6 +249,11 @@ export const BeneficiaryDirectory = ({
     ],
     [activities, scopedProjects, stages],
   )
+  const requestedPageIndex = Math.max(0, Number(readParam('page') ?? 1) - 1)
+  const safeInitialPageIndex = Math.min(
+    requestedPageIndex,
+    Math.max(0, Math.ceil(filteredBeneficiaries.length / 8) - 1),
+  )
 
   const table = useReactTable({
     data: filteredBeneficiaries,
@@ -236,14 +262,30 @@ export const BeneficiaryDirectory = ({
     getPaginationRowModel: getPaginationRowModel(),
     initialState: {
       pagination: {
+        pageIndex: safeInitialPageIndex,
         pageSize: 8,
       },
     },
   })
 
+  const beneficiaryHref = (beneficiaryId: string) => {
+    const returning = new URLSearchParams()
+    if (search) returning.set('q', search)
+    if (projectId) returning.set('project', projectId)
+    if (location !== allValue) returning.set('location', location)
+    if (sex !== allValue) returning.set('sex', sex)
+    if (ageGroup !== allValue) returning.set('age', ageGroup)
+    if (disabilityStatus !== allValue) returning.set('disability', disabilityStatus)
+    if (enrollmentStatus !== allValue) returning.set('status', enrollmentStatus)
+    const page = table.getState().pagination.pageIndex + 1
+    if (page > 1) returning.set('page', String(page))
+    const directoryPath = returning.size ? `/beneficiaries?${returning}` : '/beneficiaries'
+
+    return `/beneficiaries/${beneficiaryId}?returnTo=${encodeURIComponent(directoryPath)}`
+  }
+
   const clearAllFilters = () => {
     setSearch('')
-    setProjectId(allValue)
     setLocation(allValue)
     setSex(allValue)
     setAgeGroup(allValue)
@@ -255,29 +297,29 @@ export const BeneficiaryDirectory = ({
   return (
     <div className="space-y-6">
       <PageHeader
+        editableLabelKey="moduleBeneficiaries"
         actions={
           <>
-            <Button asChild variant="outline">
-              <Link href="/beneficiaries/evaluation-center">Evaluation Center lookup</Link>
-            </Button>
-            <Button asChild variant="outline">
-              <Link href="/beneficiaries/duplicates">Review possible duplicates</Link>
-            </Button>
-            <Button asChild>
-              <Link href="/beneficiaries/new">
-                <Plus className="mr-2 h-4 w-4" aria-hidden="true" />
-                Add beneficiary
-              </Link>
-            </Button>
+            {hasAction(role, 'beneficiaries.merge') ? (
+              <Button asChild variant="outline">
+                <Link href="/beneficiaries/duplicates">Review possible duplicates</Link>
+              </Button>
+            ) : null}
+            {hasAction(role, 'beneficiaries.create') ? (
+              <Button asChild size="icon" title="Add beneficiary">
+                <Link aria-label="Add beneficiary" href="/beneficiaries/new">
+                  <Plus className="h-4 w-4" aria-hidden="true" />
+                </Link>
+              </Button>
+            ) : null}
           </>
         }
-        description="Find Beneficiary records by name or code, review journey progress, and open a record for journey and assessment details."
         eyebrow={projectAccessLabel}
         title={labels.moduleBeneficiaries}
       />
 
-      <section className="space-y-4 rounded-lg border border-border bg-card p-5">
-        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+      <section className="space-y-4 rounded-lg border border-border bg-card p-4">
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
           <div className="space-y-2">
             <Label htmlFor="beneficiary-search">Search by name or code</Label>
             <span className="relative block">
@@ -288,19 +330,14 @@ export const BeneficiaryDirectory = ({
               <Input
                 id="beneficiary-search"
                 className="pl-9"
-                aria-describedby="beneficiary-search-help"
                 placeholder="Enter Beneficiary name or code"
                 type="search"
                 value={search}
                 onChange={(event) => setSearch(event.target.value)}
               />
             </span>
-            <p className="text-xs leading-5 text-muted-foreground" id="beneficiary-search-help">
-              Searches Beneficiary names and codes.
-            </p>
           </div>
           <FilterSelect label="Project" value={projectId} onValueChange={setProjectId}>
-            <SelectItem value={allValue}>All projects</SelectItem>
             {scopedProjects.map((project) => (
               <SelectItem key={project.id} value={project.id}>
                 {project.title}
@@ -397,10 +434,23 @@ export const BeneficiaryDirectory = ({
           <TableBody>
             {table.getRowModel().rows.length > 0 ? (
               table.getRowModel().rows.map((row) => (
-                <TableRow key={row.id}>
-                  {row.getVisibleCells().map((cell) => (
+                <TableRow
+                  className="relative cursor-pointer focus-within:bg-primary-subtle"
+                  key={row.id}
+                >
+                  {row.getVisibleCells().map((cell, index) => (
                     <TableCell key={cell.id}>
-                      {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                      {index === 0 ? (
+                        <Link
+                          aria-label={`Open ${row.original.displayName}`}
+                          className="static after:absolute after:inset-0 after:content-[''] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                          href={beneficiaryHref(row.original.id)}
+                        >
+                          {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                        </Link>
+                      ) : (
+                        flexRender(cell.column.columnDef.cell, cell.getContext())
+                      )}
                     </TableCell>
                   ))}
                 </TableRow>

@@ -378,14 +378,14 @@ export const mockDashboards: Record<PrototypeRole, RoleDashboardViewModel> = {
       },
       {
         id: 'delivery-follow-ups',
-        label: 'Delivery follow-ups',
+        label: 'Overdue activities',
         value: 1,
         helperText: 'FutureMakers follow-up needs an owner',
         severity: 'warning',
       },
       {
         id: 'items-for-review',
-        label: 'Items for review',
+        label: 'For review',
         value: 3,
         helperText: 'Approval queue plus flagged evidence',
         severity: 'info',
@@ -424,19 +424,10 @@ export const mockDashboards: Record<PrototypeRole, RoleDashboardViewModel> = {
             status: 'For Review',
             severity: 'warning',
             primaryAction: {
-              id: 'approve-proof',
-              label: 'Preview Approval',
-              kind: 'dialog',
-              dialogTitle: 'Approve proof bundle',
-              dialogDescription: 'Review the proof bundle before recording the approval.',
-            },
-            secondaryAction: {
               id: 'review-proof',
               label: 'Review',
-              kind: 'dialog',
-              dialogTitle: 'Review proof bundle',
-              dialogDescription:
-                'This preview summarizes the submitted files. Detailed evidence review is assigned to the Monitoring and Evaluation Officer.',
+              kind: 'navigate',
+              href: '/projects/futuremakers-ncr/activities/act-fm-02?review=proof-fm-02',
             },
           },
           {
@@ -447,17 +438,10 @@ export const mockDashboards: Record<PrototypeRole, RoleDashboardViewModel> = {
             status: 'Information',
             severity: 'info',
             primaryAction: {
-              id: 'log-budget-outcome',
-              label: 'Preview Outcome',
-              kind: 'dialog',
-              dialogTitle: 'Log review outcome',
-              dialogDescription: 'Record the decision and supporting context for this review.',
-            },
-            secondaryAction: {
-              id: 'go-budget-module',
-              label: 'Go to Budget Module',
+              id: 'review-budget-alert',
+              label: 'Review',
               kind: 'navigate',
-              href: '/projects/futuremakers-ncr/budget',
+              href: '/projects/futuremakers-ncr/budget?review=budget-alert-01',
             },
           },
         ],
@@ -495,7 +479,7 @@ export const mockDashboards: Record<PrototypeRole, RoleDashboardViewModel> = {
         id: 'datasets-imported',
         label: 'Datasets imported',
         value: 12,
-        helperText: 'This reporting period',
+        helperText: 'Imported this month',
         severity: 'neutral',
       },
     ],
@@ -517,17 +501,8 @@ export const mockDashboards: Record<PrototypeRole, RoleDashboardViewModel> = {
             primaryAction: {
               id: 'review-alert',
               label: 'Review',
-              kind: 'dialog',
-              dialogTitle: 'Review active alert',
-              dialogDescription:
-                'This opens a sample review summary and leaves the final outcome for human review.',
-            },
-            secondaryAction: {
-              id: 'flag-alert',
-              label: 'Preview Flag',
-              kind: 'dialog',
-              dialogTitle: 'Flag alert',
-              dialogDescription: 'Record a flag for follow-up by the responsible project team.',
+              kind: 'navigate',
+              href: '/alerts?alert=alert-fm-bootcamp',
             },
           },
         ],
@@ -549,9 +524,8 @@ export const mockDashboards: Record<PrototypeRole, RoleDashboardViewModel> = {
             primaryAction: {
               id: 'review-proof',
               label: 'Review',
-              kind: 'dialog',
-              dialogTitle: 'Proof review',
-              dialogDescription: 'Review the submitted evidence details and record the outcome.',
+              kind: 'navigate',
+              href: '/projects/futuremakers-ncr/activities/act-fm-02?review=proof-fm-02',
             },
           },
           {
@@ -582,7 +556,7 @@ export const mockDashboards: Record<PrototypeRole, RoleDashboardViewModel> = {
       },
       {
         id: 'delivery-follow-ups',
-        label: 'Delivery follow-ups',
+        label: 'Overdue',
         value: 1,
         helperText: 'FutureMakers follow-up needs an update',
         severity: 'warning',
@@ -596,9 +570,9 @@ export const mockDashboards: Record<PrototypeRole, RoleDashboardViewModel> = {
       },
       {
         id: 'submissions-month',
-        label: 'Submissions this month',
+        label: 'Submitted this month',
         value: 14,
-        helperText: 'Activity updates recorded this month',
+        helperText: 'Activity updates and expenses recorded this month',
         severity: 'success',
       },
     ],
@@ -636,10 +610,8 @@ export const mockDashboards: Record<PrototypeRole, RoleDashboardViewModel> = {
             primaryAction: {
               id: 'view-orientation-summary',
               label: 'View Summary',
-              kind: 'dialog',
-              dialogTitle: 'Completed orientation summary',
-              dialogDescription:
-                'Review the completed activity and its accepted supporting evidence.',
+              kind: 'navigate',
+              href: '/projects/futuremakers-ncr/activities/act-fm-01',
             },
           },
         ],
@@ -658,10 +630,9 @@ export const mockDashboards: Record<PrototypeRole, RoleDashboardViewModel> = {
             severity: 'danger',
             primaryAction: {
               id: 'resolve-proof',
-              label: 'Preview Resolution',
-              kind: 'dialog',
-              dialogTitle: 'Resolve flagged proof',
-              dialogDescription: 'Review the flagged evidence and record the resolution.',
+              label: 'Resolve',
+              kind: 'navigate',
+              href: '/projects/futuremakers-ncr/activities/act-fm-02?proof=proof-fm-02&action=correct',
             },
           },
           {
@@ -680,7 +651,7 @@ export const mockDashboards: Record<PrototypeRole, RoleDashboardViewModel> = {
     role: 'System Administrator',
     greetingName: 'System Administrator',
     heading: 'System Administrator dashboard',
-    summary: 'Review users, approved page headings, alert rules, and administrative records.',
+    summary: 'Review users, alert rules, and administrative records.',
     primaryAction: {
       id: 'open-user-management',
       label: 'Manage Users',
@@ -714,7 +685,7 @@ export const mockDashboards: Record<PrototypeRole, RoleDashboardViewModel> = {
       {
         id: 'administration-tools',
         title: 'Administration',
-        description: 'User, label, and alert-rule administration.',
+        description: 'User and alert-rule administration.',
         viewAllHref: '/settings/users',
         viewAllLabel: 'Open user management',
         items: [
@@ -726,15 +697,6 @@ export const mockDashboards: Record<PrototypeRole, RoleDashboardViewModel> = {
             status: 'Available',
             severity: 'success',
             href: '/settings/users',
-          },
-          {
-            id: 'edit-page-headings',
-            title: 'Edit Labels',
-            description: 'Edit approved page headings.',
-            meta: 'Interface configuration',
-            status: 'Available',
-            severity: 'success',
-            href: '/settings/labels',
           },
           {
             id: 'alerts-repository-ready',

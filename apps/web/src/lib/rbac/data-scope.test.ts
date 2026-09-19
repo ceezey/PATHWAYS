@@ -78,7 +78,12 @@ describe('prototype project assignments and data scope', () => {
   it('scopes project-linked records through the same assignment helper', () => {
     expect(
       scopeProjectRecordsForRole(mockAlerts, 'Project Manager').map((alert) => alert.projectId),
-    ).toEqual(['futuremakers-ncr', 'futuremakers-ncr'])
+    ).toEqual([
+      'futuremakers-ncr',
+      'futuremakers-ncr',
+      'futuremakers-ncr',
+      'futuremakers-ncr',
+    ])
     expect([
       ...new Set(
         scopeProjectRecordsForRole(mockAlerts, 'Monitoring and Evaluation Officer').map(

@@ -10,8 +10,8 @@ import type { PermissionCode } from './permissions'
 const legacyAction: Partial<Record<PermissionCode, DemoAction>> = {
   'activities.view': 'delivery.view',
   'activities.create_edit': 'activities.edit',
-  'activities.submit_update_proof': 'activities.edit',
-  'evidence.review': 'expenses.verify',
+  'activities.submit_update_proof': 'proof.submit',
+  'evidence.review': 'proof.validate',
   'budget.expense.log': 'expenses.submit',
   'budget.expense.view': 'delivery.view',
   'budget.expense.verify': 'expenses.verify',

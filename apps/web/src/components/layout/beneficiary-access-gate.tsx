@@ -85,8 +85,9 @@ export const BeneficiaryAccessGate = ({ onVerified }: { onVerified: () => void }
                 }}
               />
               <p className="text-xs text-muted-foreground">
-                Verification is scoped to beneficiary routes and clears when the role changes or the
-                session ends.
+                Frontend demo gate only; it does not secure production records. Use the fictional
+                demo PIN 2468. Access lasts 15 minutes and clears on role change, explicit relock,
+                or session end.
               </p>
             </div>
             <div className="flex flex-col gap-2 sm:flex-row sm:justify-end">

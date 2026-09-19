@@ -1,5 +1,5 @@
-import { LabelSettingsWorkspace } from '@/features/settings/label-settings-workspace'
+import { redirect } from 'next/navigation'
 
 export default function LabelSettingsPage() {
-  return <LabelSettingsWorkspace />
+  redirect('/dashboard')
 }

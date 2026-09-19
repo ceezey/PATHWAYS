@@ -20,6 +20,7 @@ import {
   createDemoBaseline,
   currentAccount,
   getDemoState,
+  migrateDemoState,
   recordDemoAccess,
   resetDemo,
   setDemoScenario,
@@ -56,6 +57,138 @@ describe('I01 shared demo contract', () => {
     expect(
       getDemoState().accounts.find((account) => account.id === 'project-manager')?.projectIds,
     ).toContain('futuremakers-ncr')
+  })
+  it('preserves M&E expense verification states across hydration', () => {
+    const snapshot = structuredClone(createDemoBaseline())
+    snapshot.expenses.push({
+      id: 'expense-hydration',
+      projectId: 'futuremakers-ncr',
+      activityId: 'act-fm-02',
+      amount: 100,
+      category: 'Materials',
+      date: '2026-09-16',
+      description: 'Hydration fixture',
+      status: 'For Verification',
+      reason: '',
+      counted: false,
+      submittedBy: 'project-officer',
+    })
+
+    const migrated = migrateDemoState(snapshot) as typeof snapshot
+    expect(migrated.expenses[0]?.status).toBe('For Verification')
+    migrated.expenses[0].status = 'Verified'
+    expect((migrateDemoState(migrated) as typeof snapshot).expenses[0]?.status).toBe('Verified')
+  })
+  it('resets only the saved FutureMakers budget outcomes once for another test run', () => {
+    const snapshot = structuredClone(createDemoBaseline())
+    const saved = snapshot.recommendations.find((record) => record.id === 'rec-fm-budget-burn')
+    const linkedAlert = snapshot.alerts.find((record) => record.id === 'alert-fm-budget-burn')
+    expect(saved).toBeDefined()
+    expect(linkedAlert).toBeDefined()
+    if (!saved || !linkedAlert) throw new Error('Budget outcome fixtures are unavailable.')
+
+    saved.outcome = 'Accept'
+    saved.outcomeNote = 'Previously submitted test decision.'
+    saved.reviewStatus = 'Actioned'
+    linkedAlert.lifecycleStatus = 'Resolved'
+    linkedAlert.actionNote = 'Previously submitted test decision.'
+    snapshot.decisionHistory[saved.id] = [
+      {
+        id: 'history-budget-test',
+        at: '2026-09-19T00:00:00.000Z',
+        actor: 'Project Manager',
+        state: 'Resolved',
+        note: 'Previously submitted test decision.',
+      },
+    ]
+    snapshot.notifications.push({
+      id: 'notice-budget-test',
+      at: '2026-09-19T00:00:00.000Z',
+      recipientId: 'project-manager',
+      recipient: 'Project Manager',
+      message: 'Previously submitted test decision.',
+      status: 'Delivered',
+      href: '/alerts?alert=alert-fm-budget-burn',
+    })
+    const existingExpense = {
+      id: 'expense-preserved',
+      projectId: 'futuremakers-ncr',
+      activityId: 'act-fm-02',
+      amount: 100,
+      category: 'Materials',
+      date: '2026-09-19',
+      description: 'Must survive the recommendation reset.',
+      status: 'Verified' as const,
+      reason: '',
+      counted: true,
+      submittedBy: 'project-officer',
+    }
+    snapshot.expenses.push(existingExpense)
+    ;(snapshot as Partial<typeof snapshot>).budgetOutcomeResetVersion = undefined
+
+    const migrated = migrateDemoState(snapshot) as typeof snapshot
+    expect(
+      migrated.recommendations.find((record) => record.id === 'rec-fm-budget-burn'),
+    ).toMatchObject({ reviewStatus: 'New' })
+    expect(
+      migrated.recommendations.find((record) => record.id === 'rec-fm-budget-burn')?.outcome,
+    ).toBeUndefined()
+    expect(migrated.alerts.find((record) => record.id === 'alert-fm-budget-burn')).toMatchObject({
+      lifecycleStatus: 'New',
+    })
+    expect(migrated.decisionHistory[saved.id]).toBeUndefined()
+    expect(migrated.notifications).not.toContainEqual(
+      expect.objectContaining({ id: 'notice-budget-test' }),
+    )
+    expect(migrated.expenses).toContainEqual(existingExpense)
+    expect(migrated.budgetOutcomeResetVersion).toBe(1)
+
+    const resubmitted = migrated.recommendations.find(
+      (record) => record.id === 'rec-fm-budget-burn',
+    )
+    if (!resubmitted) throw new Error('Migrated budget recommendation is unavailable.')
+    resubmitted.outcome = 'Partially Accept'
+    resubmitted.outcomeNote = 'New test decision.'
+    expect(
+      (migrateDemoState(migrated) as typeof snapshot).recommendations.find(
+        (record) => record.id === 'rec-fm-budget-burn',
+      ),
+    ).toMatchObject({ outcome: 'Partially Accept', outcomeNote: 'New test decision.' })
+  })
+  it('backfills workflow test fixtures without overwriting saved records or duplicating them', () => {
+    const snapshot = structuredClone(createDemoBaseline())
+    snapshot.activities = snapshot.activities.filter((record) => record.id !== 'act-fm-proof-lab')
+    snapshot.alerts = snapshot.alerts.filter(
+      (record) =>
+        record.id !== 'alert-fm-budget-burn' && record.id !== 'alert-fm-budget-concentration',
+    )
+    snapshot.recommendations = snapshot.recommendations.filter(
+      (record) => record.id !== 'rec-fm-budget-burn' && record.id !== 'rec-fm-budget-concentration',
+    )
+    snapshot.activities[0].title = 'Saved local title'
+
+    const migrated = migrateDemoState(snapshot) as typeof snapshot
+    const migratedAgain = migrateDemoState(migrated) as typeof snapshot
+
+    expect(migrated.activities.find((record) => record.id === 'act-fm-01')?.title).toBe(
+      'Saved local title',
+    )
+    expect(migrated.activities.filter((record) => record.id === 'act-fm-proof-lab')).toHaveLength(1)
+    expect(
+      migrated.alerts.filter(
+        (record) =>
+          record.id === 'alert-fm-budget-burn' || record.id === 'alert-fm-budget-concentration',
+      ),
+    ).toHaveLength(2)
+    expect(
+      migrated.recommendations.filter(
+        (record) =>
+          record.id === 'rec-fm-budget-burn' || record.id === 'rec-fm-budget-concentration',
+      ),
+    ).toHaveLength(2)
+    expect(
+      migratedAgain.activities.filter((record) => record.id === 'act-fm-proof-lab'),
+    ).toHaveLength(1)
   })
   it('notifies subscribers once per commit and detaches cleanly', () => {
     const listener = vi.fn()
@@ -182,9 +315,9 @@ describe('I02 local credential and scoped account flows', () => {
     expect(() => saveDemoAccount({ ...input, projectIds: ['youth-rise-western-samar'] })).toThrow(
       'scope',
     )
-    expect(() =>
-      saveDemoAccount({ ...input, email: 'project.officer@pathways.example' }),
-    ).toThrow('already')
+    expect(() => saveDemoAccount({ ...input, email: 'project.officer@pathways.example' })).toThrow(
+      'already',
+    )
     expect(managedDemoAccounts().some((a) => a.role === 'System Administrator')).toBe(false)
     switchDemoAccount('system-administrator')
     expect(() => deactivateDemoAccount('system-administrator')).toThrow('last active')
@@ -196,9 +329,7 @@ describe('I02 local credential and scoped account flows', () => {
       email: 'revised@demo.pathways.local',
       contact: '09171234567',
     })
-    expect(() => loginDemo('project.officer@pathways.example', DEMO_PASSWORD)).toThrow(
-      'incorrect',
-    )
+    expect(() => loginDemo('project.officer@pathways.example', DEMO_PASSWORD)).toThrow('incorrect')
     expect(loginDemo('revised@demo.pathways.local', DEMO_PASSWORD).name).toBe(
       'Fictional Revised Name',
     )

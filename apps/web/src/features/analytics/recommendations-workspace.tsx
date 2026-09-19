@@ -27,6 +27,7 @@ import {
 } from '@/components/ui/select'
 import { usePrototypeLabels } from '@/hooks/use-prototype-labels'
 import { usePrototypeRole } from '@/hooks/use-prototype-role'
+import { useSafeProjectSelection } from '@/hooks/use-safe-project-selection'
 import {
   canOutcome,
   decideRecommendation,
@@ -149,7 +150,7 @@ const RecommendationsWorkspaceContent = ({
 }: RecommendationsWorkspaceProps) => {
   const { labels } = usePrototypeLabels()
   const [recommendations, setRecommendations] = useState(initialRecommendations)
-  const [projectId, setProjectId] = useState(allValue)
+  const [projectId, setProjectId] = useSafeProjectSelection(projects.map((project) => project.id))
   const [reviewStatus, setReviewStatus] = useState(allValue)
   const [selectedRecommendationId, setSelectedRecommendationId] = useState(
     initialRecommendations.some((item) => item.id === initialRecommendationId)
@@ -165,7 +166,7 @@ const RecommendationsWorkspaceContent = ({
     () =>
       recommendations.filter((recommendation) => {
         const alert = alerts.find((item) => item.id === recommendation.alertId)
-        const matchesProject = projectId === allValue ? true : alert?.projectId === projectId
+        const matchesProject = alert?.projectId === projectId
         const matchesStatus =
           reviewStatus === allValue ? true : recommendation.reviewStatus === reviewStatus
 
@@ -237,7 +238,6 @@ const RecommendationsWorkspaceContent = ({
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value={allValue}>All projects</SelectItem>
               {projects.map((project) => (
                 <SelectItem key={project.id} value={project.id}>
                   {project.title}

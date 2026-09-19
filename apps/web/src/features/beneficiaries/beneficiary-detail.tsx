@@ -15,10 +15,10 @@ import {
   UserCheck,
 } from 'lucide-react'
 import Link from 'next/link'
+import { useSearchParams } from 'next/navigation'
 import { useMemo, useState } from 'react'
 import { toast } from 'sonner'
 
-import { ProgressBar } from '@/components/pathways/progress-bar'
 import { StatusBadge } from '@/components/pathways/status-badge'
 import { Button } from '@/components/ui/button'
 import {
@@ -38,7 +38,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Textarea } from '@/components/ui/textarea'
+import { usePrototypeRole } from '@/hooks/use-prototype-role'
+import { hasAction } from '@/lib/demo-state/permissions'
 import type {
   Activity,
   BeneficiaryAssessmentRecord,
@@ -78,6 +81,8 @@ export const BeneficiaryDetail = ({
   stages,
   mediaProof,
 }: BeneficiaryDetailProps) => {
+  const { role } = usePrototypeRole()
+  const searchParams = useSearchParams()
   const [participation, setParticipation] = useState(beneficiary.participation)
   const [notes, setNotes] = useState(beneficiary.notes)
   const [enrollmentStatus, setEnrollmentStatus] = useState(beneficiary.enrollmentStatus)
@@ -101,6 +106,7 @@ export const BeneficiaryDetail = ({
     note: '',
   })
   const [nextStatus, setNextStatus] = useState<BeneficiaryEnrollmentStatus>(enrollmentStatus)
+  const canEditBeneficiary = hasAction(role, 'beneficiaries.edit')
 
   const currentStage = useMemo(
     () => deriveCurrentStage(participation, stages, activities),
@@ -110,10 +116,61 @@ export const BeneficiaryDetail = ({
     () => progressionRate(participation, stages, activities),
     [activities, participation, stages],
   )
+  const orderedStages = useMemo(
+    () => stages.slice().sort((first, second) => first.order - second.order),
+    [stages],
+  )
+  const currentStageIndex = currentStage
+    ? orderedStages.findIndex((stage) => stage.id === currentStage.id)
+    : -1
+  const stageDisplayCode = (stage: JourneyStageConfig) => {
+    const index = orderedStages.findIndex((candidate) => candidate.id === stage.id)
+    return index >= 0 ? `J${index + 1}` : stage.code
+  }
 
   const latestEnrollment = beneficiary.enrollments.find((enrollment) =>
     beneficiary.projectIds.includes(enrollment.projectId),
   )
+  const selectedStageActivities = selectedStage
+    ? activities.filter((activity) => selectedStage.mappedActivityIds.includes(activity.id))
+    : []
+  const selectedStageAssessments = selectedStage
+    ? beneficiary.assessments.filter((assessment) => assessment.stageId === selectedStage.id)
+    : []
+  const selectedStageNotes = selectedStage
+    ? notes.filter((note) => note.stageId === selectedStage.id)
+    : []
+  const unlinkedNotes = notes.filter((note) => !stages.some((stage) => stage.id === note.stageId))
+  const requestedReturnTo = searchParams?.get('returnTo')
+  const directoryHref =
+    requestedReturnTo &&
+    (requestedReturnTo === '/beneficiaries' || requestedReturnTo.startsWith('/beneficiaries?'))
+      ? requestedReturnTo
+      : '/beneficiaries'
+
+  const openNoteForSelectedStage = () => {
+    if (!selectedStage || !canEditBeneficiary) return
+    setNoteDraft((current) => ({ ...current, stageId: selectedStage.id }))
+    setNoteOpen(true)
+  }
+
+  const openParticipationForSelectedStage = () => {
+    if (!selectedStage || !canEditBeneficiary || selectedStageActivities.length === 0) return
+    setParticipationDraft((current) => ({
+      ...current,
+      activityId: selectedStageActivities.some((activity) => activity.id === current.activityId)
+        ? current.activityId
+        : (selectedStageActivities[0]?.id ?? ''),
+    }))
+    setParticipationOpen(true)
+  }
+
+  const openAssessmentForSelectedStage = () => {
+    const assessment = selectedStageAssessments[0]
+    if (!assessment) return
+    setSelectedAssessment(assessment)
+    setAssessmentOpen(true)
+  }
 
   const addNote = () => {
     if (!noteDraft.note.trim()) {
@@ -210,37 +267,40 @@ export const BeneficiaryDetail = ({
           </div>
         </div>
         <div className="flex flex-wrap gap-2">
-          <Button asChild variant="outline">
-            <Link href="/beneficiaries">
-              <ArrowLeft className="mr-2 h-4 w-4" aria-hidden="true" />
-              Directory
+          <Button asChild size="icon" title="Back to Beneficiaries" variant="outline">
+            <Link aria-label="Back to Beneficiaries" href={directoryHref}>
+              <ArrowLeft className="h-4 w-4" aria-hidden="true" />
             </Link>
           </Button>
-          <Button variant="outline" onClick={() => setStatusOpen(true)}>
-            <UserCheck className="mr-2 h-4 w-4" aria-hidden="true" />
-            Update status
-          </Button>
-          <Button variant="outline" onClick={() => setNoteOpen(true)}>
-            <MessageSquarePlus className="mr-2 h-4 w-4" aria-hidden="true" />
-            Add note
-          </Button>
-          <Button onClick={() => setParticipationOpen(true)}>
-            <ClipboardCheck className="mr-2 h-4 w-4" aria-hidden="true" />
-            Record participation
-          </Button>
+          {canEditBeneficiary ? (
+            <Button
+              aria-label="Update enrollment status"
+              onClick={() => setStatusOpen(true)}
+              size="icon"
+              title="Update enrollment status"
+              type="button"
+              variant="outline"
+            >
+              <UserCheck className="h-4 w-4" aria-hidden="true" />
+            </Button>
+          ) : null}
         </div>
       </section>
 
-      <div className="grid gap-6 xl:grid-cols-[360px_minmax(0,1fr)]">
-        <aside className="space-y-4 rounded-lg border border-border bg-card p-5">
+      <div className="grid min-w-0 gap-6 xl:grid-cols-[360px_minmax(0,1fr)]">
+        <aside className="min-w-0 space-y-4 rounded-lg border border-border bg-card p-5">
           <div className="flex items-center justify-between gap-3">
             <h2 className="text-lg font-semibold text-foreground">Profile summary</h2>
-            <Button asChild size="sm" variant="outline">
-              <Link href={`/beneficiaries/${beneficiary.id}/edit`}>
-                <Pencil className="mr-2 h-4 w-4" aria-hidden="true" />
-                Edit Profile
-              </Link>
-            </Button>
+            {canEditBeneficiary ? (
+              <Button asChild size="icon" title="Edit beneficiary profile" variant="outline">
+                <Link
+                  aria-label="Edit beneficiary profile"
+                  href={`/beneficiaries/${beneficiary.id}/edit`}
+                >
+                  <Pencil className="h-4 w-4" aria-hidden="true" />
+                </Link>
+              </Button>
+            ) : null}
           </div>
           <div className="grid gap-3 text-sm">
             <SummaryRow label="Beneficiary code" value={beneficiary.code} />
@@ -287,7 +347,7 @@ export const BeneficiaryDetail = ({
           </div>
         </aside>
 
-        <div className="space-y-6">
+        <div className="min-w-0 space-y-6">
           {beneficiary.sex === 'Prefer not to say' ||
           beneficiary.disabilityStatus === 'Not disclosed' ? (
             <div className="rounded-lg border border-warning/30 bg-warning-subtle p-4 text-sm text-warning">
@@ -295,223 +355,246 @@ export const BeneficiaryDetail = ({
               disclosed for this profile.
             </div>
           ) : null}
-          <section className="rounded-lg border border-border bg-card p-5">
-            <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
-              <div>
-                <h2 className="text-lg font-semibold text-foreground">Journey timeline</h2>
-                <p className="mt-1 text-sm text-muted-foreground">
-                  Current stage is computed from beneficiary participation, activity records, and
-                  activity-to-stage mappings.
-                </p>
-              </div>
-              <div className="rounded-sm border border-border bg-surface-subtle p-3 text-sm">
-                <p className="text-muted-foreground">Current computed stage</p>
-                <p className="mt-1 font-semibold text-foreground">
-                  {currentStage?.code} · {currentStage?.name}
-                </p>
-              </div>
+          <section aria-labelledby="beneficiary-information-title" className="min-w-0 space-y-4">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wide text-primary">
+                Beneficiary record
+              </p>
+              <h2
+                className="mt-1 text-xl font-semibold text-foreground"
+                id="beneficiary-information-title"
+              >
+                Beneficiary Information
+              </h2>
             </div>
-            <div className="mt-5">
-              <ProgressBar label="Journey progression" value={progress} tone="success" />
-            </div>
-            <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-              {stages
-                .slice()
-                .sort((first, second) => first.order - second.order)
-                .map((stage) => {
-                  const reached = participation.some(
-                    (record) =>
-                      stageForActivity(record.activityId, stages, activities)?.id === stage.id,
-                  )
-                  const active = currentStage?.id === stage.id
 
-                  return (
-                    <button
-                      key={stage.id}
-                      type="button"
-                      onClick={() => setSelectedStage(stage)}
-                      className={`rounded-sm border p-4 ${
-                        active
-                          ? 'border-primary bg-primary-subtle'
-                          : reached
-                            ? 'border-success/30 bg-success-subtle'
-                            : 'border-border bg-surface-subtle'
-                      }`}
-                    >
-                      <div className="flex items-start justify-between gap-3">
-                        <div>
-                          <p className="font-semibold text-foreground">{stage.code}</p>
-                          <p className="mt-1 text-sm text-muted-foreground">{stage.name}</p>
-                        </div>
-                        <StatusBadge tone={stageTypeTone(stage.type)}>{stage.type}</StatusBadge>
-                      </div>
-                      <span className="mt-3 block text-xs font-medium">Open stage details</span>
-                    </button>
-                  )
-                })}
-            </div>
-            <p className="mt-4 rounded-sm border border-info/25 bg-info-subtle p-3 text-sm leading-6 text-info">
-              Follow-up stages are open-ended and reviewed by people; they are not strict timeline
-              compliance gates.
-            </p>
-          </section>
+            <Tabs className="min-w-0" defaultValue="journey">
+              <TabsList
+                className="flex w-full overflow-x-auto"
+                aria-label="Beneficiary information"
+              >
+                <TabsTrigger value="journey">Journey tracking</TabsTrigger>
+                <TabsTrigger value="media">Media proof</TabsTrigger>
+                <TabsTrigger value="participation">Participation history</TabsTrigger>
+              </TabsList>
 
-          <div className="grid gap-6 xl:grid-cols-2">
-            <section className="rounded-lg border border-border bg-card p-5">
-              <div className="flex items-center justify-between gap-3">
-                <h2 className="text-lg font-semibold text-foreground">Assessments</h2>
-                {beneficiary.assessments.length > 0 ? (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    type="button"
-                    onClick={() => {
-                      setSelectedAssessment(beneficiary.assessments[0] ?? null)
-                      setAssessmentOpen(true)
-                    }}
-                  >
-                    <FileText className="mr-2 h-4 w-4" aria-hidden="true" />
-                    View assessment
-                  </Button>
-                ) : (
-                  <StatusBadge tone="neutral">No assessment available</StatusBadge>
-                )}
-              </div>
-              <div className="mt-4 space-y-3">
-                {beneficiary.assessments.length > 0 ? (
-                  beneficiary.assessments.map((assessment) => (
-                    <button
-                      key={assessment.id}
-                      className="w-full rounded-sm border border-border bg-background p-4 text-left transition-colors hover:bg-surface-subtle"
-                      type="button"
-                      onClick={() => {
-                        setSelectedAssessment(assessment)
-                        setAssessmentOpen(true)
-                      }}
-                    >
-                      <p className="font-medium text-foreground">{assessment.title}</p>
+              <TabsContent value="journey">
+                <section className="min-w-0 overflow-hidden rounded-lg border border-border bg-card">
+                  <div className="flex flex-col gap-3 border-b border-border bg-surface-subtle p-4 sm:flex-row sm:items-start sm:justify-between sm:p-5">
+                    <div>
+                      <h3 className="text-lg font-semibold text-foreground">Journey tracker</h3>
                       <p className="mt-1 text-sm text-muted-foreground">
-                        {assessment.score}% · {formatDate(assessment.assessedAt)}
+                        Select a journey stage to show its details and actions below the tracker.
                       </p>
-                    </button>
-                  ))
-                ) : (
-                  <p className="rounded-sm border border-border bg-surface-subtle p-4 text-sm text-muted-foreground">
-                    No assessment records are available for this sample profile.
+                    </div>
+                    <div className="flex flex-wrap items-center gap-2 text-sm">
+                      <StatusBadge tone="success">{progress}% progressed</StatusBadge>
+                      <StatusBadge tone="neutral">
+                        {currentStage ? stageDisplayCode(currentStage) : 'No stage'} ·{' '}
+                        {currentStage?.name ?? 'Unmapped'}
+                      </StatusBadge>
+                    </div>
+                  </div>
+
+                  <div className="overflow-x-auto p-4 sm:p-5">
+                    <ol
+                      className="flex min-w-max items-start"
+                      aria-label="Beneficiary journey stages"
+                    >
+                      {orderedStages.map((stage, index) => {
+                        const reached = currentStageIndex >= 0 && index < currentStageIndex
+                        const active = currentStage?.id === stage.id
+                        const selected = selectedStage?.id === stage.id
+                        const locked = currentStageIndex >= 0 && index > currentStageIndex
+                        const detailId = `journey-stage-detail-${stage.id}`
+
+                        return (
+                          <li className="flex items-start" key={stage.id}>
+                            <button
+                              aria-controls={detailId}
+                              aria-current={active ? 'step' : undefined}
+                              aria-expanded={selected}
+                              aria-label={`${stageDisplayCode(stage)} ${stage.name}: ${active ? 'Current stage' : reached ? 'Reached' : 'Locked'}${selected ? ', details shown' : ''}`}
+                              className="group flex w-36 flex-col items-center rounded-md px-2 py-2 text-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 sm:w-40"
+                              disabled={locked}
+                              onClick={() => setSelectedStage(selected ? null : stage)}
+                              type="button"
+                            >
+                              <span
+                                className={`flex h-10 w-10 items-center justify-center rounded-full border-2 text-xs font-semibold transition-colors ${
+                                  selected
+                                    ? 'border-primary bg-primary text-primary-foreground'
+                                    : active
+                                      ? 'border-primary bg-primary-subtle text-primary'
+                                      : reached
+                                        ? 'border-success bg-success-subtle text-success'
+                                        : 'border-border bg-background text-muted-foreground'
+                                }`}
+                              >
+                                {stageDisplayCode(stage)}
+                              </span>
+                              <span className="mt-2 max-w-32 text-sm font-medium leading-5 text-foreground">
+                                {stage.name}
+                              </span>
+                              <span className="mt-1 text-xs text-muted-foreground">
+                                {active ? 'Current stage' : reached ? 'Reached' : 'Locked'}
+                              </span>
+                            </button>
+                            {index < orderedStages.length - 1 ? (
+                              <span
+                                aria-hidden="true"
+                                className={`mt-7 h-0.5 w-8 shrink-0 sm:w-12 ${
+                                  index < currentStageIndex ? 'bg-success' : 'bg-border'
+                                }`}
+                              />
+                            ) : null}
+                          </li>
+                        )
+                      })}
+                    </ol>
+                  </div>
+
+                  {selectedStage ? (
+                    <div
+                      className="space-y-5 border-t border-border bg-background p-4 sm:p-5"
+                      id={`journey-stage-detail-${selectedStage.id}`}
+                    >
+                      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                        <div>
+                          <div className="flex flex-wrap items-center gap-2">
+                            <h4 className="font-semibold text-foreground">
+                              {stageDisplayCode(selectedStage)} · {selectedStage.name}
+                            </h4>
+                            <StatusBadge tone={stageTypeTone(selectedStage.type)}>
+                              {selectedStage.type}
+                            </StatusBadge>
+                          </div>
+                          <p className="mt-2 max-w-3xl text-sm leading-6 text-muted-foreground">
+                            {selectedStage.description}
+                          </p>
+                        </div>
+                        <div className="flex shrink-0 flex-wrap gap-2 sm:justify-end">
+                          {canEditBeneficiary ? (
+                            <Button
+                              aria-label="Record participation"
+                              disabled={selectedStageActivities.length === 0}
+                              onClick={openParticipationForSelectedStage}
+                              size="icon"
+                              title="Record participation"
+                              type="button"
+                            >
+                              <ClipboardCheck className="h-4 w-4" aria-hidden="true" />
+                            </Button>
+                          ) : null}
+                          <Button
+                            aria-label="View assessment"
+                            disabled={selectedStageAssessments.length === 0}
+                            onClick={openAssessmentForSelectedStage}
+                            size="icon"
+                            title="View assessment"
+                            type="button"
+                            variant="outline"
+                          >
+                            <FileText className="h-4 w-4" aria-hidden="true" />
+                          </Button>
+                          {canEditBeneficiary ? (
+                            <Button
+                              aria-label="Add note"
+                              onClick={openNoteForSelectedStage}
+                              size="icon"
+                              title="Add note"
+                              type="button"
+                              variant="outline"
+                            >
+                              <MessageSquarePlus className="h-4 w-4" aria-hidden="true" />
+                            </Button>
+                          ) : null}
+                        </div>
+                      </div>
+
+                      <div className="grid gap-4 lg:grid-cols-2">
+                        <StageActivityList
+                          activities={selectedStageActivities}
+                          participation={participation}
+                        />
+                        <JourneyNoteList notes={selectedStageNotes} title="Journey notes" />
+                      </div>
+                    </div>
+                  ) : null}
+
+                  <p className="border-t border-info/20 bg-info-subtle p-4 text-sm leading-6 text-info sm:px-5">
+                    Follow-up stages are open-ended and reviewed by people; they are not strict
+                    timeline compliance gates.
                   </p>
-                )}
-              </div>
-            </section>
+                </section>
 
-            <section className="rounded-lg border border-border bg-card p-5">
-              <h2 className="text-lg font-semibold text-foreground">Follow-up status</h2>
-              <div className="mt-4 rounded-sm border border-border bg-surface-subtle p-4">
-                <p className="font-medium text-foreground">
-                  {latestEnrollment?.followUpStatus ?? 'Not due'}
-                </p>
-                <p className="mt-2 text-sm leading-6 text-muted-foreground">
-                  Follow-up status is reviewed with participation history and notes. It is displayed
-                  here for review and does not change shared records.
-                </p>
-              </div>
-            </section>
-          </div>
+                <section className="mt-4 rounded-lg border border-border bg-card p-5">
+                  <h3 className="text-lg font-semibold text-foreground">Follow-up status</h3>
+                  <div className="mt-3 rounded-sm border border-border bg-surface-subtle p-4">
+                    <p className="font-medium text-foreground">
+                      {latestEnrollment?.followUpStatus ?? 'Not due'}
+                    </p>
+                    <p className="mt-2 text-sm leading-6 text-muted-foreground">
+                      Reviewed with participation history and journey notes; it does not change
+                      shared records from this view.
+                    </p>
+                  </div>
+                </section>
 
-          <BeneficiaryMediaProof
-            activities={activities}
-            beneficiaryId={beneficiary.id}
-            mediaProof={mediaProof}
-            projectIds={beneficiary.projectIds}
-            projects={projects}
-          />
+                {unlinkedNotes.length > 0 ? (
+                  <div className="mt-4">
+                    <JourneyNoteList
+                      description="Legacy notes without a verified journey-stage association are preserved here and are not assigned automatically."
+                      notes={unlinkedNotes}
+                      title="Unlinked notes"
+                    />
+                  </div>
+                ) : null}
+              </TabsContent>
 
-          <section className="grid gap-6 xl:grid-cols-2">
-            <RecordList
-              activities={activities}
-              participation={participation}
-              stages={stages}
-              title="Participation history"
-            />
-            <NoteList notes={notes} stages={stages} />
+              <TabsContent value="media">
+                <BeneficiaryMediaProof
+                  activities={activities}
+                  beneficiaryId={beneficiary.id}
+                  canManage={canEditBeneficiary}
+                  mediaProof={mediaProof}
+                  projectIds={beneficiary.projectIds}
+                  projects={projects}
+                />
+              </TabsContent>
+
+              <TabsContent value="participation">
+                <RecordList
+                  activities={activities}
+                  participation={participation}
+                  stages={stages}
+                  title="Participation history"
+                />
+              </TabsContent>
+            </Tabs>
           </section>
         </div>
       </div>
-
-      <Dialog
-        open={Boolean(selectedStage)}
-        onOpenChange={(open) => !open && setSelectedStage(null)}
-      >
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>
-              {selectedStage?.code} · {selectedStage?.name}
-            </DialogTitle>
-            <DialogDescription>{selectedStage?.description}</DialogDescription>
-          </DialogHeader>
-          {selectedStage ? (
-            <div className="space-y-4 text-sm">
-              <p>
-                Required activity completion:{' '}
-                {
-                  participation.filter(
-                    (record) =>
-                      selectedStage.mappedActivityIds.includes(record.activityId) &&
-                      record.attendanceStatus !== 'Absent',
-                  ).length
-                }
-                /{selectedStage.mappedActivityIds.length}
-              </p>
-              <ul className="space-y-2">
-                {activities
-                  .filter((activity) => selectedStage.mappedActivityIds.includes(activity.id))
-                  .map((activity) => (
-                    <li className="rounded border p-3" key={activity.id}>
-                      <strong>{activity.title}</strong>
-                      <br />
-                      Participation:{' '}
-                      {participation.find((record) => record.activityId === activity.id)
-                        ?.participatedAt ?? 'Not started'}
-                    </li>
-                  ))}
-              </ul>
-              {beneficiary.assessments
-                .filter((assessment) => assessment.stageId === selectedStage.id)
-                .map((assessment) => (
-                  <p className="rounded border p-3" key={assessment.id}>
-                    Assessment: {assessment.title} · {assessment.score}%
-                  </p>
-                ))}
-              <p className="rounded border border-info/25 bg-info-subtle p-3 text-info">
-                Data ripple: encoded/imported participation → journey stage calculation →
-                beneficiary and analytics views.
-              </p>
-            </div>
-          ) : null}
-        </DialogContent>
-      </Dialog>
 
       <Dialog open={noteOpen} onOpenChange={setNoteOpen}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Add beneficiary note</DialogTitle>
-            <DialogDescription>Add context for the selected journey stage.</DialogDescription>
+            <DialogDescription>
+              Add context for{' '}
+              {selectedStage ? stageDisplayCode(selectedStage) : 'the selected journey'} ·{' '}
+              {selectedStage?.name ?? 'Journey stage'}.
+            </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
-            <Select
-              value={noteDraft.stageId}
-              onValueChange={(value) => setNoteDraft((current) => ({ ...current, stageId: value }))}
-            >
-              <SelectTrigger aria-label="Journey stage context">
-                <SelectValue placeholder="Stage context" />
-              </SelectTrigger>
-              <SelectContent>
-                {stages.map((stage) => (
-                  <SelectItem key={stage.id} value={stage.id}>
-                    {stage.code} · {stage.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <SummaryRow
+              label="Journey stage context"
+              value={
+                selectedStage
+                  ? `${stageDisplayCode(selectedStage)} · ${selectedStage.name}`
+                  : undefined
+              }
+            />
             <Textarea
               aria-label="Beneficiary note"
               className="min-h-28"
@@ -578,7 +661,9 @@ export const BeneficiaryDetail = ({
           <DialogHeader>
             <DialogTitle>Record participation</DialogTitle>
             <DialogDescription>
-              Select the activity and attendance outcome for this participation record.
+              Record an activity and attendance outcome for{' '}
+              {selectedStage ? stageDisplayCode(selectedStage) : 'the selected'}
+              {' journey stage'}.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
@@ -592,7 +677,7 @@ export const BeneficiaryDetail = ({
                 <SelectValue placeholder="Select activity" />
               </SelectTrigger>
               <SelectContent>
-                {activities.map((activity) => (
+                {selectedStageActivities.map((activity) => (
                   <SelectItem key={activity.id} value={activity.id}>
                     {activity.title}
                   </SelectItem>
@@ -748,35 +833,73 @@ const RecordList = ({
   </section>
 )
 
-const NoteList = ({
-  notes,
-  stages,
-}: { notes: BeneficiaryNoteRecord[]; stages: JourneyStageConfig[] }) => (
-  <section className="rounded-lg border border-border bg-card p-5">
-    <h2 className="text-lg font-semibold text-foreground">Notes</h2>
-    <div className="mt-4 space-y-3">
-      {notes.length > 0 ? (
-        notes.map((note) => {
-          const stage = stages.find((item) => item.id === note.stageId)
+const StageActivityList = ({
+  activities,
+  participation,
+}: {
+  activities: Activity[]
+  participation: BeneficiaryParticipationRecord[]
+}) => (
+  <section className="rounded-sm border border-border bg-card p-4">
+    <h5 className="font-semibold text-foreground">Stage activities</h5>
+    <div className="mt-3 space-y-2">
+      {activities.length > 0 ? (
+        activities.map((activity) => {
+          const participationRecord = participation.find(
+            (record) => record.activityId === activity.id,
+          )
 
           return (
-            <div key={note.id} className="rounded-sm border border-border bg-surface-subtle p-4">
-              <div className="flex flex-wrap items-center gap-2">
-                <StatusBadge tone="neutral">{note.visibility}</StatusBadge>
-                {stage ? (
-                  <StatusBadge tone={stageTypeTone(stage.type)}>{stage.code}</StatusBadge>
-                ) : null}
-              </div>
-              <p className="mt-3 text-sm leading-6 text-foreground">{note.note}</p>
-              <p className="mt-3 text-xs text-muted-foreground">
-                {note.author} · {formatDate(note.createdAt)}
+            <div
+              className="rounded-sm border border-border bg-surface-subtle p-3"
+              key={activity.id}
+            >
+              <p className="text-sm font-medium text-foreground">{activity.title}</p>
+              <p className="mt-1 text-xs text-muted-foreground">
+                {participationRecord
+                  ? `${formatDate(participationRecord.participatedAt)} · ${participationRecord.attendanceStatus}`
+                  : 'Not started'}
               </p>
             </div>
           )
         })
       ) : (
-        <p className="rounded-sm border border-border bg-surface-subtle p-4 text-sm text-muted-foreground">
-          No notes have been added for this profile.
+        <p className="text-sm leading-6 text-muted-foreground">
+          No activities are mapped to this journey stage.
+        </p>
+      )}
+    </div>
+  </section>
+)
+
+const JourneyNoteList = ({
+  description,
+  notes,
+  title,
+}: {
+  description?: string
+  notes: BeneficiaryNoteRecord[]
+  title: string
+}) => (
+  <section className="rounded-sm border border-border bg-card p-4">
+    <h5 className="font-semibold text-foreground">{title}</h5>
+    {description ? (
+      <p className="mt-1 text-sm leading-6 text-muted-foreground">{description}</p>
+    ) : null}
+    <div className="mt-3 space-y-2">
+      {notes.length > 0 ? (
+        notes.map((note) => (
+          <div className="rounded-sm border border-border bg-surface-subtle p-3" key={note.id}>
+            <StatusBadge tone="neutral">{note.visibility}</StatusBadge>
+            <p className="mt-2 text-sm leading-6 text-foreground">{note.note}</p>
+            <p className="mt-2 text-xs text-muted-foreground">
+              {note.author} · {formatDate(note.createdAt)}
+            </p>
+          </div>
+        ))
+      ) : (
+        <p className="text-sm leading-6 text-muted-foreground">
+          No notes have been added for this journey stage.
         </p>
       )}
     </div>

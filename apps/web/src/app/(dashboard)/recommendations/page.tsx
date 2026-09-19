@@ -1,11 +1,11 @@
-import { RecommendationsWorkspace } from '@/features/analytics/recommendations-workspace'
+'use client'
 
-export default async function RecommendationsPage({
-  searchParams,
-}: {
-  searchParams: Promise<{ recommendation?: string }>
-}) {
-  const { recommendation } = await searchParams
+import { useEffect } from 'react'
 
-  return <RecommendationsWorkspace initialRecommendationId={recommendation} />
+export default function RecommendationsPage() {
+  useEffect(() => {
+    window.location.replace('/alerts')
+  }, [])
+
+  return <output>Opening Rule-Based Alerts…</output>
 }

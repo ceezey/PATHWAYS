@@ -1,19 +1,6 @@
 'use client'
 
-import {
-  ArrowLeft,
-  CheckCircle2,
-  Eye,
-  FileText,
-  Flag,
-  Loader2,
-  Plus,
-  Receipt,
-  RotateCcw,
-  Save,
-  ShieldCheck,
-  SlidersHorizontal,
-} from 'lucide-react'
+import { ArrowLeft, Eye, FileText, Loader2, Plus, Receipt, Save } from 'lucide-react'
 import Link from 'next/link'
 import { type ReactNode, useEffect, useMemo, useState } from 'react'
 import { toast } from 'sonner'
@@ -56,6 +43,7 @@ import type {
   EvidenceReviewStatus,
   ExpenseRecord,
   IndicatorStatus,
+  JourneyStageConfig,
   LiquidationStatus,
   ProjectDetail,
   ProjectIndicator,
@@ -73,7 +61,6 @@ import {
   calculateBudgetUtilization,
   calculateExpenseTotal,
   calculateRemainingBudget,
-  formalEvaluationSchema,
   logExpenseSchema,
   recommendationOutcomeSchema,
   rejectionReasonSchema,
@@ -223,6 +210,7 @@ const LegacyProjectPhaseFiveWorkspace = ({
   const [evidence, setEvidence] = useState<EvidenceRecord[]>([])
   const [indicators, setIndicators] = useState<ProjectIndicator[]>([])
   const [evaluation, setEvaluation] = useState<EvaluationRecord | null>(null)
+  const [journeyStages, setJourneyStages] = useState<JourneyStageConfig[]>([])
   const [budgets, setBudgets] = useState<BudgetRecord[]>([])
   const [actualSpending, setActualSpending] = useState(0)
   const [alerts, setAlerts] = useState<AlertRecord[]>([])
@@ -237,8 +225,6 @@ const LegacyProjectPhaseFiveWorkspace = ({
   const [previewEvidence, setPreviewEvidence] = useState<EvidenceRecord | null>(null)
   const [addIndicatorOpen, setAddIndicatorOpen] = useState(false)
   const [annotationOpen, setAnnotationOpen] = useState(false)
-  const [basisOpen, setBasisOpen] = useState(false)
-  const [formalEvaluationOpen, setFormalEvaluationOpen] = useState(false)
   const [outcomeRecommendation, setOutcomeRecommendation] = useState<RecommendationRecord | null>(
     null,
   )
@@ -258,6 +244,7 @@ const LegacyProjectPhaseFiveWorkspace = ({
       pathwaysClient.getEvidence(projectId),
       pathwaysClient.getProjectIndicators(projectId),
       pathwaysClient.getEvaluation(projectId),
+      pathwaysClient.getJourneyStages(projectId),
       pathwaysClient.getBudgets(projectId),
       pathwaysClient.getAlerts(projectId),
       pathwaysClient.getRecommendations(),
@@ -272,6 +259,7 @@ const LegacyProjectPhaseFiveWorkspace = ({
           evidenceRecords,
           indicatorRecords,
           evaluationRecord,
+          journeyStageRecords,
           budgetRecords,
           alertRecords,
           recommendationRecords,
@@ -288,6 +276,7 @@ const LegacyProjectPhaseFiveWorkspace = ({
           setEvidence(evidenceRecords)
           setIndicators(indicatorRecords)
           setEvaluation(evaluationRecord)
+          setJourneyStages(journeyStageRecords)
           setBudgets(budgetRecords)
           setActualSpending(budgetRecords[0]?.actualSpending ?? 0)
           setAlerts(alertRecords)
@@ -323,10 +312,9 @@ const LegacyProjectPhaseFiveWorkspace = ({
   const remainingBudget = calculateRemainingBudget(plannedAmount, actualSpending)
   const utilization = calculateBudgetUtilization(plannedAmount, actualSpending)
   const expenseTotal = calculateExpenseTotal(expenses)
-  const canConfigureWeights = can(role, 'monitor_evaluate.full')
   const canReviewEvidence = can(role, 'evidence.review')
+  const canAddEvaluationAnnotation = can(role, 'monitor_evaluate.full')
   const canAddIndicator = can(role, 'indicators.manage')
-  const canSubmitFormalEvaluation = can(role, 'evaluation.formal.submit')
   const canLogRecommendationOutcome = can(role, 'alerts.outcome.log')
   const canLogExpense = can(role, 'budget.expense.log')
   const canVerifyExpense = can(role, 'budget.expense.verify')
@@ -414,53 +402,6 @@ const LegacyProjectPhaseFiveWorkspace = ({
     setFormState({})
     setAnnotationOpen(false)
     toast.success('Annotation added.')
-  }
-
-  const saveFormalEvaluation = () => {
-    if (!canSubmitFormalEvaluation) {
-      toast.error('Formal evaluation submission is not available for this role.')
-      return
-    }
-
-    const result = formalEvaluationSchema.safeParse(formState)
-
-    if (!result.success || !evaluation) {
-      fieldError(result.error?.issues[0]?.message ?? 'Invalid evaluation.')
-      return
-    }
-
-    // TODO(BACKEND): Save formal evaluation, annotations, and evaluation weights.
-    setEvaluation({
-      ...evaluation,
-      currentScore: result.data.score,
-      history: [
-        {
-          id: `evaluation-${Date.now().toString(36)}`,
-          score: result.data.score,
-          reviewer: role,
-          reviewedAt: today(),
-          note: result.data.note,
-        },
-        ...evaluation.history,
-      ],
-    })
-    setFormState({})
-    setFormalEvaluationOpen(false)
-    toast.success('Formal evaluation saved.')
-  }
-
-  const updateWeight = (weightId: string, value: number) => {
-    if (!evaluation) {
-      return
-    }
-
-    // TODO(BACKEND): Save formal evaluation, annotations, and evaluation weights.
-    setEvaluation({
-      ...evaluation,
-      components: evaluation.components.map((component) =>
-        component.id === weightId ? { ...component, value } : component,
-      ),
-    })
   }
 
   const logOutcome = () => {
@@ -667,20 +608,15 @@ const LegacyProjectPhaseFiveWorkspace = ({
       ) : null}
       {view === 'monitor-evaluate' && evaluation ? (
         <EvaluationView
-          canConfigureWeights={canConfigureWeights}
+          activities={activities}
+          budget={budgets[0] ?? null}
+          canAddAnnotation={canAddEvaluationAnnotation}
           evaluation={evaluation}
-          evidenceCount={evidence.length}
-          canSubmitFormalEvaluation={canSubmitFormalEvaluation}
           onAddAnnotation={() => {
             setFormState({})
             setAnnotationOpen(true)
           }}
-          onFormalEvaluation={() => {
-            setFormState({ score: String(evaluation.currentScore), note: '' })
-            setFormalEvaluationOpen(true)
-          }}
-          onViewBasis={() => setBasisOpen(true)}
-          onWeightChange={updateWeight}
+          project={project}
         />
       ) : null}
       {view === 'budget' ? (
@@ -817,63 +753,6 @@ const LegacyProjectPhaseFiveWorkspace = ({
             </Button>
             <Button onClick={addAnnotation} type="button">
               Add Annotation
-            </Button>
-          </DialogFooter>
-        </div>
-      </SimpleDialog>
-
-      <SimpleDialog
-        description="Evaluation basis is progress-based, evidence-supported, and human-reviewed."
-        onOpenChange={setBasisOpen}
-        open={basisOpen}
-        title="Evaluation Basis"
-      >
-        {evaluation ? (
-          <div className="space-y-4 text-sm leading-6 text-muted-foreground">
-            <p>
-              Current score blends journey progression, indicator achievement, and supporting
-              evidence quality. Review the supporting records before using the score in a decision.
-            </p>
-            {evaluation.components.map((component) => (
-              <div
-                key={component.id}
-                className="rounded-sm border border-border bg-surface-subtle p-3"
-              >
-                <p className="font-medium text-foreground">{component.label}</p>
-                <p>{component.value}% weight in the current evaluation model.</p>
-              </div>
-            ))}
-          </div>
-        ) : null}
-      </SimpleDialog>
-
-      <SimpleDialog
-        description="Save a formal progress review for this project."
-        onOpenChange={setFormalEvaluationOpen}
-        open={formalEvaluationOpen}
-        title="Formal Evaluation"
-      >
-        <div className="space-y-4">
-          <LabeledInput
-            label="Evaluation score"
-            name="score"
-            type="number"
-            value={formState.score}
-            onChange={setFormState}
-          />
-          <Label htmlFor="formal-evaluation-note">Evaluation note</Label>
-          <TextArea
-            id="formal-evaluation-note"
-            onChange={(note) => setFormState((current) => ({ ...current, note }))}
-            placeholder="Summarize the human-reviewed progress basis."
-            value={formState.note ?? ''}
-          />
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setFormalEvaluationOpen(false)} type="button">
-              Cancel
-            </Button>
-            <Button onClick={saveFormalEvaluation} type="button">
-              Save Evaluation
             </Button>
           </DialogFooter>
         </div>
@@ -1065,108 +944,119 @@ const EvidenceView = ({
   reports: ReportRecord[]
   onPreview: (record: EvidenceRecord) => void
   onStatusChange: (record: EvidenceRecord, status: EvidenceReviewStatus) => void
-}) => (
-  <section className="grid gap-4 xl:grid-cols-[1.4fr_0.6fr]">
-    <SectionCard
-      title="Activity evidence list"
-      description="Review submitted activity evidence and record its status."
-    >
-      <div className="space-y-3">
-        {evidence.map((record) => (
-          <div key={record.id} className="rounded-sm border border-border bg-surface-subtle p-4">
-            <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
-              <div className="min-w-0">
-                <p className="break-words font-medium text-foreground">{record.reportTitle}</p>
-                <p className="mt-1 break-all text-sm text-muted-foreground">{record.fileName}</p>
+}) => {
+  const [decisions, setDecisions] = useState<Record<string, EvidenceReviewStatus | ''>>({})
+
+  return (
+    <section className="grid gap-4 xl:grid-cols-[1.4fr_0.6fr]">
+      <SectionCard
+        title="Activity evidence list"
+        description="Review submitted activity evidence and record its status."
+      >
+        <div className="space-y-3">
+          {evidence.map((record) => (
+            <div key={record.id} className="rounded-sm border border-border bg-surface-subtle p-4">
+              <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                <div className="min-w-0">
+                  <p className="break-words font-medium text-foreground">{record.reportTitle}</p>
+                  <p className="mt-1 break-all text-sm text-muted-foreground">{record.fileName}</p>
+                </div>
+                <StatusBadge tone={statusTone(record.status)}>{record.status}</StatusBadge>
               </div>
-              <StatusBadge tone={statusTone(record.status)}>{record.status}</StatusBadge>
+              <dl className="mt-4 grid gap-3 text-sm sm:grid-cols-3">
+                <div>
+                  <dt className="text-muted-foreground">Submitter</dt>
+                  <dd className="mt-1 font-medium text-foreground">{record.submitter}</dd>
+                </div>
+                <div>
+                  <dt className="text-muted-foreground">Submitted date</dt>
+                  <dd className="mt-1 font-medium text-foreground">
+                    {formatDate(record.submittedDate)}
+                  </dd>
+                </div>
+                <div>
+                  <dt className="text-muted-foreground">Proof review</dt>
+                  <dd className="mt-1 font-medium text-foreground">{record.previewSummary}</dd>
+                </div>
+              </dl>
+              <div className="mt-4 flex flex-wrap justify-end gap-2">
+                <Button
+                  className="gap-2"
+                  onClick={() => onPreview(record)}
+                  size="sm"
+                  type="button"
+                  variant="outline"
+                >
+                  <Eye className="h-4 w-4" aria-hidden="true" />
+                  Preview
+                </Button>
+                {canReviewEvidence ? (
+                  <div className="flex min-w-[260px] flex-wrap items-center gap-2">
+                    <Select
+                      onValueChange={(value) =>
+                        setDecisions((current) => ({
+                          ...current,
+                          [record.id]: value as EvidenceReviewStatus,
+                        }))
+                      }
+                      value={decisions[record.id] || undefined}
+                    >
+                      <SelectTrigger
+                        aria-label={`Proof decision for ${record.reportTitle}`}
+                        className="min-w-[190px] flex-1"
+                      >
+                        <SelectValue placeholder="Select decision" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="Validated">Validate</SelectItem>
+                        <SelectItem value="Flagged">Flag as insufficient</SelectItem>
+                        <SelectItem value="Approved">Approve</SelectItem>
+                        <SelectItem value="Returned">Return for submission</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <Button
+                      disabled={!decisions[record.id]}
+                      onClick={() => {
+                        const decision = decisions[record.id]
+                        if (!decision) return
+                        onStatusChange(record, decision)
+                        setDecisions((current) => ({ ...current, [record.id]: '' }))
+                      }}
+                      size="sm"
+                      type="button"
+                    >
+                      Save
+                    </Button>
+                  </div>
+                ) : null}
+              </div>
             </div>
-            <dl className="mt-4 grid gap-3 text-sm sm:grid-cols-3">
-              <div>
-                <dt className="text-muted-foreground">Submitter</dt>
-                <dd className="mt-1 font-medium text-foreground">{record.submitter}</dd>
-              </div>
-              <div>
-                <dt className="text-muted-foreground">Submitted date</dt>
-                <dd className="mt-1 font-medium text-foreground">
-                  {formatDate(record.submittedDate)}
-                </dd>
-              </div>
-              <div>
-                <dt className="text-muted-foreground">Proof review</dt>
-                <dd className="mt-1 font-medium text-foreground">{record.previewSummary}</dd>
-              </div>
-            </dl>
-            <div className="mt-4 flex flex-wrap justify-end gap-2">
-              <Button
-                className="gap-2"
-                onClick={() => onPreview(record)}
-                size="sm"
-                type="button"
-                variant="outline"
+          ))}
+        </div>
+      </SectionCard>
+      <SectionCard
+        title="Report records"
+        description="Generated report references for the project."
+      >
+        <div className="space-y-3">
+          {reports.length > 0 ? (
+            reports.map((report) => (
+              <div
+                key={report.id}
+                className="rounded-sm border border-border bg-surface-subtle p-3 text-sm"
               >
-                <Eye className="h-4 w-4" aria-hidden="true" />
-                Preview
-              </Button>
-              {canReviewEvidence ? (
-                <>
-                  <Button
-                    onClick={() => onStatusChange(record, 'Validated')}
-                    size="sm"
-                    type="button"
-                    variant="outline"
-                  >
-                    Validate
-                  </Button>
-                  <Button
-                    onClick={() => onStatusChange(record, 'Flagged')}
-                    size="sm"
-                    type="button"
-                    variant="outline"
-                  >
-                    Flag
-                  </Button>
-                  <Button
-                    onClick={() => onStatusChange(record, 'Approved')}
-                    size="sm"
-                    type="button"
-                  >
-                    Approve
-                  </Button>
-                  <Button
-                    onClick={() => onStatusChange(record, 'Returned')}
-                    size="sm"
-                    type="button"
-                    variant="outline"
-                  >
-                    Return for Revision
-                  </Button>
-                </>
-              ) : null}
-            </div>
-          </div>
-        ))}
-      </div>
-    </SectionCard>
-    <SectionCard title="Report records" description="Generated report references for the project.">
-      <div className="space-y-3">
-        {reports.length > 0 ? (
-          reports.map((report) => (
-            <div
-              key={report.id}
-              className="rounded-sm border border-border bg-surface-subtle p-3 text-sm"
-            >
-              <p className="font-medium text-foreground">{report.title}</p>
-              <p className="mt-1 text-muted-foreground">{report.reportingPeriod}</p>
-            </div>
-          ))
-        ) : (
-          <p className="text-sm text-muted-foreground">No report records are linked yet.</p>
-        )}
-      </div>
-    </SectionCard>
-  </section>
-)
+                <p className="font-medium text-foreground">{report.title}</p>
+                <p className="mt-1 text-muted-foreground">{report.reportingPeriod}</p>
+              </div>
+            ))
+          ) : (
+            <p className="text-sm text-muted-foreground">No report records are linked yet.</p>
+          )}
+        </div>
+      </SectionCard>
+    </section>
+  )
+}
 
 const IndicatorsView = ({
   activities,
@@ -1238,137 +1128,235 @@ const IndicatorsView = ({
 )
 
 const EvaluationView = ({
-  canConfigureWeights,
-  canSubmitFormalEvaluation,
+  activities,
+  budget,
+  canAddAnnotation,
   evaluation,
-  evidenceCount,
   onAddAnnotation,
-  onFormalEvaluation,
-  onViewBasis,
-  onWeightChange,
+  project,
 }: {
-  canConfigureWeights: boolean
-  canSubmitFormalEvaluation: boolean
+  activities: Activity[]
+  budget: BudgetRecord | null
+  canAddAnnotation: boolean
   evaluation: EvaluationRecord
-  evidenceCount: number
   onAddAnnotation: () => void
-  onFormalEvaluation: () => void
-  onViewBasis: () => void
-  onWeightChange: (weightId: string, value: number) => void
-}) => (
-  <section className="grid gap-4 xl:grid-cols-[0.8fr_1.2fr]">
-    <SectionCard
-      title="Current evaluation score"
-      description="Progress-based and human-reviewed."
-      actions={
-        <StatusBadge tone={evaluation.currentScore >= 75 ? 'success' : 'warning'}>
-          {evaluation.currentScore}%
-        </StatusBadge>
-      }
-    >
-      <div className="space-y-4">
-        <ProgressBar label="Journey progression" value={evaluation.journeyProgression} />
-        <ProgressBar
-          label="Indicator achievement"
-          tone="success"
-          value={evaluation.indicatorAchievement}
-        />
-        <ProgressBar
-          label="Supporting evidence"
-          tone="warning"
-          value={evaluation.supportingEvidence}
-        />
-        <div className="rounded-sm border border-border bg-surface-subtle p-3 text-sm text-muted-foreground">
-          Supporting evidence records:{' '}
-          <span className="font-medium text-foreground">{evidenceCount}</span>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          <Button className="gap-2" onClick={onViewBasis} type="button" variant="outline">
-            <Eye className="h-4 w-4" aria-hidden="true" />
-            View Basis
-          </Button>
-          <Button onClick={onAddAnnotation} type="button" variant="outline">
-            Add Annotation
-          </Button>
-          {canSubmitFormalEvaluation ? (
-            <Button onClick={onFormalEvaluation} type="button">
-              Formal Evaluation
-            </Button>
-          ) : null}
-        </div>
-      </div>
-    </SectionCard>
-    <div className="space-y-4">
-      <SectionCard
-        title="Evaluation weights"
-        description={
-          canConfigureWeights
-            ? 'Adjust the evaluation component weights.'
-            : 'You have view-only access to these weights.'
-        }
+  project: ProjectDetail
+}) => {
+  const [basisOpen, setBasisOpen] = useState(false)
+  const completedActivities = activities.filter(
+    (activity) => activity.status === 'Completed',
+  ).length
+  const utilization = budget
+    ? Math.round((budget.actualSpending / Math.max(1, budget.plannedAmount)) * 100)
+    : null
+  const reach =
+    project.targetBeneficiaries > 0
+      ? Math.round((project.beneficiariesReached / project.targetBeneficiaries) * 100)
+      : null
+  const dimensions = [
+    {
+      label: 'Effectiveness',
+      value: evaluation.indicatorAchievement,
+      description: 'Indicator achievement against recorded targets.',
+      tone: 'success' as const,
+    },
+    {
+      label: 'Efficiency',
+      value: utilization,
+      description: `${completedActivities} of ${activities.length} activities completed; recorded budget utilization shown.`,
+      tone: 'warning' as const,
+    },
+    {
+      label: 'Reach',
+      value: reach,
+      description: `${project.beneficiariesReached.toLocaleString()} of ${project.targetBeneficiaries.toLocaleString()} target beneficiaries reached.`,
+      tone: 'info' as const,
+    },
+    {
+      label: 'Journey progress',
+      value: evaluation.journeyProgression,
+      description: 'Recorded progress through the configured beneficiary journey.',
+      tone: 'info' as const,
+    },
+  ]
+  const updates = [
+    ...evaluation.history.map((entry) => ({
+      id: entry.id,
+      at: entry.reviewedAt,
+      actor: entry.reviewer,
+      kind: 'Formal review record',
+      note: entry.note,
+    })),
+    ...activities.flatMap((activity) =>
+      activity.updateNotes.map((entry) => ({
+        id: `${activity.id}-${entry.id}`,
+        at: entry.submittedAt,
+        actor: activity.assignedTo.join(', ') || 'Project team',
+        kind: activity.title,
+        note: `${entry.note} Recorded progress: ${entry.progress}%.`,
+      })),
+    ),
+  ].sort((left, right) => Date.parse(right.at) - Date.parse(left.at))
+  const latestEvaluationDate = evaluation.history
+    .map((entry) => entry.reviewedAt)
+    .sort((left, right) => Date.parse(right) - Date.parse(left))[0]
+
+  return (
+    <>
+      <section
+        className="grid gap-4 xl:grid-cols-[0.85fr_1.15fr]"
+        aria-labelledby="overall-evaluation-title"
       >
-        <div className="space-y-3">
-          {evaluation.components.map((component) => (
-            <div
-              key={component.id}
-              className="grid gap-3 rounded-sm border border-border bg-surface-subtle p-3 sm:grid-cols-[1fr_120px]"
-            >
-              <div>
-                <p className="font-medium text-foreground">{component.label}</p>
-                <p className="text-sm text-muted-foreground">Weight: {component.value}%</p>
-              </div>
-              <Input
-                disabled={!canConfigureWeights}
-                max={100}
-                min={0}
-                onChange={(event) => onWeightChange(component.id, Number(event.target.value))}
-                type="number"
-                value={component.value}
-              />
+        <SectionCard
+          title="Overall evaluation score"
+          description="OECD (2021) basis with PATHWAYS project dimensions."
+          actions={
+            <StatusBadge tone={evaluation.currentScore >= 75 ? 'success' : 'warning'}>
+              {latestEvaluationDate
+                ? `Updated ${formatDate(latestEvaluationDate)}`
+                : 'No dated evaluation'}
+            </StatusBadge>
+          }
+        >
+          <div className="rounded-md border-l-4 border-primary bg-primary-subtle p-5">
+            <p className="text-xs font-semibold uppercase tracking-wide text-primary">
+              Latest recorded evaluation
+            </p>
+            <div className="mt-2 flex items-end gap-2">
+              <p
+                className="text-5xl font-semibold leading-none tabular-nums text-foreground"
+                id="overall-evaluation-title"
+              >
+                {evaluation.currentScore}
+              </p>
+              <p className="pb-1 text-sm font-medium text-muted-foreground">/ 100</p>
             </div>
-          ))}
-        </div>
-      </SectionCard>
-      <SectionCard title="Annotations" description="Human review notes.">
-        <div className="space-y-3">
-          {evaluation.annotations.length > 0 ? (
-            evaluation.annotations.map((annotation) => (
-              <div
-                key={annotation.id}
-                className="rounded-sm border border-border bg-surface-subtle p-3 text-sm"
-              >
-                <p className="font-medium text-foreground">{annotation.author}</p>
-                <p className="mt-1 text-muted-foreground">{annotation.note}</p>
+            <p className="mt-3 text-sm leading-6 text-muted-foreground">
+              Latest stored human-reviewed score; this view does not calculate a new composite.
+            </p>
+          </div>
+
+          <div className="mt-5 space-y-5" aria-label="Evaluation dimension scores">
+            {dimensions.map((dimension) => (
+              <div className="space-y-2" key={dimension.label}>
+                {dimension.value === null ? (
+                  <div className="flex items-center justify-between gap-3 text-sm">
+                    <span className="font-medium text-foreground">{dimension.label}</span>
+                    <span className="text-muted-foreground">Unavailable</span>
+                  </div>
+                ) : (
+                  <ProgressBar
+                    label={dimension.label}
+                    tone={dimension.tone}
+                    value={dimension.value}
+                  />
+                )}
+                <p className="text-xs leading-5 text-muted-foreground">{dimension.description}</p>
               </div>
-            ))
-          ) : (
-            <p className="text-sm text-muted-foreground">No annotations yet.</p>
-          )}
-        </div>
-      </SectionCard>
-      <SectionCard title="Evaluation History" description="Formal review entries.">
-        <div className="space-y-3">
-          {evaluation.history.length > 0 ? (
-            evaluation.history.map((entry) => (
-              <div
-                key={entry.id}
-                className="rounded-sm border border-border bg-surface-subtle p-3 text-sm"
-              >
-                <div className="flex items-center justify-between gap-3">
-                  <p className="font-medium text-foreground">{entry.score}%</p>
-                  <span className="text-muted-foreground">{formatDate(entry.reviewedAt)}</span>
-                </div>
-                <p className="mt-1 text-muted-foreground">{entry.note}</p>
+            ))}
+          </div>
+
+          <div className="mt-5 flex flex-wrap gap-2 border-t border-border pt-4">
+            <Button
+              className="gap-2"
+              onClick={() => setBasisOpen(true)}
+              type="button"
+              variant="outline"
+            >
+              <Eye className="h-4 w-4" aria-hidden="true" />
+              View Basis
+            </Button>
+            {canAddAnnotation ? (
+              <Button onClick={onAddAnnotation} type="button" variant="outline">
+                <Plus className="mr-2 h-4 w-4" aria-hidden="true" />
+                Add annotation
+              </Button>
+            ) : null}
+          </div>
+        </SectionCard>
+
+        <div className="space-y-4">
+          <SectionCard title="Annotations" description="Human review notes.">
+            {evaluation.annotations.length ? (
+              <div className="space-y-3">
+                {evaluation.annotations.map((annotation) => (
+                  <article
+                    className="rounded-sm border border-border bg-surface-subtle p-4"
+                    key={annotation.id}
+                  >
+                    <div className="flex flex-wrap items-start justify-between gap-2">
+                      <p className="font-medium text-foreground">{annotation.author}</p>
+                      <time
+                        className="text-sm text-muted-foreground"
+                        dateTime={annotation.createdAt}
+                      >
+                        {formatDate(annotation.createdAt)}
+                      </time>
+                    </div>
+                    <p className="mt-2 text-sm leading-6 text-muted-foreground">
+                      {annotation.note}
+                    </p>
+                  </article>
+                ))}
               </div>
-            ))
-          ) : (
-            <p className="text-sm text-muted-foreground">No formal evaluations yet.</p>
-          )}
+            ) : (
+              <p className="text-sm text-muted-foreground">No annotations yet.</p>
+            )}
+          </SectionCard>
+
+          <SectionCard
+            title="Evaluation update history"
+            description="Dated project updates and formal review records."
+          >
+            {updates.length ? (
+              <ol className="space-y-3">
+                {updates.map((update) => (
+                  <li
+                    className="rounded-sm border border-border bg-surface-subtle p-4"
+                    key={update.id}
+                  >
+                    <div className="flex flex-wrap items-start justify-between gap-2">
+                      <div>
+                        <p className="font-medium text-foreground">{update.kind}</p>
+                        <p className="text-xs text-muted-foreground">{update.actor}</p>
+                      </div>
+                      <time className="text-sm text-muted-foreground" dateTime={update.at}>
+                        {formatDate(update.at)}
+                      </time>
+                    </div>
+                    <p className="mt-2 text-sm leading-6 text-muted-foreground">{update.note}</p>
+                  </li>
+                ))}
+              </ol>
+            ) : (
+              <p className="text-sm text-muted-foreground">
+                No dated evaluation updates are recorded.
+              </p>
+            )}
+          </SectionCard>
         </div>
-      </SectionCard>
-    </div>
-  </section>
-)
+      </section>
+
+      <SimpleDialog
+        description="How the four PATHWAYS dimensions relate to the OECD evaluation criteria."
+        onOpenChange={setBasisOpen}
+        open={basisOpen}
+        title="OECD (2021) basis"
+      >
+        <div className="space-y-3 text-sm leading-6 text-muted-foreground">
+          <p>
+            Effectiveness and Efficiency use the corresponding OECD evaluation criteria. Reach and
+            Journey progress are PATHWAYS product dimensions used alongside them.
+          </p>
+          <p>
+            Each bar uses available recorded project facts. The overall value is the latest stored
+            human-reviewed evaluation score; no new weighting formula is calculated on this page.
+          </p>
+        </div>
+      </SimpleDialog>
+    </>
+  )
+}
 
 const BudgetView = ({
   actualSpending,

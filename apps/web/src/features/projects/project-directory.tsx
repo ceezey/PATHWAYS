@@ -12,15 +12,16 @@ import {
   FilterChoiceGroup,
   ProgressBar,
   ResultsAnnouncement,
-  SectionCard,
   StatusBadge,
 } from '@/components/pathways'
 import { Button } from '@/components/ui/button'
+import { Card, CardContent, CardFooter, CardHeader } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { usePrototypeLabels } from '@/hooks/use-prototype-labels'
 import { usePrototypeRole } from '@/hooks/use-prototype-role'
 import { can } from '@/lib/rbac/can'
 import { pathwaysClient } from '@/lib/services/mock-pathways-client'
+import { cn } from '@/lib/utils'
 import type { ProjectDetail, ProjectStatus, ProjectSummary } from '@/types/pathways'
 
 import { ProjectPreviewDialog } from './project-preview-dialog'
@@ -104,6 +105,7 @@ export const ProjectDirectory = () => {
   return (
     <>
       <PageHeader
+        editableLabelKey="moduleProjects"
         title={labels.moduleProjects}
         description={directoryDescription[role]}
         actions={
@@ -176,59 +178,78 @@ export const ProjectDirectory = () => {
       {status === 'success' && filteredProjects.length > 0 ? (
         <section className="grid gap-4 xl:grid-cols-2">
           {filteredProjects.map((project) => (
-            <SectionCard
+            <Card
+              className={cn(
+                'flex min-w-0 flex-col overflow-hidden border-t-4 shadow-sm',
+                project.health === 'On Track' && 'border-t-success',
+                project.health === 'At Risk' && 'border-t-warning',
+                project.health === 'Critical' && 'border-t-danger',
+              )}
+              data-testid={`project-card-${project.id}`}
               key={project.id}
-              title={project.title}
-              description={`${project.area} - ${project.sector}`}
-              actions={
-                <div className="flex flex-wrap gap-2">
-                  <StatusBadge tone={projectStatusTone(project.status)}>
-                    {project.status}
-                  </StatusBadge>
-                  <StatusBadge tone={projectHealthTone(project.health)}>
-                    {project.health}
-                  </StatusBadge>
-                </div>
-              }
             >
-              <div className="space-y-5">
-                <dl className="grid gap-3 text-sm sm:grid-cols-3">
-                  <div>
-                    <dt className="text-muted-foreground">Project Manager</dt>
-                    <dd className="mt-1 font-medium text-foreground">{project.projectManager}</dd>
-                  </div>
-                  <div>
-                    <dt className="text-muted-foreground">Beneficiaries reached</dt>
-                    <dd className="mt-1 font-medium tabular-nums text-foreground">
-                      {formatNumber(project.beneficiariesReached)}
-                    </dd>
-                  </div>
-                  <div>
-                    <dt className="text-muted-foreground">Period</dt>
-                    <dd className="mt-1 font-medium text-foreground">{project.period}</dd>
-                  </div>
-                </dl>
-                <div className="grid gap-4 sm:grid-cols-2">
-                  <ProgressBar
-                    label="KPI achievement"
-                    tone="success"
-                    value={project.kpiAchievement}
-                  />
-                  <ProgressBar
-                    label="Budget utilization"
-                    tone={project.budgetUtilization > 80 ? 'warning' : 'info'}
-                    value={project.budgetUtilization}
-                  />
-                  <ProgressBar label="Timeline progress" value={project.timelineProgress} />
-                  <ProgressBar
-                    label="Beneficiary reach"
-                    tone="success"
-                    value={Math.min(100, Math.round(project.beneficiariesReached / 10))}
-                  />
+              <CardHeader className="space-y-4 p-6 pb-5">
+                <div className="space-y-1">
+                  <p className="text-sm font-medium uppercase tracking-[0.08em] text-muted-foreground">
+                    {project.sector}
+                  </p>
+                  <h2 className="font-heading text-2xl font-normal leading-8 text-navy">
+                    {project.title}
+                  </h2>
+                  <p className="text-base text-muted-foreground">{project.area}</p>
                 </div>
-                <div className="flex flex-wrap justify-end gap-2">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="flex flex-wrap gap-2">
+                    <StatusBadge tone={projectStatusTone(project.status)}>
+                      {project.status}
+                    </StatusBadge>
+                    <StatusBadge tone={projectHealthTone(project.health)}>
+                      {project.health}
+                    </StatusBadge>
+                  </div>
+                  <p className="text-sm tabular-nums text-muted-foreground">{project.period}</p>
+                </div>
+              </CardHeader>
+              <CardContent className="flex-1 px-6 pb-6 pt-0">
+                <div className="space-y-3 border-t border-border pt-5">
+                  <ProjectMeasure
+                    label="KPI achievement"
+                    tone={projectHealthTone(project.health)}
+                    value={`${project.kpiAchievement}%`}
+                  />
+                  <ProjectMeasure
+                    label="Beneficiaries"
+                    value={`${formatNumber(project.beneficiariesReached)} / ${formatNumber(project.targetBeneficiaries)}`}
+                  />
+                  <ProjectMeasure
+                    label="Budget utilization"
+                    tone={project.budgetUtilization >= 80 ? 'danger' : 'warning'}
+                    value={`${project.budgetUtilization}%`}
+                  />
+                  <div className="grid grid-cols-[auto_minmax(5rem,1fr)_auto] items-center gap-3 text-sm">
+                    <span className="text-muted-foreground">Timeline</span>
+                    <ProgressBar
+                      tone={projectHealthTone(project.health)}
+                      value={project.timelineProgress}
+                    />
+                    <span className="font-semibold tabular-nums text-foreground">
+                      {project.timelineProgress}%
+                    </span>
+                  </div>
+                </div>
+              </CardContent>
+              <CardFooter className="mt-auto flex flex-col items-stretch gap-4 border-t border-border bg-primary-subtle/40 p-5 2xl:flex-row 2xl:items-center 2xl:justify-between">
+                <div className="flex min-w-0 items-center gap-3">
+                  <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary-subtle text-sm font-semibold text-primary">
+                    {managerInitials(project.projectManager)}
+                  </span>
+                  <span className="truncate text-sm font-medium text-muted-foreground">
+                    {project.projectManager}
+                  </span>
+                </div>
+                <div className="grid w-full grid-cols-2 gap-2 2xl:flex 2xl:w-auto 2xl:justify-end">
                   <Button
-                    className="gap-2"
+                    className="gap-2 px-3"
                     onClick={() => void openPreview(project.id)}
                     type="button"
                     variant="outline"
@@ -236,21 +257,15 @@ export const ProjectDirectory = () => {
                     <Eye className="h-4 w-4" aria-hidden="true" />
                     Quick Preview
                   </Button>
-                  <Button asChild className="gap-2">
-                    <Link
-                      href={
-                        can(role, 'activities.view')
-                          ? `/projects/${project.id}/activities`
-                          : `/projects/${project.id}`
-                      }
-                    >
-                      {can(role, 'activities.view') ? 'Open Workspace' : 'View Project Summary'}
+                  <Button asChild className="gap-2 px-3">
+                    <Link href={`/projects/${project.id}`}>
+                      Open Project
                       <ArrowRight className="h-4 w-4" aria-hidden="true" />
                     </Link>
                   </Button>
                 </div>
-              </div>
-            </SectionCard>
+              </CardFooter>
+            </Card>
           ))}
         </section>
       ) : null}
@@ -266,3 +281,36 @@ export const ProjectDirectory = () => {
     </>
   )
 }
+
+const managerInitials = (name: string) =>
+  name
+    .split(/\s+/)
+    .filter(Boolean)
+    .map((part) => part[0])
+    .join('')
+    .slice(0, 2)
+    .toUpperCase()
+
+const ProjectMeasure = ({
+  label,
+  value,
+  tone,
+}: {
+  label: string
+  value: string
+  tone?: 'success' | 'warning' | 'danger'
+}) => (
+  <div className="flex items-center justify-between gap-4 text-sm">
+    <span className="text-muted-foreground">{label}</span>
+    <span
+      className={cn(
+        'text-base font-semibold tabular-nums text-foreground',
+        tone === 'success' && 'text-success',
+        tone === 'warning' && 'text-warning',
+        tone === 'danger' && 'text-danger',
+      )}
+    >
+      {value}
+    </span>
+  </div>
+)

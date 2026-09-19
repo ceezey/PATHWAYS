@@ -1,17 +1,18 @@
 'use client'
 
-import { ArrowLeft, CalendarDays, FolderKanban, UsersRound } from 'lucide-react'
+import {
+  Archive,
+  ArchiveRestore,
+  ArrowLeft,
+  CalendarDays,
+  FolderKanban,
+  Pencil,
+} from 'lucide-react'
 import Link from 'next/link'
 import { useEffect, useState } from 'react'
 
 import { PageHeader } from '@/components/layout/page-header'
-import {
-  AsyncState,
-  ProgressBar,
-  SectionCard,
-  StatusBadge,
-  StatusMessage,
-} from '@/components/pathways'
+import { AsyncState, SectionCard, StatusBadge, StatusMessage } from '@/components/pathways'
 import { Button } from '@/components/ui/button'
 import { usePrototypeRole } from '@/hooks/use-prototype-role'
 import { hasAction } from '@/lib/demo-state/permissions'
@@ -136,53 +137,62 @@ export const ProjectDetailView = ({ projectId }: { projectId: string }) => {
       <PageHeader
         title="Project overview"
         actions={
-          <div className="flex flex-wrap gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <Button asChild className="gap-2" variant="outline">
               <Link href="/projects">
                 <ArrowLeft className="h-4 w-4" aria-hidden="true" />
                 Back to Projects
               </Link>
             </Button>
-            {can(role, 'activities.view') ? (
-              <Button asChild>
-                <Link href={`/projects/${project.id}/activities`}>Open Activities</Link>
-              </Button>
+            {can(role, 'projects.edit') ? (
+              <>
+                {!project.archived ? (
+                  <Button asChild size="icon" variant="outline">
+                    <Link
+                      aria-label="Edit project profile"
+                      href={`/projects/${project.id}/edit`}
+                      title="Edit project profile"
+                    >
+                      <Pencil className="h-4 w-4" aria-hidden="true" />
+                    </Link>
+                  </Button>
+                ) : (
+                  <StatusBadge tone="neutral">Archived · read-only</StatusBadge>
+                )}
+                <Button
+                  aria-label={project.archived ? 'Unarchive project' : 'Archive project'}
+                  size="icon"
+                  title={project.archived ? 'Unarchive project' : 'Archive project'}
+                  type="button"
+                  variant="outline"
+                  onClick={() => {
+                    if (
+                      !window.confirm(
+                        project.archived
+                          ? 'Unarchive this project?'
+                          : 'Archive this project? It remains visible for reference and becomes read-only.',
+                      )
+                    )
+                      return
+                    try {
+                      archiveProject(project.id, !project.archived)
+                    } catch (error) {
+                      toast.error(error instanceof Error ? error.message : 'Archive failed.')
+                    }
+                  }}
+                >
+                  {project.archived ? (
+                    <ArchiveRestore className="h-4 w-4" aria-hidden="true" />
+                  ) : (
+                    <Archive className="h-4 w-4" aria-hidden="true" />
+                  )}
+                </Button>
+              </>
             ) : null}
           </div>
         }
       />
       <ProjectWorkspaceHeader project={project} />
-      {can(role, 'projects.edit') ? (
-        <div className="my-4 flex flex-wrap items-center gap-3">
-          {!project.archived ? (
-            <Button asChild variant="outline">
-              <Link href={`/projects/${project.id}/edit`}>Edit project profile</Link>
-            </Button>
-          ) : (
-            <StatusBadge tone="neutral">Archived · read-only</StatusBadge>
-          )}
-          <Button
-            variant="outline"
-            onClick={() => {
-              if (
-                !window.confirm(
-                  project.archived
-                    ? 'Unarchive this project?'
-                    : 'Archive this project? It remains visible for reference and becomes read-only.',
-                )
-              )
-                return
-              try {
-                archiveProject(project.id, !project.archived)
-              } catch (error) {
-                toast.error(error instanceof Error ? error.message : 'Archive failed.')
-              }
-            }}
-          >
-            {project.archived ? 'Unarchive project' : 'Archive project'}
-          </Button>
-        </div>
-      ) : null}
       <section className="grid gap-4 lg:grid-cols-[1.2fr_0.8fr]">
         <SectionCard
           title="Project preview"
@@ -195,43 +205,32 @@ export const ProjectDetailView = ({ projectId }: { projectId: string }) => {
           }
         >
           <div className="space-y-5">
-            <div className="grid gap-4 sm:grid-cols-3">
-              <div className="rounded-sm border border-border bg-surface-subtle p-4">
+            <div className="grid gap-px overflow-hidden rounded-sm border border-border bg-border sm:grid-cols-2">
+              <div className="bg-surface-subtle p-4">
                 <p className="text-sm text-muted-foreground">KPI achievement</p>
                 <p className="mt-2 text-2xl font-semibold tabular-nums text-foreground">
                   {project.kpiAchievement}%
                 </p>
               </div>
-              <div className="rounded-sm border border-border bg-surface-subtle p-4">
-                <p className="text-sm text-muted-foreground">Beneficiaries reached</p>
-                <p className="mt-2 text-2xl font-semibold tabular-nums text-foreground">
-                  {formatNumber(project.beneficiariesReached)}
-                </p>
-              </div>
-              <div className="rounded-sm border border-border bg-surface-subtle p-4">
+              <div className="bg-surface-subtle p-4">
                 <p className="text-sm text-muted-foreground">Budget utilization</p>
                 <p className="mt-2 text-2xl font-semibold tabular-nums text-foreground">
                   {project.budgetUtilization}%
                 </p>
               </div>
-            </div>
-            <div className="grid gap-4 sm:grid-cols-2">
-              <ProgressBar label="KPI achievement" tone="success" value={project.kpiAchievement} />
-              <ProgressBar
-                label="Budget utilization"
-                tone={project.budgetUtilization > 80 ? 'warning' : 'info'}
-                value={project.budgetUtilization}
-              />
-              <ProgressBar label="Timeline progress" value={project.timelineProgress} />
-              <ProgressBar
-                label="Beneficiary reach"
-                tone="success"
-                value={
-                  project.targetBeneficiaries > 0
-                    ? Math.round((project.beneficiariesReached / project.targetBeneficiaries) * 100)
-                    : 0
-                }
-              />
+              <div className="bg-surface-subtle p-4">
+                <p className="text-sm text-muted-foreground">Beneficiaries reached / target</p>
+                <p className="mt-2 text-2xl font-semibold tabular-nums text-foreground">
+                  {formatNumber(project.beneficiariesReached)} /{' '}
+                  {formatNumber(project.targetBeneficiaries)}
+                </p>
+              </div>
+              <div className="bg-surface-subtle p-4">
+                <p className="text-sm text-muted-foreground">Timeline</p>
+                <p className="mt-2 text-2xl font-semibold tabular-nums text-foreground">
+                  {project.timelineProgress}%
+                </p>
+              </div>
             </div>
             <div className="rounded-sm border border-border bg-surface-subtle p-4 text-sm leading-6 text-muted-foreground">
               {projectHealthSignal(project)}
@@ -243,7 +242,7 @@ export const ProjectDetailView = ({ projectId }: { projectId: string }) => {
           description="Assigned project team members."
           actions={canManageProjectTeam ? <ProjectTeamEditorDialog project={project} /> : null}
         >
-          <dl className="space-y-4 text-sm">
+          <dl className="grid gap-4 text-sm sm:grid-cols-2">
             <div>
               <dt className="text-muted-foreground">Program Manager</dt>
               <dd className="mt-1 font-medium text-foreground">{project.programManager}</dd>
@@ -265,7 +264,7 @@ export const ProjectDetailView = ({ projectId }: { projectId: string }) => {
           </dl>
         </SectionCard>
       </section>
-      <section className="grid gap-4 lg:grid-cols-3">
+      <section>
         <SectionCard title="Schedule" description="Project implementation window.">
           <div className="flex items-start gap-3 text-sm">
             <CalendarDays className="mt-1 h-4 w-4 shrink-0 text-primary" aria-hidden="true" />
@@ -274,26 +273,6 @@ export const ProjectDetailView = ({ projectId }: { projectId: string }) => {
               <p className="mt-1 text-muted-foreground">Budget code: {project.budgetCode}</p>
             </div>
           </div>
-        </SectionCard>
-        <SectionCard title="Beneficiary target" description="Current target and aggregate reach.">
-          <div className="flex items-start gap-3 text-sm">
-            <UsersRound className="mt-1 h-4 w-4 shrink-0 text-primary" aria-hidden="true" />
-            <div>
-              <p className="font-medium text-foreground">
-                {formatNumber(project.beneficiariesReached)} reached
-              </p>
-              <p className="mt-1 text-muted-foreground">
-                Target: {formatNumber(project.targetBeneficiaries)}
-              </p>
-            </div>
-          </div>
-        </SectionCard>
-        <SectionCard title="Project modules" description="Available based on your role.">
-          <p className="text-sm leading-6 text-muted-foreground">
-            Activities, evidence, target indicators, monitoring and evaluation, budget, Beneficiary
-            Journey Tracking stages are available here according to the selected role. Public
-            publishing is managed from the role-scoped Public Tracker.
-          </p>
         </SectionCard>
       </section>
     </>

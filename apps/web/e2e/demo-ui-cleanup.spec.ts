@@ -34,7 +34,9 @@ test('ordinary role dashboards and the public tracker use formal production copy
   for (const [accountId, roleLabel] of roleAccounts) {
     await switchAccount(page, accountId)
     await page.goto('/dashboard')
-    await expect(page.getByRole('heading', { level: 1, name: roleLabel })).toBeVisible()
+    await expect(
+      page.getByRole('heading', { level: 1, name: `Welcome! ${roleLabel}` }),
+    ).toBeVisible()
     await expect(page.locator('body')).not.toContainText(removedDisclosure)
   }
 
@@ -51,8 +53,8 @@ test('metric context is available on hover, focus, and touch-sized click without
   await switchAccount(page, 'program-manager')
   await page.goto('/dashboard')
 
-  const trigger = page.getByRole('button', { name: 'More information about Budget utilization' })
-  const description = /verified against/
+  const trigger = page.getByRole('button', { name: 'More information about Active projects' })
+  const description = /Active projects in your authorized portfolio/
   await expect(page.getByText(description)).toHaveCount(0)
 
   await trigger.hover()

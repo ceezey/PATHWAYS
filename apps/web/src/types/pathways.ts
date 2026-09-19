@@ -18,6 +18,7 @@ export interface ProjectSummary {
   projectManager: string
   kpiAchievement: number
   beneficiariesReached: number
+  targetBeneficiaries: number
   budgetUtilization: number
   timelineProgress: number
 }
@@ -31,7 +32,6 @@ export interface ProjectDetail extends ProjectSummary {
   programManager: string
   monitoringOfficer: string
   projectOfficers: string[]
-  targetBeneficiaries: number
   budgetCode: string
   startDate?: string
   endDate?: string
@@ -98,14 +98,44 @@ export interface Activity {
   progress: number
   submittedProof: ActivityProof[]
   updateNotes: ActivityUpdateNote[]
+  extensionRequestedAt?: string
+  extensionRequestedBy?: string
 }
 
 export interface ActivityProof {
   id: string
   fileName: string
-  status: 'Draft' | 'Submitted' | 'Flagged' | 'Accepted'
+  fileNames?: string[]
+  files?: ActivityProofFile[]
+  status:
+    | 'Draft'
+    | 'Submitted'
+    | 'Validated'
+    | 'Returned'
+    | 'Approved'
+    | 'Flagged'
+    | 'Accepted'
+    | 'Superseded'
   submittedAt: string
+  submittedBy?: string
+  progress?: number
+  beneficiariesReachedThisSession?: number
+  beneficiariesReachedTotal?: number
+  version?: number
+  priorActivityStatus?: ActivityStatus
+  validatedAt?: string
+  validatedBy?: string
+  reviewedAt?: string
+  reviewedBy?: string
+  returnReason?: string
   note?: string
+}
+
+export interface ActivityProofFile {
+  id: string
+  name: string
+  type: string
+  size: number
 }
 
 export interface ActivityUpdateNote {
@@ -139,9 +169,12 @@ export interface UpdateActivityInput extends CreateActivityInput {
 
 export interface SubmitActivityProofInput {
   activityId: string
-  progress: number
+  beneficiariesReachedThisSession?: number
+  /** Retained for seeded legacy records; new UI submissions use beneficiariesReachedThisSession. */
+  progress?: number
   note: string
   fileNames: string[]
+  files?: ActivityProofFile[]
 }
 
 export interface Beneficiary {

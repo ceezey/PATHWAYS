@@ -21,7 +21,15 @@ export const MetricCard = ({
   tone?: 'info' | 'success' | 'warning' | 'danger'
   href?: string
 }) => (
-  <Card className="relative">
+  <Card
+    className={cn(
+      'relative border-t-2',
+      tone === 'info' && 'border-t-info',
+      tone === 'success' && 'border-t-success',
+      tone === 'warning' && 'border-t-warning',
+      tone === 'danger' && 'border-t-danger',
+    )}
+  >
     {href ? (
       <Link
         aria-label={`View ${label}`}

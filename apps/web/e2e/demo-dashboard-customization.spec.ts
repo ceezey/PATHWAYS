@@ -32,15 +32,18 @@ test('saved monitoring charts are project-specific, draggable, resizable, and re
     (sadddChartBox?.y ?? 0) - ((warningBox?.y ?? 0) + (warningBox?.height ?? 0)),
   ).toBeGreaterThanOrEqual(20)
 
-  await expect(page.getByRole('button', { name: 'Add to Dashboard' })).toBeDisabled()
-  await chooseOption(page, 'Project filter', 'FutureMakers NCR')
+  await expect(page.getByLabel('Project filter')).toContainText('FutureMakers NCR')
   await page.getByRole('button', { name: 'Add to Dashboard' }).click()
   await expect(page.getByText('Chart added to this project dashboard.')).toBeVisible()
 
-  await chooseOption(page, 'Analysis view', 'Participation patterns')
+  await chooseOption(page, 'Indicator filter', 'FM-ORIENTED · Beneficiaries completing orientation')
   await page.getByRole('button', { name: 'Add to Dashboard' }).click()
 
-  await chooseOption(page, 'Analysis view', 'Project / activity timeline adherence')
+  await chooseOption(
+    page,
+    'Indicator filter',
+    'FM-BOOTCAMP · Beneficiaries completing skills bootcamp',
+  )
   await page.getByRole('button', { name: 'Add to Dashboard' }).click()
 
   await page.getByRole('link', { name: 'View project dashboard' }).click()
@@ -49,21 +52,11 @@ test('saved monitoring charts are project-specific, draggable, resizable, and re
   const chartSection = page.locator('section[aria-labelledby="saved-charts-title"]')
   await expect(
     chartSection.getByRole('heading', { name: 'KPI / indicator performance' }),
-  ).toBeVisible()
-  await expect(chartSection.getByRole('heading', { name: 'Participation patterns' })).toBeVisible()
-  await expect(
-    chartSection.getByRole('heading', { name: 'Project / activity timeline adherence' }),
-  ).toBeVisible()
+  ).toHaveCount(3)
 
-  const kpiCard = chartSection.locator('article').filter({
-    has: page.getByRole('heading', { name: 'KPI / indicator performance' }),
-  })
-  const participationCard = chartSection.locator('article').filter({
-    has: page.getByRole('heading', { name: 'Participation patterns' }),
-  })
-  const timelineCard = chartSection.locator('article').filter({
-    has: page.getByRole('heading', { name: 'Project / activity timeline adherence' }),
-  })
+  const kpiCard = chartSection.locator('article').nth(0)
+  const participationCard = chartSection.locator('article').filter({ hasText: 'FM-ORIENTED' })
+  const timelineCard = chartSection.locator('article').filter({ hasText: 'FM-BOOTCAMP' })
   const kpiBox = await kpiCard.boundingBox()
   const participationBox = await participationCard.boundingBox()
   const timelineBox = await timelineCard.boundingBox()
@@ -90,9 +83,9 @@ test('saved monitoring charts are project-specific, draggable, resizable, and re
   }
 
   await participationCard.dragTo(kpiCard)
-  await expect(chartSection.locator('article h4').first()).toHaveText('Participation patterns')
+  await expect(chartSection.locator('article').first()).toContainText('FM-ORIENTED')
   await expect(
-    participationCard.getByRole('button', { name: 'Move Participation patterns later' }),
+    participationCard.getByRole('button', { name: 'Move KPI / indicator performance later' }),
   ).toContainText('Later')
 
   const heightBeforeResize =
@@ -109,11 +102,11 @@ test('saved monitoring charts are project-specific, draggable, resizable, and re
 
   await page.locator('#dashboard-project-scope').click()
   await page.getByRole('option', { name: 'FutureMakers NCR', exact: true }).click()
-  await expect(chartSection.getByRole('heading', { name: 'Participation patterns' })).toBeVisible()
+  await expect(chartSection.getByText('FM-ORIENTED')).toBeVisible()
 
   await page.goto('/dashboard')
   await expect(page.locator('#dashboard-project-scope')).toContainText('FutureMakers NCR')
-  await expect(chartSection.getByRole('heading', { name: 'Participation patterns' })).toBeVisible()
+  await expect(chartSection.getByText('FM-ORIENTED')).toBeVisible()
 
   page.on('dialog', (dialog) => dialog.accept())
   await chartSection

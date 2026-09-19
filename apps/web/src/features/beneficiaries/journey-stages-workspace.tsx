@@ -1,6 +1,6 @@
 'use client'
 
-import { GitBranch, Plus, Save } from 'lucide-react'
+import { Plus, Save } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { toast } from 'sonner'
 
@@ -24,7 +24,6 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
-import { usePrototypeLabels } from '@/hooks/use-prototype-labels'
 import { saveJourneyStages } from '@/lib/demo-state/beneficiaries'
 import type {
   Activity,
@@ -49,7 +48,6 @@ export const JourneyStagesWorkspace = ({
   activities,
   initialStages,
 }: JourneyStagesWorkspaceProps) => {
-  const { labels } = usePrototypeLabels()
   const [stages, setStages] = useState(initialStages)
   const [selectedStageId, setSelectedStageId] = useState(initialStages[0]?.id ?? '')
   const [saveOpen, setSaveOpen] = useState(false)
@@ -119,37 +117,11 @@ export const JourneyStagesWorkspace = ({
 
   return (
     <div className="space-y-6">
-      <section className="flex flex-col gap-4 rounded-lg border border-border bg-card p-5 lg:flex-row lg:items-start lg:justify-between">
-        <div className="space-y-2">
-          <StatusBadge tone="info">Project-specific stages</StatusBadge>
-          <div>
-            <h1 className="text-3xl font-semibold tracking-tight text-foreground">
-              {labels.projectJourneyStages}
-            </h1>
-            <p className="mt-2 max-w-3xl text-sm leading-6 text-muted-foreground">
-              Define the project stage path, branch options, terminal follow-up stages, and activity
-              mappings used to compute beneficiary progress.
-            </p>
-          </div>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          <Button variant="outline" onClick={addStage}>
-            <Plus className="mr-2 h-4 w-4" aria-hidden="true" />
-            Add stage
-          </Button>
-          <Button onClick={() => setSaveOpen(true)}>
-            <Save className="mr-2 h-4 w-4" aria-hidden="true" />
-            Save configuration
-          </Button>
-        </div>
-      </section>
-
-      <section className="rounded-lg border border-border bg-card p-5">
-        <div className="flex items-center gap-2">
-          <GitBranch className="h-5 w-5 text-primary" aria-hidden="true" />
-          <h2 className="text-lg font-semibold text-foreground">Stage diagram</h2>
-        </div>
-        <div className="mt-5 grid gap-3 lg:grid-cols-5">
+      <section
+        aria-label="Journey stage configuration"
+        className="rounded-lg border border-border bg-card p-5"
+      >
+        <div className="grid gap-3 lg:grid-cols-5">
           {orderedStages.map((stage) => (
             <button
               key={stage.id}
@@ -177,196 +149,221 @@ export const JourneyStagesWorkspace = ({
           Open-ended follow-up can continue after core participation. The interface supports human
           review and beneficiary context, not strict timeline compliance scoring.
         </p>
-      </section>
-
-      <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_420px]">
-        <section className="rounded-lg border border-border bg-card p-5">
-          <h2 className="text-lg font-semibold text-foreground">Stage list</h2>
-          <div className="mt-4 space-y-3">
-            {orderedStages.map((stage) => {
-              const mappedActivities = activities.filter((activity) =>
-                stage.mappedActivityIds.includes(activity.id),
-              )
-
-              return (
-                <button
-                  key={stage.id}
-                  className={`w-full rounded-sm border p-4 text-left transition-colors ${
-                    stage.id === selectedStage?.id
-                      ? 'border-primary bg-primary-subtle'
-                      : 'border-border bg-background hover:bg-surface-subtle'
-                  }`}
-                  aria-pressed={selectedStage?.id === stage.id}
-                  type="button"
-                  onClick={() => setSelectedStageId(stage.id)}
+        <div className="mt-6 grid gap-6 border-t border-border pt-6 xl:grid-cols-[minmax(0,1fr)_420px]">
+          <div>
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <h2 className="text-lg font-semibold text-foreground">Stage list</h2>
+              <div className="flex gap-2">
+                <Button
+                  aria-label="Add stage"
+                  onClick={addStage}
+                  size="icon"
+                  title="Add stage"
+                  variant="outline"
                 >
-                  <div className="flex flex-wrap items-start justify-between gap-3">
-                    <div>
-                      <p className="font-semibold text-foreground">
-                        {stage.order}. {stage.code} · {stage.name}
-                      </p>
-                      <p className="mt-1 text-sm text-muted-foreground">
-                        Parent:{' '}
-                        {stages.find((item) => item.id === stage.parentStageId)?.code ?? 'None'}
-                      </p>
-                    </div>
-                    <div className="flex flex-wrap gap-2">
-                      <StatusBadge tone={stageTypeTone(stage.type)}>{stage.type}</StatusBadge>
-                      {stage.terminal ? <StatusBadge tone="neutral">Terminal</StatusBadge> : null}
-                    </div>
-                  </div>
-                  <p className="mt-3 text-sm text-muted-foreground">
-                    {mappedActivities.length > 0
-                      ? mappedActivities.map((activity) => activity.title).join(', ')
-                      : 'No activities mapped yet'}
-                  </p>
-                </button>
-              )
-            })}
-          </div>
-        </section>
-
-        <aside className="space-y-5 rounded-lg border border-border bg-card p-5">
-          <h2 className="text-lg font-semibold text-foreground">Stage details</h2>
-          {selectedStage ? (
-            <>
-              <div className="grid gap-4 sm:grid-cols-2">
-                <Label className="space-y-2">
-                  <span>Stage code</span>
-                  <Input
-                    value={selectedStage.code}
-                    onChange={(event) => updateStage('code', event.target.value)}
-                  />
-                </Label>
-                <Label className="space-y-2">
-                  <span>Order</span>
-                  <Input
-                    min="1"
-                    type="number"
-                    value={selectedStage.order}
-                    onChange={(event) => updateStage('order', Number(event.target.value))}
-                  />
-                </Label>
+                  <Plus className="h-4 w-4" aria-hidden="true" />
+                </Button>
+                <Button
+                  aria-label="Save configuration"
+                  onClick={() => setSaveOpen(true)}
+                  size="icon"
+                  title="Save configuration"
+                >
+                  <Save className="h-4 w-4" aria-hidden="true" />
+                </Button>
               </div>
-              <Label className="space-y-2">
-                <span>Stage name</span>
-                <Input
-                  value={selectedStage.name}
-                  onChange={(event) => updateStage('name', event.target.value)}
-                />
-              </Label>
-              <Label className="space-y-2">
-                <span>Stage type</span>
-                <Select
-                  value={selectedStage.type}
-                  onValueChange={(value) => updateStage('type', value as JourneyStageType)}
-                >
-                  <SelectTrigger aria-label="Journey stage type">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {stageTypes.map((type) => (
-                      <SelectItem key={type} value={type}>
-                        {type}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </Label>
-              <Label className="space-y-2">
-                <span>Parent stage</span>
-                <Select
-                  value={selectedStage.parentStageId ?? noParentValue}
-                  onValueChange={(value) =>
-                    updateStage('parentStageId', value === noParentValue ? undefined : value)
-                  }
-                >
-                  <SelectTrigger aria-label="Parent journey stage">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value={noParentValue}>No parent stage</SelectItem>
-                    {orderedStages
-                      .filter((stage) => stage.id !== selectedStage.id)
-                      .map((stage) => (
-                        <SelectItem key={stage.id} value={stage.id}>
-                          {stage.code} · {stage.name}
+            </div>
+            <div className="mt-4 space-y-3">
+              {orderedStages.map((stage) => {
+                const mappedActivities = activities.filter((activity) =>
+                  stage.mappedActivityIds.includes(activity.id),
+                )
+
+                return (
+                  <button
+                    key={stage.id}
+                    className={`w-full rounded-sm border p-4 text-left transition-colors ${
+                      stage.id === selectedStage?.id
+                        ? 'border-primary bg-primary-subtle'
+                        : 'border-border bg-background hover:bg-surface-subtle'
+                    }`}
+                    aria-pressed={selectedStage?.id === stage.id}
+                    type="button"
+                    onClick={() => setSelectedStageId(stage.id)}
+                  >
+                    <div className="flex flex-wrap items-start justify-between gap-3">
+                      <div>
+                        <p className="font-semibold text-foreground">
+                          {stage.order}. {stage.code} · {stage.name}
+                        </p>
+                        <p className="mt-1 text-sm text-muted-foreground">
+                          Parent:{' '}
+                          {stages.find((item) => item.id === stage.parentStageId)?.code ?? 'None'}
+                        </p>
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        <StatusBadge tone={stageTypeTone(stage.type)}>{stage.type}</StatusBadge>
+                        {stage.terminal ? <StatusBadge tone="neutral">Terminal</StatusBadge> : null}
+                      </div>
+                    </div>
+                    <p className="mt-3 text-sm text-muted-foreground">
+                      {mappedActivities.length > 0
+                        ? mappedActivities.map((activity) => activity.title).join(', ')
+                        : 'No activities mapped yet'}
+                    </p>
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+
+          <aside className="space-y-5 rounded-lg border border-border bg-surface-subtle p-5">
+            <h2 className="text-lg font-semibold text-foreground">Stage details</h2>
+            {selectedStage ? (
+              <>
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <Label className="space-y-2">
+                    <span>Stage code</span>
+                    <Input
+                      value={selectedStage.code}
+                      onChange={(event) => updateStage('code', event.target.value)}
+                    />
+                  </Label>
+                  <Label className="space-y-2">
+                    <span>Order</span>
+                    <Input
+                      min="1"
+                      type="number"
+                      value={selectedStage.order}
+                      onChange={(event) => updateStage('order', Number(event.target.value))}
+                    />
+                  </Label>
+                </div>
+                <Label className="space-y-2">
+                  <span>Stage name</span>
+                  <Input
+                    value={selectedStage.name}
+                    onChange={(event) => updateStage('name', event.target.value)}
+                  />
+                </Label>
+                <Label className="space-y-2">
+                  <span>Stage type</span>
+                  <Select
+                    value={selectedStage.type}
+                    onValueChange={(value) => updateStage('type', value as JourneyStageType)}
+                  >
+                    <SelectTrigger aria-label="Journey stage type">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {stageTypes.map((type) => (
+                        <SelectItem key={type} value={type}>
+                          {type}
                         </SelectItem>
                       ))}
-                  </SelectContent>
-                </Select>
-              </Label>
-              <Label className="flex items-center gap-3 rounded-md border border-border bg-background p-3">
-                <input
-                  className="h-4 w-4 rounded border-border"
-                  type="checkbox"
-                  checked={selectedStage.terminal}
-                  onChange={(event) => updateStage('terminal', event.target.checked)}
-                />
-                This is an end stage
-              </Label>
-              <Label className="space-y-2">
-                <span>Description</span>
-                <Textarea
-                  value={selectedStage.description}
-                  onChange={(event) => updateStage('description', event.target.value)}
-                />
-              </Label>
+                    </SelectContent>
+                  </Select>
+                </Label>
+                <Label className="space-y-2">
+                  <span>Parent stage</span>
+                  <Select
+                    value={selectedStage.parentStageId ?? noParentValue}
+                    onValueChange={(value) =>
+                      updateStage('parentStageId', value === noParentValue ? undefined : value)
+                    }
+                  >
+                    <SelectTrigger aria-label="Parent journey stage">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value={noParentValue}>No parent stage</SelectItem>
+                      {orderedStages
+                        .filter((stage) => stage.id !== selectedStage.id)
+                        .map((stage) => (
+                          <SelectItem key={stage.id} value={stage.id}>
+                            {stage.code} · {stage.name}
+                          </SelectItem>
+                        ))}
+                    </SelectContent>
+                  </Select>
+                </Label>
+                <Label className="flex items-center gap-3 rounded-md border border-border bg-background p-3">
+                  <input
+                    className="h-4 w-4 rounded border-border"
+                    type="checkbox"
+                    checked={selectedStage.terminal}
+                    onChange={(event) => updateStage('terminal', event.target.checked)}
+                  />
+                  This is an end stage
+                </Label>
+                <Label className="space-y-2">
+                  <span>Description</span>
+                  <Textarea
+                    value={selectedStage.description}
+                    onChange={(event) => updateStage('description', event.target.value)}
+                  />
+                </Label>
 
-              <div className="space-y-3">
-                <h3 className="font-medium text-foreground">Mapped activities</h3>
-                {activities.length > 0 ? (
-                  activities.map((activity) => (
-                    <Label
-                      key={activity.id}
-                      className="flex items-start gap-3 rounded-md border border-border bg-background p-3"
-                    >
-                      <input
-                        className="mt-1 h-4 w-4 rounded border-border"
-                        type="checkbox"
-                        checked={selectedStage.mappedActivityIds.includes(activity.id)}
-                        onChange={() => toggleActivity(activity.id)}
-                      />
-                      <span>
-                        <span className="block font-medium text-foreground">{activity.title}</span>
-                        <span className="text-xs text-muted-foreground">
-                          Existing activity stage: {activity.journeyStageId}
+                <div className="space-y-3">
+                  <h3 className="font-medium text-foreground">Mapped activities</h3>
+                  {activities.length > 0 ? (
+                    activities.map((activity) => (
+                      <Label
+                        key={activity.id}
+                        className="flex items-start gap-3 rounded-md border border-border bg-background p-3"
+                      >
+                        <input
+                          className="mt-1 h-4 w-4 rounded border-border"
+                          type="checkbox"
+                          checked={selectedStage.mappedActivityIds.includes(activity.id)}
+                          onChange={() => toggleActivity(activity.id)}
+                        />
+                        <span>
+                          <span className="block font-medium text-foreground">
+                            {activity.title}
+                          </span>
+                          <span className="text-xs text-muted-foreground">
+                            Existing activity stage: {activity.journeyStageId}
+                          </span>
                         </span>
-                      </span>
-                    </Label>
-                  ))
-                ) : (
-                  <p className="rounded-sm border border-warning/30 bg-warning-subtle p-3 text-sm text-warning">
-                    No project activities are available for mapping.
-                  </p>
-                )}
-              </div>
-            </>
-          ) : (
-            <p className="text-sm text-muted-foreground">Select a stage to edit details.</p>
-          )}
-        </aside>
-      </div>
+                      </Label>
+                    ))
+                  ) : (
+                    <p className="rounded-sm border border-warning/30 bg-warning-subtle p-3 text-sm text-warning">
+                      No project activities are available for mapping.
+                    </p>
+                  )}
+                </div>
+              </>
+            ) : (
+              <p className="text-sm text-muted-foreground">Select a stage to edit details.</p>
+            )}
+          </aside>
+        </div>
 
-      <section className="rounded-lg border border-border bg-card p-5">
-        <h2 className="text-lg font-semibold text-foreground">Branching preview</h2>
-        <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-          {branchStages.length > 0 ? (
-            branchStages.map((stage) => (
-              <div key={stage.id} className="rounded-sm border border-border bg-surface-subtle p-4">
-                <StatusBadge tone="warning">{stage.code}</StatusBadge>
-                <p className="mt-3 font-semibold text-foreground">{stage.name}</p>
-                <p className="mt-2 text-sm leading-6 text-muted-foreground">
-                  Parent:{' '}
-                  {stages.find((item) => item.id === stage.parentStageId)?.name ?? 'Not assigned'}
-                </p>
-              </div>
-            ))
-          ) : (
-            <p className="rounded-sm border border-border bg-surface-subtle p-4 text-sm text-muted-foreground">
-              No branch stages are configured yet.
-            </p>
-          )}
+        <div className="mt-6 border-t border-border pt-6">
+          <h2 className="text-lg font-semibold text-foreground">Branching preview</h2>
+          <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+            {branchStages.length > 0 ? (
+              branchStages.map((stage) => (
+                <div
+                  key={stage.id}
+                  className="rounded-sm border border-border bg-surface-subtle p-4"
+                >
+                  <StatusBadge tone="warning">{stage.code}</StatusBadge>
+                  <p className="mt-3 font-semibold text-foreground">{stage.name}</p>
+                  <p className="mt-2 text-sm leading-6 text-muted-foreground">
+                    Parent:{' '}
+                    {stages.find((item) => item.id === stage.parentStageId)?.name ?? 'Not assigned'}
+                  </p>
+                </div>
+              ))
+            ) : (
+              <p className="rounded-sm border border-border bg-surface-subtle p-4 text-sm text-muted-foreground">
+                No branch stages are configured yet.
+              </p>
+            )}
+          </div>
         </div>
       </section>
 

@@ -72,3 +72,5 @@ export const usePrototypeRole = () => {
 
   return context
 }
+
+export const useOptionalPrototypeRole = () => useContext(PrototypeRoleContext)

@@ -358,8 +358,8 @@ const LocationDetailsDialog = ({
     </div>
 
     <div className="rounded-sm border border-info/25 bg-info-subtle p-3 text-xs leading-5 text-info">
-      Approximate city-level location. This summary does not include addresses or
-      beneficiary-level locations.
+      Approximate city-level location. This summary does not include addresses or beneficiary-level
+      locations.
     </div>
   </DialogContent>
 )

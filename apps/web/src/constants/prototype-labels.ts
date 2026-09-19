@@ -21,6 +21,15 @@ export const defaultPrototypeLabels = {
 
 export type PrototypeLabelKey = keyof typeof defaultPrototypeLabels
 export type PrototypeLabels = { [Key in PrototypeLabelKey]: string }
+export type EditablePageHeadingKey =
+  | 'moduleProjects'
+  | 'moduleBeneficiaries'
+  | 'moduleCollection'
+  | 'moduleAnalytics'
+  | 'moduleAlerts'
+  | 'moduleReports'
+  | 'moduleAlertsRepository'
+  | 'moduleUserManagement'
 
 export interface PrototypeLabelDefinition {
   key: PrototypeLabelKey
@@ -74,11 +83,6 @@ export const prototypeLabelGroups: PrototypeLabelGroup[] = [
         helperText: 'Heading for Rule-Based Alerts.',
       },
       {
-        key: 'moduleRecommendations',
-        label: 'Recommendations page heading',
-        helperText: 'Heading for Human-reviewed recommendation outcomes.',
-      },
-      {
         key: 'moduleReports',
         label: 'Reports page heading',
         helperText: 'Heading for internal reporting pages.',
@@ -93,17 +97,12 @@ export const prototypeLabelGroups: PrototypeLabelGroup[] = [
   {
     id: 'administration-page-headings',
     title: 'Administration page headings',
-    description: 'Visible headings inside the two Administration pages.',
+    description: 'Visible headings inside the approved Administration page.',
     labels: [
       {
         key: 'moduleUserManagement',
         label: 'User Management page heading',
         helperText: 'Heading for user and role records.',
-      },
-      {
-        key: 'moduleLabelSettings',
-        label: 'Edit Labels page heading',
-        helperText: 'Heading for the page-heading editor.',
       },
     ],
   },

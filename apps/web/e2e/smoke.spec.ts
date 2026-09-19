@@ -716,7 +716,7 @@ test('beneficiary directory and analytics screens expose critical controls', asy
   await expect(page.getByRole('link', { name: 'Beneficiary NAV-022' })).toBeVisible()
   await expect(page.getByText('BEN-NAV-022 · Navotas')).toBeVisible()
 
-  await expect(page.getByRole('button', { name: 'Edit page heading' })).toHaveCount(0)
+  await expect(page.getByRole('button', { name: /Edit .* page heading/ })).toBeVisible()
   await expect(page.getByRole('heading', { name: 'Beneficiary Journey Tracking' })).toBeVisible()
   await expect(page.getByRole('link', { name: 'Beneficiaries', exact: true }).first()).toBeVisible()
   await expect(page.getByRole('button', { name: 'Verify access' })).toHaveCount(0)
@@ -1053,12 +1053,16 @@ test('System Administrator can edit the approved page headings while fixed label
   await expect(navigation.getByRole('link', { name: 'Collection', exact: true })).toBeVisible()
   await page.goto('/beneficiaries')
   await expect(page.getByRole('heading', { name: 'Beneficiary Journey Tracking' })).toBeVisible()
-  await expect(page.getByRole('button', { name: 'Edit page heading' })).toHaveCount(0)
+  await expect(page.getByRole('button', { name: /Edit .* page heading/ })).toBeVisible()
   await expect(navigation.getByRole('link', { name: 'Beneficiaries', exact: true })).toBeVisible()
 })
 
-test('non-administrator roles cannot open the page-heading editor', async ({ page }) => {
+test('non-administrator roles can edit page headings in place but cannot open label settings', async ({
+  page,
+}) => {
   await seedPrototypeSession(page, 'Program Manager')
+  await page.goto('/projects')
+  await expect(page.getByRole('button', { name: /Edit .* page heading/ })).toBeVisible()
   await page.goto('/settings/labels')
 
   await expect(page.getByText('Unauthorized access', { exact: true })).toBeVisible()

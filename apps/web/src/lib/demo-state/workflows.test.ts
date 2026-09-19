@@ -21,10 +21,15 @@ import { decideRecommendation, reviewAlert, reviewRecommendation, saveRule } fro
 import {
   approveProgress,
   reassignProjectTeam,
+  requestActivityExtension,
   reviewExpense,
+  reviewValidatedActivityProof,
   saveExpense,
   saveIndicator,
+  saveIndicatorForProjects,
   saveProject,
+  submitActivityProof,
+  validateActivityProof,
 } from './projects'
 import { saveGeneratedReport } from './reports'
 import {
@@ -42,6 +47,105 @@ beforeEach(() => {
 })
 
 describe('I03 linked delivery workflow', () => {
+  it('keeps proof versions exact across repeat PO submission, M&E validation, and PM approval', () => {
+    switchDemoAccount('monitoring-evaluation-officer')
+    const validatedPartial = validateActivityProof('act-fm-02', 'proof-fm-02')
+    expect(validatedPartial.submittedProof.at(-1)).toMatchObject({
+      id: 'proof-fm-02',
+      progress: 64,
+      status: 'Validated',
+      version: 1,
+    })
+    expect(() => validateActivityProof('act-fm-02', 'proof-fm-02')).toThrow('submitted proof')
+    expect(
+      getDemoState().notifications.some(
+        (notice) =>
+          notice.recipientId === 'project-manager' && notice.href?.includes('review=proof-fm-02'),
+      ),
+    ).toBe(true)
+
+    switchDemoAccount('project-manager')
+    const approvedPartial = reviewValidatedActivityProof('act-fm-02', 'proof-fm-02', true)
+    expect(approvedPartial).toMatchObject({ progress: 64, progressApproval: 'Approved' })
+    expect(approvedPartial.status).not.toBe('Completed')
+    expect(approvedPartial.submittedProof.at(-1)?.status).toBe('Approved')
+
+    switchDemoAccount('project-officer')
+    const resubmitted = submitActivityProof({
+      activityId: 'act-fm-02',
+      beneficiariesReachedThisSession: 152,
+      note: 'Attendance register attached to the corrected completion update.',
+      fileNames: ['attendance-register.pdf'],
+    })
+    const latest = resubmitted.submittedProof.at(-1)
+    expect(latest).toMatchObject({ status: 'Submitted', version: 2, progress: 100 })
+    expect(resubmitted.status).toBe('Overdue')
+    expect(resubmitted.progress).toBe(64)
+    expect(resubmitted.beneficiariesReached).toBe(268)
+
+    switchDemoAccount('monitoring-evaluation-officer')
+    expect(() => validateActivityProof('act-fm-02', 'proof-fm-02')).toThrow('stale')
+    const validated = validateActivityProof('act-fm-02', latest?.id ?? '')
+    expect(validated.submittedProof.at(-1)?.status).toBe('Validated')
+    expect(validated.status).toBe('For Review')
+    expect(validated.progress).toBe(100)
+    expect(validated.beneficiariesReached).toBe(420)
+
+    switchDemoAccount('project-manager')
+    const completed = reviewValidatedActivityProof('act-fm-02', latest?.id ?? '', true)
+    expect(completed.status).toBe('Completed')
+    expect(completed.submittedProof.at(-1)?.status).toBe('Approved')
+    expect(() => reviewValidatedActivityProof('act-fm-02', latest?.id ?? '', true)).toThrow(
+      'M&E-validated',
+    )
+  })
+
+  it('lets Project Officers supersede a pending proof while preserving the latest-version guard', () => {
+    switchDemoAccount('project-officer')
+    const updated = submitActivityProof({
+      activityId: 'act-fm-02',
+      beneficiariesReachedThisSession: 10,
+      note: 'Newer session update for review.',
+      fileNames: ['newer-session.pdf'],
+    })
+
+    expect(updated.submittedProof[0]).toMatchObject({ status: 'Superseded' })
+    expect(updated.submittedProof.at(-1)).toMatchObject({ status: 'Submitted', version: 2 })
+
+    switchDemoAccount('monitoring-evaluation-officer')
+    expect(() => validateActivityProof('act-fm-02', 'proof-fm-02')).toThrow('stale')
+    expect(() =>
+      validateActivityProof('act-fm-02', updated.submittedProof.at(-1)?.id ?? ''),
+    ).not.toThrow()
+  })
+
+  it('still lets the Project Manager return a validated update with a reason', () => {
+    switchDemoAccount('monitoring-evaluation-officer')
+    validateActivityProof('act-fm-02', 'proof-fm-02')
+    switchDemoAccount('project-manager')
+    const returned = reviewValidatedActivityProof(
+      'act-fm-02',
+      'proof-fm-02',
+      false,
+      'Attach the attendance register and resubmit.',
+    )
+    expect(returned).toMatchObject({
+      correctionReason: 'Attach the attendance register and resubmit.',
+      progressApproval: 'For Correction',
+      status: 'In Progress',
+    })
+  })
+
+  it('rejects proof actions for the wrong role and outside the actor project scope', () => {
+    switchDemoAccount('project-officer')
+    expect(() => validateActivityProof('act-fm-02', 'proof-fm-02')).toThrow('permission')
+
+    switchDemoAccount('project-manager')
+    expect(() => reviewValidatedActivityProof('act-yr-01', 'proof-yr-01', true)).toThrow(
+      'outside your authorized scope',
+    )
+  })
+
   it('restricts modular project-team reassignment and propagates selected member scope', () => {
     const assignment = {
       programManager: 'Maria Santos',
@@ -128,7 +232,7 @@ describe('I03 linked delivery workflow', () => {
       state.accounts.find((account) => account.id === unselectedOfficerId)?.projectIds,
     ).not.toContain(project.id)
   })
-  it('verifies expenses once, updates utilization, and supports correction', () => {
+  it('lets M&E validate a submitted expense into the ledger exactly once', () => {
     switchDemoAccount('project-officer')
     const expense = saveExpense({
       projectId: 'futuremakers-ncr',
@@ -149,9 +253,13 @@ describe('I03 linked delivery workflow', () => {
     expect(
       getDemoState().budgets.find((row) => row.projectId === expense.projectId)?.actualSpending,
     ).toBe(before + 1000)
-    expect(() => reviewExpense(expense.id, true)).toThrow('awaiting')
+    expect(getDemoState().expenses.find((record) => record.id === expense.id)).toMatchObject({
+      counted: true,
+      status: 'Verified',
+    })
+    expect(() => reviewExpense(expense.id, true)).toThrow('awaiting verification')
   })
-  it('enforces correction reasons, PM progress approval, and indicator uniqueness', () => {
+  it('enforces M&E expense-return reasons, PM progress approval, and indicator uniqueness', () => {
     switchDemoAccount('project-officer')
     const expense = saveExpense({
       projectId: 'futuremakers-ncr',
@@ -164,7 +272,10 @@ describe('I03 linked delivery workflow', () => {
     switchDemoAccount('monitoring-evaluation-officer')
     expect(() => reviewExpense(expense.id, false)).toThrow('reason')
     reviewExpense(expense.id, false, 'Attach the fictional receipt reference.')
-    expect(getDemoState().expenses[0].status).toBe('For Correction')
+    expect(getDemoState().expenses.find((record) => record.id === expense.id)?.status).toBe(
+      'For Correction',
+    )
+    switchDemoAccount('monitoring-evaluation-officer')
     saveIndicator({
       projectId: 'futuremakers-ncr',
       code: 'IND-TEST',
@@ -194,6 +305,57 @@ describe('I03 linked delivery workflow', () => {
     expect(getDemoState().activities.find((row) => row.id === 'act-fm-01')?.progressApproval).toBe(
       'For Correction',
     )
+  })
+  it('notifies the Project Manager once when a Project Officer requests an extension', () => {
+    switchDemoAccount('project-officer')
+    const updated = requestActivityExtension('act-fm-02')
+    expect(updated.extensionRequestedAt).toBeTruthy()
+    expect(
+      getDemoState().notifications.some(
+        (notice) =>
+          notice.recipientId === 'project-manager' &&
+          notice.message.includes('requested a schedule extension'),
+      ),
+    ).toBe(true)
+    expect(() => requestActivityExtension('act-fm-02')).toThrow('already been sent')
+  })
+  it('saves multi-project indicator copies atomically without later propagation', () => {
+    switchDemoAccount('monitoring-evaluation-officer')
+    const input = {
+      label: 'Fictional completion rate',
+      description: 'Completion rate for the fictional test fixture',
+      unit: 'Percent',
+      disaggregation: 'Sex, age group, disability status',
+      dataSource: 'Demo completion records',
+      target: 80,
+    }
+    const saved = saveIndicatorForProjects(input, [
+      'futuremakers-ncr',
+      'grassroots-centers-navotas',
+    ])
+    expect(saved).toHaveLength(2)
+    expect(new Set(saved.map((record) => record.code)).size).toBe(1)
+
+    saveIndicatorForProjects(
+      { ...input, label: 'Revised local completion rate' },
+      ['futuremakers-ncr'],
+      saved.find((record) => record.projectId === 'futuremakers-ncr')?.id,
+    )
+    expect(
+      getDemoState().indicators.find(
+        (record) =>
+          record.projectId === 'grassroots-centers-navotas' && record.code === saved[0].code,
+      )?.label,
+    ).toBe(input.label)
+
+    const before = getDemoState().indicators.length
+    expect(() =>
+      saveIndicatorForProjects({ ...input, label: 'Atomic permission check' }, [
+        'futuremakers-ncr',
+        'safe-spaces-northern-samar',
+      ]),
+    ).toThrow('authorized scope')
+    expect(getDemoState().indicators).toHaveLength(before)
   })
 })
 
@@ -365,6 +527,69 @@ describe('I05 beneficiary journeys', () => {
 })
 
 describe('I06-I08 monitoring decisions, reports, and genuine files', () => {
+  it('keeps review separate from condition resolution and reopens one stable alert on recurrence', () => {
+    switchDemoAccount('system-administrator')
+    const createdRule = saveRule({
+      name: 'Fictional recurrence check',
+      category: 'Budget',
+      parameter: 'fictional recurrence utilization',
+      operator: 'above',
+      threshold: 1,
+      severity: 'High',
+      status: 'Active',
+      suggestedAction: 'Review the fictional condition.',
+      description: 'Flag fictional utilization above one percent.',
+    })
+    const alertId = `generated-${createdRule.id}-futuremakers-ncr`
+    const recommendationCount = () =>
+      getDemoState().recommendations.filter((row) => row.alertId === alertId).length
+    const ruleId = createdRule.id
+    const ruleDefinition = {
+      name: createdRule.name,
+      category: createdRule.category,
+      parameter: createdRule.parameter,
+      operator: createdRule.operator,
+      threshold: createdRule.threshold,
+      upperThreshold: createdRule.upperThreshold,
+      severity: createdRule.severity,
+      status: createdRule.status,
+      suggestedAction: createdRule.suggestedAction,
+      description: createdRule.description,
+    }
+
+    switchDemoAccount('monitoring-evaluation-officer')
+    reviewAlert(alertId)
+    expect(getDemoState().alerts.find((row) => row.id === alertId)?.lifecycleStatus).toBe(
+      'Reviewed',
+    )
+
+    switchDemoAccount('system-administrator')
+    saveRule({ ...ruleDefinition, threshold: 1000 }, ruleId)
+    expect(getDemoState().alerts.find((row) => row.id === alertId)?.lifecycleStatus).toBe(
+      'Auto-resolved',
+    )
+
+    const resolvedTriggerCount =
+      getDemoState().rules.find((row) => row.id === ruleId)?.triggeredCount ?? 0
+    saveRule({ ...ruleDefinition, threshold: 1 }, ruleId)
+    expect(getDemoState().alerts.filter((row) => row.id === alertId)).toHaveLength(1)
+    expect(getDemoState().alerts.find((row) => row.id === alertId)?.lifecycleStatus).toBe('New')
+    expect(getDemoState().rules.find((row) => row.id === ruleId)?.triggeredCount).toBeGreaterThan(
+      resolvedTriggerCount,
+    )
+    expect(recommendationCount()).toBe(1)
+    expect(getDemoState().recommendations.find((row) => row.alertId === alertId)).toMatchObject({
+      reviewStatus: 'New',
+      outcome: undefined,
+      outcomeNote: undefined,
+    })
+    expect(getDemoState().decisionHistory[alertId]?.map((entry) => entry.state)).toEqual([
+      'Reviewed',
+      'Auto-resolved',
+      'New',
+    ])
+  })
+
   it('applies a system-wide rule and preserves review/outcome restrictions', () => {
     switchDemoAccount('system-administrator')
     const rule = saveRule({

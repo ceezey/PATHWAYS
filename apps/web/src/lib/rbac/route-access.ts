@@ -1,7 +1,7 @@
 import type { DashboardNavGroup, DashboardNavItem } from '@/constants/navigation'
 import type { ReportKind } from '@/types/pathways'
 import type { PrototypeRole } from '@/types/prototype-role'
-import { can, canAny } from './can'
+import { can, canAny, getAccessProfile } from './can'
 import { canAccessProjectForRole } from './data-scope'
 import type { PermissionCode } from './permissions'
 
@@ -116,13 +116,7 @@ const routeChecks: Array<{
     test: (pathname) => /^\/projects\/[^/]+\/budget/.test(pathname),
     moduleName: 'Budget',
     allowed: (role, pathname) =>
-      canAccessProjectPath(role, pathname) &&
-      canAny(role, [
-        'budget.expense.log',
-        'budget.expense.view',
-        'budget.full',
-        'budget.portfolio_view',
-      ]),
+      canAccessProjectPath(role, pathname) && getAccessProfile(role).modules.budget !== 'none',
   },
   {
     test: (pathname) => /^\/projects\/[^/]+\/journey-stages/.test(pathname),
@@ -146,7 +140,7 @@ const routeChecks: Array<{
     test: (pathname) => pathname.startsWith('/beneficiaries'),
     moduleName: 'Beneficiaries',
     allowed: hasBeneficiaryPermission,
-    requiresBeneficiaryStepUp: () => false,
+    requiresBeneficiaryStepUp: () => true,
   },
   {
     test: (pathname) => pathname.startsWith('/collection/entry'),
@@ -300,7 +294,6 @@ const navPermissions: Record<string, PermissionCode | PermissionCode[] | undefin
   '/indicators': 'indicators.view',
   '/analytics': 'analytics.view',
   '/alerts': 'alerts.review',
-  '/recommendations': 'recommendations.review',
   '/reports': 'reports.view',
   '/alerts/repository': 'rules.view',
   '/transparency': ['transparency.preview', 'transparency.publish'],
@@ -336,6 +329,10 @@ export const filterWorkspaceTabs = <Tab extends WorkspaceTabAccess>(
   role: PrototypeRole,
 ) =>
   tabs.filter((tab) => {
+    if (tab.path === 'budget') {
+      return getAccessProfile(role).modules.budget !== 'none'
+    }
+
     if (tab.anyPermissions) {
       return canAny(role, tab.anyPermissions)
     }

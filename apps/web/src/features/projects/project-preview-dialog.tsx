@@ -4,10 +4,9 @@ import { ArrowRight } from 'lucide-react'
 import Link from 'next/link'
 
 import { DialogShell } from '@/components/pathways/dialog-shell'
-import { ProgressBar } from '@/components/pathways/progress-bar'
 import { StatusBadge } from '@/components/pathways/status-badge'
 import { Button } from '@/components/ui/button'
-import { Dialog } from '@/components/ui/dialog'
+import { Dialog, DialogClose } from '@/components/ui/dialog'
 import type { ProjectDetail } from '@/types/pathways'
 
 import {
@@ -39,52 +38,40 @@ export const ProjectPreviewDialog = ({
           </div>
           <dl className="grid gap-3 text-sm sm:grid-cols-2">
             <div>
-              <dt className="text-muted-foreground">Project Manager</dt>
-              <dd className="mt-1 font-medium text-foreground">{project.projectManager}</dd>
+              <dt className="text-muted-foreground">Region</dt>
+              <dd className="mt-1 font-medium text-foreground">{project.area}</dd>
             </div>
             <div>
-              <dt className="text-muted-foreground">Budget code</dt>
-              <dd className="mt-1 font-medium text-foreground">{project.budgetCode}</dd>
-            </div>
-            <div>
-              <dt className="text-muted-foreground">Beneficiaries reached</dt>
-              <dd className="mt-1 font-medium text-foreground">
-                {formatNumber(project.beneficiariesReached)} /{' '}
-                {formatNumber(project.targetBeneficiaries)}
-              </dd>
-            </div>
-            <div>
-              <dt className="text-muted-foreground">Team</dt>
-              <dd className="mt-1 font-medium text-foreground">
-                {project.programManager}; {project.monitoringOfficer}
-              </dd>
+              <dt className="text-muted-foreground">Project period</dt>
+              <dd className="mt-1 font-medium text-foreground">{project.period}</dd>
             </div>
           </dl>
-          <div className="grid gap-4 sm:grid-cols-2">
-            <ProgressBar label="KPI achievement" tone="success" value={project.kpiAchievement} />
-            <ProgressBar
-              label="Budget utilization"
-              tone={project.budgetUtilization > 80 ? 'warning' : 'info'}
-              value={project.budgetUtilization}
+          <div className="grid gap-px overflow-hidden rounded-sm border border-border bg-border sm:grid-cols-2">
+            <PreviewMeasure label="KPI achievement" value={`${project.kpiAchievement}%`} />
+            <PreviewMeasure label="Budget utilization" value={`${project.budgetUtilization}%`} />
+            <PreviewMeasure
+              label="Beneficiaries"
+              value={`${formatNumber(project.beneficiariesReached)} / ${formatNumber(project.targetBeneficiaries)}`}
             />
-            <ProgressBar label="Timeline progress" value={project.timelineProgress} />
-            <ProgressBar
-              label="Beneficiary reach"
-              tone="success"
-              value={
-                project.targetBeneficiaries > 0
-                  ? Math.round((project.beneficiariesReached / project.targetBeneficiaries) * 100)
-                  : 0
-              }
-            />
+            <PreviewMeasure label="Timeline" value={`${project.timelineProgress}%`} />
           </div>
           <div className="rounded-lg border border-border bg-muted/40 p-4 text-sm leading-6 text-muted-foreground">
-            {projectHealthSignal(project)}
+            <p className="font-semibold text-foreground">Health Signal Basis</p>
+            <p className="mt-1">{projectHealthSignal(project)}</p>
           </div>
-          <div className="flex justify-end">
+          <dl className="text-sm">
+            <dt className="text-muted-foreground">Project Manager</dt>
+            <dd className="mt-1 font-medium text-foreground">{project.projectManager}</dd>
+          </dl>
+          <div className="flex flex-wrap justify-end gap-2">
+            <DialogClose asChild>
+              <Button type="button" variant="outline">
+                Close
+              </Button>
+            </DialogClose>
             <Button asChild className="gap-2">
-              <Link href={`/projects/${project.id}/activities`}>
-                Open Workspace
+              <Link href={`/projects/${project.id}`}>
+                Open Project
                 <ArrowRight className="h-4 w-4" aria-hidden="true" />
               </Link>
             </Button>
@@ -93,4 +80,11 @@ export const ProjectPreviewDialog = ({
       </DialogShell>
     ) : null}
   </Dialog>
+)
+
+const PreviewMeasure = ({ label, value }: { label: string; value: string }) => (
+  <div className="bg-background p-3">
+    <p className="text-xs text-muted-foreground">{label}</p>
+    <p className="mt-1 text-lg font-semibold tabular-nums text-foreground">{value}</p>
+  </div>
 )

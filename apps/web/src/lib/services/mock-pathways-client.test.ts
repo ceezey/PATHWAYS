@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { beforeEach, describe, expect, it } from 'vitest'
 
+import { validateActivityProof } from '@/lib/demo-state/projects'
 import { resetDemo, switchDemoAccount } from '@/lib/demo-state/store'
 import { MockPathwaysClient } from './mock-pathways-client'
 
@@ -51,15 +52,46 @@ describe('MockPathwaysClient dashboard data', () => {
     )
   })
 
-  it('describes Edit Labels as page-heading configuration for System Administrator', async () => {
+  it('derives the four source-defined KPI sets from each actor authorized scope', async () => {
+    const valuesFor = async (role: Parameters<MockPathwaysClient['getDashboard']>[0]) =>
+      Object.fromEntries(
+        (await client.getDashboard(role)).metrics.map((metric) => [metric.label, metric.value]),
+      )
+
+    await expect(valuesFor('Program Manager')).resolves.toEqual({
+      'Active projects': 4,
+      'Critical projects': 1,
+      'At-risk projects': 1,
+      'On-track projects': 2,
+    })
+    await expect(valuesFor('Project Manager')).resolves.toEqual({
+      'Pending approvals': 0,
+      'Active budget alerts': 2,
+      'Overdue activities': 1,
+      'For review': 0,
+    })
+    await expect(valuesFor('Project Officer')).resolves.toEqual({
+      'Assigned activities': 3,
+      Overdue: 1,
+      'Flagged proof': 0,
+      'Submitted this month': 0,
+    })
+    await expect(valuesFor('Monitoring and Evaluation Officer')).resolves.toEqual({
+      'Active alerts': 3,
+      'Proof pending review': 1,
+      'Evaluation snapshots': 1,
+      'Datasets imported': 0,
+    })
+  })
+
+  it('retires the standalone Edit Labels dashboard entry', async () => {
     const dashboard = await client.getDashboard('System Administrator')
     const labelSettings = dashboard.sections
       .flatMap((section) => section.items)
       .find((item) => item.href === '/settings/labels')
 
-    expect(dashboard.summary).toContain('approved page headings')
-    expect(labelSettings?.description).toContain('approved page headings')
-    expect(JSON.stringify(dashboard)).not.toContain('sidebar item labels')
+    expect(dashboard.summary).not.toContain('approved page headings')
+    expect(labelSettings).toBeUndefined()
   })
 
   it('provides portfolio and project contexts for executive review', async () => {
@@ -128,10 +160,15 @@ describe('MockPathwaysClient dashboard data', () => {
       client
         .getRecommendationsForRole('Project Manager')
         .then((recommendations) => recommendations.map((recommendation) => recommendation.id)),
-    ).resolves.toEqual(['rec-fm-low-kpi', 'rec-fm-bootcamp'])
+    ).resolves.toEqual([
+      'rec-fm-low-kpi',
+      'rec-fm-bootcamp',
+      'rec-fm-budget-burn',
+      'rec-fm-budget-concentration',
+    ])
 
     for (const role of ['Program Manager', 'Grant Manager', 'System Administrator'] as const) {
-      await expect(client.getAlertsForRole(role)).resolves.toHaveLength(6)
+      await expect(client.getAlertsForRole(role)).resolves.toHaveLength(8)
       await expect(client.getRecommendationsForRole(role)).resolves.toHaveLength(
         allRecommendationCount,
       )
@@ -218,6 +255,7 @@ describe('MockPathwaysClient dashboard data', () => {
 
     expect(updatedActivity).toMatchObject({
       title: 'Prototype activity test updated',
+      status: 'In Progress',
       progress: 35,
       budgetLogged: 5000,
     })
@@ -226,8 +264,8 @@ describe('MockPathwaysClient dashboard data', () => {
     })
   })
 
-  it('submits a local prototype activity proof record without uploading files', async () => {
-    switchDemoAccount('project-officer')
+  it('keeps a submitted proof pending until M&E applies its progress', async () => {
+    switchDemoAccount('project-manager')
     const activity = await client.createActivity({
       projectId: 'futuremakers-ncr',
       title: 'Prototype proof activity',
@@ -241,6 +279,7 @@ describe('MockPathwaysClient dashboard data', () => {
       journeyStageId: 'stage-entry',
     })
 
+    switchDemoAccount('project-officer')
     const submittedActivity = await client.submitActivityProof({
       activityId: activity.id,
       progress: 100,
@@ -248,10 +287,19 @@ describe('MockPathwaysClient dashboard data', () => {
       fileNames: ['attendance.pdf'],
     })
 
-    expect(submittedActivity.status).toBe('For Review')
+    expect(submittedActivity.status).toBe('Planned')
     expect(submittedActivity.submittedProof).toHaveLength(1)
     expect(submittedActivity.submittedProof[0]?.fileName).toBe('attendance.pdf')
-    expect(submittedActivity.updateNotes[0]?.note).toBe('Prototype proof submitted.')
+    expect(submittedActivity.updateNotes).toHaveLength(0)
+
+    switchDemoAccount('monitoring-evaluation-officer')
+    const validated = validateActivityProof(
+      activity.id,
+      submittedActivity.submittedProof[0]?.id ?? '',
+    )
+    expect(validated.status).toBe('For Review')
+    expect(validated.progress).toBe(100)
+    expect(validated.updateNotes[0]?.note).toBe('Prototype proof submitted.')
   })
 
   it('provides phase five workspace records for project tabs', async () => {

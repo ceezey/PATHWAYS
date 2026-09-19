@@ -23,6 +23,26 @@ export const mockRecommendations: RecommendationRecord[] = [
     reviewStatus: 'New',
   },
   {
+    id: 'rec-fm-budget-burn',
+    alertId: 'alert-fm-budget-burn',
+    ruleId: 'rule-budget-concern',
+    alertBasis: 'Recorded spending is at 90% while an activity remains in progress.',
+    ruleExplanation:
+      'The deterministic budget rule flags high utilization before all delivery work is complete.',
+    text: 'Review the remaining activity plan and reserve the unspent balance for verified delivery needs.',
+    reviewStatus: 'New',
+  },
+  {
+    id: 'rec-fm-budget-concentration',
+    alertId: 'alert-fm-budget-concentration',
+    ruleId: 'rule-budget-concern',
+    alertBasis: 'One activity represents 76% of recorded project spending.',
+    ruleExplanation:
+      'The deterministic budget rule flags unusually concentrated spending for human review.',
+    text: 'Compare the activity expense ledger with its approved allocation and document any variance before further release.',
+    reviewStatus: 'New',
+  },
+  {
     id: 'rec-yr-site-delay',
     alertId: 'alert-yr-site-delay',
     ruleId: 'rule-delayed-activity',

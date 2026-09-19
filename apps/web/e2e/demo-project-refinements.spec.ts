@@ -69,7 +69,7 @@ test('project team reassignment is scoped, persists, and is hidden from disallow
   }
 })
 
-test('create-project omits Budget code and activities use the requested dropdown', async ({
+test('create-project omits Budget code and activities use the consolidated list controls', async ({
   page,
 }) => {
   await page.setViewportSize({ width: 1024, height: 800 })
@@ -79,32 +79,29 @@ test('create-project omits Budget code and activities use the requested dropdown
   await expect(page.getByLabel('Project budget (PHP)')).toBeVisible()
 
   await page.goto('/projects/futuremakers-ncr/activities')
-  const activityList = page.getByRole('combobox', { name: 'Activity List' })
   const search = page.getByRole('textbox', { name: 'Search activities' })
   const newActivity = page.getByRole('button', { name: 'New Activity' })
-  await expect(activityList).toBeVisible()
+  await expect(page.getByRole('combobox', { name: 'Activity List' })).toHaveCount(0)
   await expect(newActivity).toBeVisible()
+  await expect(page.getByRole('button', { name: 'List view' })).toHaveAttribute(
+    'aria-pressed',
+    'true',
+  )
+  await expect(page.getByRole('heading', { name: 'Activity list' })).toBeVisible()
   const searchBox = await search.boundingBox()
-  const activityListBox = await activityList.boundingBox()
   const newActivityBox = await newActivity.boundingBox()
   expect(searchBox).not.toBeNull()
-  expect(activityListBox).not.toBeNull()
   expect(newActivityBox).not.toBeNull()
-  expect((activityListBox?.x ?? 0) >= (searchBox?.x ?? 0) + (searchBox?.width ?? 0)).toBe(true)
-  expect((newActivityBox?.y ?? 0) >= (searchBox?.y ?? 0) + (searchBox?.height ?? 0)).toBe(true)
-  await activityList.click()
-  for (const option of ['All', 'Mine', 'Overdue', 'Needs Attention']) {
-    await expect(page.getByRole('option', { name: option, exact: true })).toBeVisible()
-  }
-  await page.getByRole('option', { name: 'Overdue', exact: true }).click()
-  await expect(activityList).toHaveText('Overdue')
+  expect((newActivityBox?.y ?? 0) < (searchBox?.y ?? 0)).toBe(true)
+  await expect(page.getByRole('region', { name: 'Activity status filters' })).toBeVisible()
+  await expect(page.getByText('Activity status at a glance', { exact: true })).toHaveCount(0)
 })
 
 test('activity status summary filters the activity list for every status', async ({ page }) => {
   await resetAndSwitch(page, 'project-manager')
   await page.goto('/projects/futuremakers-ncr/activities')
 
-  const summary = page.getByRole('region', { name: 'Activity status summary' })
+  const summary = page.getByRole('region', { name: 'Activity status filters' })
   const activities = page.getByRole('article', { name: /^Activity:/ })
   for (const status of ['Planned', 'In Progress', 'For Review', 'Overdue', 'Completed']) {
     const statusFilter = summary.getByRole('button', {
@@ -118,8 +115,7 @@ test('activity status summary filters the activity list for every status', async
     await expect(activities).toHaveCount(expectedCount)
   }
 
-  await page.getByRole('combobox', { name: 'Activity List' }).click()
-  await page.getByRole('option', { name: 'Needs Attention', exact: true }).click()
+  await summary.getByRole('button', { pressed: true }).click()
   await expect(summary.getByRole('button', { pressed: true })).toHaveCount(0)
 })
 

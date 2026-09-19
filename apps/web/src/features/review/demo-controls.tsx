@@ -102,10 +102,9 @@ export function DemoControls() {
       </div>
       <p>
         Review clock: {new Date(state.clock).toISOString()}. Account password: PathwaysDemo!2026.
-        Beneficiary access PIN: 2468. Reset expiry{' '}
-        {demoPolicy.resetMinutes} minutes, PIN {demoPolicy.pinMinutes} minutes; password 12–64
-        characters with upper/lowercase, number and symbol. SADDD warning{' '}
-        {demoPolicy.sadddMissingPercent}%; export limit 5 MiB.
+        Beneficiary access PIN: 2468. Reset expiry {demoPolicy.resetMinutes} minutes, PIN{' '}
+        {demoPolicy.pinMinutes} minutes; password 12–64 characters with upper/lowercase, number and
+        symbol. SADDD warning {demoPolicy.sadddMissingPercent}%; export limit 5 MiB.
       </p>
       <output className="block">
         {message ||
@@ -124,7 +123,9 @@ export function DemoControls() {
               </h3>
               <p>{notice.message}</p>
               {notice.href ? (
-                <Link className="underline" href={notice.href}>Open record</Link>
+                <Link className="underline" href={notice.href}>
+                  Open record
+                </Link>
               ) : null}
             </article>
           ))

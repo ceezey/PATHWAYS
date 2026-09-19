@@ -4,6 +4,12 @@ import { AlertsWorkspace } from '@/features/analytics/alerts-workspace'
 
 export const metadata: Metadata = { title: 'Alert Review' }
 
-export default function AlertsPage() {
-  return <AlertsWorkspace />
+export default async function AlertsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ alert?: string }>
+}) {
+  const { alert } = await searchParams
+
+  return <AlertsWorkspace initialAlertId={alert} />
 }

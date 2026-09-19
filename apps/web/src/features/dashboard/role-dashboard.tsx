@@ -23,10 +23,12 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 
 import { PageHeader } from '@/components/layout/page-header'
 import {
+  AsyncState,
   EmptyState,
   MetricCard,
   ProgressBar,
   SectionCard,
+  SidePanel,
   StatusBadge,
 } from '@/components/pathways'
 import { Button } from '@/components/ui/button'
@@ -37,6 +39,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import { Sheet } from '@/components/ui/sheet'
 import { usePrototypeRole } from '@/hooks/use-prototype-role'
 import {
   dashboardChartMeta,
@@ -55,14 +58,18 @@ import { useDemoState } from '@/lib/demo-state/use-demo-state'
 import { can } from '@/lib/rbac/can'
 import { pathwaysClient } from '@/lib/services/mock-pathways-client'
 import type {
+  Activity,
   DashboardAction,
   DashboardItem,
   DashboardSeverity,
+  Indicator,
   RoleDashboardViewModel,
 } from '@/types/pathways'
 import { getPrototypeRoleDisplayName } from '@/types/prototype-role'
 
 import { DescriptiveAnalysisChart } from '../analytics/analytics-charts'
+import { ActivityDetailPanel } from '../projects/activity-detail-panel'
+import { ActivityProofDialog } from '../projects/activity-proof-dialog'
 import { ExecutiveDashboard } from './executive-dashboard'
 
 const severityTone = (severity?: DashboardSeverity) => {
@@ -95,14 +102,148 @@ const actionWorkflowHref = (action: DashboardAction) => {
     actionText.includes('decision') ||
     actionText.includes('outcome')
   )
-    return '/recommendations'
+    return '/alerts'
   if (actionText.includes('alert') || actionText.includes('flag')) return '/alerts'
   if (actionText.includes('orientation') || actionText.includes('activity'))
     return '/projects/futuremakers-ncr/activities'
   return '/projects'
 }
 
-const allProjects = 'all'
+const dashboardActivityTarget = (href?: string) => {
+  const match = href?.match(/^\/projects\/([^/]+)\/activities\/([^/?#]+)/)
+  if (!match) return null
+
+  const query = href?.split('?')[1] ?? ''
+  return {
+    projectId: match[1],
+    activityId: match[2],
+    expenseId: new URLSearchParams(query).get('expense') ?? undefined,
+    proofId:
+      new URLSearchParams(query).get('review') ??
+      new URLSearchParams(query).get('proof') ??
+      undefined,
+  }
+}
+
+type DashboardActivityTarget = NonNullable<ReturnType<typeof dashboardActivityTarget>>
+
+const DashboardActivityReviewPanel = ({
+  role,
+  target,
+  onActivityChanged,
+  onClose,
+}: {
+  role: ReturnType<typeof usePrototypeRole>['role']
+  target: DashboardActivityTarget | null
+  onActivityChanged: () => void
+  onClose: () => void
+}) => {
+  const [activity, setActivity] = useState<Activity | null>(null)
+  const [indicators, setIndicators] = useState<Indicator[]>([])
+  const [proofActivity, setProofActivity] = useState<Activity | null>(null)
+  const [status, setStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle')
+  const [loadAttempt, setLoadAttempt] = useState(0)
+
+  useEffect(() => {
+    void loadAttempt
+    if (!target) {
+      setActivity(null)
+      setIndicators([])
+      setProofActivity(null)
+      setStatus('idle')
+      return
+    }
+
+    let mounted = true
+    setStatus('loading')
+
+    Promise.all([
+      pathwaysClient.getActivity(target.projectId, target.activityId),
+      pathwaysClient.getIndicators(target.projectId),
+    ])
+      .then(([activityRecord, indicatorRecords]) => {
+        if (!mounted) return
+        setActivity(activityRecord)
+        setIndicators(indicatorRecords)
+        setStatus('success')
+      })
+      .catch(() => {
+        if (!mounted) return
+        setActivity(null)
+        setIndicators([])
+        setStatus('error')
+      })
+
+    return () => {
+      mounted = false
+    }
+  }, [loadAttempt, target])
+
+  const handleOpenChange = (open: boolean) => {
+    if (!open) onClose()
+  }
+
+  if (status === 'success' && activity) {
+    return (
+      <>
+        <ActivityDetailPanel
+          activity={activity}
+          canDecideProof={role === 'Project Manager'}
+          canEdit={false}
+          canLogExpense={role === 'Project Officer'}
+          canRequestExtension={role === 'Project Officer'}
+          canSubmitProof={role === 'Project Officer'}
+          canValidateExpense={role === 'Monitoring and Evaluation Officer'}
+          canValidateProof={role === 'Monitoring and Evaluation Officer'}
+          indicators={indicators}
+          onActivityChanged={(updatedActivity) => {
+            setActivity(updatedActivity)
+            onActivityChanged()
+          }}
+          onEdit={() => undefined}
+          onOpenChange={handleOpenChange}
+          onSubmitProof={setProofActivity}
+          open={Boolean(target)}
+          requestedExpenseId={target?.expenseId}
+          requestedProofId={target?.proofId}
+        />
+        <ActivityProofDialog
+          activity={proofActivity}
+          onOpenChange={(open) => {
+            if (!open) setProofActivity(null)
+          }}
+          onSubmitted={(updatedActivity) => {
+            setActivity(updatedActivity)
+            setProofActivity(null)
+            onActivityChanged()
+          }}
+          open={Boolean(proofActivity)}
+        />
+      </>
+    )
+  }
+
+  return (
+    <Sheet onOpenChange={handleOpenChange} open={Boolean(target)}>
+      <SidePanel
+        description="Open the selected project activity without leaving Dashboard."
+        title="Activity details"
+      >
+        <AsyncState
+          description={
+            status === 'error'
+              ? 'The activity proof could not be loaded. Try again from this panel.'
+              : 'Loading the selected activity and its submitted proof.'
+          }
+          icon={status === 'error' ? AlertTriangle : Loader2}
+          onRetry={status === 'error' ? () => setLoadAttempt((attempt) => attempt + 1) : undefined}
+          status={status === 'error' ? 'error' : 'loading'}
+          title={status === 'error' ? 'Review unavailable' : 'Loading review'}
+        />
+      </SidePanel>
+    </Sheet>
+  )
+}
 
 const SavedMonitoringCharts = ({
   demo,
@@ -136,7 +277,7 @@ const SavedMonitoringCharts = ({
     )
   }
 
-  if (projectId === allProjects) {
+  if (!projectId) {
     return (
       <div className="mt-6 border-t border-border pt-6">
         <EmptyState
@@ -314,28 +455,34 @@ const SavedMonitoringCharts = ({
 }
 
 const ConnectedMonitoringSnapshot = ({
+  metrics,
   role,
-}: { role: ReturnType<typeof usePrototypeRole>['role'] }) => {
+}: {
+  metrics: RoleDashboardViewModel['metrics']
+  role: ReturnType<typeof usePrototypeRole>['role']
+}) => {
   const demo = useDemoState()
   const actor = currentAccount(demo)
-  const [projectId, setProjectId] = useState(allProjects)
+  const [projectId, setProjectId] = useState('')
   const loggedRoles = useRef(new Set<string>())
-  const projectScopeInitialized = useRef(false)
   const scopedProjects = useMemo(
     () => demo.projects.filter((project) => actor?.projectIds.includes(project.id)),
     [actor?.projectIds, demo.projects],
   )
 
   useEffect(() => {
-    if (projectScopeInitialized.current || scopedProjects.length === 0) return
     const requestedProjectId = new URLSearchParams(window.location.search).get('project')
     const preferredProject =
       scopedProjects.find((project) => project.id === requestedProjectId) ??
       scopedProjects.find((project) =>
         demo.dashboardCharts.some((chart) => chart.projectId === project.id),
-      )
-    if (preferredProject) setProjectId(preferredProject.id)
-    projectScopeInitialized.current = true
+      ) ??
+      scopedProjects[0]
+    setProjectId((current) =>
+      scopedProjects.some((project) => project.id === current)
+        ? current
+        : (preferredProject?.id ?? ''),
+    )
   }, [demo.dashboardCharts, scopedProjects])
 
   useEffect(() => {
@@ -365,26 +512,7 @@ const ConnectedMonitoringSnapshot = ({
       />
     )
 
-  const selectedProjects =
-    projectId === allProjects
-      ? scopedProjects
-      : scopedProjects.filter((project) => project.id === projectId)
-  const selectedIds = new Set(selectedProjects.map((project) => project.id))
-  const budgets = demo.budgets.filter((budget) => selectedIds.has(budget.projectId))
-  const activities = demo.activities.filter((activity) => selectedIds.has(activity.projectId))
-  const alerts = demo.alerts.filter(
-    (alert) =>
-      selectedIds.has(alert.projectId) &&
-      !['Resolved', 'Dismissed', 'Auto-resolved'].includes(alert.lifecycleStatus),
-  )
-  const planned = budgets.reduce((sum, budget) => sum + budget.plannedAmount, 0)
-  const spent = budgets.reduce((sum, budget) => sum + budget.actualSpending, 0)
-  const reached = selectedProjects.reduce((sum, project) => sum + project.beneficiariesReached, 0)
-  const averageProgress = activities.length
-    ? Math.round(
-        activities.reduce((sum, activity) => sum + activity.progress, 0) / activities.length,
-      )
-    : 0
+  const selectedProjects = scopedProjects.filter((project) => project.id === projectId)
 
   return (
     <SectionCard title="Project monitoring">
@@ -398,7 +526,6 @@ const ConnectedMonitoringSnapshot = ({
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value={allProjects}>All authorized projects</SelectItem>
               {scopedProjects.map((project) => (
                 <SelectItem key={project.id} value={project.id}>
                   {project.title}
@@ -410,34 +537,21 @@ const ConnectedMonitoringSnapshot = ({
       </div>
       {selectedProjects.length ? (
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-          <MetricCard
-            description={`${spent.toLocaleString('en-PH', { style: 'currency', currency: 'PHP' })} verified against ${planned.toLocaleString('en-PH', { style: 'currency', currency: 'PHP' })}.`}
-            icon={BarChart3}
-            label="Budget utilization"
-            tone={planned && spent / planned > 0.8 ? 'warning' : 'success'}
-            value={`${planned ? Math.round((spent / planned) * 100) : 0}%`}
-          />
-          <MetricCard
-            description="Unique project reach reflected by linked entries and profiles."
-            icon={FolderKanban}
-            label="Beneficiaries reached"
-            tone="info"
-            value={reached.toLocaleString()}
-          />
-          <MetricCard
-            description={`${activities.length} linked activit${activities.length === 1 ? 'y' : 'ies'} in scope.`}
-            icon={Clock}
-            label="Average activity progress"
-            tone={averageProgress >= 75 ? 'success' : 'warning'}
-            value={`${averageProgress}%`}
-          />
-          <MetricCard
-            description="New, reviewed, or actioned items still needing human context."
-            icon={AlertTriangle}
-            label="Open alerts"
-            tone={alerts.length ? 'warning' : 'success'}
-            value={alerts.length.toString()}
-          />
+          {metrics.map((metric, index) => {
+            const Icon = metricIcons[index % metricIcons.length]
+
+            return (
+              <MetricCard
+                description={metric.helperText}
+                href={metric.href}
+                icon={Icon}
+                key={metric.id}
+                label={metric.label}
+                tone={severityTone(metric.severity)}
+                value={String(metric.value)}
+              />
+            )
+          })}
         </div>
       ) : (
         <EmptyState
@@ -475,12 +589,14 @@ const ActionButton = ({
 const DashboardListItem = ({
   item,
   onAction,
+  compact = false,
 }: {
   item: DashboardItem
   onAction: (action: DashboardAction) => void
+  compact?: boolean
 }) => (
   <div className="border-b border-border py-4 first:pt-0 last:border-b-0 last:pb-0">
-    <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+    <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
       <div className="min-w-0 space-y-1">
         {item.href ? (
           <Link
@@ -503,8 +619,12 @@ const DashboardListItem = ({
       ) : null}
     </div>
     {typeof item.progress === 'number' ? (
-      <div className="mt-4">
-        <ProgressBar label="Progress" tone={severityTone(item.severity)} value={item.progress} />
+      <div className={compact ? 'mt-3 sm:max-w-[220px]' : 'mt-4'}>
+        <ProgressBar
+          label={compact ? undefined : 'Progress'}
+          tone={severityTone(item.severity)}
+          value={item.progress}
+        />
       </div>
     ) : null}
     {item.primaryAction || item.secondaryAction ? (
@@ -525,9 +645,15 @@ export const RoleDashboard = () => {
   const { role } = usePrototypeRole()
   const roleLabel = getPrototypeRoleDisplayName(role)
   const [dashboard, setDashboard] = useState<RoleDashboardViewModel | null>(null)
+  const [activityReviewTarget, setActivityReviewTarget] = useState<DashboardActivityTarget | null>(
+    null,
+  )
+  const activityReviewTrigger = useRef<HTMLElement | null>(null)
   const [status, setStatus] = useState<'loading' | 'success' | 'error'>('loading')
+  const [dashboardRevision, setDashboardRevision] = useState(0)
 
   useEffect(() => {
+    void dashboardRevision
     let mounted = true
     setStatus('loading')
 
@@ -552,9 +678,23 @@ export const RoleDashboard = () => {
     return () => {
       mounted = false
     }
-  }, [role])
+  }, [dashboardRevision, role])
 
   const handleAction = (action: DashboardAction) => {
+    if (
+      action.id === 'review-proof' ||
+      action.id === 'review-expense' ||
+      action.id === 'open-activity-update' ||
+      action.id === 'view-orientation-summary'
+    ) {
+      const target = dashboardActivityTarget(action.href)
+      if (target) {
+        activityReviewTrigger.current = document.activeElement as HTMLElement | null
+        setActivityReviewTarget(target)
+        return
+      }
+    }
+
     if (action.kind === 'navigate' && action.href) {
       router.push(action.href)
       return
@@ -606,9 +746,9 @@ export const RoleDashboard = () => {
             />
           ) : undefined
         }
-        title={roleLabel}
+        title={`Welcome! ${roleLabel}`}
       />
-      <ConnectedMonitoringSnapshot role={role} />
+      <ConnectedMonitoringSnapshot metrics={dashboard.metrics} role={role} />
       {dashboard.executive ? (
         <ExecutiveDashboard model={dashboard.executive} summaryAction={dashboard.primaryAction} />
       ) : null}
@@ -620,7 +760,7 @@ export const RoleDashboard = () => {
           title="No dashboard records"
         />
       ) : null}
-      {!can(role, 'monitoring.view') && !dashboard.executive && dashboard.metrics.length > 0 ? (
+      {dashboard.metrics.length > 0 && !can(role, 'monitoring.view') ? (
         <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
           {dashboard.metrics.map((metric, index) => {
             const Icon = metricIcons[index % metricIcons.length]
@@ -676,9 +816,35 @@ export const RoleDashboard = () => {
                 }
               >
                 {section.items.length > 0 ? (
-                  <div>
+                  <div
+                    aria-label={
+                      section.id === 'portfolio-health' || section.id === 'escalated-alerts'
+                        ? `${section.title} list`
+                        : undefined
+                    }
+                    className={
+                      section.id === 'portfolio-health' || section.id === 'escalated-alerts'
+                        ? 'max-h-[19rem] overflow-y-auto pr-2'
+                        : undefined
+                    }
+                    data-visible-entry-limit={
+                      section.id === 'portfolio-health' || section.id === 'escalated-alerts'
+                        ? '3'
+                        : undefined
+                    }
+                    tabIndex={
+                      section.id === 'portfolio-health' || section.id === 'escalated-alerts'
+                        ? 0
+                        : undefined
+                    }
+                  >
                     {section.items.map((item) => (
-                      <DashboardListItem key={item.id} item={item} onAction={handleAction} />
+                      <DashboardListItem
+                        compact={section.id === 'portfolio-health'}
+                        key={item.id}
+                        item={item}
+                        onAction={handleAction}
+                      />
                     ))}
                   </div>
                 ) : (
@@ -693,6 +859,15 @@ export const RoleDashboard = () => {
           </div>
         </section>
       ) : null}
+      <DashboardActivityReviewPanel
+        onActivityChanged={() => setDashboardRevision((revision) => revision + 1)}
+        onClose={() => {
+          setActivityReviewTarget(null)
+          window.requestAnimationFrame(() => activityReviewTrigger.current?.focus())
+        }}
+        role={role}
+        target={activityReviewTarget}
+      />
     </>
   )
 }

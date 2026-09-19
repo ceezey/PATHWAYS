@@ -66,12 +66,14 @@ const maxLocalFileSize = 50_000_000
 export const BeneficiaryMediaProof = ({
   activities,
   beneficiaryId,
+  canManage = true,
   mediaProof,
   projectIds,
   projects,
 }: {
   activities: Activity[]
   beneficiaryId: string
+  canManage?: boolean
   mediaProof: BeneficiaryMediaProofRecord[]
   projectIds: string[]
   projects: ProjectSummary[]
@@ -237,10 +239,12 @@ export const BeneficiaryMediaProof = ({
               to authorized staff.
             </p>
           </div>
-          <Button className="w-full gap-2 sm:w-auto" onClick={openAddDialog} type="button">
-            <UploadCloud className="h-4 w-4" aria-hidden="true" />
-            Add media
-          </Button>
+          {canManage ? (
+            <Button className="w-full gap-2 sm:w-auto" onClick={openAddDialog} type="button">
+              <UploadCloud className="h-4 w-4" aria-hidden="true" />
+              Add media
+            </Button>
+          ) : null}
         </div>
         <div className="mt-4 flex items-start gap-3 rounded-sm border border-info/25 bg-info-subtle p-3 text-xs leading-5 text-info">
           <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
@@ -278,6 +282,7 @@ export const BeneficiaryMediaProof = ({
             {visibleMedia.map((item) => (
               <MediaProofCard
                 activities={activities}
+                canManage={canManage}
                 item={item}
                 key={item.id}
                 onReview={() => openReview(item)}
@@ -288,9 +293,11 @@ export const BeneficiaryMediaProof = ({
         ) : (
           <EmptyState
             action={
-              <Button onClick={openAddDialog} type="button" variant="outline">
-                Add media
-              </Button>
+              canManage ? (
+                <Button onClick={openAddDialog} type="button" variant="outline">
+                  Add media
+                </Button>
+              ) : undefined
             }
             description={`Add a ${filter.toLowerCase()} to this beneficiary record.`}
             icon={filter === 'Video' ? Video : Camera}
@@ -484,11 +491,13 @@ export const BeneficiaryMediaProof = ({
 
 const MediaProofCard = ({
   activities,
+  canManage,
   item,
   onReview,
   projects,
 }: {
   activities: Activity[]
+  canManage: boolean
   item: MediaProofWithPreview
   onReview: () => void
   projects: ProjectSummary[]
@@ -553,16 +562,18 @@ const MediaProofCard = ({
 
         <div className="mt-auto flex items-center justify-between gap-3 pt-4">
           <p className="min-w-0 truncate text-xs text-muted-foreground">Added by {item.addedBy}</p>
-          <Button
-            aria-label={`Review ${item.fileName}`}
-            className="shrink-0"
-            onClick={onReview}
-            size="sm"
-            type="button"
-            variant="outline"
-          >
-            Review
-          </Button>
+          {canManage ? (
+            <Button
+              aria-label={`Review ${item.fileName}`}
+              className="shrink-0"
+              onClick={onReview}
+              size="sm"
+              type="button"
+              variant="outline"
+            >
+              Review
+            </Button>
+          ) : null}
         </div>
       </div>
     </article>

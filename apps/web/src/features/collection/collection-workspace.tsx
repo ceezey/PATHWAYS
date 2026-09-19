@@ -627,6 +627,7 @@ export const CollectionWorkspace = ({
   return (
     <div className="space-y-6">
       <PageHeader
+        editableLabelKey="moduleCollection"
         eyebrow="Data workspace"
         title={labels.moduleCollection}
         description="Build and publish project forms, encode data, and import validated CSV, XLS, or XLSX datasets."

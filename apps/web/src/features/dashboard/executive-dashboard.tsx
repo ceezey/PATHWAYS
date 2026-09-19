@@ -50,11 +50,15 @@ export const ExecutiveDashboard = ({
   model: ExecutiveDashboardViewModel
   summaryAction?: DashboardAction
 }) => {
-  const [selectedContextId, setSelectedContextId] = useState(model.defaultContextId)
-  const context = model.contexts.find((item) => item.id === selectedContextId) ?? model.contexts[0]
+  const projectContexts = model.contexts.filter((item) => Boolean(item.projectId))
+  const initialContext =
+    projectContexts.find((item) => item.id === model.defaultContextId) ?? projectContexts[0]
+  const [selectedContextId, setSelectedContextId] = useState(initialContext?.id ?? '')
+  const context =
+    projectContexts.find((item) => item.id === selectedContextId) ?? projectContexts[0]
   const portfolioAction =
-    summaryAction?.kind === 'navigate' && summaryAction.href
-      ? { href: summaryAction.href, label: summaryAction.label }
+    summaryAction?.kind === 'navigate' && context?.projectId
+      ? { href: `/projects/${context.projectId}`, label: summaryAction.label }
       : undefined
 
   if (!context) {
@@ -98,7 +102,7 @@ export const ExecutiveDashboard = ({
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    {model.contexts.map((item) => (
+                    {projectContexts.map((item) => (
                       <SelectItem key={item.id} value={item.id}>
                         {item.selectorLabel}
                       </SelectItem>
@@ -106,7 +110,7 @@ export const ExecutiveDashboard = ({
                   </SelectContent>
                 </Select>
                 <p className="text-xs leading-5 text-muted-foreground">
-                  Compare the portfolio with active project snapshots.
+                  Review one authorized active project at a time.
                 </p>
               </div>
 
@@ -156,14 +160,6 @@ export const ExecutiveDashboard = ({
             <p className="mt-1 text-sm leading-6 opacity-90">{context.riskSummary}</p>
           </div>
         </div>
-        {context.projectId ? (
-          <Button asChild className="shrink-0" size="sm" variant="outline">
-            <Link href={`/projects/${context.projectId}`}>
-              Open project
-              <ArrowRight className="ml-2 h-4 w-4" aria-hidden="true" />
-            </Link>
-          </Button>
-        ) : null}
       </section>
     </div>
   )

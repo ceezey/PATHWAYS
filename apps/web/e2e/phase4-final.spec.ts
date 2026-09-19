@@ -36,11 +36,6 @@ async function setScenario(page: Page, scenario: string) {
     .toBe(scenario)
 }
 
-async function chooseRadixOption(page: Page, label: string, option: string) {
-  await page.getByLabel(label).click()
-  await page.getByRole('option', { name: option, exact: true }).click()
-}
-
 async function readDownload(download: Download) {
   const artifactPath = await download.path()
   if (!artifactPath)
@@ -68,7 +63,6 @@ test('Phase 4: all UC entry points are reachable by their final-source actors', 
     '/settings/audit',
     '/projects',
     '/projects/new',
-    '/indicators',
     '/collection/forms',
     '/collection/import',
     '/analytics',
@@ -85,6 +79,9 @@ test('Phase 4: all UC entry points are reachable by their final-source actors', 
   }
 
   await switchAccount(page, 'project-manager')
+  await page.goto('/beneficiaries/evaluation-center')
+  await expect(page.getByRole('dialog', { name: 'Verify beneficiary module access' })).toBeVisible()
+  await page.getByRole('button', { name: 'Back to dashboard' }).click()
   for (const path of [
     '/settings/profile',
     '/projects/futuremakers-ncr',
@@ -97,11 +94,16 @@ test('Phase 4: all UC entry points are reachable by their final-source actors', 
     '/dashboard',
   ]) {
     await page.goto(path)
+    if (path === '/beneficiaries') {
+      await expect(
+        page.getByRole('dialog', { name: 'Verify beneficiary module access' }),
+      ).toBeVisible()
+      await page.getByLabel('Beneficiary access PIN').fill('2468')
+      await page.getByRole('button', { name: 'Verify and enter' }).click()
+    }
     await expect(page.getByText('Unauthorized access', { exact: true })).toHaveCount(0)
     await expect(page.locator('main')).toBeVisible()
   }
-  await page.goto('/beneficiaries/evaluation-center')
-  await expect(page.getByRole('dialog', { name: 'Verify beneficiary module access' })).toBeVisible()
 
   await switchAccount(page, 'project-officer')
   await page.goto('/collection/entry')
@@ -118,7 +120,7 @@ test('Phase 4: all UC entry points are reachable by their final-source actors', 
   }
 })
 
-test('Phase 4: connected dashboard, four analysis views, four visualizations, and failures', async ({
+test('Phase 4: connected dashboard, fixed indicator comparison, and failures', async ({
   page,
 }, info) => {
   test.setTimeout(150000)
@@ -133,16 +135,14 @@ test('Phase 4: connected dashboard, four analysis views, four visualizations, an
 
   await page.goto('/analytics')
   await expect(page.getByRole('heading', { name: 'Data Analysis' })).toBeVisible()
-  await chooseRadixOption(page, 'Analysis view', 'Participation patterns')
-  await chooseRadixOption(page, 'Visualization type', 'Table')
-  await expect(page.getByRole('table', { name: 'Participation patterns' })).toBeVisible()
-  await expect(page.getByText(/people/).first()).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Indicators (Actual vs Target)' })).toHaveCount(0)
+  await expect(page.getByLabel('Analysis view')).toBeVisible()
+  await expect(page.getByLabel('Visualization type')).toBeVisible()
+  await expect(page.getByLabel('Indicator filter')).toBeVisible()
   await page.screenshot({ path: info.outputPath('02-analytics-table-desktop.png'), fullPage: true })
 
-  await chooseRadixOption(page, 'Visualization type', 'Map')
-  await expect(page.getByRole('heading', { name: 'Project reach by location' })).toBeVisible()
   await page.setViewportSize({ width: 390, height: 844 })
-  await page.screenshot({ path: info.outputPath('03-analytics-map-mobile.png'), fullPage: true })
+  await page.screenshot({ path: info.outputPath('03-analytics-mobile.png'), fullPage: true })
 
   await setScenario(page, 'render-failure')
   await page.goto('/analytics')
@@ -187,18 +187,17 @@ test('Phase 4: form and report downloads are real files with matching local hist
 
   await switchAccount(page, 'project-manager')
   await page.goto('/reports/project-summary')
-  await page.getByRole('button', { name: 'Save report snapshot' }).first().click()
-  await expect(page.getByTestId('generated-report-history')).toContainText(
-    '1 report snapshot',
-  )
+  await page.getByRole('button', { name: 'Preview report' }).click()
+  await page.getByRole('button', { name: 'Save report snapshot' }).click()
+  await expect(page.getByTestId('generated-report-history')).toHaveCount(0)
   for (const format of ['csv', 'xlsx', 'xls', 'pdf']) {
-    await page.getByRole('button', { name: 'Export' }).click()
+    await page.getByRole('button', { name: 'Export report' }).click()
     const pendingDownload = page.waitForEvent('download')
     await page.getByRole('menuitem', { name: format.toUpperCase(), exact: true }).click()
     const download = await pendingDownload
     expectArtifact(format, await readDownload(download), 'Project')
   }
-  await page.screenshot({ path: info.outputPath('04-report-history-desktop.png'), fullPage: true })
+  await page.screenshot({ path: info.outputPath('04-report-output-desktop.png'), fullPage: true })
 })
 
 test('Phase 4: backup/restore and publication/public projection cover distinct failures', async ({

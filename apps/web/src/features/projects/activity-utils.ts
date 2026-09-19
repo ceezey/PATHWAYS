@@ -75,16 +75,45 @@ export const formatCurrency = (value: number) =>
     style: 'currency',
   }).format(value)
 
-export const formatDate = (value: string) =>
-  new Intl.DateTimeFormat('en-US', {
-    day: '2-digit',
-    month: 'short',
-    year: 'numeric',
-    timeZone: 'UTC',
-  }).format(new Date(`${value}T00:00:00.000Z`))
+const activityDateFormatter = new Intl.DateTimeFormat('en-US', {
+  day: '2-digit',
+  month: 'short',
+  year: 'numeric',
+  timeZone: 'UTC',
+})
 
-export const activityDueLabel = (status: ActivityStatus, dueDate: string) =>
-  status === 'Overdue' ? `Overdue since ${formatDate(dueDate)}` : `Due ${formatDate(dueDate)}`
+export const formatDate = (value: string | null | undefined) => {
+  const normalizedValue = value?.trim()
+
+  if (!normalizedValue) return 'Date unavailable'
+
+  const dateOnlyMatch = /^(\d{4})-(\d{2})-(\d{2})$/.exec(normalizedValue)
+  const date = dateOnlyMatch
+    ? new Date(
+        Date.UTC(Number(dateOnlyMatch[1]), Number(dateOnlyMatch[2]) - 1, Number(dateOnlyMatch[3])),
+      )
+    : new Date(normalizedValue)
+
+  const isInvalidDateOnly =
+    dateOnlyMatch &&
+    (date.getUTCFullYear() !== Number(dateOnlyMatch[1]) ||
+      date.getUTCMonth() !== Number(dateOnlyMatch[2]) - 1 ||
+      date.getUTCDate() !== Number(dateOnlyMatch[3]))
+
+  if (Number.isNaN(date.getTime()) || isInvalidDateOnly) return 'Date unavailable'
+
+  return activityDateFormatter.format(date)
+}
+
+export const activityDueLabel = (status: ActivityStatus, dueDate: string) => {
+  const formattedDate = formatDate(dueDate)
+
+  if (formattedDate === 'Date unavailable') {
+    return status === 'Overdue' ? 'Overdue · date unavailable' : 'Due date unavailable'
+  }
+
+  return status === 'Overdue' ? `Overdue since ${formattedDate}` : `Due ${formattedDate}`
+}
 
 export const buildActivityStatusUpdate = (
   activity: Activity,

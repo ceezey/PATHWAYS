@@ -10,7 +10,6 @@ import {
   useReactTable,
 } from '@tanstack/react-table'
 import {
-  CheckCircle2,
   Columns3,
   Download,
   Eye,
@@ -20,7 +19,6 @@ import {
   Save,
   Search,
 } from 'lucide-react'
-import Link from 'next/link'
 import { useEffect, useMemo, useState } from 'react'
 import { toast } from 'sonner'
 
@@ -65,6 +63,7 @@ import {
 } from '@/components/ui/table'
 import { usePrototypeLabels } from '@/hooks/use-prototype-labels'
 import { usePrototypeRole } from '@/hooks/use-prototype-role'
+import { useSafeProjectSelection } from '@/hooks/use-safe-project-selection'
 import { useDemoState } from '@/lib/demo-state/use-demo-state'
 import { can } from '@/lib/rbac/can'
 import { canAccessProjectForRole } from '@/lib/rbac/data-scope'
@@ -114,18 +113,16 @@ type ReportingWorkspaceProps = {
 const allValue = 'all'
 const emptyBeneficiaryRecords: BeneficiaryRecord[] = []
 
-const reportTabs: { kind: ReportKind; label: string; href: string }[] = [
-  { kind: 'project-summary', label: 'Project Summary', href: '/reports/project-summary' },
-  { kind: 'indicator-summary', label: 'Indicator Summary', href: '/reports/indicator-summary' },
+const reportTypes: { kind: ReportKind; label: string }[] = [
+  { kind: 'project-summary', label: 'Project Summary' },
+  { kind: 'indicator-summary', label: 'Indicator Summary' },
   {
     kind: 'beneficiary-summary',
     label: 'Beneficiary Summary',
-    href: '/reports/beneficiary-summary',
   },
   {
     kind: 'survey-results',
     label: 'Survey/Form Results',
-    href: '/reports/survey-results',
   },
 ]
 
@@ -248,17 +245,18 @@ export const ReportingWorkspace = ({
         ? demo.journeys
         : initialJourneyStages
   const canViewBeneficiarySummary = can(role, reportKindPermissions['beneficiary-summary'])
-  const visibleReportTabs = useMemo(
-    () => reportTabs.filter((tab) => can(role, reportKindPermissions[tab.kind])),
+  const visibleReportTypes = useMemo(
+    () => reportTypes.filter((reportType) => can(role, reportKindPermissions[reportType.kind])),
     [role],
   )
-  const initialVisibleKind = visibleReportTabs.some((tab) => tab.kind === initialKind)
+  const initialVisibleKind = visibleReportTypes.some(
+    (reportType) => reportType.kind === initialKind,
+  )
     ? initialKind
-    : (visibleReportTabs[0]?.kind ?? initialKind)
+    : (visibleReportTypes[0]?.kind ?? initialKind)
 
   const [kind, setKind] = useState<ReportKind>(initialVisibleKind)
   const [search, setSearch] = useState('')
-  const [projectId, setProjectId] = useState(allValue)
   const [beneficiaryData, setBeneficiaryData] = useState<{
     role: PrototypeRole
     records: BeneficiaryRecord[]
@@ -285,14 +283,16 @@ export const ReportingWorkspace = ({
     useState<Record<ReportKind, string[]>>(defaultVisibleColumns)
 
   useEffect(() => {
-    if (visibleReportTabs.length === 0 || visibleReportTabs.some((tab) => tab.kind === kind)) {
+    if (
+      visibleReportTypes.length === 0 ||
+      visibleReportTypes.some((reportType) => reportType.kind === kind)
+    ) {
       return
     }
 
-    setKind(visibleReportTabs[0].kind)
+    setKind(visibleReportTypes[0].kind)
     setSearch('')
-    setProjectId(allValue)
-  }, [kind, visibleReportTabs])
+  }, [kind, visibleReportTypes])
 
   useEffect(() => {
     void beneficiaryLoadAttempt
@@ -328,13 +328,12 @@ export const ReportingWorkspace = ({
     () => projects.filter((project) => canAccessProjectForRole(role, project.id)),
     [projects, role],
   )
+  const [projectId, setProjectId] = useSafeProjectSelection(
+    scopedProjects.map((project) => project.id),
+  )
   const scopedProjectIds = useMemo(
     () => new Set(scopedProjects.map((project) => project.id)),
     [scopedProjects],
-  )
-  const generatedReportHistory = demo.reports.filter(
-    (report) =>
-      report.projectIds.length > 0 && report.projectIds.every((id) => scopedProjectIds.has(id)),
   )
   const scopedActivities = useMemo(
     () => activities.filter((activity) => scopedProjectIds.has(activity.projectId)),
@@ -385,17 +384,15 @@ export const ReportingWorkspace = ({
     }
   }, [scopedSurveyForms, scopedSurveyResults, surveySelection])
 
-  const effectiveProjectId =
-    projectId === allValue || scopedProjectIds.has(projectId) ? projectId : allValue
+  const effectiveProjectId = scopedProjectIds.has(projectId)
+    ? projectId
+    : (scopedProjects[0]?.id ?? '')
   const beneficiaries =
     canViewBeneficiarySummary && beneficiaryData?.role === role
       ? beneficiaryData.records
       : emptyBeneficiaryRecords
 
-  const selectedProject =
-    effectiveProjectId === allValue
-      ? undefined
-      : scopedProjects.find((project) => project.id === effectiveProjectId)
+  const selectedProject = scopedProjects.find((project) => project.id === effectiveProjectId)
   const selectedSurveyForm = scopedSurveyForms.find((form) => form.id === surveySelection.formId)
   const selectedSurveyResult = findSurveyResult(scopedSurveyResults, surveySelection)
   const selectedSurveyProject = scopedProjects.find(
@@ -440,7 +437,7 @@ export const ReportingWorkspace = ({
 
     if (kind === 'project-summary') {
       return scopedProjects
-        .filter((project) => effectiveProjectId === allValue || project.id === effectiveProjectId)
+        .filter((project) => project.id === effectiveProjectId)
         .map((project, index): ReportRow => {
           const period = splitPeriod(project.period)
 
@@ -480,11 +477,7 @@ export const ReportingWorkspace = ({
     }
 
     return beneficiaries
-      .filter((beneficiary) =>
-        effectiveProjectId === allValue
-          ? true
-          : beneficiary.projectIds.includes(effectiveProjectId),
-      )
+      .filter((beneficiary) => beneficiary.projectIds.includes(effectiveProjectId))
       .map(
         (beneficiary): ReportRow => ({
           code: beneficiary.code,
@@ -644,95 +637,65 @@ export const ReportingWorkspace = ({
   const switchKind = (nextKind: ReportKind) => {
     setKind(nextKind)
     setSearch('')
-    setProjectId(allValue)
+    setIndicatorGenerated(nextKind !== 'indicator-summary')
   }
 
   return (
     <div className="space-y-6">
       <PageHeader
-        actions={
-          <div className="flex flex-wrap gap-2">
-            <Button asChild variant="outline">
-              <Link href={`/reports/preview?kind=${kind}`}>
-                <Eye className="mr-2 h-4 w-4" aria-hidden="true" />
-                Open report preview
-              </Link>
-            </Button>
-            <Button onClick={finishReportPreview}>
-              <Save className="mr-2 h-4 w-4" aria-hidden="true" />
-              Save report snapshot
-            </Button>
-          </div>
-        }
+        editableLabelKey="moduleReports"
         description="Build, preview, retain, and export project, indicator, beneficiary, and aggregate survey reports."
         eyebrow="Reporting workspace"
         title={labels.moduleReports}
       />
 
-      <Card data-testid="generated-report-history">
-        <CardHeader>
-          <CardTitle>Generated report history</CardTitle>
-          <p className="text-sm text-muted-foreground">
-            {generatedReportHistory.length} report snapshot
-            {generatedReportHistory.length === 1 ? '' : 's'} in your active project scope.
-          </p>
-        </CardHeader>
-        {generatedReportHistory.length ? (
-          <CardContent>
-            <ul className="divide-y rounded-md border text-sm">
-              {generatedReportHistory.slice(0, 5).map((report) => (
-                <li
-                  className="flex flex-wrap items-center justify-between gap-2 p-3"
-                  key={report.id}
-                >
-                  <span className="font-medium">{report.title}</span>
-                  <span className="text-muted-foreground">
-                    {report.rows.length} row{report.rows.length === 1 ? '' : 's'} ·{' '}
-                    {new Date(report.createdAt).toLocaleString()}
-                  </span>
-                </li>
-              ))}
-            </ul>
-          </CardContent>
-        ) : null}
-      </Card>
-
       <Card>
-        <CardHeader className="space-y-4">
+        <CardHeader className="space-y-4 p-4 sm:p-5">
           <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-            <nav className="flex flex-wrap gap-2" aria-label="Report sections">
-              {visibleReportTabs.map((tab) => (
-                <Button
-                  asChild
-                  key={tab.kind}
-                  variant={kind === tab.kind ? 'default' : 'outline'}
-                  size="sm"
-                  onClick={() => switchKind(tab.kind)}
-                >
-                  <Link aria-current={kind === tab.kind ? 'page' : undefined} href={tab.href}>
-                    {kind === tab.kind ? (
-                      <CheckCircle2 className="mr-2 h-4 w-4" aria-hidden="true" />
-                    ) : null}
-                    {tab.label}
-                    {kind === tab.kind ? <span className="ml-2 text-xs">Current</span> : null}
-                  </Link>
-                </Button>
-              ))}
-            </nav>
-            <div className="flex flex-wrap gap-2">
-              <Button variant="outline" size="sm" onClick={() => setColumnDialogOpen(true)}>
-                <Columns3 className="mr-2 h-4 w-4" aria-hidden="true" />
-                Columns
+            <div className="w-full space-y-2 sm:max-w-xs">
+              <Label htmlFor="report-type">Report type</Label>
+              <Select value={kind} onValueChange={(value) => switchKind(value as ReportKind)}>
+                <SelectTrigger id="report-type" aria-label="Report type">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {visibleReportTypes.map((reportType) => (
+                    <SelectItem key={reportType.kind} value={reportType.kind}>
+                      {reportType.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <fieldset className="flex min-w-0 flex-wrap gap-2 border-0 p-0">
+              <legend className="sr-only">Report actions</legend>
+              <Button
+                aria-label="Choose report columns"
+                title="Choose report columns"
+                variant="outline"
+                size="icon"
+                onClick={() => setColumnDialogOpen(true)}
+              >
+                <Columns3 className="h-4 w-4" aria-hidden="true" />
               </Button>
-              <Button variant="outline" size="sm" onClick={() => setPreviewOpen(true)}>
-                <Eye className="mr-2 h-4 w-4" aria-hidden="true" />
-                Preview
+              <Button
+                aria-label="Preview report"
+                title="Preview report"
+                variant="outline"
+                size="icon"
+                onClick={() => setPreviewOpen(true)}
+              >
+                <Eye className="h-4 w-4" aria-hidden="true" />
               </Button>
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button variant="outline" size="sm">
-                    <Download className="mr-2 h-4 w-4" aria-hidden="true" />
-                    Export
+                  <Button
+                    aria-label="Export report"
+                    title="Export report"
+                    variant="outline"
+                    size="icon"
+                  >
+                    <Download className="h-4 w-4" aria-hidden="true" />
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end">
@@ -756,7 +719,7 @@ export const ReportingWorkspace = ({
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
-            </div>
+            </fieldset>
           </div>
           <div className="flex flex-col gap-3 xl:flex-row xl:items-end xl:justify-between">
             <div className="space-y-2">
@@ -817,7 +780,6 @@ export const ReportingWorkspace = ({
                       <SelectValue placeholder="Project" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value={allValue}>All projects</SelectItem>
                       {scopedProjects.map((project) => (
                         <SelectItem key={project.id} value={project.id}>
                           {project.title}
@@ -831,12 +793,7 @@ export const ReportingWorkspace = ({
                     <Filter className="mr-2 h-4 w-4" aria-hidden="true" />
                     Generate
                   </Button>
-                ) : (
-                  <Button variant="outline" onClick={() => toast.info('Filters applied.')}>
-                    <Filter className="mr-2 h-4 w-4" aria-hidden="true" />
-                    Filter
-                  </Button>
-                )}
+                ) : null}
               </div>
             )}
           </div>

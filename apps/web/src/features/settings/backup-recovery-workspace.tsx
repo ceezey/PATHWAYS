@@ -50,9 +50,7 @@ export const BackupRecoveryWorkspace = () => {
       restoreBackup(selected.id)
       setRestoreOpen(false)
       setMessage('Backup restored. The recovered data is now available.')
-      toast.success(
-        'Backup restored. The recovered data is now available.',
-      )
+      toast.success('Backup restored. The recovered data is now available.')
     } catch (error) {
       const failure =
         error instanceof Error ? error.message : 'Restore failed; current state was retained.'

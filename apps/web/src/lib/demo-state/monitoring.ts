@@ -76,6 +76,9 @@ export function evaluateRules(state: DemoState) {
               : value >= rule.threshold && value <= (rule.upperThreshold ?? rule.threshold)
       const alertId = `generated-${rule.id}-${project.id}`
       const existing = state.alerts.find((a) => a.id === alertId)
+      const existingRecommendation = state.recommendations.find(
+        (recommendation) => recommendation.alertId === alertId,
+      )
       if (triggered && !existing) {
         state.alerts.push({
           id: alertId,
@@ -120,11 +123,46 @@ export function evaluateRules(state: DemoState) {
         rule.lastTriggeredAt = demoTime(state)
       }
       if (
+        triggered &&
+        existing &&
+        ['Resolved', 'Auto-resolved'].includes(existing.lifecycleStatus)
+      ) {
+        existing.lifecycleStatus = 'New'
+        existing.createdAt = demoTime(state).slice(0, 10)
+        existing.currentValue = value
+        existing.threshold = rule.threshold
+        existing.actionNote = undefined
+        history(
+          state,
+          alertId,
+          'New',
+          'The underlying condition recurred; the existing alert was reopened.',
+        )
+        if (existingRecommendation) {
+          existingRecommendation.alertBasis = `${rule.parameter} is ${value}; configured condition is ${rule.operator} ${rule.threshold}.`
+          existingRecommendation.ruleExplanation = `If ${rule.parameter} is ${rule.operator} ${rule.threshold}, flag for human review.`
+          existingRecommendation.text = rule.suggestedAction
+          existingRecommendation.reviewStatus = 'New'
+          existingRecommendation.outcome = undefined
+          existingRecommendation.outcomeNote = undefined
+        }
+        rule.triggeredCount += 1
+        rule.lastTriggeredAt = demoTime(state)
+      }
+      if (
         !triggered &&
         existing &&
         !['Resolved', 'Dismissed', 'Auto-resolved'].includes(existing.lifecycleStatus)
-      )
+      ) {
         existing.lifecycleStatus = 'Auto-resolved'
+        existing.currentValue = value
+        history(
+          state,
+          alertId,
+          'Auto-resolved',
+          'The configured condition no longer matches the current project value.',
+        )
+      }
     }
   }
 }
@@ -152,7 +190,7 @@ export function reviewAlert(id: string) {
     if (!alert) throw new Error('Alert not found.')
     if (alert.lifecycleStatus === 'New') {
       alert.lifecycleStatus = 'Reviewed'
-      history(state, id, 'Reviewed', 'Alert opened for review.', actor)
+      history(state, id, 'Reviewed', 'Alert marked as reviewed.', actor)
     }
   })
 }
@@ -252,7 +290,7 @@ export function decideRecommendation(id: string, outcome: RecommendationOutcome,
         state,
         recipient,
         `Recommendation decision: ${outcome}. ${note}`,
-        `/recommendations?recommendation=${rec.id}`,
+        `/alerts?alert=${linked.id}`,
       )
   })
 }

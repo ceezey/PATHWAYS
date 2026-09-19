@@ -27,6 +27,7 @@ import {
 } from '@/components/ui/select'
 import { usePrototypeLabels } from '@/hooks/use-prototype-labels'
 import { usePrototypeRole } from '@/hooks/use-prototype-role'
+import { useSafeProjectSelection } from '@/hooks/use-safe-project-selection'
 import { addDashboardChart } from '@/lib/demo-state/dashboard-charts'
 import { hasAction } from '@/lib/demo-state/permissions'
 import { demoPolicy, recordDemoAccess } from '@/lib/demo-state/store'
@@ -89,7 +90,6 @@ export const AnalyticsDashboard = ({
 }: AnalyticsDashboardProps) => {
   const { labels } = usePrototypeLabels()
   const { role } = usePrototypeRole()
-  const [projectId, setProjectId] = useState(allValue)
   const [period, setPeriod] = useState('Q2 2026')
   const [analysisView, setAnalysisView] = useState<AnalysisView>('kpi')
   const [visualizationType, setVisualizationType] = useState<VisualizationType>('bar')
@@ -116,6 +116,9 @@ export const AnalyticsDashboard = ({
   const roleScopedProjects = useMemo(
     () => projects.filter((project) => canAccessProjectForRole(role, project.id)),
     [projects, role],
+  )
+  const [projectId, setProjectId] = useSafeProjectSelection(
+    roleScopedProjects.map((project) => project.id),
   )
 
   useEffect(() => {
@@ -175,12 +178,6 @@ export const AnalyticsDashboard = ({
     }
   }, [role, sadddLoadAttempt, demo.scenario, demo.revision])
 
-  useEffect(() => {
-    if (projectId !== allValue && !roleScopedProjects.some((project) => project.id === projectId)) {
-      setProjectId(allValue)
-    }
-  }, [projectId, roleScopedProjects])
-
   const refreshFilter = (update: () => void) => {
     update()
     setLoading(true)
@@ -188,10 +185,7 @@ export const AnalyticsDashboard = ({
   }
 
   const visibleProjects = useMemo(
-    () =>
-      projectId === allValue
-        ? roleScopedProjects
-        : roleScopedProjects.filter((project) => project.id === projectId),
+    () => roleScopedProjects.filter((project) => project.id === projectId),
     [projectId, roleScopedProjects],
   )
   const visibleProjectIds = useMemo(
@@ -318,7 +312,6 @@ export const AnalyticsDashboard = ({
   const completedActivities = visibleActivities.filter(
     (activity) => activity.status === 'Completed',
   ).length
-  const canReviewAlerts = can(role, 'alerts.outcome.log')
   const canViewRules = can(role, 'rules.view')
   const canConfigureRules = can(role, 'rules.configure')
   const visibleBeneficiaries = demo.beneficiaries.filter((beneficiary) =>
@@ -333,16 +326,15 @@ export const AnalyticsDashboard = ({
     : 0
   const canAddDashboardChart =
     hasAction(role, 'dashboard.configure') &&
-    projectId !== allValue &&
+    Boolean(projectId) &&
     (visualizationType === 'bar' || visualizationType === 'line') &&
     analysisRows.length > 0
-  const savedChartCount =
-    projectId === allValue
-      ? 0
-      : demo.dashboardCharts.filter((chart) => chart.projectId === projectId).length
+  const savedChartCount = demo.dashboardCharts.filter(
+    (chart) => chart.projectId === projectId,
+  ).length
 
   const saveCurrentChart = () => {
-    if (!canAddDashboardChart || projectId === allValue) return
+    if (!canAddDashboardChart) return
     try {
       addDashboardChart({
         projectId,
@@ -384,26 +376,15 @@ export const AnalyticsDashboard = ({
   return (
     <div className="space-y-6">
       <PageHeader
+        editableLabelKey="moduleAnalytics"
         actions={
-          canReviewAlerts || canViewRules ? (
+          canViewRules ? (
             <div className="flex flex-wrap gap-2">
-              {canReviewAlerts ? (
-                <>
-                  <Button asChild variant="outline">
-                    <Link href="/alerts">{labels.moduleAlerts}</Link>
-                  </Button>
-                  <Button asChild variant="outline">
-                    <Link href="/recommendations">{labels.moduleRecommendations}</Link>
-                  </Button>
-                </>
-              ) : null}
-              {canViewRules ? (
-                <Button asChild>
-                  <Link href="/alerts/repository">
-                    {canConfigureRules ? 'Manage alert rules' : 'View alert rules'}
-                  </Link>
-                </Button>
-              ) : null}
+              <Button asChild>
+                <Link href="/alerts/repository">
+                  {canConfigureRules ? 'Manage alert rules' : 'View alert rules'}
+                </Link>
+              </Button>
             </div>
           ) : undefined
         }
@@ -411,18 +392,25 @@ export const AnalyticsDashboard = ({
         title={labels.moduleAnalytics}
       />
 
-      <section className="grid gap-3 rounded-lg border border-border bg-card p-5 md:grid-cols-2 xl:grid-cols-[1fr_240px_240px]">
-        <div className="space-y-2">
+      <section
+        aria-labelledby="analytics-view-title"
+        className="grid gap-4 rounded-lg border border-border bg-card p-5 sm:grid-cols-2 xl:grid-cols-12"
+      >
+        <div className="sm:col-span-2 xl:col-span-12">
+          <h2 className="text-lg font-semibold" id="analytics-view-title">
+            Analysis and visualization
+          </h2>
+        </div>
+        <div className="space-y-2 xl:col-span-4">
           <span className="text-sm font-medium">Project filter</span>
           <Select
             value={projectId}
             onValueChange={(value) => refreshFilter(() => setProjectId(value))}
           >
             <SelectTrigger aria-label="Project filter">
-              <SelectValue />
+              <SelectValue placeholder="No authorized projects" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value={allValue}>All projects</SelectItem>
               {roleScopedProjects.map((project) => (
                 <SelectItem key={project.id} value={project.id}>
                   {project.title}
@@ -431,7 +419,7 @@ export const AnalyticsDashboard = ({
             </SelectContent>
           </Select>
         </div>
-        <div className="space-y-2">
+        <div className="space-y-2 xl:col-span-2">
           <span className="text-sm font-medium">Reporting period</span>
           <Select value={period} onValueChange={(value) => refreshFilter(() => setPeriod(value))}>
             <SelectTrigger aria-label="Reporting period">
@@ -444,25 +432,7 @@ export const AnalyticsDashboard = ({
             </SelectContent>
           </Select>
         </div>
-        <div className="rounded-sm border border-info/25 bg-info-subtle p-3 text-sm leading-6 text-info">
-          {humanReviewDisclaimer}
-        </div>
-      </section>
-
-      <section
-        aria-labelledby="analytics-view-title"
-        className="grid gap-4 rounded-lg border border-border bg-card p-5 md:grid-cols-2 xl:grid-cols-4"
-      >
-        <div className="space-y-1 md:col-span-2 xl:col-span-4">
-          <h2 className="text-lg font-semibold" id="analytics-view-title">
-            Analysis and visualization
-          </h2>
-          <p className="text-sm text-muted-foreground">
-            Choose the required descriptive analysis, then switch the same scoped result among a bar
-            chart, line chart, accessible table, or aggregate map.
-          </p>
-        </div>
-        <div className="space-y-2">
+        <div className="space-y-2 xl:col-span-3">
           <span className="text-sm font-medium">Analysis view</span>
           <Select
             value={analysisView}
@@ -480,7 +450,7 @@ export const AnalyticsDashboard = ({
             </SelectContent>
           </Select>
         </div>
-        <div className="space-y-2">
+        <div className="space-y-2 xl:col-span-3 xl:col-start-7 xl:row-start-3">
           <span className="text-sm font-medium">Visualization type</span>
           <Select
             value={visualizationType}
@@ -500,7 +470,7 @@ export const AnalyticsDashboard = ({
             </SelectContent>
           </Select>
         </div>
-        <div className="space-y-2">
+        <div className="space-y-2 sm:col-span-2 xl:col-span-6 xl:row-start-3">
           <span className="text-sm font-medium">Indicator</span>
           <Select
             disabled={analysisView !== 'kpi'}
@@ -520,37 +490,24 @@ export const AnalyticsDashboard = ({
             </SelectContent>
           </Select>
         </div>
-        <div className="rounded-sm border border-border bg-surface-subtle p-3 text-sm leading-6 text-muted-foreground">
-          Project: {projectId === allValue ? 'all authorized projects' : visibleProjects[0]?.title}
-          {' · '}
-          {period}
+        <div className="rounded-sm border border-info/25 bg-info-subtle p-3 text-sm leading-6 text-info sm:col-span-2 xl:col-span-3 xl:col-start-10 xl:row-start-2">
+          {humanReviewDisclaimer}
         </div>
-        <div className="flex flex-col gap-2 border-t border-border pt-4 md:col-span-2 md:flex-row md:items-center md:justify-between xl:col-span-4">
-          <p className="text-sm text-muted-foreground">
-            {projectId === allValue
-              ? 'Choose one project before saving this chart.'
-              : visualizationType === 'table' || visualizationType === 'map'
-                ? 'Choose Bar chart or Line chart before saving this chart.'
-                : analysisRows.length === 0
-                  ? 'This selection needs data before the chart can be saved.'
-                  : `This chart will be saved to ${visibleProjects[0]?.title}.`}
-          </p>
-          <div className="flex flex-wrap gap-2">
-            {projectId !== allValue && savedChartCount > 0 ? (
-              <Button asChild className="shrink-0" variant="outline">
-                <Link href={`/dashboard?project=${projectId}`}>View project dashboard</Link>
-              </Button>
-            ) : null}
-            <Button
-              className="shrink-0"
-              disabled={!canAddDashboardChart}
-              onClick={saveCurrentChart}
-              type="button"
-            >
-              <Plus className="mr-2 h-4 w-4" aria-hidden="true" />
-              Add to Dashboard
+        <div className="flex flex-wrap justify-end gap-2 border-t border-border pt-4 sm:col-span-2 xl:col-span-12 xl:row-start-4">
+          {projectId && savedChartCount > 0 ? (
+            <Button asChild className="shrink-0" variant="outline">
+              <Link href={`/dashboard?project=${projectId}`}>View project dashboard</Link>
             </Button>
-          </div>
+          ) : null}
+          <Button
+            className="shrink-0"
+            disabled={!canAddDashboardChart}
+            onClick={saveCurrentChart}
+            type="button"
+          >
+            <Plus className="mr-2 h-4 w-4" aria-hidden="true" />
+            Add to Dashboard
+          </Button>
         </div>
       </section>
 
@@ -570,46 +527,6 @@ export const AnalyticsDashboard = ({
         />
       ) : (
         <>
-          <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
-            <MetricCard
-              description={`${visibleProjects.length} project${visibleProjects.length === 1 ? '' : 's'} in ${period}.`}
-              icon={Target}
-              label="KPI achievement"
-              tone={averageKpi >= 70 ? 'success' : 'warning'}
-              value={formatPercent(averageKpi)}
-            />
-            <MetricCard
-              description="Actual spending against planned allocation."
-              icon={CircleDollarSign}
-              label="Budget utilization"
-              tone={budgetUtilization > 80 ? 'warning' : 'success'}
-              value={formatPercent(budgetUtilization)}
-            />
-            <MetricCard
-              description={`${formatNumber(reachedBeneficiaries)} of ${formatNumber(targetBeneficiaries)} target beneficiaries.`}
-              icon={UsersRound}
-              label="Beneficiary reach"
-              tone="info"
-              value={formatNumber(reachedBeneficiaries)}
-            />
-            <MetricCard
-              description="Completed activities in the selected project set."
-              icon={ClipboardCheck}
-              label="Activity completion"
-              tone="success"
-              value={`${completedActivities}/${visibleActivities.length}`}
-            />
-            <MetricCard
-              description="Rule-Based Alerts requiring review, action, or acknowledgement."
-              icon={AlertTriangle}
-              label="Rule-Based Alerts"
-              tone={
-                visibleAlerts.some((alert) => alert.severity === 'Critical') ? 'danger' : 'warning'
-              }
-              value={visibleAlerts.length.toString()}
-            />
-          </section>
-
           {visualizationType === 'map' ? (
             <AnalyticsCoverageMap
               locations={visibleLocations}
@@ -656,6 +573,46 @@ export const AnalyticsDashboard = ({
               )}
             </ChartPanel>
           )}
+
+          <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
+            <MetricCard
+              description={`${visibleProjects.length} project${visibleProjects.length === 1 ? '' : 's'} in ${period}.`}
+              icon={Target}
+              label="KPI achievement"
+              tone={averageKpi >= 70 ? 'success' : 'warning'}
+              value={formatPercent(averageKpi)}
+            />
+            <MetricCard
+              description="Actual spending against planned allocation."
+              icon={CircleDollarSign}
+              label="Budget utilization"
+              tone={budgetUtilization > 80 ? 'warning' : 'success'}
+              value={formatPercent(budgetUtilization)}
+            />
+            <MetricCard
+              description={`${formatNumber(reachedBeneficiaries)} of ${formatNumber(targetBeneficiaries)} target beneficiaries.`}
+              icon={UsersRound}
+              label="Beneficiary reach"
+              tone="info"
+              value={formatNumber(reachedBeneficiaries)}
+            />
+            <MetricCard
+              description="Completed activities in the selected project set."
+              icon={ClipboardCheck}
+              label="Activity completion"
+              tone="success"
+              value={`${completedActivities}/${visibleActivities.length}`}
+            />
+            <MetricCard
+              description="Rule-Based Alerts requiring review, action, or acknowledgement."
+              icon={AlertTriangle}
+              label="Rule-Based Alerts"
+              tone={
+                visibleAlerts.some((alert) => alert.severity === 'Critical') ? 'danger' : 'warning'
+              }
+              value={visibleAlerts.length.toString()}
+            />
+          </section>
 
           <section className="space-y-6" aria-labelledby="fixed-monitoring-charts-title">
             <div>

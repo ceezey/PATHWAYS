@@ -306,8 +306,8 @@ export function ManualDataEntryWorkspace() {
               )
             ) : null}
             <p className="mt-3 text-sm">
-              Saving produces an audit event. Only the System Administrator can review the
-              global audit ledger.
+              Saving produces an audit event. Only the System Administrator can review the global
+              audit ledger.
             </p>
           </SectionCard>
         </aside>

@@ -136,10 +136,22 @@ export interface DemoExpense {
   category: string
   date: string
   description: string
-  status: 'For Verification' | 'Verified' | 'For Correction'
+  status:
+    | 'Pending Review'
+    | 'Approved'
+    | 'Rejected'
+    | 'Partially Approved'
+    | 'Escalated'
+    | 'For Verification'
+    | 'Verified'
+    | 'For Correction'
   reason: string
   counted: boolean
   submittedBy: string
+  approvedAmount?: number
+  rejectedAmount?: number
+  reviewedAt?: string
+  reviewedBy?: string
 }
 export interface Publication {
   projectId: string
@@ -192,6 +204,7 @@ export function createDemoBaseline() {
   return {
     version: 1 as const,
     teamScopeVersion: 1 as const,
+    budgetOutcomeResetVersion: 1 as const,
     sequence: 0,
     revision: 0,
     clock: Date.UTC(2026, 8, 9, 8),
@@ -298,6 +311,7 @@ export function migrateDemoState(value: unknown): unknown {
   const state = value as Record<string, unknown>
   if (state.version === 1) {
     const needsTeamScopeRepair = state.teamScopeVersion === undefined
+    const needsBudgetOutcomeReset = state.budgetOutcomeResetVersion === undefined
     const projects = Array.isArray(state.projects) ? state.projects : []
     const hasFutureMakers = projects.some(
       (project) => project && typeof project === 'object' && project.id === 'futuremakers-ncr',
@@ -328,13 +342,90 @@ export function migrateDemoState(value: unknown): unknown {
             : notice,
         )
       : state.notifications
-
+    const mergeMissingFixtures = <T extends { id: string }>(
+      current: unknown,
+      fixtures: T[],
+      fixtureIds: ReadonlySet<string>,
+    ) => {
+      const records = Array.isArray(current) ? current : []
+      const existingIds = new Set(
+        records.flatMap((record) =>
+          record && typeof record === 'object' && 'id' in record && typeof record.id === 'string'
+            ? [record.id]
+            : [],
+        ),
+      )
+      return [
+        ...records,
+        ...structuredClone(
+          fixtures.filter((fixture) => fixtureIds.has(fixture.id) && !existingIds.has(fixture.id)),
+        ),
+      ]
+    }
+    const activities = mergeMissingFixtures(
+      state.activities,
+      mockActivities,
+      new Set(['act-fm-proof-lab']),
+    )
+    const alerts = mergeMissingFixtures(
+      state.alerts,
+      mockAlerts,
+      new Set(['alert-fm-budget-burn', 'alert-fm-budget-concentration']),
+    )
+    const recommendations = mergeMissingFixtures(
+      state.recommendations,
+      mockRecommendations,
+      new Set(['rec-fm-budget-burn', 'rec-fm-budget-concentration']),
+    )
+    const budgetAlertIds = new Set(['alert-fm-budget-burn', 'alert-fm-budget-concentration'])
+    const budgetRecommendationIds = new Set(['rec-fm-budget-burn', 'rec-fm-budget-concentration'])
+    const resetAlerts = needsBudgetOutcomeReset
+      ? (alerts as typeof mockAlerts).map((alert) => {
+          if (!budgetAlertIds.has(alert.id)) return alert
+          const fixture = mockAlerts.find((record) => record.id === alert.id)
+          return fixture ? structuredClone(fixture) : alert
+        })
+      : alerts
+    const resetRecommendations = needsBudgetOutcomeReset
+      ? (recommendations as typeof mockRecommendations).map((recommendation) => {
+          if (!budgetRecommendationIds.has(recommendation.id)) return recommendation
+          const fixture = mockRecommendations.find((record) => record.id === recommendation.id)
+          return fixture ? structuredClone(fixture) : recommendation
+        })
+      : recommendations
+    const decisionHistory = needsBudgetOutcomeReset
+      ? Object.fromEntries(
+          Object.entries(
+            state.decisionHistory && typeof state.decisionHistory === 'object'
+              ? state.decisionHistory
+              : {},
+          ).filter(([id]) => !budgetAlertIds.has(id) && !budgetRecommendationIds.has(id)),
+        )
+      : state.decisionHistory
+    const resetNotifications = needsBudgetOutcomeReset
+      ? (Array.isArray(state.notifications) ? state.notifications : []).filter(
+          (notice) =>
+            !(
+              notice &&
+              typeof notice === 'object' &&
+              'href' in notice &&
+              typeof notice.href === 'string' &&
+              [...budgetAlertIds].some((id) => notice.href === `/alerts?alert=${id}`)
+            ),
+        )
+      : notifications
     return {
       ...state,
       accounts,
-      notifications,
+      activities,
+      alerts: resetAlerts,
+      expenses: state.expenses,
+      notifications: resetNotifications,
+      recommendations: resetRecommendations,
+      decisionHistory,
       dashboardCharts: state.dashboardCharts ?? [],
       teamScopeVersion: 1,
+      budgetOutcomeResetVersion: 1,
     }
   }
   return value

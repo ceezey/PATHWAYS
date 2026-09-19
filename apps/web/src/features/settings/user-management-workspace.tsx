@@ -277,6 +277,7 @@ export const UserManagementWorkspace = ({
   return (
     <>
       <PageHeader
+        editableLabelKey="moduleUserManagement"
         eyebrow="Administration"
         title={labels.moduleUserManagement}
         description={administrationSummary}
@@ -449,7 +450,8 @@ export const UserManagementWorkspace = ({
             <DialogHeader>
               <DialogTitle>Deactivate account?</DialogTitle>
               <DialogDescription>
-                {deactivateUser.name} will lose sign-in access until the account is authorized again.
+                {deactivateUser.name} will lose sign-in access until the account is authorized
+                again.
               </DialogDescription>
             </DialogHeader>
             <DialogFooter>
@@ -596,9 +598,7 @@ const UserEditorDialog = ({
     {editor ? (
       <DialogContent className="max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>
-            {editor.mode === 'create' ? 'Create user' : 'Edit user'}
-          </DialogTitle>
+          <DialogTitle>{editor.mode === 'create' ? 'Create user' : 'Edit user'}</DialogTitle>
           <DialogDescription>
             {editor.mode === 'create'
               ? 'Add an invited account and assign its role and project access.'

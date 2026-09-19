@@ -2,6 +2,7 @@ import type { PrototypeRole } from '@/types/prototype-role'
 
 const STORAGE_KEY = 'pathways.beneficiaryAccess'
 const verificationDurationMs = 15 * 60 * 1000
+export const beneficiaryAccessChangedEvent = 'pathways:beneficiary-access-changed'
 
 interface BeneficiaryAccessState {
   role: PrototypeRole
@@ -17,7 +18,11 @@ export const clearBeneficiaryAccess = () => {
     return
   }
 
+  const hadAccess = window.sessionStorage.getItem(STORAGE_KEY) !== null
   window.sessionStorage.removeItem(STORAGE_KEY)
+  if (hadAccess) {
+    window.dispatchEvent(new Event(beneficiaryAccessChangedEvent))
+  }
 }
 
 export const writeBeneficiaryAccess = (role: PrototypeRole, expiresAt?: string) => {
@@ -34,30 +39,44 @@ export const writeBeneficiaryAccess = (role: PrototypeRole, expiresAt?: string) 
   }
 
   window.sessionStorage.setItem(STORAGE_KEY, JSON.stringify(state))
+  window.dispatchEvent(new Event(beneficiaryAccessChangedEvent))
 }
 
-export const hasActiveBeneficiaryAccess = (role: PrototypeRole) => {
+const readBeneficiaryAccess = () => {
   if (typeof window === 'undefined') {
-    return false
+    return null
   }
 
   const stored = window.sessionStorage.getItem(STORAGE_KEY)
-
   if (!stored) {
-    return false
+    return null
   }
 
   try {
-    const state = JSON.parse(stored) as BeneficiaryAccessState
-    const active = state.role === role && new Date(state.expiresAt).getTime() > Date.now()
-
-    if (!active) {
-      clearBeneficiaryAccess()
-    }
-
-    return active
+    return JSON.parse(stored) as BeneficiaryAccessState
   } catch {
     clearBeneficiaryAccess()
-    return false
+    return null
   }
+}
+
+export const getBeneficiaryAccessExpiry = (role: PrototypeRole) => {
+  const state = readBeneficiaryAccess()
+  if (!state || state.role !== role) {
+    return null
+  }
+
+  const expiresAt = new Date(state.expiresAt).getTime()
+  return Number.isFinite(expiresAt) ? expiresAt : null
+}
+
+export const hasActiveBeneficiaryAccess = (role: PrototypeRole) => {
+  const expiresAt = getBeneficiaryAccessExpiry(role)
+  const active = expiresAt !== null && expiresAt > Date.now()
+
+  if (!active && typeof window !== 'undefined' && window.sessionStorage.getItem(STORAGE_KEY)) {
+    clearBeneficiaryAccess()
+  }
+
+  return active
 }

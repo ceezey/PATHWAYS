@@ -122,9 +122,7 @@ export const BudgetEditorDialog = ({
                       onChange={(event) => field.onChange(event.target.valueAsNumber)}
                     />
                   </FormControl>
-                  <FormDescription>
-                    Enter a whole amount in Philippine pesos.
-                  </FormDescription>
+                  <FormDescription>Enter a whole amount in Philippine pesos.</FormDescription>
                   <FormMessage />
                 </FormItem>
               )}

@@ -50,7 +50,7 @@ describe('prototype labels', () => {
     expect(mergePrototypeLabels(['not', 'a', 'label', 'record'])).toEqual(defaultPrototypeLabels)
   })
 
-  it('limits the editor to the ten approved System Administrator page headings', () => {
+  it('limits header editing to the eight approved System Administrator page headings', () => {
     const editableKeys = prototypeLabelGroups.flatMap((group) =>
       group.labels.map((definition) => definition.key),
     )
@@ -61,11 +61,9 @@ describe('prototype labels', () => {
       'moduleCollection',
       'moduleAnalytics',
       'moduleAlerts',
-      'moduleRecommendations',
       'moduleReports',
       'moduleAlertsRepository',
       'moduleUserManagement',
-      'moduleLabelSettings',
     ])
   })
 })

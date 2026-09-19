@@ -111,8 +111,7 @@ export const OwnProfileWorkspace = () => {
     profileForm.reset(values)
     setProfileNotice({
       tone: 'success',
-      message:
-        'Profile updated. The change is recorded in the audit trail.',
+      message: 'Profile updated. The change is recorded in the audit trail.',
     })
   }
 

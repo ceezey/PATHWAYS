@@ -31,16 +31,24 @@ describe('prototype RBAC matrix', () => {
     ['Monitoring and Evaluation Officer', 'budget.expense.verify', true],
     ['Monitoring and Evaluation Officer', 'alerts.outcome.log', false],
     ['Monitoring and Evaluation Officer', 'settings.users.manage', false],
+    ['Monitoring and Evaluation Officer', 'activities.status.edit', true],
+    ['Monitoring and Evaluation Officer', 'entries.encode', true],
     ['Project Manager', 'evaluation.approve', true],
+    ['Project Manager', 'activities.status.edit', true],
+    ['Project Manager', 'entries.encode', false],
     ['Project Manager', 'evaluation.formal.submit', false],
     ['Project Manager', 'settings.users.manage', true],
     ['Program Manager', 'budget.portfolio_view', true],
     ['Program Manager', 'activities.view', true],
+    ['Program Manager', 'activities.status.edit', true],
+    ['Program Manager', 'entries.encode', false],
     ['Program Manager', 'collection.view', false],
     ['Program Manager', 'transparency.preview', true],
     ['Program Manager', 'transparency.publish', true],
     ['Program Manager', 'settings.users.manage', true],
     ['System Administrator', 'rules.configure', true],
+    ['System Administrator', 'activities.status.edit', true],
+    ['System Administrator', 'entries.encode', true],
     ['System Administrator', 'collection.view', true],
     ['System Administrator', 'budget.expense.approve', false],
     ['Grant Manager', 'projects.view', true],
@@ -54,8 +62,26 @@ describe('prototype RBAC matrix', () => {
     ['Grant Manager', 'collection.view', false],
     ['Grant Manager', 'settings.view', false],
     ['Grant Manager', 'settings.users.manage', false],
+    ['Grant Manager', 'activities.status.edit', false],
+    ['Grant Manager', 'entries.encode', false],
+    ['Project Officer', 'activities.status.edit', false],
+    ['Project Officer', 'entries.encode', true],
   ] as const)('%s permission %s is %s', (role, permission, expected) => {
     expect(can(role, permission)).toBe(expected)
+  })
+
+  it.each([
+    ['Project Manager', true],
+    ['Program Manager', true],
+    ['Grant Manager', true],
+    ['System Administrator', true],
+    ['Project Officer', false],
+    ['Monitoring and Evaluation Officer', false],
+  ] as const)('applies the Phase 4 Budget route contract for %s', (role, allowed) => {
+    expect(getRouteAccess(role, '/projects/futuremakers-ncr/budget')).toMatchObject({
+      allowed,
+      moduleName: 'Budget',
+    })
   })
 
   it('encodes the exact project, Beneficiary, and assignment scope for every role', () => {
@@ -381,10 +407,14 @@ describe('prototype RBAC matrix', () => {
     })
   })
 
-  it('requires beneficiary step-up only for the Evaluation Center path', () => {
+  it('requires beneficiary step-up for every Beneficiaries route and not report aggregates', () => {
     expect(getRouteAccess('Project Manager', '/beneficiaries')).toMatchObject({
       allowed: true,
-      requiresBeneficiaryStepUp: false,
+      requiresBeneficiaryStepUp: true,
+    })
+    expect(getRouteAccess('Project Manager', '/beneficiaries/ben-001')).toMatchObject({
+      allowed: true,
+      requiresBeneficiaryStepUp: true,
     })
     expect(getRouteAccess('Project Manager', '/beneficiaries/evaluation-center')).toMatchObject({
       allowed: true,

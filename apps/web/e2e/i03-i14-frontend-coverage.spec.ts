@@ -43,7 +43,7 @@ test.describe('I03-I14 frontend-only workflow coverage', () => {
       ['/settings/users', 'User Management'],
       ['/settings/audit', 'Audit Log'],
       ['/projects', 'Project Information Management'],
-      ['/indicators', 'Indicator Library'],
+      ['/projects/futuremakers-ncr/indicators', 'Target Indicators'],
       ['/projects/futuremakers-ncr/activities', 'Project Activities'],
       ['/collection/entry', 'Encode Project Data'],
       ['/collection/import', 'Metadata-Driven Data Integration'],

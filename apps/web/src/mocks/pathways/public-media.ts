@@ -7,8 +7,7 @@ export const mockApprovedPublicMedia: PublicBeneficiaryMediaRecord[] = [
     mediaType: 'Photo',
     src: '/media/futuremakers-skills-workshop.png',
     alt: 'A group of adult learners taking part in a facilitated skills workshop.',
-    caption:
-      'A facilitated skills workshop with participants completing guided activities.',
+    caption: 'A facilitated skills workshop with participants completing guided activities.',
     contextLabel: 'Skills workshop',
     approvalState: 'Approved for public presentation',
     consentScope: 'Public project storytelling',
@@ -20,8 +19,7 @@ export const mockApprovedPublicMedia: PublicBeneficiaryMediaRecord[] = [
     mediaType: 'Photo',
     src: '/media/youth-rise-learning-site.png',
     alt: 'Two adult staff members preparing a community learning site.',
-    caption:
-      'A community learning site prepared for scheduled activities.',
+    caption: 'A community learning site prepared for scheduled activities.',
     contextLabel: 'Learning-site readiness',
     approvalState: 'Approved for public presentation',
     consentScope: 'Public project storytelling',

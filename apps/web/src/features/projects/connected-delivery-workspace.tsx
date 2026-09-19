@@ -1,201 +1,439 @@
 'use client'
+
+import { AlertTriangle, Check, ChevronDown, Eye, Pencil, Plus, ReceiptText, X } from 'lucide-react'
+import { useMemo, useState } from 'react'
+
 import { PageHeader } from '@/components/layout/page-header'
 import { SectionCard, StatusBadge } from '@/components/pathways'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { hasAction } from '@/lib/demo-state/permissions'
 import {
-  reuseIndicator,
-  reviewExpense,
-  saveExpense,
-  saveIndicator,
-} from '@/lib/demo-state/projects'
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
+import {
+  DropdownMenu,
+  DropdownMenuCheckboxItem,
+  DropdownMenuContent,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { Textarea } from '@/components/ui/textarea'
+import { decideRecommendation } from '@/lib/demo-state/monitoring'
+import { hasAction } from '@/lib/demo-state/permissions'
+import { saveIndicatorForProjects } from '@/lib/demo-state/projects'
 import { type DemoExpense, currentAccount, visibleDemoProjects } from '@/lib/demo-state/store'
 import { useDemoState } from '@/lib/demo-state/use-demo-state'
-import { useState } from 'react'
+import type { Indicator, RecommendationOutcome, RecommendationRecord } from '@/types/pathways'
+
 import { ProjectWorkspaceHeader } from './project-workspace-header'
 
-const blankExpense = { activityId: '', amount: '', category: '', date: '', description: '' }
+const peso = (amount: number) =>
+  amount.toLocaleString('en-PH', { style: 'currency', currency: 'PHP' })
+
+const expenseTone = (status: DemoExpense['status']) => {
+  if (status === 'Approved' || status === 'Partially Approved' || status === 'Verified')
+    return 'success'
+  if (status === 'Rejected' || status === 'For Correction') return 'danger'
+  if (status === 'Escalated') return 'info'
+  return 'warning'
+}
+
+type RecommendationReview = { recommendation: RecommendationRecord; alertTitle: string }
+
 export function ConnectedBudgetWorkspace({ projectId }: { projectId: string }) {
   const state = useDemoState()
   const actor = currentAccount(state)
-  const project = state.projects.find((p) => p.id === projectId)
-  const budget = state.budgets.find((b) => b.projectId === projectId)
-  const [draft, setDraft] = useState(blankExpense)
-  const [editing, setEditing] = useState<string>()
+  const project = state.projects.find((record) => record.id === projectId)
+  const budget = state.budgets.find((record) => record.projectId === projectId)
+  const [recommendationReview, setRecommendationReview] = useState<RecommendationReview>()
+  const [recommendationOutcome, setRecommendationOutcome] = useState<RecommendationOutcome>()
+  const [outcomeNote, setOutcomeNote] = useState('')
+  const [previewExpense, setPreviewExpense] = useState<DemoExpense>()
   const [message, setMessage] = useState('')
-  const [reason, setReason] = useState('')
-  const [reviewId, setReviewId] = useState<string>()
-  const expenses = state.expenses.filter((e) => e.projectId === projectId)
+
   if (!project || !actor?.projectIds.includes(projectId))
     return <p role="alert">Project unavailable or outside your scope.</p>
-  const submit = (event: React.FormEvent) => {
-    event.preventDefault()
-    try {
-      saveExpense({ ...draft, amount: Number(draft.amount), projectId }, editing)
-      setDraft(blankExpense)
-      setEditing(undefined)
-      setMessage('Expense saved. Budget updates only when verified.')
-    } catch (error) {
-      setMessage(error instanceof Error ? error.message : 'Expense could not be saved.')
-    }
+
+  const expenses = state.expenses.filter((expense) => expense.projectId === projectId)
+  const budgetAlerts = state.alerts.filter(
+    (alert) => alert.projectId === projectId && alert.category === 'Budget',
+  )
+  const recommendations = state.recommendations.filter((recommendation) =>
+    budgetAlerts.some((alert) => alert.id === recommendation.alertId),
+  )
+  const canLogOutcome = hasAction(actor.role, 'outcomes.log')
+  const utilization = budget
+    ? Math.round((budget.actualSpending / Math.max(1, budget.plannedAmount)) * 100)
+    : 0
+
+  const openOutcome = (recommendation: RecommendationRecord, alertTitle: string) => {
+    setRecommendationReview({ recommendation, alertTitle })
+    setRecommendationOutcome(undefined)
+    setOutcomeNote('')
+    setMessage('')
   }
-  const review = (id: string, verified: boolean) => {
+
+  const submitOutcome = () => {
+    if (!recommendationReview || !recommendationOutcome) return
     try {
-      reviewExpense(id, verified, reason)
-      setReviewId(undefined)
-      setReason('')
-      setMessage(
-        verified
-          ? 'Expense verified. Budget utilization updated once.'
-          : 'Expense returned with the correction reason.',
+      decideRecommendation(
+        recommendationReview.recommendation.id,
+        recommendationOutcome,
+        outcomeNote,
       )
+      setMessage(`Outcome decision saved for ${recommendationReview.alertTitle}.`)
+      setRecommendationReview(undefined)
+      setRecommendationOutcome(undefined)
+      setOutcomeNote('')
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : 'Review failed.')
+      setMessage(
+        error instanceof Error ? error.message : 'The outcome decision could not be saved.',
+      )
     }
   }
+
+  const ledgerExpenses = expenses.filter((expense) =>
+    ['Verified', 'Approved', 'Partially Approved'].includes(expense.status),
+  )
+
   return (
     <div className="space-y-6">
       <PageHeader
         title="Budget & Expense Ledger"
-        description="Verified expenses update the shared project budget."
+        description="Review project spending, budget risks, recommendations, and submitted expenses."
       />
       <ProjectWorkspaceHeader project={project} />
-      <SectionCard title="Project budget">
-        <dl className="grid gap-4 sm:grid-cols-3">
+
+      <section aria-labelledby="budget-overview-title" className="space-y-3">
+        <div>
+          <h2 className="text-lg font-semibold text-foreground" id="budget-overview-title">
+            Budget overview
+          </h2>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Approved amounts affect spending once; submitted totals remain visible for review.
+          </p>
+        </div>
+        <dl className="grid overflow-hidden rounded-lg border border-border bg-card sm:grid-cols-2 xl:grid-cols-4">
           {[
-            ['Allocation', budget?.plannedAmount],
-            ['Verified spending', budget?.actualSpending],
-            ['Available budget', budget ? budget.plannedAmount - budget.actualSpending : undefined],
-          ].map(([label, amount]) => (
-            <div key={String(label)}>
-              <dt>{label}</dt>
-              <dd className="text-xl font-semibold">
-                {amount === undefined
-                  ? 'Unavailable'
-                  : Number(amount).toLocaleString('en-PH', { style: 'currency', currency: 'PHP' })}
-              </dd>
+            ['Total budget', budget ? peso(budget.plannedAmount) : 'Unavailable'],
+            ['Logged expenses', budget ? peso(budget.actualSpending) : 'Unavailable'],
+            [
+              'Remaining budget',
+              budget ? peso(budget.plannedAmount - budget.actualSpending) : 'Unavailable',
+            ],
+            ['Efficiency', budget ? `${utilization}% utilized` : 'Unavailable'],
+          ].map(([label, value], index) => (
+            <div
+              className={`p-4 ${index ? 'border-t border-border sm:border-l sm:border-t-0' : ''}`}
+              key={label}
+            >
+              <dt className="text-sm text-muted-foreground">{label}</dt>
+              <dd className="mt-2 text-xl font-semibold tabular-nums text-foreground">{value}</dd>
             </div>
           ))}
         </dl>
-        <p className="mt-3">
-          Utilization:{' '}
-          {budget ? Math.round((budget.actualSpending / budget.plannedAmount) * 100) : 0}% · Expense
-          limit: {state.expenseRule.limitPercent}% of project budget; available budget also
-          enforced.
-        </p>
-      </SectionCard>
-      {hasAction(actor.role, 'expenses.submit') && !project.archived ? (
-        <SectionCard title={editing ? 'Correct returned expense' : 'Record expense'}>
-          <form className="grid gap-4 sm:grid-cols-2" onSubmit={submit}>
-            <label>
-              Related activity
-              <select
-                required
-                className="mt-1 block w-full rounded border p-2"
-                value={draft.activityId}
-                onChange={(e) => setDraft({ ...draft, activityId: e.target.value })}
-              >
-                <option value="">Select activity</option>
-                {state.activities
-                  .filter((a) => a.projectId === projectId)
-                  .map((a) => (
-                    <option key={a.id} value={a.id}>
-                      {a.title}
-                    </option>
-                  ))}
-              </select>
-            </label>
-            {(['amount', 'category', 'date', 'description'] as const).map((key) => (
-              <label className="capitalize" htmlFor={`expense-${key}`} key={key}>
-                {key} <span aria-hidden="true">*</span>
-                <Input
-                  id={`expense-${key}`}
-                  required
-                  type={key === 'amount' ? 'number' : key === 'date' ? 'date' : 'text'}
-                  step={key === 'amount' ? '0.01' : undefined}
-                  value={draft[key]}
-                  onChange={(e) => setDraft({ ...draft, [key]: e.target.value })}
-                />
-              </label>
-            ))}
-            <Button type="submit">{editing ? 'Resubmit correction' : 'Save expense'}</Button>
-          </form>
-        </SectionCard>
-      ) : null}
-      <output className="block text-sm">{message}</output>
-      <SectionCard title="Expense records">
-        {expenses.length === 0 ? (
-          <p>No new expenses recorded. Baseline verified spending is included above.</p>
-        ) : (
-          <div className="space-y-3">
-            {expenses.map((expense: DemoExpense) => (
-              <article className="rounded border p-4" key={expense.id}>
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <h3 className="font-semibold">
-                    {expense.category} · PHP {expense.amount.toLocaleString()}
-                  </h3>
-                  <StatusBadge
-                    tone={
-                      expense.status === 'Verified'
-                        ? 'success'
-                        : expense.status === 'For Correction'
-                          ? 'danger'
-                          : 'warning'
-                    }
-                  >
-                    {expense.status}
-                  </StatusBadge>
-                </div>
-                <p>{expense.description}</p>
-                <p className="text-sm">
-                  {expense.date} ·{' '}
-                  {state.activities.find((a) => a.id === expense.activityId)?.title}
+      </section>
+
+      <output className="block text-sm text-muted-foreground" aria-live="polite">
+        {message}
+      </output>
+      <Tabs defaultValue="risks">
+        <TabsList aria-label="Budget information">
+          <TabsTrigger value="risks">Budget risks & recommendations</TabsTrigger>
+          <TabsTrigger value="ledger">Expense ledger</TabsTrigger>
+        </TabsList>
+        <TabsContent value="risks">
+          <SectionCard
+            title="Budget risks, alerts & recommendations"
+            description="Deterministic mock signals stay paired with a recommendation and a human-recorded outcome."
+          >
+            {budgetAlerts.length ? (
+              <div className="grid gap-3 lg:grid-cols-2">
+                {budgetAlerts.map((alert) => {
+                  const recommendation = recommendations.find(
+                    (record) => record.alertId === alert.id,
+                  )
+                  return (
+                    <article
+                      className="rounded-md border border-border bg-surface-subtle p-4"
+                      key={alert.id}
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="flex min-w-0 items-start gap-3">
+                          <AlertTriangle
+                            className="mt-0.5 h-5 w-5 shrink-0 text-warning"
+                            aria-hidden="true"
+                          />
+                          <div>
+                            <h3 className="font-semibold text-foreground">{alert.title}</h3>
+                            <p className="mt-1 text-sm leading-6 text-muted-foreground">
+                              {alert.description}
+                            </p>
+                          </div>
+                        </div>
+                        <StatusBadge tone={alert.severity === 'Critical' ? 'danger' : 'warning'}>
+                          {alert.severity}
+                        </StatusBadge>
+                      </div>
+                      <div className="mt-4 border-t border-border pt-3">
+                        <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                          System recommendation
+                        </p>
+                        <p className="mt-1 text-sm text-foreground">
+                          {recommendation?.text ?? 'No recommendation recorded for this alert.'}
+                        </p>
+                        {recommendation?.outcome ? (
+                          <div className="mt-3 rounded-sm border border-border bg-background p-3 text-sm">
+                            <p className="font-medium text-foreground">
+                              {recommendation.outcome === 'Decline'
+                                ? 'Reject'
+                                : recommendation.outcome === 'Escalate'
+                                  ? 'Escalate to Program Manager'
+                                  : recommendation.outcome}
+                            </p>
+                            <p className="mt-1 text-muted-foreground">
+                              {recommendation.outcomeNote}
+                            </p>
+                          </div>
+                        ) : canLogOutcome && recommendation ? (
+                          <Button
+                            className="mt-3"
+                            onClick={() => openOutcome(recommendation, alert.title)}
+                            size="sm"
+                            type="button"
+                          >
+                            Log Outcome Decision
+                          </Button>
+                        ) : null}
+                      </div>
+                    </article>
+                  )
+                })}
+              </div>
+            ) : (
+              <p className="text-sm text-muted-foreground">
+                No budget-specific risks or recommendations are recorded for this project.
+              </p>
+            )}
+          </SectionCard>
+        </TabsContent>
+        <TabsContent value="ledger">
+          <SectionCard
+            title="Expense ledger"
+            description="M&E-validated Project Officer expenses appear here automatically. Select a card to preview its exact record."
+          >
+            {ledgerExpenses.length ? (
+              <div className="space-y-3">
+                {ledgerExpenses.map((expense) => {
+                  const submitter = state.accounts.find(
+                    (account) => account.id === expense.submittedBy,
+                  )
+                  const activity = state.activities.find(
+                    (record) => record.id === expense.activityId,
+                  )
+                  return (
+                    <button
+                      className="w-full rounded-md border border-border bg-card p-4 text-left hover:border-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                      key={expense.id}
+                      onClick={() => setPreviewExpense(expense)}
+                      type="button"
+                    >
+                      <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
+                        <div className="min-w-0 space-y-3">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <h3 className="font-semibold text-foreground">
+                              {expense.category} · {peso(expense.amount)}
+                            </h3>
+                            <StatusBadge tone={expenseTone(expense.status)}>
+                              {expense.status}
+                            </StatusBadge>
+                          </div>
+                          <p className="text-sm text-foreground">{expense.description}</p>
+                          <dl className="grid gap-x-6 gap-y-2 text-sm text-muted-foreground sm:grid-cols-2 lg:grid-cols-4">
+                            <div>
+                              <dt>Activity</dt>
+                              <dd className="font-medium text-foreground">
+                                {activity?.title ?? 'Unavailable'}
+                              </dd>
+                            </div>
+                            <div>
+                              <dt>Submitted by</dt>
+                              <dd className="font-medium text-foreground">
+                                {submitter?.name ?? expense.submittedBy}
+                              </dd>
+                            </div>
+                            <div>
+                              <dt>Expense date</dt>
+                              <dd className="font-medium text-foreground">{expense.date}</dd>
+                            </div>
+                            <div>
+                              <dt>Submitted amount</dt>
+                              <dd className="font-medium text-foreground">
+                                {peso(expense.amount)}
+                              </dd>
+                            </div>
+                          </dl>
+                          {expense.approvedAmount !== undefined ? (
+                            <p className="text-sm text-muted-foreground">
+                              Approved {peso(expense.approvedAmount)} · Rejected balance{' '}
+                              {peso(expense.rejectedAmount ?? 0)}
+                            </p>
+                          ) : null}
+                          {expense.reason ? (
+                            <p className="rounded-sm border border-border bg-surface-subtle p-3 text-sm text-muted-foreground">
+                              Decision reason: {expense.reason}
+                            </p>
+                          ) : null}
+                        </div>
+                        <span className="flex shrink-0 items-center gap-2 text-sm font-medium text-primary">
+                          <Eye className="h-4 w-4" aria-hidden="true" /> Preview
+                        </span>
+                      </div>
+                    </button>
+                  )
+                })}
+              </div>
+            ) : (
+              <div className="rounded-md border border-dashed border-border p-6 text-center">
+                <ReceiptText className="mx-auto h-6 w-6 text-muted-foreground" aria-hidden="true" />
+                <p className="mt-2 font-medium text-foreground">No validated expenses</p>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  Submitted expenses appear after M&E validation.
                 </p>
-                {expense.reason ? <p>Correction reason: {expense.reason}</p> : null}
-                {expense.status === 'For Verification' &&
-                hasAction(actor.role, 'expenses.verify') ? (
-                  <div className="mt-3 flex gap-3">
-                    <Button onClick={() => review(expense.id, true)}>Verify expense</Button>
-                    <Button variant="outline" onClick={() => setReviewId(expense.id)}>
-                      Return for correction
-                    </Button>
-                  </div>
+              </div>
+            )}
+          </SectionCard>
+        </TabsContent>
+      </Tabs>
+
+      <Dialog
+        open={Boolean(recommendationReview)}
+        onOpenChange={(open) => !open && setRecommendationReview(undefined)}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Log Outcome Decision</DialogTitle>
+            <DialogDescription>
+              {recommendationReview?.alertTitle ??
+                'Record the human decision for this recommendation.'}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2">
+            <Label htmlFor="recommendation-outcome">Outcome</Label>
+            <Select
+              onValueChange={(value) => setRecommendationOutcome(value as RecommendationOutcome)}
+              value={recommendationOutcome}
+            >
+              <SelectTrigger id="recommendation-outcome">
+                <SelectValue placeholder="Select an outcome" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="Accept">Accept</SelectItem>
+                <SelectItem value="Decline">Reject</SelectItem>
+                <SelectItem value="Partially Accept">Partially Accept</SelectItem>
+                {actor.role !== 'Program Manager' ? (
+                  <SelectItem value="Escalate">Escalate to Program Manager</SelectItem>
                 ) : null}
-                {expense.status === 'For Correction' && expense.submittedBy === actor.id ? (
-                  <Button
-                    variant="outline"
-                    onClick={() => {
-                      setEditing(expense.id)
-                      setDraft({ ...expense, amount: String(expense.amount) })
-                    }}
-                  >
-                    Correct expense
-                  </Button>
-                ) : null}
-              </article>
-            ))}
+              </SelectContent>
+            </Select>
           </div>
-        )}
-      </SectionCard>
-      {reviewId ? (
-        <SectionCard title="Return expense for correction">
-          <label htmlFor="expense-correction-reason">
-            Required correction reason
-            <Input
-              id="expense-correction-reason"
-              value={reason}
-              onChange={(e) => setReason(e.target.value)}
+          <div className="space-y-2">
+            <Label htmlFor="recommendation-outcome-note">Decision note</Label>
+            <Textarea
+              id="recommendation-outcome-note"
+              onChange={(event) => setOutcomeNote(event.target.value)}
+              placeholder="Explain the decision and planned follow-up."
+              value={outcomeNote}
             />
-          </label>
-          <div className="mt-3 flex gap-3">
-            <Button onClick={() => review(reviewId, false)}>Confirm return</Button>
-            <Button variant="outline" onClick={() => setReviewId(undefined)}>
+          </div>
+          <DialogFooter>
+            <Button
+              onClick={() => setRecommendationReview(undefined)}
+              type="button"
+              variant="outline"
+            >
               Cancel
             </Button>
-          </div>
-        </SectionCard>
-      ) : null}
+            <Button
+              disabled={!recommendationOutcome || !outcomeNote.trim()}
+              onClick={submitOutcome}
+              type="button"
+            >
+              Submit decision
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={Boolean(previewExpense)}
+        onOpenChange={(open) => !open && setPreviewExpense(undefined)}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Expense record preview</DialogTitle>
+            <DialogDescription>
+              M&E-validated record from the selected activity and Project Officer submission.
+            </DialogDescription>
+          </DialogHeader>
+          {previewExpense ? (
+            <dl className="grid gap-4 rounded-sm border border-border bg-surface-subtle p-4 text-sm sm:grid-cols-2">
+              <div>
+                <dt className="text-muted-foreground">Category</dt>
+                <dd className="font-medium text-foreground">{previewExpense.category}</dd>
+              </div>
+              <div>
+                <dt className="text-muted-foreground">Amount</dt>
+                <dd className="font-medium text-foreground">{peso(previewExpense.amount)}</dd>
+              </div>
+              <div>
+                <dt className="text-muted-foreground">Expense date</dt>
+                <dd className="font-medium text-foreground">{previewExpense.date}</dd>
+              </div>
+              <div>
+                <dt className="text-muted-foreground">Status</dt>
+                <dd className="font-medium text-foreground">{previewExpense.status}</dd>
+              </div>
+              <div>
+                <dt className="text-muted-foreground">Activity</dt>
+                <dd className="font-medium text-foreground">
+                  {state.activities.find((activity) => activity.id === previewExpense.activityId)
+                    ?.title ?? 'Unavailable'}
+                </dd>
+              </div>
+              <div>
+                <dt className="text-muted-foreground">Submitted by</dt>
+                <dd className="font-medium text-foreground">
+                  {state.accounts.find((account) => account.id === previewExpense.submittedBy)
+                    ?.name ?? previewExpense.submittedBy}
+                </dd>
+              </div>
+              <div className="sm:col-span-2">
+                <dt className="text-muted-foreground">Description</dt>
+                <dd className="font-medium text-foreground">{previewExpense.description}</dd>
+              </div>
+            </dl>
+          ) : null}
+          <DialogFooter>
+            <Button onClick={() => setPreviewExpense(undefined)} type="button">
+              Close
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
@@ -208,199 +446,265 @@ const blankIndicator = {
   dataSource: '',
   target: '0',
 }
+
 export function ConnectedIndicatorWorkspace({ projectId }: { projectId?: string }) {
   const state = useDemoState()
   const actor = currentAccount(state)
-  const workspaceProject = projectId
-    ? state.projects.find((project) => project.id === projectId)
-    : undefined
-  const projects = visibleDemoProjects(state)
-  const [selectedProject, setProject] = useState(projectId ?? '')
-  const scope = projectId ?? selectedProject
+  const project = projectId ? state.projects.find((record) => record.id === projectId) : undefined
+  const projects = visibleDemoProjects(state).filter((record) => !record.archived)
   const [draft, setDraft] = useState(blankIndicator)
-  const [editing, setEditing] = useState<string>()
+  const [editing, setEditing] = useState<Indicator>()
+  const [selectedProjectIds, setSelectedProjectIds] = useState<string[]>(
+    projectId ? [projectId] : [],
+  )
   const [query, setQuery] = useState('')
   const [message, setMessage] = useState('')
-  const canManage = actor && hasAction(actor.role, 'indicators.manage')
-  const rows = state.indicators.filter(
-    (i) =>
-      actor?.projectIds.includes(i.projectId) &&
-      (!scope || i.projectId === scope) &&
-      `${i.label} ${i.code}`.toLowerCase().includes(query.toLowerCase()),
+  const [dialogOpen, setDialogOpen] = useState(false)
+  const canManage = Boolean(actor && hasAction(actor.role, 'indicators.manage'))
+  const rows = useMemo(
+    () =>
+      state.indicators.filter(
+        (indicator) =>
+          actor?.projectIds.includes(indicator.projectId) &&
+          (!projectId || indicator.projectId === projectId) &&
+          `${indicator.label} ${indicator.code}`.toLowerCase().includes(query.toLowerCase()),
+      ),
+    [actor?.projectIds, projectId, query, state.indicators],
   )
+
+  if (projectId && (!project || !actor?.projectIds.includes(projectId)))
+    return <p role="alert">Project unavailable or outside your scope.</p>
+
+  const startAdd = () => {
+    setEditing(undefined)
+    setDraft(blankIndicator)
+    setSelectedProjectIds(projectId ? [projectId] : [])
+    setMessage('')
+    setDialogOpen(true)
+  }
+
+  const startEdit = (indicator: Indicator) => {
+    setEditing(indicator)
+    setDraft({
+      label: indicator.label,
+      description: indicator.description ?? '',
+      unit: indicator.unit ?? '',
+      disaggregation: indicator.disaggregation ?? '',
+      dataSource: indicator.dataSource ?? '',
+      target: String(indicator.target),
+    })
+    setSelectedProjectIds([indicator.projectId])
+    setMessage('')
+    setDialogOpen(true)
+  }
+
+  const toggleProject = (selectedProjectId: string) => {
+    setSelectedProjectIds((current) =>
+      current.includes(selectedProjectId)
+        ? current.filter((id) => id !== selectedProjectId)
+        : [...current, selectedProjectId],
+    )
+  }
+
   const submit = (event: React.FormEvent) => {
     event.preventDefault()
     try {
-      saveIndicator(
-        {
-          ...draft,
-          target: Number(draft.target),
-          actual: editing ? (state.indicators.find((i) => i.id === editing)?.actual ?? 0) : 0,
-          code: editing
-            ? (state.indicators.find((i) => i.id === editing)?.code ?? '')
-            : `IND-${state.sequence + 1}`,
-          projectId: scope,
-        },
-        editing,
+      const saved = saveIndicatorForProjects(
+        { ...draft, target: Number(draft.target) },
+        selectedProjectIds,
+        editing?.id,
       )
+      setDialogOpen(false)
       setEditing(undefined)
       setDraft(blankIndicator)
-      setMessage('Indicator saved and available for reuse.')
+      setMessage(
+        `${saved.length > 1 ? `${saved.length} project-local indicator copies` : 'Indicator'} saved.`,
+      )
     } catch (error) {
       setMessage(error instanceof Error ? error.message : 'Indicator could not be saved.')
     }
   }
+
   return (
     <div className="space-y-6">
       <PageHeader
-        title={projectId ? 'Target Indicators' : 'Indicator Library'}
-        description="Definitions and measured targets remain distinct. Project Managers have read-only access."
+        title="Target Indicators"
+        description="Define measured targets in the current project context."
       />
-      {workspaceProject ? <ProjectWorkspaceHeader project={workspaceProject} /> : null}
-      <div className="grid gap-3 sm:grid-cols-2">
-        <label>
-          Project
-          <select
-            className="block w-full rounded border p-2"
-            value={scope}
-            disabled={Boolean(projectId)}
-            onChange={(e) => setProject(e.target.value)}
-          >
-            <option value="">Select authorized project</option>
-            {projects.map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.title}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label htmlFor="indicator-search">
-          Search indicators
-          <Input id="indicator-search" value={query} onChange={(e) => setQuery(e.target.value)} />
-        </label>
-      </div>
-      {canManage ? (
-        <SectionCard title={editing ? 'Update indicator' : 'Create indicator'}>
-          <form className="grid gap-3 sm:grid-cols-2" onSubmit={submit}>
-            {(Object.keys(blankIndicator) as (keyof typeof blankIndicator)[]).map((key) => (
-              <label htmlFor={`indicator-${key}`} key={key}>
-                {
-                  {
-                    label: 'Name',
-                    description: 'Description',
-                    unit: 'Unit of measure',
-                    disaggregation: 'Disaggregation requirements',
-                    dataSource: 'Data source',
-                    target: 'Target',
-                  }[key]
-                }
-                <Input
-                  id={`indicator-${key}`}
-                  required
-                  type={key === 'target' ? 'number' : 'text'}
-                  value={draft[key]}
-                  onChange={(e) => setDraft({ ...draft, [key]: e.target.value })}
-                />
-              </label>
-            ))}
-            <Button type="submit">Save indicator</Button>
-            {editing ? (
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => {
-                  setEditing(undefined)
-                  setDraft(blankIndicator)
-                }}
-              >
-                Cancel edit
+      {project ? <ProjectWorkspaceHeader project={project} /> : null}
+
+      <SectionCard
+        title="Indicators"
+        description={`${rows.length} indicator${rows.length === 1 ? '' : 's'} in this project.`}
+        actions={
+          <div className="flex w-full flex-col gap-2 sm:flex-row sm:items-center md:w-auto">
+            <Input
+              aria-label="Search indicators"
+              className="w-full sm:w-72"
+              id="indicator-search"
+              onChange={(event) => setQuery(event.target.value)}
+              placeholder="Search indicators"
+              type="search"
+              value={query}
+            />
+            {canManage ? (
+              <Button className="gap-2 whitespace-nowrap" onClick={startAdd} type="button">
+                <Plus className="h-4 w-4" aria-hidden="true" />
+                Add indicator
               </Button>
             ) : null}
-          </form>
-        </SectionCard>
-      ) : null}
-      <output className="block">{message}</output>
-      <SectionCard title="Indicators">
-        <div className="space-y-3">
-          {rows.length ? (
-            rows.map((indicator) => (
-              <article className="rounded border p-4" key={indicator.id}>
-                <h2 className="font-semibold">
-                  {indicator.code} · {indicator.label}
-                </h2>
-                <p>{indicator.description}</p>
-                <p>
-                  Target {indicator.target}; actual {indicator.actual} {indicator.unit}
+          </div>
+        }
+      >
+        <output className="mb-3 block text-sm text-muted-foreground" aria-live="polite">
+          {message}
+        </output>
+        {rows.length ? (
+          <div className="grid gap-3 lg:grid-cols-2">
+            {rows.map((indicator) => (
+              <article className="rounded-md border border-border bg-card p-4" key={indicator.id}>
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-primary">
+                      {indicator.code}
+                    </p>
+                    <h2 className="mt-1 font-semibold text-foreground">{indicator.label}</h2>
+                  </div>
+                  {canManage ? (
+                    <Button
+                      aria-label={`Edit ${indicator.label}`}
+                      onClick={() => startEdit(indicator)}
+                      size="icon"
+                      title={`Edit ${indicator.label}`}
+                      type="button"
+                      variant="outline"
+                    >
+                      <Pencil className="h-4 w-4" aria-hidden="true" />
+                    </Button>
+                  ) : null}
+                </div>
+                <p className="mt-3 text-sm leading-6 text-muted-foreground">
+                  {indicator.description || 'No description recorded.'}
                 </p>
-                <p className="text-sm">
-                  Disaggregation: {indicator.disaggregation || 'Not recorded'} · Source:{' '}
-                  {indicator.dataSource || 'Not recorded'}
+                <dl className="mt-4 grid gap-3 text-sm sm:grid-cols-3">
+                  <div>
+                    <dt className="text-muted-foreground">Target</dt>
+                    <dd className="font-medium text-foreground">{indicator.target}</dd>
+                  </div>
+                  <div>
+                    <dt className="text-muted-foreground">Actual</dt>
+                    <dd className="font-medium text-foreground">{indicator.actual}</dd>
+                  </div>
+                  <div>
+                    <dt className="text-muted-foreground">Unit</dt>
+                    <dd className="font-medium text-foreground">
+                      {indicator.unit || 'Unavailable'}
+                    </dd>
+                  </div>
+                </dl>
+                <p className="mt-3 text-xs text-muted-foreground">
+                  Source: {indicator.dataSource || 'Unavailable'} · Disaggregation:{' '}
+                  {indicator.disaggregation || 'Unavailable'}
                 </p>
-                {canManage ? (
-                  <Button
-                    variant="outline"
-                    onClick={() => {
-                      setEditing(indicator.id)
-                      setProject(indicator.projectId)
-                      setDraft({
-                        label: indicator.label,
-                        description: indicator.description ?? '',
-                        unit: indicator.unit ?? '',
-                        disaggregation: indicator.disaggregation ?? '',
-                        dataSource: indicator.dataSource ?? '',
-                        target: String(indicator.target),
-                      })
-                    }}
-                  >
-                    Edit indicator
-                  </Button>
-                ) : null}
               </article>
-            ))
-          ) : (
-            <p>No indicators match this scope.</p>
-          )}
-        </div>
+            ))}
+          </div>
+        ) : (
+          <p className="rounded-md border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
+            No indicators match this project and search.
+          </p>
+        )}
       </SectionCard>
-      {canManage && scope ? (
-        <SectionCard title="Reuse an existing indicator">
-          <label>
-            Indicator to link
-            <select
-              className="block w-full rounded border p-2"
-              defaultValue=""
-              onChange={(e) => {
-                if (!e.target.value) return
-                try {
-                  reuseIndicator(e.target.value, scope)
-                  setMessage('Indicator linked to the project monitoring framework.')
-                } catch (error) {
-                  setMessage(error instanceof Error ? error.message : 'Link failed.')
-                }
-                e.target.value = ''
-              }}
-            >
-              <option value="">Choose an existing definition</option>
-              {state.indicators
-                .filter((i) => actor.projectIds.includes(i.projectId))
-                .map((i) => (
-                  <option key={i.id} value={i.id}>
-                    {i.code} · {i.label}
-                  </option>
-                ))}
-            </select>
-          </label>
-          <ul className="mt-3">
-            {state.projectIndicators
-              .filter((i) => i.projectId === scope)
-              .map((i) => (
-                <li key={i.id}>
-                  {i.label} · Target {i.target}
-                </li>
+
+      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+        <DialogContent className="max-h-[min(90vh,760px)] overflow-y-auto sm:max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>{editing ? 'Edit indicator' : 'Add indicator'}</DialogTitle>
+            <DialogDescription>
+              Select every authorized project that should receive its own local copy. Later edits do
+              not propagate to unselected projects.
+            </DialogDescription>
+          </DialogHeader>
+          <form className="space-y-5" onSubmit={submit}>
+            <div className="space-y-2">
+              <Label id="indicator-projects-label">Projects</Label>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    aria-labelledby="indicator-projects-label indicator-projects-summary"
+                    className="w-full justify-between font-normal"
+                    id="indicator-projects-summary"
+                    type="button"
+                    variant="outline"
+                  >
+                    <span>
+                      {selectedProjectIds.length
+                        ? `${selectedProjectIds.length} project${selectedProjectIds.length === 1 ? '' : 's'} selected`
+                        : 'Select authorized projects'}
+                    </span>
+                    <ChevronDown className="h-4 w-4 opacity-60" aria-hidden="true" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent
+                  align="start"
+                  className="w-[var(--radix-dropdown-menu-trigger-width)]"
+                >
+                  {projects.map((record) => (
+                    <DropdownMenuCheckboxItem
+                      checked={selectedProjectIds.includes(record.id)}
+                      key={record.id}
+                      onCheckedChange={() => toggleProject(record.id)}
+                      onSelect={(event) => event.preventDefault()}
+                    >
+                      <span>
+                        <span className="block font-medium text-foreground">{record.title}</span>
+                        <span className="text-xs text-muted-foreground">{record.area}</span>
+                      </span>
+                    </DropdownMenuCheckboxItem>
+                  ))}
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
+            <div className="grid gap-4 sm:grid-cols-2">
+              {(Object.keys(blankIndicator) as (keyof typeof blankIndicator)[]).map((key) => (
+                <div className="space-y-2" key={key}>
+                  <Label htmlFor={`indicator-${key}`}>
+                    {
+                      {
+                        label: 'Name',
+                        description: 'Description',
+                        unit: 'Unit of measure',
+                        disaggregation: 'Disaggregation requirements',
+                        dataSource: 'Data source',
+                        target: 'Target',
+                      }[key]
+                    }
+                  </Label>
+                  <Input
+                    id={`indicator-${key}`}
+                    min={key === 'target' ? '0' : undefined}
+                    onChange={(event) => setDraft({ ...draft, [key]: event.target.value })}
+                    required
+                    type={key === 'target' ? 'number' : 'text'}
+                    value={draft[key]}
+                  />
+                </div>
               ))}
-          </ul>
-        </SectionCard>
-      ) : null}
+            </div>
+            <output className="block text-sm text-danger" aria-live="polite">
+              {message}
+            </output>
+            <DialogFooter>
+              <Button onClick={() => setDialogOpen(false)} type="button" variant="outline">
+                <X className="mr-2 h-4 w-4" aria-hidden="true" /> Cancel
+              </Button>
+              <Button type="submit">
+                <Check className="mr-2 h-4 w-4" aria-hidden="true" /> Save indicator
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

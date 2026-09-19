@@ -13,7 +13,7 @@ import {
 } from 'lucide-react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 
 import { PageHeader } from '@/components/layout/page-header'
 import {
@@ -27,16 +27,8 @@ import {
 } from '@/components/pathways'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
 import { usePrototypeLabels } from '@/hooks/use-prototype-labels'
 import { usePrototypeRole } from '@/hooks/use-prototype-role'
-import { currentAccount } from '@/lib/demo-state/store'
 import { can } from '@/lib/rbac/can'
 import { canAccessProjectForRole } from '@/lib/rbac/data-scope'
 import { pathwaysClient } from '@/lib/services/mock-pathways-client'
@@ -50,21 +42,16 @@ import type {
   UserRecord,
 } from '@/types/pathways'
 
-import { useDemoState } from '@/lib/demo-state/use-demo-state'
 import { ActivityDetailPanel } from './activity-detail-panel'
 import { ActivityFormDialog } from './activity-form-dialog'
 import { ActivityProofDialog } from './activity-proof-dialog'
-import { ActivityStatusControl } from './activity-status-control'
 import {
-  type ActivityFilter,
   activityDueLabel,
-  activityFilters,
   activityNextStep,
   activityProgressTone,
   activityStatusTone,
   activityStatuses,
 } from './activity-utils'
-import { MilestoneProgressPanel } from './milestone-progress-panel'
 import { ProjectWorkspaceHeader } from './project-workspace-header'
 
 const indicatorSummary = (activity: Activity, indicators: Indicator[]) =>
@@ -75,39 +62,12 @@ const indicatorSummary = (activity: Activity, indicators: Indicator[]) =>
     )
     .join(', ')
 
-const attentionActivity = (activity: Activity) =>
-  activity.status === 'Overdue' || activity.status === 'For Review' || activity.progress < 50
-
-const matchesFilter = (
-  activity: Activity,
-  filter: ActivityFilter,
-  currentMemberNames: string[],
-) => {
-  if (filter === 'Mine') {
-    return activity.assignedTo.some((name) => currentMemberNames.includes(name))
-  }
-
-  if (filter === 'Overdue') {
-    return activity.status === 'Overdue'
-  }
-
-  if (filter === 'Needs Attention') {
-    return attentionActivity(activity)
-  }
-
-  return true
-}
-
 const ActivityCard = ({
   activity,
-  canChangeStatus,
   onOpen,
-  onStatusChanged,
 }: {
   activity: Activity
-  canChangeStatus: boolean
   onOpen: (activity: Activity) => void
-  onStatusChanged: (activity: Activity) => void
 }) => (
   <article
     aria-label={`Activity: ${activity.title}`}
@@ -117,17 +77,7 @@ const ActivityCard = ({
       <h3 className="min-w-0 break-words text-base font-semibold leading-6 text-foreground">
         {activity.title}
       </h3>
-      <div className="shrink-0">
-        {canChangeStatus ? (
-          <ActivityStatusControl
-            activity={activity}
-            controlId={`activity-status-card-${activity.id}`}
-            onUpdated={onStatusChanged}
-          />
-        ) : (
-          <StatusBadge tone={activityStatusTone(activity.status)}>{activity.status}</StatusBadge>
-        )}
-      </div>
+      <StatusBadge tone={activityStatusTone(activity.status)}>{activity.status}</StatusBadge>
     </div>
     <p
       className={`mt-3 flex items-center gap-2 text-sm font-medium ${
@@ -137,13 +87,15 @@ const ActivityCard = ({
       <CalendarClock className="h-4 w-4 shrink-0" aria-hidden="true" />
       {activityDueLabel(activity.status, activity.dueDate)}
     </p>
-    <div className="mt-4">
-      <ProgressBar
-        label="Activity progress"
-        tone={activityProgressTone(activity.status, activity.progress)}
-        value={activity.progress}
-      />
-    </div>
+    {activity.status !== 'Completed' ? (
+      <div className="mt-4">
+        <ProgressBar
+          label="Activity progress"
+          tone={activityProgressTone(activity.status, activity.progress)}
+          value={activity.progress}
+        />
+      </div>
+    ) : null}
     <dl className="mt-4 border-t border-border pt-3 text-sm">
       <div className="flex min-w-0 items-start gap-2">
         <UsersRound className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />
@@ -178,14 +130,10 @@ const ActivityCard = ({
 
 const ActivityListRow = ({
   activity,
-  canChangeStatus,
   onOpen,
-  onStatusChanged,
 }: {
   activity: Activity
-  canChangeStatus: boolean
   onOpen: (activity: Activity) => void
-  onStatusChanged: (activity: Activity) => void
 }) => (
   <article
     aria-label={`Activity: ${activity.title}`}
@@ -201,15 +149,7 @@ const ActivityListRow = ({
       </p>
     </div>
     <div className="space-y-2">
-      {canChangeStatus ? (
-        <ActivityStatusControl
-          activity={activity}
-          controlId={`activity-status-list-${activity.id}`}
-          onUpdated={onStatusChanged}
-        />
-      ) : (
-        <StatusBadge tone={activityStatusTone(activity.status)}>{activity.status}</StatusBadge>
-      )}
+      <StatusBadge tone={activityStatusTone(activity.status)}>{activity.status}</StatusBadge>
       <p
         className={`flex items-start gap-2 text-sm ${
           activity.status === 'Overdue' ? 'font-medium text-danger' : 'text-muted-foreground'
@@ -232,11 +172,15 @@ const ActivityListRow = ({
         </div>
       </div>
     </dl>
-    <ProgressBar
-      label="Progress"
-      tone={activityProgressTone(activity.status, activity.progress)}
-      value={activity.progress}
-    />
+    {activity.status !== 'Completed' ? (
+      <ProgressBar
+        label="Progress"
+        tone={activityProgressTone(activity.status, activity.progress)}
+        value={activity.progress}
+      />
+    ) : (
+      <div aria-hidden="true" />
+    )}
     <div className="flex md:col-span-2 md:justify-end xl:col-span-1">
       <Button
         className="w-full gap-2 sm:w-auto"
@@ -256,68 +200,54 @@ const ActivityStatusSummary = ({
   activeStatus,
   counts,
   onStatusChange,
-  shownCount,
-  totalCount,
 }: {
   activeStatus: ActivityStatus | null
   counts: Record<ActivityStatus, number>
   onStatusChange: (status: ActivityStatus | null) => void
-  shownCount: number
-  totalCount: number
 }) => (
-  <section
-    aria-label="Activity status summary"
-    className="rounded-lg border border-border bg-card p-4"
-  >
-    <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-      <div>
-        <h2 className="text-sm font-semibold text-foreground">Activity status at a glance</h2>
-        <p className="mt-1 text-xs text-muted-foreground">
-          Showing {shownCount} of {totalCount} activit{totalCount === 1 ? 'y' : 'ies'}
-        </p>
-      </div>
-      <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-5">
-        {activityStatuses.map((status) => {
-          const selected = activeStatus === status
-          return (
-            <button
-              aria-label={`Filter activities by ${status} status, ${counts[status]} ${counts[status] === 1 ? 'activity' : 'activities'}`}
-              aria-pressed={selected}
-              className={`flex min-w-0 items-center justify-between gap-2 rounded-sm border px-3 py-2 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ${
-                selected
-                  ? 'border-primary bg-primary-subtle shadow-sm'
-                  : 'border-border bg-surface-subtle hover:border-primary/50 hover:bg-muted/60'
-              }`}
-              key={status}
-              onClick={() => onStatusChange(selected ? null : status)}
-              type="button"
-            >
-              <StatusBadge tone={activityStatusTone(status)}>{status}</StatusBadge>
-              <span className="text-sm font-semibold text-foreground">{counts[status]}</span>
-            </button>
-          )
-        })}
-      </div>
+  <section aria-label="Activity status filters" className="md:col-span-2">
+    <div className="flex flex-wrap gap-2">
+      {activityStatuses.map((status) => {
+        const selected = activeStatus === status
+        return (
+          <button
+            aria-label={`Filter activities by ${status} status, ${counts[status]} ${counts[status] === 1 ? 'activity' : 'activities'}`}
+            aria-pressed={selected}
+            className={`min-h-11 rounded-full transition-shadow focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ${
+              selected ? 'ring-2 ring-primary ring-offset-2' : 'hover:ring-2 hover:ring-primary/30'
+            }`}
+            key={status}
+            onClick={() => onStatusChange(selected ? null : status)}
+            type="button"
+          >
+            <StatusBadge tone={activityStatusTone(status)}>
+              {status} {counts[status]}
+            </StatusBadge>
+          </button>
+        )
+      })}
     </div>
   </section>
 )
 
 export const ProjectActivitiesWorkspace = ({
   initialActivityId,
+  initialProofId,
   projectId,
 }: {
   initialActivityId?: string
+  initialProofId?: string
   projectId: string
 }) => {
-  const demo = useDemoState()
-  const activeAccount = currentAccount(demo)
   const router = useRouter()
   const { labels } = usePrototypeLabels()
   const { role } = usePrototypeRole()
-  const canCreateEdit = can(role, 'activities.create_edit')
-  const canChangeStatus = canCreateEdit && canAccessProjectForRole(role, projectId)
-  const canReview = role === 'Project Manager'
-  const canSubmitProof = can(role, 'activities.submit_update_proof')
+  const inProjectScope = canAccessProjectForRole(role, projectId)
+  const canCreateEdit = can(role, 'activities.create_edit') && inProjectScope
+  const canSubmitProof = can(role, 'activities.submit_update_proof') && inProjectScope
+  const canLogExpense = role === 'Project Officer' && inProjectScope
+  const canValidateProof = role === 'Monitoring and Evaluation Officer' && inProjectScope
+  const canDecideProof = role === 'Project Manager' && inProjectScope
   const [project, setProject] = useState<ProjectDetail | null>(null)
   const [activities, setActivities] = useState<Activity[]>([])
   const [indicators, setIndicators] = useState<Indicator[]>([])
@@ -326,30 +256,15 @@ export const ProjectActivitiesWorkspace = ({
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState<'none' | 'not-found' | 'error'>('none')
   const [query, setQuery] = useState('')
-  const [filter, setFilter] = useState<ActivityFilter>('All')
   const [statusFilter, setStatusFilter] = useState<ActivityStatus | null>(null)
-  const [viewMode, setViewMode] = useState<'board' | 'list'>('board')
+  const [viewMode, setViewMode] = useState<'board' | 'list'>('list')
   const [selectedActivity, setSelectedActivity] = useState<Activity | null>(null)
+  const activityDetailTrigger = useRef<HTMLElement | null>(null)
   const [editingActivity, setEditingActivity] = useState<Activity | null>(null)
   const [proofActivity, setProofActivity] = useState<Activity | null>(null)
   const [formOpen, setFormOpen] = useState(false)
   const [proofOpen, setProofOpen] = useState(false)
   const [loadAttempt, setLoadAttempt] = useState(0)
-  const currentMemberNames = useMemo(() => {
-    if (!activeAccount) return []
-    if (!project) return [activeAccount.name]
-
-    const assignedNamesByRole = {
-      'Program Manager': [project.programManager],
-      'Project Manager': [project.projectManager],
-      'Monitoring and Evaluation Officer': [project.monitoringOfficer],
-      'Project Officer': project.projectOfficers,
-      'Grant Manager': [],
-      'System Administrator': [],
-    }
-
-    return [...new Set([activeAccount.name, ...assignedNamesByRole[activeAccount.role]])]
-  }, [activeAccount, project])
 
   useEffect(() => {
     void loadAttempt
@@ -422,9 +337,9 @@ export const ProjectActivitiesWorkspace = ({
         : true
 
       const matchesStatus = statusFilter ? activity.status === statusFilter : true
-      return matchesQuery && matchesStatus && matchesFilter(activity, filter, currentMemberNames)
+      return matchesQuery && matchesStatus
     })
-  }, [activities, currentMemberNames, filter, indicators, query, statusFilter])
+  }, [activities, indicators, query, statusFilter])
 
   const activityStatusCounts = useMemo(() => {
     const counts: Record<ActivityStatus, number> = {
@@ -473,11 +388,10 @@ export const ProjectActivitiesWorkspace = ({
     )
   }
 
-  const updateActivityStatus = (activity: Activity) => upsertActivity(activity, false)
-
   const openDetail = (activity: Activity) => {
+    activityDetailTrigger.current = document.activeElement as HTMLElement | null
     setSelectedActivity(activity)
-    router.push(`/projects/${projectId}/activities/${activity.id}`)
+    window.history.pushState(null, '', `/projects/${projectId}/activities/${activity.id}`)
   }
 
   const closeDetail = (open: boolean) => {
@@ -486,7 +400,8 @@ export const ProjectActivitiesWorkspace = ({
     }
 
     setSelectedActivity(null)
-    router.push(`/projects/${projectId}/activities`)
+    window.history.replaceState(null, '', `/projects/${projectId}/activities`)
+    window.requestAnimationFrame(() => activityDetailTrigger.current?.focus())
   }
 
   const openCreate = () => {
@@ -586,57 +501,36 @@ export const ProjectActivitiesWorkspace = ({
         }
       />
       <ProjectWorkspaceHeader project={project} />
-      <MilestoneProgressPanel projectId={projectId} />
-      <FilterBar className="min-w-0 !grid gap-4 md:!grid-cols-[minmax(0,1fr)_minmax(13rem,16rem)] md:items-end xl:!grid-cols-[minmax(20rem,1fr)_minmax(13rem,16rem)_auto]">
-        <div className="relative min-w-0">
-          <Search
-            className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground"
-            aria-hidden="true"
-          />
-          <Input
-            aria-label="Search activities"
-            className="pl-9"
-            onChange={(event) => setQuery(event.target.value)}
-            placeholder="Search activities, officers, or indicators"
-            value={query}
-          />
+      {canCreateEdit ? (
+        <div className="flex justify-end">
+          <Button className="gap-2 whitespace-nowrap" onClick={openCreate} type="button">
+            <Plus className="h-4 w-4" aria-hidden="true" />
+            New Activity
+          </Button>
         </div>
-        <div className="min-w-0 space-y-1.5">
-          <label className="text-sm font-medium text-foreground" htmlFor="activity-list-filter">
-            Activity List
-          </label>
-          <Select
-            onValueChange={(value) => {
-              setFilter(value as ActivityFilter)
-              setStatusFilter(null)
-            }}
-            value={filter}
-          >
-            <SelectTrigger id="activity-list-filter">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {activityFilters.map((option) => (
-                <SelectItem key={option} value={option}>
-                  {option}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-        <div className="flex min-w-0 flex-wrap items-center gap-2 md:col-span-2 md:justify-end xl:col-span-1 xl:flex-nowrap">
+      ) : null}
+      <FilterBar className="min-w-0 !flex flex-col gap-5 lg:!flex-row lg:items-center lg:justify-between lg:gap-8">
+        <ActivityStatusSummary
+          activeStatus={statusFilter}
+          counts={activityStatusCounts}
+          onStatusChange={setStatusFilter}
+        />
+        <div className="flex w-full min-w-0 flex-col gap-3 sm:flex-row sm:items-center lg:ml-auto lg:max-w-2xl lg:flex-1 lg:justify-end">
+          <div className="relative min-w-0 flex-1 lg:max-w-lg">
+            <Search
+              className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground"
+              aria-hidden="true"
+            />
+            <Input
+              aria-label="Search activities"
+              className="pl-9"
+              onChange={(event) => setQuery(event.target.value)}
+              placeholder="Search activities, officers, or indicators"
+              value={query}
+            />
+          </div>
           <fieldset className="m-0 flex gap-2 border-0 p-0">
             <legend className="sr-only">Activity view</legend>
-            <Button
-              aria-label="Board view"
-              aria-pressed={viewMode === 'board'}
-              onClick={() => setViewMode('board')}
-              size="icon"
-              type="button"
-              variant={viewMode === 'board' ? 'default' : 'outline'}
-            >
-              <LayoutGrid className="h-4 w-4" aria-hidden="true" />
-            </Button>
             <Button
               aria-label="List view"
               aria-pressed={viewMode === 'list'}
@@ -647,36 +541,30 @@ export const ProjectActivitiesWorkspace = ({
             >
               <List className="h-4 w-4" aria-hidden="true" />
             </Button>
-          </fieldset>
-          {canCreateEdit ? (
-            <Button className="gap-2 whitespace-nowrap" onClick={openCreate} type="button">
-              <Plus className="h-4 w-4" aria-hidden="true" />
-              New Activity
+            <Button
+              aria-label="Board view"
+              aria-pressed={viewMode === 'board'}
+              onClick={() => setViewMode('board')}
+              size="icon"
+              type="button"
+              variant={viewMode === 'board' ? 'default' : 'outline'}
+            >
+              <LayoutGrid className="h-4 w-4" aria-hidden="true" />
             </Button>
-          ) : null}
+          </fieldset>
         </div>
       </FilterBar>
-      <ActivityStatusSummary
-        activeStatus={statusFilter}
-        counts={activityStatusCounts}
-        onStatusChange={(status) => {
-          setStatusFilter(status)
-          if (status) setFilter('All')
-        }}
-        shownCount={filteredActivities.length}
-        totalCount={activities.length}
-      />
       <ResultsAnnouncement
         message={
           filteredActivities.length === 0
             ? 'No activities match the current search and status filter.'
             : `${filteredActivities.length} ${filteredActivities.length === 1 ? 'activity matches' : 'activities match'} the current search and status filter.`
         }
-        settleKey={`${query}|${filter}`}
+        settleKey={`${query}|${statusFilter ?? 'all'}`}
       />
       {filteredActivities.length === 0 ? (
         <EmptyState
-          description="Create an activity or adjust the search and filter controls."
+          description="Create an activity or adjust the search and status filters."
           icon={LayoutGrid}
           title="No activities match the current view"
         />
@@ -697,13 +585,7 @@ export const ProjectActivitiesWorkspace = ({
               >
                 <div className="space-y-3">
                   {statusActivities.map((activity) => (
-                    <ActivityCard
-                      key={activity.id}
-                      activity={activity}
-                      canChangeStatus={canChangeStatus}
-                      onOpen={openDetail}
-                      onStatusChanged={updateActivityStatus}
-                    />
+                    <ActivityCard key={activity.id} activity={activity} onOpen={openDetail} />
                   ))}
                 </div>
               </SectionCard>
@@ -715,29 +597,27 @@ export const ProjectActivitiesWorkspace = ({
         <SectionCard title="Activity list" description="Scan all filtered activities in one view.">
           <div className="space-y-3">
             {filteredActivities.map((activity) => (
-              <ActivityListRow
-                key={activity.id}
-                activity={activity}
-                canChangeStatus={canChangeStatus}
-                onOpen={openDetail}
-                onStatusChanged={updateActivityStatus}
-              />
+              <ActivityListRow key={activity.id} activity={activity} onOpen={openDetail} />
             ))}
           </div>
         </SectionCard>
       ) : null}
       <ActivityDetailPanel
         activity={selectedActivity}
-        canChangeStatus={canChangeStatus}
+        canDecideProof={canDecideProof}
         canEdit={canCreateEdit}
-        canReview={canReview}
+        canLogExpense={canLogExpense}
+        canRequestExtension={role === 'Project Officer' && inProjectScope}
         canSubmitProof={canSubmitProof}
+        canValidateExpense={role === 'Monitoring and Evaluation Officer' && inProjectScope}
+        canValidateProof={canValidateProof}
         indicators={indicators}
+        onActivityChanged={(activity) => upsertActivity(activity, false)}
         onEdit={openEdit}
         onOpenChange={closeDetail}
-        onStatusChanged={updateActivityStatus}
         onSubmitProof={openProof}
         open={Boolean(selectedActivity)}
+        requestedProofId={initialProofId}
       />
       <ActivityFormDialog
         activity={editingActivity}

@@ -36,6 +36,7 @@ import type {
   BudgetRecord,
   CreateActivityInput,
   CreateProjectInput,
+  DashboardItem,
   EvaluationRecord,
   EvidenceRecord,
   ExpenseRecord,
@@ -75,8 +76,12 @@ import { readPrototypeUserRecords } from '@/lib/rbac/prototype-user-store'
 
 import { type PathwaysClient, PathwaysClientError } from './pathways-client'
 
-import { saveProject, validateActivity } from '@/lib/demo-state/projects'
-import { getDemoState, transactDemo } from '@/lib/demo-state/store'
+import {
+  saveProject,
+  submitActivityProof as submitLocalActivityProof,
+  validateActivity,
+} from '@/lib/demo-state/projects'
+import { actorForRole, getDemoState, transactDemo } from '@/lib/demo-state/store'
 
 const PROJECT_STORAGE_KEY = 'pathways.prototypeProjects'
 const ACTIVITY_STORAGE_KEY = 'pathways.prototypeActivities'
@@ -149,6 +154,315 @@ const writeBudgetOverrides = (overrides: UpdateBudgetAllocationInput[]) => {
 }
 const allBudgets = () => getDemoState().budgets
 
+const isInLocalCalendarMonth = (value: string, clock: number) => {
+  const candidate = new Date(value)
+  const current = new Date(clock)
+  return (
+    Number.isFinite(candidate.getTime()) &&
+    candidate.getFullYear() === current.getFullYear() &&
+    candidate.getMonth() === current.getMonth()
+  )
+}
+
+const withDerivedDashboardMetrics = (
+  role: PrototypeRole,
+  dashboard: RoleDashboardViewModel,
+): RoleDashboardViewModel => {
+  if (
+    role !== 'Program Manager' &&
+    role !== 'Project Manager' &&
+    role !== 'Project Officer' &&
+    role !== 'Monitoring and Evaluation Officer'
+  ) {
+    return dashboard
+  }
+
+  const state = getDemoState()
+  const actor = actorForRole(role, state)
+  if (!actor) return dashboard
+
+  const projectIds = new Set(actor.projectIds)
+  const projects = state.projects.filter((project) => projectIds.has(project.id))
+  const activities = state.activities.filter((activity) => projectIds.has(activity.projectId))
+  const activeProjects = projects.filter(
+    (project) => project.status !== 'Planned' && project.status !== 'Completed',
+  )
+  const isOverdue = (activity: Activity) =>
+    activity.status !== 'Completed' && Date.parse(`${activity.dueDate}T23:59:59`) < state.clock
+
+  const metricValues: Record<string, { value: number; helperText: string }> = {}
+
+  if (role === 'Program Manager') {
+    Object.assign(metricValues, {
+      'active-projects': {
+        value: activeProjects.length,
+        helperText: 'Active projects in your authorized portfolio',
+      },
+      'critical-projects': {
+        value: activeProjects.filter((project) => project.health === 'Critical').length,
+        helperText: 'Active authorized projects with critical health',
+      },
+      'at-risk-projects': {
+        value: activeProjects.filter((project) => project.health === 'At Risk').length,
+        helperText: 'Active authorized projects currently at risk',
+      },
+      'on-track-projects': {
+        value: activeProjects.filter((project) => project.health === 'On Track').length,
+        helperText: 'Active authorized projects currently on track',
+      },
+    })
+  }
+
+  if (role === 'Project Manager') {
+    Object.assign(metricValues, {
+      'pending-approvals': {
+        value: activities.reduce(
+          (count, activity) =>
+            count +
+            activity.submittedProof.filter(
+              (proof) =>
+                proof.status === 'Validated' && (proof.progress ?? activity.progress) === 100,
+            ).length,
+          0,
+        ),
+        helperText: 'Validated activity updates awaiting your decision',
+      },
+      'budget-alerts': {
+        value: state.alerts.filter(
+          (alert) =>
+            projectIds.has(alert.projectId) &&
+            alert.category === 'Budget' &&
+            (alert.lifecycleStatus === 'New' || alert.lifecycleStatus === 'Reviewed'),
+        ).length,
+        helperText: 'Active budget alerts in your assigned projects',
+      },
+      'delivery-follow-ups': {
+        value: activities.filter(isOverdue).length,
+        helperText: 'Incomplete assigned-project activities past their due date',
+      },
+      'items-for-review': {
+        value: activities.filter((activity) => activity.status === 'For Review').length,
+        helperText: 'Assigned-project activities currently marked for review',
+      },
+    })
+  }
+
+  if (role === 'Project Officer') {
+    // The deterministic fixture scopes Project Officers by assigned project IDs; its activity
+    // assignee labels are role placeholders rather than account display names.
+    const assignedActivities = activities
+    const submittedThisMonth = state.audits.filter(
+      (event) =>
+        event.actorId === actor.id &&
+        event.outcome === 'Success' &&
+        (event.action === 'activities.edit' || event.action === 'expenses.submit') &&
+        isInLocalCalendarMonth(event.at, state.clock),
+    ).length
+
+    Object.assign(metricValues, {
+      'assigned-activities': {
+        value: assignedActivities.length,
+        helperText: 'Activities in your assigned project scope',
+      },
+      'delivery-follow-ups': {
+        value: assignedActivities.filter(isOverdue).length,
+        helperText: 'Assigned incomplete activities past their due date',
+      },
+      'flagged-proof': {
+        value: assignedActivities.filter(
+          (activity) =>
+            activity.progressApproval === 'For Correction' ||
+            activity.submittedProof.some(
+              (proof) => proof.status === 'Flagged' || proof.status === 'Returned',
+            ),
+        ).length,
+        helperText: 'Assigned activity proof requiring correction',
+      },
+      'submissions-month': {
+        value: submittedThisMonth,
+        helperText: 'Your update and expense submissions this calendar month',
+      },
+    })
+  }
+
+  if (role === 'Monitoring and Evaluation Officer') {
+    Object.assign(metricValues, {
+      'active-alerts': {
+        value: state.alerts.filter(
+          (alert) =>
+            projectIds.has(alert.projectId) &&
+            (alert.lifecycleStatus === 'New' || alert.lifecycleStatus === 'Reviewed'),
+        ).length,
+        helperText: 'Active New or Reviewed alerts in monitored projects',
+      },
+      'proof-pending': {
+        value:
+          activities.reduce(
+            (count, activity) =>
+              count +
+              activity.submittedProof.filter((proof) => proof.status === 'Submitted').length,
+            0,
+          ) +
+          state.expenses.filter(
+            (expense) => projectIds.has(expense.projectId) && expense.status === 'For Verification',
+          ).length,
+        helperText: 'Submitted proof and expense records awaiting M&E validation',
+      },
+      'evaluation-snapshots': {
+        value: mockEvaluations.filter((evaluation) => projectIds.has(evaluation.projectId)).length,
+        helperText: 'Evaluation snapshots for monitored projects',
+      },
+      'datasets-imported': {
+        value: state.audits.filter(
+          (event) =>
+            event.actorId === actor.id &&
+            event.outcome === 'Success' &&
+            event.action === 'imports.run' &&
+            isInLocalCalendarMonth(event.at, state.clock),
+        ).length,
+        helperText: 'Datasets you imported this calendar month',
+      },
+    })
+  }
+
+  const proofItem = (
+    activity: Activity,
+    proof: Activity['submittedProof'][number],
+    status: string,
+  ): DashboardItem => {
+    const project = projects.find((candidate) => candidate.id === activity.projectId)
+    const version = proof.version ?? activity.submittedProof.indexOf(proof) + 1
+    const correctionRequired = proof.status === 'Returned' || proof.status === 'Flagged'
+    return {
+      id: proof.id,
+      title: activity.title,
+      description: project?.title ?? activity.projectId,
+      meta: `Proof version ${version} · ${proof.progress ?? activity.progress}% progress`,
+      status,
+      severity: correctionRequired ? 'danger' : 'warning',
+      primaryAction: {
+        id: correctionRequired ? 'resolve-proof' : 'review-proof',
+        label: correctionRequired ? 'Resolve' : 'Review',
+        kind: 'navigate',
+        href: correctionRequired
+          ? `/projects/${activity.projectId}/activities/${activity.id}?proof=${proof.id}&action=correct`
+          : `/projects/${activity.projectId}/activities/${activity.id}?review=${proof.id}`,
+      },
+    }
+  }
+
+  let sections = dashboard.sections
+  if (role === 'Project Manager') {
+    const approvals = activities.flatMap((activity) =>
+      activity.submittedProof
+        .filter((proof) => proof.status === 'Validated')
+        .map((proof) => proofItem(activity, proof, 'For Review')),
+    )
+    const extensionRequests: DashboardItem[] = activities
+      .filter((activity) => activity.extensionRequestedAt)
+      .map((activity) => ({
+        id: `extension-${activity.id}`,
+        title: activity.title,
+        description:
+          projects.find((project) => project.id === activity.projectId)?.title ??
+          activity.projectId,
+        meta: 'Project Officer requested a schedule extension',
+        status: 'Extension requested',
+        severity: 'warning',
+        primaryAction: {
+          id: 'open-activity-update',
+          label: 'Review activity',
+          kind: 'navigate',
+          href: `/projects/${activity.projectId}/activities/${activity.id}`,
+        },
+      }))
+    sections = sections.map((section) =>
+      section.id === 'approval-queue'
+        ? {
+            ...section,
+            items: [
+              ...approvals,
+              ...extensionRequests,
+              ...section.items.filter((item) => item.primaryAction?.id !== 'review-proof'),
+            ],
+          }
+        : section,
+    )
+  }
+  if (role === 'Monitoring and Evaluation Officer') {
+    const submissions = activities.flatMap((activity) =>
+      activity.submittedProof
+        .filter((proof) => proof.status === 'Submitted')
+        .map((proof) => proofItem(activity, proof, 'For Review')),
+    )
+    const expenseSubmissions: DashboardItem[] = state.expenses
+      .filter(
+        (expense) => projectIds.has(expense.projectId) && expense.status === 'For Verification',
+      )
+      .map((expense) => {
+        const activity = activities.find((record) => record.id === expense.activityId)
+        const project = projects.find((record) => record.id === expense.projectId)
+        return {
+          id: expense.id,
+          title: `${expense.category} expense`,
+          description: project?.title ?? expense.projectId,
+          meta: `${activity?.title ?? 'Linked activity'} · ${expense.amount.toLocaleString('en-PH', { style: 'currency', currency: 'PHP' })}`,
+          status: 'For Verification',
+          severity: 'warning',
+          primaryAction: {
+            id: 'review-expense',
+            label: 'Review',
+            kind: 'navigate',
+            href: `/projects/${expense.projectId}/activities/${expense.activityId}?expense=${expense.id}`,
+          },
+        }
+      })
+    sections = sections.map((section) =>
+      section.id === 'proof-submissions'
+        ? {
+            ...section,
+            items: [
+              ...submissions,
+              ...expenseSubmissions,
+              ...section.items.filter(
+                (item) =>
+                  item.primaryAction?.id !== 'review-proof' &&
+                  item.primaryAction?.id !== 'review-expense',
+              ),
+            ],
+          }
+        : section,
+    )
+  }
+  if (role === 'Project Officer') {
+    const corrections = activities.flatMap((activity) =>
+      activity.submittedProof
+        .filter((proof) => proof.status === 'Returned' || proof.status === 'Flagged')
+        .map((proof) => proofItem(activity, proof, 'Correction required')),
+    )
+    sections = sections.map((section) =>
+      section.id === 'attention-required'
+        ? {
+            ...section,
+            items: [
+              ...corrections,
+              ...section.items.filter((item) => item.primaryAction?.id !== 'resolve-proof'),
+            ],
+          }
+        : section,
+    )
+  }
+
+  return {
+    ...dashboard,
+    sections,
+    metrics: dashboard.metrics.map((metric) => ({
+      ...metric,
+      ...(metricValues[metric.id] ?? {}),
+    })),
+  }
+}
+
 const filterBeneficiaryRecords = (
   beneficiaries: BeneficiaryRecord[],
   filters: BeneficiaryFilters,
@@ -199,6 +513,7 @@ export class MockPathwaysClient implements PathwaysClient {
       projectManager: project.projectManager,
       kpiAchievement: project.kpiAchievement,
       beneficiariesReached: project.beneficiariesReached,
+      targetBeneficiaries: project.targetBeneficiaries,
       budgetUtilization: project.budgetUtilization,
       timelineProgress: project.timelineProgress,
     }))
@@ -239,10 +554,7 @@ export class MockPathwaysClient implements PathwaysClient {
     )
 
     if (!activity) {
-      throw new PathwaysClientError(
-        `Activity ${activityId} could not be found.`,
-        'not_found',
-      )
+      throw new PathwaysClientError(`Activity ${activityId} could not be found.`, 'not_found')
     }
 
     return activity
@@ -311,44 +623,7 @@ export class MockPathwaysClient implements PathwaysClient {
 
   async submitActivityProof(input: SubmitActivityProofInput): Promise<Activity> {
     await this.wait()
-
-    const current = allActivities().find((activity) => activity.id === input.activityId)
-
-    if (!current) {
-      throw new PathwaysClientError(
-        `Activity ${input.activityId} could not be found.`,
-        'not_found',
-      )
-    }
-
-    const submittedAt = new Date().toISOString()
-    const activity: Activity = {
-      ...current,
-      status: input.progress >= 100 ? 'For Review' : 'In Progress',
-      progress: input.progress,
-      submittedProof: [
-        ...current.submittedProof,
-        ...input.fileNames.map((fileName, index) => ({
-          id: `proof-${input.activityId}-${Date.now().toString(36)}-${index}`,
-          fileName,
-          status: 'Submitted' as const,
-          submittedAt,
-          note: input.note,
-        })),
-      ],
-      updateNotes: [
-        ...current.updateNotes,
-        {
-          id: `note-${input.activityId}-${Date.now().toString(36)}`,
-          note: input.note,
-          progress: input.progress,
-          submittedAt,
-        },
-      ],
-    }
-    saveActivity(activity)
-
-    return activity
+    return submitLocalActivityProof(input)
   }
 
   async getEvidence(projectId: string): Promise<EvidenceRecord[]> {
@@ -624,7 +899,11 @@ export class MockPathwaysClient implements PathwaysClient {
     await this.wait()
 
     if (role in mockDashboards) {
-      return mockDashboards[role as PrototypeRole]
+      const prototypeRole = role as PrototypeRole
+      return withDerivedDashboardMetrics(
+        prototypeRole,
+        structuredClone(mockDashboards[prototypeRole]),
+      )
     }
 
     return fallbackDashboard

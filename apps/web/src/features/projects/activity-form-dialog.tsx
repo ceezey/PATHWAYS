@@ -27,14 +27,10 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
+import { usePrototypeRole } from '@/hooks/use-prototype-role'
+import { hasAction } from '@/lib/demo-state/permissions'
 import { pathwaysClient } from '@/lib/services/mock-pathways-client'
-import type {
-  Activity,
-  ActivityStatus,
-  Indicator,
-  JourneyStageConfig,
-  UserRecord,
-} from '@/types/pathways'
+import type { Activity, Indicator, JourneyStageConfig, UserRecord } from '@/types/pathways'
 
 import { type ActivityFormSchema, createActivityFormSchema } from './activity-form-validation'
 import { activityStatuses } from './activity-utils'
@@ -75,6 +71,8 @@ export const ActivityFormDialog = ({
   onCreatedOrUpdated: (activity: Activity) => void
   onOpenChange: (open: boolean) => void
 }) => {
+  const { role } = usePrototypeRole()
+  const canEditStatus = hasAction(role, 'activities.status.edit')
   const [discardDialogOpen, setDiscardDialogOpen] = useState(false)
   const [draftHydrated, setDraftHydrated] = useState(false)
   const [draftRecovered, setDraftRecovered] = useState(false)
@@ -193,7 +191,8 @@ export const ActivityFormDialog = ({
     // TODO(RBAC): Enforce create, edit, review, and approval permissions.
     // TODO(ALERTS): Recalculate overdue and progress alerts server-side.
     try {
-      const savedActivity = activity
+      const requestedStatus = canEditStatus ? values.status : (activity?.status ?? 'Planned')
+      let savedActivity = activity
         ? await pathwaysClient.updateActivity({
             id: activity.id,
             overrideJustification: values.overrideJustification,
@@ -207,7 +206,7 @@ export const ActivityFormDialog = ({
             assignedTo: values.assignedOfficers,
             indicatorIds: values.connectedIndicators,
             journeyStageId: values.journeyStageId,
-            status: values.status as ActivityStatus,
+            status: requestedStatus,
             progress: values.progress,
             beneficiariesReached: values.beneficiariesReached,
             budgetLogged: values.budgetLogged,
@@ -225,6 +224,27 @@ export const ActivityFormDialog = ({
             indicatorIds: values.connectedIndicators,
             journeyStageId: values.journeyStageId,
           })
+
+      if (!activity && savedActivity.status !== requestedStatus) {
+        savedActivity = await pathwaysClient.updateActivity({
+          id: savedActivity.id,
+          overrideJustification: values.overrideJustification,
+          projectId,
+          title: values.title,
+          description: values.description,
+          startDate: values.startDate,
+          dueDate: values.dueDate,
+          targetBeneficiaries: values.targetBeneficiaries,
+          budgetAllocation: values.budgetAllocation,
+          assignedTo: values.assignedOfficers,
+          indicatorIds: values.connectedIndicators,
+          journeyStageId: values.journeyStageId,
+          status: requestedStatus,
+          progress: values.progress,
+          beneficiariesReached: values.beneficiariesReached,
+          budgetLogged: values.budgetLogged,
+        })
+      }
 
       toast.success(activity ? 'Activity updated.' : 'Activity created.', {
         description: `${savedActivity.title} is available in the project activity list.`,
@@ -320,6 +340,32 @@ export const ActivityFormDialog = ({
                     </FormItem>
                   )}
                 />
+                {canEditStatus ? (
+                  <FormField
+                    control={form.control}
+                    name="status"
+                    render={({ field }) => (
+                      <FormItem className="lg:col-span-2">
+                        <FormLabel required>Activity status</FormLabel>
+                        <Select onValueChange={field.onChange} value={field.value}>
+                          <FormControl aria-required="true">
+                            <SelectTrigger>
+                              <SelectValue placeholder="Select activity status" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            {activityStatuses.map((status) => (
+                              <SelectItem key={status} value={status}>
+                                {status}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                ) : null}
                 <FormField
                   control={form.control}
                   name="startDate"
@@ -366,7 +412,7 @@ export const ActivityFormDialog = ({
                     <FormItem>
                       <FormLabel required>Activity budget</FormLabel>
                       <FormControl aria-required="true">
-                        <Input min={1} step="1000" type="number" {...field} />
+                        <Input min={1} step="0.01" type="number" {...field} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -374,30 +420,6 @@ export const ActivityFormDialog = ({
                 />
                 {activity ? (
                   <>
-                    <FormField
-                      control={form.control}
-                      name="status"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel required>Status</FormLabel>
-                          <Select onValueChange={field.onChange} value={field.value}>
-                            <FormControl aria-required="true">
-                              <SelectTrigger>
-                                <SelectValue />
-                              </SelectTrigger>
-                            </FormControl>
-                            <SelectContent>
-                              {activityStatuses.map((status) => (
-                                <SelectItem key={status} value={status}>
-                                  {status}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
                     <FormField
                       control={form.control}
                       name="progress"
@@ -431,7 +453,7 @@ export const ActivityFormDialog = ({
                         <FormItem>
                           <FormLabel required>Logged budget</FormLabel>
                           <FormControl aria-required="true">
-                            <Input min={0} step="1000" type="number" {...field} />
+                            <Input min={0} step="0.01" type="number" {...field} />
                           </FormControl>
                           <FormMessage />
                         </FormItem>

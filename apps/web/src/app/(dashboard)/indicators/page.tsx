@@ -1,5 +1,5 @@
-import { IndicatorLibraryWorkspace } from '@/features/projects/indicator-library-workspace'
+import { redirect } from 'next/navigation'
 
 export default function IndicatorLibraryPage() {
-  return <IndicatorLibraryWorkspace />
+  redirect('/projects')
 }
