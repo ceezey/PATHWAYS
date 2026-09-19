@@ -44,6 +44,7 @@ describe('project setup validation', () => {
       objectives: 'Develop youth skills',
       partners: 'Fictional Partner',
       projectBudget: '100000',
+      targetBeneficiaries: '450',
       title: 'Prototype Project',
       sector: 'Education',
       area: 'Navotas',
@@ -62,6 +63,7 @@ describe('project setup validation', () => {
       programManager: 'Program Manager A',
       projectManager: 'Project Manager A',
       projectOfficers: ['Project Officer A', 'Project Officer B'],
+      targetBeneficiaries: 450,
     })
     expect(input).not.toHaveProperty('budgetCode')
   })

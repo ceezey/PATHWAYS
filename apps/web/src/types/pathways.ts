@@ -62,6 +62,7 @@ export interface CreateProjectInput {
   objectives?: string
   partners?: string
   projectBudget?: number
+  targetBeneficiaries: number
   confirmDuplicate?: boolean
   title: string
   sector: string

@@ -200,6 +200,7 @@ describe('MockPathwaysClient dashboard data', () => {
       objectives: 'Exercise project creation.',
       partners: 'Fictional partner',
       projectBudget: 500000,
+      targetBeneficiaries: 300,
       programManager: 'Maria Santos',
       projectManager: 'Carlo Mendoza',
       monitoringOfficer: 'Ana Villanueva',
@@ -209,6 +210,7 @@ describe('MockPathwaysClient dashboard data', () => {
     await expect(client.getProject(project.id)).resolves.toMatchObject({
       title: 'Prototype Community Project',
       createdInPrototype: true,
+      targetBeneficiaries: 300,
     })
     await expect(
       client

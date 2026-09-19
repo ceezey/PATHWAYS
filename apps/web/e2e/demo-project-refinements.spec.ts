@@ -77,6 +77,7 @@ test('create-project omits Budget code and activities use the consolidated list 
   await page.goto('/projects/new')
   await expect(page.getByLabel('Budget code')).toHaveCount(0)
   await expect(page.getByLabel('Project budget (PHP)')).toBeVisible()
+  await expect(page.getByLabel('Target beneficiaries')).toBeVisible()
 
   await page.goto('/projects/futuremakers-ncr/activities')
   const search = page.getByRole('textbox', { name: 'Search activities' })

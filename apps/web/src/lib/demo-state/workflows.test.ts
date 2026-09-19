@@ -213,6 +213,7 @@ describe('I03 linked delivery workflow', () => {
       area: 'Metro Manila',
       partners: 'Demo partner',
       projectBudget: 100000,
+      targetBeneficiaries: 120,
       sector: 'Education',
       startDate: '2026-09-01',
       endDate: '2026-12-31',
@@ -325,7 +326,7 @@ describe('I03 linked delivery workflow', () => {
       label: 'Fictional completion rate',
       description: 'Completion rate for the fictional test fixture',
       unit: 'Percent',
-      disaggregation: 'Sex, age group, disability status',
+      disaggregation: '',
       dataSource: 'Demo completion records',
       target: 80,
     }
@@ -334,6 +335,7 @@ describe('I03 linked delivery workflow', () => {
       'grassroots-centers-navotas',
     ])
     expect(saved).toHaveLength(2)
+    expect(saved.every((record) => record.disaggregation === '')).toBe(true)
     expect(new Set(saved.map((record) => record.code)).size).toBe(1)
 
     saveIndicatorForProjects(

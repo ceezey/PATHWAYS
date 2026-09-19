@@ -447,6 +447,36 @@ const blankIndicator = {
   target: '0',
 }
 
+const disaggregationOptions = ['Age', 'Disability', 'Location'] as const
+type DisaggregationOption = (typeof disaggregationOptions)[number]
+
+const selectedDisaggregations = (value: string) =>
+  disaggregationOptions.filter((option) => value.toLowerCase().includes(option.toLowerCase()))
+
+const indicatorTextFields = [
+  {
+    key: 'label',
+    label: 'Name',
+    placeholder: 'e.g. Beneficiaries completing orientation',
+  },
+  {
+    key: 'description',
+    label: 'Description',
+    placeholder: '',
+  },
+  {
+    key: 'unit',
+    label: 'Unit of measure',
+    placeholder: 'e.g. Beneficiaries, Percent, Sessions',
+  },
+  { key: 'target', label: 'Target', placeholder: 'e.g. 250' },
+  {
+    key: 'dataSource',
+    label: 'Data source',
+    placeholder: 'e.g. Beneficiary Registry, Attendance Record, Baseline Profiling Forms',
+  },
+] as const
+
 export function ConnectedIndicatorWorkspace({ projectId }: { projectId?: string }) {
   const state = useDemoState()
   const actor = currentAccount(state)
@@ -489,7 +519,7 @@ export function ConnectedIndicatorWorkspace({ projectId }: { projectId?: string 
       label: indicator.label,
       description: indicator.description ?? '',
       unit: indicator.unit ?? '',
-      disaggregation: indicator.disaggregation ?? '',
+      disaggregation: selectedDisaggregations(indicator.disaggregation ?? '').join(', '),
       dataSource: indicator.dataSource ?? '',
       target: String(indicator.target),
     })
@@ -504,6 +534,16 @@ export function ConnectedIndicatorWorkspace({ projectId }: { projectId?: string 
         ? current.filter((id) => id !== selectedProjectId)
         : [...current, selectedProjectId],
     )
+  }
+
+  const toggleDisaggregation = (option: DisaggregationOption) => {
+    const selected = new Set(selectedDisaggregations(draft.disaggregation))
+    if (selected.has(option)) selected.delete(option)
+    else selected.add(option)
+    setDraft({
+      ...draft,
+      disaggregation: disaggregationOptions.filter((item) => selected.has(item)).join(', '),
+    })
   }
 
   const submit = (event: React.FormEvent) => {
@@ -666,30 +706,57 @@ export function ConnectedIndicatorWorkspace({ projectId }: { projectId?: string 
               </DropdownMenu>
             </div>
             <div className="grid gap-4 sm:grid-cols-2">
-              {(Object.keys(blankIndicator) as (keyof typeof blankIndicator)[]).map((key) => (
+              {indicatorTextFields.map(({ key, label, placeholder }) => (
                 <div className="space-y-2" key={key}>
-                  <Label htmlFor={`indicator-${key}`}>
-                    {
-                      {
-                        label: 'Name',
-                        description: 'Description',
-                        unit: 'Unit of measure',
-                        disaggregation: 'Disaggregation requirements',
-                        dataSource: 'Data source',
-                        target: 'Target',
-                      }[key]
-                    }
-                  </Label>
+                  <Label htmlFor={`indicator-${key}`}>{label}</Label>
                   <Input
                     id={`indicator-${key}`}
                     min={key === 'target' ? '0' : undefined}
                     onChange={(event) => setDraft({ ...draft, [key]: event.target.value })}
+                    placeholder={placeholder}
                     required
                     type={key === 'target' ? 'number' : 'text'}
                     value={draft[key]}
                   />
                 </div>
               ))}
+              <div className="space-y-2">
+                <Label id="indicator-disaggregation-label">
+                  Disaggregation requirements{' '}
+                  <span className="font-normal text-muted-foreground">(Optional)</span>
+                </Label>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button
+                      aria-labelledby="indicator-disaggregation-label indicator-disaggregation-summary"
+                      className="w-full justify-between font-normal"
+                      id="indicator-disaggregation-summary"
+                      type="button"
+                      variant="outline"
+                    >
+                      <span className={draft.disaggregation ? '' : 'text-muted-foreground'}>
+                        {draft.disaggregation || 'Select requirements'}
+                      </span>
+                      <ChevronDown className="h-4 w-4 opacity-60" aria-hidden="true" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent
+                    align="start"
+                    className="w-[var(--radix-dropdown-menu-trigger-width)]"
+                  >
+                    {disaggregationOptions.map((option) => (
+                      <DropdownMenuCheckboxItem
+                        checked={selectedDisaggregations(draft.disaggregation).includes(option)}
+                        key={option}
+                        onCheckedChange={() => toggleDisaggregation(option)}
+                        onSelect={(event) => event.preventDefault()}
+                      >
+                        {option}
+                      </DropdownMenuCheckboxItem>
+                    ))}
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </div>
             </div>
             <output className="block text-sm text-danger" aria-live="polite">
               {message}

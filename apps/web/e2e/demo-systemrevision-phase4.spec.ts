@@ -261,8 +261,7 @@ test('LC-04A validates expenses through M&E and keeps budget outcomes and previe
   await expect
     .poll(() =>
       page.evaluate(
-        () =>
-          JSON.parse(localStorage.getItem('pathways.demo.v1') ?? '{}').expenses?.at(-1)?.status,
+        () => JSON.parse(localStorage.getItem('pathways.demo.v1') ?? '{}').expenses?.at(-1)?.status,
       ),
     )
     .toBe('For Verification')
@@ -337,7 +336,10 @@ test('LC-04B uses one Add/Edit modal for atomic authorized project-local copies'
   await dialog.getByLabel('Name').fill('Phase 4 completion quality')
   await dialog.getByLabel('Description').fill('Fictional project-local completion quality measure')
   await dialog.getByLabel('Unit of measure').fill('Percent')
-  await dialog.getByLabel('Disaggregation requirements').fill('Sex, age group, disability status')
+  await dialog.getByRole('button', { name: /Disaggregation requirements/ }).click()
+  await page.getByRole('menuitemcheckbox', { name: 'Age' }).click()
+  await page.getByRole('menuitemcheckbox', { name: 'Disability' }).click()
+  await page.keyboard.press('Escape')
   await dialog.getByLabel('Data source').fill('Demo completion records')
   await dialog.getByLabel('Target').fill('85')
   await page.screenshot({ path: evidencePath('05-lc04b-indicator-modal.png') })

@@ -12,6 +12,10 @@ export const projectSetupSchema = z
         (value) => Number.isFinite(Number(value)) && Number(value) > 0,
         'Enter a positive project budget.',
       ),
+    targetBeneficiaries: z.string().refine((value) => {
+      const target = Number(value)
+      return Number.isInteger(target) && target > 0
+    }, 'Enter a positive whole-number beneficiary target.'),
     title: z.string().min(3, 'Enter a project title.'),
     sector: z.string().min(2, 'Enter the project sector.'),
     area: z.string().min(2, 'Enter the implementation area.'),
@@ -34,6 +38,7 @@ export type ProjectSetupSchema = z.infer<typeof projectSetupSchema>
 export const toCreateProjectInput = (values: ProjectSetupSchema): CreateProjectInput => ({
   ...values,
   projectBudget: Number(values.projectBudget),
+  targetBeneficiaries: Number(values.targetBeneficiaries),
   projectOfficers: values.projectOfficers
     .split(',')
     .map((officer) => officer.trim())

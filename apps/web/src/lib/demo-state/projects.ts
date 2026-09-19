@@ -42,6 +42,8 @@ export function saveProject(input: CreateProjectInput, id?: string) {
     const projectBudget = input.projectBudget
     if (typeof projectBudget !== 'number' || !Number.isFinite(projectBudget) || projectBudget <= 0)
       throw new Error('Project budget must be a positive amount.')
+    if (!Number.isInteger(input.targetBeneficiaries) || input.targetBeneficiaries <= 0)
+      throw new Error('Target beneficiaries must be a positive whole number.')
     if (
       !input.confirmDuplicate &&
       state.projects.some(
@@ -59,7 +61,6 @@ export function saveProject(input: CreateProjectInput, id?: string) {
       beneficiariesReached: 0,
       budgetUtilization: 0,
       timelineProgress: 0,
-      targetBeneficiaries: 0,
       ...previous,
       ...input,
       budgetCode: input.budgetCode ?? previous?.budgetCode ?? `PATHWAYS-${recordId.toUpperCase()}`,
@@ -691,12 +692,8 @@ export function approveProgress(id: string, approved: boolean, reason = '') {
 }
 export function saveIndicator(input: Omit<Indicator, 'id'>, id?: string) {
   return transactDemo('indicators.manage', input.projectId, id, (state) => {
-    if (
-      ![input.label, input.description, input.unit, input.disaggregation, input.dataSource].every(
-        (s) => s?.trim(),
-      )
-    )
-      throw new Error('Name, description, unit, disaggregation and data source are required.')
+    if (![input.label, input.description, input.unit, input.dataSource].every((s) => s?.trim()))
+      throw new Error('Name, description, unit and data source are required.')
     if (!Number.isFinite(input.target) || input.target < 0)
       throw new Error('Target must be a non-negative number.')
     if (
@@ -724,13 +721,11 @@ export function saveIndicatorForProjects(
   return transactDemo('indicators.manage', selectedProjectIds[0], sourceId, (state, actor) => {
     if (!selectedProjectIds.length) throw new Error('Select at least one authorized project.')
     if (
-      ![input.label, input.description, input.unit, input.disaggregation, input.dataSource].every(
-        (value) => value?.trim(),
+      ![input.label, input.description, input.unit, input.dataSource].every((value) =>
+        value?.trim(),
       )
     )
-      throw new Error(
-        'Name, description, unit, disaggregation requirements and data source are required.',
-      )
+      throw new Error('Name, description, unit and data source are required.')
     if (!Number.isFinite(input.target) || input.target < 0)
       throw new Error('Target must be a non-negative number.')
 

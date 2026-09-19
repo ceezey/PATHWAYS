@@ -45,6 +45,7 @@ const projectDefaultValues: ProjectSetupSchema = {
   objectives: '',
   partners: '',
   projectBudget: '',
+  targetBeneficiaries: '',
   title: '',
   sector: '',
   area: '',
@@ -105,6 +106,7 @@ export const ProjectSetupForm = ({ projectId }: { projectId?: string }) => {
           projectBudget: String(
             getDemoState().budgets.find((b) => b.projectId === projectId)?.plannedAmount ?? '',
           ),
+          targetBeneficiaries: String(project.targetBeneficiaries),
           startDate: project.startDate ?? '2026-01-01',
           endDate: project.endDate ?? '2026-12-31',
           projectOfficers: project.projectOfficers.join(','),
@@ -242,32 +244,45 @@ export const ProjectSetupForm = ({ projectId }: { projectId?: string }) => {
         <Form {...form}>
           <form className="space-y-6" onSubmit={form.handleSubmit(onSubmit)}>
             <div className="grid gap-5 lg:grid-cols-2">
-              {(['objectives', 'partners', 'projectBudget'] as const).map((name) => (
-                <FormField
-                  key={name}
-                  control={form.control}
-                  name={name}
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel required>
-                        {name === 'projectBudget'
-                          ? 'Project budget (PHP)'
-                          : name === 'objectives'
-                            ? 'Objectives'
-                            : 'Implementing partners'}
-                      </FormLabel>
-                      <FormControl>
-                        <Input
-                          type={name === 'projectBudget' ? 'number' : 'text'}
-                          step={name === 'projectBudget' ? '0.01' : undefined}
-                          {...field}
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              ))}
+              {(['objectives', 'partners', 'projectBudget', 'targetBeneficiaries'] as const).map(
+                (name) => (
+                  <FormField
+                    key={name}
+                    control={form.control}
+                    name={name}
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel required>
+                          {name === 'projectBudget'
+                            ? 'Project budget (PHP)'
+                            : name === 'targetBeneficiaries'
+                              ? 'Target beneficiaries'
+                              : name === 'objectives'
+                                ? 'Objectives'
+                                : 'Implementing partners'}
+                        </FormLabel>
+                        <FormControl>
+                          <Input
+                            min={
+                              name === 'projectBudget' || name === 'targetBeneficiaries'
+                                ? '1'
+                                : undefined
+                            }
+                            type={
+                              name === 'projectBudget' || name === 'targetBeneficiaries'
+                                ? 'number'
+                                : 'text'
+                            }
+                            step={name === 'projectBudget' ? '0.01' : undefined}
+                            {...field}
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                ),
+              )}
               <FormField
                 control={form.control}
                 name="title"
