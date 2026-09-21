@@ -14,6 +14,7 @@ import {
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useEffect, useMemo, useState } from 'react'
+import { toast } from 'sonner'
 
 import { PageHeader } from '@/components/layout/page-header'
 import { EmptyState, FilterBar, ProgressBar, SectionCard, StatusBadge } from '@/components/pathways'
@@ -30,12 +31,14 @@ import type {
   ActivityStatus,
   Indicator,
   ProjectDetail,
+  ProjectMilestone,
   UserRecord,
 } from '@/types/pathways'
 
 import { ActivityDetailPanel } from './activity-detail-panel'
 import { ActivityFormDialog } from './activity-form-dialog'
 import { ActivityProofDialog } from './activity-proof-dialog'
+import { ActivityReviewDialog } from './activity-review-dialog'
 import {
   type ActivityFilter,
   activityDueLabel,
@@ -45,6 +48,7 @@ import {
   activityStatusTone,
   activityStatuses,
 } from './activity-utils'
+import { ProjectMilestonesSection } from './project-milestones-section'
 import { ProjectWorkspaceHeader } from './project-workspace-header'
 
 const indicatorSummary = (activity: Activity, indicators: Indicator[]) =>
@@ -61,10 +65,10 @@ const attentionActivity = (activity: Activity) =>
 const matchesFilter = (
   activity: Activity,
   filter: ActivityFilter,
-  currentAssignee: string | null,
+  currentAssigneeEmail: string | null,
 ) => {
   if (filter === 'Mine') {
-    return currentAssignee ? activity.assignedTo.includes(currentAssignee) : false
+    return currentAssigneeEmail ? activity.assignedEmails.includes(currentAssigneeEmail) : false
   }
 
   if (filter === 'Overdue') {
@@ -256,12 +260,13 @@ export const ProjectActivitiesWorkspace = ({
   const { email } = useSession()
   const canReadIndicators = profile?.permissions.includes('monitoring.read') === true
   const canCreateEdit = role ? can(role, 'activities.create_edit') : false
-  const canReview = role === 'Project Manager'
+  const canReview = profile?.permissions.includes('evidence.review') === true
   const canSubmitProof = role ? can(role, 'activities.submit_update_proof') : false
   const [project, setProject] = useState<ProjectDetail | null>(null)
   const [activities, setActivities] = useState<Activity[]>([])
   const [indicators, setIndicators] = useState<Indicator[]>([])
   const [users, setUsers] = useState<UserRecord[]>([])
+  const [milestones, setMilestones] = useState<ProjectMilestone[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(false)
   const [query, setQuery] = useState('')
@@ -272,6 +277,9 @@ export const ProjectActivitiesWorkspace = ({
   const [proofActivity, setProofActivity] = useState<Activity | null>(null)
   const [formOpen, setFormOpen] = useState(false)
   const [proofOpen, setProofOpen] = useState(false)
+  const [reviewActivity, setReviewActivity] = useState<Activity | null>(null)
+  const [reviewDecision, setReviewDecision] = useState<'APPROVE' | 'RETURN'>('APPROVE')
+  const [reviewOpen, setReviewOpen] = useState(false)
 
   useEffect(() => {
     let mounted = true
@@ -281,10 +289,21 @@ export const ProjectActivitiesWorkspace = ({
     Promise.all([
       pathwaysClient.getProject(projectId),
       pathwaysClient.getActivities(projectId),
-      canReadIndicators ? pathwaysClient.getIndicators(projectId) : Promise.resolve([]),
-      pathwaysClient.getUsers(),
+      canReadIndicators
+        ? pathwaysClient.getIndicators(projectId).catch(() => {
+            if (mounted) {
+              toast.warning('Indicator references are temporarily unavailable.', {
+                description: 'Activities and milestones can still be managed.',
+              })
+            }
+
+            return [] as Indicator[]
+          })
+        : Promise.resolve<Indicator[]>([]),
+      canCreateEdit ? pathwaysClient.getUsers() : Promise.resolve([]),
+      pathwaysClient.getMilestones(projectId),
     ])
-      .then(([projectRecord, activityRecords, indicatorRecords, userRecords]) => {
+      .then(([projectRecord, activityRecords, indicatorRecords, userRecords, milestoneRecords]) => {
         if (!mounted) {
           return
         }
@@ -293,6 +312,7 @@ export const ProjectActivitiesWorkspace = ({
         setActivities(activityRecords)
         setIndicators(indicatorRecords)
         setUsers(userRecords)
+        setMilestones(milestoneRecords)
         const initialActivity = initialActivityId
           ? (activityRecords.find((activity) => activity.id === initialActivityId) ?? null)
           : null
@@ -318,7 +338,7 @@ export const ProjectActivitiesWorkspace = ({
     return () => {
       mounted = false
     }
-  }, [canReadIndicators, initialActivityId, projectId, router])
+  }, [canCreateEdit, canReadIndicators, initialActivityId, projectId, router])
 
   const filteredActivities = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase()
@@ -347,6 +367,7 @@ export const ProjectActivitiesWorkspace = ({
       'For Review': 0,
       Overdue: 0,
       Completed: 0,
+      Cancelled: 0,
     }
 
     for (const activity of filteredActivities) {
@@ -408,6 +429,53 @@ export const ProjectActivitiesWorkspace = ({
 
     setProofActivity(activity)
     setProofOpen(true)
+  }
+
+  const startActivity = async (activity: Activity) => {
+    if (!canCreateEdit || activity.storedStatus !== 'NOT_STARTED') return
+    try {
+      upsertActivity(
+        await pathwaysClient.transitionActivity(
+          activity.projectId,
+          activity.id,
+          'IN_PROGRESS',
+          activity.updatedAt,
+        ),
+      )
+    } catch {
+      toast.error('The activity could not be started. Reload and verify its current state.')
+    }
+  }
+
+  const openReview = (activity: Activity, decision: 'APPROVE' | 'RETURN') => {
+    if (!canReview) return
+    setReviewActivity(activity)
+    setReviewDecision(decision)
+    setReviewOpen(true)
+  }
+
+  const downloadProof = async (activity: Activity, proofId: string, fileName: string) => {
+    try {
+      const blob = await pathwaysClient.downloadActivityProof(
+        activity.projectId,
+        activity.id,
+        proofId,
+      )
+      const url = URL.createObjectURL(blob)
+      const anchor = document.createElement('a')
+      anchor.href = url
+      anchor.download = fileName
+      document.body.append(anchor)
+      anchor.click()
+      anchor.remove()
+      URL.revokeObjectURL(url)
+    } catch {
+      toast.error('The private proof could not be downloaded.')
+    }
+  }
+
+  const upsertMilestone = (milestone: ProjectMilestone) => {
+    setMilestones((current) => [...current.filter((item) => item.id !== milestone.id), milestone])
   }
 
   if (loading) {
@@ -568,14 +636,23 @@ export const ProjectActivitiesWorkspace = ({
           </div>
         </SectionCard>
       ) : null}
+      <ProjectMilestonesSection
+        canManage={canCreateEdit}
+        milestones={milestones}
+        onSaved={upsertMilestone}
+        projectId={projectId}
+      />
       <ActivityDetailPanel
         activity={selectedActivity}
         canEdit={canCreateEdit}
         canReview={canReview}
         canSubmitProof={canSubmitProof}
         indicators={indicators}
+        onDownloadProof={downloadProof}
         onEdit={openEdit}
         onOpenChange={closeDetail}
+        onReview={openReview}
+        onStart={startActivity}
         onSubmitProof={openProof}
         open={Boolean(selectedActivity)}
       />
@@ -593,6 +670,13 @@ export const ProjectActivitiesWorkspace = ({
         onOpenChange={setProofOpen}
         onSubmitted={upsertActivity}
         open={proofOpen}
+      />
+      <ActivityReviewDialog
+        activity={reviewActivity}
+        decision={reviewDecision}
+        onOpenChange={setReviewOpen}
+        onReviewed={upsertActivity}
+        open={reviewOpen}
       />
     </>
   )

@@ -6,6 +6,7 @@ import {
   ForbiddenException,
   Get,
   type INestApplication,
+  Req,
   UnauthorizedException,
 } from '@nestjs/common'
 import { APP_GUARD } from '@nestjs/core'
@@ -15,17 +16,18 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } 
 import { ApplicationProfileService } from '../../modules/auth/application-profile.service'
 import { AuthController } from '../../modules/auth/auth.controller'
 import { AuthService } from '../../modules/auth/auth.service'
+import { reportAuthorizedOperationTiming } from '../../modules/auth/authorized-operation-timing'
 import {
   type ApplicationIdentity,
+  type AuthenticatedRequest,
   DEVELOPER_AUTH_UUID,
   DEVELOPER_SUPABASE_URL,
-  type VerifiedAuthIdentity,
 } from '../../modules/auth/developer-access'
 import { RouteAccessController } from '../../modules/auth/route-access.controller'
 import { RouteAccessService } from '../../modules/auth/route-access.service'
-import { TokenAuthService } from '../../modules/auth/token-auth.service'
+import { TokenAuthService, type VerifiedAuthSession } from '../../modules/auth/token-auth.service'
 import { WorkspaceResolutionService } from '../../modules/auth/workspace-resolution.service'
-import { PrismaService } from '../../prisma/prisma.service'
+import { PrismaService, type VerifiedTransactionTiming } from '../../prisma/prisma.service'
 import { RequirePermission } from '../decorators/permission.decorator'
 import { Public } from '../decorators/public.decorator'
 import { SupabaseAuthGuard } from './supabase-auth.guard'
@@ -38,6 +40,20 @@ class BoundaryTestController {
   @Get('reviewed')
   @RequirePermission('projects.read')
   reviewed() {
+    return { allowed: true }
+  }
+
+  @Get('operation-timing')
+  @RequirePermission('projects.read')
+  operationTiming(@Req() request: AuthenticatedRequest) {
+    if (!request.user) throw new ForbiddenException('Application profile is required.')
+    reportAuthorizedOperationTiming(request.user, {
+      acquisitionMs: 7,
+      contextMs: 8,
+      profileMs: 9,
+      featureMs: 10,
+      totalMs: 11,
+    })
     return { allowed: true }
   }
 
@@ -55,6 +71,7 @@ class BoundaryTestController {
 
 const organizationId = '30000000-0000-4000-8000-000000000003'
 const userId = '40000000-0000-4000-8000-000000000004'
+const sessionId = '50000000-0000-4000-8000-000000000005'
 const profile: ApplicationIdentity = {
   id: DEVELOPER_AUTH_UUID,
   aal: 'aal2',
@@ -65,41 +82,57 @@ const profile: ApplicationIdentity = {
   permissions: ['projects.read'],
   assignedProjectIds: [],
 }
-const tokens = { verify: vi.fn<(token: string) => Promise<VerifiedAuthIdentity>>() }
-const profiles = { resolve: vi.fn() }
+const verifiedSession = (
+  aal: 'aal1' | 'aal2' = 'aal2',
+  id = DEVELOPER_AUTH_UUID,
+): VerifiedAuthSession => ({
+  identity: { id, aal },
+  sessionId,
+  stageTimings: { claimsMs: 2, currentUserMs: 3 },
+})
+const tokens = {
+  verifyCurrent: vi.fn<(token: string) => Promise<VerifiedAuthSession>>(),
+  assertSessionLive: vi.fn<(verified: VerifiedAuthSession) => Promise<void>>(),
+}
+const profiles = { resolve: vi.fn(), resolveWithSession: vi.fn() }
 const prisma = { discoverWorkspace: vi.fn() }
 const routeChecks = { check: vi.fn() }
 let app: INestApplication
 let port: number
 
 const get = (path: string, headers: Record<string, string> = {}) =>
-  new Promise<{ status: number; body: Record<string, unknown>; cacheControl?: string }>(
-    (resolve, reject) => {
-      const request = httpRequest(
-        { host: '127.0.0.1', port, path, method: 'GET', headers },
-        (response) => {
-          let data = ''
-          response.setEncoding('utf8')
-          response.on('data', (chunk) => {
-            data += chunk
-          })
-          response.on('end', () => {
-            try {
-              resolve({
-                status: response.statusCode ?? 0,
-                body: JSON.parse(data),
-                cacheControl: response.headers['cache-control'],
-              })
-            } catch (error) {
-              reject(error)
-            }
-          })
-        },
-      )
-      request.on('error', reject)
-      request.end()
-    },
-  )
+  new Promise<{
+    status: number
+    body: Record<string, unknown>
+    cacheControl?: string
+    serverTiming?: string
+  }>((resolve, reject) => {
+    const request = httpRequest(
+      { host: '127.0.0.1', port, path, method: 'GET', headers },
+      (response) => {
+        let data = ''
+        response.setEncoding('utf8')
+        response.on('data', (chunk) => {
+          data += chunk
+        })
+        response.on('end', () => {
+          try {
+            const serverTiming = response.headers['server-timing']
+            resolve({
+              status: response.statusCode ?? 0,
+              body: JSON.parse(data),
+              cacheControl: response.headers['cache-control'],
+              serverTiming: Array.isArray(serverTiming) ? serverTiming.join(', ') : serverTiming,
+            })
+          } catch (error) {
+            reject(error)
+          }
+        })
+      },
+    )
+    request.on('error', reject)
+    request.end()
+  })
 
 beforeAll(async () => {
   const module = await Test.createTestingModule({
@@ -128,8 +161,23 @@ beforeEach(() => {
     JSON.stringify([{ authUserId: DEVELOPER_AUTH_UUID, userId, organizationId }]),
   )
   vi.stubEnv('PATHWAYS_DEVELOPER_ACCESS_ENABLED', '')
-  tokens.verify.mockReset().mockResolvedValue({ id: DEVELOPER_AUTH_UUID, aal: 'aal1' })
+  tokens.verifyCurrent.mockReset().mockResolvedValue(verifiedSession('aal1'))
+  tokens.assertSessionLive.mockReset().mockResolvedValue(undefined)
   profiles.resolve.mockReset().mockResolvedValue(profile)
+  profiles.resolveWithSession
+    .mockReset()
+    .mockImplementation(
+      async (
+        _authSubject: string,
+        _sessionId: string,
+        _organizationId: string,
+        _userId: string,
+        onTiming?: (timing: VerifiedTransactionTiming) => void,
+      ) => {
+        onTiming?.({ acquisitionMs: 4, contextMs: 5, workMs: 6 })
+        return profile
+      },
+    )
   prisma.discoverWorkspace.mockReset().mockResolvedValue([{ organizationId, userId }])
   routeChecks.check.mockReset().mockResolvedValue({
     route: 'dashboard',
@@ -153,11 +201,20 @@ describe('SupabaseAuthGuard local HTTP fail-closed boundary', () => {
     expect((await get(path, headers)).status).toBe(403)
     expect(routeChecks.check).not.toHaveBeenCalled()
     vi.stubEnv('PATHWAYS_DEVELOPER_ACCESS_ENABLED', 'true')
-    tokens.verify.mockResolvedValue({ id: DEVELOPER_AUTH_UUID, aal: 'aal2' })
+    tokens.verifyCurrent.mockResolvedValue(verifiedSession())
     const permitted = await get(path, headers)
     expect(permitted.status).toBe(200)
     expect(permitted.cacheControl).toBe('private, no-store')
     expect(routeChecks.check).toHaveBeenCalledTimes(1)
+    expect(profiles.resolveWithSession).toHaveBeenCalledExactlyOnceWith(
+      DEVELOPER_AUTH_UUID,
+      sessionId,
+      organizationId,
+      userId,
+      expect.any(Function),
+    )
+    expect(prisma.discoverWorkspace).not.toHaveBeenCalled()
+    profiles.resolveWithSession.mockRejectedValueOnce(new ForbiddenException())
     expect(
       (
         await get(path, {
@@ -166,10 +223,10 @@ describe('SupabaseAuthGuard local HTTP fail-closed boundary', () => {
         })
       ).status,
     ).toBe(403)
-    profiles.resolve.mockRejectedValue(new ForbiddenException())
+    profiles.resolveWithSession.mockRejectedValue(new ForbiddenException())
     expect((await get(path, headers)).status).toBe(403)
     expect(routeChecks.check).toHaveBeenCalledTimes(1)
-    tokens.verify.mockRejectedValue(new UnauthorizedException())
+    tokens.verifyCurrent.mockRejectedValue(new UnauthorizedException())
     expect((await get(path, headers)).status).toBe(401)
   })
   it('discovers without selectors only after verified password/AAL2 and keeps responses private', async () => {
@@ -177,9 +234,9 @@ describe('SupabaseAuthGuard local HTTP fail-closed boundary', () => {
     expect(
       (await get('/auth/workspaces', { authorization: 'Bearer local-test-token' })).status,
     ).toBe(403)
-    expect(profiles.resolve).not.toHaveBeenCalled()
+    expect(profiles.resolveWithSession).not.toHaveBeenCalled()
     vi.stubEnv('PATHWAYS_DEVELOPER_ACCESS_ENABLED', 'true')
-    tokens.verify.mockResolvedValue({ id: DEVELOPER_AUTH_UUID, aal: 'aal2' })
+    tokens.verifyCurrent.mockResolvedValue(verifiedSession())
     const result = await get('/auth/workspaces', { authorization: 'Bearer local-test-token' })
     expect(result.status).toBe(200)
     expect(result.cacheControl).toBe('private, no-store')
@@ -191,7 +248,7 @@ describe('SupabaseAuthGuard local HTTP fail-closed boundary', () => {
 
   it('rejects caller-supplied subject/search/selectors without performing a database read', async () => {
     vi.stubEnv('PATHWAYS_DEVELOPER_ACCESS_ENABLED', 'true')
-    tokens.verify.mockResolvedValue({ id: DEVELOPER_AUTH_UUID, aal: 'aal2' })
+    tokens.verifyCurrent.mockResolvedValue(verifiedSession())
     for (const [path, extra] of [
       ['/auth/workspaces?authUserId=forged', {}],
       ['/auth/workspaces?organizationId=forged', {}],
@@ -201,29 +258,48 @@ describe('SupabaseAuthGuard local HTTP fail-closed boundary', () => {
       expect(result.status).toBe(400)
       expect(result.cacheControl).toBe('private, no-store')
     }
-    expect(profiles.resolve).not.toHaveBeenCalled()
+    expect(profiles.resolveWithSession).not.toHaveBeenCalled()
   })
 
   it('revalidates each protected request and denies removed membership despite a prior success', async () => {
     vi.stubEnv('PATHWAYS_DEVELOPER_ACCESS_ENABLED', 'true')
-    tokens.verify.mockResolvedValue({ id: DEVELOPER_AUTH_UUID, aal: 'aal2' })
+    tokens.verifyCurrent.mockResolvedValue(verifiedSession())
     const headers = {
       authorization: 'Bearer local-test-token',
       'x-pathways-user-id': userId,
       'x-pathways-organization-id': organizationId,
     }
     expect((await get('/auth/me', headers)).status).toBe(200)
-    profiles.resolve.mockRejectedValue(new ForbiddenException())
+    profiles.resolveWithSession.mockRejectedValue(new ForbiddenException())
     const denied = await get('/auth/me', headers)
     expect(denied.status).toBe(403)
     expect(denied.cacheControl).toBe('private, no-store')
     expect(denied.body).not.toHaveProperty('user')
-    expect(profiles.resolve).toHaveBeenCalledTimes(2)
+    expect(profiles.resolveWithSession).toHaveBeenCalledTimes(2)
+  })
+
+  it('denies a removed Auth session on the next selected request without a standalone liveness call', async () => {
+    tokens.verifyCurrent.mockResolvedValue(verifiedSession())
+    profiles.resolveWithSession.mockRejectedValueOnce(new UnauthorizedException())
+    const result = await get('/auth/me', {
+      authorization: 'Bearer local-test-token',
+      'x-pathways-user-id': userId,
+      'x-pathways-organization-id': organizationId,
+    })
+    expect(result.status).toBe(401)
+    expect(tokens.assertSessionLive).not.toHaveBeenCalled()
+    expect(profiles.resolveWithSession).toHaveBeenCalledExactlyOnceWith(
+      DEVELOPER_AUTH_UUID,
+      sessionId,
+      organizationId,
+      userId,
+      expect.any(Function),
+    )
   })
 
   it('returns unavailable rather than an empty workspace list for a database outage', async () => {
     vi.stubEnv('PATHWAYS_DEVELOPER_ACCESS_ENABLED', 'true')
-    tokens.verify.mockResolvedValue({ id: DEVELOPER_AUTH_UUID, aal: 'aal2' })
+    tokens.verifyCurrent.mockResolvedValue(verifiedSession())
     profiles.resolve.mockRejectedValue(new Error('private-database-detail'))
     const result = await get('/auth/workspaces', { authorization: 'Bearer local-test-token' })
     expect(result.status).toBe(503)
@@ -232,7 +308,7 @@ describe('SupabaseAuthGuard local HTTP fail-closed boundary', () => {
   })
   it('checks explicit atomic permission before a reviewed handler, without an admin bypass', async () => {
     vi.stubEnv('PATHWAYS_DEVELOPER_ACCESS_ENABLED', 'true')
-    tokens.verify.mockResolvedValue({ id: DEVELOPER_AUTH_UUID, aal: 'aal2' })
+    tokens.verifyCurrent.mockResolvedValue(verifiedSession())
     expect(
       (
         await get('/boundary-test/reviewed', {
@@ -242,7 +318,7 @@ describe('SupabaseAuthGuard local HTTP fail-closed boundary', () => {
         })
       ).status,
     ).toBe(200)
-    profiles.resolve.mockResolvedValue({ ...profile, permissions: [] })
+    profiles.resolveWithSession.mockResolvedValue({ ...profile, permissions: [] })
     expect(
       (
         await get('/boundary-test/reviewed', {
@@ -252,7 +328,7 @@ describe('SupabaseAuthGuard local HTTP fail-closed boundary', () => {
         })
       ).status,
     ).toBe(403)
-    profiles.resolve.mockResolvedValue({
+    profiles.resolveWithSession.mockResolvedValue({
       ...profile,
       roles: ['UNREVIEWED'],
       permissions: ['projects.read'],
@@ -269,8 +345,8 @@ describe('SupabaseAuthGuard local HTTP fail-closed boundary', () => {
   })
   it('keeps explicitly public health independent of Auth and business queries', async () => {
     expect((await get('/boundary-test/health')).status).toBe(200)
-    expect(tokens.verify).not.toHaveBeenCalled()
-    expect(profiles.resolve).not.toHaveBeenCalled()
+    expect(tokens.verifyCurrent).not.toHaveBeenCalled()
+    expect(profiles.resolveWithSession).not.toHaveBeenCalled()
   })
 
   it.each(['', 'Basic credentials', 'Bearer', 'Bearer one two', 'Bearer token\ttail'])(
@@ -278,17 +354,17 @@ describe('SupabaseAuthGuard local HTTP fail-closed boundary', () => {
     async (authorization) => {
       const result = await get('/auth/mfa/status', authorization ? { authorization } : {})
       expect(result.status).toBe(401)
-      expect(tokens.verify).not.toHaveBeenCalled()
-      expect(profiles.resolve).not.toHaveBeenCalled()
+      expect(tokens.verifyCurrent).not.toHaveBeenCalled()
+      expect(profiles.resolveWithSession).not.toHaveBeenCalled()
     },
   )
 
   it('does not make MFA status public and sanitizes rejected-token responses', async () => {
-    tokens.verify.mockRejectedValue(new UnauthorizedException('Invalid authentication.'))
+    tokens.verifyCurrent.mockRejectedValue(new UnauthorizedException('Invalid authentication.'))
     const result = await get('/auth/mfa/status', { authorization: 'Bearer local-test-token' })
     expect(result.status).toBe(401)
     expect(JSON.stringify(result.body)).not.toContain('local-test-token')
-    expect(profiles.resolve).not.toHaveBeenCalled()
+    expect(profiles.resolveWithSession).not.toHaveBeenCalled()
   })
 
   it('permits only minimal setup state for the selected aal1 identity', async () => {
@@ -301,19 +377,17 @@ describe('SupabaseAuthGuard local HTTP fail-closed boundary', () => {
       enrollmentAllowed: true,
       applicationAccessEnabled: true,
     })
-    expect(profiles.resolve).not.toHaveBeenCalled()
+    expect(profiles.resolveWithSession).not.toHaveBeenCalled()
   })
 
   it('permits MFA setup for another verified non-anonymous identity', async () => {
     const otherId = '50000000-0000-4000-8000-000000000005'
-    tokens.verify.mockResolvedValue({
-      id: otherId,
-      aal: 'aal2',
-    })
+    tokens.verifyCurrent.mockResolvedValue(verifiedSession('aal2', otherId))
     const result = await get('/auth/mfa/status', { authorization: 'Bearer local-test-token' })
     expect(result.status).toBe(200)
     expect(result.body.authUserId).toBe(otherId)
-    expect(profiles.resolve).not.toHaveBeenCalled()
+    expect(profiles.resolveWithSession).not.toHaveBeenCalled()
+    expect(tokens.assertSessionLive).toHaveBeenCalledOnce()
   })
 
   it.each(['/auth/me', '/auth/status', '/boundary-test/business'])(
@@ -323,7 +397,8 @@ describe('SupabaseAuthGuard local HTTP fail-closed boundary', () => {
       const result = await get(route, { authorization: 'Bearer local-test-token' })
       expect(result.status).toBe(403)
       expect(result.body.message).toContain('MFA verification is required')
-      expect(profiles.resolve).not.toHaveBeenCalled()
+      expect(profiles.resolveWithSession).not.toHaveBeenCalled()
+      expect(tokens.assertSessionLive).toHaveBeenCalled()
     },
   )
 
@@ -331,20 +406,20 @@ describe('SupabaseAuthGuard local HTTP fail-closed boundary', () => {
     'does not use the retired developer gate as runtime authority %#',
     async (setting) => {
       vi.stubEnv('PATHWAYS_DEVELOPER_ACCESS_ENABLED', setting)
-      tokens.verify.mockResolvedValue({ id: DEVELOPER_AUTH_UUID, aal: 'aal2' })
+      tokens.verifyCurrent.mockResolvedValue(verifiedSession())
       const result = await get('/auth/me', {
         authorization: 'Bearer local-test-token',
         'x-pathways-organization-id': organizationId,
         'x-pathways-user-id': userId,
       })
       expect(result.status).toBe(200)
-      expect(profiles.resolve).toHaveBeenCalled()
+      expect(profiles.resolveWithSession).toHaveBeenCalled()
     },
   )
 
   it('rejects an unreviewed business handler despite enabled aal2 administrator access', async () => {
     vi.stubEnv('PATHWAYS_DEVELOPER_ACCESS_ENABLED', 'true')
-    tokens.verify.mockResolvedValue({ id: DEVELOPER_AUTH_UUID, aal: 'aal2' })
+    tokens.verifyCurrent.mockResolvedValue(verifiedSession())
     const result = await get('/boundary-test/business', {
       authorization: 'Bearer local-test-token',
       'x-pathways-organization-id': organizationId,
@@ -352,12 +427,13 @@ describe('SupabaseAuthGuard local HTTP fail-closed boundary', () => {
     })
     expect(result.status).toBe(403)
     expect(result.body).not.toHaveProperty('forbiddenBusinessData')
-    expect(profiles.resolve).not.toHaveBeenCalled()
+    expect(profiles.resolveWithSession).not.toHaveBeenCalled()
+    expect(tokens.assertSessionLive).toHaveBeenCalledOnce()
   })
 
   it('returns only the resolved database profile after enabled aal2 access and context checks', async () => {
     vi.stubEnv('PATHWAYS_DEVELOPER_ACCESS_ENABLED', 'true')
-    tokens.verify.mockResolvedValue({ id: DEVELOPER_AUTH_UUID, aal: 'aal2' })
+    tokens.verifyCurrent.mockResolvedValue(verifiedSession())
     const result = await get('/auth/me', {
       authorization: 'bEaReR local-test-token',
       'x-pathways-organization-id': organizationId,
@@ -366,18 +442,63 @@ describe('SupabaseAuthGuard local HTTP fail-closed boundary', () => {
     expect(result.status).toBe(200)
     expect(result.cacheControl).toBe('private, no-store')
     expect(result.body).toEqual({ user: profile })
-    expect(profiles.resolve).toHaveBeenCalledExactlyOnceWith(
+    expect(profiles.resolveWithSession).toHaveBeenCalledExactlyOnceWith(
       DEVELOPER_AUTH_UUID,
+      sessionId,
       organizationId,
       userId,
+      expect.any(Function),
+    )
+    expect(tokens.assertSessionLive).not.toHaveBeenCalled()
+    expect(result.serverTiming).toMatch(
+      /^pathways_claims;dur=2, pathways_get_user;dur=3, pathways_db_acquire;dur=4, pathways_db_context;dur=5, pathways_db_profile;dur=6, pathways_session_profile;dur=\d+, pathways_auth_total;dur=\d+$/,
     )
     expect(JSON.stringify(result.body)).not.toContain('local-test-token')
   })
 
+  it('does not expose diagnostic stage timing in production mode', async () => {
+    vi.stubEnv('NODE_ENV', 'production')
+    tokens.verifyCurrent.mockResolvedValue(verifiedSession())
+    const result = await get('/auth/me', {
+      authorization: 'Bearer local-test-token',
+      'x-pathways-organization-id': organizationId,
+      'x-pathways-user-id': userId,
+    })
+    expect(result.status).toBe(200)
+    expect(result.serverTiming).toBeUndefined()
+  })
+
+  it('appends fixed authorized-operation substages to a protected feature response', async () => {
+    tokens.verifyCurrent.mockResolvedValue(verifiedSession())
+    const result = await get('/boundary-test/operation-timing', {
+      authorization: 'Bearer local-test-token',
+      'x-pathways-organization-id': organizationId,
+      'x-pathways-user-id': userId,
+    })
+
+    expect(result.status).toBe(200)
+    expect(result.serverTiming).toMatch(
+      /pathways_op_acquire;dur=7, pathways_op_context;dur=8, pathways_op_profile;dur=9, pathways_op_feature;dur=10, pathways_op_total;dur=11$/,
+    )
+  })
+
+  it('does not register authorized-operation timing in production mode', async () => {
+    vi.stubEnv('NODE_ENV', 'production')
+    tokens.verifyCurrent.mockResolvedValue(verifiedSession())
+    const result = await get('/boundary-test/operation-timing', {
+      authorization: 'Bearer local-test-token',
+      'x-pathways-organization-id': organizationId,
+      'x-pathways-user-id': userId,
+    })
+
+    expect(result.status).toBe(200)
+    expect(result.serverTiming).toBeUndefined()
+  })
+
   it('propagates missing, cross-scope, or inactive profile denial without fallback metadata roles', async () => {
     vi.stubEnv('PATHWAYS_DEVELOPER_ACCESS_ENABLED', 'true')
-    tokens.verify.mockResolvedValue({ id: DEVELOPER_AUTH_UUID, aal: 'aal2' })
-    profiles.resolve.mockRejectedValue(
+    tokens.verifyCurrent.mockResolvedValue(verifiedSession())
+    profiles.resolveWithSession.mockRejectedValue(
       new ForbiddenException('Application context is unavailable.'),
     )
     const result = await get('/auth/me', {
@@ -387,10 +508,12 @@ describe('SupabaseAuthGuard local HTTP fail-closed boundary', () => {
     })
     expect(result.status).toBe(403)
     expect(result.body).not.toHaveProperty('user')
-    expect(profiles.resolve).toHaveBeenCalledExactlyOnceWith(
+    expect(profiles.resolveWithSession).toHaveBeenCalledExactlyOnceWith(
       DEVELOPER_AUTH_UUID,
+      sessionId,
       organizationId,
       userId,
+      expect.any(Function),
     )
   })
 })

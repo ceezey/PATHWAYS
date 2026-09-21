@@ -1,6 +1,12 @@
-import { ForbiddenException, Inject, Injectable, ServiceUnavailableException } from '@nestjs/common'
+import {
+  ForbiddenException,
+  Inject,
+  Injectable,
+  ServiceUnavailableException,
+  UnauthorizedException,
+} from '@nestjs/common'
 
-import { PrismaService } from '../../prisma/prisma.service'
+import { PrismaService, type VerifiedTransactionTiming } from '../../prisma/prisma.service'
 import { ApplicationProfileService } from './application-profile.service'
 import { hasAtomicPermission } from './authorization-policy'
 import {
@@ -82,22 +88,56 @@ export class WorkspaceResolutionService {
     identity: VerifiedAuthIdentity,
     organizationSelector: unknown,
     userSelector: unknown,
+    sessionId: unknown,
+    onTiming?: (timing: VerifiedTransactionTiming) => void,
   ) {
     if (
+      identity.aal !== 'aal2' ||
+      !UUID_PATTERN.test(identity.id) ||
       typeof organizationSelector !== 'string' ||
       typeof userSelector !== 'string' ||
+      typeof sessionId !== 'string' ||
       !UUID_PATTERN.test(organizationSelector) ||
-      !UUID_PATTERN.test(userSelector)
+      !UUID_PATTERN.test(userSelector) ||
+      !UUID_PATTERN.test(sessionId)
     ) {
       throw new ForbiddenException('Workspace selection is not available.')
     }
-    const profiles = await this.validated(identity)
-    const profile = profiles.find(
-      (candidate) =>
-        candidate.organizationId === organizationSelector.toLowerCase() &&
-        candidate.userId === userSelector.toLowerCase(),
-    )
-    if (!profile) throw new ForbiddenException('Workspace selection is not available.')
-    return profile
+    const organizationId = organizationSelector.toLowerCase()
+    const userId = userSelector.toLowerCase()
+    try {
+      // A selected protected request already supplies both untrusted selectors.
+      // Resolve them directly in the verified RLS context instead of first opening
+      // a separate discovery transaction. The profile read still revalidates the
+      // active account, organization, role, permissions and assignments on every
+      // request, so revocation remains effective on the next request.
+      const profile = onTiming
+        ? await this.profiles.resolveWithSession(
+            identity.id,
+            sessionId,
+            organizationId,
+            userId,
+            onTiming,
+          )
+        : await this.profiles.resolveWithSession(identity.id, sessionId, organizationId, userId)
+      if (
+        profile.id !== identity.id ||
+        profile.aal !== 'aal2' ||
+        profile.userId !== userId ||
+        profile.organizationId !== organizationId
+      ) {
+        throw unavailable()
+      }
+      if (
+        profile.roles.length !== 1 ||
+        !hasAtomicPermission(profile.roles[0], profile.permissions, 'projects.read')
+      ) {
+        throw new ForbiddenException('Workspace selection is not available.')
+      }
+      return profile
+    } catch (error) {
+      if (error instanceof ForbiddenException || error instanceof UnauthorizedException) throw error
+      throw unavailable()
+    }
   }
 }

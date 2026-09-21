@@ -16,6 +16,8 @@ import { PrismaService } from '@app/prisma/prisma.service'
 import {
   type FormFieldValidationContract,
   type FormValidationMode,
+  activityMonitoringDefinitionErrors,
+  beneficiaryRegistrationDefinitionErrors,
   validateAndNormalizeFormData,
 } from '@pathways/shared'
 import type {
@@ -152,7 +154,7 @@ function fieldData(
     isRequired: field.required,
     isMetadataKey: field.metadataKey,
     isSadddField: field.sadddField,
-    allowedValues: field.allowedValues?.map((item) => item.trim()) ?? Prisma.JsonNull,
+    allowedValues: field.allowedValues?.map((item) => item.trim()) ?? Prisma.DbNull,
     minimumValue: field.minimumValue,
     maximumValue: field.maximumValue,
     minimumDate: field.minimumDate ? new Date(`${field.minimumDate}T00:00:00.000Z`) : undefined,
@@ -323,10 +325,59 @@ export class MetadataService {
         {},
         'draft',
       )
-      if (!validation.valid) {
+      const registrationErrors =
+        current.formType === 'BENEFICIARY_REGISTRATION'
+          ? beneficiaryRegistrationDefinitionErrors(current.formField_form.map(contract))
+          : []
+      const activityMonitoringErrors =
+        current.formType === 'ACTIVITY_MONITORING'
+          ? activityMonitoringDefinitionErrors(current.formField_form.map(contract))
+          : []
+      const bindingErrors: Array<{ fieldCode: string; code: string; message: string }> = []
+      if (current.formType === 'ACTIVITY_MONITORING') {
+        if (!current.activityId) {
+          bindingErrors.push({
+            fieldCode: 'activity_id',
+            code: 'invalid_definition',
+            message: 'Activity monitoring forms must be bound to one project activity.',
+          })
+        }
+        if (!current.journeyStageId) {
+          bindingErrors.push({
+            fieldCode: 'journey_stage_id',
+            code: 'invalid_definition',
+            message: 'Activity monitoring forms must be bound to one journey stage.',
+          })
+        }
+        if (current.activityId && current.journeyStageId) {
+          const mapping = await tx.activityJourneyStageMapping.findFirst({
+            where: {
+              organizationId: actor.organizationId,
+              projectId: current.projectId,
+              activityId: current.activityId,
+              stageId: current.journeyStageId,
+            },
+            select: { id: true },
+          })
+          if (!mapping) {
+            bindingErrors.push({
+              fieldCode: 'journey_stage_id',
+              code: 'invalid_definition',
+              message: 'The selected journey stage must be mapped to the selected activity.',
+            })
+          }
+        }
+      }
+      const definitionErrors = [
+        ...validation.errors,
+        ...registrationErrors,
+        ...activityMonitoringErrors,
+        ...bindingErrors,
+      ]
+      if (definitionErrors.length > 0) {
         throw new BadRequestException({
           message: 'Form definition is invalid.',
-          errors: validation.errors,
+          errors: definitionErrors,
         })
       }
       const expected = this.expectedDate(input.expectedUpdatedAt)

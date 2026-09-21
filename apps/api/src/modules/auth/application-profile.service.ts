@@ -4,10 +4,15 @@ import {
   Injectable,
   Logger,
   ServiceUnavailableException,
+  UnauthorizedException,
 } from '@nestjs/common'
 import type { Prisma } from '@prisma/client'
 
-import { PrismaService } from '../../prisma/prisma.service'
+import {
+  InactiveVerifiedSessionError,
+  PrismaService,
+  type VerifiedTransactionTiming,
+} from '../../prisma/prisma.service'
 import { prismaDiagnosticCode, transactionDiagnostic } from '../../prisma/transaction-diagnostic'
 import { hasAtomicPermission, isCanonicalRole } from './authorization-policy'
 import { type ApplicationIdentity, UUID_PATTERN } from './developer-access'
@@ -18,6 +23,7 @@ type ProfileRow = {
   organization: { name: string }
   fullName: string
   role: { code: string; rolePermissions: { permission: { code: string } }[] }
+  assignedProjectIds: unknown
 }
 
 /** Re-read inside each business transaction; never authorize from cached roles. */
@@ -27,10 +33,11 @@ export async function readApplicationProfile(
   organizationId: string,
   userId: string,
 ): Promise<ApplicationIdentity> {
+  const assignmentCutoff = new Date()
   // The default Prisma relation strategy performs several sequential reads here.
-  // Join the same active profile/organization/role/grants in one parameterized
-  // SELECT, on the SAME runtime transaction and under the SAME table RLS.
-  // No definer helper, global/request cache or previously resolved authority.
+  // Join the same active profile/organization/role/grants/assignments in one
+  // parameterized SELECT, on the SAME runtime transaction and under the SAME
+  // table RLS. No definer helper, global/request cache or prior authority.
   const rows = await transaction.$queryRaw<ProfileRow[]>`
     SELECT u.id::text AS id, u.organization_id::text AS "organizationId",
       u.full_name AS "fullName", jsonb_build_object('name', o.name) AS organization,
@@ -40,7 +47,20 @@ export async function readApplicationProfile(
         FROM pathways.role_permissions rp
         JOIN pathways.permissions p ON p.id = rp.permission_id AND p.is_active
         WHERE rp.role_id = r.id
-      ), '[]'::jsonb)) AS role
+      ), '[]'::jsonb)) AS role,
+      COALESCE((
+        SELECT jsonb_agg(scoped.project_id ORDER BY scoped.project_id)
+        FROM (
+          SELECT DISTINCT a.project_id::text AS project_id
+          FROM pathways.user_project_assignments a
+          JOIN pathways.projects project
+            ON project.id = a.project_id AND project.organization_id = a.organization_id
+          WHERE a.organization_id = u.organization_id AND a.user_id = u.id
+            AND a.status = 'ACTIVE' AND a.ended_at IS NULL
+            AND a.assigned_at <= ${assignmentCutoff}
+            AND project.archived_at IS NULL
+        ) scoped
+      ), '[]'::jsonb) AS "assignedProjectIds"
     FROM pathways.system_users u
     JOIN pathways.organizations o ON o.id = u.organization_id
     JOIN pathways.roles r ON r.id = u.role_id
@@ -53,17 +73,15 @@ export async function readApplicationProfile(
   if (rows.length !== 1 || !profile || !isCanonicalRole(profile.role.code)) {
     throw new ForbiddenException('No active application profile.')
   }
-  const assignments = await transaction.userProjectAssignment.findMany({
-    where: {
-      organizationId,
-      userId,
-      status: 'ACTIVE',
-      endedAt: null,
-      assignedAt: { lte: new Date() },
-      project: { organizationId, archivedAt: null },
-    },
-    select: { projectId: true },
-  })
+  if (
+    !Array.isArray(profile.assignedProjectIds) ||
+    !profile.assignedProjectIds.every(
+      (projectId): projectId is string =>
+        typeof projectId === 'string' && UUID_PATTERN.test(projectId),
+    )
+  ) {
+    throw new Error('Database assignment authority result is invalid.')
+  }
   return {
     id: authSubject,
     aal: 'aal2',
@@ -75,7 +93,7 @@ export async function readApplicationProfile(
     permissions: profile.role.rolePermissions
       .map(({ permission }) => permission.code)
       .filter((code) => hasAtomicPermission(profile.role.code, [code], code)),
-    assignedProjectIds: [...new Set(assignments.map(({ projectId }) => projectId))],
+    assignedProjectIds: [...new Set(profile.assignedProjectIds)],
   }
 }
 
@@ -89,6 +107,29 @@ export class ApplicationProfileService {
     authSubject: string,
     organizationSelector: unknown,
     userSelector: unknown,
+  ): Promise<ApplicationIdentity> {
+    return this.resolveContext(authSubject, organizationSelector, userSelector)
+  }
+
+  async resolveWithSession(
+    authSubject: string,
+    sessionId: unknown,
+    organizationSelector: unknown,
+    userSelector: unknown,
+    onTiming?: (timing: VerifiedTransactionTiming) => void,
+  ): Promise<ApplicationIdentity> {
+    if (typeof sessionId !== 'string' || !UUID_PATTERN.test(sessionId)) {
+      throw new UnauthorizedException('Invalid or expired authentication. Sign in again.')
+    }
+    return this.resolveContext(authSubject, organizationSelector, userSelector, sessionId, onTiming)
+  }
+
+  private async resolveContext(
+    authSubject: string,
+    organizationSelector: unknown,
+    userSelector: unknown,
+    sessionId?: string,
+    onTiming?: (timing: VerifiedTransactionTiming) => void,
   ): Promise<ApplicationIdentity> {
     if (
       typeof authSubject !== 'string' ||
@@ -105,11 +146,18 @@ export class ApplicationProfileService {
     try {
       // Headers are untrusted selectors ONLY. Immutable 0005 RLS checks all three
       // identifiers against the active database linkage before allowing any read.
-      return await this.prisma.withVerifiedContext(
-        { authSubject, organizationId, userId },
-        (transaction) => readApplicationProfile(transaction, authSubject, organizationId, userId),
-      )
+      const databaseContext = sessionId
+        ? { authSubject, organizationId, userId, sessionId }
+        : { authSubject, organizationId, userId }
+      const readProfile = (transaction: Prisma.TransactionClient) =>
+        readApplicationProfile(transaction, authSubject, organizationId, userId)
+      return await (onTiming
+        ? this.prisma.withVerifiedContext(databaseContext, readProfile, { onTiming })
+        : this.prisma.withVerifiedContext(databaseContext, readProfile))
     } catch (error) {
+      if (error instanceof InactiveVerifiedSessionError) {
+        throw new UnauthorizedException('Invalid or expired authentication. Sign in again.')
+      }
       // Fixed diagnostics only: never serialize provider errors, SQL, headers,
       // selectors, JWTs or connection settings into logs or public responses.
       const code = prismaDiagnosticCode(error)

@@ -9,10 +9,10 @@ export const activityFormSchema = z
     targetBeneficiaries: z.coerce.number().int().min(1, 'Enter target beneficiaries.'),
     budgetAllocation: z.coerce.number().min(1, 'Enter an activity budget.'),
     assignedOfficers: z.string().min(2, 'Enter at least one assigned officer.'),
-    connectedIndicators: z.string().min(2, 'Enter at least one indicator code or ID.'),
-    journeyStageId: z.string().min(2, 'Enter a journey-stage reference.'),
+    connectedIndicators: z.string().trim().default(''),
+    journeyStageId: z.string().trim().default(''),
     status: z
-      .enum(['Planned', 'In Progress', 'For Review', 'Overdue', 'Completed'])
+      .enum(['Planned', 'In Progress', 'For Review', 'Overdue', 'Completed', 'Cancelled'])
       .default('Planned'),
     progress: z.coerce.number().min(0).max(100).default(0),
     beneficiariesReached: z.coerce.number().int().min(0).default(0),

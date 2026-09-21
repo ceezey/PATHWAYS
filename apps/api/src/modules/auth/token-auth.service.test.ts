@@ -130,6 +130,29 @@ describe('TokenAuthService cryptographic verification and current identity', () 
     expect(sessions.assertLive).toHaveBeenCalledWith(DEVELOPER_AUTH_UUID, sessionId)
   })
 
+  it('can defer database liveness to the selected-profile transaction without caching authority', async () => {
+    const service = new TokenAuthService(sessions)
+    const verified = await service.verifyCurrent(signedToken())
+    expect(verified).toMatchObject({
+      identity: { id: DEVELOPER_AUTH_UUID, aal: 'aal2' },
+      sessionId,
+      stageTimings: {
+        claimsMs: expect.any(Number),
+        currentUserMs: expect.any(Number),
+      },
+    })
+    expect(Number.isInteger(verified.stageTimings.claimsMs)).toBe(true)
+    expect(Number.isInteger(verified.stageTimings.currentUserMs)).toBe(true)
+    expect(verified.stageTimings.claimsMs).toBeGreaterThanOrEqual(0)
+    expect(verified.stageTimings.claimsMs).toBeLessThanOrEqual(30_000)
+    expect(verified.stageTimings.currentUserMs).toBeGreaterThanOrEqual(0)
+    expect(verified.stageTimings.currentUserMs).toBeLessThanOrEqual(30_000)
+    expect(sessions.assertLive).not.toHaveBeenCalled()
+
+    await service.assertSessionLive(verified)
+    expect(sessions.assertLive).toHaveBeenCalledExactlyOnceWith(DEVELOPER_AUTH_UUID, sessionId)
+  })
+
   it('rejects an attacker signature even when all decoded claims look valid', async () => {
     await expect(
       new TokenAuthService(sessions).verify(signedToken(validClaims(), true)),

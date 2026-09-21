@@ -24,6 +24,7 @@ import { readApiEnv } from '@pathways/config'
 import {
   IMPORT_ENGINEERING_LIMITS,
   ImportParseError,
+  type ImportSourceColumn,
   type SupportedImportFileType,
   normalizeImportedRow,
   parseSecureImport,
@@ -45,6 +46,8 @@ export interface UploadedImportFile {
   mimetype: string
   size: number
 }
+
+const PARTICIPATION_IMPORT_TRANSACTION_TIMEOUT_MS = 20_000
 
 const fileTypes: Record<
   string,
@@ -208,11 +211,42 @@ function fileMetadata(file?: UploadedImportFile) {
   return { name, ...definition, checksum: checksum(file.buffer), byteLength: file.size }
 }
 
-function safeHeaders(value: Prisma.JsonValue): string[] {
-  if (!Array.isArray(value) || !value.every((header) => typeof header === 'string')) {
-    throw new ConflictException('Stored import headers are invalid.')
+function sourceColumnKey(columnIndex: number) {
+  return `column_${String(columnIndex).padStart(4, '0')}`
+}
+
+function safeSourceColumns(value: Prisma.JsonValue): ImportSourceColumn[] {
+  if (!Array.isArray(value) || value.length > IMPORT_ENGINEERING_LIMITS.maxSourceColumns) {
+    throw new ConflictException('Stored import source columns are invalid.')
   }
-  return value as string[]
+  const columns = value.map((item, index): ImportSourceColumn => {
+    if (typeof item === 'string') {
+      return { key: item, header: item, columnIndex: index + 1 }
+    }
+    if (!item || Array.isArray(item) || typeof item !== 'object') {
+      throw new ConflictException('Stored import source columns are invalid.')
+    }
+    const record = item as Record<string, unknown>
+    const columnIndex = index + 1
+    if (
+      record.key !== sourceColumnKey(columnIndex) ||
+      typeof record.header !== 'string' ||
+      record.header.length < 1 ||
+      record.header.length > IMPORT_ENGINEERING_LIMITS.maxHeaderCharacters ||
+      record.columnIndex !== columnIndex
+    ) {
+      throw new ConflictException('Stored import source columns are invalid.')
+    }
+    return {
+      key: record.key,
+      header: record.header,
+      columnIndex: record.columnIndex,
+    }
+  })
+  if (new Set(columns.map((column) => column.key)).size !== columns.length) {
+    throw new ConflictException('Stored import source columns are invalid.')
+  }
+  return columns
 }
 
 function safeRawData(value: Prisma.JsonValue): Record<string, unknown> {
@@ -259,15 +293,17 @@ export class ImportsService {
           validationMessage: true,
         },
         orderBy: { sourceFieldName: 'asc' },
-        take: IMPORT_ENGINEERING_LIMITS.maxColumns,
+        take: IMPORT_ENGINEERING_LIMITS.maxSourceColumns,
       })
       const stored = await tx.dataImportBatch.findUnique({
         where: { id: batch.id },
         select: { sourceHeaders: true },
       })
+      const sourceColumns = stored ? safeSourceColumns(stored.sourceHeaders) : []
       return {
         ...mapBatch(batch),
-        sourceHeaders: stored ? safeHeaders(stored.sourceHeaders) : [],
+        sourceHeaders: sourceColumns.map((column) => column.key),
+        sourceColumns,
         mappings,
       }
     })
@@ -447,17 +483,18 @@ export class ImportsService {
       if (batch.mappingRevision !== input.expectedMappingRevision) {
         throw new ConflictException('The mapping changed; reload before saving.')
       }
-      const headers = safeHeaders(batch.sourceHeaders)
-      if (input.mappings.length !== headers.length) {
-        throw new BadRequestException('Every source header must be mapped or explicitly ignored.')
+      const sourceColumns = safeSourceColumns(batch.sourceHeaders)
+      const sourceColumnKeys = sourceColumns.map((column) => column.key)
+      if (input.mappings.length !== sourceColumnKeys.length) {
+        throw new BadRequestException('Every source column must be mapped or explicitly ignored.')
       }
       const byHeader = new Map(input.mappings.map((item) => [item.sourceFieldName, item]))
       if (
         byHeader.size !== input.mappings.length ||
-        headers.some((header) => !byHeader.has(header))
+        sourceColumnKeys.some((key) => !byHeader.has(key))
       ) {
         throw new BadRequestException(
-          'Mappings must reference each original source header exactly once.',
+          'Mappings must reference each original source column exactly once.',
         )
       }
       const fields = await tx.formField.findMany({
@@ -467,16 +504,16 @@ export class ImportsService {
           formId: batch.formId,
         },
         select: { id: true, code: true },
-        take: IMPORT_ENGINEERING_LIMITS.maxColumns,
+        take: IMPORT_ENGINEERING_LIMITS.maxMappedFields,
       })
       const byCode = new Map(fields.map((field) => [field.code, field]))
       const targets = new Set<string>()
       const revision = batch.mappingRevision + 1
-      const data: Prisma.MetadataMappingCreateManyInput[] = headers.map((header) => {
-        const item = byHeader.get(header)
-        if (!item) throw new BadRequestException('A source header mapping is missing.')
+      const data: Prisma.MetadataMappingCreateManyInput[] = sourceColumnKeys.map((sourceKey) => {
+        const item = byHeader.get(sourceKey)
+        if (!item) throw new BadRequestException('A source column mapping is missing.')
         if (item.ignored === Boolean(item.targetFieldCode)) {
-          throw new BadRequestException('Each source header must be mapped or ignored, not both.')
+          throw new BadRequestException('Each source column must be mapped or ignored, not both.')
         }
         if (item.ignored) {
           return {
@@ -485,7 +522,7 @@ export class ImportsService {
             formId: batch.formId,
             importBatchId: batch.id,
             revision,
-            sourceFieldName: header,
+            sourceFieldName: sourceKey,
             status: 'IGNORED',
           }
         }
@@ -494,6 +531,9 @@ export class ImportsService {
         if (targets.has(target.id)) {
           throw new BadRequestException('Two source columns cannot target the same form field.')
         }
+        if (targets.size >= IMPORT_ENGINEERING_LIMITS.maxMappedFields) {
+          throw new BadRequestException('The mapping targets too many form fields.')
+        }
         targets.add(target.id)
         return {
           organizationId: actor.organizationId,
@@ -501,7 +541,7 @@ export class ImportsService {
           formId: batch.formId,
           importBatchId: batch.id,
           revision,
-          sourceFieldName: header,
+          sourceFieldName: sourceKey,
           targetFieldId: target.id,
           status: 'MAPPED',
         }
@@ -547,7 +587,11 @@ export class ImportsService {
           action: 'IMPORT_MAPPING_REVISED',
           entityType: 'DataImportBatch',
           entityId: batch.id,
-          changes: { revision, mapped: targets.size, ignored: headers.length - targets.size },
+          changes: {
+            revision,
+            mapped: targets.size,
+            ignored: sourceColumnKeys.length - targets.size,
+          },
         },
       })
       return this.mapStoredBatch(tx, actor, batch.projectId, batch.id)
@@ -576,9 +620,9 @@ export class ImportsService {
           status: true,
           targetField: { select: fieldSelection },
         },
-        take: IMPORT_ENGINEERING_LIMITS.maxColumns,
+        take: IMPORT_ENGINEERING_LIMITS.maxSourceColumns,
       })
-      if (mappings.length !== safeHeaders(batch.sourceHeaders).length) {
+      if (mappings.length !== safeSourceColumns(batch.sourceHeaders).length) {
         throw new ConflictException('The reviewed mapping is incomplete.')
       }
       const mappedFields = mappings.flatMap((mapping) =>
@@ -883,7 +927,7 @@ export class ImportsService {
         where: { id: batch.id },
         data: {
           storageStatus: 'STORED',
-          sourceHeaders: parsed.headers,
+          sourceHeaders: parsed.sourceColumns as unknown as Prisma.InputJsonValue,
           status: 'UPLOADED',
           totalRows: parsed.rows.length,
           failureCode: null,
@@ -900,7 +944,7 @@ export class ImportsService {
           changes: {
             fileType: batch.fileType,
             rows: parsed.rows.length,
-            columns: parsed.headers.length,
+            columns: parsed.sourceColumns.length,
             sheets: parsed.sheetNames.length,
           },
         },
@@ -1171,147 +1215,153 @@ export class ImportsService {
     claimId: string,
     validationRevision: number,
   ) {
-    return withAuthorizedOperation(this.prisma, identity, 'imports.process', async (tx, actor) => {
-      const batch = await this.requireBatchWithHeaders(tx, actor, projectId, batchId)
-      if (
-        batch.status !== 'PROCESSING' ||
-        batch.processingClaimId !== claimId ||
-        batch.validationRevision !== validationRevision ||
-        batch.validatedMappingRevision !== batch.mappingRevision ||
-        !batch.reviewedById ||
-        batch.form.formType !== 'ACTIVITY_MONITORING'
-      )
-        throw new ConflictException('The participation processing claim is stale.')
-      const row = await tx.dataImportRow.findFirst({
-        where: {
-          id: rowId,
-          organizationId: actor.organizationId,
-          projectId: batch.projectId,
-          importBatchId: batch.id,
-          status: 'PROCESSING',
-          processingClaimId: claimId,
-          mappingRevision: batch.mappingRevision,
-          validationRevision: batch.validationRevision,
-        },
-        select: { id: true, rowNumber: true, normalizedData: true },
-      })
-      if (!row) throw new ConflictException('The participation row claim is unavailable.')
-      const existing = await tx.formSubmission.findUnique({
-        where: { importRowId: row.id },
-        select: { id: true },
-      })
-      if (existing) {
-        const participation = await tx.beneficiaryActivityParticipation.findUnique({
-          where: { sourceSubmissionId: existing.id },
+    return withAuthorizedOperation(
+      this.prisma,
+      identity,
+      'imports.process',
+      async (tx, actor) => {
+        const batch = await this.requireBatchWithHeaders(tx, actor, projectId, batchId)
+        if (
+          batch.status !== 'PROCESSING' ||
+          batch.processingClaimId !== claimId ||
+          batch.validationRevision !== validationRevision ||
+          batch.validatedMappingRevision !== batch.mappingRevision ||
+          !batch.reviewedById ||
+          batch.form.formType !== 'ACTIVITY_MONITORING'
+        )
+          throw new ConflictException('The participation processing claim is stale.')
+        const row = await tx.dataImportRow.findFirst({
+          where: {
+            id: rowId,
+            organizationId: actor.organizationId,
+            projectId: batch.projectId,
+            importBatchId: batch.id,
+            status: 'PROCESSING',
+            processingClaimId: claimId,
+            mappingRevision: batch.mappingRevision,
+            validationRevision: batch.validationRevision,
+          },
+          select: { id: true, rowNumber: true, normalizedData: true },
+        })
+        if (!row) throw new ConflictException('The participation row claim is unavailable.')
+        const existing = await tx.formSubmission.findUnique({
+          where: { importRowId: row.id },
           select: { id: true },
         })
-        if (!participation)
-          throw new ConflictException(
-            'The imported submission is missing its participation effect.',
-          )
+        if (existing) {
+          const participation = await tx.beneficiaryActivityParticipation.findUnique({
+            where: { sourceSubmissionId: existing.id },
+            select: { id: true },
+          })
+          if (!participation)
+            throw new ConflictException(
+              'The imported submission is missing its participation effect.',
+            )
+          await tx.dataImportRow.update({
+            where: { id: row.id },
+            data: {
+              status: 'PROCESSED',
+              processedAt: new Date(),
+              processingClaimId: null,
+              processingClaimedAt: null,
+              processingErrorCode: null,
+            },
+          })
+          return
+        }
+        const values = safeRawData(row.normalizedData as Prisma.JsonValue)
+        const fields = await tx.formField.findMany({
+          where: {
+            organizationId: actor.organizationId,
+            projectId: batch.projectId,
+            formId: batch.formId,
+          },
+          select: fieldSelection,
+          orderBy: { sequenceNo: 'asc' },
+          take: IMPORT_ENGINEERING_LIMITS.maxMappedFields,
+        })
+        const verified = normalizeImportedRow(fields.map(contract), values)
+        if (!verified.valid) throw new ConflictException('The normalized row no longer validates.')
+        const form = await tx.digitalForm.findFirst({
+          where: {
+            id: batch.formId,
+            organizationId: actor.organizationId,
+            projectId: batch.projectId,
+            version: batch.formVersion,
+            formType: 'ACTIVITY_MONITORING',
+            status: 'PUBLISHED',
+          },
+          select: { id: true, version: true, activityId: true, journeyStageId: true },
+        })
+        if (!form)
+          throw new ConflictException('The activity-monitoring form version is unavailable.')
+        const submission = await tx.formSubmission.create({
+          data: {
+            organizationId: actor.organizationId,
+            projectId: batch.projectId,
+            formId: batch.formId,
+            formVersion: batch.formVersion,
+            clientSubmissionId: row.id,
+            importBatchId: batch.id,
+            importRowId: row.id,
+            submittedById: actor.userId,
+            source: 'IMPORTED_DATASET',
+            status: 'DRAFT',
+          },
+          select: { id: true },
+        })
+        await tx.formResponseValue.createMany({
+          data: fields.map((field) => ({
+            organizationId: actor.organizationId,
+            projectId: batch.projectId,
+            formId: batch.formId,
+            submissionId: submission.id,
+            fieldId: field.id,
+            value:
+              verified.values[field.code] === null
+                ? Prisma.JsonNull
+                : (verified.values[field.code] as Prisma.InputJsonValue),
+          })),
+        })
+        const outcome = await this.participants.promoteParticipation(tx, actor, {
+          projectId: batch.projectId,
+          form,
+          submissionId: submission.id,
+          values: verified.values,
+          validatedById: batch.reviewedById,
+        })
+        const finishedAt = new Date()
         await tx.dataImportRow.update({
           where: { id: row.id },
           data: {
             status: 'PROCESSED',
-            processedAt: new Date(),
+            processedAt: finishedAt,
+            processingErrorCode: null,
             processingClaimId: null,
             processingClaimedAt: null,
-            processingErrorCode: null,
           },
         })
-        return
-      }
-      const values = safeRawData(row.normalizedData as Prisma.JsonValue)
-      const fields = await tx.formField.findMany({
-        where: {
-          organizationId: actor.organizationId,
-          projectId: batch.projectId,
-          formId: batch.formId,
-        },
-        select: fieldSelection,
-        orderBy: { sequenceNo: 'asc' },
-        take: IMPORT_ENGINEERING_LIMITS.maxColumns,
-      })
-      const verified = normalizeImportedRow(fields.map(contract), values)
-      if (!verified.valid) throw new ConflictException('The normalized row no longer validates.')
-      const form = await tx.digitalForm.findFirst({
-        where: {
-          id: batch.formId,
-          organizationId: actor.organizationId,
-          projectId: batch.projectId,
-          version: batch.formVersion,
-          formType: 'ACTIVITY_MONITORING',
-          status: 'PUBLISHED',
-        },
-        select: { id: true, version: true, activityId: true, journeyStageId: true },
-      })
-      if (!form) throw new ConflictException('The activity-monitoring form version is unavailable.')
-      const submission = await tx.formSubmission.create({
-        data: {
-          organizationId: actor.organizationId,
-          projectId: batch.projectId,
-          formId: batch.formId,
-          formVersion: batch.formVersion,
-          clientSubmissionId: row.id,
-          importBatchId: batch.id,
-          importRowId: row.id,
-          submittedById: actor.userId,
-          source: 'IMPORTED_DATASET',
-          status: 'DRAFT',
-        },
-        select: { id: true },
-      })
-      await tx.formResponseValue.createMany({
-        data: fields.map((field) => ({
-          organizationId: actor.organizationId,
-          projectId: batch.projectId,
-          formId: batch.formId,
-          submissionId: submission.id,
-          fieldId: field.id,
-          value:
-            verified.values[field.code] === null
-              ? Prisma.JsonNull
-              : (verified.values[field.code] as Prisma.InputJsonValue),
-        })),
-      })
-      const outcome = await this.participants.promoteParticipation(tx, actor, {
-        projectId: batch.projectId,
-        form,
-        submissionId: submission.id,
-        values: verified.values,
-        validatedById: batch.reviewedById,
-      })
-      const finishedAt = new Date()
-      await tx.dataImportRow.update({
-        where: { id: row.id },
-        data: {
-          status: 'PROCESSED',
-          processedAt: finishedAt,
-          processingErrorCode: null,
-          processingClaimId: null,
-          processingClaimedAt: null,
-        },
-      })
-      await tx.auditLog.create({
-        data: {
-          organizationId: actor.organizationId,
-          actorUserId: actor.userId,
-          projectId: batch.projectId,
-          action: 'IMPORT_PARTICIPATION_ROW_COMMITTED',
-          entityType: 'DataImportRow',
-          entityId: row.id,
-          changes: {
-            importBatchId: batch.id,
-            sourceRowNumber: row.rowNumber,
-            participationId: outcome.participationId,
-            enrollmentId: outcome.enrollmentId,
-            submissionId: submission.id,
+        await tx.auditLog.create({
+          data: {
+            organizationId: actor.organizationId,
+            actorUserId: actor.userId,
+            projectId: batch.projectId,
+            action: 'IMPORT_PARTICIPATION_ROW_COMMITTED',
+            entityType: 'DataImportRow',
+            entityId: row.id,
+            changes: {
+              importBatchId: batch.id,
+              sourceRowNumber: row.rowNumber,
+              participationId: outcome.participationId,
+              enrollmentId: outcome.enrollmentId,
+              submissionId: submission.id,
+            },
           },
-        },
-      })
-    })
+        })
+      },
+      { transactionTimeoutMs: PARTICIPATION_IMPORT_TRANSACTION_TIMEOUT_MS },
+    )
   }
-
   private promoteGenericRow(
     identity: ApplicationIdentity,
     projectId: string,
@@ -1371,7 +1421,7 @@ export class ImportsService {
         },
         select: fieldSelection,
         orderBy: { sequenceNo: 'asc' },
-        take: IMPORT_ENGINEERING_LIMITS.maxColumns,
+        take: IMPORT_ENGINEERING_LIMITS.maxMappedFields,
       })
       const verified = normalizeImportedRow(fields.map(contract), values)
       if (!verified.valid) throw new ConflictException('The normalized row no longer validates.')
@@ -1493,10 +1543,10 @@ export class ImportsService {
       if (batch.processingClaimId !== claimId) {
         throw new ConflictException('The processing claim changed concurrently.')
       }
-      await tx.dataImportBatch.update({
-        where: { id: batch.id },
-        data: { processingClaimId: null, processingClaimedAt: null },
-      })
+      // Reconcile the status, counters, and claim release atomically. While a batch
+      // is PROCESSING, the database state contract requires its claim fields to
+      // remain populated; clearing them in a separate UPDATE creates a transient
+      // invalid row and fails the checkpoint before reconciliation can run.
       await this.reconcileBatch(tx, batch.id)
       await tx.auditLog.create({
         data: {

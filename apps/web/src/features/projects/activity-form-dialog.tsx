@@ -100,15 +100,55 @@ export const ActivityFormDialog = ({
       return
     }
 
-    form.reset({
-      ...defaultValues,
-      connectedIndicators: indicators[0]?.id ?? '',
-    })
-  }, [activity, form, indicators, open])
+    form.reset(defaultValues)
+  }, [activity, form, open])
 
   const onSubmit = async (values: ActivityFormSchema) => {
     const assignedTo = splitValues(values.assignedOfficers)
     const indicatorIds = splitValues(values.connectedIndicators)
+    const projectOfficers = users.filter(
+      (user) =>
+        user.role === 'Project Officer' &&
+        user.accountStatus === 'Active' &&
+        user.projectIds.includes(projectId),
+    )
+    const assignedUserIds: string[] = []
+
+    for (const name of assignedTo) {
+      const matches = projectOfficers.filter(
+        (user) => user.name.trim().toLocaleLowerCase() === name.toLocaleLowerCase(),
+      )
+      if (matches.length !== 1) {
+        form.setError('assignedOfficers', {
+          message: `Select one uniquely named active Project Officer assigned to this project for "${name}".`,
+        })
+        return
+      }
+      assignedUserIds.push(matches[0].id)
+    }
+
+    if (!activity && indicatorIds.length > 0) {
+      form.setError('connectedIndicators', {
+        message: 'Create the activity first, then connect indicators from the Indicators page.',
+      })
+      return
+    }
+    if (!activity && values.journeyStageId) {
+      form.setError('journeyStageId', {
+        message: 'Create the activity first, then map it from the Journey Stages page.',
+      })
+      return
+    }
+    if (
+      activity &&
+      (indicatorIds.join(',') !== activity.indicatorIds.join(',') ||
+        values.journeyStageId !== activity.journeyStageId)
+    ) {
+      form.setError('connectedIndicators', {
+        message: 'Manage indicator and journey-stage connections from their project pages.',
+      })
+      return
+    }
 
     try {
       const savedActivity = activity
@@ -121,13 +161,12 @@ export const ActivityFormDialog = ({
             dueDate: values.dueDate,
             targetBeneficiaries: values.targetBeneficiaries,
             budgetAllocation: values.budgetAllocation,
-            assignedTo,
-            indicatorIds,
-            journeyStageId: values.journeyStageId,
             status: values.status as ActivityStatus,
             progress: values.progress,
             beneficiariesReached: values.beneficiariesReached,
             budgetLogged: values.budgetLogged,
+            assignedUserIds,
+            expectedUpdatedAt: activity.updatedAt,
           })
         : await pathwaysClient.createActivity({
             projectId,
@@ -137,23 +176,29 @@ export const ActivityFormDialog = ({
             dueDate: values.dueDate,
             targetBeneficiaries: values.targetBeneficiaries,
             budgetAllocation: values.budgetAllocation,
-            assignedTo,
-            indicatorIds,
-            journeyStageId: values.journeyStageId,
+            assignedUserIds,
           })
 
       toast.success(activity ? 'Activity updated.' : 'Activity created.')
       onCreatedOrUpdated(savedActivity)
       onOpenChange(false)
-    } catch {
-      toast.error('Activity saving is not configured.', {
-        description: 'Your draft remains open. Connect the Activities backend to save it.',
+    } catch (error) {
+      toast.error('Activity could not be saved.', {
+        description:
+          error instanceof Error
+            ? error.message
+            : 'The server rejected the activity. Your draft remains open.',
       })
     }
   }
 
   const projectOfficerNames = users
-    .filter((user) => user.role === 'Project Officer' && user.accountStatus === 'Active')
+    .filter(
+      (user) =>
+        user.role === 'Project Officer' &&
+        user.accountStatus === 'Active' &&
+        user.projectIds.includes(projectId),
+    )
     .map((user) => user.name)
     .join(', ')
 

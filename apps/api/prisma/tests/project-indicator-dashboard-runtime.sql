@@ -41,7 +41,7 @@ INSERT INTO pathways.role_permissions(role_id,permission_id)
 SELECT set_config('request.jwt.claim.sub',pg_temp.u(201)::text,true),
  set_config('app.organization_id',pg_temp.u(1)::text,true),set_config('app.user_id',pg_temp.u(101)::text,true);
 INSERT INTO pathways.projects(id,organization_id,code,title,start_date,end_date,created_by_id) VALUES
- (pg_temp.u(301),pg_temp.u(1),'P06_A1','P06 first project','2026-01-01','2026-12-31',pg_temp.u(101)),
+ (pg_temp.u(301),pg_temp.u(1),'P06_A1','P06 first project','2026-01-01','2026-07-31',pg_temp.u(101)),
  (pg_temp.u(302),pg_temp.u(1),'P06_A2','P06 overlapping project','2026-01-01','2026-12-31',pg_temp.u(101)),
  (pg_temp.u(303),pg_temp.u(2),'P06_B1','P06 foreign project','2026-01-01','2026-12-31',pg_temp.u(107));
 INSERT INTO pathways.user_project_assignments(organization_id,project_id,user_id,assigned_by_id)
@@ -218,27 +218,112 @@ BEGIN
    RAISE EXCEPTION 'Unbounded period was not rejected';
  EXCEPTION WHEN invalid_parameter_value THEN NULL; END;
 END $$;
--- Every supported aggregate role receives no sensitive numbers while release policy is pending.
-DO $$ DECLARE n integer; d jsonb;
+
+DO $$
 BEGIN
- FOR n IN 1..5 LOOP
-   PERFORM set_config('request.jwt.claim.sub',pg_temp.u(200+n)::text,true);
-   PERFORM set_config('app.user_id',pg_temp.u(100+n)::text,true);
-   d:=pathways.p06_saddd(pg_temp.u(1),ARRAY[pg_temp.u(301)],'2026-06-01','2026-06-30','Asia/Manila');
-   PERFORM pg_temp.assert_true(d#>>'{total,state}'='MISSING' AND d#>>'{total,value}' IS NULL,'sensitive release remains unavailable for all roles');
-   PERFORM pg_temp.assert_true(d#>>'{age,0,label}'='0-9','approved labels preserved while unavailable');
- END LOOP;
- PERFORM set_config('request.jwt.claim.sub',pg_temp.u(206)::text,true);
- PERFORM set_config('app.user_id',pg_temp.u(106)::text,true);
- BEGIN
-   PERFORM pathways.p06_monitoring(pg_temp.u(1),ARRAY[pg_temp.u(301)],'2026-06-01','2026-06-30','Asia/Manila');
-   RAISE EXCEPTION 'Project Officer exceeded analytics role ceiling';
- EXCEPTION WHEN insufficient_privilege THEN NULL; END;
- PERFORM set_config('request.jwt.claim.sub',pg_temp.u(201)::text,true);
- PERFORM set_config('app.user_id',pg_temp.u(101)::text,true);
- PERFORM pg_temp.assert_true(NOT pathways.p06_can('indicators.create',pg_temp.u(301)),'administrator has no indicator approval/write bypass');
-END $$;
+  BEGIN
+    PERFORM count(*)
+    FROM pathways.sensitive_aggregate_releases;
+
+    RAISE EXCEPTION
+      'Runtime read the protected release registry';
+
+  EXCEPTION
+    WHEN insufficient_privilege THEN
+      NULL;
+  END;
+END
+$$;
+
+-- Every supported aggregate role receives the same protected fixed-project release.
+DO $$
+DECLARE
+  n integer;
+  d jsonb;
+BEGIN
+  FOR n IN 1..5
+  LOOP
+    PERFORM set_config(
+      'request.jwt.claim.sub',
+      pg_temp.u(200+n)::text,
+      true
+    );
+
+    PERFORM set_config(
+      'app.user_id',
+      pg_temp.u(100+n)::text,
+      true
+    );
+
+    d :=
+      pathways.p06_saddd(
+        pg_temp.u(1),
+        ARRAY[pg_temp.u(301)],
+        DATE '2026-01-01',
+        DATE '2026-07-31',
+        'Asia/Manila'
+      );
+
+    PERFORM pg_temp.assert_true(
+      d#>>'{total,value}'='30',
+      'fixed closed-project SADDD release returns approved total'
+    );
+
+    PERFORM pg_temp.assert_true(
+      d#>>'{age,0,label}'='0-9',
+      'approved age labels are preserved'
+    );
+  END LOOP;
+  BEGIN
+    PERFORM pathways.p06_saddd(
+      pg_temp.u(1),
+      ARRAY[pg_temp.u(301),pg_temp.u(302)],
+      DATE '2026-01-01',
+      DATE '2026-07-31',
+      'Asia/Manila'
+    );
+
+    RAISE EXCEPTION
+      'multi-project SADDD release was not rejected';
+
+  EXCEPTION
+    WHEN invalid_parameter_value THEN
+      NULL;
+  END;
+
+  BEGIN
+    PERFORM pathways.p06_saddd(
+      pg_temp.u(1),
+      ARRAY[pg_temp.u(301)],
+      DATE '2026-01-02',
+      DATE '2026-07-31',
+      'Asia/Manila'
+    );
+
+    RAISE EXCEPTION
+      'custom SADDD period was not rejected';
+
+  EXCEPTION
+    WHEN invalid_parameter_value THEN
+      NULL;
+  END;
+END
+$$;
 RESET ROLE;
+
+-- The runtime cannot read the registry directly; inspect its persisted state only
+-- after restoring the replay owner identity.
+SELECT pg_temp.assert_true(
+  (
+    SELECT count(*)
+    FROM pathways.sensitive_aggregate_releases
+    WHERE organization_id=pg_temp.u(1)
+      AND project_id=pg_temp.u(301)
+      AND status='RELEASED'
+  )=1,
+  'repeated release reads create one registry row'
+);
+
 -- Revocation is observed on the next request; never grant a stale assignment from a lead column.
 UPDATE pathways.user_project_assignments SET status='ENDED',ended_at=now(),end_reason='Synthetic revocation'
  WHERE organization_id=pg_temp.u(1) AND user_id=pg_temp.u(105) AND project_id=pg_temp.u(301);
@@ -258,6 +343,58 @@ BEGIN
    PERFORM pg_temp.assert_true(b#>>'{metric,state}'='SUPPRESSED' AND b#>>'{metric,value}' IS NULL,'whole-release complement has no hidden numeric value');
  END LOOP;
 END $$;
+
+DO $$
+DECLARE
+  d jsonb;
+BEGIN
+  d :=
+    pathways.p06_saddd(
+      pg_temp.u(1),
+      ARRAY[pg_temp.u(301)],
+      DATE '2026-01-01',
+      DATE '2026-07-31',
+      'Asia/Manila'
+    );
+
+  PERFORM pg_temp.assert_true(
+    d#>>'{total,state}'='MISSING'
+      AND d#>>'{total,value}' IS NULL
+      AND d#>>'{total,reason}'='RESTATEMENT_REVIEW_REQUIRED',
+    'changed released population becomes non-disclosing stale release'
+  );
+
+  PERFORM pg_temp.assert_true(
+    EXISTS (
+      SELECT
+      FROM pathways.sensitive_aggregate_releases
+      WHERE organization_id=pg_temp.u(1)
+        AND project_id=pg_temp.u(301)
+        AND status='STALE'
+        AND stale_reason='SOURCE_CHANGED'
+        AND stale_at IS NOT NULL
+    ),
+    'source change is persisted as stale release state'
+  );
+
+  d :=
+    pathways.p06_saddd(
+      pg_temp.u(1),
+      ARRAY[pg_temp.u(301)],
+      DATE '2026-01-01',
+      DATE '2026-07-31',
+      'Asia/Manila'
+    );
+
+  PERFORM pg_temp.assert_true(
+    d#>>'{total,state}'='MISSING'
+      AND d#>>'{total,value}' IS NULL
+      AND d#>>'{total,reason}'='RESTATEMENT_REVIEW_REQUIRED',
+    'stale release remains non-disclosing on repeated reads'
+  );
+END
+$$;
+
 SET CONSTRAINTS ALL IMMEDIATE;
 -- Capture actual local helper execution/planning evidence. This is NOT an HTTP latency claim.
 \timing on

@@ -1,3 +1,4 @@
+import { performance } from 'node:perf_hooks'
 import {
   Inject,
   Injectable,
@@ -9,11 +10,25 @@ import { createClient } from '@supabase/supabase-js'
 import { UUID_PATTERN, type VerifiedAuthIdentity } from './developer-access'
 import { SessionLivenessService } from './session-liveness.service'
 
+const MAX_REPORTED_AUTH_STAGE_MS = 30_000
+
+const boundedStageDuration = (startedAt: number) =>
+  Math.min(MAX_REPORTED_AUTH_STAGE_MS, Math.max(0, Math.round(performance.now() - startedAt)))
+
+export interface VerifiedAuthSession {
+  identity: VerifiedAuthIdentity
+  sessionId: string
+  stageTimings: {
+    claimsMs: number
+    currentUserMs: number
+  }
+}
+
 @Injectable()
 export class TokenAuthService {
   constructor(@Inject(SessionLivenessService) private readonly sessions: SessionLivenessService) {}
 
-  async verify(token: string): Promise<VerifiedAuthIdentity> {
+  async verifyCurrent(token: string): Promise<VerifiedAuthSession> {
     // Never parse the entire environment into errors that could contain secrets.
     const url = process.env.SUPABASE_URL
     const key =
@@ -33,7 +48,7 @@ export class TokenAuthService {
     if (!key) {
       throw new ServiceUnavailableException('Authentication is not configured.')
     }
-    let verified: { identity: VerifiedAuthIdentity; sessionId: string }
+    let verified: VerifiedAuthSession
     try {
       const supabase = createClient(authOrigin, key, {
         auth: { autoRefreshToken: false, persistSession: false, detectSessionInUrl: false },
@@ -54,7 +69,9 @@ export class TokenAuthService {
           },
         },
       })
+      const claimsStartedAt = performance.now()
       const result = await supabase.auth.getClaims(token)
+      const claimsMs = boundedStageDuration(claimsStartedAt)
       if (result.error || !result.data) throw new Error('Invalid token')
       const claims = result.data.claims
       const now = Date.now() / 1000
@@ -94,7 +111,9 @@ export class TokenAuthService {
         throw new Error('Invalid claims')
       }
       // Current identity + verified signature. Neither metadata field grants authority.
+      const currentUserStartedAt = performance.now()
       const current = await supabase.auth.getUser(token)
+      const currentUserMs = boundedStageDuration(currentUserStartedAt)
       if (
         current.error ||
         !current.data.user ||
@@ -107,14 +126,27 @@ export class TokenAuthService {
       ) {
         throw new Error('Invalid current identity')
       }
-      verified = { identity: { id: claims.sub, aal: claims.aal }, sessionId: claims.session_id }
+      verified = {
+        identity: { id: claims.sub, aal: claims.aal },
+        sessionId: claims.session_id,
+        stageTimings: { claimsMs, currentUserMs },
+      }
     } catch {
       // Discard provider errors; they can contain tokens or request details.
       throw new UnauthorizedException('Invalid or expired authentication. Sign in again.')
     }
+    return verified
+  }
+
+  async assertSessionLive(verified: VerifiedAuthSession): Promise<void> {
     // Keep infrastructure failures as sanitized 503s. An unexpired signed JWT
     // must not bypass a committed session removal, missing helper or DB outage.
     await this.sessions.assertLive(verified.identity.id, verified.sessionId)
+  }
+
+  async verify(token: string): Promise<VerifiedAuthIdentity> {
+    const verified = await this.verifyCurrent(token)
+    await this.assertSessionLive(verified)
     return verified.identity
   }
 }

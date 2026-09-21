@@ -1,4 +1,4 @@
-import { ForbiddenException, Logger } from '@nestjs/common'
+import { Logger } from '@nestjs/common'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   type RouteKey,
@@ -6,12 +6,10 @@ import {
   routePolicy,
 } from '../../../../web/src/lib/rbac/route-access'
 import type { PrismaService } from '../../prisma/prisma.service'
-import { readApplicationProfile } from './application-profile.service'
 import { type CanonicalRole, rolePermissions } from './authorization-policy'
 import type { ApplicationIdentity } from './developer-access'
 import { RouteAccessService } from './route-access.service'
 
-vi.mock('./application-profile.service', () => ({ readApplicationProfile: vi.fn() }))
 const id = '10000000-0000-4000-8000-000000000001'
 const other = '20000000-0000-4000-8000-000000000002'
 const fixture = (role: CanonicalRole): ApplicationIdentity => ({
@@ -50,7 +48,6 @@ const select = (route: RouteKey): RouteSelection => ({
 })
 beforeEach(() => {
   vi.clearAllMocks()
-  vi.mocked(readApplicationProfile).mockResolvedValue(fixture('SYSTEM_ADMINISTRATOR'))
   for (const model of Object.values(tx)) model.findFirst.mockResolvedValue({ id })
 })
 afterEach(() => {
@@ -62,8 +59,8 @@ describe('central policy: every locked role against every protected entry route'
     for (const route of Object.keys(routePolicy) as RouteKey[]) {
       it(`${role} / ${route}`, async () => {
         const identity = fixture(role)
-        vi.mocked(readApplicationProfile).mockResolvedValue(identity)
-        const result = service.check(identity, select(route))
+        const selected = select(route)
+        const result = service.check(identity, selected)
         if (allowed[role].split(' ').includes(route)) {
           expect(await result).toEqual({
             route,
@@ -72,6 +69,9 @@ describe('central policy: every locked role against every protected entry route'
               ? 'aggregate-only'
               : 'records-or-none',
           })
+          if (!selected.projectId && !selected.activityId && !selected.beneficiaryId) {
+            expect(transaction).not.toHaveBeenCalled()
+          }
         } else await expect(result).rejects.toMatchObject({ status: 403 })
       })
     }
@@ -85,7 +85,8 @@ describe('bounded development-only route-check failure evidence', () => {
     vi.stubEnv('NODE_ENV', 'development')
     output = vi.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined)
   })
-  const fail = () => service.check(fixture('SYSTEM_ADMINISTRATOR'), { route: 'dashboard' })
+  const fail = () =>
+    service.check(fixture('SYSTEM_ADMINISTRATOR'), { route: 'project', projectId: id })
 
   it.each([
     'P1000',
@@ -104,14 +105,14 @@ describe('bounded development-only route-check failure evidence', () => {
       meta: privateContent,
       cause: privateContent,
     })
-    vi.mocked(readApplicationProfile).mockRejectedValue(error)
+    tx.project.findFirst.mockRejectedValue(error)
     await expect(fail()).rejects.toMatchObject({
       status: 503,
       message: 'Route verification is temporarily unavailable.',
     })
     expect(output).toHaveBeenCalledExactlyOnceWith({
       event: 'PATHWAYS_ROUTE_CHECK_UNAVAILABLE',
-      stage: 'PROFILE_READ',
+      stage: 'PROJECT_READ',
       reason: code,
       ...(code === 'P2028' ? { transactionFailure: 'UNCLASSIFIED' } : {}),
     })
@@ -119,7 +120,7 @@ describe('bounded development-only route-check failure evidence', () => {
   })
 
   it.each(['start', 'completion'])(
-    'distinguishes transaction %s from profile work',
+    'distinguishes transaction %s from scoped object work',
     async (phase) => {
       transaction.mockImplementationOnce(async (_context, work) => {
         if (phase === 'completion') await work(tx)
@@ -156,7 +157,7 @@ describe('bounded development-only route-check failure evidence', () => {
 
   it.each(['production', 'test'])('emits nothing in %s', async (mode) => {
     vi.stubEnv('NODE_ENV', mode)
-    vi.mocked(readApplicationProfile).mockRejectedValue({ code: 'P2028' })
+    tx.project.findFirst.mockRejectedValue({ code: 'P2028' })
     await expect(fail()).rejects.toMatchObject({ status: 503 })
     expect(output).not.toHaveBeenCalled()
   })
@@ -164,7 +165,7 @@ describe('bounded development-only route-check failure evidence', () => {
   it('never evaluates a code getter or emits an arbitrary provider code', async () => {
     const getter = vi.fn(() => privateContent)
     const error = Object.defineProperty(new Error(privateContent), 'code', { get: getter })
-    vi.mocked(readApplicationProfile)
+    tx.project.findFirst
       .mockRejectedValueOnce(error)
       .mockRejectedValueOnce({ code: privateContent })
     await expect(fail()).rejects.toMatchObject({ status: 503 })
@@ -173,7 +174,7 @@ describe('bounded development-only route-check failure evidence', () => {
     for (const [event] of output.mock.calls) {
       expect(event).toEqual({
         event: 'PATHWAYS_ROUTE_CHECK_UNAVAILABLE',
-        stage: 'PROFILE_READ',
+        stage: 'PROJECT_READ',
         reason: 'CHECK_FAILED',
       })
     }
@@ -181,12 +182,13 @@ describe('bounded development-only route-check failure evidence', () => {
   })
 
   it('does not label successful access or expected permission denial as an outage', async () => {
-    await expect(fail()).resolves.toHaveProperty('route', 'dashboard')
-    vi.mocked(readApplicationProfile).mockResolvedValue({
-      ...fixture('SYSTEM_ADMINISTRATOR'),
-      permissions: [],
-    })
-    await expect(fail()).rejects.toMatchObject({ status: 403 })
+    await expect(fail()).resolves.toHaveProperty('route', 'project')
+    await expect(
+      service.check(
+        { ...fixture('SYSTEM_ADMINISTRATOR'), permissions: [] },
+        { route: 'dashboard' },
+      ),
+    ).rejects.toMatchObject({ status: 403 })
     expect(output).not.toHaveBeenCalled()
   })
 
@@ -194,7 +196,7 @@ describe('bounded development-only route-check failure evidence', () => {
     output.mockImplementation(() => {
       throw new Error(privateContent)
     })
-    vi.mocked(readApplicationProfile).mockRejectedValue({ code: 'P2028' })
+    tx.project.findFirst.mockRejectedValue({ code: 'P2028' })
     await expect(fail()).rejects.toMatchObject({
       status: 503,
       message: 'Route verification is temporarily unavailable.',
@@ -210,7 +212,7 @@ describe('bounded development-only route-check failure evidence', () => {
   ])(
     'preserves the fixed response while classifying transaction failure %#',
     async (detail, kind) => {
-      vi.mocked(readApplicationProfile).mockRejectedValue({
+      tx.project.findFirst.mockRejectedValue({
         code: 'P2028',
         meta: { error: detail },
         message: privateContent,
@@ -221,37 +223,37 @@ describe('bounded development-only route-check failure evidence', () => {
       })
       expect(output).toHaveBeenCalledExactlyOnceWith({
         event: 'PATHWAYS_ROUTE_CHECK_UNAVAILABLE',
-        stage: 'PROFILE_READ',
+        stage: 'PROJECT_READ',
         reason: 'P2028',
         transactionFailure: kind,
       })
     },
   )
 })
-describe('fresh transaction and relational object scope', () => {
-  it('rechecks membership and role between requests, ignoring old identity permissions', async () => {
-    const identity = fixture('SYSTEM_ADMINISTRATOR')
-    await service.check(identity, { route: 'beneficiaries' })
-    vi.mocked(readApplicationProfile).mockResolvedValue(fixture('GRANT_MANAGER'))
-    await expect(service.check(identity, { route: 'beneficiaries' })).rejects.toMatchObject({
-      status: 403,
-    })
-    vi.mocked(readApplicationProfile).mockRejectedValue(new ForbiddenException())
-    await expect(service.check(identity, { route: 'dashboard' })).rejects.toMatchObject({
-      status: 403,
-    })
-    expect(readApplicationProfile).toHaveBeenCalledTimes(3)
-  })
+describe('same-request authority and relational object scope', () => {
+  it.each([
+    ['SYSTEM_ADMINISTRATOR', 'dashboard'],
+    ['PROJECT_MANAGER', 'collection'],
+    ['MONITORING_AND_EVALUATION_OFFICER', 'imports'],
+    ['MONITORING_AND_EVALUATION_OFFICER', 'reports'],
+    ['SYSTEM_ADMINISTRATOR', 'users'],
+  ] as const)(
+    'uses the freshly guard-resolved context without a duplicate transaction: %s / %s',
+    async (role, route) => {
+      await expect(service.check(fixture(role), { route })).resolves.toHaveProperty('route', route)
+      expect(transaction).not.toHaveBeenCalled()
+    },
+  )
   it.each(['id', 'userId', 'organizationId'] as const)(
-    'rejects cross-user/organization %s returned by the authority',
+    'rejects malformed server authority %s before a transaction',
     async (field) => {
-      vi.mocked(readApplicationProfile).mockResolvedValue({
-        ...fixture('SYSTEM_ADMINISTRATOR'),
-        [field]: other,
-      })
       await expect(
-        service.check(fixture('SYSTEM_ADMINISTRATOR'), { route: 'dashboard' }),
+        service.check(
+          { ...fixture('SYSTEM_ADMINISTRATOR'), [field]: 'fabricated' },
+          { route: 'dashboard' },
+        ),
       ).rejects.toMatchObject({ status: 403 })
+      expect(transaction).not.toHaveBeenCalled()
     },
   )
   it.each([
@@ -273,13 +275,19 @@ describe('fresh transaction and relational object scope', () => {
         { route: 'dashboard' },
       ),
     ).rejects.toMatchObject({ status: 403 })
-    vi.mocked(readApplicationProfile).mockResolvedValue({
-      ...fixture('SYSTEM_ADMINISTRATOR'),
-      permissions: [],
-    })
     await expect(
-      service.check(fixture('SYSTEM_ADMINISTRATOR'), { route: 'dashboard' }),
+      service.check(
+        { ...fixture('SYSTEM_ADMINISTRATOR'), permissions: [] },
+        { route: 'dashboard' },
+      ),
     ).rejects.toMatchObject({ status: 403 })
+    await expect(
+      service.check(
+        { ...fixture('SYSTEM_ADMINISTRATOR'), roles: ['UNREVIEWED'] } as ApplicationIdentity,
+        { route: 'dashboard' },
+      ),
+    ).rejects.toMatchObject({ status: 403 })
+    expect(transaction).not.toHaveBeenCalled()
   })
   it.each([
     'PROJECT_MANAGER',
@@ -288,16 +296,14 @@ describe('fresh transaction and relational object scope', () => {
     'GRANT_MANAGER',
   ] as const)('requires current project assignment: %s', async (role) => {
     const identity = fixture(role)
-    vi.mocked(readApplicationProfile).mockResolvedValue(identity)
     await service.check(identity, { route: 'project', projectId: id })
     expect(tx.project.findFirst).toHaveBeenCalledWith({
       where: { AND: [{ organizationId: id, archivedAt: null, id: { in: [id] } }, { id }] },
       select: { id: true },
     })
-    vi.mocked(readApplicationProfile).mockResolvedValue({ ...identity, assignedProjectIds: [] })
     tx.project.findFirst.mockResolvedValue(null)
     await expect(
-      service.check(identity, { route: 'project', projectId: id }),
+      service.check({ ...identity, assignedProjectIds: [] }, { route: 'project', projectId: id }),
     ).rejects.toMatchObject({ status: 404 })
     expect(tx.project.findFirst.mock.lastCall?.[0].where.AND[0].id.in).toEqual([])
   })
@@ -307,7 +313,6 @@ describe('fresh transaction and relational object scope', () => {
       organizationId: id,
       archivedAt: null,
     })
-    vi.mocked(readApplicationProfile).mockResolvedValue(fixture('PROGRAM_MANAGER'))
     await service.check(fixture('PROGRAM_MANAGER'), { route: 'project', projectId: other })
     expect(tx.project.findFirst.mock.lastCall?.[0].where.AND[0].OR[1]).toEqual({
       program: { organizationId: id, managerUserId: id, archivedAt: null },
@@ -345,26 +350,47 @@ describe('fresh transaction and relational object scope', () => {
       select: { id: true },
     })
   })
+  it('binds beneficiary route verification to the selected authorized project', async () => {
+    await service.check(fixture('PROJECT_OFFICER'), {
+      route: 'beneficiary',
+      beneficiaryId: other,
+      projectId: id,
+    })
+    expect(tx.project.findFirst).toHaveBeenCalledWith({
+      where: { AND: [{ organizationId: id, archivedAt: null, id: { in: [id] } }, { id }] },
+      select: { id: true },
+    })
+    expect(tx.beneficiaryProjectEnrollment.findFirst).toHaveBeenCalledWith({
+      where: {
+        organizationId: id,
+        beneficiaryId: other,
+        projectId: id,
+        beneficiary: { organizationId: id, archivedAt: null },
+        project: { organizationId: id, archivedAt: null, id: { in: [id] } },
+      },
+      select: { id: true },
+    })
+  })
   it.each(['PROGRAM_MANAGER', 'GRANT_MANAGER'] as const)(
     'denies identity data despite injected grants: %s',
     async (role) => {
-      vi.mocked(readApplicationProfile).mockResolvedValue({
+      const identity = {
         ...fixture(role),
         permissions: [...rolePermissions.SYSTEM_ADMINISTRATOR],
-      })
+      }
       await expect(
-        service.check(fixture(role), { route: 'beneficiary', beneficiaryId: id }),
+        service.check(identity, { route: 'beneficiary', beneficiaryId: id }),
       ).rejects.toMatchObject({ status: 403 })
       await expect(
-        service.check(fixture(role), { route: 'reportPreview', kind: 'beneficiary-summary' }),
+        service.check(identity, { route: 'reportPreview', kind: 'beneficiary-summary' }),
       ).rejects.toMatchObject({ status: 403 })
       expect(tx.beneficiaryProjectEnrollment.findFirst).not.toHaveBeenCalled()
     },
   )
   it('sanitizes database failure and never returns records, selectors or provider details', async () => {
-    vi.mocked(readApplicationProfile).mockRejectedValue(new Error('private-provider-detail'))
+    tx.project.findFirst.mockRejectedValue(new Error('private-provider-detail'))
     await expect(
-      service.check(fixture('SYSTEM_ADMINISTRATOR'), { route: 'dashboard' }),
+      service.check(fixture('SYSTEM_ADMINISTRATOR'), { route: 'project', projectId: id }),
     ).rejects.toMatchObject({
       status: 503,
       message: 'Route verification is temporarily unavailable.',

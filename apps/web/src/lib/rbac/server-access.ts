@@ -23,7 +23,11 @@ export async function requireServerPage(route: RouteKey, props: ProtectedPagePro
   if (
     Object.keys(query).some(
       (key) =>
-        !((route === 'reportPreview' && key === 'kind') || (route === 'imports' && key === 'mode')),
+        !(
+          (route === 'reportPreview' && key === 'kind') ||
+          (route === 'imports' && key === 'mode') ||
+          (route === 'beneficiary' && key === 'projectId')
+        ),
     )
   )
     redirect('/unauthorized')

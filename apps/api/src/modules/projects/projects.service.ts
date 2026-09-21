@@ -88,6 +88,7 @@ export class ProjectsService {
   list(identity: ApplicationIdentity) {
     return withAuthorizedOperation(this.prisma, identity, 'projects.read', async (tx, actor) => {
       const rows = await tx.project.findMany({
+        relationLoadStrategy: 'join',
         where: projectScope(actor),
         select: projectSelection,
         orderBy: { id: 'asc' },
@@ -101,6 +102,7 @@ export class ProjectsService {
     return withAuthorizedOperation(this.prisma, identity, 'projects.read', async (tx, actor) => {
       if (!UUID_PATTERN.test(projectId)) throw new NotFoundException('Project unavailable.')
       const row = await tx.project.findFirst({
+        relationLoadStrategy: 'join',
         where: { AND: [projectScope(actor), { id: projectId.toLowerCase() }] },
         select: projectSelection,
       })
@@ -142,6 +144,7 @@ export class ProjectsService {
         },
       })
       const result = await tx.project.findUniqueOrThrow({
+        relationLoadStrategy: 'join',
         where: { id: created.id },
         select: projectSelection,
       })
@@ -180,6 +183,7 @@ export class ProjectsService {
         },
       })
       const result = await tx.project.findUniqueOrThrow({
+        relationLoadStrategy: 'join',
         where: { id: current.id },
         select: projectSelection,
       })

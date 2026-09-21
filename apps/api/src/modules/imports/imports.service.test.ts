@@ -7,7 +7,7 @@ import {
   ServiceUnavailableException,
 } from '@nestjs/common'
 import { Prisma } from '@prisma/client'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { PrismaService } from '@app/prisma/prisma.service'
 import type { ApplicationIdentity } from '../auth/developer-access'
@@ -18,12 +18,14 @@ import { ImportsService, type UploadedImportFile } from './imports.service'
 const state = vi.hoisted(() => ({
   actor: undefined as ApplicationIdentity | undefined,
   tx: undefined as Prisma.TransactionClient | undefined,
+  operationCalls: [] as Array<{ permission: string; options: unknown }>,
 }))
 
 vi.mock('../auth/authorized-operation', () => ({
-  withAuthorizedOperation: vi.fn(async (_prisma, _identity, _permission, work) =>
-    work(state.tx, state.actor),
-  ),
+  withAuthorizedOperation: vi.fn(async (_prisma, _identity, permission, work, options) => {
+    state.operationCalls.push({ permission, options })
+    return work(state.tx, state.actor)
+  }),
 }))
 
 const organizationId = '10000000-0000-4000-8000-000000000001'
@@ -36,6 +38,7 @@ const secondRowId = '60000000-0000-4000-8000-000000000007'
 const clientImportId = '70000000-0000-4000-8000-000000000007'
 const claimId = '80000000-0000-4000-8000-000000000008'
 const now = new Date('2026-09-13T00:00:00.000Z')
+const testUploadsBucket = 'uploads'
 
 const actor: ApplicationIdentity = {
   id: '90000000-0000-4000-8000-000000000009',
@@ -68,7 +71,7 @@ const batch = (patch: Record<string, unknown> = {}) => ({
   fileType: 'CSV' as const,
   sourceChecksum: 'a'.repeat(64),
   clientImportId,
-  storageBucket: 'uploads',
+  storageBucket: testUploadsBucket,
   storageObjectKey: `organizations/${organizationId}/projects/${projectId}/imports/${batchId}/${'a'.repeat(64)}.csv`,
   storageStatus: 'STORED' as const,
   sourceHeaders: ['score'],
@@ -120,6 +123,7 @@ describe('P03 import service', () => {
     formField: { findMany: vi.fn() },
     formSubmission: { findUnique: vi.fn(), create: vi.fn(), update: vi.fn() },
     formResponseValue: { createMany: vi.fn() },
+    beneficiaryActivityParticipation: { findUnique: vi.fn() },
     auditLog: { create: vi.fn() },
   }
   const storage = {
@@ -132,8 +136,10 @@ describe('P03 import service', () => {
 
   beforeEach(() => {
     vi.clearAllMocks()
+    vi.stubEnv('UPLOADS_BUCKET', testUploadsBucket)
     state.actor = actor
     state.tx = tx as unknown as Prisma.TransactionClient
+    state.operationCalls = []
     service = new ImportsService(
       {} as PrismaService,
       storage as unknown as StorageService,
@@ -146,6 +152,9 @@ describe('P03 import service', () => {
     tx.auditLog.create.mockResolvedValue({ id: 'audit' })
     tx.dataImportBatch.update.mockResolvedValue(batch())
     tx.dataImportRow.updateMany.mockResolvedValue({ count: 0 })
+    afterEach(() => {
+      vi.unstubAllEnvs()
+    })
   })
 
   it('rejects unsafe filenames and inconsistent byte metadata before Storage or database access', async () => {
@@ -205,6 +214,94 @@ describe('P03 import service', () => {
     expect(storage.uploadPrivateFile).not.toHaveBeenCalled()
   })
 
+  it('returns persisted ordinal source columns while preserving legacy header compatibility', async () => {
+    const sourceColumns = [
+      { key: 'column_0001', header: 'Score', columnIndex: 1 },
+      { key: 'column_0002', header: 'Score', columnIndex: 2 },
+    ]
+    tx.dataImportBatch.findFirst.mockResolvedValue(batch())
+    tx.dataImportBatch.findUnique.mockResolvedValue({ sourceHeaders: sourceColumns })
+    tx.metadataMapping.findMany.mockResolvedValue([])
+
+    await expect(service.getBatch(actor, projectId, batchId)).resolves.toMatchObject({
+      sourceHeaders: ['column_0001', 'column_0002'],
+      sourceColumns,
+    })
+
+    tx.dataImportBatch.findUnique.mockResolvedValue({ sourceHeaders: ['legacy_score'] })
+    await expect(service.getBatch(actor, projectId, batchId)).resolves.toMatchObject({
+      sourceHeaders: ['legacy_score'],
+      sourceColumns: [{ key: 'legacy_score', header: 'legacy_score', columnIndex: 1 }],
+    })
+  })
+
+  it('persists separate mapping decisions for repeated source headers', async () => {
+    const sourceColumns = [
+      { key: 'column_0001', header: 'Score', columnIndex: 1 },
+      { key: 'column_0002', header: 'Score', columnIndex: 2 },
+    ]
+    const staged = batch({
+      sourceHeaders: sourceColumns,
+      status: 'UPLOADED',
+      mappingRevision: 0,
+    })
+    tx.dataImportBatch.findFirst.mockResolvedValue(staged)
+    tx.dataImportBatch.findUnique.mockResolvedValue(staged)
+    tx.formField.findMany.mockResolvedValue([
+      { id: '41000000-0000-4000-8000-000000000004', code: 'score' },
+    ])
+
+    await service.saveMapping(actor, projectId, batchId, {
+      expectedMappingRevision: 0,
+      mappings: [
+        { sourceFieldName: 'column_0001', targetFieldCode: 'score', ignored: false },
+        { sourceFieldName: 'column_0002', ignored: true },
+      ],
+    })
+
+    expect(tx.metadataMapping.createMany).toHaveBeenCalledWith({
+      data: [
+        expect.objectContaining({ sourceFieldName: 'column_0001', status: 'MAPPED' }),
+        expect.objectContaining({ sourceFieldName: 'column_0002', status: 'IGNORED' }),
+      ],
+    })
+    expect(tx.auditLog.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ changes: { revision: 1, mapped: 1, ignored: 1 } }),
+      }),
+    )
+  })
+
+  it('keeps the mapped-field ceiling at 100 for a wider source file', async () => {
+    const sourceColumns = Array.from({ length: 101 }, (_, index) => ({
+      key: `column_${String(index + 1).padStart(4, '0')}`,
+      header: `Field ${index + 1}`,
+      columnIndex: index + 1,
+    }))
+    const staged = batch({
+      sourceHeaders: sourceColumns,
+      status: 'UPLOADED',
+      mappingRevision: 0,
+    })
+    tx.dataImportBatch.findFirst.mockResolvedValue(staged)
+    tx.dataImportBatch.findUnique.mockResolvedValue(staged)
+    tx.formField.findMany.mockResolvedValue(
+      sourceColumns.map((column) => ({ id: `${column.key}-id`, code: column.key })),
+    )
+
+    await expect(
+      service.saveMapping(actor, projectId, batchId, {
+        expectedMappingRevision: 0,
+        mappings: sourceColumns.map((column) => ({
+          sourceFieldName: column.key,
+          targetFieldCode: column.key,
+          ignored: false,
+        })),
+      }),
+    ).rejects.toBeInstanceOf(BadRequestException)
+    expect(tx.metadataMapping.createMany).not.toHaveBeenCalled()
+  })
+
   it('persists a recovery-required checkpoint when Storage succeeds and DB finalization fails', async () => {
     const reservation = batch({
       sourceHeaders: [],
@@ -226,7 +323,7 @@ describe('P03 import service', () => {
       service.upload(actor, projectId, { formId, clientImportId }, file()),
     ).rejects.toBeInstanceOf(ServiceUnavailableException)
     expect(storage.uploadPrivateFile).toHaveBeenCalledWith(
-      'uploads',
+      testUploadsBucket,
       expect.stringMatching(
         new RegExp(
           `^organizations/${organizationId}/projects/${projectId}/imports/.+/[0-9a-f]{64}\\.csv$`,
@@ -356,6 +453,69 @@ describe('P03 import service', () => {
     )
   })
 
+  it('finalizes a processing checkpoint by reconciling status and claim release atomically', async () => {
+    const processing = batch({
+      status: 'PROCESSING',
+      validationRevision: 1,
+      validatedMappingRevision: 1,
+      reviewedById: actorId,
+      processingRevision: 2,
+      processingClaimId: claimId,
+      processingClaimedAt: new Date('2026-09-20T22:58:12.145Z'),
+    })
+    const finalized = batch({
+      status: 'PARTIALLY_PROCESSED',
+      validationRevision: 1,
+      validatedMappingRevision: 1,
+      reviewedById: actorId,
+      processingRevision: 2,
+      processingClaimId: null,
+      processingClaimedAt: null,
+      processedRows: 1,
+      invalidRows: 1,
+      processedAt: new Date('2026-09-20T22:58:26.097Z'),
+    })
+
+    tx.dataImportBatch.findFirst.mockResolvedValueOnce(processing).mockResolvedValueOnce(finalized)
+    tx.dataImportBatch.findUnique.mockResolvedValue(processing)
+    tx.dataImportRow.groupBy.mockResolvedValue([
+      { status: 'PROCESSED', _count: { _all: 1 } },
+      { status: 'INVALID', _count: { _all: 1 } },
+    ])
+
+    const internals = service as unknown as {
+      finishClaim: (
+        identity: ApplicationIdentity,
+        projectId: string,
+        batchId: string,
+        claimId: string,
+      ) => Promise<unknown>
+    }
+
+    await internals.finishClaim(actor, projectId, batchId, claimId)
+
+    expect(tx.dataImportBatch.update).toHaveBeenCalledTimes(1)
+    expect(tx.dataImportBatch.update).toHaveBeenCalledWith({
+      where: { id: batchId },
+      data: expect.objectContaining({
+        status: 'PARTIALLY_PROCESSED',
+        processedRows: 1,
+        invalidRows: 1,
+        processingClaimId: null,
+        processingClaimedAt: null,
+      }),
+    })
+    expect(tx.auditLog.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          action: 'IMPORT_PROCESSING_CHECKPOINT',
+          entityType: 'DataImportBatch',
+          entityId: batchId,
+        }),
+      }),
+    )
+  })
+
   it('releases a transaction-failed row for a bounded retry and completes the checkpoint', async () => {
     const internals = service as unknown as {
       claimRows: () => Promise<{
@@ -470,6 +630,53 @@ describe('P03 import service', () => {
         data: expect.objectContaining({ status: 'PROCESSED' }),
       }),
     )
+  })
+
+  it('uses a bounded 20-second transaction only for ACTIVITY_MONITORING row promotion', async () => {
+    const processing = batch({
+      status: 'PROCESSING',
+      mappingRevision: 1,
+      validationRevision: 1,
+      validatedMappingRevision: 1,
+      reviewedById: actorId,
+      processingClaimId: claimId,
+      form: {
+        code: 'activity_monitoring',
+        name: 'Activity Monitoring',
+        formType: 'ACTIVITY_MONITORING',
+        status: 'PUBLISHED',
+      },
+    })
+    tx.dataImportBatch.findFirst.mockResolvedValue(processing)
+    tx.dataImportBatch.findUnique.mockResolvedValue(processing)
+    tx.dataImportRow.findFirst.mockResolvedValue({
+      id: rowId,
+      rowNumber: 2,
+      normalizedData: { beneficiary_code: 'TEST-BEN-001' },
+    })
+    tx.formSubmission.findUnique.mockResolvedValue({ id: 'submission' })
+    tx.beneficiaryActivityParticipation.findUnique.mockResolvedValue({ id: 'participation' })
+    tx.dataImportRow.update.mockResolvedValue({ id: rowId })
+
+    const internals = service as unknown as {
+      promoteParticipationRow: (
+        identity: ApplicationIdentity,
+        projectId: string,
+        batchId: string,
+        rowId: string,
+        claimId: string,
+        validationRevision: number,
+      ) => Promise<void>
+    }
+
+    await internals.promoteParticipationRow(actor, projectId, batchId, rowId, claimId, 1)
+
+    expect(state.operationCalls).toEqual([
+      {
+        permission: 'imports.process',
+        options: { transactionTimeoutMs: 20_000 },
+      },
+    ])
   })
 
   it('fails closed when processing permission is revoked after the claim', async () => {

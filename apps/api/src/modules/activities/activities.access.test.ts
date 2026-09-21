@@ -86,6 +86,26 @@ describe('P05 activity proof authorization', () => {
     expect(storage.downloadPrivateFile).not.toHaveBeenCalled()
   })
 
+  it('loads bounded activity relations through one database join query', async () => {
+    tx.project.findFirst.mockResolvedValueOnce({ projectActivity_project: [activity] })
+
+    await expect(service.list(actor, projectId)).resolves.toHaveLength(1)
+    expect(tx.project.findFirst).toHaveBeenCalledWith(
+      expect.objectContaining({
+        relationLoadStrategy: 'join',
+        select: expect.objectContaining({
+          projectActivity_project: expect.objectContaining({
+            take: 100,
+            where: { organizationId, archivedAt: null },
+          }),
+        }),
+        where: {
+          AND: [{ organizationId, archivedAt: null, id: { in: [projectId] } }, { id: projectId }],
+        },
+      }),
+    )
+  })
+
   it('does not disclose a guessed proof identifier outside the scoped activity', async () => {
     tx.evidenceMedia.findFirst.mockResolvedValueOnce(null)
     await expect(

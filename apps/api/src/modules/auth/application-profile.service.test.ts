@@ -1,14 +1,20 @@
-import { ForbiddenException, Logger, ServiceUnavailableException } from '@nestjs/common'
+import {
+  ForbiddenException,
+  Logger,
+  ServiceUnavailableException,
+  UnauthorizedException,
+} from '@nestjs/common'
 import type { Prisma } from '@prisma/client'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
-import type { PrismaService } from '../../prisma/prisma.service'
+import { InactiveVerifiedSessionError, type PrismaService } from '../../prisma/prisma.service'
 import { ApplicationProfileService } from './application-profile.service'
 
 const subject = 'a5000000-0000-4000-8000-000000000001'
 const organizationId = 'a5000000-0000-4000-8000-000000000002'
 const userId = 'a5000000-0000-4000-8000-000000000003'
 const projectId = 'a5000000-0000-4000-8000-000000000004'
+const sessionId = 'a5000000-0000-4000-8000-000000000005'
 
 function setup() {
   const profile = {
@@ -20,6 +26,7 @@ function setup() {
       code: 'PROJECT_OFFICER',
       rolePermissions: [{ permission: { code: 'projects.read' } }],
     },
+    assignedProjectIds: [projectId],
   }
   const transaction = {
     $queryRaw: vi.fn().mockResolvedValue([profile]),
@@ -63,7 +70,8 @@ describe('ApplicationProfileService', () => {
     )
     expect(transaction.$queryRaw).toHaveBeenCalledTimes(1)
     const [parts, ...parameters] = transaction.$queryRaw.mock.calls[0]
-    expect(parameters).toEqual([userId, subject, organizationId])
+    expect(parameters[0]).toBeInstanceOf(Date)
+    expect(parameters.slice(1)).toEqual([userId, subject, organizationId])
     const sql = parts.join('?')
     expect(sql).toContain('u.id = ?::uuid AND u.auth_user_id = ?::uuid')
     expect(sql).toContain('u.organization_id = ?::uuid')
@@ -71,7 +79,42 @@ describe('ApplicationProfileService', () => {
     expect(sql).toContain("o.status = 'ACTIVE' AND o.archived_at IS NULL AND r.is_active")
     expect(sql).toContain('p.id = rp.permission_id AND p.is_active')
     expect(sql).toContain('rp.role_id = r.id')
+    expect(sql).toContain('FROM pathways.user_project_assignments a')
+    expect(sql).toContain('project.organization_id = a.organization_id')
+    expect(sql).toContain("a.status = 'ACTIVE' AND a.ended_at IS NULL")
+    expect(sql).toContain('project.archived_at IS NULL')
+    expect(transaction.userProjectAssignment.findMany).not.toHaveBeenCalled()
     for (const value of parameters) expect(sql).not.toContain(value)
+  })
+
+  it('binds server-verified session liveness to the same selected-profile transaction', async () => {
+    const { service, withVerifiedContext } = setup()
+    await service.resolveWithSession(subject, sessionId, organizationId, userId)
+    expect(withVerifiedContext).toHaveBeenCalledWith(
+      { authSubject: subject, organizationId, userId, sessionId },
+      expect.any(Function),
+    )
+  })
+
+  it('passes bounded database timing only when selected-request instrumentation asks for it', async () => {
+    const { service, withVerifiedContext } = setup()
+    const onTiming = vi.fn()
+    await service.resolveWithSession(subject, sessionId, organizationId, userId, onTiming)
+    expect(withVerifiedContext).toHaveBeenCalledWith(
+      { authSubject: subject, organizationId, userId, sessionId },
+      expect.any(Function),
+      { onTiming },
+    )
+  })
+
+  it('preserves removed-session denial as authentication failure', async () => {
+    const { service, withVerifiedContext } = setup()
+    const warning = vi.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined)
+    withVerifiedContext.mockRejectedValue(new InactiveVerifiedSessionError())
+    await expect(
+      service.resolveWithSession(subject, sessionId, organizationId, userId),
+    ).rejects.toBeInstanceOf(UnauthorizedException)
+    expect(warning).not.toHaveBeenCalled()
   })
 
   it.each(['SUSPENDED', 'DEACTIVATED', 'ARCHIVED'] as const)(
@@ -88,23 +131,20 @@ describe('ApplicationProfileService', () => {
     },
   )
 
-  it('requires active, started, unended assignments to unarchived same-organization projects', async () => {
+  it('loads only active, started, unended assignments to unarchived same-organization projects', async () => {
     vi.useFakeTimers()
     const now = new Date('2026-09-05T12:00:00.000Z')
     vi.setSystemTime(now)
     const { service, transaction } = setup()
     await service.resolve(subject, organizationId, userId)
-    expect(transaction.userProjectAssignment.findMany).toHaveBeenCalledWith({
-      where: {
-        organizationId,
-        userId,
-        status: 'ACTIVE',
-        endedAt: null,
-        assignedAt: { lte: now },
-        project: { organizationId, archivedAt: null },
-      },
-      select: { projectId: true },
-    })
+    const [parts, cutoff] = transaction.$queryRaw.mock.calls[0]
+    const sql = parts.join('')
+    expect(cutoff).toEqual(now)
+    expect(sql).toContain('a.organization_id = u.organization_id AND a.user_id = u.id')
+    expect(sql).toContain("a.status = 'ACTIVE' AND a.ended_at IS NULL")
+    expect(sql).toContain('a.assigned_at <=')
+    expect(sql).toContain('project.archived_at IS NULL')
+    expect(transaction.userProjectAssignment.findMany).not.toHaveBeenCalled()
   })
 
   it('returns only database authority, without merging token or profile metadata', async () => {
@@ -112,11 +152,11 @@ describe('ApplicationProfileService', () => {
     transaction.$queryRaw.mockResolvedValue([
       {
         ...profile,
+        assignedProjectIds: [projectId, projectId],
         app_metadata: { roles: ['SYSTEM_ADMINISTRATOR'], permissions: ['EVERYTHING'] },
         user_metadata: { organizationId: 'attacker-controlled', assignedProjectIds: ['other'] },
       },
     ])
-    transaction.userProjectAssignment.findMany.mockResolvedValue([{ projectId }, { projectId }])
     await expect(service.resolve(subject, organizationId, userId)).resolves.toEqual({
       id: subject,
       aal: 'aal2',
@@ -136,9 +176,9 @@ describe('ApplicationProfileService', () => {
       {
         ...profile,
         role: { code: 'SYSTEM_ADMINISTRATOR', rolePermissions: [] },
+        assignedProjectIds: [],
       },
     ])
-    transaction.userProjectAssignment.findMany.mockResolvedValue([])
     await expect(service.resolve(subject, organizationId, userId)).resolves.toMatchObject({
       roles: ['SYSTEM_ADMINISTRATOR'],
       permissions: [],
@@ -165,8 +205,21 @@ describe('ApplicationProfileService', () => {
       const error = new Error('Synthetic sensitive provider diagnostics must not be returned')
       if (stage === 'context') withVerifiedContext.mockRejectedValue(error)
       if (stage === 'profile') transaction.$queryRaw.mockRejectedValue(error)
-      if (stage === 'assignments')
-        transaction.userProjectAssignment.findMany.mockRejectedValue(error)
+      if (stage === 'assignments') {
+        transaction.$queryRaw.mockResolvedValue([
+          {
+            id: userId,
+            organizationId,
+            organization: { name: 'Synthetic workspace' },
+            fullName: 'Synthetic application user',
+            role: {
+              code: 'PROJECT_OFFICER',
+              rolePermissions: [{ permission: { code: 'projects.read' } }],
+            },
+            assignedProjectIds: null,
+          },
+        ])
+      }
       await expect(service.resolve(subject, organizationId, userId)).rejects.toThrow(
         /^Application access verification is temporarily unavailable\. Retry shortly\.$/,
       )
@@ -284,15 +337,18 @@ describe('ApplicationProfileService', () => {
     const { service, transaction, profile } = setup()
     await service.resolve(subject, organizationId, userId)
     transaction.$queryRaw.mockResolvedValue([
-      { ...profile, role: { code: 'GRANT_MANAGER', rolePermissions: [] } },
+      {
+        ...profile,
+        role: { code: 'GRANT_MANAGER', rolePermissions: [] },
+        assignedProjectIds: [],
+      },
     ])
-    transaction.userProjectAssignment.findMany.mockResolvedValue([])
     await expect(service.resolve(subject, organizationId, userId)).resolves.toMatchObject({
       roles: ['GRANT_MANAGER'],
       permissions: [],
       assignedProjectIds: [],
     })
     expect(transaction.$queryRaw).toHaveBeenCalledTimes(2)
-    expect(transaction.userProjectAssignment.findMany).toHaveBeenCalledTimes(2)
+    expect(transaction.userProjectAssignment.findMany).not.toHaveBeenCalled()
   })
 })

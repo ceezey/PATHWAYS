@@ -90,6 +90,7 @@ describe('P02 metadata service', () => {
     project: { findFirst: vi.fn() },
     projectActivity: { findFirst: vi.fn() },
     journeyStage: { findFirst: vi.fn() },
+    activityJourneyStageMapping: { findFirst: vi.fn() },
     digitalForm: {
       findFirst: vi.fn(),
       findMany: vi.fn(),
@@ -151,6 +152,65 @@ describe('P02 metadata service', () => {
     ).rejects.toBeInstanceOf(ForbiddenException)
     expect(tx.digitalForm.updateMany).not.toHaveBeenCalled()
     expect(tx.auditLog.create).not.toHaveBeenCalled()
+  })
+
+  it('refuses to publish an incompatible Beneficiary registration definition', async () => {
+    tx.digitalForm.findFirst.mockResolvedValue(
+      form({
+        formType: 'BENEFICIARY_REGISTRATION',
+        formField_form: [
+          {
+            ...field,
+            code: 'enrollment_date',
+            label: 'Enrollment date',
+            dataType: 'DECIMAL',
+          },
+        ],
+      }),
+    )
+
+    await expect(
+      service.publishForm(state.actor as ApplicationIdentity, projectId, formId, {
+        expectedUpdatedAt: now.toISOString(),
+      }),
+    ).rejects.toMatchObject({
+      response: expect.objectContaining({
+        message: 'Form definition is invalid.',
+        errors: expect.arrayContaining([
+          expect.objectContaining({ fieldCode: 'enrollment_date', code: 'invalid_definition' }),
+        ]),
+      }),
+    })
+    expect(tx.digitalForm.updateMany).not.toHaveBeenCalled()
+    expect(tx.auditLog.create).not.toHaveBeenCalled()
+  })
+
+  it('refuses to publish activity monitoring without its canonical fields and activity-stage binding', async () => {
+    tx.digitalForm.findFirst.mockResolvedValue(
+      form({
+        formType: 'ACTIVITY_MONITORING',
+        activityId: '30000000-0000-4000-8000-000000000005',
+        journeyStageId: '30000000-0000-4000-8000-000000000006',
+        formField_form: [field],
+      }),
+    )
+    tx.activityJourneyStageMapping.findFirst.mockResolvedValue(null)
+
+    await expect(
+      service.publishForm(state.actor as ApplicationIdentity, projectId, formId, {
+        expectedUpdatedAt: now.toISOString(),
+      }),
+    ).rejects.toMatchObject({
+      response: expect.objectContaining({
+        message: 'Form definition is invalid.',
+        errors: expect.arrayContaining([
+          expect.objectContaining({ fieldCode: 'beneficiary_code' }),
+          expect.objectContaining({ fieldCode: 'participation_date' }),
+          expect.objectContaining({ fieldCode: 'journey_stage_id' }),
+        ]),
+      }),
+    })
+    expect(tx.digitalForm.updateMany).not.toHaveBeenCalled()
   })
 
   it('publishes with optimistic concurrency and an attributable audit event', async () => {

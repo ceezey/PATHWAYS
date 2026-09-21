@@ -262,9 +262,16 @@ export function UserManagementWorkspace() {
                       </Button>
                       <Button
                         disabled={saving}
-                        onClick={() =>
-                          void setAccountStatus(user, user.accountStatus === 'Deactivated')
-                        }
+                        onClick={() => {
+                          const reactivating = user.accountStatus === 'Deactivated'
+
+                          if (reactivating && isProjectAssignableRole(user.role)) {
+                            openEdit(user)
+                            return
+                          }
+
+                          void setAccountStatus(user, reactivating)
+                        }}
                         size="sm"
                         type="button"
                         variant="outline"

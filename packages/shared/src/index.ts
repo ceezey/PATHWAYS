@@ -3,6 +3,8 @@ export * from './constants/roles'
 export * from './enums/app-role'
 export * from './schemas/health'
 export * from './types/common'
+export * from './validation/beneficiary-registration'
+export * from './validation/activity-monitoring'
 export * from './validation/form-data'
 
 export * from './monitoring/metric-contract'

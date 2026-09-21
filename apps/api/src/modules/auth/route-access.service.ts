@@ -15,14 +15,11 @@ import {
 } from '../../../../web/src/lib/rbac/route-access'
 import { PrismaService } from '../../prisma/prisma.service'
 import { prismaDiagnosticCode, transactionDiagnostic } from '../../prisma/transaction-diagnostic'
-import { readApplicationProfile } from './application-profile.service'
 import { projectScope } from './authorized-data.service'
-import type { ApplicationIdentity } from './developer-access'
+import { type ApplicationIdentity, UUID_PATTERN } from './developer-access'
 
 type VerificationStage =
   | 'CONTEXT_OR_TRANSACTION'
-  | 'PROFILE_READ'
-  | 'ROUTE_POLICY'
   | 'PROJECT_READ'
   | 'ACTIVITY_READ'
   | 'BENEFICIARY_SCOPE_READ'
@@ -51,8 +48,32 @@ export class RouteAccessService {
     input: Record<string, unknown>,
   ): Promise<RouteDecision> {
     const selected = parseRouteSelection(input)
-    if (!selected || !identity || identity.aal !== 'aal2')
+    if (
+      !selected ||
+      !identity ||
+      identity.aal !== 'aal2' ||
+      !UUID_PATTERN.test(identity.id) ||
+      !UUID_PATTERN.test(identity.userId) ||
+      !UUID_PATTERN.test(identity.organizationId) ||
+      identity.roles.length !== 1 ||
+      !routeAllowed(identity, selected, false)
+    )
       throw new ForbiddenException('Route unavailable.')
+
+    const decision = (): RouteDecision => ({
+      route: selected.route,
+      authorization: 'database-verified',
+      beneficiaryAccess: isAggregateOnly(identity) ? 'aggregate-only' : 'records-or-none',
+    })
+
+    // The global guard has already verified Auth/session liveness and resolved a
+    // fresh database profile for this request. Workspace-level destinations need
+    // no second profile transaction. Object routes still perform their scoped
+    // relational lookup under verified context and RLS below.
+    if (!selected.projectId && !selected.activityId && !selected.beneficiaryId) {
+      return decision()
+    }
+
     let stage: VerificationStage = 'CONTEXT_OR_TRANSACTION'
     try {
       return await this.prisma.withVerifiedContext(
@@ -62,27 +83,10 @@ export class RouteAccessService {
           userId: identity.userId,
         },
         async (tx) => {
-          stage = 'PROFILE_READ'
-          const profile = await readApplicationProfile(
-            tx,
-            identity.id,
-            identity.organizationId,
-            identity.userId,
-          )
-          stage = 'ROUTE_POLICY'
-          if (
-            profile.id !== identity.id ||
-            profile.userId !== identity.userId ||
-            profile.organizationId !== identity.organizationId ||
-            profile.aal !== 'aal2'
-          )
-            throw new ForbiddenException('Route unavailable.')
-          if (!routeAllowed(profile, selected, false))
-            throw new ForbiddenException('Route unavailable.')
           if (selected.projectId) {
             stage = 'PROJECT_READ'
             const project = await tx.project.findFirst({
-              where: { AND: [projectScope(profile), { id: selected.projectId }] },
+              where: { AND: [projectScope(identity), { id: selected.projectId }] },
               select: { id: true },
             })
             if (!project) throw new NotFoundException('Route unavailable.')
@@ -93,7 +97,7 @@ export class RouteAccessService {
               where: {
                 id: selected.activityId,
                 projectId: selected.projectId,
-                organizationId: profile.organizationId,
+                organizationId: identity.organizationId,
                 archivedAt: null,
               },
               select: { id: true },
@@ -104,21 +108,18 @@ export class RouteAccessService {
             stage = 'BENEFICIARY_SCOPE_READ'
             const enrollment = await tx.beneficiaryProjectEnrollment.findFirst({
               where: {
-                organizationId: profile.organizationId,
+                organizationId: identity.organizationId,
                 beneficiaryId: selected.beneficiaryId,
-                beneficiary: { organizationId: profile.organizationId, archivedAt: null },
-                project: projectScope(profile),
+                ...(selected.projectId ? { projectId: selected.projectId } : {}),
+                beneficiary: { organizationId: identity.organizationId, archivedAt: null },
+                project: projectScope(identity),
               },
               select: { id: true },
             })
             if (!enrollment) throw new NotFoundException('Route unavailable.')
           }
           stage = 'TRANSACTION_COMPLETION'
-          return {
-            route: selected.route,
-            authorization: 'database-verified',
-            beneficiaryAccess: isAggregateOnly(profile) ? 'aggregate-only' : 'records-or-none',
-          }
+          return decision()
         },
       )
     } catch (error) {

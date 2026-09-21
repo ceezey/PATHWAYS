@@ -165,9 +165,12 @@ function mapActivity(row: ActivityRow, businessDate: string) {
     submittedProof: updates.flatMap((update) =>
       update.evidenceMedia_update.map((proof) => ({
         id: proof.id,
+        updateId: update.id,
         fileName: proof.fileName,
         status: reviewStatus[proof.status],
         submittedAt: proof.submittedAt.toISOString(),
+        submittedBy: update.submittedBy.fullName,
+        updateUpdatedAt: update.updatedAt.toISOString(),
         note: update.note,
       })),
     ),
@@ -279,6 +282,7 @@ export class ActivitiesService {
     const project = await this.requireProject(tx, actor, projectId)
     if (!UUID_PATTERN.test(activityId)) throw new NotFoundException('Activity unavailable.')
     const activity = await tx.projectActivity.findFirst({
+      relationLoadStrategy: 'join',
       where: {
         id: activityId.toLowerCase(),
         organizationId: actor.organizationId,
@@ -337,25 +341,49 @@ export class ActivitiesService {
 
   list(identity: ApplicationIdentity, projectId: string) {
     return withAuthorizedOperation(this.prisma, identity, 'activities.read', async (tx, actor) => {
-      const project = await this.requireProject(tx, actor, projectId)
-      const rows = await tx.projectActivity.findMany({
-        where: { organizationId: actor.organizationId, projectId: project.id, archivedAt: null },
-        select: activitySelection,
-        orderBy: [{ plannedEndDate: 'asc' }, { id: 'asc' }],
-        take: 100,
+      if (!UUID_PATTERN.test(projectId)) throw new NotFoundException('Project unavailable.')
+      const project = await tx.project.findFirst({
+        relationLoadStrategy: 'join',
+        where: { AND: [projectScope(actor), { id: projectId.toLowerCase() }] },
+        select: {
+          projectActivity_project: {
+            where: { organizationId: actor.organizationId, archivedAt: null },
+            select: activitySelection,
+            orderBy: [{ plannedEndDate: 'asc' }, { id: 'asc' }],
+            take: 100,
+          },
+        },
       })
+      if (!project) throw new NotFoundException('Project unavailable.')
       const today = this.businessDate()
-      return rows.map((row) => mapActivity(row, today))
+      return project.projectActivity_project.map((row) => mapActivity(row, today))
     })
   }
 
   get(identity: ApplicationIdentity, projectId: string, activityId: string) {
-    return withAuthorizedOperation(this.prisma, identity, 'activities.read', async (tx, actor) =>
-      mapActivity(
-        await this.requireActivity(tx, actor, projectId, activityId),
-        this.businessDate(),
-      ),
-    )
+    return withAuthorizedOperation(this.prisma, identity, 'activities.read', async (tx, actor) => {
+      if (!UUID_PATTERN.test(projectId) || !UUID_PATTERN.test(activityId)) {
+        throw new NotFoundException('Activity unavailable.')
+      }
+      const project = await tx.project.findFirst({
+        relationLoadStrategy: 'join',
+        where: { AND: [projectScope(actor), { id: projectId.toLowerCase() }] },
+        select: {
+          projectActivity_project: {
+            where: {
+              id: activityId.toLowerCase(),
+              organizationId: actor.organizationId,
+              archivedAt: null,
+            },
+            select: activitySelection,
+            take: 1,
+          },
+        },
+      })
+      const activity = project?.projectActivity_project[0]
+      if (!activity) throw new NotFoundException('Activity unavailable.')
+      return mapActivity(activity, this.businessDate())
+    })
   }
 
   create(identity: ApplicationIdentity, projectId: string, input: CreateActivityDto) {

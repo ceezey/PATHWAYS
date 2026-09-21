@@ -83,11 +83,12 @@ SELECT set_config('request.jwt.claim.sub','75000000-0000-4000-8000-000000000011'
 INSERT INTO pathways.beneficiaries(
   id,organization_id,code,subject_type,display_name,first_name,last_name,sex,birth_date,
   age_at_registration,disability_status,consent_recorded,data_processing_consent_recorded,
-  is_minor,guardian_consent_recorded,created_by_id
+  is_minor,guardian_consent_recorded,created_by_id,created_at,updated_at
 ) VALUES (
   '75000000-0000-4000-8000-000000000071','75000000-0000-4000-8000-000000000001',
   'SHARED-001','INDIVIDUAL','Synthetic Shared','Synthetic','Shared','NOT_SPECIFIED','2000-01-01',
-  26,'NOT_SPECIFIED',true,true,false,false,'75000000-0000-4000-8000-000000000031'
+  26,'NOT_SPECIFIED',true,true,false,false,'75000000-0000-4000-8000-000000000031',
+  CURRENT_TIMESTAMP,CURRENT_TIMESTAMP
 );
 INSERT INTO pathways.beneficiary_project_enrollments(
   id,organization_id,project_id,beneficiary_id,enrollment_date,recorded_by_id

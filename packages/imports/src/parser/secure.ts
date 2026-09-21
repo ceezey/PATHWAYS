@@ -18,8 +18,14 @@ export interface ParsedImportRow {
   values: Record<string, CellValue>
 }
 
+export interface ImportSourceColumn {
+  key: string
+  header: string
+  columnIndex: number
+}
+
 export interface SecureImportParseResult {
-  headers: string[]
+  sourceColumns: ImportSourceColumn[]
   rows: ParsedImportRow[]
   sheetNames: string[]
 }
@@ -218,9 +224,13 @@ function runParserWorker(input: Buffer, fileType: SupportedImportFileType) {
   })
 }
 
+function sourceColumnKey(columnIndex: number) {
+  return `column_${String(columnIndex).padStart(4, '0')}`
+}
+
 function normalizeMatrix(
   matrix: unknown[][],
-): SecureImportParseResult['rows'] & { headers?: string[] } {
+): Pick<SecureImportParseResult, 'rows' | 'sourceColumns'> {
   if (!Array.isArray(matrix) || matrix.length === 0) {
     reject('FILE_EMPTY', 'The file does not contain a header row.')
   }
@@ -228,7 +238,7 @@ function normalizeMatrix(
   if (!Array.isArray(headerCells) || headerCells.length === 0) {
     reject('HEADERS_MISSING', 'The file does not contain headers.')
   }
-  if (headerCells.length > IMPORT_ENGINEERING_LIMITS.maxColumns) {
+  if (headerCells.length > IMPORT_ENGINEERING_LIMITS.maxSourceColumns) {
     reject('COLUMN_LIMIT', 'The file has too many columns.')
   }
   const headers = headerCells.map((value, index) => {
@@ -247,12 +257,11 @@ function normalizeMatrix(
     }
     return header
   })
-  const seen = new Set<string>()
-  for (const header of headers) {
-    const normalized = header.toLocaleLowerCase('en-US')
-    if (seen.has(normalized)) reject('DUPLICATE_HEADER', `Duplicate header: ${header}.`)
-    seen.add(normalized)
-  }
+  const sourceColumns = headers.map((header, index) => ({
+    key: sourceColumnKey(index + 1),
+    header,
+    columnIndex: index + 1,
+  }))
   const sourceRows = matrix.slice(1)
   if (sourceRows.length > IMPORT_ENGINEERING_LIMITS.maxRows) {
     reject('ROW_LIMIT', 'The file has too many rows.')
@@ -265,8 +274,8 @@ function normalizeMatrix(
       reject('ROW_WIDTH_INVALID', `Source row ${rowIndex + 2} has an unexpected column count.`)
     }
     const values = Object.create(null) as Record<string, CellValue>
-    headers.forEach((header, columnIndex) => {
-      const value = source[columnIndex] ?? null
+    sourceColumns.forEach((column, columnOffset) => {
+      const value = source[columnOffset] ?? null
       if (!['string', 'number', 'boolean'].includes(typeof value) && value !== null) {
         reject('CELL_TYPE_INVALID', `Source row ${rowIndex + 2} contains an unsupported cell.`)
       }
@@ -278,12 +287,11 @@ function normalizeMatrix(
           reject('CELL_FORMULA_UNSAFE', `Source row ${rowIndex + 2} contains formula-like text.`)
         }
       }
-      values[header] = value as CellValue
+      values[column.key] = value as CellValue
     })
     return { sourceRowNumber: rowIndex + 2, values }
   })
-  Object.defineProperty(rows, 'headers', { value: headers })
-  return rows as SecureImportParseResult['rows'] & { headers: string[] }
+  return { rows, sourceColumns }
 }
 
 export async function parseSecureImport(
@@ -299,8 +307,14 @@ export async function parseSecureImport(
   if (fileType === 'XLS') inspectXlsSignature(input)
   const parsed = await runParserWorker(input, fileType)
   if (parsed.error) reject(parsed.error, 'The file could not be parsed safely.')
-  if (parsed.macros || parsed.formulas || parsed.links) {
-    reject('WORKBOOK_ACTIVE_CONTENT', 'Workbook formulas, macros, and links are forbidden.')
+  if (parsed.formulas) {
+    reject(
+      'WORKBOOK_FORMULA_REQUIRES_VALUES_ONLY',
+      'Workbook formulas are not accepted. Export a values-only copy before uploading.',
+    )
+  }
+  if (parsed.macros || parsed.links) {
+    reject('WORKBOOK_ACTIVE_CONTENT', 'Workbook macros and links are forbidden.')
   }
   if ((parsed.sheetNames?.length ?? 0) > IMPORT_ENGINEERING_LIMITS.maxWorkbookSheets) {
     reject('WORKBOOK_SHEET_LIMIT', 'The workbook has too many worksheets.')
@@ -311,10 +325,10 @@ export async function parseSecureImport(
       'Workbooks must contain exactly one worksheet so no source rows are silently omitted.',
     )
   }
-  const rows = normalizeMatrix(parsed.matrix ?? [])
+  const normalized = normalizeMatrix(parsed.matrix ?? [])
   return {
-    headers: rows.headers ?? [],
-    rows: Array.from(rows),
+    sourceColumns: normalized.sourceColumns,
+    rows: normalized.rows,
     sheetNames: parsed.sheetNames ?? [],
   }
 }

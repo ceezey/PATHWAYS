@@ -12,11 +12,13 @@ import { UsersService } from './users/users.service'
 const state = vi.hoisted(() => ({
   actor: undefined as ApplicationIdentity | undefined,
   tx: undefined as Prisma.TransactionClient | undefined,
+  operationOptions: [] as unknown[],
 }))
 vi.mock('./auth/authorized-operation', () => ({
-  withAuthorizedOperation: vi.fn(async (_prisma, _identity, _permission, work) =>
-    work(state.tx, state.actor),
-  ),
+  withAuthorizedOperation: vi.fn(async (_prisma, _identity, _permission, work, options) => {
+    state.operationOptions.push(options)
+    return work(state.tx, state.actor)
+  }),
 }))
 
 const organizationId = '10000000-0000-4000-8000-000000000001'
@@ -73,6 +75,9 @@ describe('P01 workspace and project services', () => {
       updateMany: vi.fn(),
       count: vi.fn(),
     },
+    projectActivityAssignment: {
+      updateMany: vi.fn(),
+    },
     auditLog: { create: vi.fn() },
   }
   const prisma = {} as PrismaService
@@ -80,6 +85,7 @@ describe('P01 workspace and project services', () => {
 
   beforeEach(() => {
     vi.clearAllMocks()
+    state.operationOptions = []
     state.tx = tx as unknown as Prisma.TransactionClient
     state.actor = actor('SYSTEM_ADMINISTRATOR')
     authDirectory.getExistingVerifiedIdentity.mockResolvedValue({
@@ -108,6 +114,12 @@ describe('P01 workspace and project services', () => {
         data: expect.objectContaining({ organizationId, roleId, authUserId: authId }),
       }),
     )
+    const createInput = tx.systemUser.create.mock.calls[0]?.[0] as {
+      data: { invitedAt: Date; activatedAt: Date }
+    }
+    expect(createInput.data.invitedAt).toBeInstanceOf(Date)
+    expect(createInput.data.activatedAt).toBeInstanceOf(Date)
+    expect(createInput.data.activatedAt.getTime()).toBe(createInput.data.invitedAt.getTime())
     expect(tx.auditLog.create).toHaveBeenCalledWith(
       expect.objectContaining({
         data: expect.objectContaining({
@@ -116,6 +128,7 @@ describe('P01 workspace and project services', () => {
         }),
       }),
     )
+    expect(state.operationOptions).toEqual([{ transactionTimeoutMs: 20_000 }])
   })
 
   it('denies Program Manager escalation to Grant Manager before writing a profile', async () => {
@@ -151,6 +164,7 @@ describe('P01 workspace and project services', () => {
     tx.systemUser.findMany.mockResolvedValue([])
     const service = new UsersService(prisma, authDirectory as unknown as AuthDirectoryService)
     await service.list(state.actor)
+    expect(state.operationOptions).toEqual([undefined])
     expect(tx.systemUser.findMany).toHaveBeenCalledWith(
       expect.objectContaining({
         where: expect.objectContaining({
@@ -189,6 +203,149 @@ describe('P01 workspace and project services', () => {
     ).rejects.toBeInstanceOf(ForbiddenException)
     expect(tx.systemUser.update).not.toHaveBeenCalled()
     expect(tx.userProjectAssignment.updateMany).not.toHaveBeenCalled()
+    expect(state.operationOptions).toEqual([{ transactionTimeoutMs: 20_000 }])
+  })
+
+  it('ends active activity assignments before ending a revoked project assignment', async () => {
+    const projectAssignmentId = '70000000-0000-4000-8000-000000000007'
+    const replacementProjectId = '80000000-0000-4000-8000-000000000008'
+
+    tx.systemUser.findFirst.mockResolvedValue({
+      id: targetId,
+      role: { code: 'PROJECT_OFFICER' },
+      userProjectAssignment_user: [{ id: projectAssignmentId, projectId }],
+    })
+
+    tx.project.findMany.mockResolvedValue([{ id: replacementProjectId }])
+
+    tx.projectActivityAssignment.updateMany.mockResolvedValue({ count: 2 })
+
+    tx.userProjectAssignment.updateMany.mockImplementation(async () => {
+      expect(tx.projectActivityAssignment.updateMany).toHaveBeenCalledWith({
+        where: {
+          organizationId,
+          projectAssignmentId: { in: [projectAssignmentId] },
+          status: 'ACTIVE',
+        },
+        data: {
+          status: 'REMOVED',
+          endedAt: expect.any(Date),
+          endReason: 'Project assignment ended.',
+        },
+      })
+
+      return { count: 1 }
+    })
+
+    tx.userProjectAssignment.createMany.mockResolvedValue({ count: 1 })
+
+    tx.systemUser.findUniqueOrThrow.mockResolvedValue({
+      ...userRow,
+      role: {
+        code: 'PROJECT_OFFICER',
+        name: 'Project Officer',
+      },
+      userProjectAssignment_user: [
+        {
+          projectId: replacementProjectId,
+          project: { title: 'Replacement Project' },
+        },
+      ],
+    })
+
+    const service = new UsersService(prisma, authDirectory as unknown as AuthDirectoryService)
+
+    const result = await service.update(state.actor as ApplicationIdentity, targetId, {
+      role: 'PROJECT_OFFICER',
+      accountStatus: 'ACTIVE',
+      projectIds: [replacementProjectId],
+    })
+
+    expect(tx.userProjectAssignment.updateMany).toHaveBeenCalledWith({
+      where: {
+        id: { in: [projectAssignmentId] },
+        organizationId,
+        status: 'ACTIVE',
+      },
+      data: {
+        status: 'ENDED',
+        endedAt: expect.any(Date),
+        endReason: 'Account authorization updated',
+      },
+    })
+
+    expect(tx.userProjectAssignment.createMany).toHaveBeenCalledWith({
+      data: [
+        {
+          organizationId,
+          projectId: replacementProjectId,
+          userId: targetId,
+          assignedById: actorId,
+        },
+      ],
+    })
+
+    expect(result.projectIds).toEqual([replacementProjectId])
+  })
+
+  it('reactivates a project-scoped profile before recreating active project membership', async () => {
+    tx.systemUser.findFirst.mockResolvedValue({
+      id: targetId,
+      role: { code: 'PROJECT_OFFICER' },
+      userProjectAssignment_user: [],
+    })
+
+    tx.project.findMany.mockResolvedValue([{ id: projectId }])
+
+    tx.userProjectAssignment.createMany.mockImplementation(async () => {
+      expect(tx.systemUser.update).toHaveBeenCalledWith({
+        where: { id: targetId },
+        data: expect.objectContaining({
+          roleId,
+          accountStatus: 'ACTIVE',
+          activatedAt: expect.any(Date),
+          deactivatedAt: null,
+        }),
+      })
+
+      return { count: 1 }
+    })
+
+    tx.systemUser.findUniqueOrThrow.mockResolvedValue({
+      ...userRow,
+      accountStatus: 'ACTIVE',
+      role: {
+        code: 'PROJECT_OFFICER',
+        name: 'Project Officer',
+      },
+      userProjectAssignment_user: [
+        {
+          projectId,
+          project: { title: 'Synthetic project' },
+        },
+      ],
+    })
+
+    const service = new UsersService(prisma, authDirectory as unknown as AuthDirectoryService)
+
+    const result = await service.update(state.actor as ApplicationIdentity, targetId, {
+      role: 'PROJECT_OFFICER',
+      accountStatus: 'ACTIVE',
+      projectIds: [projectId],
+    })
+
+    expect(tx.userProjectAssignment.createMany).toHaveBeenCalledWith({
+      data: [
+        {
+          organizationId,
+          projectId,
+          userId: targetId,
+          assignedById: actorId,
+        },
+      ],
+    })
+
+    expect(result.projectIds).toEqual([projectId])
   })
 
   it('rejects global account mutation when any active assignment is outside actor scope', async () => {
@@ -245,6 +402,21 @@ describe('P01 workspace and project services', () => {
           action: 'PROJECT_CREATED',
           changes: { code: 'PRJ-001', status: 'PLANNED' },
         }),
+      }),
+    )
+  })
+
+  it('loads the bounded project directory and manager relation in one database query', async () => {
+    state.actor = actor('PROJECT_MANAGER', [projectId])
+    tx.project.findMany.mockResolvedValue([])
+    const service = new ProjectsService(prisma)
+
+    await expect(service.list(state.actor)).resolves.toEqual([])
+    expect(tx.project.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        relationLoadStrategy: 'join',
+        take: 100,
+        where: expect.objectContaining({ id: { in: [projectId] }, organizationId }),
       }),
     )
   })

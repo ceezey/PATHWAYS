@@ -6,6 +6,7 @@ export const activityStatuses: ActivityStatus[] = [
   'For Review',
   'Overdue',
   'Completed',
+  'Cancelled',
 ]
 
 export const activityFilters = ['All', 'Mine', 'Overdue', 'Needs Attention'] as const

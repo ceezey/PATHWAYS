@@ -316,6 +316,8 @@ export class ParticipantsService {
     if (existing) return { participationId: existing.id, enrollmentId: existing.enrollmentId }
     if (!input.form.activityId)
       throw new ConflictException('Activity-monitoring forms must be bound to one activity.')
+    if (!input.form.journeyStageId)
+      throw new ConflictException('Activity-monitoring forms must be bound to one journey stage.')
     const beneficiaryCode = normalizedCode(input.values.beneficiary_code)
     const participationDate =
       typeof input.values.participation_date === 'string' ? input.values.participation_date : null
@@ -357,18 +359,16 @@ export class ParticipantsService {
       select: { id: true },
     })
     if (!activity) throw new ConflictException('The form activity is unavailable in this project.')
-    if (input.form.journeyStageId) {
-      const mapping = await tx.activityJourneyStageMapping.findFirst({
-        where: {
-          organizationId: actor.organizationId,
-          projectId: input.projectId,
-          activityId: activity.id,
-          stageId: input.form.journeyStageId,
-        },
-        select: { id: true },
-      })
-      if (!mapping) throw new ConflictException('The form stage is not mapped to its activity.')
-    }
+    const mapping = await tx.activityJourneyStageMapping.findFirst({
+      where: {
+        organizationId: actor.organizationId,
+        projectId: input.projectId,
+        activityId: activity.id,
+        stageId: input.form.journeyStageId,
+      },
+      select: { id: true },
+    })
+    if (!mapping) throw new ConflictException('The form stage is not mapped to its activity.')
     const date = new Date(`${participationDate}T00:00:00.000Z`)
     const last = await tx.beneficiaryJourneyEvent.findFirst({
       where: {

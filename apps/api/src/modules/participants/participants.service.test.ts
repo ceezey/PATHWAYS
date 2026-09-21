@@ -83,6 +83,16 @@ describe('P05 participation promotion contract', () => {
     expect(tx.beneficiaryActivityParticipation.findUnique).not.toHaveBeenCalled()
   })
 
+  it('requires activity-monitoring forms to pin one journey stage', async () => {
+    await expect(
+      service.promoteParticipation(tx as unknown as Prisma.TransactionClient, actor, {
+        ...input,
+        form: { ...input.form, journeyStageId: null },
+      }),
+    ).rejects.toThrow('bound to one journey stage')
+    expect(tx.beneficiaryActivityParticipation.create).not.toHaveBeenCalled()
+  })
+
   it('requires an active exact-code enrollment and a same-project activity-stage mapping', async () => {
     tx.beneficiaryProjectEnrollment.findFirst.mockResolvedValueOnce(null)
     await expect(

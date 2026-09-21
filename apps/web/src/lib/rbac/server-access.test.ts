@@ -32,6 +32,7 @@ import { encodeWorkspaceContext } from '../../features/auth/workspace-access'
 import {
   canonicalFeatures,
   filterWorkspaceTabs,
+  getVerifiedRouteAccess,
   matchRoute,
   parseRouteSelection,
   requestRouteCheck,
@@ -200,6 +201,13 @@ describe('request-scoped server page authority', () => {
   it('checks authoritative object scope on a deep link and keeps valid import modes', async () => {
     await requireServerPage('project', { params: Promise.resolve({ projectId: id }) })
     expect(new URL(mock.fetch.mock.lastCall?.[0]).searchParams.get('projectId')).toBe(id)
+    await requireServerPage('beneficiary', {
+      params: Promise.resolve({ beneficiaryId: id }),
+      searchParams: Promise.resolve({ projectId: id }),
+    })
+    const beneficiarySelection = new URL(mock.fetch.mock.lastCall?.[0]).searchParams
+    expect(beneficiarySelection.get('beneficiaryId')).toBe(id)
+    expect(beneficiarySelection.get('projectId')).toBe(id)
     await requireServerPage('imports', {
       searchParams: Promise.resolve({ mode: 'extend', _rsc: 'transport-only' }),
     })
@@ -257,6 +265,15 @@ describe('finite route and feature contract', () => {
       route: 'project',
       projectId: id,
     })
+    expect(matchRoute(`/beneficiaries/${id}?projectId=${id}`)).toEqual({
+      route: 'beneficiary',
+      beneficiaryId: id,
+      projectId: id,
+    })
+    expect(parseRouteSelection({ route: 'beneficiary', beneficiaryId: id, projectId: id })).toEqual(
+      { route: 'beneficiary', beneficiaryId: id, projectId: id },
+    )
+    expect(matchRoute(`/beneficiaries/${id}?projectId=not-a-uuid`)).toBeNull()
   })
   it('requires active grants and current assignment, never a role string alone', () => {
     const principal = {
@@ -276,6 +293,21 @@ describe('finite route and feature contract', () => {
       ),
     ).toBe(false)
   })
+  it.each(['PROJECT_OFFICER', 'MONITORING_AND_EVALUATION_OFFICER'] as const)(
+    'allows %s to open an assigned-project Beneficiary detail route',
+    (role) => {
+      const route = `/beneficiaries/${id}?projectId=${id}`
+      const principal = {
+        roles: [role],
+        permissions: rolePermissions[role],
+        assignedProjectIds: [id],
+      }
+      expect(getVerifiedRouteAccess(principal, route).allowed).toBe(true)
+      expect(getVerifiedRouteAccess({ ...principal, assignedProjectIds: [] }, route).allowed).toBe(
+        false,
+      )
+    },
+  )
   it('keeps exactly eight core and five supporting features; aggregate roles never get identity links', () => {
     expect(canonicalFeatures.filter((f) => f.group === 'Core')).toHaveLength(8)
     expect(canonicalFeatures.filter((f) => f.group === 'Supporting')).toHaveLength(5)

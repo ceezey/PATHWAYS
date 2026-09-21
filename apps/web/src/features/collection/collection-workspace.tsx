@@ -54,6 +54,7 @@ import type {
   Activity,
   DigitalFormDefinition,
   DigitalFormType,
+  JourneyStageConfig,
   ProjectSummary,
 } from '@/types/pathways'
 
@@ -64,6 +65,12 @@ import {
   fromDigitalForm,
   toDigitalFormInput,
 } from './digital-form-contract'
+import {
+  clearFormBuilderSessionDraft,
+  formBuilderSessionDraftKey,
+  readFormBuilderSessionDraft,
+  writeFormBuilderSessionDraft,
+} from './form-builder-session-draft'
 
 type CollectionMode = 'scratch' | 'import' | 'extend'
 type CollectionView = 'home' | 'forms' | 'builder' | 'import'
@@ -234,6 +241,8 @@ export const CollectionWorkspace = ({
   const [linkedActivityId, setLinkedActivityId] = useState('')
   const [projects, setProjects] = useState<ProjectSummary[]>([])
   const [activities, setActivities] = useState<Activity[]>([])
+  const [journeyStages, setJourneyStages] = useState<JourneyStageConfig[]>([])
+  const [journeyStagesReady, setJourneyStagesReady] = useState(false)
   const [projectLoadStatus, setProjectLoadStatus] = useState<'loading' | 'ready' | 'error'>(
     'loading',
   )
@@ -247,12 +256,18 @@ export const CollectionWorkspace = ({
     'idle',
   )
   const [activeForm, setActiveForm] = useState<DigitalFormDefinition | null>(null)
+  const [sessionDraftReady, setSessionDraftReady] = useState(false)
   const [savePending, setSavePending] = useState(false)
   const [parsedImport, setParsedImport] = useState<ParsedImport | null>(null)
   const [mappingRows, setMappingRows] = useState<MappingRow[]>([])
   const [uploadProgress, setUploadProgress] = useState(0)
   const [importMessage, setImportMessage] = useState('No source file selected yet.')
   const fileInputRef = useRef<HTMLInputElement | null>(null)
+  const scopedFormId = activeForm?.id ?? (initialFormId || null)
+  const sessionDraftKey = useMemo(
+    () => (profile?.userId ? formBuilderSessionDraftKey(profile.userId, scopedFormId) : null),
+    [profile?.userId, scopedFormId],
+  )
 
   useEffect(() => {
     let active = true
@@ -293,6 +308,52 @@ export const CollectionWorkspace = ({
       setLinkedActivityId(projectActivities[0]?.id ?? '')
     }
   }, [linkedActivityId, projectActivities])
+
+  useEffect(() => {
+    let active = true
+    setJourneyStagesReady(false)
+    if (!projectId) {
+      setJourneyStages([])
+      setJourneyStage('')
+      setJourneyStagesReady(true)
+      return () => {
+        active = false
+      }
+    }
+    pathwaysClient
+      .getJourneyStages(projectId)
+      .then((records) => {
+        if (!active) return
+        setJourneyStages(records)
+        setJourneyStagesReady(true)
+      })
+      .catch(() => {
+        if (!active) return
+        setJourneyStages([])
+        setJourneyStagesReady(true)
+      })
+    return () => {
+      active = false
+    }
+  }, [projectId])
+
+  const availableJourneyStages = useMemo(
+    () =>
+      formType === 'ACTIVITY_MONITORING' && linkedActivityId
+        ? journeyStages.filter((stage) => stage.mappedActivityIds.includes(linkedActivityId))
+        : journeyStages,
+    [formType, journeyStages, linkedActivityId],
+  )
+
+  useEffect(() => {
+    if (
+      journeyStagesReady &&
+      journeyStage &&
+      !availableJourneyStages.some((stage) => stage.id === journeyStage)
+    ) {
+      setJourneyStage('')
+    }
+  }, [availableJourneyStages, journeyStage, journeyStagesReady])
 
   const mappedCount = fields.filter((field) => field.mappingStatus === 'mapped').length
   const sadddCount = fields.filter((field) => field.sadddField).length
@@ -440,7 +501,6 @@ export const CollectionWorkspace = ({
       .then(async (forms) => {
         if (!active) return
         setSavedForms(forms)
-        setFormsLoadStatus('ready')
         if (initialFormId) {
           const form = await pathwaysClient.getDigitalForm(projectId, initialFormId)
           if (!active) return
@@ -454,6 +514,7 @@ export const CollectionWorkspace = ({
           setFields(hydratedFields)
           setSelectedFieldId(hydratedFields[0]?.id ?? '')
         }
+        setFormsLoadStatus('ready')
       })
       .catch(() => {
         if (active) setFormsLoadStatus('error')
@@ -462,6 +523,61 @@ export const CollectionWorkspace = ({
       active = false
     }
   }, [initialFormId, projectId])
+
+  useEffect(() => {
+    if (sessionDraftReady || formsLoadStatus !== 'ready' || !sessionDraftKey) return
+    const restored = readFormBuilderSessionDraft(
+      window.sessionStorage,
+      sessionDraftKey,
+      activeForm?.updatedAt ?? null,
+    )
+    if (restored) {
+      setMode(restored.mode)
+      setView(restored.view)
+      setFormTitle(restored.formTitle)
+      setFormCode(restored.formCode)
+      setFormType(restored.formType)
+      setProjectId(restored.projectId)
+      setJourneyStage(restored.journeyStage)
+      setLinkedActivityId(restored.linkedActivityId)
+      setFields(restored.fields)
+      setSelectedFieldId(restored.selectedFieldId)
+      setSavedNotice('Recovered unsaved form edits from this browser tab.')
+    }
+    setSessionDraftReady(true)
+  }, [activeForm?.updatedAt, formsLoadStatus, sessionDraftKey, sessionDraftReady])
+
+  useEffect(() => {
+    if (!sessionDraftReady || !sessionDraftKey) return
+    writeFormBuilderSessionDraft(window.sessionStorage, sessionDraftKey, {
+      schemaVersion: 1,
+      baseUpdatedAt: activeForm?.updatedAt ?? null,
+      mode,
+      view,
+      formTitle,
+      formCode,
+      formType,
+      projectId,
+      journeyStage,
+      linkedActivityId,
+      fields,
+      selectedFieldId,
+    })
+  }, [
+    activeForm?.updatedAt,
+    fields,
+    formCode,
+    formTitle,
+    formType,
+    journeyStage,
+    linkedActivityId,
+    mode,
+    projectId,
+    selectedFieldId,
+    sessionDraftKey,
+    sessionDraftReady,
+    view,
+  ])
 
   const requestFormSave = async () => {
     setSavePending(true)
@@ -480,6 +596,7 @@ export const CollectionWorkspace = ({
             expectedUpdatedAt: activeForm.updatedAt,
           })
         : await pathwaysClient.createDigitalForm(projectId, input)
+      if (sessionDraftKey) clearFormBuilderSessionDraft(window.sessionStorage, sessionDraftKey)
       setActiveForm(form)
       setSavedForms((current) => [form, ...current.filter((item) => item.id !== form.id)])
       window.history.replaceState({}, '', `/collection/projects/${projectId}/forms/${form.id}`)
@@ -645,6 +762,7 @@ export const CollectionWorkspace = ({
           formCode={formCode}
           formTitle={formTitle}
           formType={formType}
+          availableJourneyStages={availableJourneyStages}
           journeyStage={journeyStage}
           linkedActivityId={linkedActivityId}
           metadataCount={metadataCount}
@@ -678,6 +796,7 @@ export const CollectionWorkspace = ({
           formCode={formCode}
           formTitle={formTitle}
           formType={formType}
+          availableJourneyStages={availableJourneyStages}
           importMessage={importMessage}
           importSummary={importSummary}
           journeyStage={journeyStage}
@@ -902,6 +1021,7 @@ const BuilderView = ({
   formCode,
   formTitle,
   formType,
+  availableJourneyStages,
   journeyStage,
   linkedActivityId,
   metadataCount,
@@ -933,6 +1053,7 @@ const BuilderView = ({
   formCode: string
   formTitle: string
   formType: DigitalFormType
+  availableJourneyStages: JourneyStageConfig[]
   journeyStage: string
   linkedActivityId: string
   metadataCount: number
@@ -964,6 +1085,7 @@ const BuilderView = ({
         formCode={formCode}
         formTitle={formTitle}
         formType={formType}
+        availableJourneyStages={availableJourneyStages}
         journeyStage={journeyStage}
         linkedActivityId={linkedActivityId}
         projects={projects}
@@ -1114,6 +1236,7 @@ const FormInfoPanel = ({
   formCode,
   formTitle,
   formType,
+  availableJourneyStages,
   journeyStage,
   linkedActivityId,
   projects,
@@ -1130,6 +1253,7 @@ const FormInfoPanel = ({
   formCode: string
   formTitle: string
   formType: DigitalFormType
+  availableJourneyStages: JourneyStageConfig[]
   journeyStage: string
   linkedActivityId: string
   projects: ProjectSummary[]
@@ -1199,13 +1323,27 @@ const FormInfoPanel = ({
         </Select>
       </div>
       <div className="space-y-2">
-        <Label htmlFor="journey-stage">Journey stage</Label>
-        <Input
-          disabled={readOnly}
-          id="journey-stage"
-          value={journeyStage}
-          onChange={(event) => setJourneyStage(event.target.value)}
-        />
+        <Label>Journey stage</Label>
+        <Select disabled={readOnly} value={journeyStage} onValueChange={setJourneyStage}>
+          <SelectTrigger aria-label="Journey stage">
+            <SelectValue placeholder="Select a persisted journey stage" />
+          </SelectTrigger>
+          <SelectContent>
+            {availableJourneyStages.map((stage) => (
+              <SelectItem key={stage.id} value={stage.id}>
+                {stage.code} · {stage.name}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        {formType === 'ACTIVITY_MONITORING' &&
+        linkedActivityId &&
+        availableJourneyStages.length === 0 ? (
+          <p className="text-xs text-warning">
+            Map the linked activity to a journey stage before publishing this activity-monitoring
+            form.
+          </p>
+        ) : null}
       </div>
       <div className="space-y-2 md:col-span-2">
         <Label>Linked activity</Label>
@@ -1468,6 +1606,7 @@ const ImportView = ({
   formCode,
   formTitle,
   formType,
+  availableJourneyStages,
   importMessage,
   importSummary,
   journeyStage,
@@ -1497,6 +1636,7 @@ const ImportView = ({
   formCode: string
   formTitle: string
   formType: DigitalFormType
+  availableJourneyStages: JourneyStageConfig[]
   importMessage: string
   importSummary: ReturnType<typeof createFileSummary> | null
   journeyStage: string
@@ -1527,6 +1667,7 @@ const ImportView = ({
         formCode={formCode}
         formTitle={formTitle}
         formType={formType}
+        availableJourneyStages={availableJourneyStages}
         journeyStage={journeyStage}
         linkedActivityId={linkedActivityId}
         projects={projects}

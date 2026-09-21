@@ -10,6 +10,7 @@ import { WorkspaceResolutionService } from './workspace-resolution.service'
 const organizationId = '30000000-0000-4000-8000-000000000003'
 const userId = '40000000-0000-4000-8000-000000000004'
 const foreignId = '50000000-0000-4000-8000-000000000005'
+const sessionId = '60000000-0000-4000-8000-000000000006'
 const identity = { id: DEVELOPER_AUTH_UUID, aal: 'aal2' as const }
 const profile: ApplicationIdentity = {
   ...identity,
@@ -21,7 +22,7 @@ const profile: ApplicationIdentity = {
   permissions: ['projects.read', 'beneficiaries.records.read'],
   assignedProjectIds: [],
 }
-const profiles = { resolve: vi.fn() }
+const profiles = { resolve: vi.fn(), resolveWithSession: vi.fn() }
 const prisma = { discoverWorkspace: vi.fn() }
 const service = new WorkspaceResolutionService(
   prisma as unknown as PrismaService,
@@ -31,6 +32,7 @@ const service = new WorkspaceResolutionService(
 beforeEach(() => {
   prisma.discoverWorkspace.mockReset().mockResolvedValue([{ organizationId, userId }])
   profiles.resolve.mockReset().mockResolvedValue(profile)
+  profiles.resolveWithSession.mockReset().mockResolvedValue(profile)
 })
 
 describe('verified-subject workspace resolution (no live resources)', () => {
@@ -59,45 +61,98 @@ describe('verified-subject workspace resolution (no live resources)', () => {
     ])
     await expect(service.discover(identity)).rejects.toBeInstanceOf(ServiceUnavailableException)
   })
-  it.each([undefined, '', 'fabricated', [organizationId], foreignId])(
+  it.each([undefined, '', 'fabricated', [organizationId]])(
     'rejects altered organization selection %#',
     async (selector) => {
-      await expect(service.resolveSelection(identity, selector, userId)).rejects.toBeInstanceOf(
-        ForbiddenException,
-      )
+      await expect(
+        service.resolveSelection(identity, selector, userId, sessionId),
+      ).rejects.toBeInstanceOf(ForbiddenException)
+      expect(prisma.discoverWorkspace).not.toHaveBeenCalled()
+      expect(profiles.resolveWithSession).not.toHaveBeenCalled()
     },
   )
-  it('rejects cross-user selections, including after successful discovery', async () => {
+  it('rejects cross-user selections without repeating workspace discovery', async () => {
     await service.discover(identity)
+    prisma.discoverWorkspace.mockClear()
+    profiles.resolve.mockClear()
+    profiles.resolveWithSession.mockRejectedValueOnce(new ForbiddenException())
     await expect(
-      service.resolveSelection(identity, organizationId, foreignId),
+      service.resolveSelection(identity, organizationId, foreignId, sessionId),
     ).rejects.toBeInstanceOf(ForbiddenException)
-  })
-  it('rechecks permissions, role and assignment changes between requests', async () => {
-    await expect(service.resolveSelection(identity, organizationId, userId)).resolves.toEqual(
-      profile,
+    expect(prisma.discoverWorkspace).not.toHaveBeenCalled()
+    expect(profiles.resolveWithSession).toHaveBeenCalledExactlyOnceWith(
+      identity.id,
+      sessionId,
+      organizationId,
+      foreignId,
     )
-    profiles.resolve.mockResolvedValue({
+  })
+  it('rejects valid cross-organization selectors through the direct profile boundary', async () => {
+    profiles.resolveWithSession.mockRejectedValueOnce(new ForbiddenException())
+    await expect(
+      service.resolveSelection(identity, foreignId, userId, sessionId),
+    ).rejects.toBeInstanceOf(ForbiddenException)
+    expect(prisma.discoverWorkspace).not.toHaveBeenCalled()
+    expect(profiles.resolveWithSession).toHaveBeenCalledExactlyOnceWith(
+      identity.id,
+      sessionId,
+      foreignId,
+      userId,
+    )
+  })
+  it('rejects AAL1 before selected-profile resolution', async () => {
+    await expect(
+      service.resolveSelection({ ...identity, aal: 'aal1' }, organizationId, userId, sessionId),
+    ).rejects.toBeInstanceOf(ForbiddenException)
+    expect(prisma.discoverWorkspace).not.toHaveBeenCalled()
+    expect(profiles.resolveWithSession).not.toHaveBeenCalled()
+  })
+  it('directly rechecks permissions, role and assignments on every selected request', async () => {
+    await expect(
+      service.resolveSelection(identity, organizationId, userId, sessionId),
+    ).resolves.toEqual(profile)
+    expect(prisma.discoverWorkspace).not.toHaveBeenCalled()
+    expect(profiles.resolveWithSession).toHaveBeenCalledTimes(1)
+    profiles.resolveWithSession.mockResolvedValue({
       ...profile,
       roles: ['GRANT_MANAGER'],
       permissions: ['projects.read'],
       assignedProjectIds: [foreignId],
     })
-    await expect(service.resolveSelection(identity, organizationId, userId)).resolves.toMatchObject(
-      { roles: ['GRANT_MANAGER'], assignedProjectIds: [foreignId] },
-    )
-    profiles.resolve.mockResolvedValue({ ...profile, permissions: [] })
-    await expect(service.resolveSelection(identity, organizationId, userId)).rejects.toBeInstanceOf(
-      ForbiddenException,
-    )
-    profiles.resolve.mockRejectedValue(new ForbiddenException())
-    await expect(service.discover(identity)).rejects.toBeInstanceOf(ForbiddenException)
+    await expect(
+      service.resolveSelection(identity, organizationId, userId, sessionId),
+    ).resolves.toMatchObject({ roles: ['GRANT_MANAGER'], assignedProjectIds: [foreignId] })
+    profiles.resolveWithSession.mockResolvedValue({ ...profile, permissions: [] })
+    await expect(
+      service.resolveSelection(identity, organizationId, userId, sessionId),
+    ).rejects.toBeInstanceOf(ForbiddenException)
+    profiles.resolveWithSession.mockRejectedValue(new ForbiddenException())
+    await expect(
+      service.resolveSelection(identity, organizationId, userId, sessionId),
+    ).rejects.toBeInstanceOf(ForbiddenException)
+    expect(prisma.discoverWorkspace).not.toHaveBeenCalled()
+    expect(profiles.resolveWithSession).toHaveBeenCalledTimes(4)
   })
   it('does not reuse a selected context after profile removal', async () => {
-    await service.resolveSelection(identity, organizationId, userId)
-    prisma.discoverWorkspace.mockResolvedValue([])
-    await expect(service.resolveSelection(identity, organizationId, userId)).rejects.toBeInstanceOf(
-      ForbiddenException,
+    await service.resolveSelection(identity, organizationId, userId, sessionId)
+    profiles.resolveWithSession.mockRejectedValue(new ForbiddenException())
+    await expect(
+      service.resolveSelection(identity, organizationId, userId, sessionId),
+    ).rejects.toBeInstanceOf(ForbiddenException)
+    expect(prisma.discoverWorkspace).not.toHaveBeenCalled()
+    expect(profiles.resolveWithSession).toHaveBeenCalledTimes(2)
+  })
+  it('passes selected-request database timing through without changing resolved authority', async () => {
+    const onTiming = vi.fn()
+    await expect(
+      service.resolveSelection(identity, organizationId, userId, sessionId, onTiming),
+    ).resolves.toEqual(profile)
+    expect(profiles.resolveWithSession).toHaveBeenCalledExactlyOnceWith(
+      identity.id,
+      sessionId,
+      organizationId,
+      userId,
+      onTiming,
     )
   })
   it.each([
@@ -106,8 +161,10 @@ describe('verified-subject workspace resolution (no live resources)', () => {
     { userId: foreignId },
     { aal: 'aal1' },
   ])('rejects an inconsistent authority response %#', async (override) => {
-    profiles.resolve.mockResolvedValue({ ...profile, ...override })
-    await expect(service.discover(identity)).rejects.toBeInstanceOf(ServiceUnavailableException)
+    profiles.resolveWithSession.mockResolvedValue({ ...profile, ...override })
+    await expect(
+      service.resolveSelection(identity, organizationId, userId, sessionId),
+    ).rejects.toBeInstanceOf(ServiceUnavailableException)
   })
   it.each([
     new Error('private provider detail'),
@@ -142,6 +199,7 @@ describe('Stage 3 preserves transaction-level role/project scope', () => {
           'beneficiaries.aggregates.read',
         ].map((code) => ({ permission: { code } })),
       },
+      assignedProjectIds: [],
     }
     const tx = {
       $queryRaw: vi.fn().mockResolvedValue([row]),

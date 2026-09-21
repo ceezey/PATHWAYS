@@ -24,6 +24,7 @@ import type {
   ImportBatchDefinition,
   ImportMappingInput,
   ImportRowDefinition,
+  ImportSourceColumn,
   ProjectSummary,
 } from '@/types/pathways'
 
@@ -101,7 +102,14 @@ export function ImportWorkspace() {
   }, [projectId])
 
   const selectedForm = forms.find((item) => item.id === (batch?.formId ?? formId))
-  const sourceHeaders = batch?.sourceHeaders ?? []
+  const sourceColumns: ImportSourceColumn[] =
+    batch?.sourceColumns ??
+    (batch?.sourceHeaders ?? []).map((header, index) => ({
+      key: header,
+      header,
+      columnIndex: index + 1,
+    }))
+  const sourceColumnByKey = new Map(sourceColumns.map((column) => [column.key, column]))
 
   const loadBatch = async (batchId: string) => {
     setPending(true)
@@ -120,9 +128,16 @@ export function ImportWorkspace() {
       setRows(page.rows)
       setMapping(
         Object.fromEntries(
-          (detail.sourceHeaders ?? []).map((header) => {
-            const reviewed = detail.mappings?.find((item) => item.sourceFieldName === header)
-            return [header, reviewed?.targetField?.code ?? '__ignore__']
+          (
+            detail.sourceColumns ??
+            (detail.sourceHeaders ?? []).map((header, index) => ({
+              key: header,
+              header,
+              columnIndex: index + 1,
+            }))
+          ).map((column) => {
+            const reviewed = detail.mappings?.find((item) => item.sourceFieldName === column.key)
+            return [column.key, reviewed?.targetField?.code ?? '__ignore__']
           }),
         ),
       )
@@ -166,11 +181,10 @@ export function ImportWorkspace() {
 
   const saveMapping = async () => {
     if (!batch) return
-    const mappings: ImportMappingInput[] = sourceHeaders.map((sourceFieldName) => ({
-      sourceFieldName,
-      ignored: mapping[sourceFieldName] === '__ignore__',
-      targetFieldCode:
-        mapping[sourceFieldName] === '__ignore__' ? undefined : mapping[sourceFieldName],
+    const mappings: ImportMappingInput[] = sourceColumns.map((column) => ({
+      sourceFieldName: column.key,
+      ignored: mapping[column.key] === '__ignore__',
+      targetFieldCode: mapping[column.key] === '__ignore__' ? undefined : mapping[column.key],
     }))
     setPending(true)
     try {
@@ -388,7 +402,7 @@ export function ImportWorkspace() {
                 </CardContent>
               </Card>
 
-              {sourceHeaders.length > 0 ? (
+              {sourceColumns.length > 0 ? (
                 <Card>
                   <CardHeader>
                     <CardTitle>Reviewed mapping revision {batch.mappingRevision}</CardTitle>
@@ -397,19 +411,21 @@ export function ImportWorkspace() {
                     </CardDescription>
                   </CardHeader>
                   <CardContent className="space-y-3">
-                    {sourceHeaders.map((header) => (
+                    {sourceColumns.map((column) => (
                       <div
-                        key={header}
+                        key={column.key}
                         className="grid items-center gap-3 rounded-md border p-3 sm:grid-cols-2"
                       >
-                        <span className="break-all text-sm font-medium">{header}</span>
+                        <span className="break-all text-sm font-medium">
+                          Column {column.columnIndex}: {column.header}
+                        </span>
                         <Select
                           disabled={
                             !canReview || pending || mappingLockedStatuses.has(batch.status)
                           }
-                          value={mapping[header] ?? '__ignore__'}
+                          value={mapping[column.key] ?? '__ignore__'}
                           onValueChange={(value) =>
-                            setMapping((current) => ({ ...current, [header]: value }))
+                            setMapping((current) => ({ ...current, [column.key]: value }))
                           }
                         >
                           <SelectTrigger>
@@ -450,12 +466,14 @@ export function ImportWorkspace() {
                           !canProcess ||
                           pending ||
                           batch.validationRevision < 1 ||
-                          !['VALIDATED', 'PARTIALLY_PROCESSED'].includes(batch.status)
+                          !['VALIDATED', 'PROCESSING', 'PARTIALLY_PROCESSED'].includes(batch.status)
                         }
                         variant="outline"
                         onClick={() => void process()}
                       >
-                        Process next checkpoint
+                        {batch.status === 'PROCESSING'
+                          ? 'Resume processing checkpoint'
+                          : 'Process next checkpoint'}
                       </Button>
                     </div>
                   </CardContent>
@@ -506,7 +524,12 @@ export function ImportWorkspace() {
                               <dl className="space-y-1">
                                 {Object.entries(row.rawData).map(([key, value]) => (
                                   <div key={key}>
-                                    <dt className="inline font-medium">{key}: </dt>
+                                    <dt className="inline font-medium">
+                                      {sourceColumnByKey.has(key)
+                                        ? `Column ${sourceColumnByKey.get(key)?.columnIndex}: ${sourceColumnByKey.get(key)?.header}`
+                                        : key}
+                                      :{' '}
+                                    </dt>
                                     <dd className="inline text-muted-foreground">
                                       {displayValue(value)}
                                     </dd>

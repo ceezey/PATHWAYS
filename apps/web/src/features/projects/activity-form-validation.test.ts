@@ -19,6 +19,26 @@ describe('activity form validation', () => {
     expect(result.success).toBe(false)
   })
 
+  it('allows an activity to be created before indicators or journey stages are connected', () => {
+    const result = activityFormSchema.safeParse({
+      title: 'Community workshop',
+      description: 'A valid activity description for the selected project.',
+      startDate: '2026-09-01',
+      dueDate: '2026-09-10',
+      targetBeneficiaries: 30,
+      budgetAllocation: 10000,
+      assignedOfficers: 'Project Officer A',
+      connectedIndicators: '   ',
+      journeyStageId: '',
+    })
+
+    expect(result.success).toBe(true)
+    if (result.success) {
+      expect(result.data.connectedIndicators).toBe('')
+      expect(result.data.journeyStageId).toBe('')
+    }
+  })
+
   it('rejects a due date before the start date', () => {
     const result = activityFormSchema.safeParse({
       title: 'Community workshop',

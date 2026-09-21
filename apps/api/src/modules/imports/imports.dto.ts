@@ -1,3 +1,4 @@
+import { IMPORT_ENGINEERING_LIMITS } from '@pathways/imports/server'
 import { Transform, Type } from 'class-transformer'
 import {
   ArrayMaxSize,
@@ -47,7 +48,7 @@ export class SaveImportMappingDto {
 
   @IsArray()
   @ArrayMinSize(1)
-  @ArrayMaxSize(100)
+  @ArrayMaxSize(IMPORT_ENGINEERING_LIMITS.maxSourceColumns)
   @ValidateNested({ each: true })
   @Type(() => ImportMappingItemDto)
   mappings!: ImportMappingItemDto[]

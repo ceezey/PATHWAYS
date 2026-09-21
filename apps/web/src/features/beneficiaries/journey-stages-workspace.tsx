@@ -1,6 +1,6 @@
 'use client'
 
-import { GitBranch, Plus, Save } from 'lucide-react'
+import { GitBranch, Loader2, Plus, Save, Trash2 } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { toast } from 'sonner'
 
@@ -23,7 +23,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import { useCurrentRole } from '@/hooks/use-current-role'
 import { useDisplayLabels } from '@/hooks/use-display-labels'
+import { PathwaysClientError, pathwaysClient } from '@/lib/services/pathways-client'
 import type {
   Activity,
   JourneyStageConfig,
@@ -48,9 +50,13 @@ export const JourneyStagesWorkspace = ({
   initialStages,
 }: JourneyStagesWorkspaceProps) => {
   const { labels } = useDisplayLabels()
+  const { profile } = useCurrentRole()
+  const canManage = profile?.permissions.includes('journeys.manage') === true
   const [stages, setStages] = useState(initialStages)
   const [selectedStageId, setSelectedStageId] = useState(initialStages[0]?.id ?? '')
   const [saveOpen, setSaveOpen] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const [saveError, setSaveError] = useState('')
 
   const selectedStage = useMemo(
     () => stages.find((stage) => stage.id === selectedStageId) ?? stages[0],
@@ -78,7 +84,7 @@ export const JourneyStagesWorkspace = ({
   const addStage = () => {
     const nextOrder = Math.max(0, ...stages.map((stage) => stage.order)) + 1
     const nextStage: JourneyStageConfig = {
-      id: `draft-stage-${Date.now().toString(36)}`,
+      id: crypto.randomUUID(),
       projectId: project.id,
       code: `J${nextOrder}`,
       name: 'New draft stage',
@@ -91,7 +97,7 @@ export const JourneyStagesWorkspace = ({
     setStages((current) => [...current, nextStage])
     setSelectedStageId(nextStage.id)
     toast.info('Draft stage added.', {
-      description: 'This change is unsaved and has not updated the project record.',
+      description: 'Save the configuration to persist this stage.',
     })
   }
 
@@ -107,11 +113,40 @@ export const JourneyStagesWorkspace = ({
     updateStage('mappedActivityIds', mappedActivityIds)
   }
 
-  const saveConfiguration = () => {
-    setSaveOpen(false)
-    toast.error('Journey-stage configuration was not saved.', {
-      description: 'The project configuration backend is not configured. Your draft remains.',
-    })
+  const removeSelectedStage = () => {
+    if (!selectedStage || !canManage) return
+    if (stages.some((stage) => stage.parentStageId === selectedStage.id)) {
+      toast.error('Remove child stages first.')
+      return
+    }
+    const next = stages.filter((stage) => stage.id !== selectedStage.id)
+    setStages(next)
+    setSelectedStageId(next[0]?.id ?? '')
+  }
+
+  const saveConfiguration = async () => {
+    if (!canManage) return
+    setSaving(true)
+    setSaveError('')
+    try {
+      const saved = await pathwaysClient.saveJourneyStages(project.id, stages)
+      setStages(saved)
+      setSelectedStageId((current) =>
+        saved.some((stage) => stage.id === current) ? current : (saved[0]?.id ?? ''),
+      )
+      setSaveOpen(false)
+      toast.success('Journey-stage configuration saved.', {
+        description: `${saved.length} persisted stage${saved.length === 1 ? '' : 's'} loaded from the backend.`,
+      })
+    } catch (caught) {
+      setSaveError(
+        caught instanceof PathwaysClientError
+          ? caught.message
+          : 'The journey-stage configuration could not be saved.',
+      )
+    } finally {
+      setSaving(false)
+    }
   }
 
   return (
@@ -130,14 +165,23 @@ export const JourneyStagesWorkspace = ({
           </div>
         </div>
         <div className="flex flex-wrap gap-2">
-          <Button variant="outline" onClick={addStage}>
-            <Plus className="mr-2 h-4 w-4" aria-hidden="true" />
-            Add stage
-          </Button>
-          <Button onClick={() => setSaveOpen(true)}>
-            <Save className="mr-2 h-4 w-4" aria-hidden="true" />
-            Save configuration
-          </Button>
+          {canManage ? (
+            <>
+              <Button variant="outline" onClick={addStage}>
+                <Plus className="mr-2 h-4 w-4" aria-hidden="true" />
+                Add stage
+              </Button>
+              <Button
+                onClick={() => {
+                  setSaveError('')
+                  setSaveOpen(true)
+                }}
+              >
+                <Save className="mr-2 h-4 w-4" aria-hidden="true" />
+                Save configuration
+              </Button>
+            </>
+          ) : null}
         </div>
       </section>
 
@@ -232,6 +276,7 @@ export const JourneyStagesWorkspace = ({
                   <span>Stage code</span>
                   <Input
                     value={selectedStage.code}
+                    disabled={!canManage}
                     onChange={(event) => updateStage('code', event.target.value)}
                   />
                 </Label>
@@ -240,6 +285,7 @@ export const JourneyStagesWorkspace = ({
                   <Input
                     min="1"
                     type="number"
+                    disabled={!canManage}
                     value={selectedStage.order}
                     onChange={(event) => updateStage('order', Number(event.target.value))}
                   />
@@ -249,12 +295,14 @@ export const JourneyStagesWorkspace = ({
                 <span>Stage name</span>
                 <Input
                   value={selectedStage.name}
+                  disabled={!canManage}
                   onChange={(event) => updateStage('name', event.target.value)}
                 />
               </Label>
               <Label className="space-y-2">
                 <span>Stage type</span>
                 <Select
+                  disabled={!canManage}
                   value={selectedStage.type}
                   onValueChange={(value) => updateStage('type', value as JourneyStageType)}
                 >
@@ -273,6 +321,7 @@ export const JourneyStagesWorkspace = ({
               <Label className="space-y-2">
                 <span>Parent stage</span>
                 <Select
+                  disabled={!canManage}
                   value={selectedStage.parentStageId ?? noParentValue}
                   onValueChange={(value) =>
                     updateStage('parentStageId', value === noParentValue ? undefined : value)
@@ -297,6 +346,7 @@ export const JourneyStagesWorkspace = ({
                 <input
                   className="h-4 w-4 rounded border-border"
                   type="checkbox"
+                  disabled={!canManage}
                   checked={selectedStage.terminal}
                   onChange={(event) => updateStage('terminal', event.target.checked)}
                 />
@@ -307,6 +357,7 @@ export const JourneyStagesWorkspace = ({
                 <textarea
                   className="min-h-24 w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                   value={selectedStage.description}
+                  disabled={!canManage}
                   onChange={(event) => updateStage('description', event.target.value)}
                 />
               </Label>
@@ -322,6 +373,7 @@ export const JourneyStagesWorkspace = ({
                       <input
                         className="mt-1 h-4 w-4 rounded border-border"
                         type="checkbox"
+                        disabled={!canManage}
                         checked={selectedStage.mappedActivityIds.includes(activity.id)}
                         onChange={() => toggleActivity(activity.id)}
                       />
@@ -339,6 +391,17 @@ export const JourneyStagesWorkspace = ({
                   </p>
                 )}
               </div>
+              {canManage ? (
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="gap-2 text-destructive"
+                  onClick={removeSelectedStage}
+                >
+                  <Trash2 className="h-4 w-4" aria-hidden="true" />
+                  Remove stage
+                </Button>
+              ) : null}
             </>
           ) : (
             <p className="text-sm text-muted-foreground">Select a stage to edit details.</p>
@@ -373,21 +436,33 @@ export const JourneyStagesWorkspace = ({
           <DialogHeader>
             <DialogTitle>Save journey-stage configuration</DialogTitle>
             <DialogDescription>
-              Saving project configuration is not available, so this draft cannot update the shared
-              project record.
+              Persist this exact ordered stage configuration and its activity mappings. After the
+              first journey event, the backend freezes the configuration for historical integrity.
             </DialogDescription>
           </DialogHeader>
           <div className="rounded-lg border border-border bg-muted/40 p-4 text-sm">
             <p className="font-medium text-foreground">{project.title}</p>
             <p className="mt-1 text-muted-foreground">
-              {stages.length} stages in this unsaved draft.
+              {stages.length} stage{stages.length === 1 ? '' : 's'} ready to persist.
             </p>
           </div>
+          {saveError ? (
+            <p className="text-sm font-medium text-destructive" role="alert">
+              {saveError}
+            </p>
+          ) : null}
           <DialogFooter>
             <Button variant="outline" onClick={() => setSaveOpen(false)}>
               Cancel
             </Button>
-            <Button onClick={saveConfiguration}>Attempt save</Button>
+            <Button onClick={saveConfiguration} disabled={saving} className="gap-2">
+              {saving ? (
+                <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+              ) : (
+                <Save className="h-4 w-4" aria-hidden="true" />
+              )}
+              Save configuration
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

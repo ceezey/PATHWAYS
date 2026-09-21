@@ -13,7 +13,7 @@ $phase6Port = 55448
 $phase6Exit = 1
 $phase6Started = $false
 $phase6PreviousEnvironment = @{}
-foreach ($phase6EnvironmentName in @('PATHWAYS_PHASE6_REPLAY_MIGRATIONS','DIRECT_URL','DATABASE_URL')) {
+foreach ($phase6EnvironmentName in @('PATHWAYS_PHASE6_REPLAY_MIGRATIONS','PATHWAYS_FEATURE_READ_LOCAL_TESTS','DIRECT_URL','DATABASE_URL')) {
   $phase6EnvironmentItem = Get-Item -LiteralPath "Env:$phase6EnvironmentName" -ErrorAction SilentlyContinue
   $phase6PreviousEnvironment[$phase6EnvironmentName] = if ($null -eq $phase6EnvironmentItem) {
     @{ Present = $false; Value = $null }
@@ -128,17 +128,34 @@ try {
     Copy-Item -LiteralPath (Join-Path $phase6Root 'apps/api/prisma/migrations/0013_project_indicators_saddd_dashboard') -Destination $phase6Stage -Recurse
     pnpm --filter @pathways/api exec prisma migrate deploy --config $phase6Config
     if ($LASTEXITCODE -ne 0) { throw '0013 P06 replay failed. Inspect the failed migration; do not reset a managed database.' }
+
+    foreach ($phase7Migration in @(
+      '0014_runtime_user_management_grants',
+      '0015_runtime_beneficiary_timestamp_grants',
+      '0016_runtime_beneficiary_enrollment_timestamp_grants',
+      '0017_activity_completion_timezone_constraint',
+      '0018_runtime_journey_mapping_delete',
+      '0019_journey_correction_lock_compatibility',
+      '0020_fixed_sensitive_release_policy'
+    )) {
+      Copy-Item -LiteralPath (Join-Path $phase6Root "apps/api/prisma/migrations/$phase7Migration") -Destination $phase6Stage -Recurse
+      pnpm --filter @pathways/api exec prisma migrate deploy --config $phase6Config
+      if ($LASTEXITCODE -ne 0) {
+        throw "$phase7Migration P07 forward-correction replay failed. Inspect the failed migration; do not reset a managed database."
+      }
+    }
+
     pnpm --filter @pathways/api exec prisma migrate status --config $phase6Config
     if ($LASTEXITCODE -ne 0) { throw 'Replay migration status failed.' }
   } finally { Pop-Location }
 
   $phase6Post = @'
 SELECT (SELECT count(*) FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace
-        WHERE n.nspname='pathways' AND c.relkind='r')=44
+        WHERE n.nspname='pathways' AND c.relkind='r')=45
  AND (SELECT count(*) FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace
       WHERE n.nspname='public' AND c.relkind='r')=16
  AND to_regclass('public._prisma_migrations') IS NOT NULL
- AND (SELECT count(*) FROM public._prisma_migrations)=13
+ AND (SELECT count(*) FROM public._prisma_migrations)=20
  AND (SELECT count(*) FROM public._prisma_migrations WHERE finished_at IS NULL AND rolled_back_at IS NULL)=0
  AND EXISTS(SELECT FROM pg_extension WHERE extname='pgcrypto')
  AND to_regprocedure('pathways.runtime_auth_session_live(uuid,uuid)') IS NOT NULL
@@ -163,9 +180,41 @@ SELECT (SELECT count(*) FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamesp
  AND EXISTS(SELECT FROM pg_trigger WHERE tgname='p06_measurement' AND tgenabled='O')
  AND EXISTS(SELECT FROM pg_class WHERE oid='pathways.project_indicator_measurements'::regclass AND relrowsecurity AND relforcerowsecurity)
  AND has_function_privilege('pathways_runtime','pathways.p06_saddd(uuid,uuid[],date,date,text)','EXECUTE')
+  AND to_regclass('pathways.sensitive_aggregate_releases') IS NOT NULL
+ AND EXISTS(
+   SELECT
+   FROM pg_class
+   WHERE oid='pathways.sensitive_aggregate_releases'::regclass
+     AND relrowsecurity
+     AND relforcerowsecurity
+ )
+ AND NOT has_table_privilege(
+   'pathways_runtime',
+   'pathways.sensitive_aggregate_releases',
+   'SELECT'
+ )
+ AND NOT has_table_privilege(
+   'pathways_runtime',
+   'pathways.sensitive_aggregate_releases',
+   'INSERT'
+ )
+ AND NOT has_table_privilege(
+   'pathways_runtime',
+   'pathways.sensitive_aggregate_releases',
+   'UPDATE'
+ )
+ AND NOT has_table_privilege(
+   'pathways_runtime',
+   'pathways.sensitive_aggregate_releases',
+   'DELETE'
+ )
  AND NOT has_function_privilege('pathways_runtime','pathways.p06_compute_saddd(uuid,uuid[],date,date,text)','EXECUTE')
  AND NOT has_table_privilege('pathways_runtime','pathways.project_indicator_measurements','DELETE')
  AND has_function_privilege('pathways_runtime','pathways.p05_has_project_permission(text,uuid)','EXECUTE')
+ AND has_table_privilege('pathways_runtime','pathways.activity_journey_stage_mappings','DELETE')
+ AND EXISTS(SELECT 1 FROM pg_policies WHERE schemaname='pathways' AND tablename='activity_journey_stage_mappings' AND policyname='p07_mapping_delete' AND cmd='DELETE' AND 'pathways_runtime'=ANY(roles))
+ AND position('FOR SHARE' in upper(pg_get_functiondef('pathways.p05_snapshot_journey_event()'::regprocedure)))=0
+ AND NOT EXISTS(SELECT 1 FROM information_schema.column_privileges WHERE grantee='pathways_runtime' AND table_schema='pathways' AND table_name='beneficiary_journey_events' AND privilege_type='UPDATE')
  AND has_function_privilege('pathways_runtime','pathways.p04_can_read_beneficiary(uuid)','EXECUTE')
  AND has_function_privilege('pathways_runtime','pathways.p04_can_mutate_beneficiary(text,uuid)','EXECUTE')
  AND NOT has_table_privilege('anon','pathways.beneficiary_identifiers','SELECT')
@@ -197,8 +246,16 @@ SELECT (SELECT count(*) FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamesp
  AND (SELECT NOT prosecdef AND proowner='prisma'::regrole AND proconfig=ARRAY['search_path=""']
       FROM pg_proc WHERE oid='pathways.p1_can_manage_role(uuid)'::regprocedure)
  AND NOT (SELECT rolbypassrls FROM pg_roles WHERE rolname='pathways_runtime')
- AND has_column_privilege('pathways_runtime','pathways.system_users','account_status','UPDATE')
- AND NOT has_column_privilege('pathways_runtime','pathways.system_users','email','UPDATE')
+ AND has_table_privilege('pathways_runtime','pathways.system_users','SELECT')
+ AND has_table_privilege('pathways_runtime','pathways.system_users','INSERT')
+ AND has_table_privilege('pathways_runtime','pathways.system_users','UPDATE')
+ AND NOT has_table_privilege('pathways_runtime','pathways.system_users','DELETE')
+ AND has_column_privilege('pathways_runtime','pathways.beneficiaries','created_at','INSERT')
+ AND has_column_privilege('pathways_runtime','pathways.beneficiaries','updated_at','INSERT')
+ AND NOT has_table_privilege('pathways_runtime','pathways.beneficiaries','INSERT')
+ AND has_column_privilege('pathways_runtime','pathways.beneficiary_project_enrollments','created_at','INSERT')
+ AND has_column_privilege('pathways_runtime','pathways.beneficiary_project_enrollments','updated_at','INSERT')
+ AND NOT has_table_privilege('pathways_runtime','pathways.beneficiary_project_enrollments','INSERT')
  AND NOT has_table_privilege('pathways_runtime','auth.sessions','SELECT')
  AND EXISTS(SELECT FROM pg_policy p JOIN pg_class c ON c.oid=p.polrelid
             JOIN pg_namespace n ON n.oid=c.relnamespace
@@ -214,6 +271,13 @@ SELECT (SELECT count(*) FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamesp
 '@
   $phase6Result = $phase6Post | & "$phase6Bin\psql.exe" -X -w -q -A -t -h 127.0.0.1 -p $phase6Port -U postgres -d $phase6Database -v ON_ERROR_STOP=1
   if ($LASTEXITCODE -ne 0 -or $phase6Result.Trim() -cne 't') { throw 'Replay postflight failed.' }
+  $env:PATHWAYS_FEATURE_READ_LOCAL_TESTS = '1'
+  Push-Location $phase6Root
+  try {
+    pnpm --dir apps/api exec vitest run src/modules/activities/feature-read.local.test.ts
+    if ($LASTEXITCODE -ne 0) { throw 'Joined feature-read runtime test failed.' }
+  } finally { Pop-Location }
+  Write-Output 'FEATURE_READ_JOIN_RUNTIME=PASS'
   Invoke-LocalSql ([IO.File]::ReadAllText((Join-Path $phase6Root 'apps/api/prisma/tests/core-foundation-runtime.sql'))) $phase6Database
   Invoke-LocalSql ([IO.File]::ReadAllText((Join-Path $phase6Root 'apps/api/prisma/tests/metadata-forms-runtime.sql'))) $phase6Database
   Invoke-LocalSql ([IO.File]::ReadAllText((Join-Path $phase6Root 'apps/api/prisma/tests/import-pipeline-runtime.sql'))) $phase6Database

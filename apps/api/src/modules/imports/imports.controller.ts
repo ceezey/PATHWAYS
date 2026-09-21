@@ -52,7 +52,7 @@ export class ImportsController {
         fields: 2,
         fieldNameSize: 64,
         fieldSize: 256,
-        parts: 3,
+        parts: 4,
       },
     }),
   )

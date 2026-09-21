@@ -176,7 +176,8 @@ export function matchRoute(input: string): RouteSelection | null {
       (search.size !== 1 ||
         !(
           (route === 'reportPreview' && search.has('kind')) ||
-          (route === 'imports' && search.has('mode'))
+          (route === 'imports' && search.has('mode')) ||
+          (route === 'beneficiary' && search.has('projectId'))
         ))
     )
       return null
@@ -194,6 +195,11 @@ export function matchRoute(input: string): RouteSelection | null {
       const mode = search.get('mode')
       if (mode !== 'import' && mode !== 'extend') return null
       result.mode = mode
+    }
+    if (route === 'beneficiary' && search.has('projectId')) {
+      const projectId = search.get('projectId')
+      if (!projectId || !uuid.test(projectId)) return null
+      result.projectId = projectId.toLowerCase()
     }
     return result
   }
@@ -219,6 +225,13 @@ export function parseRouteSelection(input: Record<string, unknown>): RouteSelect
     if (input.mode !== undefined) {
       if (input.mode !== 'import' && input.mode !== 'extend') return null
       path += `?mode=${input.mode}`
+    }
+  }
+  if (input.route === 'beneficiary') {
+    allowed.push('projectId')
+    if (input.projectId !== undefined) {
+      if (typeof input.projectId !== 'string' || !uuid.test(input.projectId)) return null
+      path += `?projectId=${input.projectId.toLowerCase()}`
     }
   }
   return Object.keys(input).every((k) => allowed.includes(k)) ? matchRoute(path) : null

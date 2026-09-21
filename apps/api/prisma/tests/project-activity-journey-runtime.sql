@@ -60,6 +60,32 @@ INSERT INTO pathways.journey_stages(id,organization_id,project_id,code,name,stag
  ('76000000-0000-4000-8000-000000000071','76000000-0000-4000-8000-000000000001','76000000-0000-4000-8000-000000000041','ENTRY','Entry',1,'ENTRY','76000000-0000-4000-8000-000000000031');
 INSERT INTO pathways.activity_journey_stage_mappings(id,organization_id,project_id,activity_id,stage_id,sequence_order,created_by_id) VALUES
  ('76000000-0000-4000-8000-000000000072','76000000-0000-4000-8000-000000000001','76000000-0000-4000-8000-000000000041','76000000-0000-4000-8000-000000000061','76000000-0000-4000-8000-000000000071',1,'76000000-0000-4000-8000-000000000031');
+
+-- Regression for P07 C4 saveStages(): deleteMany() executes even for a first
+-- browser save. Project Officers must remain unable to delete mappings, while
+-- an assigned Project Manager with journeys.manage may replace them before the
+-- first journey event.
+SET LOCAL ROLE pathways_runtime;
+SELECT set_config('request.jwt.claim.sub','76000000-0000-4000-8000-000000000012',true),
+ set_config('app.organization_id','76000000-0000-4000-8000-000000000001',true),
+ set_config('app.user_id','76000000-0000-4000-8000-000000000032',true);
+DO $$ DECLARE affected integer; BEGIN
+  DELETE FROM pathways.activity_journey_stage_mappings
+  WHERE id='76000000-0000-4000-8000-000000000072';
+  GET DIAGNOSTICS affected = ROW_COUNT;
+  IF affected<>0 THEN RAISE EXCEPTION 'Project Officer unexpectedly deleted a journey mapping'; END IF;
+END $$;
+
+RESET ROLE;
+SET LOCAL ROLE pathways_runtime;
+SELECT set_config('request.jwt.claim.sub','76000000-0000-4000-8000-000000000011',true),
+ set_config('app.organization_id','76000000-0000-4000-8000-000000000001',true),
+ set_config('app.user_id','76000000-0000-4000-8000-000000000031',true);
+DELETE FROM pathways.activity_journey_stage_mappings
+WHERE id='76000000-0000-4000-8000-000000000072';
+INSERT INTO pathways.activity_journey_stage_mappings(id,organization_id,project_id,activity_id,stage_id,sequence_order,created_by_id) VALUES
+ ('76000000-0000-4000-8000-000000000072','76000000-0000-4000-8000-000000000001','76000000-0000-4000-8000-000000000041','76000000-0000-4000-8000-000000000061','76000000-0000-4000-8000-000000000071',1,'76000000-0000-4000-8000-000000000031');
+RESET ROLE;
 INSERT INTO pathways.beneficiaries(id,organization_id,code,subject_type,display_name,status,consent_recorded,data_processing_consent_recorded,created_by_id) VALUES
  ('76000000-0000-4000-8000-000000000081','76000000-0000-4000-8000-000000000001','P05-BEN-1','GROUP','Synthetic P05 Group','ACTIVE',true,true,'76000000-0000-4000-8000-000000000031');
 INSERT INTO pathways.beneficiary_project_enrollments(id,organization_id,project_id,beneficiary_id,enrollment_date,recorded_by_id) VALUES
@@ -99,7 +125,24 @@ UPDATE pathways.activity_updates SET status='APPROVED',reviewed_by_id='76000000-
 WHERE id='76000000-0000-4000-8000-000000000091';
 UPDATE pathways.evidence_media SET status='VERIFIED',verified_by_id='76000000-0000-4000-8000-000000000033',verified_at=now()
 WHERE id='76000000-0000-4000-8000-000000000093';
-UPDATE pathways.project_activities SET status='COMPLETED',progress_percent=100,actual_end_date='2026-06-30',reviewed_by_id='76000000-0000-4000-8000-000000000033',reviewed_at='2026-07-01'
+-- Regression: the business calendar may already be the next day while the
+-- auditable review timestamptz is still on the prior UTC date. A completion
+-- date more than one day away is still rejected.
+DO $$ BEGIN
+  BEGIN
+    UPDATE pathways.project_activities
+    SET status='COMPLETED',progress_percent=100,actual_end_date='2026-07-03',
+        reviewed_by_id='76000000-0000-4000-8000-000000000033',
+        reviewed_at='2026-06-30 16:30:00+00'
+    WHERE id='76000000-0000-4000-8000-000000000061';
+    RAISE EXCEPTION 'timezone-safe lifecycle window unexpectedly allowed a multi-day mismatch';
+  EXCEPTION WHEN check_violation THEN NULL; END;
+END $$;
+
+UPDATE pathways.project_activities
+SET status='COMPLETED',progress_percent=100,actual_end_date='2026-07-01',
+    reviewed_by_id='76000000-0000-4000-8000-000000000033',
+    reviewed_at='2026-06-30 16:30:00+00'
 WHERE id='76000000-0000-4000-8000-000000000061';
 
 RESET ROLE;
@@ -130,11 +173,29 @@ DO $$ BEGIN
   EXCEPTION WHEN check_violation THEN NULL; END;
 END $$;
 
+-- Reproduce the application correction path under the non-owner runtime role.
+-- The correction must succeed without granting UPDATE on append-only journey events.
+SET LOCAL ROLE pathways_runtime;
+SELECT set_config('request.jwt.claim.sub','76000000-0000-4000-8000-000000000012',true),
+ set_config('app.organization_id','76000000-0000-4000-8000-000000000001',true),
+ set_config('app.user_id','76000000-0000-4000-8000-000000000032',true);
+
+DO $$ BEGIN
+  BEGIN
+    UPDATE pathways.beneficiary_journey_events
+    SET description='Runtime mutation must remain denied'
+    WHERE id='76000000-0000-4000-8000-000000000095';
+    RAISE EXCEPTION 'runtime journey-event UPDATE unexpectedly succeeded';
+  EXCEPTION WHEN insufficient_privilege THEN NULL; END;
+END $$;
+
 INSERT INTO pathways.beneficiary_journey_events(id,organization_id,project_id,enrollment_id,activity_id,stage_id,event_type,event_date,description,corrects_event_id,correction_reason,recorded_by_id) VALUES
  ('76000000-0000-4000-8000-000000000096','76000000-0000-4000-8000-000000000001','76000000-0000-4000-8000-000000000041','76000000-0000-4000-8000-000000000082','76000000-0000-4000-8000-000000000061','76000000-0000-4000-8000-000000000071','PARTICIPATION','2026-05-02','Corrected note','76000000-0000-4000-8000-000000000095','Corrected date and note','76000000-0000-4000-8000-000000000032');
 
+RESET ROLE;
 DO $$ BEGIN
   IF (SELECT count(*) FROM pathways.beneficiary_journey_events WHERE enrollment_id='76000000-0000-4000-8000-000000000082')<>2 THEN RAISE EXCEPTION 'append-only correction missing'; END IF;
+  IF (SELECT corrects_event_id FROM pathways.beneficiary_journey_events WHERE id='76000000-0000-4000-8000-000000000096')<>'76000000-0000-4000-8000-000000000095'::uuid THEN RAISE EXCEPTION 'correction root link missing'; END IF;
   IF (SELECT count(*) FROM pathways.project_activities WHERE organization_id='76000000-0000-4000-8000-000000000002')<>0 THEN RAISE EXCEPTION 'cross-organization activity leaked'; END IF;
 END $$;
 
