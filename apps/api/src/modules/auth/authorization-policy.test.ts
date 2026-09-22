@@ -59,6 +59,16 @@ describe('canonical least-privilege policy ceiling', () => {
       expect(rolePermissions[role]).not.toContain('imports.review')
     }
   })
+  it('grants project indicators only to Project Manager and M&E within the existing scoped permission model', () => {
+    for (const permission of ['indicators.create', 'indicators.update'] as const) {
+      for (const role of Object.keys(roleNames) as CanonicalRole[]) {
+        expect(rolePermissions[role].includes(permission)).toBe(
+          role === 'PROJECT_MANAGER' || role === 'MONITORING_AND_EVALUATION_OFFICER',
+        )
+      }
+    }
+    expect(rolePermissions.PROJECT_MANAGER).toContain('monitoring.read')
+  })
   it('enforces the exact account-administration and assignment role matrix', () => {
     for (const actor of Object.keys(roleNames) as CanonicalRole[]) {
       for (const target of Object.keys(roleNames) as CanonicalRole[]) {

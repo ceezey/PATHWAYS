@@ -166,6 +166,30 @@ describe('P06 IndicatorsService', () => {
     )
     expect(JSON.stringify(tx.auditLog.create.mock.calls)).not.toContain('Verified source')
   })
+  it('uses the same scoped and audited create path for an authorized Project Manager', async () => {
+    const manager: ApplicationIdentity = {
+      ...actor,
+      fullName: 'Synthetic Project Manager',
+      roles: ['PROJECT_MANAGER'],
+    }
+    await service.create(manager, projectId, input)
+    expect(boundary.run).toHaveBeenCalledWith(
+      expect.anything(),
+      manager,
+      'indicators.create',
+      expect.any(Function),
+    )
+    expect(tx.project.findFirst).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { AND: [expect.objectContaining({ organizationId }), { id: projectId }] },
+      }),
+    )
+    expect(tx.auditLog.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ action: 'PROJECT_INDICATOR_CREATED', actorUserId: userId }),
+      }),
+    )
+  })
   it('checks the pinned published form version before inserting a derived binding', async () => {
     tx.digitalForm.findFirst.mockResolvedValue(null)
     await expect(

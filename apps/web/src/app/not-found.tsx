@@ -5,8 +5,8 @@ import { Card, CardContent, CardHeader } from '@/components/ui/card'
 
 export default function NotFound() {
   return (
-    <main className="flex min-h-screen items-center justify-center p-6">
-      <Card className="max-w-lg">
+    <main className="flex min-h-dvh items-center justify-center bg-surface-subtle p-6">
+      <Card className="w-full max-w-lg">
         <CardHeader>
           <h1 className="text-xl font-semibold leading-none tracking-tight">Route not found</h1>
         </CardHeader>

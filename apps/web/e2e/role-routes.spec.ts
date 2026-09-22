@@ -124,7 +124,18 @@ for (const role of Object.keys(roleCodes) as CanonicalRole[]) {
     for (const [pathname, roles] of entries) {
       await change(page, { path: pathname })
       if (roles.includes(roleCodes[role])) {
-        await expect(page.getByRole('heading', { name: 'Protected fixture content' })).toBeVisible()
+        if (pathname === '/beneficiaries' || pathname.startsWith('/beneficiaries/')) {
+          await expect(
+            page.getByRole('dialog', { name: 'Verify beneficiary module access' }),
+          ).toBeVisible()
+          await expect(
+            page.getByRole('heading', { name: 'Protected fixture content' }),
+          ).toHaveCount(0)
+        } else {
+          await expect(
+            page.getByRole('heading', { name: 'Protected fixture content' }),
+          ).toBeVisible()
+        }
         await expect(
           page.getByText('Prototype-only · Backend pending', { exact: true }),
         ).toHaveCount(0)

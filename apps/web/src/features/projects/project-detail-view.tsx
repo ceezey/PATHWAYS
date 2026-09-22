@@ -1,171 +1,254 @@
 'use client'
 
-import { ArrowLeft, FolderKanban } from 'lucide-react'
+import { Archive, ArrowLeft, CalendarDays, FolderKanban, Pencil } from 'lucide-react'
 import Link from 'next/link'
 import { useEffect, useState } from 'react'
-import { toast } from 'sonner'
 
 import { PageHeader } from '@/components/layout/page-header'
-import { EmptyState, SectionCard, StatusBadge } from '@/components/pathways'
+import { AsyncState, SectionCard, StatusBadge, StatusMessage } from '@/components/pathways'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
 import { useCurrentRole } from '@/hooks/use-current-role'
+import { isUiActionAvailable } from '@/lib/rbac/ui-action-availability'
 import { pathwaysClient } from '@/lib/services/pathways-client'
+import { PathwaysClientError } from '@/lib/services/pathways-client'
 import type { ProjectDetail } from '@/types/pathways'
-import { projectStatusTone } from './project-utils'
 
-export function ProjectDetailView({ projectId }: { projectId: string }) {
-  const { profile } = useCurrentRole()
+import { ProjectTeamEditorDialog } from './project-team-editor-dialog'
+import {
+  formatNumber,
+  projectHealthSignal,
+  projectHealthTone,
+  projectStatusTone,
+} from './project-utils'
+import { ProjectWorkspaceHeader } from './project-workspace-header'
+
+export const ProjectDetailView = ({ projectId }: { projectId: string }) => {
+  const { role } = useCurrentRole()
+  const canManageProjectTeam = isUiActionAvailable(role, 'projects.team.manage')
   const [project, setProject] = useState<ProjectDetail | null>(null)
-  const [status, setStatus] = useState<'loading' | 'success' | 'error'>('loading')
-  const [editingPeriod, setEditingPeriod] = useState(false)
-  const [endDate, setEndDate] = useState('')
-  const [savingPeriod, setSavingPeriod] = useState(false)
+  const [status, setStatus] = useState<'loading' | 'success' | 'not-found' | 'error'>('loading')
+  const [loadAttempt, setLoadAttempt] = useState(0)
 
   useEffect(() => {
-    let active = true
+    void loadAttempt
+    let mounted = true
+    setStatus('loading')
+
     pathwaysClient
       .getProject(projectId)
       .then((record) => {
-        if (!active) return
+        if (!mounted) {
+          return
+        }
+
         setProject(record)
-        setEndDate(record.endDate ?? '')
         setStatus('success')
       })
-      .catch(() => {
-        if (active) setStatus('error')
-      })
-    return () => {
-      active = false
-    }
-  }, [projectId])
+      .catch((error) => {
+        if (!mounted) {
+          return
+        }
 
-  const savePeriod = async () => {
-    if (!project || !endDate || (project.startDate && endDate < project.startDate)) {
-      toast.error('Choose an end date on or after the project start date.')
-      return
+        setStatus(
+          error instanceof PathwaysClientError && error.code === 'not_found'
+            ? 'not-found'
+            : 'error',
+        )
+      })
+
+    return () => {
+      mounted = false
     }
-    setSavingPeriod(true)
-    try {
-      const updated = await pathwaysClient.updateProjectPeriod(project.id, endDate)
-      setProject(updated)
-      setEndDate(updated.endDate ?? '')
-      setEditingPeriod(false)
-      toast.success('Project period saved.')
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Project period could not be saved.')
-    } finally {
-      setSavingPeriod(false)
-    }
-  }
+  }, [loadAttempt, projectId])
 
   if (status === 'loading') {
     return (
-      <EmptyState
-        description="Checking your project scope."
+      <AsyncState
+        description="Loading the project preview workspace."
         icon={FolderKanban}
+        status="loading"
         title="Loading project"
       />
     )
   }
-  if (status === 'error' || !project) {
+
+  if (status === 'error') {
     return (
-      <EmptyState
-        description="This project profile is unavailable to the current workspace."
-        icon={FolderKanban}
-        title="Project unavailable"
-      />
+      <>
+        <PageHeader
+          eyebrow="Projects"
+          title="Project unavailable"
+          description="The project could not be loaded from the current service."
+          actions={
+            <Button asChild variant="outline">
+              <Link href="/projects">Back to projects</Link>
+            </Button>
+          }
+        />
+        <AsyncState
+          description="Check your connection and try loading this project again."
+          icon={FolderKanban}
+          onRetry={() => setLoadAttempt((attempt) => attempt + 1)}
+          status="error"
+          title="Project data unavailable"
+        />
+      </>
+    )
+  }
+
+  if (status === 'not-found' || !project) {
+    return (
+      <>
+        <PageHeader
+          title="Project not found"
+          description="This project is not available to the current account."
+          actions={
+            <Button asChild variant="outline">
+              <Link href="/projects">Back to projects</Link>
+            </Button>
+          }
+        />
+        <AsyncState
+          description="Return to the project directory and choose an available project."
+          icon={FolderKanban}
+          status="empty"
+          title="No project record"
+        />
+      </>
     )
   }
 
   return (
     <>
+      <StatusMessage>Project loaded.</StatusMessage>
       <PageHeader
-        eyebrow="Project profile"
-        title={project.title}
-        description={project.description || 'No description recorded.'}
+        title="Project overview"
         actions={
-          <Button asChild variant="outline">
-            <Link href="/projects">
-              <ArrowLeft className="mr-2 h-4 w-4" aria-hidden="true" />
-              Back to projects
-            </Link>
-          </Button>
+          <div className="flex flex-wrap items-center gap-2">
+            <Button asChild className="gap-2" variant="outline">
+              <Link href="/projects">
+                <ArrowLeft className="h-4 w-4" aria-hidden="true" />
+                Back to Projects
+              </Link>
+            </Button>
+            {role ? (
+              <>
+                {
+                  <Button
+                    disabled
+                    size="icon"
+                    variant="outline"
+                    aria-label="Edit project profile"
+                    title="Project editing unavailable"
+                  >
+                    <Pencil className="h-4 w-4" aria-hidden="true" />
+                  </Button>
+                }
+                <Button
+                  disabled
+                  aria-label="Archive project"
+                  size="icon"
+                  title="Archive project unavailable"
+                  type="button"
+                  variant="outline"
+                >
+                  <Archive className="h-4 w-4" aria-hidden="true" />
+                </Button>
+              </>
+            ) : null}
+          </div>
         }
       />
-      <section className="grid gap-4 lg:grid-cols-2">
+      <ProjectWorkspaceHeader project={project} />
+      <section className="grid gap-4 lg:grid-cols-[1.2fr_0.8fr]">
         <SectionCard
-          title="Profile"
-          description="Persisted project identity and lifecycle fields."
+          title="Project preview"
+          description={`${project.area} - ${project.sector} - ${project.period}`}
           actions={
-            <StatusBadge tone={projectStatusTone(project.status)}>{project.status}</StatusBadge>
+            <div className="flex flex-wrap gap-2">
+              <StatusBadge tone={projectStatusTone(project.status)}>{project.status}</StatusBadge>
+              <StatusBadge
+                tone={project.metricsAvailable ? projectHealthTone(project.health) : 'neutral'}
+              >
+                {project.metricsAvailable ? project.health : 'Not assessed'}
+              </StatusBadge>
+            </div>
           }
         >
-          <dl className="grid gap-4 text-sm sm:grid-cols-2">
-            <Item label="Code" value={project.code || 'Not recorded'} />
-            <Item label="Implementation area" value={project.area} />
-            <Item label="Period" value={project.period} />
-            <Item label="Project Manager" value={project.projectManager} />
-          </dl>
-          {profile?.permissions.includes('projects.create') ? (
-            <div className="mt-5 border-t pt-4">
-              {editingPeriod ? (
-                <div className="flex flex-wrap items-end gap-3">
-                  <div className="space-y-2">
-                    <Label htmlFor="project-end-date">End date</Label>
-                    <Input
-                      id="project-end-date"
-                      type="date"
-                      value={endDate}
-                      onChange={(event) => setEndDate(event.target.value)}
-                    />
-                  </div>
-                  <Button disabled={savingPeriod} onClick={() => void savePeriod()}>
-                    {savingPeriod ? 'Saving...' : 'Save end date'}
-                  </Button>
-                  <Button
-                    disabled={savingPeriod}
-                    variant="outline"
-                    onClick={() => {
-                      setEndDate(project.endDate ?? '')
-                      setEditingPeriod(false)
-                    }}
-                  >
-                    Cancel
-                  </Button>
-                </div>
-              ) : (
-                <Button variant="outline" onClick={() => setEditingPeriod(true)}>
-                  Edit end date
-                </Button>
-              )}
+          <div className="space-y-5">
+            <div className="grid gap-px overflow-hidden rounded-sm border border-border bg-border sm:grid-cols-2">
+              <div className="bg-surface-subtle p-4">
+                <p className="text-sm text-muted-foreground">KPI achievement</p>
+                <p className="mt-2 text-2xl font-semibold tabular-nums text-foreground">
+                  {project.metricsAvailable ? `${project.kpiAchievement}%` : 'Unavailable'}
+                </p>
+              </div>
+              <div className="bg-surface-subtle p-4">
+                <p className="text-sm text-muted-foreground">Budget utilization</p>
+                <p className="mt-2 text-2xl font-semibold tabular-nums text-foreground">
+                  {project.metricsAvailable ? `${project.budgetUtilization}%` : 'Unavailable'}
+                </p>
+              </div>
+              <div className="bg-surface-subtle p-4">
+                <p className="text-sm text-muted-foreground">Beneficiaries reached / target</p>
+                <p className="mt-2 text-2xl font-semibold tabular-nums text-foreground">
+                  {project.metricsAvailable
+                    ? `${formatNumber(project.beneficiariesReached)} / ${formatNumber(project.targetBeneficiaries)}`
+                    : 'Unavailable'}
+                </p>
+              </div>
+              <div className="bg-surface-subtle p-4">
+                <p className="text-sm text-muted-foreground">Timeline</p>
+                <p className="mt-2 text-2xl font-semibold tabular-nums text-foreground">
+                  {project.metricsAvailable ? `${project.timelineProgress}%` : 'Unavailable'}
+                </p>
+              </div>
             </div>
-          ) : null}
+            <div className="rounded-sm border border-border bg-surface-subtle p-4 text-sm leading-6 text-muted-foreground">
+              {project.metricsAvailable
+                ? projectHealthSignal(project)
+                : 'Project health cannot be assessed from the current API response.'}
+            </div>
+          </div>
         </SectionCard>
-        <SectionCard title="Objectives" description="Current persisted project objectives.">
-          <p className="text-sm leading-6 text-muted-foreground">
-            {project.objectives || 'No objectives recorded.'}
-          </p>
+        <SectionCard
+          title="Project team"
+          description="Assigned project team members."
+          actions={canManageProjectTeam ? <ProjectTeamEditorDialog project={project} /> : null}
+        >
+          <dl className="grid gap-4 text-sm sm:grid-cols-2">
+            <div>
+              <dt className="text-muted-foreground">Program Manager</dt>
+              <dd className="mt-1 font-medium text-foreground">{project.programManager}</dd>
+            </div>
+            <div>
+              <dt className="text-muted-foreground">Project Manager</dt>
+              <dd className="mt-1 font-medium text-foreground">{project.projectManager}</dd>
+            </div>
+            <div>
+              <dt className="text-muted-foreground">Monitoring and Evaluation Officer</dt>
+              <dd className="mt-1 font-medium text-foreground">{project.monitoringOfficer}</dd>
+            </div>
+            <div>
+              <dt className="text-muted-foreground">Project Officers</dt>
+              <dd className="mt-1 font-medium text-foreground">
+                {project.projectOfficers.join(', ')}
+              </dd>
+            </div>
+          </dl>
         </SectionCard>
       </section>
-      <SectionCard
-        title="Additional modules"
-        description="Activity, Beneficiary, indicator, finance, and dashboard values appear only after their persisted phase is implemented."
-      >
-        <p className="text-sm text-muted-foreground">
-          No unimplemented metrics are inferred from this project profile.
-        </p>
-      </SectionCard>
+      <section>
+        <SectionCard title="Schedule" description="Project implementation window.">
+          <div className="flex items-start gap-3 text-sm">
+            <CalendarDays className="mt-1 h-4 w-4 shrink-0 text-primary" aria-hidden="true" />
+            <div>
+              <p className="font-medium text-foreground">{project.period}</p>
+              <p className="mt-1 text-muted-foreground">Budget code: {project.budgetCode}</p>
+            </div>
+          </div>
+        </SectionCard>
+      </section>
     </>
-  )
-}
-
-function Item({ label, value }: { label: string; value: string }) {
-  return (
-    <div>
-      <dt className="text-muted-foreground">{label}</dt>
-      <dd className="mt-1 font-medium">{value}</dd>
-    </div>
   )
 }

@@ -1,299 +1,496 @@
 'use client'
 
+import {
+  AlertTriangle,
+  BarChart3,
+  CircleDollarSign,
+  ClipboardCheck,
+  Plus,
+  Target,
+  UsersRound,
+} from 'lucide-react'
+import Link from 'next/link'
+import { useEffect, useMemo, useState } from 'react'
+
+import { PageHeader } from '@/components/layout/page-header'
+import { AsyncState, StatusMessage } from '@/components/pathways'
 import { EmptyState } from '@/components/pathways/empty-state'
 import { MetricCard } from '@/components/pathways/metric-card'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Input } from '@/components/ui/input'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import { useCurrentRole } from '@/hooks/use-current-role'
 import { useDisplayLabels } from '@/hooks/use-display-labels'
+import { can } from '@/lib/rbac/can'
 import { pathwaysClient } from '@/lib/services/pathways-client'
-import { type DashboardQuery, dashboardQuerySchema, formatMetricCell } from '@pathways/shared'
-import { BarChart3, ClipboardCheck, Target, UsersRound } from 'lucide-react'
-import Link from 'next/link'
-import { type FormEvent, useCallback, useState } from 'react'
-import { AggregateChart, IndicatorComparisonChart, SadddChart } from './analytics-charts'
-import { useMonitoringRead } from './use-monitoring-read'
+import type { Activity, ProjectSummary } from '@/types/pathways'
+import { type MonitoringDashboard, type SadddDashboard, formatMetricCell } from '@pathways/shared'
 
-const selectClass = 'w-full rounded-md border border-input bg-background px-3 py-2 text-sm'
+import { ActivityCompletionChart, DescriptiveAnalysisChart, SadddChart } from './analytics-charts'
+import { humanReviewDisclaimer } from './analytics-utils'
 
-export function AnalyticsDashboard() {
+const analysisViews = [
+  { value: 'kpi', label: 'KPI / indicator performance' },
+  { value: 'participation', label: 'Participation patterns' },
+  { value: 'survey', label: 'Survey improvement' },
+  { value: 'timeline', label: 'Project / activity timeline adherence' },
+] as const
+const visualizationTypes = [
+  { value: 'bar', label: 'Bar chart' },
+  { value: 'line', label: 'Line chart' },
+  { value: 'table', label: 'Table' },
+  { value: 'map', label: 'Map' },
+] as const
+const periods = [
+  { value: 'Q1 2026', start: '2026-01-01', end: '2026-03-31' },
+  { value: 'Q2 2026', start: '2026-04-01', end: '2026-06-30' },
+  { value: 'July 2026', start: '2026-07-01', end: '2026-07-31' },
+] as const
+
+type AnalysisView = (typeof analysisViews)[number]['value']
+type VisualizationType = (typeof visualizationTypes)[number]['value']
+
+const metricNumber = (cell: { value: string | null }) => {
+  if (cell.value === null) return null
+  const value = Number(cell.value)
+  return Number.isFinite(value) ? value : null
+}
+
+export const AnalyticsDashboard = () => {
   const { labels } = useDisplayLabels()
-  const { profile } = useCurrentRole()
-  const [query, setQuery] = useState<DashboardQuery>({})
-  const [filterError, setFilterError] = useState<string | null>(null)
-  const [indicatorId, setIndicatorId] = useState('')
-  const loadProjects = useCallback(() => pathwaysClient.getProjects(), [])
-  const directory = useMonitoringRead('monitoring-project-options', loadProjects)
-  const load = useCallback(() => pathwaysClient.getMonitoringDashboard(query), [query])
-  const monitoring = useMonitoringRead(JSON.stringify(query), load)
-  const canReadSaddd = profile?.permissions.includes('beneficiaries.aggregates.read') === true
-  const loadSaddd = useCallback(
-    async () =>
-      canReadSaddd && query.projectId
-        ? pathwaysClient.getSadddDashboard({ projectId: query.projectId })
-        : null,
-    [query.projectId, canReadSaddd],
-  )
-  const saddd = useMonitoringRead(`saddd:${JSON.stringify(query)}:${canReadSaddd}`, loadSaddd)
-  const data = monitoring.data
-  const selectedIndicator =
-    data?.indicators.find((indicator) => indicator.id === indicatorId) ?? data?.indicators[0]
+  const { role } = useCurrentRole()
+  const [projects, setProjects] = useState<ProjectSummary[]>([])
+  const [projectId, setProjectId] = useState('')
+  const [period, setPeriod] = useState<(typeof periods)[number]['value']>('Q2 2026')
+  const [analysisView, setAnalysisView] = useState<AnalysisView>('kpi')
+  const [visualizationType, setVisualizationType] = useState<VisualizationType>('bar')
+  const [indicatorId, setIndicatorId] = useState('all')
+  const [monitoring, setMonitoring] = useState<MonitoringDashboard | null>(null)
+  const [saddd, setSaddd] = useState<SadddDashboard | null>(null)
+  const [activities, setActivities] = useState<Activity[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
+  const [sadddError, setSadddError] = useState('')
+  const [loadAttempt, setLoadAttempt] = useState(0)
 
-  const apply = (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault()
-    const form = new FormData(event.currentTarget)
-    const periodStart = String(form.get('periodStart') ?? '')
-    const periodEnd = String(form.get('periodEnd') ?? '')
-    const projectId = String(form.get('projectId') ?? '')
-    const parsed = dashboardQuerySchema.safeParse({
-      ...(projectId ? { projectId } : {}),
-      ...(periodStart ? { periodStart } : {}),
-      ...(periodEnd ? { periodEnd } : {}),
-    })
-    if (!parsed.success) {
-      setFilterError(
-        'Select both valid period dates, in chronological order, within 366 inclusive days.',
-      )
+  useEffect(() => {
+    if (!role) return
+    let active = true
+    pathwaysClient
+      .getProjectsForRole(role)
+      .then((records) => {
+        if (!active) return
+        setProjects(records)
+        setProjectId((current) =>
+          records.some((row) => row.id === current) ? current : (records[0]?.id ?? ''),
+        )
+      })
+      .catch((caught: unknown) => {
+        if (active)
+          setError(caught instanceof Error ? caught.message : 'Projects could not be loaded.')
+      })
+    return () => {
+      active = false
+    }
+  }, [role])
+
+  useEffect(() => {
+    if (!projectId) {
+      setLoading(false)
       return
     }
-    setFilterError(null)
-    setQuery(parsed.data)
-    setIndicatorId('')
-  }
-  const refresh = () => {
-    monitoring.reload()
-    saddd.reload()
-    directory.reload()
-  }
-  return (
-    <section className="space-y-5">
-      <header className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-semibold">{labels.moduleAnalytics}</h1>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Database-scoped monitoring. Participation records, people and project indicators remain
-            distinct measures.
-          </p>
-        </div>
-        <Button
-          type="button"
-          variant="outline"
-          onClick={refresh}
-          disabled={monitoring.loading || saddd.loading}
-        >
-          Refresh monitoring
-        </Button>
-      </header>
-      <Card>
-        <CardContent className="pt-5">
-          <form onSubmit={apply} className="grid items-end gap-3 md:grid-cols-4">
-            <label>
-              Project
-              <select className={selectClass} name="projectId" defaultValue="">
-                <option value="">All authorized projects</option>
-                {directory.data?.map((project) => (
-                  <option key={project.id} value={project.id}>
-                    {project.title}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <div>
-              <label htmlFor="analytics-period-start">Period start</label>
-              <Input id="analytics-period-start" name="periodStart" type="date" />
-            </div>
+    void loadAttempt
+    let active = true
+    const selectedPeriod = periods.find((row) => row.value === period) ?? periods[0]
+    setLoading(true)
+    setError('')
+    setSaddd(null)
+    setSadddError('')
+    Promise.all([
+      pathwaysClient.getMonitoringDashboard({
+        projectId,
+        periodStart: selectedPeriod.start,
+        periodEnd: selectedPeriod.end,
+      }),
+      pathwaysClient.getActivities(projectId),
+    ])
+      .then(([nextMonitoring, nextActivities]) => {
+        if (!active) return
+        setMonitoring(nextMonitoring)
+        setActivities(nextActivities)
+      })
+      .catch((caught: unknown) => {
+        if (active)
+          setError(caught instanceof Error ? caught.message : 'Analytics data could not be loaded.')
+      })
+      .finally(() => {
+        if (active) setLoading(false)
+      })
+    pathwaysClient
+      .getSadddDashboard({ projectId })
+      .then((result) => {
+        if (active) setSaddd(result)
+      })
+      .catch((caught: unknown) => {
+        if (active)
+          setSadddError(caught instanceof Error ? caught.message : 'SADDD analysis is unavailable.')
+      })
+    return () => {
+      active = false
+    }
+  }, [projectId, period, loadAttempt])
 
-            <div>
-              <label htmlFor="analytics-period-end">Period end (inclusive)</label>
-              <Input id="analytics-period-end" name="periodEnd" type="date" />
-            </div>
-            <Button type="submit">Apply filters</Button>
-          </form>
-          {filterError ? (
-            <p role="alert" className="mt-3 text-sm text-destructive">
-              {filterError}
-            </p>
-          ) : null}
-          <p className="mt-3 text-xs text-muted-foreground">
-            Leave both dates blank for the current month through today in the configured business
-            time zone. These dates apply to monitoring only; SADDD uses the selected project's saved
-            start and end dates after its period closes. Demographic intersections, location and
-            activity drill-through are not enabled.
-          </p>
-        </CardContent>
-      </Card>
-      {monitoring.error ? (
-        <EmptyState
+  const selectedProject = projects.find((row) => row.id === projectId)
+  const indicators =
+    monitoring?.indicators.filter(
+      (row) => row.projectId === projectId && row.status === 'ACTIVE',
+    ) ?? []
+  const analysisMeta = {
+    kpi: { title: 'KPI / indicator performance', unit: '%' },
+    participation: { title: 'Participation patterns', unit: 'records' },
+    survey: { title: 'Survey improvement', unit: 'points' },
+    timeline: { title: 'Project / activity timeline adherence', unit: '%' },
+  }[analysisView]
+  const analysisRows = useMemo(() => {
+    if (!selectedProject || !monitoring) return []
+    if (analysisView === 'kpi')
+      return indicators
+        .filter((row) => indicatorId === 'all' || row.id === indicatorId)
+        .flatMap((row) => {
+          const value = metricNumber(row.progress)
+          return value === null ? [] : [{ id: row.id, label: row.name, value }]
+        })
+    if (analysisView === 'participation') {
+      const value = metricNumber(monitoring.participationRecords)
+      return value === null ? [] : [{ id: selectedProject.id, label: selectedProject.title, value }]
+    }
+    return []
+  }, [analysisView, indicatorId, indicators, monitoring, selectedProject])
+  const progressValues = indicators
+    .map((row) => metricNumber(row.progress))
+    .filter((value): value is number => value !== null)
+  const averageKpi = progressValues.length
+    ? Math.round(progressValues.reduce((sum, value) => sum + value, 0) / progressValues.length)
+    : null
+  const completedActivities = activities.filter(
+    (activity) => activity.status === 'Completed',
+  ).length
+  const canViewRules = Boolean(role && can(role, 'rules.view'))
+  const canConfigureRules = Boolean(role && can(role, 'rules.configure'))
+
+  return (
+    <div className="space-y-6">
+      <PageHeader
+        editableLabelKey="moduleAnalytics"
+        actions={
+          canViewRules ? (
+            <Button asChild>
+              <Link href="/alerts/repository">
+                {canConfigureRules ? 'Manage alert rules' : 'View alert rules'}
+              </Link>
+            </Button>
+          ) : undefined
+        }
+        description="Project performance, SADDD Analysis, budget utilization, aggregate location coverage, Beneficiary reach, and Rule-Based Alerts for human review."
+        title={labels.moduleAnalytics}
+      />
+      <section
+        aria-labelledby="analytics-view-title"
+        className="grid gap-4 rounded-lg border border-border bg-card p-5 sm:grid-cols-2 xl:grid-cols-12"
+      >
+        <div className="sm:col-span-2 xl:col-span-12">
+          <h2 className="text-lg font-semibold" id="analytics-view-title">
+            Analysis and visualization
+          </h2>
+        </div>
+        <div className="space-y-2 xl:col-span-4">
+          <span className="text-sm font-medium">Project filter</span>
+          <Select value={projectId} onValueChange={setProjectId}>
+            <SelectTrigger aria-label="Project filter">
+              <SelectValue placeholder="No authorized projects" />
+            </SelectTrigger>
+            <SelectContent>
+              {projects.map((project) => (
+                <SelectItem key={project.id} value={project.id}>
+                  {project.title}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="space-y-2 xl:col-span-2">
+          <span className="text-sm font-medium">Reporting period</span>
+          <Select value={period} onValueChange={(value) => setPeriod(value as typeof period)}>
+            <SelectTrigger aria-label="Reporting period">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {periods.map((row) => (
+                <SelectItem key={row.value} value={row.value}>
+                  {row.value}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="space-y-2 xl:col-span-3">
+          <span className="text-sm font-medium">Analysis view</span>
+          <Select
+            value={analysisView}
+            onValueChange={(value) => setAnalysisView(value as AnalysisView)}
+          >
+            <SelectTrigger aria-label="Analysis view">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {analysisViews.map((view) => (
+                <SelectItem key={view.value} value={view.value}>
+                  {view.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="space-y-2 xl:col-span-3 xl:col-start-7 xl:row-start-3">
+          <span className="text-sm font-medium">Visualization type</span>
+          <Select
+            value={visualizationType}
+            onValueChange={(value) => setVisualizationType(value as VisualizationType)}
+          >
+            <SelectTrigger aria-label="Visualization type">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {visualizationTypes.map((type) => (
+                <SelectItem key={type.value} value={type.value}>
+                  {type.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="space-y-2 sm:col-span-2 xl:col-span-6 xl:row-start-3">
+          <span className="text-sm font-medium">Indicator</span>
+          <Select
+            disabled={analysisView !== 'kpi'}
+            value={indicatorId}
+            onValueChange={setIndicatorId}
+          >
+            <SelectTrigger aria-label="Indicator filter">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All indicators / project KPI</SelectItem>
+              {indicators.map((indicator) => (
+                <SelectItem key={indicator.id} value={indicator.id}>
+                  {indicator.code} · {indicator.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="rounded-sm border border-info/25 bg-info-subtle p-3 text-sm leading-6 text-info sm:col-span-2 xl:col-span-3 xl:col-start-10 xl:row-start-2">
+          {humanReviewDisclaimer}
+        </div>
+        <div className="flex flex-wrap justify-end gap-2 border-t border-border pt-4 sm:col-span-2 xl:col-span-12 xl:row-start-4">
+          <Button disabled className="shrink-0" type="button">
+            <Plus className="mr-2 h-4 w-4" aria-hidden="true" />
+            Add to Dashboard
+          </Button>
+        </div>
+      </section>
+
+      {loading ? (
+        <AsyncState
+          status="loading"
+          title="Loading analytics"
+          description="Loading scoped server data."
           icon={BarChart3}
-          title="Monitoring unavailable"
-          description={monitoring.error}
         />
-      ) : !data ? (
-        <output aria-live="polite">Loading authorized monitoring…</output>
+      ) : error ? (
+        <AsyncState
+          status="error"
+          title="Analytics data unavailable"
+          description={error}
+          icon={AlertTriangle}
+          onRetry={() => setLoadAttempt((value) => value + 1)}
+        />
+      ) : !selectedProject ? (
+        <EmptyState
+          description="No authorized project is available for this account."
+          icon={BarChart3}
+          title="No analytics data for this filter"
+        />
       ) : (
         <>
-          <p className="text-sm text-muted-foreground">
-            {data.periodStart} to {data.periodEnd} · {data.businessTimeZone} ·{' '}
-            {data.scopeProjectCount} authorized projects · Read-time results
-          </p>
-          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          <ChartPanel
+            title={`${analysisMeta.title} · ${visualizationTypes.find((type) => type.value === visualizationType)?.label}`}
+          >
+            {visualizationType === 'map' ? (
+              <UnavailableChart description="Location coverage is unavailable in the current API." />
+            ) : analysisRows.length === 0 ? (
+              <UnavailableChart
+                description={
+                  analysisView === 'survey' || analysisView === 'timeline'
+                    ? 'This analysis view is unavailable in the current API.'
+                    : 'No released values are available for this selection.'
+                }
+              />
+            ) : visualizationType === 'table' ? (
+              <table className="w-full text-left text-sm">
+                <caption className="sr-only">{analysisMeta.title}</caption>
+                <thead>
+                  <tr className="border-b">
+                    <th className="p-3">Project</th>
+                    <th className="p-3">Value</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {analysisRows.map((row) => (
+                    <tr className="border-b" key={row.id}>
+                      <td className="p-3">{row.label}</td>
+                      <td className="p-3 tabular-nums">
+                        {row.value.toLocaleString()} {analysisMeta.unit}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            ) : (
+              <DescriptiveAnalysisChart
+                rows={analysisRows}
+                title={analysisMeta.title}
+                type={visualizationType}
+                unit={analysisMeta.unit}
+              />
+            )}
+          </ChartPanel>
+          <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
             <MetricCard
-              icon={ClipboardCheck}
-              label="Participation records"
-              value={formatMetricCell(data.participationRecords)}
-              description="Committed activity records; includes recorded attendance states, not just people present."
-            />
-            <MetricCard
-              icon={UsersRound}
-              label="Distinct attending individuals"
-              value={formatMetricCell(data.attendingIndividuals)}
-              description="Present/completed attendance; shared Beneficiaries count once across projects."
-            />
-            <MetricCard
-              icon={UsersRound}
-              label="Enrolled individuals"
-              value={formatMetricCell(data.enrolledIndividuals)}
-              description="Individuals with an enrollment overlapping the period; not an attendance count."
-            />
-            <MetricCard
+              description="Average of released indicator progress values in this project and period."
               icon={Target}
-              label="Enrolled Beneficiary records"
-              value={formatMetricCell(data.enrolledBeneficiaryRecords)}
-              description="Distinct records including individuals, groups and communities; not a people total."
+              label="KPI achievement"
+              tone={averageKpi === null ? 'info' : averageKpi >= 70 ? 'success' : 'warning'}
+              value={averageKpi === null ? 'Unavailable' : `${averageKpi}%`}
             />
-          </div>
-          <div className="grid gap-4 xl:grid-cols-2">
-            <Card>
-              <CardHeader>
-                <CardTitle>Activity monitoring</CardTitle>
-                <p className="text-sm text-muted-foreground">
-                  Activities due within this period; current persisted status. Undated activities
-                  are excluded.
-                </p>
-              </CardHeader>
-              <CardContent>
-                <AggregateChart buckets={data.activities} label="Activity states" />
-              </CardContent>
-            </Card>
-            <Card>
-              <CardHeader>
-                <CardTitle>Milestone monitoring</CardTitle>
-                <p className="text-sm text-muted-foreground">
-                  Milestones targeted within this period; current persisted status, not a historical
-                  state snapshot.
-                </p>
-              </CardHeader>
-              <CardContent>
-                <AggregateChart buckets={data.milestones} label="Milestone states" />
-              </CardContent>
-            </Card>
-          </div>
-          <Card>
-            <CardHeader>
-              <CardTitle>Target versus current measurement</CardTitle>
-              <p className="text-sm text-muted-foreground">{data.indicatorNote}</p>
-            </CardHeader>
-            <CardContent>
-              {selectedIndicator ? (
+            <MetricCard
+              description="Budget utilization is unavailable in the current API."
+              icon={CircleDollarSign}
+              label="Budget utilization"
+              tone="info"
+              value="Unavailable"
+            />
+            <MetricCard
+              description="Beneficiary reach is unavailable as a distinct server metric for this view."
+              icon={UsersRound}
+              label="Beneficiary reach"
+              tone="info"
+              value="Unavailable"
+            />
+            <MetricCard
+              description="Completed activities in the selected project."
+              icon={ClipboardCheck}
+              label="Activity completion"
+              tone="success"
+              value={`${completedActivities}/${activities.length}`}
+            />
+            <MetricCard
+              description="Rule-Based Alerts are unavailable in the current API."
+              icon={AlertTriangle}
+              label="Rule-Based Alerts"
+              tone="info"
+              value="Unavailable"
+            />
+          </section>
+          <section className="space-y-6" aria-labelledby="fixed-monitoring-charts-title">
+            <h2 className="text-lg font-semibold" id="fixed-monitoring-charts-title">
+              Monitoring charts
+            </h2>
+            <ChartPanel title="Project performance trend">
+              <UnavailableChart description="Project performance history is unavailable in the current API." />
+            </ChartPanel>
+            <ChartPanel title="SADDD Analysis">
+              {sadddError ? (
+                <AsyncState
+                  status="error"
+                  title="SADDD analysis unavailable"
+                  description={sadddError}
+                  icon={AlertTriangle}
+                  onRetry={() => setLoadAttempt((value) => value + 1)}
+                />
+              ) : saddd ? (
                 <>
-                  <label>
-                    Indicator
-                    <select
-                      className={selectClass}
-                      value={selectedIndicator.id}
-                      onChange={(event) => setIndicatorId(event.target.value)}
-                    >
-                      {data.indicators.map((indicator) => (
-                        <option key={indicator.id} value={indicator.id}>
-                          {indicator.code} · {indicator.name}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                  <IndicatorComparisonChart indicator={selectedIndicator} />
-                  <p className="mt-3 text-sm">
-                    Progress toward configured change:{' '}
-                    {formatMetricCell(selectedIndicator.progress)}
-                    {selectedIndicator.progress.value !== null ? '%' : ''}. No universal performance
-                    threshold is applied.
-                  </p>
-                  <Link
-                    className="mt-3 inline-block text-sm font-medium text-primary underline"
-                    href={`/projects/${selectedIndicator.projectId}/indicators`}
-                  >
-                    Open indicator definitions
-                  </Link>
+                  <StatusMessage>SADDD analysis loaded.</StatusMessage>
+                  <div data-testid="saddd-chart">
+                    <SadddChart dashboard={saddd} />
+                  </div>
+                  <details className="mt-3 rounded-sm border border-border p-3 text-sm">
+                    <summary className="cursor-pointer font-medium">
+                      Accessible SADDD data table
+                    </summary>
+                    <table className="mt-3 w-full text-left">
+                      <thead>
+                        <tr>
+                          <th>Dimension</th>
+                          <th>Category</th>
+                          <th>Count</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {[
+                          ...saddd.sex.map((row) => ({ ...row, dimension: 'Sex' })),
+                          ...saddd.age.map((row) => ({ ...row, dimension: 'Age' })),
+                          ...saddd.disability.map((row) => ({ ...row, dimension: 'Disability' })),
+                        ].map((row) => (
+                          <tr key={`${row.dimension}-${row.key}`}>
+                            <td>{row.dimension}</td>
+                            <td>{row.label}</td>
+                            <td>{formatMetricCell(row.metric)}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </details>
                 </>
               ) : (
-                <p className="text-sm text-muted-foreground">
-                  No readable indicator definitions match this exact reporting period. Select the
-                  definition's period or open its project indicator page.
-                </p>
+                <AsyncState
+                  status="loading"
+                  title="Loading SADDD analysis"
+                  description="Loading the scoped beneficiary aggregate data."
+                  icon={UsersRound}
+                />
               )}
-            </CardContent>
-          </Card>
+            </ChartPanel>
+            <ChartPanel title="Activity completion">
+              <ActivityCompletionChart activities={activities} />
+            </ChartPanel>
+            <div className="grid gap-6 xl:grid-cols-2">
+              <ChartPanel title="Budget utilization">
+                <UnavailableChart description="Budget utilization is unavailable in the current API." />
+              </ChartPanel>
+              <ChartPanel title="Rule-Based Alerts">
+                <UnavailableChart description="Rule-Based Alerts are unavailable in the current API." />
+              </ChartPanel>
+            </div>
+          </section>
         </>
       )}
-      <Card>
-        <CardHeader>
-          <CardTitle>SADDD analysis</CardTitle>
-          <p className="text-sm text-muted-foreground">
-            Current demographic profiles of distinct enrolled individuals. Age is calculated at the
-            selected project's saved end date; this is not a historical demographic snapshot.
-          </p>
-        </CardHeader>
-        <CardContent>
-          {!canReadSaddd ? (
-            <p>SADDD aggregate permission is required.</p>
-          ) : !query.projectId ? (
-            <p>Select one authorized project to request its closed-period SADDD release.</p>
-          ) : saddd.error ? (
-            <p role="alert">{saddd.error}</p>
-          ) : !saddd.data ? (
-            <output aria-live="polite">Loading protected aggregates…</output>
-          ) : (
-            <>
-              {saddd.data.releaseState === 'STALE' ? (
-                <output className="mb-4 block text-sm">
-                  RESTATEMENT_REVIEW_REQUIRED: this project release changed after first publication.
-                  Counts remain withheld pending review.
-                </output>
-              ) : null}
-              <p className="mb-4 text-sm">
-                Eligible individuals: {formatMetricCell(saddd.data.total)} · Age reference:{' '}
-                {saddd.data.periodEnd ?? 'unavailable'} ({saddd.data.businessTimeZone})
-              </p>
-              <p className="mb-4 text-sm text-muted-foreground">
-                Counts 1–4 are suppressed. Complementary suppression may withhold the entire
-                release, including totals and completeness values. Missing birth dates are Unknown;
-                invalid birth dates are excluded until corrected.
-              </p>
-              <div className="grid gap-5 xl:grid-cols-3">
-                <SadddChart buckets={saddd.data.sex} label="Sex" />
-                <SadddChart buckets={saddd.data.age} label="Age at reporting period end" />
-                <SadddChart buckets={saddd.data.disability} label="Disability status" />
-              </div>
-              <details className="mt-4 border-t border-border pt-4">
-                <summary className="cursor-pointer font-medium">Data completeness</summary>
-                <dl className="mt-3 grid gap-3 sm:grid-cols-2">
-                  {saddd.data.completeness.map((item) => (
-                    <div key={item.key}>
-                      <dt className="text-sm text-muted-foreground">{item.label}</dt>
-                      <dd>{formatMetricCell(item.metric)}</dd>
-                    </div>
-                  ))}
-                </dl>
-              </details>
-            </>
-          )}
-        </CardContent>
-      </Card>
-      <p className="text-xs text-muted-foreground">
-        Outputs refresh when filters change, the page returns to view, or Refresh monitoring is
-        selected. A correction after first SADDD release requires restatement review. Finance, rule
-        alerts and geographic coverage are not synthesized from missing data.
-      </p>
-    </section>
+    </div>
   )
 }
+
+const ChartPanel = ({ title, children }: { title: string; children: React.ReactNode }) => (
+  <section className="overflow-hidden rounded-lg border border-border bg-card p-5">
+    <h2 className="text-lg font-semibold text-foreground">{title}</h2>
+    <div className="mt-4">{children}</div>
+  </section>
+)
+
+const UnavailableChart = ({ description }: { description: string }) => (
+  <EmptyState description={description} icon={BarChart3} title="Data unavailable" />
+)

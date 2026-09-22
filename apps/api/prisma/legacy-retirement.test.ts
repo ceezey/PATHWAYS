@@ -56,6 +56,7 @@ describe('Deferred legacy-table retirement contract', () => {
       '0018_runtime_journey_mapping_delete',
       '0019_journey_correction_lock_compatibility',
       '0020_fixed_sensitive_release_policy',
+      '0021_project_manager_indicator_access',
     ])
     expect(migration).toContain('DEFERRED REVIEW ARTIFACT -- NOT AN ACTIVE PRISMA MIGRATION')
   })

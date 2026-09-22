@@ -3,105 +3,110 @@
 import { UsersRound } from 'lucide-react'
 import { useEffect, useState } from 'react'
 
-import { EmptyState } from '@/components/pathways/empty-state'
+import { AsyncState } from '@/components/pathways'
 import { useCurrentRole } from '@/hooks/use-current-role'
 import { pathwaysClient } from '@/lib/services/pathways-client'
-import type { BeneficiaryFilters, BeneficiaryRecord, ProjectSummary } from '@/types/pathways'
+import type {
+  Activity,
+  BeneficiaryRecord,
+  JourneyStageConfig,
+  ProjectSummary,
+} from '@/types/pathways'
+
 import { BeneficiaryDirectory } from './beneficiary-directory'
+
+type DirectoryData = {
+  beneficiaries: BeneficiaryRecord[]
+  projects: ProjectSummary[]
+  activities: Activity[]
+  stages: JourneyStageConfig[]
+}
+
+const emptyDirectoryData: DirectoryData = {
+  beneficiaries: [],
+  projects: [],
+  activities: [],
+  stages: [],
+}
 
 export const BeneficiaryDirectoryLoader = () => {
   const { role } = useCurrentRole()
-  const [projects, setProjects] = useState<ProjectSummary[]>([])
-  const [selectedProjectId, setSelectedProjectId] = useState('')
-  const [beneficiaries, setBeneficiaries] = useState<BeneficiaryRecord[]>([])
-  const [filters, setFilters] = useState<BeneficiaryFilters>({})
-  const [loadingProjects, setLoadingProjects] = useState(true)
-  const [loadingRecords, setLoadingRecords] = useState(false)
+  const [data, setData] = useState<DirectoryData>(emptyDirectoryData)
+  const [loading, setLoading] = useState(true)
   const [failed, setFailed] = useState(false)
-  const [recordsFailed, setRecordsFailed] = useState(false)
+  const [loadAttempt, setLoadAttempt] = useState(0)
 
   useEffect(() => {
-    let active = true
     if (!role) return
-    setLoadingProjects(true)
-    setFailed(false)
-    void pathwaysClient
-      .getProjectsForRole(role)
-      .then((rows) => {
-        if (!active) return
-        setProjects(rows)
-        setSelectedProjectId((current) => current || rows[0]?.id || '')
-      })
-      .catch(() => active && setFailed(true))
-      .finally(() => active && setLoadingProjects(false))
-    return () => {
-      active = false
-    }
-  }, [role])
-
-  useEffect(() => {
+    const verifiedRole = role
+    void loadAttempt
     let active = true
-    if (!role || !selectedProjectId) {
-      setBeneficiaries([])
-      return
+
+    const loadDirectory = async () => {
+      setLoading(true)
+      setFailed(false)
+
+      try {
+        const projects = await pathwaysClient.getProjectsForRole(verifiedRole)
+        const [beneficiaryGroups, activityGroups, stageGroups] = await Promise.all([
+          Promise.all(
+            projects.map((project) =>
+              pathwaysClient.getBeneficiaryRecordsForRole(verifiedRole, project.id),
+            ),
+          ),
+          Promise.all(projects.map((project) => pathwaysClient.getActivities(project.id))),
+          Promise.all(projects.map((project) => pathwaysClient.getJourneyStages(project.id))),
+        ])
+
+        if (active) {
+          setData({
+            beneficiaries: beneficiaryGroups.flat(),
+            projects,
+            activities: activityGroups.flat(),
+            stages: stageGroups.flat(),
+          })
+        }
+      } catch {
+        if (active) {
+          setFailed(true)
+          setData(emptyDirectoryData)
+        }
+      } finally {
+        if (active) {
+          setLoading(false)
+        }
+      }
     }
 
-    setLoadingRecords(true)
-    setRecordsFailed(false)
+    void loadDirectory()
 
-    void pathwaysClient
-      .getBeneficiaryRecordsForRole(role, selectedProjectId, filters)
-      .then((rows) => {
-        if (active) setBeneficiaries(rows)
-      })
-      .catch(() => {
-        if (active) {
-          setBeneficiaries([])
-          setRecordsFailed(true)
-        }
-      })
-      .finally(() => active && setLoadingRecords(false))
     return () => {
       active = false
     }
-  }, [role, selectedProjectId, filters])
+  }, [loadAttempt, role])
 
-  if (loadingProjects) {
+  if (loading) {
     return (
-      <p className="rounded-lg border border-border bg-card p-8 text-sm text-muted-foreground">
-        Loading assigned projects...
-      </p>
+      <AsyncState
+        description="Loading the beneficiary records available to this account."
+        icon={UsersRound}
+        status="loading"
+        title="Loading Beneficiary records"
+      />
     )
   }
 
-  if (failed && projects.length === 0) {
+  if (failed) {
     return (
-      <EmptyState
+      <AsyncState
+        description="The scoped records could not be loaded. Check your connection and try again."
         icon={UsersRound}
+        onRetry={() => setLoadAttempt((attempt) => attempt + 1)}
+        status="error"
         title="Beneficiary records unavailable"
-        description="The authorized project scope could not be loaded."
       />
     )
   }
-  if (projects.length === 0) {
-    return (
-      <EmptyState
-        icon={UsersRound}
-        title="No assigned projects"
-        description="No beneficiary detail scope is available to this account."
-      />
-    )
-  }
-  return (
-    <BeneficiaryDirectory
-      beneficiaries={beneficiaries}
-      projects={projects}
-      selectedProjectId={selectedProjectId}
-      onProjectChange={setSelectedProjectId}
-      filters={filters}
-      onFiltersChange={setFilters}
-      loadingRecords={loadingRecords}
-      recordsFailed={recordsFailed}
-    />
-  )
+
+  return <BeneficiaryDirectory {...data} />
 }

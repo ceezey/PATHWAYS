@@ -8,10 +8,10 @@ const Toaster = ({ theme = 'light', ...props }: ToasterProps) => (
     className="toaster group"
     toastOptions={{
       classNames: {
-        toast: 'group toast border bg-background text-foreground shadow-lg',
+        toast: 'group toast rounded-lg border bg-card text-foreground shadow-popover',
         description: 'text-muted-foreground',
-        actionButton: 'bg-primary text-primary-foreground',
-        cancelButton: 'bg-muted text-muted-foreground',
+        actionButton: 'rounded-md bg-primary text-primary-foreground hover:bg-primary-hover',
+        cancelButton: 'rounded-md bg-secondary text-secondary-foreground hover:bg-muted',
       },
     }}
     {...props}

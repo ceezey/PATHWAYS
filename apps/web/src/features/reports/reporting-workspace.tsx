@@ -1,7 +1,7 @@
 'use client'
 
+type ExportFormat = 'csv' | 'xlsx' | 'xls' | 'pdf'
 import { formatMetricCell } from '@pathways/shared'
-
 import {
   type ColumnDef,
   flexRender,
@@ -16,14 +16,14 @@ import {
   FileSpreadsheet,
   FileText,
   Filter,
+  Save,
   Search,
-  ShieldAlert,
 } from 'lucide-react'
-import Link from 'next/link'
 import { useEffect, useMemo, useState } from 'react'
 import { toast } from 'sonner'
 
-import { EmptyState } from '@/components/pathways/empty-state'
+import { PageHeader } from '@/components/layout/page-header'
+import { AsyncState, StatusMessage } from '@/components/pathways'
 import { ProgressBar } from '@/components/pathways/progress-bar'
 import { StatusBadge } from '@/components/pathways/status-badge'
 import { Button } from '@/components/ui/button'
@@ -45,6 +45,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
 import {
   Select,
   SelectContent,
@@ -62,10 +63,10 @@ import {
 } from '@/components/ui/table'
 import { useCurrentRole } from '@/hooks/use-current-role'
 import { useDisplayLabels } from '@/hooks/use-display-labels'
+import { useSafeProjectSelection } from '@/hooks/use-safe-project-selection'
 import { can } from '@/lib/rbac/can'
 import { canAccessProjectForRole } from '@/lib/rbac/data-scope'
 import { reportKindPermissions } from '@/lib/rbac/route-access'
-import { pathwaysClient } from '@/lib/services/pathways-client'
 import type {
   Activity,
   BeneficiaryRecord,
@@ -78,7 +79,6 @@ import type {
   SurveyAggregateResultSet,
   SurveyFormDefinition,
 } from '@/types/pathways'
-import type { PathwaysRole } from '@/types/pathways-role'
 
 import { SurveyReportOverview } from './survey-report-overview'
 import {
@@ -110,18 +110,16 @@ type ReportingWorkspaceProps = {
 const allValue = 'all'
 const emptyBeneficiaryRecords: BeneficiaryRecord[] = []
 
-const reportTabs: { kind: ReportKind; label: string; href: string }[] = [
-  { kind: 'project-summary', label: 'Project Summary', href: '/reports/project-summary' },
-  { kind: 'indicator-summary', label: 'Indicator Summary', href: '/reports/indicator-summary' },
+const reportTypes: { kind: ReportKind; label: string }[] = [
+  { kind: 'project-summary', label: 'Project Summary' },
+  { kind: 'indicator-summary', label: 'Indicator Summary' },
   {
     kind: 'beneficiary-summary',
     label: 'Beneficiary Summary',
-    href: '/reports/beneficiary-summary',
   },
   {
     kind: 'survey-results',
     label: 'Survey/Form Results',
-    href: '/reports/survey-results',
   },
 ]
 
@@ -176,7 +174,7 @@ const defaultVisibleColumns = Object.fromEntries(
 
 const formatDate = (value?: string) => {
   if (!value) {
-    return 'Not available'
+    return 'Date unavailable'
   }
 
   return new Intl.DateTimeFormat('en-US', {
@@ -187,10 +185,8 @@ const formatDate = (value?: string) => {
 
 const splitPeriod = (period: string) => {
   const [startDate, endDate] = period.split(' - ')
-  return { startDate: startDate ?? 'Not available', endDate: endDate ?? 'Not available' }
+  return { startDate: startDate ?? 'Start unavailable', endDate: endDate ?? 'End unavailable' }
 }
-
-const projectCode = (index: number) => String(index + 1).padStart(3, '0')
 
 const statusTone = (status: string) => {
   if (['On Track', 'Met', 'Completed', 'Active'].includes(status)) {
@@ -205,46 +201,43 @@ const statusTone = (status: string) => {
 }
 
 export const ReportingWorkspace = ({
-  activities,
-  indicators,
+  activities: initialActivities,
+  indicators: initialIndicators,
   initialKind,
-  journeyStages,
+  journeyStages: initialJourneyStages,
   previewOnly = false,
-  projects,
+  projects: initialProjects,
   reports,
   surveyForms,
   surveyResults,
 }: ReportingWorkspaceProps) => {
   const { labels } = useDisplayLabels()
-  const { role } = useCurrentRole()
-  const canViewBeneficiarySummary = role
-    ? can(role, reportKindPermissions['beneficiary-summary'])
-    : false
-  const visibleReportTabs = useMemo(
-    () => (role ? reportTabs.filter((tab) => can(role, reportKindPermissions[tab.kind])) : []),
+  const { role, assignedProjectIds } = useCurrentRole()
+  const projects = initialProjects
+  const activities = initialActivities
+  const indicators = initialIndicators
+  const journeyStages = initialJourneyStages
+  const visibleReportTypes = useMemo(
+    () =>
+      reportTypes.filter((reportType) => role && can(role, reportKindPermissions[reportType.kind])),
     [role],
   )
-  const initialVisibleKind = visibleReportTabs.some((tab) => tab.kind === initialKind)
+  const initialVisibleKind = visibleReportTypes.some(
+    (reportType) => reportType.kind === initialKind,
+  )
     ? initialKind
-    : (visibleReportTabs[0]?.kind ?? initialKind)
+    : (visibleReportTypes[0]?.kind ?? initialKind)
 
   const [kind, setKind] = useState<ReportKind>(initialVisibleKind)
   const [search, setSearch] = useState('')
-  const [projectId, setProjectId] = useState(allValue)
-  const [beneficiaryData, setBeneficiaryData] = useState<{
-    role: PathwaysRole
-    records: BeneficiaryRecord[]
-  } | null>(null)
   const [beneficiaryLoadState, setBeneficiaryLoadState] = useState<
     'idle' | 'loading' | 'ready' | 'error'
   >('idle')
   const [surveySelection, setSurveySelection] = useState(() => {
     const initialProjectIds = new Set(
-      role
-        ? projects
-            .filter((project) => canAccessProjectForRole(role, project.id))
-            .map((project) => project.id)
-        : [],
+      projects
+        .filter((project) => role && canAccessProjectForRole(role, project.id, assignedProjectIds))
+        .map((project) => project.id),
     )
     const initialForms = surveyForms.filter((form) => initialProjectIds.has(form.projectId))
     const initialResults = surveyResults.filter((result) => initialProjectIds.has(result.projectId))
@@ -258,47 +251,27 @@ export const ReportingWorkspace = ({
     useState<Record<ReportKind, string[]>>(defaultVisibleColumns)
 
   useEffect(() => {
-    if (visibleReportTabs.length === 0 || visibleReportTabs.some((tab) => tab.kind === kind)) {
-      return
+    if (
+      visibleReportTypes.length &&
+      !visibleReportTypes.some((reportType) => reportType.kind === kind)
+    ) {
+      setKind(visibleReportTypes[0].kind)
+      setSearch('')
     }
-
-    setKind(visibleReportTabs[0].kind)
-    setSearch('')
-    setProjectId(allValue)
-  }, [kind, visibleReportTabs])
+  }, [kind, visibleReportTypes])
 
   useEffect(() => {
-    if (kind !== 'beneficiary-summary' || !canViewBeneficiarySummary || !role) {
-      setBeneficiaryData(null)
-      setBeneficiaryLoadState('idle')
-      return
-    }
-
-    let active = true
-    setBeneficiaryData(null)
-    setBeneficiaryLoadState('loading')
-
-    pathwaysClient
-      .getBeneficiaryRecordsForRole(role)
-      .then((records) => {
-        if (!active) return
-        setBeneficiaryData({ role, records })
-        setBeneficiaryLoadState('ready')
-      })
-      .catch(() => {
-        if (!active) return
-        setBeneficiaryData(null)
-        setBeneficiaryLoadState('error')
-      })
-
-    return () => {
-      active = false
-    }
-  }, [canViewBeneficiarySummary, kind, role])
-
+    setBeneficiaryLoadState(kind === 'beneficiary-summary' ? 'error' : 'idle')
+  }, [kind])
   const scopedProjects = useMemo(
-    () => (role ? projects.filter((project) => canAccessProjectForRole(role, project.id)) : []),
-    [projects, role],
+    () =>
+      projects.filter(
+        (project) => role && canAccessProjectForRole(role, project.id, assignedProjectIds),
+      ),
+    [projects, role, assignedProjectIds],
+  )
+  const [projectId, setProjectId] = useSafeProjectSelection(
+    scopedProjects.map((project) => project.id),
   )
   const scopedProjectIds = useMemo(
     () => new Set(scopedProjects.map((project) => project.id)),
@@ -353,17 +326,12 @@ export const ReportingWorkspace = ({
     }
   }, [scopedSurveyForms, scopedSurveyResults, surveySelection])
 
-  const effectiveProjectId =
-    projectId === allValue || scopedProjectIds.has(projectId) ? projectId : allValue
-  const beneficiaries =
-    canViewBeneficiarySummary && beneficiaryData?.role === role
-      ? beneficiaryData.records
-      : emptyBeneficiaryRecords
+  const effectiveProjectId = scopedProjectIds.has(projectId)
+    ? projectId
+    : (scopedProjects[0]?.id ?? '')
+  const beneficiaries = emptyBeneficiaryRecords
 
-  const selectedProject =
-    effectiveProjectId === allValue
-      ? undefined
-      : scopedProjects.find((project) => project.id === effectiveProjectId)
+  const selectedProject = scopedProjects.find((project) => project.id === effectiveProjectId)
   const selectedSurveyForm = scopedSurveyForms.find((form) => form.id === surveySelection.formId)
   const selectedSurveyResult = findSurveyResult(scopedSurveyResults, surveySelection)
   const selectedSurveyProject = scopedProjects.find(
@@ -408,12 +376,12 @@ export const ReportingWorkspace = ({
 
     if (kind === 'project-summary') {
       return scopedProjects
-        .filter((project) => effectiveProjectId === allValue || project.id === effectiveProjectId)
-        .map((project, index): ReportRow => {
+        .filter((project) => project.id === effectiveProjectId)
+        .map((project): ReportRow => {
           const period = splitPeriod(project.period)
 
           return {
-            id: projectCode(index),
+            id: project.code ?? project.id,
             project: project.title,
             location: project.area,
             startDate: project.startDate ? formatDate(project.startDate) : period.startDate,
@@ -435,10 +403,10 @@ export const ReportingWorkspace = ({
           selectedProject ? indicator.projectId === selectedProject.id : true,
         )
         .map(
-          (indicator, index): ReportRow => ({
-            id: projectCode(index),
+          (indicator): ReportRow => ({
+            id: indicator.code,
             indicator: indicator.name,
-            target: indicator.target ?? 'Not set',
+            target: indicator.target ?? 'Unavailable',
             actualProgress: formatMetricCell(indicator.progress),
             status: indicator.status,
             project: projectTitle(indicator.projectId),
@@ -448,17 +416,13 @@ export const ReportingWorkspace = ({
     }
 
     return beneficiaries
-      .filter((beneficiary) =>
-        effectiveProjectId === allValue
-          ? true
-          : beneficiary.projectIds.includes(effectiveProjectId),
-      )
+      .filter((beneficiary) => beneficiary.projectIds.includes(effectiveProjectId))
       .map(
         (beneficiary): ReportRow => ({
           code: beneficiary.code,
           project: beneficiary.projectIds.map(projectTitle).join(', '),
           sex: beneficiary.sex,
-          ageGroup: beneficiary.ageGroup ?? 'Not available',
+          ageGroup: beneficiary.ageGroup ?? 'Unavailable',
           disability: beneficiary.disabilityStatus,
           location: beneficiary.location,
           enrollmentStatus: beneficiary.enrollmentStatus,
@@ -538,21 +502,8 @@ export const ReportingWorkspace = ({
   }
 
   const generateIndicatorReport = () => {
-    const availableIndicators = scopedIndicators.filter((indicator) =>
-      selectedProject ? indicator.projectId === selectedProject.id : true,
-    )
-
-    if (availableIndicators.length === 0) {
-      toast.error('No indicator data are available for this report.', {
-        description: 'Choose a project with indicator data or try again after data are loaded.',
-      })
-      return
-    }
-
     setIndicatorGenerated(true)
-    toast.success('Indicator report generated.', {
-      description: 'This table uses the currently loaded project data.',
-    })
+    toast.info('Showing the indicators returned by the current API.')
   }
 
   const selectSurveyForm = (formId: string) => {
@@ -586,146 +537,104 @@ export const ReportingWorkspace = ({
     }))
   }
 
-  const exportCsv = () => {
-    if (rows.length === 0) {
-      toast.error('No report rows are available to export.', {
-        description: 'Adjust the report filters or load report data before exporting a CSV.',
-      })
-      return
-    }
-
-    const headers = activeColumns.map((column) => column.label)
-    const csvRows = rows.map((row) =>
-      activeColumns
-        .map((column) => `"${String(row[column.id] ?? '').replaceAll('"', '""')}"`)
-        .join(','),
-    )
-    const blob = new Blob([[headers.join(','), ...csvRows].join('\n')], {
-      type: 'text/csv;charset=utf-8',
-    })
-    const url = URL.createObjectURL(blob)
-    const link = document.createElement('a')
-    link.href = url
-    link.download = `${kind}-report.csv`
-    link.click()
-    URL.revokeObjectURL(url)
-    toast.success('CSV exported from the browser.', {
-      description: 'The current report was downloaded to this device.',
-    })
+  const finishReportPreview = () => {
+    toast.error('Saving report history is unavailable in the current API. No report was saved.')
   }
 
-  const openExportPreview = (format: 'PDF' | 'Excel') => {
-    // TODO(REPORTING): Generate PDF and spreadsheet reports through the backend.
-    setPreviewOpen(true)
-    toast.info(`${format} preview opened.`, {
-      description: 'A preview opened; no downloadable file was created.',
-    })
+  const exportReport = (_format: ExportFormat) => {
+    toast.error('Report export is unavailable in the current API. No file was generated.')
   }
 
   const switchKind = (nextKind: ReportKind) => {
     setKind(nextKind)
     setSearch('')
-    setProjectId(allValue)
-  }
-
-  if (!role) {
-    return (
-      <EmptyState
-        className="min-h-80 rounded-lg border border-border bg-card"
-        description="A verified staff identity and role are required to load scoped reports."
-        icon={ShieldAlert}
-        title="Reports access unavailable"
-      />
-    )
+    setIndicatorGenerated(nextKind !== 'indicator-summary')
   }
 
   return (
     <div className="space-y-6">
-      <section className="rounded-lg border border-border bg-card p-5 shadow-sm">
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-          <div className="space-y-2">
-            <p className="text-xs font-semibold uppercase text-primary">{labels.moduleReports}</p>
-            <h1 className="text-3xl font-semibold tracking-tight text-foreground">
-              {labels.moduleReports}
-            </h1>
-            <p className="max-w-3xl text-sm leading-6 text-muted-foreground">
-              Build project, indicator, Beneficiary, and aggregate survey reports from currently
-              available data. PDF and spreadsheet actions remain previews until export services are
-              configured.
-            </p>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            <Button asChild variant="outline">
-              <Link href={`/reports/preview?kind=${kind}`}>
-                <Eye className="mr-2 h-4 w-4" aria-hidden="true" />
-                Open report preview
-              </Link>
-            </Button>
-          </div>
-        </div>
-      </section>
+      <PageHeader
+        editableLabelKey="moduleReports"
+        description="Build, preview, retain, and export project, indicator, beneficiary, and aggregate survey reports."
+        eyebrow="Reporting workspace"
+        title={labels.moduleReports}
+      />
 
       <Card>
-        <CardHeader className="space-y-4">
+        <CardHeader className="space-y-4 p-4 sm:p-5">
           <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-            <nav className="flex flex-wrap gap-2" aria-label="Report sections">
-              {visibleReportTabs.map((tab) => (
-                <Button
-                  asChild
-                  key={tab.kind}
-                  variant={kind === tab.kind ? 'default' : 'outline'}
-                  size="sm"
-                  onClick={() => switchKind(tab.kind)}
-                >
-                  <Link href={tab.href}>{tab.label}</Link>
-                </Button>
-              ))}
-            </nav>
-            <div className="flex flex-wrap gap-2">
-              <Button variant="outline" size="sm" onClick={() => setColumnDialogOpen(true)}>
-                <Columns3 className="mr-2 h-4 w-4" aria-hidden="true" />
-                Columns
+            <div className="w-full space-y-2 sm:max-w-xs">
+              <Label htmlFor="report-type">Report type</Label>
+              <Select value={kind} onValueChange={(value) => switchKind(value as ReportKind)}>
+                <SelectTrigger id="report-type" aria-label="Report type">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {visibleReportTypes.map((reportType) => (
+                    <SelectItem key={reportType.kind} value={reportType.kind}>
+                      {reportType.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <fieldset className="flex min-w-0 flex-wrap gap-2 border-0 p-0">
+              <legend className="sr-only">Report actions</legend>
+              <Button
+                aria-label="Choose report columns"
+                title="Choose report columns"
+                variant="outline"
+                size="icon"
+                onClick={() => setColumnDialogOpen(true)}
+              >
+                <Columns3 className="h-4 w-4" aria-hidden="true" />
               </Button>
-              <Button variant="outline" size="sm" onClick={() => setPreviewOpen(true)}>
-                <Eye className="mr-2 h-4 w-4" aria-hidden="true" />
-                Preview
+              <Button
+                aria-label="Preview report"
+                title="Preview report"
+                variant="outline"
+                size="icon"
+                onClick={() => setPreviewOpen(true)}
+              >
+                <Eye className="h-4 w-4" aria-hidden="true" />
               </Button>
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button variant="outline" size="sm">
-                    <Download className="mr-2 h-4 w-4" aria-hidden="true" />
-                    Export
+                  <Button
+                    aria-label="Export report"
+                    title="Export report"
+                    variant="outline"
+                    size="icon"
+                  >
+                    <Download className="h-4 w-4" aria-hidden="true" />
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end">
-                  <DropdownMenuLabel>Export</DropdownMenuLabel>
+                  <DropdownMenuLabel>Download report</DropdownMenuLabel>
                   <DropdownMenuSeparator />
-                  <DropdownMenuItem onClick={exportCsv}>
+                  <DropdownMenuItem onClick={() => exportReport('csv')}>
                     <FileText className="mr-2 h-4 w-4" aria-hidden="true" />
                     CSV
                   </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => openExportPreview('PDF')}>
-                    <FileText className="mr-2 h-4 w-4" aria-hidden="true" />
-                    Preview PDF
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => openExportPreview('Excel')}>
+                  <DropdownMenuItem onClick={() => exportReport('xlsx')}>
                     <FileSpreadsheet className="mr-2 h-4 w-4" aria-hidden="true" />
-                    Preview Excel
+                    XLSX
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => exportReport('xls')}>
+                    <FileSpreadsheet className="mr-2 h-4 w-4" aria-hidden="true" />
+                    XLS
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => exportReport('pdf')}>
+                    <FileText className="mr-2 h-4 w-4" aria-hidden="true" />
+                    PDF
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
-            </div>
+            </fieldset>
           </div>
-          <div className="flex flex-col gap-3 xl:flex-row xl:items-end xl:justify-between">
-            <div className="space-y-2">
-              <CardTitle>{reportTitles[kind]}</CardTitle>
-              <p className="text-sm text-muted-foreground">
-                {kind === 'survey-results'
-                  ? `${scopedSurveyResults.length} aggregate survey result sets are available for review.`
-                  : `${scopedReports.length} saved report records are available for reference.`}
-              </p>
-            </div>
-            {kind === 'survey-results' ? (
+          {kind === 'survey-results' ? (
+            <div className="space-y-4">
+              <CardTitle className="sr-only">{reportTitles[kind]}</CardTitle>
               <SurveyFilters
                 dates={surveyResponseDates}
                 forms={visibleSurveyForms}
@@ -734,18 +643,11 @@ export const ReportingWorkspace = ({
                   setSurveySelection((current) => ({ ...current, responseDate }))
                 }
                 onFormChange={selectSurveyForm}
-                onGenerate={() => {
-                  if (!selectedSurveyForm || !selectedSurveyResult) {
-                    toast.error('No aggregate survey data are available for this report.', {
-                      description: 'Choose a Survey/Form, location, and response date with data.',
-                    })
-                    return
-                  }
-
-                  toast.success('Aggregate survey report generated.', {
-                    description: 'The report uses currently loaded aggregate data only.',
-                  })
-                }}
+                onGenerate={() =>
+                  toast.error(
+                    'Survey report generation is unavailable until a server-backed aggregate endpoint is available.',
+                  )
+                }
                 onLocationChange={selectSurveyLocation}
                 onProgramChange={selectSurveyProgram}
                 onProjectChange={selectSurveyProject}
@@ -757,48 +659,56 @@ export const ReportingWorkspace = ({
                 selection={surveySelection}
                 selectedForm={selectedSurveyForm}
               />
-            ) : (
-              <div className="grid gap-3 md:grid-cols-[220px_220px_auto]">
-                <span className="relative block">
-                  <Search
-                    className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground"
-                    aria-hidden="true"
-                  />
-                  <Input
-                    aria-label={`${reportTitles[kind]} search`}
-                    className="pl-9"
-                    placeholder="Type here"
-                    value={search}
-                    onChange={(event) => setSearch(event.target.value)}
-                  />
-                </span>
-                <Select value={effectiveProjectId} onValueChange={setProjectId}>
-                  <SelectTrigger aria-label={`${reportTitles[kind]} project filter`}>
-                    <SelectValue placeholder="Project" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value={allValue}>All projects</SelectItem>
-                    {scopedProjects.map((project) => (
-                      <SelectItem key={project.id} value={project.id}>
-                        {project.title}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+            </div>
+          ) : (
+            <div className="flex flex-col gap-3 xl:flex-row xl:items-end xl:justify-between">
+              <div className="space-y-2">
+                <CardTitle>{reportTitles[kind]}</CardTitle>
+                <p className="text-sm text-muted-foreground">
+                  Saved report history is unavailable in the current API.
+                </p>
+              </div>
+              <div className="grid gap-3 md:grid-cols-[220px_220px_auto] md:items-end">
+                <div className="space-y-2">
+                  <Label htmlFor="report-search">Search reports</Label>
+                  <span className="relative block">
+                    <Search
+                      className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground"
+                      aria-hidden="true"
+                    />
+                    <Input
+                      className="pl-9"
+                      id="report-search"
+                      placeholder="Type here"
+                      value={search}
+                      onChange={(event) => setSearch(event.target.value)}
+                    />
+                  </span>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="report-project-filter">Project</Label>
+                  <Select value={effectiveProjectId} onValueChange={setProjectId}>
+                    <SelectTrigger id="report-project-filter">
+                      <SelectValue placeholder="Project" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {scopedProjects.map((project) => (
+                        <SelectItem key={project.id} value={project.id}>
+                          {project.title}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
                 {kind === 'indicator-summary' ? (
                   <Button onClick={generateIndicatorReport}>
                     <Filter className="mr-2 h-4 w-4" aria-hidden="true" />
                     Generate
                   </Button>
-                ) : (
-                  <Button disabled variant="outline">
-                    <Filter className="mr-2 h-4 w-4" aria-hidden="true" />
-                    Filters update automatically
-                  </Button>
-                )}
+                ) : null}
               </div>
-            )}
-          </div>
+            </div>
+          )}
         </CardHeader>
         <CardContent className="space-y-4">
           {kind === 'survey-results' ? (
@@ -811,7 +721,7 @@ export const ReportingWorkspace = ({
                 result={selectedSurveyResult}
               />
             ) : (
-              <div className="rounded-lg border border-dashed border-border p-6 text-center">
+              <div className="rounded-sm border border-dashed border-border bg-surface-subtle p-6 text-center">
                 <p className="font-medium text-foreground">No aggregate survey results found</p>
                 <p className="mt-1 text-sm text-muted-foreground">
                   Choose another Survey/Form, location, or response date. No individual response
@@ -820,77 +730,96 @@ export const ReportingWorkspace = ({
               </div>
             )
           ) : null}
-          <Table>
-            <TableHeader>
-              {table.getHeaderGroups().map((headerGroup) => (
-                <TableRow key={headerGroup.id}>
-                  {headerGroup.headers.map((header) => (
-                    <TableHead key={header.id}>
-                      {header.isPlaceholder
-                        ? null
-                        : flexRender(header.column.columnDef.header, header.getContext())}
-                    </TableHead>
+          {kind === 'beneficiary-summary' && beneficiaryLoadState === 'loading' ? (
+            <AsyncState
+              description="Loading the Beneficiary records available to this report."
+              icon={FileText}
+              status="loading"
+              title="Loading Beneficiary report records"
+            />
+          ) : null}
+          {kind === 'beneficiary-summary' && beneficiaryLoadState === 'error' ? (
+            <AsyncState
+              description="Beneficiary report records require server-side PIN verification and are unavailable in this workspace."
+              icon={FileText}
+              status="error"
+              title="Beneficiary report records unavailable"
+            />
+          ) : null}
+          {kind === 'beneficiary-summary' && beneficiaryLoadState === 'ready' ? (
+            <StatusMessage>Beneficiary report records loaded.</StatusMessage>
+          ) : null}
+          {kind !== 'beneficiary-summary' || beneficiaryLoadState === 'ready' ? (
+            <>
+              <Table>
+                <TableHeader>
+                  {table.getHeaderGroups().map((headerGroup) => (
+                    <TableRow key={headerGroup.id}>
+                      {headerGroup.headers.map((header) => (
+                        <TableHead key={header.id}>
+                          {header.isPlaceholder
+                            ? null
+                            : flexRender(header.column.columnDef.header, header.getContext())}
+                        </TableHead>
+                      ))}
+                    </TableRow>
                   ))}
-                </TableRow>
-              ))}
-            </TableHeader>
-            <TableBody>
-              {table.getRowModel().rows.length > 0 ? (
-                table.getRowModel().rows.map((row) => (
-                  <TableRow key={row.id}>
-                    {row.getVisibleCells().map((cell) => (
-                      <TableCell key={cell.id}>
-                        {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                      </TableCell>
-                    ))}
-                  </TableRow>
-                ))
-              ) : (
-                <TableRow>
-                  <TableCell
-                    colSpan={Math.max(activeColumns.length, 1)}
-                    className="h-32 text-center text-muted-foreground"
-                  >
-                    {kind === 'beneficiary-summary' && beneficiaryLoadState === 'loading'
-                      ? 'Loading scoped Beneficiary records...'
-                      : kind === 'beneficiary-summary' && beneficiaryLoadState === 'error'
-                        ? 'Scoped Beneficiary records could not be loaded. Try opening this report again.'
-                        : kind === 'indicator-summary'
+                </TableHeader>
+                <TableBody>
+                  {table.getRowModel().rows.length > 0 ? (
+                    table.getRowModel().rows.map((row) => (
+                      <TableRow key={row.id}>
+                        {row.getVisibleCells().map((cell) => (
+                          <TableCell key={cell.id}>
+                            {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                          </TableCell>
+                        ))}
+                      </TableRow>
+                    ))
+                  ) : (
+                    <TableRow>
+                      <TableCell
+                        colSpan={Math.max(activeColumns.length, 1)}
+                        className="h-32 text-center text-muted-foreground"
+                      >
+                        {kind === 'indicator-summary'
                           ? 'Generate a report.'
                           : kind === 'survey-results'
                             ? 'No aggregate question summaries match the current filters.'
                             : 'No report rows match the current filters.'}
-                  </TableCell>
-                </TableRow>
-              )}
-            </TableBody>
-          </Table>
-          <div className="flex flex-col gap-3 border-t border-border pt-4 text-sm sm:flex-row sm:items-center sm:justify-between">
-            <p className="text-muted-foreground">
-              Showing {table.getRowModel().rows.length} of {rows.length} report rows.
-            </p>
-            <div className="flex items-center gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                disabled={!table.getCanPreviousPage()}
-                onClick={() => table.previousPage()}
-              >
-                Previous
-              </Button>
-              <span className="text-muted-foreground">
-                Page {table.getState().pagination.pageIndex + 1} of {table.getPageCount() || 1}
-              </span>
-              <Button
-                variant="outline"
-                size="sm"
-                disabled={!table.getCanNextPage()}
-                onClick={() => table.nextPage()}
-              >
-                Next
-              </Button>
-            </div>
-          </div>
+                      </TableCell>
+                    </TableRow>
+                  )}
+                </TableBody>
+              </Table>
+              <div className="flex flex-col gap-3 border-t border-border pt-4 text-sm sm:flex-row sm:items-center sm:justify-between">
+                <p className="text-muted-foreground">
+                  Showing {table.getRowModel().rows.length} of {rows.length} report rows.
+                </p>
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={!table.getCanPreviousPage()}
+                    onClick={() => table.previousPage()}
+                  >
+                    Previous
+                  </Button>
+                  <span className="text-muted-foreground">
+                    Page {table.getState().pagination.pageIndex + 1} of {table.getPageCount() || 1}
+                  </span>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={!table.getCanNextPage()}
+                    onClick={() => table.nextPage()}
+                  >
+                    Next
+                  </Button>
+                </div>
+              </div>
+            </>
+          ) : null}
         </CardContent>
       </Card>
 
@@ -899,14 +828,14 @@ export const ReportingWorkspace = ({
           <DialogHeader>
             <DialogTitle>Select columns</DialogTitle>
             <DialogDescription>
-              Choose the columns shown in the current report view.
+              Choose the columns shown in this saved report view.
             </DialogDescription>
           </DialogHeader>
           <div className="grid gap-3 sm:grid-cols-2">
             {reportColumns[kind].map((column) => (
               <label
                 key={column.id}
-                className="flex items-center gap-3 rounded-md border border-border p-3 text-sm"
+                className="flex items-center gap-3 rounded-sm border border-border bg-surface-subtle p-3 text-sm"
               >
                 <input
                   type="checkbox"
@@ -928,8 +857,8 @@ export const ReportingWorkspace = ({
           <DialogHeader>
             <DialogTitle>Report Preview</DialogTitle>
             <DialogDescription>
-              The preview uses the selected columns and currently loaded data. Downloadable PDF or
-              spreadsheet files are not created here.
+              The preview uses the selected columns and current API data. Saving report history and
+              exporting files are unavailable.
             </DialogDescription>
           </DialogHeader>
           {kind === 'survey-results' && selectedSurveyForm && selectedSurveyResult ? (
@@ -977,7 +906,13 @@ export const ReportingWorkspace = ({
             </div>
           </div>
           <DialogFooter>
-            <Button onClick={() => setPreviewOpen(false)}>Close</Button>
+            <Button variant="outline" onClick={() => setPreviewOpen(false)}>
+              Close
+            </Button>
+            <Button onClick={finishReportPreview}>
+              <Save className="mr-2 h-4 w-4" aria-hidden="true" />
+              Save report snapshot
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -1022,111 +957,115 @@ const SurveyFilters = ({
   selection,
   selectedForm,
 }: SurveyFiltersProps) => (
-  <div className="grid w-full gap-3 sm:grid-cols-2 xl:max-w-5xl xl:grid-cols-3">
-    <FilterField label="Program">
-      <Select value={selectedForm?.programName ?? ''} onValueChange={onProgramChange}>
-        <SelectTrigger aria-label="Survey results program filter">
-          <SelectValue placeholder="Choose program" />
-        </SelectTrigger>
-        <SelectContent>
-          {programs.map((program) => (
-            <SelectItem key={program} value={program}>
-              {program}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
-    </FilterField>
+  <div className="w-full space-y-4">
+    <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+      <FilterField label="Program">
+        <Select value={selectedForm?.programName ?? ''} onValueChange={onProgramChange}>
+          <SelectTrigger aria-label="Survey results program filter">
+            <SelectValue placeholder="Choose program" />
+          </SelectTrigger>
+          <SelectContent>
+            {programs.map((program) => (
+              <SelectItem key={program} value={program}>
+                {program}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </FilterField>
 
-    <FilterField label="Project">
-      <Select value={selectedForm?.projectId ?? ''} onValueChange={onProjectChange}>
-        <SelectTrigger aria-label="Survey results project filter">
-          <SelectValue placeholder="Choose project" />
-        </SelectTrigger>
-        <SelectContent>
-          {projectIds.map((id) => (
-            <SelectItem key={id} value={id}>
-              {projects.find((project) => project.id === id)?.title ?? id}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
-    </FilterField>
+      <FilterField label="Project">
+        <Select value={selectedForm?.projectId ?? ''} onValueChange={onProjectChange}>
+          <SelectTrigger aria-label="Survey results project filter">
+            <SelectValue placeholder="Choose project" />
+          </SelectTrigger>
+          <SelectContent>
+            {projectIds.map((id) => (
+              <SelectItem key={id} value={id}>
+                {projects.find((project) => project.id === id)?.title ?? id}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </FilterField>
 
-    <FilterField label="Survey/Form">
-      <Select value={selection.formId} onValueChange={onFormChange}>
-        <SelectTrigger aria-label="Survey results form filter">
-          <SelectValue placeholder="Choose Survey/Form" />
-        </SelectTrigger>
-        <SelectContent>
-          {forms.map((form) => (
-            <SelectItem key={form.id} value={form.id}>
-              {form.title}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
-    </FilterField>
+      <FilterField label="Survey/Form">
+        <Select value={selection.formId} onValueChange={onFormChange}>
+          <SelectTrigger aria-label="Survey results form filter">
+            <SelectValue placeholder="Choose Survey/Form" />
+          </SelectTrigger>
+          <SelectContent>
+            {forms.map((form) => (
+              <SelectItem key={form.id} value={form.id}>
+                {form.title}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </FilterField>
 
-    <FilterField label="Location">
-      <Select
-        disabled={locations.length === 0}
-        value={selection.location}
-        onValueChange={onLocationChange}
-      >
-        <SelectTrigger aria-label="Survey results location filter">
-          <SelectValue placeholder="No locations" />
-        </SelectTrigger>
-        <SelectContent>
-          {locations.map((location) => (
-            <SelectItem key={location} value={location}>
-              {location}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
-    </FilterField>
+      <FilterField label="Location">
+        <Select
+          disabled={locations.length === 0}
+          value={selection.location}
+          onValueChange={onLocationChange}
+        >
+          <SelectTrigger aria-label="Survey results location filter">
+            <SelectValue placeholder="No locations" />
+          </SelectTrigger>
+          <SelectContent>
+            {locations.map((location) => (
+              <SelectItem key={location} value={location}>
+                {location}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </FilterField>
 
-    <FilterField label="Exact response date">
-      <Select
-        disabled={dates.length === 0}
-        value={selection.responseDate}
-        onValueChange={onDateChange}
-      >
-        <SelectTrigger aria-label="Survey results response date filter">
-          <SelectValue placeholder="No response dates" />
-        </SelectTrigger>
-        <SelectContent>
-          {dates.map((date) => (
-            <SelectItem key={date} value={date}>
-              {formatDate(date)}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
-    </FilterField>
+      <FilterField label="Exact response date">
+        <Select
+          disabled={dates.length === 0}
+          value={selection.responseDate}
+          onValueChange={onDateChange}
+        >
+          <SelectTrigger aria-label="Survey results response date filter">
+            <SelectValue placeholder="No response dates" />
+          </SelectTrigger>
+          <SelectContent>
+            {dates.map((date) => (
+              <SelectItem key={date} value={date}>
+                {formatDate(date)}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </FilterField>
 
-    <FilterField label="Search question summaries">
-      <span className="relative block">
-        <Search
-          className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground"
-          aria-hidden="true"
-        />
-        <Input
-          aria-label="Survey/Form Results search"
-          className="pl-9"
-          placeholder="Search aggregate results"
-          type="search"
-          value={search}
-          onChange={(event) => onSearchChange(event.target.value)}
-        />
-      </span>
-    </FilterField>
+      <FilterField label="Search question summaries">
+        <span className="relative block">
+          <Search
+            className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground"
+            aria-hidden="true"
+          />
+          <Input
+            aria-label="Survey/Form Results search"
+            className="pl-9"
+            placeholder="Search aggregate results"
+            type="search"
+            value={search}
+            onChange={(event) => onSearchChange(event.target.value)}
+          />
+        </span>
+      </FilterField>
+    </div>
 
-    <Button className="sm:col-span-2 xl:col-span-3" onClick={onGenerate}>
-      <Filter className="mr-2 h-4 w-4" aria-hidden="true" />
-      Generate aggregate report
-    </Button>
+    <div className="flex justify-end">
+      <Button className="w-full sm:w-auto" onClick={onGenerate} size="sm">
+        <Filter className="mr-2 h-4 w-4" aria-hidden="true" />
+        Generate aggregate report
+      </Button>
+    </div>
   </div>
 )
 

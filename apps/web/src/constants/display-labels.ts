@@ -22,6 +22,15 @@ export const defaultDisplayLabels = {
 
 export type DisplayLabelKey = keyof typeof defaultDisplayLabels
 export type DisplayLabels = { [Key in DisplayLabelKey]: string }
+export type EditablePageHeadingKey =
+  | 'moduleProjects'
+  | 'moduleBeneficiaries'
+  | 'moduleCollection'
+  | 'moduleAnalytics'
+  | 'moduleAlerts'
+  | 'moduleReports'
+  | 'moduleAlertsRepository'
+  | 'moduleUserManagement'
 
 export interface DisplayLabelDefinition {
   key: DisplayLabelKey

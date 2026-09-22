@@ -1,6 +1,6 @@
 'use client'
 
-import { GitBranch, Loader2, Plus, Save, Trash2 } from 'lucide-react'
+import { Plus, Save } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { toast } from 'sonner'
 
@@ -23,9 +23,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { useCurrentRole } from '@/hooks/use-current-role'
-import { useDisplayLabels } from '@/hooks/use-display-labels'
-import { PathwaysClientError, pathwaysClient } from '@/lib/services/pathways-client'
+import { Textarea } from '@/components/ui/textarea'
+import { pathwaysClient } from '@/lib/services/pathways-client'
 import type {
   Activity,
   JourneyStageConfig,
@@ -49,14 +48,9 @@ export const JourneyStagesWorkspace = ({
   activities,
   initialStages,
 }: JourneyStagesWorkspaceProps) => {
-  const { labels } = useDisplayLabels()
-  const { profile } = useCurrentRole()
-  const canManage = profile?.permissions.includes('journeys.manage') === true
   const [stages, setStages] = useState(initialStages)
   const [selectedStageId, setSelectedStageId] = useState(initialStages[0]?.id ?? '')
   const [saveOpen, setSaveOpen] = useState(false)
-  const [saving, setSaving] = useState(false)
-  const [saveError, setSaveError] = useState('')
 
   const selectedStage = useMemo(
     () => stages.find((stage) => stage.id === selectedStageId) ?? stages[0],
@@ -87,18 +81,16 @@ export const JourneyStagesWorkspace = ({
       id: crypto.randomUUID(),
       projectId: project.id,
       code: `J${nextOrder}`,
-      name: 'New draft stage',
+      name: 'New journey stage',
       order: nextOrder,
       type: 'Core',
       terminal: false,
       mappedActivityIds: [],
-      description: 'Unsaved stage draft.',
+      description: 'Draft journey stage.',
     }
     setStages((current) => [...current, nextStage])
     setSelectedStageId(nextStage.id)
-    toast.info('Draft stage added.', {
-      description: 'Save the configuration to persist this stage.',
-    })
+    toast.info('Journey stage added to the unsaved configuration.')
   }
 
   const toggleActivity = (activityId: string) => {
@@ -113,91 +105,31 @@ export const JourneyStagesWorkspace = ({
     updateStage('mappedActivityIds', mappedActivityIds)
   }
 
-  const removeSelectedStage = () => {
-    if (!selectedStage || !canManage) return
-    if (stages.some((stage) => stage.parentStageId === selectedStage.id)) {
-      toast.error('Remove child stages first.')
-      return
-    }
-    const next = stages.filter((stage) => stage.id !== selectedStage.id)
-    setStages(next)
-    setSelectedStageId(next[0]?.id ?? '')
-  }
-
   const saveConfiguration = async () => {
-    if (!canManage) return
-    setSaving(true)
-    setSaveError('')
     try {
       const saved = await pathwaysClient.saveJourneyStages(project.id, stages)
       setStages(saved)
-      setSelectedStageId((current) =>
-        saved.some((stage) => stage.id === current) ? current : (saved[0]?.id ?? ''),
-      )
       setSaveOpen(false)
-      toast.success('Journey-stage configuration saved.', {
-        description: `${saved.length} persisted stage${saved.length === 1 ? '' : 's'} loaded from the backend.`,
-      })
-    } catch (caught) {
-      setSaveError(
-        caught instanceof PathwaysClientError
-          ? caught.message
-          : 'The journey-stage configuration could not be saved.',
-      )
-    } finally {
-      setSaving(false)
+      toast.success('Journey-stage configuration saved.')
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Journey stages could not be saved.')
     }
   }
 
   return (
     <div className="space-y-6">
-      <section className="flex flex-col gap-4 rounded-lg border border-border bg-card p-5 shadow-sm lg:flex-row lg:items-start lg:justify-between">
-        <div className="space-y-2">
-          <StatusBadge tone="info">Project-specific stages</StatusBadge>
-          <div>
-            <h1 className="text-3xl font-semibold tracking-tight text-foreground">
-              {labels.projectJourneyStages}
-            </h1>
-            <p className="mt-2 max-w-3xl text-sm leading-6 text-muted-foreground">
-              Define the project stage path, branch options, terminal follow-up stages, and activity
-              mappings used to compute beneficiary progress.
-            </p>
-          </div>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          {canManage ? (
-            <>
-              <Button variant="outline" onClick={addStage}>
-                <Plus className="mr-2 h-4 w-4" aria-hidden="true" />
-                Add stage
-              </Button>
-              <Button
-                onClick={() => {
-                  setSaveError('')
-                  setSaveOpen(true)
-                }}
-              >
-                <Save className="mr-2 h-4 w-4" aria-hidden="true" />
-                Save configuration
-              </Button>
-            </>
-          ) : null}
-        </div>
-      </section>
-
-      <section className="rounded-lg border border-border bg-card p-5 shadow-sm">
-        <div className="flex items-center gap-2">
-          <GitBranch className="h-5 w-5 text-primary" aria-hidden="true" />
-          <h2 className="text-lg font-semibold text-foreground">Stage diagram</h2>
-        </div>
-        <div className="mt-5 grid gap-3 lg:grid-cols-5">
+      <section
+        aria-label="Journey stage configuration"
+        className="rounded-lg border border-border bg-card p-5"
+      >
+        <div className="grid gap-3 lg:grid-cols-5">
           {orderedStages.map((stage) => (
             <button
               key={stage.id}
-              className={`rounded-lg border p-4 text-left transition-colors ${
+              className={`rounded-sm border p-4 text-left transition-colors ${
                 stage.id === selectedStage?.id
-                  ? 'border-primary bg-primary/10'
-                  : 'border-border bg-background hover:bg-muted/60'
+                  ? 'border-primary bg-primary-subtle'
+                  : 'border-border bg-background hover:bg-surface-subtle'
               }`}
               aria-pressed={selectedStage?.id === stage.id}
               type="button"
@@ -214,220 +146,225 @@ export const JourneyStagesWorkspace = ({
             </button>
           ))}
         </div>
-        <p className="mt-4 rounded-lg border border-info/20 bg-info/10 p-3 text-sm leading-6 text-info">
+        <p className="mt-4 rounded-sm border border-info/25 bg-info-subtle p-3 text-sm leading-6 text-info">
           Open-ended follow-up can continue after core participation. The interface supports human
           review and beneficiary context, not strict timeline compliance scoring.
         </p>
-      </section>
-
-      <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_420px]">
-        <section className="rounded-lg border border-border bg-card p-5 shadow-sm">
-          <h2 className="text-lg font-semibold text-foreground">Stage list</h2>
-          <div className="mt-4 space-y-3">
-            {orderedStages.map((stage) => {
-              const mappedActivities = activities.filter((activity) =>
-                stage.mappedActivityIds.includes(activity.id),
-              )
-
-              return (
-                <button
-                  key={stage.id}
-                  className={`w-full rounded-lg border p-4 text-left transition-colors ${
-                    stage.id === selectedStage?.id
-                      ? 'border-primary bg-primary/10'
-                      : 'border-border bg-background hover:bg-muted/60'
-                  }`}
-                  aria-pressed={selectedStage?.id === stage.id}
-                  type="button"
-                  onClick={() => setSelectedStageId(stage.id)}
+        <div className="mt-6 grid gap-6 border-t border-border pt-6 xl:grid-cols-[minmax(0,1fr)_420px]">
+          <div>
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <h2 className="text-lg font-semibold text-foreground">Stage list</h2>
+              <div className="flex gap-2">
+                <Button
+                  aria-label="Add stage"
+                  onClick={addStage}
+                  size="icon"
+                  title="Add stage"
+                  variant="outline"
                 >
-                  <div className="flex flex-wrap items-start justify-between gap-3">
-                    <div>
-                      <p className="font-semibold text-foreground">
-                        {stage.order}. {stage.code} · {stage.name}
-                      </p>
-                      <p className="mt-1 text-sm text-muted-foreground">
-                        Parent:{' '}
-                        {stages.find((item) => item.id === stage.parentStageId)?.code ?? 'None'}
-                      </p>
-                    </div>
-                    <div className="flex flex-wrap gap-2">
-                      <StatusBadge tone={stageTypeTone(stage.type)}>{stage.type}</StatusBadge>
-                      {stage.terminal ? <StatusBadge tone="neutral">Terminal</StatusBadge> : null}
-                    </div>
-                  </div>
-                  <p className="mt-3 text-sm text-muted-foreground">
-                    {mappedActivities.length > 0
-                      ? mappedActivities.map((activity) => activity.title).join(', ')
-                      : 'No activities mapped yet'}
-                  </p>
-                </button>
-              )
-            })}
-          </div>
-        </section>
-
-        <aside className="space-y-5 rounded-lg border border-border bg-card p-5 shadow-sm">
-          <h2 className="text-lg font-semibold text-foreground">Stage details</h2>
-          {selectedStage ? (
-            <>
-              <div className="grid gap-4 sm:grid-cols-2">
-                <Label className="space-y-2">
-                  <span>Stage code</span>
-                  <Input
-                    value={selectedStage.code}
-                    disabled={!canManage}
-                    onChange={(event) => updateStage('code', event.target.value)}
-                  />
-                </Label>
-                <Label className="space-y-2">
-                  <span>Order</span>
-                  <Input
-                    min="1"
-                    type="number"
-                    disabled={!canManage}
-                    value={selectedStage.order}
-                    onChange={(event) => updateStage('order', Number(event.target.value))}
-                  />
-                </Label>
+                  <Plus className="h-4 w-4" aria-hidden="true" />
+                </Button>
+                <Button
+                  aria-label="Save configuration"
+                  onClick={() => setSaveOpen(true)}
+                  size="icon"
+                  title="Save configuration"
+                >
+                  <Save className="h-4 w-4" aria-hidden="true" />
+                </Button>
               </div>
-              <Label className="space-y-2">
-                <span>Stage name</span>
-                <Input
-                  value={selectedStage.name}
-                  disabled={!canManage}
-                  onChange={(event) => updateStage('name', event.target.value)}
-                />
-              </Label>
-              <Label className="space-y-2">
-                <span>Stage type</span>
-                <Select
-                  disabled={!canManage}
-                  value={selectedStage.type}
-                  onValueChange={(value) => updateStage('type', value as JourneyStageType)}
-                >
-                  <SelectTrigger aria-label="Journey stage type">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {stageTypes.map((type) => (
-                      <SelectItem key={type} value={type}>
-                        {type}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </Label>
-              <Label className="space-y-2">
-                <span>Parent stage</span>
-                <Select
-                  disabled={!canManage}
-                  value={selectedStage.parentStageId ?? noParentValue}
-                  onValueChange={(value) =>
-                    updateStage('parentStageId', value === noParentValue ? undefined : value)
-                  }
-                >
-                  <SelectTrigger aria-label="Parent journey stage">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value={noParentValue}>No parent stage</SelectItem>
-                    {orderedStages
-                      .filter((stage) => stage.id !== selectedStage.id)
-                      .map((stage) => (
-                        <SelectItem key={stage.id} value={stage.id}>
-                          {stage.code} · {stage.name}
+            </div>
+            <div className="mt-4 space-y-3">
+              {orderedStages.map((stage) => {
+                const mappedActivities = activities.filter((activity) =>
+                  stage.mappedActivityIds.includes(activity.id),
+                )
+
+                return (
+                  <button
+                    key={stage.id}
+                    className={`w-full rounded-sm border p-4 text-left transition-colors ${
+                      stage.id === selectedStage?.id
+                        ? 'border-primary bg-primary-subtle'
+                        : 'border-border bg-background hover:bg-surface-subtle'
+                    }`}
+                    aria-pressed={selectedStage?.id === stage.id}
+                    type="button"
+                    onClick={() => setSelectedStageId(stage.id)}
+                  >
+                    <div className="flex flex-wrap items-start justify-between gap-3">
+                      <div>
+                        <p className="font-semibold text-foreground">
+                          {stage.order}. {stage.code} · {stage.name}
+                        </p>
+                        <p className="mt-1 text-sm text-muted-foreground">
+                          Parent:{' '}
+                          {stages.find((item) => item.id === stage.parentStageId)?.code ?? 'None'}
+                        </p>
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        <StatusBadge tone={stageTypeTone(stage.type)}>{stage.type}</StatusBadge>
+                        {stage.terminal ? <StatusBadge tone="neutral">Terminal</StatusBadge> : null}
+                      </div>
+                    </div>
+                    <p className="mt-3 text-sm text-muted-foreground">
+                      {mappedActivities.length > 0
+                        ? mappedActivities.map((activity) => activity.title).join(', ')
+                        : 'No activities mapped yet'}
+                    </p>
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+
+          <aside className="space-y-5 rounded-lg border border-border bg-surface-subtle p-5">
+            <h2 className="text-lg font-semibold text-foreground">Stage details</h2>
+            {selectedStage ? (
+              <>
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <Label className="space-y-2">
+                    <span>Stage code</span>
+                    <Input
+                      value={selectedStage.code}
+                      onChange={(event) => updateStage('code', event.target.value)}
+                    />
+                  </Label>
+                  <Label className="space-y-2">
+                    <span>Order</span>
+                    <Input
+                      min="1"
+                      type="number"
+                      value={selectedStage.order}
+                      onChange={(event) => updateStage('order', Number(event.target.value))}
+                    />
+                  </Label>
+                </div>
+                <Label className="space-y-2">
+                  <span>Stage name</span>
+                  <Input
+                    value={selectedStage.name}
+                    onChange={(event) => updateStage('name', event.target.value)}
+                  />
+                </Label>
+                <Label className="space-y-2">
+                  <span>Stage type</span>
+                  <Select
+                    value={selectedStage.type}
+                    onValueChange={(value) => updateStage('type', value as JourneyStageType)}
+                  >
+                    <SelectTrigger aria-label="Journey stage type">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {stageTypes.map((type) => (
+                        <SelectItem key={type} value={type}>
+                          {type}
                         </SelectItem>
                       ))}
-                  </SelectContent>
-                </Select>
-              </Label>
-              <Label className="flex items-center gap-3 rounded-md border border-border bg-background p-3">
-                <input
-                  className="h-4 w-4 rounded border-border"
-                  type="checkbox"
-                  disabled={!canManage}
-                  checked={selectedStage.terminal}
-                  onChange={(event) => updateStage('terminal', event.target.checked)}
-                />
-                This is an end stage
-              </Label>
-              <Label className="space-y-2">
-                <span>Description</span>
-                <textarea
-                  className="min-h-24 w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                  value={selectedStage.description}
-                  disabled={!canManage}
-                  onChange={(event) => updateStage('description', event.target.value)}
-                />
-              </Label>
+                    </SelectContent>
+                  </Select>
+                </Label>
+                <Label className="space-y-2">
+                  <span>Parent stage</span>
+                  <Select
+                    value={selectedStage.parentStageId ?? noParentValue}
+                    onValueChange={(value) =>
+                      updateStage('parentStageId', value === noParentValue ? undefined : value)
+                    }
+                  >
+                    <SelectTrigger aria-label="Parent journey stage">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value={noParentValue}>No parent stage</SelectItem>
+                      {orderedStages
+                        .filter((stage) => stage.id !== selectedStage.id)
+                        .map((stage) => (
+                          <SelectItem key={stage.id} value={stage.id}>
+                            {stage.code} · {stage.name}
+                          </SelectItem>
+                        ))}
+                    </SelectContent>
+                  </Select>
+                </Label>
+                <Label className="flex items-center gap-3 rounded-md border border-border bg-background p-3">
+                  <input
+                    className="h-4 w-4 rounded border-border"
+                    type="checkbox"
+                    checked={selectedStage.terminal}
+                    onChange={(event) => updateStage('terminal', event.target.checked)}
+                  />
+                  This is an end stage
+                </Label>
+                <Label className="space-y-2">
+                  <span>Description</span>
+                  <Textarea
+                    value={selectedStage.description}
+                    onChange={(event) => updateStage('description', event.target.value)}
+                  />
+                </Label>
 
-              <div className="space-y-3">
-                <h3 className="font-medium text-foreground">Mapped activities</h3>
-                {activities.length > 0 ? (
-                  activities.map((activity) => (
-                    <Label
-                      key={activity.id}
-                      className="flex items-start gap-3 rounded-md border border-border bg-background p-3"
-                    >
-                      <input
-                        className="mt-1 h-4 w-4 rounded border-border"
-                        type="checkbox"
-                        disabled={!canManage}
-                        checked={selectedStage.mappedActivityIds.includes(activity.id)}
-                        onChange={() => toggleActivity(activity.id)}
-                      />
-                      <span>
-                        <span className="block font-medium text-foreground">{activity.title}</span>
-                        <span className="text-xs text-muted-foreground">
-                          Existing activity stage: {activity.journeyStageId}
+                <div className="space-y-3">
+                  <h3 className="font-medium text-foreground">Mapped activities</h3>
+                  {activities.length > 0 ? (
+                    activities.map((activity) => (
+                      <Label
+                        key={activity.id}
+                        className="flex items-start gap-3 rounded-md border border-border bg-background p-3"
+                      >
+                        <input
+                          className="mt-1 h-4 w-4 rounded border-border"
+                          type="checkbox"
+                          checked={selectedStage.mappedActivityIds.includes(activity.id)}
+                          onChange={() => toggleActivity(activity.id)}
+                        />
+                        <span>
+                          <span className="block font-medium text-foreground">
+                            {activity.title}
+                          </span>
+                          <span className="text-xs text-muted-foreground">
+                            Existing activity stage: {activity.journeyStageId}
+                          </span>
                         </span>
-                      </span>
-                    </Label>
-                  ))
-                ) : (
-                  <p className="rounded-lg border border-warning/30 bg-warning/10 p-3 text-sm text-warning">
-                    No project activities are available for mapping.
-                  </p>
-                )}
-              </div>
-              {canManage ? (
-                <Button
-                  type="button"
-                  variant="outline"
-                  className="gap-2 text-destructive"
-                  onClick={removeSelectedStage}
-                >
-                  <Trash2 className="h-4 w-4" aria-hidden="true" />
-                  Remove stage
-                </Button>
-              ) : null}
-            </>
-          ) : (
-            <p className="text-sm text-muted-foreground">Select a stage to edit details.</p>
-          )}
-        </aside>
-      </div>
+                      </Label>
+                    ))
+                  ) : (
+                    <p className="rounded-sm border border-warning/30 bg-warning-subtle p-3 text-sm text-warning">
+                      No project activities are available for mapping.
+                    </p>
+                  )}
+                </div>
+              </>
+            ) : (
+              <p className="text-sm text-muted-foreground">Select a stage to edit details.</p>
+            )}
+          </aside>
+        </div>
 
-      <section className="rounded-lg border border-border bg-card p-5 shadow-sm">
-        <h2 className="text-lg font-semibold text-foreground">Branching preview</h2>
-        <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-          {branchStages.length > 0 ? (
-            branchStages.map((stage) => (
-              <div key={stage.id} className="rounded-lg border border-border bg-background p-4">
-                <StatusBadge tone="warning">{stage.code}</StatusBadge>
-                <p className="mt-3 font-semibold text-foreground">{stage.name}</p>
-                <p className="mt-2 text-sm leading-6 text-muted-foreground">
-                  Parent:{' '}
-                  {stages.find((item) => item.id === stage.parentStageId)?.name ?? 'Not assigned'}
-                </p>
-              </div>
-            ))
-          ) : (
-            <p className="rounded-lg border border-border bg-background p-4 text-sm text-muted-foreground">
-              No branch stages are configured yet.
-            </p>
-          )}
+        <div className="mt-6 border-t border-border pt-6">
+          <h2 className="text-lg font-semibold text-foreground">Branching preview</h2>
+          <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+            {branchStages.length > 0 ? (
+              branchStages.map((stage) => (
+                <div
+                  key={stage.id}
+                  className="rounded-sm border border-border bg-surface-subtle p-4"
+                >
+                  <StatusBadge tone="warning">{stage.code}</StatusBadge>
+                  <p className="mt-3 font-semibold text-foreground">{stage.name}</p>
+                  <p className="mt-2 text-sm leading-6 text-muted-foreground">
+                    Parent:{' '}
+                    {stages.find((item) => item.id === stage.parentStageId)?.name ?? 'Not assigned'}
+                  </p>
+                </div>
+              ))
+            ) : (
+              <p className="rounded-sm border border-border bg-surface-subtle p-4 text-sm text-muted-foreground">
+                No branch stages are configured yet.
+              </p>
+            )}
+          </div>
         </div>
       </section>
 
@@ -436,33 +373,18 @@ export const JourneyStagesWorkspace = ({
           <DialogHeader>
             <DialogTitle>Save journey-stage configuration</DialogTitle>
             <DialogDescription>
-              Persist this exact ordered stage configuration and its activity mappings. After the
-              first journey event, the backend freezes the configuration for historical integrity.
+              Confirm this journey-stage configuration. Other project records are not changed.
             </DialogDescription>
           </DialogHeader>
-          <div className="rounded-lg border border-border bg-muted/40 p-4 text-sm">
+          <div className="rounded-sm border border-border bg-surface-subtle p-4 text-sm">
             <p className="font-medium text-foreground">{project.title}</p>
-            <p className="mt-1 text-muted-foreground">
-              {stages.length} stage{stages.length === 1 ? '' : 's'} ready to persist.
-            </p>
+            <p className="mt-1 text-muted-foreground">{stages.length} stages configured.</p>
           </div>
-          {saveError ? (
-            <p className="text-sm font-medium text-destructive" role="alert">
-              {saveError}
-            </p>
-          ) : null}
           <DialogFooter>
             <Button variant="outline" onClick={() => setSaveOpen(false)}>
               Cancel
             </Button>
-            <Button onClick={saveConfiguration} disabled={saving} className="gap-2">
-              {saving ? (
-                <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
-              ) : (
-                <Save className="h-4 w-4" aria-hidden="true" />
-              )}
-              Save configuration
-            </Button>
+            <Button onClick={saveConfiguration}>Confirm save</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

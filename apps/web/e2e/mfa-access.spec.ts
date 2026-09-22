@@ -48,15 +48,18 @@ test.beforeAll(async () => {
     jsx: 'automatic',
     define: { 'process.env.NODE_ENV': '"test"' },
     tsconfig: path.resolve(__dirname, '../tsconfig.json'),
-    alias: Object.fromEntries(
-      [
-        '@/hooks/use-session',
-        '@/lib/supabase/client',
-        '@/lib/env',
-        'next/navigation',
-        'next/link',
-      ].map((name) => [name, fixture]),
-    ),
+    alias: {
+      ...Object.fromEntries(
+        [
+          '@/hooks/use-session',
+          '@/lib/supabase/client',
+          '@/lib/env',
+          'next/navigation',
+          'next/link',
+        ].map((name) => [name, fixture]),
+      ),
+      'next/image': path.resolve(__dirname, 'fixtures/image.tsx'),
+    },
   })
   component = output.outputFiles[0].text
 })

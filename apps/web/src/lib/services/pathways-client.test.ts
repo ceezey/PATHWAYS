@@ -16,11 +16,10 @@ describe('PATHWAYS frontend data boundary', () => {
   afterEach(() => vi.unstubAllGlobals())
 
   it('does not fabricate collection records while remaining domain endpoints are unavailable', async () => {
-    const collections = await Promise.all([
+    const collections = await Promise.allSettled([
       pathwaysClient.getExpenses('project-id'),
       pathwaysClient.getRecommendationOutcomes('project-id'),
       pathwaysClient.getTransparencySections('project-id'),
-      pathwaysClient.getBeneficiaryRecordsForRole('Program Manager'),
       pathwaysClient.getBeneficiaryMediaProofForRole('Program Manager', 'beneficiary-id'),
       pathwaysClient.getBudgets(),
       pathwaysClient.getAlerts(),
@@ -33,7 +32,15 @@ describe('PATHWAYS frontend data boundary', () => {
       pathwaysClient.getPublicProjects(),
     ])
 
-    expect(collections.every((records) => records.length === 0)).toBe(true)
+    expect(collections.every((result) => result.status === 'rejected')).toBe(true)
+    expect(
+      collections.every(
+        (result) => result.status === 'rejected' && result.reason instanceof PathwaysClientError,
+      ),
+    ).toBe(true)
+    await expect(pathwaysClient.getBeneficiaryRecordsForRole('Program Manager')).resolves.toEqual(
+      [],
+    )
   })
 
   it('loads and creates activities through the scoped API without requiring relationship links', async () => {
@@ -100,8 +107,6 @@ describe('PATHWAYS frontend data boundary', () => {
       description: activity.description,
       startDate: activity.startDate,
       dueDate: activity.dueDate,
-      targetBeneficiaries: 1,
-      budgetAllocation: 1,
       assignedUserIds: [officerId],
     })
 

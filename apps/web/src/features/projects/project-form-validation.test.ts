@@ -1,18 +1,21 @@
 import { describe, expect, it } from 'vitest'
 
-import { projectSetupSchema } from './project-form-validation'
+import { projectSetupSchema, toCreateProjectInput } from './project-form-validation'
 
 describe('project setup validation', () => {
   it('requires project setup fields', () => {
     const result = projectSetupSchema.safeParse({
       title: '',
-      code: '',
-      implementationArea: '',
+      sector: '',
+      area: '',
       startDate: '',
       endDate: '',
       status: 'Planned',
       description: '',
-      objectives: '',
+      programManager: '',
+      projectManager: '',
+      monitoringOfficer: '',
+      projectOfficers: '',
     })
 
     expect(result.success).toBe(false)
@@ -20,16 +23,48 @@ describe('project setup validation', () => {
 
   it('rejects an end date before the start date', () => {
     const result = projectSetupSchema.safeParse({
-      title: 'Community Resilience Project',
-      code: 'CRP-2026',
-      implementationArea: 'Navotas',
+      title: 'Prototype Project',
+      sector: 'Education',
+      area: 'Navotas',
       startDate: '2026-12-01',
       endDate: '2026-08-01',
       status: 'Planned',
-      description: 'Project setup validation record.',
-      objectives: 'Provide a clear project objective.',
+      description: 'Prototype setup validation project.',
+      programManager: 'Program Manager A',
+      projectManager: 'Project Manager A',
+      monitoringOfficer: 'Monitoring and Evaluation Officer A',
+      projectOfficers: 'Project Officer A',
     })
 
     expect(result.success).toBe(false)
+  })
+
+  it('preserves manager names and adapts selected Project Officers to the existing array shape', () => {
+    const input = toCreateProjectInput({
+      objectives: 'Develop youth skills',
+      partners: 'Fictional Partner',
+      projectBudget: '100000',
+      targetBeneficiaries: '450',
+      title: 'Prototype Project',
+      sector: 'Education',
+      area: 'Navotas',
+      startDate: '2026-08-01',
+      endDate: '2026-12-01',
+      status: 'Planned',
+      description: 'Prototype setup validation project.',
+      programManager: 'Program Manager A',
+      projectManager: 'Project Manager A',
+      monitoringOfficer: 'Monitoring and Evaluation Officer A',
+      projectOfficers: 'Project Officer A, Project Officer B',
+    })
+
+    expect(input).toMatchObject({
+      monitoringOfficer: 'Monitoring and Evaluation Officer A',
+      programManager: 'Program Manager A',
+      projectManager: 'Project Manager A',
+      projectOfficers: ['Project Officer A', 'Project Officer B'],
+      targetBeneficiaries: 450,
+    })
+    expect(input).not.toHaveProperty('budgetCode')
   })
 })

@@ -30,7 +30,7 @@ export default function UserManagementError({ reset }: { reset: () => void }) {
             </Button>
           </div>
         }
-        description="Try loading the directory again or open the other Administration workspace."
+        description="Try loading the user directory again or open another Administration workspace."
         icon={UsersRound}
         title="User management unavailable"
       />

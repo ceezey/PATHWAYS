@@ -40,9 +40,20 @@ const env = {
 const result = spawnSync(
   'C:/Program Files/PostgreSQL/18/bin/psql.exe',
   [
-    '-X', '-w', '-h', url.hostname, '-p', url.port,
-    '-U', decodeURIComponent(url.username), '-d', 'postgres',
-    '-v', 'ON_ERROR_STOP=1', '-f', path.join(currentDir, 'c8-fixture-preflight.sql'),
+    '-X',
+    '-w',
+    '-h',
+    url.hostname,
+    '-p',
+    url.port,
+    '-U',
+    decodeURIComponent(url.username),
+    '-d',
+    'postgres',
+    '-v',
+    'ON_ERROR_STOP=1',
+    '-f',
+    path.join(currentDir, 'c8-fixture-preflight.sql'),
   ],
   { cwd: root, env, encoding: 'utf8', windowsHide: true, timeout: 60000 },
 )

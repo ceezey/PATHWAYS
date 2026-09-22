@@ -21,7 +21,7 @@ import { toast } from 'sonner'
 import { compareHeaders, createFileSummary, parseCsv, parseWorkbook } from '@pathways/imports'
 
 import { PageHeader } from '@/components/layout/page-header'
-import { ProgressBar, StatusBadge } from '@/components/pathways'
+import { ConfirmationDialog, ProgressBar, StatusBadge } from '@/components/pathways'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -54,28 +54,26 @@ import type {
   Activity,
   DigitalFormDefinition,
   DigitalFormType,
-  JourneyStageConfig,
+  FormFieldDataType,
+  Indicator,
   ProjectSummary,
 } from '@/types/pathways'
 
 import {
-  type BuilderFieldType,
-  type BuilderFormField,
-  formTypeLabels,
-  fromDigitalForm,
-  toDigitalFormInput,
-} from './digital-form-contract'
-import {
-  clearFormBuilderSessionDraft,
-  formBuilderSessionDraftKey,
-  readFormBuilderSessionDraft,
-  writeFormBuilderSessionDraft,
-} from './form-builder-session-draft'
+  type MappingReadiness,
+  type MappingRow,
+  type MappingStatus,
+  createMappingRows,
+  getMappingReadiness,
+  normalizeImportHeader,
+} from './collection-import-state'
+
+type ExportFormat = 'csv' | 'xlsx' | 'xls' | 'pdf'
 
 type CollectionMode = 'scratch' | 'import' | 'extend'
 type CollectionView = 'home' | 'forms' | 'builder' | 'import'
-type FieldType = BuilderFieldType
-type MappingStatus = 'mapped' | 'unmapped' | 'ignored' | 'invalid'
+type FieldType = 'text' | 'number' | 'date' | 'single_select' | 'multi_select' | 'boolean'
+type ImportStatus = 'idle' | 'reading' | 'ready' | 'error'
 
 interface CollectionWorkspaceProps {
   initialMode?: CollectionMode
@@ -84,13 +82,16 @@ interface CollectionWorkspaceProps {
   initialFormId?: string
 }
 
-type FormField = BuilderFormField
-
-interface MappingRow {
+interface FormField {
   id: string
-  sourceColumn: string
-  targetField: string
-  status: MappingStatus
+  label: string
+  code: string
+  type: FieldType
+  required: boolean
+  metadataKey: boolean
+  sadddField: boolean
+  allowedValues: string
+  mappingStatus: MappingStatus
 }
 
 interface ParsedImport {
@@ -102,6 +103,45 @@ interface ParsedImport {
   sheetNames?: string[]
 }
 
+interface SavedForm {
+  id: string
+  title: string
+  type: string
+  project: string
+  fieldCount: number
+  savedAt: string
+}
+
+const fromApiFieldType = (type: DigitalFormDefinition['fields'][number]['dataType']): FieldType =>
+  ({
+    TEXT: 'text',
+    LONG_TEXT: 'text',
+    INTEGER: 'number',
+    DECIMAL: 'number',
+    DATE: 'date',
+    BOOLEAN: 'boolean',
+    SELECT: 'single_select',
+    MULTIPLE_SELECT: 'multi_select',
+  })[type] as FieldType
+
+const toApiFieldType = (type: FieldType): DigitalFormDefinition['fields'][number]['dataType'] =>
+  ({
+    text: 'TEXT',
+    number: 'DECIMAL',
+    date: 'DATE',
+    boolean: 'BOOLEAN',
+    single_select: 'SELECT',
+    multi_select: 'MULTIPLE_SELECT',
+  })[type] as FormFieldDataType
+
+const toApiFormType = (type: string): DigitalFormType =>
+  (({
+    'Training Survey': 'TRAINING_SURVEY',
+    'Attendance and Activity Update': 'ACTIVITY_MONITORING',
+    'Beneficiary Intake': 'BENEFICIARY_REGISTRATION',
+    'Pre/Post Assessment': 'OTHER',
+  })[type] as DigitalFormType) ?? 'OTHER'
+
 const expectedImportHeaders = [
   'beneficiary_id',
   'attendance_status',
@@ -111,14 +151,48 @@ const expectedImportHeaders = [
 ]
 
 const metadataConnections = [
-  'Project indicators',
-  'Assessment results',
+  'Youth trained - vocational skills',
+  'Assessment delta (Effectiveness)',
   'Monitoring dashboard',
   'Beneficiary journey view',
   'Evaluation center',
 ]
 
-const initialFields: FormField[] = []
+const initialFields: FormField[] = [
+  {
+    id: 'field-beneficiary-id',
+    label: 'Beneficiary ID',
+    code: 'beneficiary_id',
+    type: 'text',
+    required: true,
+    metadataKey: true,
+    sadddField: false,
+    allowedValues: '',
+    mappingStatus: 'mapped',
+  },
+  {
+    id: 'field-attendance',
+    label: 'Attendance status',
+    code: 'attendance_status',
+    type: 'single_select',
+    required: true,
+    metadataKey: false,
+    sadddField: false,
+    allowedValues: 'Present, Absent, Excused',
+    mappingStatus: 'mapped',
+  },
+  {
+    id: 'field-age-band',
+    label: 'Age group',
+    code: 'beneficiary_age_group',
+    type: 'single_select',
+    required: false,
+    metadataKey: false,
+    sadddField: true,
+    allowedValues: '10-14, 15-17, 18-24, 25+',
+    mappingStatus: 'unmapped',
+  },
+]
 
 const modeDetails: Array<{
   id: CollectionMode
@@ -148,9 +222,7 @@ const modeDetails: Array<{
 
 const dataTypeLabels: Record<FieldType, string> = {
   text: 'Text',
-  long_text: 'Long text',
-  integer: 'Integer',
-  decimal: 'Decimal',
+  number: 'Number',
   date: 'Date',
   single_select: 'Single select',
   multi_select: 'Multiple select',
@@ -173,44 +245,47 @@ const statusTone = (status: MappingStatus) => {
   return 'warning'
 }
 
-const normalizeHeader = (value: string) =>
-  value
+const importedFieldLabels: Record<string, string> = {
+  beneficiary_id: 'Beneficiary ID',
+  attendance_status: 'Attendance status',
+  pre_test_score: 'Pre-test score',
+  post_test_score: 'Post-test score',
+  activity_date: 'Activity date',
+}
+
+const fieldFromHeader = (header: string, index: number): FormField => {
+  const code = normalizeImportHeader(header)
+
+  return {
+    id: `imported-${index}-${code}`,
+    label:
+      importedFieldLabels[code] ??
+      header.replace(/[_-]+/g, ' ').replace(/\b\w/g, (character) => character.toUpperCase()),
+    code,
+    type:
+      code === 'attendance_status'
+        ? 'single_select'
+        : code.includes('score')
+          ? 'number'
+          : code.includes('date')
+            ? 'date'
+            : 'text',
+    required: ['beneficiary_id', 'activity_date'].includes(code),
+    metadataKey: code.includes('beneficiary'),
+    sadddField: ['age', 'sex', 'gender', 'disability'].some((token) => code.includes(token)),
+    allowedValues: code === 'attendance_status' ? 'Present, Partial, Absent' : '',
+    mappingStatus: expectedImportHeaders.includes(code) ? 'mapped' : 'unmapped',
+  }
+}
+
+const formTitleFromFileName = (fileName: string) =>
+  fileName
+    .replace(/\.[^.]+$/, '')
+    .replace(/^pathways[\s_-]+/i, '')
+    .replace(/[_-]+/g, ' ')
+    .replace(/\s+/g, ' ')
     .trim()
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '_')
-    .replace(/^_+|_+$/g, '')
-
-const fieldFromHeader = (header: string, index: number): FormField => ({
-  id: `imported-${index}-${normalizeHeader(header)}`,
-  label: header.replace(/[_-]+/g, ' ').replace(/\b\w/g, (character) => character.toUpperCase()),
-  code: normalizeHeader(header),
-  type: header.toLowerCase().includes('date') ? 'date' : 'text',
-  required: ['beneficiary_id', 'activity_date'].includes(normalizeHeader(header)),
-  metadataKey: normalizeHeader(header).includes('beneficiary'),
-  sadddField: ['age', 'sex', 'gender', 'disability'].some((token) =>
-    normalizeHeader(header).includes(token),
-  ),
-  allowedValues: '',
-  minimumValue: '',
-  maximumValue: '',
-  minimumLength: '',
-  maximumLength: '',
-  mappingStatus: expectedImportHeaders.includes(normalizeHeader(header)) ? 'mapped' : 'unmapped',
-})
-
-const mappingFromHeaders = (headers: string[]) =>
-  headers.map<MappingRow>((header, index) => {
-    const normalized = normalizeHeader(header)
-    const isKnown = expectedImportHeaders.includes(normalized)
-    const isInvalid = normalized.length === 0
-
-    return {
-      id: `mapping-${index}-${normalized || 'blank'}`,
-      sourceColumn: header,
-      targetField: isKnown ? normalized : '',
-      status: isInvalid ? 'invalid' : isKnown ? 'mapped' : 'unmapped',
-    }
-  })
+    .replace(/\b\w/g, (character) => character.toUpperCase()) || 'Imported Questionnaire'
 
 const formatValue = (value: unknown) => {
   if (value === null || value === undefined) {
@@ -223,137 +298,126 @@ const formatValue = (value: unknown) => {
 export const CollectionWorkspace = ({
   initialMode = 'scratch',
   initialView = 'home',
-  initialProjectId = '',
-  initialFormId = '',
+  initialProjectId,
+  initialFormId,
 }: CollectionWorkspaceProps) => {
   const { labels } = useDisplayLabels()
-  const { profile } = useCurrentRole()
-  const canManageForms = profile?.permissions.includes('forms.manage') === true
-  const canPublishForms = profile?.permissions.includes('forms.publish') === true
-  const canWriteSubmissions = profile?.permissions.includes('submissions.write') === true
+  const { role } = useCurrentRole()
   const [mode, setMode] = useState<CollectionMode>(initialMode)
-  const [view, setView] = useState<CollectionView>(initialView)
-  const [formTitle, setFormTitle] = useState('')
-  const [formCode, setFormCode] = useState('')
-  const [formType, setFormType] = useState<DigitalFormType>('OTHER')
-  const [projectId, setProjectId] = useState(initialProjectId)
-  const [journeyStage, setJourneyStage] = useState('')
-  const [linkedActivityId, setLinkedActivityId] = useState('')
   const [projects, setProjects] = useState<ProjectSummary[]>([])
   const [activities, setActivities] = useState<Activity[]>([])
-  const [journeyStages, setJourneyStages] = useState<JourneyStageConfig[]>([])
-  const [journeyStagesReady, setJourneyStagesReady] = useState(false)
-  const [projectLoadStatus, setProjectLoadStatus] = useState<'loading' | 'ready' | 'error'>(
-    'loading',
-  )
+  const [forms, setForms] = useState<DigitalFormDefinition[]>([])
+  const [indicators, setIndicators] = useState<Indicator[]>([])
+  const [editingFormId, setEditingFormId] = useState<string | undefined>(initialFormId)
+  const [indicatorIds, setIndicatorIds] = useState<string[]>([])
+  const [exportFormat, setExportFormat] = useState<ExportFormat>('csv')
+  const [duplicateDecision, setDuplicateDecision] = useState<'pending' | 'skip' | 'keep'>('pending')
+  const [view, setView] = useState<CollectionView>(initialView)
+  const [formTitle, setFormTitle] = useState('Journey 1 - Intake & Assessment Form')
+  const [formType, setFormType] = useState('Pre/Post Assessment')
+  const [projectId, setProjectId] = useState(initialProjectId ?? '')
+  const [journeyStage, setJourneyStage] = useState('J1 - Intake & assessment')
+  const [linkedActivityId, setLinkedActivityId] = useState('')
   const [fields, setFields] = useState<FormField[]>(initialFields)
   const [selectedFieldId, setSelectedFieldId] = useState(initialFields[0]?.id ?? '')
   const [saveDialogOpen, setSaveDialogOpen] = useState(false)
   const [proceedDialogOpen, setProceedDialogOpen] = useState(false)
+  const [pendingDeleteField, setPendingDeleteField] = useState<FormField | null>(null)
   const [savedNotice, setSavedNotice] = useState('')
-  const [savedForms, setSavedForms] = useState<DigitalFormDefinition[]>([])
-  const [formsLoadStatus, setFormsLoadStatus] = useState<'idle' | 'loading' | 'ready' | 'error'>(
-    'idle',
-  )
-  const [activeForm, setActiveForm] = useState<DigitalFormDefinition | null>(null)
-  const [sessionDraftReady, setSessionDraftReady] = useState(false)
-  const [savePending, setSavePending] = useState(false)
-  const [parsedImport, setParsedImport] = useState<ParsedImport | null>(null)
-  const [mappingRows, setMappingRows] = useState<MappingRow[]>([])
-  const [uploadProgress, setUploadProgress] = useState(0)
-  const [importMessage, setImportMessage] = useState('No source file selected yet.')
-  const fileInputRef = useRef<HTMLInputElement | null>(null)
-  const scopedFormId = activeForm?.id ?? (initialFormId || null)
-  const sessionDraftKey = useMemo(
-    () => (profile?.userId ? formBuilderSessionDraftKey(profile.userId, scopedFormId) : null),
-    [profile?.userId, scopedFormId],
-  )
-
   useEffect(() => {
+    if (!role) return
     let active = true
-
     pathwaysClient
-      .getProjects()
-      .then(async (projectRecords) => {
-        const activityGroups = await Promise.all(
-          projectRecords.map((project) => pathwaysClient.getActivities(project.id)),
-        )
-
-        if (!active) {
-          return
-        }
-
-        setProjects(projectRecords)
-        setActivities(activityGroups.flat())
-        setProjectId((current) => current || projectRecords[0]?.id || '')
-        setProjectLoadStatus('ready')
+      .getProjectsForRole(role)
+      .then((records) => {
+        if (!active) return
+        setProjects(records)
+        setProjectId((current) => current || records[0]?.id || '')
       })
-      .catch(() => {
-        if (active) {
-          setProjectLoadStatus('error')
-        }
+      .catch((error: unknown) => {
+        if (active)
+          setSavedNotice(error instanceof Error ? error.message : 'Projects could not be loaded.')
       })
-
     return () => {
       active = false
     }
-  }, [])
-
-  const selectedProject = projects.find((project) => project.id === projectId)
-  const projectActivities = activities.filter((activity) => activity.projectId === projectId)
-  const selectedField = fields.find((field) => field.id === selectedFieldId) ?? fields[0]
+  }, [role])
 
   useEffect(() => {
-    if (!projectActivities.some((activity) => activity.id === linkedActivityId)) {
-      setLinkedActivityId(projectActivities[0]?.id ?? '')
-    }
-  }, [linkedActivityId, projectActivities])
-
-  useEffect(() => {
-    let active = true
-    setJourneyStagesReady(false)
     if (!projectId) {
-      setJourneyStages([])
-      setJourneyStage('')
-      setJourneyStagesReady(true)
-      return () => {
-        active = false
-      }
+      setForms([])
+      setActivities([])
+      setIndicators([])
+      return
     }
-    pathwaysClient
-      .getJourneyStages(projectId)
-      .then((records) => {
-        if (!active) return
-        setJourneyStages(records)
-        setJourneyStagesReady(true)
+    let active = true
+    Promise.all([
+      pathwaysClient.getDigitalForms(projectId),
+      pathwaysClient.getActivities(projectId),
+      pathwaysClient.getIndicators(projectId),
+    ])
+      .then(([nextForms, nextActivities, nextIndicators]) => {
+        if (active) {
+          setForms(nextForms)
+          setActivities(nextActivities)
+          setIndicators(nextIndicators)
+        }
       })
-      .catch(() => {
-        if (!active) return
-        setJourneyStages([])
-        setJourneyStagesReady(true)
+      .catch((error: unknown) => {
+        if (active)
+          setSavedNotice(
+            error instanceof Error ? error.message : 'Collection data could not be loaded.',
+          )
       })
     return () => {
       active = false
     }
   }, [projectId])
 
-  const availableJourneyStages = useMemo(
-    () =>
-      formType === 'ACTIVITY_MONITORING' && linkedActivityId
-        ? journeyStages.filter((stage) => stage.mappedActivityIds.includes(linkedActivityId))
-        : journeyStages,
-    [formType, journeyStages, linkedActivityId],
-  )
+  const savedForms: SavedForm[] = forms.map((f) => ({
+    id: f.id,
+    title: f.name,
+    type: f.status,
+    project: projects.find((p) => p.id === f.projectId)?.title ?? f.projectId,
+    fieldCount: f.fields.length,
+    savedAt: f.updatedAt,
+  }))
+  const openSavedForm = (summary: SavedForm) => {
+    const form = forms.find((f) => f.id === summary.id)
+    if (!form) return
+    setEditingFormId(form.id)
+    setProjectId(form.projectId)
+    setFormTitle(form.name)
+    setIndicatorIds([])
+    setFields(
+      form.fields.map((f) => ({
+        id: f.id ?? f.code,
+        code: f.code,
+        label: f.label,
+        type: fromApiFieldType(f.dataType),
+        required: f.required,
+        allowedValues: (f.allowedValues ?? []).join(', '),
+        metadataKey: f.code === 'beneficiary_id',
+        sadddField: false,
+        mappingStatus: 'mapped',
+      })),
+    )
+    setView('builder')
+    if (form.status === 'PUBLISHED')
+      setSavedNotice(
+        'This published form is read-only in this view. Create a new version before changing its fields.',
+      )
+  }
+  const [parsedImport, setParsedImport] = useState<ParsedImport | null>(null)
+  const [mappingRows, setMappingRows] = useState<MappingRow[]>([])
+  const [uploadProgress, setUploadProgress] = useState(0)
+  const [importStatus, setImportStatus] = useState<ImportStatus>('idle')
+  const [importMessage, setImportMessage] = useState('No source file selected yet.')
+  const lastSelectedFileRef = useRef<File | null>(null)
 
-  useEffect(() => {
-    if (
-      journeyStagesReady &&
-      journeyStage &&
-      !availableJourneyStages.some((stage) => stage.id === journeyStage)
-    ) {
-      setJourneyStage('')
-    }
-  }, [availableJourneyStages, journeyStage, journeyStagesReady])
+  const selectedProject = projects.find((project) => project.id === projectId)
+  const projectActivities = activities.filter((activity) => activity.projectId === projectId)
+  const selectedField = fields.find((field) => field.id === selectedFieldId) ?? fields[0]
 
   const mappedCount = fields.filter((field) => field.mappingStatus === 'mapped').length
   const sadddCount = fields.filter((field) => field.sadddField).length
@@ -367,7 +431,7 @@ export const CollectionWorkspace = ({
 
     const comparison = compareHeaders(
       expectedImportHeaders,
-      parsedImport.headers.map(normalizeHeader),
+      parsedImport.headers.map(normalizeImportHeader),
     )
 
     return createFileSummary(
@@ -377,10 +441,13 @@ export const CollectionWorkspace = ({
       parsedImport.rows,
       [
         ...parsedImport.errors,
-        ...(comparison.matches ? [] : ['Header validation found columns that need review.']),
+        ...(comparison.matches ? [] : ['Validation found headers that need review.']),
       ],
     )
   }, [parsedImport])
+
+  const mappingReadiness = useMemo(() => getMappingReadiness(mappingRows), [mappingRows])
+  const importCanProceed = importStatus === 'ready' && mappingReadiness.canProceed
 
   const updateField = (fieldId: string, patch: Partial<FormField>) => {
     setFields((currentFields) =>
@@ -399,10 +466,6 @@ export const CollectionWorkspace = ({
       metadataKey: false,
       sadddField: false,
       allowedValues: '',
-      minimumValue: '',
-      maximumValue: '',
-      minimumLength: '',
-      maximumLength: '',
       mappingStatus: 'unmapped',
     }
 
@@ -410,12 +473,32 @@ export const CollectionWorkspace = ({
     setSelectedFieldId(field.id)
   }
 
-  const deleteField = (fieldId: string) => {
-    setFields((currentFields) => {
-      const nextFields = currentFields.filter((field) => field.id !== fieldId)
-      setSelectedFieldId(nextFields[0]?.id ?? '')
-      return nextFields
-    })
+  const requestDeleteField = (fieldId: string) => {
+    setPendingDeleteField(fields.find((field) => field.id === fieldId) ?? null)
+  }
+
+  const confirmDeleteField = () => {
+    if (!pendingDeleteField) {
+      return
+    }
+
+    const deletedIndex = fields.findIndex((field) => field.id === pendingDeleteField.id)
+    const nextFields = fields.filter((field) => field.id !== pendingDeleteField.id)
+    const nextSelectedFieldId =
+      selectedFieldId === pendingDeleteField.id
+        ? (nextFields[Math.min(deletedIndex, nextFields.length - 1)]?.id ?? '')
+        : selectedFieldId
+
+    setFields(nextFields)
+    setSelectedFieldId(nextSelectedFieldId)
+    setPendingDeleteField(null)
+    toast.success(`${pendingDeleteField.label} deleted from this form.`)
+    window.setTimeout(() => {
+      const focusTargetId = nextSelectedFieldId
+        ? `collection-field-choice-${nextSelectedFieldId}`
+        : 'collection-add-field'
+      document.getElementById(focusTargetId)?.focus()
+    }, 0)
   }
 
   const moveField = (fieldId: string, direction: 'up' | 'down') => {
@@ -440,8 +523,10 @@ export const CollectionWorkspace = ({
   }
 
   const parseSelectedFile = async (file: File) => {
+    lastSelectedFileRef.current = file
     setUploadProgress(28)
-    setImportMessage('Reading the file in this browser. Nothing is being uploaded.')
+    setImportStatus('reading')
+    setImportMessage('Reading the selected file.')
 
     const extension = file.name.split('.').pop()?.toLowerCase()
     let parsed: ParsedImport
@@ -473,10 +558,13 @@ export const CollectionWorkspace = ({
       }
 
       setParsedImport(parsed)
-      setMappingRows(mappingFromHeaders(parsed.headers))
+      setMappingRows(createMappingRows(parsed.headers, expectedImportHeaders))
       setUploadProgress(100)
+      setImportStatus('ready')
       setImportMessage(
-        'Structure preview ready. Save the resulting form before using it for data collection.',
+        parsed.rows.length === 0
+          ? `Questionnaire structure ready for ${parsed.fileName}. Review the field mappings before creating the Draft.`
+          : `Preview ready for ${parsed.fileName}. Review every mapping before proceeding.`,
       )
 
       if (mode === 'extend') {
@@ -486,247 +574,222 @@ export const CollectionWorkspace = ({
       }
     } catch (error) {
       setUploadProgress(0)
-      setParsedImport(null)
-      setMappingRows([])
-      setImportMessage(error instanceof Error ? error.message : 'Unable to parse this file.')
+      setImportStatus('error')
+      const message = error instanceof Error ? error.message : 'Unable to parse this file.'
+      setImportMessage(
+        parsedImport
+          ? `${message} Your previous preview and mapping work are retained. Retry or choose a different file.`
+          : `${message} Retry or choose a different file.`,
+      )
     }
   }
 
-  useEffect(() => {
-    if (!projectId) return
-    let active = true
-    setSavedForms([])
-    setFormsLoadStatus('loading')
-    pathwaysClient
-      .getDigitalForms(projectId)
-      .then(async (forms) => {
-        if (!active) return
-        setSavedForms(forms)
-        if (initialFormId) {
-          const form = await pathwaysClient.getDigitalForm(projectId, initialFormId)
-          if (!active) return
-          setActiveForm(form)
-          setFormCode(form.code)
-          setFormTitle(form.name)
-          setFormType(form.formType)
-          setLinkedActivityId(form.activityId ?? '')
-          setJourneyStage(form.journeyStageId ?? '')
-          const hydratedFields = fromDigitalForm(form)
-          setFields(hydratedFields)
-          setSelectedFieldId(hydratedFields[0]?.id ?? '')
-        }
-        setFormsLoadStatus('ready')
-      })
-      .catch(() => {
-        if (active) setFormsLoadStatus('error')
-      })
-    return () => {
-      active = false
+  const retrySelectedFile = () => {
+    if (lastSelectedFileRef.current) {
+      void parseSelectedFile(lastSelectedFileRef.current)
     }
-  }, [initialFormId, projectId])
+  }
 
-  useEffect(() => {
-    if (sessionDraftReady || !sessionDraftKey || (initialFormId && formsLoadStatus !== 'ready'))
+  const saveFormToApi = async () => {
+    if (!projectId) {
+      toast.error('Select an authorized project.')
       return
-    const restored = readFormBuilderSessionDraft(
-      window.sessionStorage,
-      sessionDraftKey,
-      activeForm?.updatedAt ?? null,
-    )
-    if (restored) {
-      setMode(restored.mode)
-      setView(restored.view)
-      setFormTitle(restored.formTitle)
-      setFormCode(restored.formCode)
-      setFormType(restored.formType)
-      setProjectId(restored.projectId)
-      setJourneyStage(restored.journeyStage)
-      setLinkedActivityId(restored.linkedActivityId)
-      setFields(restored.fields)
-      setSelectedFieldId(restored.selectedFieldId)
-      setSavedNotice('Recovered unsaved form edits from this browser tab.')
     }
-    setSessionDraftReady(true)
-  }, [activeForm?.updatedAt, formsLoadStatus, initialFormId, sessionDraftKey, sessionDraftReady])
-
-  const hasUnsavedNewForm =
-    sessionDraftReady &&
-    !activeForm &&
-    (fields.length > 0 || formTitle.trim().length > 0 || formCode.trim().length > 0)
-
-  useEffect(() => {
-    if (!hasUnsavedNewForm) return
-    const warnBeforeUnload = (event: BeforeUnloadEvent) => {
-      event.preventDefault()
-      event.returnValue = ''
+    if (indicatorIds.length) {
+      toast.error(
+        'Indicator links cannot be saved by the current form API. Clear them before publishing.',
+      )
+      return
     }
-    window.addEventListener('beforeunload', warnBeforeUnload)
-    return () => window.removeEventListener('beforeunload', warnBeforeUnload)
-  }, [hasUnsavedNewForm])
-
-  useEffect(() => {
-    if (!sessionDraftReady || !sessionDraftKey) return
-    writeFormBuilderSessionDraft(window.sessionStorage, sessionDraftKey, {
-      schemaVersion: 1,
-      baseUpdatedAt: activeForm?.updatedAt ?? null,
-      mode,
-      view,
-      formTitle,
-      formCode,
-      formType,
-      projectId,
-      journeyStage,
-      linkedActivityId,
-      fields,
-      selectedFieldId,
-    })
-  }, [
-    activeForm?.updatedAt,
-    fields,
-    formCode,
-    formTitle,
-    formType,
-    journeyStage,
-    linkedActivityId,
-    mode,
-    projectId,
-    selectedFieldId,
-    sessionDraftKey,
-    sessionDraftReady,
-    view,
-  ])
-
-  const requestFormSave = async () => {
-    setSavePending(true)
+    const input = {
+      code: formTitle
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, '_')
+        .replace(/^_+|_+$/g, '')
+        .slice(0, 64),
+      name: formTitle.trim(),
+      description: formType,
+      formType: toApiFormType(formType),
+      activityId: linkedActivityId || undefined,
+      fields: fields.map((field) => ({
+        code: field.code.trim().toLowerCase(),
+        label: field.label.trim(),
+        dataType: toApiFieldType(field.type),
+        required: field.required,
+        metadataKey: field.metadataKey,
+        sadddField: field.sadddField,
+        allowedValues: field.allowedValues
+          .split(',')
+          .map((value) => value.trim())
+          .filter(Boolean),
+      })),
+    }
     try {
-      const input = toDigitalFormInput({
-        code: formCode,
-        name: formTitle,
-        formType,
-        activityId: linkedActivityId,
-        journeyStageId: journeyStage,
-        fields,
-      })
-      const form = activeForm
-        ? await pathwaysClient.updateDigitalForm(projectId, activeForm.id, {
+      const existing = forms.find((form) => form.id === editingFormId)
+      if (existing?.status === 'PUBLISHED') {
+        toast.error('Published form fields are read-only. Create a new version before editing.')
+        return
+      }
+      const saved = existing
+        ? await pathwaysClient.updateDigitalForm(projectId, existing.id, {
             ...input,
-            expectedUpdatedAt: activeForm.updatedAt,
+            expectedUpdatedAt: existing.updatedAt,
           })
         : await pathwaysClient.createDigitalForm(projectId, input)
-      if (sessionDraftKey) clearFormBuilderSessionDraft(window.sessionStorage, sessionDraftKey)
-      setActiveForm(form)
-      setSavedForms((current) => [form, ...current.filter((item) => item.id !== form.id)])
-      window.history.replaceState({}, '', `/collection/projects/${projectId}/forms/${form.id}`)
+      const published = await pathwaysClient.publishDigitalForm(
+        projectId,
+        saved.id,
+        saved.updatedAt,
+      )
+      setForms((current) => [...current.filter((form) => form.id !== published.id), published])
+      setEditingFormId(published.id)
       setSaveDialogOpen(false)
-      setSavedNotice(`Draft ${form.code} version ${form.version} was saved to PATHWAYS.`)
+      setSavedNotice(
+        'Form published to the server. Journey-stage and indicator links were not changed.',
+      )
+      setView('forms')
     } catch (error) {
-      setSavedNotice(error instanceof Error ? error.message : 'The form draft could not be saved.')
-    } finally {
-      setSavePending(false)
+      toast.error(error instanceof Error ? error.message : 'Form could not be published.')
     }
   }
-
-  const refreshForm = (form: DigitalFormDefinition) => {
-    setSavedForms((current) => [form, ...current.filter((item) => item.id !== form.id)])
-    if (activeForm?.id === form.id) setActiveForm(form)
-  }
-
-  const publishForm = async (form: DigitalFormDefinition) => {
+  const confirmImportProceed = async () => {
+    if (!parsedImport || !importCanProceed || !projectId) return
     try {
-      refreshForm(await pathwaysClient.publishDigitalForm(projectId, form.id, form.updatedAt))
-      setSavedNotice(`Version ${form.version} was published.`)
+      if (parsedImport.rows.length === 0) {
+        const importedFields = mappingRows
+          .filter((mapping) => mapping.status === 'mapped')
+          .map((mapping, index) => fieldFromHeader(mapping.targetField, index))
+        if (!importedFields.length)
+          throw new Error('Map at least one field before creating a form.')
+        const importedTitle = formTitleFromFileName(parsedImport.fileName)
+        const created = await pathwaysClient.createDigitalForm(projectId, {
+          code: importedTitle
+            .toLowerCase()
+            .replace(/[^a-z0-9]+/g, '_')
+            .replace(/^_+|_+$/g, '')
+            .slice(0, 64),
+          name: importedTitle,
+          description: formType,
+          formType: toApiFormType(formType),
+          fields: importedFields.map((field) => ({
+            code: field.code,
+            label: field.label,
+            dataType: toApiFieldType(field.type),
+            required: field.required,
+            metadataKey: field.metadataKey,
+            sadddField: field.sadddField,
+            allowedValues: field.allowedValues
+              .split(',')
+              .map((value) => value.trim())
+              .filter(Boolean),
+          })),
+        })
+        setForms((current) => [...current, created])
+        setEditingFormId(created.id)
+        setFields(importedFields)
+        setSelectedFieldId(importedFields[0]?.id ?? '')
+        setFormTitle(importedTitle)
+        setSavedNotice(
+          `Draft form "${created.name}" created on the server from ${parsedImport.fileName}.`,
+        )
+        setProceedDialogOpen(false)
+        setView('forms')
+        return
+      }
+      const selectedForm = forms.find(
+        (form) => form.id === editingFormId && form.projectId === projectId,
+      )
+      if (!selectedForm || selectedForm.status !== 'PUBLISHED') {
+        throw new Error('Open a published form for this project before importing data.')
+      }
+      if (duplicateDecision !== 'pending') {
+        throw new Error(
+          'Automatic duplicate skip or keep is unavailable. Review server validation results instead.',
+        )
+      }
+      const allowed = new Set(selectedForm.fields.map((field) => field.code))
+      const mappings = mappingRows.map((row) => {
+        if (row.status === 'mapped' && !allowed.has(row.targetField)) {
+          throw new Error(`Field ${row.targetField} is not in the selected published form.`)
+        }
+        return {
+          sourceFieldName: row.sourceColumn,
+          targetFieldCode: row.status === 'mapped' ? row.targetField : undefined,
+          ignored: row.status === 'ignored',
+        }
+      })
+      const file = lastSelectedFileRef.current
+      if (!file) throw new Error('Select the source file again before upload.')
+      const uploaded = await pathwaysClient.uploadImport(
+        projectId,
+        selectedForm.id,
+        crypto.randomUUID(),
+        file,
+      )
+      const mapped = await pathwaysClient.saveImportMapping(
+        projectId,
+        uploaded.id,
+        uploaded.mappingRevision,
+        mappings,
+      )
+      const validated = await pathwaysClient.validateImport(
+        projectId,
+        mapped.id,
+        mapped.mappingRevision,
+      )
+      if (validated.totals.invalid > 0) {
+        setImportMessage(
+          `Server validation found ${validated.totals.invalid} invalid rows. Review batch ${validated.id} before processing.`,
+        )
+        setProceedDialogOpen(false)
+        return
+      }
+      const processed = await pathwaysClient.processImport(
+        projectId,
+        validated.id,
+        validated.validationRevision,
+      )
+      setSavedNotice(
+        `Server import ${processed.id}: ${processed.totals.processed} processed, ${processed.totals.failed} failed.`,
+      )
+      setProceedDialogOpen(false)
     } catch (error) {
-      setSavedNotice(error instanceof Error ? error.message : 'The form could not be published.')
+      setImportMessage(error instanceof Error ? error.message : 'Import failed.')
+      setProceedDialogOpen(false)
     }
   }
-
-  const archiveForm = async (form: DigitalFormDefinition) => {
-    try {
-      refreshForm(await pathwaysClient.archiveDigitalForm(projectId, form.id, form.updatedAt))
-      setSavedNotice(`Version ${form.version} was archived.`)
-    } catch (error) {
-      setSavedNotice(error instanceof Error ? error.message : 'The form could not be archived.')
-    }
+  const downloadSavedForm = (_summary: SavedForm) => {
+    toast.error('Form export is unavailable in the current API. No file was generated.')
   }
-
-  const createVersion = async (form: DigitalFormDefinition) => {
-    try {
-      const draft = await pathwaysClient.createDigitalFormVersion(projectId, form.id)
-      refreshForm(draft)
-      window.location.assign(`/collection/projects/${projectId}/forms/${draft.id}`)
-    } catch (error) {
-      setSavedNotice(error instanceof Error ? error.message : 'A new version could not be created.')
-    }
-  }
-
-  const confirmImportProceed = () => {
-    setProceedDialogOpen(false)
-    setSavedNotice(
-      'Import submission is not configured. The parsed preview and mappings remain unsaved.',
-    )
-  }
-
-  const downloadSavedForm = (form: DigitalFormDefinition) => {
-    const summary = JSON.stringify(
-      {
-        ...form,
-        note: 'Exported from the current supplied form data.',
-      },
-      null,
-      2,
-    )
-    const downloadUrl = URL.createObjectURL(
-      new Blob([summary], { type: 'application/json;charset=utf-8' }),
-    )
-    const anchor = document.createElement('a')
-    const fileName = form.name
-      .toLowerCase()
-      .replace(/[^a-z0-9]+/g, '-')
-      .replace(/^-|-$/g, '')
-
-    anchor.href = downloadUrl
-    anchor.download = `${fileName || 'collection-form'}-summary.json`
-    document.body.append(anchor)
-    anchor.click()
-    anchor.remove()
-    window.setTimeout(() => URL.revokeObjectURL(downloadUrl), 0)
-    toast.success('Form summary downloaded.', {
-      description: 'The summary contains the current form data only.',
-    })
-  }
-
   return (
-    <div className="min-w-0 space-y-6">
+    <div className="space-y-6">
       <PageHeader
+        editableLabelKey="moduleCollection"
         eyebrow="Data workspace"
         title={labels.moduleCollection}
-        description="Build versioned digital forms and prepare metadata-aware collection workflows."
+        description="Build and publish project forms, encode data, and import validated CSV, XLS, or XLSX datasets."
         actions={
-          <Button asChild size="sm">
-            <Link href="/collection/forms">Forms</Link>
-          </Button>
+          <>
+            <Button asChild size="sm" variant="outline">
+              <Link href="/collection/entry">Encode data</Link>
+            </Button>
+            <Button asChild size="sm">
+              <Link href="/collection/forms">Forms</Link>
+            </Button>
+          </>
         }
       />
-
-      {projectLoadStatus !== 'ready' || projects.length === 0 ? (
-        <div className="rounded-lg border border-info/20 bg-info/10 px-4 py-3 text-sm text-info">
-          {projectLoadStatus === 'loading'
-            ? 'Loading project and activity options...'
-            : projectLoadStatus === 'error'
-              ? 'Project and activity options could not be loaded from the backend.'
-              : 'No project or activity options are available yet. You can still prepare an unsaved form or inspect a local file.'}
-        </div>
-      ) : null}
 
       <div className="grid gap-3 lg:grid-cols-3">
         {modeDetails.map((item) => (
           <Link
             key={item.id}
             className={cn(
-              'rounded-lg border bg-card p-4 text-left shadow-sm transition hover:border-primary/50 hover:bg-primary/5 focus:outline-none focus:ring-2 focus:ring-ring',
-              mode === item.id && 'border-primary bg-primary/10',
+              'rounded-lg border bg-card p-4 text-left transition-colors hover:border-primary/50 hover:bg-primary-subtle focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
+              mode === item.id && 'border-primary bg-primary-subtle',
             )}
             href={item.href}
+            onClick={() => openBuilder(item.id)}
           >
             <div className="flex items-start justify-between gap-3">
               <div>
@@ -742,7 +805,7 @@ export const CollectionWorkspace = ({
       </div>
 
       {savedNotice ? (
-        <div className="flex items-center justify-between rounded-lg border border-info/20 bg-info/10 px-4 py-3 text-sm text-info">
+        <div className="flex items-center justify-between rounded-sm border border-success/25 bg-success-subtle px-4 py-3 text-sm text-success">
           <span className="flex items-center gap-2">
             <CheckCircle2 className="h-4 w-4" aria-hidden="true" />
             {savedNotice}
@@ -755,91 +818,172 @@ export const CollectionWorkspace = ({
 
       {view === 'forms' || view === 'home' ? (
         <FormsGeneratorView
-          formsLoadStatus={formsLoadStatus}
-          canManageForms={canManageForms}
-          canPublishForms={canPublishForms}
-          canWriteSubmissions={canWriteSubmissions}
-          onArchive={archiveForm}
-          onCreate={() => openBuilder('scratch')}
-          onCreateVersion={createVersion}
+          onOpen={openSavedForm}
+          onCreate={() => {
+            setEditingFormId(undefined)
+            setFields(initialFields)
+            openBuilder('scratch')
+          }}
           onDownload={downloadSavedForm}
           onImport={(nextMode) => openBuilder(nextMode)}
-          onPublish={publishForm}
-          projectId={projectId}
-          projects={projects}
           savedForms={savedForms}
-          setProjectId={setProjectId}
         />
       ) : null}
 
+      <label className="block text-sm">
+        Download format{' '}
+        <select
+          className="ml-2 rounded border p-2"
+          value={exportFormat}
+          onChange={(e) => setExportFormat(e.target.value as ExportFormat)}
+        >
+          {(['csv', 'xlsx', 'xls', 'pdf'] as const).map((f) => (
+            <option key={f} value={f}>
+              {f.toUpperCase()}
+            </option>
+          ))}
+        </select>
+      </label>
       {view === 'builder' ? (
-        <BuilderView
-          addField={addField}
-          deleteField={deleteField}
-          fields={fields}
-          readOnly={!canManageForms}
-          formCode={formCode}
-          formTitle={formTitle}
-          formType={formType}
-          availableJourneyStages={availableJourneyStages}
-          journeyStage={journeyStage}
-          linkedActivityId={linkedActivityId}
-          metadataCount={metadataCount}
-          metadataCoverage={metadataCoverage}
-          mappedCount={mappedCount}
-          mode={mode}
-          moveField={moveField}
-          projects={projects}
-          projectActivities={projectActivities}
-          projectId={projectId}
-          sadddCount={sadddCount}
-          selectedField={selectedField}
-          selectedFieldId={selectedFieldId}
-          selectedProject={selectedProject?.title ?? 'No project selected'}
-          setFormTitle={setFormTitle}
-          setFormCode={setFormCode}
-          setFormType={setFormType}
-          setJourneyStage={setJourneyStage}
-          setLinkedActivityId={setLinkedActivityId}
-          setProjectId={setProjectId}
-          setSaveDialogOpen={setSaveDialogOpen}
-          setSelectedFieldId={setSelectedFieldId}
-          updateField={updateField}
-        />
+        <fieldset
+          disabled={forms.find((f) => f.id === editingFormId)?.status === 'PUBLISHED'}
+          className="space-y-4"
+        >
+          <legend className="font-semibold">Form configuration</legend>
+          <div>
+            <p>Linked indicators</p>
+            {indicators
+              .filter((i) => i.projectId === projectId)
+              .map((i) => (
+                <label className="mr-4 inline-flex gap-2" key={i.id}>
+                  <input
+                    type="checkbox"
+                    checked={indicatorIds.includes(i.id)}
+                    onChange={(e) =>
+                      setIndicatorIds(
+                        e.target.checked
+                          ? [...indicatorIds, i.id]
+                          : indicatorIds.filter((id) => id !== i.id),
+                      )
+                    }
+                  />
+                  {i.label}
+                </label>
+              ))}
+          </div>
+          <BuilderView
+            addField={addField}
+            deleteField={requestDeleteField}
+            fields={fields}
+            formTitle={formTitle}
+            formType={formType}
+            journeyStage={journeyStage}
+            linkedActivityId={linkedActivityId}
+            metadataCount={metadataCount}
+            metadataCoverage={metadataCoverage}
+            mappedCount={mappedCount}
+            mode={mode}
+            moveField={moveField}
+            projectActivities={projectActivities}
+            projects={projects}
+            projectId={projectId}
+            sadddCount={sadddCount}
+            selectedField={selectedField}
+            selectedFieldId={selectedFieldId}
+            selectedProject={selectedProject?.title ?? 'No project selected'}
+            setFormTitle={setFormTitle}
+            setFormType={setFormType}
+            setJourneyStage={setJourneyStage}
+            setLinkedActivityId={setLinkedActivityId}
+            setProjectId={setProjectId}
+            setSaveDialogOpen={setSaveDialogOpen}
+            setSelectedFieldId={setSelectedFieldId}
+            updateField={updateField}
+          />
+        </fieldset>
       ) : null}
 
       {view === 'import' ? (
-        <ImportView
-          fields={fields}
-          fileInputRef={fileInputRef}
-          formCode={formCode}
-          formTitle={formTitle}
-          formType={formType}
-          availableJourneyStages={availableJourneyStages}
-          importMessage={importMessage}
-          importSummary={importSummary}
-          journeyStage={journeyStage}
-          linkedActivityId={linkedActivityId}
-          mappingRows={mappingRows}
-          mode={mode}
-          parsedImport={parsedImport}
-          parseSelectedFile={parseSelectedFile}
-          projects={projects}
-          projectActivities={projectActivities}
-          projectId={projectId}
-          selectedProject={selectedProject?.title ?? 'No project selected'}
-          setFormCode={setFormCode}
-          setFormTitle={setFormTitle}
-          setFormType={setFormType}
-          setJourneyStage={setJourneyStage}
-          setLinkedActivityId={setLinkedActivityId}
-          setMappingRows={setMappingRows}
-          setMode={setMode}
-          setProceedDialogOpen={setProceedDialogOpen}
-          setProjectId={setProjectId}
-          setView={setView}
-          uploadProgress={uploadProgress}
-        />
+        <div className="space-y-4">
+          <label>
+            Duplicate records decision{' '}
+            <select
+              className="rounded border p-2"
+              value={duplicateDecision}
+              onChange={(e) => setDuplicateDecision(e.target.value as 'pending' | 'skip' | 'keep')}
+            >
+              <option value="pending">Decide when duplicates are flagged</option>
+              <option value="skip">Skip duplicates</option>
+              <option value="keep">Keep confirmed duplicates</option>
+            </select>
+          </label>
+          {parsedImport?.rows.length ? (
+            <details>
+              <summary>Correct isolated data before reprocessing</summary>
+              <div className="overflow-x-auto">
+                <table>
+                  <tbody>
+                    {parsedImport.rows.map((row, index) => (
+                      <tr
+                        key={parsedImport.headers
+                          .map((column) => `${column}:${String(row[column] ?? '')}`)
+                          .join('|')}
+                      >
+                        {parsedImport.headers.map((column) => (
+                          <td key={column}>
+                            <Input
+                              aria-label={`Row ${index + 1}: ${column}`}
+                              value={String(row[column] ?? '')}
+                              onChange={(e) =>
+                                setParsedImport({
+                                  ...parsedImport,
+                                  rows: parsedImport.rows.map((r, ri) =>
+                                    ri === index ? { ...r, [column]: e.target.value } : r,
+                                  ),
+                                })
+                              }
+                            />
+                          </td>
+                        ))}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </details>
+          ) : null}
+          <ImportView
+            fields={fields}
+            formTitle={formTitle}
+            formType={formType}
+            importCanProceed={importCanProceed}
+            importMessage={importMessage}
+            importStatus={importStatus}
+            importSummary={importSummary}
+            journeyStage={journeyStage}
+            linkedActivityId={linkedActivityId}
+            mappingRows={mappingRows}
+            mappingReadiness={mappingReadiness}
+            mode={mode}
+            parsedImport={parsedImport}
+            parseSelectedFile={parseSelectedFile}
+            projectActivities={projectActivities}
+            projects={projects}
+            projectId={projectId}
+            selectedProject={selectedProject?.title ?? 'No project selected'}
+            setFormTitle={setFormTitle}
+            setFormType={setFormType}
+            setJourneyStage={setJourneyStage}
+            setLinkedActivityId={setLinkedActivityId}
+            setMappingRows={setMappingRows}
+            setMode={setMode}
+            setProceedDialogOpen={setProceedDialogOpen}
+            setProjectId={setProjectId}
+            setView={setView}
+            retrySelectedFile={retrySelectedFile}
+            uploadProgress={uploadProgress}
+          />
+        </div>
       ) : null}
 
       <Dialog open={saveDialogOpen} onOpenChange={setSaveDialogOpen}>
@@ -847,12 +991,11 @@ export const CollectionWorkspace = ({
           <DialogHeader>
             <DialogTitle>Proceed with Save As?</DialogTitle>
             <DialogDescription>
-              The form definition will be validated by the server and saved as a project-owned
-              draft. Published definitions are preserved as immutable versions.
+              This publishes the validated form and makes it available to the data-entry workflow.
             </DialogDescription>
           </DialogHeader>
-          <div className="rounded-lg border bg-muted/40 p-4 text-sm">
-            <p className="font-medium text-foreground">{formTitle || 'Untitled form'}</p>
+          <div className="rounded-sm border bg-surface-subtle p-4 text-sm">
+            <p className="font-medium text-foreground">{formTitle}</p>
             <p className="mt-1 text-muted-foreground">
               {fields.length} fields, {mappedCount} mapped, {sadddCount} SADDD fields.
             </p>
@@ -861,9 +1004,7 @@ export const CollectionWorkspace = ({
             <Button variant="outline" onClick={() => setSaveDialogOpen(false)}>
               Cancel
             </Button>
-            <Button disabled={savePending} onClick={() => void requestFormSave()}>
-              {savePending ? 'Saving...' : 'Save draft'}
-            </Button>
+            <Button onClick={() => void saveFormToApi()}>Proceed</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -871,181 +1012,119 @@ export const CollectionWorkspace = ({
       <Dialog open={proceedDialogOpen} onOpenChange={setProceedDialogOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Review mapped fields?</DialogTitle>
+            <DialogTitle>
+              {parsedImport?.rows.length === 0 ? 'Create draft form?' : 'Review mapped fields?'}
+            </DialogTitle>
             <DialogDescription>
-              Import submission is not available. The source dataset stays on this device and only
-              the local parsing and mapping preview is available.
+              {parsedImport?.rows.length === 0
+                ? 'The mapped columns will become questionnaire fields. You can edit the Draft from Forms before publishing.'
+                : 'Valid rows will be imported; invalid rows remain isolated for correction and reprocessing.'}
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
             <Button variant="outline" onClick={() => setProceedDialogOpen(false)}>
               Cancel
             </Button>
-            <Button onClick={confirmImportProceed}>Proceed</Button>
+            <Button onClick={confirmImportProceed}>
+              {parsedImport?.rows.length === 0 ? 'Create Draft' : 'Proceed'}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <ConfirmationDialog
+        confirmLabel={`Delete ${pendingDeleteField?.label ?? 'field'}`}
+        description="This removes the field and its current configuration from the form."
+        onConfirm={confirmDeleteField}
+        onOpenChange={(open) => {
+          if (!open) {
+            setPendingDeleteField(null)
+          }
+        }}
+        open={Boolean(pendingDeleteField)}
+        title={`Delete ${pendingDeleteField?.label ?? 'this field'}?`}
+      >
+        {pendingDeleteField ? (
+          <div className="rounded-sm border border-border bg-surface-subtle p-3 text-sm">
+            <p className="font-medium text-foreground">{pendingDeleteField.label}</p>
+            <p className="mt-1 text-muted-foreground">
+              Field code: {pendingDeleteField.code} · Type:{' '}
+              {dataTypeLabels[pendingDeleteField.type]}
+            </p>
+          </div>
+        ) : null}
+      </ConfirmationDialog>
     </div>
   )
 }
 
 const FormsGeneratorView = ({
-  canManageForms,
-  canPublishForms,
-  canWriteSubmissions,
-  formsLoadStatus,
-  onArchive,
+  onOpen,
   onCreate,
-  onCreateVersion,
   onDownload,
   onImport,
-  onPublish,
-  projectId,
-  projects,
   savedForms,
-  setProjectId,
 }: {
-  canManageForms: boolean
-  canPublishForms: boolean
-  canWriteSubmissions: boolean
-  formsLoadStatus: 'idle' | 'loading' | 'ready' | 'error'
-  onArchive: (form: DigitalFormDefinition) => Promise<void>
+  onOpen: (form: SavedForm) => void
   onCreate: () => void
-  onCreateVersion: (form: DigitalFormDefinition) => Promise<void>
-  onDownload: (form: DigitalFormDefinition) => void
+  onDownload: (form: SavedForm) => void
   onImport: (mode: CollectionMode) => void
-  onPublish: (form: DigitalFormDefinition) => Promise<void>
-  projectId: string
-  projects: ProjectSummary[]
-  savedForms: DigitalFormDefinition[]
-  setProjectId: (projectId: string) => void
+  savedForms: SavedForm[]
 }) => (
-  <div className="rounded-lg border bg-card p-5 shadow-sm">
+  <div className="rounded-lg border bg-card p-5">
     <div className="flex flex-col gap-3 border-b pb-4 sm:flex-row sm:items-center sm:justify-between">
       <div>
         <p className="text-xs font-semibold uppercase text-muted-foreground">Form Generator</p>
         <h2 className="mt-1 text-lg font-semibold text-foreground">Collection forms</h2>
       </div>
-      <div className="flex w-full flex-col gap-3 sm:w-auto sm:flex-row sm:items-end">
-        <div className="min-w-0 sm:w-72">
-          <Label>Project</Label>
-          <Select disabled={projects.length === 0} value={projectId} onValueChange={setProjectId}>
-            <SelectTrigger aria-label="Project for saved forms" className="mt-1 w-full">
-              <SelectValue placeholder="Select a project" />
-            </SelectTrigger>
-            <SelectContent>
-              {projects.map((project) => (
-                <SelectItem key={project.id} value={project.id}>
-                  {project.code ? `${project.code} · ${project.title}` : project.title}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button size="sm">
-              <Plus className="mr-2 h-4 w-4" aria-hidden="true" />
-              Add New
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-48">
-            {canManageForms ? (
-              <DropdownMenuItem onClick={onCreate}>
-                <ListPlus className="mr-2 h-4 w-4" aria-hidden="true" />
-                Create New
-              </DropdownMenuItem>
-            ) : null}
-            <DropdownMenuItem onClick={() => onImport('import')}>
-              <FileSpreadsheet className="mr-2 h-4 w-4" aria-hidden="true" />
-              Import .xlsx
-            </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => onImport('import')}>
-              <FileUp className="mr-2 h-4 w-4" aria-hidden="true" />
-              Import .csv
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
-      </div>
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button size="sm">
+            <Plus className="mr-2 h-4 w-4" aria-hidden="true" />
+            Add New
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end" className="w-48">
+          <DropdownMenuItem onClick={onCreate}>
+            <ListPlus className="mr-2 h-4 w-4" aria-hidden="true" />
+            Create New
+          </DropdownMenuItem>
+          <DropdownMenuItem onClick={() => onImport('import')}>
+            <FileSpreadsheet className="mr-2 h-4 w-4" aria-hidden="true" />
+            Import .xlsx
+          </DropdownMenuItem>
+          <DropdownMenuItem onClick={() => onImport('import')}>
+            <FileUp className="mr-2 h-4 w-4" aria-hidden="true" />
+            Import .csv
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
     </div>
 
     <div className="mt-4 space-y-3">
-      {savedForms.length === 0 ? (
-        <div className="rounded-lg border border-dashed bg-muted/20 p-6 text-center">
-          <Database className="mx-auto h-6 w-6 text-muted-foreground" aria-hidden="true" />
-          <p className="mt-3 text-sm font-medium text-foreground">
-            {formsLoadStatus === 'loading'
-              ? 'Loading saved forms...'
-              : formsLoadStatus === 'error'
-                ? 'Saved forms could not be loaded'
-                : 'No saved forms yet'}
-          </p>
-          <p className="mt-1 text-xs leading-5 text-muted-foreground">
-            {formsLoadStatus === 'error'
-              ? 'Check your connection and access, then reload this page.'
-              : 'Create a form draft or extend a locally inspected structure.'}
-          </p>
-        </div>
-      ) : null}
       {savedForms.map((form) => (
         <div
           key={form.id}
-          className="grid gap-3 rounded-lg border bg-muted/30 p-4 text-sm md:grid-cols-[1fr_auto]"
+          className="grid gap-3 rounded-sm border bg-surface-subtle p-4 text-sm md:grid-cols-[1fr_auto]"
         >
           <div className="flex items-start gap-3">
-            <div className="flex h-9 w-9 items-center justify-center rounded-md bg-primary/10 text-primary">
+            <div className="flex h-9 w-9 items-center justify-center rounded-sm bg-primary-subtle text-primary">
               <Database className="h-4 w-4" aria-hidden="true" />
             </div>
             <div>
-              <p className="font-medium text-foreground">{form.name}</p>
+              <p className="font-medium text-foreground">{form.title}</p>
               <p className="mt-1 text-muted-foreground">
-                {formTypeLabels[form.formType]} | Version {form.version} | {form.fields.length}{' '}
-                fields | {form.status}
+                Status: {form.type} | {form.project} | {form.fieldCount} fields | Saved:{' '}
+                {form.savedAt}
               </p>
             </div>
           </div>
           <div className="flex items-center gap-2">
-            <Button asChild size="sm" variant="outline">
-              <Link href={`/collection/projects/${projectId}/forms/${form.id}`}>
-                {form.status === 'DRAFT' ? 'Edit draft' : 'View definition'}
-              </Link>
+            <Button size="sm" variant="outline" onClick={() => onOpen(form)}>
+              Open form
             </Button>
-            {form.status === 'DRAFT' && canPublishForms && !form.createdByCurrentUser ? (
-              <Button size="sm" variant="outline" onClick={() => void onPublish(form)}>
-                Publish
-              </Button>
-            ) : null}
-            {form.status === 'PUBLISHED' ? (
-              <>
-                {canWriteSubmissions ? (
-                  <Button asChild size="sm" variant="outline">
-                    <Link
-                      href={
-                        form.formType === 'BENEFICIARY_REGISTRATION'
-                          ? '/beneficiaries/new'
-                          : `/collection/projects/${projectId}/forms/${form.id}/entries/new`
-                      }
-                    >
-                      {form.formType === 'BENEFICIARY_REGISTRATION'
-                        ? 'Register beneficiary'
-                        : 'Enter data'}
-                    </Link>
-                  </Button>
-                ) : null}
-                {canManageForms ? (
-                  <Button size="sm" variant="outline" onClick={() => void onCreateVersion(form)}>
-                    New version
-                  </Button>
-                ) : null}
-              </>
-            ) : null}
-            {form.status !== 'ARCHIVED' && canManageForms ? (
-              <Button size="sm" variant="outline" onClick={() => void onArchive(form)}>
-                Archive
-              </Button>
-            ) : null}
             <Button size="sm" variant="outline" onClick={() => onDownload(form)}>
-              Download summary
+              Export form
             </Button>
           </div>
         </div>
@@ -1058,10 +1137,8 @@ const BuilderView = ({
   addField,
   deleteField,
   fields,
-  formCode,
   formTitle,
   formType,
-  availableJourneyStages,
   journeyStage,
   linkedActivityId,
   metadataCount,
@@ -1069,16 +1146,14 @@ const BuilderView = ({
   mappedCount,
   mode,
   moveField,
-  projects,
   projectActivities,
+  projects,
   projectId,
-  readOnly,
   sadddCount,
   selectedField,
   selectedFieldId,
   selectedProject,
   setFormTitle,
-  setFormCode,
   setFormType,
   setJourneyStage,
   setLinkedActivityId,
@@ -1090,10 +1165,8 @@ const BuilderView = ({
   addField: () => void
   deleteField: (fieldId: string) => void
   fields: FormField[]
-  formCode: string
   formTitle: string
-  formType: DigitalFormType
-  availableJourneyStages: JourneyStageConfig[]
+  formType: string
   journeyStage: string
   linkedActivityId: string
   metadataCount: number
@@ -1101,17 +1174,15 @@ const BuilderView = ({
   mappedCount: number
   mode: CollectionMode
   moveField: (fieldId: string, direction: 'up' | 'down') => void
-  projects: ProjectSummary[]
   projectActivities: Activity[]
+  projects: ProjectSummary[]
   projectId: string
-  readOnly: boolean
   sadddCount: number
   selectedField?: FormField
   selectedFieldId: string
   selectedProject: string
   setFormTitle: (value: string) => void
-  setFormCode: (value: string) => void
-  setFormType: (value: DigitalFormType) => void
+  setFormType: (value: string) => void
   setJourneyStage: (value: string) => void
   setLinkedActivityId: (value: string) => void
   setProjectId: (value: string) => void
@@ -1119,20 +1190,16 @@ const BuilderView = ({
   setSelectedFieldId: (fieldId: string) => void
   updateField: (fieldId: string, patch: Partial<FormField>) => void
 }) => (
-  <div className="grid min-w-0 gap-4 xl:grid-cols-[minmax(0,1fr)_300px]">
-    <main className="min-w-0 space-y-4">
+  <div className="grid gap-4 xl:grid-cols-[1fr_300px]">
+    <div className="space-y-4">
       <FormInfoPanel
-        formCode={formCode}
         formTitle={formTitle}
         formType={formType}
-        availableJourneyStages={availableJourneyStages}
         journeyStage={journeyStage}
         linkedActivityId={linkedActivityId}
-        projects={projects}
         projectActivities={projectActivities}
+        projects={projects}
         projectId={projectId}
-        readOnly={readOnly}
-        setFormCode={setFormCode}
         setFormTitle={setFormTitle}
         setFormType={setFormType}
         setJourneyStage={setJourneyStage}
@@ -1140,7 +1207,7 @@ const BuilderView = ({
         setProjectId={setProjectId}
       />
 
-      <div className="rounded-lg border bg-card p-4 shadow-sm">
+      <div className="rounded-lg border bg-card p-4">
         <div className="flex flex-col gap-3 border-b pb-3 md:flex-row md:items-center md:justify-between">
           <div>
             <p className="text-xs font-semibold uppercase text-muted-foreground">
@@ -1162,13 +1229,15 @@ const BuilderView = ({
             <div
               key={field.id}
               className={cn(
-                'rounded-lg border bg-background p-3 transition',
-                selectedFieldId === field.id && 'border-primary bg-primary/5',
+                'rounded-sm border bg-background p-3 transition',
+                selectedFieldId === field.id && 'border-primary bg-primary-subtle',
               )}
             >
               <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
                 <button
+                  aria-pressed={selectedFieldId === field.id}
                   className="flex flex-1 items-start gap-3 text-left focus:outline-none focus:ring-2 focus:ring-ring"
+                  id={`collection-field-choice-${field.id}`}
                   type="button"
                   onClick={() => setSelectedFieldId(field.id)}
                 >
@@ -1179,6 +1248,12 @@ const BuilderView = ({
                       {dataTypeLabels[field.type]} | {field.code}
                     </p>
                     <div className="mt-2 flex flex-wrap gap-2">
+                      {selectedFieldId === field.id ? (
+                        <span className="inline-flex items-center gap-1 text-xs font-semibold text-foreground">
+                          <CheckCircle2 className="h-4 w-4" aria-hidden="true" />
+                          Selected
+                        </span>
+                      ) : null}
                       {field.required ? <StatusBadge tone="danger">Required</StatusBadge> : null}
                       {field.metadataKey ? (
                         <StatusBadge tone="info">Metadata key</StatusBadge>
@@ -1195,7 +1270,7 @@ const BuilderView = ({
                 <div className="flex items-center gap-1">
                   <Button
                     aria-label={`Move ${field.label} up`}
-                    disabled={readOnly || index === 0}
+                    disabled={index === 0}
                     size="icon"
                     variant="ghost"
                     onClick={() => moveField(field.id, 'up')}
@@ -1204,26 +1279,23 @@ const BuilderView = ({
                   </Button>
                   <Button
                     aria-label={`Move ${field.label} down`}
-                    disabled={readOnly || index === fields.length - 1}
+                    disabled={index === fields.length - 1}
                     size="icon"
                     variant="ghost"
                     onClick={() => moveField(field.id, 'down')}
                   >
                     <ArrowDown className="h-4 w-4" aria-hidden="true" />
                   </Button>
-                  {!readOnly ? (
-                    <Button
-                      aria-label={`Edit ${field.label}`}
-                      size="icon"
-                      variant="ghost"
-                      onClick={() => setSelectedFieldId(field.id)}
-                    >
-                      <Pencil className="h-4 w-4" aria-hidden="true" />
-                    </Button>
-                  ) : null}
+                  <Button
+                    aria-label={`Edit ${field.label}`}
+                    size="icon"
+                    variant="ghost"
+                    onClick={() => setSelectedFieldId(field.id)}
+                  >
+                    <Pencil className="h-4 w-4" aria-hidden="true" />
+                  </Button>
                   <Button
                     aria-label={`Delete ${field.label}`}
-                    disabled={readOnly}
                     size="icon"
                     variant="ghost"
                     onClick={() => deleteField(field.id)}
@@ -1233,33 +1305,27 @@ const BuilderView = ({
                 </div>
               </div>
 
-              {selectedFieldId === field.id && !readOnly ? (
+              {selectedFieldId === field.id ? (
                 <FieldEditor field={field} updateField={updateField} />
               ) : null}
             </div>
           ))}
         </div>
 
-        {readOnly ? (
-          <p className="mt-4 rounded-lg border bg-muted/30 p-3 text-sm text-muted-foreground">
-            This definition is read-only for your current PATHWAYS permissions.
-          </p>
-        ) : (
-          <div className="mt-4 grid gap-2 md:grid-cols-2">
-            <Button variant="outline" onClick={addField}>
-              <Plus className="mr-2 h-4 w-4" aria-hidden="true" />
-              Add field
-            </Button>
-            <Button onClick={() => setSaveDialogOpen(true)}>
-              <Save className="mr-2 h-4 w-4" aria-hidden="true" />
-              Save As
-            </Button>
-          </div>
-        )}
+        <div className="mt-4 grid gap-2 md:grid-cols-2">
+          <Button id="collection-add-field" variant="outline" onClick={addField}>
+            <Plus className="mr-2 h-4 w-4" aria-hidden="true" />
+            Add field
+          </Button>
+          <Button onClick={() => setSaveDialogOpen(true)}>
+            <Save className="mr-2 h-4 w-4" aria-hidden="true" />
+            Save As
+          </Button>
+        </div>
       </div>
-    </main>
+    </div>
 
-    <aside className="min-w-0 space-y-4">
+    <aside className="space-y-4">
       <MetadataMapPanel
         fields={fields}
         mappedCount={mappedCount}
@@ -1273,83 +1339,61 @@ const BuilderView = ({
 )
 
 const FormInfoPanel = ({
-  formCode,
   formTitle,
   formType,
-  availableJourneyStages,
   journeyStage,
   linkedActivityId,
-  projects,
   projectActivities,
+  projects,
   projectId,
-  readOnly = false,
-  setFormCode,
   setFormTitle,
   setFormType,
   setJourneyStage,
   setLinkedActivityId,
   setProjectId,
 }: {
-  formCode: string
   formTitle: string
-  formType: DigitalFormType
-  availableJourneyStages: JourneyStageConfig[]
+  formType: string
   journeyStage: string
   linkedActivityId: string
-  projects: ProjectSummary[]
   projectActivities: Activity[]
+  projects: ProjectSummary[]
   projectId: string
-  readOnly?: boolean
-  setFormCode: (value: string) => void
   setFormTitle: (value: string) => void
-  setFormType: (value: DigitalFormType) => void
+  setFormType: (value: string) => void
   setJourneyStage: (value: string) => void
   setLinkedActivityId: (value: string) => void
   setProjectId: (value: string) => void
 }) => (
-  <div className="rounded-lg border bg-card p-4 shadow-sm">
+  <div className="rounded-lg border bg-card p-4">
     <div className="grid gap-4 md:grid-cols-2">
       <div className="space-y-2">
         <Label htmlFor="form-title">Form information</Label>
         <Input
-          disabled={readOnly}
           id="form-title"
           value={formTitle}
           onChange={(event) => setFormTitle(event.target.value)}
         />
       </div>
       <div className="space-y-2">
-        <Label htmlFor="form-code">Form code</Label>
-        <Input
-          disabled={readOnly}
-          id="form-code"
-          placeholder="monitoring_form"
-          value={formCode}
-          onChange={(event) => setFormCode(normalizeHeader(event.target.value))}
-        />
-      </div>
-      <div className="space-y-2">
         <Label>Form type</Label>
-        <Select
-          disabled={readOnly}
-          value={formType}
-          onValueChange={(value) => setFormType(value as DigitalFormType)}
-        >
+        <Select value={formType} onValueChange={setFormType}>
           <SelectTrigger>
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            {Object.entries(formTypeLabels).map(([value, label]) => (
-              <SelectItem key={value} value={value}>
-                {label}
-              </SelectItem>
-            ))}
+            <SelectItem value="Pre/Post Assessment">Pre/Post Assessment</SelectItem>
+            <SelectItem value="Training Survey">Training Survey</SelectItem>
+            <SelectItem value="Attendance and Activity Update">
+              Attendance and Activity Update
+            </SelectItem>
+            <SelectItem value="Beneficiary Intake">Beneficiary Intake</SelectItem>
           </SelectContent>
         </Select>
       </div>
       <div className="space-y-2">
         <Label>Project selection</Label>
-        <Select disabled={readOnly} value={projectId} onValueChange={setProjectId}>
+        <Select value={projectId} onValueChange={setProjectId}>
           <SelectTrigger>
             <SelectValue />
           </SelectTrigger>
@@ -1363,31 +1407,16 @@ const FormInfoPanel = ({
         </Select>
       </div>
       <div className="space-y-2">
-        <Label>Journey stage</Label>
-        <Select disabled={readOnly} value={journeyStage} onValueChange={setJourneyStage}>
-          <SelectTrigger aria-label="Journey stage">
-            <SelectValue placeholder="Select a persisted journey stage" />
-          </SelectTrigger>
-          <SelectContent>
-            {availableJourneyStages.map((stage) => (
-              <SelectItem key={stage.id} value={stage.id}>
-                {stage.code} · {stage.name}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        {formType === 'ACTIVITY_MONITORING' &&
-        linkedActivityId &&
-        availableJourneyStages.length === 0 ? (
-          <p className="text-xs text-warning">
-            Map the linked activity to a journey stage before publishing this activity-monitoring
-            form.
-          </p>
-        ) : null}
+        <Label htmlFor="journey-stage">Journey stage</Label>
+        <Input
+          id="journey-stage"
+          value={journeyStage}
+          onChange={(event) => setJourneyStage(event.target.value)}
+        />
       </div>
       <div className="space-y-2 md:col-span-2">
         <Label>Linked activity</Label>
-        <Select disabled={readOnly} value={linkedActivityId} onValueChange={setLinkedActivityId}>
+        <Select value={linkedActivityId} onValueChange={setLinkedActivityId}>
           <SelectTrigger>
             <SelectValue placeholder="Select an activity" />
           </SelectTrigger>
@@ -1425,7 +1454,9 @@ const FieldEditor = ({
       <Input
         id={`${field.id}-code`}
         value={field.code}
-        onChange={(event) => updateField(field.id, { code: normalizeHeader(event.target.value) })}
+        onChange={(event) =>
+          updateField(field.id, { code: normalizeImportHeader(event.target.value) })
+        }
       />
     </div>
     <div className="space-y-2">
@@ -1472,50 +1503,6 @@ const FieldEditor = ({
         onChange={(event) => updateField(field.id, { allowedValues: event.target.value })}
       />
     </div>
-    {field.type === 'text' || field.type === 'long_text' || field.type === 'multi_select' ? (
-      <>
-        <div className="space-y-2">
-          <Label htmlFor={`${field.id}-minimum-length`}>Minimum length/items</Label>
-          <Input
-            id={`${field.id}-minimum-length`}
-            inputMode="numeric"
-            value={field.minimumLength}
-            onChange={(event) => updateField(field.id, { minimumLength: event.target.value })}
-          />
-        </div>
-        <div className="space-y-2">
-          <Label htmlFor={`${field.id}-maximum-length`}>Maximum length/items</Label>
-          <Input
-            id={`${field.id}-maximum-length`}
-            inputMode="numeric"
-            value={field.maximumLength}
-            onChange={(event) => updateField(field.id, { maximumLength: event.target.value })}
-          />
-        </div>
-      </>
-    ) : null}
-    {field.type === 'integer' || field.type === 'decimal' || field.type === 'date' ? (
-      <>
-        <div className="space-y-2">
-          <Label htmlFor={`${field.id}-minimum-value`}>Minimum value</Label>
-          <Input
-            id={`${field.id}-minimum-value`}
-            placeholder={field.type === 'date' ? 'YYYY-MM-DD' : undefined}
-            value={field.minimumValue}
-            onChange={(event) => updateField(field.id, { minimumValue: event.target.value })}
-          />
-        </div>
-        <div className="space-y-2">
-          <Label htmlFor={`${field.id}-maximum-value`}>Maximum value</Label>
-          <Input
-            id={`${field.id}-maximum-value`}
-            placeholder={field.type === 'date' ? 'YYYY-MM-DD' : undefined}
-            value={field.maximumValue}
-            onChange={(event) => updateField(field.id, { maximumValue: event.target.value })}
-          />
-        </div>
-      </>
-    ) : null}
     <div className="grid gap-2 sm:grid-cols-3 md:col-span-2">
       <ToggleRow
         checked={field.required}
@@ -1545,7 +1532,7 @@ const ToggleRow = ({
   label: string
   onChange: (checked: boolean) => void
 }) => (
-  <label className="flex items-center justify-between gap-3 rounded-lg border bg-muted/30 px-3 py-2 text-sm">
+  <label className="flex items-center justify-between gap-3 rounded-sm border bg-surface-subtle px-3 py-2 text-sm">
     <span className="font-medium text-foreground">{label}</span>
     <input
       checked={checked}
@@ -1569,16 +1556,16 @@ const MetadataMapPanel = ({
   selectedField?: FormField
   selectedProject: string
 }) => (
-  <div className="rounded-lg border bg-card p-4 shadow-sm">
+  <div className="rounded-lg border bg-card p-4">
     <div className="flex items-center justify-between gap-3">
       <div>
         <p className="text-sm font-semibold text-foreground">Metadata map</p>
-        <p className="text-xs text-muted-foreground">Current unsaved form summary</p>
+        <p className="text-xs text-muted-foreground">Current field summary</p>
       </div>
-      <StatusBadge tone="info">Draft</StatusBadge>
+      <StatusBadge tone="info">Current</StatusBadge>
     </div>
     <div className="mt-4 space-y-3 text-sm">
-      <div className="rounded-lg bg-muted/40 p-3">
+      <div className="rounded-sm bg-surface-subtle p-3">
         <div className="grid grid-cols-2 gap-2 text-xs text-muted-foreground">
           <span>Total fields</span>
           <span className="text-right font-medium text-foreground">{fields.length}</span>
@@ -1599,7 +1586,7 @@ const MetadataMapPanel = ({
       </div>
       <div>
         <p className="text-xs font-semibold uppercase text-muted-foreground">Selected field</p>
-        <div className="mt-2 rounded-lg border bg-background p-3">
+        <div className="mt-2 rounded-sm border bg-surface-subtle p-3">
           <p className="font-medium text-foreground">
             {selectedField?.label ?? 'No field selected'}
           </p>
@@ -1612,7 +1599,7 @@ const MetadataMapPanel = ({
       </div>
       <div className="space-y-2">
         {metadataConnections.map((item) => (
-          <div key={item} className="rounded-md bg-info/10 px-3 py-2 text-xs text-info">
+          <div key={item} className="rounded-sm bg-info-subtle px-3 py-2 text-xs text-info">
             {item}
           </div>
         ))}
@@ -1622,14 +1609,14 @@ const MetadataMapPanel = ({
 )
 
 const FormPreviewPanel = ({ fields, formTitle }: { fields: FormField[]; formTitle: string }) => (
-  <div className="rounded-lg border bg-card p-4 shadow-sm">
+  <div className="rounded-lg border bg-card p-4">
     <p className="text-sm font-semibold text-foreground">Form preview</p>
     <p className="mt-1 text-xs text-muted-foreground">{formTitle}</p>
     <div className="mt-4 space-y-3">
       {fields.slice(0, 4).map((field) => (
-        <div key={field.id} className="rounded-lg border bg-background p-3">
+        <div key={field.id} className="rounded-sm border bg-surface-subtle p-3">
           <Label>{field.label}</Label>
-          <div className="mt-2 h-9 rounded-md border bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
+          <div className="mt-2 h-9 rounded-sm border bg-background px-3 py-2 text-xs text-muted-foreground">
             {field.type.includes('select')
               ? field.allowedValues || 'Option 1, Option 2'
               : dataTypeLabels[field.type]}
@@ -1642,24 +1629,23 @@ const FormPreviewPanel = ({ fields, formTitle }: { fields: FormField[]; formTitl
 
 const ImportView = ({
   fields,
-  fileInputRef,
-  formCode,
   formTitle,
   formType,
-  availableJourneyStages,
+  importCanProceed,
   importMessage,
+  importStatus,
   importSummary,
   journeyStage,
   linkedActivityId,
   mappingRows,
+  mappingReadiness,
   mode,
   parsedImport,
   parseSelectedFile,
-  projects,
   projectActivities,
+  projects,
   projectId,
   selectedProject,
-  setFormCode,
   setFormTitle,
   setFormType,
   setJourneyStage,
@@ -1669,29 +1655,29 @@ const ImportView = ({
   setProceedDialogOpen,
   setProjectId,
   setView,
+  retrySelectedFile,
   uploadProgress,
 }: {
   fields: FormField[]
-  fileInputRef: React.RefObject<HTMLInputElement | null>
-  formCode: string
   formTitle: string
-  formType: DigitalFormType
-  availableJourneyStages: JourneyStageConfig[]
+  formType: string
+  importCanProceed: boolean
   importMessage: string
+  importStatus: ImportStatus
   importSummary: ReturnType<typeof createFileSummary> | null
   journeyStage: string
   linkedActivityId: string
   mappingRows: MappingRow[]
+  mappingReadiness: MappingReadiness
   mode: CollectionMode
   parsedImport: ParsedImport | null
   parseSelectedFile: (file: File) => Promise<void>
-  projects: ProjectSummary[]
   projectActivities: Activity[]
+  projects: ProjectSummary[]
   projectId: string
   selectedProject: string
-  setFormCode: (value: string) => void
   setFormTitle: (value: string) => void
-  setFormType: (value: DigitalFormType) => void
+  setFormType: (value: string) => void
   setJourneyStage: (value: string) => void
   setLinkedActivityId: (value: string) => void
   setMappingRows: React.Dispatch<React.SetStateAction<MappingRow[]>>
@@ -1699,21 +1685,19 @@ const ImportView = ({
   setProceedDialogOpen: (open: boolean) => void
   setProjectId: (value: string) => void
   setView: (view: CollectionView) => void
+  retrySelectedFile: () => void
   uploadProgress: number
 }) => (
-  <div className="grid min-w-0 gap-4 xl:grid-cols-[minmax(0,1fr)_300px]">
-    <main className="min-w-0 space-y-4">
+  <div className="grid gap-4 xl:grid-cols-[1fr_300px]">
+    <div className="space-y-4">
       <FormInfoPanel
-        formCode={formCode}
         formTitle={formTitle}
         formType={formType}
-        availableJourneyStages={availableJourneyStages}
         journeyStage={journeyStage}
         linkedActivityId={linkedActivityId}
-        projects={projects}
         projectActivities={projectActivities}
+        projects={projects}
         projectId={projectId}
-        setFormCode={setFormCode}
         setFormTitle={setFormTitle}
         setFormType={setFormType}
         setJourneyStage={setJourneyStage}
@@ -1721,31 +1705,35 @@ const ImportView = ({
         setProjectId={setProjectId}
       />
 
-      <div className="rounded-lg border bg-card p-5 shadow-sm">
-        <input
-          ref={fileInputRef}
-          accept=".csv,.xls,.xlsx"
-          className="sr-only"
-          type="file"
-          onChange={(event) => {
-            const file = event.target.files?.[0]
-
-            if (file) {
-              void parseSelectedFile(file)
-            }
-          }}
-        />
-        <div className="flex flex-col items-center justify-center rounded-lg border border-dashed bg-muted/30 px-4 py-8 text-center">
+      <div className="rounded-lg border bg-card p-5">
+        <div className="flex flex-col items-center justify-center rounded-sm border border-dashed bg-surface-subtle px-4 py-8 text-center">
           <FileUp className="h-8 w-8 text-primary" aria-hidden="true" />
           <h2 className="mt-3 text-base font-semibold text-foreground">
             Upload your existing form file
           </h2>
           <p className="mt-1 max-w-xl text-sm text-muted-foreground">
-            PATHWAYS reads CSV, XLS, or XLSX locally, then suggests metadata mappings. This preview
-            does not upload source data.
+            Select a CSV, XLS, or XLSX file to review and map its columns before import.
           </p>
+          <div className="mt-4 w-full max-w-xl space-y-2 text-left">
+            <Label htmlFor="collection-import-file">Source file</Label>
+            <Input
+              accept=".csv,.xls,.xlsx"
+              aria-describedby="collection-import-file-help"
+              id="collection-import-file"
+              type="file"
+              onChange={(event) => {
+                const file = event.target.files?.[0]
+
+                if (file) {
+                  void parseSelectedFile(file)
+                }
+              }}
+            />
+            <p className="text-xs leading-5 text-muted-foreground" id="collection-import-file-help">
+              Choose one CSV, XLS, or XLSX file.
+            </p>
+          </div>
           <div className="mt-4 flex flex-wrap justify-center gap-2">
-            <Button onClick={() => fileInputRef.current?.click()}>Select CSV/XLSX file</Button>
             <Button
               variant="outline"
               onClick={() => {
@@ -1759,13 +1747,36 @@ const ImportView = ({
         </div>
 
         <div className="mt-4 space-y-3">
-          <ProgressBar label="File reading progress" value={uploadProgress} />
-          <p className="text-sm text-muted-foreground">{importMessage}</p>
+          <ProgressBar
+            label="File reading progress"
+            tone={
+              importStatus === 'error' ? 'danger' : importStatus === 'ready' ? 'success' : 'info'
+            }
+            value={uploadProgress}
+          />
+          <output
+            aria-atomic="true"
+            aria-live="polite"
+            className={cn(
+              'block rounded-md px-3 py-2 text-sm',
+              importStatus === 'error'
+                ? 'bg-danger-subtle font-medium text-danger'
+                : 'bg-surface-subtle text-muted-foreground',
+            )}
+            data-import-status={importStatus}
+          >
+            {importMessage}
+          </output>
+          {importStatus === 'error' ? (
+            <Button size="sm" type="button" variant="outline" onClick={retrySelectedFile}>
+              Retry reading file
+            </Button>
+          ) : null}
         </div>
       </div>
 
       {importSummary ? (
-        <div className="rounded-lg border bg-card p-4 shadow-sm">
+        <div className="rounded-lg border bg-card p-4">
           <div className="grid gap-4 md:grid-cols-3">
             <SummaryMetric label="File" value={importSummary.fileName} />
             <SummaryMetric label="Rows" value={String(importSummary.totalRows)} />
@@ -1777,7 +1788,7 @@ const ImportView = ({
             </p>
           ) : null}
           {importSummary.warnings.length > 0 ? (
-            <div className="mt-3 rounded-lg bg-warning/10 p-3 text-xs text-warning">
+            <div className="mt-3 rounded-sm bg-warning-subtle p-3 text-xs text-warning">
               {importSummary.warnings.join(' ')}
             </div>
           ) : null}
@@ -1786,8 +1797,11 @@ const ImportView = ({
 
       {mappingRows.length > 0 ? (
         <MappingTable
+          canProceed={importCanProceed}
+          createsDraft={parsedImport?.rows.length === 0}
           fields={fields}
           mappingRows={mappingRows}
+          mappingReadiness={mappingReadiness}
           setMappingRows={setMappingRows}
           setProceedDialogOpen={setProceedDialogOpen}
           setView={setView}
@@ -1796,16 +1810,20 @@ const ImportView = ({
       ) : null}
 
       {parsedImport ? <DataPreview parsedImport={parsedImport} /> : null}
-    </main>
+    </div>
 
-    <aside className="min-w-0 space-y-4">
-      <ImportValidationPanel mappingRows={mappingRows} parsedImport={parsedImport} />
-      <div className="rounded-lg border bg-card p-4 shadow-sm">
+    <aside className="space-y-4">
+      <ImportValidationPanel
+        canProceed={importCanProceed}
+        mappingReadiness={mappingReadiness}
+        parsedImport={parsedImport}
+      />
+      <div className="rounded-lg border bg-card p-4">
         <p className="text-sm font-semibold text-foreground">Connected to</p>
         <p className="mt-1 text-xs text-muted-foreground">{selectedProject}</p>
         <div className="mt-3 space-y-2">
           {metadataConnections.map((item) => (
-            <div key={item} className="rounded-md bg-info/10 px-3 py-2 text-xs text-info">
+            <div key={item} className="rounded-sm bg-info-subtle px-3 py-2 text-xs text-info">
               {item}
             </div>
           ))}
@@ -1816,33 +1834,39 @@ const ImportView = ({
 )
 
 const SummaryMetric = ({ label, value }: { label: string; value: string }) => (
-  <div className="rounded-lg bg-muted/40 p-3">
+  <div className="rounded-sm bg-surface-subtle p-3">
     <p className="text-xs font-medium uppercase text-muted-foreground">{label}</p>
     <p className="mt-1 break-words text-sm font-semibold text-foreground">{value}</p>
   </div>
 )
 
 const MappingTable = ({
+  canProceed,
+  createsDraft,
   fields,
   mappingRows,
+  mappingReadiness,
   mode,
   setMappingRows,
   setProceedDialogOpen,
   setView,
 }: {
+  canProceed: boolean
+  createsDraft: boolean
   fields: FormField[]
   mappingRows: MappingRow[]
+  mappingReadiness: MappingReadiness
   mode: CollectionMode
   setMappingRows: React.Dispatch<React.SetStateAction<MappingRow[]>>
   setProceedDialogOpen: (open: boolean) => void
   setView: (view: CollectionView) => void
 }) => (
-  <div className="min-w-0 rounded-lg border bg-card p-4 shadow-sm">
+  <div className="rounded-lg border bg-card p-4">
     <div className="flex flex-col gap-3 border-b pb-3 md:flex-row md:items-center md:justify-between">
       <div>
         <h2 className="text-lg font-semibold text-foreground">Metadata mapping</h2>
         <p className="text-sm text-muted-foreground">
-          Review source columns, target fields, and client-side validation states.
+          Review source columns, target fields, and validation states.
         </p>
       </div>
       <div className="flex gap-2">
@@ -1851,12 +1875,30 @@ const MappingTable = ({
             Extend in builder
           </Button>
         ) : null}
-        <Button size="sm" onClick={() => setProceedDialogOpen(true)}>
-          Proceed
+        <Button
+          aria-describedby="mapping-readiness-message"
+          disabled={!canProceed}
+          size="sm"
+          onClick={() => setProceedDialogOpen(true)}
+        >
+          {createsDraft ? 'Create Draft' : 'Proceed'}
         </Button>
       </div>
     </div>
-    <div className="mt-4 max-w-full overflow-x-auto">
+    <p
+      className={cn(
+        'mt-3 rounded-md px-3 py-2 text-sm',
+        canProceed ? 'bg-success-subtle text-success' : 'bg-warning-subtle text-warning',
+      )}
+      id="mapping-readiness-message"
+    >
+      {canProceed
+        ? mappingReadiness.message
+        : mappingReadiness.canProceed
+          ? 'The current file must finish successfully before proceeding.'
+          : mappingReadiness.message}
+    </p>
+    <div className="mt-4 overflow-x-auto">
       <table className="w-full min-w-[720px] text-left text-sm">
         <thead className="text-xs uppercase text-muted-foreground">
           <tr>
@@ -1916,7 +1958,9 @@ const MappingTable = ({
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="mapped">Mapped</SelectItem>
+                    <SelectItem disabled={!row.targetField} value="mapped">
+                      Mapped
+                    </SelectItem>
                     <SelectItem value="unmapped">Unmapped</SelectItem>
                     <SelectItem value="ignored">Ignored</SelectItem>
                     <SelectItem value="invalid">Invalid</SelectItem>
@@ -1932,13 +1976,13 @@ const MappingTable = ({
 )
 
 const DataPreview = ({ parsedImport }: { parsedImport: ParsedImport }) => (
-  <div className="min-w-0 rounded-lg border bg-card p-4 shadow-sm">
+  <div className="rounded-lg border bg-card p-4">
     <h2 className="text-lg font-semibold text-foreground">Data preview</h2>
     <p className="mt-1 text-sm text-muted-foreground">
-      First rows are shown client-side from the file you selected.
+      The first rows are shown for mapping and validation review.
     </p>
-    <div className="mt-4 max-w-full overflow-x-auto">
-      <table className="w-max min-w-full text-left text-sm">
+    <div className="mt-4 overflow-x-auto">
+      <table className="w-full min-w-[720px] text-left text-sm">
         <thead className="text-xs uppercase text-muted-foreground">
           <tr>
             {parsedImport.headers.map((header) => (
@@ -1965,41 +2009,48 @@ const DataPreview = ({ parsedImport }: { parsedImport: ParsedImport }) => (
 )
 
 const ImportValidationPanel = ({
-  mappingRows,
+  canProceed,
+  mappingReadiness,
   parsedImport,
 }: {
-  mappingRows: MappingRow[]
+  canProceed: boolean
+  mappingReadiness: MappingReadiness
   parsedImport: ParsedImport | null
 }) => {
-  const mapped = mappingRows.filter((row) => row.status === 'mapped').length
-  const ignored = mappingRows.filter((row) => row.status === 'ignored').length
-  const invalid = mappingRows.filter((row) => row.status === 'invalid').length
-  const unmapped = mappingRows.filter((row) => row.status === 'unmapped').length
-  const total = mappingRows.length
-  const progress = total === 0 ? 0 : Math.round((mapped / total) * 100)
+  const { ignored, invalid, mapped, resolved, total, unmapped } = mappingReadiness
+  const progress = total === 0 ? 0 : Math.round((resolved / total) * 100)
 
   return (
-    <div className="rounded-lg border bg-card p-4 shadow-sm">
+    <div className="rounded-lg border bg-card p-4">
       <div className="flex items-center justify-between gap-3">
         <div>
           <p className="text-sm font-semibold text-foreground">Validation summary</p>
-          <p className="text-xs text-muted-foreground">Client-side preview validation</p>
+          <p className="text-xs text-muted-foreground">Column and row checks</p>
         </div>
-        <StatusBadge tone={invalid > 0 ? 'danger' : parsedImport ? 'success' : 'neutral'}>
-          {parsedImport ? 'Preview ready' : 'Waiting'}
+        <StatusBadge
+          tone={
+            invalid > 0
+              ? 'danger'
+              : !canProceed && parsedImport
+                ? 'warning'
+                : parsedImport
+                  ? 'success'
+                  : 'neutral'
+          }
+        >
+          {parsedImport ? (canProceed ? 'Ready to proceed' : 'Needs review') : 'Waiting'}
         </StatusBadge>
       </div>
       <div className="mt-4 space-y-3">
-        <ProgressBar label="Mapped columns" value={progress} />
+        <ProgressBar label="Resolved columns" value={progress} />
         <div className="grid grid-cols-2 gap-2 text-xs">
           <SummaryPill label="Mapped" tone="success" value={mapped} />
           <SummaryPill label="Unmapped" tone="warning" value={unmapped} />
           <SummaryPill label="Ignored" tone="neutral" value={ignored} />
           <SummaryPill label="Invalid" tone="danger" value={invalid} />
         </div>
-        <p className="rounded-lg bg-muted/40 p-3 text-xs leading-5 text-muted-foreground">
-          This preview checks column headings and visible rows only. Server-side validation is not
-          connected yet.
+        <p className="rounded-sm bg-surface-subtle p-3 text-xs leading-5 text-muted-foreground">
+          Validation checks column headings and preview rows before import.
         </p>
       </div>
     </div>
@@ -2015,7 +2066,7 @@ const SummaryPill = ({
   tone: 'success' | 'warning' | 'neutral' | 'danger'
   value: number
 }) => (
-  <div className="rounded-lg border bg-background p-2">
+  <div className="rounded-sm border bg-surface-subtle p-2">
     <p className="text-muted-foreground">{label}</p>
     <p
       className={cn(

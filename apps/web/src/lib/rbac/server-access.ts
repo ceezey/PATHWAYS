@@ -18,10 +18,27 @@ export type ProtectedPageProps = {
   params?: Promise<Record<string, string>>
   searchParams?: Promise<Record<string, string | string[] | undefined>>
 }
+const displayQueryKeys: Partial<Record<RouteKey, readonly string[]>> = {
+  activity: ['proof', 'review'],
+  alerts: ['alert'],
+  beneficiaries: ['q', 'project', 'location', 'sex', 'age', 'disability', 'status', 'page'],
+  beneficiary: ['returnTo'],
+}
 export async function requireServerPage(route: RouteKey, props: ProtectedPageProps) {
   const { _rsc: _transport, ...query } = (await props.searchParams) ?? {}
+  const displayKeys = displayQueryKeys[route] ?? []
   if (
-    Object.keys(query).some(
+    Object.entries(query).some(
+      ([key, value]) =>
+        displayKeys.includes(key) && (typeof value !== 'string' || value.length > 512),
+    )
+  )
+    redirect('/unauthorized')
+  const authorizationQuery = Object.fromEntries(
+    Object.entries(query).filter(([key]) => !displayKeys.includes(key)),
+  )
+  if (
+    Object.keys(authorizationQuery).some(
       (key) =>
         !(
           (route === 'reportPreview' && key === 'kind') ||
@@ -31,7 +48,7 @@ export async function requireServerPage(route: RouteKey, props: ProtectedPagePro
     )
   )
     redirect('/unauthorized')
-  const selection = parseRouteSelection({ route, ...(await props.params), ...query })
+  const selection = parseRouteSelection({ route, ...(await props.params), ...authorizationQuery })
   if (!selection) redirect('/unauthorized')
   return requireServerRoute(selection)
 }

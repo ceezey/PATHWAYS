@@ -151,6 +151,8 @@ export const rolePermissions: Record<CanonicalRole, readonly AtomicPermission[]>
     'budgets.update',
     'expenses.read',
     'expenses.approve',
+    'indicators.create',
+    'indicators.update',
     'monitoring.read',
     'monitoring.review',
     'rules.read',
