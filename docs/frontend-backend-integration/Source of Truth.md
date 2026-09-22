@@ -1038,3 +1038,50 @@ PR #5 remains open and unmerged into `Backend-DB`. Phase 6 source/push/PR
 handoff is complete within its authorized scope. Phase 7 is awaiting explicit
 developer authorization and an up-to-date check decision; no PR merge is
 authorized by this phase.
+
+---
+
+## 18. Pre-Phase-7 CI lint closure (2026-09-23)
+
+Preflight confirmed the integration branch and its remote were both at
+`e543fb1843c9de68030875e86e32dc0bd9bc15dc`, `origin/Backend-DB`
+remained `3c4f0eb48cf1656bb44d9cb118b9ecc18a9f4090`, and PR #5 remained
+open and unmerged into `Backend-DB`. The developer manuscript PDF remained
+untracked and excluded.
+
+Root `pnpm lint` reproduced exactly three formatter-only findings. Biome was
+run only on:
+
+- `infra/supabase/phase7/Run-C8FixturePreflight.mjs`;
+- `infra/supabase/phase7/Run-C8Postflight.mjs`;
+- `infra/supabase/phase7/Run-C8Preflight.mjs`.
+
+The resulting diff contains only standard line wrapping, a formatter-added
+trailing comma, and a final newline. Argument values, ordering, control flow,
+environment handling, target checks, SQL paths, and runtime configuration are
+unchanged. Scoped Biome and root `pnpm lint` pass. Local `pnpm typecheck`,
+`pnpm test`, `pnpm build`, and API Prisma `validate` also pass. Test totals are
+config 3, shared 35, imports 15, API 661 with 8 opt-in database tests skipped,
+and web 565; the UI package has no tests. No managed test or provider action
+was run.
+
+The three formatter-only files were committed separately as
+`c119c125f4962bf67f48113297402ca2161b1f19` (`chore: fix pre-existing
+Phase 7 lint formatting`) and normally pushed. PR #5 updated to that exact
+head. GitHub then passed PostgreSQL startup, Prisma validation, the guarded
+disposable replay and legacy-boundary assertion, committed-secret scanning,
+root lint, and typecheck. GitHub failed in `pnpm test` before build. The run
+log identifies `packages/imports/src/normalization.test.ts`: Vite cannot
+resolve `@pathways/shared` because that package exports `dist/index.js`, which
+does not exist in a fresh checkout before the test step. Both involved package
+manifests are unchanged from `origin/Backend-DB`; local tests pass because the
+required workspace build output exists after local validation. This failure
+is unrelated to the three formatter changes and predates the integration
+diff. The task authorization permits only those formatter fixes, so the CI
+test/build-order issue was not changed.
+
+The lint closure is therefore locally complete, but the task's required-green
+GitHub condition is blocked by the fresh-checkout workspace package resolution
+failure. Phase 7 remains unauthorized and not ready while the required check
+is red. P07-W10, migration 0021, managed data/provider state, frontend code,
+backend logic, and access policy remain untouched by this task.

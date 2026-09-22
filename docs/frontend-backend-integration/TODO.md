@@ -182,6 +182,19 @@ Revalidate exact base/head and required checks, and resolve or explicitly
 accept the unrelated lint findings before any separately authorized Phase 7
 merge.
 
+### Pre-Phase-7 CI lint closure (2026-09-23)
+
+- [x] FB-P6-L01 — Reproduced exactly three formatter-only failures in the three recorded Phase 7 scripts; no additional or semantic lint finding.
+- [x] FB-P6-L02 — Ran repository Biome only on `Run-C8FixturePreflight.mjs`, `Run-C8Postflight.mjs`, and `Run-C8Preflight.mjs`; diff is formatting-only.
+- [x] FB-P6-L03 — Scoped Biome and root `pnpm lint` pass; local typecheck, tests, build, and Prisma validation pass with recorded counts.
+- [x] FB-P6-L04 — Separate lint-only commit `c119c125f4962bf67f48113297402ca2161b1f19` pushed normally to PR #5; PR remains open and unmerged.
+- [ ] FB-P6-L05 — Required GitHub checks green. GitHub lint/typecheck/Prisma/replay/secret checks pass, but tests fail in a fresh checkout because `@pathways/imports` cannot resolve unbuilt `@pathways/shared` output; build is skipped.
+
+Pre-Phase-7 lint closure result: BLOCKED on the unrelated fresh-checkout
+workspace test/build-order defect. `@pathways/shared` and `@pathways/imports`
+package manifests match `origin/Backend-DB`; the formatter-only commit does
+not touch them. The current authorization does not permit expanding the fix
+beyond the three lint files. No Phase 7 item is complete or authorized.
 ## P7 — PR merge and post-merge validation
 
 - [ ] FB-P7-01 — PR head/base/required checks revalidated immediately before merge.
