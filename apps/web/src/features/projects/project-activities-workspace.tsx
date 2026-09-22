@@ -13,42 +13,45 @@ import {
 } from 'lucide-react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { useEffect, useMemo, useState } from 'react'
-import { toast } from 'sonner'
+import { useEffect, useMemo, useRef, useState } from 'react'
 
 import { PageHeader } from '@/components/layout/page-header'
-import { EmptyState, FilterBar, ProgressBar, SectionCard, StatusBadge } from '@/components/pathways'
+import {
+  AsyncState,
+  EmptyState,
+  FilterBar,
+  ProgressBar,
+  ResultsAnnouncement,
+  SectionCard,
+  StatusBadge,
+} from '@/components/pathways'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useCurrentRole } from '@/hooks/use-current-role'
 import { useDisplayLabels } from '@/hooks/use-display-labels'
-import { useSession } from '@/hooks/use-session'
 import { can } from '@/lib/rbac/can'
+import { canAccessProjectForRole } from '@/lib/rbac/data-scope'
 import { pathwaysClient } from '@/lib/services/pathways-client'
+import { PathwaysClientError } from '@/lib/services/pathways-client'
 import type {
   Activity,
   ActivityStatus,
   Indicator,
+  JourneyStageConfig,
   ProjectDetail,
-  ProjectMilestone,
   UserRecord,
 } from '@/types/pathways'
 
 import { ActivityDetailPanel } from './activity-detail-panel'
 import { ActivityFormDialog } from './activity-form-dialog'
 import { ActivityProofDialog } from './activity-proof-dialog'
-import { ActivityReviewDialog } from './activity-review-dialog'
 import {
-  type ActivityFilter,
   activityDueLabel,
-  activityFilters,
   activityNextStep,
   activityProgressTone,
   activityStatusTone,
   activityStatuses,
 } from './activity-utils'
-import { ProjectMilestonesSection } from './project-milestones-section'
 import { ProjectWorkspaceHeader } from './project-workspace-header'
 
 const indicatorSummary = (activity: Activity, indicators: Indicator[]) =>
@@ -59,29 +62,6 @@ const indicatorSummary = (activity: Activity, indicators: Indicator[]) =>
     )
     .join(', ')
 
-const attentionActivity = (activity: Activity) =>
-  activity.status === 'Overdue' || activity.status === 'For Review' || activity.progress < 50
-
-const matchesFilter = (
-  activity: Activity,
-  filter: ActivityFilter,
-  currentAssigneeEmail: string | null,
-) => {
-  if (filter === 'Mine') {
-    return currentAssigneeEmail ? activity.assignedEmails.includes(currentAssigneeEmail) : false
-  }
-
-  if (filter === 'Overdue') {
-    return activity.status === 'Overdue'
-  }
-
-  if (filter === 'Needs Attention') {
-    return attentionActivity(activity)
-  }
-
-  return true
-}
-
 const ActivityCard = ({
   activity,
   onOpen,
@@ -91,15 +71,13 @@ const ActivityCard = ({
 }) => (
   <article
     aria-label={`Activity: ${activity.title}`}
-    className="flex min-w-0 flex-col rounded-lg border border-border bg-background p-4 shadow-sm"
+    className="flex min-w-0 flex-col rounded-sm border border-border bg-background p-4"
   >
     <div className="flex items-start justify-between gap-3">
       <h3 className="min-w-0 break-words text-base font-semibold leading-6 text-foreground">
         {activity.title}
       </h3>
-      <div className="shrink-0">
-        <StatusBadge tone={activityStatusTone(activity.status)}>{activity.status}</StatusBadge>
-      </div>
+      <StatusBadge tone={activityStatusTone(activity.status)}>{activity.status}</StatusBadge>
     </div>
     <p
       className={`mt-3 flex items-center gap-2 text-sm font-medium ${
@@ -109,13 +87,15 @@ const ActivityCard = ({
       <CalendarClock className="h-4 w-4 shrink-0" aria-hidden="true" />
       {activityDueLabel(activity.status, activity.dueDate)}
     </p>
-    <div className="mt-4">
-      <ProgressBar
-        label="Activity progress"
-        tone={activityProgressTone(activity.status, activity.progress)}
-        value={activity.progress}
-      />
-    </div>
+    {activity.status !== 'Completed' ? (
+      <div className="mt-4">
+        <ProgressBar
+          label="Activity progress"
+          tone={activityProgressTone(activity.status, activity.progress)}
+          value={activity.progress}
+        />
+      </div>
+    ) : null}
     <dl className="mt-4 border-t border-border pt-3 text-sm">
       <div className="flex min-w-0 items-start gap-2">
         <UsersRound className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />
@@ -157,7 +137,7 @@ const ActivityListRow = ({
 }) => (
   <article
     aria-label={`Activity: ${activity.title}`}
-    className="grid min-w-0 gap-4 rounded-lg border border-border bg-background p-4 shadow-sm md:grid-cols-2 xl:grid-cols-[minmax(0,1.4fr)_minmax(170px,0.7fr)_minmax(180px,0.8fr)_minmax(150px,0.6fr)_auto] xl:items-center"
+    className="grid min-w-0 gap-4 rounded-sm border border-border bg-background p-4 md:grid-cols-2 xl:grid-cols-[minmax(0,1.4fr)_minmax(170px,0.7fr)_minmax(180px,0.8fr)_minmax(150px,0.6fr)_auto] xl:items-center"
   >
     <div className="min-w-0">
       <h3 className="break-words text-base font-semibold leading-6 text-foreground">
@@ -192,11 +172,15 @@ const ActivityListRow = ({
         </div>
       </div>
     </dl>
-    <ProgressBar
-      label="Progress"
-      tone={activityProgressTone(activity.status, activity.progress)}
-      value={activity.progress}
-    />
+    {activity.status !== 'Completed' ? (
+      <ProgressBar
+        label="Progress"
+        tone={activityProgressTone(activity.status, activity.progress)}
+        value={activity.progress}
+      />
+    ) : (
+      <div aria-hidden="true" />
+    )}
     <div className="flex md:col-span-2 md:justify-end xl:col-span-1">
       <Button
         className="w-full gap-2 sm:w-auto"
@@ -213,97 +197,91 @@ const ActivityListRow = ({
 )
 
 const ActivityStatusSummary = ({
+  activeStatus,
   counts,
-  shownCount,
-  totalCount,
+  onStatusChange,
 }: {
+  activeStatus: ActivityStatus | null
   counts: Record<ActivityStatus, number>
-  shownCount: number
-  totalCount: number
+  onStatusChange: (status: ActivityStatus | null) => void
 }) => (
-  <section
-    aria-label="Activity status summary"
-    className="rounded-lg border border-border bg-card p-4 shadow-sm"
-  >
-    <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-      <div>
-        <h2 className="text-sm font-semibold text-foreground">Activity status at a glance</h2>
-        <p className="mt-1 text-xs text-muted-foreground">
-          Showing {shownCount} of {totalCount} activit{totalCount === 1 ? 'y' : 'ies'}
-        </p>
-      </div>
-      <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-5">
-        {activityStatuses.map((status) => (
-          <div
-            className="flex min-w-0 items-center justify-between gap-2 rounded-md border border-border bg-background px-3 py-2"
+  <section aria-label="Activity status filters" className="md:col-span-2">
+    <div className="flex flex-wrap gap-2">
+      {activityStatuses.map((status) => {
+        const selected = activeStatus === status
+        return (
+          <button
+            aria-label={`Filter activities by ${status} status, ${counts[status]} ${counts[status] === 1 ? 'activity' : 'activities'}`}
+            aria-pressed={selected}
+            className={`min-h-11 rounded-full transition-shadow focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ${
+              selected ? 'ring-2 ring-primary ring-offset-2' : 'hover:ring-2 hover:ring-primary/30'
+            }`}
             key={status}
+            onClick={() => onStatusChange(selected ? null : status)}
+            type="button"
           >
-            <StatusBadge tone={activityStatusTone(status)}>{status}</StatusBadge>
-            <span className="text-sm font-semibold text-foreground">{counts[status]}</span>
-          </div>
-        ))}
-      </div>
+            <StatusBadge tone={activityStatusTone(status)}>
+              {status} {counts[status]}
+            </StatusBadge>
+          </button>
+        )
+      })}
     </div>
   </section>
 )
 
 export const ProjectActivitiesWorkspace = ({
   initialActivityId,
+  initialProofId,
   projectId,
 }: {
   initialActivityId?: string
+  initialProofId?: string
   projectId: string
 }) => {
   const router = useRouter()
   const { labels } = useDisplayLabels()
-  const { role, profile } = useCurrentRole()
-  const { email } = useSession()
-  const canReadIndicators = profile?.permissions.includes('monitoring.read') === true
-  const canCreateEdit = role ? can(role, 'activities.create_edit') : false
-  const canReview = profile?.permissions.includes('evidence.review') === true
-  const canSubmitProof = role ? can(role, 'activities.submit_update_proof') : false
+  const { role, assignedProjectIds } = useCurrentRole()
+  const inProjectScope = role ? canAccessProjectForRole(role, projectId, assignedProjectIds) : false
+  const canCreateEdit = role ? can(role, 'activities.create_edit') && inProjectScope : false
+  const canSubmitProof = role
+    ? can(role, 'activities.submit_update_proof') && inProjectScope
+    : false
+  const canLogExpense = role === 'Project Officer' && inProjectScope
+  const canValidateProof = role === 'Monitoring and Evaluation Officer' && inProjectScope
+  const canDecideProof = role === 'Project Manager' && inProjectScope
   const [project, setProject] = useState<ProjectDetail | null>(null)
   const [activities, setActivities] = useState<Activity[]>([])
   const [indicators, setIndicators] = useState<Indicator[]>([])
+  const [journeyStages, setJourneyStages] = useState<JourneyStageConfig[]>([])
   const [users, setUsers] = useState<UserRecord[]>([])
-  const [milestones, setMilestones] = useState<ProjectMilestone[]>([])
   const [loading, setLoading] = useState(true)
-  const [error, setError] = useState(false)
+  const [loadError, setLoadError] = useState<'none' | 'not-found' | 'error'>('none')
   const [query, setQuery] = useState('')
-  const [filter, setFilter] = useState<ActivityFilter>('All')
-  const [viewMode, setViewMode] = useState<'board' | 'list'>('board')
+  const [statusFilter, setStatusFilter] = useState<ActivityStatus | null>(null)
+  const [viewMode, setViewMode] = useState<'board' | 'list'>('list')
   const [selectedActivity, setSelectedActivity] = useState<Activity | null>(null)
+  const activityDetailTrigger = useRef<HTMLElement | null>(null)
   const [editingActivity, setEditingActivity] = useState<Activity | null>(null)
   const [proofActivity, setProofActivity] = useState<Activity | null>(null)
   const [formOpen, setFormOpen] = useState(false)
   const [proofOpen, setProofOpen] = useState(false)
-  const [reviewActivity, setReviewActivity] = useState<Activity | null>(null)
-  const [reviewDecision, setReviewDecision] = useState<'APPROVE' | 'RETURN'>('APPROVE')
-  const [reviewOpen, setReviewOpen] = useState(false)
+  const [loadAttempt, setLoadAttempt] = useState(0)
 
   useEffect(() => {
+    void loadAttempt
     let mounted = true
     setLoading(true)
-    setError(false)
+    setLoadError('none')
 
     Promise.all([
       pathwaysClient.getProject(projectId),
       pathwaysClient.getActivities(projectId),
-      canReadIndicators
-        ? pathwaysClient.getIndicators(projectId).catch(() => {
-            if (mounted) {
-              toast.warning('Indicator references are temporarily unavailable.', {
-                description: 'Activities and milestones can still be managed.',
-              })
-            }
-
-            return [] as Indicator[]
-          })
-        : Promise.resolve<Indicator[]>([]),
-      canCreateEdit ? pathwaysClient.getUsers() : Promise.resolve([]),
-      pathwaysClient.getMilestones(projectId),
+      pathwaysClient.getIndicators(projectId),
+      pathwaysClient.getJourneyStages(projectId),
+      pathwaysClient.getUsers(),
     ])
-      .then(([projectRecord, activityRecords, indicatorRecords, userRecords, milestoneRecords]) => {
+      .then(([projectRecord, activityRecords, indicatorRecords, stageRecords, userRecords]) => {
         if (!mounted) {
           return
         }
@@ -311,8 +289,8 @@ export const ProjectActivitiesWorkspace = ({
         setProject(projectRecord)
         setActivities(activityRecords)
         setIndicators(indicatorRecords)
+        setJourneyStages(stageRecords)
         setUsers(userRecords)
-        setMilestones(milestoneRecords)
         const initialActivity = initialActivityId
           ? (activityRecords.find((activity) => activity.id === initialActivityId) ?? null)
           : null
@@ -322,12 +300,16 @@ export const ProjectActivitiesWorkspace = ({
           router.replace(`/projects/${projectId}/activities`)
         }
       })
-      .catch(() => {
+      .catch((error) => {
         if (!mounted) {
           return
         }
 
-        setError(true)
+        setLoadError(
+          error instanceof PathwaysClientError && error.code === 'not_found'
+            ? 'not-found'
+            : 'error',
+        )
       })
       .finally(() => {
         if (mounted) {
@@ -338,7 +320,7 @@ export const ProjectActivitiesWorkspace = ({
     return () => {
       mounted = false
     }
-  }, [canCreateEdit, canReadIndicators, initialActivityId, projectId, router])
+  }, [initialActivityId, loadAttempt, projectId, router])
 
   const filteredActivities = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase()
@@ -356,11 +338,29 @@ export const ProjectActivitiesWorkspace = ({
             .includes(normalizedQuery)
         : true
 
-      return matchesQuery && matchesFilter(activity, filter, email)
+      const matchesStatus = statusFilter ? activity.status === statusFilter : true
+      return matchesQuery && matchesStatus
     })
-  }, [activities, email, filter, indicators, query])
+  }, [activities, indicators, query, statusFilter])
 
   const activityStatusCounts = useMemo(() => {
+    const counts: Record<ActivityStatus, number> = {
+      Planned: 0,
+      'In Progress': 0,
+      'For Review': 0,
+      Overdue: 0,
+      Completed: 0,
+      Cancelled: 0,
+    }
+
+    for (const activity of activities) {
+      counts[activity.status] += 1
+    }
+
+    return counts
+  }, [activities])
+
+  const filteredActivityStatusCounts = useMemo(() => {
     const counts: Record<ActivityStatus, number> = {
       Planned: 0,
       'In Progress': 0,
@@ -378,21 +378,24 @@ export const ProjectActivitiesWorkspace = ({
   }, [filteredActivities])
 
   const visibleActivityStatuses = useMemo(
-    () => activityStatuses.filter((status) => activityStatusCounts[status] > 0),
-    [activityStatusCounts],
+    () => activityStatuses.filter((status) => filteredActivityStatusCounts[status] > 0),
+    [filteredActivityStatusCounts],
   )
 
-  const upsertActivity = (activity: Activity) => {
+  const upsertActivity = (activity: Activity, selectActivity = true) => {
     setActivities((currentActivities) => [
       ...currentActivities.filter((item) => item.id !== activity.id),
       activity,
     ])
-    setSelectedActivity(activity)
+    setSelectedActivity((currentActivity) =>
+      currentActivity?.id === activity.id || selectActivity ? activity : currentActivity,
+    )
   }
 
   const openDetail = (activity: Activity) => {
+    activityDetailTrigger.current = document.activeElement as HTMLElement | null
     setSelectedActivity(activity)
-    router.push(`/projects/${projectId}/activities/${activity.id}`)
+    window.history.pushState(null, '', `/projects/${projectId}/activities/${activity.id}`)
   }
 
   const closeDetail = (open: boolean) => {
@@ -401,7 +404,8 @@ export const ProjectActivitiesWorkspace = ({
     }
 
     setSelectedActivity(null)
-    router.push(`/projects/${projectId}/activities`)
+    window.history.replaceState(null, '', `/projects/${projectId}/activities`)
+    window.requestAnimationFrame(() => activityDetailTrigger.current?.focus())
   }
 
   const openCreate = () => {
@@ -431,80 +435,57 @@ export const ProjectActivitiesWorkspace = ({
     setProofOpen(true)
   }
 
-  const startActivity = async (activity: Activity) => {
-    if (!canCreateEdit || activity.storedStatus !== 'NOT_STARTED') return
-    try {
-      upsertActivity(
-        await pathwaysClient.transitionActivity(
-          activity.projectId,
-          activity.id,
-          'IN_PROGRESS',
-          activity.updatedAt,
-        ),
-      )
-    } catch {
-      toast.error('The activity could not be started. Reload and verify its current state.')
-    }
-  }
-
-  const openReview = (activity: Activity, decision: 'APPROVE' | 'RETURN') => {
-    if (!canReview) return
-    setReviewActivity(activity)
-    setReviewDecision(decision)
-    setReviewOpen(true)
-  }
-
-  const downloadProof = async (activity: Activity, proofId: string, fileName: string) => {
-    try {
-      const blob = await pathwaysClient.downloadActivityProof(
-        activity.projectId,
-        activity.id,
-        proofId,
-      )
-      const url = URL.createObjectURL(blob)
-      const anchor = document.createElement('a')
-      anchor.href = url
-      anchor.download = fileName
-      document.body.append(anchor)
-      anchor.click()
-      anchor.remove()
-      URL.revokeObjectURL(url)
-    } catch {
-      toast.error('The private proof could not be downloaded.')
-    }
-  }
-
-  const upsertMilestone = (milestone: ProjectMilestone) => {
-    setMilestones((current) => [...current.filter((item) => item.id !== milestone.id), milestone])
-  }
-
   if (loading) {
     return (
-      <EmptyState
-        description="Loading the project workspace and activities."
+      <AsyncState
+        description="Loading project activities."
         icon={Loader2}
+        status="loading"
         title="Loading activities"
       />
     )
   }
 
-  if (error || !project) {
+  if (loadError === 'error') {
     return (
       <>
         <PageHeader
-          eyebrow={labels.projectWorkspace}
           title="Workspace unavailable"
-          description="This project workspace could not be loaded from the Projects backend."
+          description="This project is currently unavailable."
           actions={
             <Button asChild variant="outline">
               <Link href="/projects">Back to Projects</Link>
             </Button>
           }
         />
-        <EmptyState
-          description="Try returning to the project directory and opening another project."
+        <AsyncState
+          description="The project could not be loaded. Check your connection and try again."
           icon={LayoutGrid}
-          title="No workspace data"
+          onRetry={() => setLoadAttempt((attempt) => attempt + 1)}
+          status="error"
+          title="Activities unavailable"
+        />
+      </>
+    )
+  }
+
+  if (loadError === 'not-found' || !project) {
+    return (
+      <>
+        <PageHeader
+          title="Project not found"
+          description="This project is not available to the current account."
+          actions={
+            <Button asChild variant="outline">
+              <Link href="/projects">Back to Projects</Link>
+            </Button>
+          }
+        />
+        <AsyncState
+          description="Return to the project directory and choose an available project."
+          icon={LayoutGrid}
+          status="empty"
+          title="Project unavailable"
         />
       </>
     )
@@ -513,9 +494,7 @@ export const ProjectActivitiesWorkspace = ({
   return (
     <>
       <PageHeader
-        eyebrow={labels.projectWorkspace}
         title={labels.projectActivities}
-        description="Plan, review, and update project activities."
         actions={
           <Button asChild className="gap-2" variant="outline">
             <Link href="/projects">
@@ -526,46 +505,36 @@ export const ProjectActivitiesWorkspace = ({
         }
       />
       <ProjectWorkspaceHeader project={project} />
-      <FilterBar className="md:flex-col md:items-stretch xl:flex-row xl:items-center">
-        <div className="relative min-w-0 flex-1 xl:min-w-72">
-          <Search
-            className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground"
-            aria-hidden="true"
-          />
-          <Input
-            aria-label="Search activities"
-            className="pl-9"
-            onChange={(event) => setQuery(event.target.value)}
-            placeholder="Search activities, officers, or indicators"
-            value={query}
-          />
+      {canCreateEdit ? (
+        <div className="flex justify-end">
+          <Button className="gap-2 whitespace-nowrap" onClick={openCreate} type="button">
+            <Plus className="h-4 w-4" aria-hidden="true" />
+            New Activity
+          </Button>
         </div>
-        <Tabs
-          className="w-full xl:w-auto"
-          value={filter}
-          onValueChange={(value) => setFilter(value as ActivityFilter)}
-        >
-          <TabsList className="grid h-auto w-full grid-cols-2 sm:grid-cols-4 xl:flex xl:w-auto">
-            {activityFilters.map((item) => (
-              <TabsTrigger key={item} value={item}>
-                {item}
-              </TabsTrigger>
-            ))}
-          </TabsList>
-        </Tabs>
-        <div className="flex w-full items-center justify-between gap-2 sm:justify-end xl:w-auto">
+      ) : null}
+      <FilterBar className="min-w-0 !flex flex-col gap-5 lg:!flex-row lg:items-center lg:justify-between lg:gap-8">
+        <ActivityStatusSummary
+          activeStatus={statusFilter}
+          counts={activityStatusCounts}
+          onStatusChange={setStatusFilter}
+        />
+        <div className="flex w-full min-w-0 flex-col gap-3 sm:flex-row sm:items-center lg:ml-auto lg:max-w-2xl lg:flex-1 lg:justify-end">
+          <div className="relative min-w-0 flex-1 lg:max-w-lg">
+            <Search
+              className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground"
+              aria-hidden="true"
+            />
+            <Input
+              aria-label="Search activities"
+              className="pl-9"
+              onChange={(event) => setQuery(event.target.value)}
+              placeholder="Search activities, officers, or indicators"
+              value={query}
+            />
+          </div>
           <fieldset className="m-0 flex gap-2 border-0 p-0">
             <legend className="sr-only">Activity view</legend>
-            <Button
-              aria-label="Board view"
-              aria-pressed={viewMode === 'board'}
-              onClick={() => setViewMode('board')}
-              size="icon"
-              type="button"
-              variant={viewMode === 'board' ? 'default' : 'outline'}
-            >
-              <LayoutGrid className="h-4 w-4" aria-hidden="true" />
-            </Button>
             <Button
               aria-label="List view"
               aria-pressed={viewMode === 'list'}
@@ -576,31 +545,32 @@ export const ProjectActivitiesWorkspace = ({
             >
               <List className="h-4 w-4" aria-hidden="true" />
             </Button>
-          </fieldset>
-          {canCreateEdit ? (
-            <Button className="gap-2" onClick={openCreate} type="button">
-              <Plus className="h-4 w-4" aria-hidden="true" />
-              New Activity
+            <Button
+              aria-label="Board view"
+              aria-pressed={viewMode === 'board'}
+              onClick={() => setViewMode('board')}
+              size="icon"
+              type="button"
+              variant={viewMode === 'board' ? 'default' : 'outline'}
+            >
+              <LayoutGrid className="h-4 w-4" aria-hidden="true" />
             </Button>
-          ) : null}
+          </fieldset>
         </div>
       </FilterBar>
-      <ActivityStatusSummary
-        counts={activityStatusCounts}
-        shownCount={filteredActivities.length}
-        totalCount={activities.length}
+      <ResultsAnnouncement
+        message={
+          filteredActivities.length === 0
+            ? 'No activities match the current search and status filter.'
+            : `${filteredActivities.length} ${filteredActivities.length === 1 ? 'activity matches' : 'activities match'} the current search and status filter.`
+        }
+        settleKey={`${query}|${statusFilter ?? 'all'}`}
       />
       {filteredActivities.length === 0 ? (
         <EmptyState
-          description={
-            activities.length === 0
-              ? 'No activity records are available for this project.'
-              : 'Adjust the search and filter controls.'
-          }
+          description="Create an activity or adjust the search and status filters."
           icon={LayoutGrid}
-          title={
-            activities.length === 0 ? 'No activities yet' : 'No activities match the current view'
-          }
+          title="No activities match the current view"
         />
       ) : null}
       {filteredActivities.length > 0 && viewMode === 'board' ? (
@@ -636,29 +606,27 @@ export const ProjectActivitiesWorkspace = ({
           </div>
         </SectionCard>
       ) : null}
-      <ProjectMilestonesSection
-        canManage={canCreateEdit}
-        milestones={milestones}
-        onSaved={upsertMilestone}
-        projectId={projectId}
-      />
       <ActivityDetailPanel
         activity={selectedActivity}
+        canDecideProof={canDecideProof}
         canEdit={canCreateEdit}
-        canReview={canReview}
+        canLogExpense={canLogExpense}
+        canRequestExtension={role === 'Project Officer' && inProjectScope}
         canSubmitProof={canSubmitProof}
+        canValidateExpense={role === 'Monitoring and Evaluation Officer' && inProjectScope}
+        canValidateProof={canValidateProof}
         indicators={indicators}
-        onDownloadProof={downloadProof}
+        onActivityChanged={(activity) => upsertActivity(activity, false)}
         onEdit={openEdit}
         onOpenChange={closeDetail}
-        onReview={openReview}
-        onStart={startActivity}
         onSubmitProof={openProof}
         open={Boolean(selectedActivity)}
+        requestedProofId={initialProofId}
       />
       <ActivityFormDialog
         activity={editingActivity}
         indicators={indicators}
+        journeyStages={journeyStages}
         onCreatedOrUpdated={upsertActivity}
         onOpenChange={setFormOpen}
         open={formOpen}
@@ -670,13 +638,6 @@ export const ProjectActivitiesWorkspace = ({
         onOpenChange={setProofOpen}
         onSubmitted={upsertActivity}
         open={proofOpen}
-      />
-      <ActivityReviewDialog
-        activity={reviewActivity}
-        decision={reviewDecision}
-        onOpenChange={setReviewOpen}
-        onReviewed={upsertActivity}
-        open={reviewOpen}
       />
     </>
   )

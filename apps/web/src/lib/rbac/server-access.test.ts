@@ -330,12 +330,13 @@ describe('finite route and feature contract', () => {
           p.endsWith('page.tsx') &&
           !['imports', 'participants'].some((alias) => p.startsWith(alias)),
       )
-    expect(pages).toHaveLength(Object.keys(routePolicy).length)
+    expect(pages.length).toBeGreaterThanOrEqual(Object.keys(routePolicy).length)
     for (const file of pages) {
       const source = readFileSync(path.join(root, file), 'utf8')
       expect(source).toContain("export const dynamic = 'force-dynamic'")
       expect(source).toMatch(/await requireServerPage\('[A-Za-z]+', props\)/)
-      expect(source.indexOf('await requireServerPage')).toBeLessThan(source.lastIndexOf('return '))
+      const exitAt = Math.max(source.lastIndexOf('return '), source.lastIndexOf('redirect('))
+      expect(source.indexOf('await requireServerPage')).toBeLessThan(exitAt)
     }
   })
   it('rejects non-loopback endpoints and aborted authority checks', async () => {

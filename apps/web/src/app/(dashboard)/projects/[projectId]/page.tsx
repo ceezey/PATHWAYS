@@ -1,20 +1,14 @@
-import { type ProtectedPageProps, requireServerPage } from '@/lib/rbac/server-access'
+import type { Metadata } from 'next'
 
 import { ProjectDetailView } from '@/features/projects/project-detail-view'
+import { type ProtectedPageProps, requireServerPage } from '@/lib/rbac/server-access'
 
-async function ProjectDetailPage({
-  params,
-}: {
-  params: Promise<{ projectId: string }>
-}) {
-  const { projectId } = await params
-
-  return <ProjectDetailView projectId={projectId} />
-}
-
+export const metadata: Metadata = { title: 'Project Overview' }
 export const dynamic = 'force-dynamic'
 
 export default async function ProtectedPage(props: ProtectedPageProps) {
   await requireServerPage('project', props)
-  return ProjectDetailPage(props as Parameters<typeof ProjectDetailPage>[0])
+  const projectId = (await props.params)?.projectId ?? ''
+
+  return <ProjectDetailView projectId={projectId} />
 }

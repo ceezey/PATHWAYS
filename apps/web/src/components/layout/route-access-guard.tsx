@@ -6,12 +6,14 @@ import { webEnv } from '@/lib/env'
 import {
   RouteCheckError,
   type RouteDecision,
+  authorizationPathForUiPath,
   getVerifiedRouteAccess,
   matchRoute,
   requestRouteCheck,
 } from '@/lib/rbac/route-access'
 import { usePathname, useSearchParams } from 'next/navigation'
 import { useEffect, useState } from 'react'
+import { BeneficiaryAccessGate } from './beneficiary-access-gate'
 import { UnauthorizedState } from './unauthorized-state'
 
 /** Content boundary only. AppShell lives outside this guard and owns no domain data. */
@@ -24,6 +26,7 @@ export function RouteAccessGuard({ children }: { children: React.ReactNode }) {
   const query = new URLSearchParams(params.toString())
   query.delete('_rsc')
   const path = pathname + (query.size ? `?${query.toString()}` : '')
+  const authorizationPath = authorizationPathForUiPath(path)
   const token = session?.access_token
   const subject = session?.user.id
   const [retry, setRetry] = useState(0)
@@ -50,7 +53,7 @@ export function RouteAccessGuard({ children }: { children: React.ReactNode }) {
     // The provider is the only timer/focus owner. Follow its completed check,
     // rather than running a second interval or competing discovery sequence.
     if (accessRefreshing) return () => controller.abort()
-    const selection = matchRoute(path)
+    const selection = authorizationPath ? matchRoute(authorizationPath) : null
     const check = async () => {
       if (document.visibilityState === 'hidden') return
       if (
@@ -58,7 +61,7 @@ export function RouteAccessGuard({ children }: { children: React.ReactNode }) {
         !profile ||
         profile.id !== subject ||
         !selection ||
-        !getVerifiedRouteAccess(profile, path).allowed
+        !getVerifiedRouteAccess(profile, authorizationPath ?? '').allowed
       ) {
         setState({ key, revision: verificationRevision, error: 403 })
         return
@@ -94,7 +97,7 @@ export function RouteAccessGuard({ children }: { children: React.ReactNode }) {
     accessRefreshing,
     verificationRevision,
     key,
-    path,
+    authorizationPath,
     profile,
     token,
     subject,
@@ -134,6 +137,9 @@ export function RouteAccessGuard({ children }: { children: React.ReactNode }) {
         </button>
       </section>
     )
+  if (pathname === '/beneficiaries' || pathname.startsWith('/beneficiaries/')) {
+    return <BeneficiaryAccessGate />
+  }
   return (
     <>
       {(accessRefreshing || current.revision !== verificationRevision) && (

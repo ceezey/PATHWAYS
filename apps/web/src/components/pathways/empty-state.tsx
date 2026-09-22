@@ -23,7 +23,7 @@ export const EmptyState = ({
     )}
   >
     {Icon ? (
-      <div className="mb-4 flex h-11 w-11 items-center justify-center rounded-lg bg-primary/10 text-primary">
+      <div className="mb-4 flex h-11 w-11 items-center justify-center rounded-sm bg-primary-subtle text-primary">
         <Icon className="h-5 w-5" aria-hidden="true" />
       </div>
     ) : null}

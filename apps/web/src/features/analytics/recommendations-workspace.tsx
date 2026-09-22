@@ -5,7 +5,7 @@ import Link from 'next/link'
 import { useEffect, useMemo, useState } from 'react'
 import { toast } from 'sonner'
 
-import { EmptyState } from '@/components/pathways/empty-state'
+import { AsyncState, StatusMessage } from '@/components/pathways'
 import { StatusBadge } from '@/components/pathways/status-badge'
 import { Button } from '@/components/ui/button'
 import {
@@ -27,6 +27,7 @@ import {
 } from '@/components/ui/select'
 import { useCurrentRole } from '@/hooks/use-current-role'
 import { useDisplayLabels } from '@/hooks/use-display-labels'
+import { useSafeProjectSelection } from '@/hooks/use-safe-project-selection'
 import { pathwaysClient } from '@/lib/services/pathways-client'
 import type {
   AlertRecord,
@@ -64,18 +65,14 @@ export const RecommendationsWorkspace = ({
   const { role } = useCurrentRole()
   const [data, setData] = useState<RecommendationsWorkspaceData | null>(null)
   const [status, setStatus] = useState<'loading' | 'ready' | 'error'>('loading')
+  const [loadAttempt, setLoadAttempt] = useState(0)
 
   useEffect(() => {
+    if (!role) return
+    void loadAttempt
     let active = true
     setStatus('loading')
     setData(null)
-
-    if (!role) {
-      setStatus('error')
-      return () => {
-        active = false
-      }
-    }
 
     Promise.all([
       pathwaysClient.getRecommendationsForRole(role),
@@ -103,42 +100,39 @@ export const RecommendationsWorkspace = ({
     return () => {
       active = false
     }
-  }, [initialRecommendationId, role])
-
-  if (!role) {
-    return (
-      <EmptyState
-        className="min-h-80 rounded-lg border border-border bg-card"
-        description="A verified staff identity and role are required to load scoped recommendations."
-        icon={AlertTriangle}
-        title="Recommendations access unavailable"
-      />
-    )
-  }
+  }, [initialRecommendationId, loadAttempt, role])
 
   if (status === 'loading') {
     return (
-      <div className="flex min-h-80 items-center justify-center rounded-lg border border-border bg-card">
-        <div className="flex items-center gap-3 text-sm text-muted-foreground">
-          <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
-          Loading scoped recommendations...
-        </div>
-      </div>
+      <AsyncState
+        className="min-h-80 rounded-lg border border-border bg-card"
+        description="Loading the recommendation queue available to the current role."
+        icon={Loader2}
+        status="loading"
+        title="Loading scoped recommendations"
+      />
     )
   }
 
   if (status === 'error' || !data) {
     return (
-      <EmptyState
+      <AsyncState
         className="min-h-80 rounded-lg border border-border bg-card"
-        description="The role-scoped recommendation queue could not be loaded. Reload this page to try again."
+        description="The role-scoped recommendation queue could not be loaded. Check your connection and try again."
         icon={AlertTriangle}
+        onRetry={() => setLoadAttempt((attempt) => attempt + 1)}
+        status="error"
         title="Recommendations unavailable"
       />
     )
   }
 
-  return <RecommendationsWorkspaceContent key={data.role} {...data} />
+  return (
+    <>
+      <StatusMessage>Recommendation queue loaded.</StatusMessage>
+      <RecommendationsWorkspaceContent key={data.role} {...data} />
+    </>
+  )
 }
 
 const RecommendationsWorkspaceContent = ({
@@ -149,8 +143,8 @@ const RecommendationsWorkspaceContent = ({
   rules,
 }: RecommendationsWorkspaceProps) => {
   const { labels } = useDisplayLabels()
-  const recommendations = initialRecommendations
-  const [projectId, setProjectId] = useState(allValue)
+  const [recommendations, setRecommendations] = useState(initialRecommendations)
+  const [projectId, setProjectId] = useSafeProjectSelection(projects.map((project) => project.id))
   const [reviewStatus, setReviewStatus] = useState(allValue)
   const [selectedRecommendationId, setSelectedRecommendationId] = useState(
     initialRecommendations.some((item) => item.id === initialRecommendationId)
@@ -160,12 +154,13 @@ const RecommendationsWorkspaceContent = ({
   const [outcomeOpen, setOutcomeOpen] = useState(false)
   const [outcome, setOutcome] = useState<RecommendationOutcome>('Accept')
   const [outcomeNote, setOutcomeNote] = useState('')
+  const [outcomeError, setOutcomeError] = useState('')
 
   const filteredRecommendations = useMemo(
     () =>
       recommendations.filter((recommendation) => {
         const alert = alerts.find((item) => item.id === recommendation.alertId)
-        const matchesProject = projectId === allValue ? true : alert?.projectId === projectId
+        const matchesProject = alert?.projectId === projectId
         const matchesStatus =
           reviewStatus === allValue ? true : recommendation.reviewStatus === reviewStatus
 
@@ -182,19 +177,21 @@ const RecommendationsWorkspaceContent = ({
 
   const logOutcome = () => {
     if (!outcomeNote.trim()) {
-      toast.error('Add an outcome note before saving.')
+      setOutcomeError('Add an outcome note before saving.')
+      toast.error('Check the outcome form.', {
+        description: 'The outcome note has an inline error.',
+      })
       return
     }
 
-    setOutcomeOpen(false)
-    toast.error('Recommendation outcomes are not configured.', {
-      description: 'Connect the recommendation backend before saving human-review outcomes.',
-    })
+    setOutcomeError(
+      'Outcome logging is unavailable until a server-backed recommendation service is available.',
+    )
   }
 
   return (
     <div className="space-y-6">
-      <section className="flex flex-col gap-4 rounded-lg border border-border bg-card p-5 shadow-sm lg:flex-row lg:items-start lg:justify-between">
+      <section className="flex flex-col gap-4 rounded-lg border border-border bg-card p-5 lg:flex-row lg:items-start lg:justify-between">
         <div className="space-y-2">
           <StatusBadge tone="info">Human review required</StatusBadge>
           <div>
@@ -212,11 +209,11 @@ const RecommendationsWorkspaceContent = ({
         </Button>
       </section>
 
-      <section className="rounded-lg border border-info/20 bg-info/10 p-4 text-sm leading-6 text-info">
+      <section className="rounded-sm border border-info/25 bg-info-subtle p-4 text-sm leading-6 text-info">
         {humanReviewDisclaimer} No autonomous action is taken.
       </section>
 
-      <section className="grid gap-3 rounded-lg border border-border bg-card p-5 shadow-sm md:grid-cols-2">
+      <section className="grid gap-3 rounded-lg border border-border bg-card p-5 md:grid-cols-2">
         <div className="space-y-2">
           <span className="text-sm font-medium">Project</span>
           <Select value={projectId} onValueChange={setProjectId}>
@@ -224,7 +221,6 @@ const RecommendationsWorkspaceContent = ({
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value={allValue}>All projects</SelectItem>
               {projects.map((project) => (
                 <SelectItem key={project.id} value={project.id}>
                   {project.title}
@@ -250,7 +246,7 @@ const RecommendationsWorkspaceContent = ({
       </section>
 
       <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_440px]">
-        <section className="space-y-3 rounded-lg border border-border bg-card p-5 shadow-sm">
+        <section className="space-y-3 rounded-lg border border-border bg-card p-5">
           <h2 className="text-lg font-semibold text-foreground">Recommendation queue</h2>
           {filteredRecommendations.length > 0 ? (
             filteredRecommendations.map((recommendation) => {
@@ -259,11 +255,12 @@ const RecommendationsWorkspaceContent = ({
 
               return (
                 <button
+                  aria-pressed={recommendation.id === selectedRecommendation?.id}
                   key={recommendation.id}
-                  className={`w-full rounded-lg border p-4 text-left transition-colors ${
+                  className={`w-full rounded-sm border p-4 text-left transition-colors ${
                     recommendation.id === selectedRecommendation?.id
-                      ? 'border-primary bg-primary/10'
-                      : 'border-border bg-background hover:bg-muted/60'
+                      ? 'border-primary bg-primary-subtle'
+                      : 'border-border bg-background hover:bg-surface-subtle'
                   }`}
                   type="button"
                   onClick={() => setSelectedRecommendationId(recommendation.id)}
@@ -276,6 +273,12 @@ const RecommendationsWorkspaceContent = ({
                       </p>
                     </div>
                     <div className="flex flex-wrap gap-2">
+                      {recommendation.id === selectedRecommendation?.id ? (
+                        <span className="inline-flex items-center gap-1 text-xs font-semibold text-foreground">
+                          <CheckCircle2 className="h-4 w-4" aria-hidden="true" />
+                          Selected
+                        </span>
+                      ) : null}
                       <StatusBadge tone="info">{recommendation.reviewStatus}</StatusBadge>
                       {recommendation.outcome ? (
                         <StatusBadge tone="success">{recommendation.outcome}</StatusBadge>
@@ -286,13 +289,13 @@ const RecommendationsWorkspaceContent = ({
               )
             })
           ) : (
-            <p className="rounded-lg border border-border bg-background p-4 text-sm text-muted-foreground">
+            <p className="rounded-sm border border-border bg-surface-subtle p-4 text-sm text-muted-foreground">
               No recommendations match the current filters.
             </p>
           )}
         </section>
 
-        <aside className="space-y-4 rounded-lg border border-border bg-card p-5 shadow-sm">
+        <aside className="space-y-4 rounded-lg border border-border bg-card p-5">
           {selectedRecommendation && selectedAlert ? (
             <>
               <div className="flex items-start justify-between gap-3">
@@ -322,21 +325,28 @@ const RecommendationsWorkspaceContent = ({
                 {selectedRule?.name ?? selectedRecommendation.ruleId}
               </DetailBlock>
               {selectedRecommendation.outcome ? (
-                <div className="rounded-lg border border-success/20 bg-success/10 p-4 text-sm leading-6 text-success">
+                <div className="rounded-sm border border-success/25 bg-success-subtle p-4 text-sm leading-6 text-success">
                   <p className="font-medium">{selectedRecommendation.outcome}</p>
                   <p className="mt-2">{selectedRecommendation.outcomeNote}</p>
                 </div>
               ) : null}
-              <Button
-                onClick={() => {
-                  setOutcome(selectedRecommendation.outcome ?? 'Accept')
-                  setOutcomeNote(selectedRecommendation.outcomeNote ?? '')
-                  setOutcomeOpen(true)
-                }}
-              >
-                <CheckCircle2 className="mr-2 h-4 w-4" aria-hidden="true" />
-                Log outcome
-              </Button>
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    toast.error('Recommendation review is unavailable in the current API.')
+                  }}
+                >
+                  Review recommendation
+                </Button>
+                <Button disabled>
+                  <CheckCircle2 className="mr-2 h-4 w-4" aria-hidden="true" />
+                  Log outcome
+                </Button>
+                <p className="self-center text-sm text-muted-foreground">
+                  Outcome logging is unavailable in the current API.
+                </p>
+              </div>
             </>
           ) : (
             <p className="text-sm text-muted-foreground">Select a recommendation to review.</p>
@@ -344,7 +354,13 @@ const RecommendationsWorkspaceContent = ({
         </aside>
       </div>
 
-      <Dialog open={outcomeOpen} onOpenChange={setOutcomeOpen}>
+      <Dialog
+        open={outcomeOpen}
+        onOpenChange={(open) => {
+          setOutcomeOpen(open)
+          if (!open) setOutcomeError('')
+        }}
+      >
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Log recommendation outcome</DialogTitle>
@@ -352,14 +368,26 @@ const RecommendationsWorkspaceContent = ({
               Record a human decision for this predefined-rule recommendation.
             </DialogDescription>
           </DialogHeader>
-          <div className="space-y-4">
+          <form
+            className="space-y-4"
+            onSubmit={(event) => {
+              event.preventDefault()
+              logOutcome()
+            }}
+          >
             <div className="space-y-2">
-              <Label htmlFor="recommendation-outcome">Human-reviewed outcome</Label>
+              <Label htmlFor="recommendation-outcome">
+                Human-reviewed outcome
+                <span aria-hidden="true" className="ml-1 text-danger">
+                  *
+                </span>
+                <span className="sr-only"> (required)</span>
+              </Label>
               <Select
                 value={outcome}
                 onValueChange={(value) => setOutcome(value as RecommendationOutcome)}
               >
-                <SelectTrigger id="recommendation-outcome">
+                <SelectTrigger aria-required="true" id="recommendation-outcome">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -371,24 +399,51 @@ const RecommendationsWorkspaceContent = ({
                 </SelectContent>
               </Select>
             </div>
+            {selectedAlert ? (
+              <div className="rounded-sm border border-info/25 bg-info-subtle p-3 text-sm text-info">
+                <p className="font-medium">Notification impact preview</p>
+                <p className="mt-1">
+                  Notification recipients are unavailable until the server-backed outcome service is
+                  available.
+                </p>
+              </div>
+            ) : null}
             <div className="space-y-2">
-              <Label htmlFor="recommendation-outcome-note">Outcome note</Label>
+              <Label htmlFor="recommendation-outcome-note">
+                Outcome note
+                <span aria-hidden="true" className="ml-1 text-danger">
+                  *
+                </span>
+                <span className="sr-only"> (required)</span>
+              </Label>
               <Input
+                aria-describedby={outcomeError ? 'recommendation-outcome-note-error' : undefined}
+                aria-invalid={Boolean(outcomeError)}
+                aria-required="true"
                 id="recommendation-outcome-note"
                 placeholder="Add an outcome note"
                 value={outcomeNote}
-                onChange={(event) => setOutcomeNote(event.target.value)}
+                onChange={(event) => {
+                  setOutcomeNote(event.target.value)
+                  if (outcomeError) setOutcomeError('')
+                }}
               />
+              {outcomeError ? (
+                <p
+                  className="text-sm font-medium text-danger"
+                  id="recommendation-outcome-note-error"
+                >
+                  {outcomeError}
+                </p>
+              ) : null}
             </div>
-          </div>
-          <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => setOutcomeOpen(false)}>
-              Cancel
-            </Button>
-            <Button onClick={logOutcome} type="button">
-              Save outcome
-            </Button>
-          </DialogFooter>
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => setOutcomeOpen(false)}>
+                Cancel
+              </Button>
+              <Button type="submit">Save outcome</Button>
+            </DialogFooter>
+          </form>
         </DialogContent>
       </Dialog>
     </div>
@@ -396,7 +451,7 @@ const RecommendationsWorkspaceContent = ({
 }
 
 const DetailBlock = ({ title, children }: { title: string; children: React.ReactNode }) => (
-  <div className="rounded-lg border border-border bg-background p-4 text-sm leading-6">
+  <div className="rounded-sm border border-border bg-surface-subtle p-4 text-sm leading-6">
     <p className="font-medium text-foreground">{title}</p>
     <p className="mt-2 text-muted-foreground">{children}</p>
   </div>

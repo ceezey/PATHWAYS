@@ -75,17 +75,27 @@ FormItem.displayName = 'FormItem'
 
 const FormLabel = React.forwardRef<
   React.ElementRef<typeof Label>,
-  React.ComponentPropsWithoutRef<typeof Label>
->(({ className, ...props }, ref) => {
+  React.ComponentPropsWithoutRef<typeof Label> & { required?: boolean }
+>(({ children, className, required, ...props }, ref) => {
   const { error, formItemId } = useFormField()
 
   return (
     <Label
       ref={ref}
-      className={cn(error && 'text-destructive', className)}
+      className={cn(error && 'text-danger', className)}
       htmlFor={formItemId}
       {...props}
-    />
+    >
+      {children}
+      {required ? (
+        <>
+          <span aria-hidden="true" className="ml-1 text-danger">
+            *
+          </span>
+          <span className="sr-only"> (required)</span>
+        </>
+      ) : null}
+    </Label>
   )
 })
 FormLabel.displayName = 'FormLabel'
@@ -117,7 +127,7 @@ const FormDescription = React.forwardRef<
   return (
     <p
       ref={ref}
-      className={cn('text-sm text-muted-foreground', className)}
+      className={cn('text-[13px] leading-[18px] text-muted-foreground', className)}
       id={formDescriptionId}
       {...props}
     />
@@ -139,7 +149,7 @@ const FormMessage = React.forwardRef<
   return (
     <p
       ref={ref}
-      className={cn('text-sm font-medium text-destructive', className)}
+      className={cn('text-[13px] font-medium leading-[18px] text-danger', className)}
       id={formMessageId}
       {...props}
     >

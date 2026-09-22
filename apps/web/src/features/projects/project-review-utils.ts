@@ -40,3 +40,6 @@ export const calculateExpenseTotal = (expenses: ExpenseRecord[]) =>
 
 export const calculateRemainingBudget = (plannedAmount: number, actualSpending: number) =>
   plannedAmount - actualSpending
+
+export const calculateBudgetUtilization = (plannedAmount: number, actualSpending: number) =>
+  plannedAmount > 0 ? Math.round((actualSpending / plannedAmount) * 100) : 0

@@ -3,12 +3,13 @@ import {
   AlertTriangle,
   BarChart3,
   ClipboardList,
+  DatabaseBackup,
   FolderKanban,
   Home,
   LineChart,
-  ListChecks,
+  ScrollText,
+  Share2,
   SlidersHorizontal,
-  Type,
   UserCog,
   UsersRound,
 } from 'lucide-react'
@@ -37,11 +38,13 @@ export const fixedDashboardNavItemLabels = {
   collection: 'Collection',
   analytics: 'Analytics',
   alerts: 'Alerts',
-  recommendations: 'Recommendations',
   reports: 'Reports',
   alertsRepository: 'Alerts Repository',
   userManagement: 'User Management',
   editLabels: 'Edit Labels',
+  publicTracker: 'Public Tracker',
+  auditLog: 'Audit Log',
+  backupRecovery: 'Backup & Recovery',
 } as const
 
 export const publicNavigation: NavItem[] = [
@@ -65,7 +68,7 @@ export const createDashboardNavGroups = (): DashboardNavGroup[] => [
       {
         href: '/dashboard',
         label: fixedDashboardNavItemLabels.dashboard,
-        description: 'Priorities and progress for the authenticated role.',
+        description: 'Priorities and progress for the selected role.',
         icon: Home,
       },
       {
@@ -105,12 +108,6 @@ export const createDashboardNavGroups = (): DashboardNavGroup[] => [
         icon: AlertTriangle,
       },
       {
-        href: '/recommendations',
-        label: fixedDashboardNavItemLabels.recommendations,
-        description: 'Human-reviewed recommendation outcomes.',
-        icon: ListChecks,
-      },
-      {
         href: '/reports',
         label: fixedDashboardNavItemLabels.reports,
         description: 'Human-reviewed reporting outputs.',
@@ -121,6 +118,12 @@ export const createDashboardNavGroups = (): DashboardNavGroup[] => [
         label: fixedDashboardNavItemLabels.alertsRepository,
         description: 'Review the rules used to surface alerts for human review.',
         icon: SlidersHorizontal,
+      },
+      {
+        href: '/transparency',
+        label: fixedDashboardNavItemLabels.publicTracker,
+        description: 'Review projects prepared for public visibility.',
+        icon: Share2,
       },
     ],
   },
@@ -135,10 +138,16 @@ export const createDashboardNavGroups = (): DashboardNavGroup[] => [
         icon: UserCog,
       },
       {
-        href: '/settings/labels',
-        label: fixedDashboardNavItemLabels.editLabels,
-        description: 'Review approved page headings for future persistence.',
-        icon: Type,
+        href: '/settings/audit',
+        label: fixedDashboardNavItemLabels.auditLog,
+        description: 'Inspect significant account actions and system events.',
+        icon: ScrollText,
+      },
+      {
+        href: '/settings/backups',
+        label: fixedDashboardNavItemLabels.backupRecovery,
+        description: 'Review backup readiness and recovery safeguards.',
+        icon: DatabaseBackup,
       },
     ],
   },
@@ -149,8 +158,10 @@ export const dashboardNavGroups = createDashboardNavGroups()
 export const dashboardNavigation = dashboardNavGroups.flatMap((group) => group.items)
 
 export const getDashboardNavigationLabel = (pathname: string) =>
-  createDashboardNavGroups()
-    .flatMap((group) => group.items)
-    .filter((item) => pathname === item.href || pathname.startsWith(`${item.href}/`))
-    .sort((left, right) => right.href.length - left.href.length)[0]?.label ??
-  fixedDashboardNavItemLabels.dashboard
+  pathname === '/settings/profile'
+    ? 'My Profile'
+    : (createDashboardNavGroups()
+        .flatMap((group) => group.items)
+        .filter((item) => pathname === item.href || pathname.startsWith(`${item.href}/`))
+        .sort((left, right) => right.href.length - left.href.length)[0]?.label ??
+      fixedDashboardNavItemLabels.dashboard)

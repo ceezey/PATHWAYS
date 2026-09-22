@@ -609,15 +609,15 @@ class BackendReadyPathwaysClient implements PathwaysClient {
   }
 
   async getExpenses(_projectId: string): Promise<ExpenseRecord[]> {
-    return []
+    throw backendNotConfigured('Expense records')
   }
 
   async getRecommendationOutcomes(_projectId: string): Promise<RecommendationOutcomeRecord[]> {
-    return []
+    throw backendNotConfigured('Recommendation outcomes')
   }
 
   async getTransparencySections(_projectId: string): Promise<TransparencySection[]> {
-    return []
+    throw backendNotConfigured('Transparency sections')
   }
 
   async getBeneficiaryRecordsForRole(
@@ -718,7 +718,7 @@ class BackendReadyPathwaysClient implements PathwaysClient {
     _role: PathwaysRole,
     _beneficiaryId: string,
   ): Promise<BeneficiaryMediaProofRecord[]> {
-    return []
+    throw backendNotConfigured('Beneficiary media proof')
   }
 
   async getBeneficiarySadddAggregatesForRole(
@@ -816,39 +816,39 @@ class BackendReadyPathwaysClient implements PathwaysClient {
   }
 
   async getBudgets(_projectId?: string): Promise<BudgetRecord[]> {
-    return []
+    throw backendNotConfigured('Budget records')
   }
 
   async getAlerts(_projectId?: string): Promise<AlertRecord[]> {
-    return []
+    throw backendNotConfigured('Alert records')
   }
 
   async getAlertsForRole(_role: PathwaysRole, _projectId?: string): Promise<AlertRecord[]> {
-    return []
+    throw backendNotConfigured('Alert records')
   }
 
   async getAnalyticsLocations(): Promise<AnalyticsLocationRecord[]> {
-    return []
+    throw backendNotConfigured('Analytics locations')
   }
 
   async getRecommendations(): Promise<RecommendationRecord[]> {
-    return []
+    throw backendNotConfigured('Recommendations')
   }
 
   async getRecommendationsForRole(_role: PathwaysRole): Promise<RecommendationRecord[]> {
-    return []
+    throw backendNotConfigured('Recommendations')
   }
 
   async getRules(): Promise<RuleDefinition[]> {
-    return []
+    throw backendNotConfigured('Monitoring rules')
   }
 
   async getReports(_projectId?: string): Promise<ReportRecord[]> {
-    return []
+    throw backendNotConfigured('Report records')
   }
 
   async getSurveyForms(_projectId?: string): Promise<SurveyFormDefinition[]> {
-    return []
+    throw backendNotConfigured('Survey forms')
   }
 
   async getDigitalForms(projectId: string): Promise<DigitalFormDefinition[]> {
@@ -1043,11 +1043,11 @@ class BackendReadyPathwaysClient implements PathwaysClient {
   async getSurveyAggregateResults(
     _filters?: SurveyAggregateFilters,
   ): Promise<SurveyAggregateResultSet[]> {
-    return []
+    throw backendNotConfigured('Survey aggregate results')
   }
 
   async getPublicProjects(): Promise<PublicProjectRecord[]> {
-    return []
+    throw backendNotConfigured('Published project list')
   }
 
   async getPublicProject(_id: string): Promise<PublicProjectRecord> {

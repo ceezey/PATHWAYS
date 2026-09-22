@@ -12,34 +12,25 @@ type ReportingPageProps = {
 
 export const ReportingPage = async ({ initialKind, previewOnly = false }: ReportingPageProps) => {
   try {
-    // TODO(RBAC): Restrict internal reports by role and project access.
     const projectSummaries = await pathwaysClient.getProjects()
     const projects = await Promise.all(
       projectSummaries.map((project) => pathwaysClient.getProject(project.id)),
     )
-    const [indicatorGroups, reports, surveyForms, surveyResults] = await Promise.all([
-      Promise.all(projects.map((project) => pathwaysClient.getProjectIndicators(project.id))),
-      pathwaysClient.getReports(),
-      pathwaysClient.getSurveyForms(),
-      pathwaysClient.getSurveyAggregateResults(),
-    ])
-    const surveyProjectIds = [...new Set(surveyForms.map((form) => form.projectId))]
-    const [activityGroups, journeyStageGroups] = await Promise.all([
-      Promise.all(surveyProjectIds.map((projectId) => pathwaysClient.getActivities(projectId))),
-      Promise.all(surveyProjectIds.map((projectId) => pathwaysClient.getJourneyStages(projectId))),
-    ])
+    const indicatorGroups = await Promise.all(
+      projects.map((project) => pathwaysClient.getProjectIndicators(project.id)),
+    )
 
     return (
       <ReportingWorkspace
-        activities={activityGroups.flat()}
+        activities={[]}
         indicators={indicatorGroups.flat()}
         initialKind={initialKind}
-        journeyStages={journeyStageGroups.flat()}
+        journeyStages={[]}
         previewOnly={previewOnly}
         projects={projects}
-        reports={reports}
-        surveyForms={surveyForms}
-        surveyResults={surveyResults}
+        reports={[]}
+        surveyForms={[]}
+        surveyResults={[]}
       />
     )
   } catch {

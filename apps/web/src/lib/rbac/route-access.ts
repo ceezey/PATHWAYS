@@ -150,9 +150,60 @@ const reportAtomic = {
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
 export const isPublicPath = (path: string) =>
   path === '/' || path === '/public/projects' || /^\/public\/projects\/[^/]+$/.test(path)
+/** UI-only paths reuse an existing verified route; no role policy is added. */
+export function authorizationPathForUiPath(input: string): string | null {
+  if (input.split('?').length > 2) return null
+  const [pathname, rawQuery = ''] = input.split('?')
+  let canonical = pathname
+  if (
+    pathname === '/beneficiaries/duplicates' ||
+    pathname === '/beneficiaries/evaluation-center' ||
+    pathname === '/participants'
+  )
+    canonical = '/beneficiaries'
+  else if (pathname === '/collection/entry') canonical = '/collection'
+  else if (pathname === '/imports') canonical = '/collection/import'
+  else if (pathname === '/indicators' || pathname === '/transparency') canonical = '/projects'
+  else if (['/settings/audit', '/settings/backups', '/settings/profile'].includes(pathname))
+    canonical = '/settings'
+  else if (/^\/beneficiaries\/[^/]+\/edit\/?$/.test(pathname))
+    canonical = pathname.replace(/\/edit\/?$/, '')
+  else if (/^\/projects\/[^/]+\/edit\/?$/.test(pathname))
+    canonical = pathname.replace(/\/edit\/?$/, '')
+  else if (/^\/transparency\/[^/]+\/preview\/?$/.test(pathname))
+    canonical = pathname
+      .replace(/^\/transparency\//, '/projects/')
+      .replace(/\/preview\/?$/, '/transparency/preview')
+
+  const route = matchRoute(canonical)?.route
+  if (!route) return null
+  const displayKeys: Partial<Record<RouteKey, readonly string[]>> = {
+    activity: ['proof', 'review'],
+    alerts: ['alert'],
+    beneficiaries: ['q', 'project', 'location', 'sex', 'age', 'disability', 'status', 'page'],
+    beneficiary: ['returnTo'],
+  }
+  const authorityKeys: Partial<Record<RouteKey, readonly string[]>> = {
+    beneficiary: ['projectId'],
+    imports: ['mode'],
+    reportPreview: ['kind'],
+  }
+  const authorizedQuery = new URLSearchParams()
+  const seen = new Set<string>()
+  for (const [key, value] of new URLSearchParams(rawQuery)) {
+    if (seen.has(key) || value.length > 512) return null
+    seen.add(key)
+    if (displayKeys[route]?.includes(key)) continue
+    if (!authorityKeys[route]?.includes(key)) return null
+    authorizedQuery.set(key, value)
+  }
+  const checked = canonical + (authorizedQuery.size ? `?${authorizedQuery.toString()}` : '')
+  return matchRoute(checked) ? checked : null
+}
 export const isInternalPath = (path: string) =>
   path === '/workspace' ||
   path === '/auth/mfa' ||
+  authorizationPathForUiPath(path) !== null ||
   Object.values(routePolicy).some(
     (r) => path === r.path.split('/:')[0] || path.startsWith(`${r.path.split('/:')[0]}/`),
   )
@@ -398,7 +449,7 @@ export function getRouteAccess(
 }
 export function filterDashboardNavGroups<T extends { items: { href: string }[] }>(
   groups: T[],
-  role: DisplayRole,
+  role: DisplayRole | null,
   profile?: RoutePrincipal,
 ): T[] {
   return groups
@@ -406,8 +457,12 @@ export function filterDashboardNavGroups<T extends { items: { href: string }[] }
       ...group,
       items: group.items.filter(
         (item) =>
-          (profile ? getVerifiedRouteAccess(profile, item.href) : getRouteAccess(role, item.href))
-            .allowed,
+          (profile
+            ? getVerifiedRouteAccess(profile, item.href)
+            : role
+              ? getRouteAccess(role, item.href)
+              : { allowed: false }
+          ).allowed,
       ),
     }))
     .filter((group) => group.items.length > 0)

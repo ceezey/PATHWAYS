@@ -1,72 +1,142 @@
 'use client'
 
 import { FolderLock } from 'lucide-react'
+import Link from 'next/link'
 import { useEffect, useState } from 'react'
 
-import { EmptyState } from '@/components/pathways/empty-state'
+import { AsyncState, StatusMessage } from '@/components/pathways'
+import { Button } from '@/components/ui/button'
 import { useCurrentRole } from '@/hooks/use-current-role'
 import { pathwaysClient } from '@/lib/services/pathways-client'
-import type { DigitalFormDefinition, ProjectSummary } from '@/types/pathways'
+import { PathwaysClientError } from '@/lib/services/pathways-client'
+import type { BeneficiaryRecord, ProjectSummary } from '@/types/pathways'
+
 import { BeneficiaryForm } from './beneficiary-form'
 
-type State =
-  | { status: 'loading' }
-  | { status: 'failed' }
-  | { status: 'ready'; projects: ProjectSummary[]; forms: DigitalFormDefinition[] }
-
-export const BeneficiaryFormLoader = () => {
+export const BeneficiaryFormLoader = ({ beneficiaryId }: { beneficiaryId?: string }) => {
   const { role } = useCurrentRole()
-  const [state, setState] = useState<State>({ status: 'loading' })
+  const [projects, setProjects] = useState<ProjectSummary[] | null>(null)
+  const [beneficiary, setBeneficiary] = useState<BeneficiaryRecord | undefined>()
+  const [loadState, setLoadState] = useState<
+    'loading' | 'ready' | 'restricted' | 'unavailable' | 'error'
+  >('loading')
+  const [loadAttempt, setLoadAttempt] = useState(0)
 
   useEffect(() => {
-    let active = true
     if (!role) return
-    setState({ status: 'loading' })
+    const verifiedRole = role
+    void loadAttempt
+    let active = true
+    setProjects(null)
+    setBeneficiary(undefined)
+    setLoadState('loading')
+
     void pathwaysClient
-      .getProjectsForRole(role)
-      .then(async (projects) => {
-        const groups = await Promise.all(
-          projects.map((project) => pathwaysClient.getDigitalForms(project.id)),
-        )
-        if (active)
-          setState({
-            status: 'ready',
-            projects,
-            forms: groups
-              .flat()
-              .filter(
-                (form) =>
-                  form.formType === 'BENEFICIARY_REGISTRATION' && form.status === 'PUBLISHED',
-              ),
-          })
+      .getProjectsForRole(verifiedRole)
+      .then(async (nextProjects) => {
+        if (!beneficiaryId) return { nextProjects, nextBeneficiary: undefined }
+        for (const project of nextProjects) {
+          try {
+            const nextBeneficiary = await pathwaysClient.getBeneficiaryRecordForRole(
+              verifiedRole,
+              project.id,
+              beneficiaryId,
+            )
+            return { nextProjects, nextBeneficiary }
+          } catch (error) {
+            if (!(error instanceof PathwaysClientError && error.code === 'not_found')) throw error
+          }
+        }
+        throw new PathwaysClientError('Beneficiary not found.', 'not_found')
       })
-      .catch(() => active && setState({ status: 'failed' }))
+      .then(({ nextProjects, nextBeneficiary }) => {
+        if (active) {
+          setProjects(nextProjects)
+          setBeneficiary(nextBeneficiary)
+          setLoadState('ready')
+        }
+      })
+      .catch((error) => {
+        if (active) {
+          if (error instanceof PathwaysClientError && error.code === 'forbidden') {
+            setLoadState('restricted')
+          } else if (error instanceof PathwaysClientError && error.code === 'not_found') {
+            setLoadState('unavailable')
+          } else {
+            setLoadState('error')
+          }
+        }
+      })
+
     return () => {
       active = false
     }
-  }, [role])
+  }, [beneficiaryId, loadAttempt, role])
 
-  if (!role || state.status === 'loading')
+  if (loadState === 'loading') {
     return (
-      <p className="rounded-lg border border-border bg-card p-8 text-sm text-muted-foreground">
-        Loading registration forms...
-      </p>
-    )
-  if (state.status === 'failed')
-    return (
-      <EmptyState
+      <AsyncState
+        description="Loading the projects available to this account."
         icon={FolderLock}
-        title="Registration unavailable"
-        description="Assigned projects or published registration forms could not be loaded."
+        status="loading"
+        title="Loading assigned projects"
       />
     )
-  if (state.projects.length === 0)
+  }
+
+  if (loadState === 'restricted' || loadState === 'unavailable') {
+    const restricted = loadState === 'restricted'
     return (
-      <EmptyState
+      <div className="space-y-4 rounded-lg border border-border bg-card p-8 text-center">
+        <AsyncState
+          description={
+            restricted
+              ? 'This beneficiary profile is outside the projects assigned to the current role.'
+              : 'This beneficiary profile is not available.'
+          }
+          icon={FolderLock}
+          status="empty"
+          title={restricted ? 'Beneficiary profile restricted' : 'Beneficiary profile unavailable'}
+        />
+        <Button asChild>
+          <Link href="/beneficiaries">Back to Beneficiaries</Link>
+        </Button>
+      </div>
+    )
+  }
+
+  if (loadState === 'error' || projects === null) {
+    return (
+      <AsyncState
+        description="The assigned project choices could not be loaded. Check your connection and try again."
         icon={FolderLock}
-        title="No assigned projects"
-        description="Registration requires an active project assignment."
+        onRetry={() => setLoadAttempt((attempt) => attempt + 1)}
+        status="error"
+        title="Project choices unavailable"
       />
     )
-  return <BeneficiaryForm projects={state.projects} forms={state.forms} role={role} />
+  }
+
+  if (projects.length === 0) {
+    return (
+      <div className="space-y-4 rounded-lg border border-border bg-card p-8 text-center">
+        <AsyncState
+          description="No projects are assigned to this account, so a beneficiary enrollment cannot be started."
+          icon={FolderLock}
+          status="empty"
+          title="No assigned projects available"
+        />
+        <Button asChild>
+          <Link href="/beneficiaries">Back to Beneficiaries</Link>
+        </Button>
+      </div>
+    )
+  }
+
+  return (
+    <>
+      <StatusMessage>Assigned project choices loaded.</StatusMessage>
+      <BeneficiaryForm beneficiary={beneficiary} projects={projects} />
+    </>
+  )
 }

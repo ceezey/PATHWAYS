@@ -9,34 +9,13 @@ import { Button } from '@/components/ui/button'
 import { Dialog, DialogFooter } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { PathwaysClientError, pathwaysClient } from '@/lib/services/pathways-client'
+import { Textarea } from '@/components/ui/textarea'
+import {
+  registerProofFilePreviews,
+  releaseProofFilePreviews,
+} from '@/lib/files/proof-file-previews'
+import { pathwaysClient } from '@/lib/services/pathways-client'
 import type { Activity } from '@/types/pathways'
-
-const allowedProofTypes = new Set([
-  'application/pdf',
-  'image/jpeg',
-  'image/png',
-  'image/webp',
-  'video/mp4',
-])
-const maxProofFiles = 5
-const maxProofFileBytes = 10 * 1024 * 1024
-const maxProofTotalBytes = 25 * 1024 * 1024
-
-function validateProofFiles(files: File[]) {
-  if (files.length === 0) return 'Select at least one proof file.'
-  if (files.length > maxProofFiles) return `Select no more than ${maxProofFiles} proof files.`
-  if (files.some((file) => file.size > maxProofFileBytes)) {
-    return 'Each proof file must be 10 MiB or smaller.'
-  }
-  if (files.reduce((total, file) => total + file.size, 0) > maxProofTotalBytes) {
-    return 'The combined proof files must be 25 MiB or smaller.'
-  }
-  if (files.some((file) => !allowedProofTypes.has(file.type))) {
-    return 'Proof files must be PDF, JPEG, PNG, WEBP, or MP4.'
-  }
-  return null
-}
 
 export const ActivityProofDialog = ({
   activity,
@@ -49,16 +28,22 @@ export const ActivityProofDialog = ({
   onOpenChange: (open: boolean) => void
   onSubmitted: (activity: Activity) => void
 }) => {
-  const [progress, setProgress] = useState(0)
+  const [beneficiariesReachedThisSession, setBeneficiariesReachedThisSession] = useState(0)
   const [note, setNote] = useState('')
   const [files, setFiles] = useState<File[]>([])
   const [clientUpdateId, setClientUpdateId] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState('')
+  const noteError = error === 'Enter an update note before submitting proof.'
+  const beneficiariesError = error.startsWith('Beneficiaries reached this session')
+  const fileError = error.startsWith('Attach at least one') || error.includes('20 MB')
 
   useEffect(() => {
-    if (!activity || !open) return
-    setProgress(activity.progress)
+    if (!activity || !open) {
+      return
+    }
+
+    setBeneficiariesReachedThisSession(0)
     setNote('')
     setFiles([])
     setClientUpdateId(crypto.randomUUID())
@@ -66,48 +51,53 @@ export const ActivityProofDialog = ({
   }, [activity, open])
 
   const submitUpdate = async () => {
-    if (!activity) return
-    if (activity.storedStatus !== 'IN_PROGRESS') {
-      setError('The activity must be In Progress before proof can be submitted.')
+    if (!activity) {
       return
     }
-    if (!Number.isInteger(progress) || progress < 0 || progress > 100) {
-      setError('Completion percentage must be a whole number from 0 to 100.')
-      return
-    }
+
     if (!note.trim()) {
       setError('Enter an update note before submitting proof.')
       return
     }
-    const fileError = validateProofFiles(files)
-    if (fileError) {
-      setError(fileError)
+    if (beneficiariesReachedThisSession !== 0) {
+      setError('Session beneficiary counts cannot be saved by the current API.')
       return
     }
-    if (!clientUpdateId) {
-      setError('The retry-safe update identifier is unavailable. Close and reopen this dialog.')
+    if (!files.length) {
+      setError('Attach at least one proof-of-conduct file.')
+      return
+    }
+    if (files.some((file) => file.size > 20 * 1024 * 1024)) {
+      setError('Each proof-of-conduct file must be 20 MB or smaller.')
       return
     }
 
+    const fileReferences = await registerProofFilePreviews(files)
     setSubmitting(true)
     setError('')
+
     try {
       const updatedActivity = await pathwaysClient.submitActivityProof({
         projectId: activity.projectId,
         activityId: activity.id,
-        clientUpdateId,
-        progress,
-        note: note.trim(),
+        clientUpdateId: clientUpdateId || crypto.randomUUID(),
+        progress: activity.progress,
+        note,
         files,
       })
-      toast.success('Activity update and private proof submitted.', {
-        description: `${files.length} proof file${files.length === 1 ? '' : 's'} stored for M&E review.`,
+
+      toast.success('Progress update submitted.', {
+        description:
+          files.length > 0
+            ? `${files.length} proof file${files.length === 1 ? '' : 's'} selected for review.`
+            : 'Proof submitted for M&E review.',
       })
       onSubmitted(updatedActivity)
       onOpenChange(false)
     } catch (caught) {
+      releaseProofFilePreviews(fileReferences)
       setError(
-        caught instanceof PathwaysClientError
+        caught instanceof Error
           ? caught.message
           : 'The activity update could not be completed. Review the details and try again.',
       )
@@ -120,62 +110,117 @@ export const ActivityProofDialog = ({
     <Dialog onOpenChange={onOpenChange} open={open}>
       <DialogShell
         title="Submit Update & Proof"
-        description="Submit a persisted progress update with private evidence for independent M&E review."
+        description="Record a progress update and attach supporting evidence for review."
       >
-        <div className="space-y-5">
+        <form
+          className="space-y-5"
+          onSubmit={(event) => {
+            event.preventDefault()
+            void submitUpdate()
+          }}
+        >
           <div className="space-y-2">
-            <Label htmlFor="activity-progress">Completion percentage</Label>
+            <Label htmlFor="activity-beneficiaries-reached">
+              Beneficiaries reached this session
+              <span aria-hidden="true" className="ml-1 text-danger">
+                *
+              </span>
+              <span className="sr-only"> (required)</span>
+            </Label>
             <Input
-              id="activity-progress"
-              max={100}
+              aria-describedby={
+                beneficiariesError ? 'activity-beneficiaries-reached-error' : undefined
+              }
+              aria-invalid={beneficiariesError}
+              aria-required="false"
+              disabled
+              id="activity-beneficiaries-reached"
               min={0}
-              onChange={(event) => setProgress(Number(event.target.value))}
+              onChange={(event) => {
+                setBeneficiariesReachedThisSession(Number(event.target.value))
+                if (beneficiariesError) setError('')
+              }}
               type="number"
-              value={progress}
+              step={1}
+              value={beneficiariesReachedThisSession}
             />
+            <p className="text-sm text-muted-foreground">
+              Session beneficiary counts are unavailable until backend support is added. The
+              submitted proof retains the current {activity?.progress ?? 0}% progress for M&E
+              review.
+            </p>
           </div>
           <div className="space-y-2">
-            <Label htmlFor="activity-note">Update note</Label>
-            <textarea
-              className="min-h-28 w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+            <Label htmlFor="activity-note">
+              Narrative Notes
+              <span aria-hidden="true" className="ml-1 text-danger">
+                *
+              </span>
+              <span className="sr-only"> (required)</span>
+            </Label>
+            <Textarea
+              aria-describedby={noteError ? 'activity-note-error' : undefined}
+              aria-invalid={noteError}
+              aria-required="true"
+              className="min-h-28"
               id="activity-note"
-              maxLength={4000}
-              onChange={(event) => setNote(event.target.value)}
+              onChange={(event) => {
+                setNote(event.target.value)
+                if (noteError) setError('')
+              }}
               placeholder="Summarize completed work, blockers, and submitted proof."
               value={note}
             />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="activity-proof">Evidence files</Label>
+            <Label htmlFor="activity-proof">
+              Upload proof of conduct
+              <span aria-hidden="true" className="ml-1 text-danger">
+                *
+              </span>
+              <span className="sr-only"> (required)</span>
+            </Label>
             <Input
-              accept=".pdf,.jpg,.jpeg,.png,.webp,.mp4,application/pdf,image/jpeg,image/png,image/webp,video/mp4"
+              aria-describedby={fileError ? 'activity-proof-error' : 'activity-proof-help'}
+              aria-invalid={fileError}
               id="activity-proof"
               multiple
               onChange={(event) => {
-                const nextFiles = Array.from(event.target.files ?? [])
-                setFiles(nextFiles)
-                setError(validateProofFiles(nextFiles) ?? '')
+                setFiles(Array.from(event.target.files ?? []))
+                if (fileError) setError('')
               }}
               type="file"
             />
-            <p className="text-sm text-muted-foreground">
-              Required. Up to 5 private PDF/JPEG/PNG/WEBP/MP4 files; 10 MiB each and 25 MiB total.
+            <p className="text-sm text-muted-foreground" id="activity-proof-help">
+              Select one or more files. Maximum 20 MB per file; files are uploaded with the update.
             </p>
           </div>
           {files.length > 0 ? (
-            <div className="rounded-lg border border-border bg-background p-3">
-              <p className="text-sm font-medium text-foreground">Selected files</p>
+            <div className="rounded-sm border border-border bg-surface-subtle p-3">
+              <p className="text-sm font-medium text-foreground">Selected file preview</p>
               <ul className="mt-2 space-y-1 text-sm text-muted-foreground">
                 {files.map((file) => (
                   <li key={`${file.name}-${file.size}`} className="break-all">
-                    {file.name} · {(file.size / 1024 / 1024).toFixed(2)} MiB
+                    {file.name}
                   </li>
                 ))}
               </ul>
             </div>
           ) : null}
           {error ? (
-            <p className="text-sm font-medium text-destructive" role="alert">
+            <p
+              className="text-sm font-medium text-destructive"
+              id={
+                noteError
+                  ? 'activity-note-error'
+                  : beneficiariesError
+                    ? 'activity-beneficiaries-reached-error'
+                    : fileError
+                      ? 'activity-proof-error'
+                      : undefined
+              }
+              role="alert"
+            >
               {error}
             </p>
           ) : null}
@@ -183,16 +228,16 @@ export const ActivityProofDialog = ({
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
               Cancel
             </Button>
-            <Button className="gap-2" disabled={submitting} onClick={submitUpdate} type="button">
+            <Button className="gap-2" disabled={submitting} type="submit">
               {submitting ? (
                 <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
               ) : (
                 <UploadCloud className="h-4 w-4" aria-hidden="true" />
               )}
-              Submit Update
+              Submit update & proof
             </Button>
           </DialogFooter>
-        </div>
+        </form>
       </DialogShell>
     </Dialog>
   )

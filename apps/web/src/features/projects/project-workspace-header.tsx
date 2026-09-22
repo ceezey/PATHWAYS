@@ -1,23 +1,24 @@
 'use client'
 
-import { CalendarDays } from 'lucide-react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
+import { useRef } from 'react'
 
 import { StatusBadge } from '@/components/pathways/status-badge'
-import { Button } from '@/components/ui/button'
 import type { DisplayLabels } from '@/constants/display-labels'
 import { useCurrentRole } from '@/hooks/use-current-role'
 import { useDisplayLabels } from '@/hooks/use-display-labels'
 import { type WorkspaceTabAccess, filterWorkspaceTabs } from '@/lib/rbac/route-access'
+import { cn } from '@/lib/utils'
 import type { ProjectDetail } from '@/types/pathways'
 
-import { projectStatusTone } from './project-utils'
+import { projectHealthTone, projectStatusTone } from './project-utils'
 
 const createWorkspaceTabs = (labels: DisplayLabels): WorkspaceTabAccess[] => [
+  { label: 'Overview', path: '' },
   { label: labels.projectActivities, path: 'activities', permission: 'activities.view' },
-  { label: labels.projectEvidence, path: 'evidence', permission: 'evidence.review' },
   { label: labels.projectIndicators, path: 'indicators', permission: 'indicators.manage' },
+  { label: labels.projectEvidence, path: 'evidence', permission: 'evidence.review' },
   {
     label: labels.projectMonitorEvaluate,
     path: 'monitor-evaluate',
@@ -26,75 +27,97 @@ const createWorkspaceTabs = (labels: DisplayLabels): WorkspaceTabAccess[] => [
   {
     label: labels.projectBudget,
     path: 'budget',
-    anyPermissions: [
-      'budget.expense.log',
-      'budget.expense.view',
-      'budget.full',
-      'budget.portfolio_view',
-    ],
+    anyPermissions: ['budget.expense.view', 'budget.full', 'budget.portfolio_view'],
   },
   {
     label: labels.projectJourneyStages,
     path: 'journey-stages',
     anyPermissions: ['activities.create_edit', 'monitor_evaluate.full'],
   },
-  {
-    label: labels.projectPublicDashboard,
-    path: 'transparency',
-    anyPermissions: ['transparency.preview', 'transparency.publish'],
-  },
 ]
 
 export const ProjectWorkspaceHeader = ({ project }: { project: ProjectDetail }) => {
   const pathname = usePathname()
   const { labels } = useDisplayLabels()
-  const { role, profile } = useCurrentRole()
-  const visibleTabs =
-    role && profile
-      ? filterWorkspaceTabs(createWorkspaceTabs(labels), role, profile, project.id)
-      : []
+  const { role } = useCurrentRole()
+  const visibleTabs = role ? filterWorkspaceTabs(createWorkspaceTabs(labels), role) : []
+  const tabRefs = useRef<Array<HTMLAnchorElement | null>>([])
 
   return (
-    <section className="rounded-lg border border-border bg-card p-4 shadow-sm sm:p-5">
-      <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
-        <div className="min-w-0 space-y-3">
-          <div className="flex flex-wrap gap-2">
-            <StatusBadge tone={projectStatusTone(project.status)}>{project.status}</StatusBadge>
-          </div>
-          <div>
-            <h1 className="text-2xl font-semibold tracking-tight text-foreground sm:text-3xl">
-              {project.title}
-            </h1>
-            <p className="mt-2 max-w-3xl text-sm leading-6 text-muted-foreground">
-              {project.description}
-            </p>
-          </div>
+    <section
+      aria-label={`${project.title} workspace summary`}
+      className="min-w-0 max-w-full overflow-x-hidden rounded-lg border border-border bg-card p-4 sm:p-5"
+    >
+      <div className="min-w-0 space-y-3">
+        <div className="flex flex-wrap gap-2">
+          <StatusBadge tone={projectStatusTone(project.status)}>{project.status}</StatusBadge>
+          <StatusBadge
+            tone={project.metricsAvailable ? projectHealthTone(project.health) : 'neutral'}
+          >
+            {project.metricsAvailable ? project.health : 'Not assessed'}
+          </StatusBadge>
         </div>
-        <div className="text-sm lg:min-w-[260px]">
-          <div className="rounded-lg border border-border bg-background p-3">
-            <CalendarDays className="mb-2 h-4 w-4 text-primary" aria-hidden="true" />
-            <p className="text-muted-foreground">Project period</p>
-            <p className="mt-1 font-medium text-foreground">{project.period}</p>
-          </div>
+        <div>
+          <h2 className="text-2xl font-semibold tracking-tight text-foreground sm:text-3xl">
+            {project.title}
+          </h2>
+          <p className="mt-2 max-w-3xl text-sm leading-6 text-muted-foreground">
+            {project.description}
+          </p>
         </div>
       </div>
-      <nav className="mt-5 flex gap-2 overflow-x-auto pb-1" aria-label={labels.projectWorkspace}>
-        {visibleTabs.map((tab) => {
-          const href = `/projects/${project.id}/${tab.path}`
-          const active = pathname === href || pathname.startsWith(`${href}/`)
+      <nav
+        className="mt-5 w-full max-w-full overflow-x-auto border-b border-border"
+        aria-label="Project navigation"
+      >
+        <div className="flex min-w-max" role="tablist" aria-label="Project workspace sections">
+          {visibleTabs.map((tab, index) => {
+            const href = tab.path
+              ? `/projects/${project.id}/${tab.path}`
+              : `/projects/${project.id}`
+            const active = tab.path
+              ? pathname === href || pathname.startsWith(`${href}/`)
+              : pathname === href
 
-          return (
-            <Button
-              key={tab.path}
-              asChild
-              className="shrink-0"
-              size="sm"
-              variant={active ? 'default' : 'outline'}
-            >
-              <Link href={href}>{tab.label}</Link>
-            </Button>
-          )
-        })}
+            return (
+              <Link
+                aria-current={active ? 'page' : undefined}
+                aria-selected={active}
+                className={cn(
+                  'inline-flex min-h-11 shrink-0 items-center border-b-2 px-4 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset',
+                  active
+                    ? 'border-primary text-primary'
+                    : 'border-transparent text-muted-foreground hover:border-border hover:text-foreground',
+                )}
+                href={href}
+                key={tab.path}
+                onKeyDown={(event) => {
+                  const last = visibleTabs.length - 1
+                  const nextIndex =
+                    event.key === 'ArrowRight'
+                      ? (index + 1) % visibleTabs.length
+                      : event.key === 'ArrowLeft'
+                        ? (index - 1 + visibleTabs.length) % visibleTabs.length
+                        : event.key === 'Home'
+                          ? 0
+                          : event.key === 'End'
+                            ? last
+                            : -1
+                  if (nextIndex < 0) return
+                  event.preventDefault()
+                  tabRefs.current[nextIndex]?.focus()
+                }}
+                ref={(element) => {
+                  tabRefs.current[index] = element
+                }}
+                role="tab"
+                tabIndex={active ? 0 : -1}
+              >
+                {tab.label}
+              </Link>
+            )
+          })}
+        </div>
       </nav>
     </section>
   )

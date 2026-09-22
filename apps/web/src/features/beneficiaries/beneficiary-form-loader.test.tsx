@@ -1,0 +1,95 @@
+// @vitest-environment jsdom
+
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { afterEach, describe, expect, it, vi } from 'vitest'
+
+const { getBeneficiaryRecordForRole, getProjectsForRole } = vi.hoisted(() => ({
+  getBeneficiaryRecordForRole: vi.fn(),
+  getProjectsForRole: vi.fn(),
+}))
+
+vi.mock('next/link', () => ({
+  default: ({ children, href }: { children: React.ReactNode; href: string }) => (
+    <a href={href}>{children}</a>
+  ),
+}))
+
+vi.mock('@/hooks/use-current-role', () => ({
+  useCurrentRole: () => ({ role: 'Monitoring and Evaluation Officer' }),
+}))
+
+vi.mock('@/lib/services/pathways-client', () => ({
+  pathwaysClient: { getBeneficiaryRecordForRole, getProjectsForRole },
+  PathwaysClientError: class PathwaysClientError extends Error {
+    code: string
+    constructor(message: string, code: string) {
+      super(message)
+      this.code = code
+    }
+  },
+}))
+
+vi.mock('./beneficiary-form', () => ({
+  BeneficiaryForm: ({
+    beneficiary,
+    projects,
+  }: {
+    beneficiary?: { id: string }
+    projects: Array<{ id: string }>
+  }) => (
+    <div data-beneficiary-id={beneficiary?.id} data-testid="beneficiary-form">
+      {projects.length} project choices loaded
+    </div>
+  ),
+}))
+
+import { BeneficiaryFormLoader } from './beneficiary-form-loader'
+
+afterEach(() => {
+  cleanup()
+  vi.clearAllMocks()
+})
+
+describe('BeneficiaryFormLoader', () => {
+  it('keeps a request failure distinct from empty data and retries in place', async () => {
+    getProjectsForRole
+      .mockRejectedValueOnce(new Error('network unavailable'))
+      .mockResolvedValueOnce([{ id: 'project-1' }])
+
+    render(<BeneficiaryFormLoader />)
+
+    expect(await screen.findByText('Project choices unavailable')).toBeTruthy()
+    const retry = screen.getByRole('button', { name: 'Retry' })
+    expect(retry.hasAttribute('disabled')).toBe(false)
+    fireEvent.click(retry)
+
+    expect((await screen.findByTestId('beneficiary-form')).textContent).toBe(
+      '1 project choices loaded',
+    )
+    expect(getProjectsForRole).toHaveBeenCalledTimes(2)
+  })
+
+  it('shows the empty state only after a successful empty response', async () => {
+    getProjectsForRole.mockResolvedValueOnce([])
+
+    render(<BeneficiaryFormLoader />)
+
+    expect(await screen.findByText('No assigned projects available')).toBeTruthy()
+    expect(screen.queryByText('Project choices unavailable')).toBeNull()
+  })
+
+  it('loads the scoped existing profile for the edit form', async () => {
+    getProjectsForRole.mockResolvedValueOnce([{ id: 'project-1' }])
+    getBeneficiaryRecordForRole.mockResolvedValueOnce({ id: 'beneficiary-1' })
+
+    render(<BeneficiaryFormLoader beneficiaryId="beneficiary-1" />)
+
+    const form = await screen.findByTestId('beneficiary-form')
+    expect(form.getAttribute('data-beneficiary-id')).toBe('beneficiary-1')
+    expect(getBeneficiaryRecordForRole).toHaveBeenCalledWith(
+      'Monitoring and Evaluation Officer',
+      'project-1',
+      'beneficiary-1',
+    )
+  })
+})

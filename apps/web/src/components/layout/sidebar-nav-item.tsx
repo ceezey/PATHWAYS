@@ -22,10 +22,10 @@ export const SidebarNavItem = ({
     <Link
       aria-current={active ? 'page' : undefined}
       className={cn(
-        'group flex items-start gap-3 rounded-lg border px-3 py-3 text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70',
+        'group flex items-start gap-3 rounded-md border px-3 py-3 text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-navy',
         active
-          ? 'border-white/25 bg-white/20 text-white shadow-sm'
-          : 'border-transparent text-blue-50/80 hover:bg-white/10 hover:text-white',
+          ? 'border-primary bg-primary text-primary-foreground'
+          : 'border-transparent text-navy-muted hover:border-white/10 hover:bg-white/[0.08] hover:text-white',
         compact && 'justify-center px-2',
       )}
       href={item.href}

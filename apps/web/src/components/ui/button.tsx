@@ -5,21 +5,25 @@ import * as React from 'react'
 import { cn } from '@/lib/utils'
 
 const buttonVariants = cva(
-  'inline-flex items-center justify-center rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50',
+  'inline-flex shrink-0 items-center justify-center whitespace-nowrap rounded-md text-sm font-semibold transition-[background-color,border-color,color,box-shadow,transform] duration-150 ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background active:translate-y-px disabled:pointer-events-none disabled:translate-y-0 disabled:border-border disabled:bg-secondary disabled:text-disabled-foreground disabled:shadow-none',
   {
     variants: {
       variant: {
-        default: 'bg-primary text-primary-foreground hover:bg-primary/90',
-        secondary: 'bg-secondary text-secondary-foreground hover:bg-secondary/80',
-        outline: 'border border-input bg-background hover:bg-accent hover:text-accent-foreground',
-        ghost: 'hover:bg-accent hover:text-accent-foreground',
-        destructive: 'bg-destructive text-white hover:bg-destructive/90',
+        default:
+          'bg-primary text-primary-foreground hover:bg-primary-hover active:bg-primary-active',
+        secondary: 'bg-secondary text-secondary-foreground hover:bg-muted active:bg-border',
+        outline:
+          'border border-input bg-background text-foreground hover:bg-muted active:bg-secondary',
+        ghost:
+          'bg-transparent text-foreground hover:bg-primary-subtle hover:text-light-blue-foreground active:bg-secondary',
+        destructive:
+          'bg-danger text-danger-foreground hover:bg-danger-hover active:bg-danger-active',
       },
       size: {
-        default: 'h-10 px-4 py-2',
-        sm: 'h-9 rounded-md px-3',
+        default: 'h-11 px-4 py-2',
+        sm: 'h-10 rounded-md px-3',
         lg: 'h-11 rounded-md px-8',
-        icon: 'h-10 w-10',
+        icon: 'h-11 w-11',
       },
     },
     defaultVariants: {

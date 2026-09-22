@@ -6,12 +6,12 @@ import type { PathwaysRole } from '@/types/pathways-role'
 
 export type UserStatusFilter = 'All' | UserAccountStatus
 
-export interface RoleSummary {
+export interface PathwaysRoleSummary {
   role: PathwaysRole
   description: string
 }
 
-export const roleSummaries: RoleSummary[] = [
+export const roleSummaries: PathwaysRoleSummary[] = [
   {
     role: 'Program Manager',
     description: 'Executive portfolio review, progress signals, and goal-achievement oversight.',
@@ -35,7 +35,7 @@ export const roleSummaries: RoleSummary[] = [
   },
   {
     role: 'System Administrator',
-    description: 'System configuration, user records, labels, and future integration setup.',
+    description: 'System configuration, user records, labels, and administrative access.',
   },
 ]
 
@@ -123,7 +123,7 @@ export const getUserAdministrationSummary = (actorRole: PathwaysRole) => {
   }
 
   if (actorRole === 'System Administrator') {
-    return 'You can create and authorize every supported role and configure relevant project assignments.'
+    return 'You can create and authorize every supported role and configure project assignments.'
   }
 
   return `You can create and authorize ${roles.join(' and ')} accounts within your permitted project scope.`
@@ -132,7 +132,6 @@ export const getUserAdministrationSummary = (actorRole: PathwaysRole) => {
 export const userAccountStatusTone = (status: UserAccountStatus) => {
   if (status === 'Active') return 'success' as const
   if (status === 'Invited') return 'info' as const
-  if (status === 'Suspended') return 'warning' as const
   return 'neutral' as const
 }
 

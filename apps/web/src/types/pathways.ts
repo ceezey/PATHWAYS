@@ -21,6 +21,7 @@ export type DashboardActionKind = 'dialog' | 'navigate' | 'toast'
 
 export interface ProjectSummary {
   metricsAvailable?: boolean
+  targetBeneficiaries?: number
   id: string
   code?: string
   title: string
@@ -127,11 +128,21 @@ export interface ActivityProof {
   id: string
   updateId: string
   fileName: string
+  /** Unsaved browser file previews; persisted proof is read from the API. */
+  files?: ActivityProofFile[]
+  fileNames?: string[]
   status: 'Submitted' | 'Flagged' | 'Accepted'
   submittedAt: string
   submittedBy: string
   updateUpdatedAt: string
   note?: string
+}
+
+export interface ActivityProofFile {
+  id: string
+  name: string
+  type: string
+  size: number
 }
 
 export interface ActivityUpdateNote {
@@ -153,18 +164,12 @@ export interface CreateActivityInput {
   description: string
   startDate: string
   dueDate: string
-  targetBeneficiaries: number
-  budgetAllocation: number
   assignedUserIds: string[]
 }
 
 export interface UpdateActivityInput extends CreateActivityInput {
   id: string
   expectedUpdatedAt: string
-  status: ActivityStatus
-  progress: number
-  beneficiariesReached: number
-  budgetLogged: number
 }
 
 export interface SubmitActivityProofInput {

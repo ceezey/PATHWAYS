@@ -35,6 +35,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import { Textarea } from '@/components/ui/textarea'
 import type {
   Activity,
   BeneficiaryMediaProofRecord,
@@ -49,17 +50,12 @@ import {
   formatMediaDuration,
   formatMediaFileSize,
   isSupportedBeneficiaryMedia,
+  parseMediaTags,
 } from './beneficiary-media-utils'
 import { formatDate, projectTitle } from './beneficiary-utils'
 
 type MediaProofWithPreview = BeneficiaryMediaProofRecord & {
   previewUrl?: string
-}
-
-type LocalFilePreview = {
-  file: File
-  mediaType: BeneficiaryMediaType
-  previewUrl: string
 }
 
 type MediaFilter = 'All' | BeneficiaryMediaType
@@ -69,20 +65,23 @@ const maxLocalFileSize = 50_000_000
 
 export const BeneficiaryMediaProof = ({
   activities,
+  beneficiaryId,
+  canManage = true,
   mediaProof,
+  projectIds,
   projects,
 }: {
   activities: Activity[]
   beneficiaryId: string
+  canManage?: boolean
   mediaProof: BeneficiaryMediaProofRecord[]
   projectIds: string[]
   projects: ProjectSummary[]
 }) => {
-  const mediaItems: MediaProofWithPreview[] = mediaProof
+  const [mediaItems, setMediaItems] = useState<MediaProofWithPreview[]>(mediaProof)
   const [filter, setFilter] = useState<MediaFilter>('All')
   const [addOpen, setAddOpen] = useState(false)
   const [selectedFiles, setSelectedFiles] = useState<File[]>([])
-  const [selectedFilePreviews, setSelectedFilePreviews] = useState<LocalFilePreview[]>([])
   const [capturedAt, setCapturedAt] = useState(new Date().toISOString().slice(0, 10))
   const [activityId, setActivityId] = useState(activities[0]?.id ?? 'none')
   const [note, setNote] = useState('')
@@ -92,15 +91,6 @@ export const BeneficiaryMediaProof = ({
   const [reviewStatus, setReviewStatus] = useState<BeneficiaryMediaReviewStatus>('For Review')
   const [reviewNote, setReviewNote] = useState('')
   const objectUrls = useRef<string[]>([])
-
-  const clearLocalPreviews = () => {
-    for (const url of objectUrls.current) {
-      URL.revokeObjectURL(url)
-    }
-
-    objectUrls.current = []
-    setSelectedFilePreviews([])
-  }
 
   useEffect(
     () => () => {
@@ -118,7 +108,6 @@ export const BeneficiaryMediaProof = ({
   const reviewCount = mediaItems.filter((item) => item.reviewStatus === 'For Review').length
 
   const openAddDialog = () => {
-    clearLocalPreviews()
     setSelectedFiles([])
     setCapturedAt(new Date().toISOString().slice(0, 10))
     setActivityId(activities[0]?.id ?? 'none')
@@ -129,8 +118,6 @@ export const BeneficiaryMediaProof = ({
   }
 
   const selectLocalFiles = (files: File[]) => {
-    clearLocalPreviews()
-
     if (files.length > maxLocalFiles) {
       setSelectedFiles([])
       setAddError(`Choose up to ${maxLocalFiles} photo or video files at a time.`)
@@ -139,35 +126,23 @@ export const BeneficiaryMediaProof = ({
 
     if (files.some((file) => !isSupportedBeneficiaryMedia(file.type))) {
       setSelectedFiles([])
-      setAddError('Use JPG, PNG, or MP4 files for the staged preview.')
+      setAddError('Use JPG, PNG, or MP4 files.')
       return
     }
 
     if (files.some((file) => file.size > maxLocalFileSize)) {
       setSelectedFiles([])
-      setAddError('Each staged file must be 50 MB or smaller.')
+      setAddError('Each selected file must be 50 MB or smaller.')
       return
     }
 
     setSelectedFiles(files)
-    const previews = files.flatMap<LocalFilePreview>((file) => {
-      const mediaType = beneficiaryMediaTypeFromMime(file.type)
-
-      if (!mediaType) {
-        return []
-      }
-
-      const previewUrl = URL.createObjectURL(file)
-      objectUrls.current.push(previewUrl)
-      return [{ file, mediaType, previewUrl }]
-    })
-    setSelectedFilePreviews(previews)
     setAddError('')
   }
 
   const addLocalMedia = () => {
     if (selectedFiles.length === 0) {
-      setAddError('Choose at least one photo or video to stage.')
+      setAddError('Choose at least one photo or video.')
       return
     }
 
@@ -176,9 +151,51 @@ export const BeneficiaryMediaProof = ({
       return
     }
 
-    toast.error('Media was not uploaded.', {
-      description: 'The beneficiary media backend is not configured. Selected files remain staged.',
-    })
+    const now = new Date()
+    const parsedTags = parseMediaTags(tags)
+    const localItems = selectedFiles.reduce<MediaProofWithPreview[]>((items, file, index) => {
+      const mediaType = beneficiaryMediaTypeFromMime(file.type)
+
+      if (!mediaType) {
+        return items
+      }
+
+      const previewUrl = URL.createObjectURL(file)
+      objectUrls.current.push(previewUrl)
+      items.push({
+        id: `media-local-${now.getTime()}-${index}`,
+        beneficiaryId,
+        projectId:
+          activities.find((activity) => activity.id === activityId)?.projectId ??
+          projectIds[0] ??
+          '',
+        activityId: activityId === 'none' ? undefined : activityId,
+        mediaType,
+        fileName: file.name,
+        mimeType: file.type,
+        fileSizeBytes: file.size,
+        capturedAt,
+        addedAt: now.toISOString().slice(0, 10),
+        addedBy: 'Staff user',
+        note: note.trim() || undefined,
+        tags: parsedTags,
+        reviewStatus: 'For Review',
+        source: 'Local preview',
+        previewUrl,
+      })
+
+      return items
+    }, [])
+
+    setMediaItems((current) => [...localItems, ...current])
+    setFilter('All')
+    setAddOpen(false)
+    toast.success(
+      `${localItems.length} media preview${localItems.length === 1 ? '' : 's'} added.`,
+      {
+        description: 'Selected files are unsaved local previews only.',
+      },
+    )
   }
 
   const openReview = (item: MediaProofWithPreview) => {
@@ -192,44 +209,40 @@ export const BeneficiaryMediaProof = ({
       return
     }
 
-    toast.error('Media review was not saved.', {
-      description: 'The beneficiary media backend is not configured. Your review draft remains.',
-    })
+    toast.error(
+      'Media review is unavailable until a server-backed review endpoint is available. No status was saved.',
+    )
   }
 
   return (
     <section
       aria-labelledby="beneficiary-media-title"
-      className="overflow-hidden rounded-lg border border-border bg-card shadow-sm"
+      className="overflow-hidden rounded-lg border border-border bg-card"
     >
-      <div className="border-b border-border bg-muted/30 p-5">
+      <div className="border-b border-border bg-surface-subtle p-5">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
           <div className="space-y-2">
-            <div className="flex flex-wrap items-center gap-2">
-              <p className="text-xs font-semibold uppercase tracking-wide text-primary">
-                Beneficiary evidence
-              </p>
-              <StatusBadge tone="warning">Backend not configured</StatusBadge>
-            </div>
+            <p className="text-xs font-semibold uppercase tracking-wide text-primary">
+              Beneficiary evidence
+            </p>
             <h2 className="text-xl font-semibold text-foreground" id="beneficiary-media-title">
               Media proof
             </h2>
-            <p className="max-w-3xl text-sm leading-6 text-muted-foreground">
-              Review photos and videos connected to this beneficiary record, or stage local files
-              for a future upload integration.
+            <p className="max-w-3xl text-base leading-6 text-muted-foreground">
+              Review photos and videos connected to this beneficiary record. Media remains private
+              to authorized staff.
             </p>
           </div>
-          <Button className="w-full gap-2 sm:w-auto" onClick={openAddDialog} type="button">
-            <UploadCloud className="h-4 w-4" aria-hidden="true" />
-            Stage media files
-          </Button>
+          {canManage ? (
+            <Button className="w-full gap-2 sm:w-auto" onClick={openAddDialog} type="button">
+              <UploadCloud className="h-4 w-4" aria-hidden="true" />
+              Add media
+            </Button>
+          ) : null}
         </div>
-        <div className="mt-4 flex items-start gap-3 rounded-lg border border-info/20 bg-info/10 p-3 text-xs leading-5 text-info">
+        <div className="mt-4 flex items-start gap-3 rounded-sm border border-info/25 bg-info-subtle p-3 text-xs leading-5 text-info">
           <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
-          <p>
-            Files selected here are previewed with temporary browser blob URLs. They are not added
-            to the record, uploaded, synced, or published.
-          </p>
+          <p>Selected files are review-only and are not published.</p>
         </div>
       </div>
 
@@ -263,6 +276,7 @@ export const BeneficiaryMediaProof = ({
             {visibleMedia.map((item) => (
               <MediaProofCard
                 activities={activities}
+                canManage={canManage}
                 item={item}
                 key={item.id}
                 onReview={() => openReview(item)}
@@ -273,34 +287,25 @@ export const BeneficiaryMediaProof = ({
         ) : (
           <EmptyState
             action={
-              <Button onClick={openAddDialog} type="button" variant="outline">
-                Stage media files
-              </Button>
+              canManage ? (
+                <Button onClick={openAddDialog} type="button" variant="outline">
+                  Add media
+                </Button>
+              ) : undefined
             }
-            description={`No ${filter.toLowerCase()} records were returned. You can stage a local file preview without adding it to this beneficiary record.`}
+            description={`Add a ${filter.toLowerCase()} to this beneficiary record.`}
             icon={filter === 'Video' ? Video : Camera}
             title={`No ${filter.toLowerCase()} proof items`}
           />
         )}
       </div>
 
-      <Dialog
-        onOpenChange={(open) => {
-          setAddOpen(open)
-
-          if (!open) {
-            clearLocalPreviews()
-            setSelectedFiles([])
-          }
-        }}
-        open={addOpen}
-      >
+      <Dialog onOpenChange={setAddOpen} open={addOpen}>
         <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl">
           <DialogHeader>
-            <DialogTitle>Stage media files</DialogTitle>
+            <DialogTitle>Add media</DialogTitle>
             <DialogDescription>
-              Choose photos or videos to inspect before upload. Files remain only in this dialog and
-              are not added to the beneficiary record.
+              Choose photos or videos for beneficiary evidence review.
             </DialogDescription>
           </DialogHeader>
 
@@ -315,42 +320,22 @@ export const BeneficiaryMediaProof = ({
                 type="file"
               />
               <p className="text-xs leading-5 text-muted-foreground">
-                JPG, PNG, or MP4 · up to four files · 50 MB per local preview.
+                JPG, PNG, or MP4 Â· up to four files Â· 50 MB per file.
               </p>
             </div>
 
             {selectedFiles.length > 0 ? (
-              <div className="space-y-2 rounded-lg border border-border bg-background p-3">
-                <p className="text-sm font-medium text-foreground">Staged file previews</p>
-                <div className="grid gap-3 sm:grid-cols-2">
-                  {selectedFilePreviews.map(({ file, mediaType, previewUrl }) => (
-                    <div
-                      className="overflow-hidden rounded-md border border-border"
-                      key={previewUrl}
-                    >
-                      {mediaType === 'Photo' ? (
-                        <img
-                          alt={`Staged preview: ${file.name}`}
-                          className="aspect-video w-full object-cover"
-                          src={previewUrl}
-                        />
-                      ) : (
-                        <video
-                          aria-label={`Staged video preview: ${file.name}`}
-                          className="aspect-video w-full bg-slate-950 object-contain"
-                          controls
-                          muted
-                          preload="metadata"
-                          src={previewUrl}
-                        />
-                      )}
-                      <div className="flex items-center justify-between gap-3 p-2 text-xs text-muted-foreground">
-                        <span className="min-w-0 truncate">{file.name}</span>
-                        <span className="shrink-0">{formatMediaFileSize(file.size)}</span>
-                      </div>
-                    </div>
-                  ))}
-                </div>
+              <div className="space-y-2 rounded-sm border border-border bg-surface-subtle p-3">
+                <p className="text-sm font-medium text-foreground">Selected files</p>
+                {selectedFiles.map((file) => (
+                  <div
+                    className="flex items-center justify-between gap-3 text-sm text-muted-foreground"
+                    key={`${file.name}-${file.size}`}
+                  >
+                    <span className="min-w-0 truncate">{file.name}</span>
+                    <span className="shrink-0">{formatMediaFileSize(file.size)}</span>
+                  </div>
+                ))}
               </div>
             ) : null}
 
@@ -384,8 +369,7 @@ export const BeneficiaryMediaProof = ({
 
             <div className="space-y-2">
               <Label htmlFor="beneficiary-media-note">Evidence note (optional)</Label>
-              <textarea
-                className="min-h-24 w-full resize-y rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              <Textarea
                 id="beneficiary-media-note"
                 maxLength={320}
                 onChange={(event) => setNote(event.target.value)}
@@ -419,7 +403,7 @@ export const BeneficiaryMediaProof = ({
             </Button>
             <Button className="gap-2" onClick={addLocalMedia} type="button">
               <UploadCloud className="h-4 w-4" aria-hidden="true" />
-              Attempt upload
+              Add to record
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -438,7 +422,7 @@ export const BeneficiaryMediaProof = ({
             <DialogHeader>
               <DialogTitle>Review media proof</DialogTitle>
               <DialogDescription>
-                Review {selectedMedia.fileName}. Saving requires the beneficiary media backend.
+                Review {selectedMedia.fileName} and record its status and notes.
               </DialogDescription>
             </DialogHeader>
 
@@ -447,7 +431,7 @@ export const BeneficiaryMediaProof = ({
             <div className="grid gap-3 sm:grid-cols-2">
               <MetadataRow
                 label="File type"
-                value={`${selectedMedia.mediaType} · ${selectedMedia.mimeType}`}
+                value={`${selectedMedia.mediaType} Â· ${selectedMedia.mimeType}`}
               />
               <MetadataRow
                 label="File size"
@@ -476,8 +460,7 @@ export const BeneficiaryMediaProof = ({
 
             <div className="space-y-2">
               <Label htmlFor="beneficiary-media-review-note">Review note (optional)</Label>
-              <textarea
-                className="min-h-24 w-full resize-y rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              <Textarea
                 id="beneficiary-media-review-note"
                 maxLength={320}
                 onChange={(event) => setReviewNote(event.target.value)}
@@ -502,11 +485,13 @@ export const BeneficiaryMediaProof = ({
 
 const MediaProofCard = ({
   activities,
+  canManage,
   item,
   onReview,
   projects,
 }: {
   activities: Activity[]
+  canManage: boolean
   item: MediaProofWithPreview
   onReview: () => void
   projects: ProjectSummary[]
@@ -517,7 +502,7 @@ const MediaProofCard = ({
   return (
     <article
       aria-label={`Media proof: ${item.fileName}`}
-      className="flex min-w-0 flex-col overflow-hidden rounded-lg border border-border bg-background"
+      className="flex min-w-0 flex-col overflow-hidden rounded-sm border border-border bg-background"
     >
       <MediaPreview item={item} />
       <div className="flex flex-1 flex-col p-4">
@@ -525,8 +510,8 @@ const MediaProofCard = ({
           <div className="min-w-0">
             <p className="break-words font-medium leading-6 text-foreground">{item.fileName}</p>
             <p className="mt-1 text-xs text-muted-foreground">
-              {item.mediaType} · {formatMediaFileSize(item.fileSizeBytes)}
-              {duration ? ` · ${duration}` : ''}
+              {item.mediaType} Â· {formatMediaFileSize(item.fileSizeBytes)}
+              {duration ? ` Â· ${duration}` : ''}
             </p>
           </div>
           <StatusBadge tone={beneficiaryMediaReviewTone(item.reviewStatus)}>
@@ -542,7 +527,7 @@ const MediaProofCard = ({
           <div className="mt-3 flex flex-wrap gap-1.5">
             {item.tags.map((tag) => (
               <span
-                className="rounded-full border border-border bg-muted/40 px-2 py-1 text-[11px] font-medium text-muted-foreground"
+                className="rounded-full border border-border bg-muted/40 px-2 py-1 text-xs font-medium text-muted-foreground"
                 key={tag}
               >
                 {tag}
@@ -558,7 +543,8 @@ const MediaProofCard = ({
           </p>
           <p className="flex items-center gap-2">
             <HardDrive className="h-3.5 w-3.5" aria-hidden="true" />
-            {item.source} · {projectTitle(item.projectId, projects)}
+            {item.source === 'Stored media' ? 'Stored media' : 'Session media'} Â·{' '}
+            {projectTitle(item.projectId, projects)}
           </p>
           {activity ? (
             <p className="flex items-start gap-2">
@@ -570,16 +556,18 @@ const MediaProofCard = ({
 
         <div className="mt-auto flex items-center justify-between gap-3 pt-4">
           <p className="min-w-0 truncate text-xs text-muted-foreground">Added by {item.addedBy}</p>
-          <Button
-            aria-label={`Review ${item.fileName}`}
-            className="shrink-0"
-            onClick={onReview}
-            size="sm"
-            type="button"
-            variant="outline"
-          >
-            Review
-          </Button>
+          {canManage ? (
+            <Button
+              aria-label={`Review ${item.fileName}`}
+              className="shrink-0"
+              onClick={onReview}
+              size="sm"
+              type="button"
+              variant="outline"
+            >
+              Review
+            </Button>
+          ) : null}
         </div>
       </div>
     </article>
@@ -595,9 +583,9 @@ const MediaPreview = ({
   if (item.previewUrl && item.mediaType === 'Photo') {
     return (
       <div className={previewClassName}>
-        {/* Object URLs for selected files cannot use the Next.js image optimizer. */}
+        {/* Blob URLs are browser-local and cannot use the Next.js image optimizer. */}
         <img
-          alt={`Local proof preview: ${item.fileName}`}
+          alt={`Selected proof preview: ${item.fileName}`}
           className="h-full w-full object-cover"
           src={item.previewUrl}
         />
@@ -608,7 +596,7 @@ const MediaPreview = ({
   if (item.previewUrl && item.mediaType === 'Video') {
     return (
       <video
-        aria-label={`Local video proof preview: ${item.fileName}`}
+        aria-label={`Selected video proof preview: ${item.fileName}`}
         className={`${previewClassName} w-full bg-slate-950 object-contain`}
         controls
         muted
@@ -620,9 +608,8 @@ const MediaPreview = ({
 
   return (
     <div
-      className={`${previewClassName} relative flex items-center justify-center overflow-hidden bg-[linear-gradient(135deg,#0f766e,#1d4ed8)] text-white`}
+      className={`${previewClassName} relative flex items-center justify-center overflow-hidden bg-navy text-navy-foreground`}
     >
-      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(255,255,255,0.28),transparent_42%)]" />
       <div className="relative flex flex-col items-center gap-3 text-center">
         {item.mediaType === 'Video' ? (
           <span className="flex h-14 w-14 items-center justify-center rounded-full border border-white/30 bg-slate-950/35">
@@ -633,11 +620,11 @@ const MediaPreview = ({
         )}
         <div>
           <p className="text-sm font-semibold">{item.mediaType} preview unavailable</p>
-          <p className="mt-1 text-xs text-white/80">No retrievable media URL was provided</p>
+          <p className="mt-1 text-xs text-white/80">No file is available for this record</p>
         </div>
       </div>
-      <span className="absolute left-3 top-3 rounded-full border border-white/30 bg-slate-950/30 px-2 py-1 text-[10px] font-semibold uppercase tracking-wide">
-        Metadata only
+      <span className="absolute left-3 top-3 rounded-full border border-white/30 bg-slate-950/30 px-2 py-1 text-xs font-semibold uppercase tracking-wide">
+        Reference media
       </span>
     </div>
   )
@@ -657,14 +644,14 @@ const MediaKpi = ({
       <p className="text-sm font-medium text-muted-foreground">{label}</p>
       <p className="mt-1 text-2xl font-semibold text-foreground">{value}</p>
     </div>
-    <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10 text-primary">
+    <span className="flex h-9 w-9 items-center justify-center rounded-sm bg-primary-subtle text-primary">
       <Icon className="h-4 w-4" aria-hidden="true" />
     </span>
   </article>
 )
 
 const MetadataRow = ({ label, value }: { label: string; value: string }) => (
-  <div className="rounded-lg border border-border bg-background p-3">
+  <div className="rounded-sm border border-border bg-surface-subtle p-3">
     <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{label}</p>
     <p className="mt-1 break-words text-sm font-medium text-foreground">{value}</p>
   </div>

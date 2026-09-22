@@ -1,23 +1,13 @@
 'use client'
 
-import { AlertTriangle, ExternalLink, Loader2 } from 'lucide-react'
-import Link from 'next/link'
+import { AlertTriangle, CheckCircle2, Loader2 } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { toast } from 'sonner'
 
-import { EmptyState } from '@/components/pathways/empty-state'
+import { PageHeader } from '@/components/layout/page-header'
+import { AsyncState, StatusMessage } from '@/components/pathways'
 import { StatusBadge } from '@/components/pathways/status-badge'
 import { Button } from '@/components/ui/button'
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
 import {
   Select,
   SelectContent,
@@ -27,6 +17,7 @@ import {
 } from '@/components/ui/select'
 import { useCurrentRole } from '@/hooks/use-current-role'
 import { useDisplayLabels } from '@/hooks/use-display-labels'
+import { useSafeProjectSelection } from '@/hooks/use-safe-project-selection'
 import { pathwaysClient } from '@/lib/services/pathways-client'
 import type {
   AlertLifecycleStatus,
@@ -36,22 +27,11 @@ import type {
   RuleDefinition,
 } from '@/types/pathways'
 
-import {
-  alertSeverityTone,
-  formatDate,
-  humanReviewDisclaimer,
-  lifecycleTone,
-} from './analytics-utils'
+import { alertSeverityTone, formatDate, lifecycleTone } from './analytics-utils'
 
 const allValue = 'all'
-const lifecycleStatuses: AlertLifecycleStatus[] = [
-  'New',
-  'Reviewed',
-  'Actioned',
-  'Resolved',
-  'Dismissed',
-  'Auto-resolved',
-]
+const lifecycleStatuses: AlertLifecycleStatus[] = ['New', 'Reviewed']
+const isActiveAlert = (alert: AlertRecord) => lifecycleStatuses.includes(alert.lifecycleStatus)
 
 type AlertsWorkspaceProps = {
   initialAlerts: AlertRecord[]
@@ -62,22 +42,18 @@ type AlertsWorkspaceProps = {
 
 type AlertsWorkspaceData = AlertsWorkspaceProps & { role: string }
 
-export const AlertsWorkspace = () => {
+export const AlertsWorkspace = ({ initialAlertId }: { initialAlertId?: string }) => {
   const { role } = useCurrentRole()
   const [data, setData] = useState<AlertsWorkspaceData | null>(null)
   const [status, setStatus] = useState<'loading' | 'ready' | 'error'>('loading')
+  const [loadAttempt, setLoadAttempt] = useState(0)
 
   useEffect(() => {
+    if (!role) return
+    void loadAttempt
     let active = true
     setStatus('loading')
     setData(null)
-
-    if (!role) {
-      setStatus('error')
-      return () => {
-        active = false
-      }
-    }
 
     Promise.all([
       pathwaysClient.getAlertsForRole(role),
@@ -98,63 +74,67 @@ export const AlertsWorkspace = () => {
     return () => {
       active = false
     }
-  }, [role])
-
-  if (!role) {
-    return (
-      <EmptyState
-        className="min-h-80 rounded-lg border border-border bg-card"
-        description="A verified staff identity and role are required to load scoped alerts."
-        icon={AlertTriangle}
-        title="Alerts access unavailable"
-      />
-    )
-  }
+  }, [loadAttempt, role])
 
   if (status === 'loading') {
     return (
-      <div className="flex min-h-80 items-center justify-center rounded-lg border border-border bg-card">
-        <div className="flex items-center gap-3 text-sm text-muted-foreground">
-          <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
-          Loading scoped alerts...
-        </div>
-      </div>
+      <AsyncState
+        className="min-h-80 rounded-lg border border-border bg-card"
+        description="Loading the alert queue available to the current role."
+        icon={Loader2}
+        status="loading"
+        title="Loading scoped alerts"
+      />
     )
   }
 
   if (status === 'error' || !data) {
     return (
-      <EmptyState
+      <AsyncState
         className="min-h-80 rounded-lg border border-border bg-card"
-        description="The role-scoped alert queue could not be loaded. Reload this page to try again."
+        description="The role-scoped alert queue could not be loaded. Check your connection and try again."
         icon={AlertTriangle}
+        onRetry={() => setLoadAttempt((attempt) => attempt + 1)}
+        status="error"
         title="Alerts unavailable"
       />
     )
   }
 
-  return <AlertsWorkspaceContent key={data.role} {...data} />
+  return (
+    <>
+      <StatusMessage>Alert queue loaded.</StatusMessage>
+      <AlertsWorkspaceContent initialAlertId={initialAlertId} key={data.role} {...data} />
+    </>
+  )
 }
 
 const AlertsWorkspaceContent = ({
+  initialAlertId,
   initialAlerts,
   projects,
   recommendations,
   rules,
-}: AlertsWorkspaceProps) => {
+}: AlertsWorkspaceProps & { initialAlertId?: string }) => {
   const { labels } = useDisplayLabels()
-  const alerts = initialAlerts
-  const [projectId, setProjectId] = useState(allValue)
+  const [alerts, setAlerts] = useState(initialAlerts)
+  const requestedAlert = initialAlerts.find(
+    (alert) => alert.id === initialAlertId && isActiveAlert(alert),
+  )
+  const [projectId, setProjectId] = useSafeProjectSelection(
+    projects.map((project) => project.id),
+    requestedAlert?.projectId,
+  )
   const [status, setStatus] = useState(allValue)
-  const [selectedAlertId, setSelectedAlertId] = useState(initialAlerts[0]?.id ?? '')
-  const [reviewOpen, setReviewOpen] = useState(false)
-  const [reviewStatus, setReviewStatus] = useState<AlertLifecycleStatus>('Reviewed')
-  const [actionNote, setActionNote] = useState('')
+  const [selectedAlertId, setSelectedAlertId] = useState(
+    requestedAlert?.id ?? initialAlerts.find(isActiveAlert)?.id ?? '',
+  )
 
   const filteredAlerts = useMemo(
     () =>
       alerts.filter((alert) => {
-        const matchesProject = projectId === allValue ? true : alert.projectId === projectId
+        if (!isActiveAlert(alert)) return false
+        const matchesProject = alert.projectId === projectId
         const matchesStatus = status === allValue ? true : alert.lifecycleStatus === status
 
         return matchesProject && matchesStatus
@@ -168,34 +148,21 @@ const AlertsWorkspaceContent = ({
   )
   const selectedRule = rules.find((rule) => rule.id === selectedAlert?.ruleId)
 
-  const updateAlert = () => {
-    setReviewOpen(false)
-    toast.error('Alert review is not configured.', {
-      description: 'Connect the alert lifecycle backend before saving review decisions.',
-    })
+  const markReviewed = () => {
+    if (!selectedAlert) return
+    toast.error('Alert review is unavailable until a server-backed alert service is available.')
   }
 
   return (
     <div className="space-y-6">
-      <section className="flex flex-col gap-4 rounded-lg border border-border bg-card p-5 shadow-sm lg:flex-row lg:items-start lg:justify-between">
-        <div className="space-y-2">
-          <StatusBadge tone="warning">Human review required</StatusBadge>
-          <div>
-            <h1 className="text-3xl font-semibold tracking-tight text-foreground">
-              {labels.moduleAlerts}
-            </h1>
-            <p className="mt-2 max-w-3xl text-sm leading-6 text-muted-foreground">
-              Review rule-triggered alerts by severity, project, category, lifecycle status, and
-              related project record. No autonomous action is taken.
-            </p>
-          </div>
-        </div>
-        <Button asChild>
-          <Link href="/recommendations">{labels.moduleRecommendations}</Link>
-        </Button>
-      </section>
+      <PageHeader
+        editableLabelKey="moduleAlerts"
+        description="Review rule-triggered alerts by severity, project, category, lifecycle status, and related project record. No autonomous action is taken."
+        eyebrow="Human review required"
+        title={labels.moduleAlerts}
+      />
 
-      <section className="grid gap-3 rounded-lg border border-border bg-card p-5 shadow-sm md:grid-cols-3">
+      <section className="grid gap-4 rounded-lg border border-border bg-card p-5 md:grid-cols-2">
         <div className="space-y-2">
           <span className="text-sm font-medium">Project</span>
           <Select value={projectId} onValueChange={setProjectId}>
@@ -203,7 +170,6 @@ const AlertsWorkspaceContent = ({
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value={allValue}>All projects</SelectItem>
               {projects.map((project) => (
                 <SelectItem key={project.id} value={project.id}>
                   {project.title}
@@ -219,7 +185,7 @@ const AlertsWorkspaceContent = ({
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value={allValue}>All statuses</SelectItem>
+              <SelectItem value={allValue}>All active statuses</SelectItem>
               {lifecycleStatuses.map((item) => (
                 <SelectItem key={item} value={item}>
                   {item}
@@ -228,22 +194,20 @@ const AlertsWorkspaceContent = ({
             </SelectContent>
           </Select>
         </div>
-        <div className="rounded-lg border border-info/20 bg-info/10 p-3 text-sm leading-6 text-info">
-          {humanReviewDisclaimer}
-        </div>
       </section>
 
       <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_420px]">
-        <section className="space-y-3 rounded-lg border border-border bg-card p-5 shadow-sm">
+        <section className="space-y-3 rounded-lg border border-border bg-card p-5">
           <h2 className="text-lg font-semibold text-foreground">Alert queue</h2>
           {filteredAlerts.length > 0 ? (
             filteredAlerts.map((alert) => (
               <button
+                aria-pressed={alert.id === selectedAlert?.id}
                 key={alert.id}
-                className={`w-full rounded-lg border p-4 text-left transition-colors ${
+                className={`w-full rounded-sm border p-4 text-left transition-colors ${
                   alert.id === selectedAlert?.id
-                    ? 'border-primary bg-primary/10'
-                    : 'border-border bg-background hover:bg-muted/60'
+                    ? 'border-primary bg-primary-subtle'
+                    : 'border-border bg-background hover:bg-surface-subtle'
                 }`}
                 type="button"
                 onClick={() => setSelectedAlertId(alert.id)}
@@ -257,6 +221,12 @@ const AlertsWorkspaceContent = ({
                     </p>
                   </div>
                   <div className="flex flex-wrap gap-2">
+                    {alert.id === selectedAlert?.id ? (
+                      <span className="inline-flex items-center gap-1 text-xs font-semibold text-foreground">
+                        <CheckCircle2 className="h-4 w-4" aria-hidden="true" />
+                        Selected
+                      </span>
+                    ) : null}
                     <StatusBadge tone={alertSeverityTone(alert.severity)}>
                       {alert.severity}
                     </StatusBadge>
@@ -269,13 +239,13 @@ const AlertsWorkspaceContent = ({
               </button>
             ))
           ) : (
-            <p className="rounded-lg border border-border bg-background p-4 text-sm text-muted-foreground">
+            <p className="rounded-sm border border-border bg-surface-subtle p-4 text-sm text-muted-foreground">
               No alerts match the current filters.
             </p>
           )}
         </section>
 
-        <aside className="space-y-4 rounded-lg border border-border bg-card p-5 shadow-sm">
+        <aside className="space-y-4 rounded-lg border border-border bg-card p-5">
           {selectedAlert ? (
             <>
               <div className="flex items-start justify-between gap-3">
@@ -295,7 +265,7 @@ const AlertsWorkspaceContent = ({
                   {selectedAlert.lifecycleStatus}
                 </StatusBadge>
               </div>
-              <div className="rounded-lg border border-border bg-background p-4 text-sm">
+              <div className="rounded-sm border border-border bg-surface-subtle p-4 text-sm">
                 <p className="font-medium text-foreground">{selectedAlert.title}</p>
                 <dl className="mt-4 grid gap-3">
                   <InfoRow label="Created" value={formatDate(selectedAlert.createdAt)} />
@@ -309,7 +279,7 @@ const AlertsWorkspaceContent = ({
                   <InfoRow label="Rule" value={selectedRule?.name ?? selectedAlert.ruleId} />
                 </dl>
               </div>
-              <div className="rounded-lg border border-info/20 bg-info/10 p-4 text-sm leading-6 text-info">
+              <div className="rounded-sm border border-info/25 bg-info-subtle p-4 text-sm leading-6 text-info">
                 {selectedRecommendation ? (
                   <>
                     <p className="font-medium">Recommended action</p>
@@ -321,84 +291,19 @@ const AlertsWorkspaceContent = ({
                 )}
               </div>
               {selectedAlert.actionNote ? (
-                <p className="rounded-lg border border-border bg-muted/40 p-3 text-sm leading-6">
+                <p className="rounded-sm border border-border bg-surface-subtle p-3 text-sm leading-6">
                   {selectedAlert.actionNote}
                 </p>
               ) : null}
-              <div className="flex flex-wrap gap-2">
-                <Button
-                  variant="outline"
-                  onClick={() => {
-                    setReviewStatus('Reviewed')
-                    setActionNote(selectedAlert.actionNote ?? '')
-                    setReviewOpen(true)
-                  }}
-                >
-                  Review action
-                </Button>
-                {selectedRecommendation ? (
-                  <Button asChild>
-                    <Link href={`/recommendations?recommendation=${selectedRecommendation.id}`}>
-                      <ExternalLink className="mr-2 h-4 w-4" aria-hidden="true" />
-                      View recommended action
-                    </Link>
-                  </Button>
-                ) : null}
-              </div>
+              {selectedAlert.lifecycleStatus === 'New' ? (
+                <Button onClick={markReviewed}>Mark as reviewed</Button>
+              ) : null}
             </>
           ) : (
             <p className="text-sm text-muted-foreground">Select an alert to review.</p>
           )}
         </aside>
       </div>
-
-      <Dialog open={reviewOpen} onOpenChange={setReviewOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Review alert lifecycle</DialogTitle>
-            <DialogDescription>
-              Alert review persistence is not configured yet. Your entry will not be saved.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="alert-review-status">Review status</Label>
-              <Select
-                value={reviewStatus}
-                onValueChange={(value) => setReviewStatus(value as AlertLifecycleStatus)}
-              >
-                <SelectTrigger id="alert-review-status">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {lifecycleStatuses.map((item) => (
-                    <SelectItem key={item} value={item}>
-                      {item}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="alert-action-note">Action note</Label>
-              <Input
-                id="alert-action-note"
-                placeholder="Add an action note"
-                value={actionNote}
-                onChange={(event) => setActionNote(event.target.value)}
-              />
-            </div>
-          </div>
-          <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => setReviewOpen(false)}>
-              Cancel
-            </Button>
-            <Button onClick={updateAlert} type="button">
-              Save review
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </div>
   )
 }
