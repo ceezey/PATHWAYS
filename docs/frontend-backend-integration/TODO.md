@@ -148,16 +148,23 @@ separate approval before PATHWAYS-dev PM indicator verification.
 - [x] FB-P6-02 — Three-way UI, approved RBAC/migration, runtime mock, diff and security-sensitive path review passes; no unapproved redesign or policy delta found.
 - [x] FB-P6-03 — Diff whitespace/conflict checks and filename/content secret-pattern scan pass; no applied migration edit or W10 deviation.
 - [x] FB-P6-04 — Exact Backend-DB/Frontend-UI/UX heads and ancestry-preserving merge, Phase 4 implementation and Phase 5 validation commits recorded in Source of Truth section 17.
-- [ ] FB-P6-05 — Integration branch pushed without force.
-- [ ] FB-P6-06 — GitHub PR created into Backend-DB or exact manual PR action provided.
-- [ ] FB-P6-07 — PR changed files/checks inspected.
-- [ ] FB-P6-08 — PR remains unmerged pending developer authorization.
+- [x] FB-P6-05 — Integration branch pushed normally with upstream tracking; remote branch was absent before push and no force was used.
+- [x] FB-P6-06 — GitHub PR #5 created into `Backend-DB`: https://github.com/ceezey/PATHWAYS/pull/5.
+- [x] FB-P6-07 — GitHub base/head, all 284 changed files, migration/PDF/credential boundaries and initial `validate` check inspected; check was in progress at first inspection.
+- [x] FB-P6-08 — PR #5 was open and unmerged; Phase 7 merge remains authorization-gated.
 
 Phase 6 pre-push gates (2026-09-23): PASS at the authorized local/isolated
 scope. The only worktree item before pushing is the untracked developer PDF,
 which is excluded from the PR. The remote integration branch did not exist at
 preflight. A normal push and PR creation are explicitly authorized; Phase 7
 merge remains authorization-gated.
+
+Phase 6 PR handoff (2026-09-23): PR #5 is open into `Backend-DB` and unmerged.
+The only worktree item outside committed task controls remains the developer's
+untracked manuscript PDF, excluded from the PR. GitHub reported 284 changed
+files and `validate` in progress on first inspection. Final PR checks may
+complete asynchronously; revalidate exact base/head and required checks in
+Phase 7 before any separately authorized merge.
 
 ## P7 — PR merge and post-merge validation
 
