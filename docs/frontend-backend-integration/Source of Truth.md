@@ -1000,8 +1000,19 @@ GitHub reran `validate` on that exact head and still failed at the same step.
 The remaining cause was the workflow's escaped quote pair around its SQL
 `psql -c` argument: Bash treated it as broken command syntax. A Bash probe
 using the exact workflow line reproduces the failure; the corrected line
-passes with the entire query as one argument. A second narrow workflow fix is
-pending its GitHub run. The three pre-existing Phase 7 formatter findings
-remain outside this PR diff and may keep full GitHub `validate` red after the
-replay correction. Phase 7 remains explicitly awaiting authorization; this
-PR must not be merged during Phase 6.
+passes with the entire query as one argument. That fix was committed as
+`27506bf4d78d90bd5daaab933c97787a4b90a0f1` and normally pushed.
+GitHub still failed during migration 0006; temporary check annotations
+confirmed 0001-0005 had completed. Byte-level review found the deeper cause:
+0006 pins 0001's applied SHA-256
+`8b4e25d97b493e6042287373bda015db8e1f1e6a1daf0e49b142484762e248ab`,
+which matches the original CRLF working copy; the repository's committed LF
+blob hashes to `1dd84e97065ea2f502647adce09bc6d3e56b72d50888037f4f3e14c81b34e48f`.
+The CI fix restores the original CRLF bytes only in the disposable staged
+0001 migration and verifies the pinned checksum before replay. Its exact
+staging snippet passes a local hash probe, and the temporary annotations are
+removed. No committed migration, guard, or managed database is changed. A
+new GitHub run remains to be inspected. The three pre-existing Phase 7
+formatter findings remain outside this PR diff and may keep full GitHub
+`validate` red after the replay correction. Phase 7 remains explicitly
+awaiting authorization; this PR must not be merged during Phase 6.
