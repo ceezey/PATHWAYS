@@ -151,7 +151,7 @@ separate approval before PATHWAYS-dev PM indicator verification.
 - [x] FB-P6-05 — Integration branch pushed normally with upstream tracking; remote branch was absent before push and no force was used.
 - [x] FB-P6-06 — GitHub PR #5 created into `Backend-DB`: https://github.com/ceezey/PATHWAYS/pull/5.
 - [x] FB-P6-07 — GitHub base/head and all PR files inspected. `validate` exposed a pre-existing replay database-name mismatch, malformed Bash SQL quoting, and a CRLF/LF 0001 checksum mismatch against 0006's pinned applied history. Isolated replay, exact Bash argument, and disposable-staging hash probes pass after narrow workflow corrections.
-- [x] FB-P6-08 — PR #5 remains open and unmerged; GitHub replay, secret check and Prisma gate pass on the corrected head. GitHub lint fails only in three untouched Phase 7 formatter files; Phase 7 merge remains authorization-gated and requires an up-to-date check decision.
+- [x] FB-P6-08 — PR #5 remains open and unmerged; GitHub replay, secret check and Prisma gate pass on the corrected head. GitHub stops at lint; the local equivalent reports three untouched Phase 7 formatter files. Phase 7 merge remains authorization-gated and requires an up-to-date check decision.
 
 Phase 6 pre-push gates (2026-09-23): PASS at the authorized local/isolated
 scope. The only worktree item before pushing is the untracked developer PDF,
