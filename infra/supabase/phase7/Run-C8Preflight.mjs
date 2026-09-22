@@ -13,12 +13,7 @@ const { parse } = require('dotenv')
 
 const values = { ...process.env }
 
-for (const relative of [
-  'apps/api/.env.local',
-  'apps/api/.env',
-  '.env.local',
-  '.env',
-]) {
+for (const relative of ['apps/api/.env.local', 'apps/api/.env', '.env.local', '.env']) {
   const filename = path.join(root, relative)
 
   if (!fs.existsSync(filename)) continue
@@ -42,18 +37,14 @@ if (
   throw new Error('Unexpected PATHWAYS-dev migration target.')
 }
 
-const sqlFile = path.join(
-  root,
-  'infra/supabase/phase7/c8-0020-preflight.sql',
-)
+const sqlFile = path.join(root, 'infra/supabase/phase7/c8-0020-preflight.sql')
 
 const env = {
   ...process.env,
   PGPASSWORD: decodeURIComponent(url.password),
   PGSSLMODE: 'require',
   PGCONNECT_TIMEOUT: '15',
-  PGOPTIONS:
-    '-c default_transaction_read_only=on -c statement_timeout=45000',
+  PGOPTIONS: '-c default_transaction_read_only=on -c statement_timeout=45000',
 }
 
 const result = spawnSync(
