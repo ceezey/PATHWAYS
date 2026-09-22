@@ -1085,3 +1085,32 @@ GitHub condition is blocked by the fresh-checkout workspace package resolution
 failure. Phase 7 remains unauthorized and not ready while the required check
 is red. P07-W10, migration 0021, managed data/provider state, frontend code,
 backend logic, and access policy remain untouched by this task.
+
+### Fresh-checkout workspace test resolution closure
+
+The developer authorized a narrow investigation and correction of the
+`@pathways/imports` fresh-checkout failure. TypeScript already mapped the exact
+`@pathways/shared` import to source, but Vitest attempted the package runtime
+entry `dist/index.js`. A package-local `packages/imports/vitest.config.ts` now
+aliases only the exact `@pathways/shared` package import to
+`../shared/src/index.ts` for Vitest. Package exports, build output, production
+resolution, runtime source, CI step order, and dependencies are unchanged.
+
+The imports suite passed 15/15 with `packages/shared/dist` temporarily absent,
+then the generated directory was restored. Scoped Biome, root lint (645 files),
+workspace typecheck, Prisma validation, and the full build passed. The first
+local full-suite run was executed concurrently with other heavy validation and
+hit web UI timeouts; a standalone rerun retained several unrelated five-second
+web UI timeouts while config 3, shared 35, imports 15, and API 661 with 8
+opt-in database tests skipped passed. No test assertion related to the new
+Vitest alias failed. The clean GitHub runner is the fresh-checkout acceptance
+environment and passed every workflow step, including install, Prisma
+validation, guarded replay, secret scan, lint, typecheck, all tests, and build.
+
+The fix commit is `a29c5fe898d89b5154716506082a2c30e6cd5f7b`
+(`test: resolve shared sources in imports suite`). PR #5 remained open and
+unmerged with base `Backend-DB`. The previously blocked required check is
+green on that head. Phase 7 is technically ready but remains explicitly
+unauthorized; no merge occurred. P07-W10, migration 0021, managed providers,
+database state, authentication, permissions, PIN, redirects, and frontend
+presentation remain untouched.

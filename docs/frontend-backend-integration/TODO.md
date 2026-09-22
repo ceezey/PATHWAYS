@@ -188,13 +188,13 @@ merge.
 - [x] FB-P6-L02 — Ran repository Biome only on `Run-C8FixturePreflight.mjs`, `Run-C8Postflight.mjs`, and `Run-C8Preflight.mjs`; diff is formatting-only.
 - [x] FB-P6-L03 — Scoped Biome and root `pnpm lint` pass; local typecheck, tests, build, and Prisma validation pass with recorded counts.
 - [x] FB-P6-L04 — Separate lint-only commit `c119c125f4962bf67f48113297402ca2161b1f19` pushed normally to PR #5; PR remains open and unmerged.
-- [ ] FB-P6-L05 — Required GitHub checks green. GitHub lint/typecheck/Prisma/replay/secret checks pass, but tests fail in a fresh checkout because `@pathways/imports` cannot resolve unbuilt `@pathways/shared` output; build is skipped.
+- [x] FB-P6-L05 — Added a package-local Vitest alias for the exact `@pathways/shared` source import; imports tests pass without `packages/shared/dist`, and GitHub lint/typecheck/Prisma/replay/secret/test/build checks all pass on fix commit `a29c5fe898d89b5154716506082a2c30e6cd5f7b`.
 
-Pre-Phase-7 lint closure result: BLOCKED on the unrelated fresh-checkout
-workspace test/build-order defect. `@pathways/shared` and `@pathways/imports`
-package manifests match `origin/Backend-DB`; the formatter-only commit does
-not touch them. The current authorization does not permit expanding the fix
-beyond the three lint files. No Phase 7 item is complete or authorized.
+Pre-Phase-7 CI closure result: PASS. The separately authorized
+fresh-checkout test-resolution fix changes only the imports Vitest resolution
+configuration, with no runtime package-export or build-order change. GitHub's
+complete validation workflow is green. No Phase 7 item is complete or
+authorized; PR #5 remains open and unmerged.
 ## P7 — PR merge and post-merge validation
 
 - [ ] FB-P7-01 — PR head/base/required checks revalidated immediately before merge.
