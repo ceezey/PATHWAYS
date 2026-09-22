@@ -992,11 +992,16 @@ from `Backend-DB` named its database `pathways_phase4_phase6_ci`, while the
 existing 0006 migration guard permits the exact disposable name
 `pathways_phase4_phase6_replay`. The first six migrations failed with the CI
 name and passed with the permitted name in an isolated local reproduction;
-the corresponding postflight also returned true. Phase 6 therefore changes
-only the ten CI workflow references to the disposable database name. It does
-not edit migration 0006 or weaken its target guard. The three pre-existing
-Phase 7 formatter findings remain outside this PR diff and may keep the full
-GitHub `validate` job red after the replay correction. The PR check and final
-head must be re-inspected after pushing the narrow workflow fix. Phase 7
-remains explicitly awaiting authorization; this PR must not be merged during
-Phase 6.
+the corresponding postflight also returned true. The first correction changed
+only the ten CI workflow references to the disposable database name, without
+editing migration 0006 or weakening its target guard; it was committed as
+`8fcd750b274f9f10a1e6dc0a34e01aca6e51ba10` and normally pushed.
+GitHub reran `validate` on that exact head and still failed at the same step.
+The remaining cause was the workflow's escaped quote pair around its SQL
+`psql -c` argument: Bash treated it as broken command syntax. A Bash probe
+using the exact workflow line reproduces the failure; the corrected line
+passes with the entire query as one argument. A second narrow workflow fix is
+pending its GitHub run. The three pre-existing Phase 7 formatter findings
+remain outside this PR diff and may keep full GitHub `validate` red after the
+replay correction. Phase 7 remains explicitly awaiting authorization; this
+PR must not be merged during Phase 6.

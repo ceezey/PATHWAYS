@@ -150,7 +150,7 @@ separate approval before PATHWAYS-dev PM indicator verification.
 - [x] FB-P6-04 — Exact Backend-DB/Frontend-UI/UX heads and ancestry-preserving merge, Phase 4 implementation and Phase 5 validation commits recorded in Source of Truth section 17.
 - [x] FB-P6-05 — Integration branch pushed normally with upstream tracking; remote branch was absent before push and no force was used.
 - [x] FB-P6-06 — GitHub PR #5 created into `Backend-DB`: https://github.com/ceezey/PATHWAYS/pull/5.
-- [x] FB-P6-07 — GitHub base/head and all 284 changed files inspected. Initial `validate` failed in pre-existing CI migration replay because its disposable database name was rejected by migration 0006; exact isolated replay confirms the cause and a narrow workflow name correction is prepared.
+- [x] FB-P6-07 — GitHub base/head and all PR files inspected. Initial `validate` failed in CI migration replay because its database name was rejected by migration 0006. The name fix passed exact local replay; its GitHub rerun exposed a second, malformed Bash quote pair in the same pre-existing workflow step. A probe of the exact corrected line passes.
 - [x] FB-P6-08 — PR #5 was open and unmerged; Phase 7 merge remains authorization-gated.
 
 Phase 6 pre-push gates (2026-09-23): PASS at the authorized local/isolated
@@ -164,11 +164,13 @@ The developer's untracked manuscript PDF remains excluded from the PR. GitHub
 reported 284 changed files. The first `validate` failed at the CI disposable
 migration replay: migration 0006 rejects the workflow's original database
 name, while the permitted name passes all six migrations and postflight in
-isolated local reproduction. A ten-reference CI workflow name correction is
-being committed and pushed without changing the migration guard. The three
-known Phase 7 formatter findings are outside the integration diff and may
-still fail full CI lint. Revalidate exact base/head and required checks before
-any separately authorized Phase 7 merge.
+isolated local reproduction. The ten-reference name correction was pushed
+without changing the migration guard. Its GitHub rerun exposed malformed Bash
+quoting in the same step's SQL postflight; a corrected-line argument probe
+passes and a second narrow workflow fix is pending GitHub validation. The
+three known Phase 7 formatter findings are outside the integration diff and
+may still fail full CI lint. Revalidate exact base/head and required checks
+before any separately authorized Phase 7 merge.
 
 ## P7 — PR merge and post-merge validation
 
