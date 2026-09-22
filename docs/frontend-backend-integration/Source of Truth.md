@@ -934,7 +934,7 @@ Backend-DB head above. Its ancestry-preserving merge commit
 as parents. Phase 4 implementation is
 `8ec83415696f43d96ec3353cd3815bd5d389cc8a`; Phase 5 validation is
 `14a75ee598c4284d694f94a9519ebe3f12f6a06b`. No remote integration
-branch exists before the authorized push.
+branch existed before the authorized push.
 
 Final PR gates rerun on the unchanged heads:
 
@@ -984,8 +984,19 @@ merged, with base `Backend-DB` at
 `0f6415a734ae61ab08a61d1cd2097d7707916cbd` at creation. GitHub
 reported 284 changed files; all three file-list pages were inspected. The
 only migration in the PR file list is new 0021, and the developer manuscript
-PDF, credential files and Phase 7 scripts are absent. The `validate` check was
-`in_progress` on first inspection; combined commit status was `pending` with
-no separate status contexts. A final PR head/check reinspection follows the
-task-control commit. Phase 7 remains explicitly awaiting authorization; this
-PR must not be merged during Phase 6.
+PDF, credential files and Phase 7 scripts are absent. The final PR head after
+the first task-control update was
+`2a210c6588fbad15dcf536eead4f7a0ed612b4a9`. GitHub's first `validate`
+run failed at the disposable migration replay step. The CI workflow inherited
+from `Backend-DB` named its database `pathways_phase4_phase6_ci`, while the
+existing 0006 migration guard permits the exact disposable name
+`pathways_phase4_phase6_replay`. The first six migrations failed with the CI
+name and passed with the permitted name in an isolated local reproduction;
+the corresponding postflight also returned true. Phase 6 therefore changes
+only the ten CI workflow references to the disposable database name. It does
+not edit migration 0006 or weaken its target guard. The three pre-existing
+Phase 7 formatter findings remain outside this PR diff and may keep the full
+GitHub `validate` job red after the replay correction. The PR check and final
+head must be re-inspected after pushing the narrow workflow fix. Phase 7
+remains explicitly awaiting authorization; this PR must not be merged during
+Phase 6.

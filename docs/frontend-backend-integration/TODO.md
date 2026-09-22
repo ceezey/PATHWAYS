@@ -150,7 +150,7 @@ separate approval before PATHWAYS-dev PM indicator verification.
 - [x] FB-P6-04 — Exact Backend-DB/Frontend-UI/UX heads and ancestry-preserving merge, Phase 4 implementation and Phase 5 validation commits recorded in Source of Truth section 17.
 - [x] FB-P6-05 — Integration branch pushed normally with upstream tracking; remote branch was absent before push and no force was used.
 - [x] FB-P6-06 — GitHub PR #5 created into `Backend-DB`: https://github.com/ceezey/PATHWAYS/pull/5.
-- [x] FB-P6-07 — GitHub base/head, all 284 changed files, migration/PDF/credential boundaries and initial `validate` check inspected; check was in progress at first inspection.
+- [x] FB-P6-07 — GitHub base/head and all 284 changed files inspected. Initial `validate` failed in pre-existing CI migration replay because its disposable database name was rejected by migration 0006; exact isolated replay confirms the cause and a narrow workflow name correction is prepared.
 - [x] FB-P6-08 — PR #5 was open and unmerged; Phase 7 merge remains authorization-gated.
 
 Phase 6 pre-push gates (2026-09-23): PASS at the authorized local/isolated
@@ -160,11 +160,15 @@ preflight. A normal push and PR creation are explicitly authorized; Phase 7
 merge remains authorization-gated.
 
 Phase 6 PR handoff (2026-09-23): PR #5 is open into `Backend-DB` and unmerged.
-The only worktree item outside committed task controls remains the developer's
-untracked manuscript PDF, excluded from the PR. GitHub reported 284 changed
-files and `validate` in progress on first inspection. Final PR checks may
-complete asynchronously; revalidate exact base/head and required checks in
-Phase 7 before any separately authorized merge.
+The developer's untracked manuscript PDF remains excluded from the PR. GitHub
+reported 284 changed files. The first `validate` failed at the CI disposable
+migration replay: migration 0006 rejects the workflow's original database
+name, while the permitted name passes all six migrations and postflight in
+isolated local reproduction. A ten-reference CI workflow name correction is
+being committed and pushed without changing the migration guard. The three
+known Phase 7 formatter findings are outside the integration diff and may
+still fail full CI lint. Revalidate exact base/head and required checks before
+any separately authorized Phase 7 merge.
 
 ## P7 — PR merge and post-merge validation
 
