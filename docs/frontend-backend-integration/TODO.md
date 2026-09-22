@@ -14,7 +14,7 @@
 | P1 Git Preflight & Controls | COMPLETE | PASS | Phase 2 authorization |
 | P2 Frontend Standard Audit & Merge Map | COMPLETE | PASS | Phase 3 authorization |
 | P3 Integration Branch & UI Merge | COMPLETE | PASS | Phase 4 authorization |
-| P4 Backend Wiring & Missing Features | NOT STARTED | NOT RUN | Explicit Phase 4 authorization |
+| P4 Backend Wiring & Missing Features | COMPLETE (repository/local) | PASS with managed 0021 apply gated | Explicit Phase 5 authorization |
 | P5 Use-Case / Role / UI Regression | NOT STARTED | NOT RUN | P4 PASS + authorization |
 | P6 Final Regression & GitHub PR | NOT STARTED | NOT RUN | P5 PASS + authorization |
 | P7 PR Merge & Post-Merge Validation | NOT STARTED | NOT RUN | P6 PASS + explicit merge authorization |
@@ -91,18 +91,29 @@ build, scoped Biome, staged diff and conflict checks pass. Phase 4 has not begun
 
 ## P4 — Backend wiring and missing feature support
 
-- [ ] FB-P4-01 — Every material latest-frontend action traced to backend/data path.
-- [ ] FB-P4-02 — Existing backend APIs reused where available.
-- [ ] FB-P4-03 — Clear missing backend logic implemented without changing UI/UX.
-- [ ] FB-P4-04 — Undefined/unsafe missing features use truthful temporary states and have recommendations.
-- [ ] FB-P4-05 — Runtime fake/mock domain data removed from integrated production paths.
-- [ ] FB-P4-06 — Production-facing mock/prototype/demo wording removed without redesign.
-- [ ] FB-P4-07 — Project Manager indicator read/manage behavior satisfied without unrelated permission widening.
-- [ ] FB-P4-08 — OTP/login/redirect rules preserved.
-- [ ] FB-P4-09 — Beneficiary PIN remains `2468` and is not treated as sole authorization.
-- [ ] FB-P4-10 — Any needed migration is append-only/local-only and managed apply remains separately gated.
-- [ ] FB-P4-11 — Focused backend/frontend/shared tests pass.
-- [ ] FB-P4-12 — Missing-feature recommendation table updated.
+- [x] FB-P4-01 — Material merged controls traced by shared state transition through client, controller, authorization, service, persistence and UI result in Source of Truth section 15.
+- [x] FB-P4-02 — Existing project/activity/collection/beneficiary/indicator/aggregate/user APIs retained; dedicated indicator UI uses the existing controller and client.
+- [x] FB-P4-03 — Clear PM indicator policy gap corrected using the existing scoped indicator service, without UI design change or new domain schema.
+- [x] FB-P4-04 — Undefined/unsafe actions keep truthful unavailable, disabled or no-save behavior; five-part decisions recorded in Source of Truth section 15.
+- [x] FB-P4-05 — Runtime fake/mock domain paths remain absent from integrated production imports; test-only fixtures retained.
+- [x] FB-P4-06 — Production-facing mock/prototype/demo wording remains absent; Phase 4 introduced no presentation copy change.
+- [x] FB-P4-07 — PM `monitoring.read` retained and only `indicators.create/update` added; disposable RLS replay proves assigned project read/insert/update and foreign/revoked/other-role denial; M&E retained.
+- [x] FB-P4-08 — OTP/login/redirect source and accepted flow untouched by the Phase 4 diff.
+- [x] FB-P4-09 — Beneficiary PIN remains `2468`; server step-up still unavailable, so client PIN cannot disclose personal detail.
+- [x] FB-P4-10 — Only append-only `0021_project_manager_indicator_access` added after 0020; SHA-256 `b2cc161a80f2989784bf5fd304b3a5b5657b1f481ade6af41c002b56f7d035e6`; guarded disposable replay PASS; no managed apply.
+- [x] FB-P4-11 — Web/API/shared typechecks, scoped Biome, 18 focused API and 76 focused web tests, and 21-migration disposable runtime replay PASS.
+- [x] FB-P4-12 — Missing-feature trace and five-part recommendation records added to Source of Truth section 15.
+
+Phase 4 local acceptance (2026-09-22): repository implementation PASS. The
+only permission delta is Project Manager `indicators.create/update` within the
+existing assigned-project guard; local runtime replay passed with 0021 and
+cleaned its disposable target. Implementation commit:
+`8ec83415696f43d96ec3353cd3815bd5d389cc8a`. No table/column/Prisma
+model change, applied migration edit, managed PATHWAYS-dev/Auth/Storage
+operation, frontend redesign, W10 mutation, push or PR occurred. Managed
+deployment of 0021 requires separate authorization before this change can
+work on PATHWAYS-dev. Phase 5
+cross-role/use-case validation has not started and needs explicit authorization.
 
 ## P5 — Use-case, role, and UI regression
 

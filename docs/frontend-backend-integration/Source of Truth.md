@@ -552,6 +552,7 @@ Populate during execution.
 | Auth/PM/PIN locked checks | PASS as an audit; PM manage discrepancy and PIN step-up gap documented |
 | Local merge | PASS: `4dd96289bc1ab78eb24b02fca563ccc2a8ed881a`; parents exactly the approved Backend-DB and pinned Frontend-UI/UX heads; not pushed |
 | Backend integration | PASS for existing endpoints; missing feature contracts deferred to Phase 4 |
+| Phase 4 local PM indicator correction | PASS: implementation commit `8ec83415696f43d96ec3353cd3815bd5d389cc8a` adds only scoped PM create/update, append-only 0021, and focused tests; disposable 21-migration replay PASS; managed apply separately gated |
 | UI fidelity validation | Source-level PASS; visual browser regression remains Phase 5 |
 | Role/use-case validation | PENDING |
 | Full regression | PENDING |
@@ -572,8 +573,191 @@ The workstream is complete only after:
 - GitHub PR is merged into Backend-DB under explicit developer authorization;
 - task TODO/Source of Truth are reconciled.
 
-Current state:
+Current state: Phase 4 repository work is complete and locally verified.
+Managed application of 0021 is separately gated; no managed provider action
+was authorized or performed here. Phase 5 has not started.
 
-```text
-PHASE 3 COMPLETE — READY FOR PHASE 4 AUTHORIZATION
-```
+---
+
+## 15. Phase 4 local backend and action audit (2026-09-22)
+
+Phase 4 starts at local `8a340ff70aa11f5d280d818cc16908a3c57a7bbc` on
+`integration/frontend-ui-backend-db-20260922`. This descends from Phase 3 merge
+`4dd96289bc1ab78eb24b02fca563ccc2a8ed881a`; the approved Backend-DB and
+Frontend-UI/UX parents remain `3c4f0eb48cf1656bb44d9cb118b9ecc18a9f4090`
+and `a0ea9cf98396dfd7cceddb8a1c4100aafd57abde`. The remote tracking refs
+were unchanged at the start of this local phase. Nothing was pushed.
+The reviewed implementation commit is
+`8ec83415696f43d96ec3353cd3815bd5d389cc8a`.
+
+### Interactive action trace
+
+The rows group controls that share one contract and state transition. Filters,
+pagination, tabs, preview, refresh, and client-only draft controls in these
+workspaces keep local UI state; server reads repeat through the listed client.
+All real API calls use the verified staff/session transport and server-supplied
+context; the UI role is not transmitted as authority.
+
+| Latest UI action and classification | UI → client/hook → HTTP/controller → authorization/service/persistence → response/UI state |
+|---|---|
+| Login, MFA, workspace, logout, recovery: fully integrated | Retained auth components → Supabase Auth plus `/auth/mfa/status`, `/auth/workspaces`, `/auth/me` and recovery → auth guards/session verification → verified workspace or denial/redirect. No Phase 4 change. |
+| Project list/detail, period edit: fully integrated; full setup/team/archive: intentionally unavailable | Project loaders/setup → `pathwaysClient.getProjects/getProject/updateProjectPeriod` → project controller → scoped project service/Prisma → refreshed state/error. Full setup cannot send the required project code/budget/team contract; team/archive has no atomic transition endpoint, so the existing form shows error and no save. |
+| Activity create/edit/status, proof upload/download/review, milestones: fully integrated; target/expense additions: missing backend logic | Delivery components → activity/milestone client methods → project activity controllers → role, project assignment, revision/idempotency, audit, Prisma/private proof storage → refreshed record/error. Extra target, budget, journey and expense fields remain truthful unavailable. |
+| Collection form create/edit/version/publish, direct entry and import upload/map/validate/process: fully integrated; form export: missing backend logic | Collection workspaces → digital form/direct submission/import clients → metadata/import controllers → scoped validation/state machine/Prisma/private Storage → persisted results or server error. Export control reports no file generated. |
+| Beneficiary list/registration and journey stage configuration: fully integrated behind authorization; sensitive detail/write, participation/status: policy blocked/integration mismatch | Directory/beneficiary/journey clients → beneficiary and journey controllers → project scope, role, Prisma and audit where permitted. The PIN dialog cannot establish a server step-up; detail remains restricted. Participation/status dialogs lack required source form/submission or event detail and report no save. |
+| Indicator list/create/update/measure/archive: narrow policy correction | Project indicator workspace → typed `pathwaysClient` methods → `/projects/:projectId/indicators` controller → `monitoring.read`, `indicators.create/update`, project assignment and service validation/audit/revision → Prisma `project_indicators` under runtime RLS → refresh/error. Phase 4 adds only Project Manager create/update in this project scope; M&E retains existing capability. |
+| Monitoring and SADDD charts/filters/refresh: fully integrated; saved layout/trends/map: intentionally unavailable | Dashboard hooks/client → `/dashboards/home`, `/dashboards/monitoring`, `/dashboards/saddd` → scoped aggregate service and privacy release → approved aggregate/empty/error. Layout save, historical trends and locations have no authoritative persistence/source and make no saved-data claim. |
+| Alerts, rules, recommendations and outcome controls: missing backend logic | UI → client methods throw `not_configured` or show unavailable before mutation; no controller, lifecycle, role/audit or durable outcome contract exists. No fabricated records or success. |
+| Reports, survey aggregate, history and download: missing backend logic | Reporting UI uses approved project/indicator reads where possible. Report/survey/export client methods have no report aggregate/export controller or release policy; generate/save/download show unavailable with no output. |
+| Publication queue, transparency and public projects: missing backend logic | UI/public loaders → publication client methods report unavailable; no approved review separation, anonymous projection or publish service. Public pages show the existing unavailable state. |
+| Existing staff user list/authorization/update: fully integrated; Auth account creation/self-service: missing backend logic | User management → `getUsers/authorizeExistingUser/updateAuthorizedUser` → `/users` controller → scoped role policy and audit/Prisma. New Auth user, own profile/password edit controls report unavailable; password recovery remains the accepted auth path. |
+| Audit browse, backups/restore and shared labels: missing backend logic | UI keeps existing disabled/unavailable controls; no user-facing operational controller, sensitive authorization, lifecycle or durable configuration contract. |
+
+The project review workspace combines several unsupported expense/evaluation/
+publication loaders in one view. Its `Promise.all` fails to an explicit
+"Workspace unavailable" state rather than rendering zeros as real budget or
+evaluation data. The dedicated indicator route is independently real-API
+backed. This workspace remains a deferred integration decision; splitting its
+data dependencies must preserve the frozen UI and truthful section states.
+
+### Narrow Project Manager indicator correction
+
+The pre-change backend/frontend policy and migration 0013 allowed M&E
+`indicators.create/update` but denied Project Manager, despite the locked
+requirement. The existing indicator controller/service, Prisma schema, and
+project-indicator RLS policies already implement project scope, validation,
+optimistic revision, audit and durable writes. Phase 4 adds exactly those two
+permissions to the Project Manager server policy and frontend action matrix.
+Migration `0021_project_manager_indicator_access` adds those two existing
+role-permission relationships for a seeded existing PM role and updates only
+the indicator branch of `pathways.p06_can`; its identity, organization, project
+assignment and all other role checks remain. No other role gets a permission.
+`pathways_runtime` remains NOBYPASSRLS; Data API roles cannot execute the
+internal function. The migration is append-only after 0020 and has SHA-256
+`b2cc161a80f2989784bf5fd304b3a5b5657b1f481ade6af41c002b56f7d035e6`.
+
+No new persisted domain attribute or relation was needed. The existing
+normalized `roles`, `permissions`, `role_permissions`, and project assignment
+entities own the permission and scope; indicator rows keep their existing
+constraints, indexes, RLS, grants and audit semantics. There is no Prisma
+model change or historical-value backfill. The guarded disposable loopback
+PostgreSQL replay tests the 0021 upgrade with an existing PM reference row,
+then verifies role mapping, runtime function grants, project-scoped reads,
+actual PM insert/update, M&E retention, denied roles, foreign project denial,
+and revoked assignment denial. No managed PATHWAYS-dev database/Auth/Storage
+operation was performed. Managed 0021 application requires separate developer
+authorization and a reviewed deployment plan before PM manage works there.
+
+### Deferred feature decisions
+
+**Project setup/team/archive.** Missing feature: full create/edit, team
+reassignment and archive from the latest form. Why backend implementation is
+not yet authoritative: required code/budget fields are absent from the frozen
+form, and multi-user assignment/archive policies are undefined. Recommendation:
+approve field mapping and atomic scoped lifecycle/assignment contracts.
+Temporary behavior implemented: form error or disabled action, with no save.
+Future decision needed: project code generation, budget ownership, team
+replacement and archive effects.
+
+**Expense and activity extensions.** Missing feature: expense ledger,
+verify/approve, budget allocation and activity target/budget/journey links.
+Why backend implementation is not yet authoritative: approval separation,
+transaction history and allocation rules are undefined. Recommendation:
+design scoped event/ledger entities and review/audit policy. Temporary
+behavior implemented: unavailable ledger/actions; supported activity and
+milestone edits still persist. Future decision needed: financial lifecycle,
+actor separation and normalized link ownership.
+
+**Beneficiary step-up and edits.** Missing feature: PIN-authorized detail,
+profile/media writes, notes, duplicate linkage and evaluation decisions. Why
+backend implementation is not yet authoritative: PIN `2468` is client-visible
+and cannot serve as authorization; step-up token, sensitive scope, dedup and
+review policy are undefined. Recommendation: approve server-verified step-up
+and scoped, audited mutation/review contracts. Temporary behavior implemented:
+detail remains restricted and writes/review show no-save/unavailable. Future
+decision needed: verification source, expiry, disclosure and merge semantics.
+
+**Participation/status dialogs.** Missing feature: beneficiary participation
+and enrollment transition from those dialogs. Why backend implementation is
+not yet authoritative: existing backend commands require provenance/form or
+event fields the frozen dialogs do not collect; inventing them would corrupt
+history. Recommendation: approve a complete UI-to-command mapping or extend
+the backend with a separately reviewed bounded command. Temporary behavior
+implemented: explicit unavailable/no-save. Future decision needed: required
+source submission, progress status, event date/reason and idempotency source.
+
+**Project review/evaluation.** Missing feature: combined evidence, formal
+evaluation and review workspace actions. Why backend implementation is not yet
+authoritative: the combined view depends on absent evaluation, expense,
+recommendation and publication services; the existing proof review route alone
+cannot supply its full data model. Recommendation: specify section-level data
+contracts and evaluation scoring/review policy. Temporary behavior implemented:
+whole workspace reports unavailable; dedicated activity proof and indicator
+routes remain functional. Future decision needed: independent loading and
+formal evaluation state machine.
+
+**Analytics extensions.** Missing feature: saved chart layout, historical
+trends, location map and reusable indicator library. Why backend implementation
+is not yet authoritative: storage owner, time series, location source and
+privacy release are undefined. Recommendation: approve configuration/history
+and aggregate geodata contracts. Temporary behavior implemented: real current
+aggregates only, with empty/unavailable extension views. Future decision
+needed: retention, projection and map precision.
+
+**Monitoring decisions.** Missing feature: alert/rule/recommendation lifecycle
+and outcome log. Why backend implementation is not yet authoritative: trigger,
+review and actor policy have no server contract. Recommendation: define bounded
+rule, alert and decision lifecycle with audit. Temporary behavior implemented:
+unavailable read/action state, no fake outcome. Future decision needed: rule
+ownership, thresholds, review and notification recipients.
+
+**Reports and exports.** Missing feature: survey aggregate, generated report,
+history and file export. Why backend implementation is not yet authoritative:
+aggregation, suppression, scope and download formats are undefined.
+Recommendation: define privacy-safe server aggregates and export service.
+Temporary behavior implemented: approved project/indicator reads only;
+generate/save/download say unavailable with no file. Future decision needed:
+release rules, report snapshot semantics and formats.
+
+**Public publication.** Missing feature: publication queue, transparency
+approval and anonymous public project projection. Why backend implementation
+is not yet authoritative: approval separation and public data minimization are
+undefined. Recommendation: specify reviewed publication workflow and
+anonymous projection. Temporary behavior implemented: queue/actions unavailable,
+public pages show unavailable. Future decision needed: approver roles, redaction
+and withdrawal semantics.
+
+**Staff self-service and administration.** Missing feature: new Auth account,
+own profile/password update, shared labels, audit browse and backup/restore.
+Why backend implementation is not yet authoritative: each needs distinct
+sensitive authority, lifecycle and operational safeguards beyond existing-user
+authorization. Recommendation: define and review separate self-service,
+configuration, audit and recovery contracts. Temporary behavior implemented:
+existing-user authorization and recovery work; remaining controls show
+unavailable/disabled without fake success. Future decision needed: identity
+provisioning, self-edit bounds, label ownership and recovery operator policy.
+
+### Verification and boundary
+
+Source-level diff contains no layout, visual, navigation, wording, login,
+redirect, MFA/OTP or beneficiary PIN change. Production frontend mock/demo
+imports remain absent; `mocks/pathways` and `lib/demo-state` are isolated
+test-only fixtures. Existing unsaved session drafts do not claim persistence.
+The W10 checksum/import identifier above and provider state remain untouched.
+Web, API and shared typechecks PASS. Focused API tests PASS (18/18) and web
+role/indicator tests PASS (76/76). Scoped Biome PASS on six changed TypeScript
+files. Guarded loopback replay PASS: all 21 migrations including 0021, the
+feature-read and C8 API/Prisma runtime tests, existing SQL suites, real PM
+indicator insert/update under RLS, denied and revoked scope checks, function
+grant assertions, and disposable target cleanup. `git diff --check` and
+conflict-marker inspection PASS. Full browser cross-role validation belongs to
+Phase 5 and has not begun.
+
+**HUMAN INTERVENTION REQUIRED — managed indicator policy rollout.** Before
+testing PM indicator management on PATHWAYS-dev, the developer must separately
+authorize applying the reviewed 0021 migration. The operator should confirm
+that the managed target is on the expected 0020 line, apply the exact migration
+hash above through the established migration identity, and return sanitized
+migration status plus scoped PM/M&E/denied-role evidence. No credential or
+provider mutation is part of this Phase 4 result. Local Phase 5 validation may
+be authorized independently; managed PM validation waits for that rollout.
