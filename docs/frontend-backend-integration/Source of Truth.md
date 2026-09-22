@@ -554,11 +554,11 @@ Populate during execution.
 | Backend integration | PASS for existing endpoints; missing feature contracts deferred to Phase 4 |
 | Phase 4 local PM indicator correction | PASS: implementation commit `8ec83415696f43d96ec3353cd3815bd5d389cc8a` adds only scoped PM create/update, append-only 0021, and focused tests; disposable 21-migration replay PASS; managed apply separately gated |
 | UI fidelity validation | Source-level PASS; visual browser regression remains Phase 5 |
-| Role/use-case validation | PENDING |
-| Full regression | PENDING |
-| GitHub PR | PENDING |
-| PR merge | PENDING |
-| Post-merge validation | PENDING |
+| Role/use-case validation | PASS at the documented local/browser/disposable scope; unsupported flows remain truthfully deferred |
+| Full regression | PASS at Phase 5/6 scope; managed provider acceptance remains separately gated |
+| GitHub PR | PASS: PR #5 reviewed with required `validate` workflow green |
+| PR merge | PASS: normal merge commit `707315b232ce16405a8493b0cb454cdfdbe3b4d5` into `Backend-DB` |
+| Post-merge validation | PASS: typecheck, focused auth/RBAC/indicator tests, build and production browser smoke |
 
 ---
 
@@ -573,9 +573,11 @@ The workstream is complete only after:
 - GitHub PR is merged into Backend-DB under explicit developer authorization;
 - task TODO/Source of Truth are reconciled.
 
-Current state: Phase 4 repository work is complete and locally verified.
-Managed application of 0021 is separately gated; no managed provider action
-was authorized or performed here. Phase 5 has not started.
+Final state: the reviewed integration source is merged and locally verified.
+The overall workstream is PARTIAL because the explicitly listed UI/backend
+flows remain truthfully unavailable or partial pending future backend
+contracts, and managed application of 0021 remains separately gated. No
+managed provider action was authorized or performed here.
 
 ---
 
@@ -1116,3 +1118,71 @@ green on that head. Phase 7 is technically ready but remains explicitly
 unauthorized; no merge occurred. P07-W10, migration 0021, managed providers,
 database state, authentication, permissions, PIN, redirects, and frontend
 presentation remain untouched.
+
+---
+
+## 19. Phase 7 merge and workstream closeout (2026-09-23)
+
+Immediately before merge, `git fetch origin --prune` and GitHub inspection
+confirmed PR [#5](https://github.com/ceezey/PATHWAYS/pull/5) was open,
+non-draft, mergeable and clean, with base `Backend-DB` at
+`3c4f0eb48cf1656bb44d9cb118b9ecc18a9f4090`, approved head
+`b8136c7038eb3a97e18b4159f73a0f38b045f009`, and the required
+`validate` workflow successful. The authoritative Frontend-UI/UX ref remained
+`a0ea9cf98396dfd7cceddb8a1c4100aafd57abde`. No reviewed head moved.
+
+Under explicit developer authorization, GitHub merged PR #5 using a normal
+merge commit. Merge identity:
+`707315b232ce16405a8493b0cb454cdfdbe3b4d5`, with parents
+`3c4f0eb48cf1656bb44d9cb118b9ecc18a9f4090` and
+`b8136c7038eb3a97e18b4159f73a0f38b045f009`. The integration branch was
+not deleted. Local `Backend-DB` switched from its old head and fast-forwarded
+only to the GitHub merge commit. This merge commit is the final integrated
+code identity; the subsequent closeout documentation commit does not change
+application, migration, workflow or test code.
+
+Post-merge validation on local `Backend-DB`:
+
+| Check | Result |
+|---|---|
+| Worktree and merge ancestry | PASS; only the developer manuscript PDF remains untracked; merge has the expected two parents |
+| `pnpm typecheck` | PASS across all workspace packages/apps |
+| Focused API authorization/route/indicator tests | PASS: 286/286 |
+| Focused web login/MFA/workspace/redirect/indicator tests | PASS: 79/79 |
+| `pnpm build` | PASS across all workspace packages/apps; Next production build completed |
+| Production startup/browser smoke | PASS: 2/2 desktop/mobile login and anonymous truthful-unavailable public page |
+| GitHub required workflow on the merged PR head | PASS: Prisma, guarded replay, secret scan, lint, typecheck, tests and build |
+
+The latest pinned UI hierarchy, styling, navigation, interactions and
+responsive behavior remain the visual standard. Intentional differences are
+unchanged: the older working provider MFA/TOTP UI is retained, and actions
+without an accepted backend contract show truthful unavailable, disabled,
+empty or error behavior. Login, workspace, logout and denied-access redirects
+remain unchanged. Beneficiary PIN remains `2468` and cannot independently
+release protected records. No unrelated access grant was added; the only
+integration policy exception remains scoped Project Manager indicator
+create/update under existing organization/project assignment controls.
+Migration 0021 still requires separately authorized managed rollout before
+claiming PM indicator management on PATHWAYS-dev.
+
+Outstanding backend recommendations and temporary implementations:
+
+| Missing or partial feature | Recommendation | Current temporary behavior |
+|---|---|---|
+| Full project setup, team reassignment and archive | Approve complete field mapping and atomic scoped lifecycle/assignment commands | Supported project reads/period edits work; unsupported submits error or remain disabled with no save |
+| Expense ledger, approval, allocation and activity links | Define normalized ledger/link ownership, actor separation and audit rules | Supported activity/milestone actions persist; financial extensions remain unavailable |
+| Sensitive beneficiary detail, writes, media, duplicate linkage and evaluation | Add server-verified step-up and scoped audited mutation/review contracts | PIN dialog cannot grant disclosure; protected detail remains restricted and writes show no-save/unavailable |
+| Participation and enrollment/status dialogs | Approve provenance, event, status, reason and idempotency command mapping | Dialog actions remain explicitly unavailable with no fabricated history |
+| Combined project evaluation/review | Define section data contracts and a formal evaluation state machine | Combined workspace reports unavailable; dedicated proof and indicator paths continue to work |
+| Saved analytics layout, trends, location map and reusable indicator library | Define durable configuration/history/geodata contracts with privacy review | Approved current aggregates render; extensions remain empty or unavailable |
+| Alerts, rules, recommendations and outcome log | Define bounded lifecycle, role, audit and notification policy | Read/configure/review/outcome controls remain unavailable; no fake result |
+| Survey reports, generated reports, history and export | Define privacy-safe aggregation, snapshot, suppression and export services | Approved reads remain; generate/save/download produce no file and report unavailable |
+| Publication queue and anonymous public tracker | Define approval separation, redaction, projection and withdrawal semantics | Publication actions remain unavailable; public pages show truthful maintenance/unavailable state |
+| Auth account creation, profile/password self-service and shared labels | Define separate provisioning, self-edit and configuration contracts | Existing-user authorization and password recovery work; unsupported controls remain unavailable |
+| Audit browse and backup/restore | Define sensitive operational APIs, authority and recovery safeguards | Actions remain disabled/unavailable with no fabricated event or backup |
+
+P07-W10 identifiers, fixture/provider state and deferred boundary remain
+untouched. No managed database, Auth or Storage mutation occurred in Phase 7.
+The source integration and PR merge are complete, but the overall workstream
+status is PARTIAL because the table above contains required UI/backend flows
+that remain intentionally blocked pending separate product/backend decisions.

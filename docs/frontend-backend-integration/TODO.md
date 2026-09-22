@@ -195,19 +195,30 @@ fresh-checkout test-resolution fix changes only the imports Vitest resolution
 configuration, with no runtime package-export or build-order change. GitHub's
 complete validation workflow is green. No Phase 7 item is complete or
 authorized; PR #5 remains open and unmerged.
+
 ## P7 — PR merge and post-merge validation
 
-- [ ] FB-P7-01 — PR head/base/required checks revalidated immediately before merge.
-- [ ] FB-P7-02 — Developer explicitly authorizes PR merge.
-- [ ] FB-P7-03 — PR merged into Backend-DB using approved non-destructive strategy.
-- [ ] FB-P7-04 — Local Backend-DB fast-forwarded to merged remote head.
-- [ ] FB-P7-05 — Post-merge typecheck/build/critical smoke tests pass.
-- [ ] FB-P7-06 — Final Backend-DB SHA and PR merge identity recorded.
-- [ ] FB-P7-07 — Task Source of Truth/TODO reconciled.
-- [ ] FB-P7-08 — P07-W10 remains deferred/untouched.
-- [ ] FB-P7-09 — Workstream final status accurately reported.
+- [x] FB-P7-01 — PR head/base/required checks revalidated immediately before merge.
+- [x] FB-P7-02 — Developer explicitly authorizes PR merge.
+- [x] FB-P7-03 — PR merged into Backend-DB using approved non-destructive strategy.
+- [x] FB-P7-04 — Local Backend-DB fast-forwarded to merged remote head.
+- [x] FB-P7-05 — Post-merge typecheck/build/critical smoke tests pass.
+- [x] FB-P7-06 — Final Backend-DB SHA and PR merge identity recorded.
+- [x] FB-P7-07 — Task Source of Truth/TODO reconciled.
+- [x] FB-P7-08 — P07-W10 remains deferred/untouched.
+- [x] FB-P7-09 — Workstream final status accurately reported.
 
 ---
+
+Phase 7 closeout (2026-09-23): PR #5 was merged by normal GitHub merge
+commit `707315b232ce16405a8493b0cb454cdfdbe3b4d5`; local `Backend-DB`
+fast-forwarded to it. Post-merge workspace typecheck, 286 focused API
+role/indicator tests, 79 focused web auth/navigation/indicator tests, full
+build and 2/2 production startup/browser smokes pass. The integration branch
+was retained and the manuscript PDF remains untracked. P07-W10 and managed
+provider state were untouched. Source integration and merge are complete; the
+workstream is PARTIAL because the Source of Truth section 19 missing-feature
+table still contains required flows with truthful unavailable/partial behavior.
 
 ## Mandatory per-phase reporting rule
 
