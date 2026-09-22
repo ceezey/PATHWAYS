@@ -87,4 +87,18 @@ describe('form builder session draft', () => {
     expect(readFormBuilderSessionDraft(unavailable, key, draft.baseUpdatedAt)).toBeNull()
     expect(() => clearFormBuilderSessionDraft(unavailable, key)).not.toThrow()
   })
+
+  it('does not recover untouched new-form state as an unsaved edit', () => {
+    const target = storage()
+    const key = formBuilderSessionDraftKey('user-1', null)
+    writeFormBuilderSessionDraft(target, key, {
+      ...draft,
+      baseUpdatedAt: null,
+      fields: [],
+      formTitle: '',
+      formCode: '',
+    })
+    expect(target.getItem(key)).toBeNull()
+    expect(readFormBuilderSessionDraft(target, key, null)).toBeNull()
+  })
 })

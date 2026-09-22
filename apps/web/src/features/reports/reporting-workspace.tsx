@@ -458,7 +458,7 @@ export const ReportingWorkspace = ({
           code: beneficiary.code,
           project: beneficiary.projectIds.map(projectTitle).join(', '),
           sex: beneficiary.sex,
-          ageGroup: beneficiary.ageGroup,
+          ageGroup: beneficiary.ageGroup ?? 'Not available',
           disability: beneficiary.disabilityStatus,
           location: beneficiary.location,
           enrollmentStatus: beneficiary.enrollmentStatus,

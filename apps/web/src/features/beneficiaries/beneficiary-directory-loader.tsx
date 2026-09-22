@@ -6,7 +6,7 @@ import { useEffect, useState } from 'react'
 import { EmptyState } from '@/components/pathways/empty-state'
 import { useCurrentRole } from '@/hooks/use-current-role'
 import { pathwaysClient } from '@/lib/services/pathways-client'
-import type { BeneficiaryRecord, ProjectSummary } from '@/types/pathways'
+import type { BeneficiaryFilters, BeneficiaryRecord, ProjectSummary } from '@/types/pathways'
 import { BeneficiaryDirectory } from './beneficiary-directory'
 
 export const BeneficiaryDirectoryLoader = () => {
@@ -14,9 +14,11 @@ export const BeneficiaryDirectoryLoader = () => {
   const [projects, setProjects] = useState<ProjectSummary[]>([])
   const [selectedProjectId, setSelectedProjectId] = useState('')
   const [beneficiaries, setBeneficiaries] = useState<BeneficiaryRecord[]>([])
+  const [filters, setFilters] = useState<BeneficiaryFilters>({})
   const [loadingProjects, setLoadingProjects] = useState(true)
   const [loadingRecords, setLoadingRecords] = useState(false)
   const [failed, setFailed] = useState(false)
+  const [recordsFailed, setRecordsFailed] = useState(false)
 
   useEffect(() => {
     let active = true
@@ -43,24 +45,26 @@ export const BeneficiaryDirectoryLoader = () => {
       setBeneficiaries([])
       return
     }
+
     setLoadingRecords(true)
-    setFailed(false)
+    setRecordsFailed(false)
+
     void pathwaysClient
-      .getBeneficiaryRecordsForRole(role, selectedProjectId)
+      .getBeneficiaryRecordsForRole(role, selectedProjectId, filters)
       .then((rows) => {
         if (active) setBeneficiaries(rows)
       })
       .catch(() => {
         if (active) {
           setBeneficiaries([])
-          setFailed(true)
+          setRecordsFailed(true)
         }
       })
       .finally(() => active && setLoadingRecords(false))
     return () => {
       active = false
     }
-  }, [role, selectedProjectId])
+  }, [role, selectedProjectId, filters])
 
   if (loadingProjects) {
     return (
@@ -69,6 +73,7 @@ export const BeneficiaryDirectoryLoader = () => {
       </p>
     )
   }
+
   if (failed && projects.length === 0) {
     return (
       <EmptyState
@@ -93,7 +98,10 @@ export const BeneficiaryDirectoryLoader = () => {
       projects={projects}
       selectedProjectId={selectedProjectId}
       onProjectChange={setSelectedProjectId}
+      filters={filters}
+      onFiltersChange={setFilters}
       loadingRecords={loadingRecords}
+      recordsFailed={recordsFailed}
     />
   )
 }

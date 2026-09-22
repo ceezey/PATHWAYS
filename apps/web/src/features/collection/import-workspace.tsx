@@ -272,14 +272,25 @@ export function ImportWorkspace() {
         <CardContent className="grid gap-4 md:grid-cols-3">
           <div className="space-y-2">
             <Label>Project</Label>
-            <Select value={projectId} onValueChange={setProjectId}>
+            <Select
+              value={projectId}
+              onValueChange={(value) => {
+                setProjectId(value)
+                setFile(null)
+                setFormId('')
+                setForms([])
+                setBatches([])
+                setBatch(null)
+                setRows([])
+              }}
+            >
               <SelectTrigger>
                 <SelectValue placeholder="Choose project" />
               </SelectTrigger>
               <SelectContent>
                 {projects.map((project) => (
                   <SelectItem key={project.id} value={project.id}>
-                    {project.title}
+                    {project.code ? `${project.code} · ${project.title}` : project.title}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -304,6 +315,7 @@ export function ImportWorkspace() {
             <Label htmlFor="import-file">Source file</Label>
             <Input
               id="import-file"
+              key={projectId}
               accept=".csv,.xlsx,.xls"
               disabled={!canUpload || pending}
               type="file"

@@ -1,3 +1,4 @@
+import { performance } from 'node:perf_hooks'
 import { Injectable, type OnModuleDestroy, type OnModuleInit } from '@nestjs/common'
 import { type Prisma, PrismaClient } from '@prisma/client'
 
@@ -8,9 +9,57 @@ export interface VerifiedDatabaseContext {
   authSubject: string
   organizationId: string
   userId: string
+  /** Server-verified Supabase session claim. When present, liveness is checked
+   * in this same transaction before PATHWAYS profile resolution.
+   */
+  sessionId?: string
+}
+
+export interface VerifiedTransactionOptions {
+  timeoutMs?: number
+  onTiming?: (timing: VerifiedTransactionTiming) => void
+}
+
+export interface VerifiedTransactionTiming {
+  acquisitionMs: number
+  contextMs: number
+  workMs: number
 }
 
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+const DEFAULT_VERIFIED_TRANSACTION_TIMEOUT_MS = 10_000
+const MIN_VERIFIED_TRANSACTION_TIMEOUT_MS = 1_000
+const MAX_VERIFIED_TRANSACTION_TIMEOUT_MS = 30_000
+const MAX_REPORTED_STAGE_MS = 30_000
+
+const boundedStageDuration = (startedAt: number) =>
+  Math.min(MAX_REPORTED_STAGE_MS, Math.max(0, Math.round(performance.now() - startedAt)))
+
+export class InactiveVerifiedSessionError extends Error {
+  constructor() {
+    super('The verified authentication session is no longer active.')
+    this.name = 'InactiveVerifiedSessionError'
+  }
+}
+
+export class InvalidVerifiedSessionResultError extends Error {
+  constructor() {
+    super('The verified authentication session result is invalid.')
+    this.name = 'InvalidVerifiedSessionResultError'
+  }
+}
+
+function verifiedTransactionTimeout(options?: VerifiedTransactionOptions) {
+  const timeout = options?.timeoutMs ?? DEFAULT_VERIFIED_TRANSACTION_TIMEOUT_MS
+  if (
+    !Number.isInteger(timeout) ||
+    timeout < MIN_VERIFIED_TRANSACTION_TIMEOUT_MS ||
+    timeout > MAX_VERIFIED_TRANSACTION_TIMEOUT_MS
+  ) {
+    throw new Error('Verified transaction timeout must be an integer from 1000 through 30000 ms.')
+  }
+  return timeout
+}
 
 @Injectable()
 export class PrismaService extends PrismaClient implements OnModuleInit, OnModuleDestroy {
@@ -55,35 +104,112 @@ export class PrismaService extends PrismaClient implements OnModuleInit, OnModul
   async withVerifiedContext<T>(
     context: VerifiedDatabaseContext,
     work: (transaction: Prisma.TransactionClient) => Promise<T>,
+    options?: VerifiedTransactionOptions,
   ): Promise<T> {
     if (![context.authSubject, context.organizationId, context.userId].every((v) => uuid.test(v))) {
       throw new Error('Database context requires three UUID identifiers.')
     }
-    return this.$transaction(
-      async (transaction) => {
-        // Parameterized and transaction-local: no claims may leak through the pool.
-        await transaction.$queryRaw`
-        SELECT set_config('request.jwt.claim.sub', ${context.authSubject}, true),
-          set_config('request.jwt.claims', '', true),
-          set_config('app.organization_id', ${context.organizationId}, true),
-          set_config('app.user_id', ${context.userId}, true)
-      `
-        const [resolved] = await transaction.$queryRaw<Array<{ organizationId: string | null }>>`
-        SELECT pathways.runtime_context_organization()::text AS "organizationId"
-      `
-        if (resolved?.organizationId?.toLowerCase() !== context.organizationId.toLowerCase()) {
-          throw new Error('Database context is not linked to an active application identity.')
-        }
-        return work(transaction)
-      },
-      {
-        // A protected page can overlap its server and browser checks on the
-        // bounded development pool. Keep queue/work time bounded without
-        // Prisma's 2s/5s defaults turning valid remote profile reads into P2028.
-        maxWait: 5_000,
-        timeout: 10_000,
-      },
-    )
+    if (context.sessionId !== undefined && !uuid.test(context.sessionId)) {
+      throw new Error('Database context requires a valid session UUID when supplied.')
+    }
+    const timeout = verifiedTransactionTimeout(options)
+    const transactionStartedAt = performance.now()
+    const timing: VerifiedTransactionTiming = { acquisitionMs: 0, contextMs: 0, workMs: 0 }
+    let transactionEntered = false
+    let timingReported = false
+    const reportTiming = () => {
+      if (timingReported) return
+      timingReported = true
+      try {
+        options?.onTiming?.({ ...timing })
+      } catch {
+        // Development diagnostics must not change authorization behavior.
+      }
+    }
+    try {
+      return await this.$transaction(
+        async (transaction) => {
+          transactionEntered = true
+          timing.acquisitionMs = boundedStageDuration(transactionStartedAt)
+          const contextStartedAt = performance.now()
+          try {
+            if (context.sessionId) {
+              // One round trip establishes transaction-local context, verifies
+              // the current session, then resolves the linked organization. The
+              // CASE dependency prevents profile-context evaluation for a
+              // removed session; MATERIALIZED preserves the required ordering.
+              const rows = await transaction.$queryRaw<
+                Array<{ live: boolean; organizationId: string | null }>
+              >`
+                WITH configured AS MATERIALIZED (
+                  SELECT set_config('request.jwt.claim.sub', ${context.authSubject}, true),
+                    set_config('request.jwt.claims', '', true),
+                    set_config('app.organization_id', ${context.organizationId}, true),
+                    set_config('app.user_id', ${context.userId}, true)
+                ), live_session AS MATERIALIZED (
+                  SELECT pathways.runtime_auth_session_live(
+                    ${context.authSubject}::uuid,
+                    ${context.sessionId}::uuid
+                  ) AS live
+                  FROM configured
+                )
+                SELECT live,
+                  CASE WHEN live
+                    THEN pathways.runtime_context_organization()::text
+                    ELSE NULL
+                  END AS "organizationId"
+                FROM live_session
+              `
+              if (!Array.isArray(rows) || rows.length !== 1 || typeof rows[0]?.live !== 'boolean') {
+                throw new InvalidVerifiedSessionResultError()
+              }
+              if (!rows[0].live) throw new InactiveVerifiedSessionError()
+              if (rows[0].organizationId?.toLowerCase() !== context.organizationId.toLowerCase()) {
+                throw new Error('Database context is not linked to an active application identity.')
+              }
+            } else {
+              const [resolved] = await transaction.$queryRaw<
+                Array<{ organizationId: string | null }>
+              >`
+                WITH configured AS MATERIALIZED (
+                  SELECT set_config('request.jwt.claim.sub', ${context.authSubject}, true),
+                    set_config('request.jwt.claims', '', true),
+                    set_config('app.organization_id', ${context.organizationId}, true),
+                    set_config('app.user_id', ${context.userId}, true)
+                )
+                SELECT pathways.runtime_context_organization()::text AS "organizationId"
+                FROM configured
+              `
+              if (
+                resolved?.organizationId?.toLowerCase() !== context.organizationId.toLowerCase()
+              ) {
+                throw new Error('Database context is not linked to an active application identity.')
+              }
+            }
+          } finally {
+            timing.contextMs = boundedStageDuration(contextStartedAt)
+          }
+          const workStartedAt = performance.now()
+          try {
+            return await work(transaction)
+          } finally {
+            timing.workMs = boundedStageDuration(workStartedAt)
+          }
+        },
+        {
+          // A protected page can overlap its server and browser checks on the
+          // bounded development pool. Keep queue/work time bounded without
+          // Prisma's 2s/5s defaults turning valid remote profile reads into P2028.
+          maxWait: 5_000,
+          timeout,
+        },
+      )
+    } finally {
+      if (!transactionEntered) {
+        timing.acquisitionMs = boundedStageDuration(transactionStartedAt)
+      }
+      reportTiming()
+    }
   }
 
   async discoverWorkspace(authSubject: string) {

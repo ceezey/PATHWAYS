@@ -29,8 +29,11 @@ export function AnalyticsDashboard() {
   const monitoring = useMonitoringRead(JSON.stringify(query), load)
   const canReadSaddd = profile?.permissions.includes('beneficiaries.aggregates.read') === true
   const loadSaddd = useCallback(
-    async () => (canReadSaddd ? pathwaysClient.getSadddDashboard(query) : null),
-    [query, canReadSaddd],
+    async () =>
+      canReadSaddd && query.projectId
+        ? pathwaysClient.getSadddDashboard({ projectId: query.projectId })
+        : null,
+    [query.projectId, canReadSaddd],
   )
   const saddd = useMonitoringRead(`saddd:${JSON.stringify(query)}:${canReadSaddd}`, loadSaddd)
   const data = monitoring.data
@@ -114,8 +117,9 @@ export function AnalyticsDashboard() {
           ) : null}
           <p className="mt-3 text-xs text-muted-foreground">
             Leave both dates blank for the current month through today in the configured business
-            time zone. Demographic intersections, location and activity drill-through are not
-            enabled.
+            time zone. These dates apply to monitoring only; SADDD uses the selected project's saved
+            start and end dates after its period closes. Demographic intersections, location and
+            activity drill-through are not enabled.
           </p>
         </CardContent>
       </Card>
@@ -236,25 +240,29 @@ export function AnalyticsDashboard() {
           <CardTitle>SADDD analysis</CardTitle>
           <p className="text-sm text-muted-foreground">
             Current demographic profiles of distinct enrolled individuals. Age is calculated at the
-            reporting period end; this is not a historical demographic snapshot.
+            selected project's saved end date; this is not a historical demographic snapshot.
           </p>
         </CardHeader>
         <CardContent>
           {!canReadSaddd ? (
             <p>SADDD aggregate permission is required.</p>
+          ) : !query.projectId ? (
+            <p>Select one authorized project to request its closed-period SADDD release.</p>
           ) : saddd.error ? (
             <p role="alert">{saddd.error}</p>
           ) : !saddd.data ? (
             <output aria-live="polite">Loading protected aggregates…</output>
           ) : (
             <>
+              {saddd.data.releaseState === 'STALE' ? (
+                <output className="mb-4 block text-sm">
+                  RESTATEMENT_REVIEW_REQUIRED: this project release changed after first publication.
+                  Counts remain withheld pending review.
+                </output>
+              ) : null}
               <p className="mb-4 text-sm">
                 Eligible individuals: {formatMetricCell(saddd.data.total)} · Age reference:{' '}
-                {saddd.data.periodEnd} ({saddd.data.businessTimeZone})
-              </p>
-              <p className="mb-3 text-sm text-muted-foreground">
-                Beneficiary totals and demographic releases are unavailable pending an approved
-                overlapping-query release policy. No missing value is displayed as zero.
+                {saddd.data.periodEnd ?? 'unavailable'} ({saddd.data.businessTimeZone})
               </p>
               <p className="mb-4 text-sm text-muted-foreground">
                 Counts 1–4 are suppressed. Complementary suppression may withhold the entire
@@ -283,8 +291,8 @@ export function AnalyticsDashboard() {
       </Card>
       <p className="text-xs text-muted-foreground">
         Outputs refresh when filters change, the page returns to view, or Refresh monitoring is
-        selected. Authorized source corrections are reflected on the next read. Finance, rule alerts
-        and geographic coverage are not synthesized from missing data.
+        selected. A correction after first SADDD release requires restatement review. Finance, rule
+        alerts and geographic coverage are not synthesized from missing data.
       </p>
     </section>
   )

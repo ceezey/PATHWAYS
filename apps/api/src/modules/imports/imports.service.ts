@@ -37,6 +37,7 @@ import type {
   UploadImportDto,
   ValidateImportDto,
 } from './imports.dto'
+import { W10FinalizationFault } from './p07-w10-finalization-fault'
 
 type Tx = Prisma.TransactionClient
 
@@ -47,6 +48,7 @@ export interface UploadedImportFile {
   size: number
 }
 
+const REGISTRATION_IMPORT_TRANSACTION_TIMEOUT_MS = 20_000
 const PARTICIPATION_IMPORT_TRANSACTION_TIMEOUT_MS = 20_000
 
 const fileTypes: Record<
@@ -258,6 +260,7 @@ function safeRawData(value: Prisma.JsonValue): Record<string, unknown> {
 
 @Injectable()
 export class ImportsService {
+  private readonly w10FinalizationFault = new W10FinalizationFault()
   private readonly env = readApiEnv(process.env)
 
   constructor(
@@ -912,6 +915,22 @@ export class ImportsService {
       if (!['UPLOADING', 'RECOVERY_REQUIRED'].includes(batch.status)) {
         throw new ConflictException('This upload cannot be finalized again.')
       }
+      if (
+        this.w10FinalizationFault.consume({
+          organizationId: actor.organizationId,
+          projectId: batch.projectId,
+          formId: batch.formId,
+          clientImportId: batch.clientImportId,
+          sourceChecksum: batch.sourceChecksum,
+          storageBucket: batch.storageBucket,
+          storageStatus: batch.storageStatus,
+          status: batch.status,
+          totalRows: batch.totalRows,
+        })
+      ) {
+        // The authorized transaction rolls back. The upload catch records RECOVERY_REQUIRED.
+        throw new Error('P07_W10_SYNTHETIC_FINALIZATION_FAILURE')
+      }
       await tx.dataImportRow.createMany({
         data: parsed.rows.map((row) => ({
           organizationId: actor.organizationId,
@@ -1113,49 +1132,80 @@ export class ImportsService {
     claimId: string,
     validationRevision: number,
   ) {
-    return withAuthorizedOperation(this.prisma, identity, 'imports.process', async (tx, actor) => {
-      const batch = await this.requireBatchWithHeaders(tx, actor, projectId, batchId)
-      if (
-        batch.status !== 'PROCESSING' ||
-        batch.processingClaimId !== claimId ||
-        batch.validationRevision !== validationRevision ||
-        batch.validatedMappingRevision !== batch.mappingRevision ||
-        !batch.reviewedById ||
-        batch.form.formType !== 'BENEFICIARY_REGISTRATION'
-      ) {
-        throw new ConflictException('The registration processing claim is stale.')
-      }
-      const row = await tx.dataImportRow.findFirst({
-        where: {
-          id: rowId,
-          organizationId: actor.organizationId,
+    return withAuthorizedOperation(
+      this.prisma,
+      identity,
+      'imports.process',
+      async (tx, actor) => {
+        const batch = await this.requireBatchWithHeaders(tx, actor, projectId, batchId)
+        if (
+          batch.status !== 'PROCESSING' ||
+          batch.processingClaimId !== claimId ||
+          batch.validationRevision !== validationRevision ||
+          batch.validatedMappingRevision !== batch.mappingRevision ||
+          !batch.reviewedById ||
+          batch.form.formType !== 'BENEFICIARY_REGISTRATION'
+        ) {
+          throw new ConflictException('The registration processing claim is stale.')
+        }
+        const row = await tx.dataImportRow.findFirst({
+          where: {
+            id: rowId,
+            organizationId: actor.organizationId,
+            projectId: batch.projectId,
+            importBatchId: batch.id,
+            status: 'PROCESSING',
+            processingClaimId: claimId,
+            mappingRevision: batch.mappingRevision,
+            validationRevision: batch.validationRevision,
+          },
+          select: { id: true, rowNumber: true, normalizedData: true },
+        })
+        if (!row) throw new ConflictException('The registration row claim is unavailable.')
+        const outcome = await this.beneficiaries.promoteRegistration(tx, actor, {
           projectId: batch.projectId,
+          formId: batch.formId,
+          clientRegistrationId: row.id,
+          values: safeRawData(row.normalizedData as Prisma.JsonValue),
+          source: 'IMPORTED_DATASET',
+          validatedById: batch.reviewedById,
           importBatchId: batch.id,
-          status: 'PROCESSING',
-          processingClaimId: claimId,
-          mappingRevision: batch.mappingRevision,
-          validationRevision: batch.validationRevision,
-        },
-        select: { id: true, rowNumber: true, normalizedData: true },
-      })
-      if (!row) throw new ConflictException('The registration row claim is unavailable.')
-      const outcome = await this.beneficiaries.promoteRegistration(tx, actor, {
-        projectId: batch.projectId,
-        formId: batch.formId,
-        clientRegistrationId: row.id,
-        values: safeRawData(row.normalizedData as Prisma.JsonValue),
-        source: 'IMPORTED_DATASET',
-        validatedById: batch.reviewedById,
-        importBatchId: batch.id,
-        importRowId: row.id,
-      })
-      const finishedAt = new Date()
-      if (outcome.kind === 'REVIEW') {
+          importRowId: row.id,
+        })
+        const finishedAt = new Date()
+        if (outcome.kind === 'REVIEW') {
+          await tx.dataImportRow.update({
+            where: { id: row.id },
+            data: {
+              status: 'UNPROCESSED',
+              processingErrorCode: outcome.code,
+              processingClaimId: null,
+              processingClaimedAt: null,
+            },
+          })
+          await tx.auditLog.create({
+            data: {
+              organizationId: actor.organizationId,
+              actorUserId: actor.userId,
+              projectId: batch.projectId,
+              action: 'IMPORT_REGISTRATION_REVIEW_REQUIRED',
+              entityType: 'DataImportRow',
+              entityId: row.id,
+              changes: {
+                importBatchId: batch.id,
+                sourceRowNumber: row.rowNumber,
+                code: outcome.code,
+              },
+            },
+          })
+          return
+        }
         await tx.dataImportRow.update({
           where: { id: row.id },
           data: {
-            status: 'UNPROCESSED',
-            processingErrorCode: outcome.code,
+            status: 'PROCESSED',
+            processedAt: finishedAt,
+            processingErrorCode: null,
             processingClaimId: null,
             processingClaimedAt: null,
           },
@@ -1165,46 +1215,21 @@ export class ImportsService {
             organizationId: actor.organizationId,
             actorUserId: actor.userId,
             projectId: batch.projectId,
-            action: 'IMPORT_REGISTRATION_REVIEW_REQUIRED',
+            action: 'IMPORT_REGISTRATION_ROW_COMMITTED',
             entityType: 'DataImportRow',
             entityId: row.id,
             changes: {
               importBatchId: batch.id,
               sourceRowNumber: row.rowNumber,
-              code: outcome.code,
+              beneficiaryId: outcome.beneficiaryId,
+              enrollmentId: outcome.enrollmentId,
+              submissionId: outcome.submissionId,
             },
           },
         })
-        return
-      }
-      await tx.dataImportRow.update({
-        where: { id: row.id },
-        data: {
-          status: 'PROCESSED',
-          processedAt: finishedAt,
-          processingErrorCode: null,
-          processingClaimId: null,
-          processingClaimedAt: null,
-        },
-      })
-      await tx.auditLog.create({
-        data: {
-          organizationId: actor.organizationId,
-          actorUserId: actor.userId,
-          projectId: batch.projectId,
-          action: 'IMPORT_REGISTRATION_ROW_COMMITTED',
-          entityType: 'DataImportRow',
-          entityId: row.id,
-          changes: {
-            importBatchId: batch.id,
-            sourceRowNumber: row.rowNumber,
-            beneficiaryId: outcome.beneficiaryId,
-            enrollmentId: outcome.enrollmentId,
-            submissionId: outcome.submissionId,
-          },
-        },
-      })
-    })
+      },
+      { transactionTimeoutMs: REGISTRATION_IMPORT_TRANSACTION_TIMEOUT_MS },
+    )
   }
 
   private promoteParticipationRow(

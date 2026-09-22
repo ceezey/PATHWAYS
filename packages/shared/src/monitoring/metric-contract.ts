@@ -233,10 +233,21 @@ export const dashboardQuerySchema = z
       }
     }
   })
+
 export type DashboardQuery = z.infer<typeof dashboardQuerySchema>
+
+export const sadddQuerySchema = z
+  .object({
+    projectId: uuid,
+  })
+  .strict()
+
+export type SadddQuery = z.infer<typeof sadddQuerySchema>
+
 const bucket = z
   .object({ key: z.string().max(80), label: z.string().max(160), metric: metricCellSchema })
   .strict()
+
 const contextFields = {
   contractVersion: z.literal(P06_CONTRACT_VERSION),
   periodStart: date,
@@ -245,17 +256,21 @@ const contextFields = {
   generatedAt: z.string().datetime({ offset: true }),
   refresh: z.literal('READ_TIME_NO_CACHE'),
 }
+
 export const sadddDashboardSchema = z
   .object({
     ...contextFields,
+    periodStart: date.nullable(),
+    periodEnd: date.nullable(),
+    releaseState: z.enum(['RELEASED', 'STALE']),
     population: z.literal('DISTINCT_INDIVIDUALS_WITH_OVERLAPPING_ENROLLMENT'),
     demographicBasis: z.literal('CURRENT_PROFILE_NOT_HISTORICAL_SNAPSHOT'),
     privacy: z
       .object({
         threshold: z.literal(5),
         complementarySuppression: z.literal(true),
-        policy: z.literal('G4_CALCULATION_RELEASE_PENDING'),
-        crossFilters: z.literal('UNAVAILABLE_PENDING_POLICY'),
+        policy: z.literal('FIXED_CLOSED_PROJECT_PERIOD_V1'),
+        crossFilters: z.literal('PROJECT_ONLY_NO_CROSS_FILTERS'),
       })
       .strict(),
     total: metricCellSchema,

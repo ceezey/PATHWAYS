@@ -7,14 +7,17 @@ import type {
   AnalyticsLocationRecord,
   AuthorizeExistingUserInput,
   BeneficiaryFilters,
+  BeneficiaryJourneyHistory,
   BeneficiaryMediaProofRecord,
   BeneficiaryRecord,
   BeneficiarySadddAggregate,
   BudgetRecord,
+  CorrectJourneyEventInput,
   CreateActivityInput,
   CreateProjectInput,
   DigitalFormDefinition,
   DirectFormSubmission,
+  EnrollmentJourneyEventInput,
   EvaluationRecord,
   EvidenceRecord,
   ExpenseRecord,
@@ -27,6 +30,7 @@ import type {
   JourneyStageConfig,
   ProjectDetail,
   ProjectIndicator,
+  ProjectMilestone,
   ProjectStatus,
   ProjectSummary,
   PublicProjectRecord,
@@ -37,6 +41,7 @@ import type {
   RoleDashboardViewModel,
   RuleDefinition,
   SaveDigitalFormInput,
+  SaveMilestoneInput,
   SubmitActivityProofInput,
   SurveyAggregateFilters,
   SurveyAggregateResultSet,
@@ -45,6 +50,7 @@ import type {
   UpdateActivityInput,
   UpdateAuthorizedUserInput,
   UpdateBeneficiaryInput,
+  UpdateMilestoneInput,
   UserRecord,
 } from '@/types/pathways'
 import type { PathwaysRole } from '@/types/pathways-role'
@@ -54,6 +60,7 @@ import {
   type ManualMeasurementInput,
   type MonitoringDashboard,
   type SadddDashboard,
+  type SadddQuery,
   type UpdateIndicatorInput,
   dashboardQuerySchema,
   formatMetricCell,
@@ -61,6 +68,7 @@ import {
   monitoringIndicatorListSchema,
   monitoringIndicatorSchema,
   sadddDashboardSchema,
+  sadddQuerySchema,
 } from '@pathways/shared'
 
 export class PathwaysClientError extends Error {
@@ -85,11 +93,35 @@ export interface PathwaysClient {
   getProjectsForRole(role: PathwaysRole): Promise<ProjectSummary[]>
   getProject(id: string): Promise<ProjectDetail>
   createProject(input: CreateProjectInput): Promise<ProjectDetail>
+  updateProjectPeriod(id: string, endDate: string): Promise<ProjectDetail>
   getActivities(projectId: string): Promise<Activity[]>
   getActivity(projectId: string, activityId: string): Promise<Activity>
   createActivity(input: CreateActivityInput): Promise<Activity>
   updateActivity(input: UpdateActivityInput): Promise<Activity>
+  transitionActivity(
+    projectId: string,
+    activityId: string,
+    status: 'IN_PROGRESS' | 'CANCELLED',
+    expectedUpdatedAt: string,
+    reason?: string,
+  ): Promise<Activity>
   submitActivityProof(input: SubmitActivityProofInput): Promise<Activity>
+  reviewActivityUpdate(
+    projectId: string,
+    activityId: string,
+    updateId: string,
+    decision: 'APPROVE' | 'RETURN',
+    reason: string,
+    expectedUpdatedAt: string,
+  ): Promise<Activity>
+  downloadActivityProof(projectId: string, activityId: string, evidenceId: string): Promise<Blob>
+  getMilestones(projectId: string): Promise<ProjectMilestone[]>
+  createMilestone(projectId: string, input: SaveMilestoneInput): Promise<ProjectMilestone>
+  updateMilestone(
+    projectId: string,
+    milestoneId: string,
+    input: UpdateMilestoneInput,
+  ): Promise<ProjectMilestone>
   getEvidence(projectId: string): Promise<EvidenceRecord[]>
   getProjectIndicators(projectId: string): Promise<ProjectIndicator[]>
   getProjectIndicator(projectId: string, indicatorId: string): Promise<ProjectIndicator>
@@ -110,7 +142,7 @@ export interface PathwaysClient {
     expectedRevision: number,
   ): Promise<ProjectIndicator>
   getMonitoringDashboard(query?: DashboardQuery): Promise<MonitoringDashboard>
-  getSadddDashboard(query?: DashboardQuery): Promise<SadddDashboard>
+  getSadddDashboard(query: SadddQuery): Promise<SadddDashboard>
   getEvaluation(projectId: string): Promise<EvaluationRecord>
   getExpenses(projectId: string): Promise<ExpenseRecord[]>
   getRecommendationOutcomes(projectId: string): Promise<RecommendationOutcomeRecord[]>
@@ -145,9 +177,25 @@ export interface PathwaysClient {
   ): Promise<BeneficiaryMediaProofRecord[]>
   getBeneficiarySadddAggregatesForRole(
     role: PathwaysRole,
-    query?: DashboardQuery,
+    query: SadddQuery,
   ): Promise<BeneficiarySadddAggregate>
   getJourneyStages(projectId: string): Promise<JourneyStageConfig[]>
+  saveJourneyStages(projectId: string, stages: JourneyStageConfig[]): Promise<JourneyStageConfig[]>
+  getBeneficiaryJourneyHistory(
+    projectId: string,
+    beneficiaryId: string,
+  ): Promise<BeneficiaryJourneyHistory>
+  transitionBeneficiaryJourney(
+    projectId: string,
+    beneficiaryId: string,
+    input: EnrollmentJourneyEventInput,
+  ): Promise<{ enrollmentId: string; eventType: string; eventDate: string }>
+  correctBeneficiaryJourneyEvent(
+    projectId: string,
+    beneficiaryId: string,
+    eventId: string,
+    input: CorrectJourneyEventInput,
+  ): Promise<{ id: string }>
   getIndicators(projectId?: string): Promise<Indicator[]>
   getBudgets(projectId?: string): Promise<BudgetRecord[]>
   getAlerts(projectId?: string): Promise<AlertRecord[]>
@@ -289,28 +337,184 @@ class BackendReadyPathwaysClient implements PathwaysClient {
     )
   }
 
-  async getActivities(_projectId: string): Promise<Activity[]> {
-    return []
+  async updateProjectPeriod(id: string, endDate: string): Promise<ProjectDetail> {
+    const path = `/projects/${encodeURIComponent(id)}`
+    const current = (await requestFoundation(path)) as ApiProject
+    return mapProject(
+      (await requestFoundation(path, {
+        method: 'PATCH',
+        body: JSON.stringify({
+          code: current.code,
+          title: current.title,
+          description: current.description ?? undefined,
+          objectives: current.objectives ?? undefined,
+          implementationArea: current.implementationArea ?? undefined,
+          startDate: current.startDate,
+          endDate,
+          status: current.status,
+          programId: current.programId ?? undefined,
+          expectedUpdatedAt: current.updatedAt,
+        }),
+      })) as ApiProject,
+    )
   }
 
-  async getActivity(_projectId: string, _activityId: string): Promise<Activity> {
-    throw backendNotConfigured('Activity details')
+  async getActivities(projectId: string): Promise<Activity[]> {
+    return requestFoundation(`/projects/${encodeURIComponent(projectId)}/activities`).then(
+      parseActivities,
+    )
   }
 
-  async createActivity(_input: CreateActivityInput): Promise<Activity> {
-    throw backendNotConfigured('Activity creation')
+  async getActivity(projectId: string, activityId: string): Promise<Activity> {
+    return parseActivity(
+      await requestFoundation(
+        `/projects/${encodeURIComponent(projectId)}/activities/${encodeURIComponent(activityId)}`,
+      ),
+    )
   }
 
-  async updateActivity(_input: UpdateActivityInput): Promise<Activity> {
-    throw backendNotConfigured('Activity updates')
+  async createActivity(input: CreateActivityInput): Promise<Activity> {
+    return parseActivity(
+      await requestFoundation(`/projects/${encodeURIComponent(input.projectId)}/activities`, {
+        method: 'POST',
+        body: JSON.stringify({
+          title: input.title,
+          description: input.description,
+          plannedStartDate: input.startDate,
+          plannedEndDate: input.dueDate,
+          assignedUserIds: input.assignedUserIds,
+        }),
+      }),
+    )
   }
 
-  async submitActivityProof(_input: SubmitActivityProofInput): Promise<Activity> {
-    throw backendNotConfigured('Activity proof submission')
+  async updateActivity(input: UpdateActivityInput): Promise<Activity> {
+    return parseActivity(
+      await requestFoundation(
+        `/projects/${encodeURIComponent(input.projectId)}/activities/${encodeURIComponent(input.id)}`,
+        {
+          method: 'PATCH',
+          body: JSON.stringify({
+            title: input.title,
+            description: input.description,
+            plannedStartDate: input.startDate,
+            plannedEndDate: input.dueDate,
+            assignedUserIds: input.assignedUserIds,
+            expectedUpdatedAt: input.expectedUpdatedAt,
+          }),
+        },
+      ),
+    )
   }
 
-  async getEvidence(_projectId: string): Promise<EvidenceRecord[]> {
-    return []
+  async transitionActivity(
+    projectId: string,
+    activityId: string,
+    status: 'IN_PROGRESS' | 'CANCELLED',
+    expectedUpdatedAt: string,
+    reason?: string,
+  ): Promise<Activity> {
+    return parseActivity(
+      await requestFoundation(
+        `/projects/${encodeURIComponent(projectId)}/activities/${encodeURIComponent(activityId)}/transition`,
+        {
+          method: 'POST',
+          body: JSON.stringify({ status, expectedUpdatedAt, reason }),
+        },
+      ),
+    )
+  }
+
+  async submitActivityProof(input: SubmitActivityProofInput): Promise<Activity> {
+    const body = new FormData()
+    body.set('clientUpdateId', input.clientUpdateId)
+    body.set('progressPercent', String(input.progress))
+    body.set('note', input.note)
+    for (const file of input.files) body.append('files', file, file.name)
+    return parseActivity(
+      await requestFoundation(
+        `/projects/${encodeURIComponent(input.projectId)}/activities/${encodeURIComponent(input.activityId)}/updates`,
+        { method: 'POST', body },
+      ),
+    )
+  }
+
+  async reviewActivityUpdate(
+    projectId: string,
+    activityId: string,
+    updateId: string,
+    decision: 'APPROVE' | 'RETURN',
+    reason: string,
+    expectedUpdatedAt: string,
+  ): Promise<Activity> {
+    return parseActivity(
+      await requestFoundation(
+        `/projects/${encodeURIComponent(projectId)}/activities/${encodeURIComponent(activityId)}/updates/${encodeURIComponent(updateId)}/review`,
+        {
+          method: 'POST',
+          body: JSON.stringify({ decision, reason, expectedUpdatedAt }),
+        },
+      ),
+    )
+  }
+
+  async downloadActivityProof(projectId: string, activityId: string, evidenceId: string) {
+    const response = await requestFoundationResponse(
+      `/projects/${encodeURIComponent(projectId)}/activities/${encodeURIComponent(activityId)}/proof/${encodeURIComponent(evidenceId)}`,
+    )
+    return response.blob()
+  }
+
+  async getMilestones(projectId: string): Promise<ProjectMilestone[]> {
+    return parseMilestones(
+      await requestFoundation(`/projects/${encodeURIComponent(projectId)}/milestones`),
+    )
+  }
+
+  async createMilestone(projectId: string, input: SaveMilestoneInput): Promise<ProjectMilestone> {
+    return parseMilestone(
+      await requestFoundation(`/projects/${encodeURIComponent(projectId)}/milestones`, {
+        method: 'POST',
+        body: JSON.stringify(input),
+      }),
+    )
+  }
+
+  async updateMilestone(
+    projectId: string,
+    milestoneId: string,
+    input: UpdateMilestoneInput,
+  ): Promise<ProjectMilestone> {
+    return parseMilestone(
+      await requestFoundation(
+        `/projects/${encodeURIComponent(projectId)}/milestones/${encodeURIComponent(milestoneId)}`,
+        { method: 'PATCH', body: JSON.stringify(input) },
+      ),
+    )
+  }
+
+  async getEvidence(projectId: string): Promise<EvidenceRecord[]> {
+    const activities = await this.getActivities(projectId)
+    return activities.flatMap((activity) =>
+      activity.submittedProof.map((proof) => ({
+        id: proof.id,
+        projectId: activity.projectId,
+        activityId: activity.id,
+        updateId: proof.updateId,
+        updateUpdatedAt: proof.updateUpdatedAt,
+        fileName: proof.fileName,
+        reportTitle: activity.title,
+        status:
+          proof.status === 'Accepted'
+            ? 'Approved'
+            : proof.status === 'Flagged'
+              ? 'Returned'
+              : 'Submitted',
+        submitter: proof.submittedBy,
+        submittedDate: proof.submittedAt,
+        previewSummary: proof.note ?? 'Activity evidence submission',
+      })),
+    )
   }
 
   async getProjectIndicators(projectId: string): Promise<ProjectIndicator[]> {
@@ -393,9 +597,10 @@ class BackendReadyPathwaysClient implements PathwaysClient {
     )
   }
 
-  async getSadddDashboard(query: DashboardQuery = {}): Promise<SadddDashboard> {
+  async getSadddDashboard(query: SadddQuery): Promise<SadddDashboard> {
+    const { projectId } = sadddQuerySchema.parse(query)
     return sadddDashboardSchema.parse(
-      await requestFoundation(`/dashboards/saddd${monitoringQuery(query)}`),
+      await requestFoundation(`/dashboards/saddd?projectId=${encodeURIComponent(projectId)}`),
     )
   }
 
@@ -421,15 +626,47 @@ class BackendReadyPathwaysClient implements PathwaysClient {
     filters?: BeneficiaryFilters,
   ): Promise<BeneficiaryRecord[]> {
     if (!projectId) return []
+    const params = new URLSearchParams()
+
     const search = filters?.search?.trim()
-    const query = search ? `?search=${encodeURIComponent(search)}` : ''
-    const value = (await requestFoundation(
-      `/beneficiaries/projects/${encodeURIComponent(projectId)}${query}`,
-    )) as { items?: unknown }
-    if (!Array.isArray(value.items) || value.items.length > 50) {
-      throw new PathwaysClientError('Invalid beneficiary response.', 'network')
+
+    if (search) params.set('search', search)
+    if (filters?.sex) params.set('sex', filters.sex)
+    if (filters?.ageBand) params.set('ageBand', filters.ageBand)
+    if (filters?.disabilityStatus) params.set('disabilityStatus', filters.disabilityStatus)
+
+    if (filters?.enrollmentStatus) {
+      params.set('enrollmentStatus', filters.enrollmentStatus)
     }
-    return value.items.map((row) => mapBeneficiary(row as ApiBeneficiary))
+
+    params.set('limit', '50')
+    const records: BeneficiaryRecord[] = []
+    const seenCursors = new Set<string>()
+    let cursor: string | null = null
+
+    do {
+      if (cursor) params.set('cursor', cursor)
+      const value = (await requestFoundation(
+        `/beneficiaries/projects/${encodeURIComponent(projectId)}?${params.toString()}`,
+      )) as { items?: unknown; nextCursor?: unknown }
+      if (
+        !Array.isArray(value.items) ||
+        value.items.length > 50 ||
+        (value.nextCursor !== null && typeof value.nextCursor !== 'string')
+      ) {
+        throw new PathwaysClientError('Invalid beneficiary response.', 'network')
+      }
+      records.push(...value.items.map((row) => mapBeneficiary(row as ApiBeneficiary)))
+      cursor = value.nextCursor
+      if (cursor) {
+        if (seenCursors.has(cursor)) {
+          throw new PathwaysClientError('Invalid beneficiary pagination.', 'network')
+        }
+        seenCursors.add(cursor)
+      }
+    } while (cursor)
+
+    return records
   }
 
   async getBeneficiaryRecordForRole(
@@ -486,14 +723,81 @@ class BackendReadyPathwaysClient implements PathwaysClient {
 
   async getBeneficiarySadddAggregatesForRole(
     _role: PathwaysRole,
-    query: DashboardQuery = {},
+    query: SadddQuery,
   ): Promise<BeneficiarySadddAggregate> {
     // Compatibility entry point only: the role is never transmitted or trusted.
     return this.getSadddDashboard(query)
   }
 
-  async getJourneyStages(_projectId: string): Promise<JourneyStageConfig[]> {
-    return []
+  async getJourneyStages(projectId: string): Promise<JourneyStageConfig[]> {
+    return parseJourneyStages(
+      await requestFoundation(`/projects/${encodeURIComponent(projectId)}/journey-stages`),
+    )
+  }
+
+  async saveJourneyStages(
+    projectId: string,
+    stages: JourneyStageConfig[],
+  ): Promise<JourneyStageConfig[]> {
+    const stageType = {
+      Entry: 'ENTRY',
+      Core: 'CORE',
+      Branch: 'BRANCH',
+      'Follow-Up': 'FOLLOW_UP',
+    } as const
+    return parseJourneyStages(
+      await requestFoundation(`/projects/${encodeURIComponent(projectId)}/journey-stages`, {
+        method: 'PUT',
+        body: JSON.stringify({
+          stages: stages.map((stage) => ({
+            id: stage.id,
+            code: stage.code,
+            name: stage.name,
+            order: stage.order,
+            type: stageType[stage.type],
+            parentStageId: stage.parentStageId,
+            terminal: stage.terminal,
+            description: stage.description,
+            mappedActivityIds: stage.mappedActivityIds,
+            expectedUpdatedAt: stage.updatedAt,
+          })),
+        }),
+      }),
+    )
+  }
+
+  async getBeneficiaryJourneyHistory(
+    projectId: string,
+    beneficiaryId: string,
+  ): Promise<BeneficiaryJourneyHistory> {
+    return parseJourneyHistory(
+      await requestFoundation(
+        `/beneficiaries/projects/${encodeURIComponent(projectId)}/${encodeURIComponent(beneficiaryId)}/journey`,
+      ),
+    )
+  }
+
+  async transitionBeneficiaryJourney(
+    projectId: string,
+    beneficiaryId: string,
+    input: EnrollmentJourneyEventInput,
+  ) {
+    return requestFoundation(
+      `/beneficiaries/projects/${encodeURIComponent(projectId)}/${encodeURIComponent(beneficiaryId)}/journey/events`,
+      { method: 'POST', body: JSON.stringify(input) },
+    ) as Promise<{ enrollmentId: string; eventType: string; eventDate: string }>
+  }
+
+  async correctBeneficiaryJourneyEvent(
+    projectId: string,
+    beneficiaryId: string,
+    eventId: string,
+    input: CorrectJourneyEventInput,
+  ) {
+    return requestFoundation(
+      `/beneficiaries/projects/${encodeURIComponent(projectId)}/${encodeURIComponent(beneficiaryId)}/journey/events/${encodeURIComponent(eventId)}/corrections`,
+      { method: 'POST', body: JSON.stringify(input) },
+    ) as Promise<{ id: string }>
   }
 
   async getIndicators(projectId?: string): Promise<Indicator[]> {
@@ -906,7 +1210,7 @@ interface ApiBeneficiary {
     id: string
     projectId: string
     enrollmentDate: string
-    status: 'ACTIVE' | 'COMPLETED' | 'EXITED'
+    status: 'ACTIVE' | 'COMPLETED' | 'DROPPED' | 'TRANSFERRED' | 'INACTIVE'
   } | null
   consentProvenance: BeneficiaryRecord['consentProvenance']
   updatedAt: string
@@ -921,7 +1225,7 @@ function readContextCookie() {
   return value
 }
 
-async function requestFoundation(path: string, init: RequestInit = {}) {
+async function requestFoundationResponse(path: string, init: RequestInit = {}) {
   if (typeof window === 'undefined')
     throw new PathwaysClientError('Browser session required.', 'unauthorized')
   const supabase = getBrowserSupabaseClient()
@@ -1016,6 +1320,11 @@ async function requestFoundation(path: string, init: RequestInit = {}) {
       fieldErrors,
     )
   }
+  return response
+}
+
+async function requestFoundation(path: string, init: RequestInit = {}) {
+  const response = await requestFoundationResponse(path, init)
   return response.json()
 }
 
@@ -1063,21 +1372,44 @@ function mapBeneficiary(row: ApiBeneficiary): BeneficiaryRecord {
   const sex = {
     FEMALE: 'Female',
     MALE: 'Male',
-    OTHER: 'Prefer not to say',
+    OTHER: 'Other',
     PREFER_NOT_TO_SAY: 'Prefer not to say',
-    NOT_SPECIFIED: 'Prefer not to say',
+    NOT_SPECIFIED: 'Not specified',
   } as const
   const disability = {
     WITH_DISABILITY: 'With disability',
     WITHOUT_DISABILITY: 'Without disability',
-    NOT_SPECIFIED: 'Not disclosed',
+    NOT_SPECIFIED: 'Not specified',
   } as const
+  if (
+    !row ||
+    typeof row !== 'object' ||
+    typeof row.id !== 'string' ||
+    typeof row.projectId !== 'string' ||
+    typeof row.code !== 'string' ||
+    typeof row.displayName !== 'string' ||
+    !(row.sex in sex) ||
+    !(row.disabilityStatus in disability) ||
+    !Object.hasOwn(row, 'enrollment') ||
+    (row.enrollment !== null &&
+      (!row.enrollment ||
+        !['ACTIVE', 'COMPLETED', 'DROPPED', 'TRANSFERRED', 'INACTIVE'].includes(
+          row.enrollment.status,
+        ))) ||
+    !Array.isArray(row.consentProvenance)
+  ) {
+    throw new PathwaysClientError('Invalid beneficiary response.', 'network')
+  }
   const enrollmentStatus =
-    row.enrollment?.status === 'COMPLETED'
-      ? 'Completed'
-      : row.enrollment?.status === 'EXITED'
-        ? 'Exited'
-        : 'Active'
+    row.enrollment === null
+      ? 'Not recorded'
+      : row.enrollment.status === 'COMPLETED'
+        ? 'Completed'
+        : row.enrollment.status === 'DROPPED' ||
+            row.enrollment.status === 'TRANSFERRED' ||
+            row.enrollment.status === 'INACTIVE'
+          ? 'Exited'
+          : 'Active'
   const location =
     [row.locationBarangay, row.locationCityMunicipality, row.locationProvince]
       .filter(Boolean)
@@ -1090,7 +1422,6 @@ function mapBeneficiary(row: ApiBeneficiary): BeneficiaryRecord {
     projectIds: [row.projectId],
     location,
     sex: sex[row.sex],
-    ageGroup: 'Not classified',
     disabilityStatus: disability[row.disabilityStatus],
     enrollmentStatus,
     firstName: row.firstName ?? '',
@@ -1112,7 +1443,7 @@ function mapBeneficiary(row: ApiBeneficiary): BeneficiaryRecord {
             projectId: row.projectId,
             status: enrollmentStatus,
             enrolledAt: row.enrollment.enrollmentDate,
-            followUpStatus: 'Not due',
+            followUpStatus: 'Not recorded',
           },
         ]
       : [],
@@ -1128,6 +1459,137 @@ function parseProjects(value: unknown) {
   if (!Array.isArray(value) || value.length > 100)
     throw new PathwaysClientError('Invalid project response.', 'network')
   return value.map((row) => mapProject(row as ApiProject))
+}
+
+function parseActivity(value: unknown): Activity {
+  const row = value as Partial<Activity>
+  if (
+    !row ||
+    typeof row !== 'object' ||
+    typeof row.id !== 'string' ||
+    typeof row.projectId !== 'string' ||
+    typeof row.title !== 'string' ||
+    typeof row.updatedAt !== 'string' ||
+    !Array.isArray(row.assignedUserIds) ||
+    !Array.isArray(row.assignedTo) ||
+    !Array.isArray(row.assignedEmails) ||
+    !Array.isArray(row.indicatorIds) ||
+    !Array.isArray(row.journeyStageIds) ||
+    !Array.isArray(row.submittedProof) ||
+    !Array.isArray(row.updateNotes)
+  ) {
+    throw new PathwaysClientError('Invalid activity response.', 'network')
+  }
+  return row as Activity
+}
+
+function parseActivities(value: unknown): Activity[] {
+  if (!Array.isArray(value) || value.length > 100) {
+    throw new PathwaysClientError('Invalid activity response.', 'network')
+  }
+  return value.map(parseActivity)
+}
+
+function dateOnly(value: unknown): string {
+  if (value === null || value === undefined || value === '') return ''
+  if (typeof value !== 'string') throw new PathwaysClientError('Invalid date response.', 'network')
+  return value.slice(0, 10)
+}
+
+function parseMilestone(value: unknown): ProjectMilestone {
+  const row = value as Partial<ProjectMilestone> & {
+    targetDate?: unknown
+    completionDate?: unknown
+    description?: unknown
+  }
+  if (
+    !row ||
+    typeof row !== 'object' ||
+    typeof row.id !== 'string' ||
+    typeof row.projectId !== 'string' ||
+    typeof row.title !== 'string' ||
+    !['PENDING', 'IN_PROGRESS', 'COMPLETED', 'CANCELLED'].includes(String(row.status)) ||
+    typeof row.updatedAt !== 'string'
+  ) {
+    throw new PathwaysClientError('Invalid milestone response.', 'network')
+  }
+  return {
+    id: row.id,
+    projectId: row.projectId,
+    title: row.title,
+    description: typeof row.description === 'string' ? row.description : '',
+    targetDate: dateOnly(row.targetDate),
+    completionDate: dateOnly(row.completionDate),
+    status: row.status as ProjectMilestone['status'],
+    updatedAt: row.updatedAt,
+  }
+}
+
+function parseMilestones(value: unknown): ProjectMilestone[] {
+  if (!Array.isArray(value) || value.length > 100) {
+    throw new PathwaysClientError('Invalid milestone response.', 'network')
+  }
+  return value.map(parseMilestone)
+}
+
+function parseJourneyStage(value: unknown): JourneyStageConfig {
+  const row = value as Partial<JourneyStageConfig>
+  if (
+    !row ||
+    typeof row !== 'object' ||
+    typeof row.id !== 'string' ||
+    typeof row.projectId !== 'string' ||
+    typeof row.code !== 'string' ||
+    typeof row.name !== 'string' ||
+    typeof row.order !== 'number' ||
+    !['Entry', 'Core', 'Branch', 'Follow-Up'].includes(String(row.type)) ||
+    typeof row.terminal !== 'boolean' ||
+    !Array.isArray(row.mappedActivityIds) ||
+    typeof row.description !== 'string'
+  ) {
+    throw new PathwaysClientError('Invalid journey-stage response.', 'network')
+  }
+  if (row.parentStageId !== undefined && typeof row.parentStageId !== 'string') {
+    throw new PathwaysClientError('Invalid journey-stage parent response.', 'network')
+  }
+  return row as JourneyStageConfig
+}
+
+function parseJourneyStages(value: unknown): JourneyStageConfig[] {
+  if (!Array.isArray(value) || value.length > 100) {
+    throw new PathwaysClientError('Invalid journey-stage response.', 'network')
+  }
+  return value.map(parseJourneyStage)
+}
+
+function parseJourneyHistory(value: unknown): BeneficiaryJourneyHistory {
+  const row = value as Partial<BeneficiaryJourneyHistory>
+  if (
+    !row ||
+    typeof row !== 'object' ||
+    typeof row.projectId !== 'string' ||
+    typeof row.beneficiaryId !== 'string' ||
+    typeof row.enrollmentId !== 'string' ||
+    typeof row.enrollmentStatus !== 'string' ||
+    !Array.isArray(row.events) ||
+    row.events.length > 500
+  ) {
+    throw new PathwaysClientError('Invalid journey-history response.', 'network')
+  }
+  for (const event of row.events) {
+    if (
+      !event ||
+      typeof event !== 'object' ||
+      typeof event.id !== 'string' ||
+      typeof event.eventType !== 'string' ||
+      typeof event.eventDate !== 'string' ||
+      typeof event.recordedAt !== 'string' ||
+      typeof event.recordedBy !== 'string'
+    ) {
+      throw new PathwaysClientError('Invalid journey-history response.', 'network')
+    }
+  }
+  return row as BeneficiaryJourneyHistory
 }
 
 function mapUser(user: ApiUser): UserRecord {

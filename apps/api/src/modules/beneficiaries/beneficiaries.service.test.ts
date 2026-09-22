@@ -117,6 +117,7 @@ const values = (patch: Record<string, unknown> = {}) => ({
 
 describe('P04 beneficiary registration service', () => {
   const tx = {
+    $queryRaw: vi.fn(),
     digitalForm: { findFirst: vi.fn() },
     formSubmission: { findFirst: vi.fn(), create: vi.fn(), update: vi.fn() },
     formResponseValue: { createMany: vi.fn() },
@@ -142,6 +143,7 @@ describe('P04 beneficiary registration service', () => {
       status: 'PUBLISHED',
       formField_form: fields,
     })
+    tx.$queryRaw.mockResolvedValue([{ transactionTime: new Date('2026-01-01T00:00:00.000Z') }])
     tx.formSubmission.findFirst.mockResolvedValue(null)
     tx.beneficiary.findUnique.mockResolvedValue(null)
     tx.beneficiary.findFirst.mockResolvedValue(null)
@@ -188,12 +190,48 @@ describe('P04 beneficiary registration service', () => {
     expect(tx.beneficiaryConsentRecord.createMany).toHaveBeenCalledWith(
       expect.objectContaining({
         data: expect.arrayContaining([
-          expect.objectContaining({ kind: 'PARTICIPATION' }),
-          expect.objectContaining({ kind: 'DATA_PROCESSING' }),
+          expect.objectContaining({
+            kind: 'PARTICIPATION',
+            recordedAt: new Date('2026-01-01T00:00:00.000Z'),
+          }),
+          expect.objectContaining({
+            kind: 'DATA_PROCESSING',
+            recordedAt: new Date('2026-01-01T00:00:00.000Z'),
+          }),
         ]),
       }),
     )
+    expect(tx.formSubmission.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          submittedAt: new Date('2026-01-01T00:00:00.000Z'),
+          validatedAt: new Date('2026-01-01T00:00:00.000Z'),
+        }),
+      }),
+    )
     expect(tx.auditLog.create).toHaveBeenCalledOnce()
+  })
+
+  it('rejects an incompatible published registration definition before validating values', async () => {
+    tx.digitalForm.findFirst.mockResolvedValue({
+      id: formId,
+      version: 1,
+      status: 'PUBLISHED',
+      formField_form: fields.map((item) =>
+        item.code === 'enrollment_date' ? { ...item, dataType: 'DECIMAL' } : item,
+      ),
+    })
+
+    await expect(promote()).rejects.toMatchObject({
+      response: expect.objectContaining({
+        message: 'Registration form does not implement the required domain field contract.',
+        errors: expect.arrayContaining([
+          expect.objectContaining({ fieldCode: 'enrollment_date', code: 'invalid_definition' }),
+        ]),
+      }),
+    })
+    expect(tx.beneficiary.create).not.toHaveBeenCalled()
+    expect(tx.formSubmission.create).not.toHaveBeenCalled()
   })
 
   it('supports group/community subjects without fabricating person fields', async () => {

@@ -3,8 +3,19 @@ import type { MonitoringIndicator, SadddDashboard } from '@pathways/shared'
 
 export type ProjectStatus = 'Active' | 'Needs Attention' | 'Planned' | 'Completed'
 export type HealthStatus = 'On Track' | 'At Risk' | 'Critical'
-export type ActivityStatus = 'Planned' | 'In Progress' | 'For Review' | 'Overdue' | 'Completed'
-export type BeneficiaryEnrollmentStatus = 'Active' | 'Pending Review' | 'Completed' | 'Exited'
+export type ActivityStatus =
+  | 'Planned'
+  | 'In Progress'
+  | 'For Review'
+  | 'Overdue'
+  | 'Completed'
+  | 'Cancelled'
+export type BeneficiaryEnrollmentStatus =
+  | 'Active'
+  | 'Pending Review'
+  | 'Completed'
+  | 'Exited'
+  | 'Not recorded'
 export type DashboardSeverity = 'neutral' | 'info' | 'success' | 'warning' | 'danger'
 export type DashboardActionKind = 'dialog' | 'navigate' | 'toast'
 
@@ -72,31 +83,54 @@ export interface CreateProjectInput {
   programId?: string
 }
 
+export type StoredActivityStatus =
+  | 'NOT_STARTED'
+  | 'IN_PROGRESS'
+  | 'FOR_REVIEW'
+  | 'COMPLETED'
+  | 'CANCELLED'
+
 export interface Activity {
   id: string
   projectId: string
+  code?: string | null
   title: string
   description: string
+  activityType?: string | null
+  storedStatus: StoredActivityStatus
   status: ActivityStatus
+  overdue?: boolean
   startDate: string
   dueDate: string
+  actualStartDate?: string | null
+  actualEndDate?: string | null
+  assignedUserIds: string[]
   assignedTo: string[]
+  assignedEmails: string[]
   indicatorIds: string[]
+  journeyStageIds: string[]
   journeyStageId: string
   targetBeneficiaries: number
   beneficiariesReached: number
   budgetAllocation: number
   budgetLogged: number
   progress: number
+  reviewedById?: string | null
+  reviewedAt?: string | null
+  cancellationReason?: string | null
   submittedProof: ActivityProof[]
   updateNotes: ActivityUpdateNote[]
+  updatedAt: string
 }
 
 export interface ActivityProof {
   id: string
+  updateId: string
   fileName: string
-  status: 'Draft' | 'Submitted' | 'Flagged' | 'Accepted'
+  status: 'Submitted' | 'Flagged' | 'Accepted'
   submittedAt: string
+  submittedBy: string
+  updateUpdatedAt: string
   note?: string
 }
 
@@ -104,7 +138,13 @@ export interface ActivityUpdateNote {
   id: string
   note: string
   progress: number
+  status: 'Submitted' | 'Flagged' | 'Accepted'
+  submittedBy: string
   submittedAt: string
+  reviewedBy: string | null
+  reviewedAt: string | null
+  reviewReason: string | null
+  updatedAt: string
 }
 
 export interface CreateActivityInput {
@@ -115,13 +155,12 @@ export interface CreateActivityInput {
   dueDate: string
   targetBeneficiaries: number
   budgetAllocation: number
-  assignedTo: string[]
-  indicatorIds: string[]
-  journeyStageId: string
+  assignedUserIds: string[]
 }
 
 export interface UpdateActivityInput extends CreateActivityInput {
   id: string
+  expectedUpdatedAt: string
   status: ActivityStatus
   progress: number
   beneficiariesReached: number
@@ -129,10 +168,35 @@ export interface UpdateActivityInput extends CreateActivityInput {
 }
 
 export interface SubmitActivityProofInput {
+  projectId: string
   activityId: string
+  clientUpdateId: string
   progress: number
   note: string
-  fileNames: string[]
+  files: File[]
+}
+
+export interface ProjectMilestone {
+  id: string
+  projectId: string
+  title: string
+  description: string
+  targetDate: string
+  completionDate: string
+  status: 'PENDING' | 'IN_PROGRESS' | 'COMPLETED' | 'CANCELLED'
+  updatedAt: string
+}
+
+export interface SaveMilestoneInput {
+  title: string
+  description?: string
+  targetDate?: string
+}
+
+export interface UpdateMilestoneInput extends SaveMilestoneInput {
+  status: ProjectMilestone['status']
+  completionDate?: string
+  expectedUpdatedAt: string
 }
 
 export interface Beneficiary {
@@ -141,9 +205,9 @@ export interface Beneficiary {
   displayName: string
   projectIds: string[]
   location: string
-  sex: 'Female' | 'Male' | 'Prefer not to say'
-  ageGroup: '10-14' | '15-17' | '18-24' | '25+' | 'Not classified'
-  disabilityStatus: 'With disability' | 'Without disability' | 'Not disclosed'
+  sex: 'Female' | 'Male' | 'Other' | 'Prefer not to say' | 'Not specified'
+  ageGroup?: '0-9' | '10-14' | '15-17' | '18-24' | '25+' | 'Unknown'
+  disabilityStatus: 'With disability' | 'Without disability' | 'Not specified'
   enrollmentStatus: BeneficiaryEnrollmentStatus
 }
 
@@ -160,6 +224,62 @@ export interface JourneyStageConfig {
   terminal: boolean
   mappedActivityIds: string[]
   description: string
+  archived?: boolean
+  updatedAt?: string
+}
+
+export type JourneyEventType =
+  | 'ENROLLMENT'
+  | 'PARTICIPATION'
+  | 'PROGRESS_UPDATE'
+  | 'COMPLETION'
+  | 'FOLLOW_UP'
+  | 'DROPOUT'
+  | 'TRANSFER'
+
+export interface BeneficiaryJourneyEvent {
+  id: string
+  eventType: JourneyEventType
+  eventDate: string
+  description: string | null
+  stageId: string | null
+  stageCodeSnapshot: string | null
+  stageNameSnapshot: string | null
+  activityId: string | null
+  activityCodeSnapshot: string | null
+  activityTitleSnapshot: string | null
+  participationId: string | null
+  participation: {
+    attendanceStatus: string
+    progressStatus: string
+  } | null
+  correctsEventId: string | null
+  correctionReason: string | null
+  recordedAt: string
+  recordedBy: string
+}
+
+export interface BeneficiaryJourneyHistory {
+  projectId: string
+  beneficiaryId: string
+  enrollmentId: string
+  enrollmentStatus: string
+  events: BeneficiaryJourneyEvent[]
+}
+
+export interface EnrollmentJourneyEventInput {
+  eventType: 'COMPLETION' | 'FOLLOW_UP' | 'DROPOUT' | 'TRANSFER'
+  eventDate: string
+  description: string
+  stageId?: string
+  destinationProjectId?: string
+}
+
+export interface CorrectJourneyEventInput {
+  eventDate: string
+  description: string
+  reason: string
+  stageId?: string
 }
 
 export interface BeneficiaryEnrollment {
@@ -167,7 +287,7 @@ export interface BeneficiaryEnrollment {
   projectId: string
   status: BeneficiaryEnrollmentStatus
   enrolledAt: string
-  followUpStatus: 'Not due' | 'Scheduled' | 'Needs follow-up' | 'Completed'
+  followUpStatus: 'Not recorded' | 'Not due' | 'Scheduled' | 'Needs follow-up' | 'Completed'
 }
 
 export interface BeneficiaryParticipationRecord {
@@ -291,6 +411,8 @@ export interface EvidenceRecord {
   id: string
   projectId: string
   activityId: string
+  updateId: string
+  updateUpdatedAt: string
   fileName: string
   reportTitle: string
   status: EvidenceReviewStatus
@@ -575,6 +697,12 @@ export type ImportBatchStatus =
   | 'RECOVERY_REQUIRED'
   | 'FAILED'
 
+export interface ImportSourceColumn {
+  key: string
+  header: string
+  columnIndex: number
+}
+
 export interface ImportBatchDefinition {
   id: string
   projectId: string
@@ -606,6 +734,7 @@ export interface ImportBatchDefinition {
   processedAt?: string
   updatedAt: string
   sourceHeaders?: string[]
+  sourceColumns?: ImportSourceColumn[]
   mappings?: Array<{
     sourceFieldName: string
     status: 'MAPPED' | 'IGNORED'
@@ -814,10 +943,10 @@ export interface BeneficiaryFilters {
   search?: string
   projectId?: string
   location?: string
-  sex?: Beneficiary['sex']
-  ageGroup?: Beneficiary['ageGroup']
-  disabilityStatus?: Beneficiary['disabilityStatus']
-  enrollmentStatus?: BeneficiaryEnrollmentStatus
+  sex?: 'MALE' | 'FEMALE' | 'OTHER' | 'PREFER_NOT_TO_SAY' | 'NOT_SPECIFIED'
+  ageBand?: '0-9' | '10-14' | '15-17' | '18-24' | '25+' | 'Unknown'
+  disabilityStatus?: 'WITH_DISABILITY' | 'WITHOUT_DISABILITY' | 'NOT_SPECIFIED'
+  enrollmentStatus?: 'ACTIVE' | 'COMPLETED' | 'EXITED'
 }
 
 export interface DashboardMetric {

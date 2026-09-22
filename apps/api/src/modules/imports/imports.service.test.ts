@@ -14,6 +14,7 @@ import type { ApplicationIdentity } from '../auth/developer-access'
 import type { BeneficiariesService } from '../beneficiaries/beneficiaries.service'
 import type { StorageService } from '../storage/storage.service'
 import { ImportsService, type UploadedImportFile } from './imports.service'
+import { W10_CLIENT_IMPORT_ID, W10_SOURCE_SHA256 } from './p07-w10-finalization-fault'
 
 const state = vi.hoisted(() => ({
   actor: undefined as ApplicationIdentity | undefined,
@@ -342,6 +343,71 @@ describe('P03 import service', () => {
     )
   })
 
+  it('makes only the exact W10 upload fail once after Storage and resumes without a duplicate row', async () => {
+    const w10OrganizationId = '7541cfc6-541d-4057-9229-03d89d361d34'
+    const w10ProjectId = 'f284d573-c248-4e38-ae0b-115b44190909'
+    const w10FormId = '70da2b64-42c5-4c05-8c88-5c4b814f885e'
+    const source = Buffer.from('record_key,count,score\nP07-W10-RECOVERY-001,0,0.0\n')
+    expect(createHash('sha256').update(source).digest('hex')).toBe(W10_SOURCE_SHA256)
+    vi.stubEnv('NODE_ENV', 'development')
+    vi.stubEnv('SUPABASE_URL', 'https://pdqwsknbzkdtiwjjibqt.supabase.co')
+    vi.stubEnv('UPLOADS_BUCKET', 'pathways-private')
+    vi.stubEnv('P07_W10_FAIL_FINALIZATION_ONCE', W10_CLIENT_IMPORT_ID)
+    state.actor = {
+      ...actor,
+      organizationId: w10OrganizationId,
+      assignedProjectIds: [w10ProjectId],
+    }
+    const reservation = batch({
+      organizationId: w10OrganizationId,
+      projectId: w10ProjectId,
+      formId: w10FormId,
+      clientImportId: W10_CLIENT_IMPORT_ID,
+      sourceChecksum: W10_SOURCE_SHA256,
+      storageBucket: 'pathways-private',
+      storageStatus: 'RESERVED',
+      status: 'UPLOADING',
+      totalRows: 0,
+      sourceHeaders: [],
+    })
+    tx.digitalForm.findFirst.mockResolvedValue({ id: w10FormId, version: 1 })
+    tx.dataImportBatch.findFirst.mockImplementation(async (args) =>
+      'clientImportId' in args.where ? null : reservation,
+    )
+    tx.dataImportBatch.findUnique.mockResolvedValue(reservation)
+    tx.dataImportBatch.create.mockResolvedValue({ id: batchId })
+    tx.dataImportRow.createMany.mockResolvedValue({ count: 1 })
+    storage.uploadPrivateFile.mockResolvedValue({ path: 'private' })
+    storage.downloadPrivateFile.mockResolvedValue(source)
+    const upload = {
+      buffer: source,
+      originalname: 'P07-W10-RECOVERY-001.csv',
+      mimetype: 'text/csv',
+      size: source.length,
+    }
+
+    await expect(
+      service.upload(
+        state.actor,
+        w10ProjectId,
+        { formId: w10FormId, clientImportId: W10_CLIENT_IMPORT_ID },
+        upload,
+      ),
+    ).rejects.toBeInstanceOf(ServiceUnavailableException)
+    expect(storage.uploadPrivateFile).toHaveBeenCalledTimes(1)
+    expect(tx.dataImportRow.createMany).not.toHaveBeenCalled()
+    expect(tx.dataImportBatch.update).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ status: 'RECOVERY_REQUIRED' }) }),
+    )
+
+    await expect(service.resumeUpload(state.actor, w10ProjectId, batchId)).resolves.toMatchObject({
+      id: batchId,
+    })
+    expect(storage.downloadPrivateFile).toHaveBeenCalledTimes(1)
+    expect(tx.dataImportRow.createMany).toHaveBeenCalledTimes(1)
+    expect(storage.uploadPrivateFile).toHaveBeenCalledTimes(1)
+  })
+
   it('rejects a stale mapping revision before row validation writes', async () => {
     tx.dataImportBatch.findFirst.mockResolvedValue(batch({ mappingRevision: 2 }))
     tx.dataImportBatch.findUnique.mockResolvedValue(batch({ mappingRevision: 2 }))
@@ -587,6 +653,7 @@ describe('P03 import service', () => {
         status: 'PUBLISHED',
       },
     })
+
     tx.dataImportBatch.findFirst.mockResolvedValue(processing)
     tx.dataImportBatch.findUnique.mockResolvedValue(processing)
     tx.dataImportRow.findFirst.mockResolvedValue({
@@ -594,12 +661,14 @@ describe('P03 import service', () => {
       rowNumber: 2,
       normalizedData: { beneficiary_code: 'SYN-001' },
     })
+
     beneficiaries.promoteRegistration.mockResolvedValue({
       kind: 'PROCESSED',
       beneficiaryId: 'beneficiary',
       enrollmentId: 'enrollment',
       submissionId: 'submission',
     })
+
     const internals = service as unknown as {
       claimRows: () => Promise<{
         complete: boolean
@@ -630,9 +699,16 @@ describe('P03 import service', () => {
         data: expect.objectContaining({ status: 'PROCESSED' }),
       }),
     )
+
+    expect(state.operationCalls).toEqual([
+      {
+        permission: 'imports.process',
+        options: { transactionTimeoutMs: 20_000 },
+      },
+    ])
   })
 
-  it('uses a bounded 20-second transaction only for ACTIVITY_MONITORING row promotion', async () => {
+  it('uses a bounded 20-second transaction for ACTIVITY_MONITORING row promotion', async () => {
     const processing = batch({
       status: 'PROCESSING',
       mappingRevision: 1,

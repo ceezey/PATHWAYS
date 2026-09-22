@@ -265,7 +265,7 @@ BEGIN
       );
 
     PERFORM pg_temp.assert_true(
-      d#>>'{total,value}'='30',
+      d->>'releaseState'='RELEASED' AND d#>>'{total,value}'='30',
       'fixed closed-project SADDD release returns approved total'
     );
 
@@ -322,6 +322,69 @@ SELECT pg_temp.assert_true(
       AND status='RELEASED'
   )=1,
   'repeated release reads create one registry row'
+);
+
+-- A source correction inside the same published bucket leaves every aggregate
+-- unchanged, but still requires review before a second release.
+SELECT set_config('request.jwt.claim.sub',pg_temp.u(201)::text,true),set_config('app.user_id',pg_temp.u(101)::text,true);
+CREATE TEMP TABLE pg_temp.saddd_before AS
+ SELECT pathways.p06_compute_saddd(pg_temp.u(1),ARRAY[pg_temp.u(301)],'2026-01-01','2026-07-31','Asia/Manila') AS data;
+UPDATE pathways.beneficiaries SET birth_date='2020-07-01' WHERE id=pg_temp.u(1001);
+SELECT pg_temp.assert_true(
+  (SELECT data FROM pg_temp.saddd_before)=pathways.p06_compute_saddd(pg_temp.u(1),ARRAY[pg_temp.u(301)],'2026-01-01','2026-07-31','Asia/Manila'),
+  'same-band birth-date correction leaves protected aggregates unchanged'
+);
+SET LOCAL ROLE pathways_runtime;
+DO $$ DECLARE d jsonb;
+BEGIN
+ d:=pathways.p06_saddd(pg_temp.u(1),ARRAY[pg_temp.u(301)],'2026-01-01','2026-07-31','Asia/Manila');
+ PERFORM pg_temp.assert_true(d->>'releaseState'='STALE' AND d#>>'{total,reason}'='RESTATEMENT_REVIEW_REQUIRED' AND d#>>'{total,value}' IS NULL,
+   'same-bucket contributing correction is non-disclosing stale');
+END $$;
+RESET ROLE;
+SELECT pg_temp.assert_true(
+ (SELECT status='STALE' AND stale_reason='SOURCE_CHANGED' FROM pathways.sensitive_aggregate_releases WHERE project_id=pg_temp.u(301)),
+ 'same-bucket source correction persists stale state'
+);
+
+-- A distinct, small project receives a wholly suppressed protected release.
+INSERT INTO pathways.projects(id,organization_id,code,title,start_date,end_date,created_by_id)
+ VALUES(pg_temp.u(304),pg_temp.u(1),'P06_SMALL','P06 small project','2026-01-01','2026-07-31',pg_temp.u(101));
+INSERT INTO pathways.user_project_assignments(organization_id,project_id,user_id,assigned_by_id)
+ VALUES(pg_temp.u(1),pg_temp.u(304),pg_temp.u(101),pg_temp.u(101));
+INSERT INTO pathways.beneficiary_project_enrollments(id,organization_id,project_id,beneficiary_id,enrollment_date,recorded_by_id)
+ VALUES(pg_temp.u(1301),pg_temp.u(1),pg_temp.u(304),pg_temp.u(1001),'2026-01-01',pg_temp.u(101));
+SET LOCAL ROLE pathways_runtime;
+DO $$ DECLARE d jsonb; b jsonb;
+BEGIN
+ d:=pathways.p06_saddd(pg_temp.u(1),ARRAY[pg_temp.u(304)],'2026-01-01','2026-07-31','Asia/Manila');
+ PERFORM pg_temp.assert_true(d->>'releaseState'='RELEASED' AND d#>>'{total,state}'='SUPPRESSED' AND d#>>'{total,value}' IS NULL,
+   'small project has a released but wholly suppressed result');
+ FOR b IN SELECT value FROM jsonb_array_elements(d->'age') LOOP
+   PERFORM pg_temp.assert_true(b#>>'{metric,state}'='SUPPRESSED' AND b#>>'{metric,value}' IS NULL,
+     'small release hides every age cell');
+ END LOOP;
+END $$;
+RESET ROLE;
+
+-- The persisted period is part of one project release identity.
+UPDATE pathways.projects SET end_date='2026-07-31' WHERE id=pg_temp.u(302);
+SET LOCAL ROLE pathways_runtime;
+SELECT pg_temp.assert_true(
+ pathways.p06_saddd(pg_temp.u(1),ARRAY[pg_temp.u(302)],'2026-01-01','2026-07-31','Asia/Manila')->>'releaseState'='RELEASED',
+ 'second project first closed-period release succeeds'
+);
+RESET ROLE;
+UPDATE pathways.projects SET end_date='2026-08-31' WHERE id=pg_temp.u(302);
+SET LOCAL ROLE pathways_runtime;
+SELECT pg_temp.assert_true(
+ pathways.p06_saddd(pg_temp.u(1),ARRAY[pg_temp.u(302)],'2026-01-01','2026-08-31','Asia/Manila')#>>'{total,reason}'='RESTATEMENT_REVIEW_REQUIRED',
+ 'authoritative period change is stale without changed count'
+);
+RESET ROLE;
+SELECT pg_temp.assert_true(
+ (SELECT status='STALE' AND stale_reason='PROJECT_PERIOD_CHANGED' FROM pathways.sensitive_aggregate_releases WHERE project_id=pg_temp.u(302)),
+ 'period change persists stale state on original release identity'
 );
 
 -- Revocation is observed on the next request; never grant a stale assignment from a lead column.

@@ -25,6 +25,22 @@ export class BeneficiaryListQueryDto {
   status?: 'ACTIVE' | 'INACTIVE' | 'ARCHIVED'
 
   @IsOptional()
+  @IsIn(['MALE', 'FEMALE', 'OTHER', 'PREFER_NOT_TO_SAY', 'NOT_SPECIFIED'])
+  sex?: 'MALE' | 'FEMALE' | 'OTHER' | 'PREFER_NOT_TO_SAY' | 'NOT_SPECIFIED'
+
+  @IsOptional()
+  @IsIn(['WITH_DISABILITY', 'WITHOUT_DISABILITY', 'NOT_SPECIFIED'])
+  disabilityStatus?: 'WITH_DISABILITY' | 'WITHOUT_DISABILITY' | 'NOT_SPECIFIED'
+
+  @IsOptional()
+  @IsIn(['0-9', '10-14', '15-17', '18-24', '25+', 'Unknown'])
+  ageBand?: '0-9' | '10-14' | '15-17' | '18-24' | '25+' | 'Unknown'
+
+  @IsOptional()
+  @IsIn(['ACTIVE', 'COMPLETED', 'EXITED'])
+  enrollmentStatus?: 'ACTIVE' | 'COMPLETED' | 'EXITED'
+
+  @IsOptional()
   @IsUUID()
   cursor?: string
 

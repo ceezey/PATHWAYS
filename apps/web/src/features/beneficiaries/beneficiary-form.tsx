@@ -1,5 +1,6 @@
 'use client'
 
+import { beneficiaryRegistrationDefinitionErrors } from '@pathways/shared'
 import { ArrowLeft, Save } from 'lucide-react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
@@ -19,6 +20,12 @@ import {
 import { PathwaysClientError, pathwaysClient } from '@/lib/services/pathways-client'
 import type { DigitalFormDefinition, ProjectSummary } from '@/types/pathways'
 import type { PathwaysRole } from '@/types/pathways-role'
+import {
+  missingRegistrationProfileFields,
+  profileUpdateFieldsForForm,
+  registrationFieldCodes,
+  registrationSubjectDefinitionErrors,
+} from './beneficiary-registration-ui'
 
 type Draft = {
   projectId: string
@@ -86,16 +93,17 @@ export const BeneficiaryForm = ({
     [draft.projectId, forms],
   )
   const selectedForm = projectForms.find((form) => form.id === draft.formId)
-  const codes = new Set(selectedForm?.fields.map((field) => field.code) ?? [])
-  const requiredContract = [
-    'registration_operation',
-    'beneficiary_code',
-    'subject_type',
-    'consent_recorded',
-    'data_processing_consent_recorded',
-    'enrollment_date',
-  ]
-  const contractReady = requiredContract.every((code) => codes.has(code))
+  const codes = registrationFieldCodes(selectedForm?.fields ?? [])
+  const contractErrors = selectedForm
+    ? beneficiaryRegistrationDefinitionErrors(selectedForm.fields)
+    : []
+  const subjectDefinitionErrors = selectedForm
+    ? registrationSubjectDefinitionErrors(codes, draft.subjectType)
+    : []
+  const formErrors = [...contractErrors.map((item) => item.message), ...subjectDefinitionErrors]
+  const contractReady = selectedForm != null && formErrors.length === 0
+  const omittedProfileFields = selectedForm ? missingRegistrationProfileFields(codes) : []
+  const collects = (code: string) => codes.has(code)
   const canReviewIdentity = ['System Administrator', 'Monitoring and Evaluation Officer'].includes(
     role,
   )
@@ -113,7 +121,9 @@ export const BeneficiaryForm = ({
   const save = async () => {
     setError('')
     if (!selectedForm || !contractReady) {
-      setError('Select a published registration form with the required domain fields.')
+      setError(
+        formErrors[0] ?? 'Select a published registration form with the required domain fields.',
+      )
       return
     }
     if (!draft.code.trim() || !draft.consent || !draft.dataConsent) {
@@ -158,21 +168,7 @@ export const BeneficiaryForm = ({
       external_identifier_type: draft.externalType.trim().toUpperCase() || null,
       external_identifier_value: draft.externalValue.trim() || null,
       profile_update_fields:
-        draft.operation === 'UPDATE'
-          ? [
-              'display_name',
-              'first_name',
-              'middle_name',
-              'last_name',
-              'sex',
-              'birth_date',
-              'age_at_registration',
-              'disability_status',
-              'location_barangay',
-              'location_city_municipality',
-              'location_province',
-            ]
-          : null,
+        draft.operation === 'UPDATE' ? profileUpdateFieldsForForm(codes) : null,
     }
     const values = Object.fromEntries(
       Object.entries(candidates).filter(([code]) => codes.has(code)),
@@ -278,78 +274,96 @@ export const BeneficiaryForm = ({
           <Field label="Beneficiary code">
             <Input value={draft.code} onChange={(e) => update('code', e.target.value)} />
           </Field>
-          <Field label="Display name">
-            <Input
-              value={draft.displayName}
-              onChange={(e) => update('displayName', e.target.value)}
-            />
-          </Field>
+          {collects('display_name') ? (
+            <Field label="Display name">
+              <Input
+                value={draft.displayName}
+                onChange={(e) => update('displayName', e.target.value)}
+              />
+            </Field>
+          ) : null}
           {individual ? (
             <>
-              <Field label="First name">
-                <Input
-                  value={draft.firstName}
-                  onChange={(e) => update('firstName', e.target.value)}
-                />
-              </Field>
-              <Field label="Middle name">
-                <Input
-                  value={draft.middleName}
-                  onChange={(e) => update('middleName', e.target.value)}
-                />
-              </Field>
-              <Field label="Last name">
-                <Input
-                  value={draft.lastName}
-                  onChange={(e) => update('lastName', e.target.value)}
-                />
-              </Field>
-              <Field label="Sex">
-                <Select value={draft.sex} onValueChange={(v) => update('sex', v)}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {['FEMALE', 'MALE', 'OTHER', 'PREFER_NOT_TO_SAY', 'NOT_SPECIFIED'].map((v) => (
-                      <SelectItem key={v} value={v}>
-                        {v.replaceAll('_', ' ')}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </Field>
-              <Field label="Birth date">
-                <Input
-                  type="date"
-                  value={draft.birthDate}
-                  onChange={(e) => update('birthDate', e.target.value)}
-                />
-              </Field>
-              <Field label="Age at registration">
-                <Input
-                  type="number"
-                  min="0"
-                  max="130"
-                  value={draft.age}
-                  onChange={(e) => update('age', e.target.value)}
-                />
-              </Field>
+              {collects('first_name') ? (
+                <Field label="First name">
+                  <Input
+                    value={draft.firstName}
+                    onChange={(e) => update('firstName', e.target.value)}
+                  />
+                </Field>
+              ) : null}
+              {collects('middle_name') ? (
+                <Field label="Middle name">
+                  <Input
+                    value={draft.middleName}
+                    onChange={(e) => update('middleName', e.target.value)}
+                  />
+                </Field>
+              ) : null}
+              {collects('last_name') ? (
+                <Field label="Last name">
+                  <Input
+                    value={draft.lastName}
+                    onChange={(e) => update('lastName', e.target.value)}
+                  />
+                </Field>
+              ) : null}
+              {collects('sex') ? (
+                <Field label="Sex">
+                  <Select value={draft.sex} onValueChange={(v) => update('sex', v)}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {['FEMALE', 'MALE', 'OTHER', 'PREFER_NOT_TO_SAY', 'NOT_SPECIFIED'].map(
+                        (v) => (
+                          <SelectItem key={v} value={v}>
+                            {v.replaceAll('_', ' ')}
+                          </SelectItem>
+                        ),
+                      )}
+                    </SelectContent>
+                  </Select>
+                </Field>
+              ) : null}
+              {collects('birth_date') ? (
+                <Field label="Birth date">
+                  <Input
+                    type="date"
+                    value={draft.birthDate}
+                    onChange={(e) => update('birthDate', e.target.value)}
+                  />
+                </Field>
+              ) : null}
+              {collects('age_at_registration') ? (
+                <Field label="Age at registration">
+                  <Input
+                    type="number"
+                    min="0"
+                    max="130"
+                    value={draft.age}
+                    onChange={(e) => update('age', e.target.value)}
+                  />
+                </Field>
+              ) : null}
             </>
           ) : null}
-          <Field label="Disability status">
-            <Select value={draft.disability} onValueChange={(v) => update('disability', v)}>
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {['WITH_DISABILITY', 'WITHOUT_DISABILITY', 'NOT_SPECIFIED'].map((v) => (
-                  <SelectItem key={v} value={v}>
-                    {v.replaceAll('_', ' ')}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </Field>
+          {collects('disability_status') ? (
+            <Field label="Disability status">
+              <Select value={draft.disability} onValueChange={(v) => update('disability', v)}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {['WITH_DISABILITY', 'WITHOUT_DISABILITY', 'NOT_SPECIFIED'].map((v) => (
+                    <SelectItem key={v} value={v}>
+                      {v.replaceAll('_', ' ')}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </Field>
+          ) : null}
           <Field label="Enrollment date">
             <Input
               type="date"
@@ -357,28 +371,38 @@ export const BeneficiaryForm = ({
               onChange={(e) => update('enrollmentDate', e.target.value)}
             />
           </Field>
-          <Field label="Province">
-            <Input value={draft.province} onChange={(e) => update('province', e.target.value)} />
-          </Field>
-          <Field label="City or municipality">
-            <Input value={draft.city} onChange={(e) => update('city', e.target.value)} />
-          </Field>
-          <Field label="Barangay">
-            <Input value={draft.barangay} onChange={(e) => update('barangay', e.target.value)} />
-          </Field>
-          <Field label="External identifier namespace">
-            <Input
-              value={draft.externalType}
-              onChange={(e) => update('externalType', e.target.value)}
-              placeholder="e.g. PARTNER_CASE_ID"
-            />
-          </Field>
-          <Field label="External identifier value">
-            <Input
-              value={draft.externalValue}
-              onChange={(e) => update('externalValue', e.target.value)}
-            />
-          </Field>
+          {collects('location_province') ? (
+            <Field label="Province">
+              <Input value={draft.province} onChange={(e) => update('province', e.target.value)} />
+            </Field>
+          ) : null}
+          {collects('location_city_municipality') ? (
+            <Field label="City or municipality">
+              <Input value={draft.city} onChange={(e) => update('city', e.target.value)} />
+            </Field>
+          ) : null}
+          {collects('location_barangay') ? (
+            <Field label="Barangay">
+              <Input value={draft.barangay} onChange={(e) => update('barangay', e.target.value)} />
+            </Field>
+          ) : null}
+          {collects('external_identifier_type') ? (
+            <Field label="External identifier namespace">
+              <Input
+                value={draft.externalType}
+                onChange={(e) => update('externalType', e.target.value)}
+                placeholder="e.g. PARTNER_CASE_ID"
+              />
+            </Field>
+          ) : null}
+          {collects('external_identifier_value') ? (
+            <Field label="External identifier value">
+              <Input
+                value={draft.externalValue}
+                onChange={(e) => update('externalValue', e.target.value)}
+              />
+            </Field>
+          ) : null}
         </div>
         <div className="grid gap-3 md:grid-cols-2">
           <Check
@@ -391,25 +415,48 @@ export const BeneficiaryForm = ({
             checked={draft.dataConsent}
             onChange={(v) => update('dataConsent', v)}
           />
-          {individual ? (
-            <>
-              <Check
-                label="Record is a minor"
-                checked={draft.isMinor}
-                onChange={(v) => update('isMinor', v)}
-              />
-              <Check
-                label="Guardian consent recorded"
-                checked={draft.guardianConsent}
-                onChange={(v) => update('guardianConsent', v)}
-              />
-            </>
+          {individual && collects('is_minor') ? (
+            <Check
+              label="Record is a minor"
+              checked={draft.isMinor}
+              onChange={(v) => update('isMinor', v)}
+            />
+          ) : null}
+          {individual && collects('guardian_consent_recorded') ? (
+            <Check
+              label="Guardian consent recorded"
+              checked={draft.guardianConsent}
+              onChange={(v) => update('guardianConsent', v)}
+            />
           ) : null}
         </div>
         {!contractReady && draft.formId ? (
-          <p className="rounded-md border border-warning/30 bg-warning/10 p-3 text-sm text-warning">
-            This form is published but does not contain the required registration contract.
-          </p>
+          <div className="rounded-md border border-warning/30 bg-warning/10 p-3 text-sm text-warning">
+            <p className="font-medium">
+              This published form is incompatible with the selected Beneficiary registration.
+            </p>
+            <ul className="mt-2 list-disc space-y-1 pl-5">
+              {formErrors.map((message) => (
+                <li key={message}>{message}</li>
+              ))}
+            </ul>
+            <p className="mt-2">Create and publish a corrected form version before registering.</p>
+          </div>
+        ) : null}
+        {contractReady && omittedProfileFields.length > 0 ? (
+          <div className="rounded-md border border-border bg-muted/40 p-3 text-sm text-muted-foreground">
+            <p className="font-medium text-foreground">
+              This published form collects only its configured Beneficiary fields.
+            </p>
+            <p className="mt-1">
+              Not collected by {selectedForm?.name} · v{selectedForm?.version}:{' '}
+              {omittedProfileFields.join(', ')}.
+            </p>
+            <p className="mt-1">
+              Hidden fields are not submitted. Create and publish a new form version to collect
+              them.
+            </p>
+          </div>
         ) : null}
         {error ? (
           <p

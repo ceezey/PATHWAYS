@@ -6,6 +6,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common'
+import { readApiEnv } from '@pathways/config'
 import { Prisma } from '@prisma/client'
 
 import { hasAtomicPermission } from '@app/modules/auth/authorization-policy'
@@ -13,7 +14,12 @@ import { projectScope } from '@app/modules/auth/authorized-data.service'
 import { withAuthorizedOperation } from '@app/modules/auth/authorized-operation'
 import { type ApplicationIdentity, UUID_PATTERN } from '@app/modules/auth/developer-access'
 import { PrismaService } from '@app/prisma/prisma.service'
-import { type FormFieldValidationContract, validateAndNormalizeFormData } from '@pathways/shared'
+import {
+  type FormFieldValidationContract,
+  beneficiaryRegistrationDefinitionErrors,
+  businessCalendarDate,
+  validateAndNormalizeFormData,
+} from '@pathways/shared'
 import {
   type ArchiveBeneficiaryDto,
   type BeneficiaryListQueryDto,
@@ -45,15 +51,6 @@ const fieldSelection = {
 } satisfies Prisma.FormFieldSelect
 
 type FieldRow = Prisma.FormFieldGetPayload<{ select: typeof fieldSelection }>
-
-const requiredRegistrationFields = [
-  'registration_operation',
-  'beneficiary_code',
-  'subject_type',
-  'consent_recorded',
-  'data_processing_consent_recorded',
-  'enrollment_date',
-] as const
 
 const writableProfileFields = new Set([
   'display_name',
@@ -315,6 +312,88 @@ function parseRegistration(values: Record<string, NormalizedValue>): Registratio
   }
 }
 
+type SadddAgeBand = '0-9' | '10-14' | '15-17' | '18-24' | '25+' | 'Unknown'
+
+function calendarDateParts(value: Date) {
+  return {
+    year: value.getUTCFullYear(),
+    month: value.getUTCMonth() + 1,
+    day: value.getUTCDate(),
+  }
+}
+
+function calendarDate(year: number, month: number, day: number) {
+  const lastDay = new Date(Date.UTC(year, month, 0)).getUTCDate()
+  return new Date(Date.UTC(year, month - 1, Math.min(day, lastDay)))
+}
+
+function yearsBefore(reference: Date, years: number) {
+  const parts = calendarDateParts(reference)
+  return calendarDate(parts.year - years, parts.month, parts.day)
+}
+
+function ageBandWhere(referenceDate: Date, band?: SadddAgeBand): Prisma.BeneficiaryWhereInput {
+  if (!band) return {}
+
+  if (band === 'Unknown') {
+    return {
+      subjectType: 'INDIVIDUAL',
+      birthDate: null,
+    }
+  }
+
+  if (band === '0-9') {
+    const today = new Date(
+      `${businessCalendarDate(new Date(), readApiEnv(process.env).BUSINESS_TIME_ZONE)}T00:00:00.000Z`,
+    )
+    return {
+      subjectType: 'INDIVIDUAL',
+      birthDate: {
+        gt: yearsBefore(referenceDate, 10),
+        lte: referenceDate < today ? referenceDate : today,
+      },
+    }
+  }
+
+  if (band === '10-14') {
+    return {
+      subjectType: 'INDIVIDUAL',
+      birthDate: {
+        gt: yearsBefore(referenceDate, 15),
+        lte: yearsBefore(referenceDate, 10),
+      },
+    }
+  }
+
+  if (band === '15-17') {
+    return {
+      subjectType: 'INDIVIDUAL',
+      birthDate: {
+        gt: yearsBefore(referenceDate, 18),
+        lte: yearsBefore(referenceDate, 15),
+      },
+    }
+  }
+
+  if (band === '18-24') {
+    return {
+      subjectType: 'INDIVIDUAL',
+      birthDate: {
+        gt: yearsBefore(referenceDate, 25),
+        lte: yearsBefore(referenceDate, 18),
+      },
+    }
+  }
+
+  return {
+    subjectType: 'INDIVIDUAL',
+    birthDate: {
+      gte: new Date(Date.UTC(1900, 0, 1)),
+      lte: yearsBefore(referenceDate, 25),
+    },
+  }
+}
+
 @Injectable()
 export class BeneficiariesService {
   constructor(@Inject(PrismaService) private readonly prisma: PrismaService) {}
@@ -325,28 +404,53 @@ export class BeneficiariesService {
       identity,
       'beneficiaries.records.read',
       async (tx, actor) => {
-        const scopedProjectId = await this.requireProject(tx, actor, projectId)
+        const project = await this.requireProject(tx, actor, projectId)
+        const scopedProjectId = project.id
         const search = query.search?.trim()
-        const rows = await tx.beneficiary.findMany({
-          where: {
-            organizationId: actor.organizationId,
-            ...(query.status ? { status: query.status } : { archivedAt: null }),
-            beneficiaryProjectEnrollment_beneficiary: {
-              some: { organizationId: actor.organizationId, projectId: scopedProjectId },
+        const ageReference = project.endDate
+        if (query.ageBand && !ageReference) {
+          throw new BadRequestException('Age-band filtering requires a project end date.')
+        }
+
+        const demographicAgeFilter: Prisma.BeneficiaryWhereInput =
+          query.ageBand && ageReference ? ageBandWhere(ageReference, query.ageBand) : {}
+
+        const enrollmentStatusFilter: Prisma.BeneficiaryProjectEnrollmentWhereInput['status'] =
+          query.enrollmentStatus === 'EXITED'
+            ? { in: ['DROPPED', 'TRANSFERRED', 'INACTIVE'] }
+            : query.enrollmentStatus
+              ? query.enrollmentStatus
+              : undefined
+
+        const beneficiaryWhere = {
+          organizationId: actor.organizationId,
+          ...(query.status ? { status: query.status } : { archivedAt: null }),
+          ...(query.sex ? { sex: query.sex } : {}),
+          ...(query.disabilityStatus ? { disabilityStatus: query.disabilityStatus } : {}),
+          ...demographicAgeFilter,
+          beneficiaryProjectEnrollment_beneficiary: {
+            some: {
+              organizationId: actor.organizationId,
+              projectId: scopedProjectId,
+              ...(enrollmentStatusFilter ? { status: enrollmentStatusFilter } : {}),
             },
-            ...(search
-              ? {
-                  OR: [
-                    { code: { contains: search, mode: 'insensitive' } },
-                    { displayName: { contains: search, mode: 'insensitive' } },
-                    { firstName: { contains: search, mode: 'insensitive' } },
-                    { middleName: { contains: search, mode: 'insensitive' } },
-                    { lastName: { contains: search, mode: 'insensitive' } },
-                  ],
-                }
-              : {}),
-            ...(query.cursor ? { id: { gt: query.cursor.toLowerCase() } } : {}),
           },
+          ...(search
+            ? {
+                OR: [
+                  { code: { contains: search, mode: 'insensitive' as const } },
+                  { displayName: { contains: search, mode: 'insensitive' as const } },
+                  { firstName: { contains: search, mode: 'insensitive' as const } },
+                  { middleName: { contains: search, mode: 'insensitive' as const } },
+                  { lastName: { contains: search, mode: 'insensitive' as const } },
+                ],
+              }
+            : {}),
+          ...(query.cursor ? { id: { gt: query.cursor.toLowerCase() } } : {}),
+        } satisfies Prisma.BeneficiaryWhereInput
+
+        const rows = await tx.beneficiary.findMany({
+          where: beneficiaryWhere,
           include: this.scopedIncludes(actor.organizationId, scopedProjectId),
           orderBy: { id: 'asc' },
           take: query.limit + 1,
@@ -368,8 +472,8 @@ export class BeneficiariesService {
       'beneficiaries.records.read',
       async (tx, actor) => {
         const project = await this.requireProject(tx, actor, projectId)
-        const row = await this.requireBeneficiary(tx, actor, project, beneficiaryId)
-        return this.mapBeneficiary(row, project)
+        const row = await this.requireBeneficiary(tx, actor, project.id, beneficiaryId)
+        return this.mapBeneficiary(row, project.id)
       },
     )
   }
@@ -382,7 +486,7 @@ export class BeneficiariesService {
       async (tx, actor) => {
         const project = await this.requireProject(tx, actor, projectId)
         const outcome = await this.promoteRegistration(tx, actor, {
-          projectId: project,
+          projectId: project.id,
           formId: input.formId,
           clientRegistrationId: input.clientRegistrationId,
           values: input.values,
@@ -395,8 +499,8 @@ export class BeneficiariesService {
             code: outcome.code,
           })
         }
-        const row = await this.requireBeneficiary(tx, actor, project, outcome.beneficiaryId)
-        return this.mapBeneficiary(row, project)
+        const row = await this.requireBeneficiary(tx, actor, project.id, outcome.beneficiaryId)
+        return this.mapBeneficiary(row, project.id)
       },
     )
   }
@@ -434,17 +538,15 @@ export class BeneficiariesService {
       },
     })
     if (!form) throw new NotFoundException('Published registration form unavailable.')
-    const codes = new Set(form.formField_form.map((field) => field.code))
-    if (requiredRegistrationFields.some((code) => !codes.has(code))) {
-      throw new ConflictException(
-        'Registration form does not implement the required domain field contract.',
-      )
+    const formContract = form.formField_form.map(contract)
+    const definitionErrors = beneficiaryRegistrationDefinitionErrors(formContract)
+    if (definitionErrors.length > 0) {
+      throw new ConflictException({
+        message: 'Registration form does not implement the required domain field contract.',
+        errors: definitionErrors,
+      })
     }
-    const validation = validateAndNormalizeFormData(
-      form.formField_form.map(contract),
-      input.values,
-      'final',
-    )
+    const validation = validateAndNormalizeFormData(formContract, input.values, 'final')
     if (!validation.valid) {
       throw new BadRequestException({
         message: 'Registration values are invalid.',
@@ -666,7 +768,13 @@ export class BeneficiariesService {
         })
       }
     }
-    const submittedAt = new Date()
+    const [databaseClock] = await tx.$queryRaw<Array<{ transactionTime: Date }>>`
+      SELECT CURRENT_TIMESTAMP AS "transactionTime"
+    `
+    if (!(databaseClock?.transactionTime instanceof Date)) {
+      throw new Error('Database transaction time is unavailable.')
+    }
+    const submittedAt = databaseClock.transactionTime
     const submission = await tx.formSubmission.create({
       data: {
         organizationId: actor.organizationId,
@@ -762,7 +870,7 @@ export class BeneficiariesService {
       'beneficiaries.profiles.update',
       async (tx, actor) => {
         const project = await this.requireProject(tx, actor, projectId)
-        const current = await this.requireBeneficiary(tx, actor, project, beneficiaryId)
+        const current = await this.requireBeneficiary(tx, actor, project.id, beneficiaryId)
         await this.assertAllEnrollmentScope(tx, actor, current.id)
         this.assertSubjectProfile(input, current)
         const changed = await tx.beneficiary.updateMany({
@@ -793,7 +901,7 @@ export class BeneficiariesService {
           data: {
             organizationId: actor.organizationId,
             actorUserId: actor.userId,
-            projectId: project,
+            projectId: project.id,
             action: 'BENEFICIARY_PROFILE_UPDATED',
             entityType: 'Beneficiary',
             entityId: current.id,
@@ -801,8 +909,8 @@ export class BeneficiariesService {
           },
         })
         return this.mapBeneficiary(
-          await this.requireBeneficiary(tx, actor, project, current.id),
-          project,
+          await this.requireBeneficiary(tx, actor, project.id, current.id),
+          project.id,
         )
       },
     )
@@ -820,7 +928,7 @@ export class BeneficiariesService {
       'beneficiaries.records.archive',
       async (tx, actor) => {
         const project = await this.requireProject(tx, actor, projectId)
-        const current = await this.requireBeneficiary(tx, actor, project, beneficiaryId)
+        const current = await this.requireBeneficiary(tx, actor, project.id, beneficiaryId)
         await this.assertAllEnrollmentScope(tx, actor, current.id)
         const now = new Date()
         const changed = await tx.beneficiary.updateMany({
@@ -838,7 +946,7 @@ export class BeneficiariesService {
           data: {
             organizationId: actor.organizationId,
             actorUserId: actor.userId,
-            projectId: project,
+            projectId: project.id,
             action: 'BENEFICIARY_ARCHIVED',
             entityType: 'Beneficiary',
             entityId: current.id,
@@ -873,7 +981,7 @@ export class BeneficiariesService {
           select: {
             id: true,
             beneficiaryProjectEnrollment_beneficiary: {
-              where: { organizationId: actor.organizationId, projectId: project },
+              where: { organizationId: actor.organizationId, projectId: project.id },
               select: { id: true },
               take: 1,
             },
@@ -892,13 +1000,13 @@ export class BeneficiariesService {
           where: {
             organizationId_projectId_beneficiaryId: {
               organizationId: actor.organizationId,
-              projectId: project,
+              projectId: project.id,
               beneficiaryId: beneficiary.id,
             },
           },
           create: {
             organizationId: actor.organizationId,
-            projectId: project,
+            projectId: project.id,
             beneficiaryId: beneficiary.id,
             enrollmentDate: date,
             recordedById: actor.userId,
@@ -910,7 +1018,7 @@ export class BeneficiariesService {
           data: {
             organizationId: actor.organizationId,
             actorUserId: actor.userId,
-            projectId: project,
+            projectId: project.id,
             action: 'BENEFICIARY_ENROLLMENT_ENSURED',
             entityType: 'BeneficiaryProjectEnrollment',
             entityId: enrollment.id,
@@ -1035,10 +1143,14 @@ export class BeneficiariesService {
     if (!UUID_PATTERN.test(projectId)) throw new NotFoundException('Project unavailable.')
     const project = await tx.project.findFirst({
       where: { AND: [projectScope(actor), { id: projectId.toLowerCase() }] },
-      select: { id: true },
+      select: {
+        id: true,
+        startDate: true,
+        endDate: true,
+      },
     })
     if (!project) throw new NotFoundException('Project unavailable.')
-    return project.id
+    return project
   }
 
   private scopedIncludes(organizationId: string, projectId: string) {

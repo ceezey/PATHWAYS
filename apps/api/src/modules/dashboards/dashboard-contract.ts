@@ -46,7 +46,7 @@ export const dashboardContracts = {
     privacy:
       'G4 threshold 5. Any 1-4 cell, completeness count or total suppresses the entire single-release table, including other cells and totals. No values are computed from raw Beneficiaries in JavaScript.',
     filters:
-      'Only server-authorized project/program scope and a bounded period. Demographic intersections, location/activity filters and arbitrary drill-through are unavailable pending their query-release policy.',
+      'SADDD V1 permits exactly one authorized project and uses that project’s persisted closed start/end period. Program, portfolio, custom-period, demographic-intersection, location/activity and raw drill-through queries are unavailable.',
     historicalBasis:
       'Current demographic profile at read time, not a historical demographic snapshot.',
   },
@@ -66,17 +66,19 @@ export const dashboardContracts = {
 
 /** G4 is confirmed. The permitted releases across overlapping scopes/periods are not. */
 export const sensitiveReleaseContract = {
-  state: 'UNAVAILABLE_PENDING_RELEASE_REVIEW',
+  state: 'FIXED_CLOSED_PROJECT_PERIOD_V1',
   reason:
-    'Within-table suppression does not prevent subtraction across separate overlapping queries.',
-  affected:
-    'SADDD, beneficiary-based monitoring totals, and non-activity derived indicator values.',
+    'SADDD may be released only once per project-period authority and repeated reads must reproduce the same protected aggregate payload.',
+  saddd:
+    'Exactly one authorized project, persisted project start/end dates, closed period, threshold 5 and whole-table complementary suppression.',
+  restatement:
+    'If the protected aggregate changes after release, the release becomes STALE and subsequent reads return RESTATEMENT_REVIEW_REQUIRED rather than a second count.',
+  withheld:
+    'Beneficiary/participation monitoring totals and non-activity derived indicators remain unavailable in V1.',
   unaffected:
-    'Indicator definitions, manual measurements, activity/milestone state counts and activity completion percentage.',
+    'Indicator definitions, manual measurements, activity/milestone state counts and activity completion percentage remain available under their existing permissions.',
   enforcement:
-    'Database wrappers return MISSING/null; private calculators have no runtime/PUBLIC/API-role EXECUTE grant.',
-  resume:
-    'Approve an explicit cross-query release policy and implement/test it in a new forward migration before granting any sensitive release.',
+    'Private calculators remain owner-only; runtime uses the controlled p06_saddd wrapper and has no direct release-registry access.',
 } as const
 
 export const journeyCorrectionContract = {

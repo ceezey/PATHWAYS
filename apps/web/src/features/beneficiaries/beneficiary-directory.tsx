@@ -2,7 +2,6 @@
 
 import { Plus, Search } from 'lucide-react'
 import Link from 'next/link'
-import { useMemo, useState } from 'react'
 
 import { StatusBadge } from '@/components/pathways/status-badge'
 import { Button } from '@/components/ui/button'
@@ -14,14 +13,18 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import type { BeneficiaryRecord, ProjectSummary } from '@/types/pathways'
+
+import type { BeneficiaryFilters, BeneficiaryRecord, ProjectSummary } from '@/types/pathways'
 
 type Props = {
   beneficiaries: BeneficiaryRecord[]
   projects: ProjectSummary[]
   selectedProjectId: string
   onProjectChange: (projectId: string) => void
+  filters: BeneficiaryFilters
+  onFiltersChange: (filters: BeneficiaryFilters) => void
   loadingRecords: boolean
+  recordsFailed: boolean
 }
 
 export const BeneficiaryDirectory = ({
@@ -29,16 +32,12 @@ export const BeneficiaryDirectory = ({
   projects,
   selectedProjectId,
   onProjectChange,
+  filters,
+  onFiltersChange,
   loadingRecords,
+  recordsFailed,
 }: Props) => {
-  const [search, setSearch] = useState('')
-  const visible = useMemo(() => {
-    const query = search.normalize('NFKC').trim().toLowerCase()
-    if (!query) return beneficiaries
-    return beneficiaries.filter((record) =>
-      [record.code, record.displayName].some((value) => value.toLowerCase().includes(query)),
-    )
-  }, [beneficiaries, search])
+  const visible = beneficiaries
 
   return (
     <div className="space-y-6">
@@ -57,7 +56,7 @@ export const BeneficiaryDirectory = ({
         </Button>
       </section>
 
-      <section className="grid gap-4 rounded-lg border border-border bg-card p-5 shadow-sm md:grid-cols-2">
+      <section className="grid gap-4 rounded-lg border border-border bg-card p-5 shadow-sm md:grid-cols-2 xl:grid-cols-6">
         <div className="space-y-2">
           <span className="text-sm font-medium">Project scope</span>
           <Select value={selectedProjectId} onValueChange={onProjectChange}>
@@ -73,8 +72,9 @@ export const BeneficiaryDirectory = ({
             </SelectContent>
           </Select>
         </div>
+
         <div className="space-y-2">
-          <span className="text-sm font-medium">Search loaded records</span>
+          <span className="text-sm font-medium">Search beneficiaries</span>
           <div className="relative">
             <Search
               className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground"
@@ -83,11 +83,119 @@ export const BeneficiaryDirectory = ({
             <Input
               aria-label="Search beneficiaries"
               className="pl-9"
-              value={search}
-              onChange={(event) => setSearch(event.target.value)}
+              value={filters.search ?? ''}
+              onChange={(event) =>
+                onFiltersChange({
+                  ...filters,
+                  search: event.target.value,
+                })
+              }
               placeholder="Code or display name"
             />
           </div>
+        </div>
+
+        <div className="space-y-2">
+          <span className="text-sm font-medium">Sex</span>
+          <Select
+            value={filters.sex ?? 'ALL'}
+            onValueChange={(value) =>
+              onFiltersChange({
+                ...filters,
+                sex: value === 'ALL' ? undefined : (value as BeneficiaryFilters['sex']),
+              })
+            }
+          >
+            <SelectTrigger aria-label="Sex">
+              <SelectValue placeholder="All sex values" />
+            </SelectTrigger>
+
+            <SelectContent>
+              <SelectItem value="ALL">All</SelectItem>
+              <SelectItem value="FEMALE">Female</SelectItem>
+              <SelectItem value="MALE">Male</SelectItem>
+              <SelectItem value="OTHER">Other</SelectItem>
+              <SelectItem value="PREFER_NOT_TO_SAY">Prefer not to say</SelectItem>
+              <SelectItem value="NOT_SPECIFIED">Not specified</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+
+        <div className="space-y-2">
+          <span className="text-sm font-medium">Age band</span>
+          <Select
+            value={filters.ageBand ?? 'ALL'}
+            onValueChange={(value) =>
+              onFiltersChange({
+                ...filters,
+                ageBand: value === 'ALL' ? undefined : (value as BeneficiaryFilters['ageBand']),
+              })
+            }
+          >
+            <SelectTrigger aria-label="Age band">
+              <SelectValue placeholder="All age bands" />
+            </SelectTrigger>
+
+            <SelectContent>
+              <SelectItem value="ALL">All</SelectItem>
+              <SelectItem value="0-9">0–9</SelectItem>
+              <SelectItem value="10-14">10–14</SelectItem>
+              <SelectItem value="15-17">15–17</SelectItem>
+              <SelectItem value="18-24">18–24</SelectItem>
+              <SelectItem value="25+">25+</SelectItem>
+              <SelectItem value="Unknown">Unknown</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+
+        <div className="space-y-2">
+          <span className="text-sm font-medium">Disability status</span>
+          <Select
+            value={filters.disabilityStatus ?? 'ALL'}
+            onValueChange={(value) =>
+              onFiltersChange({
+                ...filters,
+                disabilityStatus:
+                  value === 'ALL' ? undefined : (value as BeneficiaryFilters['disabilityStatus']),
+              })
+            }
+          >
+            <SelectTrigger aria-label="Disability status">
+              <SelectValue placeholder="All disability values" />
+            </SelectTrigger>
+
+            <SelectContent>
+              <SelectItem value="ALL">All</SelectItem>
+              <SelectItem value="WITH_DISABILITY">With disability</SelectItem>
+              <SelectItem value="WITHOUT_DISABILITY">Without disability</SelectItem>
+              <SelectItem value="NOT_SPECIFIED">Not specified</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+
+        <div className="space-y-2">
+          <span className="text-sm font-medium">Enrollment status</span>
+          <Select
+            value={filters.enrollmentStatus ?? 'ALL'}
+            onValueChange={(value) =>
+              onFiltersChange({
+                ...filters,
+                enrollmentStatus:
+                  value === 'ALL' ? undefined : (value as BeneficiaryFilters['enrollmentStatus']),
+              })
+            }
+          >
+            <SelectTrigger aria-label="Enrollment status">
+              <SelectValue placeholder="All enrollment states" />
+            </SelectTrigger>
+
+            <SelectContent>
+              <SelectItem value="ALL">All</SelectItem>
+              <SelectItem value="ACTIVE">Active</SelectItem>
+              <SelectItem value="COMPLETED">Completed</SelectItem>
+              <SelectItem value="EXITED">Exited</SelectItem>
+            </SelectContent>
+          </Select>
         </div>
       </section>
 
@@ -95,6 +203,10 @@ export const BeneficiaryDirectory = ({
         {loadingRecords ? (
           <p className="p-8 text-center text-sm text-muted-foreground" aria-live="polite">
             Loading authorized project records...
+          </p>
+        ) : recordsFailed ? (
+          <p role="alert" className="p-8 text-center text-sm text-destructive">
+            Beneficiary records could not be verified. Check access and retry.
           </p>
         ) : visible.length === 0 ? (
           <p className="p-8 text-center text-sm text-muted-foreground">

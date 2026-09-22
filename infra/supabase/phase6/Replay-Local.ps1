@@ -13,7 +13,7 @@ $phase6Port = 55448
 $phase6Exit = 1
 $phase6Started = $false
 $phase6PreviousEnvironment = @{}
-foreach ($phase6EnvironmentName in @('PATHWAYS_PHASE6_REPLAY_MIGRATIONS','PATHWAYS_FEATURE_READ_LOCAL_TESTS','DIRECT_URL','DATABASE_URL')) {
+foreach ($phase6EnvironmentName in @('PATHWAYS_PHASE6_REPLAY_MIGRATIONS','PATHWAYS_FEATURE_READ_LOCAL_TESTS','PATHWAYS_C8_LOCAL_TESTS','DIRECT_URL','DATABASE_URL')) {
   $phase6EnvironmentItem = Get-Item -LiteralPath "Env:$phase6EnvironmentName" -ErrorAction SilentlyContinue
   $phase6PreviousEnvironment[$phase6EnvironmentName] = if ($null -eq $phase6EnvironmentItem) {
     @{ Present = $false; Value = $null }
@@ -278,6 +278,13 @@ SELECT (SELECT count(*) FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamesp
     if ($LASTEXITCODE -ne 0) { throw 'Joined feature-read runtime test failed.' }
   } finally { Pop-Location }
   Write-Output 'FEATURE_READ_JOIN_RUNTIME=PASS'
+  $env:PATHWAYS_C8_LOCAL_TESTS = '1'
+  Push-Location $phase6Root
+  try {
+    pnpm --dir apps/api exec vitest run src/modules/dashboards/c8-runtime.local.test.ts
+    if ($LASTEXITCODE -ne 0) { throw 'C8 API/Prisma runtime test failed.' }
+  } finally { Pop-Location }
+  Write-Output 'C8_API_PRISMA_RUNTIME=PASS'
   Invoke-LocalSql ([IO.File]::ReadAllText((Join-Path $phase6Root 'apps/api/prisma/tests/core-foundation-runtime.sql'))) $phase6Database
   Invoke-LocalSql ([IO.File]::ReadAllText((Join-Path $phase6Root 'apps/api/prisma/tests/metadata-forms-runtime.sql'))) $phase6Database
   Invoke-LocalSql ([IO.File]::ReadAllText((Join-Path $phase6Root 'apps/api/prisma/tests/import-pipeline-runtime.sql'))) $phase6Database

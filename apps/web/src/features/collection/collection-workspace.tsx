@@ -495,6 +495,7 @@ export const CollectionWorkspace = ({
   useEffect(() => {
     if (!projectId) return
     let active = true
+    setSavedForms([])
     setFormsLoadStatus('loading')
     pathwaysClient
       .getDigitalForms(projectId)
@@ -525,7 +526,8 @@ export const CollectionWorkspace = ({
   }, [initialFormId, projectId])
 
   useEffect(() => {
-    if (sessionDraftReady || formsLoadStatus !== 'ready' || !sessionDraftKey) return
+    if (sessionDraftReady || !sessionDraftKey || (initialFormId && formsLoadStatus !== 'ready'))
+      return
     const restored = readFormBuilderSessionDraft(
       window.sessionStorage,
       sessionDraftKey,
@@ -545,7 +547,22 @@ export const CollectionWorkspace = ({
       setSavedNotice('Recovered unsaved form edits from this browser tab.')
     }
     setSessionDraftReady(true)
-  }, [activeForm?.updatedAt, formsLoadStatus, sessionDraftKey, sessionDraftReady])
+  }, [activeForm?.updatedAt, formsLoadStatus, initialFormId, sessionDraftKey, sessionDraftReady])
+
+  const hasUnsavedNewForm =
+    sessionDraftReady &&
+    !activeForm &&
+    (fields.length > 0 || formTitle.trim().length > 0 || formCode.trim().length > 0)
+
+  useEffect(() => {
+    if (!hasUnsavedNewForm) return
+    const warnBeforeUnload = (event: BeforeUnloadEvent) => {
+      event.preventDefault()
+      event.returnValue = ''
+    }
+    window.addEventListener('beforeunload', warnBeforeUnload)
+    return () => window.removeEventListener('beforeunload', warnBeforeUnload)
+  }, [hasUnsavedNewForm])
 
   useEffect(() => {
     if (!sessionDraftReady || !sessionDraftKey) return
@@ -679,7 +696,7 @@ export const CollectionWorkspace = ({
   }
 
   return (
-    <div className="space-y-6">
+    <div className="min-w-0 space-y-6">
       <PageHeader
         eyebrow="Data workspace"
         title={labels.moduleCollection}
@@ -749,7 +766,9 @@ export const CollectionWorkspace = ({
           onImport={(nextMode) => openBuilder(nextMode)}
           onPublish={publishForm}
           projectId={projectId}
+          projects={projects}
           savedForms={savedForms}
+          setProjectId={setProjectId}
         />
       ) : null}
 
@@ -882,7 +901,9 @@ const FormsGeneratorView = ({
   onImport,
   onPublish,
   projectId,
+  projects,
   savedForms,
+  setProjectId,
 }: {
   canManageForms: boolean
   canPublishForms: boolean
@@ -895,7 +916,9 @@ const FormsGeneratorView = ({
   onImport: (mode: CollectionMode) => void
   onPublish: (form: DigitalFormDefinition) => Promise<void>
   projectId: string
+  projects: ProjectSummary[]
   savedForms: DigitalFormDefinition[]
+  setProjectId: (projectId: string) => void
 }) => (
   <div className="rounded-lg border bg-card p-5 shadow-sm">
     <div className="flex flex-col gap-3 border-b pb-4 sm:flex-row sm:items-center sm:justify-between">
@@ -903,30 +926,47 @@ const FormsGeneratorView = ({
         <p className="text-xs font-semibold uppercase text-muted-foreground">Form Generator</p>
         <h2 className="mt-1 text-lg font-semibold text-foreground">Collection forms</h2>
       </div>
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <Button size="sm">
-            <Plus className="mr-2 h-4 w-4" aria-hidden="true" />
-            Add New
-          </Button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="end" className="w-48">
-          {canManageForms ? (
-            <DropdownMenuItem onClick={onCreate}>
-              <ListPlus className="mr-2 h-4 w-4" aria-hidden="true" />
-              Create New
+      <div className="flex w-full flex-col gap-3 sm:w-auto sm:flex-row sm:items-end">
+        <div className="min-w-0 sm:w-72">
+          <Label>Project</Label>
+          <Select disabled={projects.length === 0} value={projectId} onValueChange={setProjectId}>
+            <SelectTrigger aria-label="Project for saved forms" className="mt-1 w-full">
+              <SelectValue placeholder="Select a project" />
+            </SelectTrigger>
+            <SelectContent>
+              {projects.map((project) => (
+                <SelectItem key={project.id} value={project.id}>
+                  {project.code ? `${project.code} · ${project.title}` : project.title}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button size="sm">
+              <Plus className="mr-2 h-4 w-4" aria-hidden="true" />
+              Add New
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-48">
+            {canManageForms ? (
+              <DropdownMenuItem onClick={onCreate}>
+                <ListPlus className="mr-2 h-4 w-4" aria-hidden="true" />
+                Create New
+              </DropdownMenuItem>
+            ) : null}
+            <DropdownMenuItem onClick={() => onImport('import')}>
+              <FileSpreadsheet className="mr-2 h-4 w-4" aria-hidden="true" />
+              Import .xlsx
             </DropdownMenuItem>
-          ) : null}
-          <DropdownMenuItem onClick={() => onImport('import')}>
-            <FileSpreadsheet className="mr-2 h-4 w-4" aria-hidden="true" />
-            Import .xlsx
-          </DropdownMenuItem>
-          <DropdownMenuItem onClick={() => onImport('import')}>
-            <FileUp className="mr-2 h-4 w-4" aria-hidden="true" />
-            Import .csv
-          </DropdownMenuItem>
-        </DropdownMenuContent>
-      </DropdownMenu>
+            <DropdownMenuItem onClick={() => onImport('import')}>
+              <FileUp className="mr-2 h-4 w-4" aria-hidden="true" />
+              Import .csv
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </div>
     </div>
 
     <div className="mt-4 space-y-3">
@@ -1079,8 +1119,8 @@ const BuilderView = ({
   setSelectedFieldId: (fieldId: string) => void
   updateField: (fieldId: string, patch: Partial<FormField>) => void
 }) => (
-  <div className="grid gap-4 xl:grid-cols-[1fr_300px]">
-    <main className="space-y-4">
+  <div className="grid min-w-0 gap-4 xl:grid-cols-[minmax(0,1fr)_300px]">
+    <main className="min-w-0 space-y-4">
       <FormInfoPanel
         formCode={formCode}
         formTitle={formTitle}
@@ -1219,7 +1259,7 @@ const BuilderView = ({
       </div>
     </main>
 
-    <aside className="space-y-4">
+    <aside className="min-w-0 space-y-4">
       <MetadataMapPanel
         fields={fields}
         mappedCount={mappedCount}
@@ -1661,8 +1701,8 @@ const ImportView = ({
   setView: (view: CollectionView) => void
   uploadProgress: number
 }) => (
-  <div className="grid gap-4 xl:grid-cols-[1fr_300px]">
-    <main className="space-y-4">
+  <div className="grid min-w-0 gap-4 xl:grid-cols-[minmax(0,1fr)_300px]">
+    <main className="min-w-0 space-y-4">
       <FormInfoPanel
         formCode={formCode}
         formTitle={formTitle}
@@ -1758,7 +1798,7 @@ const ImportView = ({
       {parsedImport ? <DataPreview parsedImport={parsedImport} /> : null}
     </main>
 
-    <aside className="space-y-4">
+    <aside className="min-w-0 space-y-4">
       <ImportValidationPanel mappingRows={mappingRows} parsedImport={parsedImport} />
       <div className="rounded-lg border bg-card p-4 shadow-sm">
         <p className="text-sm font-semibold text-foreground">Connected to</p>
@@ -1797,7 +1837,7 @@ const MappingTable = ({
   setProceedDialogOpen: (open: boolean) => void
   setView: (view: CollectionView) => void
 }) => (
-  <div className="rounded-lg border bg-card p-4 shadow-sm">
+  <div className="min-w-0 rounded-lg border bg-card p-4 shadow-sm">
     <div className="flex flex-col gap-3 border-b pb-3 md:flex-row md:items-center md:justify-between">
       <div>
         <h2 className="text-lg font-semibold text-foreground">Metadata mapping</h2>
@@ -1816,7 +1856,7 @@ const MappingTable = ({
         </Button>
       </div>
     </div>
-    <div className="mt-4 overflow-x-auto">
+    <div className="mt-4 max-w-full overflow-x-auto">
       <table className="w-full min-w-[720px] text-left text-sm">
         <thead className="text-xs uppercase text-muted-foreground">
           <tr>
@@ -1892,13 +1932,13 @@ const MappingTable = ({
 )
 
 const DataPreview = ({ parsedImport }: { parsedImport: ParsedImport }) => (
-  <div className="rounded-lg border bg-card p-4 shadow-sm">
+  <div className="min-w-0 rounded-lg border bg-card p-4 shadow-sm">
     <h2 className="text-lg font-semibold text-foreground">Data preview</h2>
     <p className="mt-1 text-sm text-muted-foreground">
       First rows are shown client-side from the file you selected.
     </p>
-    <div className="mt-4 overflow-x-auto">
-      <table className="w-full min-w-[720px] text-left text-sm">
+    <div className="mt-4 max-w-full overflow-x-auto">
+      <table className="w-max min-w-full text-left text-sm">
         <thead className="text-xs uppercase text-muted-foreground">
           <tr>
             {parsedImport.headers.map((header) => (

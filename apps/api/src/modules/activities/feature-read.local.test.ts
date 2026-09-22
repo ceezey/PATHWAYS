@@ -58,7 +58,7 @@ describe.skipIf(!enabled)('joined feature reads on disposable PostgreSQL', () =>
           AND inet_server_port() = 55448
           AND current_user = 'postgres' AND session_user = 'postgres'
           AND (SELECT count(*) FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
-               WHERE n.nspname = 'pathways' AND c.relkind = 'r') = 44
+               WHERE n.nspname = 'pathways' AND c.relkind = 'r') = 45
           AS safe
       `
       expect(guard?.safe).toBe(true)

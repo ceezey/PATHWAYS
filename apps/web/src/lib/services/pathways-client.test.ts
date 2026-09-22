@@ -15,16 +15,13 @@ describe('PATHWAYS frontend data boundary', () => {
   beforeEach(() => browser.getSession.mockReset())
   afterEach(() => vi.unstubAllGlobals())
 
-  it('does not fabricate collection records while domain endpoints are unavailable', async () => {
+  it('does not fabricate collection records while remaining domain endpoints are unavailable', async () => {
     const collections = await Promise.all([
-      pathwaysClient.getActivities('project-id'),
-      pathwaysClient.getEvidence('project-id'),
       pathwaysClient.getExpenses('project-id'),
       pathwaysClient.getRecommendationOutcomes('project-id'),
       pathwaysClient.getTransparencySections('project-id'),
       pathwaysClient.getBeneficiaryRecordsForRole('Program Manager'),
       pathwaysClient.getBeneficiaryMediaProofForRole('Program Manager', 'beneficiary-id'),
-      pathwaysClient.getJourneyStages('project-id'),
       pathwaysClient.getBudgets(),
       pathwaysClient.getAlerts(),
       pathwaysClient.getRecommendations(),
@@ -37,6 +34,88 @@ describe('PATHWAYS frontend data boundary', () => {
     ])
 
     expect(collections.every((records) => records.length === 0)).toBe(true)
+  })
+
+  it('loads and creates activities through the scoped API without requiring relationship links', async () => {
+    const authUserId = '72000000-0000-4000-8000-000000000001'
+    const organizationId = '72000000-0000-4000-8000-000000000002'
+    const userId = '72000000-0000-4000-8000-000000000003'
+    const projectId = '72000000-0000-4000-8000-000000000004'
+    const officerId = '72000000-0000-4000-8000-000000000005'
+    const activity = {
+      id: '72000000-0000-4000-8000-000000000006',
+      projectId,
+      title: 'Community workshop',
+      description: 'Synthetic activity',
+      storedStatus: 'NOT_STARTED',
+      status: 'Planned',
+      overdue: false,
+      startDate: '2026-10-01',
+      dueDate: '2026-10-02',
+      assignedUserIds: [officerId],
+      assignedTo: ['Project Officer Test'],
+      assignedEmails: ['p07.po.01@example.test'],
+      indicatorIds: [],
+      journeyStageIds: [],
+      journeyStageId: '',
+      targetBeneficiaries: 0,
+      beneficiariesReached: 0,
+      budgetAllocation: 0,
+      budgetLogged: 0,
+      progress: 0,
+      submittedProof: [],
+      updateNotes: [],
+      updatedAt: '2026-09-20T00:00:00.000Z',
+    }
+    vi.stubGlobal('window', {})
+    vi.stubGlobal('document', {
+      cookie: `pathways-context=${encodeURIComponent(JSON.stringify({ authUserId, organizationId, userId }))}`,
+    })
+    browser.getSession.mockResolvedValue({
+      data: { session: { access_token: 'synthetic-access-token', user: { id: authUserId } } },
+      error: null,
+    })
+    const fetcher = vi
+      .fn()
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify([activity]), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        }),
+      )
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify(activity), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        }),
+      )
+    vi.stubGlobal('fetch', fetcher)
+
+    await expect(pathwaysClient.getActivities(projectId)).resolves.toMatchObject([
+      { id: activity.id, indicatorIds: [], journeyStageId: '' },
+    ])
+    await pathwaysClient.createActivity({
+      projectId,
+      title: activity.title,
+      description: activity.description,
+      startDate: activity.startDate,
+      dueDate: activity.dueDate,
+      targetBeneficiaries: 1,
+      budgetAllocation: 1,
+      assignedUserIds: [officerId],
+    })
+
+    expect(fetcher.mock.calls[0]?.[0]).toBe(
+      `http://127.0.0.1:4000/api/projects/${projectId}/activities`,
+    )
+    const createRequest = fetcher.mock.calls[1]?.[1] as RequestInit
+    expect(JSON.parse(String(createRequest.body))).toEqual({
+      title: activity.title,
+      description: activity.description,
+      plannedStartDate: activity.startDate,
+      plannedEndDate: activity.dueDate,
+      assignedUserIds: [officerId],
+    })
   })
 
   it('requires a verified browser session for implemented foundation reads', async () => {
@@ -221,8 +300,9 @@ describe('PATHWAYS frontend data boundary', () => {
         new Response(
           JSON.stringify({
             message: {
-              message: 'Workbook formulas, macros, and links are forbidden.',
-              code: 'WORKBOOK_ACTIVE_CONTENT',
+              message:
+                'Workbook formulas are not accepted. Export a values-only copy before uploading.',
+              code: 'WORKBOOK_FORMULA_REQUIRES_VALUES_ONLY',
             },
           }),
           { status: 400, headers: { 'Content-Type': 'application/json' } },
@@ -241,86 +321,7 @@ describe('PATHWAYS frontend data boundary', () => {
       ),
     ).rejects.toMatchObject({
       code: 'invalid',
-      message: 'Workbook formulas, macros, and links are forbidden.',
+      message: 'Workbook formulas are not accepted. Export a values-only copy before uploading.',
     })
-  })
-
-  it('loads and creates project-scoped Beneficiary records through the real API boundary', async () => {
-    const authUserId = '77000000-0000-4000-8000-000000000001'
-    const organizationId = '77000000-0000-4000-8000-000000000002'
-    const userId = '77000000-0000-4000-8000-000000000003'
-    const projectId = '77000000-0000-4000-8000-000000000004'
-    const beneficiary = {
-      id: '77000000-0000-4000-8000-000000000005',
-      code: 'SYN-001',
-      subjectType: 'INDIVIDUAL',
-      displayName: 'Synthetic Person',
-      firstName: 'Synthetic',
-      middleName: null,
-      lastName: 'Person',
-      sex: 'NOT_SPECIFIED',
-      birthDate: '2000-01-01',
-      ageAtRegistration: 26,
-      disabilityStatus: 'NOT_SPECIFIED',
-      locationBarangay: 'Test',
-      locationCityMunicipality: 'Test City',
-      locationProvince: 'Test Province',
-      status: 'ACTIVE',
-      consentRecorded: true,
-      dataProcessingConsentRecorded: true,
-      isMinor: false,
-      guardianConsentRecorded: false,
-      projectId,
-      enrollment: {
-        id: '77000000-0000-4000-8000-000000000006',
-        projectId,
-        enrollmentDate: '2026-01-01',
-        status: 'ACTIVE',
-      },
-      consentProvenance: [
-        { kind: 'PARTICIPATION', source: 'DIRECT_ENTRY', recordedAt: '2026-01-01T00:00:00.000Z' },
-      ],
-      updatedAt: '2026-09-13T00:00:00.000Z',
-    }
-    vi.stubGlobal('window', {})
-    vi.stubGlobal('document', {
-      cookie: `pathways-context=${encodeURIComponent(JSON.stringify({ authUserId, organizationId, userId }))}`,
-    })
-    browser.getSession.mockResolvedValue({
-      data: { session: { access_token: 'synthetic-access-token', user: { id: authUserId } } },
-      error: null,
-    })
-    const fetcher = vi
-      .fn()
-      .mockResolvedValueOnce(
-        new Response(JSON.stringify({ items: [beneficiary], nextCursor: null }), {
-          status: 200,
-          headers: { 'Content-Type': 'application/json' },
-        }),
-      )
-      .mockResolvedValueOnce(
-        new Response(JSON.stringify(beneficiary), {
-          status: 200,
-          headers: { 'Content-Type': 'application/json' },
-        }),
-      )
-    vi.stubGlobal('fetch', fetcher)
-
-    await expect(
-      pathwaysClient.getBeneficiaryRecordsForRole('Monitoring and Evaluation Officer', projectId),
-    ).resolves.toMatchObject([
-      { code: 'SYN-001', projectIds: [projectId], consentToStoreData: true },
-    ])
-    await expect(
-      pathwaysClient.registerBeneficiary(projectId, {
-        formId: '77000000-0000-4000-8000-000000000007',
-        clientRegistrationId: '77000000-0000-4000-8000-000000000008',
-        values: { beneficiary_code: 'SYN-001' },
-      }),
-    ).resolves.toMatchObject({ code: 'SYN-001', projectIds: [projectId] })
-    expect(fetcher.mock.calls[0]?.[0]).toBe(
-      `http://127.0.0.1:4000/api/beneficiaries/projects/${projectId}`,
-    )
-    expect(fetcher.mock.calls[1]?.[1]).toMatchObject({ method: 'POST' })
   })
 })

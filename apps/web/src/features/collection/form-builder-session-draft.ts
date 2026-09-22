@@ -90,6 +90,9 @@ const isDraft = (value: unknown): value is FormBuilderSessionDraft => {
   )
 }
 
+const hasFormContent = (draft: FormBuilderSessionDraft) =>
+  draft.fields.length > 0 || draft.formTitle.trim().length > 0 || draft.formCode.trim().length > 0
+
 export const formBuilderSessionDraftKey = (userId: string, formId: string | null) =>
   `pathways:form-builder-draft:v1:${userId}:${formId ?? 'new'}`
 
@@ -102,7 +105,8 @@ export function readFormBuilderSessionDraft(
     const serialized = storage.getItem(key)
     if (!serialized || serialized.length > maximumDraftBytes) return null
     const value: unknown = JSON.parse(serialized)
-    if (!isDraft(value) || value.baseUpdatedAt !== expectedBaseUpdatedAt) return null
+    if (!isDraft(value) || value.baseUpdatedAt !== expectedBaseUpdatedAt || !hasFormContent(value))
+      return null
     return value
   } catch {
     return null
@@ -115,6 +119,10 @@ export function writeFormBuilderSessionDraft(
   draft: FormBuilderSessionDraft,
 ) {
   try {
+    if (!hasFormContent(draft)) {
+      storage.removeItem(key)
+      return
+    }
     const serialized = JSON.stringify(draft)
     if (serialized.length <= maximumDraftBytes) storage.setItem(key, serialized)
   } catch {
