@@ -1100,12 +1100,14 @@ The imports suite passed 15/15 with `packages/shared/dist` temporarily absent,
 then the generated directory was restored. Scoped Biome, root lint (645 files),
 workspace typecheck, Prisma validation, and the full build passed. The first
 local full-suite run was executed concurrently with other heavy validation and
-hit web UI timeouts; a standalone rerun retained several unrelated five-second
-web UI timeouts while config 3, shared 35, imports 15, and API 661 with 8
-opt-in database tests skipped passed. No test assertion related to the new
-Vitest alias failed. The clean GitHub runner is the fresh-checkout acceptance
-environment and passed every workflow step, including install, Prisma
-validation, guarded replay, secret scan, lint, typecheck, all tests, and build.
+hit web UI timeouts; a standalone root rerun still had several five-second UI
+timeouts while config 3, shared 35, imports 15, and API 661 with 8 opt-in
+database tests skipped passed. An isolated web rerun then passed all 565 tests,
+confirming local resource contention rather than a regression. No test
+assertion related to the new Vitest alias failed. The clean GitHub runner is
+the fresh-checkout acceptance environment and passed every workflow step,
+including install, Prisma validation, guarded replay, secret scan, lint,
+typecheck, all tests, and build.
 
 The fix commit is `a29c5fe898d89b5154716506082a2c30e6cd5f7b`
 (`test: resolve shared sources in imports suite`). PR #5 remained open and
