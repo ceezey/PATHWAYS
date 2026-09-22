@@ -117,19 +117,30 @@ cross-role/use-case validation has not started and needs explicit authorization.
 
 ## P5 — Use-case, role, and UI regression
 
-- [ ] FB-P5-01 — Latest Frontend-UI/UX visual/interaction fidelity verified on representative routes.
-- [ ] FB-P5-02 — System Administrator flow regression passes.
-- [ ] FB-P5-03 — Program Manager aggregate/privacy boundaries pass.
-- [ ] FB-P5-04 — Grant Manager aggregate/privacy boundaries pass.
-- [ ] FB-P5-05 — Project Manager project + indicator read/manage flow passes.
-- [ ] FB-P5-06 — M&E workflow passes.
-- [ ] FB-P5-07 — Project Officer workflow passes.
-- [ ] FB-P5-08 — Login/MFA/workspace/logout/redirect regression passes.
-- [ ] FB-P5-09 — Beneficiary PIN `2468` regression passes without auth bypass.
-- [ ] FB-P5-10 — Persisted/reload/error states are truthful.
-- [ ] FB-P5-11 — No runtime fabricated domain values found in integrated paths.
-- [ ] FB-P5-12 — Every temporary missing-feature behavior/recommendation documented.
-- [ ] FB-P5-13 — Integration-caused automated-test regressions resolved.
+- [x] FB-P5-01 — Pinned UI theme/primitives unchanged; built desktop/mobile login and public states visually inspected. Protected route/MFA interactions checked in browser fixtures; intentional differences remain documented.
+- [x] FB-P5-02 — System Administrator route and user-policy boundaries pass at local fixture/API scope; live provider transaction is outside this authorization.
+- [x] FB-P5-03 — Program Manager route and aggregate/privacy policy boundaries pass at local fixture/API scope; no raw detail grant added.
+- [x] FB-P5-04 — Grant Manager route and aggregate/privacy policy boundaries pass at local fixture/API scope; no user-management grant added.
+- [x] FB-P5-05 — Project Manager route and assigned-project indicator read/manage pass in disposable 0021 RLS replay and web/API tests; managed 0021 rollout remains separately gated.
+- [x] FB-P5-06 — M&E route, import review/process and indicator policy pass at local fixture/API/database scope.
+- [x] FB-P5-07 — Project Officer route, proof/participation and import upload boundaries pass at local fixture/API scope.
+- [x] FB-P5-08 — Login, retained MFA/TOTP, workspace, logout, revocation and redirect fixtures pass; live Auth transaction remains untested.
+- [x] FB-P5-09 — PIN `2468` gate and no protected-content bypass pass in browser fixture and local API policy tests.
+- [x] FB-P5-10 — Local disposable persistence/RLS, client reload, stale-result and error-state tests pass; unsupported actions remain no-save.
+- [x] FB-P5-11 — Production import scan finds no `mocks`/`demo-state` path; built public page has no fabricated project.
+- [x] FB-P5-12 — UC001–UC026 matrix records 17 PARTIAL, 9 DEFERRED and D01–D20 discrepancies with temporary behavior in task Source of Truth.
+- [x] FB-P5-13 — Header-only XLSX parser and migration inventory regressions repaired; focused/full suites pass. Changed-file Biome passes; root lint retains three untouched Phase 7 formatter findings.
+
+Phase 5 local/isolated acceptance (2026-09-23): PASS within the expressly
+authorized repository scope. The manuscript PDF is pinned by path and SHA-256
+in Source of Truth section 16 and was not added to Git. No UC is claimed as
+complete end-to-end: 17 are PARTIAL and 9 DEFERRED. Full web/shared/API/imports
+tests, 39 focused browser fixtures, two built-page desktop/mobile production
+smokes, all-package typecheck/build, changed-file Biome and guarded disposable
+0021 replay pass. Root lint still fails only in three untouched Phase 7
+scripts. No managed Auth/Storage/database operation, W10 mutation, push or PR
+occurred. Phase 6 remains authorization-gated; managed 0021 rollout needs
+separate approval before PATHWAYS-dev PM indicator verification.
 
 ## P6 — Final regression and GitHub PR
 

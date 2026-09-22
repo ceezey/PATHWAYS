@@ -2,6 +2,7 @@ import { defineConfig, devices } from '@playwright/test'
 
 export default defineConfig({
   testDir: './apps/web/e2e',
+  testIgnore: 'integration-phase5-public.spec.ts',
   retries: process.env.CI ? 2 : 0,
   use: {
     baseURL: 'http://127.0.0.1:3000',

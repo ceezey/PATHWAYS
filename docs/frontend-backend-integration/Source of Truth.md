@@ -761,3 +761,161 @@ hash above through the established migration identity, and return sanitized
 migration status plus scoped PM/M&E/denied-role evidence. No credential or
 provider mutation is part of this Phase 4 result. Local Phase 5 validation may
 be authorized independently; managed PM validation waits for that rollout.
+
+---
+
+## 16. Phase 5 use-case source and regression matrix (2026-09-22)
+
+The exact developer-specified source is the **untracked, developer-supplied**
+`C:/PATHWAYS/docs/UCD and UCR - [Group 14] Capstone Manuscript rev 2026.pdf`.
+SHA-256: `cb72687e0a8dec3943d39bd1fe7410e02e388453e7c601329b62c57c5ce760a2`.
+The PDF has 30 pages. Reviewed PDF pages 1–6 (printed pages 68–73,
+Figures 5–14) visually, and PDF pages 7–30 (printed pages 74–97,
+UC001–UC026 reports) as extracted text. The diagrams and reports identify a
+usable common use-case set, but UC014's cross-project description conflicts
+with its own scoped exception, UC011 invokes UC014 for metadata correction,
+and several claims omit newer security/provider decisions. They are sufficient
+as regression input only with the authority hierarchy in section 2 and the
+discrepancy register below. The PDF must not enter a repository commit.
+
+Actor shorthand resolves to the manuscript's exact titles: `SA` =
+Superuser/System Administrator, `PgM` = Program Manager, `GM` = Grant Manager,
+`PM` = Project Manager, `ME` = Monitoring and Evaluation Officer, `PO` =
+Project Officer, `ALL` = all six internal roles, `EXT` = external stakeholders
+(donors, partners, communities, etc.). `S` means organization and, where
+applicable, assigned-project scope plus verified identity. Every accepted API
+path also requires the current session/MFA/workspace guard. `DB` means
+PostgreSQL/Prisma with existing audit where that command implements it; `Auth`
+means Supabase Auth; `Storage` means private Supabase Storage. `None` means no
+persisted effect may be claimed. Results begin NOT RUN and will be reconciled
+after isolated/browser testing; a screen render alone is not workflow PASS.
+
+| UC / manuscript actor(s) | Effective actor(s) / preconditions | Frontend route / UI action | Client / hook | API endpoint | Authorization | Domain/service action | Persistence / provider effect | Expected user-visible result | Test environment | Result | Evidence | Discrepancy |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| UC001 Login — ALL | ALL; active account, AAL2, one workspace | `/staff/login` → `/auth/mfa` → `/workspace`; logout | login/MFA/session hooks | Auth sign-in; `/auth/mfa/status`, `/auth/workspaces`, `/auth/me` | active profile, verified MFA, workspace/route guard | resolve session/context | Auth session; profile read | redirect or fail-closed error | local/browser fixture | PARTIAL | PDF 7-8; web auth unit 339, API auth 502, Playwright MFA/login/route fixtures 39 PASS; live provider sign-in not exercised | D01 |
+| UC002 Recover Account — ALL | ALL; registered email/provider link | `/staff/forgot-password`, update-password | recovery forms, Auth client | Auth recovery/reset | provider token/password policy | send link/set password | Auth, no fake reset | generic request; valid reset/error | local/browser fixture; no managed Auth write | PARTIAL | PDF 8; provider recovery route/build and auth unit PASS; no managed Auth reset exercised | D02 |
+| UC003 Manage Profile — ALL | ALL active; self-edit unapproved | `/settings/profile` view/save/password | own-profile workspace | `/auth/me` read; no self-edit endpoint | verified self, no self-write grant | current profile view | None for edit | view; edit no-save unavailable | local/browser fixture | PARTIAL | PDF 8-9; /auth/me API tests and browser route fixture PASS; self-edit deferred | D03 |
+| UC004 Users/Roles — SA,PgM,PM | SA/PgM/PM within target ceiling; existing Auth user; no self-admin | `/settings/users` list/authorize/update/deactivate | user-management client | `/users`, `/users/authorize-existing`, `/users/:id` | `users.authorize`, assignment ceiling, S | authorize existing user/scoped update | DB/audit; no new Auth account | persisted update/denial; create unavailable | local/isolated/browser fixture | PARTIAL | PDF 9-10; API users/authorization tests and six-role browser fixture PASS; no live Auth provisioning | D04 |
+| UC005 Audit Logs — SA | SA; browse contract absent | `/settings/audit` filter/detail | audit unavailable state | None | no browse API | no read action | None | truthful unavailable, no synthetic events | local/browser fixture | DEFERRED | PDF 11; no audit browse API; truthful unavailable path, Phase 4 trace | D05 |
+| UC006 Project Profiles — PM,SA | PM/SA `projects.create`; full form mapping unresolved | `/projects`, new/edit/archive | project loaders/setup/client | `GET/POST/PATCH /projects`; no archive/team API | `projects.read/create`, S | list/detail and supported period edit | DB for supported command; none for blocked form | real list/detail; submit/archive error | local/isolated/browser fixture | PARTIAL | PDF 11-12; API project policy/tests PASS; full latest form mapping/archive deferred | D06 |
+| UC007 Activities/Milestones — ME,PO,PM,PgM,GM,SA | PM/SA create/update, PO proof submit, ME review; PgM/GM read | `/projects/:id/activities`, milestones/proof/status | activity/milestone client | `/projects/:id/activities`, `/milestones`, proof/review | activity/proof/evidence permissions, S | revision/status, proof, milestone | DB/audit/Storage as applicable | reload/denial/error; expenses unavailable | local/isolated/browser fixture | PARTIAL | PDF 12-14; API activities/access tests PASS; expense/budget workflow deferred | D07 |
+| UC008 Indicator — PM,ME,SA | PM/ME manage assigned projects; SA read only | `/projects/:id/indicators` CRUD/measure/archive | indicator workspace/client | `/projects/:id/indicators` and child routes | `monitoring.read`, `indicators.create/update`, S/RLS | validate, audit, revise indicator | DB/audit; 0021 local only | saved/reloaded or denied/error | disposable DB/browser fixture; managed PM blocked | PARTIAL | PDF 14; PM/M&E local 0021 RLS replay PASS; web indicator tests PASS; managed rollout and full browser save pending | D08 |
+| UC009 Digital Forms — PO,ME,SA | ME publish; SA/PM manage; PO read/entry | `/collection/forms` builder/preview/publish | collection digital-form client | `/metadata/projects/:id/forms` and version/publish | `forms.read/manage/publish`, S | versioned form metadata | DB/audit | saved/published or denied; export unavailable | local/isolated/browser fixture | PARTIAL | PDF 15; API metadata tests PASS; form export deferred | D09 |
+| UC010 Encode Data — PO | PO direct entry; other scoped staff per backend policy | `/collection/entry` save/validate/submit | direct-entry workspace/client | `/metadata/projects/:id/forms/:formId/submissions` | `submissions.write`, S | validate/persist form submission/draft | DB/audit | saved/reloaded or error; generic data entry unavailable | local/isolated/browser fixture | PARTIAL | PDF 15-16; API metadata/entry tests PASS; generic multi-domain entry deferred | D10 |
+| UC011 Import Metadata — PO,ME,SA | PO/SA/PM upload; ME review/process; valid project/file | `/collection/import` upload/map/validate/process | import workspace/client | `/imports/projects/:id/batches` child routes | `imports.read/upload/review/process`, S | bounded import state machine | DB/Storage/audit | persisted batch/invalid/error; no fake completion | disposable DB/browser fixture | PARTIAL | PDF 16-17; API imports suite and imports parser 15 PASS; managed batch not exercised; W10 untouched | D11 |
+| UC012 Beneficiary Profiles — PO,ME,PM | scoped registration; SA/ME update; sensitive detail step-up absent | `/beneficiaries` new/detail/edit/duplicates | directory/form/detail client | `/beneficiaries/projects/:id` child routes | records read/register, profile update, S/privacy | scoped register/list; blocked edit/merge | DB/audit for registration; none for blocked edit | directory/register or restricted/no-save | local/isolated/browser fixture | PARTIAL | PDF 17-18; API beneficiary tests and PIN browser gate PASS; sensitive detail/edit/merge deferred | D12 |
+| UC013 Beneficiary Journey — PO,ME,PM | PM/ME stage manage, PO read/participation; detail gated | journey-stage and beneficiary journey routes | journey stage/detail client | `/projects/:id/journey-stages`; beneficiary journey paths | `journeys.read/manage`, `participation.record`, S | stage config/history; incomplete dialog deferred | DB/audit for supported path; none for blocked dialog | real stages/history or no-save | local/isolated/browser fixture | PARTIAL | PDF 18-19; API participants tests PASS; PIN gate PASS; notes/assessment action deferred | D13 |
+| UC014 Beneficiary History — PO,ME,PM | assigned project only; detail step-up absent | beneficiary detail participation/history tabs | journey history client | `/beneficiaries/projects/:id/:bid/journey` | `journeys.read`, `beneficiaries.records.read`, S | scoped chronological history | DB read only | restricted or authorized history; no cross-project leak | local/isolated/browser fixture | PARTIAL | PDF 19-20; scoped API/role tests PASS; detail stays gated without step-up | D14 |
+| UC015 Monitoring Dashboard — ME,PM,PgM,GM,SA | same roles with `analytics.read`; scoped/aggregate release | `/dashboard`, `/analytics` filters/refresh | dashboard/monitoring hooks | `/dashboards/home`, `/dashboards/monitoring` | `analytics.read`, S/privacy release | aggregate indicators/participation | DB read | real aggregate/empty/error, no fake zero | local/isolated/browser fixture | PARTIAL | PDF 20-21; local C8 dashboard replay and web monitoring tests PASS; full visual filters deferred | D15 |
+| UC016 Descriptive Analytics — ME,PM,PgM,GM,SA | same roles with `analytics.read` and release | `/analytics` KPI/chart/filter | analytics dashboard client | `/dashboards/monitoring` | `analytics.read`, S/privacy release | current aggregate computation | DB read | real supported charts; survey/map unavailable | local/isolated/browser fixture | PARTIAL | PDF 21; real aggregate/client tests PASS; unsupported analytics views deferred | D15 |
+| UC017 SADDD Analysis — ME,PM,PgM,GM,SA | same roles under fixed G4/G8 release and project scope | `/analytics` SADDD selectors | SADDD client/hook | `/dashboards/saddd` | `analytics.read`, S/suppression | protected demographic aggregate | DB read, no raw cross-product | released bucket or withheld state | disposable DB/browser fixture | PARTIAL | PDF 21-22; disposable C8/G4/G8 replay PASS; no managed demographic release exercised | D16 |
+| UC018 Rule-Based Alerts — ME,PM,PgM,GM,SA | no actor has working lifecycle endpoint | `/alerts` review/outcome | alert client unavailable | None | no accepted alert state machine | no server action | None | unavailable/no outcome/notification | local/browser fixture | DEFERRED | PDF 22-23; no alert lifecycle endpoint; no fabricated notification | D17 |
+| UC019 Recommendations — ME,PM,PgM,GM,SA | no actor has working lifecycle endpoint | `/recommendations` review/outcome | recommendation client unavailable | None | no accepted linked decision contract | no server action | None | unavailable/no fake outcome | local/browser fixture | DEFERRED | PDF 24-25; no recommendation lifecycle endpoint; no fabricated outcome | D17 |
+| UC020 Generate Reports — ME,PM,PgM,GM,SA | report generation contract absent | `/reports` preview/generate | reporting workspace/client | None for generation | `reports.read` is not generation authority | no server generation | None | unavailable/no saved report | local/browser fixture | DEFERRED | PDF 25; no report generation endpoint; no fake saved report | D18 |
+| UC021 Visualizations — ME,PM,PgM,GM,SA | `analytics.read` and released scope; supported charts only | `/analytics`, `/reports` visualizations/filters | dashboard/reporting hooks | `/dashboards/monitoring`, `/dashboards/saddd` | `analytics.read`, S/privacy | render real aggregate | DB read | supported chart or unavailable series/map | local/isolated/browser fixture | PARTIAL | PDF 26; real dashboard/client tests PASS; unsupported map/series unavailable | D15 |
+| UC022 Export Outputs — ME,PM,PgM,GM,SA | no authorized export service | `/reports` download/export | reporting unavailable action | None | no export path | no file generation | None | explicit no-file message | local/browser fixture | DEFERRED | PDF 26-27; no export endpoint; no generated file claimed | D18 |
+| UC023 Configure Parameters — SA | no approved runtime configuration contract | `/settings/rules` create/edit/toggle | rule workspace/client unavailable | None | role policy alone is not endpoint | no threshold mutation | None | unavailable/no-save | local/browser fixture | DEFERRED | PDF 27-28; no approved runtime rules configuration contract | D19 |
+| UC024 Backup/Recovery — SA | operational workflow/authority absent | `/settings/backups` create/restore | backup workspace unavailable | None | no app backup/restore path | no operation | None | unavailable; never fake backup | local/browser fixture; no managed restore | DEFERRED | PDF 28; no app backup/restore endpoint; managed restore not run | D19 |
+| UC025 Manage Public Tracker — SA,PgM,PM,GM | no approved publication service | `/transparency` review/publish | transparency client unavailable | None | current policy must not widen | no public projection | None | unavailable/no publish success | local/browser fixture | DEFERRED | PDF 29; no publication/approval service; no fake publish | D20 |
+| UC026 View Public Tracker — ALL,EXT | anonymous view requires approved publication, absent | `/public/projects`, detail | public client unavailable | None | no anonymous approved projection | no public read | None | explicit unavailable/maintenance | local/browser fixture | DEFERRED | PDF 29-30; production-browser desktop/mobile unavailable state PASS; no approved public projection | D20 |
+
+### Use-Case Discrepancy Register
+
+The source column cites printed manuscript pages (PDF page = printed page − 67).
+These are documentation/system disagreements, not permission-change requests.
+
+| ID / UC | Manuscript wording and page | Newer authoritative behavior | Why it wins | Recommended manuscript correction |
+|---|---|---|---|---|
+| D01 / UC001 | p74–75: credentials → role-specific dashboard; lock after 5 attempts; session audit | Password → provider MFA/TOTP → verified workspace → dashboard; no verified five-attempt app lock or claimed session audit | Locked auth/redirect and provider contract | Add MFA/workspace sequence; specify actual provider rate limit and audited events only when evidenced |
+| D02 / UC002 | p75: active-account email verification, reset link and password-change audit | Provider-backed recovery uses generic response and callback; no separate app guarantee for those audit/active-account steps | No account enumeration or invented provider effect | Describe real generic response, provider token expiry and supported audit boundary |
+| D03 / UC003 | p76: all users update contact/email/password and save audit | `/auth/me` view works; self-edit/password page reports unavailable, approved recovery remains | Self-administration contract absent | Mark update/password workflow pending; keep view and recovery separate |
+| D04 / UC004 | p76–78: managers create Auth accounts and send credentials | Existing Auth users can be authorized/updated within strict target roles and project scope; new Auth account form cannot create an account | Accepted user security policy and no creation endpoint | Replace create-account claim with authorize-existing; specify separate provisioning decision |
+| D05 / UC005 | p78: paginated audit log/filter/detail; view itself logged | Audit browse API absent; UI unavailable | No safe user-facing audit query contract | Mark audit browse pending; avoid claiming synthetic events or view audit |
+| D06 / UC006 | p79: full project profile/budget create/update/archive | Scoped project API exists but frozen form lacks required mapping; archive/team contract absent | Backend validation and normalized ownership | Separate supported period edit from pending full setup, budget and archive |
+| D07 / UC007 | p80–81: all listed actors record/update activities and expenses; PO alone records expense | Actual permissions split read, create/update, proof submit and review; expense service/ledger absent | Current role ceiling and financial integrity | Show actor-specific actions; mark expenses/approval pending |
+| D08 / UC008 | p81: SA manages, indicators reused across projects and linked to framework | PM/ME manage project-owned indicators in assigned scope; SA read only; no organization-wide reuse library | Locked PM exception plus existing normalized indicator model | Specify PM/ME scoped manage, SA read; defer cross-project reuse |
+| D09 / UC009 | p82: PO/ME/SA create, edit, publish and export CSV/XLSX/XLS/PDF | PO reads/enters; SA/PM manage; ME publishes; form export absent; published versions protected | Separation of duties and real API | State actual role split, version behavior and pending export |
+| D10 / UC010 | p82–83: one module encodes generic project, activity and participant records/drafts | Direct entry persists approved digital-form submissions; project/activity/beneficiary use separate scoped commands | Current DTO/domain boundaries | Narrow this UC to digital direct entry and cross-reference separate commands |
+| D11 / UC011 | p83–84: PO/ME/SA upload, map, validate and process; metadata error triggers UC014 | PO/SA/PM upload; ME reviews/processes; CSV/XLSX/XLS supported; UC014 is history, not import correction | Accepted import role/state machine; source's UC reference is internally inconsistent | Split upload from review/process and correct erroneous UC014 reference |
+| D12 / UC012 | p84–85: profile create/update and authorized duplicate merge/link | Scoped registration/list exist; sensitive detail/edit gated; no server dedup merge contract | PIN cannot grant backend authorization; no safe merge semantics | Mark updates/merges pending and describe server step-up |
+| D13 / UC013 | p85–86: participation-driven stage notes, assessment ripple and PIN access | Stage configuration/history API exists; latest dialogs lack complete command provenance; notes/assessment actions unavailable; PIN alone grants no detail | Historical integrity and backend privacy | Separate supported stage/history from pending notes, participation mapping and step-up |
+| D14 / UC014 | p86: full history “across projects”; p87 exception denies beyond authorized project scope | Only authorized project-scoped history, and sensitive view waits for step-up | Privacy policy; manuscript internally contradicts itself | Remove unrestricted cross-project wording; retain the scoped exception |
+| D15 / UC015,016,021 | pp87–88,93: project/date/activity/geography filters, survey/budget/map series | Only current approved aggregate query/filter set is real; absent series/map remain unavailable | No fabricated domain output or unapproved privacy release | Enumerate supported filters/charts and mark others pending |
+| D16 / UC017 | pp88–89: sex/age/disability/“Other” dimensions and activity filters | Fixed G4/G8 single-project closed-period release, threshold/suppression, no arbitrary dimension or overlapping query | Locked sensitive-release policy | Describe approved dimensions/release and withheld responses |
+| D17 / UC018,019 | pp89–92: automatic alert/recommendation generation, review/outcome and named notifications | No accepted runtime rule/alert/recommendation lifecycle; latest UI truthfully unavailable | No backend state, authority or audit contract | Mark lifecycle, role decisions and notification claims pending |
+| D18 / UC020,022 | pp92–94: generated report and CSV/XLSX/XLS/PDF download | No report/export controller or release contract; UI generates no file | No fabricated report or sensitive export | Mark generation/export pending; retain real read-only visualizations separately |
+| D19 / UC023,024 | pp94–95: SA saves thresholds and creates/restores backups | No user-facing configuration or backup/restore runtime endpoint | Sensitive operation needs reviewed authorization and recovery design | Mark both operational flows pending; do not equate operator backup with app UI |
+| D20 / UC025,026 | pp96–97: SA/PgM/PM/GM approve/publish and public visitors see approved projects | No approved publication service or anonymous projection; public page is unavailable | Approval separation and data minimization undefined | Mark publication/public content pending; keep anonymous maintenance behavior |
+
+### Phase 5 validation evidence and limits
+
+All 26 UCs have an explicit result above: **17 PARTIAL, 9 DEFERRED, 0 full
+end-to-end PASS**. PARTIAL means the supported client/API/policy portions passed
+local unit, browser-fixture, or disposable-database checks, while at least one
+manuscript action or a live provider transaction remains unverified. DEFERRED
+means no accepted backend workflow exists and the integrated UI must give a
+truthful unavailable/empty/no-save result. Neither status claims a completed
+manuscript workflow. The 20 discrepancies D01–D20 remain documentation
+corrections, not permissions to change accepted behavior.
+
+The pinned `origin/Frontend-UI/UX` head is
+`a0ea9cf98396dfd7cceddb8a1c4100aafd57abde`. Its `globals.css`,
+Tailwind configuration, and UI primitives have no diff against the integrated
+HEAD. Browser screenshots from the built application show the accepted desktop
+and 390px mobile login structure and public navigation/unavailable state.
+Phase 3's documented presentation exceptions remain the Backend-DB MFA/TOTP
+form and truthful unavailable/empty/disabled states where the latest UI used
+prototype data; the beneficiary PIN dialog preserves its placement and
+`2468`. No new presentation change was made in Phase 5. Component fixtures
+verify six independent role-route outcomes, beneficiary gate privacy,
+navigation, and the MFA handoff. Screenshots are local `test-results` artifacts
+and are not committed.
+
+Phase 5 found two integration-caused test regressions and repaired them:
+the Frontend-UI merge had dropped Backend-DB's header-only XLSX parser behavior,
+and the migration inventory test had not counted authorized append-only
+`0021_project_manager_indicator_access`. The actual parser logic was restored
+from the approved Backend-DB parent; no import permission or provider behavior
+changed. The MFA browser fixture bundled `next/image` outside Next and never
+mounted; it now uses an isolated image test double. Four role-route expectations
+now recognize the existing server-authorized but PIN-gated beneficiary route
+without exposing protected content. No production UI behavior or role mapping
+was changed for those fixture repairs.
+
+Validation on 2026-09-23:
+
+| Check | Result | Scope / limit |
+|---|---|---|
+| Focused web and API | PASS: 339 web, 502 API; 5 local DB opt-in skipped | Auth, roles, clients, PM indicators, beneficiaries, monitoring |
+| Full web/shared/API/imports | PASS: 565 web, 35 shared, 661 API, 15 imports; 8 API opt-in local DB tests skipped | Unit/service regression; no live managed Auth or DB mutation |
+| Browser fixtures | PASS: 39/39 focused login, MFA, six-role route, monitoring and navigation cases after repair | Mocked provider/API transport; independent role expectations |
+| Built-page production smoke | PASS: 2/2; desktop/mobile login and anonymous public outage | Built Next app on loopback 3001; no authenticated provider session |
+| `pnpm typecheck`; `pnpm build` | PASS | All workspace packages/apps; production build |
+| Scoped Biome on eight changed source/config files | PASS | No changed-file lint finding |
+| `pnpm lint` | FAIL: three existing format findings in `infra/supabase/phase7/Run-C8Postflight.mjs`, `Run-C8Preflight.mjs`, `Run-C8FixturePreflight.mjs` | Files predate this integration diff and are untouched; no security or runtime implication established |
+| Guarded `Replay-Local.ps1 -Phase4IndicatorPolicy` | PASS: 21 migrations, C8/dashboard, PM/M&E indicator RLS, foreign/revoked denial, cleanup | Disposable PostgreSQL on loopback only; 0021 not applied to PATHWAYS-dev |
+
+The default Next development-server smoke loaded stale/incompatible assets
+after `next build`; its initial direct-page assertions did not validate the
+current application. The dedicated production smoke config uses the completed
+build and loopback port 3001; its rerun passed. Default Playwright excludes
+this production-only spec so the two server modes cannot share `.next` output.
+The older demo-control Playwright suites depend on removed runtime prototype
+routes/local storage and are historical fixture checks, not acceptance
+evidence for this integration.
+
+Production imports from `apps/web/src/mocks` and `apps/web/src/lib/demo-state`
+remain absent; both directories are retained as isolated test fixtures. The
+remaining browser storage in active code is limited to unsaved draft previews
+and a direct-entry idempotency key, not authoritative domain data. Public
+publication, sensitive beneficiary detail, reports/export, audit browse,
+alerts/recommendations, rules, and app backup/restore still have no server
+success path. Their temporary states and recommendations remain in sections
+12 and 15 and map to DEFERRED or PARTIAL UCs above.
+
+The local Phase 5 validation criteria pass within the expressly authorized
+repository and isolated environment. No manuscript UC is marked full PASS;
+managed Auth/provider transactions and managed 0021 rollout remain outside
+this authorization. Managed PM indicator behavior must be rechecked after a
+separately approved migration rollout. No migration, RLS, grant, role,
+managed provider, W10, push, or PR change occurred in Phase 5.
