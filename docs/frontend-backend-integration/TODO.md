@@ -144,14 +144,20 @@ separate approval before PATHWAYS-dev PM indicator verification.
 
 ## P6 — Final regression and GitHub PR
 
-- [ ] FB-P6-01 — Final lint/typecheck/test/build results recorded.
-- [ ] FB-P6-02 — Changed-file/diff/security review passes.
-- [ ] FB-P6-03 — No conflict markers/secrets/unrelated applied-migration edits.
-- [ ] FB-P6-04 — Frontend-UI/UX and Backend-DB exact SHAs and integration commits recorded.
+- [x] FB-P6-01 — Final typecheck/test/build/Prisma/Playwright/disposable replay pass; root lint retains only three untouched Phase 7 format findings; all 271 changed code/config files pass Biome.
+- [x] FB-P6-02 — Three-way UI, approved RBAC/migration, runtime mock, diff and security-sensitive path review passes; no unapproved redesign or policy delta found.
+- [x] FB-P6-03 — Diff whitespace/conflict checks and filename/content secret-pattern scan pass; no applied migration edit or W10 deviation.
+- [x] FB-P6-04 — Exact Backend-DB/Frontend-UI/UX heads and ancestry-preserving merge, Phase 4 implementation and Phase 5 validation commits recorded in Source of Truth section 17.
 - [ ] FB-P6-05 — Integration branch pushed without force.
 - [ ] FB-P6-06 — GitHub PR created into Backend-DB or exact manual PR action provided.
 - [ ] FB-P6-07 — PR changed files/checks inspected.
 - [ ] FB-P6-08 — PR remains unmerged pending developer authorization.
+
+Phase 6 pre-push gates (2026-09-23): PASS at the authorized local/isolated
+scope. The only worktree item before pushing is the untracked developer PDF,
+which is excluded from the PR. The remote integration branch did not exist at
+preflight. A normal push and PR creation are explicitly authorized; Phase 7
+merge remains authorization-gated.
 
 ## P7 — PR merge and post-merge validation
 

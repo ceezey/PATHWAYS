@@ -919,3 +919,57 @@ managed Auth/provider transactions and managed 0021 rollout remain outside
 this authorization. Managed PM indicator behavior must be rechecked after a
 separately approved migration rollout. No migration, RLS, grant, role,
 managed provider, W10, push, or PR change occurred in Phase 5.
+
+---
+
+## 17. Phase 6 final pre-push review (2026-09-23)
+
+`git fetch origin --prune` reconfirmed `origin/Backend-DB` at
+`3c4f0eb48cf1656bb44d9cb118b9ecc18a9f4090` and the authoritative
+`origin/Frontend-UI/UX` at `a0ea9cf98396dfd7cceddb8a1c4100aafd57abde`;
+neither moved after Phase 5. The integration branch is
+`integration/frontend-ui-backend-db-20260922`, currently based on the exact
+Backend-DB head above. Its ancestry-preserving merge commit
+`4dd96289bc1ab78eb24b02fca563ccc2a8ed881a` has those two exact heads
+as parents. Phase 4 implementation is
+`8ec83415696f43d96ec3353cd3815bd5d389cc8a`; Phase 5 validation is
+`14a75ee598c4284d694f94a9519ebe3f12f6a06b`. No remote integration
+branch exists before the authorized push.
+
+Final PR gates rerun on the unchanged heads:
+
+| Gate | Result |
+|---|---|
+| `pnpm typecheck`; `pnpm build`; Prisma `validate` | PASS |
+| `pnpm test` | PASS: shared 35, config 3, imports 15, API 661 (8 skipped opt-in DB), web 565; UI package has no tests |
+| Focused Playwright auth/navigation/RBAC/monitoring | PASS: 39/39 browser fixture cases |
+| Built-page production Playwright | PASS: 2/2 desktop/mobile login and public unavailable-state cases |
+| Guarded disposable `Replay-Local.ps1 -Phase4IndicatorPolicy` | PASS: all 21 migrations, C8/API runtime, PM/M&E indicator RLS, denied/revoked scope, cleanup |
+| `pnpm lint` | FAIL: only three pre-existing format findings in `infra/supabase/phase7/Run-C8FixturePreflight.mjs`, `Run-C8Preflight.mjs`, `Run-C8Postflight.mjs`; no Phase 7 file is in the PR diff |
+| Biome on every changed code/config file | PASS: 271 files in Windows-safe batches, no fixes |
+| `git diff origin/Backend-DB...HEAD --check`; conflict-marker check | PASS; no markers |
+
+The reviewed PR diff contains the pinned frontend source and test-only legacy
+prototype fixtures, the approved Backend-DB preservation/adapters, and one
+append-only migration, `0021_project_manager_indicator_access` (SHA-256
+`b2cc161a80f2989784bf5fd304b3a5b5657b1f481ade6af41c002b56f7d035e6`).
+No applied migration was edited. The only role-policy delta is PM
+`indicators.create/update` within existing assigned-project checks; M&E is
+retained. The latest frontend CSS/theme/UI primitives match the pinned
+frontend head. The intentional differences are the older working provider
+MFA/TOTP UI and real-API or truthful unavailable/empty states replacing
+prototype data. Existing login/workspace/logout redirects remain; the
+beneficiary PIN remains `2468` and cannot itself release records. Production
+imports of prototype mocks/demo-state are absent. The PR diff has no `.env`,
+credential/key file, private-key/JWT/token/database-URL pattern hit, W10
+cleanup, or unrelated applied-migration edit. The developer-supplied manuscript
+PDF remains untracked and excluded.
+
+Remaining feature limits and recommendations are the Phase 4 matrix (sections
+12 and 15) and Phase 5 UC matrix (section 16): sensitive beneficiary step-up,
+full project/expense/journey additions, audit, alerts/recommendations,
+reports/export, rules, backups, and public publication remain truthful
+unavailable or partial pending defined backend contracts. Managed application
+of 0021 still needs separate authorization before PATHWAYS-dev PM indicator
+verification. The branch is ready for a normal push and a PR into `Backend-DB`;
+Phase 7 PR merge is not authorized.
