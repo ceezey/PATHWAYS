@@ -120,6 +120,7 @@ export const roleAccessProfiles: Record<PathwaysRole, RoleAccessProfile> = {
       'projects.create',
       'activities.view',
       'activities.create_edit',
+      'indicators.manage',
       'budget.full',
       'budget.expense.view',
       'budget.expense.approve',

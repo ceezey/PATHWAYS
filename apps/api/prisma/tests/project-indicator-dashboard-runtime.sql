@@ -165,6 +165,45 @@ SELECT pg_temp.assert_true(pathways.p06_compute_indicator_value(pg_temp.u(1),pg_
 SELECT pg_temp.assert_true(pathways.p06_compute_indicator_value(pg_temp.u(1),pg_temp.u(301),pg_temp.u(2007),'Asia/Manila')#>>'{current,value}'='30','sum excludes the draft 999');
 SELECT pg_temp.assert_true(pathways.p06_compute_indicator_value(pg_temp.u(1),pg_temp.u(301),pg_temp.u(2008),'Asia/Manila')#>>'{current,value}'='3','numeric average');
 SELECT pg_temp.assert_true(pathways.p06_compute_indicator_value(pg_temp.u(1),pg_temp.u(301),pg_temp.u(2009),'Asia/Manila')#>>'{current,value}'='0','zero completed out of one due activity');
+
+-- Phase 4 narrow exception: Project Manager may manage indicators only in an
+-- assigned project. M&E retains manage; all other roles remain denied even
+-- though this synthetic fixture deliberately gives them overbroad mappings.
+\if :{?PHASE4_INDICATOR_POLICY}
+SET LOCAL ROLE pathways_runtime;
+SELECT set_config('request.jwt.claim.sub',pg_temp.u(204)::text,true),set_config('app.user_id',pg_temp.u(104)::text,true);
+SELECT pg_temp.assert_true(pathways.p06_can('monitoring.read',pg_temp.u(301)),'Project Manager reads assigned indicator scope');
+SELECT pg_temp.assert_true(pathways.p06_can('indicators.create',pg_temp.u(301)),'Project Manager creates in assigned project');
+SELECT pg_temp.assert_true(pathways.p06_can('indicators.update',pg_temp.u(301)),'Project Manager updates in assigned project');
+SELECT pg_temp.assert_true(NOT pathways.p06_can('indicators.create',pg_temp.u(303)),'Project Manager cannot create in foreign organization');
+SAVEPOINT phase4_pm_write;
+INSERT INTO pathways.project_indicators(id,organization_id,project_id,code,name,unit,unit_label,data_source,measurement_mode,numeric_kind,direction,display_precision,period_start,period_end,baseline_value,target_value,created_by_id)
+ VALUES(pg_temp.u(2010),pg_temp.u(1),pg_temp.u(301),'PM_SCOPED','PM scoped indicator','COUNT','records','Synthetic PM source','MANUAL','COUNT','HIGHER_IS_BETTER',0,'2026-06-01','2026-06-30',0,10,pg_temp.u(104));
+UPDATE pathways.project_indicators SET name='PM scoped indicator updated',revision=revision+1,updated_at=CURRENT_TIMESTAMP
+ WHERE organization_id=pg_temp.u(1) AND project_id=pg_temp.u(301) AND id=pg_temp.u(2010);
+SELECT pg_temp.assert_true(
+  (SELECT name FROM pathways.project_indicators WHERE id=pg_temp.u(2010))='PM scoped indicator updated',
+  'Project Manager indicator write persists under runtime RLS');
+ROLLBACK TO SAVEPOINT phase4_pm_write;
+SELECT set_config('request.jwt.claim.sub',pg_temp.u(205)::text,true),set_config('app.user_id',pg_temp.u(105)::text,true);
+SELECT pg_temp.assert_true(pathways.p06_can('indicators.create',pg_temp.u(301)) AND pathways.p06_can('indicators.update',pg_temp.u(301)),'M&E retains indicator manage');
+SELECT set_config('request.jwt.claim.sub',pg_temp.u(201)::text,true),set_config('app.user_id',pg_temp.u(101)::text,true);
+SELECT pg_temp.assert_true(NOT pathways.p06_can('indicators.create',pg_temp.u(301)),'administrator has no indicator workflow bypass');
+SELECT set_config('request.jwt.claim.sub',pg_temp.u(202)::text,true),set_config('app.user_id',pg_temp.u(102)::text,true);
+SELECT pg_temp.assert_true(NOT pathways.p06_can('indicators.update',pg_temp.u(301)),'Program Manager indicator manage remains denied');
+SELECT set_config('request.jwt.claim.sub',pg_temp.u(203)::text,true),set_config('app.user_id',pg_temp.u(103)::text,true);
+SELECT pg_temp.assert_true(NOT pathways.p06_can('indicators.create',pg_temp.u(301)),'Grant Manager indicator manage remains denied');
+SELECT set_config('request.jwt.claim.sub',pg_temp.u(206)::text,true),set_config('app.user_id',pg_temp.u(106)::text,true);
+SELECT pg_temp.assert_true(NOT pathways.p06_can('indicators.update',pg_temp.u(301)),'Project Officer indicator manage remains denied');
+RESET ROLE;
+UPDATE pathways.user_project_assignments SET status='ENDED',ended_at=now(),end_reason='Synthetic PM revocation'
+ WHERE organization_id=pg_temp.u(1) AND user_id=pg_temp.u(104) AND project_id=pg_temp.u(302);
+SET LOCAL ROLE pathways_runtime;
+SELECT set_config('request.jwt.claim.sub',pg_temp.u(204)::text,true),set_config('app.user_id',pg_temp.u(104)::text,true);
+SELECT pg_temp.assert_true(NOT pathways.p06_can('indicators.update',pg_temp.u(302)),'revoked Project Manager assignment denies indicator manage');
+RESET ROLE;
+SELECT set_config('request.jwt.claim.sub',pg_temp.u(205)::text,true),set_config('app.user_id',pg_temp.u(105)::text,true);
+\endif
 DO $$ BEGIN
  BEGIN
    INSERT INTO pathways.beneficiary_activity_participations(organization_id,project_id,enrollment_id,activity_id,attendance_status,participation_date,progress_status,source_submission_id,recorded_by_id)

@@ -2,9 +2,11 @@ import { describe, expect, it } from 'vitest'
 import { isUiActionAvailable } from './ui-action-availability'
 
 describe('UI actions against the accepted backend policy', () => {
-  it('does not grant the pending Project Manager indicator management change', () => {
-    expect(isUiActionAvailable('Project Manager', 'indicators.manage')).toBe(false)
+  it('allows Project Manager and M&E to manage project indicators', () => {
+    expect(isUiActionAvailable('Project Manager', 'indicators.manage')).toBe(true)
     expect(isUiActionAvailable('Monitoring and Evaluation Officer', 'indicators.manage')).toBe(true)
+    expect(isUiActionAvailable('Project Officer', 'indicators.manage')).toBe(false)
+    expect(isUiActionAvailable('Program Manager', 'indicators.manage')).toBe(false)
   })
 
   it('keeps actions without a usable backend endpoint unavailable', () => {

@@ -1,6 +1,6 @@
 # Fresh synthetic loopback replay only. No hosted URL, credential or env file is read.
 [CmdletBinding()]
-param()
+param([switch]$Phase4IndicatorPolicy)
 $ErrorActionPreference = 'Stop'
 $phase6Root = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot '../../..')).Path
 $phase6Bin = 'C:\Program Files\PostgreSQL\18\bin'
@@ -145,6 +145,43 @@ try {
       }
     }
 
+    if ($Phase4IndicatorPolicy) {
+      # Synthetic existing reference rows exercise the upgrade path. The
+      # checked-in policy supplies equivalent mappings when a fresh target is
+      # provisioned after its migrations; no managed target is used here.
+      $phase4SeedSql = @'
+INSERT INTO pathways.roles(id,code,name)
+VALUES ('89000000-0000-4000-8000-000000000021','PROJECT_MANAGER','Project Manager');
+'@
+      Invoke-LocalSql $phase4SeedSql $phase6Database
+      Copy-Item -LiteralPath (Join-Path $phase6Root 'apps/api/prisma/migrations/0021_project_manager_indicator_access') -Destination $phase6Stage -Recurse
+      pnpm --filter @pathways/api exec prisma migrate deploy --config $phase6Config
+      if ($LASTEXITCODE -ne 0) { throw '0021 narrow Project Manager indicator replay failed.' }
+      $phase4MappingSql = @'
+SELECT count(*)=2
+  AND has_function_privilege('pathways_runtime','pathways.p06_can(text,uuid)','EXECUTE')
+  AND NOT has_function_privilege('anon','pathways.p06_can(text,uuid)','EXECUTE')
+  AND NOT has_function_privilege('authenticated','pathways.p06_can(text,uuid)','EXECUTE')
+  AND NOT has_function_privilege('service_role','pathways.p06_can(text,uuid)','EXECUTE')
+  AND NOT (SELECT rolbypassrls FROM pg_roles WHERE rolname='pathways_runtime')
+FROM pathways.role_permissions rp
+JOIN pathways.roles r ON r.id=rp.role_id
+JOIN pathways.permissions p ON p.id=rp.permission_id
+WHERE r.code='PROJECT_MANAGER'
+  AND p.code IN ('indicators.create','indicators.update');
+'@
+      $phase4Mapping = $phase4MappingSql | & "$phase6Bin\psql.exe" -X -w -q -A -t -h 127.0.0.1 -p $phase6Port -U postgres -d $phase6Database -v ON_ERROR_STOP=1
+      if ($LASTEXITCODE -ne 0 -or $phase4Mapping.Trim() -cne 't') {
+        throw '0021 existing-role permission mapping was not installed.'
+      }
+      $phase4RemoveSeedSql = @'
+DELETE FROM pathways.roles
+WHERE id='89000000-0000-4000-8000-000000000021'::uuid
+  AND code='PROJECT_MANAGER';
+'@
+      Invoke-LocalSql $phase4RemoveSeedSql $phase6Database
+    }
+
     pnpm --filter @pathways/api exec prisma migrate status --config $phase6Config
     if ($LASTEXITCODE -ne 0) { throw 'Replay migration status failed.' }
   } finally { Pop-Location }
@@ -269,6 +306,9 @@ SELECT (SELECT count(*) FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamesp
             AND conrelid='pathways.system_users'::regclass
             AND confrelid='auth.users'::regclass AND contype='f');
 '@
+  if ($Phase4IndicatorPolicy) {
+    $phase6Post = $phase6Post.Replace('FROM public._prisma_migrations)=20', 'FROM public._prisma_migrations)=21')
+  }
   $phase6Result = $phase6Post | & "$phase6Bin\psql.exe" -X -w -q -A -t -h 127.0.0.1 -p $phase6Port -U postgres -d $phase6Database -v ON_ERROR_STOP=1
   if ($LASTEXITCODE -ne 0 -or $phase6Result.Trim() -cne 't') { throw 'Replay postflight failed.' }
   $env:PATHWAYS_FEATURE_READ_LOCAL_TESTS = '1'
@@ -296,8 +336,13 @@ SELECT (SELECT count(*) FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamesp
   Write-Output 'IMPORT_PIPELINE_RUNTIME=PASS'
   Write-Output 'BENEFICIARY_REGISTRATION_RUNTIME=PASS'
   Write-Output 'PROJECT_ACTIVITY_JOURNEY_RUNTIME=PASS'
-  Invoke-LocalSql ([IO.File]::ReadAllText((Join-Path $phase6Root 'apps/api/prisma/tests/project-indicator-dashboard-runtime.sql'))) $phase6Database
+  $phase6IndicatorSql = [IO.File]::ReadAllText((Join-Path $phase6Root 'apps/api/prisma/tests/project-indicator-dashboard-runtime.sql'))
+  if ($Phase4IndicatorPolicy) {
+    $phase6IndicatorSql = "\set PHASE4_INDICATOR_POLICY 1`n" + $phase6IndicatorSql
+  }
+  Invoke-LocalSql $phase6IndicatorSql $phase6Database
   Write-Output 'PROJECT_INDICATOR_DASHBOARD_RUNTIME=PASS' 
+  if ($Phase4IndicatorPolicy) { Write-Output 'PHASE4_PM_INDICATOR_RUNTIME=PASS' }
   Write-Output 'LEGACY_TABLE_PRESERVATION=PASS'
   $phase6Exit = 0
 } catch {
