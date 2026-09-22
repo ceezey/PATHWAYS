@@ -1011,8 +1011,30 @@ blob hashes to `1dd84e97065ea2f502647adce09bc6d3e56b72d50888037f4f3e14c81b34e48f
 The CI fix restores the original CRLF bytes only in the disposable staged
 0001 migration and verifies the pinned checksum before replay. Its exact
 staging snippet passes a local hash probe, and the temporary annotations are
-removed. No committed migration, guard, or managed database is changed. A
-new GitHub run remains to be inspected. The three pre-existing Phase 7
-formatter findings remain outside this PR diff and may keep full GitHub
-`validate` red after the replay correction. Phase 7 remains explicitly
-awaiting authorization; this PR must not be merged during Phase 6.
+removed. No committed migration, guard, or managed database is changed. The
+new GitHub run is recorded below. Phase 7 remains explicitly awaiting
+authorization; this PR must not be merged during Phase 6.
+
+### Phase 6 final GitHub check and handoff
+
+The disposable-staging correction was committed as
+`6ba72e95e7f07698b046e93c830256b3666d2197` and normally pushed. On
+that exact PR head, GitHub `validate` passed checkout, PostgreSQL startup,
+dependency installation, Prisma validation, all six staged migration replays,
+the legacy-boundary postflight, and the committed-secret check. It failed at
+`pnpm lint`; CI then skipped typecheck, test and build. Local all-package
+typecheck, full tests and build passed before push, and all 271 changed
+code/config files passed scoped Biome. Local full lint has exactly three
+formatter findings in untouched `infra/supabase/phase7/Run-C8FixturePreflight.mjs`,
+`Run-C8Preflight.mjs`, and `Run-C8Postflight.mjs`; `git diff
+origin/Backend-DB...HEAD` contains none of those files. No other changed-file
+lint failure is known. This is a pre-existing repository-wide CI gate failure,
+not an integration diff regression; it must be resolved or explicitly
+accepted before any separately authorized PR merge. The workflow correction
+and task-control edits contain no new secret-pattern hit, applied migration
+edit, W10 deviation, login/redirect change, PIN change, or RBAC change.
+
+PR #5 remains open and unmerged into `Backend-DB`. Phase 6 source/push/PR
+handoff is complete within its authorized scope. Phase 7 is awaiting explicit
+developer authorization and an up-to-date check decision; no PR merge is
+authorized by this phase.
