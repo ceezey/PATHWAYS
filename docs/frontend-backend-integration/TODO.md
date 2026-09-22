@@ -13,8 +13,8 @@
 | P0 Context / Orientation | COMPLETE | PASS | Phase 1 was authorized |
 | P1 Git Preflight & Controls | COMPLETE | PASS | Phase 2 authorization |
 | P2 Frontend Standard Audit & Merge Map | COMPLETE | PASS | Phase 3 authorization |
-| P3 Integration Branch & UI Merge | SOURCE CHECKS PASS / COMMIT PENDING | Final local merge commit pending | Finish scoped review and commit locally |
-| P4 Backend Wiring & Missing Features | NOT STARTED | NOT RUN | P3 PASS + authorization |
+| P3 Integration Branch & UI Merge | COMPLETE | PASS | Phase 4 authorization |
+| P4 Backend Wiring & Missing Features | NOT STARTED | NOT RUN | Explicit Phase 4 authorization |
 | P5 Use-Case / Role / UI Regression | NOT STARTED | NOT RUN | P4 PASS + authorization |
 | P6 Final Regression & GitHub PR | NOT STARTED | NOT RUN | P5 PASS + authorization |
 | P7 PR Merge & Post-Merge Validation | NOT STARTED | NOT RUN | P6 PASS + explicit merge authorization |
@@ -67,7 +67,7 @@ provider state changed. Phase 3 remains authorization-gated.
 ## P3 — Integration branch and frontend merge
 
 - [x] FB-P3-01 — Integration branch created from approved Backend-DB head `3c4f0eb48cf1656bb44d9cb118b9ecc18a9f4090`.
-- [x] FB-P3-02 — Pinned Frontend-UI/UX head merged with no blanket ours/theirs; local merge commit pending.
+- [x] FB-P3-02 — Pinned Frontend-UI/UX head merged with no blanket ours/theirs; merge commit `4dd96289bc1ab78eb24b02fca563ccc2a8ed881a`.
 - [x] FB-P3-03 — Frontend presentation conflicts resolved in favor of latest UI; global CSS, Tailwind, UI primitives and brand assets match the pinned frontend head.
 - [x] FB-P3-04 — Backend/domain/security conflicts preserve Backend-DB contracts; existing API clients adapted without backend permission or migration changes.
 - [x] FB-P3-05 — Backend-DB provider MFA page/form and real auth implementation retained in the open merge.
@@ -76,17 +76,18 @@ provider state changed. Phase 3 remains authorization-gated.
 - [x] FB-P3-08 — No unrelated permission changes introduced; frontend access matrix/permission types restored to Backend-DB, and backend policy/migrations untouched.
 - [x] FB-P3-09 — Missing backend actions tracked for P4 without fake success in Source of Truth section 12.
 - [x] FB-P3-10 — Scoped merge checks pass: web/API/shared/imports typechecks, 561 web unit tests, production build, scoped Biome, diff and conflict checks.
-- [ ] FB-P3-11 — Local merge commit recorded; not pushed.
+- [x] FB-P3-11 — Local merge commit `4dd96289bc1ab78eb24b02fca563ccc2a8ed881a` recorded; not pushed.
 
-Phase 3 pre-commit evidence (2026-09-22): `git fetch origin --prune` left all
-four pins unchanged. The integration branch was created from the approved
-Backend-DB head, and the open merge has `MERGE_HEAD` at pinned Frontend-UI/UX
-`a0ea9cf98396dfd7cceddb8a1c4100aafd57abde`. Production frontend paths
-now use the existing real API or a truthful unavailable state; retained demo
-modules and mocks are isolated test fixtures. No permission, migration,
-managed provider, deferred W10, push or PR change occurred. Web/API/shared/
-imports typechecks, 561 web unit tests, production build and scoped Biome pass.
-The final scoped review and local merge commit remain.
+Phase 3 acceptance (2026-09-22): `git fetch origin --prune` left all four pins
+unchanged. The integration branch was created from approved Backend-DB head
+`3c4f0eb48cf1656bb44d9cb118b9ecc18a9f4090`. Local merge commit
+`4dd96289bc1ab78eb24b02fca563ccc2a8ed881a` has that Backend-DB head and
+pinned Frontend-UI/UX `a0ea9cf98396dfd7cceddb8a1c4100aafd57abde` as its
+two parents. Production frontend paths use existing real APIs or a truthful
+unavailable state; retained demo modules and mocks are isolated test fixtures.
+No permission, migration, managed provider, deferred W10, push or PR change
+occurred. Web/API/shared/imports typechecks, 561 web unit tests, production
+build, scoped Biome, staged diff and conflict checks pass. Phase 4 has not begun.
 
 ## P4 — Backend wiring and missing feature support
 

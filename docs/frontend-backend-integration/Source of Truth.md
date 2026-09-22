@@ -2,7 +2,7 @@
 
 **Canonical task location:** `docs/frontend-backend-integration/Source of Truth.md`
 **Task:** Integrate the latest GitHub `Frontend-UI/UX` branch into the current `Backend-DB` line while preserving frontend UI/UX and backend security/persistence.
-**Status:** Phase 3 source reconciliation verified; local merge commit pending; no push.
+**Status:** Phase 3 COMPLETE/PASS; local merge commit `4dd96289bc1ab78eb24b02fca563ccc2a8ed881a`; no push.
 **Workflow:** Phase-gated Codex work with a GitHub Pull Request.
 
 ---
@@ -483,12 +483,11 @@ policy remains blocked; no such state was changed in Phase 2.
 ## 12. Phase 3 local source integration (2026-09-22)
 
 The developer authorized frontend real-API adaptation and runtime mock cleanup in
-Phase 3. The open merge still has `MERGE_HEAD` at pinned Frontend-UI/UX
-`a0ea9cf98396dfd7cceddb8a1c4100aafd57abde`. The integration branch is
-`integration/frontend-ui-backend-db-20260922`, based on local and origin
-Backend-DB `3c4f0eb48cf1656bb44d9cb118b9ecc18a9f4090`; merge base is
-`769e524fbdfa318ef9190747c1907744b1ea7b95`. The local merge commit is
-pending final Git review. Nothing has been pushed.
+Phase 3. Local merge commit `4dd96289bc1ab78eb24b02fca563ccc2a8ed881a`
+has parents Backend-DB `3c4f0eb48cf1656bb44d9cb118b9ecc18a9f4090` and
+pinned Frontend-UI/UX `a0ea9cf98396dfd7cceddb8a1c4100aafd57abde`. The
+integration branch is `integration/frontend-ui-backend-db-20260922`; merge
+base is `769e524fbdfa318ef9190747c1907744b1ea7b95`. Nothing has been pushed.
 
 Latest Frontend-UI/UX page structure, CSS, component library and brand assets
 remain the presentation standard. The original Backend-DB Supabase login,
@@ -530,13 +529,14 @@ render an explicit unavailable view when the public publication API is absent.
 | New Auth account, own profile/password edit, shared labels | Existing-user authorization and recovery use real paths; unsupported edit controls unavailable | Define account/self-service and label persistence contracts |
 | Audit log browse and backup/restore | Unavailable with actions disabled; no fake events or backup success | Define sensitive operational endpoints and authorization |
 
-Checks before commit: web, API, shared and imports TypeScript checks PASS; web
-unit suite PASS (73 files, 561 tests); production `next build` PASS; Biome PASS
-on 259 changed code files; staged and working diff checks PASS; no unmerged
-index entries or conflict markers. `git diff` against the frontend head shows
+Checks for the merge commit: web, API, shared and imports TypeScript checks
+PASS; web unit suite PASS (73 files, 561 tests); production `next build` PASS;
+Biome PASS on 259 changed code files; staged and working diff checks PASS; no
+unmerged index entries or conflict markers. `git diff` against the frontend head shows
 no change to latest global CSS, Tailwind theme, UI primitives or brand assets.
 Visual browser regression remains Phase 5 work, and the missing backend
 features remain Phase 4 work. No managed provider test or write was attempted.
+
 ## 13. Evidence register
 
 Populate during execution.
@@ -550,7 +550,7 @@ Populate during execution.
 | Merge map | PASS: three-way diff and non-mutating merge preview classified in section 11 |
 | Runtime mock inventory | PASS: runtime sources separated from tests in section 11 |
 | Auth/PM/PIN locked checks | PASS as an audit; PM manage discrepancy and PIN step-up gap documented |
-| Local merge | Source/checks PASS: pinned frontend in `MERGE_HEAD`; merge commit pending |
+| Local merge | PASS: `4dd96289bc1ab78eb24b02fca563ccc2a8ed881a`; parents exactly the approved Backend-DB and pinned Frontend-UI/UX heads; not pushed |
 | Backend integration | PASS for existing endpoints; missing feature contracts deferred to Phase 4 |
 | UI fidelity validation | Source-level PASS; visual browser regression remains Phase 5 |
 | Role/use-case validation | PENDING |
@@ -575,5 +575,5 @@ The workstream is complete only after:
 Current state:
 
 ```text
-PHASE 3 SOURCE CHECKS PASS — LOCAL MERGE COMMIT PENDING
+PHASE 3 COMPLETE — READY FOR PHASE 4 AUTHORIZATION
 ```
