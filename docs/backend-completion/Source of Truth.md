@@ -3,10 +3,12 @@
 ## 1. Workstream status
 
 - Workstream: backend completion after the Frontend-UI/UX to Backend-DB integration.
-- Current phase: Phase 1, outstanding contract reconciliation, priority planning, and migration 0021 readiness.
+- Current phase: Work Package A1, PostgreSQL 17 compatibility rehearsal and final migration 0021 managed readiness.
 - Phase 1 result: PASS.
+- Work Package A1 result: PASS.
 - Repository branch: `Backend-DB`.
 - Phase-start backend source baseline and `origin/Backend-DB` SHA: `23d0028d9814d691d6160b0b5e3d30aa0136ae3a`.
+- Work Package A1 starting local SHA: `5c7d1ae8cac47815488238e46094cb63fc9e9c71`.
 - Integrated Frontend-UI/UX SHA: `a0ea9cf98396dfd7cceddb8a1c4100aafd57abde`.
 - Frontend/backend merge commit: `707315b232ce16405a8493b0cb454cdfdbe3b4d5`.
 - Worktree before this control update: clean except for the developer-owned untracked manuscript PDF at `docs/UCD and UCR - [Group 14] Capstone Manuscript rev 2026.pdf`.
@@ -177,19 +179,35 @@ The guarded transaction:
 
 It creates no table, column, index, or application-data backfill. It changes no unrelated role permission. It does not grant Project Managers a capability beyond indicator create/update under existing scope checks. It does not give `pathways_runtime` superuser or BYPASSRLS rights and does not disable RLS.
 
-### 7.2 Local validation
+### 7.2 PostgreSQL 18 replay evidence
 
-- `pnpm --filter @pathways/api exec prisma validate`: PASS.
-- Focused API authorization, route-access, and indicator service suites: PASS, 286 tests.
-- Shared role and metric contract suites: PASS, 24 tests.
-- Web RBAC and indicator suites: PASS, 67 tests.
-- Disposable PostgreSQL replay through all 21 migrations with feature, core, forms, imports, Beneficiary, journey, dashboard, Project Manager indicator, and legacy-preservation checks: PASS.
-- Direct runtime-equivalent checks ran through the replay harness under `pathways_runtime`: PASS.
-- Cleanup of disposable resources: PASS.
+- Installed/running service: `postgresql-x64-18`, PostgreSQL 18.6, automatic and running. Its binaries and data directory were not modified by Work Package A1.
+- Existing guarded disposable replay through all 21 migrations with feature, core, forms, imports, Beneficiary, journey, dashboard, Project Manager indicator, and legacy-preservation checks: PASS.
+- The first historical sandbox replay could not create a Windows restricted token. Two PostgreSQL 18 attempts using its default JIT setting reached the unchanged 3-second statement timeout during a C8 protected query.
+- PATHWAYS-dev PostgreSQL 17.6 reports JIT off. Replaying PostgreSQL 18 with session-only `PGOPTIONS=-c jit=off` reproduced the managed setting and passed; protected queries completed in about 0.53 and 1.06 seconds.
+- No timeout, pool, source, migration, service, data-directory, or security setting was changed.
 
-The first sandbox replay could not create a Windows restricted token. Two otherwise successful default PostgreSQL 18 replays then reached the unchanged 3-second statement timeout during a C8 protected query because the local server defaulted JIT on. PATHWAYS-dev PostgreSQL 17.6 reports JIT off. Replaying with session-only `PGOPTIONS=-c jit=off` reproduced the managed setting and passed; the protected queries completed in about 0.53 and 1.06 seconds. No timeout, pool, source, migration, or security setting was changed. Future harness runs should pin the managed JIT setting explicitly.
+### 7.3 PostgreSQL 17.11 compatibility evidence
 
-### 7.3 PATHWAYS-dev read-only preflight
+- Explicit binaries: `C:\pgsql\bin\postgres.exe`, `initdb.exe`, `pg_ctl.exe`, `psql.exe`, `createdb.exe`, `dropdb.exe`, `pg_dump.exe`, and `pg_restore.exe` all exist. Server/client/dump/restore tools report PostgreSQL 17.11.
+- Disposable data directory: `C:\PATHWAYS\.tmp\pathways-phase6-a11711b2c3d4e5f67890123456789abc\data`.
+- Listener: loopback `127.0.0.1` only, port `55448`; no hosted URL or credential was used.
+- Server fact probe from inside the disposable database: PostgreSQL `17.11`, server version number `170011`, JIT `off`.
+- Fresh replay: migrations `0001` through `0021` applied successfully. Exactly one Prisma ledger existed with 21 completed/non-rolled-back entries, latest `0021_project_manager_indicator_access`, and 0021 checksum `b2cc161a80f2989784bf5fd304b3a5b5657b1f481ade6af41c002b56f7d035e6`.
+- Expected `pgcrypto` extension, runtime role, schema objects, legacy data-preservation checks, and core/runtime SQL checks passed.
+- Upgrade baseline at 0020: one ledger, 20 completed/non-rolled-back entries, latest `0020_fixed_sensitive_release_policy`, PM indicator mappings `0`, runtime non-superuser/NOBYPASSRLS, and expected execute/RLS state.
+- Exact 0021 delta: PM indicator mappings `0 -> 2`; total synthetic role mappings `0 -> 2`; `pathways.p06_can(text,uuid)` definition hash changed from `e04cd61a7ff366051b85ffc658a2ed9dc188ed3e0711dda3e64dd57b2b7fa408` to `2456fc0f9c86553eeabc6976c1d232985a861b6f1847ee848803967004b6b091`.
+- Unchanged fingerprints: non-PM role mappings `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`; permission definitions `9adbb7ed2f9b8a28a0f64c1c172c06278fa39b159268e27a07b359d9015d9fd7`; table shape `d0fadeed542ee99f85097ca62904a171b2a93a8751be619aa4ce00d12b6dfc15`; RLS state `ac2b7108386164feecaa0ce3229d81db97b07bf42882e245d55ee9f8472e6604`.
+- Post-0021 execution: `pathways_runtime` retained execute; `PUBLIC`, `anon`, `authenticated`, and `service_role` remained denied. The runtime remained non-superuser/NOBYPASSRLS.
+- Indicator RLS remained enabled on project indicators and enabled/forced on bindings and measurements.
+- Independent runtime policy checks under `pathways_runtime`: assigned-project PM read/create/update and actual insert/update under RLS passed; foreign-organization and revoked-assignment PM writes were denied; M&E read/manage remained allowed; System Administrator, Program Manager, Grant Manager, and Project Officer indicator writes remained denied even with deliberately overbroad synthetic mappings.
+- Feature-read runtime test: PASS, 1 test. C8 API/Prisma runtime test: PASS, 1 test. Core foundation, forms, import, Beneficiary, journey, indicator/dashboard, Phase 4 PM indicator, and legacy-preservation SQL suites: PASS.
+- Focused API authorization, route-access, and indicator service suites rerun after the PG17 rehearsal: PASS, 286 tests.
+- Protected query execution evidence with JIT off was about 0.18 and 0.32 seconds, within the unchanged bounded statement budget.
+- An initial A1 attempt applied only through 0020 and stopped because the ignored diagnostic delta query had a parenthesis error. Migration 0021 did not run in that attempt and disposable cleanup passed. The corrected complete rerun produced all evidence above.
+- Cleanup: the PG17 server stopped, the named disposable directory was removed, and port 55448 was released. `C:\pgsql\bin`, the PostgreSQL 18 service/data, and all valuable databases were untouched.
+
+### 7.4 PATHWAYS-dev PostgreSQL 17.6 read-only preflight
 
 - Target: PATHWAYS-dev, project reference `pdqwsknbzkdtiwjjibqt`.
 - PostgreSQL: 17.6; JIT off.
@@ -210,13 +228,15 @@ The first sandbox replay could not create a Windows restricted token. Two otherw
 - Active assignment IDs: PM visible `bd371f69-40a6-487a-8dee-8040e2fa80d4`, PM suppress `9f326535-a450-4dc6-a12b-8e53309f4f26`, M&E visible `3184d4fa-448d-40e4-b0a9-ec66d112c66f`, and M&E suppress `4bcf182c-fb14-45a9-8058-67ad55792f80`.
 - Hosted writes during preflight: zero.
 
-### 7.4 Backup and recovery readiness
+Work Package A1 repeated this preflight after the PostgreSQL 17.11 rehearsal. It again returned PASS with `transaction_read_only=on`, the same 20-migration ledger, 0021 absent, the same role/RLS/grant/assignment state, and `hostedWrites=0`.
 
-The protected pre-P07-W10 backup at `C:\PATHWAYS-backups\PATHWAYS-dev-pre-P07-W10-20260922-102116` targets the same PATHWAYS-dev project and completed at `2026-09-22T10:23:18.2036524Z`. Its archive is 821,847 bytes, records 20 migrations through 0020, contains 61 application-table data entries, and has recorded archive checksum evidence. A local restore completed at `2026-09-22T10:32:33.1241189Z`, matching 61 tables and 20 migrations. Managed writes were zero and the disposable restore target was removed.
+### 7.5 Backup and recovery readiness
+
+The protected pre-P07-W10 backup at `C:\PATHWAYS-backups\PATHWAYS-dev-pre-P07-W10-20260922-102116` targets the same PATHWAYS-dev project and completed at `2026-09-22T10:23:18.2036524Z`. Its archive is 821,847 bytes and its recorded and recomputed SHA-256 both equal `4ed438997ec208914d2eea644e29b99d476afa5123bbfcfcbae0dab14ba8f0b6`. It records 20 migrations through 0020 and contains 61 application-table data entries. A local restore completed at `2026-09-22T10:32:33.1241189Z`, matching 61 tables and 20 migrations. Managed writes were zero and the disposable restore target was removed.
 
 Provider Auth/Storage content was intentionally excluded and represented only by an ID scaffold. That does not block 0021 because 0021 changes only application-database permission mappings and one authorization function. No managed write occurred after the backup during the integration closeout or this phase. Backup/recovery evidence is adequate for the exact 0021 rollout.
 
-### 7.5 Exact managed approval phrase (prepared, not executed)
+### 7.6 Exact managed approval phrase (prepared, not executed)
 
 `APPROVE PATHWAYS-dev 0021_project_manager_indicator_access SHA256 b2cc161a80f2989784bf5fd304b3a5b5657b1f481ade6af41c002b56f7d035e6 ONLY; ADD PROJECT_MANAGER MAPPINGS TO THE EXISTING indicators.create AND indicators.update PERMISSIONS, REPLACE pathways.p06_can(text,uuid) ONLY SO ACTIVE PROJECT_MANAGER USERS WITH THE EXISTING VERIFIED IDENTITY, ORGANIZATION, AND ACTIVE PROJECT ASSIGNMENT CHECKS MAY CREATE OR UPDATE INDICATORS IN ASSIGNED PROJECTS, AND REASSERT EXECUTE ON THAT FUNCTION FOR pathways_runtime ONLY; NO OTHER ROLE/PERMISSION/GRANT/RLS/AUTH/STORAGE/FIXTURE/TIMEOUT/POOL/BYPASSRLS OR APPLICATION-DATA CHANGES`
 
@@ -263,3 +283,15 @@ Only these policy choices remain unresolved; implementation details supported by
 - The exact managed approval phrase is prepared and was not executed.
 - No application feature implementation, managed mutation, Auth/Storage operation, P07-W10 action, UI redesign, role broadening, timeout/pool change, or push occurred.
 - Recommended next phase: Work Package A, separately authorized managed rollout of migration 0021.
+
+## 11. Work Package A1 disposition
+
+- PostgreSQL 17.11 fresh replay and explicit 0020-to-0021 upgrade rehearsal: PASS.
+- Exact PM/M&E/denial runtime matrix and RLS write checks: PASS.
+- PostgreSQL 17 disposable cleanup: PASS.
+- Final PATHWAYS-dev PostgreSQL 17.6 read-only preflight: PASS, hosted writes `0`.
+- Protected backup checksum and restore-readiness recheck: PASS.
+- Migration 0021 remains absent from PATHWAYS-dev and unapplied.
+- PostgreSQL 18 service/data, system PATH, tracked replay harness, migrations, managed settings, Auth, Storage, and P07-W10 were not changed.
+- Final readiness: `WORK PACKAGE A1 PG17 COMPATIBILITY = PASS`.
+- Next step requires the exact separately supplied managed 0021 approval phrase in section 7.6.

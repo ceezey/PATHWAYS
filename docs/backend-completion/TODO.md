@@ -4,12 +4,14 @@
 
 - [x] Phase 1 PASS: outstanding contracts reconciled, prioritized, and grouped into work packages.
 - [x] Migration 0021 source, SHA-256, tests, disposable replay, managed read-only preflight, and recovery readiness verified.
+- [x] Work Package A1 PASS: PostgreSQL 17.11 compatibility, exact 0020-to-0021 delta, final managed read-only preflight, and backup readiness verified.
 - [x] Exact migration 0021 approval phrase prepared but not executed.
-- [ ] Await explicit authorization for the next backend work package.
+- [ ] Await exact managed 0021 authorization; migration remains unapplied.
 
 Current repository identity:
 
 - Backend-DB: `23d0028d9814d691d6160b0b5e3d30aa0136ae3a`
+- Work Package A1 starting local SHA: `5c7d1ae8cac47815488238e46094cb63fc9e9c71`
 - Integrated Frontend-UI/UX: `a0ea9cf98396dfd7cceddb8a1c4100aafd57abde`
 - Migration 0021 SHA-256: `b2cc161a80f2989784bf5fd304b3a5b5657b1f481ade6af41c002b56f7d035e6`
 
@@ -36,6 +38,26 @@ Current repository identity:
 - [x] Confirm zero managed writes in Phase 1.
 - [x] Confirm P07-W10 remains open/deferred and untouched.
 - [x] Create backend-completion Source of Truth, TODO, and reference-only phase report template.
+
+## Work Package A1 - PostgreSQL 17 compatibility and final readiness
+
+- [x] Verify the complete PostgreSQL 17.11 binary set under `C:\pgsql\bin`.
+- [x] Confirm PostgreSQL 18.6 remains the running Windows service and preserve its existing replay evidence separately.
+- [x] Re-pin migration 0021 SHA-256 and confirm migrations `0001`-`0020` remain unchanged with 0021 as the sole append.
+- [x] Create one loopback-only disposable PostgreSQL 17.11 cluster on port 55448 with JIT off.
+- [x] Fresh-replay migrations `0001`-`0021` with one clean 21-entry ledger and exact 0021 checksum.
+- [x] Rehearse the explicit `0020 -> 0021` upgrade and capture the before/after authorization delta.
+- [x] Confirm exactly two PM mappings were added and non-PM mappings, permission definitions, table shape, and RLS fingerprints remained unchanged.
+- [x] Confirm `pathways_runtime` remains non-superuser/NOBYPASSRLS and retains the sole intended function execution boundary.
+- [x] Prove assigned-project PM read/create/update and actual RLS writes.
+- [x] Prove foreign-organization/revoked-assignment denial and unchanged M&E behavior.
+- [x] Prove System Administrator, Program Manager, Grant Manager, and Project Officer received no new indicator-write capability.
+- [x] Pass feature-read, C8 API/Prisma, core, forms, imports, Beneficiary, journey, indicator/dashboard, and legacy-preservation checks on PG17.
+- [x] Re-run focused authorization, route-access, and indicator API tests: 286 passed.
+- [x] Stop the disposable PG17 server, remove only its data directory, and release its port.
+- [x] Re-run the PATHWAYS-dev PostgreSQL 17.6 preflight in read-only transactions: PASS, hosted writes 0.
+- [x] Recompute and match the protected backup archive SHA-256 and reconfirm its 20-migration/61-table restore evidence.
+- [x] Keep migration 0021 unapplied and preserve P07-W10 unchanged.
 
 ## Work Package A - Managed 0021 indicator rollout
 
