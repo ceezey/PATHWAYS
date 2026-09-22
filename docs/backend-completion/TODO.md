@@ -5,13 +5,15 @@
 - [x] Phase 1 PASS: outstanding contracts reconciled, prioritized, and grouped into work packages.
 - [x] Migration 0021 source, SHA-256, tests, disposable replay, managed read-only preflight, and recovery readiness verified.
 - [x] Work Package A1 PASS: PostgreSQL 17.11 compatibility, exact 0020-to-0021 delta, final managed read-only preflight, and backup readiness verified.
-- [x] Exact migration 0021 approval phrase prepared but not executed.
-- [ ] Await exact managed 0021 authorization; migration remains unapplied.
+- [x] Exact migration 0021 approval phrase supplied and consumed once for Work Package A2.
+- [x] Work Package A2 PASS: managed 0021 deployment, read-only postflight, Prisma status, protected API start, and health/runtime checks passed.
+- [ ] Await exact authorization for the bounded synthetic Project Manager indicator acceptance; no functional indicator write has run.
 
 Current repository identity:
 
 - Backend-DB: `23d0028d9814d691d6160b0b5e3d30aa0136ae3a`
 - Work Package A1 starting local SHA: `5c7d1ae8cac47815488238e46094cb63fc9e9c71`
+- Work Package A2 starting local SHA: `9e3b4be417928bad72f5bd8f72cbf75ae0baba25`
 - Integrated Frontend-UI/UX: `a0ea9cf98396dfd7cceddb8a1c4100aafd57abde`
 - Migration 0021 SHA-256: `b2cc161a80f2989784bf5fd304b3a5b5657b1f481ade6af41c002b56f7d035e6`
 
@@ -57,16 +59,29 @@ Current repository identity:
 - [x] Stop the disposable PG17 server, remove only its data directory, and release its port.
 - [x] Re-run the PATHWAYS-dev PostgreSQL 17.6 preflight in read-only transactions: PASS, hosted writes 0.
 - [x] Recompute and match the protected backup archive SHA-256 and reconfirm its 20-migration/61-table restore evidence.
-- [x] Keep migration 0021 unapplied and preserve P07-W10 unchanged.
+- [x] Keep migration 0021 unapplied during A1 and preserve P07-W10 unchanged.
 
 ## Work Package A - Managed 0021 indicator rollout
 
-- [ ] Obtain exact approval using the prepared phrase in Source of Truth.
-- [ ] Reconfirm PATHWAYS-dev target, ledger through 0020, checksum, backup applicability, runtime role, RLS, and synthetic assignments.
-- [ ] Apply only `0021_project_manager_indicator_access`.
-- [ ] Verify ledger/checksum and exact PM/M&E/other-role runtime behavior.
-- [ ] Confirm no unrelated permission/grant/RLS/Auth/Storage/data change.
-- [ ] Update controls and stop.
+- [x] Obtain exact approval using the prepared phrase in Source of Truth.
+- [x] Reconfirm PATHWAYS-dev target, ledger through 0020, checksum, backup applicability, runtime role, RLS, and synthetic assignments.
+- [x] Apply only `0021_project_manager_indicator_access` once through guarded Prisma migrate deploy.
+- [x] Verify the 21-entry ledger, exact 0021 checksum, PM `0 -> 2`, unchanged M&E `2 -> 2`, and no other role-permission delta.
+- [x] Verify reviewed `p06_can`, execute grants, RLS/FORCE RLS, runtime non-superuser/NOBYPASSRLS, and unchanged schema/security fingerprints.
+- [x] Confirm application-data writes `0` and no unrelated Auth/Storage/fixture/timeout/pool/BYPASSRLS/P07-W10 change.
+- [x] Pass Prisma migration status, protected API start/health, and runtime `SELECT 1`.
+- [x] Update controls and stop before functional indicator writes.
+
+## Project Manager indicator functional acceptance
+
+- [ ] Obtain the exact bounded acceptance authorization in Source of Truth section 12.8.
+- [ ] Reuse only the existing synthetic PM/M&E identities and `C8-VISIBLE-001`.
+- [ ] Create the one approved tagged manual indicator and its required audit row.
+- [ ] Update the same indicator to revision 2 and record the required audit row.
+- [ ] Prove persistence across reload and assigned-project reads.
+- [ ] Prove the reserved unassigned-project attempt is denied with zero rows written.
+- [ ] Confirm M&E remains authorized and other listed roles remain unauthorized without additional writes.
+- [ ] Reconcile controls and stop before Work Package B.
 
 ## Work Package B - Finance ledger and approvals
 

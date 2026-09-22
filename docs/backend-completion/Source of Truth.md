@@ -3,17 +3,19 @@
 ## 1. Workstream status
 
 - Workstream: backend completion after the Frontend-UI/UX to Backend-DB integration.
-- Current phase: Work Package A1, PostgreSQL 17 compatibility rehearsal and final migration 0021 managed readiness.
+- Current phase: Work Package A2, managed deployment of `0021_project_manager_indicator_access`.
 - Phase 1 result: PASS.
 - Work Package A1 result: PASS.
+- Work Package A2 result: PASS.
 - Repository branch: `Backend-DB`.
 - Phase-start backend source baseline and `origin/Backend-DB` SHA: `23d0028d9814d691d6160b0b5e3d30aa0136ae3a`.
 - Work Package A1 starting local SHA: `5c7d1ae8cac47815488238e46094cb63fc9e9c71`.
+- Work Package A2 starting local SHA: `9e3b4be417928bad72f5bd8f72cbf75ae0baba25`.
 - Integrated Frontend-UI/UX SHA: `a0ea9cf98396dfd7cceddb8a1c4100aafd57abde`.
 - Frontend/backend merge commit: `707315b232ce16405a8493b0cb454cdfdbe3b4d5`.
 - Worktree before this control update: clean except for the developer-owned untracked manuscript PDF at `docs/UCD and UCR - [Group 14] Capstone Manuscript rev 2026.pdf`.
-- Managed writes in this phase: zero.
-- Next authorized work: none. Explicit developer authorization is required.
+- Managed writes in this phase: exactly the approved migration ledger row, two `pathways.role_permissions` mappings, and replacement/ACL reassertion of `pathways.p06_can(text,uuid)`; application/business-data writes were zero.
+- Next authorized work: none. Functional Project Manager indicator acceptance requires the exact separate authorization recorded in section 12.8.
 
 ## 2. Authoritative evidence reviewed
 
@@ -47,7 +49,7 @@ The current UI truthfully disables, empties, or reports unavailable behavior whe
 
 | Feature | Related UC(s) | Frontend route/control | Current temporary behavior | Existing backend support | Schema support | Security sensitivity | Dependency | Manuscript/use-case support | Policy clarity | Recommended priority | Recommended action | Migration needed | Managed provider action needed | Blocking integration completeness |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
-| Managed Project Manager indicator access | UC008 | `/projects/:id/indicators`; create/edit indicator controls | Read works; managed PATHWAYS-dev currently denies PM create/update | Full in source; deployment pending | Full | High | None | PM manages assigned-project indicators; M&E behavior remains intact | Clear | P0 | Implement migration 0021 only | Yes, existing 0021 | Yes, Database | Yes |
+| Managed Project Manager indicator access | UC008 | `/projects/:id/indicators`; create/edit indicator controls | Migration deployed; functional API/browser write acceptance awaits separate authorization | Full in source and deployed | Full | High | Bounded functional acceptance only | PM manages assigned-project indicators; M&E behavior remains intact | Clear | P0 | Run the separately authorized synthetic acceptance sequence in section 12.8 | Applied existing 0021 | Completed, Database only | Acceptance pending |
 | Budget allocation, expense ledger, verification, and approval | UC007 | Project budget and monitor/review expense controls | Real project context remains visible; mutations and ledger are unavailable | None at API; authorization policy exists | Full: budget, expense, evidence, state/audit models | High | Existing projects, activities, assignments, and evidence | Record allocation/expense evidence; Project Officer submits, M&E verifies, Project Manager approves | Clear | P0 | Implement API/services against existing normalized schema | No expected; verify RLS operations during implementation | No expected | Yes |
 | Full project setup | UC006 | `/projects/new`, `/projects/:id/edit` | Form is preserved but does not fake a save | Partial project create/update; payload does not cover all UI fields | Partial | Medium | Decisions on code, partners, sector, targets, and budget ownership | Create and maintain complete project profiles | Ambiguous | Deferred | Clarify data ownership, then implement | Yes | Yes, Database | Yes |
 | Team reassignment and project archive | UC006 | Project detail team editor and archive controls | Controls remain unavailable; no fake assignment/archive success | Partial; assignment history and archive columns exist | Full | High | Atomic assignment and archive consequence policy | Maintain project profile, personnel assignments, and lifecycle | Ambiguous | Deferred | Clarify workflow, then implement | No expected | No expected | Yes |
@@ -161,7 +163,7 @@ Priority describes readiness and dependency order. `Deferred` means a developer 
 - Migration needed: unknown for profile/permission changes; yes for labels if retained; none for provider backup mechanics.
 - Backfill/review: no fabricated provider identity, labels, or backup history.
 
-## 7. Migration 0021 readiness
+## 7. Migration 0021 readiness and deployment history
 
 ### 7.1 Exact source identity and purpose
 
@@ -230,23 +232,25 @@ It creates no table, column, index, or application-data backfill. It changes no 
 
 Work Package A1 repeated this preflight after the PostgreSQL 17.11 rehearsal. It again returned PASS with `transaction_read_only=on`, the same 20-migration ledger, 0021 absent, the same role/RLS/grant/assignment state, and `hostedWrites=0`.
 
+Work Package A2 repeated the same bounded preflight immediately before deployment. It again returned PASS with `transaction_read_only=on`, PostgreSQL 17.6/JIT off, one clean 20-entry ledger through 0020, 0021 absent and sole pending, PM mappings `0`, M&E mappings `2`, the expected role/RLS/grant/assignment state, and preflight writes `0`.
+
 ### 7.5 Backup and recovery readiness
 
 The protected pre-P07-W10 backup at `C:\PATHWAYS-backups\PATHWAYS-dev-pre-P07-W10-20260922-102116` targets the same PATHWAYS-dev project and completed at `2026-09-22T10:23:18.2036524Z`. Its archive is 821,847 bytes and its recorded and recomputed SHA-256 both equal `4ed438997ec208914d2eea644e29b99d476afa5123bbfcfcbae0dab14ba8f0b6`. It records 20 migrations through 0020 and contains 61 application-table data entries. A local restore completed at `2026-09-22T10:32:33.1241189Z`, matching 61 tables and 20 migrations. Managed writes were zero and the disposable restore target was removed.
 
-Provider Auth/Storage content was intentionally excluded and represented only by an ID scaffold. That does not block 0021 because 0021 changes only application-database permission mappings and one authorization function. No managed write occurred after the backup during the integration closeout or this phase. Backup/recovery evidence is adequate for the exact 0021 rollout.
+Provider Auth/Storage content was intentionally excluded and represented only by an ID scaffold. That did not block 0021 because 0021 changes only application-database permission mappings and one authorization function. No managed write occurred after the backup and before the A2 deployment. Backup/recovery evidence was adequate for the exact 0021 rollout.
 
-### 7.6 Exact managed approval phrase (prepared, not executed)
+### 7.6 Exact managed approval phrase (consumed by Work Package A2)
 
 `APPROVE PATHWAYS-dev 0021_project_manager_indicator_access SHA256 b2cc161a80f2989784bf5fd304b3a5b5657b1f481ade6af41c002b56f7d035e6 ONLY; ADD PROJECT_MANAGER MAPPINGS TO THE EXISTING indicators.create AND indicators.update PERMISSIONS, REPLACE pathways.p06_can(text,uuid) ONLY SO ACTIVE PROJECT_MANAGER USERS WITH THE EXISTING VERIFIED IDENTITY, ORGANIZATION, AND ACTIVE PROJECT ASSIGNMENT CHECKS MAY CREATE OR UPDATE INDICATORS IN ASSIGNED PROJECTS, AND REASSERT EXECUTE ON THAT FUNCTION FOR pathways_runtime ONLY; NO OTHER ROLE/PERMISSION/GRANT/RLS/AUTH/STORAGE/FIXTURE/TIMEOUT/POOL/BYPASSRLS OR APPLICATION-DATA CHANGES`
 
-This phrase is not authorization from this Phase 1 prompt. Migration 0021 was not deployed.
+The developer supplied this exact phrase for Work Package A2. It was consumed once for the deployment described in section 12 and does not authorize functional indicator writes or any later work package.
 
 ## 8. Proposed Backend Work Packages
 
 | Order | Package | Included features / UCs | Dependencies | Schema/migrations | Provider actions | Test scope | Classification |
 |---|---|---|---|---|---|---|---|
-| A | Managed 0021 indicator rollout | PM indicator manage, UC008 | None; readiness complete | Apply existing 0021 only | One separately approved PATHWAYS-dev Database migration | Pre/post ledger, exact PM/M&E/denial/assignment checks, RLS/grant regression | Core-required; execute first |
+| A | Managed 0021 indicator rollout | PM indicator manage, UC008 | Deployment complete; bounded acceptance pending | Existing 0021 applied | Approved PATHWAYS-dev Database migration completed | Pre/post ledger and security delta passed; functional write acceptance awaits authorization | Core-required; deployment complete |
 | B | Finance ledger and approvals | Budget, expense, evidence, verification, approval, UC007 | Existing projects/activities/assignments/evidence | Existing schema expected; no migration unless implementation proves a narrow gap | None expected | Unit/service/controller, role/state-machine, RLS runtime, audit, UI client integration | Core-required; P0 |
 | C | Collection closeout | Direct-entry draft list and form export, UC009-UC010 | Existing forms/submissions | No migration expected | None expected | Scoped list, export determinism, privacy, web adapter tests | Core/supporting; P1 then P2 |
 | D | Project lifecycle | Full setup, team reassignment, archive, UC006 | Developer decisions on code, partners, sector, targets, assignment/archive semantics | Normalized project extensions likely; existing assignment/archive/budget reused | Database migration likely | Validation, assignment history, archive effects, RLS, audit, UI contract | Core-required; policy gate first |
@@ -257,7 +261,7 @@ This phrase is not authorization from this Phase 1 prompt. Migration 0021 was no
 | I | Publication and public tracker | Review, preview, publish, withdraw, public projection, UC025-UC026 | H and Beneficiary/privacy decisions | Versioned public projection likely | Database/Storage likely | Role separation, redaction, immutable version, public-only fields, withdrawal/cache | Core-required; policy gate |
 | J | Administration and operations | Provisioning, profile, audit browse, labels, backup/restore, UC003-UC005, UC024 | Separate policy decisions and provider controls | Labels/permission changes possible; backup remains provider-owned | Auth/Database/Storage as separately approved | Identity linking, least privilege, audit immutability, recovery drill evidence | Mixed supporting/deferred; split before execution |
 
-Each package must receive separate authorization. Package A is the single recommended next phase because it is isolated, fully specified, locally replayed, read-only preflighted, recovery-backed, and directly closes the only approved permission delta already present as a migration.
+Each package must receive separate authorization. Package A deployment is complete. The next step is the isolated Project Manager indicator acceptance in section 12.8; Work Package B remains unauthorized.
 
 ## 9. Developer decisions required
 
@@ -280,9 +284,9 @@ Only these policy choices remain unresolved; implementation details supported by
 - All current frontend-visible missing contracts were reconciled against source and prioritized.
 - Dependencies, schema implications, and policy gates are recorded.
 - Migration 0021 source/hash, tests, replay, managed preflight, and recovery prerequisite pass.
-- The exact managed approval phrase is prepared and was not executed.
+- At Phase 1 close, the exact managed approval phrase was prepared and had not been executed.
 - No application feature implementation, managed mutation, Auth/Storage operation, P07-W10 action, UI redesign, role broadening, timeout/pool change, or push occurred.
-- Recommended next phase: Work Package A, separately authorized managed rollout of migration 0021.
+- The then-recommended next phase was the separately authorized managed rollout of migration 0021.
 
 ## 11. Work Package A1 disposition
 
@@ -291,7 +295,84 @@ Only these policy choices remain unresolved; implementation details supported by
 - PostgreSQL 17 disposable cleanup: PASS.
 - Final PATHWAYS-dev PostgreSQL 17.6 read-only preflight: PASS, hosted writes `0`.
 - Protected backup checksum and restore-readiness recheck: PASS.
-- Migration 0021 remains absent from PATHWAYS-dev and unapplied.
+- At A1 close, migration 0021 remained absent from PATHWAYS-dev and unapplied.
 - PostgreSQL 18 service/data, system PATH, tracked replay harness, migrations, managed settings, Auth, Storage, and P07-W10 were not changed.
 - Final readiness: `WORK PACKAGE A1 PG17 COMPATIBILITY = PASS`.
-- Next step requires the exact separately supplied managed 0021 approval phrase in section 7.6.
+- Its exact managed approval phrase was subsequently supplied and consumed by Work Package A2.
+
+## 12. Work Package A2 disposition
+
+### 12.1 Authorization and source identity
+
+- Result: PASS.
+- Exact approval: the phrase in section 7.6 was supplied for Work Package A2 only and consumed once.
+- Migration: `0021_project_manager_indicator_access`.
+- Approved and deployed SHA-256: `b2cc161a80f2989784bf5fd304b3a5b5657b1f481ade6af41c002b56f7d035e6`.
+- Repository inventory before deployment: exactly migrations `0001` through `0021`; no `0022`; 0021 was present once and was the sole pending migration.
+- The migration source contained no table, column, or index change. Its only data DML targeted `pathways.role_permissions`; its only function replacement targeted `pathways.p06_can(text,uuid)`.
+
+### 12.2 Recovery and final preflight
+
+- Protected recovery reference `C:\PATHWAYS-backups\PATHWAYS-dev-pre-P07-W10-20260922-102116` was revalidated immediately before deployment.
+- Recorded and recomputed archive SHA-256: `4ed438997ec208914d2eea644e29b99d476afa5123bbfcfcbae0dab14ba8f0b6`.
+- Restore evidence remained PASS for the 20-migration/61-table baseline; the disposable restore target had been removed.
+- Final PATHWAYS-dev preflight: PASS, PostgreSQL 17.6, JIT off, database `postgres`, one ledger, 20 finished/non-rolled-back migrations through `0020_fixed_sensitive_release_policy`, exact 0020 checksum, 0021 absent and sole pending, runtime login/non-superuser/NOBYPASSRLS, expected indicator RLS, PM mappings `0`, M&E mappings `2`, and writes `0`.
+- No PATHWAYS API writer was listening before deployment, so no application writer required stopping. Unrelated local web/test and PostgreSQL processes were left running.
+
+### 12.3 Deployment and ledger
+
+- Deployment used the existing dedicated `prisma.pdqwsknbzkdtiwjjibqt` migration identity, the repository Prisma ledger, and a staged byte-identical 21-migration directory.
+- Guarded `prisma migrate deploy` outcome: PASS; child exit zero; applied exactly `0021_project_manager_indicator_access`; no retry occurred.
+- Read-only postflight ledger: exactly 21 finished/non-rolled-back migrations, latest 0021, exactly one 0021 row, checksum `b2cc161a80f2989784bf5fd304b3a5b5657b1f481ade6af41c002b56f7d035e6`.
+- Prisma migration status: PASS; schema up to date, 21 recognized, zero pending, zero failed.
+
+### 12.4 Exact authorization delta
+
+- Project Manager indicator mappings: `0 -> 2`, adding only `indicators.create` and `indicators.update`.
+- M&E indicator mappings: `2 -> 2`, unchanged.
+- Total role-permission mappings: `154 -> 156`, the exact approved increase of two.
+- Other-role permission fingerprint remained `2d7ab8840ce873ef8e084441c29fd5b8eb565869629029cf562a8537569e04b6`; no other role received a new indicator-write mapping.
+- Permission definitions were unchanged; fingerprint `557d75da3683970241508f5ab329fa73fff24e2aa34c9f5f96d8fecba8058e58`.
+
+### 12.5 Function, grants, runtime, and RLS
+
+- `pathways.p06_can(text,uuid)` definition changed from hash `e04cd61a7ff366051b85ffc658a2ed9dc188ed3e0711dda3e64dd57b2b7fa408` to the reviewed hash `2456fc0f9c86553eeabc6976c1d232985a861b6f1847ee848803967004b6b091`.
+- It remains SECURITY DEFINER, owned by the Prisma owner, with an empty search path, and retains the verified identity, organization, active-project, and active-assignment checks.
+- Execute is allowed to `pathways_runtime`; execute is denied to `PUBLIC`, `anon`, `authenticated`, and `service_role`.
+- `pathways_runtime` remains a login role, non-superuser, and NOBYPASSRLS.
+- RLS remained enabled on `project_indicators`; RLS remained enabled and forced on `project_indicator_bindings` and `project_indicator_measurements`.
+- RLS, table ACL, non-target routine ACL, table shape, index, and foreign-key fingerprints were unchanged from the immediate pre-deployment baseline.
+
+### 12.6 Application data and provider boundary
+
+- The read-only pre/post probe covered 59 application-data tables excluding the Prisma ledger and intentional `role_permissions` target.
+- Application-data fingerprint was identical before and after: `5e6c1097df7afb550df06df4a040987ae8e06305b36e05095061093a297e0060`.
+- Application/business-data writes: `0`.
+- The only managed changes were one Prisma ledger row, two approved role-permission mappings, and the reviewed authorization function/ACL definition.
+- No Auth, Storage, fixture, assignment, user, project, indicator, timeout, pool, BYPASSRLS, managed-setting, or P07-W10 change occurred.
+
+### 12.7 Protected API
+
+- Existing writer state before deployment: no PATHWAYS API listener; nothing required stopping.
+- Protected API start with the existing launcher: PASS.
+- Health: PASS at `http://127.0.0.1:4000/api/health`, reporting `status=ok`, `service=pathways-api`, version `0.1.0`.
+- Protected runtime database check: PASS (`SELECT 1`).
+- Listener reconfirmed on `127.0.0.1:4000` after the runtime check.
+
+### 12.8 Next bounded functional acceptance (not executed)
+
+- Assigned project: existing synthetic `C8-VISIBLE-001`, project `8973d659-8239-4bda-a369-8538aaff60d7`.
+- Project Manager: existing synthetic application user `8730035d-c917-45ea-84a9-44ec6b7dc047`, with its existing active assignment.
+- M&E comparison actor: existing synthetic application user `92269933-2636-47e1-9e6d-a279484860cd`.
+- Create exactly one manual indicator with code `A2_PM_ACCEPT_20260923`, name `A2 Project Manager Indicator Acceptance`, unit label `records`, data source `Synthetic A2 authorization acceptance`, numeric kind `COUNT`, direction `HIGHER_IS_BETTER`, precision `0`, period `2026-09-01` through `2026-09-30`, baseline `0`, and target `1`.
+- Update only that indicator to name `A2 Project Manager Indicator Acceptance - Verified` with expected revision `1`, producing revision `2`.
+- Expected successful rows: one `pathways.project_indicators` row and two required redacted audit rows (`PROJECT_INDICATOR_CREATED` and `PROJECT_INDICATOR_LABEL_UPDATED`); no binding or measurement row.
+- Persistence check: reload/list/get must return the same indicator at revision `2`.
+- Unassigned denial check: use reserved nonexistent synthetic project UUID `00000000-0000-4000-8000-00000000a221`; an attempted Project Manager create must be denied and must create no indicator/audit row.
+- M&E create/update authorization and System Administrator, Program Manager, Grant Manager, and Project Officer nonauthorization are checked read-only; no additional indicator mutation is needed.
+- Retention: retain the clearly tagged synthetic indicator and its audit evidence. Any later archive/delete requires separate authorization.
+- Exact proposed authorization phrase:
+
+`APPROVE PATHWAYS-dev PROJECT MANAGER INDICATOR ACCEPTANCE ONLY; USING EXISTING SYNTHETIC PROJECT C8-VISIBLE-001 UUID 8973d659-8239-4bda-a369-8538aaff60d7 AND EXISTING SYNTHETIC PROJECT_MANAGER USER 8730035d-c917-45ea-84a9-44ec6b7dc047, CREATE EXACTLY ONE MANUAL INDICATOR CODE A2_PM_ACCEPT_20260923 NAMED A2 Project Manager Indicator Acceptance WITH UNIT LABEL records, DATA SOURCE Synthetic A2 authorization acceptance, COUNT/HIGHER_IS_BETTER/PRECISION 0, PERIOD 2026-09-01 THROUGH 2026-09-30, BASELINE 0, TARGET 1; UPDATE ONLY THAT ROW TO NAME A2 Project Manager Indicator Acceptance - Verified USING EXPECTED REVISION 1; ALLOW ONLY THE REQUIRED PROJECT_INDICATOR_CREATED AND PROJECT_INDICATOR_LABEL_UPDATED AUDIT ROWS; RETAIN THAT TAGGED SYNTHETIC ROW AND AUDIT EVIDENCE; AUTHORIZE READ-ONLY RELOAD, M&E AND OTHER-ROLE PERMISSION CHECKS PLUS ONE EXPECTED-DENIAL PROJECT_MANAGER CREATE REQUEST AGAINST RESERVED NONEXISTENT PROJECT UUID 00000000-0000-4000-8000-00000000a221 THAT MUST WRITE NOTHING; NO OTHER DATABASE/AUTH/STORAGE/FIXTURE/ASSIGNMENT/USER/PROJECT/INDICATOR/ROLE/PERMISSION/GRANT/RLS/TIMEOUT/POOL/BYPASSRLS OR P07-W10 CHANGES`
+
+Functional browser/API write acceptance has not been run. Work Package B remains unauthorized.
