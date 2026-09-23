@@ -150,6 +150,22 @@ export class SaveSubmissionDto {
   values!: Record<string, unknown>
 }
 
+export class ListSubmissionsQueryDto {
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  @Max(10_000)
+  offset = 0
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(50)
+  limit = 10
+}
+
 export class ValidateValuesDto {
   @IsObject()
   values!: Record<string, unknown>

@@ -23,6 +23,7 @@ const displayQueryKeys: Partial<Record<RouteKey, readonly string[]>> = {
   alerts: ['alert'],
   beneficiaries: ['q', 'project', 'location', 'sex', 'age', 'disability', 'status', 'page'],
   beneficiary: ['returnTo'],
+  formEntry: ['submissionId'],
 }
 export async function requireServerPage(route: RouteKey, props: ProtectedPageProps) {
   const { _rsc: _transport, ...query } = (await props.searchParams) ?? {}

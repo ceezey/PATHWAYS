@@ -4,11 +4,12 @@ import { IsDateString, IsIn, IsOptional, IsString, IsUUID, Length, Matches } fro
 const projectStatuses = ['PLANNED', 'ONGOING', 'COMPLETED', 'ON_HOLD', 'CANCELLED']
 
 export class CreateProjectDto {
+  @IsOptional()
   @IsString()
   @Length(2, 40)
   @Matches(/^[A-Za-z0-9][A-Za-z0-9_-]*$/)
   @Transform(({ value }) => (typeof value === 'string' ? value.trim().toUpperCase() : value))
-  code!: string
+  code?: string
 
   @IsString()
   @Length(3, 160)

@@ -2,6 +2,7 @@ import type { PathwaysRole } from '@/types/pathways-role'
 import type { MonitoringIndicator, SadddDashboard } from '@pathways/shared'
 
 export type ProjectStatus = 'Active' | 'Needs Attention' | 'Planned' | 'Completed'
+export type StoredProjectStatus = 'PLANNED' | 'ONGOING' | 'COMPLETED' | 'ON_HOLD' | 'CANCELLED'
 export type HealthStatus = 'On Track' | 'At Risk' | 'Critical'
 export type ActivityStatus =
   | 'Planned'
@@ -28,6 +29,7 @@ export interface ProjectSummary {
   area: string
   sector: string
   status: ProjectStatus
+  storedStatus?: StoredProjectStatus
   health: HealthStatus
   period: string
   projectManager: string
@@ -73,7 +75,7 @@ export interface AnalyticsLocationRecord {
 }
 
 export interface CreateProjectInput {
-  code: string
+  code?: string
   title: string
   implementationArea?: string
   objectives?: string
@@ -82,6 +84,12 @@ export interface CreateProjectInput {
   status: ProjectStatus
   description?: string
   programId?: string
+}
+
+export interface UpdateProjectInput extends Omit<CreateProjectInput, 'code' | 'status'> {
+  code?: string
+  status: ProjectStatus | StoredProjectStatus
+  expectedUpdatedAt: string
 }
 
 export type StoredActivityStatus =
@@ -688,6 +696,21 @@ export interface DirectFormSubmission {
   submittedAt?: string
   updatedAt: string
   values: Record<string, string | number | boolean | string[] | null>
+}
+
+export interface DirectFormSubmissionSummary {
+  id: string
+  status: 'DRAFT' | 'VALIDATED' | 'PROCESSED' | 'REJECTED'
+  formVersion: number
+  submittedAt?: string
+  updatedAt: string
+}
+
+export interface DirectFormSubmissionPage {
+  offset: number
+  limit: number
+  total: number
+  items: DirectFormSubmissionSummary[]
 }
 
 export type ImportBatchStatus =

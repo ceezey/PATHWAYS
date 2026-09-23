@@ -98,7 +98,13 @@ describe('P02 metadata service', () => {
       updateMany: vi.fn(),
     },
     formField: { createMany: vi.fn(), deleteMany: vi.fn() },
-    formSubmission: { findFirst: vi.fn(), create: vi.fn(), updateMany: vi.fn() },
+    formSubmission: {
+      count: vi.fn(),
+      findFirst: vi.fn(),
+      findMany: vi.fn(),
+      create: vi.fn(),
+      updateMany: vi.fn(),
+    },
     formResponseValue: { deleteMany: vi.fn(), createMany: vi.fn() },
     auditLog: { create: vi.fn() },
   }
@@ -263,6 +269,133 @@ describe('P02 metadata service', () => {
       }),
     ).rejects.toBeInstanceOf(BadRequestException)
     expect(tx.formSubmission.create).not.toHaveBeenCalled()
+  })
+
+  it('lists only bounded actor-owned direct submissions and distinguishes final records', async () => {
+    tx.formSubmission.count.mockResolvedValue(2)
+    tx.formSubmission.findMany.mockResolvedValue([
+      {
+        id: submissionId,
+        status: 'DRAFT',
+        formVersion: 1,
+        submittedAt: null,
+        updatedAt: now,
+        values: { score: 'sensitive value must not leave this query' },
+      },
+      {
+        id: '60000000-0000-4000-8000-000000000007',
+        status: 'VALIDATED',
+        formVersion: 1,
+        submittedAt: now,
+        updatedAt: now,
+      },
+    ])
+
+    const result = await service.listSubmissions(
+      state.actor as ApplicationIdentity,
+      projectId,
+      formId,
+      { offset: 20, limit: 50 },
+    )
+
+    expect(tx.formSubmission.count).toHaveBeenCalledWith({
+      where: {
+        organizationId,
+        projectId,
+        formId,
+        formVersion: 1,
+        submittedById: reviewerId,
+        source: 'DIRECT_ENCODING',
+      },
+    })
+    expect(tx.formSubmission.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        skip: 20,
+        take: 50,
+        orderBy: [{ updatedAt: 'desc' }, { id: 'desc' }],
+        select: {
+          id: true,
+          status: true,
+          formVersion: true,
+          submittedAt: true,
+          updatedAt: true,
+        },
+      }),
+    )
+    expect(result).toEqual({
+      offset: 20,
+      limit: 50,
+      total: 2,
+      items: [
+        {
+          id: submissionId,
+          status: 'DRAFT',
+          formVersion: 1,
+          submittedAt: undefined,
+          updatedAt: now.toISOString(),
+        },
+        {
+          id: '60000000-0000-4000-8000-000000000007',
+          status: 'VALIDATED',
+          formVersion: 1,
+          submittedAt: now.toISOString(),
+          updatedAt: now.toISOString(),
+        },
+      ],
+    })
+    expect(result.items[0]).not.toHaveProperty('values')
+    expect(result.items[0]).not.toHaveProperty('clientSubmissionId')
+  })
+
+  it('denies a cross-project submission listing before reading submission metadata', async () => {
+    tx.project.findFirst.mockResolvedValue(null)
+
+    await expect(
+      service.listSubmissions(state.actor as ApplicationIdentity, foreignProjectId, formId, {
+        offset: 0,
+        limit: 10,
+      }),
+    ).rejects.toBeInstanceOf(NotFoundException)
+    expect(tx.formSubmission.count).not.toHaveBeenCalled()
+    expect(tx.formSubmission.findMany).not.toHaveBeenCalled()
+  })
+
+  it('reloads one actor-owned persisted submission with its real responses', async () => {
+    tx.formSubmission.findFirst.mockResolvedValue({
+      id: submissionId,
+      clientSubmissionId,
+      status: 'DRAFT',
+      formVersion: 1,
+      submittedAt: null,
+      updatedAt: now,
+      formResponseValue_submission: [{ fieldId, value: '42' }],
+    })
+
+    const result = await service.getSubmission(
+      state.actor as ApplicationIdentity,
+      projectId,
+      formId,
+      submissionId,
+    )
+
+    expect(tx.formSubmission.findFirst).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: {
+          id: submissionId,
+          organizationId,
+          projectId,
+          formId,
+          formVersion: 1,
+          submittedById: reviewerId,
+          source: 'DIRECT_ENCODING',
+        },
+      }),
+    )
+    expect(result).toMatchObject({
+      id: submissionId,
+      status: 'DRAFT',
+      values: { score: '42' },
+    })
   })
 
   it('returns a repeat retry-safe submission when its form version and normalized values match', async () => {

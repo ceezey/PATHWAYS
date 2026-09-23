@@ -113,6 +113,7 @@ const SingleTeamSelector = ({
   label,
   loadError,
   loading,
+  unavailableMessage,
   users,
 }: {
   control: Control<ProjectSetupSchema>
@@ -121,6 +122,7 @@ const SingleTeamSelector = ({
   label: string
   loadError: string | null
   loading: boolean
+  unavailableMessage?: string
   users: UserRecord[]
 }) => {
   const role = teamRoles[fieldName]
@@ -135,23 +137,27 @@ const SingleTeamSelector = ({
 
         return (
           <FormItem>
-            <FormLabel required>{label}</FormLabel>
+            <FormLabel required={!unavailableMessage}>{label}</FormLabel>
             <Select
-              disabled={disabled || options.length === 0}
+              disabled={disabled || Boolean(unavailableMessage) || options.length === 0}
               onValueChange={(userId) => {
                 const user = options.find((option) => option.id === userId)
                 field.onChange(user?.name ?? '')
               }}
               value={selectedUser?.id ?? ''}
             >
-              <FormControl aria-required="true">
+              <FormControl aria-required={!unavailableMessage}>
                 <SelectTrigger
                   className="min-w-0 overflow-hidden"
                   onBlur={field.onBlur}
                   ref={field.ref}
                 >
                   <SelectValue
-                    placeholder={optionPlaceholder(role, loading, loadError, options.length)}
+                    placeholder={
+                      unavailableMessage
+                        ? 'Assignment unavailable'
+                        : optionPlaceholder(role, loading, loadError, options.length)
+                    }
                   >
                     {selectedUser ? (
                       <span className="block min-w-0 truncate pr-2 font-medium">
@@ -177,7 +183,9 @@ const SingleTeamSelector = ({
                 ))}
               </SelectContent>
             </Select>
-            {!loading && !loadError && options.length === 0 ? (
+            {unavailableMessage ? (
+              <FormDescription>{unavailableMessage}</FormDescription>
+            ) : !loading && !loadError && options.length === 0 ? (
               <FormDescription>No active {roleLabels[role]} account is available.</FormDescription>
             ) : null}
             <FormMessage />
@@ -193,12 +201,14 @@ export const ProjectTeamSelectors = ({
   loadError,
   loading,
   onRetry,
+  unavailableMessage,
   users,
 }: {
   control: Control<ProjectSetupSchema>
   loadError: string | null
   loading: boolean
   onRetry: () => void
+  unavailableMessage?: string
   users: UserRecord[]
 }) => {
   const officerOptions = getEligibleTeamUsers(users, 'Project Officer')
@@ -232,6 +242,7 @@ export const ProjectTeamSelectors = ({
           label="Program Manager"
           loadError={loadError}
           loading={loading}
+          unavailableMessage={unavailableMessage}
           users={users}
         />
         <SingleTeamSelector
@@ -241,6 +252,7 @@ export const ProjectTeamSelectors = ({
           label="Project Manager"
           loadError={loadError}
           loading={loading}
+          unavailableMessage={unavailableMessage}
           users={users}
         />
         <SingleTeamSelector
@@ -250,6 +262,7 @@ export const ProjectTeamSelectors = ({
           label="Monitoring and Evaluation Officer"
           loadError={loadError}
           loading={loading}
+          unavailableMessage={unavailableMessage}
           users={users}
         />
         <FormField
@@ -269,22 +282,26 @@ export const ProjectTeamSelectors = ({
 
             return (
               <FormItem>
-                <FormLabel required>Project Officers</FormLabel>
+                <FormLabel required={!unavailableMessage}>Project Officers</FormLabel>
                 <DropdownMenu>
-                  <FormControl aria-required="true">
+                  <FormControl aria-required={!unavailableMessage}>
                     <DropdownMenuTrigger asChild>
                       <Button
                         className="w-full justify-between gap-3 font-normal"
-                        disabled={disabled || officerOptions.length === 0}
+                        disabled={
+                          disabled || Boolean(unavailableMessage) || officerOptions.length === 0
+                        }
                         onBlur={field.onBlur}
                         ref={field.ref}
                         type="button"
                         variant="outline"
                       >
                         <span className="truncate">
-                          {selectedNames.length > 0
-                            ? `${selectedNames.length} Project Officer${selectedNames.length === 1 ? '' : 's'} selected`
-                            : placeholder}
+                          {unavailableMessage
+                            ? 'Assignment unavailable'
+                            : selectedNames.length > 0
+                              ? `${selectedNames.length} Project Officer${selectedNames.length === 1 ? '' : 's'} selected`
+                              : placeholder}
                         </span>
                         <ChevronDown className="h-4 w-4 shrink-0 opacity-50" aria-hidden="true" />
                       </Button>
@@ -317,7 +334,9 @@ export const ProjectTeamSelectors = ({
                     ))}
                   </DropdownMenuContent>
                 </DropdownMenu>
-                {!loading && !loadError && officerOptions.length === 0 ? (
+                {unavailableMessage ? (
+                  <FormDescription>{unavailableMessage}</FormDescription>
+                ) : !loading && !loadError && officerOptions.length === 0 ? (
                   <FormDescription>No active Project Officer account is available.</FormDescription>
                 ) : (
                   <FormDescription>Select one or more active Project Officers.</FormDescription>

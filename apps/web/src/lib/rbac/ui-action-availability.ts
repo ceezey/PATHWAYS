@@ -13,18 +13,26 @@ export type UiAction =
   | 'beneficiaries.edit'
   | 'beneficiaries.merge'
   | 'beneficiaries.create'
+  | 'beneficiaries.participation.record'
   | 'dashboard.configure'
   | 'outcomes.log'
   | 'indicators.manage'
   | 'progress.review'
+  | 'projects.profile.manage'
   | 'projects.team.manage'
+  | 'journeys.manage'
 
 // Only actions backed by an existing, usable API are enabled here. The server
 // still checks the current profile and database grants on every request.
 const supportedActionPermission: Partial<Record<UiAction, AtomicPermission>> = {
   'activities.status.edit': 'activities.update',
   'activities.edit': 'activities.update',
+  'beneficiaries.create': 'beneficiaries.records.register',
+  'beneficiaries.edit': 'beneficiaries.profiles.update',
+  'beneficiaries.participation.record': 'participation.record',
   'indicators.manage': 'indicators.create',
+  'journeys.manage': 'journeys.manage',
+  'projects.profile.manage': 'projects.create',
 }
 
 export const isUiActionAvailable = (role: PathwaysRole | null, action: UiAction) => {

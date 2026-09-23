@@ -26,9 +26,10 @@ import type {
 } from '@/types/pathways'
 
 export function DirectFormEntryWorkspace({
+  initialSubmissionId,
   projectId,
   formId,
-}: { projectId: string; formId: string }) {
+}: { initialSubmissionId?: string; projectId: string; formId: string }) {
   const [form, setForm] = useState<DigitalFormDefinition | null>(null)
   const [submission, setSubmission] = useState<DirectFormSubmission | null>(null)
   const [values, setValues] = useState<Record<string, unknown>>({})
@@ -45,17 +46,26 @@ export function DirectFormEntryWorkspace({
       .getDigitalForm(projectId, formId)
       .then(async (definition) => {
         if (!active) return
-        const stored = window.localStorage.getItem(storageKey)
-        const retryId = stored ?? crypto.randomUUID()
-        window.localStorage.setItem(storageKey, retryId)
-        clientSubmissionId.current = retryId
         setForm(definition)
         try {
-          const persisted = await pathwaysClient.getDirectSubmissionByClientId(
-            projectId,
-            formId,
-            retryId,
-          )
+          let persisted: DirectFormSubmission
+          if (initialSubmissionId) {
+            persisted = await pathwaysClient.getDirectSubmission(
+              projectId,
+              formId,
+              initialSubmissionId,
+            )
+          } else {
+            const stored = window.localStorage.getItem(storageKey)
+            const retryId = stored ?? crypto.randomUUID()
+            window.localStorage.setItem(storageKey, retryId)
+            clientSubmissionId.current = retryId
+            persisted = await pathwaysClient.getDirectSubmissionByClientId(
+              projectId,
+              formId,
+              retryId,
+            )
+          }
           if (!active) return
           setSubmission(persisted)
           setValues(persisted.values)
@@ -66,6 +76,10 @@ export function DirectFormEntryWorkspace({
           )
         } catch (error) {
           if (!(error instanceof PathwaysClientError) || error.code !== 'not_found') throw error
+          if (initialSubmissionId) throw error
+          const retryId = window.localStorage.getItem(storageKey) ?? crypto.randomUUID()
+          window.localStorage.setItem(storageKey, retryId)
+          clientSubmissionId.current = retryId
         }
         setLoadStatus('ready')
       })
@@ -75,7 +89,7 @@ export function DirectFormEntryWorkspace({
     return () => {
       active = false
     }
-  }, [formId, projectId, storageKey])
+  }, [formId, initialSubmissionId, projectId, storageKey])
 
   const errorsByField = useMemo(
     () =>
@@ -266,15 +280,25 @@ export function DirectFormEntryWorkspace({
             {pending === 'submit' ? 'Submitting...' : 'Submit'}
           </Button>
           {finalized ? (
-            <Button
-              variant="outline"
-              onClick={() => {
-                window.localStorage.removeItem(storageKey)
-                window.location.reload()
-              }}
-            >
-              Start another record
-            </Button>
+            initialSubmissionId ? (
+              <Button asChild variant="outline">
+                <Link
+                  href={`/collection/projects/${encodeURIComponent(projectId)}/forms/${encodeURIComponent(formId)}/entries/new`}
+                >
+                  Start another record
+                </Link>
+              </Button>
+            ) : (
+              <Button
+                variant="outline"
+                onClick={() => {
+                  window.localStorage.removeItem(storageKey)
+                  window.location.reload()
+                }}
+              >
+                Start another record
+              </Button>
+            )
           ) : null}
         </div>
       </div>

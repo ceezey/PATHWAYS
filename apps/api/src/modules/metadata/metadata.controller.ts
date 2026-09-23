@@ -7,6 +7,7 @@ import {
   Param,
   Patch,
   Post,
+  Query,
   Req,
 } from '@nestjs/common'
 
@@ -16,6 +17,7 @@ import type { AuthenticatedRequest } from '@app/modules/auth/developer-access'
 import {
   CreateFormDto,
   ExpectedVersionDto,
+  ListSubmissionsQueryDto,
   SaveSubmissionDto,
   SubmitSubmissionDto,
   UpdateFormDto,
@@ -122,6 +124,17 @@ export class MetadataController {
     @Body() body: SaveSubmissionDto,
   ) {
     return this.metadata.saveSubmission(profile(request), projectId, formId, body)
+  }
+
+  @Get(':formId/submissions')
+  @RequirePermission('submissions.write')
+  listSubmissions(
+    @Req() request: AuthenticatedRequest,
+    @Param('projectId') projectId: string,
+    @Param('formId') formId: string,
+    @Query() query: ListSubmissionsQueryDto,
+  ) {
+    return this.metadata.listSubmissions(profile(request), projectId, formId, query)
   }
 
   @Get(':formId/submissions/:submissionId')

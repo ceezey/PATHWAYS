@@ -92,4 +92,19 @@ describe('BeneficiaryFormLoader', () => {
       'beneficiary-1',
     )
   })
+
+  it('uses the route-authorized project directly instead of probing another project', async () => {
+    getProjectsForRole.mockResolvedValueOnce([{ id: 'project-1' }, { id: 'project-2' }])
+    getBeneficiaryRecordForRole.mockResolvedValueOnce({ id: 'beneficiary-1' })
+
+    render(<BeneficiaryFormLoader beneficiaryId="beneficiary-1" projectId="project-2" />)
+
+    await screen.findByTestId('beneficiary-form')
+    expect(getBeneficiaryRecordForRole).toHaveBeenCalledTimes(1)
+    expect(getBeneficiaryRecordForRole).toHaveBeenCalledWith(
+      'Monitoring and Evaluation Officer',
+      'project-2',
+      'beneficiary-1',
+    )
+  })
 })

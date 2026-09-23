@@ -24,6 +24,8 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
+import { useCurrentRole } from '@/hooks/use-current-role'
+import { isUiActionAvailable } from '@/lib/rbac/ui-action-availability'
 import { pathwaysClient } from '@/lib/services/pathways-client'
 import type {
   Activity,
@@ -48,6 +50,8 @@ export const JourneyStagesWorkspace = ({
   activities,
   initialStages,
 }: JourneyStagesWorkspaceProps) => {
+  const { role } = useCurrentRole()
+  const canManageJourneys = isUiActionAvailable(role, 'journeys.manage')
   const [stages, setStages] = useState(initialStages)
   const [selectedStageId, setSelectedStageId] = useState(initialStages[0]?.id ?? '')
   const [saveOpen, setSaveOpen] = useState(false)
@@ -66,7 +70,7 @@ export const JourneyStagesWorkspace = ({
     key: Key,
     value: JourneyStageConfig[Key],
   ) => {
-    if (!selectedStage) {
+    if (!selectedStage || !canManageJourneys) {
       return
     }
 
@@ -76,6 +80,7 @@ export const JourneyStagesWorkspace = ({
   }
 
   const addStage = () => {
+    if (!canManageJourneys) return
     const nextOrder = Math.max(0, ...stages.map((stage) => stage.order)) + 1
     const nextStage: JourneyStageConfig = {
       id: crypto.randomUUID(),
@@ -94,7 +99,7 @@ export const JourneyStagesWorkspace = ({
   }
 
   const toggleActivity = (activityId: string) => {
-    if (!selectedStage) {
+    if (!selectedStage || !canManageJourneys) {
       return
     }
 
@@ -106,6 +111,7 @@ export const JourneyStagesWorkspace = ({
   }
 
   const saveConfiguration = async () => {
+    if (!canManageJourneys) return
     try {
       const saved = await pathwaysClient.saveJourneyStages(project.id, stages)
       setStages(saved)
@@ -157,6 +163,7 @@ export const JourneyStagesWorkspace = ({
               <div className="flex gap-2">
                 <Button
                   aria-label="Add stage"
+                  disabled={!canManageJourneys}
                   onClick={addStage}
                   size="icon"
                   title="Add stage"
@@ -166,6 +173,7 @@ export const JourneyStagesWorkspace = ({
                 </Button>
                 <Button
                   aria-label="Save configuration"
+                  disabled={!canManageJourneys}
                   onClick={() => setSaveOpen(true)}
                   size="icon"
                   title="Save configuration"
@@ -226,6 +234,7 @@ export const JourneyStagesWorkspace = ({
                   <Label className="space-y-2">
                     <span>Stage code</span>
                     <Input
+                      disabled={!canManageJourneys}
                       value={selectedStage.code}
                       onChange={(event) => updateStage('code', event.target.value)}
                     />
@@ -233,6 +242,7 @@ export const JourneyStagesWorkspace = ({
                   <Label className="space-y-2">
                     <span>Order</span>
                     <Input
+                      disabled={!canManageJourneys}
                       min="1"
                       type="number"
                       value={selectedStage.order}
@@ -243,6 +253,7 @@ export const JourneyStagesWorkspace = ({
                 <Label className="space-y-2">
                   <span>Stage name</span>
                   <Input
+                    disabled={!canManageJourneys}
                     value={selectedStage.name}
                     onChange={(event) => updateStage('name', event.target.value)}
                   />
@@ -250,6 +261,7 @@ export const JourneyStagesWorkspace = ({
                 <Label className="space-y-2">
                   <span>Stage type</span>
                   <Select
+                    disabled={!canManageJourneys}
                     value={selectedStage.type}
                     onValueChange={(value) => updateStage('type', value as JourneyStageType)}
                   >
@@ -268,6 +280,7 @@ export const JourneyStagesWorkspace = ({
                 <Label className="space-y-2">
                   <span>Parent stage</span>
                   <Select
+                    disabled={!canManageJourneys}
                     value={selectedStage.parentStageId ?? noParentValue}
                     onValueChange={(value) =>
                       updateStage('parentStageId', value === noParentValue ? undefined : value)
@@ -291,6 +304,7 @@ export const JourneyStagesWorkspace = ({
                 <Label className="flex items-center gap-3 rounded-md border border-border bg-background p-3">
                   <input
                     className="h-4 w-4 rounded border-border"
+                    disabled={!canManageJourneys}
                     type="checkbox"
                     checked={selectedStage.terminal}
                     onChange={(event) => updateStage('terminal', event.target.checked)}
@@ -300,6 +314,7 @@ export const JourneyStagesWorkspace = ({
                 <Label className="space-y-2">
                   <span>Description</span>
                   <Textarea
+                    disabled={!canManageJourneys}
                     value={selectedStage.description}
                     onChange={(event) => updateStage('description', event.target.value)}
                   />
@@ -315,6 +330,7 @@ export const JourneyStagesWorkspace = ({
                       >
                         <input
                           className="mt-1 h-4 w-4 rounded border-border"
+                          disabled={!canManageJourneys}
                           type="checkbox"
                           checked={selectedStage.mappedActivityIds.includes(activity.id)}
                           onChange={() => toggleActivity(activity.id)}
@@ -384,7 +400,9 @@ export const JourneyStagesWorkspace = ({
             <Button variant="outline" onClick={() => setSaveOpen(false)}>
               Cancel
             </Button>
-            <Button onClick={saveConfiguration}>Confirm save</Button>
+            <Button disabled={!canManageJourneys} onClick={saveConfiguration}>
+              Confirm save
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

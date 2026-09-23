@@ -406,6 +406,130 @@ describe('P01 workspace and project services', () => {
     )
   })
 
+  it('assigns a unique internal project code when the accepted UI omits one', async () => {
+    state.actor = actor('PROJECT_MANAGER', [projectId])
+    tx.project.create.mockImplementation(async ({ data }) => ({ id: data.id }))
+    tx.project.findUniqueOrThrow.mockImplementation(async () => {
+      const create = tx.project.create.mock.calls[0]?.[0] as { data: { code: string; id: string } }
+      return {
+        id: create.data.id,
+        code: create.data.code,
+        title: 'Generated-code project',
+        description: 'Synthetic description',
+        objectives: 'Synthetic objectives',
+        implementationArea: 'Navotas',
+        startDate: new Date('2026-10-01T00:00:00.000Z'),
+        endDate: new Date('2026-12-31T00:00:00.000Z'),
+        status: 'PLANNED',
+        programId: null,
+        updatedAt: now,
+        userProjectAssignment_project: [{ user: { fullName: 'Synthetic actor' } }],
+      }
+    })
+    const service = new ProjectsService(prisma)
+
+    const result = await service.create(state.actor, {
+      title: 'Generated-code project',
+      description: 'Synthetic description',
+      objectives: 'Synthetic objectives',
+      implementationArea: 'Navotas',
+      startDate: '2026-10-01',
+      endDate: '2026-12-31',
+      status: 'PLANNED',
+    })
+
+    const create = tx.project.create.mock.calls[0]?.[0] as { data: { code: string; id: string } }
+    expect(create.data.id).toMatch(/^[0-9a-f-]{36}$/)
+    expect(create.data.code).toBe(`PRJ-${create.data.id.toUpperCase()}`)
+    expect(result.code).toBe(create.data.code)
+    expect(tx.auditLog.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ changes: { code: create.data.code, status: 'PLANNED' } }),
+      }),
+    )
+  })
+
+  it('updates supported core fields in scope, preserves the program link, and audits the write', async () => {
+    state.actor = actor('PROJECT_MANAGER', [projectId])
+    tx.project.findFirst.mockResolvedValue({ id: projectId, code: 'PRJ-001', updatedAt: now })
+    tx.project.updateMany.mockResolvedValue({ count: 1 })
+    tx.project.findUniqueOrThrow.mockResolvedValue({
+      id: projectId,
+      code: 'PRJ-001',
+      title: 'Updated project',
+      description: 'Updated description',
+      objectives: 'Updated objectives',
+      implementationArea: 'Navotas',
+      startDate: new Date('2026-10-01T00:00:00.000Z'),
+      endDate: new Date('2026-12-31T00:00:00.000Z'),
+      status: 'ONGOING',
+      programId: targetId,
+      updatedAt: new Date('2026-09-23T01:00:00.000Z'),
+      userProjectAssignment_project: [{ user: { fullName: 'Synthetic actor' } }],
+    })
+    tx.program.findFirst.mockResolvedValue({ id: targetId })
+    const service = new ProjectsService(prisma)
+
+    await expect(
+      service.update(state.actor, projectId, {
+        code: 'PRJ-001',
+        title: 'Updated project',
+        description: 'Updated description',
+        objectives: 'Updated objectives',
+        implementationArea: 'Navotas',
+        startDate: '2026-10-01',
+        endDate: '2026-12-31',
+        status: 'ONGOING',
+        programId: targetId,
+        expectedUpdatedAt: now.toISOString(),
+      }),
+    ).resolves.toMatchObject({ title: 'Updated project', programId: targetId })
+    expect(tx.project.updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          code: 'PRJ-001',
+          objectives: 'Updated objectives',
+          implementationArea: 'Navotas',
+          programId: targetId,
+        }),
+        where: expect.objectContaining({ organizationId, id: projectId, updatedAt: now }),
+      }),
+    )
+    expect(tx.auditLog.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          action: 'PROJECT_UPDATED',
+          projectId,
+          changes: { code: 'PRJ-001', status: 'ONGOING' },
+        }),
+      }),
+    )
+  })
+
+  it('denies an unassigned Project Manager update without writing', async () => {
+    state.actor = actor('PROJECT_MANAGER', [])
+    tx.project.findFirst.mockResolvedValue(null)
+    const service = new ProjectsService(prisma)
+
+    await expect(
+      service.update(state.actor, projectId, {
+        code: 'PRJ-001',
+        title: 'Out-of-scope update',
+        status: 'ONGOING',
+        expectedUpdatedAt: now.toISOString(),
+      }),
+    ).rejects.toBeInstanceOf(NotFoundException)
+    expect(tx.project.findFirst).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: {
+          AND: [expect.objectContaining({ organizationId, id: { in: [] } }), { id: projectId }],
+        },
+      }),
+    )
+    expect(tx.project.updateMany).not.toHaveBeenCalled()
+    expect(tx.auditLog.create).not.toHaveBeenCalled()
+  })
+
   it('loads the bounded project directory and manager relation in one database query', async () => {
     state.actor = actor('PROJECT_MANAGER', [projectId])
     tx.project.findMany.mockResolvedValue([])

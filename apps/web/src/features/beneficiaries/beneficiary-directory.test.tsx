@@ -47,6 +47,10 @@ describe('BeneficiaryDirectory', () => {
       </DisplayLabelsProvider>,
     )
 
+    expect(screen.getAllByRole('link', { name: /^Open / })[0]?.getAttribute('href')).toContain(
+      'projectId=futuremakers-ncr',
+    )
+
     const clear = screen.getByRole('button', { name: 'Clear all filters' })
     const search = screen.getByLabelText('Search by name or code') as HTMLInputElement
     expect(clear.hasAttribute('disabled')).toBe(true)

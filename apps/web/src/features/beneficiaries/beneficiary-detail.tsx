@@ -10,7 +10,7 @@ import {
 } from 'lucide-react'
 import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
-import { useMemo, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import { toast } from 'sonner'
 
 import { StatusBadge } from '@/components/pathways/status-badge'
@@ -36,18 +36,19 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Textarea } from '@/components/ui/textarea'
 import { useCurrentRole } from '@/hooks/use-current-role'
 import { isUiActionAvailable } from '@/lib/rbac/ui-action-availability'
+import { pathwaysClient } from '@/lib/services/pathways-client'
 import type {
   Activity,
   BeneficiaryAssessmentRecord,
-  BeneficiaryEnrollmentStatus,
-  BeneficiaryMediaProofRecord,
   BeneficiaryNoteRecord,
   BeneficiaryParticipationRecord,
   BeneficiaryRecord,
+  DigitalFormDefinition,
   JourneyStageConfig,
   ProjectSummary,
 } from '@/types/pathways'
 
+import { mapBeneficiaryJourneyHistory } from './beneficiary-journey-adapter'
 import { BeneficiaryMediaProof } from './beneficiary-media-proof'
 
 import {
@@ -65,7 +66,8 @@ type BeneficiaryDetailProps = {
   projects: ProjectSummary[]
   activities: Activity[]
   stages: JourneyStageConfig[]
-  mediaProof: BeneficiaryMediaProofRecord[]
+  participationForms: DigitalFormDefinition[]
+  projectId: string
 }
 
 export const BeneficiaryDetail = ({
@@ -73,34 +75,30 @@ export const BeneficiaryDetail = ({
   projects,
   activities,
   stages,
-  mediaProof,
+  participationForms,
+  projectId,
 }: BeneficiaryDetailProps) => {
   const { role } = useCurrentRole()
   const searchParams = useSearchParams()
   const [participation, setParticipation] = useState(beneficiary.participation)
   const [notes, setNotes] = useState(beneficiary.notes)
-  const [enrollmentStatus, setEnrollmentStatus] = useState(beneficiary.enrollmentStatus)
-  const [noteOpen, setNoteOpen] = useState(false)
+  const enrollmentStatus = beneficiary.enrollmentStatus
   const [assessmentOpen, setAssessmentOpen] = useState(false)
   const [participationOpen, setParticipationOpen] = useState(false)
-  const [statusOpen, setStatusOpen] = useState(false)
+  const [savingParticipation, setSavingParticipation] = useState(false)
+  const participationClientId = useRef<string | null>(null)
   const [selectedAssessment, setSelectedAssessment] = useState<BeneficiaryAssessmentRecord | null>(
     beneficiary.assessments[0] ?? null,
   )
   const [selectedStage, setSelectedStage] = useState<JourneyStageConfig | null>(null)
-  const [noteDraft, setNoteDraft] = useState({
-    stageId: stages[0]?.id ?? '',
-    visibility: 'Project team',
-    note: '',
-  })
   const [participationDraft, setParticipationDraft] = useState({
     activityId: activities[0]?.id ?? '',
     participatedAt: new Date().toISOString().slice(0, 10),
     attendanceStatus: 'Present',
     note: '',
   })
-  const [nextStatus, setNextStatus] = useState<BeneficiaryEnrollmentStatus>(enrollmentStatus)
   const canEditBeneficiary = isUiActionAvailable(role, 'beneficiaries.edit')
+  const canRecordParticipation = isUiActionAvailable(role, 'beneficiaries.participation.record')
 
   const currentStage = useMemo(
     () => deriveCurrentStage(participation, stages, activities),
@@ -128,6 +126,11 @@ export const BeneficiaryDetail = ({
   const selectedStageActivities = selectedStage
     ? activities.filter((activity) => selectedStage.mappedActivityIds.includes(activity.id))
     : []
+  const selectedStageParticipationActivities = selectedStageActivities.filter((activity) =>
+    participationForms.some(
+      (form) => form.activityId === activity.id && form.journeyStageId === selectedStage?.id,
+    ),
+  )
   const selectedStageAssessments = selectedStage
     ? beneficiary.assessments.filter((assessment) => assessment.stageId === selectedStage.id)
     : []
@@ -142,19 +145,20 @@ export const BeneficiaryDetail = ({
       ? requestedReturnTo
       : '/beneficiaries'
 
-  const openNoteForSelectedStage = () => {
-    if (!selectedStage || !canEditBeneficiary) return
-    setNoteDraft((current) => ({ ...current, stageId: selectedStage.id }))
-    setNoteOpen(true)
-  }
-
   const openParticipationForSelectedStage = () => {
-    if (!selectedStage || !canEditBeneficiary || selectedStageActivities.length === 0) return
+    if (
+      !selectedStage ||
+      !canRecordParticipation ||
+      selectedStageParticipationActivities.length === 0
+    )
+      return
     setParticipationDraft((current) => ({
       ...current,
-      activityId: selectedStageActivities.some((activity) => activity.id === current.activityId)
+      activityId: selectedStageParticipationActivities.some(
+        (activity) => activity.id === current.activityId,
+      )
         ? current.activityId
-        : (selectedStageActivities[0]?.id ?? ''),
+        : (selectedStageParticipationActivities[0]?.id ?? ''),
     }))
     setParticipationOpen(true)
   }
@@ -166,27 +170,7 @@ export const BeneficiaryDetail = ({
     setAssessmentOpen(true)
   }
 
-  const addNote = () => {
-    if (!noteDraft.note.trim()) {
-      toast.error('Add a note before saving.')
-      return
-    }
-    if (
-      projects.some(
-        (project) => beneficiary.projectIds.includes(project.id) && project.status === 'Completed',
-      ) &&
-      !window.confirm(
-        'This beneficiary is linked to a completed project. Save the journey note anyway?',
-      )
-    )
-      return
-
-    toast.error(
-      'Beneficiary notes are unavailable until the server-backed write path is available.',
-    )
-  }
-
-  const recordParticipation = () => {
+  const recordParticipation = async () => {
     if (!participationDraft.activityId || !participationDraft.participatedAt) {
       toast.error('Select an activity and date.')
       return
@@ -198,14 +182,47 @@ export const BeneficiaryDetail = ({
       !window.confirm('This project is completed. Record the participation update anyway?')
     )
       return
-
-    toast.error(
-      'Participation entry is unavailable until the server-backed write path is available.',
+    const form = participationForms.find(
+      (candidate) =>
+        candidate.activityId === participationDraft.activityId &&
+        candidate.journeyStageId === selectedStage?.id,
     )
-  }
+    if (!form) {
+      toast.error('No published activity-monitoring form is mapped to this activity and stage.')
+      return
+    }
 
-  const updateStatus = () => {
-    toast.error('Enrollment status changes are unavailable in the current API.')
+    setSavingParticipation(true)
+    try {
+      participationClientId.current ??= crypto.randomUUID()
+      const saved = await pathwaysClient.saveDirectSubmission(
+        projectId,
+        form.id,
+        participationClientId.current,
+        {
+          beneficiary_code: beneficiary.code,
+          participation_date: participationDraft.participatedAt,
+          attendance_status: participationDraft.attendanceStatus.toUpperCase(),
+          progress_status: 'IN_PROGRESS',
+          progress_notes: participationDraft.note.trim() || null,
+        },
+      )
+      if (saved.status === 'DRAFT') {
+        await pathwaysClient.submitDirectSubmission(projectId, form.id, saved.id, saved.updatedAt)
+      }
+      const history = await pathwaysClient.getBeneficiaryJourneyHistory(projectId, beneficiary.id)
+      const nextJourney = mapBeneficiaryJourneyHistory(history)
+      setParticipation(nextJourney.participation)
+      setNotes(nextJourney.notes)
+      setParticipationOpen(false)
+      setParticipationDraft((current) => ({ ...current, note: '' }))
+      participationClientId.current = null
+      toast.success('Participation recorded and reloaded from the project history.')
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Participation could not be recorded.')
+    } finally {
+      setSavingParticipation(false)
+    }
   }
 
   return (
@@ -235,9 +252,9 @@ export const BeneficiaryDetail = ({
           {canEditBeneficiary ? (
             <Button
               aria-label="Update enrollment status"
-              onClick={() => setStatusOpen(true)}
+              disabled
               size="icon"
-              title="Update enrollment status"
+              title="Enrollment status changes are unavailable until transition semantics are approved."
               type="button"
               variant="outline"
             >
@@ -255,7 +272,7 @@ export const BeneficiaryDetail = ({
               <Button asChild size="icon" title="Edit beneficiary profile" variant="outline">
                 <Link
                   aria-label="Edit beneficiary profile"
-                  href={`/beneficiaries/${beneficiary.id}/edit`}
+                  href={`/beneficiaries/${beneficiary.id}/edit?projectId=${encodeURIComponent(projectId)}`}
                 >
                   <Pencil className="h-4 w-4" aria-hidden="true" />
                 </Link>
@@ -434,13 +451,13 @@ export const BeneficiaryDetail = ({
                           </p>
                         </div>
                         <div className="flex shrink-0 flex-wrap gap-2 sm:justify-end">
-                          {canEditBeneficiary ? (
+                          {canRecordParticipation ? (
                             <Button
                               aria-label="Record participation"
-                              disabled={selectedStageActivities.length === 0}
+                              disabled={selectedStageParticipationActivities.length === 0}
                               onClick={openParticipationForSelectedStage}
                               size="icon"
-                              title="Record participation"
+                              title="Record participation through the published activity-monitoring form"
                               type="button"
                             >
                               <ClipboardCheck className="h-4 w-4" aria-hidden="true" />
@@ -460,9 +477,9 @@ export const BeneficiaryDetail = ({
                           {canEditBeneficiary ? (
                             <Button
                               aria-label="Add note"
-                              onClick={openNoteForSelectedStage}
+                              disabled
                               size="icon"
-                              title="Add note"
+                              title="Journey notes remain unavailable until provenance semantics are approved."
                               type="button"
                               variant="outline"
                             >
@@ -517,9 +534,10 @@ export const BeneficiaryDetail = ({
                   activities={activities}
                   beneficiaryId={beneficiary.id}
                   canManage={canEditBeneficiary}
-                  mediaProof={mediaProof}
+                  mediaProof={[]}
                   projectIds={beneficiary.projectIds}
                   projects={projects}
+                  unavailableReason="Beneficiary media remains unavailable until a server-backed upload and review lifecycle is approved."
                 />
               </TabsContent>
 
@@ -535,60 +553,6 @@ export const BeneficiaryDetail = ({
           </section>
         </div>
       </div>
-
-      <Dialog open={noteOpen} onOpenChange={setNoteOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Add beneficiary note</DialogTitle>
-            <DialogDescription>
-              Add context for{' '}
-              {selectedStage ? stageDisplayCode(selectedStage) : 'the selected journey'} ·{' '}
-              {selectedStage?.name ?? 'Journey stage'}.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4">
-            <SummaryRow
-              label="Journey stage context"
-              value={
-                selectedStage
-                  ? `${stageDisplayCode(selectedStage)} · ${selectedStage.name}`
-                  : undefined
-              }
-            />
-            <Textarea
-              aria-label="Beneficiary note"
-              className="min-h-28"
-              placeholder="Note"
-              value={noteDraft.note}
-              onChange={(event) =>
-                setNoteDraft((current) => ({ ...current, note: event.target.value }))
-              }
-            />
-            <Select
-              value={noteDraft.visibility}
-              onValueChange={(value) =>
-                setNoteDraft((current) => ({ ...current, visibility: value }))
-              }
-            >
-              <SelectTrigger aria-label="Note visibility">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="Project team">Project team</SelectItem>
-                <SelectItem value="Internal">Internal</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-          <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => setNoteOpen(false)}>
-              Cancel
-            </Button>
-            <Button onClick={addNote} type="button">
-              Save note
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
 
       <Dialog open={assessmentOpen} onOpenChange={setAssessmentOpen}>
         <DialogContent>
@@ -637,7 +601,7 @@ export const BeneficiaryDetail = ({
                 <SelectValue placeholder="Select activity" />
               </SelectTrigger>
               <SelectContent>
-                {selectedStageActivities.map((activity) => (
+                {selectedStageParticipationActivities.map((activity) => (
                   <SelectItem key={activity.id} value={activity.id}>
                     {activity.title}
                   </SelectItem>
@@ -687,44 +651,20 @@ export const BeneficiaryDetail = ({
             />
           </div>
           <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => setParticipationOpen(false)}>
+            <Button
+              disabled={savingParticipation}
+              type="button"
+              variant="outline"
+              onClick={() => setParticipationOpen(false)}
+            >
               Cancel
             </Button>
-            <Button onClick={recordParticipation} type="button">
-              Save participation
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      <Dialog open={statusOpen} onOpenChange={setStatusOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Update enrollment status</DialogTitle>
-            <DialogDescription>
-              Select the beneficiary&apos;s current enrollment status.
-            </DialogDescription>
-          </DialogHeader>
-          <Select
-            value={nextStatus}
-            onValueChange={(value) => setNextStatus(value as BeneficiaryEnrollmentStatus)}
-          >
-            <SelectTrigger aria-label="Enrollment status">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="Active">Active</SelectItem>
-              <SelectItem value="Pending Review">Pending Review</SelectItem>
-              <SelectItem value="Completed">Completed</SelectItem>
-              <SelectItem value="Exited">Exited</SelectItem>
-            </SelectContent>
-          </Select>
-          <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => setStatusOpen(false)}>
-              Cancel
-            </Button>
-            <Button onClick={updateStatus} type="button">
-              Apply status
+            <Button
+              disabled={savingParticipation}
+              onClick={() => void recordParticipation()}
+              type="button"
+            >
+              {savingParticipation ? 'Saving...' : 'Save participation'}
             </Button>
           </DialogFooter>
         </DialogContent>

@@ -67,8 +67,12 @@ import {
   getMappingReadiness,
   normalizeImportHeader,
 } from './collection-import-state'
+import {
+  type FormDefinitionExportFormat,
+  createFormDefinitionExport,
+} from './form-definition-export'
 
-type ExportFormat = 'csv' | 'xlsx' | 'xls' | 'pdf'
+type ExportFormat = FormDefinitionExportFormat
 
 type CollectionMode = 'scratch' | 'import' | 'extend'
 type CollectionView = 'home' | 'forms' | 'builder' | 'import'
@@ -758,8 +762,31 @@ export const CollectionWorkspace = ({
       setProceedDialogOpen(false)
     }
   }
-  const downloadSavedForm = (_summary: SavedForm) => {
-    toast.error('Form export is unavailable in the current API. No file was generated.')
+  const downloadSavedForm = async (summary: SavedForm) => {
+    if (exportFormat !== 'csv') {
+      toast.error(`${exportFormat.toUpperCase()} form export is unavailable. Choose CSV.`)
+      return
+    }
+    const listed = forms.find((form) => form.id === summary.id)
+    if (!listed) {
+      toast.error('The selected persisted form could not be found.')
+      return
+    }
+    try {
+      const persisted = await pathwaysClient.getDigitalForm(listed.projectId, listed.id)
+      const exported = createFormDefinitionExport(persisted, exportFormat)
+      const url = URL.createObjectURL(new Blob([exported.content], { type: exported.mimeType }))
+      const link = document.createElement('a')
+      link.href = url
+      link.download = exported.fileName
+      document.body.appendChild(link)
+      link.click()
+      link.remove()
+      URL.revokeObjectURL(url)
+      toast.success(`Exported ${persisted.code} version ${persisted.version} as CSV.`)
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'The form could not be exported.')
+    }
   }
   return (
     <div className="space-y-6">
@@ -840,6 +867,7 @@ export const CollectionWorkspace = ({
           {(['csv', 'xlsx', 'xls', 'pdf'] as const).map((f) => (
             <option key={f} value={f}>
               {f.toUpperCase()}
+              {f === 'csv' ? '' : ' (unavailable)'}
             </option>
           ))}
         </select>

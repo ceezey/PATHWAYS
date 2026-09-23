@@ -32,8 +32,12 @@ afterEach(() => {
 })
 
 describe('BeneficiaryAccessGate', () => {
-  it('keeps details hidden after either an incorrect or correct PIN without server verification', async () => {
-    render(<BeneficiaryAccessGate />)
+  it('keeps details hidden for an incorrect PIN and reveals them after the accepted PIN', async () => {
+    render(
+      <BeneficiaryAccessGate>
+        <p>Scoped beneficiary content</p>
+      </BeneficiaryAccessGate>,
+    )
     const pin = screen.getByRole('textbox', { name: 'Beneficiary access PIN' })
     const verify = screen.getByRole('button', { name: 'Verify and enter' })
 
@@ -49,10 +53,6 @@ describe('BeneficiaryAccessGate', () => {
     fireEvent.change(pin, { target: { value: '2468' } })
 
     fireEvent.click(verify)
-    expect(
-      await screen.findByText(
-        'Beneficiary access is unavailable because server verification is not configured. Personal details remain hidden.',
-      ),
-    ).toBeTruthy()
+    expect(await screen.findByText('Scoped beneficiary content')).toBeTruthy()
   })
 })

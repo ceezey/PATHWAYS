@@ -184,6 +184,107 @@ describe('PATHWAYS frontend data boundary', () => {
     )
   })
 
+  it('creates and updates only supported project profile fields through the real API contract', async () => {
+    const authUserId = '73500000-0000-4000-8000-000000000001'
+    const organizationId = '73500000-0000-4000-8000-000000000002'
+    const userId = '73500000-0000-4000-8000-000000000003'
+    const projectId = '73500000-0000-4000-8000-000000000004'
+    const project = {
+      id: projectId,
+      code: 'PRJ-73500000-0000-4000-8000-000000000004',
+      title: 'Persisted project',
+      description: 'Persisted project description.',
+      objectives: 'Persisted project objectives.',
+      implementationArea: 'Navotas',
+      startDate: '2026-10-01',
+      endDate: '2026-12-31',
+      status: 'PLANNED',
+      programId: null,
+      projectManager: 'Synthetic manager',
+      updatedAt: '2026-09-23T00:00:00.000Z',
+    }
+    vi.stubGlobal('window', {})
+    vi.stubGlobal('document', {
+      cookie: `pathways-context=${encodeURIComponent(
+        JSON.stringify({ authUserId, organizationId, userId }),
+      )}`,
+    })
+    browser.getSession.mockResolvedValue({
+      data: { session: { access_token: 'synthetic-access-token', user: { id: authUserId } } },
+      error: null,
+    })
+    const fetcher = vi
+      .fn()
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify(project), {
+          status: 201,
+          headers: { 'Content-Type': 'application/json' },
+        }),
+      )
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ ...project, title: 'Updated project', status: 'ONGOING' }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        }),
+      )
+    vi.stubGlobal('fetch', fetcher)
+
+    await expect(
+      pathwaysClient.createProject({
+        title: project.title,
+        description: project.description,
+        objectives: project.objectives,
+        implementationArea: project.implementationArea,
+        startDate: project.startDate,
+        endDate: project.endDate,
+        status: 'Planned',
+      }),
+    ).resolves.toMatchObject({
+      id: projectId,
+      code: project.code,
+      status: 'Planned',
+      storedStatus: 'PLANNED',
+    })
+    await expect(
+      pathwaysClient.updateProject(projectId, {
+        code: project.code,
+        title: 'Updated project',
+        description: project.description,
+        objectives: project.objectives,
+        implementationArea: project.implementationArea,
+        startDate: project.startDate,
+        endDate: project.endDate,
+        status: 'Active',
+        expectedUpdatedAt: project.updatedAt,
+      }),
+    ).resolves.toMatchObject({ title: 'Updated project', status: 'Active' })
+
+    const createRequest = fetcher.mock.calls[0]?.[1] as RequestInit
+    expect(JSON.parse(String(createRequest.body))).toEqual({
+      title: project.title,
+      description: project.description,
+      objectives: project.objectives,
+      implementationArea: project.implementationArea,
+      startDate: project.startDate,
+      endDate: project.endDate,
+      status: 'PLANNED',
+    })
+    const updateRequest = fetcher.mock.calls[1]?.[1] as RequestInit
+    expect(JSON.parse(String(updateRequest.body))).toEqual({
+      code: project.code,
+      title: 'Updated project',
+      description: project.description,
+      objectives: project.objectives,
+      implementationArea: project.implementationArea,
+      startDate: project.startDate,
+      endDate: project.endDate,
+      status: 'ONGOING',
+      expectedUpdatedAt: project.updatedAt,
+    })
+    expect(fetcher.mock.calls[0]?.[0]).toBe('http://127.0.0.1:4000/api/projects')
+    expect(fetcher.mock.calls[1]?.[0]).toBe(`http://127.0.0.1:4000/api/projects/${projectId}`)
+  })
+
   it('reports unfinished record reads as explicitly not configured', async () => {
     await expect(pathwaysClient.getPublicProject('project-id')).rejects.toBeInstanceOf(
       PathwaysClientError,
@@ -241,6 +342,55 @@ describe('PATHWAYS frontend data boundary', () => {
         { fieldCode: 'score', code: 'above_maximum', message: 'Score is above its maximum.' },
       ],
     })
+  })
+
+  it('uses the scoped paginated draft-list and persisted-submission routes', async () => {
+    const authUserId = '74100000-0000-4000-8000-000000000001'
+    const organizationId = '74100000-0000-4000-8000-000000000002'
+    const userId = '74100000-0000-4000-8000-000000000003'
+    const projectId = '74100000-0000-4000-8000-000000000004'
+    const formId = '74100000-0000-4000-8000-000000000005'
+    const submissionId = '74100000-0000-4000-8000-000000000006'
+    vi.stubGlobal('window', {})
+    vi.stubGlobal('document', {
+      cookie: `pathways-context=${encodeURIComponent(JSON.stringify({ authUserId, organizationId, userId }))}`,
+    })
+    browser.getSession.mockResolvedValue({
+      data: { session: { access_token: 'synthetic-access-token', user: { id: authUserId } } },
+      error: null,
+    })
+    const fetcher = vi
+      .fn()
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ offset: 5, limit: 5, total: 6, items: [] }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        }),
+      )
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            id: submissionId,
+            status: 'DRAFT',
+            formId,
+            formVersion: 1,
+            updatedAt: '2026-09-23T00:00:00.000Z',
+            values: { score: 42 },
+          }),
+          { status: 200, headers: { 'Content-Type': 'application/json' } },
+        ),
+      )
+    vi.stubGlobal('fetch', fetcher)
+
+    await pathwaysClient.listDirectSubmissions(projectId, formId, 5, 5)
+    await pathwaysClient.getDirectSubmission(projectId, formId, submissionId)
+
+    expect(fetcher.mock.calls[0]?.[0]).toBe(
+      `http://127.0.0.1:4000/api/metadata/projects/${projectId}/forms/${formId}/submissions?offset=5&limit=5`,
+    )
+    expect(fetcher.mock.calls[1]?.[0]).toBe(
+      `http://127.0.0.1:4000/api/metadata/projects/${projectId}/forms/${formId}/submissions/${submissionId}`,
+    )
   })
 
   it('sends imports as authenticated multipart data without overriding the boundary header', async () => {

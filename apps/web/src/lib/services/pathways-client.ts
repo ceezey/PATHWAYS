@@ -17,6 +17,7 @@ import type {
   CreateProjectInput,
   DigitalFormDefinition,
   DirectFormSubmission,
+  DirectFormSubmissionPage,
   EnrollmentJourneyEventInput,
   EvaluationRecord,
   EvidenceRecord,
@@ -51,6 +52,7 @@ import type {
   UpdateAuthorizedUserInput,
   UpdateBeneficiaryInput,
   UpdateMilestoneInput,
+  UpdateProjectInput,
   UserRecord,
 } from '@/types/pathways'
 import type { PathwaysRole } from '@/types/pathways-role'
@@ -93,6 +95,7 @@ export interface PathwaysClient {
   getProjectsForRole(role: PathwaysRole): Promise<ProjectSummary[]>
   getProject(id: string): Promise<ProjectDetail>
   createProject(input: CreateProjectInput): Promise<ProjectDetail>
+  updateProject(id: string, input: UpdateProjectInput): Promise<ProjectDetail>
   updateProjectPeriod(id: string, endDate: string): Promise<ProjectDetail>
   getActivities(projectId: string): Promise<Activity[]>
   getActivity(projectId: string, activityId: string): Promise<Activity>
@@ -236,6 +239,17 @@ export interface PathwaysClient {
     clientSubmissionId: string,
     values: Record<string, unknown>,
   ): Promise<DirectFormSubmission>
+  listDirectSubmissions(
+    projectId: string,
+    formId: string,
+    offset?: number,
+    limit?: number,
+  ): Promise<DirectFormSubmissionPage>
+  getDirectSubmission(
+    projectId: string,
+    formId: string,
+    submissionId: string,
+  ): Promise<DirectFormSubmission>
   getDirectSubmissionByClientId(
     projectId: string,
     formId: string,
@@ -323,16 +337,20 @@ class BackendReadyPathwaysClient implements PathwaysClient {
   }
 
   async createProject(input: CreateProjectInput): Promise<ProjectDetail> {
-    const status = {
-      Active: 'ONGOING',
-      'Needs Attention': 'ON_HOLD',
-      Planned: 'PLANNED',
-      Completed: 'COMPLETED',
-    }[input.status]
+    const status = apiProjectStatus(input.status)
     return mapProject(
       (await requestFoundation('/projects', {
         method: 'POST',
         body: JSON.stringify({ ...input, status }),
+      })) as ApiProject,
+    )
+  }
+
+  async updateProject(id: string, input: UpdateProjectInput): Promise<ProjectDetail> {
+    return mapProject(
+      (await requestFoundation(`/projects/${encodeURIComponent(id)}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ ...input, status: apiProjectStatus(input.status) }),
       })) as ApiProject,
     )
   }
@@ -932,6 +950,18 @@ class BackendReadyPathwaysClient implements PathwaysClient {
     ) as Promise<DirectFormSubmission>
   }
 
+  async listDirectSubmissions(projectId: string, formId: string, offset = 0, limit = 10) {
+    return requestFoundation(
+      `/metadata/projects/${encodeURIComponent(projectId)}/forms/${encodeURIComponent(formId)}/submissions?offset=${encodeURIComponent(offset)}&limit=${encodeURIComponent(limit)}`,
+    ) as Promise<DirectFormSubmissionPage>
+  }
+
+  async getDirectSubmission(projectId: string, formId: string, submissionId: string) {
+    return requestFoundation(
+      `/metadata/projects/${encodeURIComponent(projectId)}/forms/${encodeURIComponent(formId)}/submissions/${encodeURIComponent(submissionId)}`,
+    ) as Promise<DirectFormSubmission>
+  }
+
   async getDirectSubmissionByClientId(
     projectId: string,
     formId: string,
@@ -1172,6 +1202,21 @@ interface ApiProject {
   updatedAt: string
 }
 
+function apiProjectStatus(status: ProjectStatus | ApiProject['status']): ApiProject['status'] {
+  switch (status) {
+    case 'Active':
+      return 'ONGOING'
+    case 'Needs Attention':
+      return 'ON_HOLD'
+    case 'Planned':
+      return 'PLANNED'
+    case 'Completed':
+      return 'COMPLETED'
+    default:
+      return status
+  }
+}
+
 interface ApiUser {
   id: string
   authUserId: string | null
@@ -1349,6 +1394,7 @@ function mapProject(project: ApiProject): ProjectDetail {
     area: project.implementationArea ?? 'Area not recorded',
     sector: 'Sector not recorded',
     status,
+    storedStatus: project.status,
     health: status === 'Needs Attention' ? 'At Risk' : 'On Track',
     period,
     projectManager: project.projectManager ?? 'Not assigned',
@@ -1414,6 +1460,18 @@ function mapBeneficiary(row: ApiBeneficiary): BeneficiaryRecord {
     [row.locationBarangay, row.locationCityMunicipality, row.locationProvince]
       .filter(Boolean)
       .join(', ') || 'Not recorded'
+  const ageGroup =
+    row.ageAtRegistration === null
+      ? 'Unknown'
+      : row.ageAtRegistration <= 9
+        ? '0-9'
+        : row.ageAtRegistration <= 14
+          ? '10-14'
+          : row.ageAtRegistration <= 17
+            ? '15-17'
+            : row.ageAtRegistration <= 24
+              ? '18-24'
+              : '25+'
   return {
     id: row.id,
     code: row.code,
@@ -1422,6 +1480,7 @@ function mapBeneficiary(row: ApiBeneficiary): BeneficiaryRecord {
     projectIds: [row.projectId],
     location,
     sex: sex[row.sex],
+    ageGroup,
     disabilityStatus: disability[row.disabilityStatus],
     enrollmentStatus,
     firstName: row.firstName ?? '',

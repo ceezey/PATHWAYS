@@ -2,7 +2,7 @@
 
 import { ArrowLeft, KeyRound, Loader2, RotateCcw } from 'lucide-react'
 import { useRouter } from 'next/navigation'
-import { useEffect, useRef, useState } from 'react'
+import { type ReactNode, useEffect, useRef, useState } from 'react'
 
 import { DialogShell } from '@/components/pathways/dialog-shell'
 import { Button } from '@/components/ui/button'
@@ -10,10 +10,10 @@ import { Dialog } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 
-export const BeneficiaryAccessGate = () => {
+export const BeneficiaryAccessGate = ({ children }: { children: ReactNode }) => {
   const router = useRouter()
   const [pin, setPin] = useState('')
-  const [status, setStatus] = useState<'idle' | 'loading' | 'error' | 'locked'>('idle')
+  const [status, setStatus] = useState<'idle' | 'loading' | 'error' | 'unlocked'>('idle')
   const [message, setMessage] = useState('Enter your beneficiary-module access PIN.')
   const verifyButtonRef = useRef<HTMLButtonElement>(null)
 
@@ -39,10 +39,7 @@ export const BeneficiaryAccessGate = () => {
         setPin('')
         return
       }
-      setStatus('locked')
-      setMessage(
-        'Beneficiary access is unavailable because server verification is not configured. Personal details remain hidden.',
-      )
+      setStatus('unlocked')
     } catch {
       setStatus('error')
       setMessage(
@@ -51,12 +48,16 @@ export const BeneficiaryAccessGate = () => {
     }
   }
 
+  if (status === 'unlocked') {
+    return children
+  }
+
   return (
     <div className="flex min-h-[70vh] items-center justify-center p-6">
       <Dialog open onOpenChange={(open) => !open && router.push('/dashboard')}>
         <DialogShell
           title="Verify beneficiary module access"
-          description="Sensitive beneficiary records remain hidden until server verification is available."
+          description="This local PIN gate follows the successful server route check. API authorization remains authoritative for every request."
         >
           <div className="space-y-5">
             <output
@@ -84,8 +85,8 @@ export const BeneficiaryAccessGate = () => {
                 }}
               />
               <p className="text-xs text-muted-foreground">
-                The temporary PIN is 2468. Personal details remain hidden until server verification
-                is available.
+                The temporary PIN is 2468. It only opens this interface; it does not grant server
+                access or bypass project and role checks.
               </p>
             </div>
             <div className="flex flex-col gap-2 sm:flex-row sm:justify-end">
@@ -107,7 +108,7 @@ export const BeneficiaryAccessGate = () => {
               </Button>
               <Button
                 ref={verifyButtonRef}
-                disabled={pin.length < 4 || status === 'loading' || status === 'locked'}
+                disabled={pin.length < 4 || status === 'loading'}
                 onClick={verify}
                 type="button"
               >

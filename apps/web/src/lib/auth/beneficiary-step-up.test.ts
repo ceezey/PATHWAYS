@@ -21,13 +21,20 @@ afterEach(() => {
 })
 
 describe('beneficiary PIN boundary', () => {
-  it('does not create browser-local access after the PIN 2468 is entered', async () => {
-    render(createElement(BeneficiaryAccessGate))
+  it('opens only the current UI boundary and stores no browser-local authorization', async () => {
+    render(
+      createElement(
+        BeneficiaryAccessGate,
+        null,
+        createElement('p', null, 'Authorized server-scoped content'),
+      ),
+    )
     fireEvent.change(screen.getByRole('textbox', { name: 'Beneficiary access PIN' }), {
       target: { value: '2468' },
     })
     fireEvent.click(screen.getByRole('button', { name: 'Verify and enter' }))
-    expect(await screen.findByText(/server verification is not configured/)).toBeTruthy()
+    expect(await screen.findByText('Authorized server-scoped content')).toBeTruthy()
     expect(window.sessionStorage.length).toBe(0)
+    expect(window.localStorage.length).toBe(0)
   })
 })

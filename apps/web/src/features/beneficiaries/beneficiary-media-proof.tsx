@@ -70,6 +70,7 @@ export const BeneficiaryMediaProof = ({
   mediaProof,
   projectIds,
   projects,
+  unavailableReason,
 }: {
   activities: Activity[]
   beneficiaryId: string
@@ -77,7 +78,9 @@ export const BeneficiaryMediaProof = ({
   mediaProof: BeneficiaryMediaProofRecord[]
   projectIds: string[]
   projects: ProjectSummary[]
+  unavailableReason?: string
 }) => {
+  const writesAvailable = canManage && !unavailableReason
   const [mediaItems, setMediaItems] = useState<MediaProofWithPreview[]>(mediaProof)
   const [filter, setFilter] = useState<MediaFilter>('All')
   const [addOpen, setAddOpen] = useState(false)
@@ -234,7 +237,13 @@ export const BeneficiaryMediaProof = ({
             </p>
           </div>
           {canManage ? (
-            <Button className="w-full gap-2 sm:w-auto" onClick={openAddDialog} type="button">
+            <Button
+              className="w-full gap-2 sm:w-auto"
+              disabled={!writesAvailable}
+              onClick={openAddDialog}
+              title={unavailableReason}
+              type="button"
+            >
               <UploadCloud className="h-4 w-4" aria-hidden="true" />
               Add media
             </Button>
@@ -242,7 +251,7 @@ export const BeneficiaryMediaProof = ({
         </div>
         <div className="mt-4 flex items-start gap-3 rounded-sm border border-info/25 bg-info-subtle p-3 text-xs leading-5 text-info">
           <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
-          <p>Selected files are review-only and are not published.</p>
+          <p>{unavailableReason ?? 'Selected files are review-only and are not published.'}</p>
         </div>
       </div>
 
@@ -276,7 +285,7 @@ export const BeneficiaryMediaProof = ({
             {visibleMedia.map((item) => (
               <MediaProofCard
                 activities={activities}
-                canManage={canManage}
+                canManage={writesAvailable}
                 item={item}
                 key={item.id}
                 onReview={() => openReview(item)}
@@ -288,12 +297,20 @@ export const BeneficiaryMediaProof = ({
           <EmptyState
             action={
               canManage ? (
-                <Button onClick={openAddDialog} type="button" variant="outline">
+                <Button
+                  disabled={!writesAvailable}
+                  onClick={openAddDialog}
+                  title={unavailableReason}
+                  type="button"
+                  variant="outline"
+                >
                   Add media
                 </Button>
               ) : undefined
             }
-            description={`Add a ${filter.toLowerCase()} to this beneficiary record.`}
+            description={
+              unavailableReason ?? `Add a ${filter.toLowerCase()} to this beneficiary record.`
+            }
             icon={filter === 'Video' ? Video : Camera}
             title={`No ${filter.toLowerCase()} proof items`}
           />

@@ -2,8 +2,9 @@
 
 import { ArrowLeft, Save } from 'lucide-react'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import type { FormEvent } from 'react'
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { toast } from 'sonner'
 
 import { StatusBadge } from '@/components/pathways/status-badge'
@@ -25,6 +26,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import { pathwaysClient } from '@/lib/services/pathways-client'
 import type { BeneficiaryRecord, ProjectSummary } from '@/types/pathways'
 
 type BeneficiaryDraft = {
@@ -65,6 +67,30 @@ const initialDraft: BeneficiaryDraft = {
   projectId: '',
 }
 const beneficiaryDraftStorageKey = 'pathways.beneficiaryDraft'
+
+const beneficiarySexValue = (value: string) => {
+  const values = {
+    Female: 'FEMALE',
+    Male: 'MALE',
+    Other: 'OTHER',
+    'Prefer not to say': 'PREFER_NOT_TO_SAY',
+    'Not specified': 'NOT_SPECIFIED',
+  } as const
+  const mapped = values[value as keyof typeof values]
+  if (!mapped) throw new Error('Select a supported sex value.')
+  return mapped
+}
+
+const beneficiaryDisabilityValue = (value: string) => {
+  const values = {
+    'With disability': 'WITH_DISABILITY',
+    'Without disability': 'WITHOUT_DISABILITY',
+    'Not specified': 'NOT_SPECIFIED',
+  } as const
+  const mapped = values[value as keyof typeof values]
+  if (!mapped) throw new Error('Select a supported disability status.')
+  return mapped
+}
 
 const draftFromBeneficiary = (
   beneficiary: BeneficiaryRecord,
@@ -140,6 +166,7 @@ export const BeneficiaryForm = ({
   projects: ProjectSummary[]
   beneficiary?: BeneficiaryRecord
 }) => {
+  const router = useRouter()
   const startingDraft = useMemo(
     () => (beneficiary ? draftFromBeneficiary(beneficiary, projects) : initialDraft),
     [beneficiary, projects],
@@ -152,6 +179,8 @@ export const BeneficiaryForm = ({
   const [draftRecovered, setDraftRecovered] = useState(false)
   const [submitted, setSubmitted] = useState(false)
   const [confirmOpen, setConfirmOpen] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const clientRegistrationId = useRef<string | null>(null)
 
   useEffect(() => {
     setDraft(startingDraft)
@@ -225,19 +254,19 @@ export const BeneficiaryForm = ({
     if (!draft.barangay.trim()) {
       issues.push({ field: 'barangay', message: 'Enter a barangay.' })
     }
-    if (!draft.consentToParticipate) {
+    if (!beneficiary && !draft.consentToParticipate) {
       issues.push({
         field: 'consentToParticipate',
         message: 'Confirm beneficiary consent to participate.',
       })
     }
-    if (!draft.consentToStoreData) {
+    if (!beneficiary && !draft.consentToStoreData) {
       issues.push({
         field: 'consentToStoreData',
         message: 'Confirm consent to store beneficiary data.',
       })
     }
-    if (draft.isMinor && !draft.guardianConsent) {
+    if (!beneficiary && draft.isMinor && !draft.guardianConsent) {
       issues.push({
         field: 'guardianConsent',
         message: 'Confirm guardian consent for a beneficiary marked as a minor.',
@@ -245,7 +274,7 @@ export const BeneficiaryForm = ({
     }
 
     return issues
-  }, [draft])
+  }, [beneficiary, draft])
 
   const fieldErrors = useMemo(
     () =>
@@ -281,10 +310,93 @@ export const BeneficiaryForm = ({
     setConfirmOpen(true)
   }
 
-  const confirmSave = () => {
-    toast.error(
-      'Beneficiary changes are unavailable until server-side PIN verification and the matching write contract are available. No record was saved.',
-    )
+  const confirmSave = async () => {
+    if (saving) return
+    setSaving(true)
+
+    try {
+      if (beneficiary) {
+        if (beneficiary.subjectType !== 'INDIVIDUAL') {
+          throw new Error(
+            'This editor supports individual beneficiary profiles. Group and community corrections remain unavailable.',
+          )
+        }
+        const saved = await pathwaysClient.updateBeneficiary(draft.projectId, beneficiary.id, {
+          subjectType: beneficiary.subjectType,
+          displayName: [draft.firstName, draft.middleName, draft.lastName]
+            .map((part) => part.trim())
+            .filter(Boolean)
+            .join(' '),
+          firstName: draft.firstName.trim(),
+          middleName: draft.middleName.trim() || undefined,
+          lastName: draft.lastName.trim(),
+          sex: beneficiarySexValue(draft.sex),
+          birthDate: draft.birthDate || undefined,
+          ageAtRegistration: draft.age ? Number(draft.age) : undefined,
+          disabilityStatus: beneficiaryDisabilityValue(draft.disabilityStatus),
+          locationBarangay: draft.barangay.trim(),
+          locationCityMunicipality: draft.city.trim(),
+          locationProvince: draft.province.trim(),
+          expectedUpdatedAt: beneficiary.updatedAt,
+        })
+        window.sessionStorage.removeItem(draftStorageKey)
+        setConfirmOpen(false)
+        toast.success('Beneficiary profile updated.')
+        router.push(`/beneficiaries/${saved.id}?projectId=${encodeURIComponent(draft.projectId)}`)
+        return
+      }
+
+      const forms = await pathwaysClient.getDigitalForms(draft.projectId)
+      const registrationForm = forms
+        .filter(
+          (form) => form.formType === 'BENEFICIARY_REGISTRATION' && form.status === 'PUBLISHED',
+        )
+        .sort((first, second) => second.version - first.version)[0]
+      if (!registrationForm) {
+        throw new Error('No published beneficiary registration form is available for this project.')
+      }
+      clientRegistrationId.current ??= crypto.randomUUID()
+      const saved = await pathwaysClient.registerBeneficiary(draft.projectId, {
+        formId: registrationForm.id,
+        clientRegistrationId: clientRegistrationId.current,
+        values: {
+          registration_operation: 'CREATE',
+          beneficiary_code: draft.code.trim().toUpperCase(),
+          subject_type: 'INDIVIDUAL',
+          display_name: [draft.firstName, draft.middleName, draft.lastName]
+            .map((part) => part.trim())
+            .filter(Boolean)
+            .join(' '),
+          first_name: draft.firstName.trim(),
+          middle_name: draft.middleName.trim() || null,
+          last_name: draft.lastName.trim(),
+          sex: beneficiarySexValue(draft.sex),
+          birth_date: draft.birthDate || null,
+          age_at_registration: draft.age ? Number(draft.age) : null,
+          disability_status: beneficiaryDisabilityValue(draft.disabilityStatus),
+          location_barangay: draft.barangay.trim(),
+          location_city_municipality: draft.city.trim(),
+          location_province: draft.province.trim(),
+          consent_recorded: draft.consentToParticipate,
+          data_processing_consent_recorded: draft.consentToStoreData,
+          is_minor: draft.isMinor,
+          guardian_consent_recorded: draft.guardianConsent,
+          enrollment_date: new Date().toISOString().slice(0, 10),
+          external_identifier_type: null,
+          external_identifier_value: null,
+          profile_update_fields: null,
+        },
+      })
+      window.sessionStorage.removeItem(draftStorageKey)
+      setConfirmOpen(false)
+      clientRegistrationId.current = null
+      toast.success('Beneficiary registered.')
+      router.push(`/beneficiaries/${saved.id}?projectId=${encodeURIComponent(draft.projectId)}`)
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'The beneficiary could not be saved.')
+    } finally {
+      setSaving(false)
+    }
   }
 
   return (
@@ -303,7 +415,13 @@ export const BeneficiaryForm = ({
           </div>
         </div>
         <Button asChild variant="outline">
-          <Link href={beneficiary ? `/beneficiaries/${beneficiary.id}` : '/beneficiaries'}>
+          <Link
+            href={
+              beneficiary
+                ? `/beneficiaries/${beneficiary.id}?projectId=${encodeURIComponent(draft.projectId)}`
+                : '/beneficiaries'
+            }
+          >
             <ArrowLeft className="mr-2 h-4 w-4" aria-hidden="true" />
             {beneficiary ? 'Back to profile' : 'Back to directory'}
           </Link>
@@ -344,6 +462,7 @@ export const BeneficiaryForm = ({
                 aria-required="true"
                 {...controlA11y('code')}
                 value={draft.code}
+                disabled={Boolean(beneficiary)}
                 onChange={(event) => updateDraft('code', event.target.value)}
               />
             </Field>
@@ -355,6 +474,7 @@ export const BeneficiaryForm = ({
             >
               <Select
                 value={draft.projectId}
+                disabled={Boolean(beneficiary)}
                 onValueChange={(value) => updateDraft('projectId', value)}
               >
                 <SelectTrigger aria-required="true" {...controlA11y('projectId')}>
@@ -415,7 +535,9 @@ export const BeneficiaryForm = ({
                 <SelectContent>
                   <SelectItem value="Female">Female</SelectItem>
                   <SelectItem value="Male">Male</SelectItem>
+                  <SelectItem value="Other">Other</SelectItem>
                   <SelectItem value="Prefer not to say">Prefer not to say</SelectItem>
+                  <SelectItem value="Not specified">Not specified</SelectItem>
                 </SelectContent>
               </Select>
             </Field>
@@ -465,7 +587,7 @@ export const BeneficiaryForm = ({
                 <SelectContent>
                   <SelectItem value="With disability">With disability</SelectItem>
                   <SelectItem value="Without disability">Without disability</SelectItem>
-                  <SelectItem value="Not disclosed">Not disclosed</SelectItem>
+                  <SelectItem value="Not specified">Not specified</SelectItem>
                 </SelectContent>
               </Select>
             </Field>
@@ -513,6 +635,7 @@ export const BeneficiaryForm = ({
           <div className="grid gap-3 rounded-sm border border-border bg-surface-subtle p-4 md:grid-cols-2">
             <ToggleField
               checked={draft.consentToParticipate}
+              disabled={Boolean(beneficiary)}
               error={submitted ? fieldErrors.consentToParticipate : undefined}
               id={fieldIds.consentToParticipate}
               label="Beneficiary consent confirmed"
@@ -521,6 +644,7 @@ export const BeneficiaryForm = ({
             />
             <ToggleField
               checked={draft.consentToStoreData}
+              disabled={Boolean(beneficiary)}
               error={submitted ? fieldErrors.consentToStoreData : undefined}
               id={fieldIds.consentToStoreData}
               label="Data storage consent confirmed"
@@ -529,18 +653,26 @@ export const BeneficiaryForm = ({
             />
             <ToggleField
               checked={draft.isMinor}
+              disabled={Boolean(beneficiary)}
               id="beneficiary-is-minor"
               label="Beneficiary is a minor"
               onChange={(checked) => updateDraft('isMinor', checked)}
             />
             <ToggleField
               checked={draft.guardianConsent}
+              disabled={Boolean(beneficiary)}
               error={submitted ? fieldErrors.guardianConsent : undefined}
               id={fieldIds.guardianConsent}
               label="Guardian consent confirmed"
               onChange={(checked) => updateDraft('guardianConsent', checked)}
               required={draft.isMinor}
             />
+            {beneficiary ? (
+              <p className="text-sm leading-6 text-muted-foreground md:col-span-2">
+                Consent and minor-status provenance are read only in this profile editor. The
+                accepted profile update contract does not replace those recorded facts.
+              </p>
+            ) : null}
           </div>
 
           {submitted && validationIssues.length > 0 ? (
@@ -573,7 +705,7 @@ export const BeneficiaryForm = ({
           ) : null}
 
           <div className="flex justify-end">
-            <Button type="submit">
+            <Button disabled={saving} type="submit">
               <Save className="mr-2 h-4 w-4" aria-hidden="true" />
               {beneficiary ? 'Save changes' : 'Save beneficiary'}
             </Button>
@@ -625,11 +757,16 @@ export const BeneficiaryForm = ({
             </p>
           </div>
           <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => setConfirmOpen(false)}>
+            <Button
+              disabled={saving}
+              type="button"
+              variant="outline"
+              onClick={() => setConfirmOpen(false)}
+            >
               Cancel
             </Button>
-            <Button onClick={confirmSave} type="button">
-              {beneficiary ? 'Save changes' : 'Save beneficiary'}
+            <Button disabled={saving} onClick={() => void confirmSave()} type="button">
+              {saving ? 'Saving...' : beneficiary ? 'Save changes' : 'Save beneficiary'}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -676,6 +813,7 @@ const Field = ({
 
 const ToggleField = ({
   checked,
+  disabled = false,
   error,
   id,
   label,
@@ -683,6 +821,7 @@ const ToggleField = ({
   required = false,
 }: {
   checked: boolean
+  disabled?: boolean
   error?: string
   id: string
   label: string
@@ -701,6 +840,7 @@ const ToggleField = ({
         checked={checked}
         className="h-4 w-4 rounded border-border focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
         id={id}
+        disabled={disabled}
         onChange={(event) => onChange(event.target.checked)}
         type="checkbox"
       />

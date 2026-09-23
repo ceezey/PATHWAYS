@@ -24,6 +24,7 @@ import { ProjectWorkspaceHeader } from './project-workspace-header'
 
 export const ProjectDetailView = ({ projectId }: { projectId: string }) => {
   const { role } = useCurrentRole()
+  const canManageProjectProfile = isUiActionAvailable(role, 'projects.profile.manage')
   const canManageProjectTeam = isUiActionAvailable(role, 'projects.team.manage')
   const [project, setProject] = useState<ProjectDetail | null>(null)
   const [status, setStatus] = useState<'loading' | 'success' | 'not-found' | 'error'>('loading')
@@ -133,7 +134,13 @@ export const ProjectDetailView = ({ projectId }: { projectId: string }) => {
             </Button>
             {role ? (
               <>
-                {
+                {canManageProjectProfile ? (
+                  <Button asChild size="icon" variant="outline">
+                    <Link aria-label="Edit project profile" href={`/projects/${project.id}/edit`}>
+                      <Pencil className="h-4 w-4" aria-hidden="true" />
+                    </Link>
+                  </Button>
+                ) : (
                   <Button
                     disabled
                     size="icon"
@@ -143,7 +150,7 @@ export const ProjectDetailView = ({ projectId }: { projectId: string }) => {
                   >
                     <Pencil className="h-4 w-4" aria-hidden="true" />
                   </Button>
-                }
+                )}
                 <Button
                   disabled
                   aria-label="Archive project"

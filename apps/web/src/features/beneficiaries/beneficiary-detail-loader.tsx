@@ -11,20 +11,22 @@ import { pathwaysClient } from '@/lib/services/pathways-client'
 import { PathwaysClientError } from '@/lib/services/pathways-client'
 import type {
   Activity,
-  BeneficiaryMediaProofRecord,
   BeneficiaryRecord,
+  DigitalFormDefinition,
   JourneyStageConfig,
   ProjectSummary,
 } from '@/types/pathways'
 
 import { BeneficiaryDetail } from './beneficiary-detail'
+import { mapBeneficiaryJourneyHistory } from './beneficiary-journey-adapter'
 
 type DetailData = {
   beneficiary: BeneficiaryRecord
   projects: ProjectSummary[]
   activities: Activity[]
   stages: JourneyStageConfig[]
-  mediaProof: BeneficiaryMediaProofRecord[]
+  participationForms: DigitalFormDefinition[]
+  projectId: string
 }
 
 type DetailState =
@@ -34,7 +36,13 @@ type DetailState =
   | { status: 'unavailable' }
   | { status: 'error' }
 
-export const BeneficiaryDetailLoader = ({ beneficiaryId }: { beneficiaryId: string }) => {
+export const BeneficiaryDetailLoader = ({
+  beneficiaryId,
+  projectId,
+}: {
+  beneficiaryId: string
+  projectId?: string
+}) => {
   const { role } = useCurrentRole()
   const [state, setState] = useState<DetailState>({ status: 'loading' })
   const [loadAttempt, setLoadAttempt] = useState(0)
@@ -51,38 +59,46 @@ export const BeneficiaryDetailLoader = ({ beneficiaryId }: { beneficiaryId: stri
       try {
         const projects = await pathwaysClient.getProjectsForRole(verifiedRole)
         let beneficiary: BeneficiaryRecord | undefined
-        for (const project of projects) {
+        const candidateProjects = projectId
+          ? projects.filter((project) => project.id === projectId)
+          : projects
+        let scopedProjectId: string | undefined
+        for (const project of candidateProjects) {
           try {
             beneficiary = await pathwaysClient.getBeneficiaryRecordForRole(
               verifiedRole,
               project.id,
               beneficiaryId,
             )
+            scopedProjectId = project.id
             break
           } catch (error) {
             if (!(error instanceof PathwaysClientError && error.code === 'not_found')) throw error
           }
         }
-        if (!beneficiary) throw new PathwaysClientError('Beneficiary not found.', 'not_found')
-        const [mediaProof, activityGroups, stageGroups] = await Promise.all([
-          pathwaysClient.getBeneficiaryMediaProofForRole(verifiedRole, beneficiaryId),
-          Promise.all(
-            beneficiary.projectIds.map((projectId) => pathwaysClient.getActivities(projectId)),
-          ),
-          Promise.all(
-            beneficiary.projectIds.map((projectId) => pathwaysClient.getJourneyStages(projectId)),
-          ),
+        if (!beneficiary || !scopedProjectId) {
+          throw new PathwaysClientError('Beneficiary not found.', 'not_found')
+        }
+        const [activities, stages, history, forms] = await Promise.all([
+          pathwaysClient.getActivities(scopedProjectId),
+          pathwaysClient.getJourneyStages(scopedProjectId),
+          pathwaysClient.getBeneficiaryJourneyHistory(scopedProjectId, beneficiaryId),
+          pathwaysClient.getDigitalForms(scopedProjectId),
         ])
+        const journey = mapBeneficiaryJourneyHistory(history)
 
         if (active) {
           setState({
             status: 'ready',
             data: {
-              beneficiary,
+              beneficiary: { ...beneficiary, ...journey },
               projects,
-              mediaProof,
-              activities: activityGroups.flat(),
-              stages: stageGroups.flat(),
+              projectId: scopedProjectId,
+              participationForms: forms.filter(
+                (form) => form.formType === 'ACTIVITY_MONITORING' && form.status === 'PUBLISHED',
+              ),
+              activities,
+              stages,
             },
           })
         }
@@ -106,7 +122,7 @@ export const BeneficiaryDetailLoader = ({ beneficiaryId }: { beneficiaryId: stri
     return () => {
       active = false
     }
-  }, [beneficiaryId, loadAttempt, role])
+  }, [beneficiaryId, loadAttempt, projectId, role])
 
   if (state.status === 'loading') {
     return (

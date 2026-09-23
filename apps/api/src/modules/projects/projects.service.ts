@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto'
 import {
   BadRequestException,
   ConflictException,
@@ -50,12 +51,12 @@ function mapProject(project: Prisma.ProjectGetPayload<{ select: typeof projectSe
   }
 }
 
-function projectData(input: CreateProjectDto) {
+function projectData(input: CreateProjectDto, code: string) {
   if (input.startDate && input.endDate && input.endDate < input.startDate) {
     throw new BadRequestException('End date must not precede start date.')
   }
   return {
-    code: input.code,
+    code,
     title: input.title,
     description: input.description?.trim() || null,
     objectives: input.objectives?.trim() || null,
@@ -116,10 +117,12 @@ export class ProjectsService {
       if (!['SYSTEM_ADMINISTRATOR', 'PROJECT_MANAGER'].includes(actor.roles[0])) {
         throw new ForbiddenException('Project creation is outside your authority.')
       }
-      const data = projectData(input)
+      const id = randomUUID()
+      const code = input.code ?? `PRJ-${id.toUpperCase()}`
+      const data = projectData(input, code)
       await this.requireProgram(tx, actor.organizationId, data.programId)
       const created = await tx.project.create({
-        data: { ...data, organizationId: actor.organizationId, createdById: actor.userId },
+        data: { id, ...data, organizationId: actor.organizationId, createdById: actor.userId },
         select: { id: true },
       })
       if (actor.roles[0] === 'PROJECT_MANAGER') {
@@ -140,7 +143,7 @@ export class ProjectsService {
           action: 'PROJECT_CREATED',
           entityType: 'Project',
           entityId: created.id,
-          changes: { code: input.code, status: input.status },
+          changes: { code, status: input.status },
         },
       })
       const result = await tx.project.findUniqueOrThrow({
@@ -157,14 +160,14 @@ export class ProjectsService {
       if (!UUID_PATTERN.test(projectId)) throw new NotFoundException('Project unavailable.')
       const current = await tx.project.findFirst({
         where: { AND: [projectScope(actor), { id: projectId.toLowerCase() }] },
-        select: { id: true, updatedAt: true },
+        select: { id: true, code: true, updatedAt: true },
       })
       if (!current) throw new NotFoundException('Project unavailable.')
       const expected = new Date(input.expectedUpdatedAt)
       if (Number.isNaN(expected.valueOf()) || current.updatedAt.valueOf() !== expected.valueOf()) {
         throw new ConflictException('Project changed; reload before saving.')
       }
-      const data = projectData(input)
+      const data = projectData(input, input.code ?? current.code)
       await this.requireProgram(tx, actor.organizationId, data.programId)
       const changed = await tx.project.updateMany({
         where: { id: current.id, organizationId: actor.organizationId, updatedAt: expected },
@@ -179,7 +182,7 @@ export class ProjectsService {
           action: 'PROJECT_UPDATED',
           entityType: 'Project',
           entityId: current.id,
-          changes: { code: input.code, status: input.status },
+          changes: { code: data.code, status: input.status },
         },
       })
       const result = await tx.project.findUniqueOrThrow({

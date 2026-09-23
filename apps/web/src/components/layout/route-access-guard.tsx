@@ -138,7 +138,7 @@ export function RouteAccessGuard({ children }: { children: React.ReactNode }) {
       </section>
     )
   if (pathname === '/beneficiaries' || pathname.startsWith('/beneficiaries/')) {
-    return <BeneficiaryAccessGate />
+    return <BeneficiaryAccessGate>{children}</BeneficiaryAccessGate>
   }
   return (
     <>

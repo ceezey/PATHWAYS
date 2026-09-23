@@ -99,16 +99,22 @@ export const BeneficiaryDirectory = ({
   )
   const [location, setLocation] = useState(readParam('location') ?? allValue)
   const [sex, setSex] = useState(() =>
-    safeFilterValue(readParam('sex'), ['Female', 'Male', 'Prefer not to say']),
+    safeFilterValue(readParam('sex'), [
+      'Female',
+      'Male',
+      'Other',
+      'Prefer not to say',
+      'Not specified',
+    ]),
   )
   const [ageGroup, setAgeGroup] = useState(() =>
-    safeFilterValue(readParam('age'), ['10-14', '15-17', '18-24', '25+']),
+    safeFilterValue(readParam('age'), ['0-9', '10-14', '15-17', '18-24', '25+', 'Unknown']),
   )
   const [disabilityStatus, setDisabilityStatus] = useState(() =>
     safeFilterValue(readParam('disability'), [
       'With disability',
       'Without disability',
-      'Not disclosed',
+      'Not specified',
     ]),
   )
   const [enrollmentStatus, setEnrollmentStatus] = useState(() =>
@@ -284,7 +290,7 @@ export const BeneficiaryDirectory = ({
     if (page > 1) returning.set('page', String(page))
     const directoryPath = returning.size ? `/beneficiaries?${returning}` : '/beneficiaries'
 
-    return `/beneficiaries/${beneficiaryId}?returnTo=${encodeURIComponent(directoryPath)}`
+    return `/beneficiaries/${beneficiaryId}?projectId=${encodeURIComponent(projectId)}&returnTo=${encodeURIComponent(directoryPath)}`
   }
 
   const clearAllFilters = () => {
@@ -359,14 +365,18 @@ export const BeneficiaryDirectory = ({
             <SelectItem value={allValue}>All sex values</SelectItem>
             <SelectItem value="Female">Female</SelectItem>
             <SelectItem value="Male">Male</SelectItem>
+            <SelectItem value="Other">Other</SelectItem>
             <SelectItem value="Prefer not to say">Prefer not to say</SelectItem>
+            <SelectItem value="Not specified">Not specified</SelectItem>
           </FilterSelect>
           <FilterSelect label="Age group" value={ageGroup} onValueChange={setAgeGroup}>
             <SelectItem value={allValue}>All age groups</SelectItem>
+            <SelectItem value="0-9">0-9</SelectItem>
             <SelectItem value="10-14">10-14</SelectItem>
             <SelectItem value="15-17">15-17</SelectItem>
             <SelectItem value="18-24">18-24</SelectItem>
             <SelectItem value="25+">25+</SelectItem>
+            <SelectItem value="Unknown">Unknown</SelectItem>
           </FilterSelect>
           <FilterSelect
             label="Disability status"
@@ -376,7 +386,7 @@ export const BeneficiaryDirectory = ({
             <SelectItem value={allValue}>All statuses</SelectItem>
             <SelectItem value="With disability">With disability</SelectItem>
             <SelectItem value="Without disability">Without disability</SelectItem>
-            <SelectItem value="Not disclosed">Not disclosed</SelectItem>
+            <SelectItem value="Not specified">Not specified</SelectItem>
           </FilterSelect>
           <FilterSelect
             label="Enrollment status"

@@ -46,6 +46,7 @@ const cases: ControllerCase[] = [
     dtoNames: [
       'CreateFormDto',
       'ExpectedVersionDto',
+      'ListSubmissionsQueryDto',
       'SaveSubmissionDto',
       'SubmitSubmissionDto',
       'UpdateFormDto',

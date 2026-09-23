@@ -222,6 +222,84 @@ describe('PATHWAYS C2/C4 browser client', () => {
     })
   })
 
+  it('uses project-scoped beneficiary list/detail/write endpoints and maps age bands', async () => {
+    const beneficiaryId = '76000000-0000-4000-8000-000000000012'
+    const row = {
+      id: beneficiaryId,
+      code: 'BEN-C3-001',
+      subjectType: 'INDIVIDUAL',
+      displayName: 'Synthetic Person',
+      firstName: 'Synthetic',
+      middleName: null,
+      lastName: 'Person',
+      sex: 'NOT_SPECIFIED',
+      birthDate: '2000-01-01',
+      ageAtRegistration: 26,
+      disabilityStatus: 'NOT_SPECIFIED',
+      locationBarangay: 'Test Barangay',
+      locationCityMunicipality: 'Test City',
+      locationProvince: 'Test Province',
+      status: 'ACTIVE',
+      consentRecorded: true,
+      dataProcessingConsentRecorded: true,
+      isMinor: false,
+      guardianConsentRecorded: false,
+      projectId,
+      enrollment: {
+        id: '76000000-0000-4000-8000-000000000013',
+        projectId,
+        enrollmentDate: '2026-06-01',
+        status: 'ACTIVE',
+      },
+      consentProvenance: [],
+      updatedAt: '2026-06-01T00:00:00.000Z',
+    }
+    const fetcher = vi
+      .fn()
+      .mockResolvedValueOnce(json({ items: [row], nextCursor: null }))
+      .mockResolvedValueOnce(json(row))
+      .mockResolvedValueOnce(json(row))
+      .mockResolvedValueOnce(json({ ...row, locationCityMunicipality: 'Updated City' }))
+    vi.stubGlobal('fetch', fetcher)
+
+    await expect(
+      pathwaysClient.getBeneficiaryRecordsForRole('Project Officer', projectId, {
+        search: 'BEN-C3',
+      }),
+    ).resolves.toEqual([
+      expect.objectContaining({ id: beneficiaryId, ageGroup: '25+', projectIds: [projectId] }),
+    ])
+    await pathwaysClient.getBeneficiaryRecordForRole('Project Officer', projectId, beneficiaryId)
+    await pathwaysClient.registerBeneficiary(projectId, {
+      formId: '76000000-0000-4000-8000-000000000014',
+      clientRegistrationId: '76000000-0000-4000-8000-000000000015',
+      values: { registration_operation: 'CREATE', beneficiary_code: row.code },
+    })
+    await pathwaysClient.updateBeneficiary(projectId, beneficiaryId, {
+      subjectType: 'INDIVIDUAL',
+      sex: 'NOT_SPECIFIED',
+      disabilityStatus: 'NOT_SPECIFIED',
+      locationCityMunicipality: 'Updated City',
+      expectedUpdatedAt: row.updatedAt,
+    })
+
+    expect(fetcher.mock.calls[0]?.[0]).toContain(
+      `/beneficiaries/projects/${projectId}?search=BEN-C3&limit=50`,
+    )
+    expect(fetcher.mock.calls[1]?.[0]).toContain(
+      `/beneficiaries/projects/${projectId}/${beneficiaryId}`,
+    )
+    expect(fetcher.mock.calls[2]?.[0]).toContain(
+      `/beneficiaries/projects/${projectId}/registrations`,
+    )
+    expect((fetcher.mock.calls[2]?.[1] as RequestInit).method).toBe('POST')
+    expect((fetcher.mock.calls[3]?.[1] as RequestInit).method).toBe('PATCH')
+    expect(JSON.parse(String((fetcher.mock.calls[3]?.[1] as RequestInit).body))).toMatchObject({
+      locationCityMunicipality: 'Updated City',
+      expectedUpdatedAt: row.updatedAt,
+    })
+  })
+
   it('loads journey history and uses append-only event/correction endpoints', async () => {
     const eventId = '76000000-0000-4000-8000-000000000011'
     const history = {

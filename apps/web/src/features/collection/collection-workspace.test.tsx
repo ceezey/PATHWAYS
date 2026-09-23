@@ -1,7 +1,7 @@
 /* @vitest-environment jsdom */
 
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { DisplayLabelsProvider } from '@/providers/display-labels-provider'
 
@@ -9,6 +9,11 @@ import { CollectionWorkspace } from './collection-workspace'
 
 const api = vi.hoisted(() => ({
   createDigitalForm: vi.fn(),
+  getActivities: vi.fn(),
+  getDigitalForm: vi.fn(),
+  getDigitalForms: vi.fn(),
+  getIndicators: vi.fn(),
+  getProjectsForRole: vi.fn(),
 }))
 
 vi.mock('@/providers/current-role-provider', () => ({
@@ -17,19 +22,26 @@ vi.mock('@/providers/current-role-provider', () => ({
 
 vi.mock('@/lib/services/pathways-client', () => ({
   pathwaysClient: {
-    getProjectsForRole: vi
-      .fn()
-      .mockResolvedValue([{ id: 'futuremakers-ncr', title: 'Futuremakers NCR' }]),
-    getDigitalForms: vi.fn().mockResolvedValue([]),
-    getActivities: vi.fn().mockResolvedValue([]),
-    getIndicators: vi.fn().mockResolvedValue([]),
+    getProjectsForRole: api.getProjectsForRole,
+    getDigitalForms: api.getDigitalForms,
+    getActivities: api.getActivities,
+    getIndicators: api.getIndicators,
     createDigitalForm: api.createDigitalForm,
+    getDigitalForm: api.getDigitalForm,
   },
 }))
 
+beforeEach(() => {
+  api.getProjectsForRole.mockResolvedValue([{ id: 'futuremakers-ncr', title: 'Futuremakers NCR' }])
+  api.getDigitalForms.mockResolvedValue([])
+  api.getActivities.mockResolvedValue([])
+  api.getIndicators.mockResolvedValue([])
+})
+
 afterEach(() => {
   cleanup()
-  api.createDigitalForm.mockReset()
+  vi.restoreAllMocks()
+  vi.clearAllMocks()
 })
 
 const renderImportWorkspace = () =>
@@ -244,5 +256,63 @@ describe('collection field selection', () => {
     await waitFor(() =>
       expect(document.activeElement?.id).toBe('collection-field-choice-field-beneficiary-id'),
     )
+  })
+})
+
+describe('collection form definition export', () => {
+  it('downloads an exact persisted CSV and creates no file for unsupported formats', async () => {
+    const form = {
+      id: 'form-1',
+      projectId: 'futuremakers-ncr',
+      code: 'activity_entry',
+      version: 2,
+      name: 'Activity Entry',
+      description: null,
+      formType: 'OTHER',
+      status: 'PUBLISHED',
+      activityId: null,
+      journeyStageId: null,
+      updatedAt: '2026-09-23T00:00:00.000Z',
+      createdByCurrentUser: true,
+      fields: [
+        {
+          code: 'score',
+          label: 'Score',
+          dataType: 'DECIMAL',
+          required: true,
+          metadataKey: false,
+          sadddField: false,
+          sequence: 0,
+        },
+      ],
+    }
+    api.getDigitalForms.mockResolvedValue([form])
+    api.getDigitalForm.mockResolvedValue(form)
+    const createObjectURL = vi.fn(() => 'blob:form-export')
+    const revokeObjectURL = vi.fn()
+    Object.defineProperty(URL, 'createObjectURL', { configurable: true, value: createObjectURL })
+    Object.defineProperty(URL, 'revokeObjectURL', { configurable: true, value: revokeObjectURL })
+    const click = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => undefined)
+
+    render(
+      <DisplayLabelsProvider>
+        <CollectionWorkspace initialView="forms" />
+      </DisplayLabelsProvider>,
+    )
+
+    await waitFor(() => expect(screen.getByText('Activity Entry')).toBeTruthy())
+    fireEvent.click(screen.getByRole('button', { name: 'Export form' }))
+    await waitFor(() =>
+      expect(api.getDigitalForm).toHaveBeenCalledWith('futuremakers-ncr', 'form-1'),
+    )
+    expect(createObjectURL).toHaveBeenCalledTimes(1)
+    expect(click).toHaveBeenCalledTimes(1)
+    expect(revokeObjectURL).toHaveBeenCalledWith('blob:form-export')
+
+    fireEvent.change(screen.getByLabelText('Download format'), { target: { value: 'xlsx' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Export form' }))
+    expect(api.getDigitalForm).toHaveBeenCalledTimes(1)
+    expect(createObjectURL).toHaveBeenCalledTimes(1)
+    expect(click).toHaveBeenCalledTimes(1)
   })
 })

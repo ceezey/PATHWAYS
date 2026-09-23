@@ -3,8 +3,10 @@
 import { zodResolver } from '@hookform/resolvers/zod'
 import { ArrowLeft, Loader2, Save } from 'lucide-react'
 import Link from 'next/link'
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useRouter } from 'next/navigation'
+import { useEffect, useState } from 'react'
 import { useForm } from 'react-hook-form'
+import { toast } from 'sonner'
 
 import { PageHeader } from '@/components/layout/page-header'
 import { SectionCard } from '@/components/pathways'
@@ -12,6 +14,7 @@ import { Button } from '@/components/ui/button'
 import {
   Form,
   FormControl,
+  FormDescription,
   FormField,
   FormItem,
   FormLabel,
@@ -25,14 +28,28 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { pathwaysClient } from '@/lib/services/pathways-client'
-import type { ProjectStatus, UserRecord } from '@/types/pathways'
+import { PathwaysClientError, pathwaysClient } from '@/lib/services/pathways-client'
+import type { ProjectDetail, ProjectStatus } from '@/types/pathways'
 
-import { type ProjectSetupSchema, projectSetupSchema } from './project-form-validation'
-import { ProjectTeamSelectors, validateProjectTeamSelections } from './project-team-selectors'
+import {
+  type ProjectSetupSchema,
+  projectSetupSchema,
+  toCreateProjectInput,
+  toUpdateProjectInput,
+} from './project-form-validation'
+import { ProjectTeamSelectors } from './project-team-selectors'
 
 const projectStatuses: ProjectStatus[] = ['Active', 'Needs Attention', 'Planned', 'Completed']
 const projectDraftStorageKey = 'pathways.projectSetupDraft'
+const projectDraftFields = [
+  'objectives',
+  'title',
+  'area',
+  'startDate',
+  'endDate',
+  'status',
+  'description',
+] as const
 const projectDefaultValues: ProjectSetupSchema = {
   objectives: '',
   partners: '',
@@ -52,44 +69,22 @@ const projectDefaultValues: ProjectSetupSchema = {
 }
 
 export const ProjectSetupForm = ({ projectId }: { projectId?: string }) => {
+  const router = useRouter()
   const [draftHydrated, setDraftHydrated] = useState(false)
   const [draftRecovered, setDraftRecovered] = useState(false)
-  const [teamUsers, setTeamUsers] = useState<UserRecord[]>([])
-  const [teamDirectoryStatus, setTeamDirectoryStatus] = useState<'loading' | 'ready' | 'error'>(
-    'loading',
-  )
-  const teamDirectoryRequested = useRef(false)
+  const [existingProject, setExistingProject] = useState<ProjectDetail | null>(null)
+  const [saveError, setSaveError] = useState<string | null>(null)
   const form = useForm<ProjectSetupSchema>({
     resolver: zodResolver(projectSetupSchema),
     defaultValues: projectDefaultValues,
   })
-
-  const loadTeamDirectory = useCallback(async () => {
-    setTeamDirectoryStatus('loading')
-
-    try {
-      const users = await pathwaysClient.getUsers()
-      setTeamUsers(users)
-      setTeamDirectoryStatus('ready')
-    } catch {
-      setTeamDirectoryStatus('error')
-    }
-  }, [])
-
-  useEffect(() => {
-    if (teamDirectoryRequested.current) {
-      return
-    }
-
-    teamDirectoryRequested.current = true
-    void loadTeamDirectory()
-  }, [loadTeamDirectory])
 
   useEffect(() => {
     if (projectId) {
       void pathwaysClient
         .getProject(projectId)
         .then((project) => {
+          setExistingProject(project)
           form.reset({
             ...projectDefaultValues,
             title: project.title,
@@ -113,7 +108,7 @@ export const ProjectSetupForm = ({ projectId }: { projectId?: string }) => {
         const parsed = JSON.parse(stored) as Partial<Record<keyof ProjectSetupSchema, unknown>>
         const restored = { ...projectDefaultValues }
 
-        for (const key of Object.keys(projectDefaultValues) as Array<keyof ProjectSetupSchema>) {
+        for (const key of projectDraftFields) {
           const value = parsed[key]
           if (typeof value === 'string') {
             Object.assign(restored, { [key]: value })
@@ -141,51 +136,44 @@ export const ProjectSetupForm = ({ projectId }: { projectId?: string }) => {
 
     const subscription = form.watch((values) => {
       const nextValues = values as ProjectSetupSchema
-      if (JSON.stringify(nextValues) === JSON.stringify(projectDefaultValues)) {
+      const draft = Object.fromEntries(projectDraftFields.map((key) => [key, nextValues[key]]))
+      const emptyDraft = Object.fromEntries(
+        projectDraftFields.map((key) => [key, projectDefaultValues[key]]),
+      )
+      if (JSON.stringify(draft) === JSON.stringify(emptyDraft)) {
         window.sessionStorage.removeItem(projectDraftStorageKey)
       } else {
-        window.sessionStorage.setItem(projectDraftStorageKey, JSON.stringify(nextValues))
+        window.sessionStorage.setItem(projectDraftStorageKey, JSON.stringify(draft))
       }
     })
 
     return () => subscription.unsubscribe()
   }, [draftHydrated, form, projectId])
 
-  const onSubmit = async (_values: ProjectSetupSchema) => {
-    if (teamDirectoryStatus !== 'ready') {
-      form.setError('programManager', {
-        message: 'Load the team directory before selecting project members.',
-        type: 'teamDirectory',
-      })
-      form.setFocus('programManager')
+  const onSubmit = async (values: ProjectSetupSchema) => {
+    setSaveError(null)
+    if (projectId && !existingProject) {
+      setSaveError('The current project must finish loading before it can be updated.')
       return
     }
 
-    const teamErrors = validateProjectTeamSelections(_values, teamUsers)
-    const teamFields = [
-      'programManager',
-      'projectManager',
-      'monitoringOfficer',
-      'projectOfficers',
-    ] as const
-
-    for (const fieldName of teamFields) {
-      const message = teamErrors[fieldName]
-      if (message) {
-        form.setError(fieldName, { message, type: 'teamEligibility' })
-      }
+    try {
+      const project = existingProject
+        ? await pathwaysClient.updateProject(
+            projectId ?? existingProject.id,
+            toUpdateProjectInput(values, existingProject),
+          )
+        : await pathwaysClient.createProject(toCreateProjectInput(values))
+      if (!projectId) window.sessionStorage.removeItem(projectDraftStorageKey)
+      toast.success(existingProject ? 'Project profile updated.' : 'Project profile created.')
+      router.push(`/projects/${project.id}`)
+    } catch (error) {
+      const message =
+        error instanceof PathwaysClientError || error instanceof Error
+          ? error.message
+          : 'The project profile could not be saved.'
+      setSaveError(message)
     }
-
-    const firstInvalidTeamField = teamFields.find((fieldName) => teamErrors[fieldName])
-    if (firstInvalidTeamField) {
-      form.setFocus(firstInvalidTeamField)
-      return
-    }
-
-    form.setError('title', {
-      message:
-        'Project setup cannot be saved yet: the current service requires a project code and does not persist this form’s budget and team fields.',
-    })
   }
 
   return (
@@ -193,7 +181,7 @@ export const ProjectSetupForm = ({ projectId }: { projectId?: string }) => {
       <PageHeader
         eyebrow="Project setup"
         title={projectId ? 'Edit project profile' : 'Create project'}
-        description="Create the project profile, delivery period, budget, and team assignments."
+        description="Save supported project information and the delivery period. Deferred profile and team fields remain visible as unavailable."
         actions={
           <Button asChild className="gap-2" variant="outline">
             <Link href="/projects">
@@ -218,46 +206,67 @@ export const ProjectSetupForm = ({ projectId }: { projectId?: string }) => {
       >
         <Form {...form}>
           <form className="space-y-6" onSubmit={form.handleSubmit(onSubmit)}>
+            {saveError ? (
+              <p
+                className="rounded-sm border border-danger/30 bg-danger/5 p-3 text-sm text-danger"
+                role="alert"
+              >
+                {saveError}
+              </p>
+            ) : null}
             <div className="grid gap-5 lg:grid-cols-2">
-              {(['objectives', 'partners', 'projectBudget', 'targetBeneficiaries'] as const).map(
-                (name) => (
-                  <FormField
-                    key={name}
-                    control={form.control}
-                    name={name}
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel required>
-                          {name === 'projectBudget'
-                            ? 'Project budget (PHP)'
-                            : name === 'targetBeneficiaries'
-                              ? 'Target beneficiaries'
-                              : name === 'objectives'
-                                ? 'Objectives'
-                                : 'Implementing partners'}
-                        </FormLabel>
-                        <FormControl>
-                          <Input
-                            min={
-                              name === 'projectBudget' || name === 'targetBeneficiaries'
-                                ? '1'
-                                : undefined
-                            }
-                            type={
-                              name === 'projectBudget' || name === 'targetBeneficiaries'
-                                ? 'number'
-                                : 'text'
-                            }
-                            step={name === 'projectBudget' ? '0.01' : undefined}
-                            {...field}
-                          />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                ),
-              )}
+              <FormField
+                control={form.control}
+                name="objectives"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel required>Objectives</FormLabel>
+                    <FormControl aria-required="true">
+                      <Input {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              {(['partners', 'projectBudget', 'targetBeneficiaries'] as const).map((name) => (
+                <FormField
+                  key={name}
+                  control={form.control}
+                  name={name}
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>
+                        {name === 'projectBudget'
+                          ? 'Project budget (PHP)'
+                          : name === 'targetBeneficiaries'
+                            ? 'Target beneficiaries'
+                            : 'Implementing partners'}
+                      </FormLabel>
+                      <FormControl>
+                        <Input
+                          disabled
+                          min={
+                            name === 'projectBudget' || name === 'targetBeneficiaries'
+                              ? '1'
+                              : undefined
+                          }
+                          type={
+                            name === 'projectBudget' || name === 'targetBeneficiaries'
+                              ? 'number'
+                              : 'text'
+                          }
+                          step={name === 'projectBudget' ? '0.01' : undefined}
+                          {...field}
+                        />
+                      </FormControl>
+                      <FormDescription>
+                        This field is unavailable until its server contract is defined.
+                      </FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              ))}
               <FormField
                 control={form.control}
                 name="title"
@@ -276,10 +285,13 @@ export const ProjectSetupForm = ({ projectId }: { projectId?: string }) => {
                 name="sector"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel required>Sector</FormLabel>
-                    <FormControl aria-required="true">
-                      <Input placeholder="Education and Skills" {...field} />
+                    <FormLabel>Sector</FormLabel>
+                    <FormControl>
+                      <Input disabled placeholder="Education and Skills" {...field} />
                     </FormControl>
+                    <FormDescription>
+                      This field is unavailable until its server contract is defined.
+                    </FormDescription>
                     <FormMessage />
                   </FormItem>
                 )}
@@ -373,24 +385,31 @@ export const ProjectSetupForm = ({ projectId }: { projectId?: string }) => {
               </div>
               <ProjectTeamSelectors
                 control={form.control}
-                loadError={
-                  teamDirectoryStatus === 'error'
-                    ? 'The team directory could not be loaded. Retry before assigning members.'
-                    : null
-                }
-                loading={teamDirectoryStatus === 'loading'}
-                onRetry={() => void loadTeamDirectory()}
-                users={teamUsers}
+                loadError={null}
+                loading={false}
+                onRetry={() => undefined}
+                unavailableMessage="Team assignment changes are unavailable in the current project API."
+                users={[]}
               />
             </div>
             <div className="flex justify-end">
-              <Button className="gap-2" disabled={form.formState.isSubmitting} type="submit">
+              <Button
+                className="gap-2"
+                disabled={form.formState.isSubmitting || Boolean(projectId && !existingProject)}
+                type="submit"
+              >
                 {form.formState.isSubmitting ? (
                   <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
                 ) : (
                   <Save className="h-4 w-4" aria-hidden="true" />
                 )}
-                {form.formState.isSubmitting ? 'Creating...' : 'Create Project'}
+                {form.formState.isSubmitting
+                  ? projectId
+                    ? 'Saving...'
+                    : 'Creating...'
+                  : projectId
+                    ? 'Save Project'
+                    : 'Create Project'}
               </Button>
             </div>
           </form>

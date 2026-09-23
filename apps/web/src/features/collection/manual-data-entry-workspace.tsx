@@ -9,8 +9,10 @@ import type {
   Activity,
   DigitalFormDefinition,
   DirectFormSubmission,
+  DirectFormSubmissionPage,
   ProjectSummary,
 } from '@/types/pathways'
+import Link from 'next/link'
 import { useEffect, useState } from 'react'
 
 type EntryDraft = {
@@ -33,6 +35,7 @@ const blank: EntryDraft = {
   dataType: 'activity',
 }
 export function ManualDataEntryWorkspace() {
+  const pageSize = 5
   const { role } = useCurrentRole()
   const [projects, setProjects] = useState<ProjectSummary[]>([])
   const [forms, setForms] = useState<DigitalFormDefinition[]>([])
@@ -43,6 +46,10 @@ export function ManualDataEntryWorkspace() {
   const [errors, setErrors] = useState<string[]>([])
   const [message, setMessage] = useState('')
   const [details, setDetails] = useState(false)
+  const [submissionPage, setSubmissionPage] = useState<DirectFormSubmissionPage | null>(null)
+  const [submissionOffset, setSubmissionOffset] = useState(0)
+  const [submissionListError, setSubmissionListError] = useState('')
+  const [submissionListRevision, setSubmissionListRevision] = useState(0)
   const form = forms.find((row) => row.id === draft.formId)
   const activity = activities.find((row) => row.id === draft.activityId)
 
@@ -89,6 +96,33 @@ export function ManualDataEntryWorkspace() {
     }
   }, [draft.projectId])
 
+  useEffect(() => {
+    void submissionListRevision
+    if (!draft.projectId || !draft.formId) {
+      setSubmissionPage(null)
+      setSubmissionListError('')
+      return
+    }
+    let active = true
+    setSubmissionListError('')
+    pathwaysClient
+      .listDirectSubmissions(draft.projectId, draft.formId, submissionOffset, pageSize)
+      .then((page) => {
+        if (active) setSubmissionPage(page)
+      })
+      .catch((error: unknown) => {
+        if (active) {
+          setSubmissionPage(null)
+          setSubmissionListError(
+            error instanceof Error ? error.message : 'Saved records could not be loaded.',
+          )
+        }
+      })
+    return () => {
+      active = false
+    }
+  }, [draft.formId, draft.projectId, submissionListRevision, submissionOffset])
+
   const save = async (submit: boolean) => {
     if (!form || form.status !== 'PUBLISHED') {
       setErrors(['Select a published server-backed form before saving.'])
@@ -120,6 +154,7 @@ export function ManualDataEntryWorkspace() {
             values,
           )
       setSubmission(saved)
+      setSubmissionListRevision((current) => current + 1)
       if (submit) {
         const validation = await pathwaysClient.validateDirectSubmission(
           draft.projectId,
@@ -159,11 +194,75 @@ export function ManualDataEntryWorkspace() {
         description="Save partial drafts or submit validated project-linked records."
       />
       <SectionCard title="Resume your drafts">
-        <p className="text-sm text-muted-foreground">
-          {submission
-            ? `Editing server draft ${submission.id}.`
-            : 'Saved draft listing is unavailable in the current API.'}
-        </p>
+        {!draft.projectId || !draft.formId ? (
+          <p className="text-sm text-muted-foreground">
+            Select a project and published form to load your persisted records.
+          </p>
+        ) : submissionListError ? (
+          <p className="text-sm text-danger" role="alert">
+            {submissionListError}
+          </p>
+        ) : submissionPage?.items.length ? (
+          <div className="space-y-3">
+            <ul className="divide-y rounded border">
+              {submissionPage.items.map((item) => {
+                const draftRecord = item.status === 'DRAFT'
+                return (
+                  <li
+                    className="flex flex-wrap items-center justify-between gap-3 p-3 text-sm"
+                    key={item.id}
+                  >
+                    <div>
+                      <p className="font-medium">
+                        {draftRecord ? 'Draft' : `Finalized (${item.status.toLowerCase()})`}
+                      </p>
+                      <p className="text-muted-foreground">
+                        Version {item.formVersion} · Updated{' '}
+                        {new Date(item.updatedAt).toLocaleString()}
+                      </p>
+                    </div>
+                    <Button asChild size="sm" variant="outline">
+                      <Link
+                        href={`/collection/projects/${encodeURIComponent(draft.projectId)}/forms/${encodeURIComponent(draft.formId)}/entries/new?submissionId=${encodeURIComponent(item.id)}`}
+                      >
+                        {draftRecord ? 'Resume draft' : 'View record'}
+                      </Link>
+                    </Button>
+                  </li>
+                )
+              })}
+            </ul>
+            <div className="flex items-center justify-between gap-3 text-sm">
+              <span>
+                {submissionOffset + 1}–
+                {Math.min(submissionOffset + submissionPage.items.length, submissionPage.total)} of{' '}
+                {submissionPage.total}
+              </span>
+              <div className="flex gap-2">
+                <Button
+                  disabled={submissionOffset === 0}
+                  size="sm"
+                  variant="outline"
+                  onClick={() => setSubmissionOffset(Math.max(0, submissionOffset - pageSize))}
+                >
+                  Previous
+                </Button>
+                <Button
+                  disabled={submissionOffset + submissionPage.items.length >= submissionPage.total}
+                  size="sm"
+                  variant="outline"
+                  onClick={() => setSubmissionOffset(submissionOffset + pageSize)}
+                >
+                  Next
+                </Button>
+              </div>
+            </div>
+          </div>
+        ) : submissionPage ? (
+          <p className="text-sm text-muted-foreground">No persisted records for this form.</p>
+        ) : (
+          <p className="text-sm text-muted-foreground">Loading persisted records…</p>
+        )}
       </SectionCard>
       <div className="grid items-start gap-6 xl:grid-cols-[minmax(0,1fr)_320px]">
         <SectionCard title="Data entry">
@@ -184,6 +283,7 @@ export function ManualDataEntryWorkspace() {
                 onChange={(e) => {
                   setDraft({ ...blank, projectId: e.target.value })
                   setSubmission(null)
+                  setSubmissionOffset(0)
                   setClientSubmissionId(crypto.randomUUID())
                 }}
               >
@@ -214,7 +314,11 @@ export function ManualDataEntryWorkspace() {
               <select
                 className="block w-full rounded border p-2"
                 value={draft.formId}
-                onChange={(e) => setDraft({ ...draft, formId: e.target.value })}
+                onChange={(e) => {
+                  setDraft({ ...draft, formId: e.target.value })
+                  setSubmission(null)
+                  setSubmissionOffset(0)
+                }}
               >
                 <option value="">Select a published form</option>
                 {forms

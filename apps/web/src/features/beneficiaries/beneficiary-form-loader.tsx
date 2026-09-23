@@ -13,7 +13,13 @@ import type { BeneficiaryRecord, ProjectSummary } from '@/types/pathways'
 
 import { BeneficiaryForm } from './beneficiary-form'
 
-export const BeneficiaryFormLoader = ({ beneficiaryId }: { beneficiaryId?: string }) => {
+export const BeneficiaryFormLoader = ({
+  beneficiaryId,
+  projectId,
+}: {
+  beneficiaryId?: string
+  projectId?: string
+}) => {
   const { role } = useCurrentRole()
   const [projects, setProjects] = useState<ProjectSummary[] | null>(null)
   const [beneficiary, setBeneficiary] = useState<BeneficiaryRecord | undefined>()
@@ -35,7 +41,10 @@ export const BeneficiaryFormLoader = ({ beneficiaryId }: { beneficiaryId?: strin
       .getProjectsForRole(verifiedRole)
       .then(async (nextProjects) => {
         if (!beneficiaryId) return { nextProjects, nextBeneficiary: undefined }
-        for (const project of nextProjects) {
+        const candidateProjects = projectId
+          ? nextProjects.filter((project) => project.id === projectId)
+          : nextProjects
+        for (const project of candidateProjects) {
           try {
             const nextBeneficiary = await pathwaysClient.getBeneficiaryRecordForRole(
               verifiedRole,
@@ -71,7 +80,7 @@ export const BeneficiaryFormLoader = ({ beneficiaryId }: { beneficiaryId?: strin
     return () => {
       active = false
     }
-  }, [beneficiaryId, loadAttempt, role])
+  }, [beneficiaryId, loadAttempt, projectId, role])
 
   if (loadState === 'loading') {
     return (

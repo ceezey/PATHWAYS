@@ -23,6 +23,7 @@ import {
 import type {
   CreateFormDto,
   ExpectedVersionDto,
+  ListSubmissionsQueryDto,
   SaveSubmissionDto,
   SubmitSubmissionDto,
   UpdateFormDto,
@@ -558,6 +559,58 @@ export class MetadataService {
           },
         })
         return this.findSubmission(tx, actor, form, created.id)
+      },
+    )
+  }
+
+  listSubmissions(
+    identity: ApplicationIdentity,
+    projectId: string,
+    formId: string,
+    query: ListSubmissionsQueryDto,
+  ) {
+    return withAuthorizedOperation(
+      this.prisma,
+      identity,
+      'submissions.write',
+      async (tx, actor) => {
+        const form = await this.requireForm(tx, actor, projectId, formId)
+        const offset = Math.min(10_000, Math.max(0, query.offset ?? 0))
+        const limit = Math.min(50, Math.max(1, query.limit ?? 10))
+        const where = {
+          organizationId: actor.organizationId,
+          projectId: form.projectId,
+          formId: form.id,
+          formVersion: form.version,
+          submittedById: actor.userId,
+          source: 'DIRECT_ENCODING' as const,
+        }
+        const total = await tx.formSubmission.count({ where })
+        const rows = await tx.formSubmission.findMany({
+          where,
+          select: {
+            id: true,
+            status: true,
+            formVersion: true,
+            submittedAt: true,
+            updatedAt: true,
+          },
+          orderBy: [{ updatedAt: 'desc' }, { id: 'desc' }],
+          skip: offset,
+          take: limit,
+        })
+        return {
+          offset,
+          limit,
+          total,
+          items: rows.map((row) => ({
+            id: row.id,
+            status: row.status,
+            formVersion: row.formVersion,
+            submittedAt: row.submittedAt?.toISOString(),
+            updatedAt: row.updatedAt.toISOString(),
+          })),
+        }
       },
     )
   }
