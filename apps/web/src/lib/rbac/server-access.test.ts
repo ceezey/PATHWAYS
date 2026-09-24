@@ -208,6 +208,14 @@ describe('request-scoped server page authority', () => {
     const beneficiarySelection = new URL(mock.fetch.mock.lastCall?.[0]).searchParams
     expect(beneficiarySelection.get('beneficiaryId')).toBe(id)
     expect(beneficiarySelection.get('projectId')).toBe(id)
+    await requireServerPage('beneficiaryEdit', {
+      params: Promise.resolve({ beneficiaryId: id }),
+      searchParams: Promise.resolve({ projectId: id }),
+    })
+    const beneficiaryEditSelection = new URL(mock.fetch.mock.lastCall?.[0]).searchParams
+    expect(beneficiaryEditSelection.get('route')).toBe('beneficiaryEdit')
+    expect(beneficiaryEditSelection.get('beneficiaryId')).toBe(id)
+    expect(beneficiaryEditSelection.get('projectId')).toBe(id)
     await requireServerPage('imports', {
       searchParams: Promise.resolve({ mode: 'extend', _rsc: 'transport-only' }),
     })
@@ -273,6 +281,9 @@ describe('finite route and feature contract', () => {
     expect(parseRouteSelection({ route: 'beneficiary', beneficiaryId: id, projectId: id })).toEqual(
       { route: 'beneficiary', beneficiaryId: id, projectId: id },
     )
+    expect(
+      parseRouteSelection({ route: 'beneficiaryEdit', beneficiaryId: id, projectId: id }),
+    ).toEqual({ route: 'beneficiaryEdit', beneficiaryId: id, projectId: id })
     expect(matchRoute(`/beneficiaries/${id}?projectId=not-a-uuid`)).toBeNull()
   })
   it('requires active grants and current assignment, never a role string alone', () => {
@@ -292,6 +303,33 @@ describe('finite route and feature contract', () => {
         { route: 'dashboard' },
       ),
     ).toBe(false)
+  })
+  it('keeps direct editors aligned with their backend write permissions', () => {
+    const projectEdit = { route: 'projectEdit', projectId: id } as const
+    const beneficiaryEdit = { route: 'beneficiaryEdit', beneficiaryId: id } as const
+    const principal = (role: keyof typeof rolePermissions) => ({
+      roles: [role],
+      permissions: rolePermissions[role],
+      assignedProjectIds: [id],
+    })
+
+    expect(routeAllowed(principal('PROJECT_MANAGER'), projectEdit)).toBe(true)
+    expect(routeAllowed(principal('PROGRAM_MANAGER'), projectEdit)).toBe(false)
+    expect(routeAllowed(principal('MONITORING_AND_EVALUATION_OFFICER'), beneficiaryEdit)).toBe(true)
+    expect(routeAllowed(principal('PROJECT_OFFICER'), beneficiaryEdit)).toBe(false)
+  })
+  it('requires the complete atomic chain for Extend Existing Form', () => {
+    const extend = { route: 'imports', mode: 'extend' } as const
+    const principal = (role: keyof typeof rolePermissions) => ({
+      roles: [role],
+      permissions: rolePermissions[role],
+      assignedProjectIds: [id],
+    })
+
+    expect(routeAllowed(principal('MONITORING_AND_EVALUATION_OFFICER'), extend)).toBe(true)
+    for (const role of ['SYSTEM_ADMINISTRATOR', 'PROJECT_MANAGER', 'PROJECT_OFFICER'] as const) {
+      expect(routeAllowed(principal(role), extend)).toBe(false)
+    }
   })
   it.each(['PROJECT_OFFICER', 'MONITORING_AND_EVALUATION_OFFICER'] as const)(
     'allows %s to open an assigned-project Beneficiary detail route',

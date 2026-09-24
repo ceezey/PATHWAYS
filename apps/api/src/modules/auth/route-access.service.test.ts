@@ -34,13 +34,13 @@ const service = new RouteAccessService({
 const common = 'dashboard unauthorized projects project analytics reports surveyReport'
 // Independent, explicit expected route matrix; no expectations computed from the policy under test.
 const allowed: Record<CanonicalRole, string> = {
-  SYSTEM_ADMINISTRATOR: `${common} analytics projectCreate activities activity indicators budget journey monitoring beneficiaries beneficiaryCreate beneficiary collection forms formCreate form formEntry imports alerts recommendations rules settingsRules projectReport indicatorReport beneficiaryReport reportPreview users labels settings`,
-  PROGRAM_MANAGER: `${common} analytics activities activity indicators budget journey monitoring transparency transparencyPreview collection forms form alerts recommendations rules settingsRules projectReport indicatorReport users`,
+  SYSTEM_ADMINISTRATOR: `${common} analytics projectCreate projectEdit activities activity indicators budget journey monitoring beneficiaries beneficiaryCreate beneficiary beneficiaryEdit collection manualEntry forms formCreate form formEntry imports alerts recommendations rules settingsRules projectReport indicatorReport beneficiaryReport reportPreview users labels audit backups profile settings`,
+  PROGRAM_MANAGER: `${common} analytics activities activity indicators budget journey monitoring transparency transparencyPreview transparencyQueue collection forms form alerts recommendations rules settingsRules projectReport indicatorReport users`,
   GRANT_MANAGER: `${common} analytics budget projectReport indicatorReport`,
-  PROJECT_MANAGER: `${common} analytics projectCreate activities activity indicators budget journey monitoring transparency transparencyPreview beneficiaries beneficiaryCreate beneficiary collection forms formCreate form formEntry imports alerts recommendations rules settingsRules projectReport indicatorReport beneficiaryReport reportPreview users`,
-  MONITORING_AND_EVALUATION_OFFICER: `${common} analytics activities activity evidence indicators budget journey monitoring beneficiaries beneficiaryCreate beneficiary collection forms formCreate form formEntry imports alerts recommendations rules settingsRules projectReport indicatorReport beneficiaryReport reportPreview`,
+  PROJECT_MANAGER: `${common} analytics projectCreate projectEdit activities activity indicators budget journey monitoring transparency transparencyPreview transparencyQueue beneficiaries beneficiaryCreate beneficiary collection manualEntry forms formCreate form formEntry imports alerts recommendations rules settingsRules projectReport indicatorReport beneficiaryReport reportPreview users`,
+  MONITORING_AND_EVALUATION_OFFICER: `${common} analytics activities activity evidence indicators budget journey monitoring beneficiaries beneficiaryCreate beneficiary beneficiaryEdit collection manualEntry forms formCreate form formEntry imports alerts recommendations rules settingsRules projectReport indicatorReport beneficiaryReport reportPreview`,
   PROJECT_OFFICER:
-    'dashboard unauthorized projects project reports surveyReport activities activity budget beneficiaries beneficiaryCreate beneficiary collection forms form formEntry imports alerts recommendations rules settingsRules beneficiaryReport reportPreview',
+    'dashboard unauthorized projects project reports surveyReport activities activity budget beneficiaries beneficiaryCreate beneficiary collection manualEntry forms form formEntry imports alerts recommendations rules settingsRules beneficiaryReport reportPreview',
 }
 const select = (route: RouteKey): RouteSelection => ({
   route,
@@ -368,6 +368,27 @@ describe('same-request authority and relational object scope', () => {
   it('binds beneficiary route verification to the selected authorized project', async () => {
     await service.check(fixture('PROJECT_OFFICER'), {
       route: 'beneficiary',
+      beneficiaryId: other,
+      projectId: id,
+    })
+    expect(tx.project.findFirst).toHaveBeenCalledWith({
+      where: { AND: [{ organizationId: id, archivedAt: null, id: { in: [id] } }, { id }] },
+      select: { id: true },
+    })
+    expect(tx.beneficiaryProjectEnrollment.findFirst).toHaveBeenCalledWith({
+      where: {
+        organizationId: id,
+        beneficiaryId: other,
+        projectId: id,
+        beneficiary: { organizationId: id, archivedAt: null },
+        project: { organizationId: id, archivedAt: null, id: { in: [id] } },
+      },
+      select: { id: true },
+    })
+  })
+  it('binds M&E beneficiary edit verification to its selected authorized project', async () => {
+    await service.check(fixture('MONITORING_AND_EVALUATION_OFFICER'), {
+      route: 'beneficiaryEdit',
       beneficiaryId: other,
       projectId: id,
     })

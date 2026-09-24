@@ -46,7 +46,16 @@ afterEach(() => {
 })
 
 describe('optimistic middleware; server page/API remain the secure boundaries', () => {
-  it.each(['/dashboard', '/workspace', `/projects/${id}`, '/analytics', '/auth/mfa'])(
+  it.each([
+    '/dashboard',
+    '/workspace',
+    `/projects/${id}`,
+    '/analytics',
+    '/auth/mfa',
+    '/settings/profile',
+    `/beneficiaries/${id}?projectId=${id}&returnTo=%2Fbeneficiaries%3Fq%3Dsample`,
+    `/beneficiaries/${id}/edit?projectId=${id}`,
+  ])(
     'admits structurally valid %s to the server gate without duplicate authority RPCs',
     async (path) => {
       const result = await updateSession(request(path))

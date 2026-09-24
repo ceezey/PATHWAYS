@@ -1,302 +1,55 @@
 'use client'
 
-import { zodResolver } from '@hookform/resolvers/zod'
-import { AlertCircle, CheckCircle2, Eye, EyeOff, Info, RotateCcw, Save } from 'lucide-react'
-import { useEffect, useMemo, useState } from 'react'
-import { useForm } from 'react-hook-form'
+import { Info } from 'lucide-react'
 
 import { PageHeader } from '@/components/layout/page-header'
-import { ConfirmationDialog } from '@/components/pathways/confirmation-dialog'
 import { SectionCard } from '@/components/pathways/section-card'
-import { Button } from '@/components/ui/button'
-import {
-  Form,
-  FormControl,
-  FormDescription,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage,
-} from '@/components/ui/form'
-import { Input } from '@/components/ui/input'
 import { useCurrentRole } from '@/hooks/use-current-role'
 import { useSession } from '@/hooks/use-session'
-import {
-  type ChangePasswordValues,
-  type ProfileValues,
-  changePasswordSchema,
-  profileSchema,
-} from './profile-validation'
-
-type Notice = { tone: 'success' | 'info' | 'error'; message: string } | null
-
-const noticeStyles = {
-  success: 'border-success/30 bg-success-subtle text-success',
-  info: 'border-primary/25 bg-primary-subtle text-light-blue-foreground',
-  error: 'border-danger/30 bg-danger-subtle text-danger',
-} as const
-
-const FormNotice = ({ notice }: { notice: NonNullable<Notice> }) => {
-  const Icon =
-    notice.tone === 'success' ? CheckCircle2 : notice.tone === 'error' ? AlertCircle : Info
-  return (
-    <div
-      className={`rounded-md border p-3 text-sm leading-6 ${noticeStyles[notice.tone]}`}
-      role={notice.tone === 'error' ? 'alert' : 'status'}
-    >
-      <div className="flex items-start gap-2">
-        <Icon className="mt-1 h-4 w-4 shrink-0" aria-hidden="true" />
-        <p>{notice.message}</p>
-      </div>
-    </div>
-  )
-}
 
 export const OwnProfileWorkspace = () => {
   const { email } = useSession()
   const { profile } = useCurrentRole()
-  const [profileNotice, setProfileNotice] = useState<Notice>(null)
-  const [passwordNotice, setPasswordNotice] = useState<Notice>(null)
-  const [discardOpen, setDiscardOpen] = useState(false)
-  const [showPasswords, setShowPasswords] = useState(false)
-
-  const currentProfile = useMemo<ProfileValues>(
-    () => ({
-      displayName: profile?.fullName ?? '',
-      contactNumber: '',
-      email: email ?? '',
-    }),
-    [email, profile?.fullName],
-  )
-
-  const profileForm = useForm<ProfileValues>({
-    resolver: zodResolver(profileSchema),
-    defaultValues: currentProfile,
-  })
-  const passwordForm = useForm<ChangePasswordValues>({
-    resolver: zodResolver(changePasswordSchema),
-    defaultValues: { currentPassword: '', newPassword: '', confirmPassword: '' },
-  })
-
-  useEffect(() => {
-    if (!profileForm.formState.isDirty) {
-      profileForm.reset(currentProfile)
-    }
-  }, [currentProfile, profileForm])
-
-  useEffect(() => {
-    const warnOnUnload = (event: BeforeUnloadEvent) => {
-      if (!profileForm.formState.isDirty) return
-      event.preventDefault()
-    }
-    window.addEventListener('beforeunload', warnOnUnload)
-    return () => window.removeEventListener('beforeunload', warnOnUnload)
-  }, [profileForm.formState.isDirty])
-
-  const saveProfile = async (_values: ProfileValues) => {
-    setProfileNotice({
-      tone: 'error',
-      message:
-        'Profile changes are unavailable until a verified self-service endpoint is configured.',
-    })
-  }
-
-  const validatePasswordChange = (_values: ChangePasswordValues) => {
-    setPasswordNotice({
-      tone: 'error',
-      message:
-        'Password changes from this profile page are unavailable. Use the approved recovery flow.',
-    })
-  }
 
   return (
     <div className="space-y-6">
       <PageHeader
         eyebrow="Account settings"
         title="My Profile"
-        description="Review your contact details and password-change requirements."
+        description="Review the account details available to this workspace."
       />
 
       <div className="grid gap-6 xl:grid-cols-[minmax(0,1.15fr)_minmax(360px,0.85fr)]">
         <SectionCard
           title="Profile information"
-          description="These fields follow the Manage Profile use case. Required fields are marked."
+          description="Profile editing is unavailable until a verified self-service endpoint is configured."
         >
-          <Form {...profileForm}>
-            <form className="space-y-5" onSubmit={profileForm.handleSubmit(saveProfile)}>
-              <FormField
-                control={profileForm.control}
-                name="displayName"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel required>Name</FormLabel>
-                    <FormControl aria-required="true">
-                      <Input autoComplete="name" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={profileForm.control}
-                name="contactNumber"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Contact number</FormLabel>
-                    <FormControl>
-                      <Input
-                        autoComplete="tel"
-                        inputMode="tel"
-                        placeholder="+63 900 000 0000"
-                        {...field}
-                      />
-                    </FormControl>
-                    <FormDescription>
-                      Use digits, spaces, +, parentheses, or hyphens.
-                    </FormDescription>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={profileForm.control}
-                name="email"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel required>Email address</FormLabel>
-                    <FormControl aria-required="true">
-                      <Input autoComplete="email" inputMode="email" {...field} />
-                    </FormControl>
-                    <FormDescription>
-                      This contact email is shown with your account details.
-                    </FormDescription>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              {profileNotice ? <FormNotice notice={profileNotice} /> : null}
-              <div className="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
-                {profileForm.formState.isDirty ? (
-                  <Button
-                    className="gap-2"
-                    onClick={() => setDiscardOpen(true)}
-                    type="button"
-                    variant="outline"
-                  >
-                    <RotateCcw className="h-4 w-4" aria-hidden="true" /> Discard changes
-                  </Button>
-                ) : null}
-                <Button
-                  className="gap-2"
-                  disabled={!profileForm.formState.isDirty || profileForm.formState.isSubmitting}
-                  type="submit"
-                >
-                  <Save className="h-4 w-4" aria-hidden="true" />
-                  Save profile
-                </Button>
-              </div>
-            </form>
-          </Form>
+          <dl className="grid gap-4 text-sm">
+            <div>
+              <dt className="font-medium text-foreground">Name</dt>
+              <dd className="mt-1 text-muted-foreground">{profile?.fullName || 'Not recorded'}</dd>
+            </div>
+            <div>
+              <dt className="font-medium text-foreground">Email address</dt>
+              <dd className="mt-1 text-muted-foreground">{email || 'Not recorded'}</dd>
+            </div>
+            <div>
+              <dt className="font-medium text-foreground">Contact number</dt>
+              <dd className="mt-1 text-muted-foreground">Not available from the current API</dd>
+            </div>
+          </dl>
         </SectionCard>
 
         <SectionCard
           title="Change password"
-          description="Validate the documented current and new password fields."
+          description="Password changes are not available from this profile page."
         >
-          <Form {...passwordForm}>
-            <form
-              className="space-y-5"
-              onSubmit={passwordForm.handleSubmit(validatePasswordChange)}
-            >
-              <FormField
-                control={passwordForm.control}
-                name="currentPassword"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel required>Current password</FormLabel>
-                    <FormControl aria-required="true">
-                      <Input
-                        autoComplete="current-password"
-                        type={showPasswords ? 'text' : 'password'}
-                        {...field}
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={passwordForm.control}
-                name="newPassword"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel required>New password</FormLabel>
-                    <FormControl aria-required="true">
-                      <Input
-                        autoComplete="new-password"
-                        type={showPasswords ? 'text' : 'password'}
-                        {...field}
-                      />
-                    </FormControl>
-                    <FormDescription>
-                      Use 12–64 characters with uppercase, lowercase, number, and symbol characters.
-                    </FormDescription>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={passwordForm.control}
-                name="confirmPassword"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel required>Confirm new password</FormLabel>
-                    <FormControl aria-required="true">
-                      <Input
-                        autoComplete="new-password"
-                        type={showPasswords ? 'text' : 'password'}
-                        {...field}
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <Button
-                className="gap-2"
-                onClick={() => setShowPasswords((value) => !value)}
-                type="button"
-                variant="ghost"
-              >
-                {showPasswords ? (
-                  <EyeOff className="h-4 w-4" aria-hidden="true" />
-                ) : (
-                  <Eye className="h-4 w-4" aria-hidden="true" />
-                )}
-                {showPasswords ? 'Hide passwords' : 'Show passwords'}
-              </Button>
-              {passwordNotice ? <FormNotice notice={passwordNotice} /> : null}
-              <Button className="w-full" type="submit">
-                Change password
-              </Button>
-            </form>
-          </Form>
+          <output className="flex items-start gap-2 rounded-md border border-primary/25 bg-primary-subtle p-3 text-sm leading-6 text-light-blue-foreground">
+            <Info className="mt-1 h-4 w-4 shrink-0" aria-hidden="true" />
+            <p>Use the approved account-recovery flow when a password change is required.</p>
+          </output>
         </SectionCard>
       </div>
-
-      <ConfirmationDialog
-        confirmLabel="Discard changes"
-        confirmVariant="destructive"
-        description="Your unsaved profile edits will be removed."
-        onConfirm={() => {
-          profileForm.reset(currentProfile)
-          setProfileNotice({ tone: 'info', message: 'Unsaved profile changes were discarded.' })
-          setDiscardOpen(false)
-        }}
-        onOpenChange={setDiscardOpen}
-        open={discardOpen}
-        title="Discard profile changes?"
-      />
     </div>
   )
 }

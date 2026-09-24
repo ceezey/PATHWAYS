@@ -165,6 +165,23 @@ describe('RBAC matrix', () => {
     },
   )
 
+  it('keeps sidebar aliases aligned with their distinct canonical destinations', () => {
+    const pathsFor = (role: (typeof pathwaysRoles)[number]) =>
+      filterDashboardNavGroups(createDashboardNavGroups(), role).flatMap((group) =>
+        group.items.map((item) => item.href),
+      )
+
+    expect(pathsFor('Program Manager')).toContain('/transparency')
+    expect(pathsFor('Project Manager')).toContain('/transparency')
+    expect(pathsFor('Grant Manager')).not.toContain('/transparency')
+    expect(pathsFor('System Administrator')).toEqual(
+      expect.arrayContaining(['/settings/audit', '/settings/backups']),
+    )
+    expect(pathsFor('Project Officer')).not.toEqual(
+      expect.arrayContaining(['/settings/audit', '/settings/backups']),
+    )
+  })
+
   it('limits project-assignment target roles to the locked hierarchy', () => {
     expect(canConfigureProjectAssignmentsForRole('System Administrator', 'Project Manager')).toBe(
       true,

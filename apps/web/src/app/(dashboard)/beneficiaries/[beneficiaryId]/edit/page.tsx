@@ -7,7 +7,7 @@ export const metadata: Metadata = { title: 'Edit Beneficiary Profile' }
 export const dynamic = 'force-dynamic'
 
 export default async function ProtectedPage(props: ProtectedPageProps) {
-  await requireServerPage('beneficiary', props)
+  await requireServerPage('beneficiaryEdit', props)
   const beneficiaryId = (await props.params)?.beneficiaryId ?? ''
   const requestedProjectId = (await props.searchParams)?.projectId
   const projectId = typeof requestedProjectId === 'string' ? requestedProjectId : undefined

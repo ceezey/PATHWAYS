@@ -5,7 +5,12 @@ import { contextCookieName, decodeWorkspaceContext } from '@/features/auth/works
 import { webEnv, webSupabasePublishableKey } from '@/lib/env'
 import { ACCESS_UNAVAILABLE_PATH, providerFailureStatus } from '@/lib/rbac/access-recovery'
 import { type NavigationStage, recordNavigationDenial } from '@/lib/rbac/navigation-diagnostic'
-import { RouteCheckError, isPublicPath, matchRoute } from '@/lib/rbac/route-access'
+import {
+  RouteCheckError,
+  authorizationPathForUiPath,
+  isPublicPath,
+  matchRoute,
+} from '@/lib/rbac/route-access'
 
 /** Optimistic navigation gate only. Every protected data page and API keeps
  * its existing current-session/database/object authorization before data access.
@@ -93,7 +98,8 @@ export async function updateSession(request: NextRequest) {
         const query = new URLSearchParams(request.nextUrl.search)
         query.delete('_rsc')
         const path = request.nextUrl.pathname + (query.size ? `?${query}` : '')
-        if (!matchRoute(path)) {
+        const authorizationPath = authorizationPathForUiPath(path)
+        if (!authorizationPath || !matchRoute(authorizationPath)) {
           denied()
           return redirect('/unauthorized', response)
         }

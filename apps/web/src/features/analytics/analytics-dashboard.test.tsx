@@ -16,10 +16,18 @@ const coverageMap = vi.hoisted(() => ({
   instanceCount: 0,
   featureCollections: [] as unknown[],
 }))
+const currentAccess = vi.hoisted(() => ({
+  role: 'Monitoring and Evaluation Officer',
+  profile: {
+    roles: ['MONITORING_AND_EVALUATION_OFFICER'],
+    permissions: ['projects.read', 'activities.read', 'monitoring.read', 'analytics.read'],
+    assignedProjectIds: ['project-a', 'project-b'],
+  },
+}))
 
 vi.mock('@/lib/services/pathways-client', () => ({ pathwaysClient: api }))
 vi.mock('@/hooks/use-current-role', () => ({
-  useCurrentRole: () => ({ role: 'Monitoring and Evaluation Officer' }),
+  useCurrentRole: () => currentAccess,
 }))
 vi.mock('@/hooks/use-display-labels', () => ({
   useDisplayLabels: () => ({ labels: { moduleAnalytics: 'Analytics' } }),
@@ -144,6 +152,14 @@ const monitoring = {
 
 describe('Analytics dashboard request dependencies', () => {
   beforeEach(() => {
+    currentAccess.role = 'Monitoring and Evaluation Officer'
+    currentAccess.profile.roles = ['MONITORING_AND_EVALUATION_OFFICER']
+    currentAccess.profile.permissions = [
+      'projects.read',
+      'activities.read',
+      'monitoring.read',
+      'analytics.read',
+    ]
     coverageMap.instanceCount = 0
     coverageMap.featureCollections.length = 0
     const projects = [
@@ -334,5 +350,23 @@ describe('Analytics dashboard request dependencies', () => {
     await waitFor(() => expect(api.getMonitoringDashboard).toHaveBeenCalledTimes(2))
     expect(api.getSadddDashboard).toHaveBeenCalledTimes(1)
     expect(api.getActivities).toHaveBeenCalledTimes(1)
+  })
+
+  it('does not issue permission-incompatible Activity or Indicator reads for Grant Manager', async () => {
+    currentAccess.role = 'Grant Manager'
+    currentAccess.profile.roles = ['GRANT_MANAGER']
+    currentAccess.profile.permissions = [
+      'projects.read',
+      'budgets.read',
+      'beneficiaries.aggregates.read',
+      'analytics.read',
+    ]
+
+    render(<AnalyticsDashboard />)
+
+    await waitFor(() => expect(api.getProjectsForRole).toHaveBeenCalledWith('Grant Manager'))
+    expect(api.getActivities).not.toHaveBeenCalled()
+    expect(api.getProjectIndicators).not.toHaveBeenCalled()
+    expect(api.getMonitoringDashboard).not.toHaveBeenCalled()
   })
 })

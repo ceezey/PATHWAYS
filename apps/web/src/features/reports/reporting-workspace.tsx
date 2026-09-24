@@ -66,7 +66,8 @@ import { useDisplayLabels } from '@/hooks/use-display-labels'
 import { useSafeProjectSelection } from '@/hooks/use-safe-project-selection'
 import { can } from '@/lib/rbac/can'
 import { canAccessProjectForRole } from '@/lib/rbac/data-scope'
-import { reportKindPermissions } from '@/lib/rbac/route-access'
+import { principalHasAtomicPermission, reportKindPermissions } from '@/lib/rbac/route-access'
+import { pathwaysClient } from '@/lib/services/pathways-client'
 import type {
   Activity,
   BeneficiaryRecord,
@@ -212,10 +213,14 @@ export const ReportingWorkspace = ({
   surveyResults,
 }: ReportingWorkspaceProps) => {
   const { labels } = useDisplayLabels()
-  const { role, assignedProjectIds } = useCurrentRole()
+  const { role, profile, assignedProjectIds } = useCurrentRole()
   const projects = initialProjects
   const activities = initialActivities
-  const indicators = initialIndicators
+  const [indicators, setIndicators] = useState(initialIndicators)
+  const [indicatorLoadState, setIndicatorLoadState] = useState<
+    'idle' | 'loading' | 'ready' | 'unavailable' | 'error'
+  >(initialIndicators.length ? 'ready' : 'idle')
+  const canReadIndicatorRecords = principalHasAtomicPermission(profile, 'monitoring.read')
   const journeyStages = initialJourneyStages
   const visibleReportTypes = useMemo(
     () =>
@@ -277,6 +282,34 @@ export const ReportingWorkspace = ({
     () => new Set(scopedProjects.map((project) => project.id)),
     [scopedProjects],
   )
+  useEffect(() => {
+    if (kind !== 'indicator-summary') {
+      setIndicatorLoadState('idle')
+      return
+    }
+    if (!profile) return
+    if (!canReadIndicatorRecords) {
+      setIndicators([])
+      setIndicatorLoadState('unavailable')
+      return
+    }
+    let active = true
+    setIndicatorLoadState('loading')
+    Promise.all(scopedProjects.map((project) => pathwaysClient.getProjectIndicators(project.id)))
+      .then((groups) => {
+        if (!active) return
+        setIndicators(groups.flat())
+        setIndicatorLoadState('ready')
+      })
+      .catch(() => {
+        if (!active) return
+        setIndicators([])
+        setIndicatorLoadState('error')
+      })
+    return () => {
+      active = false
+    }
+  }, [canReadIndicatorRecords, kind, profile, scopedProjects])
   const scopedActivities = useMemo(
     () => activities.filter((activity) => scopedProjectIds.has(activity.projectId)),
     [activities, scopedProjectIds],
@@ -700,7 +733,10 @@ export const ReportingWorkspace = ({
                   </Select>
                 </div>
                 {kind === 'indicator-summary' ? (
-                  <Button onClick={generateIndicatorReport}>
+                  <Button
+                    disabled={indicatorLoadState !== 'ready'}
+                    onClick={generateIndicatorReport}
+                  >
                     <Filter className="mr-2 h-4 w-4" aria-hidden="true" />
                     Generate
                   </Button>
@@ -748,7 +784,32 @@ export const ReportingWorkspace = ({
           {kind === 'beneficiary-summary' && beneficiaryLoadState === 'ready' ? (
             <StatusMessage>Beneficiary report records loaded.</StatusMessage>
           ) : null}
-          {kind !== 'beneficiary-summary' || beneficiaryLoadState === 'ready' ? (
+          {kind === 'indicator-summary' && indicatorLoadState === 'loading' ? (
+            <AsyncState
+              description="Loading the Indicator records available to this report."
+              icon={FileText}
+              status="loading"
+              title="Loading Indicator report records"
+            />
+          ) : null}
+          {kind === 'indicator-summary' && indicatorLoadState === 'unavailable' ? (
+            <AsyncState
+              description="Indicator records require monitoring read access. This report remains authorized, but no compatible report-specific data endpoint is available."
+              icon={FileText}
+              status="error"
+              title="Indicator report records unavailable"
+            />
+          ) : null}
+          {kind === 'indicator-summary' && indicatorLoadState === 'error' ? (
+            <AsyncState
+              description="Indicator report records could not be loaded."
+              icon={FileText}
+              status="error"
+              title="Indicator report records unavailable"
+            />
+          ) : null}
+          {(kind !== 'beneficiary-summary' || beneficiaryLoadState === 'ready') &&
+          (kind !== 'indicator-summary' || indicatorLoadState === 'ready') ? (
             <>
               <Table>
                 <TableHeader>

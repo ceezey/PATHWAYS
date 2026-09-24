@@ -44,8 +44,8 @@ import {
 import type { DisplayLabelKey } from '@/constants/display-labels'
 import { useCurrentRole } from '@/hooks/use-current-role'
 import { useDisplayLabels } from '@/hooks/use-display-labels'
-import { can } from '@/lib/rbac/can'
-import { PathwaysClientError, pathwaysClient } from '@/lib/services/pathways-client'
+import { getVerifiedRouteAccess, principalHasAtomicPermission } from '@/lib/rbac/route-access'
+import { pathwaysClient } from '@/lib/services/pathways-client'
 import type {
   Activity,
   AlertRecord,
@@ -196,7 +196,7 @@ export const ProjectPhaseFiveWorkspace = ({
   view: PhaseFiveWorkspaceView
 }) => {
   const { labels } = useDisplayLabels()
-  const { role } = useCurrentRole()
+  const { role, profile } = useCurrentRole()
   const [project, setProject] = useState<ProjectDetail | null>(null)
   const [activities, setActivities] = useState<Activity[]>([])
   const [evidence, setEvidence] = useState<EvidenceRecord[]>([])
@@ -212,6 +212,7 @@ export const ProjectPhaseFiveWorkspace = ({
   const [transparencySections, setTransparencySections] = useState<TransparencySection[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(false)
+  const [unavailableSections, setUnavailableSections] = useState<string[]>([])
   const [previewEvidence, setPreviewEvidence] = useState<EvidenceRecord | null>(null)
   const [addIndicatorOpen, setAddIndicatorOpen] = useState(false)
   const [annotationOpen, setAnnotationOpen] = useState(false)
@@ -229,8 +230,21 @@ export const ProjectPhaseFiveWorkspace = ({
     let mounted = true
     setLoading(true)
     setError(false)
+    setUnavailableSections([])
+    setActivities([])
+    setEvidence([])
+    setIndicators([])
+    setEvaluation(null)
+    setBudgets([])
+    setActualSpending(0)
+    setAlerts([])
+    setRecommendations([])
+    setOutcomes([])
+    setExpenses([])
+    setReports([])
+    setTransparencySections([])
 
-    if (!role) {
+    if (!role || !profile) {
       setLoading(false)
       setError(true)
       return () => {
@@ -238,83 +252,156 @@ export const ProjectPhaseFiveWorkspace = ({
       }
     }
 
-    Promise.all([
-      pathwaysClient.getProject(projectId),
-      pathwaysClient.getActivities(projectId),
-      pathwaysClient.getEvidence(projectId),
-      pathwaysClient.getProjectIndicators(projectId),
-      pathwaysClient.getEvaluation(projectId).catch((evaluationError) => {
-        if (
-          evaluationError instanceof PathwaysClientError &&
-          ['not_configured', 'not_found'].includes(evaluationError.code)
-        ) {
-          return null
-        }
+    const unavailable: string[] = []
+    const optional = async <T,>(label: string, request: Promise<T>, apply: (value: T) => void) => {
+      try {
+        const value = await request
+        if (mounted) apply(value)
+      } catch {
+        unavailable.push(label)
+      }
+    }
+    const canReadActivities = principalHasAtomicPermission(profile, 'activities.read')
+    const canReadEvidence = principalHasAtomicPermission(profile, 'evidence.review')
+    const canReadIndicators = principalHasAtomicPermission(profile, 'monitoring.read')
+    const canReadBudgets = principalHasAtomicPermission(profile, 'budgets.read')
+    const canReadExpenses = principalHasAtomicPermission(profile, 'expenses.read')
+    const canReadReports = principalHasAtomicPermission(profile, 'reports.read')
+    const canReadAlerts = getVerifiedRouteAccess(profile, '/alerts').allowed
+    const canReadRecommendations = getVerifiedRouteAccess(profile, '/recommendations').allowed
+    const canReadOutcomes = principalHasAtomicPermission(profile, 'recommendations.outcome.record')
 
-        throw evaluationError
-      }),
-      pathwaysClient.getBudgets(projectId),
-      pathwaysClient.getAlerts(projectId),
-      pathwaysClient.getRecommendations(),
-      pathwaysClient.getRecommendationOutcomes(projectId),
-      pathwaysClient.getExpenses(projectId),
-      pathwaysClient.getReports(projectId),
-      pathwaysClient.getTransparencySections(projectId),
-    ])
-      .then(
-        ([
-          projectRecord,
-          activityRecords,
-          evidenceRecords,
-          indicatorRecords,
-          evaluationRecord,
-          budgetRecords,
-          alertRecords,
-          recommendationRecords,
-          outcomeRecords,
-          expenseRecords,
-          reportRecords,
-          transparencyRecords,
-        ]) => {
-          if (!mounted) {
-            return
-          }
-
-          if (projectRecord.metricsAvailable !== true) {
-            setError(true)
-            return
-          }
-
-          setProject(projectRecord)
-          setActivities(activityRecords)
-          setEvidence(evidenceRecords)
-          setIndicators(indicatorRecords)
-          setEvaluation(evaluationRecord)
-          setBudgets(budgetRecords)
-          setActualSpending(budgetRecords[0]?.actualSpending ?? 0)
-          setAlerts(alertRecords)
-          setRecommendations(recommendationRecords)
-          setOutcomes(outcomeRecords)
-          setExpenses(expenseRecords)
-          setReports(reportRecords)
-          setTransparencySections(transparencyRecords)
-        },
-      )
-      .catch(() => {
-        if (mounted) {
+    const load = async () => {
+      try {
+        const projectRecord = await pathwaysClient.getProject(projectId)
+        if (!mounted) return
+        if (projectRecord.metricsAvailable !== true) {
           setError(true)
+          return
         }
-      })
-      .finally(() => {
-        if (mounted) {
-          setLoading(false)
+        setProject(projectRecord)
+
+        const requests: Promise<void>[] = []
+        if (view === 'evidence') {
+          requests.push(
+            optional('Evidence records', pathwaysClient.getEvidence(projectId), setEvidence),
+          )
+          if (canReadReports) {
+            requests.push(
+              optional('Report records', pathwaysClient.getReports(projectId), setReports),
+            )
+          }
         }
-      })
+        if (view === 'indicators') {
+          requests.push(
+            optional(
+              'Indicator records',
+              pathwaysClient.getProjectIndicators(projectId),
+              setIndicators,
+            ),
+          )
+          if (canReadActivities) {
+            requests.push(
+              optional(
+                'Connected activities',
+                pathwaysClient.getActivities(projectId),
+                setActivities,
+              ),
+            )
+          }
+        }
+        if (view === 'monitor-evaluate') {
+          requests.push(
+            optional('Evaluation record', pathwaysClient.getEvaluation(projectId), setEvaluation),
+          )
+          if (canReadEvidence) {
+            requests.push(
+              optional(
+                'Supporting evidence records',
+                pathwaysClient.getEvidence(projectId),
+                setEvidence,
+              ),
+            )
+          } else {
+            unavailable.push('Supporting evidence records are not available for this role')
+          }
+        }
+        if (view === 'budget') {
+          if (canReadBudgets) {
+            requests.push(
+              optional('Budget allocation', pathwaysClient.getBudgets(projectId), (records) => {
+                setBudgets(records)
+                setActualSpending(records[0]?.actualSpending ?? 0)
+              }),
+            )
+          } else {
+            unavailable.push('Budget allocation is not available for this role')
+          }
+          if (canReadExpenses) {
+            requests.push(
+              optional('Expense ledger', pathwaysClient.getExpenses(projectId), setExpenses),
+            )
+          } else {
+            unavailable.push('Expense ledger records are not available for this role')
+          }
+          if (canReadAlerts) {
+            requests.push(optional('Budget alerts', pathwaysClient.getAlerts(projectId), setAlerts))
+          }
+          if (canReadRecommendations) {
+            requests.push(
+              optional('Recommendations', pathwaysClient.getRecommendations(), setRecommendations),
+            )
+          }
+          if (canReadOutcomes) {
+            requests.push(
+              optional(
+                'Recommendation outcomes',
+                pathwaysClient.getRecommendationOutcomes(projectId),
+                setOutcomes,
+              ),
+            )
+          }
+        }
+        if (view === 'transparency') {
+          if (canReadIndicators) {
+            requests.push(
+              optional(
+                'Indicator records',
+                pathwaysClient.getProjectIndicators(projectId),
+                setIndicators,
+              ),
+            )
+          }
+          if (canReadBudgets) {
+            requests.push(
+              optional('Budget allocation', pathwaysClient.getBudgets(projectId), (records) => {
+                setBudgets(records)
+                setActualSpending(records[0]?.actualSpending ?? 0)
+              }),
+            )
+          }
+          requests.push(
+            optional(
+              'Transparency sections',
+              pathwaysClient.getTransparencySections(projectId),
+              setTransparencySections,
+            ),
+          )
+        }
+        await Promise.all(requests)
+        if (mounted) setUnavailableSections([...new Set(unavailable)])
+      } catch {
+        if (mounted) setError(true)
+      } finally {
+        if (mounted) setLoading(false)
+      }
+    }
+    void load()
 
     return () => {
       mounted = false
     }
-  }, [projectId, role])
+  }, [profile, projectId, role, view])
 
   const projectAlerts = alerts
   const projectRecommendations = useMemo(() => {
@@ -326,15 +413,18 @@ export const ProjectPhaseFiveWorkspace = ({
   const remainingBudget = calculateRemainingBudget(plannedAmount, actualSpending)
   const utilization = plannedAmount > 0 ? Math.round((actualSpending / plannedAmount) * 100) : 0
   const expenseTotal = calculateExpenseTotal(expenses)
-  const canConfigureWeights = role ? can(role, 'monitor_evaluate.full') : false
-  const canReviewEvidence = role ? can(role, 'evidence.review') : false
-  const canAddIndicator = role ? can(role, 'indicators.manage') : false
-  const canSubmitFormalEvaluation = role ? can(role, 'evaluation.formal.submit') : false
-  const canLogRecommendationOutcome = role ? can(role, 'alerts.outcome.log') : false
-  const canLogExpense = role ? can(role, 'budget.expense.log') : false
-  const canVerifyExpense = role ? can(role, 'budget.expense.verify') : false
-  const canApproveExpense = role ? can(role, 'budget.expense.approve') : false
-  const canPublishTransparency = role ? can(role, 'transparency.publish') : false
+  const canConfigureWeights = principalHasAtomicPermission(profile, 'monitoring.review')
+  const canReviewEvidence = principalHasAtomicPermission(profile, 'evidence.review')
+  const canAddIndicator = principalHasAtomicPermission(profile, 'indicators.create')
+  const canSubmitFormalEvaluation = principalHasAtomicPermission(profile, 'evaluations.submit')
+  const canLogRecommendationOutcome = principalHasAtomicPermission(
+    profile,
+    'recommendations.outcome.record',
+  )
+  const canLogExpense = principalHasAtomicPermission(profile, 'expenses.submit')
+  const canVerifyExpense = principalHasAtomicPermission(profile, 'expenses.verify')
+  const canApproveExpense = principalHasAtomicPermission(profile, 'expenses.approve')
+  const canPublishTransparency = principalHasAtomicPermission(profile, 'public.publish')
   const heading = {
     ...viewTitles[view],
     title: labels[viewLabelKeys[view]],
@@ -535,6 +625,20 @@ export const ProjectPhaseFiveWorkspace = ({
         }
       />
       <ProjectWorkspaceHeader project={project} />
+      {unavailableSections.length > 0 ? (
+        <SectionCard
+          title="Some information is unavailable"
+          description="The authorized workspace remains available while these optional or restricted sections are omitted."
+        >
+          <output>
+            <ul className="list-disc space-y-1 pl-5 text-sm text-muted-foreground">
+              {unavailableSections.map((section) => (
+                <li key={section}>{section}</li>
+              ))}
+            </ul>
+          </output>
+        </SectionCard>
+      ) : null}
       {view === 'evidence' ? (
         <EvidenceView
           canReviewEvidence={canReviewEvidence}
@@ -559,7 +663,9 @@ export const ProjectPhaseFiveWorkspace = ({
         <EvaluationView
           canConfigureWeights={canConfigureWeights}
           evaluation={evaluation}
-          evidenceCount={evidence.length}
+          evidenceCount={
+            principalHasAtomicPermission(profile, 'evidence.review') ? evidence.length : null
+          }
           canSubmitFormalEvaluation={canSubmitFormalEvaluation}
           onAddAnnotation={() => {
             setFormState({})
@@ -1171,7 +1277,7 @@ const EvaluationView = ({
   canConfigureWeights: boolean
   canSubmitFormalEvaluation: boolean
   evaluation: EvaluationRecord
-  evidenceCount: number
+  evidenceCount: number | null
   onAddAnnotation: () => void
   onFormalEvaluation: () => void
   onViewBasis: () => void
@@ -1201,7 +1307,9 @@ const EvaluationView = ({
         />
         <div className="rounded-lg border border-border bg-background p-3 text-sm text-muted-foreground">
           Supporting evidence records:{' '}
-          <span className="font-medium text-foreground">{evidenceCount}</span>
+          <span className="font-medium text-foreground">
+            {evidenceCount === null ? 'Unavailable for this role' : evidenceCount}
+          </span>
         </div>
         <div className="flex flex-wrap gap-2">
           <Button className="gap-2" onClick={onViewBasis} type="button" variant="outline">

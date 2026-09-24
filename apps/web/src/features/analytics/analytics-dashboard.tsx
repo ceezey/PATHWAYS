@@ -27,6 +27,7 @@ import {
 import { useCurrentRole } from '@/hooks/use-current-role'
 import { useDisplayLabels } from '@/hooks/use-display-labels'
 import { can } from '@/lib/rbac/can'
+import { principalHasAtomicPermission } from '@/lib/rbac/route-access'
 import { pathwaysClient } from '@/lib/services/pathways-client'
 import type { Activity, ProjectIndicator, ProjectSummary } from '@/types/pathways'
 import { type MonitoringDashboard, type SadddDashboard, formatMetricCell } from '@pathways/shared'
@@ -62,7 +63,9 @@ const metricNumber = (cell: { value: string | null }) => {
 
 export const AnalyticsDashboard = () => {
   const { labels } = useDisplayLabels()
-  const { role } = useCurrentRole()
+  const { role, profile } = useCurrentRole()
+  const canReadActivities = principalHasAtomicPermission(profile, 'activities.read')
+  const canReadIndicators = principalHasAtomicPermission(profile, 'monitoring.read')
   const [projects, setProjects] = useState<ProjectSummary[]>([])
   const [projectId, setProjectId] = useState('')
   const [period, setPeriod] = useState('')
@@ -155,8 +158,10 @@ export const AnalyticsDashboard = () => {
     setMonitoring(null)
     setMonitoringError('')
     Promise.all([
-      pathwaysClient.getActivities(projectId),
-      pathwaysClient.getProjectIndicators(projectId),
+      canReadActivities ? pathwaysClient.getActivities(projectId) : Promise.resolve<Activity[]>([]),
+      canReadIndicators
+        ? pathwaysClient.getProjectIndicators(projectId)
+        : Promise.resolve<ProjectIndicator[]>([]),
     ])
       .then(([nextActivities, nextIndicators]) => {
         if (!active) return
@@ -175,7 +180,7 @@ export const AnalyticsDashboard = () => {
     return () => {
       active = false
     }
-  }, [projectDataLoadAttempt, projectId, selectedProject])
+  }, [canReadActivities, canReadIndicators, projectDataLoadAttempt, projectId, selectedProject])
 
   useEffect(() => {
     setPeriod((current) =>
@@ -571,7 +576,9 @@ export const AnalyticsDashboard = () => {
               icon={ClipboardCheck}
               label="Activity completion"
               tone="success"
-              value={`${completedActivities}/${activities.length}`}
+              value={
+                canReadActivities ? `${completedActivities}/${activities.length}` : 'Unavailable'
+              }
             />
             <MetricCard
               description="Rule-Based Alerts are unavailable in the current API."
@@ -645,7 +652,11 @@ export const AnalyticsDashboard = () => {
               )}
             </ChartPanel>
             <ChartPanel title="Activity completion">
-              <ActivityCompletionChart activities={activities} />
+              {canReadActivities ? (
+                <ActivityCompletionChart activities={activities} />
+              ) : (
+                <UnavailableChart description="Activity details are not available for this role." />
+              )}
             </ChartPanel>
             <div className="grid gap-6 xl:grid-cols-2">
               <ChartPanel title="Budget utilization">

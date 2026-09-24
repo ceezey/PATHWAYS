@@ -48,6 +48,7 @@ import {
 } from '@/components/ui/select'
 import { useCurrentRole } from '@/hooks/use-current-role'
 import { useDisplayLabels } from '@/hooks/use-display-labels'
+import { getVerifiedRouteAccess, principalHasAtomicPermission } from '@/lib/rbac/route-access'
 import { pathwaysClient } from '@/lib/services/pathways-client'
 import { cn } from '@/lib/utils'
 import type {
@@ -306,7 +307,24 @@ export const CollectionWorkspace = ({
   initialFormId,
 }: CollectionWorkspaceProps) => {
   const { labels } = useDisplayLabels()
-  const { role } = useCurrentRole()
+  const { role, profile } = useCurrentRole()
+  const canReadForms = principalHasAtomicPermission(profile, 'forms.read')
+  const canManageForms = principalHasAtomicPermission(profile, 'forms.manage')
+  const canPublishForms = principalHasAtomicPermission(profile, 'forms.publish')
+  const canReadActivities = principalHasAtomicPermission(profile, 'activities.read')
+  const canReadIndicators = principalHasAtomicPermission(profile, 'monitoring.read')
+  const canEncodeData = Boolean(
+    profile && getVerifiedRouteAccess(profile, '/collection/entry').allowed,
+  )
+  const canOpenForms = Boolean(
+    profile && getVerifiedRouteAccess(profile, '/collection/forms').allowed,
+  )
+  const canOpenImport = Boolean(
+    profile && getVerifiedRouteAccess(profile, '/collection/import').allowed,
+  )
+  const canUseExtend = Boolean(
+    profile && getVerifiedRouteAccess(profile, '/collection/import?mode=extend').allowed,
+  )
   const [mode, setMode] = useState<CollectionMode>(initialMode)
   const [projects, setProjects] = useState<ProjectSummary[]>([])
   const [activities, setActivities] = useState<Activity[]>([])
@@ -329,7 +347,7 @@ export const CollectionWorkspace = ({
   const [pendingDeleteField, setPendingDeleteField] = useState<FormField | null>(null)
   const [savedNotice, setSavedNotice] = useState('')
   useEffect(() => {
-    if (!role) return
+    if (!role || !profile) return
     let active = true
     pathwaysClient
       .getProjectsForRole(role)
@@ -345,7 +363,7 @@ export const CollectionWorkspace = ({
     return () => {
       active = false
     }
-  }, [role])
+  }, [profile, role])
 
   useEffect(() => {
     if (!projectId) {
@@ -355,28 +373,37 @@ export const CollectionWorkspace = ({
       return
     }
     let active = true
-    Promise.all([
-      pathwaysClient.getDigitalForms(projectId),
-      pathwaysClient.getActivities(projectId),
-      pathwaysClient.getIndicators(projectId),
-    ])
-      .then(([nextForms, nextActivities, nextIndicators]) => {
+    const requests: Promise<void>[] = []
+    const load = async <T,>(request: Promise<T>, apply: (value: T) => void, label: string) => {
+      try {
+        const value = await request
+        if (active) apply(value)
+      } catch (error) {
         if (active) {
-          setForms(nextForms)
-          setActivities(nextActivities)
-          setIndicators(nextIndicators)
+          setSavedNotice(error instanceof Error ? error.message : `${label} could not be loaded.`)
         }
-      })
-      .catch((error: unknown) => {
-        if (active)
-          setSavedNotice(
-            error instanceof Error ? error.message : 'Collection data could not be loaded.',
-          )
-      })
+      }
+    }
+    if (canReadForms) {
+      requests.push(load(pathwaysClient.getDigitalForms(projectId), setForms, 'Forms'))
+    } else {
+      setForms([])
+    }
+    if (view === 'builder' && canReadActivities) {
+      requests.push(load(pathwaysClient.getActivities(projectId), setActivities, 'Activities'))
+    } else {
+      setActivities([])
+    }
+    if (view === 'builder' && canReadIndicators) {
+      requests.push(load(pathwaysClient.getIndicators(projectId), setIndicators, 'Indicators'))
+    } else {
+      setIndicators([])
+    }
+    void Promise.all(requests)
     return () => {
       active = false
     }
-  }, [projectId])
+  }, [canReadActivities, canReadForms, canReadIndicators, projectId, view])
 
   const savedForms: SavedForm[] = forms.map((f) => ({
     id: f.id,
@@ -452,6 +479,11 @@ export const CollectionWorkspace = ({
 
   const mappingReadiness = useMemo(() => getMappingReadiness(mappingRows), [mappingRows])
   const importCanProceed = importStatus === 'ready' && mappingReadiness.canProceed
+  const visibleModes = modeDetails.filter((item) => {
+    if (item.id === 'scratch') return canManageForms
+    if (item.id === 'import') return canOpenImport
+    return canUseExtend
+  })
 
   const updateField = (fieldId: string, patch: Partial<FormField>) => {
     setFields((currentFields) =>
@@ -594,14 +626,18 @@ export const CollectionWorkspace = ({
     }
   }
 
-  const saveFormToApi = async () => {
+  const saveDraftToApi = async () => {
+    if (!canManageForms) {
+      toast.error('Form management is not available for this role.')
+      return
+    }
     if (!projectId) {
       toast.error('Select an authorized project.')
       return
     }
     if (indicatorIds.length) {
       toast.error(
-        'Indicator links cannot be saved by the current form API. Clear them before publishing.',
+        'Indicator links cannot be saved by the current form API. Clear them before saving.',
       )
       return
     }
@@ -640,17 +676,35 @@ export const CollectionWorkspace = ({
             expectedUpdatedAt: existing.updatedAt,
           })
         : await pathwaysClient.createDigitalForm(projectId, input)
+      setForms((current) => [...current.filter((form) => form.id !== saved.id), saved])
+      setEditingFormId(saved.id)
+      setSaveDialogOpen(false)
+      setSavedNotice(
+        'Draft saved to the server. Journey-stage and indicator links were not changed.',
+      )
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Form draft could not be saved.')
+    }
+  }
+  const publishFormToApi = async () => {
+    if (!canPublishForms) {
+      toast.error('Form publishing is not available for this role.')
+      return
+    }
+    const existing = forms.find((form) => form.id === editingFormId)
+    if (!existing || existing.status !== 'DRAFT') {
+      toast.error('Save a persisted Draft before publishing it.')
+      return
+    }
+    try {
       const published = await pathwaysClient.publishDigitalForm(
-        projectId,
-        saved.id,
-        saved.updatedAt,
+        existing.projectId,
+        existing.id,
+        existing.updatedAt,
       )
       setForms((current) => [...current.filter((form) => form.id !== published.id), published])
       setEditingFormId(published.id)
-      setSaveDialogOpen(false)
-      setSavedNotice(
-        'Form published to the server. Journey-stage and indicator links were not changed.',
-      )
+      setSavedNotice('Form published to the server.')
       setView('forms')
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Form could not be published.')
@@ -658,6 +712,11 @@ export const CollectionWorkspace = ({
   }
   const confirmImportProceed = async () => {
     if (!parsedImport || !importCanProceed || !projectId) return
+    if (!canUseExtend) {
+      setImportMessage('Extend Existing Form is not available for this role.')
+      setProceedDialogOpen(false)
+      return
+    }
     try {
       if (parsedImport.rows.length === 0) {
         const importedFields = mappingRows
@@ -796,18 +855,22 @@ export const CollectionWorkspace = ({
         title={labels.moduleCollection}
         actions={
           <>
-            <Button asChild size="sm" variant="outline">
-              <Link href="/collection/entry">Encode data</Link>
-            </Button>
-            <Button asChild size="sm">
-              <Link href="/collection/forms">Forms</Link>
-            </Button>
+            {canEncodeData ? (
+              <Button asChild size="sm" variant="outline">
+                <Link href="/collection/entry">Encode data</Link>
+              </Button>
+            ) : null}
+            {canOpenForms ? (
+              <Button asChild size="sm">
+                <Link href="/collection/forms">Forms</Link>
+              </Button>
+            ) : null}
           </>
         }
       />
 
       <div className="grid gap-3 lg:grid-cols-3">
-        {modeDetails.map((item) => (
+        {visibleModes.map((item) => (
           <Link
             key={item.id}
             className={cn(
@@ -844,6 +907,8 @@ export const CollectionWorkspace = ({
 
       {view === 'forms' || view === 'home' ? (
         <FormsGeneratorView
+          canCreate={canManageForms}
+          canImport={canOpenImport}
           onOpen={openSavedForm}
           onCreate={() => {
             setEditingFormId(undefined)
@@ -851,7 +916,6 @@ export const CollectionWorkspace = ({
             openBuilder('scratch')
           }}
           onDownload={downloadSavedForm}
-          onImport={(nextMode) => openBuilder(nextMode)}
           savedForms={savedForms}
         />
       ) : null}
@@ -873,7 +937,9 @@ export const CollectionWorkspace = ({
       </label>
       {view === 'builder' ? (
         <fieldset
-          disabled={forms.find((f) => f.id === editingFormId)?.status === 'PUBLISHED'}
+          disabled={
+            !canManageForms || forms.find((f) => f.id === editingFormId)?.status === 'PUBLISHED'
+          }
           className="space-y-4"
         >
           <legend className="font-semibold">Form configuration</legend>
@@ -900,6 +966,10 @@ export const CollectionWorkspace = ({
           </div>
           <BuilderView
             addField={addField}
+            canManage={canManageForms}
+            canPublish={
+              canPublishForms && forms.find((form) => form.id === editingFormId)?.status === 'DRAFT'
+            }
             deleteField={requestDeleteField}
             fields={fields}
             formTitle={formTitle}
@@ -911,6 +981,7 @@ export const CollectionWorkspace = ({
             mappedCount={mappedCount}
             mode={mode}
             moveField={moveField}
+            onPublish={() => void publishFormToApi()}
             projectActivities={projectActivities}
             projects={projects}
             projectId={projectId}
@@ -1016,9 +1087,10 @@ export const CollectionWorkspace = ({
       <Dialog open={saveDialogOpen} onOpenChange={setSaveDialogOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Proceed with Save As?</DialogTitle>
+            <DialogTitle>Save form draft?</DialogTitle>
             <DialogDescription>
-              This publishes the validated form and makes it available to the data-entry workflow.
+              This saves the validated definition as a Draft. Publishing remains a separate,
+              permission-controlled action.
             </DialogDescription>
           </DialogHeader>
           <div className="rounded-sm border bg-surface-subtle p-4 text-sm">
@@ -1031,7 +1103,7 @@ export const CollectionWorkspace = ({
             <Button variant="outline" onClick={() => setSaveDialogOpen(false)}>
               Cancel
             </Button>
-            <Button onClick={() => void saveFormToApi()}>Proceed</Button>
+            <Button onClick={() => void saveDraftToApi()}>Save Draft</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -1086,16 +1158,18 @@ export const CollectionWorkspace = ({
 }
 
 const FormsGeneratorView = ({
+  canCreate,
+  canImport,
   onOpen,
   onCreate,
   onDownload,
-  onImport,
   savedForms,
 }: {
+  canCreate: boolean
+  canImport: boolean
   onOpen: (form: SavedForm) => void
   onCreate: () => void
   onDownload: (form: SavedForm) => void
-  onImport: (mode: CollectionMode) => void
   savedForms: SavedForm[]
 }) => (
   <div className="rounded-lg border bg-card p-5">
@@ -1104,28 +1178,32 @@ const FormsGeneratorView = ({
         <p className="text-xs font-semibold uppercase text-muted-foreground">Form Generator</p>
         <h2 className="mt-1 text-lg font-semibold text-foreground">Collection forms</h2>
       </div>
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <Button size="sm">
-            <Plus className="mr-2 h-4 w-4" aria-hidden="true" />
-            Add New
-          </Button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="end" className="w-48">
-          <DropdownMenuItem onClick={onCreate}>
-            <ListPlus className="mr-2 h-4 w-4" aria-hidden="true" />
-            Create New
-          </DropdownMenuItem>
-          <DropdownMenuItem onClick={() => onImport('import')}>
-            <FileSpreadsheet className="mr-2 h-4 w-4" aria-hidden="true" />
-            Import .xlsx
-          </DropdownMenuItem>
-          <DropdownMenuItem onClick={() => onImport('import')}>
-            <FileUp className="mr-2 h-4 w-4" aria-hidden="true" />
-            Import .csv
-          </DropdownMenuItem>
-        </DropdownMenuContent>
-      </DropdownMenu>
+      {canCreate || canImport ? (
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button size="sm">
+              <Plus className="mr-2 h-4 w-4" aria-hidden="true" />
+              Add New
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-48">
+            {canCreate ? (
+              <DropdownMenuItem onClick={onCreate}>
+                <ListPlus className="mr-2 h-4 w-4" aria-hidden="true" />
+                Create New
+              </DropdownMenuItem>
+            ) : null}
+            {canImport ? (
+              <DropdownMenuItem asChild>
+                <Link href="/collection/import">
+                  <FileSpreadsheet className="mr-2 h-4 w-4" aria-hidden="true" />
+                  Import file
+                </Link>
+              </DropdownMenuItem>
+            ) : null}
+          </DropdownMenuContent>
+        </DropdownMenu>
+      ) : null}
     </div>
 
     <div className="mt-4 space-y-3">
@@ -1162,6 +1240,8 @@ const FormsGeneratorView = ({
 
 const BuilderView = ({
   addField,
+  canManage,
+  canPublish,
   deleteField,
   fields,
   formTitle,
@@ -1173,6 +1253,7 @@ const BuilderView = ({
   mappedCount,
   mode,
   moveField,
+  onPublish,
   projectActivities,
   projects,
   projectId,
@@ -1190,6 +1271,8 @@ const BuilderView = ({
   updateField,
 }: {
   addField: () => void
+  canManage: boolean
+  canPublish: boolean
   deleteField: (fieldId: string) => void
   fields: FormField[]
   formTitle: string
@@ -1201,6 +1284,7 @@ const BuilderView = ({
   mappedCount: number
   mode: CollectionMode
   moveField: (fieldId: string, direction: 'up' | 'down') => void
+  onPublish: () => void
   projectActivities: Activity[]
   projects: ProjectSummary[]
   projectId: string
@@ -1339,16 +1423,27 @@ const BuilderView = ({
           ))}
         </div>
 
-        <div className="mt-4 grid gap-2 md:grid-cols-2">
-          <Button id="collection-add-field" variant="outline" onClick={addField}>
-            <Plus className="mr-2 h-4 w-4" aria-hidden="true" />
-            Add field
-          </Button>
-          <Button onClick={() => setSaveDialogOpen(true)}>
-            <Save className="mr-2 h-4 w-4" aria-hidden="true" />
-            Save As
-          </Button>
-        </div>
+        {canManage ? (
+          <div className="mt-4 grid gap-2 md:grid-cols-2">
+            <Button id="collection-add-field" variant="outline" onClick={addField}>
+              <Plus className="mr-2 h-4 w-4" aria-hidden="true" />
+              Add field
+            </Button>
+            <Button onClick={() => setSaveDialogOpen(true)}>
+              <Save className="mr-2 h-4 w-4" aria-hidden="true" />
+              Save Draft
+            </Button>
+            {canPublish ? (
+              <Button className="md:col-span-2" onClick={onPublish}>
+                Publish saved draft
+              </Button>
+            ) : null}
+          </div>
+        ) : (
+          <p className="mt-4 rounded-sm border border-dashed border-border p-3 text-sm text-muted-foreground">
+            This form is available as read-only for your current role.
+          </p>
+        )}
       </div>
     </div>
 

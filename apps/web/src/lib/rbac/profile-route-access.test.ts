@@ -4,8 +4,9 @@ import { pathwaysRoles } from '@/types/pathways-role'
 import { getRouteAccess } from './route-access'
 
 describe('own-profile route access', () => {
-  it('does not invent a profile route grant absent from the accepted policy', () => {
-    for (const role of pathwaysRoles) {
+  it('uses the accepted settings.read policy without broadening self-profile access', () => {
+    expect(getRouteAccess('System Administrator', '/settings/profile').allowed).toBe(true)
+    for (const role of pathwaysRoles.filter((role) => role !== 'System Administrator')) {
       expect(getRouteAccess(role, '/settings/profile').allowed).toBe(false)
     }
   })

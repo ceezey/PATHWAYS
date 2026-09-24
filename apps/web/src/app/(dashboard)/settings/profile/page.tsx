@@ -7,6 +7,6 @@ export const metadata: Metadata = { title: 'My Profile' }
 export const dynamic = 'force-dynamic'
 
 export default async function ProtectedPage(props: ProtectedPageProps) {
-  await requireServerPage('settings', props)
+  await requireServerPage('profile', props)
   return <OwnProfileWorkspace />
 }

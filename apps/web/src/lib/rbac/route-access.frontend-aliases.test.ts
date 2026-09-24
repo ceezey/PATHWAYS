@@ -5,21 +5,27 @@ const projectId = '72000000-0000-4000-8000-000000000004'
 const beneficiaryId = '72000000-0000-4000-8000-000000000006'
 
 describe('frontend route aliases', () => {
-  it('maps new UI pages to existing checked routes without new grants', () => {
+  it('keeps distinct authorization contracts for edit and settings destinations', () => {
     expect(matchRoute(authorizationPathForUiPath('/beneficiaries/duplicates') ?? '')?.route).toBe(
       'beneficiaries',
     )
     expect(
       matchRoute(authorizationPathForUiPath(`/beneficiaries/${beneficiaryId}/edit`) ?? '')?.route,
-    ).toBe('beneficiary')
+    ).toBe('beneficiaryEdit')
     expect(matchRoute(authorizationPathForUiPath(`/projects/${projectId}/edit`) ?? '')?.route).toBe(
-      'project',
+      'projectEdit',
     )
     expect(
       matchRoute(authorizationPathForUiPath(`/transparency/${projectId}/preview`) ?? '')?.route,
     ).toBe('transparencyPreview')
-    expect(matchRoute(authorizationPathForUiPath('/settings/backups') ?? '')?.route).toBe(
-      'settings',
+    expect(matchRoute(authorizationPathForUiPath('/settings/backups') ?? '')?.route).toBe('backups')
+    expect(matchRoute(authorizationPathForUiPath('/settings/audit') ?? '')?.route).toBe('audit')
+    expect(matchRoute(authorizationPathForUiPath('/settings/profile') ?? '')?.route).toBe('profile')
+    expect(matchRoute(authorizationPathForUiPath('/transparency') ?? '')?.route).toBe(
+      'transparencyQueue',
+    )
+    expect(matchRoute(authorizationPathForUiPath('/collection/entry') ?? '')?.route).toBe(
+      'manualEntry',
     )
   })
 
@@ -31,5 +37,8 @@ describe('frontend route aliases', () => {
     ).toBe(`/projects/${projectId}/activities/${beneficiaryId}`)
     expect(authorizationPathForUiPath('/alerts?role=System%20Administrator')).toBeNull()
     expect(authorizationPathForUiPath('/alerts?alert=one&alert=two')).toBeNull()
+    expect(
+      authorizationPathForUiPath(`/beneficiaries/${beneficiaryId}/edit?projectId=${projectId}`),
+    ).toBe(`/beneficiaries/${beneficiaryId}/edit?projectId=${projectId}`)
   })
 })

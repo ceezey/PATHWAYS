@@ -15,9 +15,31 @@ const api = vi.hoisted(() => ({
   getIndicators: vi.fn(),
   getProjectsForRole: vi.fn(),
 }))
+const currentAccess = vi.hoisted(() => ({
+  role: 'Monitoring and Evaluation Officer',
+  assignedProjectIds: ['futuremakers-ncr'],
+  profile: {
+    roles: ['MONITORING_AND_EVALUATION_OFFICER'],
+    permissions: [
+      'projects.read',
+      'activities.read',
+      'monitoring.read',
+      'collection.read',
+      'forms.read',
+      'forms.manage',
+      'forms.publish',
+      'submissions.write',
+      'imports.read',
+      'imports.upload',
+      'imports.review',
+      'imports.process',
+    ],
+    assignedProjectIds: ['futuremakers-ncr'],
+  },
+}))
 
 vi.mock('@/providers/current-role-provider', () => ({
-  useCurrentRole: () => ({ role: 'Project Officer', assignedProjectIds: ['futuremakers-ncr'] }),
+  useCurrentRole: () => currentAccess,
 }))
 
 vi.mock('@/lib/services/pathways-client', () => ({
@@ -32,6 +54,22 @@ vi.mock('@/lib/services/pathways-client', () => ({
 }))
 
 beforeEach(() => {
+  currentAccess.role = 'Monitoring and Evaluation Officer'
+  currentAccess.profile.roles = ['MONITORING_AND_EVALUATION_OFFICER']
+  currentAccess.profile.permissions = [
+    'projects.read',
+    'activities.read',
+    'monitoring.read',
+    'collection.read',
+    'forms.read',
+    'forms.manage',
+    'forms.publish',
+    'submissions.write',
+    'imports.read',
+    'imports.upload',
+    'imports.review',
+    'imports.process',
+  ]
   api.getProjectsForRole.mockResolvedValue([{ id: 'futuremakers-ncr', title: 'Futuremakers NCR' }])
   api.getDigitalForms.mockResolvedValue([])
   api.getActivities.mockResolvedValue([])
@@ -88,10 +126,8 @@ describe('collection import workspace', () => {
     const dialog = screen.getByRole('dialog', { name: 'Create draft form?' })
     fireEvent.click(within(dialog).getByRole('button', { name: 'Create Draft' }))
 
-    await waitFor(() => {
-      expect(screen.getByText('Youth Skills Assessment Form')).toBeTruthy()
-    })
-    expect(screen.getByText(/Status: DRAFT/)).toBeTruthy()
+    await waitFor(() => expect(api.createDigitalForm).toHaveBeenCalled())
+    expect(await screen.findByText(/Draft form .* created on the server/)).toBeTruthy()
     expect(api.createDigitalForm).toHaveBeenCalledWith(
       'futuremakers-ncr',
       expect.objectContaining({
@@ -314,5 +350,60 @@ describe('collection form definition export', () => {
     expect(api.getDigitalForm).toHaveBeenCalledTimes(1)
     expect(createObjectURL).toHaveBeenCalledTimes(1)
     expect(click).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe('collection permission integration', () => {
+  it('keeps Project Officer on standard Import and avoids builder-only dependencies', async () => {
+    currentAccess.role = 'Project Officer'
+    currentAccess.profile.roles = ['PROJECT_OFFICER']
+    currentAccess.profile.permissions = [
+      'projects.read',
+      'activities.read',
+      'collection.read',
+      'forms.read',
+      'submissions.write',
+      'imports.read',
+      'imports.upload',
+    ]
+
+    render(
+      <DisplayLabelsProvider>
+        <CollectionWorkspace />
+      </DisplayLabelsProvider>,
+    )
+
+    await waitFor(() => expect(api.getDigitalForms).toHaveBeenCalled())
+    expect(screen.getByText('Import existing file')).toBeTruthy()
+    expect(screen.queryByText('Build forms')).toBeNull()
+    expect(screen.queryByText('Import then extend')).toBeNull()
+    expect(api.getActivities).not.toHaveBeenCalled()
+    expect(api.getIndicators).not.toHaveBeenCalled()
+  })
+
+  it('shows Program Manager read-only forms without builder or import actions', async () => {
+    currentAccess.role = 'Program Manager'
+    currentAccess.profile.roles = ['PROGRAM_MANAGER']
+    currentAccess.profile.permissions = [
+      'projects.read',
+      'activities.read',
+      'monitoring.read',
+      'collection.read',
+      'forms.read',
+    ]
+
+    render(
+      <DisplayLabelsProvider>
+        <CollectionWorkspace />
+      </DisplayLabelsProvider>,
+    )
+
+    await waitFor(() => expect(api.getDigitalForms).toHaveBeenCalled())
+    expect(screen.getByRole('link', { name: 'Forms' })).toBeTruthy()
+    expect(screen.queryByText('Build forms')).toBeNull()
+    expect(screen.queryByText('Import existing file')).toBeNull()
+    expect(screen.queryByText('Import then extend')).toBeNull()
+    expect(api.getActivities).not.toHaveBeenCalled()
+    expect(api.getIndicators).not.toHaveBeenCalled()
   })
 })

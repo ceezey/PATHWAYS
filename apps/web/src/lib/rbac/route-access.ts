@@ -26,6 +26,7 @@ export const routePolicy = {
   projects: entry('/projects', 'Projects', ['projects.read']),
   projectCreate: entry('/projects/new', 'Project setup', ['projects.create']),
   project: entry('/projects/:projectId', 'Projects', ['projects.read'], 'project'),
+  projectEdit: entry('/projects/:projectId/edit', 'Edit project', ['projects.create'], 'project'),
   activities: entry(
     '/projects/:projectId/activities',
     'Activities',
@@ -80,6 +81,7 @@ export const routePolicy = {
     ['public.preview', 'public.publish'],
     'project',
   ),
+  transparencyQueue: entry('/transparency', 'Public Tracker', ['public.preview', 'public.publish']),
   beneficiaries: entry('/beneficiaries', 'Beneficiaries', ['beneficiaries.records.read']),
   beneficiaryCreate: entry('/beneficiaries/new', 'Beneficiary registration', [
     'beneficiaries.records.register',
@@ -90,7 +92,14 @@ export const routePolicy = {
     ['beneficiaries.records.read'],
     'beneficiary',
   ),
+  beneficiaryEdit: entry(
+    '/beneficiaries/:beneficiaryId/edit',
+    'Edit beneficiary profile',
+    ['beneficiaries.profiles.update'],
+    'beneficiary',
+  ),
   collection: entry('/collection', 'Collection', ['collection.read']),
+  manualEntry: entry('/collection/entry', 'Encode project data', ['submissions.write']),
   forms: entry('/collection/forms', 'Forms', ['forms.read']),
   formCreate: entry('/collection/forms/new', 'Form setup', ['forms.manage']),
   form: entry(
@@ -123,6 +132,9 @@ export const routePolicy = {
   reportPreview: entry('/reports/preview', 'Report preview', ['reports.read']),
   users: entry('/settings/users', 'User Management', ['users.authorize']),
   labels: entry('/settings/labels', 'Edit Labels', ['settings.read']),
+  audit: entry('/settings/audit', 'Audit Log', ['settings.read']),
+  backups: entry('/settings/backups', 'Backup & Recovery', ['settings.read']),
+  profile: entry('/settings/profile', 'My Profile', ['settings.read']),
   settings: entry('/settings', 'Settings', ['settings.read']),
 } as const
 export type RouteKey = keyof typeof routePolicy
@@ -177,15 +189,8 @@ export function authorizationPathForUiPath(input: string): string | null {
     pathname === '/participants'
   )
     canonical = '/beneficiaries'
-  else if (pathname === '/collection/entry') canonical = '/collection'
   else if (pathname === '/imports') canonical = '/collection/import'
-  else if (pathname === '/indicators' || pathname === '/transparency') canonical = '/projects'
-  else if (['/settings/audit', '/settings/backups', '/settings/profile'].includes(pathname))
-    canonical = '/settings'
-  else if (/^\/beneficiaries\/[^/]+\/edit\/?$/.test(pathname))
-    canonical = pathname.replace(/\/edit\/?$/, '')
-  else if (/^\/projects\/[^/]+\/edit\/?$/.test(pathname))
-    canonical = pathname.replace(/\/edit\/?$/, '')
+  else if (pathname === '/indicators') canonical = '/projects'
   else if (/^\/transparency\/[^/]+\/preview\/?$/.test(pathname))
     canonical = pathname
       .replace(/^\/transparency\//, '/projects/')
@@ -201,6 +206,7 @@ export function authorizationPathForUiPath(input: string): string | null {
   }
   const authorityKeys: Partial<Record<RouteKey, readonly string[]>> = {
     beneficiary: ['projectId'],
+    beneficiaryEdit: ['projectId'],
     imports: ['mode'],
     reportPreview: ['kind'],
   }
@@ -244,7 +250,7 @@ export function matchRoute(input: string): RouteSelection | null {
         !(
           (route === 'reportPreview' && search.has('kind')) ||
           (route === 'imports' && search.has('mode')) ||
-          (route === 'beneficiary' && search.has('projectId'))
+          ((route === 'beneficiary' || route === 'beneficiaryEdit') && search.has('projectId'))
         ))
     )
       return null
@@ -263,7 +269,7 @@ export function matchRoute(input: string): RouteSelection | null {
       if (mode !== 'import' && mode !== 'extend') return null
       result.mode = mode
     }
-    if (route === 'beneficiary' && search.has('projectId')) {
+    if ((route === 'beneficiary' || route === 'beneficiaryEdit') && search.has('projectId')) {
       const projectId = search.get('projectId')
       if (!projectId || !uuid.test(projectId)) return null
       result.projectId = projectId.toLowerCase()
@@ -294,7 +300,7 @@ export function parseRouteSelection(input: Record<string, unknown>): RouteSelect
       path += `?mode=${input.mode}`
     }
   }
-  if (input.route === 'beneficiary') {
+  if (input.route === 'beneficiary' || input.route === 'beneficiaryEdit') {
     allowed.push('projectId')
     if (input.projectId !== undefined) {
       if (typeof input.projectId !== 'string' || !uuid.test(input.projectId)) return null
@@ -316,6 +322,14 @@ export function routeAllowed(
       ? [reportAtomic[selection.kind ?? 'beneficiary-summary']]
       : spec.permissions
   if (!hasRoutePermission(role, principal.permissions, selection.route, permissions)) return false
+  if (
+    selection.route === 'imports' &&
+    selection.mode === 'extend' &&
+    !(['forms.manage', 'imports.upload', 'imports.review', 'imports.process'] as const).every(
+      (permission) => hasAtomicPermission(role, principal.permissions, permission),
+    )
+  )
+    return false
   if (
     (spec.scope === 'beneficiary' ||
       selection.route === 'beneficiaryReport' ||
@@ -360,6 +374,15 @@ export function getVerifiedRouteAccess(principal: RoutePrincipal, path: string):
     requiresBeneficiaryStepUp: false,
   }
 }
+
+export const principalHasAtomicPermission = (
+  principal: RoutePrincipal | null | undefined,
+  permission: AtomicPermission,
+) =>
+  Boolean(
+    principal?.roles.length === 1 &&
+      hasAtomicPermission(principal.roles[0], principal.permissions, permission),
+  )
 
 export const canonicalFeatures = [
   {

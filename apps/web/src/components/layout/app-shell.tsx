@@ -28,6 +28,7 @@ import { getDashboardNavigationLabel } from '@/constants/navigation'
 import { useCurrentRole } from '@/hooks/use-current-role'
 import { useSession } from '@/hooks/use-session'
 import { getAccessScopeLabel } from '@/lib/auth/access-context'
+import { getVerifiedRouteAccess } from '@/lib/rbac/route-access'
 import { cn } from '@/lib/utils'
 import { getPathwaysRoleDisplayName } from '@/types/pathways-role'
 
@@ -36,10 +37,13 @@ export const AppShell = ({ children }: { children: React.ReactNode }) => {
   const [compact, setCompact] = useState(false)
   const [mobileOpen, setMobileOpen] = useState(false)
   const { email, signOut } = useSession()
-  const { role, assignedProjectIds } = useCurrentRole()
+  const { role, profile, assignedProjectIds } = useCurrentRole()
   const roleLabel = role ? getPathwaysRoleDisplayName(role) : 'Access pending'
   const workspaceLabel = getDashboardNavigationLabel(pathname)
   const scopeLabel = getAccessScopeLabel(role, assignedProjectIds)
+  const canOpenProfile = Boolean(
+    profile && getVerifiedRouteAccess(profile, '/settings/profile').allowed,
+  )
 
   const handleSignOut = async () => {
     try {
@@ -114,12 +118,14 @@ export const AppShell = ({ children }: { children: React.ReactNode }) => {
                 <DropdownMenuItem disabled>{roleLabel}</DropdownMenuItem>
                 <DropdownMenuItem disabled>{scopeLabel}</DropdownMenuItem>
                 <DropdownMenuSeparator />
-                <DropdownMenuItem asChild>
-                  <Link className="gap-2" href="/settings/profile">
-                    <CircleUserRound className="h-4 w-4" aria-hidden="true" />
-                    My Profile
-                  </Link>
-                </DropdownMenuItem>
+                {canOpenProfile ? (
+                  <DropdownMenuItem asChild>
+                    <Link className="gap-2" href="/settings/profile">
+                      <CircleUserRound className="h-4 w-4" aria-hidden="true" />
+                      My Profile
+                    </Link>
+                  </DropdownMenuItem>
+                ) : null}
                 <DropdownMenuItem onClick={() => void handleSignOut()}>Sign out</DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>

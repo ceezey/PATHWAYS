@@ -44,7 +44,7 @@ export async function requireServerPage(route: RouteKey, props: ProtectedPagePro
         !(
           (route === 'reportPreview' && key === 'kind') ||
           (route === 'imports' && key === 'mode') ||
-          (route === 'beneficiary' && key === 'projectId')
+          ((route === 'beneficiary' || route === 'beneficiaryEdit') && key === 'projectId')
         ),
     )
   )

@@ -16,14 +16,10 @@ export const ReportingPage = async ({ initialKind, previewOnly = false }: Report
     const projects = await Promise.all(
       projectSummaries.map((project) => pathwaysClient.getProject(project.id)),
     )
-    const indicatorGroups = await Promise.all(
-      projects.map((project) => pathwaysClient.getProjectIndicators(project.id)),
-    )
-
     return (
       <ReportingWorkspace
         activities={[]}
-        indicators={indicatorGroups.flat()}
+        indicators={[]}
         initialKind={initialKind}
         journeyStages={[]}
         previewOnly={previewOnly}
