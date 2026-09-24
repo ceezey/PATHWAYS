@@ -31,6 +31,7 @@ import { useCurrentRole } from '@/hooks/use-current-role'
 import { useDisplayLabels } from '@/hooks/use-display-labels'
 import { can } from '@/lib/rbac/can'
 import { canAccessProjectForRole } from '@/lib/rbac/data-scope'
+import { principalHasAtomicPermission } from '@/lib/rbac/route-access'
 import { pathwaysClient } from '@/lib/services/pathways-client'
 import { PathwaysClientError } from '@/lib/services/pathways-client'
 import type {
@@ -241,9 +242,13 @@ export const ProjectActivitiesWorkspace = ({
 }) => {
   const router = useRouter()
   const { labels } = useDisplayLabels()
-  const { role, assignedProjectIds } = useCurrentRole()
+  const { role, assignedProjectIds, profile } = useCurrentRole()
   const inProjectScope = role ? canAccessProjectForRole(role, projectId, assignedProjectIds) : false
   const canCreateEdit = role ? can(role, 'activities.create_edit') && inProjectScope : false
+  const canReadIndicators = principalHasAtomicPermission(profile, 'monitoring.read')
+  const canReadJourneyStages =
+    canCreateEdit && principalHasAtomicPermission(profile, 'journeys.read')
+  const canReadUsers = canCreateEdit && principalHasAtomicPermission(profile, 'users.authorize')
   const canSubmitProof = role
     ? can(role, 'activities.submit_update_proof') && inProjectScope
     : false
@@ -277,9 +282,9 @@ export const ProjectActivitiesWorkspace = ({
     Promise.all([
       pathwaysClient.getProject(projectId),
       pathwaysClient.getActivities(projectId),
-      pathwaysClient.getIndicators(projectId),
-      pathwaysClient.getJourneyStages(projectId),
-      pathwaysClient.getUsers(),
+      canReadIndicators ? pathwaysClient.getIndicators(projectId) : Promise.resolve([]),
+      canReadJourneyStages ? pathwaysClient.getJourneyStages(projectId) : Promise.resolve([]),
+      canReadUsers ? pathwaysClient.getUsers() : Promise.resolve([]),
     ])
       .then(([projectRecord, activityRecords, indicatorRecords, stageRecords, userRecords]) => {
         if (!mounted) {
@@ -320,7 +325,15 @@ export const ProjectActivitiesWorkspace = ({
     return () => {
       mounted = false
     }
-  }, [initialActivityId, loadAttempt, projectId, router])
+  }, [
+    canReadIndicators,
+    canReadJourneyStages,
+    canReadUsers,
+    initialActivityId,
+    loadAttempt,
+    projectId,
+    router,
+  ])
 
   const filteredActivities = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase()
