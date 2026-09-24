@@ -105,9 +105,10 @@ export function RouteAccessGuard({ children }: { children: React.ReactNode }) {
     resetWorkspaceHandoff,
   ])
   const current = state?.key === key ? state : null
-  const verifyingCurrentAccess =
-    accessRefreshing || (current !== null && current.revision !== verificationRevision)
-  if (!current || verifyingCurrentAccess) return <LoadingSkeleton className="py-2" />
+  // Initial entry and a genuinely different route/profile remain blocking. Once
+  // this exact route has been allowed, provider and route rechecks run behind
+  // the mounted page. Any returned denial/error replaces it immediately.
+  if (!current) return <LoadingSkeleton className="py-2" />
   if (current.error === 401)
     return (
       <section role="alert">

@@ -5,7 +5,6 @@ import {
   type ApplicationProfile,
   type MfaStatus,
   getProfileRole,
-  hasCurrentProfile,
 } from '@/features/auth/auth-access'
 import { createVerificationFlight } from '@/features/auth/verification-flight'
 import {
@@ -144,43 +143,32 @@ export const CurrentRoleProvider = ({ children }: { children: React.ReactNode })
 
   useEffect(() => {
     if (!token || !subject || !internal || sessionStatus !== 'authenticated') return
-    const revalidate = () => {
+    const revalidateAfterReconnect = () => {
       if (document.visibilityState === 'visible') refreshAccess()
     }
-    const pause = () => {
-      ++operation.current
-      flight.current.cancel()
-      inFlight.current = false
-      setResult(null)
+    const revalidateRestoredPage = (event: PageTransitionEvent) => {
+      if (event.persisted && document.visibilityState === 'visible') refreshAccess()
     }
-    // Revalidate on meaningful trust-boundary events. Do not poll while the user
-    // is idle: a provider refresh fail-closes the route tree, so polling would
-    // remount every page loader and turn persistent outages into request loops.
-    window.addEventListener('focus', revalidate)
-    window.addEventListener('online', revalidate)
-    window.addEventListener('pageshow', revalidate)
-    window.addEventListener('pagehide', pause)
-    document.addEventListener('visibilitychange', revalidate)
+    // Revalidate only on trust-boundary recovery. Focus and visibility events
+    // are interaction-adjacent and can fire repeatedly while using the app or
+    // DevTools. Auth token changes are handled by SessionProvider, routes retain
+    // their own checks, and no idle polling is introduced here.
+    window.addEventListener('online', revalidateAfterReconnect)
+    window.addEventListener('pageshow', revalidateRestoredPage)
     return () => {
-      window.removeEventListener('focus', revalidate)
-      window.removeEventListener('online', revalidate)
-      window.removeEventListener('pageshow', revalidate)
-      window.removeEventListener('pagehide', pause)
-      document.removeEventListener('visibilitychange', revalidate)
+      window.removeEventListener('online', revalidateAfterReconnect)
+      window.removeEventListener('pageshow', revalidateRestoredPage)
     }
   }, [token, subject, internal, sessionStatus, refreshAccess])
 
   const current =
-    internal &&
-    sessionStatus === 'authenticated' &&
-    hasCurrentProfile(result?.token, session?.access_token) &&
-    result?.subject === subject
-      ? result
-      : null
+    internal && sessionStatus === 'authenticated' && result?.subject === subject ? result : null
   const profile = current?.access === 'ready' ? current.profile : null
-  const accessRefreshing = Boolean(internal && token && (!current || current.refresh !== refresh))
-  // Stable assurance metadata prevents routine /me refreshes from resetting an
-  // in-progress TOTP form. A changed token/subject still invalidates the form.
+  const accessRefreshing = Boolean(
+    internal && token && (!current || current.token !== token || current.refresh !== refresh),
+  )
+  // Stable assurance metadata prevents same-subject background refreshes from
+  // resetting an in-progress TOTP form. A changed subject still invalidates it.
   const mfaSubject = current?.mfa?.authUserId
   const mfaAal = current?.mfa?.aal
   const mfaEnabled = current?.mfa?.applicationAccessEnabled

@@ -208,10 +208,9 @@ const ready = (page: Page) => page.getByText('Opening your dashboard...')
 const cookie = async (page: Page) =>
   (await page.context().cookies()).find((item) => item.name === 'pathways-context')
 const recheck = (page: Page) => page.getByRole('button', { name: 'Recheck securely' }).click()
-const foreground = (page: Page) =>
+const restorePage = (page: Page) =>
   page.evaluate(() => {
-    window.dispatchEvent(new Event('focus'))
-    window.dispatchEvent(new PageTransitionEvent('pageshow'))
+    window.dispatchEvent(new PageTransitionEvent('pageshow', { persisted: true }))
   })
 
 test('initial bootstrap has one routine MFA owner even under React StrictMode', async ({
@@ -224,22 +223,34 @@ test('initial bootstrap has one routine MFA owner even under React StrictMode', 
   expect(await cookie(page)).toBeDefined()
 })
 
-test('routine focus/page restoration shares one /me check, without MFA or rediscovery', async ({
+test('ordinary interaction and focus do not revalidate; restoration and reconnect stay bounded', async ({
   page,
 }) => {
   const state = await mount(page)
   await expect(ready(page)).toBeVisible()
+  await change(page, { path: '/dashboard' })
+  await expect(page.getByRole('heading', { name: 'Protected fixture data' })).toBeVisible()
+  await expect(page.getByTestId('route-reads')).toHaveText('settled')
+  const beforeInteraction = { ...state.counts }
+  await page.getByRole('button', { name: 'Collapse sidebar' }).click()
+  await page.evaluate(() => {
+    window.dispatchEvent(new Event('focus'))
+    document.dispatchEvent(new Event('visibilitychange'))
+  })
+  await page.waitForTimeout(50)
+  expect(state.counts).toEqual(beforeInteraction)
   let release: () => void = () => undefined
   state.profileWait = new Promise<void>((resolve) => {
     release = resolve
   })
-  await foreground(page)
+  await restorePage(page)
   await expect.poll(() => state.counts.profile).toBe(2)
   expect(state.counts.mfa).toBe(1)
   expect(state.counts.discovery).toBe(1)
-  await expect(ready(page)).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Protected fixture data' })).toBeVisible()
   release()
-  await expect(page.getByRole('button', { name: 'Recheck securely' })).toBeEnabled()
+  await expect.poll(() => state.counts.route).toBe(beforeInteraction.route + 1)
+  await expect(page.getByRole('heading', { name: 'Protected fixture data' })).toBeVisible()
   await page.evaluate(() => window.dispatchEvent(new Event('online')))
   await expect.poll(() => state.counts.profile).toBe(3)
   expect(state.counts.mfa).toBe(1)
@@ -310,7 +321,7 @@ test('a profile outage hides protected content but preserves selectors for retry
   const state = await mount(page)
   await expect(ready(page)).toBeVisible()
   state.profileStatus = 503
-  await foreground(page)
+  await restorePage(page)
   await expect(page.getByRole('alert')).toContainText('temporarily unavailable')
   await expect(ready(page)).toHaveCount(0)
   expect(await cookie(page)).toBeDefined()
@@ -331,7 +342,7 @@ test('confirmed profile revocation clears selectors without asking for a new MFA
   const state = await mount(page)
   await expect(ready(page)).toBeVisible()
   state.profileStatus = 403
-  await foreground(page)
+  await restorePage(page)
   await expect(page.getByRole('alert')).toContainText('Access was denied')
   await expect(ready(page)).toHaveCount(0)
   await expect(page.getByLabel('Six-digit authenticator code')).toHaveCount(0)
@@ -384,16 +395,26 @@ test('a different subject cannot inherit the previous account profile', async ({
   expect(await cookie(page)).toBeUndefined()
 })
 
-test('pagehide removes current data and pageshow waits for revalidation', async ({ page }) => {
+test('page restoration revalidates behind the mounted verified UI', async ({ page }) => {
   const state = await mount(page)
   await expect(ready(page)).toBeVisible()
+  await change(page, { path: '/dashboard' })
+  await expect(page.getByRole('heading', { name: 'Protected fixture data' })).toBeVisible()
+  await expect(page.getByTestId('route-reads')).toHaveText('settled')
+  const initialRouteChecks = state.counts.route
+  let release: () => void = () => undefined
+  state.profileWait = new Promise<void>((resolve) => {
+    release = resolve
+  })
   await page.evaluate(() => window.dispatchEvent(new PageTransitionEvent('pagehide')))
-  await expect(ready(page)).toHaveCount(0)
-  await page.evaluate(() =>
-    window.dispatchEvent(new PageTransitionEvent('pageshow', { persisted: true })),
-  )
+  await expect(page.getByRole('heading', { name: 'Protected fixture data' })).toBeVisible()
+  await restorePage(page)
   await expect.poll(() => state.counts.profile).toBe(2)
-  await expect(ready(page)).toBeVisible()
+  expect(state.counts.route).toBe(initialRouteChecks)
+  await expect(page.getByRole('heading', { name: 'Protected fixture data' })).toBeVisible()
+  release()
+  await expect.poll(() => state.counts.route).toBe(initialRouteChecks + 1)
+  await expect(page.getByRole('heading', { name: 'Protected fixture data' })).toBeVisible()
 })
 
 test('MFA remount preserves the bounded attempt and offers a native document retry', async ({

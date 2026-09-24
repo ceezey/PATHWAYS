@@ -28,6 +28,8 @@ export interface ProjectSummary {
   metricsAvailable?: boolean
   targetBeneficiaries?: number
   targetGoal: string | null
+  startDate?: string | null
+  endDate?: string | null
   id: string
   code?: string
   title: string
@@ -55,8 +57,6 @@ export interface ProjectDetail extends ProjectSummary {
   projectOfficers: string[]
   targetBeneficiaries: number
   budgetCode: string
-  startDate?: string
-  endDate?: string
 }
 
 export type AnalyticsCoverageStatus = 'Strong' | 'Growing' | 'Limited' | 'Planned'

@@ -1197,8 +1197,8 @@ interface ApiProject {
   objectives: string | null
   implementationArea: string | null
   targetGoal: string | null
-  startDate?: string
-  endDate?: string
+  startDate?: string | null
+  endDate?: string | null
   status: 'PLANNED' | 'ONGOING' | 'COMPLETED' | 'ON_HOLD' | 'CANCELLED'
   programId: string | null
   projectManager: string | null

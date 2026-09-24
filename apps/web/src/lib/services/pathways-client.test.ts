@@ -157,6 +157,8 @@ describe('PATHWAYS frontend data boundary', () => {
             objectives: null,
             implementationArea: 'Quezon City',
             targetGoal: null,
+            startDate: '2026-01-01',
+            endDate: null,
             status: 'ONGOING',
             programId: null,
             projectManager: null,
@@ -173,6 +175,8 @@ describe('PATHWAYS frontend data boundary', () => {
         title: 'Persisted project',
         area: 'Quezon City',
         targetGoal: null,
+        startDate: '2026-01-01',
+        endDate: null,
         metricsAvailable: false,
       },
     ])

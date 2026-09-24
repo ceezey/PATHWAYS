@@ -41,7 +41,7 @@ describe('Phase 4 UI copy cleanup contract', () => {
     const guard = source('components/layout/route-access-guard.tsx')
     expect(guard).toContain('requestRouteCheck(')
     expect(guard).toContain('accessRefreshing')
-    expect(guard).toContain('current.revision !== verificationRevision')
+    expect(guard).toContain('verificationRevision')
     expect(guard).toContain('<LoadingSkeleton')
     expect(guard).not.toContain('Verifying current route access')
     expect(guard).not.toContain('Rechecking current access')

@@ -28,11 +28,12 @@ import { useCurrentRole } from '@/hooks/use-current-role'
 import { useDisplayLabels } from '@/hooks/use-display-labels'
 import { can } from '@/lib/rbac/can'
 import { pathwaysClient } from '@/lib/services/pathways-client'
-import type { Activity, ProjectSummary } from '@/types/pathways'
+import type { Activity, ProjectIndicator, ProjectSummary } from '@/types/pathways'
 import { type MonitoringDashboard, type SadddDashboard, formatMetricCell } from '@pathways/shared'
 
 import { ActivityCompletionChart, DescriptiveAnalysisChart, SadddChart } from './analytics-charts'
 import { AnalyticsCoverageMap } from './analytics-coverage-map'
+import { deriveAnalyticsReportingPeriods } from './analytics-reporting-periods'
 import { humanReviewDisclaimer } from './analytics-utils'
 
 const analysisViews = [
@@ -47,14 +48,10 @@ const visualizationTypes = [
   { value: 'table', label: 'Table' },
   { value: 'map', label: 'Map' },
 ] as const
-const periods = [
-  { value: 'Q1 2026', start: '2026-01-01', end: '2026-03-31' },
-  { value: 'Q2 2026', start: '2026-04-01', end: '2026-06-30' },
-  { value: 'July 2026', start: '2026-07-01', end: '2026-07-31' },
-] as const
-
 type AnalysisView = (typeof analysisViews)[number]['value']
 type VisualizationType = (typeof visualizationTypes)[number]['value']
+
+const missingSadddDates = 'Project reporting dates are not recorded.'
 
 const metricNumber = (cell: { value: string | null }) => {
   if (cell.value === null) return null
@@ -67,21 +64,49 @@ export const AnalyticsDashboard = () => {
   const { role } = useCurrentRole()
   const [projects, setProjects] = useState<ProjectSummary[]>([])
   const [projectId, setProjectId] = useState('')
-  const [period, setPeriod] = useState<(typeof periods)[number]['value']>('Q2 2026')
+  const [period, setPeriod] = useState('')
   const [analysisView, setAnalysisView] = useState<AnalysisView>('kpi')
   const [visualizationType, setVisualizationType] = useState<VisualizationType>('bar')
   const [indicatorId, setIndicatorId] = useState('all')
+  const [indicatorDefinitions, setIndicatorDefinitions] = useState<ProjectIndicator[]>([])
   const [monitoring, setMonitoring] = useState<MonitoringDashboard | null>(null)
   const [saddd, setSaddd] = useState<SadddDashboard | null>(null)
   const [activities, setActivities] = useState<Activity[]>([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState('')
+  const [projectsLoading, setProjectsLoading] = useState(true)
+  const [projectDataLoading, setProjectDataLoading] = useState(false)
+  const [monitoringLoading, setMonitoringLoading] = useState(false)
+  const [sadddLoading, setSadddLoading] = useState(false)
+  const [projectsError, setProjectsError] = useState('')
+  const [projectDataError, setProjectDataError] = useState('')
+  const [monitoringError, setMonitoringError] = useState('')
   const [sadddError, setSadddError] = useState('')
-  const [loadAttempt, setLoadAttempt] = useState(0)
+  const [projectsLoadAttempt, setProjectsLoadAttempt] = useState(0)
+  const [projectDataLoadAttempt, setProjectDataLoadAttempt] = useState(0)
+  const [monitoringLoadAttempt, setMonitoringLoadAttempt] = useState(0)
+  const [sadddLoadAttempt, setSadddLoadAttempt] = useState(0)
+
+  const selectedProject = projects.find((row) => row.id === projectId)
+  const reportingPeriods = useMemo(
+    () =>
+      deriveAnalyticsReportingPeriods(
+        selectedProject,
+        indicatorDefinitions.filter((indicator) => indicator.projectId === projectId),
+      ),
+    [indicatorDefinitions, projectId, selectedProject],
+  )
+  const selectedPeriod =
+    reportingPeriods.find((candidate) => candidate.value === period) ?? reportingPeriods[0]
+  const sadddEligible = Boolean(selectedProject?.startDate && selectedProject.endDate)
 
   useEffect(() => {
-    if (!role) return
+    if (!role) {
+      setProjectsLoading(false)
+      return
+    }
+    void projectsLoadAttempt
     let active = true
+    setProjectsLoading(true)
+    setProjectsError('')
     pathwaysClient
       .getProjectsForRole(role)
       .then((records) => {
@@ -93,45 +118,82 @@ export const AnalyticsDashboard = () => {
       })
       .catch((caught: unknown) => {
         if (active)
-          setError(caught instanceof Error ? caught.message : 'Projects could not be loaded.')
+          setProjectsError(
+            caught instanceof Error ? caught.message : 'Projects could not be loaded.',
+          )
+      })
+      .finally(() => {
+        if (active) setProjectsLoading(false)
       })
     return () => {
       active = false
     }
-  }, [role])
+  }, [projectsLoadAttempt, role])
 
   useEffect(() => {
-    if (!projectId) {
-      setLoading(false)
+    if (!projectId || !selectedProject) {
+      setProjectDataLoading(false)
+      setActivities([])
+      setIndicatorDefinitions([])
       return
     }
-    void loadAttempt
+    void projectDataLoadAttempt
     let active = true
-    const selectedPeriod = periods.find((row) => row.value === period) ?? periods[0]
-    setLoading(true)
-    setError('')
-    setSaddd(null)
-    setSadddError('')
+    setProjectDataLoading(true)
+    setProjectDataError('')
+    setActivities([])
+    setIndicatorDefinitions([])
+    setPeriod('')
+    setMonitoring(null)
+    setMonitoringError('')
     Promise.all([
-      pathwaysClient.getMonitoringDashboard({
-        projectId,
-        periodStart: selectedPeriod.start,
-        periodEnd: selectedPeriod.end,
-      }),
       pathwaysClient.getActivities(projectId),
+      pathwaysClient.getProjectIndicators(projectId),
     ])
-      .then(([nextMonitoring, nextActivities]) => {
+      .then(([nextActivities, nextIndicators]) => {
         if (!active) return
-        setMonitoring(nextMonitoring)
         setActivities(nextActivities)
+        setIndicatorDefinitions(nextIndicators)
       })
       .catch((caught: unknown) => {
         if (active)
-          setError(caught instanceof Error ? caught.message : 'Analytics data could not be loaded.')
+          setProjectDataError(
+            caught instanceof Error ? caught.message : 'Analytics data could not be loaded.',
+          )
       })
       .finally(() => {
-        if (active) setLoading(false)
+        if (active) setProjectDataLoading(false)
       })
+    return () => {
+      active = false
+    }
+  }, [projectDataLoadAttempt, projectId, selectedProject])
+
+  useEffect(() => {
+    setPeriod((current) =>
+      reportingPeriods.some((candidate) => candidate.value === current)
+        ? current
+        : (reportingPeriods[0]?.value ?? ''),
+    )
+  }, [reportingPeriods])
+
+  useEffect(() => {
+    if (!projectId || !selectedProject) {
+      setSadddLoading(false)
+      setSaddd(null)
+      setSadddError('')
+      return
+    }
+    void sadddLoadAttempt
+    setSaddd(null)
+    if (!sadddEligible) {
+      setSadddLoading(false)
+      setSadddError(missingSadddDates)
+      return
+    }
+    let active = true
+    setSadddLoading(true)
+    setSadddError('')
     pathwaysClient
       .getSadddDashboard({ projectId })
       .then((result) => {
@@ -141,12 +203,72 @@ export const AnalyticsDashboard = () => {
         if (active)
           setSadddError(caught instanceof Error ? caught.message : 'SADDD analysis is unavailable.')
       })
+      .finally(() => {
+        if (active) setSadddLoading(false)
+      })
     return () => {
       active = false
     }
-  }, [projectId, period, loadAttempt])
+  }, [projectId, sadddEligible, sadddLoadAttempt, selectedProject])
 
-  const selectedProject = projects.find((row) => row.id === projectId)
+  useEffect(() => {
+    if (!projectId || !selectedPeriod) {
+      setMonitoringLoading(false)
+      setMonitoring(null)
+      setMonitoringError('')
+      return
+    }
+    void monitoringLoadAttempt
+    let active = true
+    setMonitoringLoading(true)
+    setMonitoring(null)
+    setMonitoringError('')
+    pathwaysClient
+      .getMonitoringDashboard({
+        projectId,
+        periodStart: selectedPeriod.start,
+        periodEnd: selectedPeriod.end,
+      })
+      .then((nextMonitoring) => {
+        if (active) setMonitoring(nextMonitoring)
+      })
+      .catch((caught: unknown) => {
+        if (active)
+          setMonitoringError(
+            caught instanceof Error ? caught.message : 'Analytics data could not be loaded.',
+          )
+      })
+      .finally(() => {
+        if (active) setMonitoringLoading(false)
+      })
+    return () => {
+      active = false
+    }
+  }, [monitoringLoadAttempt, projectId, selectedPeriod])
+
+  const handleProjectChange = (nextProjectId: string) => {
+    if (nextProjectId === projectId) return
+    setProjectId(nextProjectId)
+    setPeriod('')
+    setIndicatorDefinitions([])
+    setMonitoring(null)
+    setActivities([])
+    setSaddd(null)
+    setProjectDataLoading(true)
+    setMonitoringLoading(false)
+    setSadddLoading(false)
+    setProjectDataError('')
+    setMonitoringError('')
+    setSadddError('')
+  }
+
+  const loading = projectsLoading || projectDataLoading || monitoringLoading
+  const error = projectsError || projectDataError || monitoringError
+  const retryLoad = () => {
+    if (projectsError) setProjectsLoadAttempt((value) => value + 1)
+    else if (projectDataError) setProjectDataLoadAttempt((value) => value + 1)
+    else setMonitoringLoadAttempt((value) => value + 1)
+  }
   const indicators =
     monitoring?.indicators.filter(
       (row) => row.projectId === projectId && row.status === 'ACTIVE',
@@ -210,7 +332,7 @@ export const AnalyticsDashboard = () => {
         </div>
         <div className="space-y-2 xl:col-span-4">
           <span className="text-sm font-medium">Project filter</span>
-          <Select value={projectId} onValueChange={setProjectId}>
+          <Select value={projectId} onValueChange={handleProjectChange}>
             <SelectTrigger aria-label="Project filter">
               <SelectValue placeholder="No authorized projects" />
             </SelectTrigger>
@@ -225,14 +347,18 @@ export const AnalyticsDashboard = () => {
         </div>
         <div className="space-y-2 xl:col-span-2">
           <span className="text-sm font-medium">Reporting period</span>
-          <Select value={period} onValueChange={(value) => setPeriod(value as typeof period)}>
+          <Select
+            disabled={reportingPeriods.length === 0}
+            value={selectedPeriod?.value ?? ''}
+            onValueChange={setPeriod}
+          >
             <SelectTrigger aria-label="Reporting period">
-              <SelectValue />
+              <SelectValue placeholder="No reporting periods" />
             </SelectTrigger>
             <SelectContent>
-              {periods.map((row) => (
+              {reportingPeriods.map((row) => (
                 <SelectItem key={row.value} value={row.value}>
-                  {row.value}
+                  {row.label}
                 </SelectItem>
               ))}
             </SelectContent>
@@ -318,7 +444,7 @@ export const AnalyticsDashboard = () => {
           title="Analytics data unavailable"
           description={error}
           icon={AlertTriangle}
-          onRetry={() => setLoadAttempt((value) => value + 1)}
+          onRetry={retryLoad}
         />
       ) : !selectedProject ? (
         <EmptyState
@@ -331,7 +457,9 @@ export const AnalyticsDashboard = () => {
           <ChartPanel
             title={`${analysisMeta.title} · ${visualizationTypes.find((type) => type.value === visualizationType)?.label}`}
           >
-            {visualizationType === 'map' ? (
+            {!selectedPeriod ? (
+              <UnavailableChart description="No active Indicator reporting period is available for this project." />
+            ) : visualizationType === 'map' ? (
               <AnalyticsCoverageMap />
             ) : analysisRows.length === 0 ? (
               <UnavailableChart
@@ -415,13 +543,22 @@ export const AnalyticsDashboard = () => {
               <UnavailableChart description="Project performance history is unavailable in the current API." />
             </ChartPanel>
             <ChartPanel title="SADDD Analysis">
-              {sadddError ? (
+              {sadddLoading ? (
+                <AsyncState
+                  status="loading"
+                  title="Loading SADDD analysis"
+                  description="Loading the scoped beneficiary aggregate data."
+                  icon={UsersRound}
+                />
+              ) : sadddError ? (
                 <AsyncState
                   status="error"
                   title="SADDD analysis unavailable"
                   description={sadddError}
                   icon={AlertTriangle}
-                  onRetry={() => setLoadAttempt((value) => value + 1)}
+                  onRetry={
+                    sadddEligible ? () => setSadddLoadAttempt((value) => value + 1) : undefined
+                  }
                 />
               ) : saddd ? (
                 <>
@@ -458,12 +595,7 @@ export const AnalyticsDashboard = () => {
                   </details>
                 </>
               ) : (
-                <AsyncState
-                  status="loading"
-                  title="Loading SADDD analysis"
-                  description="Loading the scoped beneficiary aggregate data."
-                  icon={UsersRound}
-                />
+                <UnavailableChart description="SADDD analysis is unavailable for this project." />
               )}
             </ChartPanel>
             <ChartPanel title="Activity completion">

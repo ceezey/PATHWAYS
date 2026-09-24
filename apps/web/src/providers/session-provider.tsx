@@ -14,12 +14,14 @@ export const SessionProvider = ({ children }: { children: React.ReactNode }) => 
   const [status, setStatus] = useState<SessionContextValue['status']>('loading')
   const revision = useRef(0)
   const validatedAccessToken = useRef<string | null>(null)
+  const validatedSubject = useRef<string | null>(null)
   const supabase = getBrowserSupabaseClient()
 
   const refreshSession = useCallback(async () => {
     const requestRevision = ++revision.current
     if (!supabase) {
       validatedAccessToken.current = null
+      validatedSubject.current = null
       setSession(null)
       setStatus('unauthenticated')
       return null
@@ -28,6 +30,7 @@ export const SessionProvider = ({ children }: { children: React.ReactNode }) => 
     const nextSession = await validateRestoredSession(supabase.auth)
     if (requestRevision !== revision.current) return null
     validatedAccessToken.current = nextSession?.access_token ?? null
+    validatedSubject.current = nextSession?.user.id ?? null
     setSession(nextSession)
     setStatus(nextSession ? 'authenticated' : 'unauthenticated')
     return nextSession
@@ -36,6 +39,7 @@ export const SessionProvider = ({ children }: { children: React.ReactNode }) => 
   const signOut = async () => {
     ++revision.current
     validatedAccessToken.current = null
+    validatedSubject.current = null
     setSession(null)
     setStatus('unauthenticated')
     if (supabase) {
@@ -48,6 +52,7 @@ export const SessionProvider = ({ children }: { children: React.ReactNode }) => 
   useEffect(() => {
     if (!supabase) {
       validatedAccessToken.current = null
+      validatedSubject.current = null
       setSession(null)
       setStatus('unauthenticated')
       return
@@ -61,6 +66,7 @@ export const SessionProvider = ({ children }: { children: React.ReactNode }) => 
       ++revision.current
       if (!nextSession) {
         validatedAccessToken.current = null
+        validatedSubject.current = null
         setSession(null)
         setStatus('unauthenticated')
         return
@@ -72,15 +78,23 @@ export const SessionProvider = ({ children }: { children: React.ReactNode }) => 
       }
 
       // Auth callbacks must stay synchronous. Validate new/restored cookie state
-      // online in a separate task before exposing it as authenticated.
-      setSession(null)
-      setStatus('loading')
+      // online in a separate task before exposing it as authenticated. A token
+      // refresh for the already-verified subject is a background check: retain
+      // the current UI until validation allows the new token or fails closed.
+      if (
+        validatedAccessToken.current === null ||
+        validatedSubject.current !== nextSession.user.id
+      ) {
+        setSession(null)
+        setStatus('loading')
+      }
       window.setTimeout(() => void refreshSession(), 0)
     })
 
     return () => {
       ++revision.current
       validatedAccessToken.current = null
+      validatedSubject.current = null
       subscription.unsubscribe()
     }
   }, [refreshSession, supabase])

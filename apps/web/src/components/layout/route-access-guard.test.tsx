@@ -118,7 +118,7 @@ describe('RouteAccessGuard beneficiary boundary', () => {
     expect(await screen.findByText('Protected beneficiary record')).toBeTruthy()
   })
 
-  it('unmounts protected content throughout provider refresh and the new route decision', async () => {
+  it('keeps verified content mounted while provider and same-route checks refresh', async () => {
     requestRouteCheck.mockResolvedValueOnce(allowedDecision)
     const view = render(
       <RouteAccessGuard>
@@ -133,8 +133,8 @@ describe('RouteAccessGuard beneficiary boundary', () => {
         <p>Protected beneficiary record</p>
       </RouteAccessGuard>,
     )
-    expect(screen.getByLabelText('Loading content')).toBeTruthy()
-    expect(screen.queryByText('Protected beneficiary record')).toBeNull()
+    expect(screen.getByText('Protected beneficiary record')).toBeTruthy()
+    expect(screen.queryByLabelText('Loading content')).toBeNull()
 
     let resolveCheck!: (decision: typeof allowedDecision) => void
     requestRouteCheck.mockReturnValueOnce(
@@ -151,10 +151,31 @@ describe('RouteAccessGuard beneficiary boundary', () => {
     )
 
     await waitFor(() => expect(requestRouteCheck).toHaveBeenCalledTimes(2))
-    expect(screen.getByLabelText('Loading content')).toBeTruthy()
-    expect(screen.queryByText('Protected beneficiary record')).toBeNull()
+    expect(screen.getByText('Protected beneficiary record')).toBeTruthy()
+    expect(screen.queryByLabelText('Loading content')).toBeNull()
     resolveCheck(allowedDecision)
     expect(await screen.findByText('Protected beneficiary record')).toBeTruthy()
+  })
+
+  it('fails closed as soon as a background same-route check returns a denial', async () => {
+    requestRouteCheck.mockResolvedValueOnce(allowedDecision)
+    const view = render(
+      <RouteAccessGuard>
+        <p>Protected beneficiary record</p>
+      </RouteAccessGuard>,
+    )
+    expect(await screen.findByText('Protected beneficiary record')).toBeTruthy()
+
+    requestRouteCheck.mockRejectedValueOnce(new RouteCheckErrorMock(403))
+    currentRoleState.current.verificationRevision = 2
+    view.rerender(
+      <RouteAccessGuard>
+        <p>Protected beneficiary record</p>
+      </RouteAccessGuard>,
+    )
+
+    expect(await screen.findByText('Server denied beneficiary access')).toBeTruthy()
+    expect(screen.queryByText('Protected beneficiary record')).toBeNull()
   })
 
   it('never renders the PIN gate or protected content after backend denial', async () => {
