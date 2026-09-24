@@ -2,7 +2,8 @@
 [CmdletBinding()]
 param(
   [switch]$Phase4IndicatorPolicy,
-  [switch]$RuleBasedAccessAlignment
+  [switch]$RuleBasedAccessAlignment,
+  [switch]$DashboardHomeProjectScope
 )
 $ErrorActionPreference = 'Stop'
 $phase6Root = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot '../../..')).Path
@@ -16,7 +17,7 @@ $phase6Port = 55448
 $phase6Exit = 1
 $phase6Started = $false
 $phase6PreviousEnvironment = @{}
-foreach ($phase6EnvironmentName in @('PATHWAYS_PHASE6_REPLAY_MIGRATIONS','PATHWAYS_FEATURE_READ_LOCAL_TESTS','PATHWAYS_C8_LOCAL_TESTS','DIRECT_URL','DATABASE_URL')) {
+foreach ($phase6EnvironmentName in @('PATHWAYS_PHASE6_REPLAY_MIGRATIONS','PATHWAYS_FEATURE_READ_LOCAL_TESTS','PATHWAYS_C8_LOCAL_TESTS','PATHWAYS_DASHBOARD_HOME_SCOPE_LOCAL_TESTS','DIRECT_URL','DATABASE_URL')) {
   $phase6EnvironmentItem = Get-Item -LiteralPath "Env:$phase6EnvironmentName" -ErrorAction SilentlyContinue
   $phase6PreviousEnvironment[$phase6EnvironmentName] = if ($null -eq $phase6EnvironmentItem) {
     @{ Present = $false; Value = $null }
@@ -148,7 +149,7 @@ try {
       }
     }
 
-    if ($Phase4IndicatorPolicy -or $RuleBasedAccessAlignment) {
+    if ($Phase4IndicatorPolicy -or $RuleBasedAccessAlignment -or $DashboardHomeProjectScope) {
       # Synthetic existing reference rows exercise the upgrade path. The
       # checked-in policy supplies equivalent mappings when a fresh target is
       # provisioned after its migrations; no managed target is used here.
@@ -188,7 +189,7 @@ WHERE id='89000000-0000-4000-8000-000000000021'::uuid
       pnpm --filter @pathways/api exec prisma migrate deploy --config $phase6Config
       if ($LASTEXITCODE -ne 0) { throw '0022 project target-goal replay failed.' }
 
-      if ($RuleBasedAccessAlignment) {
+      if ($RuleBasedAccessAlignment -or $DashboardHomeProjectScope) {
         # Reproduce the managed pre-0023 authorization state: both target roles
         # exist, M&E already has rules.read, and unrelated Project Manager rows
         # must remain unchanged.
@@ -251,6 +252,26 @@ DELETE FROM pathways.roles
 WHERE code IN ('PROJECT_MANAGER','MONITORING_AND_EVALUATION_OFFICER','PROJECT_OFFICER');
 '@
         Invoke-LocalSql $ruleAccessRemoveSeedSql $phase6Database
+
+        if ($DashboardHomeProjectScope) {
+          Copy-Item -LiteralPath (Join-Path $phase6Root 'apps/api/prisma/migrations/0024_dashboard_home_project_scope') -Destination $phase6Stage -Recurse
+          pnpm --filter @pathways/api exec prisma migrate deploy --config $phase6Config
+          if ($LASTEXITCODE -ne 0) { throw '0024 dashboard-home project-scope replay failed.' }
+
+          $dashboardHomePostflightSql = @'
+SELECT
+  to_regprocedure('pathways.p06_home_dashboard(uuid,uuid[],date,date,text)') IS NOT NULL
+  AND has_function_privilege('pathways_runtime','pathways.p06_home_dashboard(uuid,uuid[],date,date,text)','EXECUTE')
+  AND NOT has_function_privilege('anon','pathways.p06_home_dashboard(uuid,uuid[],date,date,text)','EXECUTE')
+  AND NOT has_function_privilege('authenticated','pathways.p06_home_dashboard(uuid,uuid[],date,date,text)','EXECUTE')
+  AND NOT has_function_privilege('service_role','pathways.p06_home_dashboard(uuid,uuid[],date,date,text)','EXECUTE')
+  AND NOT (SELECT rolsuper OR rolbypassrls FROM pg_roles WHERE rolname='pathways_runtime');
+'@
+          $dashboardHomePostflight = $dashboardHomePostflightSql | & "$phase6Bin\psql.exe" -X -w -q -A -t -h 127.0.0.1 -p $phase6Port -U postgres -d $phase6Database -v ON_ERROR_STOP=1
+          if ($LASTEXITCODE -ne 0 -or $dashboardHomePostflight.Trim() -cne 't') {
+            throw '0024 dashboard-home function hardening failed.'
+          }
+        }
       }
     }
 
@@ -390,7 +411,9 @@ SELECT (SELECT count(*) FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamesp
             AND conrelid='pathways.system_users'::regclass
             AND confrelid='auth.users'::regclass AND contype='f');
 '@
-  if ($RuleBasedAccessAlignment) {
+  if ($DashboardHomeProjectScope) {
+    $phase6Post = $phase6Post.Replace('FROM public._prisma_migrations)=20', 'FROM public._prisma_migrations)=24')
+  } elseif ($RuleBasedAccessAlignment) {
     $phase6Post = $phase6Post.Replace('FROM public._prisma_migrations)=20', 'FROM public._prisma_migrations)=23')
   } elseif ($Phase4IndicatorPolicy) {
     $phase6Post = $phase6Post.Replace('FROM public._prisma_migrations)=20', 'FROM public._prisma_migrations)=22')
@@ -429,9 +452,19 @@ SELECT (SELECT count(*) FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamesp
     $phase6IndicatorSql = "\set PHASE4_INDICATOR_POLICY 1`n" + $phase6IndicatorSql
   }
   Invoke-LocalSql $phase6IndicatorSql $phase6Database
-  Write-Output 'PROJECT_INDICATOR_DASHBOARD_RUNTIME=PASS' 
+  Write-Output 'PROJECT_INDICATOR_DASHBOARD_RUNTIME=PASS'
+  if ($DashboardHomeProjectScope) {
+    $env:PATHWAYS_DASHBOARD_HOME_SCOPE_LOCAL_TESTS = '1'
+    Push-Location $phase6Root
+    try {
+      pnpm --dir apps/api exec vitest run src/modules/dashboards/dashboard-home-runtime.local.test.ts
+      if ($LASTEXITCODE -ne 0) { throw '0024 API/Prisma runtime test failed.' }
+    } finally { Pop-Location }
+    Invoke-LocalSql ([IO.File]::ReadAllText((Join-Path $phase6Root 'apps/api/prisma/tests/dashboard-home-project-scope-runtime.sql'))) $phase6Database
+    Write-Output 'DASHBOARD_HOME_PROJECT_SCOPE_RUNTIME=PASS'
+  }
   if ($Phase4IndicatorPolicy) { Write-Output 'PHASE4_PM_INDICATOR_RUNTIME=PASS' }
-  if ($RuleBasedAccessAlignment) { Write-Output 'RULE_BASED_ACCESS_ALIGNMENT_RUNTIME=PASS' }
+  if ($RuleBasedAccessAlignment -or $DashboardHomeProjectScope) { Write-Output 'RULE_BASED_ACCESS_ALIGNMENT_RUNTIME=PASS' }
   Write-Output 'LEGACY_TABLE_PRESERVATION=PASS'
   $phase6Exit = 0
 } catch {

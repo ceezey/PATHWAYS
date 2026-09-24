@@ -11,9 +11,9 @@ export class DashboardsController {
   constructor(@Inject(DashboardsService) private readonly service: DashboardsService) {}
   @Get('home')
   @Header('Cache-Control', 'private, no-store')
-  @RequirePermission('analytics.read')
+  @RequirePermission('projects.read')
   home(@Req() request: AuthenticatedRequest, @Query() query: unknown) {
-    return this.service.monitoring(identity(request), query)
+    return this.service.home(identity(request), query)
   }
   @Get('monitoring')
   @Header('Cache-Control', 'private, no-store')

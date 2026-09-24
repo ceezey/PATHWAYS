@@ -72,17 +72,38 @@ export class DashboardsService {
       throw new NotFoundException('Monitoring scope unavailable.')
     return projects
   }
+  async home(identity: ApplicationIdentity, input: unknown) {
+    return this.monitoringWithPermission(identity, input, 'projects.read', 'home')
+  }
   async monitoring(identity: ApplicationIdentity, input: unknown) {
+    return this.monitoringWithPermission(identity, input, 'analytics.read', 'monitoring')
+  }
+  private async monitoringWithPermission(
+    identity: ApplicationIdentity,
+    input: unknown,
+    permission: 'projects.read' | 'analytics.read',
+    operation: 'home' | 'monitoring',
+  ) {
     const query = parseDashboardQuery(input)
     const period = this.period(query)
-    return withAuthorizedOperation(this.prisma, identity, 'analytics.read', async (tx, actor) => {
+    return withAuthorizedOperation(this.prisma, identity, permission, async (tx, actor) => {
       const projects = await this.scope(tx, actor, query)
       await tx.$queryRaw`SELECT set_config('statement_timeout','3000',true)`
       let result: Array<{ data: unknown }>
       try {
-        result = await tx.$queryRaw<Array<{ data: unknown }>>(
-          Prisma.sql`SELECT pathways.p06_monitoring(${actor.organizationId}::uuid,ARRAY[${Prisma.join(projects.length ? projects.map((project) => Prisma.sql`${project.id}::uuid`) : [Prisma.empty])}]::uuid[],${period.periodStart}::date,${period.periodEnd}::date,${period.businessTimeZone}) AS data`,
+        const projectIds = Prisma.join(
+          projects.length
+            ? projects.map((project) => Prisma.sql`${project.id}::uuid`)
+            : [Prisma.empty],
         )
+        result =
+          operation === 'home'
+            ? await tx.$queryRaw<Array<{ data: unknown }>>(
+                Prisma.sql`SELECT pathways.p06_home_dashboard(${actor.organizationId}::uuid,ARRAY[${projectIds}]::uuid[],${period.periodStart}::date,${period.periodEnd}::date,${period.businessTimeZone}) AS data`,
+              )
+            : await tx.$queryRaw<Array<{ data: unknown }>>(
+                Prisma.sql`SELECT pathways.p06_monitoring(${actor.organizationId}::uuid,ARRAY[${projectIds}]::uuid[],${period.periodStart}::date,${period.periodEnd}::date,${period.businessTimeZone}) AS data`,
+              )
       } catch (error) {
         monitoringSqlError(error)
       }

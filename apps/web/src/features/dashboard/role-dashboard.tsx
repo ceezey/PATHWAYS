@@ -44,12 +44,18 @@ import type {
   Indicator,
   RoleDashboardViewModel,
 } from '@/types/pathways'
-import { getPathwaysRoleDisplayName } from '@/types/pathways-role'
+import { type PathwaysRole, getPathwaysRoleDisplayName } from '@/types/pathways-role'
 import { formatMetricCell } from '@pathways/shared'
 
 import { ActivityDetailPanel } from '../projects/activity-detail-panel'
 import { ActivityProofDialog } from '../projects/activity-proof-dialog'
 import { ExecutiveDashboard } from './executive-dashboard'
+
+export const canLoadDashboardMonitoring = (role: PathwaysRole | null) =>
+  role !== null && can(role, 'monitor_evaluate.view') && can(role, 'analytics.view')
+
+export const canOpenDashboardMonitoring = (role: PathwaysRole | null) =>
+  role !== null && can(role, 'analytics.view')
 
 const severityTone = (severity?: DashboardSeverity) => {
   if (severity === 'danger') {
@@ -558,7 +564,7 @@ export const RoleDashboard = () => {
     <>
       <PageHeader
         actions={
-          !dashboard.executive && dashboard.primaryAction ? (
+          !dashboard.executive && dashboard.primaryAction && canOpenDashboardMonitoring(role) ? (
             <ActionButton
               action={dashboard.primaryAction}
               onAction={handleAction}
@@ -568,7 +574,7 @@ export const RoleDashboard = () => {
         }
         title={`Welcome! ${roleLabel}`}
       />
-      <ConnectedMonitoringSnapshot role={role} />
+      {canLoadDashboardMonitoring(role) ? <ConnectedMonitoringSnapshot role={role} /> : null}
       {dashboard.executive ? (
         <ExecutiveDashboard model={dashboard.executive} summaryAction={dashboard.primaryAction} />
       ) : null}
