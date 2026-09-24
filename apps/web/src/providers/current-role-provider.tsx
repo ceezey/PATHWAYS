@@ -153,15 +153,17 @@ export const CurrentRoleProvider = ({ children }: { children: React.ReactNode })
       inFlight.current = false
       setResult(null)
     }
-    // Preserve the existing freshness interval; one owner coordinates browser events.
-    const interval = window.setInterval(revalidate, 30_000)
+    // Revalidate on meaningful trust-boundary events. Do not poll while the user
+    // is idle: a provider refresh fail-closes the route tree, so polling would
+    // remount every page loader and turn persistent outages into request loops.
     window.addEventListener('focus', revalidate)
+    window.addEventListener('online', revalidate)
     window.addEventListener('pageshow', revalidate)
     window.addEventListener('pagehide', pause)
     document.addEventListener('visibilitychange', revalidate)
     return () => {
-      window.clearInterval(interval)
       window.removeEventListener('focus', revalidate)
+      window.removeEventListener('online', revalidate)
       window.removeEventListener('pageshow', revalidate)
       window.removeEventListener('pagehide', pause)
       document.removeEventListener('visibilitychange', revalidate)

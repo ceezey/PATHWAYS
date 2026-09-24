@@ -51,4 +51,12 @@ describe('auth navigation failure and wiring contracts', () => {
     expect(guard).toContain('requestRouteCheck(')
     expect(guard).toContain('verificationRevision')
   })
+  it('revalidates access on trust-boundary events without idle polling', () => {
+    const provider = source('providers/current-role-provider.tsx')
+    expect(provider).not.toContain('setInterval')
+    expect(provider).toContain("window.addEventListener('focus', revalidate)")
+    expect(provider).toContain("window.addEventListener('online', revalidate)")
+    expect(provider).toContain("window.addEventListener('pageshow', revalidate)")
+    expect(provider).toContain("document.addEventListener('visibilitychange', revalidate)")
+  })
 })

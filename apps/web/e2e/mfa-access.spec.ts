@@ -27,16 +27,40 @@ test.beforeAll(async () => {
   const output = await build({
     stdin: {
       contents: `import { createRoot } from 'react-dom/client';
-        import { StrictMode } from 'react';
+        import { StrictMode, useEffect, useState } from 'react';
         import { useFormRevision, usePathname } from './fixtures/mfa-access';
         import { CurrentRoleProvider } from '../src/providers/current-role-provider';
         import { MfaForm } from '../src/features/auth/mfa-form';
         import { ProtectedRoute } from '../src/components/layout/protected-route';
         import { AppShell } from '../src/components/layout/app-shell';
+        const routeReads = {
+          '/dashboard': ['/api/projects', '/api/dashboards/monitoring'],
+          '/projects': ['/api/projects'],
+          '/analytics': [
+            '/api/projects',
+            '/api/dashboards/monitoring',
+            '/api/activities?projectId=synthetic',
+            '/api/dashboards/saddd?projectId=synthetic',
+          ],
+        };
+        function ProtectedFixtureData({ path }) {
+          const [settled, setSettled] = useState(false);
+          useEffect(() => {
+            const controller = new AbortController();
+            setSettled(false);
+            Promise.all((routeReads[path] ?? []).map((endpoint) =>
+              fetch('http://127.0.0.1:4000' + endpoint, { signal: controller.signal }),
+            )).then(() => setSettled(true), () => undefined);
+            return () => controller.abort();
+          }, [path]);
+          return <><h1>Protected fixture data</h1><output data-testid="route-reads">
+            {settled ? 'settled' : 'loading'}
+          </output></>;
+        }
         function Screen() {
           const revision = useFormRevision(); const path = usePathname();
           return path === '/auth/mfa' ? <MfaForm key={revision} /> :
-            <AppShell><ProtectedRoute><h1>Protected fixture data</h1></ProtectedRoute></AppShell>;
+            <AppShell><ProtectedRoute><ProtectedFixtureData key={path} path={path} /></ProtectedRoute></AppShell>;
         }
         createRoot(document.getElementById('root')).render(<StrictMode><CurrentRoleProvider><Screen /></CurrentRoleProvider></StrictMode>);`,
       resolveDir: __dirname,
@@ -73,6 +97,7 @@ type State = {
   workspaces: unknown[]
   currentProfile: typeof profile
   counts: { mfa: number; discovery: number; profile: number; route: number }
+  domainCounts: Record<string, number>
   profileWait: Promise<void> | null
   discoveryWait: Promise<void> | null
 }
@@ -87,6 +112,7 @@ async function mount(page: Page, overrides: Partial<State> = {}) {
     workspaces: [workspace],
     currentProfile: profile,
     counts: { mfa: 0, discovery: 0, profile: 0, route: 0 },
+    domainCounts: {},
     profileWait: null,
     discoveryWait: null,
     ...overrides,
@@ -154,6 +180,17 @@ async function mount(page: Page, overrides: Partial<State> = {}) {
             : { message: 'PRIVATE_DO_NOT_RENDER' },
       })
     }
+    if (
+      [
+        '/api/projects',
+        '/api/dashboards/monitoring',
+        '/api/activities',
+        '/api/dashboards/saddd',
+      ].includes(url.pathname)
+    ) {
+      state.domainCounts[url.pathname] = (state.domainCounts[url.pathname] ?? 0) + 1
+      return route.fulfill({ status: 200, headers, json: {} })
+    }
     return route.abort()
   })
   await page.goto('/component-fixture')
@@ -203,6 +240,41 @@ test('routine focus/page restoration shares one /me check, without MFA or redisc
   await expect(ready(page)).toBeVisible()
   release()
   await expect(page.getByRole('button', { name: 'Recheck securely' })).toBeEnabled()
+  await page.evaluate(() => window.dispatchEvent(new Event('online')))
+  await expect.poll(() => state.counts.profile).toBe(3)
+  expect(state.counts.mfa).toBe(1)
+  expect(state.counts.discovery).toBe(1)
+})
+
+test('dashboard, projects and analytics reads stay bounded through 30-second idle windows', async ({
+  page,
+}) => {
+  await page.clock.install()
+  const state = await mount(page, {
+    currentProfile: {
+      ...profile,
+      roles: ['SYSTEM_ADMINISTRATOR'],
+      permissions: ['projects.read', 'analytics.read'],
+    },
+  })
+  await expect(ready(page)).toBeVisible()
+
+  for (const path of ['/dashboard', '/projects', '/analytics', '/dashboard']) {
+    await change(page, { path })
+    await expect(page.getByRole('heading', { name: 'Protected fixture data' })).toBeVisible()
+    await expect(page.getByTestId('route-reads')).toHaveText('settled')
+    const before = {
+      profile: state.counts.profile,
+      route: state.counts.route,
+      domain: { ...state.domainCounts },
+    }
+    await page.clock.runFor(30_100)
+    expect({
+      profile: state.counts.profile,
+      route: state.counts.route,
+      domain: { ...state.domainCounts },
+    }).toEqual(before)
+  }
 })
 
 test('same token session-object replacement does not restart discovery', async ({ page }) => {
@@ -234,6 +306,7 @@ test('token refresh uses the new token and a fresh /me, not old profile authorit
 test('a profile outage hides protected content but preserves selectors for retry', async ({
   page,
 }) => {
+  await page.clock.install()
   const state = await mount(page)
   await expect(ready(page)).toBeVisible()
   state.profileStatus = 503
@@ -241,6 +314,10 @@ test('a profile outage hides protected content but preserves selectors for retry
   await expect(page.getByRole('alert')).toContainText('temporarily unavailable')
   await expect(ready(page)).toHaveCount(0)
   expect(await cookie(page)).toBeDefined()
+  const failedRequestCount = state.counts.profile
+  await page.clock.runFor(60_100)
+  expect(state.counts.profile).toBe(failedRequestCount)
+  await expect(page.getByRole('alert')).toContainText('temporarily unavailable')
   state.profileStatus = 200
   await recheck(page)
   await expect(ready(page)).toBeVisible()
