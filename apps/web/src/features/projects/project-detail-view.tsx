@@ -220,7 +220,6 @@ export const ProjectDetailView = ({ projectId }: { projectId: string }) => {
         </SectionCard>
         <SectionCard
           title="Project team"
-          description="Assigned project team members."
           actions={canManageProjectTeam ? <ProjectTeamEditorDialog project={project} /> : null}
         >
           <dl className="grid gap-4 text-sm sm:grid-cols-2">
@@ -246,12 +245,16 @@ export const ProjectDetailView = ({ projectId }: { projectId: string }) => {
         </SectionCard>
       </section>
       <section>
-        <SectionCard title="Schedule" description="Project implementation window.">
+        <SectionCard title="Schedule">
           <div className="flex items-start gap-3 text-sm">
             <CalendarDays className="mt-1 h-4 w-4 shrink-0 text-primary" aria-hidden="true" />
             <div>
               <p className="font-medium text-foreground">{project.period}</p>
               <p className="mt-1 text-muted-foreground">Budget code: {project.budgetCode}</p>
+              <p className="mt-1 text-muted-foreground">
+                Project target goal:{' '}
+                {project.targetGoal === null ? 'Not set' : `${project.targetGoal}%`}
+              </p>
             </div>
           </div>
         </SectionCard>

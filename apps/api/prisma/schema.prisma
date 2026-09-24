@@ -629,6 +629,7 @@ model Project {
   description                              String?
   objectives                               String?
   implementationArea                       String?                            @map("implementation_area")
+  targetGoal                               Decimal?                           @map("target_goal") @db.Decimal(7, 4)
   startDate                                DateTime?                          @map("start_date") @db.Date
   endDate                                  DateTime?                          @map("end_date") @db.Date
   status                                   ProjectStatus                      @default(PLANNED)

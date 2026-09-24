@@ -3,6 +3,7 @@ import type { ProjectDetail } from '@/lib/demo-state/legacy-types'
 export const mockProjects: ProjectDetail[] = [
   {
     id: 'futuremakers-ncr',
+    targetGoal: null,
     title: 'FutureMakers NCR',
     area: 'National Capital Region',
     sector: 'Youth Livelihoods',
@@ -24,6 +25,7 @@ export const mockProjects: ProjectDetail[] = [
   },
   {
     id: 'youth-rise-western-samar',
+    targetGoal: null,
     title: 'Youth RISE - Western Samar',
     area: 'Western Samar',
     sector: 'Education and Skills',
@@ -45,6 +47,7 @@ export const mockProjects: ProjectDetail[] = [
   },
   {
     id: 'grassroots-centers-navotas',
+    targetGoal: null,
     title: 'Grassroots Centers - Navotas',
     area: 'Navotas',
     sector: 'Community Resilience',
@@ -65,6 +68,7 @@ export const mockProjects: ProjectDetail[] = [
   },
   {
     id: 'girls-lead-metro-manila',
+    targetGoal: null,
     title: 'Girls Lead - Metro Manila',
     area: 'Metro Manila',
     sector: 'Gender Equality',
@@ -85,6 +89,7 @@ export const mockProjects: ProjectDetail[] = [
   },
   {
     id: 'safe-spaces-northern-samar',
+    targetGoal: null,
     title: 'Safe Spaces - Northern Samar',
     area: 'Northern Samar',
     sector: 'Protection',

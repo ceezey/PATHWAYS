@@ -1,5 +1,4 @@
 export { mockActivities } from './activities'
-export { mockAnalyticsLocations } from './analytics-locations'
 export { mockAlerts } from './alerts'
 export { mockBeneficiaries, mockBeneficiaryRecords, mockJourneyStages } from './beneficiaries'
 export { mockBeneficiaryMediaProof } from './beneficiary-media'

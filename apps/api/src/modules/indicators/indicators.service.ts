@@ -18,7 +18,9 @@ import {
   type ManualMeasurementInput,
   type MonitoringIndicator,
   P06_CONTRACT_VERSION,
+  type ProjectIndicator,
   type UpdateIndicatorInput,
+  compareProgressToTargetGoal,
   indicatorProgress,
   missingMetric,
   monitoringIndicatorSchema,
@@ -33,7 +35,9 @@ import {
 } from './indicators.dto'
 
 type Tx = Prisma.TransactionClient
-type DefinitionRow = Omit<MonitoringIndicator, 'progress' | 'contractVersion'>
+type DefinitionRow = Omit<MonitoringIndicator, 'progress' | 'contractVersion'> & {
+  projectTargetGoal: string | null
+}
 
 export function monitoringSqlError(error: unknown): never {
   const code = error && typeof error === 'object' && 'code' in error ? error.code : null
@@ -76,12 +80,12 @@ export class IndicatorsService {
   }
 
   /** Called only inside a current authorized transaction with server-derived scope. */
-  async readInTransaction(
+  private async readProjectIndicatorsInTransaction(
     tx: Tx,
     actor: ApplicationIdentity,
     projectIds: string[],
     options: { indicatorId?: string; periodStart?: string; periodEnd?: string } = {},
-  ): Promise<MonitoringIndicator[]> {
+  ): Promise<ProjectIndicator[]> {
     if (projectIds.length === 0) return []
     if (projectIds.length > 100 || projectIds.some((id) => !UUID_PATTERN.test(id)))
       throw new BadRequestException('Narrow the monitoring project scope.')
@@ -91,6 +95,7 @@ export class IndicatorsService {
     try {
       rows = await tx.$queryRaw<DefinitionRow[]>(Prisma.sql`
         SELECT i.id::text AS id,i.project_id::text AS "projectId",i.code,i.name,i.description,
+          trim_scale(p.target_goal)::text AS "projectTargetGoal",
           i.unit_label AS "unitLabel",i.data_source AS "dataSource",i.measurement_mode AS mode,i.numeric_kind AS "numericKind",i.direction,
           i.display_precision AS "displayPrecision",to_char(i.period_start,'YYYY-MM-DD') AS "periodStart",to_char(i.period_end,'YYYY-MM-DD') AS "periodEnd",
           trim_scale(i.baseline_value)::text AS baseline,trim_scale(i.target_value)::text AS target,
@@ -98,6 +103,7 @@ export class IndicatorsService {
           CASE WHEN b.id IS NULL THEN NULL ELSE jsonb_strip_nulls(jsonb_build_object('recipe',b.recipe,'activityId',b.activity_id,'formId',b.form_id,'formVersion',b.form_version,'fieldId',b.field_id)) END AS binding,
           i.revision,CASE WHEN i.archived_at IS NOT NULL THEN 'ARCHIVED' WHEN i.measurement_mode IS NULL THEN 'LEGACY_REVIEW_REQUIRED' ELSE 'ACTIVE' END AS status
         FROM pathways.project_indicators i
+        JOIN pathways.projects p ON p.organization_id=i.organization_id AND p.id=i.project_id
         LEFT JOIN pathways.project_indicator_bindings b ON b.organization_id=i.organization_id AND b.project_id=i.project_id AND b.indicator_id=i.id
         CROSS JOIN LATERAL (SELECT pathways.p06_indicator_value(${actor.organizationId}::uuid,i.project_id,i.id,${zone}) AS payload) computed
         WHERE i.organization_id=${actor.organizationId}::uuid AND i.project_id IN (${Prisma.join(projectIds.map((id) => Prisma.sql`${id}::uuid`))})
@@ -114,26 +120,46 @@ export class IndicatorsService {
         'More than 100 indicator definitions match; narrow the project scope.',
       )
     return rows.map((row) => {
+      const { projectTargetGoal, ...definition } = row
       const parsed = monitoringIndicatorSchema.safeParse({
-        ...row,
+        ...definition,
         progress: missingMetric('NOT_YET_CALCULATED'),
         contractVersion: P06_CONTRACT_VERSION,
       })
       if (!parsed.success)
         throw new ServiceUnavailableException('Stored indicator contract is unavailable.')
       const indicator = parsed.data
+      const progress = indicator.direction
+        ? indicatorProgress(
+            indicator.current,
+            indicator.baseline,
+            indicator.target,
+            indicator.direction,
+          )
+        : missingMetric('LEGACY_REVIEW_REQUIRED')
       return {
         ...indicator,
-        progress: indicator.direction
-          ? indicatorProgress(
-              indicator.current,
-              indicator.baseline,
-              indicator.target,
-              indicator.direction,
-            )
-          : missingMetric('LEGACY_REVIEW_REQUIRED'),
+        progress,
+        projectGoalComparison: compareProgressToTargetGoal(progress, projectTargetGoal),
       }
     })
+  }
+
+  async readInTransaction(
+    tx: Tx,
+    actor: ApplicationIdentity,
+    projectIds: string[],
+    options: { indicatorId?: string; periodStart?: string; periodEnd?: string } = {},
+  ): Promise<MonitoringIndicator[]> {
+    const projectIndicators = await this.readProjectIndicatorsInTransaction(
+      tx,
+      actor,
+      projectIds,
+      options,
+    )
+    return projectIndicators.map(
+      ({ projectGoalComparison: _projectGoalComparison, ...indicator }) => indicator,
+    )
   }
 
   private async readOne(
@@ -142,13 +168,17 @@ export class IndicatorsService {
     projectId: string,
     indicatorId: string,
   ) {
-    const [row] = await this.readInTransaction(tx, actor, [projectId], { indicatorId })
+    const [row] = await this.readProjectIndicatorsInTransaction(tx, actor, [projectId], {
+      indicatorId,
+    })
     if (!row) throw new NotFoundException('Indicator unavailable.')
     return row
   }
   list(identity: ApplicationIdentity, projectId: string) {
     return withAuthorizedOperation(this.prisma, identity, 'monitoring.read', async (tx, actor) =>
-      this.readInTransaction(tx, actor, [await this.requireProject(tx, actor, projectId)]),
+      this.readProjectIndicatorsInTransaction(tx, actor, [
+        await this.requireProject(tx, actor, projectId),
+      ]),
     )
   }
   get(identity: ApplicationIdentity, projectId: string, indicatorId: string) {

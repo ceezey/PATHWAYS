@@ -46,6 +46,7 @@ const project: ProjectDetail = {
   monitoringOfficer: 'Not assigned',
   projectOfficers: [],
   targetBeneficiaries: 0,
+  targetGoal: '75',
   budgetCode: 'Not recorded',
   startDate: '2026-10-01',
   endDate: '2026-12-31',
@@ -78,6 +79,9 @@ describe('ProjectSetupForm', () => {
     fireEvent.change(screen.getByLabelText(/Objectives/), {
       target: { value: 'Deliver core project outcomes' },
     })
+    fireEvent.change(screen.getByLabelText(/Project target goal/), {
+      target: { value: '62.5' },
+    })
     fireEvent.change(screen.getByLabelText(/Project title/), {
       target: { value: 'Core project profile' },
     })
@@ -100,6 +104,7 @@ describe('ProjectSetupForm', () => {
       title: 'Core project profile',
       description: 'A supported core project profile.',
       objectives: 'Deliver core project outcomes',
+      targetGoal: '62.5',
       implementationArea: 'Navotas',
       startDate: '2026-10-01',
       endDate: '2026-12-31',
@@ -112,6 +117,7 @@ describe('ProjectSetupForm', () => {
     render(<ProjectSetupForm projectId={project.id} />)
 
     const title = await screen.findByDisplayValue(project.title)
+    expect(screen.getByDisplayValue('75')).toBeTruthy()
     fireEvent.change(title, { target: { value: 'Updated project' } })
     fireEvent.click(screen.getByRole('button', { name: 'Save Project' }))
 

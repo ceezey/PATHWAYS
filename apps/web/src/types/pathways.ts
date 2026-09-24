@@ -1,5 +1,9 @@
 import type { PathwaysRole } from '@/types/pathways-role'
-import type { MonitoringIndicator, SadddDashboard } from '@pathways/shared'
+import type {
+  SadddDashboard,
+  ProjectIndicator as SharedProjectIndicator,
+  TargetGoalComparison,
+} from '@pathways/shared'
 
 export type ProjectStatus = 'Active' | 'Needs Attention' | 'Planned' | 'Completed'
 export type StoredProjectStatus = 'PLANNED' | 'ONGOING' | 'COMPLETED' | 'ON_HOLD' | 'CANCELLED'
@@ -23,6 +27,7 @@ export type DashboardActionKind = 'dialog' | 'navigate' | 'toast'
 export interface ProjectSummary {
   metricsAvailable?: boolean
   targetBeneficiaries?: number
+  targetGoal: string | null
   id: string
   code?: string
   title: string
@@ -84,11 +89,14 @@ export interface CreateProjectInput {
   status: ProjectStatus
   description?: string
   programId?: string
+  targetGoal: string
 }
 
-export interface UpdateProjectInput extends Omit<CreateProjectInput, 'code' | 'status'> {
+export interface UpdateProjectInput
+  extends Omit<CreateProjectInput, 'code' | 'status' | 'targetGoal'> {
   code?: string
   status: ProjectStatus | StoredProjectStatus
+  targetGoal?: string
   expectedUpdatedAt: string
 }
 
@@ -124,6 +132,7 @@ export interface Activity {
   budgetAllocation: number
   budgetLogged: number
   progress: number
+  projectGoalComparison: TargetGoalComparison
   reviewedById?: string | null
   reviewedAt?: string | null
   cancellationReason?: string | null
@@ -434,8 +443,8 @@ export interface EvidenceRecord {
   previewSummary: string
 }
 
-export type IndicatorStatus = MonitoringIndicator['status']
-export type ProjectIndicator = MonitoringIndicator
+export type IndicatorStatus = SharedProjectIndicator['status']
+export type ProjectIndicator = SharedProjectIndicator
 
 export interface EvaluationWeight {
   id: string

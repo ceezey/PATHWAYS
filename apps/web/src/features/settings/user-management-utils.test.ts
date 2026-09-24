@@ -23,6 +23,7 @@ const makeProject = (id: string, title: string): ProjectSummary => ({
   beneficiariesReached: 0,
   budgetUtilization: 0,
   timelineProgress: 0,
+  targetGoal: null,
 })
 
 const testProjects = [

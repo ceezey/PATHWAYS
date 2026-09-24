@@ -461,7 +461,7 @@ export const UserManagementWorkspace = ({
             </div>
           </SectionCard>
 
-          <SectionCard title="Administration links" description="Related configuration.">
+          <SectionCard title="Administration links">
             <div className="grid gap-2">
               {actorRole && can(actorRole, 'settings.view') ? (
                 <Button asChild className="justify-start" variant="outline">

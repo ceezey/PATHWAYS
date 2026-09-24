@@ -11,6 +11,7 @@ const validValues = {
   partners: '',
   projectBudget: '',
   targetBeneficiaries: '',
+  targetGoal: '75',
   title: 'Community project',
   sector: '',
   area: 'Navotas',
@@ -31,6 +32,7 @@ describe('project setup validation', () => {
       partners: '',
       projectBudget: '',
       targetBeneficiaries: '',
+      targetGoal: '',
       title: '',
       sector: '',
       area: '',
@@ -45,6 +47,15 @@ describe('project setup validation', () => {
     })
 
     expect(result.success).toBe(false)
+  })
+
+  it('accepts only an exact target percentage greater than zero through 100', () => {
+    expect(projectSetupSchema.safeParse({ ...validValues, targetGoal: '62.5000' }).success).toBe(
+      true,
+    )
+    for (const targetGoal of ['0', '-1', '100.0001', '50.00001', '1e2']) {
+      expect(projectSetupSchema.safeParse({ ...validValues, targetGoal }).success).toBe(false)
+    }
   })
 
   it('rejects an end date before the start date', () => {
@@ -85,7 +96,7 @@ describe('project setup validation', () => {
 
   it('preserves the stored code, program, revision and cancelled state on edit', () => {
     const input = toUpdateProjectInput(
-      { ...validValues, status: 'Needs Attention' },
+      { ...validValues, status: 'Needs Attention', targetGoal: '' },
       {
         id: 'project-id',
         code: 'PRJ-EXISTING',
@@ -107,6 +118,7 @@ describe('project setup validation', () => {
         monitoringOfficer: 'Not assigned',
         projectOfficers: [],
         targetBeneficiaries: 0,
+        targetGoal: null,
         budgetCode: 'Not recorded',
         updatedAt: '2026-09-23T00:00:00.000Z',
         programId: '70000000-0000-4000-8000-000000000007',
@@ -119,5 +131,6 @@ describe('project setup validation', () => {
       status: 'CANCELLED',
       expectedUpdatedAt: '2026-09-23T00:00:00.000Z',
     })
+    expect(input).not.toHaveProperty('targetGoal')
   })
 })

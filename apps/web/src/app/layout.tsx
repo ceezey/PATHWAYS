@@ -6,6 +6,7 @@ import { APP_DESCRIPTION, APP_NAME } from '@pathways/shared'
 import { initializeWebSentry } from '@/lib/sentry'
 import { AppProviders } from '@/providers/app-providers'
 
+import 'maplibre-gl/dist/maplibre-gl.css'
 import './globals.css'
 
 initializeWebSentry()

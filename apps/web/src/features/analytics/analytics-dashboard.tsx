@@ -32,6 +32,7 @@ import type { Activity, ProjectSummary } from '@/types/pathways'
 import { type MonitoringDashboard, type SadddDashboard, formatMetricCell } from '@pathways/shared'
 
 import { ActivityCompletionChart, DescriptiveAnalysisChart, SadddChart } from './analytics-charts'
+import { AnalyticsCoverageMap } from './analytics-coverage-map'
 import { humanReviewDisclaimer } from './analytics-utils'
 
 const analysisViews = [
@@ -196,7 +197,6 @@ export const AnalyticsDashboard = () => {
             </Button>
           ) : undefined
         }
-        description="Project performance, SADDD Analysis, budget utilization, aggregate location coverage, Beneficiary reach, and Rule-Based Alerts for human review."
         title={labels.moduleAnalytics}
       />
       <section
@@ -332,7 +332,7 @@ export const AnalyticsDashboard = () => {
             title={`${analysisMeta.title} · ${visualizationTypes.find((type) => type.value === visualizationType)?.label}`}
           >
             {visualizationType === 'map' ? (
-              <UnavailableChart description="Location coverage is unavailable in the current API." />
+              <AnalyticsCoverageMap />
             ) : analysisRows.length === 0 ? (
               <UnavailableChart
                 description={

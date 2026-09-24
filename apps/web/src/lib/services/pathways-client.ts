@@ -67,10 +67,12 @@ import {
   dashboardQuerySchema,
   formatMetricCell,
   monitoringDashboardSchema,
-  monitoringIndicatorListSchema,
-  monitoringIndicatorSchema,
+  normalizeTargetGoal,
+  projectIndicatorListSchema,
+  projectIndicatorSchema,
   sadddDashboardSchema,
   sadddQuerySchema,
+  targetGoalComparisonSchema,
 } from '@pathways/shared'
 
 export class PathwaysClientError extends Error {
@@ -536,13 +538,13 @@ class BackendReadyPathwaysClient implements PathwaysClient {
   }
 
   async getProjectIndicators(projectId: string): Promise<ProjectIndicator[]> {
-    return monitoringIndicatorListSchema.parse(
+    return projectIndicatorListSchema.parse(
       await requestFoundation(`/projects/${encodeURIComponent(projectId)}/indicators`),
     )
   }
 
   async getProjectIndicator(projectId: string, indicatorId: string): Promise<ProjectIndicator> {
-    return monitoringIndicatorSchema.parse(
+    return projectIndicatorSchema.parse(
       await requestFoundation(
         `/projects/${encodeURIComponent(projectId)}/indicators/${encodeURIComponent(indicatorId)}`,
       ),
@@ -553,7 +555,7 @@ class BackendReadyPathwaysClient implements PathwaysClient {
     projectId: string,
     input: CreateIndicatorInput,
   ): Promise<ProjectIndicator> {
-    return monitoringIndicatorSchema.parse(
+    return projectIndicatorSchema.parse(
       await requestFoundation(`/projects/${encodeURIComponent(projectId)}/indicators`, {
         method: 'POST',
         body: JSON.stringify(input),
@@ -566,7 +568,7 @@ class BackendReadyPathwaysClient implements PathwaysClient {
     indicatorId: string,
     input: UpdateIndicatorInput,
   ): Promise<ProjectIndicator> {
-    return monitoringIndicatorSchema.parse(
+    return projectIndicatorSchema.parse(
       await requestFoundation(
         `/projects/${encodeURIComponent(projectId)}/indicators/${encodeURIComponent(indicatorId)}`,
         {
@@ -582,7 +584,7 @@ class BackendReadyPathwaysClient implements PathwaysClient {
     indicatorId: string,
     input: ManualMeasurementInput,
   ): Promise<ProjectIndicator> {
-    return monitoringIndicatorSchema.parse(
+    return projectIndicatorSchema.parse(
       await requestFoundation(
         `/projects/${encodeURIComponent(projectId)}/indicators/${encodeURIComponent(indicatorId)}/measurements`,
         {
@@ -598,7 +600,7 @@ class BackendReadyPathwaysClient implements PathwaysClient {
     indicatorId: string,
     expectedRevision: number,
   ): Promise<ProjectIndicator> {
-    return monitoringIndicatorSchema.parse(
+    return projectIndicatorSchema.parse(
       await requestFoundation(
         `/projects/${encodeURIComponent(projectId)}/indicators/${encodeURIComponent(indicatorId)}/archive`,
         {
@@ -1194,6 +1196,7 @@ interface ApiProject {
   description: string | null
   objectives: string | null
   implementationArea: string | null
+  targetGoal: string | null
   startDate?: string
   endDate?: string
   status: 'PLANNED' | 'ONGOING' | 'COMPLETED' | 'ON_HOLD' | 'CANCELLED'
@@ -1391,6 +1394,7 @@ function mapProject(project: ApiProject): ProjectDetail {
     title: project.title,
     description: project.description ?? '',
     objectives: project.objectives ?? '',
+    targetGoal: project.targetGoal === null ? null : normalizeTargetGoal(project.targetGoal),
     area: project.implementationArea ?? 'Area not recorded',
     sector: 'Sector not recorded',
     status,
@@ -1539,7 +1543,9 @@ function parseActivity(value: unknown): Activity {
   ) {
     throw new PathwaysClientError('Invalid activity response.', 'network')
   }
-  return row as Activity
+  const comparison = targetGoalComparisonSchema.safeParse(row.projectGoalComparison)
+  if (!comparison.success) throw new PathwaysClientError('Invalid activity response.', 'network')
+  return { ...(row as Activity), projectGoalComparison: comparison.data }
 }
 
 function parseActivities(value: unknown): Activity[] {

@@ -1,10 +1,16 @@
 // @vitest-environment jsdom
 
-import { cleanup, render, screen } from '@testing-library/react'
+import { cleanup, render, screen, waitFor } from '@testing-library/react'
 import type { ReactNode } from 'react'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { requestRouteCheck, RouteCheckErrorMock } = vi.hoisted(() => {
+const {
+  currentRoleState,
+  requestRouteCheck,
+  refreshAccess,
+  resetWorkspaceHandoff,
+  RouteCheckErrorMock,
+} = vi.hoisted(() => {
   class RouteCheckErrorMock extends Error {
     failure = 'denied'
     status: number
@@ -13,8 +19,33 @@ const { requestRouteCheck, RouteCheckErrorMock } = vi.hoisted(() => {
       this.status = status
     }
   }
-  return { requestRouteCheck: vi.fn(), RouteCheckErrorMock }
+  return {
+    currentRoleState: {
+      current: {
+        profile: {
+          id: 'user-a',
+          userId: 'app-user-a',
+          organizationId: 'organization-a',
+          roles: ['PROJECT_OFFICER'],
+          permissions: ['beneficiaries.records.read'],
+          assignedProjectIds: ['project-a'],
+        },
+        accessRefreshing: false,
+        verificationRevision: 1,
+      },
+    },
+    requestRouteCheck: vi.fn(),
+    refreshAccess: vi.fn(),
+    resetWorkspaceHandoff: vi.fn(),
+    RouteCheckErrorMock,
+  }
 })
+
+const allowedDecision = {
+  route: 'beneficiaries',
+  authorization: 'database-verified',
+  beneficiaryAccess: 'records-or-none',
+}
 
 vi.mock('next/navigation', () => ({
   usePathname: () => '/beneficiaries',
@@ -25,18 +56,9 @@ vi.mock('@/hooks/use-session', () => ({
 }))
 vi.mock('@/hooks/use-current-role', () => ({
   useCurrentRole: () => ({
-    profile: {
-      id: 'user-a',
-      userId: 'app-user-a',
-      organizationId: 'organization-a',
-      roles: ['PROJECT_OFFICER'],
-      permissions: ['beneficiaries.records.read'],
-      assignedProjectIds: ['project-a'],
-    },
-    refreshAccess: vi.fn(),
-    accessRefreshing: false,
-    verificationRevision: 1,
-    resetWorkspaceHandoff: vi.fn(),
+    ...currentRoleState.current,
+    refreshAccess,
+    resetWorkspaceHandoff,
   }),
 }))
 vi.mock('@/lib/env', () => ({ webEnv: { NEXT_PUBLIC_API_BASE_URL: 'http://127.0.0.1:4000' } }))
@@ -60,12 +82,81 @@ vi.mock('./unauthorized-state', () => ({
 
 import { RouteAccessGuard } from './route-access-guard'
 
+beforeEach(() => {
+  currentRoleState.current.accessRefreshing = false
+  currentRoleState.current.verificationRevision = 1
+  requestRouteCheck.mockReset()
+})
+
 afterEach(() => {
   cleanup()
   vi.clearAllMocks()
 })
 
 describe('RouteAccessGuard beneficiary boundary', () => {
+  it('keeps the current route check active while the initial UI stays neutral and fail closed', async () => {
+    let resolveCheck!: (decision: typeof allowedDecision) => void
+    requestRouteCheck.mockReturnValueOnce(
+      new Promise((resolve) => {
+        resolveCheck = resolve
+      }),
+    )
+
+    render(
+      <RouteAccessGuard>
+        <p>Protected beneficiary record</p>
+      </RouteAccessGuard>,
+    )
+
+    await waitFor(() => expect(requestRouteCheck).toHaveBeenCalledTimes(1))
+    expect(screen.getByLabelText('Loading content')).toBeTruthy()
+    expect(screen.queryByText(/(?:verifying|rechecking) current (?:route )?access/i)).toBeNull()
+    expect(screen.queryByTestId('beneficiary-pin-gate')).toBeNull()
+    expect(screen.queryByText('Protected beneficiary record')).toBeNull()
+
+    resolveCheck(allowedDecision)
+    expect(await screen.findByText('Protected beneficiary record')).toBeTruthy()
+  })
+
+  it('unmounts protected content throughout provider refresh and the new route decision', async () => {
+    requestRouteCheck.mockResolvedValueOnce(allowedDecision)
+    const view = render(
+      <RouteAccessGuard>
+        <p>Protected beneficiary record</p>
+      </RouteAccessGuard>,
+    )
+    expect(await screen.findByText('Protected beneficiary record')).toBeTruthy()
+
+    currentRoleState.current.accessRefreshing = true
+    view.rerender(
+      <RouteAccessGuard>
+        <p>Protected beneficiary record</p>
+      </RouteAccessGuard>,
+    )
+    expect(screen.getByLabelText('Loading content')).toBeTruthy()
+    expect(screen.queryByText('Protected beneficiary record')).toBeNull()
+
+    let resolveCheck!: (decision: typeof allowedDecision) => void
+    requestRouteCheck.mockReturnValueOnce(
+      new Promise((resolve) => {
+        resolveCheck = resolve
+      }),
+    )
+    currentRoleState.current.accessRefreshing = false
+    currentRoleState.current.verificationRevision = 2
+    view.rerender(
+      <RouteAccessGuard>
+        <p>Protected beneficiary record</p>
+      </RouteAccessGuard>,
+    )
+
+    await waitFor(() => expect(requestRouteCheck).toHaveBeenCalledTimes(2))
+    expect(screen.getByLabelText('Loading content')).toBeTruthy()
+    expect(screen.queryByText('Protected beneficiary record')).toBeNull()
+    resolveCheck(allowedDecision)
+    expect(await screen.findByText('Protected beneficiary record')).toBeTruthy()
+  })
+
   it('never renders the PIN gate or protected content after backend denial', async () => {
     requestRouteCheck.mockRejectedValueOnce(new RouteCheckErrorMock(403))
 

@@ -47,6 +47,7 @@ const project: ProjectSummary = {
   beneficiariesReached: 0,
   budgetUtilization: 0,
   timelineProgress: 0,
+  targetGoal: null,
 }
 
 const activity: Activity = {
@@ -69,6 +70,7 @@ const activity: Activity = {
   budgetAllocation: 0,
   budgetLogged: 0,
   progress: 0,
+  projectGoalComparison: { state: 'UNAVAILABLE', reason: 'TARGET_GOAL_UNSET' },
   submittedProof: [],
   updateNotes: [],
   updatedAt: '2026-06-01T00:00:00.000Z',

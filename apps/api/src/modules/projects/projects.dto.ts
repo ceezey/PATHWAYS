@@ -1,9 +1,36 @@
+import { normalizeTargetGoal } from '@pathways/shared'
 import { Transform } from 'class-transformer'
-import { IsDateString, IsIn, IsOptional, IsString, IsUUID, Length, Matches } from 'class-validator'
+import {
+  IsDateString,
+  IsIn,
+  IsOptional,
+  IsString,
+  IsUUID,
+  Length,
+  Matches,
+  ValidateBy,
+} from 'class-validator'
 
 const projectStatuses = ['PLANNED', 'ONGOING', 'COMPLETED', 'ON_HOLD', 'CANCELLED']
+const IsTargetGoal = () =>
+  ValidateBy({
+    name: 'isTargetGoal',
+    validator: {
+      validate: (value: unknown) => {
+        if (typeof value !== 'string') return false
+        try {
+          normalizeTargetGoal(value)
+          return true
+        } catch {
+          return false
+        }
+      },
+      defaultMessage: () =>
+        'targetGoal must be greater than 0 and at most 100, with at most 4 decimal places.',
+    },
+  })
 
-export class CreateProjectDto {
+class ProjectFieldsDto {
   @IsOptional()
   @IsString()
   @Length(2, 40)
@@ -47,7 +74,20 @@ export class CreateProjectDto {
   programId?: string
 }
 
-export class UpdateProjectDto extends CreateProjectDto {
+export class CreateProjectDto extends ProjectFieldsDto {
+  @IsString()
+  @IsTargetGoal()
+  @Transform(({ value }) => (typeof value === 'string' ? value.trim() : value))
+  targetGoal!: string
+}
+
+export class UpdateProjectDto extends ProjectFieldsDto {
+  @IsOptional()
+  @IsString()
+  @IsTargetGoal()
+  @Transform(({ value }) => (typeof value === 'string' ? value.trim() : value))
+  targetGoal?: string
+
   @IsDateString()
   expectedUpdatedAt!: string
 }

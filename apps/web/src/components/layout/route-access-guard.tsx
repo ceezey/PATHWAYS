@@ -1,5 +1,6 @@
 'use client'
 
+import { LoadingSkeleton } from '@/components/pathways/loading-skeleton'
 import { useCurrentRole } from '@/hooks/use-current-role'
 import { useSession } from '@/hooks/use-session'
 import { webEnv } from '@/lib/env'
@@ -104,7 +105,9 @@ export function RouteAccessGuard({ children }: { children: React.ReactNode }) {
     resetWorkspaceHandoff,
   ])
   const current = state?.key === key ? state : null
-  if (!current) return <output aria-live="polite">Verifying current route access…</output>
+  const verifyingCurrentAccess =
+    accessRefreshing || (current !== null && current.revision !== verificationRevision)
+  if (!current || verifyingCurrentAccess) return <LoadingSkeleton className="py-2" />
   if (current.error === 401)
     return (
       <section role="alert">
@@ -140,14 +143,5 @@ export function RouteAccessGuard({ children }: { children: React.ReactNode }) {
   if (pathname === '/beneficiaries' || pathname.startsWith('/beneficiaries/')) {
     return <BeneficiaryAccessGate>{children}</BeneficiaryAccessGate>
   }
-  return (
-    <>
-      {(accessRefreshing || current.revision !== verificationRevision) && (
-        <output className="text-sm text-muted-foreground" aria-live="polite">
-          Rechecking current access…
-        </output>
-      )}
-      {children}
-    </>
-  )
+  return children
 }

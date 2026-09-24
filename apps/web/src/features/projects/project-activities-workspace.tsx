@@ -598,7 +598,7 @@ export const ProjectActivitiesWorkspace = ({
         </section>
       ) : null}
       {filteredActivities.length > 0 && viewMode === 'list' ? (
-        <SectionCard title="Activity list" description="Scan all filtered activities in one view.">
+        <SectionCard title="Activity list">
           <div className="space-y-3">
             {filteredActivities.map((activity) => (
               <ActivityListRow key={activity.id} activity={activity} onOpen={openDetail} />

@@ -100,4 +100,44 @@ describe('P06 dedicated indicator workspace', () => {
     expect(html).toContain('Manual measurement')
     expect(html).not.toContain('Indicator Library')
   })
+  it('shows the read-time project target comparison without replacing the native target', () => {
+    state.data = [
+      {
+        id: '79000000-0000-4000-8000-000000000010',
+        projectId: '79000000-0000-4000-8000-000000000003',
+        code: 'P06-02',
+        name: 'Synthetic percentage',
+        description: null,
+        unitLabel: 'participants',
+        dataSource: 'Validated attendance',
+        mode: 'MANUAL',
+        numericKind: 'COUNT',
+        direction: 'HIGHER_IS_BETTER',
+        displayPrecision: 0,
+        periodStart: '2026-06-01',
+        periodEnd: '2026-06-30',
+        baseline: '0',
+        target: '20',
+        current: { value: '15', reason: null },
+        progress: { value: '75', reason: null },
+        binding: null,
+        measurementId: null,
+        measuredAt: null,
+        measurementSource: null,
+        revision: 1,
+        status: 'ACTIVE',
+        contractVersion: 'p06.v1',
+        projectGoalComparison: { state: 'AT_TARGET', reason: null },
+      },
+    ]
+
+    const html = renderToStaticMarkup(
+      createElement(ProjectIndicatorsWorkspace, {
+        projectId: '79000000-0000-4000-8000-000000000003',
+      }),
+    )
+    expect(html).toContain('Target</dt><dd>20</dd>')
+    expect(html).toContain('Project target comparison:')
+    expect(html).toContain('At project target')
+  })
 })

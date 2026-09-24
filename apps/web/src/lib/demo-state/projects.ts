@@ -63,6 +63,7 @@ export function saveProject(input: CreateProjectInput, id?: string) {
       timelineProgress: 0,
       ...previous,
       ...input,
+      targetGoal: previous?.targetGoal ?? null,
       budgetCode: input.budgetCode ?? previous?.budgetCode ?? `PATHWAYS-${recordId.toUpperCase()}`,
       period: `${input.startDate} â€“ ${input.endDate}`,
       createdInPrototype: previous?.createdInPrototype ?? true,

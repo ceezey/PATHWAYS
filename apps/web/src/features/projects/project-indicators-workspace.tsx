@@ -11,7 +11,7 @@ import type { Activity, DigitalFormDefinition } from '@/types/pathways'
 import {
   type CreateIndicatorInput,
   type ManualMeasurementInput,
-  type MonitoringIndicator,
+  type ProjectIndicator,
   createIndicatorSchema,
   formatMetricCell,
   manualMeasurementSchema,
@@ -20,6 +20,8 @@ import {
 } from '@pathways/shared'
 import { Target } from 'lucide-react'
 import { type FormEvent, useCallback, useEffect, useRef, useState } from 'react'
+
+import { describeTargetGoalComparison } from './target-goal-presentation'
 
 const inputClass = 'w-full rounded-md border border-input bg-background px-3 py-2 text-sm'
 const recipeNames: Record<(typeof metricRecipes)[number], string> = {
@@ -301,7 +303,7 @@ function IndicatorEditor({
   onUpdate,
   onArchive,
 }: {
-  indicator: MonitoringIndicator
+  indicator: ProjectIndicator
   busy: boolean
   onSave: (input: ManualMeasurementInput) => Promise<boolean>
   onUpdate: (name: string, description: string) => Promise<boolean>
@@ -469,7 +471,7 @@ export function ProjectIndicatorsWorkspace({ projectId }: { projectId: string })
       active = false
     }
   }, [activeKey, canCreate, projectId])
-  const mutate = async (action: () => Promise<MonitoringIndicator>) => {
+  const mutate = async (action: () => Promise<ProjectIndicator>) => {
     if (busy) return false
     const startedKey = activeKey
     setBusy(true)
@@ -584,6 +586,10 @@ export function ProjectIndicatorsWorkspace({ projectId }: { projectId: string })
                 <p className="mt-3 text-sm">
                   Progress toward configured change: {formatMetricCell(indicator.progress)}
                   {indicator.progress.value !== null ? '%' : ''}
+                </p>
+                <p className="mt-2 text-sm">
+                  Project target comparison:{' '}
+                  {describeTargetGoalComparison(indicator.projectGoalComparison)}
                 </p>
                 <p className="mt-2 text-sm text-muted-foreground">
                   Definition source: {indicator.dataSource ?? 'Not configured'}

@@ -555,7 +555,6 @@ export const ReportingWorkspace = ({
     <div className="space-y-6">
       <PageHeader
         editableLabelKey="moduleReports"
-        description="Build, preview, retain, and export project, indicator, beneficiary, and aggregate survey reports."
         eyebrow="Reporting workspace"
         title={labels.moduleReports}
       />

@@ -18,6 +18,7 @@ import { type ApplicationIdentity, UUID_PATTERN } from '@app/modules/auth/develo
 import { StorageService } from '@app/modules/storage/storage.service'
 import { PrismaService } from '@app/prisma/prisma.service'
 import { readApiEnv } from '@pathways/config'
+import { compareActivityProgressToTargetGoal } from '@pathways/shared'
 import type {
   CreateActivityDto,
   ReviewActivityUpdateDto,
@@ -44,6 +45,7 @@ const activitySelection = {
   actualEndDate: true,
   status: true,
   progressPercent: true,
+  project: { select: { targetGoal: true } },
   reviewedById: true,
   reviewedAt: true,
   cancelledAt: true,
@@ -159,6 +161,10 @@ function mapActivity(row: ActivityRow, businessDate: string) {
     journeyStageIds: row.activityJourneyStageMapping_activity.map((mapping) => mapping.stageId),
     journeyStageId: row.activityJourneyStageMapping_activity[0]?.stageId ?? '',
     progress: row.progressPercent,
+    projectGoalComparison: compareActivityProgressToTargetGoal(
+      row.progressPercent,
+      row.project.targetGoal?.toString() ?? null,
+    ),
     reviewedById: row.reviewedById,
     reviewedAt: row.reviewedAt?.toISOString() ?? null,
     cancellationReason: row.cancellationReason,

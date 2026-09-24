@@ -13,6 +13,7 @@ import { ActivityExpenseReviewDialog, type PendingExpense } from './activity-exp
 import { ActivityProofFiles } from './activity-proof-files'
 import { ActivityProofReviewDialog } from './activity-proof-review-dialog'
 import { activityStatusTone, formatCurrency, formatDate } from './activity-utils'
+import { describeTargetGoalComparison } from './target-goal-presentation'
 
 const proofVersion = (activity: Activity, proof: ActivityProof) =>
   activity.submittedProof.indexOf(proof) + 1
@@ -112,6 +113,12 @@ export const ActivityDetailContent = ({
           <dt className="text-muted-foreground">Beneficiaries reached</dt>
           <dd className="mt-1 font-medium text-foreground">
             {activity.beneficiariesReached} of {activity.targetBeneficiaries}
+          </dd>
+        </div>
+        <div>
+          <dt className="text-muted-foreground">Project target comparison</dt>
+          <dd className="mt-1 font-medium text-foreground">
+            {describeTargetGoalComparison(activity.projectGoalComparison)}
           </dd>
         </div>
         <div>

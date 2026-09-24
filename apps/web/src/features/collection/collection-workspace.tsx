@@ -794,7 +794,6 @@ export const CollectionWorkspace = ({
         editableLabelKey="moduleCollection"
         eyebrow="Data workspace"
         title={labels.moduleCollection}
-        description="Build and publish project forms, encode data, and import validated CSV, XLS, or XLSX datasets."
         actions={
           <>
             <Button asChild size="sm" variant="outline">

@@ -8,6 +8,7 @@ export type DashboardSeverity = 'neutral' | 'info' | 'success' | 'warning' | 'da
 export type DashboardActionKind = 'dialog' | 'navigate' | 'toast'
 
 export interface ProjectSummary {
+  targetGoal: string | null
   id: string
   title: string
   area: string

@@ -34,6 +34,7 @@ const formDefaults = (project: ProjectDetail): ProjectSetupSchema => ({
   partners: '',
   projectBudget: '',
   targetBeneficiaries: String(project.targetBeneficiaries),
+  targetGoal: project.targetGoal ?? '',
   title: project.title,
   sector: project.sector,
   area: project.area,

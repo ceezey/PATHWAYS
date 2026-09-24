@@ -1,4 +1,9 @@
-import { ConflictException, ForbiddenException, NotFoundException } from '@nestjs/common'
+import {
+  BadRequestException,
+  ConflictException,
+  ForbiddenException,
+  NotFoundException,
+} from '@nestjs/common'
 import type { Prisma } from '@prisma/client'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -381,6 +386,7 @@ describe('P01 workspace and project services', () => {
       startDate: null,
       endDate: null,
       status: 'PLANNED',
+      targetGoal: '75',
       programId: null,
       updatedAt: now,
       userProjectAssignment_project: [{ user: { fullName: 'Synthetic actor' } }],
@@ -390,6 +396,7 @@ describe('P01 workspace and project services', () => {
       code: 'PRJ-001',
       title: 'Synthetic project',
       status: 'PLANNED',
+      targetGoal: '75',
     })
     expect(tx.userProjectAssignment.create).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -400,7 +407,11 @@ describe('P01 workspace and project services', () => {
       expect.objectContaining({
         data: expect.objectContaining({
           action: 'PROJECT_CREATED',
-          changes: { code: 'PRJ-001', status: 'PLANNED' },
+          changes: {
+            code: 'PRJ-001',
+            status: 'PLANNED',
+            targetGoal: { old: null, new: '75' },
+          },
         }),
       }),
     )
@@ -421,6 +432,7 @@ describe('P01 workspace and project services', () => {
         startDate: new Date('2026-10-01T00:00:00.000Z'),
         endDate: new Date('2026-12-31T00:00:00.000Z'),
         status: 'PLANNED',
+        targetGoal: '62.5',
         programId: null,
         updatedAt: now,
         userProjectAssignment_project: [{ user: { fullName: 'Synthetic actor' } }],
@@ -436,6 +448,7 @@ describe('P01 workspace and project services', () => {
       startDate: '2026-10-01',
       endDate: '2026-12-31',
       status: 'PLANNED',
+      targetGoal: '62.5',
     })
 
     const create = tx.project.create.mock.calls[0]?.[0] as { data: { code: string; id: string } }
@@ -444,14 +457,45 @@ describe('P01 workspace and project services', () => {
     expect(result.code).toBe(create.data.code)
     expect(tx.auditLog.create).toHaveBeenCalledWith(
       expect.objectContaining({
-        data: expect.objectContaining({ changes: { code: create.data.code, status: 'PLANNED' } }),
+        data: expect.objectContaining({
+          changes: {
+            code: create.data.code,
+            status: 'PLANNED',
+            targetGoal: { old: null, new: '62.5' },
+          },
+        }),
       }),
     )
   })
 
+  it('rejects a missing or zero target goal before creating a project', async () => {
+    state.actor = actor('PROJECT_MANAGER', [projectId])
+    const service = new ProjectsService(prisma)
+
+    await expect(
+      service.create(state.actor, {
+        title: 'Missing target project',
+        status: 'PLANNED',
+      } as never),
+    ).rejects.toBeInstanceOf(BadRequestException)
+    await expect(
+      service.create(state.actor, {
+        title: 'Zero target project',
+        status: 'PLANNED',
+        targetGoal: '0',
+      }),
+    ).rejects.toBeInstanceOf(BadRequestException)
+    expect(tx.project.create).not.toHaveBeenCalled()
+  })
+
   it('updates supported core fields in scope, preserves the program link, and audits the write', async () => {
     state.actor = actor('PROJECT_MANAGER', [projectId])
-    tx.project.findFirst.mockResolvedValue({ id: projectId, code: 'PRJ-001', updatedAt: now })
+    tx.project.findFirst.mockResolvedValue({
+      id: projectId,
+      code: 'PRJ-001',
+      targetGoal: '75',
+      updatedAt: now,
+    })
     tx.project.updateMany.mockResolvedValue({ count: 1 })
     tx.project.findUniqueOrThrow.mockResolvedValue({
       id: projectId,
@@ -463,6 +507,7 @@ describe('P01 workspace and project services', () => {
       startDate: new Date('2026-10-01T00:00:00.000Z'),
       endDate: new Date('2026-12-31T00:00:00.000Z'),
       status: 'ONGOING',
+      targetGoal: '80.25',
       programId: targetId,
       updatedAt: new Date('2026-09-23T01:00:00.000Z'),
       userProjectAssignment_project: [{ user: { fullName: 'Synthetic actor' } }],
@@ -480,6 +525,7 @@ describe('P01 workspace and project services', () => {
         startDate: '2026-10-01',
         endDate: '2026-12-31',
         status: 'ONGOING',
+        targetGoal: '80.25',
         programId: targetId,
         expectedUpdatedAt: now.toISOString(),
       }),
@@ -491,6 +537,7 @@ describe('P01 workspace and project services', () => {
           objectives: 'Updated objectives',
           implementationArea: 'Navotas',
           programId: targetId,
+          targetGoal: expect.objectContaining({}),
         }),
         where: expect.objectContaining({ organizationId, id: projectId, updatedAt: now }),
       }),
@@ -500,7 +547,11 @@ describe('P01 workspace and project services', () => {
         data: expect.objectContaining({
           action: 'PROJECT_UPDATED',
           projectId,
-          changes: { code: 'PRJ-001', status: 'ONGOING' },
+          changes: {
+            code: 'PRJ-001',
+            status: 'ONGOING',
+            targetGoal: { old: '75', new: '80.25' },
+          },
         }),
       }),
     )

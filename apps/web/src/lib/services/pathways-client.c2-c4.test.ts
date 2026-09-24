@@ -45,6 +45,7 @@ const activity = {
   budgetAllocation: 0,
   budgetLogged: 0,
   progress: 20,
+  projectGoalComparison: { state: 'BELOW_TARGET', reason: null },
   reviewedById: null,
   reviewedAt: null,
   cancellationReason: null,

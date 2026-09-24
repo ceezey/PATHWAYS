@@ -153,8 +153,17 @@ test('server revocation, outage recovery and session expiry remove content witho
 }) => {
   const state = await mount(page)
   state.status = 403
+  let releaseDenial!: () => void
+  state.wait = new Promise<void>((resolve) => {
+    releaseDenial = resolve
+  })
   await page.evaluate(() => window.dispatchEvent(new Event('focus')))
+  await expect(page.getByLabel('Loading content')).toHaveCount(1)
+  await expect(page.getByRole('heading', { name: 'Protected fixture content' })).toHaveCount(0)
+  await expect(page.getByText(/(?:verifying|rechecking) current (?:route )?access/i)).toHaveCount(0)
+  releaseDenial()
   await expect(page.getByRole('heading', { name: 'Unauthorized access' })).toBeVisible()
+  state.wait = null
   state.status = 503
   await page.evaluate(() => window.dispatchEvent(new Event('focus')))
   await expect(page.getByRole('heading', { name: 'Access verification unavailable' })).toBeVisible()

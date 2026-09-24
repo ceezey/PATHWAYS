@@ -70,6 +70,7 @@ describe('PATHWAYS frontend data boundary', () => {
       budgetAllocation: 0,
       budgetLogged: 0,
       progress: 0,
+      projectGoalComparison: { state: 'UNAVAILABLE', reason: 'TARGET_GOAL_UNSET' },
       submittedProof: [],
       updateNotes: [],
       updatedAt: '2026-09-20T00:00:00.000Z',
@@ -155,6 +156,7 @@ describe('PATHWAYS frontend data boundary', () => {
             description: null,
             objectives: null,
             implementationArea: 'Quezon City',
+            targetGoal: null,
             status: 'ONGOING',
             programId: null,
             projectManager: null,
@@ -167,7 +169,12 @@ describe('PATHWAYS frontend data boundary', () => {
     vi.stubGlobal('fetch', fetcher)
 
     await expect(pathwaysClient.getProjects()).resolves.toMatchObject([
-      { title: 'Persisted project', area: 'Quezon City', metricsAvailable: false },
+      {
+        title: 'Persisted project',
+        area: 'Quezon City',
+        targetGoal: null,
+        metricsAvailable: false,
+      },
     ])
     expect(fetcher).toHaveBeenCalledExactlyOnceWith(
       'http://127.0.0.1:4000/api/projects',
@@ -196,6 +203,7 @@ describe('PATHWAYS frontend data boundary', () => {
       description: 'Persisted project description.',
       objectives: 'Persisted project objectives.',
       implementationArea: 'Navotas',
+      targetGoal: '62.5',
       startDate: '2026-10-01',
       endDate: '2026-12-31',
       status: 'PLANNED',
@@ -222,10 +230,18 @@ describe('PATHWAYS frontend data boundary', () => {
         }),
       )
       .mockResolvedValueOnce(
-        new Response(JSON.stringify({ ...project, title: 'Updated project', status: 'ONGOING' }), {
-          status: 200,
-          headers: { 'Content-Type': 'application/json' },
-        }),
+        new Response(
+          JSON.stringify({
+            ...project,
+            title: 'Updated project',
+            status: 'ONGOING',
+            targetGoal: '80.25',
+          }),
+          {
+            status: 200,
+            headers: { 'Content-Type': 'application/json' },
+          },
+        ),
       )
     vi.stubGlobal('fetch', fetcher)
 
@@ -235,6 +251,7 @@ describe('PATHWAYS frontend data boundary', () => {
         description: project.description,
         objectives: project.objectives,
         implementationArea: project.implementationArea,
+        targetGoal: project.targetGoal,
         startDate: project.startDate,
         endDate: project.endDate,
         status: 'Planned',
@@ -244,6 +261,7 @@ describe('PATHWAYS frontend data boundary', () => {
       code: project.code,
       status: 'Planned',
       storedStatus: 'PLANNED',
+      targetGoal: '62.5',
     })
     await expect(
       pathwaysClient.updateProject(projectId, {
@@ -252,12 +270,13 @@ describe('PATHWAYS frontend data boundary', () => {
         description: project.description,
         objectives: project.objectives,
         implementationArea: project.implementationArea,
+        targetGoal: '80.25',
         startDate: project.startDate,
         endDate: project.endDate,
         status: 'Active',
         expectedUpdatedAt: project.updatedAt,
       }),
-    ).resolves.toMatchObject({ title: 'Updated project', status: 'Active' })
+    ).resolves.toMatchObject({ title: 'Updated project', status: 'Active', targetGoal: '80.25' })
 
     const createRequest = fetcher.mock.calls[0]?.[1] as RequestInit
     expect(JSON.parse(String(createRequest.body))).toEqual({
@@ -265,6 +284,7 @@ describe('PATHWAYS frontend data boundary', () => {
       description: project.description,
       objectives: project.objectives,
       implementationArea: project.implementationArea,
+      targetGoal: project.targetGoal,
       startDate: project.startDate,
       endDate: project.endDate,
       status: 'PLANNED',
@@ -276,6 +296,7 @@ describe('PATHWAYS frontend data boundary', () => {
       description: project.description,
       objectives: project.objectives,
       implementationArea: project.implementationArea,
+      targetGoal: '80.25',
       startDate: project.startDate,
       endDate: project.endDate,
       status: 'ONGOING',

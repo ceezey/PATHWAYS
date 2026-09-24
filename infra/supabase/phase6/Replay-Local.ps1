@@ -180,6 +180,10 @@ WHERE id='89000000-0000-4000-8000-000000000021'::uuid
   AND code='PROJECT_MANAGER';
 '@
       Invoke-LocalSql $phase4RemoveSeedSql $phase6Database
+
+      Copy-Item -LiteralPath (Join-Path $phase6Root 'apps/api/prisma/migrations/0022_project_target_goal') -Destination $phase6Stage -Recurse
+      pnpm --filter @pathways/api exec prisma migrate deploy --config $phase6Config
+      if ($LASTEXITCODE -ne 0) { throw '0022 project target-goal replay failed.' }
     }
 
     pnpm --filter @pathways/api exec prisma migrate status --config $phase6Config
@@ -194,6 +198,18 @@ SELECT (SELECT count(*) FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamesp
  AND to_regclass('public._prisma_migrations') IS NOT NULL
  AND (SELECT count(*) FROM public._prisma_migrations)=20
  AND (SELECT count(*) FROM public._prisma_migrations WHERE finished_at IS NULL AND rolled_back_at IS NULL)=0
+ AND EXISTS(
+   SELECT 1 FROM information_schema.columns
+   WHERE table_schema='pathways' AND table_name='projects' AND column_name='target_goal'
+     AND data_type='numeric' AND numeric_precision=7 AND numeric_scale=4
+     AND is_nullable='YES' AND column_default IS NULL
+ )
+ AND EXISTS(SELECT 1 FROM pg_constraint
+            WHERE conrelid='pathways.projects'::regclass
+              AND conname='projects_target_goal_check' AND contype='c')
+ AND has_column_privilege('pathways_runtime','pathways.projects','target_goal','SELECT')
+ AND has_column_privilege('pathways_runtime','pathways.projects','target_goal','INSERT')
+ AND has_column_privilege('pathways_runtime','pathways.projects','target_goal','UPDATE')
  AND EXISTS(SELECT FROM pg_extension WHERE extname='pgcrypto')
  AND to_regprocedure('pathways.runtime_auth_session_live(uuid,uuid)') IS NOT NULL
  AND to_regprocedure('pathways.p2_guard_form()') IS NOT NULL
@@ -307,7 +323,7 @@ SELECT (SELECT count(*) FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamesp
             AND confrelid='auth.users'::regclass AND contype='f');
 '@
   if ($Phase4IndicatorPolicy) {
-    $phase6Post = $phase6Post.Replace('FROM public._prisma_migrations)=20', 'FROM public._prisma_migrations)=21')
+    $phase6Post = $phase6Post.Replace('FROM public._prisma_migrations)=20', 'FROM public._prisma_migrations)=22')
   }
   $phase6Result = $phase6Post | & "$phase6Bin\psql.exe" -X -w -q -A -t -h 127.0.0.1 -p $phase6Port -U postgres -d $phase6Database -v ON_ERROR_STOP=1
   if ($LASTEXITCODE -ne 0 -or $phase6Result.Trim() -cne 't') { throw 'Replay postflight failed.' }
@@ -330,12 +346,14 @@ SELECT (SELECT count(*) FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamesp
   Invoke-LocalSql ([IO.File]::ReadAllText((Join-Path $phase6Root 'apps/api/prisma/tests/import-pipeline-runtime.sql'))) $phase6Database
   Invoke-LocalSql ([IO.File]::ReadAllText((Join-Path $phase6Root 'apps/api/prisma/tests/beneficiary-registration-runtime.sql'))) $phase6Database
   Invoke-LocalSql ([IO.File]::ReadAllText((Join-Path $phase6Root 'apps/api/prisma/tests/project-activity-journey-runtime.sql'))) $phase6Database
+  Invoke-LocalSql ([IO.File]::ReadAllText((Join-Path $phase6Root 'apps/api/prisma/tests/project-target-goal-runtime.sql'))) $phase6Database
   Write-Output 'PHASE6_LOCAL_REPLAY=PASS'
   Write-Output 'CORE_FOUNDATION_RUNTIME=PASS'
   Write-Output 'METADATA_FORMS_RUNTIME=PASS'
   Write-Output 'IMPORT_PIPELINE_RUNTIME=PASS'
   Write-Output 'BENEFICIARY_REGISTRATION_RUNTIME=PASS'
   Write-Output 'PROJECT_ACTIVITY_JOURNEY_RUNTIME=PASS'
+  Write-Output 'PROJECT_TARGET_GOAL_RUNTIME=PASS'
   $phase6IndicatorSql = [IO.File]::ReadAllText((Join-Path $phase6Root 'apps/api/prisma/tests/project-indicator-dashboard-runtime.sql'))
   if ($Phase4IndicatorPolicy) {
     $phase6IndicatorSql = "\set PHASE4_INDICATOR_POLICY 1`n" + $phase6IndicatorSql

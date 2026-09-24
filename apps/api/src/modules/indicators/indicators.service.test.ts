@@ -46,6 +46,7 @@ const row = {
   periodEnd: '2026-06-30',
   baseline: '-10',
   target: '10',
+  projectTargetGoal: '75',
   current: { state: 'MISSING', value: null, reason: 'NO_MEASUREMENT' },
   measurementId: null,
   measuredAt: null,
@@ -109,7 +110,12 @@ describe('P06 IndicatorsService', () => {
   })
   it('scopes definition reads and returns an exact missing state rather than invented zero', async () => {
     await expect(service.list(actor, projectId)).resolves.toMatchObject([
-      { id: indicatorId, current: { state: 'MISSING', value: null }, contractVersion: 'p06.v1' },
+      {
+        id: indicatorId,
+        current: { state: 'MISSING', value: null },
+        projectGoalComparison: { state: 'UNAVAILABLE', reason: 'NO_MEASUREMENT' },
+        contractVersion: 'p06.v1',
+      },
     ])
     expect(boundary.run).toHaveBeenCalledWith(
       expect.anything(),
@@ -122,6 +128,37 @@ describe('P06 IndicatorsService', () => {
         where: { AND: [expect.objectContaining({ organizationId }), { id: projectId }] },
       }),
     )
+  })
+  it('keeps the analytics-facing monitoring contract free of the Project comparison extension', async () => {
+    const [indicator] = await service.readInTransaction(
+      tx as unknown as Prisma.TransactionClient,
+      actor,
+      [projectId],
+    )
+
+    expect(indicator).toMatchObject({ id: indicatorId, contractVersion: 'p06.v1' })
+    expect(indicator).not.toHaveProperty('projectGoalComparison')
+  })
+  it('compares exact indicator progress with the Project benchmark without replacing its target', async () => {
+    tx.$queryRaw.mockImplementation(async (query: unknown) => {
+      const sql = sqlText(query)
+      if (sql.includes('computed.payload')) {
+        return [
+          {
+            ...row,
+            current: { state: 'AVAILABLE', value: '5', reason: null },
+            projectTargetGoal: '75.0000',
+          },
+        ]
+      }
+      return []
+    })
+
+    await expect(service.get(actor, projectId, indicatorId)).resolves.toMatchObject({
+      target: '10',
+      progress: { state: 'AVAILABLE', value: '75' },
+      projectGoalComparison: { state: 'AT_TARGET', reason: null },
+    })
   })
   it('fails closed on missing scope and on a role without management permission', async () => {
     tx.project.findFirst.mockResolvedValueOnce(null)

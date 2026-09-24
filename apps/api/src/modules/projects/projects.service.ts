@@ -7,7 +7,8 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common'
-import type { Prisma } from '@prisma/client'
+import { normalizeTargetGoal } from '@pathways/shared'
+import { Prisma } from '@prisma/client'
 
 import { projectScope } from '@app/modules/auth/authorized-data.service'
 import { withAuthorizedOperation } from '@app/modules/auth/authorized-operation'
@@ -22,6 +23,7 @@ const projectSelection = {
   description: true,
   objectives: true,
   implementationArea: true,
+  targetGoal: true,
   startDate: true,
   endDate: true,
   status: true,
@@ -42,6 +44,8 @@ function mapProject(project: Prisma.ProjectGetPayload<{ select: typeof projectSe
     description: project.description,
     objectives: project.objectives,
     implementationArea: project.implementationArea,
+    targetGoal:
+      project.targetGoal === null ? null : normalizeTargetGoal(project.targetGoal.toString()),
     startDate: project.startDate?.toISOString().slice(0, 10),
     endDate: project.endDate?.toISOString().slice(0, 10),
     status: project.status,
@@ -51,9 +55,17 @@ function mapProject(project: Prisma.ProjectGetPayload<{ select: typeof projectSe
   }
 }
 
-function projectData(input: CreateProjectDto, code: string) {
+function projectData(input: CreateProjectDto | UpdateProjectDto, code: string) {
   if (input.startDate && input.endDate && input.endDate < input.startDate) {
     throw new BadRequestException('End date must not precede start date.')
+  }
+  let targetGoal: Prisma.Decimal | undefined
+  if (input.targetGoal !== undefined) {
+    try {
+      targetGoal = new Prisma.Decimal(normalizeTargetGoal(input.targetGoal))
+    } catch {
+      throw new BadRequestException('Project target goal must be greater than 0 and at most 100.')
+    }
   }
   return {
     code,
@@ -61,6 +73,7 @@ function projectData(input: CreateProjectDto, code: string) {
     description: input.description?.trim() || null,
     objectives: input.objectives?.trim() || null,
     implementationArea: input.implementationArea?.trim() || null,
+    ...(targetGoal === undefined ? {} : { targetGoal }),
     startDate: input.startDate ? new Date(`${input.startDate}T00:00:00.000Z`) : null,
     endDate: input.endDate ? new Date(`${input.endDate}T00:00:00.000Z`) : null,
     status: input.status,
@@ -120,6 +133,9 @@ export class ProjectsService {
       const id = randomUUID()
       const code = input.code ?? `PRJ-${id.toUpperCase()}`
       const data = projectData(input, code)
+      if (data.targetGoal === undefined) {
+        throw new BadRequestException('Project target goal is required.')
+      }
       await this.requireProgram(tx, actor.organizationId, data.programId)
       const created = await tx.project.create({
         data: { id, ...data, organizationId: actor.organizationId, createdById: actor.userId },
@@ -143,7 +159,11 @@ export class ProjectsService {
           action: 'PROJECT_CREATED',
           entityType: 'Project',
           entityId: created.id,
-          changes: { code, status: input.status },
+          changes: {
+            code,
+            status: input.status,
+            targetGoal: { old: null, new: normalizeTargetGoal(data.targetGoal.toString()) },
+          },
         },
       })
       const result = await tx.project.findUniqueOrThrow({
@@ -160,7 +180,7 @@ export class ProjectsService {
       if (!UUID_PATTERN.test(projectId)) throw new NotFoundException('Project unavailable.')
       const current = await tx.project.findFirst({
         where: { AND: [projectScope(actor), { id: projectId.toLowerCase() }] },
-        select: { id: true, code: true, updatedAt: true },
+        select: { id: true, code: true, targetGoal: true, updatedAt: true },
       })
       if (!current) throw new NotFoundException('Project unavailable.')
       const expected = new Date(input.expectedUpdatedAt)
@@ -182,7 +202,22 @@ export class ProjectsService {
           action: 'PROJECT_UPDATED',
           entityType: 'Project',
           entityId: current.id,
-          changes: { code: data.code, status: input.status },
+          changes: {
+            code: data.code,
+            status: input.status,
+            targetGoal: {
+              old:
+                current.targetGoal === null
+                  ? null
+                  : normalizeTargetGoal(current.targetGoal.toString()),
+              new:
+                data.targetGoal === undefined
+                  ? current.targetGoal === null
+                    ? null
+                    : normalizeTargetGoal(current.targetGoal.toString())
+                  : normalizeTargetGoal(data.targetGoal.toString()),
+            },
+          },
         },
       })
       const result = await tx.project.findUniqueOrThrow({

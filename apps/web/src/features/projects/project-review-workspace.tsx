@@ -1053,7 +1053,7 @@ const EvidenceView = ({
         )}
       </div>
     </SectionCard>
-    <SectionCard title="Report records" description="Generated report references for the project.">
+    <SectionCard title="Report records">
       <div className="space-y-3">
         {reports.length > 0 ? (
           reports.map((report) => (
@@ -1254,7 +1254,7 @@ const EvaluationView = ({
           )}
         </div>
       </SectionCard>
-      <SectionCard title="Annotations" description="Human review notes.">
+      <SectionCard title="Annotations">
         <div className="space-y-3">
           {evaluation.annotations.length > 0 ? (
             evaluation.annotations.map((annotation) => (
@@ -1271,7 +1271,7 @@ const EvaluationView = ({
           )}
         </div>
       </SectionCard>
-      <SectionCard title="Evaluation History" description="Formal review entries.">
+      <SectionCard title="Evaluation History">
         <div className="space-y-3">
           {evaluation.history.length > 0 ? (
             evaluation.history.map((entry) => (
