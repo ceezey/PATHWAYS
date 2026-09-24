@@ -2,15 +2,14 @@
 
 import { AlertTriangle, LoaderCircle, MapPinned } from 'lucide-react'
 import type { GeoJSONSource, MapLibreMap } from 'maplibre-gl'
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 
 import {
-  type AuthorizedMapPoint,
+  EMPTY_SAFE_MAP_FEATURE_COLLECTION,
   type SafeMapFeatureCollection,
-  toSafeMapFeatureCollection,
 } from './analytics-location-utils'
 
 const sourceId = 'pathways-authorized-project-locations'
@@ -18,20 +17,15 @@ const layerId = 'pathways-authorized-project-location-points'
 
 const defaultCenter: readonly [longitude: number, latitude: number] = [122, 12.5]
 const defaultZoom = 4.5
+const singleFeatureZoom = 12
 
-export const DEVELOPMENT_MAP_STYLE_URL = 'https://demotiles.maplibre.org/style.json'
+export const DEFAULT_MAP_STYLE_URL = 'https://tiles.openfreemap.org/styles/liberty'
 
-export const resolveMapStyleUrl = (
-  configuredStyleUrl = process.env.NEXT_PUBLIC_MAP_STYLE_URL,
-  environment = process.env.NODE_ENV,
-) => {
-  const configured = configuredStyleUrl?.trim()
-  if (configured) return configured
-  return environment === 'development' ? DEVELOPMENT_MAP_STYLE_URL : null
-}
+export const resolveMapStyleUrl = (configuredStyleUrl = process.env.NEXT_PUBLIC_MAP_STYLE_URL) =>
+  configuredStyleUrl?.trim() || DEFAULT_MAP_STYLE_URL
 
 type AnalyticsCoverageMapProps = Readonly<{
-  points?: readonly AuthorizedMapPoint[]
+  featureCollection?: SafeMapFeatureCollection
   styleUrl?: string | null
   initialCenter?: readonly [longitude: number, latitude: number]
   initialZoom?: number
@@ -40,8 +34,47 @@ type AnalyticsCoverageMapProps = Readonly<{
 
 type MapStatus = 'loading' | 'ready' | 'error'
 
+const syncMapCamera = (
+  map: MapLibreMap,
+  featureCollection: SafeMapFeatureCollection,
+  initialCenter: readonly [longitude: number, latitude: number],
+  initialZoom: number,
+) => {
+  const coordinates = featureCollection.features.map((feature) => feature.geometry.coordinates)
+
+  if (coordinates.length === 0) {
+    map.jumpTo({ center: [initialCenter[0], initialCenter[1]], zoom: initialZoom })
+    return
+  }
+
+  if (coordinates.length === 1) {
+    map.jumpTo({ center: [coordinates[0][0], coordinates[0][1]], zoom: singleFeatureZoom })
+    return
+  }
+
+  let minimumLongitude = coordinates[0][0]
+  let maximumLongitude = coordinates[0][0]
+  let minimumLatitude = coordinates[0][1]
+  let maximumLatitude = coordinates[0][1]
+
+  for (const [longitude, latitude] of coordinates.slice(1)) {
+    minimumLongitude = Math.min(minimumLongitude, longitude)
+    maximumLongitude = Math.max(maximumLongitude, longitude)
+    minimumLatitude = Math.min(minimumLatitude, latitude)
+    maximumLatitude = Math.max(maximumLatitude, latitude)
+  }
+
+  map.fitBounds(
+    [
+      [minimumLongitude, minimumLatitude],
+      [maximumLongitude, maximumLatitude],
+    ],
+    { duration: 0, maxZoom: singleFeatureZoom, padding: 48 },
+  )
+}
+
 export const AnalyticsCoverageMap = ({
-  points = [],
+  featureCollection = EMPTY_SAFE_MAP_FEATURE_COLLECTION,
   styleUrl,
   initialCenter = defaultCenter,
   initialZoom = defaultZoom,
@@ -49,28 +82,23 @@ export const AnalyticsCoverageMap = ({
 }: AnalyticsCoverageMapProps) => {
   const containerRef = useRef<HTMLDivElement>(null)
   const mapRef = useRef<MapLibreMap | null>(null)
-  const featureResult = useMemo(() => toSafeMapFeatureCollection(points), [points])
-  const latestFeaturesRef = useRef<SafeMapFeatureCollection>(featureResult.featureCollection)
+  const latestFeaturesRef = useRef<SafeMapFeatureCollection>(featureCollection)
   const resolvedStyleUrl = styleUrl === undefined ? resolveMapStyleUrl() : styleUrl?.trim() || null
   const [status, setStatus] = useState<MapStatus>(resolvedStyleUrl ? 'loading' : 'error')
   const [errorMessage, setErrorMessage] = useState(
-    resolvedStyleUrl
-      ? ''
-      : 'Map style is not configured. Set NEXT_PUBLIC_MAP_STYLE_URL for this environment.',
+    resolvedStyleUrl ? '' : 'Map style is not configured for this environment.',
   )
   const [retryKey, setRetryKey] = useState(0)
   const centerLongitude = initialCenter[0]
   const centerLatitude = initialCenter[1]
 
-  latestFeaturesRef.current = featureResult.featureCollection
+  latestFeaturesRef.current = featureCollection
 
   useEffect(() => {
     const container = containerRef.current
     if (!container || !resolvedStyleUrl) {
       setStatus('error')
-      setErrorMessage(
-        'Map style is not configured. Set NEXT_PUBLIC_MAP_STYLE_URL for this environment.',
-      )
+      setErrorMessage('Map style is not configured for this environment.')
       return
     }
 
@@ -115,14 +143,22 @@ export const AnalyticsCoverageMap = ({
               'circle-stroke-width': 2,
             },
           })
+          syncMapCamera(
+            map,
+            latestFeaturesRef.current,
+            [centerLongitude, centerLatitude],
+            initialZoom,
+          )
           map.resize()
           setStatus('ready')
         }
         handleError = () => {
-          if (cancelled || styleLoaded) return
+          if (cancelled) return
           setStatus('error')
           setErrorMessage(
-            'The configured map style could not be loaded. Other pages are unaffected.',
+            styleLoaded
+              ? 'Basemap tiles could not be loaded. Other pages are unaffected.'
+              : 'The configured map style could not be loaded. Other pages are unaffected.',
           )
         }
 
@@ -153,26 +189,28 @@ export const AnalyticsCoverageMap = ({
   }, [centerLatitude, centerLongitude, initialZoom, resolvedStyleUrl, retryKey])
 
   useEffect(() => {
-    const source = mapRef.current?.getSource(sourceId)
-    if (source?.type === 'geojson') {
-      ;(source as GeoJSONSource).setData(featureResult.featureCollection)
+    const map = mapRef.current
+    const source = map?.getSource(sourceId)
+    if (map && source?.type === 'geojson') {
+      ;(source as GeoJSONSource).setData(featureCollection)
+      syncMapCamera(map, featureCollection, [centerLongitude, centerLatitude], initialZoom)
     }
-  }, [featureResult.featureCollection])
+  }, [centerLatitude, centerLongitude, featureCollection, initialZoom])
 
-  const hasFeatures = featureResult.featureCollection.features.length > 0
+  const hasFeatures = featureCollection.features.length > 0
 
   return (
     <section
-      aria-label="Authorized project location map"
+      aria-label="Project coverage map"
       className={cn(
-        'relative min-h-[28rem] overflow-hidden rounded-sm border border-border bg-surface-subtle',
+        'relative min-h-[28rem] w-full overflow-hidden rounded-sm border border-border bg-surface-subtle',
         className,
       )}
     >
       <div className="absolute inset-0" ref={containerRef} />
       <p className="sr-only">
-        Interactive project map. Use the map controls to pan and zoom. Only authorized, project-safe
-        coordinates are eligible for display.
+        Interactive project map. Use the map controls or keyboard to pan and zoom. Only authorized,
+        project-safe coordinates are eligible for display.
       </p>
 
       {status === 'loading' ? (
@@ -190,14 +228,6 @@ export const AnalyticsCoverageMap = ({
           icon={MapPinned}
           title="No mapped locations available"
         />
-      ) : null}
-
-      {featureResult.rejectedPointCount > 0 ? (
-        <output className="absolute bottom-3 left-3 right-3 z-10 rounded-sm border border-warning/30 bg-warning-subtle p-3 text-sm text-warning shadow-sm sm:right-auto sm:max-w-md">
-          {featureResult.rejectedPointCount}{' '}
-          {featureResult.rejectedPointCount === 1 ? 'location was' : 'locations were'} omitted
-          because the coordinates or safe label were invalid.
-        </output>
       ) : null}
     </section>
   )

@@ -3,6 +3,8 @@
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import type { SafeMapFeatureCollection } from './analytics-location-utils'
+
 const maplibre = vi.hoisted(() => ({
   instances: [] as MapMock[],
 }))
@@ -18,6 +20,8 @@ class MapMock {
   >()
   readonly addControl = vi.fn()
   readonly addLayer = vi.fn()
+  readonly fitBounds = vi.fn()
+  readonly jumpTo = vi.fn()
   readonly remove = vi.fn()
   readonly resize = vi.fn()
 
@@ -44,7 +48,13 @@ class MapMock {
   }
 
   addSource(id: string, source: { type: string; data: unknown }) {
-    this.sources.set(id, { ...source, setData: vi.fn() })
+    const record = {
+      ...source,
+      setData: vi.fn((data: unknown) => {
+        record.data = data
+      }),
+    }
+    this.sources.set(id, record)
     return this
   }
 
@@ -62,7 +72,7 @@ vi.mock('maplibre-gl', () => ({
 
 import {
   AnalyticsCoverageMap,
-  DEVELOPMENT_MAP_STYLE_URL,
+  DEFAULT_MAP_STYLE_URL,
   resolveMapStyleUrl,
 } from './analytics-coverage-map'
 
@@ -77,6 +87,18 @@ class ResizeObserverMock {
   }
 }
 
+const features = (
+  points: readonly [id: string, longitude: number, latitude: number][],
+): SafeMapFeatureCollection => ({
+  type: 'FeatureCollection',
+  features: points.map(([id, longitude, latitude]) => ({
+    type: 'Feature',
+    id,
+    properties: { id, label: id },
+    geometry: { type: 'Point', coordinates: [longitude, latitude] },
+  })),
+})
+
 beforeEach(() => {
   maplibre.instances.length = 0
   resizeObserverInstances.length = 0
@@ -89,10 +111,10 @@ afterEach(() => {
 })
 
 describe('AnalyticsCoverageMap', () => {
-  it('mounts with the configured style and renders valid safe GeoJSON', async () => {
+  it('mounts normalized GeoJSON once with navigation controls and a one-point camera', async () => {
     render(
       <AnalyticsCoverageMap
-        points={[{ id: 'project-a', label: 'Project A', latitude: 14.6, longitude: 121 }]}
+        featureCollection={features([['project-a', 121, 14.6]])}
         styleUrl="https://tiles.example.test/style.json"
       />,
     )
@@ -103,52 +125,78 @@ describe('AnalyticsCoverageMap', () => {
     expect(map?.options.style).toBe('https://tiles.example.test/style.json')
     expect(map?.options.center).toEqual([122, 12.5])
     expect(map?.addControl).toHaveBeenCalledTimes(1)
-    expect(map?.sources.get('pathways-authorized-project-locations')?.data).toEqual({
-      type: 'FeatureCollection',
-      features: [
-        {
-          type: 'Feature',
-          id: 'project-a',
-          properties: { id: 'project-a', label: 'Project A' },
-          geometry: { type: 'Point', coordinates: [121, 14.6] },
-        },
-      ],
-    })
+    expect(map?.sources.get('pathways-authorized-project-locations')?.data).toEqual(
+      features([['project-a', 121, 14.6]]),
+    )
+    expect(map?.jumpTo).toHaveBeenLastCalledWith({ center: [121, 14.6], zoom: 12 })
   })
 
-  it('keeps the basemap interactive while truthfully reporting no authoritative points', async () => {
-    render(<AnalyticsCoverageMap points={[]} styleUrl="test-style" />)
+  it('keeps the basemap interactive with an empty source and neutral Philippines camera', async () => {
+    render(<AnalyticsCoverageMap featureCollection={features([])} styleUrl="test-style" />)
 
     expect(await screen.findByText('No mapped locations available')).toBeTruthy()
-    expect(
-      maplibre.instances[0]?.sources.get('pathways-authorized-project-locations')?.data,
-    ).toEqual({ type: 'FeatureCollection', features: [] })
+    const map = maplibre.instances[0]
+    expect(map?.sources.get('pathways-authorized-project-locations')?.data).toEqual({
+      type: 'FeatureCollection',
+      features: [],
+    })
+    expect(map?.jumpTo).toHaveBeenLastCalledWith({ center: [122, 12.5], zoom: 4.5 })
   })
 
-  it('omits invalid coordinates without failing the valid map layer', async () => {
-    render(
+  it('updates the source and camera without recreating the map', async () => {
+    const rendered = render(
+      <AnalyticsCoverageMap featureCollection={features([])} styleUrl="test-style" />,
+    )
+    await screen.findByText('No mapped locations available')
+    const map = maplibre.instances[0]
+    const source = map?.sources.get('pathways-authorized-project-locations')
+
+    rendered.rerender(
       <AnalyticsCoverageMap
-        points={[
-          { id: 'valid', latitude: 14.6, longitude: 121 },
-          { id: 'invalid', latitude: 91, longitude: 121 },
-        ]}
+        featureCollection={features([
+          ['west', 120, 10],
+          ['east', 125, 15],
+        ])}
         styleUrl="test-style"
       />,
     )
 
-    expect(await screen.findByText(/1 location was omitted/)).toBeTruthy()
-    const source = maplibre.instances[0]?.sources.get('pathways-authorized-project-locations')
-    expect((source?.data as { features: unknown[] }).features).toHaveLength(1)
+    await waitFor(() => expect(source?.setData).toHaveBeenCalledTimes(1))
+    expect(maplibre.instances).toHaveLength(1)
+    expect(map?.fitBounds).toHaveBeenLastCalledWith(
+      [
+        [120, 10],
+        [125, 15],
+      ],
+      { duration: 0, maxZoom: 12, padding: 48 },
+    )
+
+    rendered.rerender(
+      <AnalyticsCoverageMap featureCollection={features([])} styleUrl="test-style" />,
+    )
+    await waitFor(() => expect(source?.setData).toHaveBeenCalledTimes(2))
+    expect(maplibre.instances).toHaveLength(1)
+    expect(map?.jumpTo).toHaveBeenLastCalledWith({ center: [122, 12.5], zoom: 4.5 })
   })
 
-  it('contains style failure inside the map surface and retries without reloading the page', async () => {
+  it('contains style failure inside the map surface and retries only the renderer', async () => {
     render(<AnalyticsCoverageMap styleUrl="error-style" />)
 
     expect(await screen.findByText('Map unavailable')).toBeTruthy()
-    expect(screen.getByText(/Other pages are unaffected/)).toBeTruthy()
+    expect(screen.getByText(/configured map style could not be loaded/)).toBeTruthy()
     fireEvent.click(screen.getByRole('button', { name: 'Retry map' }))
     await waitFor(() => expect(maplibre.instances).toHaveLength(2))
     expect(maplibre.instances[0]?.remove).toHaveBeenCalledTimes(1)
+  })
+
+  it('reports a tile error after load without affecting the rest of the page', async () => {
+    render(<AnalyticsCoverageMap styleUrl="test-style" />)
+    await screen.findByText('No mapped locations available')
+
+    maplibre.instances[0]?.emit('error')
+
+    expect(await screen.findByText('Map unavailable')).toBeTruthy()
+    expect(screen.getByText(/Basemap tiles could not be loaded/)).toBeTruthy()
   })
 
   it('removes the MapLibre instance and resize observer on cleanup', async () => {
@@ -162,10 +210,9 @@ describe('AnalyticsCoverageMap', () => {
     expect(resizeObserverInstances[0]?.disconnect).toHaveBeenCalledTimes(1)
   })
 
-  it('uses the official demo style only in development and never as production fallback', () => {
-    expect(resolveMapStyleUrl(undefined, 'development')).toBe(DEVELOPMENT_MAP_STYLE_URL)
-    expect(resolveMapStyleUrl(undefined, 'production')).toBeNull()
-    expect(resolveMapStyleUrl(' https://tiles.example.test/style.json ', 'production')).toBe(
+  it('uses a tokenless default style in every environment and preserves an override', () => {
+    expect(resolveMapStyleUrl(undefined)).toBe(DEFAULT_MAP_STYLE_URL)
+    expect(resolveMapStyleUrl(' https://tiles.example.test/style.json ')).toBe(
       'https://tiles.example.test/style.json',
     )
   })

@@ -33,6 +33,7 @@ import { type MonitoringDashboard, type SadddDashboard, formatMetricCell } from 
 
 import { ActivityCompletionChart, DescriptiveAnalysisChart, SadddChart } from './analytics-charts'
 import { AnalyticsCoverageMap } from './analytics-coverage-map'
+import { toProjectCoverageFeatureCollection } from './analytics-location-utils'
 import { deriveAnalyticsReportingPeriods } from './analytics-reporting-periods'
 import { humanReviewDisclaimer } from './analytics-utils'
 
@@ -86,6 +87,13 @@ export const AnalyticsDashboard = () => {
   const [sadddLoadAttempt, setSadddLoadAttempt] = useState(0)
 
   const selectedProject = projects.find((row) => row.id === projectId)
+  const projectCoverageFeatures = useMemo(
+    () =>
+      toProjectCoverageFeatureCollection(
+        selectedProject ? { id: selectedProject.id, title: selectedProject.title } : null,
+      ),
+    [selectedProject],
+  )
   const reportingPeriods = useMemo(
     () =>
       deriveAnalyticsReportingPeriods(
@@ -262,8 +270,11 @@ export const AnalyticsDashboard = () => {
     setSadddError('')
   }
 
-  const loading = projectsLoading || projectDataLoading || monitoringLoading
-  const error = projectsError || projectDataError || monitoringError
+  const mapSelected = visualizationType === 'map'
+  const mapDataLoading = projectDataLoading || monitoringLoading
+  const mapDataError = projectDataError || monitoringError
+  const loading = projectsLoading || (!mapSelected && (projectDataLoading || monitoringLoading))
+  const error = projectsError || (!mapSelected ? projectDataError || monitoringError : '')
   const retryLoad = () => {
     if (projectsError) setProjectsLoadAttempt((value) => value + 1)
     else if (projectDataError) setProjectDataLoadAttempt((value) => value + 1)
@@ -455,12 +466,47 @@ export const AnalyticsDashboard = () => {
       ) : (
         <>
           <ChartPanel
-            title={`${analysisMeta.title} · ${visualizationTypes.find((type) => type.value === visualizationType)?.label}`}
+            description={
+              mapSelected
+                ? `Interactive coverage for ${selectedProject.title}. Only authoritative persisted project coordinates are plotted.`
+                : undefined
+            }
+            title={
+              mapSelected
+                ? 'Project Coverage Map'
+                : `${analysisMeta.title} · ${visualizationTypes.find((type) => type.value === visualizationType)?.label}`
+            }
           >
-            {!selectedPeriod ? (
+            {mapSelected ? (
+              <>
+                <AnalyticsCoverageMap featureCollection={projectCoverageFeatures} />
+                {mapDataLoading ? (
+                  <output className="mt-4 rounded-sm border border-border bg-surface-subtle p-3 text-sm text-muted-foreground">
+                    Updating project analytics.
+                  </output>
+                ) : mapDataError ? (
+                  <div
+                    className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-sm border border-danger/30 bg-danger-subtle p-3 text-sm text-danger"
+                    role="alert"
+                  >
+                    <span>{mapDataError}</span>
+                    <Button
+                      onClick={() =>
+                        projectDataError
+                          ? setProjectDataLoadAttempt((value) => value + 1)
+                          : setMonitoringLoadAttempt((value) => value + 1)
+                      }
+                      size="sm"
+                      type="button"
+                      variant="outline"
+                    >
+                      Retry analytics
+                    </Button>
+                  </div>
+                ) : null}
+              </>
+            ) : !selectedPeriod ? (
               <UnavailableChart description="No active Indicator reporting period is available for this project." />
-            ) : visualizationType === 'map' ? (
-              <AnalyticsCoverageMap />
             ) : analysisRows.length === 0 ? (
               <UnavailableChart
                 description={
@@ -616,9 +662,18 @@ export const AnalyticsDashboard = () => {
   )
 }
 
-const ChartPanel = ({ title, children }: { title: string; children: React.ReactNode }) => (
+const ChartPanel = ({
+  title,
+  description,
+  children,
+}: {
+  title: string
+  description?: string
+  children: React.ReactNode
+}) => (
   <section className="overflow-hidden rounded-lg border border-border bg-card p-5">
     <h2 className="text-lg font-semibold text-foreground">{title}</h2>
+    {description ? <p className="mt-1 text-sm text-muted-foreground">{description}</p> : null}
     <div className="mt-4">{children}</div>
   </section>
 )

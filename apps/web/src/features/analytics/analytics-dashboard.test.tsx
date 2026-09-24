@@ -12,6 +12,10 @@ const api = vi.hoisted(() => ({
   getProjectsForRole: vi.fn(),
   getSadddDashboard: vi.fn(),
 }))
+const coverageMap = vi.hoisted(() => ({
+  instanceCount: 0,
+  featureCollections: [] as unknown[],
+}))
 
 vi.mock('@/lib/services/pathways-client', () => ({ pathwaysClient: api }))
 vi.mock('@/hooks/use-current-role', () => ({
@@ -29,9 +33,23 @@ vi.mock('./analytics-charts', () => ({
   DescriptiveAnalysisChart: () => <div>Analysis chart</div>,
   SadddChart: () => <div>SADDD chart</div>,
 }))
-vi.mock('./analytics-coverage-map', () => ({
-  AnalyticsCoverageMap: () => <div>Coverage map</div>,
-}))
+vi.mock('./analytics-coverage-map', async () => {
+  const React = await import('react')
+  return {
+    AnalyticsCoverageMap: ({ featureCollection }: { featureCollection: unknown }) => {
+      const [instance] = React.useState(() => {
+        coverageMap.instanceCount += 1
+        return coverageMap.instanceCount
+      })
+      coverageMap.featureCollections.push(featureCollection)
+      return (
+        <div data-instance={instance} data-testid="coverage-map">
+          Coverage map
+        </div>
+      )
+    },
+  }
+})
 vi.mock('@/components/ui/select', async () => {
   const React = await import('react')
   type PartProps = {
@@ -126,6 +144,8 @@ const monitoring = {
 
 describe('Analytics dashboard request dependencies', () => {
   beforeEach(() => {
+    coverageMap.instanceCount = 0
+    coverageMap.featureCollections.length = 0
     const projects = [
       project('project-a', 'Project A', null, null),
       project('project-b', 'Project B', '2026-09-15', '2026-12-31'),
@@ -175,6 +195,13 @@ describe('Analytics dashboard request dependencies', () => {
     expect(api.getActivities).toHaveBeenCalledTimes(1)
     expect(api.getSadddDashboard).not.toHaveBeenCalled()
 
+    fireEvent.change(screen.getByLabelText('Visualization type'), {
+      target: { value: 'map' },
+    })
+    const map = await screen.findByTestId('coverage-map')
+    const mapInstance = map.getAttribute('data-instance')
+    const firstFeatureCollection = coverageMap.featureCollections.at(-1)
+
     fireEvent.change(screen.getByLabelText('Reporting period'), {
       target: { value: '2026-08-01::2026-08-31' },
     })
@@ -186,6 +213,8 @@ describe('Analytics dashboard request dependencies', () => {
     })
     expect(api.getActivities).toHaveBeenCalledTimes(1)
     expect(api.getSadddDashboard).not.toHaveBeenCalled()
+    expect(screen.getByTestId('coverage-map').getAttribute('data-instance')).toBe(mapInstance)
+    expect(coverageMap.featureCollections.at(-1)).toBe(firstFeatureCollection)
 
     fireEvent.change(screen.getByLabelText('Project filter'), {
       target: { value: 'project-b' },
@@ -210,6 +239,35 @@ describe('Analytics dashboard request dependencies', () => {
         ([query]) => query.projectId === 'project-b' && query.periodStart === '2026-08-01',
       ),
     ).toBe(false)
+    expect(screen.getByTestId('coverage-map').getAttribute('data-instance')).toBe(mapInstance)
+    expect(coverageMap.featureCollections.at(-1)).not.toBe(firstFeatureCollection)
+  })
+
+  it('renders the Project-scoped empty map without requiring a reporting period', async () => {
+    api.getProjectsForRole.mockResolvedValue([
+      project('project-empty', 'No Coordinates Project', null, null),
+    ])
+    api.getProjectIndicators.mockResolvedValue([])
+
+    render(<AnalyticsDashboard />)
+
+    await waitFor(() => expect(api.getProjectIndicators).toHaveBeenCalledWith('project-empty'))
+    fireEvent.change(screen.getByLabelText('Visualization type'), {
+      target: { value: 'map' },
+    })
+
+    expect(await screen.findByRole('heading', { name: 'Project Coverage Map' })).toBeTruthy()
+    expect(
+      screen.getByText(
+        'Interactive coverage for No Coordinates Project. Only authoritative persisted project coordinates are plotted.',
+      ),
+    ).toBeTruthy()
+    expect(screen.getByTestId('coverage-map')).toBeTruthy()
+    expect(coverageMap.featureCollections.at(-1)).toEqual({
+      type: 'FeatureCollection',
+      features: [],
+    })
+    expect(api.getMonitoringDashboard).not.toHaveBeenCalled()
   })
 
   it.each([
