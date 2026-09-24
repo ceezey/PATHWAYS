@@ -97,8 +97,9 @@ const entries = [
   [`/projects/${id}/monitor-evaluate`, 'SPJE'],
   ['/analytics', 'SPGJE'],
   ['/analytics', 'SPGJE'],
-  ['/alerts/repository', 'SPJE'],
-  ['/recommendations', 'SPJ'],
+  ['/alerts', 'SPJEO'],
+  ['/alerts/repository', 'SPJEO'],
+  ['/recommendations', 'SPJEO'],
   ['/reports', 'SPGJEO'],
 ] as const
 const roleCodes: Record<CanonicalRole, string> = {

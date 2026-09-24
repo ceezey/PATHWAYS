@@ -1,6 +1,9 @@
 # Fresh synthetic loopback replay only. No hosted URL, credential or env file is read.
 [CmdletBinding()]
-param([switch]$Phase4IndicatorPolicy)
+param(
+  [switch]$Phase4IndicatorPolicy,
+  [switch]$RuleBasedAccessAlignment
+)
 $ErrorActionPreference = 'Stop'
 $phase6Root = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot '../../..')).Path
 $phase6Bin = 'C:\Program Files\PostgreSQL\18\bin'
@@ -145,7 +148,7 @@ try {
       }
     }
 
-    if ($Phase4IndicatorPolicy) {
+    if ($Phase4IndicatorPolicy -or $RuleBasedAccessAlignment) {
       # Synthetic existing reference rows exercise the upgrade path. The
       # checked-in policy supplies equivalent mappings when a fresh target is
       # provisioned after its migrations; no managed target is used here.
@@ -184,6 +187,71 @@ WHERE id='89000000-0000-4000-8000-000000000021'::uuid
       Copy-Item -LiteralPath (Join-Path $phase6Root 'apps/api/prisma/migrations/0022_project_target_goal') -Destination $phase6Stage -Recurse
       pnpm --filter @pathways/api exec prisma migrate deploy --config $phase6Config
       if ($LASTEXITCODE -ne 0) { throw '0022 project target-goal replay failed.' }
+
+      if ($RuleBasedAccessAlignment) {
+        # Reproduce the managed pre-0023 authorization state: both target roles
+        # exist, M&E already has rules.read, and unrelated Project Manager rows
+        # must remain unchanged.
+        $ruleAccessSeedSql = @'
+INSERT INTO pathways.roles(id,code,name) VALUES
+  ('89000000-0000-4000-8000-000000000021','PROJECT_MANAGER','Project Manager'),
+  ('89000000-0000-4000-8000-000000000023','MONITORING_AND_EVALUATION_OFFICER','Monitoring and Evaluation Officer'),
+  ('89000000-0000-4000-8000-000000000024','PROJECT_OFFICER','Project Officer');
+INSERT INTO pathways.permissions(code,name) VALUES
+  ('rules.read','rules.read'),
+  ('recommendations.outcome.record','recommendations.outcome.record');
+INSERT INTO pathways.role_permissions(role_id,permission_id)
+SELECT r.id,p.id
+FROM pathways.roles r CROSS JOIN pathways.permissions p
+WHERE (r.code='MONITORING_AND_EVALUATION_OFFICER' AND p.code='rules.read')
+   OR (r.code='PROJECT_MANAGER' AND p.code IN ('rules.read','recommendations.outcome.record'));
+'@
+        Invoke-LocalSql $ruleAccessSeedSql $phase6Database
+        Copy-Item -LiteralPath (Join-Path $phase6Root 'apps/api/prisma/migrations/0023_rule_based_access_alignment') -Destination $phase6Stage -Recurse
+        pnpm --filter @pathways/api exec prisma migrate deploy --config $phase6Config
+        if ($LASTEXITCODE -ne 0) { throw '0023 rule-based access alignment replay failed.' }
+
+        $ruleAccessMappingSql = @'
+SELECT
+  (SELECT count(*)=5 FROM pathways.permissions
+   WHERE code IN ('alerts.read','alerts.review','alerts.outcome.record','recommendations.read','recommendations.review')
+     AND name=code AND is_active)
+  AND (SELECT count(*)=14
+       FROM pathways.role_permissions rp
+       JOIN pathways.roles r ON r.id=rp.role_id
+       JOIN pathways.permissions p ON p.id=rp.permission_id
+       WHERE r.code IN ('MONITORING_AND_EVALUATION_OFFICER','PROJECT_OFFICER')
+         AND p.code IN ('rules.read','alerts.read','alerts.review','alerts.outcome.record','recommendations.read','recommendations.review','recommendations.outcome.record'))
+  AND (SELECT count(*)=2
+       FROM pathways.role_permissions rp
+       JOIN pathways.roles r ON r.id=rp.role_id
+       JOIN pathways.permissions p ON p.id=rp.permission_id
+       WHERE r.code='PROJECT_MANAGER'
+         AND p.code IN ('rules.read','recommendations.outcome.record'))
+  AND NOT EXISTS (
+       SELECT FROM pathways.role_permissions rp
+       JOIN pathways.roles r ON r.id=rp.role_id
+       JOIN pathways.permissions p ON p.id=rp.permission_id
+       WHERE r.code NOT IN ('MONITORING_AND_EVALUATION_OFFICER','PROJECT_OFFICER')
+         AND p.code IN ('alerts.read','alerts.review','alerts.outcome.record','recommendations.read','recommendations.review'))
+  AND NOT EXISTS (
+       SELECT FROM pathways.role_permissions rp
+       JOIN pathways.roles r ON r.id=rp.role_id
+       JOIN pathways.permissions p ON p.id=rp.permission_id
+       WHERE r.code IN ('MONITORING_AND_EVALUATION_OFFICER','PROJECT_OFFICER')
+         AND p.code IN ('rules.create','rules.update','rules.activate'))
+  AND NOT (SELECT rolbypassrls FROM pg_roles WHERE rolname='pathways_runtime');
+'@
+        $ruleAccessMapping = $ruleAccessMappingSql | & "$phase6Bin\psql.exe" -X -w -q -A -t -h 127.0.0.1 -p $phase6Port -U postgres -d $phase6Database -v ON_ERROR_STOP=1
+        if ($LASTEXITCODE -ne 0 -or $ruleAccessMapping.Trim() -cne 't') {
+          throw '0023 exact permission delta or unrelated-role preservation failed.'
+        }
+        $ruleAccessRemoveSeedSql = @'
+DELETE FROM pathways.roles
+WHERE code IN ('PROJECT_MANAGER','MONITORING_AND_EVALUATION_OFFICER','PROJECT_OFFICER');
+'@
+        Invoke-LocalSql $ruleAccessRemoveSeedSql $phase6Database
+      }
     }
 
     pnpm --filter @pathways/api exec prisma migrate status --config $phase6Config
@@ -322,7 +390,9 @@ SELECT (SELECT count(*) FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamesp
             AND conrelid='pathways.system_users'::regclass
             AND confrelid='auth.users'::regclass AND contype='f');
 '@
-  if ($Phase4IndicatorPolicy) {
+  if ($RuleBasedAccessAlignment) {
+    $phase6Post = $phase6Post.Replace('FROM public._prisma_migrations)=20', 'FROM public._prisma_migrations)=23')
+  } elseif ($Phase4IndicatorPolicy) {
     $phase6Post = $phase6Post.Replace('FROM public._prisma_migrations)=20', 'FROM public._prisma_migrations)=22')
   }
   $phase6Result = $phase6Post | & "$phase6Bin\psql.exe" -X -w -q -A -t -h 127.0.0.1 -p $phase6Port -U postgres -d $phase6Database -v ON_ERROR_STOP=1
@@ -361,6 +431,7 @@ SELECT (SELECT count(*) FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamesp
   Invoke-LocalSql $phase6IndicatorSql $phase6Database
   Write-Output 'PROJECT_INDICATOR_DASHBOARD_RUNTIME=PASS' 
   if ($Phase4IndicatorPolicy) { Write-Output 'PHASE4_PM_INDICATOR_RUNTIME=PASS' }
+  if ($RuleBasedAccessAlignment) { Write-Output 'RULE_BASED_ACCESS_ALIGNMENT_RUNTIME=PASS' }
   Write-Output 'LEGACY_TABLE_PRESERVATION=PASS'
   $phase6Exit = 0
 } catch {

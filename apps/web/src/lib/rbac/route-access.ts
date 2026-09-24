@@ -107,8 +107,8 @@ export const routePolicy = {
   ),
   imports: entry('/collection/import', 'Metadata-Driven Data Integration', ['imports.read']),
   analytics: entry('/analytics', 'Analytics', ['analytics.read']),
-  alerts: entry('/alerts', 'Alerts', ['recommendations.outcome.record']),
-  recommendations: entry('/recommendations', 'Recommendations', ['recommendations.outcome.record']),
+  alerts: entry('/alerts', 'Alerts', ['alerts.read']),
+  recommendations: entry('/recommendations', 'Recommendations', ['recommendations.read']),
   rules: entry('/alerts/repository', 'Alerts Repository', ['rules.read']),
   settingsRules: entry('/settings/rules', 'Alerts Repository', ['rules.read']),
   reports: entry('/reports', 'Reports', ['reports.read']),
@@ -126,6 +126,22 @@ export const routePolicy = {
   settings: entry('/settings', 'Settings', ['settings.read']),
 } as const
 export type RouteKey = keyof typeof routePolicy
+const legacyDecisionSupportReadRoles = new Set([
+  'SYSTEM_ADMINISTRATOR',
+  'PROGRAM_MANAGER',
+  'PROJECT_MANAGER',
+])
+const hasRoutePermission = (
+  role: string,
+  granted: readonly string[],
+  route: RouteKey,
+  permissions: readonly AtomicPermission[],
+) =>
+  permissions.some((permission) => hasAtomicPermission(role, granted, permission)) ||
+  ((route === 'alerts' || route === 'recommendations') &&
+    legacyDecisionSupportReadRoles.has(role) &&
+    hasAtomicPermission(role, granted, 'recommendations.outcome.record'))
+
 export type RouteSelection = {
   route: RouteKey
   projectId?: string
@@ -299,7 +315,7 @@ export function routeAllowed(
     selection.route === 'reportPreview'
       ? [reportAtomic[selection.kind ?? 'beneficiary-summary']]
       : spec.permissions
-  if (!permissions.some((p) => hasAtomicPermission(role, principal.permissions, p))) return false
+  if (!hasRoutePermission(role, principal.permissions, selection.route, permissions)) return false
   if (
     (spec.scope === 'beneficiary' ||
       selection.route === 'beneficiaryReport' ||
@@ -430,8 +446,11 @@ export const visibleFeatures = (profile: RoutePrincipal) =>
     (feature) =>
       !feature.route ||
       (profile.roles.length === 1 &&
-        routePolicy[feature.route].permissions.some((p) =>
-          hasAtomicPermission(profile.roles[0], profile.permissions, p),
+        hasRoutePermission(
+          profile.roles[0],
+          profile.permissions,
+          feature.route,
+          routePolicy[feature.route].permissions,
         )),
   )
 const roleKey = (role: DisplayRole) =>
@@ -490,6 +509,12 @@ const legacyPermissions: Partial<Record<PermissionCode, readonly AtomicPermissio
   'transparency.preview': ['public.preview'],
   'transparency.publish': ['public.publish'],
   'rules.view': ['rules.read'],
+  'alerts.view': ['alerts.read'],
+  'alerts.review': ['alerts.review'],
+  'alerts.outcome.record': ['alerts.outcome.record'],
+  'recommendations.view': ['recommendations.read'],
+  'recommendations.review': ['recommendations.review'],
+  'recommendations.outcome.record': ['recommendations.outcome.record'],
   'alerts.outcome.log': ['recommendations.outcome.record'],
   'reports.view': ['reports.read'],
   'reports.project_summary.view': ['reports.project.read'],

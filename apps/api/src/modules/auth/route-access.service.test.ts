@@ -38,9 +38,9 @@ const allowed: Record<CanonicalRole, string> = {
   PROGRAM_MANAGER: `${common} analytics activities activity indicators budget journey monitoring transparency transparencyPreview collection forms form alerts recommendations rules settingsRules projectReport indicatorReport users`,
   GRANT_MANAGER: `${common} analytics budget projectReport indicatorReport`,
   PROJECT_MANAGER: `${common} analytics projectCreate activities activity indicators budget journey monitoring transparency transparencyPreview beneficiaries beneficiaryCreate beneficiary collection forms formCreate form formEntry imports alerts recommendations rules settingsRules projectReport indicatorReport beneficiaryReport reportPreview users`,
-  MONITORING_AND_EVALUATION_OFFICER: `${common} analytics activities activity evidence indicators budget journey monitoring beneficiaries beneficiaryCreate beneficiary collection forms formCreate form formEntry imports rules settingsRules projectReport indicatorReport beneficiaryReport reportPreview`,
+  MONITORING_AND_EVALUATION_OFFICER: `${common} analytics activities activity evidence indicators budget journey monitoring beneficiaries beneficiaryCreate beneficiary collection forms formCreate form formEntry imports alerts recommendations rules settingsRules projectReport indicatorReport beneficiaryReport reportPreview`,
   PROJECT_OFFICER:
-    'dashboard unauthorized projects project reports surveyReport activities activity budget beneficiaries beneficiaryCreate beneficiary collection forms form formEntry imports beneficiaryReport reportPreview',
+    'dashboard unauthorized projects project reports surveyReport activities activity budget beneficiaries beneficiaryCreate beneficiary collection forms form formEntry imports alerts recommendations rules settingsRules beneficiaryReport reportPreview',
 }
 const select = (route: RouteKey): RouteSelection => ({
   route,
@@ -231,6 +231,21 @@ describe('bounded development-only route-check failure evidence', () => {
   )
 })
 describe('same-request authority and relational object scope', () => {
+  it.each([
+    ['MONITORING_AND_EVALUATION_OFFICER', 'alerts', 'alerts.read'],
+    ['MONITORING_AND_EVALUATION_OFFICER', 'recommendations', 'recommendations.read'],
+    ['PROJECT_OFFICER', 'alerts', 'alerts.read'],
+    ['PROJECT_OFFICER', 'recommendations', 'recommendations.read'],
+  ] as const)('requires the exact read grant: %s / %s', async (role, route, permission) => {
+    const identity = fixture(role)
+    await expect(service.check(identity, { route })).resolves.toHaveProperty('route', route)
+    await expect(
+      service.check(
+        { ...identity, permissions: identity.permissions.filter((code) => code !== permission) },
+        { route },
+      ),
+    ).rejects.toMatchObject({ status: 403 })
+  })
   it.each([
     ['SYSTEM_ADMINISTRATOR', 'dashboard'],
     ['PROJECT_MANAGER', 'collection'],

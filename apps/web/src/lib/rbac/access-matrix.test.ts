@@ -1,9 +1,10 @@
 import { describe, expect, it } from 'vitest'
 
+import { createDashboardNavGroups } from '@/constants/navigation'
 import { pathwaysRoles } from '@/types/pathways-role'
 import { roleAccessProfiles } from './access-matrix'
 import { can, canConfigureProjectAssignmentsForRole, canCreateOrAuthorizeRole } from './can'
-import { getRouteAccess } from './route-access'
+import { filterDashboardNavGroups, getRouteAccess } from './route-access'
 
 const testProjectIds = [
   '10000000-0000-4000-8000-000000000001',
@@ -22,6 +23,19 @@ describe('RBAC matrix', () => {
     ['Project Officer', 'reports.indicator_summary.view', false],
     ['Monitoring and Evaluation Officer', 'budget.expense.verify', true],
     ['Monitoring and Evaluation Officer', 'alerts.outcome.log', false],
+    ['Monitoring and Evaluation Officer', 'alerts.view', true],
+    ['Monitoring and Evaluation Officer', 'alerts.review', true],
+    ['Monitoring and Evaluation Officer', 'alerts.outcome.record', true],
+    ['Monitoring and Evaluation Officer', 'recommendations.view', true],
+    ['Monitoring and Evaluation Officer', 'recommendations.review', true],
+    ['Monitoring and Evaluation Officer', 'recommendations.outcome.record', true],
+    ['Project Officer', 'rules.view', true],
+    ['Project Officer', 'alerts.view', true],
+    ['Project Officer', 'alerts.review', true],
+    ['Project Officer', 'alerts.outcome.record', true],
+    ['Project Officer', 'recommendations.view', true],
+    ['Project Officer', 'recommendations.review', true],
+    ['Project Officer', 'recommendations.outcome.record', true],
     ['Monitoring and Evaluation Officer', 'settings.users.manage', false],
     ['Monitoring and Evaluation Officer', 'indicators.manage', true],
     ['Project Manager', 'indicators.manage', true],
@@ -138,6 +152,19 @@ describe('RBAC matrix', () => {
     }
   })
 
+  it.each(['Monitoring and Evaluation Officer', 'Project Officer'] as const)(
+    'shows read routes but never rule-management controls for %s',
+    (role) => {
+      const visiblePaths = filterDashboardNavGroups(createDashboardNavGroups(), role).flatMap(
+        (group) => group.items.map((item) => item.href),
+      )
+      expect(visiblePaths).toContain('/alerts')
+      expect(visiblePaths).toContain('/alerts/repository')
+      expect(can(role, 'rules.view')).toBe(true)
+      expect(can(role, 'rules.configure')).toBe(false)
+    },
+  )
+
   it('limits project-assignment target roles to the locked hierarchy', () => {
     expect(canConfigureProjectAssignmentsForRole('System Administrator', 'Project Manager')).toBe(
       true,
@@ -203,9 +230,16 @@ describe('RBAC matrix', () => {
       },
     )
     expect(getRouteAccess('Project Officer', '/alerts/repository')).toMatchObject({
-      allowed: false,
+      allowed: true,
       moduleName: 'Alerts Repository',
     })
+    for (const role of ['Monitoring and Evaluation Officer', 'Project Officer'] as const) {
+      expect(getRouteAccess(role, '/alerts')).toMatchObject({ allowed: true, moduleName: 'Alerts' })
+      expect(getRouteAccess(role, '/recommendations')).toMatchObject({
+        allowed: true,
+        moduleName: 'Recommendations',
+      })
+    }
   })
 
   it('denies Project Manager direct routes outside the assigned project scope', () => {

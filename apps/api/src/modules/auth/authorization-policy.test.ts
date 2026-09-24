@@ -69,6 +69,41 @@ describe('canonical least-privilege policy ceiling', () => {
     }
     expect(rolePermissions.PROJECT_MANAGER).toContain('monitoring.read')
   })
+  it('locks the exact rule-based access delta to M&E and Project Officer', () => {
+    const targetPermissions = [
+      'rules.read',
+      'alerts.read',
+      'alerts.review',
+      'alerts.outcome.record',
+      'recommendations.read',
+      'recommendations.review',
+      'recommendations.outcome.record',
+    ] as const
+    const newPermissions = targetPermissions.filter(
+      (permission) =>
+        permission !== 'rules.read' && permission !== 'recommendations.outcome.record',
+    )
+
+    for (const role of ['MONITORING_AND_EVALUATION_OFFICER', 'PROJECT_OFFICER'] as const) {
+      expect(rolePermissions[role]).toEqual(expect.arrayContaining([...targetPermissions]))
+      for (const permission of ['rules.create', 'rules.update', 'rules.activate'] as const) {
+        expect(rolePermissions[role]).not.toContain(permission)
+        expect(hasAtomicPermission(role, [permission], permission)).toBe(false)
+      }
+    }
+
+    for (const role of [
+      'SYSTEM_ADMINISTRATOR',
+      'PROGRAM_MANAGER',
+      'GRANT_MANAGER',
+      'PROJECT_MANAGER',
+    ] as const) {
+      for (const permission of newPermissions) {
+        expect(rolePermissions[role]).not.toContain(permission)
+      }
+    }
+    expect(permissionCodes).not.toContain('rules.delete')
+  })
   it('enforces the exact account-administration and assignment role matrix', () => {
     for (const actor of Object.keys(roleNames) as CanonicalRole[]) {
       for (const target of Object.keys(roleNames) as CanonicalRole[]) {
