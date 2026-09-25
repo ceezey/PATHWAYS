@@ -1,237 +1,120 @@
 # PATHWAYS
-A Digital Integrated Program Monitoring and Dashboard System with a Metadata-Driven Mechanism.
 
-PATHWAYS is a web-based monitoring platform designed to improve how organizations manage, organize, visualize, and report program monitoring data. The system is built around a metadata-driven workflow so that monitoring datasets collected from field tools such as KOBO can be imported, interpreted, organized, and prepared for dashboarding and reporting more consistently.
+**PATHWAYS** is a metadata-driven project information management platform with deterministic rule-based decision-support features for humanitarian and development organizations.
 
-The platform is intended to support program-level monitoring by centralizing participant records, imported datasets, dashboard parameters, demographic breakdowns, and report-ready outputs inside one structured system.
+It centralizes project, activity, Beneficiary, indicator, monitoring, and reporting information; structures data preparation through metadata; supports descriptive dashboards and SADDD; and provides explainable rule-based alerts plus predefined recommendation prompts for human review.
 
-## System Overview
-*Write 3 to 6 sentences here that explain how the web app, API, database, authentication, storage, dashboards, and reports work together.*
+## Current Direction
 
-PATHWAYS is a development-ready monorepo for a web app and API that work together with Supabase. Think of it like one big project box with a few smaller boxes inside: the website lives in one box, the API lives in another box, and the shared code sits in the middle so both can reuse it.
+- PostgreSQL / Supabase development path
+- Prisma data/migration layer
+- Supabase Auth and Storage
+- six canonical roles including Grant Manager
+- core feature development first
+- deployment, SSO, and AWS hosting postponed
+- no user-facing prototype/mock/presentation-only product framing
+- no AI/autonomous humanitarian decisions
 
-## Purpose
-*Explain the real-world problem PATHWAYS is solving, who will use it, and why the system matters.*
+Do not infer feature completion from documentation alone. The current repository and executed tests are the implementation authority.
 
-The purpose of PATHWAYS is to reduce fragmented post-collection workflows by providing a centralized system for:
+## AI-Assisted Development Workflow
 
-- organizing participant records
-- managing imported monitoring datasets
-- supporting metadata-driven bulk upload
-- visualizing project indicators and performance metrics
-- supporting Sex, Age, and Disability Disaggregated Data (SADDD) analysis
-- generating automated monitoring reports
-- preparing data in formats aligned with higher-level reporting requirements
+PATHWAYS adopts a curated documentation-first workflow based on the supplied ArkiLaunch repository.
 
-The system is being developed as a web-based platform with separate frontend, backend, and shared packages to support maintainability and long-term extensibility.
+Start substantial work in this order:
 
-## Features
-*List the main features your team wants other people to notice first.*
+1. [`docs/index.md`](docs/index.md) — manifest, statuses, traceability, Change Log, and Health Check.
+2. [`AGENTS.md`](AGENTS.md) — AI/agent build rules and guardrails.
+3. Relevant Locked/Working PRD / SDD / RFC / DSD / QAD documents for the task.
+4. Current repository code, migrations, tests, and configuration.
+5. Implement only the explicitly authorized task/phase.
+6. Update durable documentation only when an approved contract or verified repository fact changes.
+7. Report the phase result in chat.
+8. Stop before the next phase unless explicitly authorized.
 
-This repository is being prepared to support development of the following core capabilities:
+Task TODOs, temporary source-of-truth notes, phase prompts, and phase-report templates are **disposable workflow context** and are not stored in the repository.
 
-- centralized participant and monitoring database
-- metadata-compatible import and export workflow
-- participant profile management
-- dashboard visualization
-- reporting and data export
-- role-based access control
-- file storage for uploads and reports
-- development-ready testing, formatting, and CI workflows
+The documentation workflow is maintained in-repository. No external documentation engine is required.
 
-## Tech Stack
-- Frontend: Next.js, React, TypeScript, Tailwind CSS, shadcn-style UI primitives
-- Backend: NestJS, TypeScript, Prisma
-- Platform: Supabase Postgres, Supabase Auth, Supabase Storage
-- Shared workspace packages: `@pathways/shared`, `@pathways/config`, `@pathways/imports`, `@pathways/ui`
-- Tooling: pnpm, Biome, Husky, lint-staged
-- Testing: Vitest, MSW, Playwright
-- Ops: Docker, GitHub Actions, Sentry placeholders
+## Core MVP
 
-## What Is In This Repo?
-A monorepo simply means one repository that holds more than one project.
+1. Role-Based Access Control and Workspace Management
+2. Project Profile and Activity Tracking
+3. Centralized Beneficiary Profile
+4. Beneficiary Journey Tracking
+5. Digital Data Collection and Preparation
+6. Metadata-Driven Data Integration
+7. Project Indicator and Monitoring
+8. Aggregated Monitoring Dashboard with SADDD Analysis
 
-Important folders:
-- `apps/web`: the Next.js website devs will open in the browser
-- `apps/api`: the NestJS backend that talks to the database and storage
-- `packages/shared`: shared types, enums, constants, and schema helpers
-- `packages/config`: shared environment readers and config helpers
-- `packages/imports`: import and export helpers for CSV and XLSX work
-- `packages/ui`: optional shared UI package
-- `infra`: helper docs for environment setup, Docker, and Supabase notes
+Supporting features:
 
-## Recommended VS Code Extensions
-Install these before you start coding so the editor helps instead of getting in your way.
+- descriptive analytics;
+- rule-based alerts;
+- predefined human-reviewed recommendations;
+- reporting/data visualization;
+- controlled public project tracker.
 
-- `Biome`: formats and lint-checks files so the code stays neat
-- `Prisma`: makes the Prisma schema easier to read and edit
-- `Tailwind CSS IntelliSense`: helps you understand Tailwind classes while typing
-- `ES7+ React/TypeScript snippets`: gives helpful shortcuts when writing React or TypeScript
-- `GitLens`: makes Git history easier to understand
-- `Playwright Test for VS Code`: helps when running end-to-end tests later
-- `DotENV`: colors and explains environment variable files
-- `Docker`: helps if your team uses Docker during development
+## Security Model
 
-## Step-By-Step Setup
-These steps are written in a simple do-this-then-do-that way so nobody has to guess.
+Protected request path:
 
-### 1. Install the tools you need first
-Make sure these are installed on your computer:
-- Git
-- Node.js LTS
-- pnpm
-- VS Code
-- Docker Desktop
-
-Quick checks:
-```powershell
-node -v
-git --version
-pnpm -v
-docker --version
-docker compose version
+```text
+Supabase Auth identity
+→ linked PATHWAYS system user
+→ active account state
+→ organization
+→ canonical role
+→ permissions
+→ project assignment where required
+→ scoped backend query
 ```
 
-### 2. Clone the project from GitHub
-This copies the project from GitHub to your computer.
+Frontend visibility is not authorization.
 
-```powershell
-git clone https://github.com/ceezey/PATHWAYS.git
-cd PATHWAYS
-```
+Program Manager and Grant Manager are aggregate-only for Beneficiary information.
 
-### 3. Open the project in VS Code
-```powershell
-code .
-```
-If `code .` does not work, open VS Code manually and choose the `PATHWAYS` folder.
+## Documentation
 
-### 4. Create your local environment files
-These files hold the secret keys and local settings for your own machine.
+The full documentation manifest is [`docs/index.md`](docs/index.md).
 
-Recommended local file names:
-- `.env.local`
-- `apps/web/.env.local`
-- `apps/api/.env.local`
+High-use documents:
 
-PowerShell copy commands:
-```powershell
-Copy-Item .env.example .env.local
-Copy-Item apps/web/.env.example apps/web/.env.local
-Copy-Item apps/api/.env.example apps/api/.env.local
-```
+| Document | Purpose |
+|---|---|
+| `docs/index.md` | manifest, statuses, traceability, Change Log, Health Check |
+| `BRAND.md` | materialized PATHWAYS brand/product identity |
+| `DESIGN.md` | materialized PATHWAYS UI/design-system reference |
+| `docs/prd-pathways.md` | product requirements / stable feature IDs |
+| `docs/sdd-pathways.md` | architecture / security / data direction |
+| `docs/qad-pathways.md` | QA, abuse, privacy, acceptance |
+| `docs/dsd-pathways.md` | UI/design governance |
+| `docs/build-pathways.md` | canonical build/agent guide |
+| `docs/ops-pathways.md` | operational/recovery guidance |
+| `docs/rfc-pathways-rule-alerts-decision-support.md` | dynamic rule/decision-support design |
 
-Important note:
-- If your team prefers `.env` instead of `.env.local`, that also works in this repo.
-- Do not commit real secrets to Git.
+Root `AGENTS.md` is materialized from `docs/build-pathways.md`.
 
-### 5. Paste your real Supabase and database values
-Open those env files and paste the values from your Supabase project.
+Root `BRAND.md` and `DESIGN.md` are materialized from canonical `docs/dsd-pathways.md`.
 
-Shared values you will usually need:
-- `NEXT_PUBLIC_SUPABASE_URL`
-- `NEXT_PUBLIC_SUPABASE_ANON_KEY`
-- `SUPABASE_URL`
-- `SUPABASE_SERVICE_ROLE_KEY`
-- `DATABASE_URL`
-- `DIRECT_URL`
-- `SHADOW_DATABASE_URL` for a disposable local PostgreSQL shadow database only
+Root `AGENT.md` is a compatibility pointer to `AGENTS.md`.
 
-`DATABASE_URL` belongs to the NestJS runtime identity. `DIRECT_URL` belongs to the Prisma migration owner. For PATHWAYS-dev, both approved connections use the Supavisor Session Pooler on port `5432`, but they must not share the same PostgreSQL role. Never use PATHWAYS-dev or production as the shadow database, and never commit complete connection URLs.
+Disposable phase/task workflow artifacts are intentionally kept out of the repository.
 
-Helpful docs:
-- See `infra/environment.md` for which variables belong to root, web, and api
-- See `infra/supabase/HUMAN_SETUP.md` for the human-only Supabase steps
+## Development Restraint
 
-### 6. Install the project dependencies
-This downloads the packages the repo needs.
+Prefer the smallest implementation that satisfies approved requirements without weakening:
 
-```powershell
-pnpm install
-```
+- security;
+- privacy;
+- data integrity;
+- validation;
+- auditability;
+- migration safety;
+- recovery;
+- accessibility;
+- testability.
 
-### 7. Generate the Prisma client
-This teaches Prisma how to talk to your database schema.
+## Scope Note
 
-```powershell
-pnpm --filter @pathways/api prisma:generate
-```
-
-### 8. Follow the controlled database workflow
-Do not run a migration as a generic setup shortcut. Read `docs/SOURCE_OF_TRUTH.md` and `docs/PHASE_TODO.md`, then execute only the single phase covered by an exact authorization phrase. Never use `prisma migrate reset` or `prisma db push` in this workflow.
-
-### 9. Do not bootstrap users through the legacy seed
-The legacy seed is intentionally disabled. Canonical roles and permissions are introduced only in DBAdmin Phase 5, and Supabase Auth credentials are never created by Prisma seed code.
-
-### 10. Start both apps together
-This starts the website and the API at the same time.
-
-```powershell
-pnpm dev
-```
-
-### 11. Open the important local URLs
-Once the dev servers are running, open these:
-- `http://localhost:3000`
-- `http://localhost:4000/api/health`
-- `http://localhost:4000/api/docs`
-
-What you should see:
-- the homepage loads
-- the health endpoint returns a JSON response with `status: ok`
-- the Swagger docs page loads
-
-### 12. If a port is already busy
-Sometimes another app is already using `3000` or `4000`. If that happens, you can use temporary ports for one session.
-
-```powershell
-$env:PORT='3100'
-$env:API_PORT='4100'
-pnpm dev
-```
-
-Then open:
-- `http://localhost:3100`
-- `http://localhost:4100/api/health`
-
-### 13. Helpful commands you will use a lot
-```powershell
-pnpm lint
-pnpm format
-pnpm typecheck
-pnpm test
-pnpm build
-pnpm dev:web
-pnpm dev:api
-```
-
-### 14. Tiny success checklist
-If all of these are true, your local setup is probably good:
-- dependencies installed without errors
-- Prisma client generated
-- Prisma schema validated
-- the currently authorized DBAdmin phase, if any, completed with a `PASS` report
-- homepage opens
-- login page opens
-- API health route responds
-- API docs route responds
-
-## Environment Notes
-- The web app accepts Supabase client keys from `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY`, `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`, or `NEXT_PUBLIC_SUPABASE_ANON_KEY`
-- The frontend reserves `/auth/callback` for Supabase redirect handling
-- The API uses `SUPABASE_SERVICE_ROLE_KEY` for backend-only storage and admin actions
-- Real secrets must stay in local env files only
-
-## Troubleshooting
-- If `pnpm install` fails, check your Node.js version and make sure pnpm is installed
-- If Prisma runtime startup fails, check the runtime `DATABASE_URL`. If a migration command fails, check the separately provisioned `DIRECT_URL`. For history diffs, confirm `SHADOW_DATABASE_URL` is disposable and local.
-- If auth fails, double-check your Supabase URL, anon key, redirect URL, and enabled auth provider
-- If storage fails, make sure the buckets exist and the bucket names match the env values
-- If `localhost:3000` or `localhost:4000` is busy, use the temporary port steps above
-
-## Useful Documents
-- `docs/SOURCE_OF_TRUTH.md`: locked DBAdmin decisions and permanent safety invariants
-- `docs/PHASE_TODO.md`: the only DBAdmin progress checklist and authorization sequence
-- `docs/PHASE_REPORT_TEMPLATE_CHAT_ONLY.md`: required chat-only phase report format
-- `infra/environment.md`: environment variable guide
-- `infra/supabase/HUMAN_SETUP.md`: Supabase setup notes
+Deployment, SSO, and AWS hosting are not current feature-work acceptance criteria. They require a future explicit authorization.
