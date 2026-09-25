@@ -29,12 +29,13 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { PathwaysClientError, pathwaysClient } from '@/lib/services/pathways-client'
-import type { ProjectDetail, ProjectStatus } from '@/types/pathways'
+import type { ProjectDetail, ProjectStatus, UserRecord } from '@/types/pathways'
 
 import {
   type ProjectSetupSchema,
   projectSetupSchema,
   toCreateProjectInput,
+  toProjectTeamInput,
   toUpdateProjectInput,
 } from './project-form-validation'
 import { ProjectTeamSelectors } from './project-team-selectors'
@@ -43,13 +44,21 @@ const projectStatuses: ProjectStatus[] = ['Active', 'Needs Attention', 'Planned'
 const projectDraftStorageKey = 'pathways.projectSetupDraft'
 const projectDraftFields = [
   'objectives',
+  'partners',
+  'projectBudget',
+  'targetBeneficiaries',
   'targetGoal',
   'title',
+  'sector',
   'area',
   'startDate',
   'endDate',
   'status',
   'description',
+  'programManager',
+  'projectManager',
+  'monitoringOfficer',
+  'projectOfficers',
 ] as const
 const projectDefaultValues: ProjectSetupSchema = {
   objectives: '',
@@ -75,6 +84,10 @@ export const ProjectSetupForm = ({ projectId }: { projectId?: string }) => {
   const [draftHydrated, setDraftHydrated] = useState(false)
   const [draftRecovered, setDraftRecovered] = useState(false)
   const [existingProject, setExistingProject] = useState<ProjectDetail | null>(null)
+  const [users, setUsers] = useState<UserRecord[]>([])
+  const [usersLoading, setUsersLoading] = useState(true)
+  const [usersLoadError, setUsersLoadError] = useState<string | null>(null)
+  const [usersLoadAttempt, setUsersLoadAttempt] = useState(0)
   const [saveError, setSaveError] = useState<string | null>(null)
   const form = useForm<ProjectSetupSchema>({
     resolver: zodResolver(projectSetupSchema),
@@ -91,12 +104,21 @@ export const ProjectSetupForm = ({ projectId }: { projectId?: string }) => {
             ...projectDefaultValues,
             title: project.title,
             objectives: project.objectives ?? '',
+            partners: project.implementingPartners ?? '',
+            projectBudget: project.projectBudget ?? '',
+            targetBeneficiaries: String(project.targetBeneficiaries),
             targetGoal: project.targetGoal ?? '',
+            sector: project.sector === 'Sector not recorded' ? '' : project.sector,
             area: project.area === 'Area not recorded' ? '' : project.area,
             startDate: project.startDate ?? '',
             endDate: project.endDate ?? '',
             status: project.status,
             description: project.description,
+            programManager: project.programManager === 'Not assigned' ? '' : project.programManager,
+            projectManager: project.projectManager === 'Not assigned' ? '' : project.projectManager,
+            monitoringOfficer:
+              project.monitoringOfficer === 'Not assigned' ? '' : project.monitoringOfficer,
+            projectOfficers: project.projectOfficers.join(', '),
           })
         })
         .catch(() => {
@@ -131,6 +153,30 @@ export const ProjectSetupForm = ({ projectId }: { projectId?: string }) => {
       setDraftHydrated(true)
     }
   }, [form, projectId])
+
+  useEffect(() => {
+    void usersLoadAttempt
+    let mounted = true
+    setUsersLoading(true)
+    setUsersLoadError(null)
+    pathwaysClient
+      .getUsers()
+      .then((records) => {
+        if (mounted) setUsers(records)
+      })
+      .catch((error: unknown) => {
+        if (!mounted) return
+        setUsersLoadError(
+          error instanceof Error ? error.message : 'The team directory could not be loaded.',
+        )
+      })
+      .finally(() => {
+        if (mounted) setUsersLoading(false)
+      })
+    return () => {
+      mounted = false
+    }
+  }, [usersLoadAttempt])
 
   useEffect(() => {
     if (!draftHydrated || projectId) {
@@ -168,11 +214,14 @@ export const ProjectSetupForm = ({ projectId }: { projectId?: string }) => {
 
     try {
       const project = existingProject
-        ? await pathwaysClient.updateProject(
-            projectId ?? existingProject.id,
-            toUpdateProjectInput(values, existingProject),
-          )
-        : await pathwaysClient.createProject(toCreateProjectInput(values))
+        ? await pathwaysClient.updateProject(projectId ?? existingProject.id, {
+            ...toUpdateProjectInput(values, existingProject),
+            ...toProjectTeamInput(values, users),
+          })
+        : await pathwaysClient.createProject({
+            ...toCreateProjectInput(values),
+            ...toProjectTeamInput(values, users),
+          })
       if (!projectId) window.sessionStorage.removeItem(projectDraftStorageKey)
       toast.success(existingProject ? 'Project profile updated.' : 'Project profile created.')
       router.push(`/projects/${project.id}`)
@@ -190,7 +239,7 @@ export const ProjectSetupForm = ({ projectId }: { projectId?: string }) => {
       <PageHeader
         eyebrow="Project setup"
         title={projectId ? 'Edit project profile' : 'Create project'}
-        description="Save supported project information and the delivery period. Deferred profile and team fields remain visible as unavailable."
+        description="Save project information, delivery dates, and supported team assignments."
         actions={
           <Button asChild className="gap-2" variant="outline">
             <Link href="/projects">
@@ -272,10 +321,9 @@ export const ProjectSetupForm = ({ projectId }: { projectId?: string }) => {
                       </FormLabel>
                       <FormControl>
                         <Input
-                          disabled
                           min={
                             name === 'projectBudget' || name === 'targetBeneficiaries'
-                              ? '1'
+                              ? '0'
                               : undefined
                           }
                           type={
@@ -287,9 +335,6 @@ export const ProjectSetupForm = ({ projectId }: { projectId?: string }) => {
                           {...field}
                         />
                       </FormControl>
-                      <FormDescription>
-                        This field is unavailable until its server contract is defined.
-                      </FormDescription>
                       <FormMessage />
                     </FormItem>
                   )}
@@ -315,11 +360,8 @@ export const ProjectSetupForm = ({ projectId }: { projectId?: string }) => {
                   <FormItem>
                     <FormLabel>Sector</FormLabel>
                     <FormControl>
-                      <Input disabled placeholder="Education and Skills" {...field} />
+                      <Input placeholder="Education and Skills" {...field} />
                     </FormControl>
-                    <FormDescription>
-                      This field is unavailable until its server contract is defined.
-                    </FormDescription>
                     <FormMessage />
                   </FormItem>
                 )}
@@ -413,11 +455,10 @@ export const ProjectSetupForm = ({ projectId }: { projectId?: string }) => {
               </div>
               <ProjectTeamSelectors
                 control={form.control}
-                loadError={null}
-                loading={false}
-                onRetry={() => undefined}
-                unavailableMessage="Team assignment changes are unavailable in the current project API."
-                users={[]}
+                loadError={usersLoadError}
+                loading={usersLoading}
+                onRetry={() => setUsersLoadAttempt((attempt) => attempt + 1)}
+                users={users}
               />
             </div>
             <div className="flex justify-end">

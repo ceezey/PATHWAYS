@@ -79,4 +79,40 @@ describe('ProjectsController target goal contract', () => {
     expect(await validate(create)).toHaveLength(0)
     expect(await validate(update)).toHaveLength(0)
   })
+
+  it.each([
+    { targetBeneficiaries: -1 },
+    { targetBeneficiaries: 2_147_483_648 },
+    { targetBeneficiaries: 1.5 },
+    { projectBudget: '-1' },
+    { projectBudget: '1.001' },
+    { projectBudget: '1e3' },
+  ])('rejects invalid Project count or PHP budget input %j', async (invalid) => {
+    const dto = plainToInstance(CreateProjectDto, {
+      title: 'Synthetic project',
+      status: 'PLANNED',
+      targetGoal: '75',
+      ...invalid,
+    })
+    expect(await validate(dto)).not.toHaveLength(0)
+  })
+
+  it('accepts the complete repaired Project transport contract', async () => {
+    const dto = plainToInstance(CreateProjectDto, {
+      title: 'Synthetic project',
+      description: 'Description',
+      objectives: 'Objectives',
+      implementationArea: 'Area',
+      implementingPartners: 'Partner',
+      sector: 'Livelihood',
+      targetBeneficiaries: '250',
+      projectBudget: '125000.50',
+      targetGoal: '75.5000',
+      startDate: '2026-01-01',
+      endDate: '2026-12-31',
+      status: 'PLANNED',
+    })
+    expect(await validate(dto)).toHaveLength(0)
+    expect(dto.targetBeneficiaries).toBe(250)
+  })
 })

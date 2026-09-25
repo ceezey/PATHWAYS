@@ -42,7 +42,7 @@ const defaultValues: ActivityFormSchema = {
   startDate: '',
   dueDate: '',
   targetBeneficiaries: 0,
-  budgetAllocation: 0,
+  budgetAllocation: '',
   assignedOfficers: [],
   connectedIndicators: [],
   journeyStageId: '',
@@ -102,12 +102,13 @@ export const ActivityFormDialog = ({
     () =>
       activity
         ? {
+            overrideJustification: activity.timelineOverrideJustification ?? '',
             title: activity.title,
             description: activity.description,
             startDate: activity.startDate,
             dueDate: activity.dueDate,
             targetBeneficiaries: activity.targetBeneficiaries,
-            budgetAllocation: activity.budgetAllocation,
+            budgetAllocation: activity.budgetAllocation ?? '',
             assignedOfficers: activity.assignedTo.filter((officer) =>
               officerNames.includes(officer),
             ),
@@ -120,7 +121,7 @@ export const ActivityFormDialog = ({
             status: activity.status === 'Cancelled' ? 'Planned' : activity.status,
             progress: activity.progress,
             beneficiariesReached: activity.beneficiariesReached,
-            budgetLogged: activity.budgetLogged,
+            budgetLogged: activity.budgetLogged ?? 0,
           }
         : defaultValues,
     [activity, indicatorIds, journeyStageIds, officerNames],
@@ -208,7 +209,14 @@ export const ActivityFormDialog = ({
         description: values.description,
         startDate: values.startDate,
         dueDate: values.dueDate,
+        timelineOverrideJustification: values.overrideJustification?.trim() || undefined,
+        targetBeneficiaries: values.targetBeneficiaries,
+        ...(values.budgetAllocation === ''
+          ? {}
+          : { budgetAllocation: String(values.budgetAllocation) }),
         assignedUserIds: assignedUserIds as string[],
+        indicatorIds: values.connectedIndicators,
+        journeyStageId: values.journeyStageId || null,
       }
       let savedActivity = activity
         ? await pathwaysClient.updateActivity({
@@ -228,7 +236,7 @@ export const ActivityFormDialog = ({
       }
 
       toast.success(activity ? 'Activity updated.' : 'Activity created.', {
-        description: `${savedActivity.title} is available. Targets, budgets, and indicator or journey links require backend support.`,
+        description: `${savedActivity.title} is available with its saved targets, budget, assignments, and optional links.`,
       })
       window.sessionStorage.removeItem(draftStorageKey)
       onCreatedOrUpdated(savedActivity)
@@ -261,7 +269,7 @@ export const ActivityFormDialog = ({
       <Dialog onOpenChange={requestOpenChange} open={open}>
         <DialogShell
           title={activity ? 'Edit activity' : 'Create activity'}
-          description="Core activity details save to the project. Targets, budgets, and indicator or journey links are unavailable until backend support is added."
+          description="Save activity details, targets, budget, assigned officers, and optional project links."
         >
           <Form {...form}>
             <form className="space-y-5" onSubmit={form.handleSubmit(onSubmit)}>
@@ -390,11 +398,8 @@ export const ActivityFormDialog = ({
                     <FormItem>
                       <FormLabel>Target beneficiaries</FormLabel>
                       <FormControl>
-                        <Input min={0} type="number" disabled {...field} />
+                        <Input min={0} type="number" {...field} />
                       </FormControl>
-                      <FormDescription>
-                        Target counts are unavailable in the current activity API.
-                      </FormDescription>
                       <FormMessage />
                     </FormItem>
                   )}
@@ -406,11 +411,8 @@ export const ActivityFormDialog = ({
                     <FormItem>
                       <FormLabel>Activity budget</FormLabel>
                       <FormControl>
-                        <Input min={0} step="0.01" type="number" disabled {...field} />
+                        <Input min={0} step="0.01" type="number" {...field} />
                       </FormControl>
-                      <FormDescription>
-                        Activity budgets are unavailable in the current activity API.
-                      </FormDescription>
                       <FormMessage />
                     </FormItem>
                   )}
@@ -443,7 +445,7 @@ export const ActivityFormDialog = ({
                             <Input min={0} type="number" disabled {...field} />
                           </FormControl>
                           <FormDescription>
-                            Reached counts are unavailable in the current API.
+                            Server-computed distinct qualifying beneficiaries.
                           </FormDescription>
                           <FormMessage />
                         </FormItem>
@@ -456,7 +458,14 @@ export const ActivityFormDialog = ({
                         <FormItem>
                           <FormLabel>Logged budget</FormLabel>
                           <FormControl>
-                            <Input min={0} step="0.01" type="number" disabled {...field} />
+                            <Input
+                              min={0}
+                              step="0.01"
+                              type="number"
+                              disabled
+                              {...field}
+                              value={activity?.budgetLogged ?? ''}
+                            />
                           </FormControl>
                           <FormDescription>
                             Expense totals are unavailable in the current API.
@@ -531,10 +540,7 @@ export const ActivityFormDialog = ({
                   render={({ field }) => (
                     <FormItem className="lg:col-span-2">
                       <FormControl>
-                        <fieldset
-                          disabled
-                          className="space-y-2 rounded-md border border-input bg-background p-3"
-                        >
+                        <fieldset className="space-y-2 rounded-md border border-input bg-background p-3">
                           <legend className="px-1 text-sm font-medium text-foreground">
                             Connected indicators
                           </legend>
@@ -578,7 +584,7 @@ export const ActivityFormDialog = ({
                         </fieldset>
                       </FormControl>
                       <FormDescription>
-                        Indicator links are unavailable in the current activity API.
+                        Optional. Only indicators from this project are available.
                       </FormDescription>
                       <FormMessage />
                     </FormItem>
@@ -590,13 +596,17 @@ export const ActivityFormDialog = ({
                   render={({ field }) => (
                     <FormItem className="lg:col-span-2">
                       <FormLabel>Journey stage</FormLabel>
-                      <Select disabled onValueChange={field.onChange} value={field.value}>
+                      <Select
+                        onValueChange={(value) => field.onChange(value === 'none' ? '' : value)}
+                        value={field.value || 'none'}
+                      >
                         <FormControl>
                           <SelectTrigger>
                             <SelectValue placeholder="Select a project journey stage" />
                           </SelectTrigger>
                         </FormControl>
                         <SelectContent>
+                          <SelectItem value="none">No journey stage</SelectItem>
                           {journeyStages.map((stage) => (
                             <SelectItem key={stage.id} value={stage.id}>
                               {stage.code} — {stage.name}
@@ -605,7 +615,7 @@ export const ActivityFormDialog = ({
                         </SelectContent>
                       </Select>
                       <FormDescription>
-                        Journey links are unavailable in the current activity API.
+                        Optional. Only journey stages from this project are available.
                       </FormDescription>
                       <FormMessage />
                     </FormItem>

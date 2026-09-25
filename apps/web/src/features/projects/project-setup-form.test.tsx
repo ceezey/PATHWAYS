@@ -8,6 +8,7 @@ import type { ProjectDetail } from '@/types/pathways'
 const testState = vi.hoisted(() => ({
   createProject: vi.fn(),
   getProject: vi.fn(),
+  getUsers: vi.fn(),
   routerPush: vi.fn(),
   updateProject: vi.fn(),
 }))
@@ -19,6 +20,7 @@ vi.mock('@/lib/services/pathways-client', () => ({
   pathwaysClient: {
     createProject: testState.createProject,
     getProject: testState.getProject,
+    getUsers: testState.getUsers,
     updateProject: testState.updateProject,
   },
 }))
@@ -57,6 +59,7 @@ const project: ProjectDetail = {
 beforeEach(() => {
   testState.createProject.mockReset().mockResolvedValue(project)
   testState.getProject.mockReset().mockResolvedValue(project)
+  testState.getUsers.mockReset().mockResolvedValue([])
   testState.updateProject.mockReset().mockResolvedValue({ ...project, title: 'Updated project' })
   testState.routerPush.mockReset()
 })
@@ -67,14 +70,15 @@ afterEach(() => {
 })
 
 describe('ProjectSetupForm', () => {
-  it('saves supported core fields while deferred fields and team controls remain unavailable', async () => {
+  it('saves the activated server-backed project profile fields', async () => {
     render(<ProjectSetupForm />)
 
-    expect((screen.getByLabelText('Implementing partners') as HTMLInputElement).disabled).toBe(true)
-    expect((screen.getByLabelText('Project budget (PHP)') as HTMLInputElement).disabled).toBe(true)
-    expect((screen.getByLabelText('Target beneficiaries') as HTMLInputElement).disabled).toBe(true)
-    expect((screen.getByLabelText('Sector') as HTMLInputElement).disabled).toBe(true)
-    expect(screen.getAllByText(/Team assignment changes are unavailable/)).toHaveLength(4)
+    expect((screen.getByLabelText('Implementing partners') as HTMLInputElement).disabled).toBe(
+      false,
+    )
+    expect((screen.getByLabelText('Project budget (PHP)') as HTMLInputElement).disabled).toBe(false)
+    expect((screen.getByLabelText('Target beneficiaries') as HTMLInputElement).disabled).toBe(false)
+    expect((screen.getByLabelText('Sector') as HTMLInputElement).disabled).toBe(false)
 
     fireEvent.change(screen.getByLabelText(/Objectives/), {
       target: { value: 'Deliver core project outcomes' },
@@ -84,6 +88,18 @@ describe('ProjectSetupForm', () => {
     })
     fireEvent.change(screen.getByLabelText(/Project title/), {
       target: { value: 'Core project profile' },
+    })
+    fireEvent.change(screen.getByLabelText('Implementing partners'), {
+      target: { value: 'Community Partner' },
+    })
+    fireEvent.change(screen.getByLabelText('Project budget (PHP)'), {
+      target: { value: '125000.50' },
+    })
+    fireEvent.change(screen.getByLabelText('Target beneficiaries'), {
+      target: { value: '450' },
+    })
+    fireEvent.change(screen.getByLabelText('Sector'), {
+      target: { value: 'Education' },
     })
     fireEvent.change(screen.getByLabelText(/Implementation area/), {
       target: { value: 'Navotas' },
@@ -104,7 +120,11 @@ describe('ProjectSetupForm', () => {
       title: 'Core project profile',
       description: 'A supported core project profile.',
       objectives: 'Deliver core project outcomes',
+      implementingPartners: 'Community Partner',
+      projectBudget: '125000.50',
+      targetBeneficiaries: 450,
       targetGoal: '62.5',
+      sector: 'Education',
       implementationArea: 'Navotas',
       startDate: '2026-10-01',
       endDate: '2026-12-31',

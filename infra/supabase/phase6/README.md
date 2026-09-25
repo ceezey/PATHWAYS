@@ -39,3 +39,19 @@ migration number and separate review.
 
 PATHWAYS-dev session-liveness deployment and rollback use only the separate
 guarded runner documented in `../session-liveness/README.md`.
+
+## Replay through Project/Activity creation-contract migration 0025
+
+Run the complete current history and the P08 source-only acceptance suite with:
+
+```powershell
+.\Replay-Local.ps1 -ProjectActivityCreationRepair
+```
+
+This mode replays migrations `0001` through
+`0025_project_activity_creation_contract`, expects 46 `pathways` tables and 25
+finished Prisma ledger rows, and runs the existing feature/dashboard regressions
+plus `project-activity-creation-contract-runtime.sql`. A successful run adds
+`PROJECT_ACTIVITY_CREATION_CONTRACT_RUNTIME=PASS` before the legacy-preservation
+and cleanup markers. It remains disposable/local only and does not authorize a
+managed migration.

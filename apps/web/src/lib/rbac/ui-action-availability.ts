@@ -33,6 +33,7 @@ const supportedActionPermission: Partial<Record<UiAction, AtomicPermission>> = {
   'indicators.manage': 'indicators.create',
   'journeys.manage': 'journeys.manage',
   'projects.profile.manage': 'projects.create',
+  'projects.team.manage': 'projects.create',
 }
 
 export const isUiActionAvailable = (role: PathwaysRole | null, action: UiAction) => {

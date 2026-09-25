@@ -14,11 +14,23 @@ import {
   Matches,
   Max,
   Min,
+  ValidateBy,
   ValidateNested,
 } from 'class-validator'
 
 const canonical = ({ value }: { value: unknown }) =>
   typeof value === 'string' ? value.trim().toUpperCase() : value
+
+const IsMoneyAmount = () =>
+  ValidateBy({
+    name: 'isMoneyAmount',
+    validator: {
+      validate: (value: unknown) =>
+        typeof value === 'string' && /^(0|[1-9][0-9]{0,15})(\.[0-9]{1,2})?$/.test(value),
+      defaultMessage: () =>
+        'budgetAllocation must be a non-negative PHP amount with at most 2 decimal places.',
+    },
+  })
 
 export class CreateActivityDto {
   @IsOptional()
@@ -48,11 +60,40 @@ export class CreateActivityDto {
   @IsDateString({ strict: true })
   plannedEndDate!: string
 
+  @IsOptional()
+  @IsString()
+  @Length(1, 1000)
+  timelineOverrideJustification?: string
+
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  @Max(2_147_483_647)
+  @Transform(({ value }) => (value === '' || value === null ? value : Number(value)))
+  targetBeneficiaries?: number | null
+
+  @IsOptional()
+  @IsString()
+  @IsMoneyAmount()
+  @Transform(({ value }) => (typeof value === 'string' ? value.trim() : value))
+  budgetAllocation?: string
+
   @IsArray()
   @ArrayMaxSize(50)
   @ArrayUnique()
   @IsUUID(undefined, { each: true })
   assignedUserIds!: string[]
+
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(100)
+  @ArrayUnique()
+  @IsUUID(undefined, { each: true })
+  indicatorIds?: string[]
+
+  @IsOptional()
+  @IsUUID()
+  journeyStageId?: string | null
 }
 
 export class UpdateActivityDto extends CreateActivityDto {

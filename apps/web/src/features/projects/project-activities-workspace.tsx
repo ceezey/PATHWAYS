@@ -246,8 +246,7 @@ export const ProjectActivitiesWorkspace = ({
   const inProjectScope = role ? canAccessProjectForRole(role, projectId, assignedProjectIds) : false
   const canCreateEdit = role ? can(role, 'activities.create_edit') && inProjectScope : false
   const canReadIndicators = principalHasAtomicPermission(profile, 'monitoring.read')
-  const canReadJourneyStages =
-    canCreateEdit && principalHasAtomicPermission(profile, 'journeys.read')
+  const canReadJourneyStages = principalHasAtomicPermission(profile, 'journeys.read')
   const canReadUsers = canCreateEdit && principalHasAtomicPermission(profile, 'users.authorize')
   const canSubmitProof = role
     ? can(role, 'activities.submit_update_proof') && inProjectScope
@@ -629,6 +628,7 @@ export const ProjectActivitiesWorkspace = ({
         canValidateExpense={role === 'Monitoring and Evaluation Officer' && inProjectScope}
         canValidateProof={canValidateProof}
         indicators={indicators}
+        journeyStages={journeyStages}
         onActivityChanged={(activity) => upsertActivity(activity, false)}
         onEdit={openEdit}
         onOpenChange={closeDetail}

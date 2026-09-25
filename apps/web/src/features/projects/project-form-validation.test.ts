@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest'
 import {
   projectSetupSchema,
   toCreateProjectInput,
+  toProjectTeamInput,
   toUpdateProjectInput,
 } from './project-form-validation'
 
@@ -68,7 +69,18 @@ describe('project setup validation', () => {
     expect(result.success).toBe(false)
   })
 
-  it('adapts only supported core fields and omits deferred profile and team values', () => {
+  it('rejects out-of-range targets and malformed project budgets', () => {
+    for (const targetBeneficiaries of ['-1', '1.5', '2147483648']) {
+      expect(projectSetupSchema.safeParse({ ...validValues, targetBeneficiaries }).success).toBe(
+        false,
+      )
+    }
+    for (const projectBudget of ['-1', '1.234', '1e3']) {
+      expect(projectSetupSchema.safeParse({ ...validValues, projectBudget }).success).toBe(false)
+    }
+  })
+
+  it('adapts all implemented profile fields and keeps team IDs explicit', () => {
     const input = toCreateProjectInput({
       ...validValues,
       partners: 'Fictional Partner',
@@ -85,13 +97,76 @@ describe('project setup validation', () => {
       title: validValues.title,
       objectives: validValues.objectives,
       implementationArea: validValues.area,
+      implementingPartners: 'Fictional Partner',
+      projectBudget: '100000',
+      targetBeneficiaries: 450,
+      sector: 'Education',
       status: 'Planned',
     })
     expect(input).not.toHaveProperty('partners')
-    expect(input).not.toHaveProperty('projectBudget')
-    expect(input).not.toHaveProperty('targetBeneficiaries')
-    expect(input).not.toHaveProperty('sector')
     expect(input).not.toHaveProperty('projectManager')
+    expect(
+      toProjectTeamInput(
+        {
+          ...validValues,
+          programManager: 'Program Manager A',
+          projectManager: 'Project Manager A',
+          monitoringOfficer: 'Monitoring Officer A',
+          projectOfficers: 'Project Officer A',
+        },
+        [
+          {
+            id: 'pm-program',
+            name: 'Program Manager A',
+            email: 'program@example.test',
+            role: 'Program Manager',
+            accountStatus: 'Active',
+            projectIds: [],
+            projectAccess: [],
+            signInMethod: 'Supabase account',
+            createdAt: '2026-09-01T00:00:00.000Z',
+          },
+          {
+            id: 'pm-project',
+            name: 'Project Manager A',
+            email: 'manager@example.test',
+            role: 'Project Manager',
+            accountStatus: 'Active',
+            projectIds: [],
+            projectAccess: [],
+            signInMethod: 'Supabase account',
+            createdAt: '2026-09-01T00:00:00.000Z',
+          },
+          {
+            id: 'me',
+            name: 'Monitoring Officer A',
+            email: 'me@example.test',
+            role: 'Monitoring and Evaluation Officer',
+            accountStatus: 'Active',
+            projectIds: [],
+            projectAccess: [],
+            signInMethod: 'Supabase account',
+            createdAt: '2026-09-01T00:00:00.000Z',
+          },
+          {
+            id: 'po',
+            name: 'Project Officer A',
+            email: 'po@example.test',
+            role: 'Project Officer',
+            accountStatus: 'Active',
+            projectIds: [],
+            projectAccess: [],
+            signInMethod: 'Supabase account',
+            createdAt: '2026-09-01T00:00:00.000Z',
+          },
+        ],
+      ),
+    ).toEqual({
+      programManagerId: 'pm-program',
+      projectManagerId: 'pm-project',
+      monitoringOfficerId: 'me',
+      projectOfficerIds: ['po'],
+    })
   })
 
   it('preserves the stored code, program, revision and cancelled state on edit', () => {

@@ -55,6 +55,27 @@ describe('activity form validation', () => {
     expect(result.success).toBe(false)
   })
 
+  it('rejects invalid target and budget values before submission', () => {
+    const validInput = {
+      title: 'Community workshop',
+      description: 'A valid activity description for the selected project.',
+      startDate: '2026-09-01',
+      dueDate: '2026-09-10',
+      targetBeneficiaries: 30,
+      budgetAllocation: 10000,
+      assignedOfficers: ['Project Officer A'],
+      connectedIndicators: [],
+      journeyStageId: '',
+    }
+
+    expect(
+      activityFormSchema.safeParse({ ...validInput, targetBeneficiaries: 2_147_483_648 }).success,
+    ).toBe(false)
+    expect(activityFormSchema.safeParse({ ...validInput, budgetAllocation: 100.001 }).success).toBe(
+      false,
+    )
+  })
+
   it('rejects relationships outside the visible project-scoped options', () => {
     const schema = createActivityFormSchema({
       indicatorIds: ['ind-fm-01'],

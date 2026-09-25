@@ -69,12 +69,14 @@ export const activityNextStep = (status: ActivityStatus) => {
   return 'Confirm the completed activity record'
 }
 
-export const formatCurrency = (value: number) =>
-  new Intl.NumberFormat('en-US', {
-    currency: 'PHP',
-    maximumFractionDigits: 0,
-    style: 'currency',
-  }).format(value)
+export const formatCurrency = (value: number | null | undefined) =>
+  value === null || value === undefined || !Number.isFinite(value)
+    ? 'Unavailable'
+    : new Intl.NumberFormat('en-US', {
+        currency: 'PHP',
+        maximumFractionDigits: 2,
+        style: 'currency',
+      }).format(value)
 
 const activityDateFormatter = new Intl.DateTimeFormat('en-US', {
   day: '2-digit',

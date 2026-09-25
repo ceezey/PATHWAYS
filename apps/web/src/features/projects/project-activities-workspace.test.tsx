@@ -61,14 +61,14 @@ describe('project activities permission-aware loading', () => {
     vi.clearAllMocks()
   })
 
-  it('loads only the activity-view dependencies for a Project Officer', async () => {
+  it('loads only authorized activity and journey dependencies for a Project Officer', async () => {
     render(<ProjectActivitiesWorkspace projectId={projectId} />)
 
     expect(await screen.findByRole('heading', { name: 'Activities' })).toBeTruthy()
     expect(api.getProject).toHaveBeenCalledWith(projectId)
     expect(api.getActivities).toHaveBeenCalledWith(projectId)
     expect(api.getIndicators).not.toHaveBeenCalled()
-    expect(api.getJourneyStages).not.toHaveBeenCalled()
+    expect(api.getJourneyStages).toHaveBeenCalledWith(projectId)
     expect(api.getUsers).not.toHaveBeenCalled()
   })
 

@@ -1,5 +1,10 @@
+import 'reflect-metadata'
+
+import { plainToInstance } from 'class-transformer'
+import { validate } from 'class-validator'
 import { describe, expect, it } from 'vitest'
 
+import { CreateActivityDto } from './activities.dto'
 import { activityPresentationStatus, activityTransitionAllowed } from './activities.service'
 
 describe('P05 activity lifecycle presentation', () => {
@@ -39,5 +44,39 @@ describe('P05 activity lifecycle presentation', () => {
     expect(activityTransitionAllowed('FOR_REVIEW', 'CANCELLED')).toBe(false)
     expect(activityTransitionAllowed('COMPLETED', 'IN_PROGRESS')).toBe(false)
     expect(activityTransitionAllowed('CANCELLED', 'IN_PROGRESS')).toBe(false)
+  })
+
+  it.each([
+    { targetBeneficiaries: -1 },
+    { targetBeneficiaries: 2_147_483_648 },
+    { targetBeneficiaries: 1.5 },
+    { budgetAllocation: '-1' },
+    { budgetAllocation: '100.001' },
+    { budgetAllocation: '1e3' },
+  ])('rejects invalid Activity count or PHP budget input %j', async (invalid) => {
+    const dto = plainToInstance(CreateActivityDto, {
+      title: 'Synthetic activity',
+      plannedStartDate: '2026-01-01',
+      plannedEndDate: '2026-12-31',
+      assignedUserIds: [],
+      ...invalid,
+    })
+    expect(await validate(dto)).not.toHaveLength(0)
+  })
+
+  it('accepts optional blank links and the complete repaired Activity transport contract', async () => {
+    const dto = plainToInstance(CreateActivityDto, {
+      title: 'Synthetic activity',
+      plannedStartDate: '2025-12-01',
+      plannedEndDate: '2026-12-31',
+      timelineOverrideJustification: 'Approved early mobilization',
+      targetBeneficiaries: '50',
+      budgetAllocation: '25000.25',
+      assignedUserIds: [],
+      indicatorIds: [],
+      journeyStageId: null,
+    })
+    expect(await validate(dto)).toHaveLength(0)
+    expect(dto.targetBeneficiaries).toBe(50)
   })
 })

@@ -34,7 +34,11 @@ export const ProjectPreviewDialog = ({
         <div className="space-y-5">
           <div className="flex flex-wrap gap-2">
             <StatusBadge tone={projectStatusTone(project.status)}>{project.status}</StatusBadge>
-            <StatusBadge tone={projectHealthTone(project.health)}>{project.health}</StatusBadge>
+            <StatusBadge
+              tone={project.metricsAvailable ? projectHealthTone(project.health) : 'neutral'}
+            >
+              {project.metricsAvailable ? project.health : 'Not assessed'}
+            </StatusBadge>
           </div>
           <dl className="grid gap-3 text-sm sm:grid-cols-2">
             <div>
@@ -47,17 +51,34 @@ export const ProjectPreviewDialog = ({
             </div>
           </dl>
           <div className="grid gap-px overflow-hidden rounded-sm border border-border bg-border sm:grid-cols-2">
-            <PreviewMeasure label="KPI achievement" value={`${project.kpiAchievement}%`} />
-            <PreviewMeasure label="Budget utilization" value={`${project.budgetUtilization}%`} />
+            <PreviewMeasure
+              label="KPI achievement"
+              value={project.metricsAvailable ? `${project.kpiAchievement}%` : 'Unavailable'}
+            />
+            <PreviewMeasure
+              label="Budget utilization"
+              value={project.metricsAvailable ? `${project.budgetUtilization}%` : 'Unavailable'}
+            />
             <PreviewMeasure
               label="Beneficiaries"
-              value={`${formatNumber(project.beneficiariesReached)} / ${formatNumber(project.targetBeneficiaries)}`}
+              value={
+                project.metricsAvailable
+                  ? `${formatNumber(project.beneficiariesReached)} / ${formatNumber(project.targetBeneficiaries)}`
+                  : `Unavailable / ${formatNumber(project.targetBeneficiaries)}`
+              }
             />
-            <PreviewMeasure label="Timeline" value={`${project.timelineProgress}%`} />
+            <PreviewMeasure
+              label="Timeline"
+              value={project.metricsAvailable ? `${project.timelineProgress}%` : 'Unavailable'}
+            />
           </div>
           <div className="rounded-lg border border-border bg-muted/40 p-4 text-sm leading-6 text-muted-foreground">
             <p className="font-semibold text-foreground">Health Signal Basis</p>
-            <p className="mt-1">{projectHealthSignal(project)}</p>
+            <p className="mt-1">
+              {project.metricsAvailable
+                ? projectHealthSignal(project)
+                : 'Project health cannot be assessed from the current API response.'}
+            </p>
           </div>
           <dl className="text-sm">
             <dt className="text-muted-foreground">Project Manager</dt>

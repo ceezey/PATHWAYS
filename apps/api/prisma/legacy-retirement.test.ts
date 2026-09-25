@@ -58,6 +58,9 @@ describe('Deferred legacy-table retirement contract', () => {
       '0020_fixed_sensitive_release_policy',
       '0021_project_manager_indicator_access',
       '0022_project_target_goal',
+      '0023_rule_based_access_alignment',
+      '0024_dashboard_home_project_scope',
+      '0025_project_activity_creation_contract',
     ])
     expect(migration).toContain('DEFERRED REVIEW ARTIFACT -- NOT AN ACTIVE PRISMA MIGRATION')
   })
@@ -84,10 +87,11 @@ describe('Deferred legacy-table retirement contract', () => {
 
   it('keeps the datamodel and verifier aligned with the reviewed migration', () => {
     expect(schema).not.toMatch(/^model Legacy/m)
-    expect(schema.match(/^model /gm)).toHaveLength(45)
+    expect(schema.match(/^model /gm)).toHaveLength(46)
     expect(schema).toMatch(/^model ProjectIndicatorBinding\s*\{/m)
     expect(schema).toMatch(/^model ProjectIndicatorMeasurement\s*\{/m)
     expect(schema).toMatch(/^model SensitiveAggregateRelease\s*\{/m)
+    expect(schema).toMatch(/^model ActivityIndicatorLink\s*\{/m)
     const checksum = createHash('sha256').update(migration).digest('hex')
     expect(checksum).toBe('9d1a3688fbe3aa9692e615a4e33c182d8544006245bef54a371579fb65fab253')
   })

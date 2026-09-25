@@ -74,7 +74,11 @@ export const validateProjectTeamSelections = (
     const eligibleNames = new Set(getEligibleTeamUsers(users, role).map((user) => user.name))
     const selectedNames = selectedByField[fieldName]
 
-    if (selectedNames.length === 0 || selectedNames.some((name) => !eligibleNames.has(name))) {
+    if (
+      eligibleNames.size > 0 &&
+      selectedNames.length > 0 &&
+      selectedNames.some((name) => !eligibleNames.has(name))
+    ) {
       errors[fieldName] =
         fieldName === 'projectOfficers'
           ? 'Select at least one active Project Officer from the list.'
@@ -137,7 +141,7 @@ const SingleTeamSelector = ({
 
         return (
           <FormItem>
-            <FormLabel required={!unavailableMessage}>{label}</FormLabel>
+            <FormLabel>{label}</FormLabel>
             <Select
               disabled={disabled || Boolean(unavailableMessage) || options.length === 0}
               onValueChange={(userId) => {
@@ -146,7 +150,7 @@ const SingleTeamSelector = ({
               }}
               value={selectedUser?.id ?? ''}
             >
-              <FormControl aria-required={!unavailableMessage}>
+              <FormControl>
                 <SelectTrigger
                   className="min-w-0 overflow-hidden"
                   onBlur={field.onBlur}
@@ -159,9 +163,9 @@ const SingleTeamSelector = ({
                         : optionPlaceholder(role, loading, loadError, options.length)
                     }
                   >
-                    {selectedUser ? (
+                    {selectedUser || field.value ? (
                       <span className="block min-w-0 truncate pr-2 font-medium">
-                        {selectedUser.name}
+                        {selectedUser?.name ?? field.value}
                       </span>
                     ) : null}
                   </SelectValue>
@@ -186,7 +190,11 @@ const SingleTeamSelector = ({
             {unavailableMessage ? (
               <FormDescription>{unavailableMessage}</FormDescription>
             ) : !loading && !loadError && options.length === 0 ? (
-              <FormDescription>No active {roleLabels[role]} account is available.</FormDescription>
+              <FormDescription>
+                {field.value
+                  ? 'The current assignment remains unchanged.'
+                  : `No active ${roleLabels[role]} account is available.`}
+              </FormDescription>
             ) : null}
             <FormMessage />
           </FormItem>
@@ -282,9 +290,9 @@ export const ProjectTeamSelectors = ({
 
             return (
               <FormItem>
-                <FormLabel required={!unavailableMessage}>Project Officers</FormLabel>
+                <FormLabel>Project Officers</FormLabel>
                 <DropdownMenu>
-                  <FormControl aria-required={!unavailableMessage}>
+                  <FormControl>
                     <DropdownMenuTrigger asChild>
                       <Button
                         className="w-full justify-between gap-3 font-normal"

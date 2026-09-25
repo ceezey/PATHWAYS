@@ -7,8 +7,20 @@ const activityFormBaseSchema = z
     description: z.string().min(10, 'Enter a short activity description.'),
     startDate: z.string().min(1, 'Choose a start date.'),
     dueDate: z.string().min(1, 'Choose a due date.'),
-    targetBeneficiaries: z.coerce.number().int().min(0, 'Enter a valid target.'),
-    budgetAllocation: z.coerce.number().min(0, 'Enter a valid activity budget.'),
+    targetBeneficiaries: z.coerce
+      .number()
+      .int()
+      .min(0, 'Enter a valid target.')
+      .max(2_147_483_647, 'Enter a smaller target.'),
+    budgetAllocation: z.union([
+      z.literal(''),
+      z.coerce
+        .number()
+        .finite()
+        .min(0, 'Enter a valid activity budget.')
+        .max(Number.MAX_SAFE_INTEGER, 'Enter a smaller activity budget.')
+        .refine((value) => Number.isInteger(value * 100), 'Use no more than two decimal places.'),
+    ]),
     assignedOfficers: z.array(z.string()).min(1, 'Select at least one assigned officer.'),
     connectedIndicators: z.array(z.string()).default([]),
     journeyStageId: z.string().default(''),

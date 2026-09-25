@@ -11,7 +11,7 @@ describe('UI actions against the accepted backend policy', () => {
 
   it('keeps actions without a usable backend endpoint unavailable', () => {
     expect(isUiActionAvailable('System Administrator', 'dashboard.configure')).toBe(false)
-    expect(isUiActionAvailable('Project Manager', 'projects.team.manage')).toBe(false)
+    expect(isUiActionAvailable('Project Manager', 'projects.team.manage')).toBe(true)
     expect(isUiActionAvailable('Project Officer', 'beneficiaries.merge')).toBe(false)
     expect(isUiActionAvailable(null, 'activities.edit')).toBe(false)
   })

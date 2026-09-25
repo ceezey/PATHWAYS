@@ -77,6 +77,7 @@ describe('P01 workspace and project services', () => {
     userProjectAssignment: {
       create: vi.fn(),
       createMany: vi.fn(),
+      findMany: vi.fn(),
       updateMany: vi.fn(),
       count: vi.fn(),
     },
@@ -102,6 +103,9 @@ describe('P01 workspace and project services', () => {
     tx.systemUser.findUniqueOrThrow.mockResolvedValue(userRow)
     tx.role.findFirst.mockResolvedValue({ id: roleId })
     tx.project.findMany.mockResolvedValue([])
+    tx.userProjectAssignment.createMany.mockResolvedValue({ count: 1 })
+    tx.systemUser.findMany.mockResolvedValue([{ id: actorId, role: { code: 'PROJECT_MANAGER' } }])
+    tx.userProjectAssignment.findMany.mockResolvedValue([])
     tx.userProjectAssignment.count.mockResolvedValue(0)
   })
 
@@ -383,13 +387,27 @@ describe('P01 workspace and project services', () => {
       description: null,
       objectives: null,
       implementationArea: null,
+      implementingPartners: null,
+      sector: null,
+      targetBeneficiaries: null,
       startDate: null,
       endDate: null,
       status: 'PLANNED',
       targetGoal: '75',
       programId: null,
+      programManagerId: null,
+      programManager: null,
       updatedAt: now,
-      userProjectAssignment_project: [{ user: { fullName: 'Synthetic actor' } }],
+      userProjectAssignment_project: [
+        {
+          user: {
+            id: actorId,
+            fullName: 'Synthetic actor',
+            email: 'actor@example.invalid',
+            role: { code: 'PROJECT_MANAGER' },
+          },
+        },
+      ],
     })
     const service = new ProjectsService(prisma)
     await service.create(state.actor, {
@@ -398,9 +416,9 @@ describe('P01 workspace and project services', () => {
       status: 'PLANNED',
       targetGoal: '75',
     })
-    expect(tx.userProjectAssignment.create).toHaveBeenCalledWith(
+    expect(tx.userProjectAssignment.createMany).toHaveBeenCalledWith(
       expect.objectContaining({
-        data: expect.objectContaining({ projectId: targetId, userId: actorId }),
+        data: [expect.objectContaining({ projectId: targetId, userId: actorId })],
       }),
     )
     expect(tx.auditLog.create).toHaveBeenCalledWith(
@@ -429,13 +447,27 @@ describe('P01 workspace and project services', () => {
         description: 'Synthetic description',
         objectives: 'Synthetic objectives',
         implementationArea: 'Navotas',
+        implementingPartners: null,
+        sector: null,
+        targetBeneficiaries: null,
         startDate: new Date('2026-10-01T00:00:00.000Z'),
         endDate: new Date('2026-12-31T00:00:00.000Z'),
         status: 'PLANNED',
         targetGoal: '62.5',
         programId: null,
+        programManagerId: null,
+        programManager: null,
         updatedAt: now,
-        userProjectAssignment_project: [{ user: { fullName: 'Synthetic actor' } }],
+        userProjectAssignment_project: [
+          {
+            user: {
+              id: actorId,
+              fullName: 'Synthetic actor',
+              email: 'actor@example.invalid',
+              role: { code: 'PROJECT_MANAGER' },
+            },
+          },
+        ],
       }
     })
     const service = new ProjectsService(prisma)
@@ -445,6 +477,7 @@ describe('P01 workspace and project services', () => {
       description: 'Synthetic description',
       objectives: 'Synthetic objectives',
       implementationArea: 'Navotas',
+      targetBeneficiaries: null,
       startDate: '2026-10-01',
       endDate: '2026-12-31',
       status: 'PLANNED',
@@ -509,8 +542,19 @@ describe('P01 workspace and project services', () => {
       status: 'ONGOING',
       targetGoal: '80.25',
       programId: targetId,
+      programManagerId: null,
+      programManager: null,
       updatedAt: new Date('2026-09-23T01:00:00.000Z'),
-      userProjectAssignment_project: [{ user: { fullName: 'Synthetic actor' } }],
+      userProjectAssignment_project: [
+        {
+          user: {
+            id: actorId,
+            fullName: 'Synthetic actor',
+            email: 'actor@example.invalid',
+            role: { code: 'PROJECT_MANAGER' },
+          },
+        },
+      ],
     })
     tx.program.findFirst.mockResolvedValue({ id: targetId })
     const service = new ProjectsService(prisma)

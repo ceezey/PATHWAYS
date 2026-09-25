@@ -117,3 +117,20 @@ The supplied package's Windows installer, SQL and Prisma schema have not been ex
 in the preparation environment. Full repository checks and the isolated replay remain
 required. Preserve earlier migration files/checksums; 0013 is a forward candidate, not
 permission to reset/rebaseline or change the `public` migration ledger routing.
+
+## P08 Project and Activity creation contract (migration 0025)
+
+`project-activity-creation-contract-runtime.sql` runs only through the guarded
+`Replay-Local.ps1 -ProjectActivityCreationRepair` path. It rejects any target other
+than the fixed loopback scratch database, wraps all fixtures in a transaction, and
+rolls them back.
+
+The suite verifies the additive Project/Activity profile fields, normalized Project
+Officer assignment rule, same-project Indicator/Journey links, immutable PHP budget
+records, timeline override constraint, and the aggregate-only
+`p08_activity_beneficiaries_reached` security boundary. Its participation fixtures
+prove distinct counting and exclusion of absent, archived, dummy, draft, and
+cancelled data. It also verifies Program Manager portfolio access without
+`beneficiaries.records.read`, guessed/cross-project/cross-organization rejection,
+function owner/search path/grants, forced RLS on the new link table, and runtime
+`NOBYPASSRLS`. Success prints `PROJECT_ACTIVITY_CREATION_CONTRACT_RUNTIME=PASS`.

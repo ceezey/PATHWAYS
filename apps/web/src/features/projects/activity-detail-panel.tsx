@@ -6,7 +6,7 @@ import { useEffect, useRef, useState } from 'react'
 import { ProgressBar, SidePanel, StatusBadge } from '@/components/pathways'
 import { Button } from '@/components/ui/button'
 import { Sheet } from '@/components/ui/sheet'
-import type { Activity, ActivityProof, Indicator } from '@/types/pathways'
+import type { Activity, ActivityProof, Indicator, JourneyStageConfig } from '@/types/pathways'
 
 import { ActivityExpenseDialog } from './activity-expense-dialog'
 import { ActivityExpenseReviewDialog, type PendingExpense } from './activity-expense-review-dialog'
@@ -46,6 +46,7 @@ export const ActivityDetailContent = ({
   canValidateExpense,
   canValidateProof,
   indicators,
+  journeyStages,
   onActivityChanged,
   onEdit,
   onSubmitProof,
@@ -61,6 +62,7 @@ export const ActivityDetailContent = ({
   canValidateExpense: boolean
   canValidateProof: boolean
   indicators: Indicator[]
+  journeyStages: JourneyStageConfig[]
   onActivityChanged: (activity: Activity) => void
   onEdit: (activity: Activity) => void
   onSubmitProof: (activity: Activity) => void
@@ -81,6 +83,7 @@ export const ActivityDetailContent = ({
     const indicator = indicators.find((item) => item.id === indicatorId)
     return indicator ?? { id: indicatorId, code: indicatorId, label: 'Linked indicator' }
   })
+  const journeyStage = journeyStages.find((stage) => stage.id === activity.journeyStageId)
 
   return (
     <div className="space-y-5 pb-1">
@@ -112,7 +115,9 @@ export const ActivityDetailContent = ({
         <div>
           <dt className="text-muted-foreground">Beneficiaries reached</dt>
           <dd className="mt-1 font-medium text-foreground">
-            {activity.beneficiariesReached} of {activity.targetBeneficiaries}
+            {Number.isFinite(activity.beneficiariesReached)
+              ? `${activity.beneficiariesReached} of ${activity.targetBeneficiaries}`
+              : 'Unavailable'}
           </dd>
         </div>
         <div>
@@ -139,7 +144,11 @@ export const ActivityDetailContent = ({
         </div>
         <div className="sm:col-span-2">
           <dt className="text-muted-foreground">Journey stage reference</dt>
-          <dd className="mt-1 font-medium text-foreground">{activity.journeyStageId}</dd>
+          <dd className="mt-1 font-medium text-foreground">
+            {journeyStage
+              ? `${journeyStage.code} - ${journeyStage.name}`
+              : activity.journeyStageId || 'No journey stage linked'}
+          </dd>
         </div>
       </dl>
 
@@ -151,19 +160,25 @@ export const ActivityDetailContent = ({
           Connected Indicators
         </h3>
         <div className="mt-3 grid gap-3">
-          {connectedIndicators.map((indicator) => (
-            <article
-              className="border-l-4 border-l-primary bg-primary-subtle px-4 py-3"
-              key={indicator.id}
-            >
-              <p className="text-xs font-semibold uppercase tracking-wide text-primary">
-                {indicator.code}
-              </p>
-              <p className="mt-1 text-sm font-medium leading-5 text-foreground">
-                {indicator.label}
-              </p>
-            </article>
-          ))}
+          {connectedIndicators.length > 0 ? (
+            connectedIndicators.map((indicator) => (
+              <article
+                className="border-l-4 border-l-primary bg-primary-subtle px-4 py-3"
+                key={indicator.id}
+              >
+                <p className="text-xs font-semibold uppercase tracking-wide text-primary">
+                  {indicator.code}
+                </p>
+                <p className="mt-1 text-sm font-medium leading-5 text-foreground">
+                  {indicator.label}
+                </p>
+              </article>
+            ))
+          ) : (
+            <p className="rounded-sm border border-dashed border-border p-4 text-sm text-muted-foreground">
+              No indicators are connected to this activity.
+            </p>
+          )}
         </div>
       </section>
 
@@ -376,6 +391,7 @@ export const ActivityDetailPanel = ({
   canValidateExpense,
   canValidateProof,
   indicators,
+  journeyStages,
   onActivityChanged,
   onEdit,
   onOpenChange,
@@ -393,6 +409,7 @@ export const ActivityDetailPanel = ({
   canValidateExpense: boolean
   canValidateProof: boolean
   indicators: Indicator[]
+  journeyStages: JourneyStageConfig[]
   onActivityChanged: (activity: Activity) => void
   onEdit: (activity: Activity) => void
   onOpenChange: (open: boolean) => void
@@ -438,6 +455,7 @@ export const ActivityDetailPanel = ({
             canValidateExpense={canValidateExpense}
             canValidateProof={canValidateProof}
             indicators={indicators}
+            journeyStages={journeyStages}
             onActivityChanged={onActivityChanged}
             onEdit={onEdit}
             onSubmitProof={onSubmitProof}

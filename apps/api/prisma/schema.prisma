@@ -31,6 +31,7 @@ enum AccountStatus {
 }
 
 model Organization {
+  activityIndicatorLink_organization            ActivityIndicatorLink[]            @relation("ActivityIndicatorLink_organization")
   indicatorBindings                             ProjectIndicatorBinding[]          @relation("P06BindingOrganization")
   indicatorMeasurements                         ProjectIndicatorMeasurement[]      @relation("P06MeasurementOrganization")
   sensitiveAggregateReleases                    SensitiveAggregateRelease[]        @relation("P06SensitiveReleaseOrganization")
@@ -133,6 +134,7 @@ model RolePermission {
 }
 
 model SystemUser {
+  activityIndicatorLink_createdBy             ActivityIndicatorLink[]            @relation("ActivityIndicatorLink_createdBy")
   indicatorBindings                           ProjectIndicatorBinding[]          @relation("P06BindingCreator")
   indicatorMeasurements                       ProjectIndicatorMeasurement[]      @relation("P06MeasurementRecorder")
   projectBudgetRecord_recordedBy              ProjectBudgetRecord[]              @relation("ProjectBudgetRecord_recordedBy")
@@ -184,6 +186,7 @@ model SystemUser {
   auditLogs                                   AuditLog[]                         @relation("AuditActor")
   program_managerUser                         Program[]                          @relation("Program_managerUser")
   project_createdBy                           Project[]                          @relation("Project_createdBy")
+  project_programManager                      Project[]                          @relation("Project_programManager")
   project_publicSubmittedBy                   Project[]                          @relation("Project_publicSubmittedBy")
   project_publicApprovedBy                    Project[]                          @relation("Project_publicApprovedBy")
   project_publishedBy                         Project[]                          @relation("Project_publishedBy")
@@ -608,6 +611,7 @@ model Program {
 }
 
 model Project {
+  activityIndicatorLink_project            ActivityIndicatorLink[]            @relation("ActivityIndicatorLink_project")
   indicatorBindings                        ProjectIndicatorBinding[]          @relation("P06BindingProject")
   indicatorMeasurements                    ProjectIndicatorMeasurement[]      @relation("P06MeasurementProject")
   sensitiveAggregateReleases               SensitiveAggregateRelease[]        @relation("P06SensitiveReleaseProject")
@@ -629,7 +633,11 @@ model Project {
   description                              String?
   objectives                               String?
   implementationArea                       String?                            @map("implementation_area")
+  implementingPartners                     String?                            @map("implementing_partners")
+  sector                                   String?
+  targetBeneficiaries                      Int?                               @map("target_beneficiaries")
   targetGoal                               Decimal?                           @map("target_goal") @db.Decimal(7, 4)
+  programManagerId                         String?                            @map("program_manager_id") @db.Uuid
   startDate                                DateTime?                          @map("start_date") @db.Date
   endDate                                  DateTime?                          @map("end_date") @db.Date
   status                                   ProjectStatus                      @default(PLANNED)
@@ -651,6 +659,7 @@ model Project {
   publicApprovedBy                         SystemUser?                        @relation("Project_publicApprovedBy", fields: [organizationId, publicApprovedById], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict, map: "projects_public_approved_by_fk")
   publishedBy                              SystemUser?                        @relation("Project_publishedBy", fields: [organizationId, publishedById], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict, map: "projects_published_by_fk")
   program                                  Program?                           @relation("Project_program", fields: [organizationId, programId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict, map: "projects_program_fk")
+  programManager                           SystemUser?                        @relation("Project_programManager", fields: [organizationId, programManagerId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict, map: "projects_program_manager_fk")
   userProjectAssignment_project            UserProjectAssignment[]            @relation("UserProjectAssignment_project")
   projectActivity_project                  ProjectActivity[]                  @relation("ProjectActivity_project")
   projectActivityAssignment_project        ProjectActivityAssignment[]        @relation("ProjectActivityAssignment_project")
@@ -680,6 +689,7 @@ model Project {
   @@index([organizationId, publicApprovedById], map: "projects_public_approved_by_idx")
   @@index([organizationId, publishedById], map: "projects_published_by_idx")
   @@index([organizationId, programId], map: "projects_program_idx")
+  @@index([organizationId, programManagerId], map: "projects_program_manager_idx")
   @@map("projects")
   @@schema("pathways")
 }
@@ -711,6 +721,7 @@ model UserProjectAssignment {
 }
 
 model ProjectActivity {
+  activityIndicatorLink_activity            ActivityIndicatorLink[]            @relation("ActivityIndicatorLink_activity")
   indicatorBindings                         ProjectIndicatorBinding[]          @relation("P06BindingActivity")
   projectBudgetRecord_activity              ProjectBudgetRecord[]              @relation("ProjectBudgetRecord_activity")
   assessmentResult_activity                 AssessmentResult[]                 @relation("AssessmentResult_activity")
@@ -724,6 +735,8 @@ model ProjectActivity {
   title                                     String
   description                               String?
   activityType                              String?                            @map("activity_type")
+  timelineOverrideJustification             String?                            @map("timeline_override_justification")
+  targetBeneficiaries                       Int?                               @map("target_beneficiaries")
   plannedStartDate                          DateTime?                          @map("planned_start_date") @db.Date
   plannedEndDate                            DateTime?                          @map("planned_end_date") @db.Date
   actualStartDate                           DateTime?                          @map("actual_start_date") @db.Date
@@ -840,6 +853,7 @@ model ProjectMilestone {
 }
 
 model ProjectIndicator {
+  activityIndicatorLinks   ActivityIndicatorLink[]       @relation("ActivityIndicatorLink_indicator")
   // P06: null mode denotes an unreviewed legacy definition. Legacy actual/current are not authoritative.
   measurementMode          String?                       @map("measurement_mode")
   numericKind              String?                       @map("numeric_kind")
@@ -883,6 +897,28 @@ model ProjectIndicator {
   @@index([organizationId, projectId, status], map: "project_indicators_project_status_idx")
   @@index([organizationId, createdById], map: "project_indicators_created_by_idx")
   @@map("project_indicators")
+  @@schema("pathways")
+}
+
+model ActivityIndicatorLink {
+  id             String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String           @map("organization_id") @db.Uuid
+  projectId      String           @map("project_id") @db.Uuid
+  activityId     String           @map("activity_id") @db.Uuid
+  indicatorId    String           @map("indicator_id") @db.Uuid
+  createdById    String           @map("created_by_id") @db.Uuid
+  createdAt      DateTime         @default(now()) @map("created_at") @db.Timestamptz(3)
+  organization   Organization     @relation("ActivityIndicatorLink_organization", fields: [organizationId], references: [id], onDelete: Restrict, onUpdate: Restrict, map: "activity_indicator_links_organization_fk")
+  project        Project          @relation("ActivityIndicatorLink_project", fields: [organizationId, projectId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict, map: "activity_indicator_links_project_fk")
+  activity       ProjectActivity  @relation("ActivityIndicatorLink_activity", fields: [organizationId, projectId, activityId], references: [organizationId, projectId, id], onDelete: Restrict, onUpdate: Restrict, map: "activity_indicator_links_activity_fk")
+  indicator      ProjectIndicator @relation("ActivityIndicatorLink_indicator", fields: [organizationId, projectId, indicatorId], references: [organizationId, projectId, id], onDelete: Restrict, onUpdate: Restrict, map: "activity_indicator_links_indicator_fk")
+  createdBy      SystemUser       @relation("ActivityIndicatorLink_createdBy", fields: [organizationId, createdById], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict, map: "activity_indicator_links_created_by_fk")
+
+  @@unique([organizationId, projectId, id], map: "activity_indicator_links_scope_key")
+  @@unique([organizationId, projectId, activityId, indicatorId], map: "activity_indicator_links_activity_indicator_key")
+  @@index([organizationId, projectId, indicatorId], map: "activity_indicator_links_indicator_idx")
+  @@index([organizationId, createdById], map: "activity_indicator_links_created_by_idx")
+  @@map("activity_indicator_links")
   @@schema("pathways")
 }
 

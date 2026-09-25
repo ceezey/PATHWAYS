@@ -19,7 +19,11 @@ import { Form } from '@/components/ui/form'
 import { pathwaysClient } from '@/lib/services/pathways-client'
 import type { ProjectDetail, UserRecord } from '@/types/pathways'
 
-import type { ProjectSetupSchema } from './project-form-validation'
+import {
+  type ProjectSetupSchema,
+  toProjectTeamInput,
+  toUpdateProjectInput,
+} from './project-form-validation'
 import { ProjectTeamSelectors, validateProjectTeamSelections } from './project-team-selectors'
 
 const teamFields = [
@@ -31,8 +35,8 @@ const teamFields = [
 
 const formDefaults = (project: ProjectDetail): ProjectSetupSchema => ({
   objectives: project.objectives ?? project.description,
-  partners: '',
-  projectBudget: '',
+  partners: project.implementingPartners ?? '',
+  projectBudget: project.projectBudget ?? '',
   targetBeneficiaries: String(project.targetBeneficiaries),
   targetGoal: project.targetGoal ?? '',
   title: project.title,
@@ -48,11 +52,18 @@ const formDefaults = (project: ProjectDetail): ProjectSetupSchema => ({
   projectOfficers: project.projectOfficers.join(', '),
 })
 
-export const ProjectTeamEditorDialog = ({ project }: { project: ProjectDetail }) => {
+export const ProjectTeamEditorDialog = ({
+  project,
+  onUpdated,
+}: {
+  project: ProjectDetail
+  onUpdated: (project: ProjectDetail) => void
+}) => {
   const [open, setOpen] = useState(false)
   const [users, setUsers] = useState<UserRecord[]>([])
   const [loadError, setLoadError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
+  const [loadAttempt, setLoadAttempt] = useState(0)
   const form = useForm<ProjectSetupSchema>({ defaultValues: formDefaults(project) })
 
   useEffect(() => {
@@ -61,8 +72,10 @@ export const ProjectTeamEditorDialog = ({ project }: { project: ProjectDetail })
 
   useEffect(() => {
     if (!open) return
+    void loadAttempt
     let active = true
     setLoading(true)
+    setLoadError(null)
     pathwaysClient
       .getUsers()
       .then((records) => {
@@ -81,9 +94,9 @@ export const ProjectTeamEditorDialog = ({ project }: { project: ProjectDetail })
     return () => {
       active = false
     }
-  }, [open])
+  }, [loadAttempt, open])
 
-  const saveTeam = (values: ProjectSetupSchema) => {
+  const saveTeam = async (values: ProjectSetupSchema) => {
     form.clearErrors(teamFields)
     const errors = validateProjectTeamSelections(values, users)
     for (const field of teamFields) {
@@ -96,15 +109,25 @@ export const ProjectTeamEditorDialog = ({ project }: { project: ProjectDetail })
       return
     }
 
-    toast.error(
-      'Project team reassignment is unavailable in the current API. No assignment was saved.',
-    )
+    try {
+      const updated = await pathwaysClient.updateProject(project.id, {
+        ...toUpdateProjectInput(values, project),
+        ...toProjectTeamInput(values, users),
+      })
+      onUpdated(updated)
+      toast.success('Project team updated.')
+      setOpen(false)
+    } catch (error) {
+      toast.error('Project team could not be updated.', {
+        description: error instanceof Error ? error.message : 'Try again.',
+      })
+    }
   }
 
   return (
     <Dialog onOpenChange={setOpen} open={open}>
       <DialogTrigger asChild>
-        <Button disabled size="sm" type="button" variant="outline">
+        <Button size="sm" type="button" variant="outline">
           <Pencil className="mr-2 h-4 w-4" aria-hidden="true" />
           Edit team
         </Button>
@@ -123,14 +146,17 @@ export const ProjectTeamEditorDialog = ({ project }: { project: ProjectDetail })
               control={form.control}
               loadError={loadError}
               loading={loading}
-              onRetry={() => undefined}
+              onRetry={() => setLoadAttempt((attempt) => attempt + 1)}
               users={users}
             />
             <DialogFooter>
               <Button onClick={() => setOpen(false)} type="button" variant="outline">
                 Cancel
               </Button>
-              <Button type="submit" disabled>
+              <Button
+                type="submit"
+                disabled={loading || Boolean(loadError) || form.formState.isSubmitting}
+              >
                 <Save className="mr-2 h-4 w-4" aria-hidden="true" />
                 Save assignments
               </Button>

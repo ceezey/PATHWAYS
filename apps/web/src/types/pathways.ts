@@ -52,9 +52,15 @@ export interface ProjectSummary {
 export interface ProjectDetail extends ProjectSummary {
   description: string
   objectives?: string
+  implementingPartners?: string | null
+  projectBudget?: string | null
   programManager: string
+  programManagerId?: string | null
   monitoringOfficer: string
+  monitoringOfficerId?: string | null
+  projectManagerId?: string | null
   projectOfficers: string[]
+  projectOfficerIds?: string[]
   targetBeneficiaries: number
   budgetCode: string
 }
@@ -88,6 +94,14 @@ export interface CreateProjectInput {
   endDate?: string
   status: ProjectStatus
   description?: string
+  implementingPartners?: string
+  sector?: string
+  targetBeneficiaries?: number | null
+  projectBudget?: string
+  programManagerId?: string | null
+  projectManagerId?: string | null
+  monitoringOfficerId?: string | null
+  projectOfficerIds?: string[]
   programId?: string
   targetGoal: string
 }
@@ -114,6 +128,7 @@ export interface Activity {
   title: string
   description: string
   activityType?: string | null
+  timelineOverrideJustification?: string | null
   storedStatus: StoredActivityStatus
   status: ActivityStatus
   overdue?: boolean
@@ -129,8 +144,8 @@ export interface Activity {
   journeyStageId: string
   targetBeneficiaries: number
   beneficiariesReached: number
-  budgetAllocation: number
-  budgetLogged: number
+  budgetAllocation: number | null
+  budgetLogged: number | null
   progress: number
   projectGoalComparison: TargetGoalComparison
   reviewedById?: string | null
@@ -181,7 +196,12 @@ export interface CreateActivityInput {
   description: string
   startDate: string
   dueDate: string
+  timelineOverrideJustification?: string
+  targetBeneficiaries?: number | null
+  budgetAllocation?: string
   assignedUserIds: string[]
+  indicatorIds?: string[]
+  journeyStageId?: string | null
 }
 
 export interface UpdateActivityInput extends CreateActivityInput {

@@ -402,7 +402,12 @@ class BackendReadyPathwaysClient implements PathwaysClient {
           description: input.description,
           plannedStartDate: input.startDate,
           plannedEndDate: input.dueDate,
+          timelineOverrideJustification: input.timelineOverrideJustification,
+          targetBeneficiaries: input.targetBeneficiaries,
+          budgetAllocation: input.budgetAllocation,
           assignedUserIds: input.assignedUserIds,
+          indicatorIds: input.indicatorIds,
+          journeyStageId: input.journeyStageId,
         }),
       }),
     )
@@ -419,7 +424,12 @@ class BackendReadyPathwaysClient implements PathwaysClient {
             description: input.description,
             plannedStartDate: input.startDate,
             plannedEndDate: input.dueDate,
+            timelineOverrideJustification: input.timelineOverrideJustification,
+            targetBeneficiaries: input.targetBeneficiaries,
+            budgetAllocation: input.budgetAllocation,
             assignedUserIds: input.assignedUserIds,
+            indicatorIds: input.indicatorIds,
+            journeyStageId: input.journeyStageId,
             expectedUpdatedAt: input.expectedUpdatedAt,
           }),
         },
@@ -1196,12 +1206,23 @@ interface ApiProject {
   description: string | null
   objectives: string | null
   implementationArea: string | null
+  implementingPartners: string | null
+  sector: string | null
+  targetBeneficiaries: number | null
+  projectBudget: string | null
   targetGoal: string | null
   startDate?: string | null
   endDate?: string | null
   status: 'PLANNED' | 'ONGOING' | 'COMPLETED' | 'ON_HOLD' | 'CANCELLED'
   programId: string | null
   projectManager: string | null
+  programManagerId: string | null
+  programManager: string | null
+  projectManagerId: string | null
+  monitoringOfficerId: string | null
+  monitoringOfficer: string | null
+  projectOfficerIds: string[]
+  projectOfficers: string[]
   updatedAt: string
 }
 
@@ -1394,9 +1415,11 @@ function mapProject(project: ApiProject): ProjectDetail {
     title: project.title,
     description: project.description ?? '',
     objectives: project.objectives ?? '',
+    implementingPartners: project.implementingPartners,
+    projectBudget: project.projectBudget,
     targetGoal: project.targetGoal === null ? null : normalizeTargetGoal(project.targetGoal),
     area: project.implementationArea ?? 'Area not recorded',
-    sector: 'Sector not recorded',
+    sector: project.sector ?? 'Sector not recorded',
     status,
     storedStatus: project.status,
     health: status === 'Needs Attention' ? 'At Risk' : 'On Track',
@@ -1406,10 +1429,14 @@ function mapProject(project: ApiProject): ProjectDetail {
     beneficiariesReached: 0,
     budgetUtilization: 0,
     timelineProgress: 0,
-    programManager: 'Not assigned',
-    monitoringOfficer: 'Not assigned',
-    projectOfficers: [],
-    targetBeneficiaries: 0,
+    programManager: project.programManager ?? 'Not assigned',
+    programManagerId: project.programManagerId,
+    projectManagerId: project.projectManagerId,
+    monitoringOfficer: project.monitoringOfficer ?? 'Not assigned',
+    monitoringOfficerId: project.monitoringOfficerId,
+    projectOfficers: project.projectOfficers ?? [],
+    projectOfficerIds: project.projectOfficerIds ?? [],
+    targetBeneficiaries: project.targetBeneficiaries ?? 0,
     budgetCode: 'Not recorded',
     startDate: project.startDate,
     endDate: project.endDate,
@@ -1525,7 +1552,7 @@ function parseProjects(value: unknown) {
 }
 
 function parseActivity(value: unknown): Activity {
-  const row = value as Partial<Activity>
+  const row = value as Partial<Activity> & { budgetAllocation?: unknown; budgetLogged?: unknown }
   if (
     !row ||
     typeof row !== 'object' ||
@@ -1545,7 +1572,25 @@ function parseActivity(value: unknown): Activity {
   }
   const comparison = targetGoalComparisonSchema.safeParse(row.projectGoalComparison)
   if (!comparison.success) throw new PathwaysClientError('Invalid activity response.', 'network')
-  return { ...(row as Activity), projectGoalComparison: comparison.data }
+  const budgetAllocation =
+    row.budgetAllocation === null || row.budgetAllocation === undefined
+      ? null
+      : Number(row.budgetAllocation)
+  const budgetLogged =
+    row.budgetLogged === null || row.budgetLogged === undefined ? null : Number(row.budgetLogged)
+  if (
+    (budgetAllocation !== null && !Number.isFinite(budgetAllocation)) ||
+    (budgetLogged !== null && !Number.isFinite(budgetLogged)) ||
+    typeof row.beneficiariesReached !== 'number'
+  ) {
+    throw new PathwaysClientError('Invalid activity response.', 'network')
+  }
+  return {
+    ...(row as Activity),
+    budgetAllocation,
+    budgetLogged,
+    projectGoalComparison: comparison.data,
+  }
 }
 
 function parseActivities(value: unknown): Activity[] {

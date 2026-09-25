@@ -201,7 +201,7 @@ export const ProjectDetailView = ({ projectId }: { projectId: string }) => {
                 <p className="mt-2 text-2xl font-semibold tabular-nums text-foreground">
                   {project.metricsAvailable
                     ? `${formatNumber(project.beneficiariesReached)} / ${formatNumber(project.targetBeneficiaries)}`
-                    : 'Unavailable'}
+                    : `Unavailable / ${formatNumber(project.targetBeneficiaries)}`}
                 </p>
               </div>
               <div className="bg-surface-subtle p-4">
@@ -216,11 +216,47 @@ export const ProjectDetailView = ({ projectId }: { projectId: string }) => {
                 ? projectHealthSignal(project)
                 : 'Project health cannot be assessed from the current API response.'}
             </div>
+            <dl className="grid gap-4 text-sm sm:grid-cols-2">
+              <div>
+                <dt className="text-muted-foreground">Objectives</dt>
+                <dd className="mt-1 font-medium text-foreground">
+                  {project.objectives || 'Not recorded'}
+                </dd>
+              </div>
+              <div>
+                <dt className="text-muted-foreground">Implementing partners</dt>
+                <dd className="mt-1 font-medium text-foreground">
+                  {project.implementingPartners || 'Not recorded'}
+                </dd>
+              </div>
+              <div>
+                <dt className="text-muted-foreground">Target beneficiaries</dt>
+                <dd className="mt-1 font-medium text-foreground">
+                  {formatNumber(project.targetBeneficiaries)}
+                </dd>
+              </div>
+              <div>
+                <dt className="text-muted-foreground">Planned project budget</dt>
+                <dd className="mt-1 font-medium text-foreground">
+                  {project.projectBudget === null || project.projectBudget === undefined
+                    ? 'Not recorded'
+                    : new Intl.NumberFormat('en-US', {
+                        currency: 'PHP',
+                        maximumFractionDigits: 2,
+                        style: 'currency',
+                      }).format(Number(project.projectBudget))}
+                </dd>
+              </div>
+            </dl>
           </div>
         </SectionCard>
         <SectionCard
           title="Project team"
-          actions={canManageProjectTeam ? <ProjectTeamEditorDialog project={project} /> : null}
+          actions={
+            canManageProjectTeam ? (
+              <ProjectTeamEditorDialog onUpdated={setProject} project={project} />
+            ) : null
+          }
         >
           <dl className="grid gap-4 text-sm sm:grid-cols-2">
             <div>

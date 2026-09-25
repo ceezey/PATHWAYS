@@ -9,6 +9,8 @@ import { describe, expect, it } from 'vitest'
 import { DashboardsService } from './dashboards.service'
 
 const enabled = process.env.PATHWAYS_C8_LOCAL_TESTS === '1'
+const expectedPathwaysTableCount =
+  process.env.PATHWAYS_PROJECT_ACTIVITY_CREATION_LOCAL_TESTS === '1' ? 46 : 45
 const id = (number: number) => `a5800000-0000-4000-8000-${String(number).padStart(12, '0')}`
 const organizationId = id(1)
 const authSubject = id(2)
@@ -52,7 +54,7 @@ describe.skipIf(!enabled)('C8 service path on disposable PostgreSQL', () => {
           AND inet_server_port() = 55448
           AND current_user = 'postgres' AND session_user = 'postgres'
           AND (SELECT count(*) FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace
-               WHERE n.nspname='pathways' AND c.relkind='r') = 45 AS safe
+               WHERE n.nspname='pathways' AND c.relkind='r') = ${expectedPathwaysTableCount} AS safe
       `
       expect(guard?.safe).toBe(true)
 

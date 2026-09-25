@@ -180,6 +180,7 @@ const DashboardActivityReviewPanel = ({
           canValidateExpense={role === 'Monitoring and Evaluation Officer'}
           canValidateProof={role === 'Monitoring and Evaluation Officer'}
           indicators={indicators}
+          journeyStages={[]}
           onActivityChanged={(updatedActivity) => {
             setActivity(updatedActivity)
             onActivityChanged()

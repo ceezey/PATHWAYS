@@ -290,7 +290,7 @@ export function ImportWorkspace() {
               <SelectContent>
                 {projects.map((project) => (
                   <SelectItem key={project.id} value={project.id}>
-                    {project.code ? `${project.code} · ${project.title}` : project.title}
+                    {project.title}
                   </SelectItem>
                 ))}
               </SelectContent>

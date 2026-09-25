@@ -10,8 +10,9 @@ import {
   NotFoundException,
   ServiceUnavailableException,
 } from '@nestjs/common'
-import type { Prisma } from '@prisma/client'
+import { Prisma } from '@prisma/client'
 
+import { hasAtomicPermission } from '@app/modules/auth/authorization-policy'
 import { projectScope } from '@app/modules/auth/authorized-data.service'
 import { withAuthorizedOperation } from '@app/modules/auth/authorized-operation'
 import { type ApplicationIdentity, UUID_PATTERN } from '@app/modules/auth/developer-access'
@@ -31,6 +32,7 @@ import type {
 } from './activities.dto'
 
 type Tx = Prisma.TransactionClient
+const activityBudgetCategory = 'ACTIVITY_PROFILE_TOTAL'
 
 const activitySelection = {
   id: true,
@@ -39,6 +41,8 @@ const activitySelection = {
   title: true,
   description: true,
   activityType: true,
+  timelineOverrideJustification: true,
+  targetBeneficiaries: true,
   plannedStartDate: true,
   plannedEndDate: true,
   actualStartDate: true,
@@ -88,6 +92,11 @@ const activitySelection = {
     orderBy: { sequenceOrder: 'asc' as const },
     take: 100,
   },
+  activityIndicatorLink_activity: {
+    select: { indicatorId: true },
+    orderBy: { indicatorId: 'asc' as const },
+    take: 100,
+  },
 } satisfies Prisma.ProjectActivitySelect
 
 type ActivityRow = Prisma.ProjectActivityGetPayload<{ select: typeof activitySelection }>
@@ -132,7 +141,21 @@ export function activityTransitionAllowed(
     : ['NOT_STARTED', 'IN_PROGRESS'].includes(current)
 }
 
-function mapActivity(row: ActivityRow, businessDate: string) {
+type ActivityReadMetrics = {
+  budgets: ReadonlyMap<string, string>
+  reached: ReadonlyMap<string, number>
+}
+
+const emptyActivityReadMetrics: ActivityReadMetrics = {
+  budgets: new Map(),
+  reached: new Map(),
+}
+
+function mapActivity(
+  row: ActivityRow,
+  businessDate: string,
+  metrics: ActivityReadMetrics = emptyActivityReadMetrics,
+) {
   const presentation = activityPresentationStatus(row.status, row.plannedEndDate, businessDate)
   const updates = row.activityUpdate_activity
   return {
@@ -142,6 +165,7 @@ function mapActivity(row: ActivityRow, businessDate: string) {
     title: row.title,
     description: row.description ?? '',
     activityType: row.activityType,
+    timelineOverrideJustification: row.timelineOverrideJustification,
     storedStatus: row.status,
     status: presentation.status,
     overdue: presentation.overdue,
@@ -160,6 +184,10 @@ function mapActivity(row: ActivityRow, businessDate: string) {
     ),
     journeyStageIds: row.activityJourneyStageMapping_activity.map((mapping) => mapping.stageId),
     journeyStageId: row.activityJourneyStageMapping_activity[0]?.stageId ?? '',
+    indicatorIds: row.activityIndicatorLink_activity.map((link) => link.indicatorId),
+    targetBeneficiaries: row.targetBeneficiaries ?? 0,
+    beneficiariesReached: metrics.reached.get(row.id) ?? 0,
+    budgetAllocation: metrics.budgets.get(row.id) ?? null,
     progress: row.progressPercent,
     projectGoalComparison: compareActivityProgressToTargetGoal(
       row.progressPercent,
@@ -193,11 +221,7 @@ function mapActivity(row: ActivityRow, businessDate: string) {
       updatedAt: update.updatedAt.toISOString(),
     })),
     updatedAt: row.updatedAt.toISOString(),
-    // P06/finance values are intentionally not synthesized in P05.
-    indicatorIds: [],
-    targetBeneficiaries: 0,
-    beneficiariesReached: 0,
-    budgetAllocation: 0,
+    // Approved expense aggregation remains outside this workstream.
     budgetLogged: 0,
   }
 }
@@ -305,14 +329,21 @@ export class ActivitiesService {
     start: string,
     end: string,
     project: { startDate: Date | null; endDate: Date | null },
+    timelineOverrideJustification?: string,
   ) {
     if (end < start)
       throw new BadRequestException('Activity end date must not precede its start date.')
     const projectStart = calendarDate(project.startDate)
     const projectEnd = calendarDate(project.endDate)
-    if ((projectStart && start < projectStart) || (projectEnd && end > projectEnd)) {
-      throw new BadRequestException('Activity dates must fall within the project dates.')
+    const outsideProject =
+      (projectStart && start < projectStart) || (projectEnd && end > projectEnd)
+    const justification = timelineOverrideJustification?.trim() || null
+    if (outsideProject && !justification) {
+      throw new BadRequestException(
+        'A timeline override justification is required outside the project dates.',
+      )
     }
+    return justification
   }
 
   private async resolveAssignments(
@@ -329,7 +360,11 @@ export class ActivitiesService {
         userId: { in: ids },
         status: 'ACTIVE',
         endedAt: null,
-        user: { accountStatus: 'ACTIVE', archivedAt: null },
+        user: {
+          accountStatus: 'ACTIVE',
+          archivedAt: null,
+          role: { code: 'PROJECT_OFFICER', isActive: true },
+        },
       },
       select: { id: true, userId: true },
       take: 50,
@@ -339,10 +374,202 @@ export class ActivitiesService {
       new Set(assignments.map((row) => row.userId)).size !== ids.length
     ) {
       throw new BadRequestException(
-        'Every activity assignee must have an active assignment to this project.',
+        'Every activity assignee must be an active Project Officer assigned to this project.',
       )
     }
     return assignments
+  }
+
+  private async resolveIndicators(
+    tx: Tx,
+    actor: ApplicationIdentity,
+    projectId: string,
+    indicatorIds: string[] | undefined,
+  ) {
+    if (indicatorIds === undefined) return undefined
+    const ids = indicatorIds.map((id) => id.toLowerCase())
+    if (ids.length === 0) return []
+    if (!hasAtomicPermission(actor.roles[0], actor.permissions, 'indicators.update')) {
+      throw new ForbiddenException('Indicator-link authority is missing.')
+    }
+    const rows = await tx.projectIndicator.findMany({
+      where: {
+        id: { in: ids },
+        organizationId: actor.organizationId,
+        projectId,
+        archivedAt: null,
+      },
+      select: { id: true },
+      take: 101,
+    })
+    if (rows.length !== ids.length || new Set(rows.map((row) => row.id)).size !== ids.length) {
+      throw new BadRequestException('Every connected indicator must belong to this project.')
+    }
+    return ids
+  }
+
+  private async resolveJourneyStage(
+    tx: Tx,
+    actor: ApplicationIdentity,
+    projectId: string,
+    journeyStageId: string | null | undefined,
+  ) {
+    if (journeyStageId === undefined || journeyStageId === null) return journeyStageId
+    if (!hasAtomicPermission(actor.roles[0], actor.permissions, 'journeys.manage')) {
+      throw new ForbiddenException('Journey-stage link authority is missing.')
+    }
+    const id = journeyStageId.toLowerCase()
+    const stage = await tx.journeyStage.findFirst({
+      where: { id, organizationId: actor.organizationId, projectId, archivedAt: null },
+      select: { id: true },
+    })
+    if (!stage)
+      throw new BadRequestException('The selected journey stage must belong to this project.')
+    return stage.id
+  }
+
+  private async replaceActivityLinks(
+    tx: Tx,
+    actor: ApplicationIdentity,
+    projectId: string,
+    activityId: string,
+    indicatorIds: string[] | undefined,
+    journeyStageId: string | null | undefined,
+  ) {
+    if (indicatorIds !== undefined) {
+      await tx.activityIndicatorLink.deleteMany({
+        where: { organizationId: actor.organizationId, projectId, activityId },
+      })
+      if (indicatorIds.length) {
+        await tx.activityIndicatorLink.createMany({
+          data: indicatorIds.map((indicatorId) => ({
+            organizationId: actor.organizationId,
+            projectId,
+            activityId,
+            indicatorId,
+            createdById: actor.userId,
+          })),
+        })
+      }
+    }
+    if (journeyStageId !== undefined) {
+      await tx.activityJourneyStageMapping.deleteMany({
+        where: { organizationId: actor.organizationId, projectId, activityId },
+      })
+      if (journeyStageId) {
+        await tx.activityJourneyStageMapping.create({
+          data: {
+            organizationId: actor.organizationId,
+            projectId,
+            activityId,
+            stageId: journeyStageId,
+            sequenceOrder: 1,
+            createdById: actor.userId,
+          },
+        })
+      }
+    }
+  }
+
+  private activityBudgetValue(value: string) {
+    try {
+      return new Prisma.Decimal(value)
+    } catch {
+      throw new BadRequestException('Activity budget must be a valid non-negative PHP amount.')
+    }
+  }
+
+  private async saveActivityBudget(
+    tx: Tx,
+    actor: ApplicationIdentity,
+    projectId: string,
+    activityId: string,
+    value: string | undefined,
+    operation: 'create' | 'update',
+  ) {
+    if (value === undefined) return
+    const canCreate = hasAtomicPermission(actor.roles[0], actor.permissions, 'budgets.create')
+    const canUpdate = hasAtomicPermission(actor.roles[0], actor.permissions, 'budgets.update')
+    if (!canCreate || (operation === 'update' && !canUpdate)) {
+      throw new ForbiddenException('Activity budget authority is missing.')
+    }
+    const plannedBudget = this.activityBudgetValue(value)
+    const current = await tx.projectBudgetRecord.findFirst({
+      where: {
+        organizationId: actor.organizationId,
+        projectId,
+        activityId,
+        category: activityBudgetCategory,
+        archivedAt: null,
+      },
+      select: { id: true, plannedBudget: true },
+    })
+    if (current?.plannedBudget.equals(plannedBudget)) return
+    if (current) {
+      await tx.projectBudgetRecord.update({
+        where: { id: current.id },
+        data: { archivedAt: new Date() },
+      })
+    }
+    await tx.projectBudgetRecord.create({
+      data: {
+        organizationId: actor.organizationId,
+        projectId,
+        activityId,
+        category: activityBudgetCategory,
+        currency: 'PHP',
+        plannedBudget,
+        remarks: 'Activity profile planned budget.',
+        recordedById: actor.userId,
+      },
+    })
+  }
+
+  private async readMetrics(
+    tx: Tx,
+    actor: ApplicationIdentity,
+    projectId: string,
+    activityIds: string[],
+  ): Promise<ActivityReadMetrics> {
+    const budgets = new Map<string, string>()
+    const reached = new Map<string, number>()
+    if (activityIds.length === 0) return { budgets, reached }
+    if (hasAtomicPermission(actor.roles[0], actor.permissions, 'budgets.read')) {
+      const rows = await tx.projectBudgetRecord.findMany({
+        where: {
+          organizationId: actor.organizationId,
+          projectId,
+          activityId: { in: activityIds },
+          category: activityBudgetCategory,
+          archivedAt: null,
+        },
+        select: { activityId: true, plannedBudget: true },
+        take: 100,
+      })
+      for (const row of rows) {
+        if (row.activityId) budgets.set(row.activityId, row.plannedBudget.toFixed(2))
+      }
+    }
+    if (hasAtomicPermission(actor.roles[0], actor.permissions, 'beneficiaries.aggregates.read')) {
+      const ids = Prisma.join(activityIds.map((id) => Prisma.sql`${id}::uuid`))
+      const rows = await tx.$queryRaw<
+        Array<{ activityId: string; beneficiariesReached: number }>
+      >(Prisma.sql`
+        SELECT activity_id AS "activityId", beneficiaries_reached AS "beneficiariesReached"
+        FROM pathways.p08_activity_beneficiaries_reached(
+          ${actor.organizationId}::uuid,
+          ${projectId}::uuid,
+          ARRAY[${ids}]::uuid[]
+        )
+      `)
+      for (const row of rows) reached.set(row.activityId, Number(row.beneficiariesReached))
+    }
+    return { budgets, reached }
+  }
+
+  private async mapWithMetrics(tx: Tx, actor: ApplicationIdentity, row: ActivityRow) {
+    const metrics = await this.readMetrics(tx, actor, row.projectId, [row.id])
+    return mapActivity(row, this.businessDate(), metrics)
   }
 
   list(identity: ApplicationIdentity, projectId: string) {
@@ -362,7 +589,13 @@ export class ActivitiesService {
       })
       if (!project) throw new NotFoundException('Project unavailable.')
       const today = this.businessDate()
-      return project.projectActivity_project.map((row) => mapActivity(row, today))
+      const metrics = await this.readMetrics(
+        tx,
+        actor,
+        projectId.toLowerCase(),
+        project.projectActivity_project.map((row) => row.id),
+      )
+      return project.projectActivity_project.map((row) => mapActivity(row, today, metrics))
     })
   }
 
@@ -388,7 +621,7 @@ export class ActivitiesService {
       })
       const activity = project?.projectActivity_project[0]
       if (!activity) throw new NotFoundException('Activity unavailable.')
-      return mapActivity(activity, this.businessDate())
+      return this.mapWithMetrics(tx, actor, activity)
     })
   }
 
@@ -399,12 +632,24 @@ export class ActivitiesService {
       'activities.create',
       async (tx, actor) => {
         const project = await this.requireProject(tx, actor, projectId)
-        this.validateDates(input.plannedStartDate, input.plannedEndDate, project)
+        const timelineOverrideJustification = this.validateDates(
+          input.plannedStartDate,
+          input.plannedEndDate,
+          project,
+          input.timelineOverrideJustification,
+        )
         const assignments = await this.resolveAssignments(
           tx,
           actor,
           project.id,
           input.assignedUserIds,
+        )
+        const indicatorIds = await this.resolveIndicators(tx, actor, project.id, input.indicatorIds)
+        const journeyStageId = await this.resolveJourneyStage(
+          tx,
+          actor,
+          project.id,
+          input.journeyStageId,
         )
         const activityId = randomUUID()
         await tx.projectActivity.create({
@@ -416,6 +661,8 @@ export class ActivitiesService {
             title: input.title.trim(),
             description: input.description?.trim() || null,
             activityType: input.activityType?.trim() || null,
+            timelineOverrideJustification,
+            targetBeneficiaries: input.targetBeneficiaries ?? null,
             plannedStartDate: new Date(`${input.plannedStartDate}T00:00:00.000Z`),
             plannedEndDate: new Date(`${input.plannedEndDate}T00:00:00.000Z`),
             createdById: actor.userId,
@@ -432,6 +679,22 @@ export class ActivitiesService {
             })),
           })
         }
+        await this.replaceActivityLinks(
+          tx,
+          actor,
+          project.id,
+          activityId,
+          indicatorIds ?? [],
+          journeyStageId === undefined ? null : journeyStageId,
+        )
+        await this.saveActivityBudget(
+          tx,
+          actor,
+          project.id,
+          activityId,
+          input.budgetAllocation,
+          'create',
+        )
         await tx.auditLog.create({
           data: {
             organizationId: actor.organizationId,
@@ -443,9 +706,10 @@ export class ActivitiesService {
             changes: { code: input.code ?? 'SERVER_GENERATED', assigneeCount: assignments.length },
           },
         })
-        return mapActivity(
+        return this.mapWithMetrics(
+          tx,
+          actor,
           await this.requireActivity(tx, actor, project.id, activityId),
-          this.businessDate(),
         )
       },
     )
@@ -467,7 +731,12 @@ export class ActivitiesService {
           throw new ConflictException('Terminal activity history cannot be edited.')
         }
         const project = await this.requireProject(tx, actor, projectId)
-        this.validateDates(input.plannedStartDate, input.plannedEndDate, project)
+        const timelineOverrideJustification = this.validateDates(
+          input.plannedStartDate,
+          input.plannedEndDate,
+          project,
+          input.timelineOverrideJustification ?? current.timelineOverrideJustification ?? undefined,
+        )
         const expected = new Date(input.expectedUpdatedAt)
         if (
           Number.isNaN(expected.valueOf()) ||
@@ -481,6 +750,13 @@ export class ActivitiesService {
           project.id,
           input.assignedUserIds,
         )
+        const indicatorIds = await this.resolveIndicators(tx, actor, project.id, input.indicatorIds)
+        const journeyStageId = await this.resolveJourneyStage(
+          tx,
+          actor,
+          project.id,
+          input.journeyStageId,
+        )
         const changed = await tx.projectActivity.updateMany({
           where: { id: current.id, organizationId: actor.organizationId, updatedAt: expected },
           data: {
@@ -488,6 +764,10 @@ export class ActivitiesService {
             title: input.title.trim(),
             description: input.description?.trim() || null,
             activityType: input.activityType?.trim() || null,
+            timelineOverrideJustification,
+            ...(input.targetBeneficiaries === undefined
+              ? {}
+              : { targetBeneficiaries: input.targetBeneficiaries }),
             plannedStartDate: new Date(`${input.plannedStartDate}T00:00:00.000Z`),
             plannedEndDate: new Date(`${input.plannedEndDate}T00:00:00.000Z`),
           },
@@ -518,6 +798,22 @@ export class ActivitiesService {
             })),
           })
         }
+        await this.replaceActivityLinks(
+          tx,
+          actor,
+          project.id,
+          current.id,
+          indicatorIds,
+          journeyStageId,
+        )
+        await this.saveActivityBudget(
+          tx,
+          actor,
+          project.id,
+          current.id,
+          input.budgetAllocation,
+          'update',
+        )
         await tx.auditLog.create({
           data: {
             organizationId: actor.organizationId,
@@ -529,9 +825,10 @@ export class ActivitiesService {
             changes: { assigneeCount: assignments.length },
           },
         })
-        return mapActivity(
+        return this.mapWithMetrics(
+          tx,
+          actor,
           await this.requireActivity(tx, actor, project.id, current.id),
-          this.businessDate(),
         )
       },
     )
@@ -582,9 +879,10 @@ export class ActivitiesService {
             changes: input.status === 'CANCELLED' ? { reason: input.reason?.trim() } : {},
           },
         })
-        return mapActivity(
+        return this.mapWithMetrics(
+          tx,
+          actor,
           await this.requireActivity(tx, actor, current.projectId, current.id),
-          this.businessDate(),
         )
       },
     )
@@ -784,9 +1082,10 @@ export class ActivitiesService {
             },
           },
         })
-        return mapActivity(
+        return this.mapWithMetrics(
+          tx,
+          actor,
           await this.requireActivity(tx, actor, update.projectId, update.activityId),
-          this.businessDate(),
         )
       },
     )
@@ -877,9 +1176,10 @@ export class ActivitiesService {
           changes: { reason: input.reason.trim() },
         },
       })
-      return mapActivity(
+      return this.mapWithMetrics(
+        tx,
+        actor,
         await this.requireActivity(tx, actor, activity.projectId, activity.id),
-        this.businessDate(),
       )
     })
   }
