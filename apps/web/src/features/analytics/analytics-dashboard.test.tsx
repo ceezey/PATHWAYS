@@ -236,9 +236,10 @@ describe('Analytics dashboard request dependencies', () => {
       target: { value: 'project-b' },
     })
     await waitFor(() => expect(api.getActivities).toHaveBeenCalledWith('project-b'))
-    await waitFor(() =>
-      expect(api.getSadddDashboard).toHaveBeenCalledWith({ projectId: 'project-b' }),
-    )
+    expect(api.getSadddDashboard).not.toHaveBeenCalled()
+    expect(
+      screen.getByText("SADDD analysis is available only after the project's recorded end date."),
+    ).toBeTruthy()
     await waitFor(() =>
       expect(api.getMonitoringDashboard).toHaveBeenCalledWith({
         projectId: 'project-b',
@@ -329,11 +330,11 @@ describe('Analytics dashboard request dependencies', () => {
 
   it('settles a dated-Project SADDD 503 without retrying on period changes', async () => {
     api.getProjectsForRole.mockResolvedValue([
-      project('project-dated', 'Dated project', '2026-08-01', '2026-09-30'),
+      project('project-dated', 'Dated project', '2025-08-01', '2025-09-30'),
     ])
     api.getProjectIndicators.mockResolvedValue([
-      indicator('project-dated', 'D-SEP', '2026-09-01', '2026-09-30'),
-      indicator('project-dated', 'D-AUG', '2026-08-01', '2026-08-31'),
+      indicator('project-dated', 'D-SEP', '2025-09-01', '2025-09-30'),
+      indicator('project-dated', 'D-AUG', '2025-08-01', '2025-08-31'),
     ])
     api.getSadddDashboard.mockRejectedValue(new Error('Monitoring verification is unavailable.'))
 
@@ -342,10 +343,11 @@ describe('Analytics dashboard request dependencies', () => {
     await waitFor(() =>
       expect(screen.getAllByText('Monitoring verification is unavailable.')).toHaveLength(1),
     )
+    await waitFor(() => expect(api.getMonitoringDashboard).toHaveBeenCalledTimes(1))
     expect(api.getSadddDashboard).toHaveBeenCalledTimes(1)
 
     fireEvent.change(screen.getByLabelText('Reporting period'), {
-      target: { value: '2026-08-01::2026-08-31' },
+      target: { value: '2025-08-01::2025-08-31' },
     })
     await waitFor(() => expect(api.getMonitoringDashboard).toHaveBeenCalledTimes(2))
     expect(api.getSadddDashboard).toHaveBeenCalledTimes(1)

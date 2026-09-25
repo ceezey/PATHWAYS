@@ -6,6 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
   currentRoleState,
+  sessionState,
   requestRouteCheck,
   refreshAccess,
   resetWorkspaceHandoff,
@@ -34,6 +35,9 @@ const {
         verificationRevision: 1,
       },
     },
+    sessionState: {
+      current: { access_token: 'test-token', user: { id: 'user-a' } },
+    },
     requestRouteCheck: vi.fn(),
     refreshAccess: vi.fn(),
     resetWorkspaceHandoff: vi.fn(),
@@ -52,7 +56,7 @@ vi.mock('next/navigation', () => ({
   useSearchParams: () => new URLSearchParams(),
 }))
 vi.mock('@/hooks/use-session', () => ({
-  useSession: () => ({ session: { access_token: 'test-token', user: { id: 'user-a' } } }),
+  useSession: () => ({ session: sessionState.current }),
 }))
 vi.mock('@/hooks/use-current-role', () => ({
   useCurrentRole: () => ({
@@ -85,6 +89,7 @@ import { RouteAccessGuard } from './route-access-guard'
 beforeEach(() => {
   currentRoleState.current.accessRefreshing = false
   currentRoleState.current.verificationRevision = 1
+  sessionState.current = { access_token: 'test-token', user: { id: 'user-a' } }
   requestRouteCheck.mockReset()
 })
 
@@ -128,6 +133,7 @@ describe('RouteAccessGuard beneficiary boundary', () => {
     expect(await screen.findByText('Protected beneficiary record')).toBeTruthy()
 
     currentRoleState.current.accessRefreshing = true
+    sessionState.current = { access_token: 'refreshed-token', user: { id: 'user-a' } }
     view.rerender(
       <RouteAccessGuard>
         <p>Protected beneficiary record</p>
@@ -151,6 +157,7 @@ describe('RouteAccessGuard beneficiary boundary', () => {
     )
 
     await waitFor(() => expect(requestRouteCheck).toHaveBeenCalledTimes(2))
+    expect(requestRouteCheck.mock.calls[1]?.[1]).toBe('refreshed-token')
     expect(screen.getByText('Protected beneficiary record')).toBeTruthy()
     expect(screen.queryByLabelText('Loading content')).toBeNull()
     resolveCheck(allowedDecision)

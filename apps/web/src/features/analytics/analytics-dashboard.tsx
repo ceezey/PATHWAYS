@@ -54,6 +54,18 @@ type AnalysisView = (typeof analysisViews)[number]['value']
 type VisualizationType = (typeof visualizationTypes)[number]['value']
 
 const missingSadddDates = 'Project reporting dates are not recorded.'
+const openProjectSaddd = "SADDD analysis is available only after the project's recorded end date."
+
+const businessDateInManila = (date = new Date()) => {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'Asia/Manila',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(date)
+  const value = Object.fromEntries(parts.map((part) => [part.type, part.value]))
+  return `${value.year}-${value.month}-${value.day}`
+}
 
 const metricNumber = (cell: { value: string | null }) => {
   if (cell.value === null) return null
@@ -107,7 +119,13 @@ export const AnalyticsDashboard = () => {
   )
   const selectedPeriod =
     reportingPeriods.find((candidate) => candidate.value === period) ?? reportingPeriods[0]
-  const sadddEligible = Boolean(selectedProject?.startDate && selectedProject.endDate)
+  const sadddUnavailableReason =
+    !selectedProject?.startDate || !selectedProject.endDate
+      ? missingSadddDates
+      : selectedProject.endDate >= businessDateInManila()
+        ? openProjectSaddd
+        : ''
+  const sadddEligible = sadddUnavailableReason === ''
 
   useEffect(() => {
     if (!role) {
@@ -201,7 +219,7 @@ export const AnalyticsDashboard = () => {
     setSaddd(null)
     if (!sadddEligible) {
       setSadddLoading(false)
-      setSadddError(missingSadddDates)
+      setSadddError(sadddUnavailableReason)
       return
     }
     let active = true
@@ -222,7 +240,7 @@ export const AnalyticsDashboard = () => {
     return () => {
       active = false
     }
-  }, [projectId, sadddEligible, sadddLoadAttempt, selectedProject])
+  }, [projectId, sadddEligible, sadddLoadAttempt, sadddUnavailableReason, selectedProject])
 
   useEffect(() => {
     if (!projectId || !selectedPeriod) {

@@ -31,9 +31,11 @@ export function RouteAccessGuard({ children }: { children: React.ReactNode }) {
   const token = session?.access_token
   const subject = session?.user.id
   const [retry, setRetry] = useState(0)
+  // Keep the rendered route identity stable across same-subject token refreshes.
+  // `token` remains an effect dependency, so the backend check still reruns with
+  // the new credential without unmounting page loaders and form/file state.
   const key = JSON.stringify([
     path,
-    token,
     subject,
     retry,
     profile?.id,
