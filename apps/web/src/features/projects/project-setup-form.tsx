@@ -14,7 +14,6 @@ import { Button } from '@/components/ui/button'
 import {
   Form,
   FormControl,
-  FormDescription,
   FormField,
   FormItem,
   FormLabel,
@@ -54,7 +53,6 @@ const projectDraftFields = [
   'partners',
   'projectBudget',
   'targetBeneficiaries',
-  'targetGoal',
   'title',
   'sector',
   'area',
@@ -72,7 +70,7 @@ const projectDefaultValues: ProjectSetupSchema = {
   partners: '',
   projectBudget: '',
   targetBeneficiaries: '',
-  targetGoal: '',
+
   title: '',
   sector: '',
   area: '',
@@ -131,7 +129,7 @@ const ScopedProjectSetupForm = ({
             partners: project.implementingPartners ?? '',
             projectBudget: project.projectBudget ?? '',
             targetBeneficiaries: String(project.targetBeneficiaries),
-            targetGoal: project.targetGoal ?? '',
+
             sector: project.sector === 'Sector not recorded' ? '' : project.sector,
             area: project.area === 'Area not recorded' ? '' : project.area,
             startDate: project.startDate ?? '',
@@ -233,12 +231,6 @@ const ScopedProjectSetupForm = ({
       setSaveError('The current project must finish loading before it can be updated.')
       return
     }
-    if (values.targetGoal === '' && (!existingProject || existingProject.targetGoal !== null)) {
-      form.setError('targetGoal', {
-        message: 'Enter a percentage greater than 0 and at most 100.',
-      })
-      return
-    }
 
     try {
       const project = existingProject
@@ -316,25 +308,7 @@ const ScopedProjectSetupForm = ({
                   </FormItem>
                 )}
               />
-              <FormField
-                control={form.control}
-                name="targetGoal"
-                render={({ field }) => {
-                  const required = !existingProject || existingProject.targetGoal !== null
-                  return (
-                    <FormItem>
-                      <FormLabel required={required}>Project target goal (%)</FormLabel>
-                      <FormControl aria-required={required}>
-                        <Input max="100" min="0.0001" step="0.0001" type="number" {...field} />
-                      </FormControl>
-                      <FormDescription>
-                        Percentage benchmark used to compare Activity and Indicator progress.
-                      </FormDescription>
-                      <FormMessage />
-                    </FormItem>
-                  )
-                }}
-              />
+
               {(['partners', 'projectBudget', 'targetBeneficiaries'] as const).map((name) => (
                 <FormField
                   key={name}

@@ -16,7 +16,6 @@ import {
   P06_CONTRACT_VERSION,
   type ProjectIndicator,
   type UpdateIndicatorInput,
-  compareProgressToTargetGoal,
   indicatorProgress,
   missingMetric,
   monitoringIndicatorSchema,
@@ -35,9 +34,7 @@ import {
 } from './indicators.dto'
 
 type Tx = Prisma.TransactionClient
-type DefinitionRow = Omit<MonitoringIndicator, 'progress' | 'contractVersion'> & {
-  projectTargetGoal: string | null
-}
+type DefinitionRow = Omit<MonitoringIndicator, 'progress' | 'contractVersion'>
 
 export function monitoringSqlError(error: unknown): never {
   const code = error && typeof error === 'object' && 'code' in error ? error.code : null
@@ -95,7 +92,6 @@ export class IndicatorsService {
     try {
       rows = await tx.$queryRaw<DefinitionRow[]>(Prisma.sql`
         SELECT i.id::text AS id,i.project_id::text AS "projectId",i.code,i.name,i.description,
-          trim_scale(p.target_goal)::text AS "projectTargetGoal",
           i.unit_label AS "unitLabel",i.data_source AS "dataSource",i.measurement_mode AS mode,i.numeric_kind AS "numericKind",i.direction,
           i.display_precision AS "displayPrecision",to_char(i.period_start,'YYYY-MM-DD') AS "periodStart",to_char(i.period_end,'YYYY-MM-DD') AS "periodEnd",
           trim_scale(i.baseline_value)::text AS baseline,trim_scale(i.target_value)::text AS target,
@@ -120,9 +116,8 @@ export class IndicatorsService {
         'More than 100 indicator definitions match; narrow the project scope.',
       )
     return rows.map((row) => {
-      const { projectTargetGoal, ...definition } = row
       const parsed = monitoringIndicatorSchema.safeParse({
-        ...definition,
+        ...row,
         progress: missingMetric('NOT_YET_CALCULATED'),
         contractVersion: P06_CONTRACT_VERSION,
       })
@@ -140,7 +135,6 @@ export class IndicatorsService {
       return {
         ...indicator,
         progress,
-        projectGoalComparison: compareProgressToTargetGoal(progress, projectTargetGoal),
       }
     })
   }
@@ -151,15 +145,7 @@ export class IndicatorsService {
     projectIds: string[],
     options: { indicatorId?: string; periodStart?: string; periodEnd?: string } = {},
   ): Promise<MonitoringIndicator[]> {
-    const projectIndicators = await this.readProjectIndicatorsInTransaction(
-      tx,
-      actor,
-      projectIds,
-      options,
-    )
-    return projectIndicators.map(
-      ({ projectGoalComparison: _projectGoalComparison, ...indicator }) => indicator,
-    )
+    return this.readProjectIndicatorsInTransaction(tx, actor, projectIds, options)
   }
 
   private async readOne(

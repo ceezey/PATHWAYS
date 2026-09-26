@@ -68,12 +68,10 @@ import {
   dashboardQuerySchema,
   formatMetricCell,
   monitoringDashboardSchema,
-  normalizeTargetGoal,
   projectIndicatorListSchema,
   projectIndicatorSchema,
   sadddDashboardSchema,
   sadddQuerySchema,
-  targetGoalComparisonSchema,
 } from '@pathways/shared'
 
 export class PathwaysClientError extends Error {
@@ -1236,7 +1234,7 @@ interface ApiProject {
   sector: string | null
   targetBeneficiaries: number | null
   projectBudget: string | null
-  targetGoal: string | null
+
   startDate?: string | null
   endDate?: string | null
   status: 'PLANNED' | 'ONGOING' | 'COMPLETED' | 'ON_HOLD' | 'CANCELLED'
@@ -1437,10 +1435,7 @@ function mapProject(project: ApiProject): ProjectDetail {
     objectives: project.objectives ?? '',
     implementingPartners: project.implementingPartners,
     projectBudget: project.projectBudget,
-    targetGoal:
-      project.targetGoal === null || project.targetGoal === undefined
-        ? null
-        : normalizeTargetGoal(project.targetGoal),
+
     area: project.implementationArea ?? 'Area not recorded',
     sector: project.sector ?? 'Sector not recorded',
     status,
@@ -1574,6 +1569,40 @@ function parseProjects(value: unknown) {
   return value.map((row) => mapProject(row as ApiProject))
 }
 
+const activityResponseKeys = [
+  'id',
+  'projectId',
+  'code',
+  'title',
+  'description',
+  'activityType',
+  'timelineOverrideJustification',
+  'storedStatus',
+  'status',
+  'overdue',
+  'startDate',
+  'dueDate',
+  'actualStartDate',
+  'actualEndDate',
+  'assignedUserIds',
+  'assignedTo',
+  'assignedEmails',
+  'indicatorIds',
+  'journeyStageIds',
+  'journeyStageId',
+  'targetBeneficiaries',
+  'beneficiariesReached',
+  'budgetAllocation',
+  'budgetLogged',
+  'progress',
+  'reviewedById',
+  'reviewedAt',
+  'cancellationReason',
+  'submittedProof',
+  'updateNotes',
+  'updatedAt',
+] as const satisfies readonly (keyof Activity)[]
+
 function parseActivity(value: unknown): Activity {
   const row = value as Partial<Activity> & { budgetAllocation?: unknown; budgetLogged?: unknown }
   if (
@@ -1593,8 +1622,6 @@ function parseActivity(value: unknown): Activity {
   ) {
     throw new PathwaysClientError('Invalid activity response.', 'network')
   }
-  const comparison = targetGoalComparisonSchema.safeParse(row.projectGoalComparison)
-  if (!comparison.success) throw new PathwaysClientError('Invalid activity response.', 'network')
   const budgetAllocation =
     row.budgetAllocation === null || row.budgetAllocation === undefined
       ? null
@@ -1609,10 +1636,11 @@ function parseActivity(value: unknown): Activity {
     throw new PathwaysClientError('Invalid activity response.', 'network')
   }
   return {
-    ...(row as Activity),
+    ...(Object.fromEntries(
+      activityResponseKeys.map((key) => [key, row[key]]),
+    ) as unknown as Activity),
     budgetAllocation,
     budgetLogged,
-    projectGoalComparison: comparison.data,
   }
 }
 

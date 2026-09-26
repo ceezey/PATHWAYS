@@ -67,10 +67,13 @@ describe('PATHWAYS frontend data boundary', () => {
       journeyStageId: '',
       targetBeneficiaries: 0,
       beneficiariesReached: 0,
+      targetGoal: '75',
+      projectGoalComparison: { state: 'BELOW_TARGET', reason: null },
+      internalAuditSalt: 'must-not-leak',
       budgetAllocation: 0,
       budgetLogged: 0,
       progress: 0,
-      projectGoalComparison: { state: 'UNAVAILABLE', reason: 'TARGET_GOAL_UNSET' },
+
       submittedProof: [],
       updateNotes: [],
       updatedAt: '2026-09-20T00:00:00.000Z',
@@ -99,9 +102,11 @@ describe('PATHWAYS frontend data boundary', () => {
       )
     vi.stubGlobal('fetch', fetcher)
 
-    await expect(pathwaysClient.getActivities(projectId)).resolves.toMatchObject([
-      { id: activity.id, indicatorIds: [], journeyStageId: '' },
-    ])
+    const [loaded] = await pathwaysClient.getActivities(projectId)
+    expect(loaded).toMatchObject({ id: activity.id, indicatorIds: [], journeyStageId: '' })
+    expect(loaded).not.toHaveProperty('targetGoal')
+    expect(loaded).not.toHaveProperty('projectGoalComparison')
+    expect(loaded).not.toHaveProperty('internalAuditSalt')
     await pathwaysClient.createActivity({
       projectId,
       title: activity.title,
@@ -163,10 +168,11 @@ describe('PATHWAYS frontend data boundary', () => {
             id: '73000000-0000-4000-8000-000000000004',
             code: 'P01-1',
             title: 'Persisted project',
+            targetGoal: '75',
             description: null,
             objectives: null,
             implementationArea: 'Quezon City',
-            targetGoal: null,
+
             startDate: '2026-01-01',
             endDate: null,
             status: 'ONGOING',
@@ -190,14 +196,14 @@ describe('PATHWAYS frontend data boundary', () => {
       {
         title: 'Persisted project',
         area: 'Quezon City',
-        targetGoal: null,
+
         startDate: '2026-01-01',
         endDate: null,
         metricsAvailable: false,
       },
       {
         title: 'Scoped project context',
-        targetGoal: null,
+
         description: '',
         metricsAvailable: false,
       },
@@ -233,7 +239,7 @@ describe('PATHWAYS frontend data boundary', () => {
       sector: 'Education',
       targetBeneficiaries: 450,
       projectBudget: '125000.50',
-      targetGoal: '62.5',
+
       startDate: '2026-10-01',
       endDate: '2026-12-31',
       status: 'PLANNED',
@@ -272,7 +278,6 @@ describe('PATHWAYS frontend data boundary', () => {
             ...project,
             title: 'Updated project',
             status: 'ONGOING',
-            targetGoal: '80.25',
           }),
           {
             status: 200,
@@ -292,7 +297,7 @@ describe('PATHWAYS frontend data boundary', () => {
         sector: project.sector,
         targetBeneficiaries: project.targetBeneficiaries,
         projectBudget: project.projectBudget,
-        targetGoal: project.targetGoal,
+
         startDate: project.startDate,
         endDate: project.endDate,
         status: 'Planned',
@@ -302,7 +307,6 @@ describe('PATHWAYS frontend data boundary', () => {
       code: project.code,
       status: 'Planned',
       storedStatus: 'PLANNED',
-      targetGoal: '62.5',
     })
     await expect(
       pathwaysClient.updateProject(projectId, {
@@ -311,13 +315,13 @@ describe('PATHWAYS frontend data boundary', () => {
         description: project.description,
         objectives: project.objectives,
         implementationArea: project.implementationArea,
-        targetGoal: '80.25',
+
         startDate: project.startDate,
         endDate: project.endDate,
         status: 'Active',
         expectedUpdatedAt: project.updatedAt,
       }),
-    ).resolves.toMatchObject({ title: 'Updated project', status: 'Active', targetGoal: '80.25' })
+    ).resolves.toMatchObject({ title: 'Updated project', status: 'Active' })
 
     const createRequest = fetcher.mock.calls[0]?.[1] as RequestInit
     expect(JSON.parse(String(createRequest.body))).toEqual({
@@ -329,7 +333,7 @@ describe('PATHWAYS frontend data boundary', () => {
       sector: project.sector,
       targetBeneficiaries: project.targetBeneficiaries,
       projectBudget: project.projectBudget,
-      targetGoal: project.targetGoal,
+
       startDate: project.startDate,
       endDate: project.endDate,
       status: 'PLANNED',
@@ -341,7 +345,7 @@ describe('PATHWAYS frontend data boundary', () => {
       description: project.description,
       objectives: project.objectives,
       implementationArea: project.implementationArea,
-      targetGoal: '80.25',
+
       startDate: project.startDate,
       endDate: project.endDate,
       status: 'ONGOING',
@@ -544,5 +548,60 @@ describe('PATHWAYS frontend data boundary', () => {
       code: 'invalid',
       message: 'Workbook formulas are not accepted. Export a values-only copy before uploading.',
     })
+  })
+})
+
+describe('project client retired output omission', () => {
+  afterEach(() => vi.unstubAllGlobals())
+  it('does not expose preserved targetGoal from an older project response', async () => {
+    const authUserId = '79000000-0000-4000-8000-000000000001'
+    const organizationId = '79000000-0000-4000-8000-000000000002'
+    const userId = '79000000-0000-4000-8000-000000000003'
+    const projectId = '79000000-0000-4000-8000-000000000004'
+    vi.stubGlobal('window', {})
+    vi.stubGlobal('document', {
+      cookie: `pathways-context=${encodeURIComponent(JSON.stringify({ authUserId, organizationId, userId }))}`,
+    })
+    browser.getSession.mockResolvedValue({
+      data: { session: { access_token: 'synthetic-token', user: { id: authUserId } } },
+      error: null,
+    })
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(
+        new Response(
+          JSON.stringify({
+            id: projectId,
+            code: 'OLD',
+            title: 'Historical project',
+            status: 'PLANNED',
+            targetBeneficiaries: 45,
+            targetGoal: '75.1234',
+            description: null,
+            objectives: null,
+            implementationArea: null,
+            sector: null,
+            implementingPartners: null,
+            projectBudget: null,
+            startDate: null,
+            endDate: null,
+            programId: null,
+            programManager: null,
+            programManagerId: null,
+            projectManager: null,
+            projectManagerId: null,
+            monitoringOfficer: null,
+            monitoringOfficerId: null,
+            projectOfficers: [],
+            projectOfficerIds: [],
+            updatedAt: '2026-09-26T00:00:00Z',
+          }),
+          { status: 200 },
+        ),
+      ),
+    )
+    const read = await pathwaysClient.getProject(projectId)
+    expect(read).not.toHaveProperty('targetGoal')
+    expect(read.targetBeneficiaries).toBe(45)
   })
 })

@@ -1,4 +1,3 @@
-import { normalizeTargetGoal, targetGoalSchema } from '@pathways/shared'
 import { z } from 'zod'
 
 import type {
@@ -24,7 +23,7 @@ export const projectSetupSchema = z
       z.string().regex(moneyPattern, 'Enter a valid PHP amount.'),
     ]),
     targetBeneficiaries: z.union([z.literal(''), targetBeneficiariesSchema]),
-    targetGoal: z.union([z.literal(''), targetGoalSchema]),
+
     title: z.string().trim().min(3, 'Enter a project title.'),
     sector: z.string().trim().max(160, 'Use at most 160 characters.'),
     area: z.string().trim().min(2, 'Enter the implementation area.'),
@@ -97,7 +96,6 @@ export const toProjectTeamInput = (
 
 export const toCreateProjectInput = (values: ProjectSetupSchema): CreateProjectInput => ({
   ...projectCoreInput(values),
-  targetGoal: normalizeTargetGoal(values.targetGoal),
 })
 
 export const toUpdateProjectInput = (
@@ -105,7 +103,7 @@ export const toUpdateProjectInput = (
   current: ProjectDetail,
 ): UpdateProjectInput => ({
   ...projectCoreInput(values),
-  ...(values.targetGoal === '' ? {} : { targetGoal: normalizeTargetGoal(values.targetGoal) }),
+
   code: current.code,
   programId: current.programId ?? undefined,
   status:

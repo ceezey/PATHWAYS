@@ -55,3 +55,68 @@ describe('P06 client fail-closed request boundary', () => {
     })
   })
 })
+
+describe('goal-free indicator read contract', () => {
+  afterEach(() => vi.unstubAllGlobals())
+  it('reads indicator-specific metrics without project comparisons and retains unavailable values', async () => {
+    vi.stubGlobal('window', {})
+    vi.stubGlobal('document', {
+      cookie: `pathways-context=${encodeURIComponent(JSON.stringify({ authUserId, organizationId, userId }))}`,
+    })
+    browser.getSession.mockResolvedValue({
+      data: { session: { access_token: 'synthetic-token', user: { id: authUserId } } },
+      error: null,
+    })
+    const indicator = {
+      id: '79000000-0000-4000-8000-000000000005',
+      projectId,
+      code: 'OWN_TARGET',
+      name: 'Own target',
+      description: null,
+      unitLabel: 'count',
+      dataSource: null,
+      mode: 'MANUAL',
+      numericKind: 'COUNT',
+      direction: 'HIGHER_IS_BETTER',
+      displayPrecision: 0,
+      periodStart: '2026-06-01',
+      periodEnd: '2026-06-30',
+      baseline: '10',
+      target: '30',
+      current: { state: 'MISSING', value: null, reason: 'NO_MEASUREMENT' },
+      progress: { state: 'MISSING', value: null, reason: 'NO_MEASUREMENT' },
+      binding: null,
+      measurementId: null,
+      measuredAt: null,
+      measurementSource: null,
+      revision: 1,
+      status: 'ACTIVE',
+      contractVersion: 'p06.v1',
+    }
+    const fetch = vi
+      .fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify([indicator]), { status: 200 }))
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify([
+            {
+              ...indicator,
+              projectGoalComparison: { state: 'UNAVAILABLE', reason: 'NO_MEASUREMENT' },
+            },
+          ]),
+          { status: 200 },
+        ),
+      )
+    vi.stubGlobal('fetch', fetch)
+    const [read] = await pathwaysClient.getProjectIndicators(projectId)
+    expect(read.current.value).toBeNull()
+    expect(read.progress.value).toBeNull()
+    expect(read.target).toBe('30')
+    expect(read).not.toHaveProperty('projectGoalComparison')
+    await expect(pathwaysClient.getProjectIndicators(projectId)).rejects.toMatchObject({
+      issues: expect.arrayContaining([
+        expect.objectContaining({ code: 'unrecognized_keys', keys: ['projectGoalComparison'] }),
+      ]),
+    })
+  })
+})

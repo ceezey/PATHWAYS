@@ -42,7 +42,7 @@ const project = {
   beneficiariesReached: 0,
   budgetUtilization: 0,
   timelineProgress: 0,
-  targetGoal: null,
+
   description: 'Description',
   programManager: 'Program Manager',
   monitoringOfficer: 'M&E Officer',

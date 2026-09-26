@@ -287,10 +287,6 @@ export const ProjectDetailView = ({ projectId }: { projectId: string }) => {
             <div>
               <p className="font-medium text-foreground">{project.period}</p>
               <p className="mt-1 text-muted-foreground">Budget code: {project.budgetCode}</p>
-              <p className="mt-1 text-muted-foreground">
-                Project target goal:{' '}
-                {project.targetGoal === null ? 'Not set' : `${project.targetGoal}%`}
-              </p>
             </div>
           </div>
         </SectionCard>

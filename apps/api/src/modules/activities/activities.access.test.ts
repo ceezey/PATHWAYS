@@ -52,7 +52,7 @@ const activity = {
   actualEndDate: null,
   status: 'FOR_REVIEW',
   progressPercent: 80,
-  project: { targetGoal: '75' },
+  project: {},
   reviewedById: null,
   reviewedAt: null,
   cancelledAt: null,
@@ -144,9 +144,9 @@ describe('P05 activity proof authorization', () => {
   it('loads bounded activity relations through one database join query', async () => {
     tx.project.findFirst.mockResolvedValueOnce({ projectActivity_project: [activity] })
 
-    await expect(service.list(actor, projectId)).resolves.toMatchObject([
-      { projectGoalComparison: { state: 'ABOVE_TARGET', reason: null } },
-    ])
+    const [result] = await service.list(actor, projectId)
+    expect(result).not.toHaveProperty('projectGoalComparison')
+    expect(result.progress).toBe(activity.progressPercent)
     expect(tx.project.findFirst).toHaveBeenCalledWith(
       expect.objectContaining({
         relationLoadStrategy: 'join',

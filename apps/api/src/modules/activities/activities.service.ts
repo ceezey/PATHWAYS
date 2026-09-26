@@ -13,7 +13,6 @@ import {
 import { Prisma } from '@prisma/client'
 
 import { readApiEnv } from '@pathways/config'
-import { compareActivityProgressToTargetGoal } from '@pathways/shared'
 import { PrismaService } from '../../prisma/prisma.service'
 import { hasAtomicPermission } from '../auth/authorization-policy'
 import { projectScope } from '../auth/authorized-data.service'
@@ -49,7 +48,6 @@ const activitySelection = {
   actualEndDate: true,
   status: true,
   progressPercent: true,
-  project: { select: { targetGoal: true } },
   reviewedById: true,
   reviewedAt: true,
   cancelledAt: true,
@@ -189,10 +187,7 @@ function mapActivity(
     beneficiariesReached: metrics.reached.get(row.id) ?? 0,
     budgetAllocation: metrics.budgets.get(row.id) ?? null,
     progress: row.progressPercent,
-    projectGoalComparison: compareActivityProgressToTargetGoal(
-      row.progressPercent,
-      row.project.targetGoal?.toString() ?? null,
-    ),
+
     reviewedById: row.reviewedById,
     reviewedAt: row.reviewedAt?.toISOString() ?? null,
     cancellationReason: row.cancellationReason,

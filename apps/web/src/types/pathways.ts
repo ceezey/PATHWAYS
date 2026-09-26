@@ -1,9 +1,5 @@
 import type { PathwaysRole } from '@/types/pathways-role'
-import type {
-  SadddDashboard,
-  ProjectIndicator as SharedProjectIndicator,
-  TargetGoalComparison,
-} from '@pathways/shared'
+import type { SadddDashboard, ProjectIndicator as SharedProjectIndicator } from '@pathways/shared'
 
 export type ProjectStatus = 'Active' | 'Needs Attention' | 'Planned' | 'Completed'
 export type StoredProjectStatus = 'PLANNED' | 'ONGOING' | 'COMPLETED' | 'ON_HOLD' | 'CANCELLED'
@@ -27,7 +23,7 @@ export type DashboardActionKind = 'dialog' | 'navigate' | 'toast'
 export interface ProjectSummary {
   metricsAvailable?: boolean
   targetBeneficiaries?: number
-  targetGoal: string | null
+
   startDate?: string | null
   endDate?: string | null
   id: string
@@ -103,14 +99,12 @@ export interface CreateProjectInput {
   monitoringOfficerId?: string | null
   projectOfficerIds?: string[]
   programId?: string
-  targetGoal: string
 }
 
-export interface UpdateProjectInput
-  extends Omit<CreateProjectInput, 'code' | 'status' | 'targetGoal'> {
+export interface UpdateProjectInput extends Omit<CreateProjectInput, 'code' | 'status'> {
   code?: string
   status: ProjectStatus | StoredProjectStatus
-  targetGoal?: string
+
   expectedUpdatedAt: string
 }
 
@@ -147,7 +141,7 @@ export interface Activity {
   budgetAllocation: number | null
   budgetLogged: number | null
   progress: number
-  projectGoalComparison: TargetGoalComparison
+
   reviewedById?: string | null
   reviewedAt?: string | null
   cancellationReason?: string | null
