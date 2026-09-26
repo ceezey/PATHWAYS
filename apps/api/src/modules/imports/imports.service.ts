@@ -13,13 +13,6 @@ import {
 } from '@nestjs/common'
 import { Prisma } from '@prisma/client'
 
-import { projectScope } from '@app/modules/auth/authorized-data.service'
-import { withAuthorizedOperation } from '@app/modules/auth/authorized-operation'
-import { type ApplicationIdentity, UUID_PATTERN } from '@app/modules/auth/developer-access'
-import { BeneficiariesService } from '@app/modules/beneficiaries/beneficiaries.service'
-import { ParticipantsService } from '@app/modules/participants/participants.service'
-import { StorageService } from '@app/modules/storage/storage.service'
-import { PrismaService } from '@app/prisma/prisma.service'
 import { readApiEnv } from '@pathways/config'
 import {
   IMPORT_ENGINEERING_LIMITS,
@@ -30,6 +23,13 @@ import {
   parseSecureImport,
 } from '@pathways/imports/server'
 import type { FormFieldValidationContract } from '@pathways/shared'
+import { PrismaService } from '../../prisma/prisma.service'
+import { projectScope } from '../auth/authorized-data.service'
+import { withAuthorizedOperation } from '../auth/authorized-operation'
+import { type ApplicationIdentity, UUID_PATTERN } from '../auth/developer-access'
+import { BeneficiariesService } from '../beneficiaries/beneficiaries.service'
+import { ParticipantsService } from '../participants/participants.service'
+import { StorageService } from '../storage/storage.service'
 import type {
   ImportRowsQueryDto,
   ProcessImportDto,

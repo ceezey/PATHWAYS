@@ -1,5 +1,3 @@
-import { RequirePermission } from '@app/common/decorators/permission.decorator'
-import type { AuthenticatedRequest } from '@app/modules/auth/developer-access'
 import {
   Body,
   Controller,
@@ -12,6 +10,8 @@ import {
   Post,
   Req,
 } from '@nestjs/common'
+import { RequirePermission } from '../../common/decorators/permission.decorator'
+import type { AuthenticatedRequest } from '../auth/developer-access'
 import { archiveIndicatorSchema, parseIndicatorInput } from './indicators.dto'
 import { IndicatorsService } from './indicators.service'
 function identity(request: AuthenticatedRequest) {

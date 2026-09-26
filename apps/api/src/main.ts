@@ -8,10 +8,10 @@ import { Logger } from 'nestjs-pino'
 
 import { readApiEnv } from '@pathways/config'
 
-import { AppModule } from '@app/app.module'
-import { allowedWebOrigins } from '@app/common/network/cors-origins'
-import { listenOnIpv4Loopback } from '@app/common/network/local-listener'
-import { initializeApiSentry } from '@app/common/sentry'
+import { AppModule } from './app.module'
+import { allowedWebOrigins } from './common/network/cors-origins'
+import { listenOnIpv4Loopback } from './common/network/local-listener'
+import { initializeApiSentry } from './common/sentry'
 
 async function bootstrap() {
   initializeApiSentry()

@@ -36,7 +36,7 @@ function controllerBodyType(method: 'authorizeExisting' | 'update', index: numbe
   class UnusedUsersService {}
   const imports: Record<string, unknown> = {
     '@nestjs/common': nestCommon,
-    '@app/common/decorators/permission.decorator': { RequirePermission },
+    '../../common/decorators/permission.decorator': { RequirePermission },
     './users.dto': { AuthorizeExistingUserDto, UpdateAuthorizedUserDto },
     './users.service': { UsersService: UnusedUsersService },
   }

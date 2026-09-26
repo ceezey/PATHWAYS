@@ -1,8 +1,8 @@
 import { Module } from '@nestjs/common'
 
-import { BeneficiariesModule } from '@app/modules/beneficiaries/beneficiaries.module'
-import { ParticipantsModule } from '@app/modules/participants/participants.module'
-import { StorageModule } from '@app/modules/storage/storage.module'
+import { BeneficiariesModule } from '../beneficiaries/beneficiaries.module'
+import { ParticipantsModule } from '../participants/participants.module'
+import { StorageModule } from '../storage/storage.module'
 import { ImportsController } from './imports.controller'
 import { ImportsService } from './imports.service'
 

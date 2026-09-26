@@ -10,16 +10,16 @@ import {
 import { normalizeTargetGoal } from '@pathways/shared'
 import { Prisma } from '@prisma/client'
 
+import { PrismaService } from '../../prisma/prisma.service'
 import {
   type CanonicalRole,
   canAssignRole,
   hasAtomicPermission,
   isCanonicalRole,
-} from '@app/modules/auth/authorization-policy'
-import { projectScope } from '@app/modules/auth/authorized-data.service'
-import { withAuthorizedOperation } from '@app/modules/auth/authorized-operation'
-import { type ApplicationIdentity, UUID_PATTERN } from '@app/modules/auth/developer-access'
-import { PrismaService } from '@app/prisma/prisma.service'
+} from '../auth/authorization-policy'
+import { projectScope } from '../auth/authorized-data.service'
+import { withAuthorizedOperation } from '../auth/authorized-operation'
+import { type ApplicationIdentity, UUID_PATTERN } from '../auth/developer-access'
 import type { CreateProjectDto, UpdateProjectDto } from './projects.dto'
 
 const projectSelection = {

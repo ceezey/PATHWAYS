@@ -9,7 +9,7 @@ import { Reflector } from '@nestjs/core'
 
 import type { AppRole } from '@pathways/shared'
 
-import { ROLES_KEY } from '@app/common/decorators/roles.decorator'
+import { ROLES_KEY } from '../decorators/roles.decorator'
 
 interface AppRequest {
   user?: {

@@ -1,8 +1,8 @@
 import { Controller, Get, Inject } from '@nestjs/common'
 import { ApiOkResponse, ApiTags } from '@nestjs/swagger'
 
-import { Public } from '@app/common/decorators/public.decorator'
-import { HealthService } from '@app/modules/health/health.service'
+import { Public } from '../../common/decorators/public.decorator'
+import { HealthService } from './health.service'
 
 @ApiTags('health')
 @Controller('health')

@@ -1,5 +1,5 @@
-import { IndicatorsModule } from '@app/modules/indicators/indicators.module'
 import { Module } from '@nestjs/common'
+import { IndicatorsModule } from '../indicators/indicators.module'
 import { DashboardsController } from './dashboards.controller'
 import { DashboardsService } from './dashboards.service'
 @Module({

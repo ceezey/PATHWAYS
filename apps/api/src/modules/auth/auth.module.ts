@@ -1,8 +1,8 @@
 import { Module } from '@nestjs/common'
 
-import { AuthController } from '@app/modules/auth/auth.controller'
-import { AuthService } from '@app/modules/auth/auth.service'
 import { ApplicationProfileService } from './application-profile.service'
+import { AuthController } from './auth.controller'
+import { AuthService } from './auth.service'
 import { AuthorizedDataController } from './authorized-data.controller'
 import { AuthorizedDataService } from './authorized-data.service'
 import { RouteAccessController } from './route-access.controller'

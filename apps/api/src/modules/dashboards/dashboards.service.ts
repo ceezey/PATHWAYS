@@ -1,9 +1,3 @@
-import { hasAtomicPermission } from '@app/modules/auth/authorization-policy'
-import { projectScope } from '@app/modules/auth/authorized-data.service'
-import { withAuthorizedOperation } from '@app/modules/auth/authorized-operation'
-import type { ApplicationIdentity } from '@app/modules/auth/developer-access'
-import { IndicatorsService, monitoringSqlError } from '@app/modules/indicators/indicators.service'
-import { PrismaService } from '@app/prisma/prisma.service'
 import {
   BadRequestException,
   ForbiddenException,
@@ -22,6 +16,12 @@ import {
   validateMetricPeriod,
 } from '@pathways/shared'
 import { Prisma } from '@prisma/client'
+import { PrismaService } from '../../prisma/prisma.service'
+import { hasAtomicPermission } from '../auth/authorization-policy'
+import { projectScope } from '../auth/authorized-data.service'
+import { withAuthorizedOperation } from '../auth/authorized-operation'
+import type { ApplicationIdentity } from '../auth/developer-access'
+import { IndicatorsService, monitoringSqlError } from '../indicators/indicators.service'
 import { parseDashboardQuery, parseSadddQuery } from './dashboards.dto'
 
 @Injectable()

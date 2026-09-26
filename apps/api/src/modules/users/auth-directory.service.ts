@@ -1,8 +1,8 @@
 import { BadGatewayException, Injectable } from '@nestjs/common'
 import { createClient } from '@supabase/supabase-js'
 
-import { UUID_PATTERN } from '@app/modules/auth/developer-access'
 import { readApiEnv } from '@pathways/config'
+import { UUID_PATTERN } from '../auth/developer-access'
 
 function verifiedAuthOrigin(value: string) {
   const normalized = value.replace(/\/$/, '')

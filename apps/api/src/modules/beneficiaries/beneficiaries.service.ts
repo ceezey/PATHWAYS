@@ -9,17 +9,17 @@ import {
 import { readApiEnv } from '@pathways/config'
 import { Prisma } from '@prisma/client'
 
-import { hasAtomicPermission } from '@app/modules/auth/authorization-policy'
-import { projectScope } from '@app/modules/auth/authorized-data.service'
-import { withAuthorizedOperation } from '@app/modules/auth/authorized-operation'
-import { type ApplicationIdentity, UUID_PATTERN } from '@app/modules/auth/developer-access'
-import { PrismaService } from '@app/prisma/prisma.service'
 import {
   type FormFieldValidationContract,
   beneficiaryRegistrationDefinitionErrors,
   businessCalendarDate,
   validateAndNormalizeFormData,
 } from '@pathways/shared'
+import { PrismaService } from '../../prisma/prisma.service'
+import { hasAtomicPermission } from '../auth/authorization-policy'
+import { projectScope } from '../auth/authorized-data.service'
+import { withAuthorizedOperation } from '../auth/authorized-operation'
+import { type ApplicationIdentity, UUID_PATTERN } from '../auth/developer-access'
 import {
   type ArchiveBeneficiaryDto,
   type BeneficiaryListQueryDto,
