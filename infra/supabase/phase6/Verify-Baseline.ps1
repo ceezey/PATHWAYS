@@ -50,7 +50,7 @@ try{
  $statusExit=$LASTEXITCODE
 }finally{$ErrorActionPreference=$statusPreviousPreference}
 [IO.File]::WriteAllText((Join-Path $phase6Root '.tmp/baseline-prisma-status.txt'),$statusOutput)
-if($statusExit -ne 0 -and -not ($statusOutput.Contains('diverge') -or $statusOutput.Contains('different'))){throw 'Unexpected Prisma baseline status diagnostic'}
+if($statusExit -ne 0){throw 'Unexpected Prisma baseline status diagnostic'}
 Copy-Item -LiteralPath (Join-Path $phase6Root 'apps/api/prisma/migrations/0027_revised_csv_rbac') -Destination $baselineStage -Recurse
 foreach($baselineDatabase in @($phase6Database,'pathways_phase4_baseline')){
  $env:DIRECT_URL="postgresql://prisma@127.0.0.1:55448/${baselineDatabase}?sslmode=disable&connection_limit=1"
@@ -69,6 +69,31 @@ python (Join-Path $phase6Root 'scripts/migrations/compare_catalogs.py') (Join-Pa
 if($LASTEXITCODE -ne 0){throw 'Revised baseline fresh/upgrade catalogs differ'}
 Write-Output 'REVISED_RBAC_BASELINE_UPGRADE_PARITY=PASS'
 
+# Reproduce the existing grant/entrypoint conflict before the forward correction.
+$draftFixture=Join-Path $phase6Root 'apps/api/prisma/tests/revised-aggregate-runtime.sql'
+$draftBeforePreference=$ErrorActionPreference; $ErrorActionPreference='Continue'
+$draftBeforeOutput=(& "$phase6Bin\psql.exe" -X -q -w -h 127.0.0.1 -p $phase6Port -U postgres -d $phase6Database -v ON_ERROR_STOP=1 -f $draftFixture 2>&1) -join "`n"
+[IO.File]::WriteAllText((Join-Path $phase6Root '.tmp/revised-aggregate-before.log'),$draftBeforeOutput)
+$draftBeforeExit=$LASTEXITCODE;$ErrorActionPreference=$draftBeforePreference
+if($draftBeforeExit -eq 0 -or -not $draftBeforeOutput.Contains('Monitoring permission unavailable')){throw 'Expected old PO aggregate allow-list conflict was not reproduced'}
+Write-Output 'EXISTING_PO_SADDD_CONFLICT_REPRODUCED=PASS'
+Copy-Item -LiteralPath (Join-Path $phase6Root 'apps/api/prisma/migrations/0028_revised_aggregate_permission_guards') -Destination $baselineStage -Recurse
+foreach($draftDatabase in @($phase6Database,'pathways_phase4_baseline')){
+ $env:DIRECT_URL="postgresql://prisma@127.0.0.1:55448/${draftDatabase}?sslmode=disable&connection_limit=1"
+ $env:DATABASE_URL=$env:DIRECT_URL
+ pnpm --filter @pathways/api exec prisma migrate deploy --config $phase6Config
+ if($LASTEXITCODE -ne 0){throw 'Aggregate correction deployment failed'}
+ Invoke-LocalSql ([IO.File]::ReadAllText($draftFixture)) $draftDatabase
+}
+$aggregateLedger=(& "$phase6Bin\psql.exe" -X -q -A -t -w -h 127.0.0.1 -p $phase6Port -U postgres -d $phase6Database -c "SELECT jsonb_agg(to_jsonb(m) ORDER BY migration_name) FROM public._prisma_migrations m WHERE migration_name NOT IN ('$baselineName','0027_revised_csv_rbac','0028_revised_aggregate_permission_guards');") -join "`n"
+if($originalLedger -cne $aggregateLedger){throw 'Historical ledger changed after aggregate correction'}
+$draftUpgrade=Read-BaselineCatalog $phase6Database
+$draftFresh=Read-BaselineCatalog 'pathways_phase4_baseline'
+[IO.File]::WriteAllText((Join-Path $phase6Root '.tmp/revised-aggregate-local-after-catalog.json'),($draftUpgrade|ConvertTo-Json -Depth 100))
+[IO.File]::WriteAllText((Join-Path $phase6Root '.tmp/revised-aggregate-local-fresh-catalog.json'),($draftFresh|ConvertTo-Json -Depth 100))
+python (Join-Path $phase6Root 'scripts/migrations/compare_catalogs.py') (Join-Path $phase6Root '.tmp/revised-aggregate-local-after-catalog.json') (Join-Path $phase6Root '.tmp/revised-aggregate-local-fresh-catalog.json')
+if($LASTEXITCODE -ne 0){throw 'Aggregate fresh/upgrade catalogs differ'}
+Write-Output 'AGGREGATE_FRESH_UPGRADE_PARITY=PASS'
 # The SQL-only revision must not introduce Prisma datamodel drift.
 foreach($modelDatabase in @($phase6Database,'pathways_phase4_baseline')){
  $env:DIRECT_URL="postgresql://prisma@127.0.0.1:55448/${modelDatabase}?sslmode=disable&connection_limit=1"
@@ -82,7 +107,7 @@ Write-Output 'BASELINE_REVISED_PRISMA_DATAMODEL_PARITY=PASS'
 # Create a real subsequent migration through Prisma diff between disposable catalogs.
 Invoke-LocalSql "CREATE DATABASE pathways_phase4_baseline_probe TEMPLATE pathways_phase4_baseline;" 'postgres'
 Invoke-LocalSql 'SET ROLE prisma; CREATE TABLE pathways.baseline_compatibility_probe(id uuid PRIMARY KEY);' 'pathways_phase4_baseline_probe'
-$probeMigration=Join-Path $baselineStage '0028_disposable_compatibility_probe'
+$probeMigration=Join-Path $baselineStage '0029_disposable_compatibility_probe'
 New-Item -ItemType Directory -Path $probeMigration | Out-Null
 $probeFromSchema=Join-Path $phase6Parent 'probe-from.prisma'
 $probeToSchema=Join-Path $phase6Parent 'probe-to.prisma'

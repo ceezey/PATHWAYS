@@ -26,6 +26,10 @@ The 0015 CRLF explanation and approved 0020 checksum exception remain unchanged.
 
 Work remains on `dev`. The developer authorized normal commits/pushes, Vercel development previews, protected backup with isolated restoration verification, baseline registration, and tested 0027 application to PATHWAYS-dev. Verify target, ledger, catalogs, and inventories first. Coordinate preview and database enforcement; temporary development denials are acceptable. Remote verification is read-only; synthetic behavioral tests remain local. Unexpected drift stops the affected database step. No automatic reset, restoration, ledger deletion, production release, or missing-feature repair is authorized.
 
+## 4.1. Approved Aggregate Guard Correction
+
+After 0027 was applied, local entrypoint tests reproduced an obsolete five-role allow-list blocking Project Officer SADDD. The developer explicitly approved `0028_revised_aggregate_permission_guards` on 2026-09-26. It replaces that allow-list with current permission checks and separates `monitoring.read` from `analytics.saddd.read` in four aggregate helpers. Project Officer monitoring remains denied. Scope, suppression, release checks, audit recording, owners, and ACLs are preserved. Applied baseline and 0027 bytes remain unchanged; this authorized amendment adds a third active migration folder and one forward ledger entry without changing the 98-permission/306-grant matrix.
+
 ## 5. Verification and Disposition
 
 Verify archived replay, fresh baseline, historical upgrade, subsequent migration compatibility, security catalogs/ACLs, all six-role grants and denials, tab and form-response separation, scoped supporting steps, imports, hierarchy, account states, forged scope, isolation, privacy, and next-request revocation. Run API/frontend/native suites, type checks, builds, and documentation checks. Mark Applied and re-lock the revised auth contract only after enforcement and required checks, PATHWAYS-dev, and development previews match. Verification results are reported in chat; disposable evidence is not durable documentation.
