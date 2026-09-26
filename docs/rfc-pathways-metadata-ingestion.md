@@ -1,6 +1,4 @@
-# RFC — Metadata, Forms, Direct Entry, and Dataset Ingestion
-
-**Status:** Working
+# RFC: Metadata, Forms, Direct Entry, and Dataset Ingestion
 
 ## Objective
 

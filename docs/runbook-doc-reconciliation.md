@@ -1,4 +1,4 @@
-# Runbook — Documentation Reconciliation
+# Runbook: Documentation Reconciliation
 
 ## Goal
 
@@ -6,11 +6,11 @@ Keep docs from silently drifting behind the repository.
 
 ## Steps
 
-1. Enumerate docs and root materialized artifacts.
-2. Compare `docs/index.md` registry to filesystem.
-3. Check Locked docs' Last Reconciled date against recent changes in their area.
-4. Diff `docs/build-pathways.md` and root `AGENTS.md`.
-5. Verify PRD IDs referenced by SDD/RFC/QAD exist.
+1. Run `pnpm docs:check`. It covers the mechanical checks: registry vs filesystem, em-dash/voice rules, PRD IDs referenced by SDD/RFC/QAD, and Locked docs' Last reconciled date.
+2. Run `pnpm docs:materialize`; `git diff` on `AGENTS.md`, `BRAND.md`, `DESIGN.md` must be empty unless the build guide or DSD changed.
+3. Check each Locked doc's Last reconciled date against recent changes in its area.
+4. Update `docs/state.md` with the current operating position.
+5. Confirm the index backend-status column still matches the API controllers.
 6. Verify PRD/SDD/RFC/DSD/QAD implementation claims against code/tests.
 7. Verify Locked documentation still matches current repository behavior.
 8. Record findings in an audit.

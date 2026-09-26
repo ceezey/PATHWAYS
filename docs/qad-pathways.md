@@ -1,7 +1,5 @@
 # QA & Test Plan (QAD)
 
-**Status:** Working.
-
 ## 1. Strategy
 
 Every implemented feature requires:
@@ -33,17 +31,19 @@ Do not use confidential live Beneficiary data.
 
 | ID | Feature | Scenario |
 |---|---|---|
-| QAD-T01 | F1 | active user resolves trusted org/role/permission/project scope |
-| QAD-T02 | F2 | authorized project/activity workflow persists |
-| QAD-T03 | F3 | authorized Beneficiary create/search in scope |
-| QAD-T04 | F4 | journey/participation history persists chronologically |
-| QAD-T05 | F5 | valid form/direct entry persists validated data |
-| QAD-T06 | F6 | mapped import validates and normalizes |
-| QAD-T07 | F7 | indicator shows correct trusted metric/target/source |
-| QAD-T08 | F8 | dashboard/SADDD uses trusted data and suppression |
-| QAD-T09 | F10 | rule triggers once with versioned evidence |
-| QAD-T10 | F11 | authorized human reviews predefined recommendation |
-| QAD-T11 | F13 | public surface exposes only approved data/media |
+| QAD-T01 | PRD-F1 | active user resolves trusted org/role/permission/project scope |
+| QAD-T02 | PRD-F2 | authorized project/activity workflow persists |
+| QAD-T03 | PRD-F3 | authorized Beneficiary create/search in scope |
+| QAD-T04 | PRD-F4 | journey/participation history persists chronologically |
+| QAD-T05 | PRD-F5 | valid form/direct entry persists validated data |
+| QAD-T06 | PRD-F6 | mapped import validates and normalizes |
+| QAD-T07 | PRD-F7 | indicator shows correct trusted metric/target/source |
+| QAD-T08 | PRD-F8 | dashboard/SADDD uses trusted data and suppression |
+| QAD-T12 | PRD-F9 | descriptive summary uses trusted persisted metrics; missing data shown as unavailable |
+| QAD-T09 | PRD-F10 | rule triggers once with versioned evidence |
+| QAD-T10 | PRD-F11 | authorized human reviews predefined recommendation |
+| QAD-T13 | PRD-F12 | report/visualization output respects role scope and SADDD suppression |
+| QAD-T11 | PRD-F13 | public surface exposes only approved data/media |
 
 ### Sad
 
@@ -74,9 +74,9 @@ Do not use confidential live Beneficiary data.
 
 ## 4. Rule-Engine Matrix
 
-Test:
+Test once the rules API exists (PRD-F10/PRD-F11 are schema-only today):
 
-- `< <= = != >= >`;
+- `< <= = >= >` (Prisma `RuleOperator`: LT, LTE, EQ, GTE, GT);
 - BETWEEN;
 - ALL/ANY;
 - equality boundaries;

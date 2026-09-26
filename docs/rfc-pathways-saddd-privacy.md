@@ -1,6 +1,7 @@
-# RFC — SADDD Calculation and Privacy Suppression
+# RFC: SADDD Calculation and Privacy Suppression
 
-**Status:** Locked from confirmed developer policy unless explicitly changed.
+**Status:** Locked from confirmed developer policy unless explicitly changed.  
+**Last reconciled:** 2026-09-26
 
 ## Age Calculation
 

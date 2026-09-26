@@ -1,7 +1,5 @@
 # System Design Document (SDD)
 
-**Status:** Working. Reconcile with current repository before locking.
-
 ## 1. Architecture Principles
 
 - backend authz authoritative;
@@ -38,22 +36,20 @@ Core domain CRUD does not depend on direct browser PostgREST/Data API access.
 
 ## 3. Data Domains
 
-### Identity / Organization
-organizations, roles, permissions, role_permissions, system_users, audit_logs
+Source: `apps/api/prisma/schema.prisma` (datasource `schemas = ["public", "pathways"]`; domain tables in `pathways`), migrations `0001_init` through `0025_project_activity_creation_contract`, including `0005_supabase_security_adapter` and the runtime-grant migrations. Table names below are the `@@map` names, verified 2026-09-26.
 
-### Project
-programs, projects, user_project_assignments, project_activities, project_activity_assignments, project_milestones, project_indicators
+| Domain | PRD | Tables |
+|---|---|---|
+| Identity / Organization | PRD-F1 | organizations, roles, permissions, role_permissions, system_users, audit_logs |
+| Project / Activity | PRD-F2 | programs, projects, user_project_assignments, project_activities, activity_updates, project_activity_assignments, project_milestones |
+| Collection / Metadata | PRD-F5, PRD-F6 | digital_forms, form_fields, data_import_batches, data_import_rows, metadata_mappings, form_submissions, form_response_values |
+| Beneficiary | PRD-F3, PRD-F4 | beneficiaries, beneficiary_identifiers, beneficiary_project_enrollments, beneficiary_consent_records, journey_stages, activity_journey_stage_mappings, beneficiary_activity_participations, beneficiary_journey_events |
+| Indicators / Monitoring | PRD-F7, PRD-F8 | project_indicators, activity_indicator_links, project_indicator_bindings, project_indicator_measurements, sensitive_aggregate_releases |
+| Budget / Evaluation | PRD-F9 | project_budget_records, budget_expense_entries, assessment_results, project_evaluation_criteria, project_evaluations, project_evaluation_scores |
+| Rules / Decision support | PRD-F10, PRD-F11 | alert_rules, alert_rule_conditions, alert_rule_recommendations, rule_based_alerts, decision_recommendations |
+| Evidence / Reporting | PRD-F12, PRD-F13 | evidence_media, reports |
 
-### Collection / Metadata
-digital_forms, form_fields, data_import_batches, data_import_rows, metadata_mappings, form_submissions, form_response_values
-
-### Beneficiary
-beneficiaries, beneficiary_project_enrollments, journey_stages, activity_journey_stage_mappings, beneficiary_activity_participations, beneficiary_journey_events
-
-### Monitoring / Supporting
-budget records/expenses, assessments/evaluations, alert rules/conditions/recommendations, alerts, decision recommendations, evidence media, reports
-
-Exact current table/model names must be reconciled with Prisma before this section is Locked.
+Enums are mapped in the same schema (for example `rule_metric`, `rule_operator`, `decision_status`). Tables for PRD-F10 to PRD-F13 exist in the schema but have no API controllers yet (see `index.md` backend status).
 
 ## 4. Data Integrity
 
@@ -131,4 +127,5 @@ No runtime AI/ML product feature is currently approved.
 - [x] no AI overclaim
 - [x] server-side authz explicit
 - [x] metadata/rule flows explicit
-- [ ] reconcile current repo before Locked
+- [x] table names reconciled with Prisma (2026-09-26)
+- [ ] API endpoint inventory reconciled before Locked

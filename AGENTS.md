@@ -1,8 +1,10 @@
+<!-- MATERIALIZED from docs/build-pathways.md by scripts/docs/materialize.py. Do not hand-edit; edit the canonical doc and re-run. -->
+
 # PATHWAYS Build Guide
 
 **Canonical:** `docs/build-pathways.md`
 
-Root `AGENTS.md` is a materialized copy. Edit this guide first, then synchronize `AGENTS.md`.
+Root `AGENTS.md` is a materialized copy. Edit this guide first, then run `pnpm docs:materialize` and `pnpm docs:check`.
 
 ## 1. Read Order
 
@@ -54,7 +56,7 @@ Never silently resolve material contradictions.
 
 ### Frontend / visual work
 
-For frontend tasks, read the canonical `docs/dsd-pathways.md` and use root `BRAND.md` / `DESIGN.md` as quick materialized references. If they conflict with newer verified code, reconcile the canonical DSD first rather than silently choosing whichever file is convenient.
+For frontend tasks, read the canonical `docs/dsd-pathways.md` and use root `BRAND.md` / `DESIGN.md` as materialized references generated from it. If they conflict with newer verified code, reconcile the canonical DSD first rather than silently choosing whichever file is convenient.
 
 ### Branch and release workflow
 
@@ -149,7 +151,7 @@ Use the Locked SADDD RFC. Suppression is part of correctness.
 - test happy/sad/abuse paths;
 - use synthetic/anonymized data;
 - preserve approved UI/UX unless redesign is authorized;
-- update TODO after phases;
+- keep phase/task tracking in external disposable context;
 - update registered durable docs only when an approved contract or verified repository fact changes;
 - keep disposable task/checklist/report context outside the repository;
 - report phase results in chat only.
@@ -201,7 +203,7 @@ Audits record findings. Change Records record decisions.
 ## 8. Human Intervention Contract
 
 ```text
-HUMAN INTERVENTION REQUIRED — <title>
+HUMAN INTERVENTION REQUIRED: <title>
 
 Why:
 <verified reason>
@@ -227,7 +229,7 @@ Do not bury a human gate inside a long phase report.
 
 ## 9. Definition of Done
 
-- [ ] authorized TODO scope implemented
+- [ ] authorized phase scope implemented
 - [ ] relevant PRD acceptance criteria satisfied
 - [ ] security/privacy invariants preserved
 - [ ] schema/API matches current SDD/RFC or approved CR
@@ -246,10 +248,11 @@ Do not bury a human gate inside a long phase report.
 |---|---|---|
 | Canonical build guide | `docs/build-pathways.md` | edit first |
 | All agents | `AGENTS.md` | materialized copy |
-| Compatibility pointer | `AGENT.md` | points to AGENTS |
+| Brand reference | `BRAND.md` | materialized from DSD sections 0, 0.5, 1, 2, 8, 9 |
+| Design reference | `DESIGN.md` | materialized from DSD sections 2-8 |
 | Phase/task workflow | external/disposable prompt context | never committed as repository authority |
 
-No external FMD tooling is required or claimed.
+Regenerate materialized files with `pnpm docs:materialize` (`scripts/docs/materialize.py`). Validate the suite with `pnpm docs:check` (`scripts/docs/check.py`): em-dash/voice rules, index manifest coverage, PRD-F# traceability, and Locked-doc reconciliation dates. Never hand-edit materialized files.
 
 ## Self-Check
 

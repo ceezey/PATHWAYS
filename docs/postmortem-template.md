@@ -1,4 +1,4 @@
-# Postmortem — <incident>
+# Postmortem: <incident>
 
 **Incident date:** YYYY-MM-DD  
 **Severity:** P0 | P1 | P2 | P3  

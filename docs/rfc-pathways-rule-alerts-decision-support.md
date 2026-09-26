@@ -1,6 +1,22 @@
-# RFC — Dynamic Rule-Based Alerts and Human-Reviewed Decision Support
+# RFC: Dynamic Rule-Based Alerts and Human-Reviewed Decision Support
 
-**Status:** Working
+## Current Schema (verified 2026-09-26)
+
+`apps/api/prisma/schema.prisma` already defines the rule tables (`alert_rules`, `alert_rule_conditions`, `alert_rule_recommendations`, `rule_based_alerts`, `decision_recommendations`). No rules/alerts/recommendations API exists yet (PRD-F10/PRD-F11 are schema-only).
+
+| Concept | Prisma enum / field | Values |
+|---|---|---|
+| Alert family | `AlertRuleType` | UNDERPERFORMING_INDICATOR, DELAYED_TIMELINE, BUDGET_CONCERN, BENEFICIARY_PROGRESS_ISSUE, SURVEY_IMPROVEMENT, MISSING_FOLLOW_UP, WEAK_OUTCOME_INDICATOR, COMBINED_CONDITION |
+| Metric | `RuleMetric` | KPI_ACHIEVEMENT_PERCENT, TIMELINE_DELAY_DAYS, BUDGET_UTILIZATION_PERCENT, BENEFICIARY_PROGRESS_PERCENT, SURVEY_IMPROVEMENT_PERCENT, MISSING_FOLLOW_UP_COUNT, OUTCOME_SCORE, REMAINING_BUDGET |
+| Operator | `RuleOperator` | LT, LTE, EQ, GTE, GT, BETWEEN |
+| Condition group | `RuleMatchMode` | ALL, ANY |
+| Rule lifecycle | `RuleStatus` | DRAFT, ACTIVE, ARCHIVED |
+| Severity | `AlertSeverity` | LOW, MEDIUM, HIGH, CRITICAL |
+| Recommendation status | `DecisionStatus` | NEW, REVIEWED, RESOLVED, DISMISSED |
+| Management outcome | `DecisionOutcome` | ACCEPT, PARTIALLY_ACCEPT, DECLINE, ESCALATE |
+| Scope/versioning | `AlertRule` | organization-scoped; `code` + `version` unique per organization; `activatedAt`/`archivedAt` |
+
+Everything below that goes beyond this table is a **proposal, not yet in schema**: project-scoped rules and org-template copies, effective dates, cadence/cooldown, alert status/dedup identity, and the ACTIONED/AUTO_RESOLVED states. Adding them requires a migration and, once this RFC is Locked, a Change Record.
 
 ## Required Alert Families
 
@@ -33,7 +49,7 @@ No arbitrary SQL/code/unrestricted expression.
 
 ## Trusted Metrics
 
-Initial candidates, enabled only when source/calculation is reliable:
+Implemented metric keys are the `RuleMetric` values above. The dotted keys below are proposed finer-grained candidates (not yet in schema), enabled only when source/calculation is reliable:
 
 ### Project
 - `project.timeline_elapsed_pct`
@@ -100,25 +116,20 @@ Preserve/reconstruct:
 
 ## Lifecycle
 
-Proposed:
+Current schema: `DecisionStatus` NEW, REVIEWED, RESOLVED, DISMISSED and `DecisionOutcome` ACCEPT, PARTIALLY_ACCEPT, DECLINE, ESCALATE.
+
+Proposed extension (not yet in schema):
 
 ```text
 NEW → REVIEWED → ACTIONED → RESOLVED
 ```
 
-Additional:
-- DISMISSED
+Additional proposed state:
 - AUTO_RESOLVED
-
-Proposed management outcomes:
-- ACCEPT
-- PARTIALLY_ACCEPT
-- DECLINE
-- ESCALATE
 
 Exact mapping, cooldown, dedup identity, re-trigger, auto-resolution timing, and notifications remain approval items unless a newer explicit developer decision or approved Change Record/Locked contract resolves them.
 
-## Organization Templates
+## Organization Templates (proposal, not yet in schema)
 
 Copy/version templates into project-owned rules. Editing an org template must not silently mutate an active project rule.
 
