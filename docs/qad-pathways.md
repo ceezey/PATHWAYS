@@ -157,7 +157,7 @@ The approved [auth contract](rfc-pathways-auth-rbac-isolation.md) supplies the m
 | QAD-R04 | Managed-program and explicit-assignment scope; forged actor/organization/project denied |
 | QAD-R05 | Revoked grants, inactive permission/role, suspended/deactivated account, and ended assignments deny the next operation/request |
 | QAD-R06 | Program/Grant raw beneficiary and assessment denial with populated synthetic rows; SADDD protections unchanged |
-| QAD-R07 | Archived replay, fresh baseline, preserved-ledger registration/0027 upgrade, subsequent Prisma migration creation/application, datamodel/security/privilege parity |
+| QAD-R07 | Archived replay, fresh baseline, preserved-ledger registration/0027/0028 upgrade, subsequent Prisma migration creation/application, datamodel/security/privilege parity; actual SADDD entrypoints for all six roles, PO monitoring denial and cross-organization aggregate denial |
 | QAD-R08 | Native PM creation preserves target beneficiaries/goal, automatic self-assignment, and audit recording |
 | QAD-R09 | Read-only remote ledger/checksum/security inspection and protected backup restore before application; stop unexpected drift |
 

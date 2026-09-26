@@ -64,6 +64,7 @@ For frontend tasks, read the canonical `docs/dsd-pathways.md` and use root `BRAN
 - `dev` is the development branch.
 - Prepare and verify changes on `dev`, then bring the approved release into `master` and push normally.
 - The Vercel `pathways-api` and `pathways-web` projects use `master` for production and `dev` for development previews.
+- Verify both development previews when shared web route policy affects API imports. If Vercel skips the API build, redeploy the reviewed development source explicitly and confirm both previews before database application.
 - Preserve branch history. Do not force-push a deployment branch or run database migrations as a deployment shortcut.
 
 ## 3. Traceability

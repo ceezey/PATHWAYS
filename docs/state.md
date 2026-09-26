@@ -4,11 +4,11 @@ Updated: 2026-09-26. Registry and statuses live in `index.md`.
 
 ## Milestone
 
-The [revised RBAC and migration baseline Change Record](cr-pathways-revised-rbac-baseline.md) is approved. Local implementation, verification, and hosted transition are in progress. The auth RFC remains Working until application matches the revised matrix. Subsequent core-feature repairs require separate authorization.
+The [revised RBAC and migration baseline Change Record](cr-pathways-revised-rbac-baseline.md) is Applied. The auth RFC is Locked after local replay and PATHWAYS-dev/development-preview verification. The active baseline plus 0027/0028 retains all 26 original remote ledger entries and exact archived history. Subsequent core-feature repairs require separate authorization.
 
 ## Open signals
 
-- PATHWAYS-dev migration 0020 has an unexplained checksum mismatch; the original applied SQL is unavailable, and the developer approved this historical checksum exception. Forward migration 0026 is applied following preview and verified backup restoration checks. Historical bytes remain in the approved immutable archive; ledger entries remain unchanged.
+- PATHWAYS-dev migration 0020 has an unexplained checksum mismatch; the original applied SQL is unavailable, and the developer approved this historical checksum exception. Forward corrections 0027/0028 and the baseline registration are verified following preview and isolated backup restoration checks. Historical bytes remain in the approved immutable archive; ledger entries remain unchanged.
 - Migration 0015 checksum matches the unchanged SQL with CRLF line endings.
 - Finance final-sign-off, evaluation, reporting, alerts/recommendations, publishing, and some administrative/form handlers remain deferred.
 - Beneficiary identity reconciliation and unlisted discretionary actions remain denied under the Locked CSV contract.

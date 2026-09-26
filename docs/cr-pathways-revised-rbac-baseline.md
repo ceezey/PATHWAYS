@@ -2,7 +2,7 @@
 
 **ID:** `cr-pathways-revised-rbac-baseline`
 **Date:** 2026-09-26
-**Status:** Approved; application and verification pending
+**Status:** Applied
 
 ## 1. Decision and Authority
 
@@ -16,9 +16,9 @@ Existing activity completion, beneficiary enrollment, and participation are supp
 
 ## 3. Consolidation and Compatibility
 
-Archive the exact 0001-0026 files and migration lock with hashes, Git provenance, historical purpose, superseded definitions, and retained invariants. The active chain becomes `0000_pathways_baseline_through_0026` plus `0027_revised_csv_rbac`. The baseline captures the verified final historical state, including SQL-only security objects and canonical authorization reference data. It contains no business data, Auth identities, Storage content, credentials, or hosted-specific ownership.
+Archive the exact 0001-0026 files and migration lock with hashes, Git provenance, historical purpose, superseded definitions, and retained invariants. The consolidated chain uses `0000_pathways_baseline_through_0026` plus `0027_revised_csv_rbac`; the later explicitly approved amendment below adds `0028_revised_aggregate_permission_guards`. The baseline captures the verified final historical state, including SQL-only security objects and canonical authorization reference data. It contains no business data, Auth identities, Storage content, credentials, or hosted-specific ownership.
 
-Existing PATHWAYS-dev must never execute baseline DDL. Register the verified baseline through Prisma, preserve all 26 historical ledger rows/checksums, then apply only 0027. Fresh provisioning uses the baseline. Historical tooling extracts the immutable archive under its existing local guards. Retain one public Prisma ledger. Prove installed Prisma compatibility, catalog parity, and subsequent forward migration creation/application on disposable databases before hosted transition. Expected historical-ledger diagnostics must be explicit; unexplained divergence or a required reset blocks that transition.
+Existing PATHWAYS-dev must never execute baseline DDL. Register the verified baseline through Prisma, preserve all 26 historical ledger rows/checksums, then apply 0027 and the separately approved 0028 correction below. Fresh provisioning uses the baseline. Historical tooling extracts the immutable archive under its existing local guards. Retain one public Prisma ledger. Prove installed Prisma compatibility, catalog parity, and subsequent forward migration creation/application on disposable databases before hosted transition. Expected historical-ledger diagnostics must be explicit; unexplained divergence or a required reset blocks that transition.
 
 The 0015 CRLF explanation and approved 0020 checksum exception remain unchanged. Original applied 0020 bytes remain unverifiable; neither recorded checksums nor archived repository bytes are rewritten.
 
@@ -32,7 +32,7 @@ After 0027 was applied, local entrypoint tests reproduced an obsolete five-role 
 
 ## 5. Verification and Disposition
 
-Verify archived replay, fresh baseline, historical upgrade, subsequent migration compatibility, security catalogs/ACLs, all six-role grants and denials, tab and form-response separation, scoped supporting steps, imports, hierarchy, account states, forged scope, isolation, privacy, and next-request revocation. Run API/frontend/native suites, type checks, builds, and documentation checks. Mark Applied and re-lock the revised auth contract only after enforcement and required checks, PATHWAYS-dev, and development previews match. Verification results are reported in chat; disposable evidence is not durable documentation.
+Verify archived replay, fresh baseline, historical upgrade, subsequent migration compatibility, security catalogs/ACLs, all six-role grants and denials, tab and form-response separation, scoped supporting steps, imports, hierarchy, account states, forged scope, isolation, privacy, and next-request revocation. Run API/frontend/native suites, type checks, builds, and documentation checks. This record is Applied and the auth contract is Locked following matching local enforcement checks, PATHWAYS-dev catalog/ledger and data-preservation checks, and development-preview verification. Verification results are reported in chat; disposable evidence is not durable documentation.
 
 ## 6. Source Traceability and Grant Changes
 
