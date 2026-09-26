@@ -1,7 +1,5 @@
 # Product Requirements Document (PRD)
 
-**Status:** Working until reconciled with the current repository.
-
 ## 1. Purpose
 
 PATHWAYS is a metadata-driven project information management platform for humanitarian and development organizations.
@@ -14,7 +12,7 @@ PATHWAYS is a metadata-driven project information management platform for humani
 | Program Manager | portfolio/program monitoring; aggregate-only Beneficiary information |
 | Grant Manager | grant/portfolio monitoring; aggregate-only Beneficiary information |
 | Project Manager | assigned-project management |
-| M&E Officer | one/multiple assigned projects; collection/import/monitoring |
+| Monitoring and Evaluation (M&E) Officer | one/multiple assigned projects; collection/import/monitoring |
 | Project Officer | assigned-project operations/data entry |
 | External stakeholder | approved public tracker only |
 
@@ -24,14 +22,14 @@ PATHWAYS is a metadata-driven project information management platform for humani
 
 | ID | Feature | Priority |
 |---|---|---|
-| PRD-F1 | RBAC and Workspace Management | Must |
-| PRD-F2 | Project Profile and Activity Tracking | Must |
-| PRD-F3 | Centralized Beneficiary Profile | Must |
-| PRD-F4 | Beneficiary Journey Tracking | Must |
-| PRD-F5 | Digital Data Collection and Preparation | Must |
-| PRD-F6 | Metadata-Driven Data Integration | Must |
-| PRD-F7 | Project Indicator and Monitoring | Must |
-| PRD-F8 | Aggregated Monitoring Dashboard with SADDD Analysis | Must |
+| PRD-F1 | RBAC and Workspace Management | Must-Have |
+| PRD-F2 | Project Profile and Activity Tracking | Must-Have |
+| PRD-F3 | Centralized Beneficiary Profile | Must-Have |
+| PRD-F4 | Beneficiary Journey Tracking | Must-Have |
+| PRD-F5 | Digital Data Collection and Preparation | Must-Have |
+| PRD-F6 | Metadata-Driven Data Integration | Must-Have |
+| PRD-F7 | Project Indicator and Monitoring | Must-Have |
+| PRD-F8 | Aggregated Monitoring Dashboard with SADDD Analysis | Must-Have |
 
 ### Supporting
 

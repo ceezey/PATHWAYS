@@ -24,8 +24,8 @@ PATHWAYS adopts a curated documentation-first workflow based on the supplied Ark
 
 Start substantial work in this order:
 
-1. [`docs/index.md`](docs/index.md) — manifest, statuses, traceability, Change Log, and Health Check.
-2. [`AGENTS.md`](AGENTS.md) — AI/agent build rules and guardrails.
+1. [`docs/index.md`](docs/index.md): manifest, statuses, traceability, Change Log, and Health Check.
+2. [`AGENTS.md`](AGENTS.md): AI/agent build rules and guardrails.
 3. Relevant Locked/Working PRD / SDD / RFC / DSD / QAD documents for the task.
 4. Current repository code, migrations, tests, and configuration.
 5. Implement only the explicitly authorized task/phase.
@@ -96,9 +96,7 @@ High-use documents:
 
 Root `AGENTS.md` is materialized from `docs/build-pathways.md`.
 
-Root `BRAND.md` and `DESIGN.md` are materialized from canonical `docs/dsd-pathways.md`.
-
-Root `AGENT.md` is a compatibility pointer to `AGENTS.md`.
+Root `BRAND.md` and `DESIGN.md` are materialized from canonical `docs/dsd-pathways.md`. Regenerate them with `pnpm docs:materialize` and validate the suite with `pnpm docs:check`; never hand-edit materialized files.
 
 Disposable phase/task workflow artifacts are intentionally kept out of the repository.
 
@@ -118,4 +116,4 @@ Prefer the smallest implementation that satisfies approved requirements without 
 
 ## Scope Note
 
-Deployment, SSO, and AWS hosting are not current feature-work acceptance criteria. They require a future explicit authorization.
+The Vercel API/web release was authorized on 2026-09-26 (see `docs/ops-pathways.md`, including its open items). SSO and AWS hosting are not current feature-work acceptance criteria and require a future explicit authorization.

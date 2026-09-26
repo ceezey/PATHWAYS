@@ -14,6 +14,8 @@
     "format": "pnpm exec biome format --write .",
     "test": "pnpm -r --if-present run test",
     "typecheck": "pnpm -r --if-present run typecheck",
+    "docs:check": "python scripts/docs/check.py docs",
+    "docs:materialize": "python scripts/docs/materialize.py docs",
     "prepare": "node scripts/setup-husky.mjs"
   },
   "devDependencies": {

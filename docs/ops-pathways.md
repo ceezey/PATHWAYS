@@ -30,6 +30,26 @@ Prisma client generation includes the native development engine and `rhel-openss
 - Password recovery accepts the configured staff portal origin. Its callback must also be approved in Supabase Auth URL configuration.
 - Before claiming a release complete, verify Vercel build status, API health, unauthorized protected-request denial, web/login responses, and CORS acceptance/rejection.
 
+### Vercel build settings
+
+No `vercel.json` is committed; these settings live in the Vercel dashboard.
+
+- Node: `.nvmrc`, Dockerfiles, and CI use Node 22. Set the Vercel projects to Node 22.x (root `package.json` `engines` is still `>=20.11.0`).
+- API build (`apps/api/package.json`): `pnpm --filter "@pathways/api^..." run build && prisma generate --config prisma.generate.config.ts && nest build`, so the install step must include the pnpm workspace.
+- API start: `node dist/apps/api/src/main.js`.
+
+### Open items (verified 2026-09-26)
+
+These are repository facts that block or qualify a release claim. They are recorded here, not fixed by documentation.
+
+| Item | Evidence | Needed |
+|---|---|---|
+| API listener policy | `apps/api/src/main.ts` calls `listenOnIpv4Loopback` (`apps/api/src/common/network/local-listener.ts`), which binds `127.0.0.1` and notes a non-local deployment needs a reviewed listener policy | review policy; prove the Vercel API with the health check above before claiming it live |
+| Swagger in production | `packages/config/src/env.ts` defaults `ENABLE_SWAGGER` to `true`, serving `/api/docs` | set `ENABLE_SWAGGER=false` in Vercel or change the default |
+| API env schema drift | `token-auth.service.ts` reads `SUPABASE_PUBLISHABLE_KEY`, absent from `apiEnvSchema` and `.env.example` files; the templates still list `SUPABASE_JWT_SECRET`, which runtime does not need | align schema and templates with the list above |
+| CI branch trigger | `.github/workflows/ci.yml` runs on pushes to `main`/`master` and on PRs, not on `Backend-DB` pushes | add `Backend-DB` if development pushes must be validated |
+| Engines range | root `package.json` `engines.node` is `>=20.11.0` | pin `22.x` to match `.nvmrc` |
+
 ## 1. Current Development Evidence to Track
 
 - database connection failures;

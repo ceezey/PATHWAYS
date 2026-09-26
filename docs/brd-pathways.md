@@ -56,7 +56,7 @@ Use evidence such as:
 - Program Manager;
 - Grant Manager;
 - Project Manager;
-- M&E Officer;
+- Monitoring and Evaluation (M&E) Officer;
 - Project Officer;
 - donors/sponsors/public stakeholders;
 - future organizational privacy/security owners for real deployment.

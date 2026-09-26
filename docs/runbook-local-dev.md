@@ -1,6 +1,4 @@
-# Runbook — Local Development
-
-**Status:** Draft until reconciled with the current repository commands.
+# Runbook: Local Development
 
 ## Principles
 

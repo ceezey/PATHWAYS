@@ -1,6 +1,4 @@
-# RFC — Authentication, RBAC, Organization and Project Isolation
-
-**Status:** Working
+# RFC: Authentication, RBAC, Organization and Project Isolation
 
 ## Decision
 
@@ -20,7 +18,7 @@ auth_user_id
 
 ## Six Roles
 
-System Administrator, Program Manager, Grant Manager, Project Manager, M&E Officer, Project Officer.
+System Administrator, Program Manager, Grant Manager, Project Manager, Monitoring and Evaluation (M&E) Officer, Project Officer.
 
 Program Manager and Grant Manager are aggregate-only for Beneficiary information.
 
