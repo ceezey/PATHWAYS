@@ -4,6 +4,8 @@
 **Date:** 2026-09-26
 **Status:** Applied
 
+**Subsequent decision:** [Project target-goal retirement](cr-pathways-retire-project-target-goal.md) supersedes only live benchmark preservation below. This historical approval and its migration evidence remain unchanged.
+
 ## 1. Trigger
 
 The developer requested RBAC realignment before repairing unusable core features, then explicitly approved the implementation plan. Existing permissions, route checks, and database predicates carry grants that conflict with the supplied CSV, including Project Officer alert review introduced by 0023.

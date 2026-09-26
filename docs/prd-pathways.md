@@ -49,7 +49,7 @@ Do not renumber these IDs casually. Material renumbering requires a Change Recor
 Server-side authorization by identity/profile/org/role/permission/assignment. Direct API bypass denied. The approved revised [CSV RBAC contract](rfc-pathways-auth-rbac-isolation.md) governs action grants, hierarchy, project boundaries, supporting reads, and aggregate-only privacy. Permission grants do not establish feature availability. Program Manager scope is managed programs or assignments; Grant Manager requires explicit assignments. Automatic checks and audit writes remain mandatory; log viewing is separately granted. All six roles view scoped projects; restricted tabs require separate grants. Admin assessment detail is denied.
 
 ### F2
-Project profiles, target beneficiaries, target goal, activities, milestones, lifecycle, assigned scope, derived overdue. Existing fields are preserved. Unlisted milestone administration is denied under the CSV RBAC contract; feature design remains Working.
+Project profiles, target beneficiaries, activities, milestones, lifecycle, assigned scope, derived overdue. The [approved target-goal retirement](cr-pathways-retire-project-target-goal.md) removes the project benchmark from live inputs, outputs and comparisons while preserving database history; implementation and verification remain pending. Indicator-specific targets remain independent. Unlisted milestone administration is denied under the CSV RBAC contract; feature design remains Working.
 
 ### F3/F4
 Sensitive Beneficiary profiles, normalized enrollment, participation/journey history, project scope, consent/provenance as required.

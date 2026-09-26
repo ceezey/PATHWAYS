@@ -160,7 +160,7 @@ The approved [auth contract](rfc-pathways-auth-rbac-isolation.md) supplies the m
 | QAD-R05 | Revoked grants, inactive permission/role, suspended/deactivated account, and ended assignments deny the next operation/request |
 | QAD-R06 | Program/Grant raw beneficiary and assessment denial with populated synthetic rows; SADDD protections unchanged |
 | QAD-R07 | Archived replay, fresh baseline, preserved-ledger registration/0027/0028 upgrade, subsequent Prisma migration creation/application, datamodel/security/privilege parity; actual SADDD entrypoints for all six roles, PO monitoring denial and cross-organization aggregate denial |
-| QAD-R08 | Native PM creation preserves target beneficiaries/goal, automatic self-assignment, and audit recording |
+| QAD-R08 | Native PM creation preserves target beneficiaries, automatic self-assignment and audit recording; approved target-goal retirement requires goal-free create/update, legacy input rejection, historical-value preservation, output/draft omission and independent indicator progress checks (implementation/verification pending) |
 | QAD-R09 | Read-only remote ledger/checksum/security inspection and protected backup restore before application; stop unexpected drift |
 
 Permission grants for missing handlers are contract checks, not feature acceptance. Synthetic behavior stays local. No destructive or live-data behavioral tests are part of this phase.

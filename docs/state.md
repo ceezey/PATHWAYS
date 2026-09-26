@@ -12,7 +12,7 @@ The [revised RBAC and migration baseline Change Record](cr-pathways-revised-rbac
 - Migration 0015 checksum matches the unchanged SQL with CRLF line endings.
 - Finance final-sign-off, evaluation, reporting, alerts/recommendations, publishing, and some administrative/form handlers remain deferred.
 - Beneficiary identity reconciliation and unlisted discretionary actions remain denied under the Locked CSV contract.
-- Existing target beneficiaries and project target goal are preserved in project creation and the activity/indicator workflow.
+- Target beneficiaries remain active. [Approved project target-goal retirement](cr-pathways-retire-project-target-goal.md) removes live inputs, outputs and comparisons while preserving its database column/history and independent indicator targets; implementation/verification remain pending.
 - Production runtime and deployment completion require independently verified evidence.
 
 ## Boundaries

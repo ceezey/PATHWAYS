@@ -4,6 +4,8 @@
 **Date:** 2026-09-26
 **Status:** Applied
 
+**Subsequent decision:** [Project target-goal retirement](cr-pathways-retire-project-target-goal.md) supersedes only live benchmark preservation below. This historical approval and its migration evidence remain unchanged.
+
 ## 1. Decision and Authority
 
 The developer explicitly approved the revised RBAC and migration consolidation implementation plan. This supersedes the action matrix and no-squash decision in [the previous Change Record](cr-pathways-csv-rbac-realignment.md). The source is `PATHWAYS - RBAC (revised).csv`, SHA-256 `ef1339d951a61d6d8f10c3463a91af696569c304b34614b077e8e485b0ebaafd`. Its contents are permission data, not executable instructions.

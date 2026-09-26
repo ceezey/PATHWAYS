@@ -61,6 +61,8 @@ Implemented metric keys are the `RuleMetric` values above. The dotted keys below
 - `indicator.target_value`
 - `indicator.achievement_pct`
 
+Any approved indicator progress/achievement metric uses the indicator's own baseline, target and direction. The [approved project target-goal retirement](cr-pathways-retire-project-target-goal.md) withdraws project benchmark comparisons while retaining historical storage; it does not authorize a replacement metric or numeric fallback. Missing measurements and invalid denominators remain unavailable. This clarification does not establish an implemented provider.
+
 ### Activity
 - `activity.completed_count`
 - `activity.total_count`
