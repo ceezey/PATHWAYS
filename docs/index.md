@@ -106,7 +106,8 @@ Newest first.
 
 | CR ID | Date | Summary | Status |
 |---|---|---|---|
-| deployment-branch-policy-2026-09-26 | 2026-09-26 | Developer designated `origin/master` for deployment and `Backend-DB` for development; authorized connected Vercel API/web projects and explicit remote API/web-origin configuration | Applied as release configuration; runtime verification required |
+| development-branch-dev-2026-09-26 | 2026-09-26 | Developer replaced `Backend-DB` with `dev` for development; retained `origin/master` for deployment and aligned development preview configuration | Applied |
+| deployment-branch-policy-2026-09-26 | 2026-09-26 | Developer designated `origin/master` for deployment and initially `Backend-DB` for development; authorized connected Vercel API/web projects and explicit remote API/web-origin configuration | Applied; development branch superseded by `dev` |
 | workflow-adoption-2026-09-26 | 2026-09-26 | Curated ArkiLaunch-style documentation/AI workflow for PATHWAYS; added manifest, suite, build/AGENTS materialization, RFC/runbook/templates while preserving PATHWAYS execution controls | Applied as documentation package |
 
 Future material changes to Locked docs should use `cr-pathways-<slug>.md`.
