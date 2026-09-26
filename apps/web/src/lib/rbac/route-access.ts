@@ -53,12 +53,7 @@ export const routePolicy = {
     ['monitoring.read'],
     'project',
   ),
-  budget: entry(
-    '/projects/:projectId/budget',
-    'Budget',
-    ['budgets.read'],
-    'project',
-  ),
+  budget: entry('/projects/:projectId/budget', 'Budget', ['budgets.read'], 'project'),
   journey: entry(
     '/projects/:projectId/journey-stages',
     'Journey stages',

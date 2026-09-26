@@ -57,7 +57,7 @@ describe('project workspace tab access', () => {
     expect(screen.getByRole('tab', { name: 'Indicators' })).toBeTruthy()
   })
 
-  it('shows Budget for Project Officer expense submission without exposing Indicators', () => {
+  it('denies Budget and Indicators for expense-only Project Officer access', () => {
     access.role = 'Project Officer'
     access.profile.roles = ['PROJECT_OFFICER']
     access.profile.permissions = ['projects.read', 'expenses.submit']
@@ -65,7 +65,7 @@ describe('project workspace tab access', () => {
 
     render(<ProjectWorkspaceHeader project={project} />)
 
-    expect(screen.getByRole('tab', { name: 'Budget' })).toBeTruthy()
+    expect(screen.queryByRole('tab', { name: 'Budget' })).toBeNull()
     expect(screen.queryByRole('tab', { name: 'Indicators' })).toBeNull()
   })
 })
