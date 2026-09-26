@@ -44,6 +44,12 @@ export class ActivitiesController {
     return this.activities.list(profile(request), projectId)
   }
 
+  @Get('context')
+  @RequirePermission('activities.context.read')
+  context(@Req() request: AuthenticatedRequest, @Param('projectId') projectId: string) {
+    return this.activities.context(profile(request), projectId)
+  }
+
   @Post()
   @RequirePermission('activities.create')
   create(
@@ -116,7 +122,7 @@ export class ActivitiesController {
   }
 
   @Get(':activityId/proof/:evidenceId')
-  @RequirePermission('activities.read')
+  @RequirePermission('evidence.read')
   async proof(
     @Req() request: AuthenticatedRequest,
     @Param('projectId') projectId: string,

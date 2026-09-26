@@ -16,7 +16,7 @@ describe('RBAC matrix', () => {
   it.each([
     ['Project Officer', 'budget.expense.log', true],
     ['Project Officer', 'monitor_evaluate.view', false],
-    ['Project Officer', 'analytics.view', false],
+    ['Project Officer', 'analytics.view', true],
     ['Project Officer', 'reports.view', true],
     ['Project Officer', 'reports.beneficiary_summary.view', true],
     ['Project Officer', 'reports.project_summary.view', true],
@@ -30,18 +30,18 @@ describe('RBAC matrix', () => {
     ['Monitoring and Evaluation Officer', 'recommendations.review', true],
     ['Monitoring and Evaluation Officer', 'recommendations.outcome.record', true],
     ['Project Officer', 'rules.view', false],
-    ['Project Officer', 'alerts.view', false],
-    ['Project Officer', 'alerts.review', false],
-    ['Project Officer', 'alerts.outcome.record', false],
-    ['Project Officer', 'recommendations.view', false],
-    ['Project Officer', 'recommendations.review', false],
-    ['Project Officer', 'recommendations.outcome.record', false],
+    ['Project Officer', 'alerts.view', true],
+    ['Project Officer', 'alerts.review', true],
+    ['Project Officer', 'alerts.outcome.record', true],
+    ['Project Officer', 'recommendations.view', true],
+    ['Project Officer', 'recommendations.review', true],
+    ['Project Officer', 'recommendations.outcome.record', true],
     ['Monitoring and Evaluation Officer', 'settings.users.manage', false],
     ['Monitoring and Evaluation Officer', 'indicators.manage', true],
     ['Project Manager', 'indicators.manage', true],
     ['Project Officer', 'indicators.manage', false],
     ['Program Manager', 'indicators.manage', false],
-    ['Project Manager', 'evaluation.approve', true],
+    ['Project Manager', 'evaluation.approve', false],
     ['Project Manager', 'evaluation.formal.submit', false],
     ['Project Manager', 'settings.users.manage', true],
     ['Program Manager', 'budget.portfolio_view', true],
@@ -159,7 +159,7 @@ describe('RBAC matrix', () => {
       const visiblePaths = filterDashboardNavGroups(createDashboardNavGroups(), role).flatMap(
         (group) => group.items.map((item) => item.href),
       )
-      expect(visiblePaths.includes('/alerts')).toBe(role === 'Monitoring and Evaluation Officer')
+      expect(visiblePaths.includes('/alerts')).toBe(true)
       expect(visiblePaths).not.toContain('/alerts/repository')
       expect(can(role, 'rules.view')).toBe(false)
       expect(can(role, 'rules.configure')).toBe(false)
@@ -251,11 +251,11 @@ describe('RBAC matrix', () => {
     })
     for (const role of ['Monitoring and Evaluation Officer', 'Project Officer'] as const) {
       expect(getRouteAccess(role, '/alerts')).toMatchObject({
-        allowed: role !== 'Project Officer',
+        allowed: true,
         moduleName: 'Alerts',
       })
       expect(getRouteAccess(role, '/recommendations')).toMatchObject({
-        allowed: role !== 'Project Officer',
+        allowed: true,
         moduleName: 'Recommendations',
       })
     }
@@ -315,10 +315,10 @@ describe('RBAC matrix', () => {
     }
   })
 
-  it('denies administrator detail screens while retaining supporting project context', () => {
+  it('allows scoped administrator project profiles while retaining restricted tabs', () => {
     for (const projectId of testProjectIds) {
       expect(getRouteAccess('System Administrator', `/projects/${projectId}`)).toMatchObject({
-        allowed: false,
+        allowed: true,
         moduleName: 'Projects',
       })
     }

@@ -51,3 +51,7 @@ Developer explicitly approved the supplied implementation plan on 2026-09-26. Th
 ## 9. Disposition
 
 Applied on 2026-09-26. Required local checks and existing enforcement, including PATHWAYS-dev and both Vercel development previews, match the matrix. The auth RFC is Locked. Only forward migration 0026 was applied; historical files and ledger entries remain unchanged. Business data, Auth identities, Storage metadata, and historical assignments are preserved. The approved 0020 historical checksum exception remains documented; original applied bytes remain unverifiable. Missing handlers remain deferred.
+
+## Superseding Decision
+
+The approved [revised RBAC and migration baseline Change Record](cr-pathways-revised-rbac-baseline.md) supersedes this matrix and its no-squash decision. Historical application and checksum-exception evidence remains unchanged.

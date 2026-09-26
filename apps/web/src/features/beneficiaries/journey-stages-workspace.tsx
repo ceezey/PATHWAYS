@@ -38,7 +38,7 @@ import { stageTypeTone } from './beneficiary-utils'
 
 type JourneyStagesWorkspaceProps = {
   project: ProjectDetail
-  activities: Activity[]
+  activities: Pick<Activity, 'id' | 'title' | 'journeyStageId'>[]
   initialStages: JourneyStageConfig[]
 }
 
@@ -203,7 +203,7 @@ export const JourneyStagesWorkspace = ({
                     <div className="flex flex-wrap items-start justify-between gap-3">
                       <div>
                         <p className="font-semibold text-foreground">
-                          {stage.order}. {stage.code} · {stage.name}
+                          {stage.order}. {stage.code} Â· {stage.name}
                         </p>
                         <p className="mt-1 text-sm text-muted-foreground">
                           Parent:{' '}
@@ -295,7 +295,7 @@ export const JourneyStagesWorkspace = ({
                         .filter((stage) => stage.id !== selectedStage.id)
                         .map((stage) => (
                           <SelectItem key={stage.id} value={stage.id}>
-                            {stage.code} · {stage.name}
+                            {stage.code} Â· {stage.name}
                           </SelectItem>
                         ))}
                     </SelectContent>

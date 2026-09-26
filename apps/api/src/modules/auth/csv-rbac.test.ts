@@ -17,7 +17,7 @@ describe('approved CSV RBAC contract', () => {
       for (const permission of row.permissions) expect(permissionCodes).toContain(permission)
     }
     const sql = readFileSync(
-      path.resolve(__dirname, '../../../prisma/migrations/0026_csv_rbac_realignment/migration.sql'),
+      path.resolve(__dirname, '../../../prisma/migrations/0027_revised_csv_rbac/migration.sql'),
       'utf8',
     )
     const expected = Object.entries(contract.permissions)
@@ -48,7 +48,7 @@ describe('approved CSV RBAC contract', () => {
       hasAtomicPermission('SYSTEM_ADMINISTRATOR', ['projects.create'], 'projects.create'),
     ).toBe(false)
     expect(hasAtomicPermission('PROJECT_MANAGER', ['imports.upload'], 'imports.upload')).toBe(false)
-    expect(hasAtomicPermission('PROJECT_OFFICER', ['alerts.review'], 'alerts.review')).toBe(false)
+    expect(hasAtomicPermission('PROJECT_OFFICER', ['alerts.review'], 'alerts.review')).toBe(true)
     expect(rolePermissions.PROJECT_OFFICER).toContain('activities.create')
     expect(rolePermissions.SYSTEM_ADMINISTRATOR).toContain('indicators.create')
     expect(rolePermissions.PROJECT_MANAGER).toContain('beneficiaries.profiles.update')
@@ -56,13 +56,28 @@ describe('approved CSV RBAC contract', () => {
   it('keeps context distinct from full detail and aggregate-only identities', () => {
     for (const role of ['SYSTEM_ADMINISTRATOR', 'PROJECT_OFFICER'] as const) {
       expect(rolePermissions[role]).toContain('projects.read')
-      expect(rolePermissions[role]).not.toContain('projects.detail.read')
+      expect(rolePermissions[role]).toContain('projects.detail.read')
     }
     for (const role of ['PROGRAM_MANAGER', 'GRANT_MANAGER'] as const) {
       expect(rolePermissions[role]).not.toContain('beneficiaries.records.read')
       expect(rolePermissions[role]).not.toContain('reports.beneficiary.read')
       expect(rolePermissions[role]).not.toContain('submissions.write')
     }
+  })
+  it('separates definition configuration, progress, and private responses', () => {
+    expect(rolePermissions.SYSTEM_ADMINISTRATOR).not.toContain('assessments.detail.read')
+    expect(rolePermissions.SYSTEM_ADMINISTRATOR).toContain('forms.manage')
+    expect(rolePermissions.SYSTEM_ADMINISTRATOR).toContain('journeys.manage')
+    expect(rolePermissions.PROJECT_OFFICER).not.toContain('forms.manage')
+    expect(rolePermissions.PROJECT_OFFICER).not.toContain('forms.export')
+    expect(rolePermissions.PROJECT_OFFICER).not.toContain('activities.update')
+    expect(rolePermissions.PROJECT_OFFICER).toContain('activities.progress.update')
+    expect(rolePermissions.MONITORING_AND_EVALUATION_OFFICER).toContain(
+      'evaluations.weights.configure',
+    )
+    expect(contract.sourceSha256).toBe(
+      'ef1339d951a61d6d8f10c3463a91af696569c304b34614b077e8e485b0ebaafd',
+    )
   })
   it('permits only Admin to assign Grant Manager', () => {
     for (const role of Object.keys(rolePermissions) as Array<keyof typeof rolePermissions>) {
@@ -73,7 +88,6 @@ describe('approved CSV RBAC contract', () => {
     for (const permissions of Object.values(rolePermissions)) {
       expect(permissions).not.toContain('programs.create')
       expect(permissions).not.toContain('beneficiaries.records.archive')
-      expect(permissions).not.toContain('journeys.manage')
       expect(permissions).not.toContain('settings.labels.manage')
       expect(permissions).not.toContain('forms.archive')
       expect(permissions).not.toContain('indicators.archive')

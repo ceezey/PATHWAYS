@@ -145,7 +145,7 @@ Use the Locked SADDD RFC. Suppression is part of correctness.
 - derive identity/scope server-side;
 - scope sensitive queries before retrieval;
 - use migrations for schema changes;
-- preserve migration history;
+- preserve exact migration history and ledger checksums; approved consolidation archives original bytes and registers a verified baseline without executing it on populated databases;
 - separately authorize destructive work;
 - keep secrets out of code/docs/logs;
 - test happy/sad/abuse paths;

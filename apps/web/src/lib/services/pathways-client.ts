@@ -100,6 +100,9 @@ export interface PathwaysClient {
   createProject(input: CreateProjectInput): Promise<ProjectDetail>
   updateProject(id: string, input: UpdateProjectInput): Promise<ProjectDetail>
   updateProjectPeriod(id: string, endDate: string): Promise<ProjectDetail>
+  getActivityContext(
+    projectId: string,
+  ): Promise<Pick<Activity, 'id' | 'title' | 'journeyStageId'>[]>
   getActivities(projectId: string): Promise<Activity[]>
   getActivity(projectId: string, activityId: string): Promise<Activity>
   createActivity(input: CreateActivityInput): Promise<Activity>
@@ -378,6 +381,28 @@ class BackendReadyPathwaysClient implements PathwaysClient {
         }),
       })) as ApiProject,
     )
+  }
+
+  async getActivityContext(
+    projectId: string,
+  ): Promise<Pick<Activity, 'id' | 'title' | 'journeyStageId'>[]> {
+    const rows = await requestFoundation(
+      `/projects/${encodeURIComponent(projectId)}/activities/context`,
+    )
+    if (
+      !Array.isArray(rows) ||
+      rows.length > 100 ||
+      rows.some(
+        (row) =>
+          !row ||
+          typeof row.id !== 'string' ||
+          typeof row.title !== 'string' ||
+          typeof row.journeyStageId !== 'string',
+      )
+    ) {
+      throw new PathwaysClientError('Invalid activity context response.', 'network')
+    }
+    return rows.map((row) => ({ id: row.id, title: row.title, journeyStageId: row.journeyStageId }))
   }
 
   async getActivities(projectId: string): Promise<Activity[]> {
@@ -1139,7 +1164,7 @@ class BackendReadyPathwaysClient implements PathwaysClient {
       role,
       greetingName: role,
       heading: 'Project monitoring overview',
-      summary: `${result.periodStart} to ${result.periodEnd} · ${result.businessTimeZone}. Current operational states; no automated success rating.`,
+      summary: `${result.periodStart} to ${result.periodEnd} Ã‚Â· ${result.businessTimeZone}. Current operational states; no automated success rating.`,
       primaryAction: {
         id: 'monitoring',
         label: 'Open monitoring',
@@ -1402,7 +1427,7 @@ function mapProject(project: ApiProject): ProjectDetail {
           ? 'Planned'
           : 'Needs Attention'
   const period =
-    [project.startDate, project.endDate].filter(Boolean).join(' – ') || 'Dates not recorded'
+    [project.startDate, project.endDate].filter(Boolean).join(' Ã¢â‚¬â€œ ') || 'Dates not recorded'
   return {
     metricsAvailable: false,
     id: project.id,

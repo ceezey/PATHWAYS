@@ -17,13 +17,13 @@ export class DashboardsController {
   }
   @Get('monitoring')
   @Header('Cache-Control', 'private, no-store')
-  @RequirePermission('analytics.read')
+  @RequirePermission('monitoring.read')
   monitoring(@Req() request: AuthenticatedRequest, @Query() query: unknown) {
     return this.service.monitoring(identity(request), query)
   }
   @Get('saddd')
   @Header('Cache-Control', 'private, no-store')
-  @RequirePermission('analytics.read')
+  @RequirePermission('analytics.saddd.read')
   saddd(@Req() request: AuthenticatedRequest, @Query() query: unknown) {
     return this.service.saddd(identity(request), query)
   }

@@ -40,12 +40,7 @@ export const routePolicy = {
     ['activities.read'],
     'activity',
   ),
-  evidence: entry(
-    '/projects/:projectId/evidence',
-    'Evidence review',
-    ['evidence.review'],
-    'project',
-  ),
+  evidence: entry('/projects/:projectId/evidence', 'Evidence review', ['evidence.read'], 'project'),
   indicators: entry(
     '/projects/:projectId/indicators',
     'Target indicators',
@@ -101,7 +96,7 @@ export const routePolicy = {
   ),
   collection: entry('/collection', 'Collection', ['collection.read']),
   manualEntry: entry('/collection/entry', 'Encode project data', ['submissions.write']),
-  forms: entry('/collection/forms', 'Forms', ['forms.read']),
+  forms: entry('/collection/forms', 'Forms', ['forms.manage']),
   formCreate: entry('/collection/forms/new', 'Form setup', ['forms.manage']),
   form: entry(
     '/collection/projects/:projectId/forms/:formId',
@@ -317,7 +312,7 @@ export function routeAllowed(
   if (
     selection.route === 'imports' &&
     selection.mode === 'extend' &&
-    !(['forms.manage', 'imports.upload'] as const).every((permission) =>
+    !(['forms.manage', 'forms.templates.import', 'imports.upload'] as const).every((permission) =>
       hasAtomicPermission(role, principal.permissions, permission),
     )
   )

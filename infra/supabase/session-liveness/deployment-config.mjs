@@ -3,6 +3,7 @@ import { createHash } from 'node:crypto'
 import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { stageHistoricalMigration } from '../../../scripts/migrations/history.mjs'
 
 export const directory = path.dirname(fileURLToPath(import.meta.url))
 export const root = path.resolve(directory, '../../..')
@@ -163,7 +164,7 @@ export function stageMigrations(evidence) {
   fs.mkdirSync(staged)
   const source = path.join(root, 'apps/api/prisma/migrations')
   for (const [name] of migrations) {
-    fs.cpSync(path.join(source, name), path.join(staged, name), { recursive: true })
+    stageHistoricalMigration(staged, name)
   }
   fs.copyFileSync(
     path.join(source, 'migration_lock.toml'),

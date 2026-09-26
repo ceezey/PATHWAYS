@@ -35,34 +35,7 @@ describe('Deferred legacy-table retirement contract', () => {
       .filter((entry) => entry.isDirectory())
       .map((entry) => entry.name)
       .sort()
-    expect(directories).toEqual([
-      '0001_init',
-      '0002_pathways_foundation',
-      '0003_pathways_projects_collection',
-      '0004_pathways_finance_evaluation_decisions',
-      '0005_supabase_security_adapter',
-      '0006_auth_session_liveness',
-      '0007_core_workspace_foundation',
-      '0008_metadata_forms_direct_entry',
-      '0009_import_state_enums',
-      '0010_secure_import_pipeline',
-      '0011_beneficiary_registration',
-      '0012_project_activity_journeys',
-      '0013_project_indicators_saddd_dashboard',
-      '0014_runtime_user_management_grants',
-      '0015_runtime_beneficiary_timestamp_grants',
-      '0016_runtime_beneficiary_enrollment_timestamp_grants',
-      '0017_activity_completion_timezone_constraint',
-      '0018_runtime_journey_mapping_delete',
-      '0019_journey_correction_lock_compatibility',
-      '0020_fixed_sensitive_release_policy',
-      '0021_project_manager_indicator_access',
-      '0022_project_target_goal',
-      '0023_rule_based_access_alignment',
-      '0024_dashboard_home_project_scope',
-      '0025_project_activity_creation_contract',
-      '0026_csv_rbac_realignment',
-    ])
+    expect(directories).toEqual(['0000_pathways_baseline_through_0026', '0027_revised_csv_rbac'])
     expect(migration).toContain('DEFERRED REVIEW ARTIFACT -- NOT AN ACTIVE PRISMA MIGRATION')
   })
   it('contains only the 15 explicit reviewed DROP TABLE RESTRICT statements', () => {

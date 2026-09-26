@@ -36,7 +36,7 @@ Core domain CRUD does not depend on direct browser PostgREST/Data API access.
 
 ## 3. Data Domains
 
-Source: `apps/api/prisma/schema.prisma` (datasource `schemas = ["public", "pathways"]`; domain tables in `pathways`), migrations `0001_init` through `0026_csv_rbac_realignment` (0026 applied to PATHWAYS-dev), including `0005_supabase_security_adapter` and the runtime-grant migrations. Table names below are the `@@map` names, verified 2026-09-26.
+Source: `apps/api/prisma/schema.prisma` (datasource `schemas = ["public", "pathways"]`; domain tables in `pathways`), active baseline `0000_pathways_baseline_through_0026` plus `0027_revised_csv_rbac`; exact security/runtime history is archived and hosted transition awaits verification. Table names below are the `@@map` names, verified 2026-09-26.
 
 | Domain | PRD | Tables |
 |---|---|---|
@@ -95,9 +95,9 @@ Never:
 - trust client scope;
 - expose private Beneficiary data through public surfaces.
 
-RLS supplements backend authorization. The Locked [CSV auth contract](rfc-pathways-auth-rbac-isolation.md) controls atomic grants, role ceilings, supporting reads, hierarchy, and assignment scope. Migration 0026 adds restrictive checks while preserving the datamodel and existing business/lifecycle guards. API and frontend share the canonical ceiling; active database grants remain authoritative. Inspect policies, functions, ACLs, triggers, and assignment predicates separately from Prisma schema diffs. Preserve the single public ledger and all historical files.
+RLS supplements backend authorization. The approved revised [CSV auth contract](rfc-pathways-auth-rbac-isolation.md) controls atomic grants, role ceilings, supporting reads, hierarchy, and assignment scope. Migration 0027 revises restrictive checks while preserving the datamodel and existing business/lifecycle guards. API and frontend share the canonical ceiling; active database grants remain authoritative. Inspect policies, functions, ACLs, triggers, and assignment predicates separately from Prisma schema diffs. Preserve the single public ledger and exact archived bytes. Register the verified baseline on existing databases without executing its DDL; retain historical ledger rows.
 
-PATHWAYS-dev 0020 retains the explicitly approved historical checksum exception; original applied SQL remains unavailable. Forward correction 0026 is applied and verified without rewriting historical files or ledger entries. 0015 differs only by CRLF representation. Missing financial/evaluation/reporting/alert/publishing handlers remain deferred. Target beneficiaries and project target goal are retained.
+PATHWAYS-dev 0020 retains the explicitly approved historical checksum exception; original applied SQL remains unavailable. Historical 0026 is applied; the approved baseline/0027 transition awaits verification without rewriting ledger entries. 0015 differs only by CRLF representation. Missing financial/evaluation/reporting/alert/publishing handlers remain deferred. Target beneficiaries and project target goal are retained.
 
 ## 7. Runtime Sequences
 
@@ -131,3 +131,7 @@ No runtime AI/ML product feature is currently approved.
 - [x] metadata/rule flows explicit
 - [x] table names reconciled with Prisma (2026-09-26)
 - [ ] API endpoint inventory reconciled before Locked
+
+## Revised Authorization Boundaries (PRD-F1/F2/F3/F4/F5/F6/F8)
+
+All roles view scoped projects, with separate tab guards and selections. Admin activity context excludes detail and assignment identities. Blank-form management is separate from assessment access; Admin processing reads only its own imported submissions/values. Journey events and participation require beneficiary access; Admin configuration receives a scoped event-existence boolean. PO analytics/SADDD differs from monitoring/descriptive grants. Evaluation-weight writes change only weights/timestamp and retain lifecycle guards. Escalation permissions define viewing/raising; missing handlers remain deferred.

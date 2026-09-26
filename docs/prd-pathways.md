@@ -46,7 +46,7 @@ Do not renumber these IDs casually. Material renumbering requires a Change Recor
 ## 4. Acceptance Summary
 
 ### F1
-Server-side authorization by identity/profile/org/role/permission/assignment. Direct API bypass denied. The Locked [CSV RBAC contract](rfc-pathways-auth-rbac-isolation.md) governs action grants, hierarchy, project boundaries, supporting reads, and aggregate-only privacy. Permission grants do not establish feature availability. Program Manager scope is managed programs or assignments; Grant Manager requires explicit assignments. Automatic checks and audit writes remain mandatory; log viewing is separately granted.
+Server-side authorization by identity/profile/org/role/permission/assignment. Direct API bypass denied. The approved revised [CSV RBAC contract](rfc-pathways-auth-rbac-isolation.md) governs action grants, hierarchy, project boundaries, supporting reads, and aggregate-only privacy. Permission grants do not establish feature availability. Program Manager scope is managed programs or assignments; Grant Manager requires explicit assignments. Automatic checks and audit writes remain mandatory; log viewing is separately granted. All six roles view scoped projects; restricted tabs require separate grants. Admin assessment detail is denied.
 
 ### F2
 Project profiles, target beneficiaries, target goal, activities, milestones, lifecycle, assigned scope, derived overdue. Existing fields are preserved. Unlisted milestone administration is denied under the CSV RBAC contract; feature design remains Working.
@@ -55,13 +55,13 @@ Project profiles, target beneficiaries, target goal, activities, milestones, lif
 Sensitive Beneficiary profiles, normalized enrollment, participation/journey history, project scope, consent/provenance as required.
 
 ### F5/F6
-Typed forms/direct entry plus safe dataset staging/mapping/validation/normalization.
+Typed forms/direct entry plus safe dataset staging/mapping/validation/normalization. Admin/M&E create, edit, export, and import/extend structures. PO imports collected data and encodes without form-management rights. Blank definitions and responses have separate authorization.
 
 ### F7
 Project-owned indicators with explicit metric semantics and traceable source/evidence.
 
 ### F8
-Trusted aggregates plus SADDD with small-cell/complementary suppression.
+Trusted aggregates plus SADDD with small-cell/complementary suppression. PO analytics/SADDD access does not grant monitoring dashboards or descriptive analytics.
 
 ### F10/F11
 Typed metrics, structured deterministic rules, explainable evidence, predefined human-reviewed recommendations, project/org isolation.
@@ -133,3 +133,5 @@ Every authorized phase:
 - [x] supporting features preserved
 - [x] six roles preserved
 - [x] no AI overclaim
+
+Journey configuration belongs to Admin/M&E/PM under PRD-F3/F4. Admin configuration cannot retrieve beneficiary events. Activity escalation under PRD-F2 authorizes scoped viewing/raising only; missing handlers remain deferred.

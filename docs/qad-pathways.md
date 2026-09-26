@@ -147,18 +147,20 @@ No runtime AI/OCR test program is currently required unless a future approved fe
 
 ## 8. CSV RBAC Realignment (PRD-F1)
 
-The approved [auth contract](rfc-pathways-auth-rbac-isolation.md) supplies the matrix. Verify with `pnpm --filter @pathways/api exec vitest run`, the web regression suite, and `infra/supabase/phase6/Replay-Local.ps1 -CsvRbacRealignment` on disposable PostgreSQL.
+The approved [auth contract](rfc-pathways-auth-rbac-isolation.md) supplies the matrix. Verify with `pnpm --filter @pathways/api exec vitest run`, the web regression suite, and `infra/supabase/phase6/Replay-Local.ps1 -MigrationBaseline` on disposable PostgreSQL.
 
 | ID | Required check |
 |---|---|
 | QAD-R01 | Exact API/frontend/SQL grants and role ceilings across all six roles; detailed rows override overview conflicts |
-| QAD-R02 | Admin/PO project context selection excludes detail; Admin beneficiary detail denied; opaque enrollment support succeeds |
+| QAD-R02 | All roles scoped project detail; restricted tabs excluded; Admin beneficiary/assessment/enrollment denied; activity context excludes detail |
 | QAD-R03 | Admin all six roles, Program PM/M&E, PM PO/M&E; only Admin assigns Grant; cross-scope targets denied |
 | QAD-R04 | Managed-program and explicit-assignment scope; forged actor/organization/project denied |
 | QAD-R05 | Revoked grants, inactive permission/role, suspended/deactivated account, and ended assignments deny the next operation/request |
 | QAD-R06 | Program/Grant raw beneficiary and assessment denial with populated synthetic rows; SADDD protections unchanged |
-| QAD-R07 | Historical replay and forward upgrade; fresh provisioning; unchanged datamodel plus security-catalog parity |
+| QAD-R07 | Archived replay, fresh baseline, preserved-ledger registration/0027 upgrade, subsequent Prisma migration creation/application, datamodel/security/privilege parity |
 | QAD-R08 | Native PM creation preserves target beneficiaries/goal, automatic self-assignment, and audit recording |
 | QAD-R09 | Read-only remote ledger/checksum/security inspection and protected backup restore before application; stop unexpected drift |
 
 Permission grants for missing handlers are contract checks, not feature acceptance. Synthetic behavior stays local. No destructive or live-data behavioral tests are part of this phase.
+
+Additional PRD-F1 checks cover blank definitions versus responses, collected-data versus template imports, journey freeze/privacy, PO alert/SADDD versus monitoring denials, escalation boundaries, archive integrity, and Prisma 6.19.2 compatibility without resets.

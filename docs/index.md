@@ -57,7 +57,7 @@
 
 | RFC | File | Scope | Status |
 |---|---|---|---|
-| Auth/RBAC/isolation | rfc-pathways-auth-rbac-isolation.md | PRD-F1 + all protected paths | Locked; CSV contract and PATHWAYS-dev enforcement verified |
+| Auth/RBAC/isolation | rfc-pathways-auth-rbac-isolation.md | PRD-F1 + all protected paths | Working; revised CSV approved, application verification pending |
 | Metadata/ingestion | rfc-pathways-metadata-ingestion.md | PRD-F5/F6 | Working |
 | SADDD/privacy | rfc-pathways-saddd-privacy.md | PRD-F8 | Locked |
 | Rules/decision support | rfc-pathways-rule-alerts-decision-support.md | PRD-F10/F11 | Working |
@@ -68,6 +68,7 @@
 |---|---|---|
 | Local development | runbook-local-dev.md | Draft; pending repo command reconciliation |
 | Backup/restore | runbook-backup-restore.md | Working |
+| Migration baseline | runbook-migration-baseline.md | Working |
 | Documentation reconciliation | runbook-doc-reconciliation.md | Working |
 
 ## 5. Governance Templates
@@ -112,6 +113,7 @@ Newest first.
 
 | CR ID | Date | Summary | Status |
 |---|---|---|---|
+| [cr-pathways-revised-rbac-baseline](cr-pathways-revised-rbac-baseline.md) | 2026-09-26 | Revised grants and archived baseline consolidation | Approved; application verification pending |
 | [cr-pathways-csv-rbac-realignment](cr-pathways-csv-rbac-realignment.md) | 2026-09-26 | CSV action matrix, authorization realignment, preserved migration history and development-only correction | Applied; PATHWAYS-dev 0026 verified, approved 0020 checksum exception retained |
 | development-branch-dev-2026-09-26 | 2026-09-26 | Developer replaced `Backend-DB` with `dev` for development; retained `origin/master` for deployment and aligned development preview configuration | Applied |
 | deployment-branch-policy-2026-09-26 | 2026-09-26 | Developer designated `origin/master` for deployment and initially `Backend-DB` for development; authorized connected Vercel API/web projects and explicit remote API/web-origin configuration | Applied; development branch superseded by `dev` |
@@ -140,7 +142,7 @@ Last run: 2026-09-26 (`pnpm docs:check`).
 - [x] rule-based/no-autonomous-AI boundary carried forward.
 - [x] Root `AGENT.md` and root `index.md` intentionally omitted.
 - [x] Brand mark verified at `apps/web/public/brand/pathways-mark.png`.
-- [x] SDD table list reconciled with `apps/api/prisma/schema.prisma` (99 mapped models/enums, migrations 0001-0026; 0026 applied to PATHWAYS-dev).
+- [x] SDD table list reconciled with `apps/api/prisma/schema.prisma` (99 mapped models/enums; verified 0001-0026 archived, active baseline plus 0027; hosted transition pending).
 - [x] Vercel development API/web previews verified against PATHWAYS-dev; production verification remains separate (see OPS).
 - [~] PRD-F10 to PRD-F13 have no backend API yet.
 - [~] Rules RFC items beyond the current Prisma enums remain proposals.
@@ -159,4 +161,4 @@ Last run: 2026-09-26 (`pnpm docs:check`).
 
 ## 11. Current Next Step
 
-RBAC realignment is applied and Locked. Production release and subsequent core-feature repairs require separate authorization. Remaining OPS and PRD-F10 to PRD-F13 gaps are recorded in `state.md` and the relevant contracts.
+The revised RBAC and baseline Change Record is approved; hosted application verification is pending. Production release and subsequent core-feature repairs require separate authorization. Remaining OPS and PRD-F10 to PRD-F13 gaps are recorded in `state.md` and the relevant contracts.

@@ -27,6 +27,7 @@ const currentAccess = vi.hoisted(() => ({
       'collection.read',
       'forms.read',
       'forms.manage',
+      'forms.templates.import',
       'forms.publish',
       'submissions.write',
       'imports.read',
@@ -63,6 +64,7 @@ beforeEach(() => {
     'collection.read',
     'forms.read',
     'forms.manage',
+    'forms.templates.import',
     'forms.publish',
     'submissions.write',
     'imports.read',
@@ -381,7 +383,7 @@ describe('collection permission integration', () => {
     expect(api.getIndicators).not.toHaveBeenCalled()
   })
 
-  it('shows Program Manager read-only forms without builder or import actions', async () => {
+  it('denies Program Manager form access even with stale legacy grants', async () => {
     currentAccess.role = 'Program Manager'
     currentAccess.profile.roles = ['PROGRAM_MANAGER']
     currentAccess.profile.permissions = [
@@ -398,8 +400,9 @@ describe('collection permission integration', () => {
       </DisplayLabelsProvider>,
     )
 
-    await waitFor(() => expect(api.getDigitalForms).toHaveBeenCalled())
-    expect(screen.getByRole('link', { name: 'Forms' })).toBeTruthy()
+    await waitFor(() => expect(screen.queryByText('Build forms')).toBeNull())
+    expect(api.getDigitalForms).not.toHaveBeenCalled()
+    expect(screen.queryByRole('link', { name: 'Forms' })).toBeNull()
     expect(screen.queryByText('Build forms')).toBeNull()
     expect(screen.queryByText('Import existing file')).toBeNull()
     expect(screen.queryByText('Import then extend')).toBeNull()

@@ -73,7 +73,7 @@ describe('canonical least-privilege policy ceiling', () => {
   })
   it('limits alert review to the detailed CSV grants and repository configuration to Admin', () => {
     for (const role of Object.keys(roleNames) as CanonicalRole[]) {
-      expect(rolePermissions[role].includes('alerts.review')).toBe(role !== 'PROJECT_OFFICER')
+      expect(rolePermissions[role].includes('alerts.review')).toBe(true)
       expect(rolePermissions[role].includes('rules.read')).toBe(role === 'SYSTEM_ADMINISTRATOR')
       expect(rolePermissions[role].includes('rules.update')).toBe(role === 'SYSTEM_ADMINISTRATOR')
     }
@@ -100,9 +100,12 @@ describe('canonical least-privilege policy ceiling', () => {
       }
     }
   })
-  it('does not grant analytics to Project Officer even with an overbroad permission array', () => {
-    expect(hasAtomicPermission('PROJECT_OFFICER', ['analytics.read'], 'analytics.read')).toBe(false)
+  it('grants PO analytical access while denying unlisted monitoring detail', () => {
+    expect(hasAtomicPermission('PROJECT_OFFICER', ['analytics.read'], 'analytics.read')).toBe(true)
 
-    expect(rolePermissions.PROJECT_OFFICER).not.toContain('analytics.read')
+    expect(rolePermissions.PROJECT_OFFICER).toContain('analytics.read')
+    expect(hasAtomicPermission('PROJECT_OFFICER', ['monitoring.read'], 'monitoring.read')).toBe(
+      false,
+    )
   })
 })

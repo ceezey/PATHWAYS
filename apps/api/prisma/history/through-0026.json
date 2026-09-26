@@ -1,0 +1,264 @@
+{
+  "archive": "through-0026.zip",
+  "archiveSha256": "6052cbb65958574d6536c66b4371ae71e1b69505a3f93ef8d309f33adb7b9a97",
+  "sourceCommit": "2c0886c8c169904ffccfde31a0e8363d7eda7b2d",
+  "files": [
+    {
+      "path": "0001_init/migration.sql",
+      "sha256": "8b4e25d97b493e6042287373bda015db8e1f1e6a1daf0e49b142484762e248ab",
+      "purpose": "Legacy public application foundation and pgcrypto prerequisite; legacy rows/tables remain preserved",
+      "gitBlobSha256": "1dd84e97065ea2f502647adce09bc6d3e56b72d50888037f4f3e14c81b34e48f",
+      "lineEndings": "CRLF",
+      "retainedInBaseline": "Final post-0026 schema/security effects, with business/lifecycle/privacy invariants preserved",
+      "supersededDefinitions": "Historical authorization grants/predicates are superseded cumulatively by 0026; action grants/selected policies are subsequently revised by 0027"
+    },
+    {
+      "path": "0002_pathways_foundation/migration.sql",
+      "sha256": "a0b6964541b4aea56cb8529df93597f182e4e7c8baf0f53bbdf3f6f7ff9ea9b2",
+      "purpose": "Domain organizations, canonical identity/role scaffolding, and organization isolation",
+      "gitBlobSha256": "a0b6964541b4aea56cb8529df93597f182e4e7c8baf0f53bbdf3f6f7ff9ea9b2",
+      "lineEndings": "LF",
+      "retainedInBaseline": "Final post-0026 schema/security effects, with business/lifecycle/privacy invariants preserved",
+      "supersededDefinitions": "Historical authorization grants/predicates are superseded cumulatively by 0026; action grants/selected policies are subsequently revised by 0027"
+    },
+    {
+      "path": "0003_pathways_projects_collection/migration.sql",
+      "sha256": "6388784bce9058736e9b79b6b3e39a0a214255aa8080d810dc99b3b76805194b",
+      "purpose": "Projects, assignments, collection definitions, submissions, participation, and project boundaries",
+      "gitBlobSha256": "6388784bce9058736e9b79b6b3e39a0a214255aa8080d810dc99b3b76805194b",
+      "lineEndings": "LF",
+      "retainedInBaseline": "Final post-0026 schema/security effects, with business/lifecycle/privacy invariants preserved",
+      "supersededDefinitions": "Historical authorization grants/predicates are superseded cumulatively by 0026; action grants/selected policies are subsequently revised by 0027"
+    },
+    {
+      "path": "0004_pathways_finance_evaluation_decisions/migration.sql",
+      "sha256": "8c94bde1e4f402610a57be39bae5c07977c5c6aeac4e2a96638da1396c66f08b",
+      "purpose": "Budgets, expense verification/approval, evaluations and publishing structures with actor separation",
+      "gitBlobSha256": "8c94bde1e4f402610a57be39bae5c07977c5c6aeac4e2a96638da1396c66f08b",
+      "lineEndings": "LF",
+      "retainedInBaseline": "Final post-0026 schema/security effects, with business/lifecycle/privacy invariants preserved",
+      "supersededDefinitions": "Historical authorization grants/predicates are superseded cumulatively by 0026; action grants/selected policies are subsequently revised by 0027"
+    },
+    {
+      "path": "0005_supabase_security_adapter/migration.sql",
+      "sha256": "6e942cfd46833375f5e0d4bbf4f66b84f28a90fc614472974fc309cf98610bdc",
+      "purpose": "Dedicated runtime role, verified request context, baseline RLS, scoped functions and ACLs",
+      "gitBlobSha256": "6e942cfd46833375f5e0d4bbf4f66b84f28a90fc614472974fc309cf98610bdc",
+      "lineEndings": "LF",
+      "retainedInBaseline": "Final post-0026 schema/security effects, with business/lifecycle/privacy invariants preserved",
+      "supersededDefinitions": "Historical authorization grants/predicates are superseded cumulatively by 0026; action grants/selected policies are subsequently revised by 0027"
+    },
+    {
+      "path": "0006_auth_session_liveness/migration.sql",
+      "sha256": "8034f7910e09fae33c6f10d7bec434cf0bc65555e057aa2dd262d35a9b8ade00",
+      "purpose": "Live Supabase session checks; reject stale or forged request context using immutable history guards",
+      "gitBlobSha256": "8034f7910e09fae33c6f10d7bec434cf0bc65555e057aa2dd262d35a9b8ade00",
+      "lineEndings": "LF",
+      "retainedInBaseline": "Final post-0026 schema/security effects, with business/lifecycle/privacy invariants preserved",
+      "supersededDefinitions": "Historical authorization grants/predicates are superseded cumulatively by 0026; action grants/selected policies are subsequently revised by 0027"
+    },
+    {
+      "path": "0007_core_workspace_foundation/migration.sql",
+      "sha256": "9440634d6f5598a612388a10b1a2e5d0e7de0dde79690397cfc322674cf9ca04",
+      "purpose": "Core staff workspace, project/form navigation prerequisites and scoped discovery",
+      "gitBlobSha256": "9440634d6f5598a612388a10b1a2e5d0e7de0dde79690397cfc322674cf9ca04",
+      "lineEndings": "LF",
+      "retainedInBaseline": "Final post-0026 schema/security effects, with business/lifecycle/privacy invariants preserved",
+      "supersededDefinitions": "Historical authorization grants/predicates are superseded cumulatively by 0026; action grants/selected policies are subsequently revised by 0027"
+    },
+    {
+      "path": "0008_metadata_forms_direct_entry/migration.sql",
+      "sha256": "ca485a36dfd9bdfccdbb5ea59f43289720a6bceffc9316ddb0f14d5ddcae6c61",
+      "purpose": "Typed blank forms and direct entry; immutable provenance and response-validation guards",
+      "gitBlobSha256": "ca485a36dfd9bdfccdbb5ea59f43289720a6bceffc9316ddb0f14d5ddcae6c61",
+      "lineEndings": "LF",
+      "retainedInBaseline": "Final post-0026 schema/security effects, with business/lifecycle/privacy invariants preserved",
+      "supersededDefinitions": "Historical authorization grants/predicates are superseded cumulatively by 0026; action grants/selected policies are subsequently revised by 0027"
+    },
+    {
+      "path": "0009_import_state_enums/migration.sql",
+      "sha256": "3e639e12bce639ca328f914cf7402a47a66854f41aca00d582d36ab74fbaf44f",
+      "purpose": "Import lifecycle enum additions required before transactional pipeline definitions",
+      "gitBlobSha256": "3e639e12bce639ca328f914cf7402a47a66854f41aca00d582d36ab74fbaf44f",
+      "lineEndings": "LF",
+      "retainedInBaseline": "Final post-0026 schema/security effects, with business/lifecycle/privacy invariants preserved",
+      "supersededDefinitions": "Historical authorization grants/predicates are superseded cumulatively by 0026; action grants/selected policies are subsequently revised by 0027"
+    },
+    {
+      "path": "0010_secure_import_pipeline/migration.sql",
+      "sha256": "7ce28e306504c15016fe7e8129dff6d3a21c67375a76cca105c4c2a9fb9c9633",
+      "purpose": "Secure staged metadata import, mapping, validation, scoped finalization and idempotency",
+      "gitBlobSha256": "7ce28e306504c15016fe7e8129dff6d3a21c67375a76cca105c4c2a9fb9c9633",
+      "lineEndings": "LF",
+      "retainedInBaseline": "Final post-0026 schema/security effects, with business/lifecycle/privacy invariants preserved",
+      "supersededDefinitions": "Historical authorization grants/predicates are superseded cumulatively by 0026; action grants/selected policies are subsequently revised by 0027"
+    },
+    {
+      "path": "0011_beneficiary_registration/migration.sql",
+      "sha256": "40fa75860023b9fe0151dfe8542a509279f0fa93515b2ffaed5c5e9c19e2ebf8",
+      "purpose": "Beneficiary registration/enrollment with privacy, consent, identity and project-scope invariants",
+      "gitBlobSha256": "40fa75860023b9fe0151dfe8542a509279f0fa93515b2ffaed5c5e9c19e2ebf8",
+      "lineEndings": "LF",
+      "retainedInBaseline": "Final post-0026 schema/security effects, with business/lifecycle/privacy invariants preserved",
+      "supersededDefinitions": "Historical authorization grants/predicates are superseded cumulatively by 0026; action grants/selected policies are subsequently revised by 0027"
+    },
+    {
+      "path": "0012_project_activity_journeys/migration.sql",
+      "sha256": "3dfa94b2aa44942309d28103ab5af66d2cb78260b5aa842762b5de593ed94a00",
+      "purpose": "Journey stages, activity mappings, progression and participation with freeze/correction guards",
+      "gitBlobSha256": "3dfa94b2aa44942309d28103ab5af66d2cb78260b5aa842762b5de593ed94a00",
+      "lineEndings": "LF",
+      "retainedInBaseline": "Final post-0026 schema/security effects, with business/lifecycle/privacy invariants preserved",
+      "supersededDefinitions": "Historical authorization grants/predicates are superseded cumulatively by 0026; action grants/selected policies are subsequently revised by 0027"
+    },
+    {
+      "path": "0013_project_indicators_saddd_dashboard/migration.sql",
+      "sha256": "eccd1537c7b63ac94499b65e5c7ffa29f9dcc7b9ba3373ac9c247a9ebce2c8e7",
+      "purpose": "Indicators, trusted aggregates, monitoring and SADDD privacy suppression",
+      "gitBlobSha256": "eccd1537c7b63ac94499b65e5c7ffa29f9dcc7b9ba3373ac9c247a9ebce2c8e7",
+      "lineEndings": "LF",
+      "retainedInBaseline": "Final post-0026 schema/security effects, with business/lifecycle/privacy invariants preserved",
+      "supersededDefinitions": "Historical authorization grants/predicates are superseded cumulatively by 0026; action grants/selected policies are subsequently revised by 0027"
+    },
+    {
+      "path": "0014_runtime_user_management_grants/migration.sql",
+      "sha256": "1ff70d69cacc127e71eb1645d870fab58025db572db413a4c512bc6ec5a76d46",
+      "purpose": "Runtime user/role management ACLs supporting hierarchical account administration",
+      "gitBlobSha256": "1ff70d69cacc127e71eb1645d870fab58025db572db413a4c512bc6ec5a76d46",
+      "lineEndings": "LF",
+      "retainedInBaseline": "Final post-0026 schema/security effects, with business/lifecycle/privacy invariants preserved",
+      "supersededDefinitions": "Historical authorization grants/predicates are superseded cumulatively by 0026; action grants/selected policies are subsequently revised by 0027"
+    },
+    {
+      "path": "0015_runtime_beneficiary_timestamp_grants/migration.sql",
+      "sha256": "eff67ecf336efcff829becae2dddef494a037d976df5a29c1809040057cded91",
+      "purpose": "Beneficiary timestamp column privileges; recorded checksum differs only by CRLF",
+      "gitBlobSha256": "eff67ecf336efcff829becae2dddef494a037d976df5a29c1809040057cded91",
+      "lineEndings": "LF",
+      "retainedInBaseline": "Final post-0026 schema/security effects, with business/lifecycle/privacy invariants preserved",
+      "supersededDefinitions": "Historical authorization grants/predicates are superseded cumulatively by 0026; action grants/selected policies are subsequently revised by 0027"
+    },
+    {
+      "path": "0016_runtime_beneficiary_enrollment_timestamp_grants/migration.sql",
+      "sha256": "ddebabb6075046b2a7376a9921de28f00ddbac5abb12c56fbf72dc05ad788c24",
+      "purpose": "Enrollment timestamp column privileges for authorized enrollment operations",
+      "gitBlobSha256": "ddebabb6075046b2a7376a9921de28f00ddbac5abb12c56fbf72dc05ad788c24",
+      "lineEndings": "LF",
+      "retainedInBaseline": "Final post-0026 schema/security effects, with business/lifecycle/privacy invariants preserved",
+      "supersededDefinitions": "Historical authorization grants/predicates are superseded cumulatively by 0026; action grants/selected policies are subsequently revised by 0027"
+    },
+    {
+      "path": "0017_activity_completion_timezone_constraint/migration.sql",
+      "sha256": "234b653c5d6fd5bfbc53d478a2f4bd5048630cd236f16a5234a11ae4c8a5e911",
+      "purpose": "Activity completion date/timezone consistency constraint",
+      "gitBlobSha256": "234b653c5d6fd5bfbc53d478a2f4bd5048630cd236f16a5234a11ae4c8a5e911",
+      "lineEndings": "LF",
+      "retainedInBaseline": "Final post-0026 schema/security effects, with business/lifecycle/privacy invariants preserved",
+      "supersededDefinitions": "Historical authorization grants/predicates are superseded cumulatively by 0026; action grants/selected policies are subsequently revised by 0027"
+    },
+    {
+      "path": "0018_runtime_journey_mapping_delete/migration.sql",
+      "sha256": "1c1646770f11b76af183fc18a71a27dfb01d23e1d79cf2730fed59de22ff242d",
+      "purpose": "Runtime delete privilege for authorized journey mapping replacement",
+      "gitBlobSha256": "1c1646770f11b76af183fc18a71a27dfb01d23e1d79cf2730fed59de22ff242d",
+      "lineEndings": "LF",
+      "retainedInBaseline": "Final post-0026 schema/security effects, with business/lifecycle/privacy invariants preserved",
+      "supersededDefinitions": "Historical authorization grants/predicates are superseded cumulatively by 0026; action grants/selected policies are subsequently revised by 0027"
+    },
+    {
+      "path": "0019_journey_correction_lock_compatibility/migration.sql",
+      "sha256": "2e74ce16f7236c91c2c6698a274e7207c2e46a496e7012950d76b5cd400e16c0",
+      "purpose": "Journey corrections preserve configuration locks and compatible event history",
+      "gitBlobSha256": "2e74ce16f7236c91c2c6698a274e7207c2e46a496e7012950d76b5cd400e16c0",
+      "lineEndings": "LF",
+      "retainedInBaseline": "Final post-0026 schema/security effects, with business/lifecycle/privacy invariants preserved",
+      "supersededDefinitions": "Historical authorization grants/predicates are superseded cumulatively by 0026; action grants/selected policies are subsequently revised by 0027"
+    },
+    {
+      "path": "0020_fixed_sensitive_release_policy/migration.sql",
+      "sha256": "68757c0887932a95a25cf58e35aef124f063069711e8086ff4e18b9d77b83978",
+      "purpose": "Fixed sensitive release policy; original hosted applied bytes unavailable under approved exception",
+      "gitBlobSha256": "68757c0887932a95a25cf58e35aef124f063069711e8086ff4e18b9d77b83978",
+      "lineEndings": "LF",
+      "retainedInBaseline": "Final post-0026 schema/security effects, with business/lifecycle/privacy invariants preserved",
+      "supersededDefinitions": "Historical authorization grants/predicates are superseded cumulatively by 0026; action grants/selected policies are subsequently revised by 0027"
+    },
+    {
+      "path": "0021_project_manager_indicator_access/migration.sql",
+      "sha256": "b2cc161a80f2989784bf5fd304b3a5b5657b1f481ade6af41c002b56f7d035e6",
+      "purpose": "Project Manager scoped indicator access",
+      "gitBlobSha256": "b2cc161a80f2989784bf5fd304b3a5b5657b1f481ade6af41c002b56f7d035e6",
+      "lineEndings": "LF",
+      "retainedInBaseline": "Final post-0026 schema/security effects, with business/lifecycle/privacy invariants preserved",
+      "supersededDefinitions": "Historical authorization grants/predicates are superseded cumulatively by 0026; action grants/selected policies are subsequently revised by 0027"
+    },
+    {
+      "path": "0022_project_target_goal/migration.sql",
+      "sha256": "3a19e9d761e1953a47a715ef3d28f5783bdf2b495def5d8a907e7a8c2d14232f",
+      "purpose": "Persist project target goal independently of target-beneficiary counts",
+      "gitBlobSha256": "3a19e9d761e1953a47a715ef3d28f5783bdf2b495def5d8a907e7a8c2d14232f",
+      "lineEndings": "LF",
+      "retainedInBaseline": "Final post-0026 schema/security effects, with business/lifecycle/privacy invariants preserved",
+      "supersededDefinitions": "Historical authorization grants/predicates are superseded cumulatively by 0026; action grants/selected policies are subsequently revised by 0027"
+    },
+    {
+      "path": "0023_rule_based_access_alignment/migration.sql",
+      "sha256": "0feefc9d3d2e37837da8d51c4509d825857136ca7982b458f11426693c6ed776",
+      "purpose": "Rules/alerts/recommendation access realignment; PO alert review superseded by 0026 and revised by 0027",
+      "gitBlobSha256": "0feefc9d3d2e37837da8d51c4509d825857136ca7982b458f11426693c6ed776",
+      "lineEndings": "LF",
+      "retainedInBaseline": "Final post-0026 schema/security effects, with business/lifecycle/privacy invariants preserved",
+      "supersededDefinitions": "Historical authorization grants/predicates are superseded cumulatively by 0026; action grants/selected policies are subsequently revised by 0027"
+    },
+    {
+      "path": "0024_dashboard_home_project_scope/migration.sql",
+      "sha256": "1c2fa27e4547b1cc09d00af387bef418686a655d842438f4f9b67f290228772d",
+      "purpose": "Scoped project population and home-dashboard aggregate isolation",
+      "gitBlobSha256": "1c2fa27e4547b1cc09d00af387bef418686a655d842438f4f9b67f290228772d",
+      "lineEndings": "LF",
+      "retainedInBaseline": "Final post-0026 schema/security effects, with business/lifecycle/privacy invariants preserved",
+      "supersededDefinitions": "Historical authorization grants/predicates are superseded cumulatively by 0026; action grants/selected policies are subsequently revised by 0027"
+    },
+    {
+      "path": "0025_project_activity_creation_contract/migration.sql",
+      "sha256": "72296fcd6e0c1ba4c9d71ca52b4d9695e733e73a1b1ec235c5a2dadacefe7450",
+      "purpose": "Project/activity creation target fields, automatic assignments and transactional supporting reads",
+      "gitBlobSha256": "72296fcd6e0c1ba4c9d71ca52b4d9695e733e73a1b1ec235c5a2dadacefe7450",
+      "lineEndings": "LF",
+      "retainedInBaseline": "Final post-0026 schema/security effects, with business/lifecycle/privacy invariants preserved",
+      "supersededDefinitions": "Historical authorization grants/predicates are superseded cumulatively by 0026; action grants/selected policies are subsequently revised by 0027"
+    },
+    {
+      "path": "0026_csv_rbac_realignment/migration.sql",
+      "sha256": "c4586a1640bd4f510b3685941916711d42ca318842bd5e0167d1e957617e5c74",
+      "purpose": "First locked CSV canonical grants, ceilings, restrictive RLS, hierarchy, scoped helpers and automatic audit",
+      "gitBlobSha256": "c4586a1640bd4f510b3685941916711d42ca318842bd5e0167d1e957617e5c74",
+      "lineEndings": "LF",
+      "retainedInBaseline": "Final post-0026 schema/security effects, with business/lifecycle/privacy invariants preserved",
+      "supersededDefinitions": "Historical authorization grants/predicates are superseded cumulatively by 0026; action grants/selected policies are subsequently revised by 0027"
+    },
+    {
+      "path": "migration_lock.toml",
+      "sha256": "693566b52c49db47a2b0901d12400aa3d710d13a49f4a2a154b80c0505ed737c",
+      "purpose": "PostgreSQL migration provider lock",
+      "gitBlobSha256": "693566b52c49db47a2b0901d12400aa3d710d13a49f4a2a154b80c0505ed737c",
+      "lineEndings": "LF"
+    }
+  ],
+  "supersededDefinitions": "Early role grants and assignment predicates are superseded by 0026; 0023 PO alert review is superseded by the first CSV contract. The consolidated baseline preserves the final 0026 state, not obsolete grants.",
+  "retainedInvariants": [
+    "organization and project isolation",
+    "account-state and active permission checks",
+    "runtime NOBYPASSRLS",
+    "financial actor separation",
+    "immutable provenance and lifecycle guards",
+    "SADDD suppression",
+    "automatic audit recording",
+    "target beneficiaries and target goals"
+  ],
+  "checksumExceptions": {
+    "0015": "Applied checksum matches CRLF representation of unchanged SQL",
+    "0020": "Approved historical exception; original applied bytes unavailable; repository SQL and recorded ledger checksum remain unchanged"
+  },
+  "bytePreservation": "Exact original working-tree bytes, including 0001 CRLF required by the historical 0006 guard. Git canonical blob hashes separately establish source provenance."
+}

@@ -34,17 +34,17 @@ const service = new RouteAccessService({
 // Explicit approved CSV route matrix, independent of the route implementation.
 const allowed: Record<CanonicalRole, string> = {
   SYSTEM_ADMINISTRATOR:
-    'dashboard unauthorized projects reports surveyReport forms form profile settings projectReport indicatorReport analytics activities activity indicators budget monitoring collection imports alerts recommendations rules settingsRules users audit backups transparency transparencyPreview transparencyQueue',
+    'dashboard unauthorized projects reports surveyReport forms form profile settings projectReport indicatorReport analytics indicators monitoring collection imports alerts recommendations rules settingsRules users audit backups transparency transparencyPreview transparencyQueue evidence formCreate journey project',
   PROGRAM_MANAGER:
-    'dashboard unauthorized projects reports surveyReport forms form profile settings projectReport indicatorReport project analytics budget monitoring transparency transparencyPreview transparencyQueue alerts recommendations users audit',
+    'dashboard unauthorized projects reports surveyReport profile settings projectReport indicatorReport project analytics budget monitoring transparency transparencyPreview transparencyQueue alerts recommendations users audit evidence',
   GRANT_MANAGER:
-    'dashboard unauthorized projects reports surveyReport forms form profile settings projectReport indicatorReport project analytics budget monitoring transparency transparencyPreview transparencyQueue alerts recommendations',
+    'dashboard unauthorized projects reports surveyReport profile settings projectReport indicatorReport project analytics budget monitoring transparency transparencyPreview transparencyQueue alerts recommendations evidence',
   PROJECT_MANAGER:
-    'dashboard unauthorized projects reports surveyReport forms form profile settings projectReport indicatorReport project projectCreate projectEdit analytics activities activity indicators budget monitoring transparency transparencyPreview transparencyQueue beneficiaries beneficiaryCreate beneficiary beneficiaryEdit alerts recommendations users audit beneficiaryReport reportPreview',
+    'dashboard unauthorized projects reports surveyReport profile settings projectReport indicatorReport project projectCreate projectEdit analytics activities activity indicators budget monitoring transparency transparencyPreview transparencyQueue beneficiaries beneficiaryCreate beneficiary beneficiaryEdit alerts recommendations users audit beneficiaryReport reportPreview evidence journey',
   MONITORING_AND_EVALUATION_OFFICER:
-    'dashboard unauthorized projects reports surveyReport forms form profile settings projectReport indicatorReport project analytics activities activity evidence indicators budget monitoring beneficiaries beneficiaryCreate beneficiary beneficiaryEdit collection manualEntry formCreate formEntry imports alerts recommendations beneficiaryReport reportPreview',
+    'dashboard unauthorized projects reports surveyReport forms form profile settings projectReport indicatorReport project analytics activities activity evidence indicators budget monitoring beneficiaries beneficiaryCreate beneficiary beneficiaryEdit collection manualEntry formCreate formEntry imports alerts recommendations beneficiaryReport reportPreview journey',
   PROJECT_OFFICER:
-    'dashboard unauthorized projects reports surveyReport forms form profile settings projectReport indicatorReport activities activity budget beneficiaries beneficiaryCreate beneficiary beneficiaryEdit collection manualEntry formCreate formEntry imports beneficiaryReport reportPreview',
+    'dashboard unauthorized projects reports surveyReport form profile settings projectReport indicatorReport activities activity budget beneficiaries beneficiaryCreate beneficiary beneficiaryEdit collection manualEntry formEntry imports beneficiaryReport reportPreview alerts analytics evidence project recommendations',
 }
 const select = (route: RouteKey): RouteSelection => ({
   route,
@@ -322,9 +322,8 @@ describe('same-request authority and relational object scope', () => {
   )
   it('keeps administrator organization scope and manager portfolio scope', async () => {
     await service.check(fixture('SYSTEM_ADMINISTRATOR'), {
-      route: 'activity',
+      route: 'project',
       projectId: other,
-      activityId: id,
     })
     expect(tx.project.findFirst.mock.lastCall?.[0].where.AND[0]).toEqual({
       organizationId: id,

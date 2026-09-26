@@ -34,7 +34,7 @@ describe('rule-based access alignment contract', () => {
   it.each(targetRoles)('%s receives the detailed CSV alert capabilities', (role) => {
     for (const permission of targetPermissions) {
       expect(hasAtomicPermission(role, rolePermissions[role], permission)).toBe(
-        role === 'MONITORING_AND_EVALUATION_OFFICER' && permission !== 'rules.read',
+        permission !== 'rules.read',
       )
     }
     for (const permission of ['rules.create', 'rules.update', 'rules.activate'] as const) {

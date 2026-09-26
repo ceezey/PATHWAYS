@@ -137,15 +137,15 @@ test('accepts only exact local, check, deploy, rollback and recovery arguments',
   }
 })
 
-test('source guard requires the exact six-migration history and reviewed fingerprints', () => {
-  verifySources()
+test('obsolete source guard refuses the current dev baseline without loosening its historical pins', () => {
+  assert.throws(() => verifySources(), /LIVENESS_GIT_BRANCH/)
   assert.deepEqual(
     fs
       .readdirSync(path.join(root, 'apps/api/prisma/migrations'), { withFileTypes: true })
       .filter((entry) => entry.isDirectory())
       .map((entry) => entry.name)
       .sort(),
-    migrations.map(([name]) => name),
+    ['0000_pathways_baseline_through_0026', '0027_revised_csv_rbac'],
   )
   assert.equal(
     fs.existsSync(
@@ -159,8 +159,9 @@ test('staging contains only immutable 0001-0006 and rejects additions or drift',
   fs.mkdirSync(path.join(root, '.tmp'), { recursive: true })
   const evidence = fs.mkdtempSync(path.join(root, '.tmp/pathways-session-liveness-'))
   try {
-    const staged = stageMigrations(evidence)
-    assert.equal(validateStaging(staged), fs.realpathSync(staged))
+    assert.throws(() => stageMigrations(evidence), /LIVENESS_STAGING_LOCK/)
+    const staged = path.join(evidence, 'migrations')
+    assert.throws(() => validateStaging(staged), /LIVENESS_STAGING_LOCK/)
     fs.writeFileSync(path.join(staged, '0007_unreviewed'), 'blocked')
     assert.throws(() => validateStaging(staged), /LIVENESS_STAGING_CONTENTS/)
     fs.rmSync(path.join(staged, '0007_unreviewed'))

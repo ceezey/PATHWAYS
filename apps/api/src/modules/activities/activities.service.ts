@@ -572,6 +572,44 @@ export class ActivitiesService {
     return mapActivity(row, this.businessDate(), metrics)
   }
 
+  context(identity: ApplicationIdentity, projectId: string) {
+    return withAuthorizedOperation(
+      this.prisma,
+      identity,
+      'activities.context.read',
+      async (tx, actor) => {
+        if (!UUID_PATTERN.test(projectId)) throw new NotFoundException('Project unavailable.')
+        const project = await tx.project.findFirst({
+          where: { AND: [projectScope(actor), { id: projectId.toLowerCase() }] },
+          select: {
+            projectActivity_project: {
+              where: { organizationId: actor.organizationId, archivedAt: null },
+              select: {
+                id: true,
+                title: true,
+                status: true,
+                activityJourneyStageMapping_activity: {
+                  select: { stageId: true },
+                  orderBy: { sequenceOrder: 'asc' },
+                  take: 100,
+                },
+              },
+              orderBy: [{ title: 'asc' }, { id: 'asc' }],
+              take: 100,
+            },
+          },
+        })
+        if (!project) throw new NotFoundException('Project unavailable.')
+        return project.projectActivity_project.map((row) => ({
+          id: row.id,
+          title: row.title,
+          status: row.status,
+          journeyStageId: row.activityJourneyStageMapping_activity[0]?.stageId ?? '',
+        }))
+      },
+    )
+  }
+
   list(identity: ApplicationIdentity, projectId: string) {
     return withAuthorizedOperation(this.prisma, identity, 'activities.read', async (tx, actor) => {
       if (!UUID_PATTERN.test(projectId)) throw new NotFoundException('Project unavailable.')
@@ -1193,16 +1231,17 @@ export class ActivitiesService {
     const metadata = await withAuthorizedOperation(
       this.prisma,
       identity,
-      'activities.read',
+      'evidence.read',
       async (tx, actor) => {
-        const activity = await this.requireActivity(tx, actor, projectId, activityId)
+        const project = await this.requireProject(tx, actor, projectId)
+        if (!UUID_PATTERN.test(activityId)) throw new NotFoundException('Proof unavailable.')
         if (!UUID_PATTERN.test(evidenceId)) throw new NotFoundException('Proof unavailable.')
         const proof = await tx.evidenceMedia.findFirst({
           where: {
             id: evidenceId.toLowerCase(),
             organizationId: actor.organizationId,
-            projectId: activity.projectId,
-            activityId: activity.id,
+            projectId: project.id,
+            activityId: activityId.toLowerCase(),
             storageReady: true,
             activityUpdateId: { not: null },
           },

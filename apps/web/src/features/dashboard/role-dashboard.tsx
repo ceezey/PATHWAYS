@@ -55,7 +55,7 @@ export const canLoadDashboardMonitoring = (role: PathwaysRole | null) =>
   role !== null && can(role, 'monitor_evaluate.view') && can(role, 'analytics.view')
 
 export const canOpenDashboardMonitoring = (role: PathwaysRole | null) =>
-  role !== null && can(role, 'analytics.view')
+  role !== null && can(role, 'monitor_evaluate.view')
 
 const severityTone = (severity?: DashboardSeverity) => {
   if (severity === 'danger') {

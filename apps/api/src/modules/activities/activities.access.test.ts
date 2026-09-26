@@ -96,6 +96,42 @@ describe('P05 activity proof authorization', () => {
     tx.projectActivity.findFirst.mockResolvedValue(activity)
   })
 
+  it('selects only scoped activity context for Admin configuration', async () => {
+    state.actor = {
+      ...actor,
+      roles: ['SYSTEM_ADMINISTRATOR'],
+      permissions: ['activities.context.read'],
+    }
+    tx.project.findFirst.mockResolvedValueOnce({
+      projectActivity_project: [
+        {
+          id: activityId,
+          title: 'Synthetic activity',
+          status: 'IN_PROGRESS',
+          activityJourneyStageMapping_activity: [{ stageId }],
+        },
+      ],
+    })
+    await expect(service.context(state.actor, projectId)).resolves.toEqual([
+      {
+        id: activityId,
+        title: 'Synthetic activity',
+        status: 'IN_PROGRESS',
+        journeyStageId: stageId,
+      },
+    ])
+    const request = tx.project.findFirst.mock.calls[0][0]
+    expect(request.where.AND).toContainEqual({ id: projectId })
+    expect(Object.keys(request.select.projectActivity_project.select).sort()).toEqual([
+      'activityJourneyStageMapping_activity',
+      'id',
+      'status',
+      'title',
+    ])
+    expect(tx.projectActivity.findFirst).not.toHaveBeenCalled()
+    expect(tx.evidenceMedia.findFirst).not.toHaveBeenCalled()
+  })
+
   it('does not fetch private proof when project scope is unavailable', async () => {
     tx.project.findFirst.mockResolvedValueOnce(null)
     await expect(

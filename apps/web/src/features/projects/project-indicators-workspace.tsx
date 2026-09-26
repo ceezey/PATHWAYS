@@ -84,7 +84,7 @@ function NewIndicator({
   onSave,
 }: {
   forms: DigitalFormDefinition[]
-  activities: Activity[]
+  activities: Pick<Activity, 'id' | 'title' | 'journeyStageId'>[]
   busy: boolean
   onSave: (input: CreateIndicatorInput) => Promise<boolean>
 }) {
@@ -111,7 +111,7 @@ function NewIndicator({
       }
     } catch {
       setValidation(
-        'Check the period, exact decimal values, numeric domain, direction and required binding. Counts use precision 0; percentages use 0–100; ratios may exceed 1.',
+        'Check the period, exact decimal values, numeric domain, direction and required binding. Counts use precision 0; percentages use 0â€“100; ratios may exceed 1.',
       )
     }
   }
@@ -245,7 +245,7 @@ function NewIndicator({
                         .filter((form) => form.status === 'PUBLISHED')
                         .map((form) => (
                           <option key={form.id} value={form.id}>
-                            {form.name} · v{form.version}
+                            {form.name} Â· v{form.version}
                           </option>
                         ))}
                     </select>
@@ -454,7 +454,7 @@ export function ProjectIndicatorsWorkspace({ projectId }: { projectId: string })
   const [bindings, setBindings] = useState<{
     key: string
     forms: DigitalFormDefinition[]
-    activities: Activity[]
+    activities: Pick<Activity, 'id' | 'title' | 'journeyStageId'>[]
   } | null>(null)
   const activeKey = `${authorityKey}:${projectId}`
   const currentKey = useRef(activeKey)
@@ -463,8 +463,12 @@ export function ProjectIndicatorsWorkspace({ projectId }: { projectId: string })
     let active = true
     if (canCreate)
       void Promise.all([
-        pathwaysClient.getDigitalForms(projectId),
-        pathwaysClient.getActivities(projectId),
+        profile?.permissions.includes('forms.read')
+          ? pathwaysClient.getDigitalForms(projectId)
+          : Promise.resolve<DigitalFormDefinition[]>([]),
+        profile?.permissions.includes('activities.context.read')
+          ? pathwaysClient.getActivityContext(projectId)
+          : pathwaysClient.getActivities(projectId),
       ])
         .then(([forms, activities]) => {
           if (active) setBindings({ key: activeKey, forms, activities })
@@ -475,7 +479,7 @@ export function ProjectIndicatorsWorkspace({ projectId }: { projectId: string })
     return () => {
       active = false
     }
-  }, [activeKey, canCreate, projectId])
+  }, [activeKey, canCreate, projectId, profile?.permissions])
   const mutate = async (action: () => Promise<ProjectIndicator>) => {
     if (busy) return false
     const startedKey = activeKey
@@ -525,7 +529,7 @@ export function ProjectIndicatorsWorkspace({ projectId }: { projectId: string })
           </p>
         </div>
         <Button type="button" variant="outline" onClick={reload} disabled={loading || busy}>
-          {loading ? 'Refreshing…' : 'Refresh indicators'}
+          {loading ? 'Refreshingâ€¦' : 'Refresh indicators'}
         </Button>
       </header>
       {message ? (
@@ -551,7 +555,7 @@ export function ProjectIndicatorsWorkspace({ projectId }: { projectId: string })
       {error ? (
         <p role="alert">{error}</p>
       ) : !data ? (
-        <output aria-live="polite">Loading verified indicators…</output>
+        <output aria-live="polite">Loading verified indicatorsâ€¦</output>
       ) : data.length === 0 ? (
         <EmptyState
           icon={Target}
@@ -565,14 +569,14 @@ export function ProjectIndicatorsWorkspace({ projectId }: { projectId: string })
               <CardHeader>
                 <CardTitle>{indicator.name}</CardTitle>
                 <p className="text-sm text-muted-foreground">
-                  {indicator.code} · {indicator.status.replaceAll('_', ' ')} ·{' '}
+                  {indicator.code} Â· {indicator.status.replaceAll('_', ' ')} Â·{' '}
                   {indicator.mode ?? 'Legacy authority not reviewed'}
                 </p>
               </CardHeader>
               <CardContent>
                 <p className="mb-3 text-sm">
                   {indicator.periodStart ?? 'Unspecified'} to {indicator.periodEnd ?? 'Unspecified'}{' '}
-                  · {indicator.unitLabel ?? 'Unit not configured'}
+                  Â· {indicator.unitLabel ?? 'Unit not configured'}
                 </p>
                 <dl className="grid gap-3 text-sm sm:grid-cols-3">
                   <div>
@@ -598,7 +602,7 @@ export function ProjectIndicatorsWorkspace({ projectId }: { projectId: string })
                 </p>
                 <p className="mt-2 text-sm text-muted-foreground">
                   Definition source: {indicator.dataSource ?? 'Not configured'}
-                  {indicator.binding ? ` · ${recipeNames[indicator.binding.recipe]}` : ''}
+                  {indicator.binding ? ` Â· ${recipeNames[indicator.binding.recipe]}` : ''}
                 </p>
                 {indicator.measurementSource ? (
                   <p className="mt-2 text-sm text-muted-foreground">

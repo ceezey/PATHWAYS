@@ -76,12 +76,12 @@ export class DashboardsService {
     return this.monitoringWithPermission(identity, input, 'projects.read', 'home')
   }
   async monitoring(identity: ApplicationIdentity, input: unknown) {
-    return this.monitoringWithPermission(identity, input, 'analytics.read', 'monitoring')
+    return this.monitoringWithPermission(identity, input, 'monitoring.read', 'monitoring')
   }
   private async monitoringWithPermission(
     identity: ApplicationIdentity,
     input: unknown,
-    permission: 'projects.read' | 'analytics.read',
+    permission: 'projects.read' | 'monitoring.read',
     operation: 'home' | 'monitoring',
   ) {
     const query = parseDashboardQuery(input)
@@ -138,41 +138,45 @@ export class DashboardsService {
   async saddd(identity: ApplicationIdentity, input: unknown) {
     const query = parseSadddQuery(input)
 
-    return withAuthorizedOperation(this.prisma, identity, 'analytics.read', async (tx, actor) => {
-      if (
-        !hasAtomicPermission(actor.roles[0], actor.permissions, 'beneficiaries.aggregates.read')
-      ) {
-        throw new ForbiddenException('SADDD aggregate permission is required.')
-      }
+    return withAuthorizedOperation(
+      this.prisma,
+      identity,
+      'analytics.saddd.read',
+      async (tx, actor) => {
+        if (
+          !hasAtomicPermission(actor.roles[0], actor.permissions, 'beneficiaries.aggregates.read')
+        ) {
+          throw new ForbiddenException('SADDD aggregate permission is required.')
+        }
 
-      const project = await tx.project.findFirst({
-        where: {
-          AND: [
-            projectScope(actor),
-            {
-              id: query.projectId,
-            },
-          ],
-        },
-        select: {
-          id: true,
-          code: true,
-          title: true,
-          startDate: true,
-          endDate: true,
-        },
-      })
+        const project = await tx.project.findFirst({
+          where: {
+            AND: [
+              projectScope(actor),
+              {
+                id: query.projectId,
+              },
+            ],
+          },
+          select: {
+            id: true,
+            code: true,
+            title: true,
+            startDate: true,
+            endDate: true,
+          },
+        })
 
-      if (!project) {
-        throw new NotFoundException('Monitoring scope unavailable.')
-      }
+        if (!project) {
+          throw new NotFoundException('Monitoring scope unavailable.')
+        }
 
-      const zone = readApiEnv(process.env).BUSINESS_TIME_ZONE
+        const zone = readApiEnv(process.env).BUSINESS_TIME_ZONE
 
-      const periodStart = project.startDate?.toISOString().slice(0, 10) ?? null
-      const periodEnd = project.endDate?.toISOString().slice(0, 10) ?? null
+        const periodStart = project.startDate?.toISOString().slice(0, 10) ?? null
+        const periodEnd = project.endDate?.toISOString().slice(0, 10) ?? null
 
-      await tx.$queryRaw`
+        await tx.$queryRaw`
           SELECT set_config(
             'statement_timeout',
             '3000',
@@ -180,17 +184,17 @@ export class DashboardsService {
           )
         `
 
-      let result: Array<{
-        data: unknown
-      }>
+        let result: Array<{
+          data: unknown
+        }>
 
-      try {
-        result = await tx.$queryRaw<
-          Array<{
-            data: unknown
-          }>
-        >(
-          Prisma.sql`
+        try {
+          result = await tx.$queryRaw<
+            Array<{
+              data: unknown
+            }>
+          >(
+            Prisma.sql`
                 SELECT pathways.p06_saddd(
                   ${actor.organizationId}::uuid,
                   ARRAY[
@@ -201,44 +205,45 @@ export class DashboardsService {
                   ${zone}
                 ) AS data
               `,
-        )
-      } catch (error) {
-        monitoringSqlError(error)
-      }
+          )
+        } catch (error) {
+          monitoringSqlError(error)
+        }
 
-      const raw = result[0]?.data
+        const raw = result[0]?.data
 
-      const parsed = sadddDashboardSchema.safeParse({
-        ...(raw && typeof raw === 'object' ? raw : {}),
+        const parsed = sadddDashboardSchema.safeParse({
+          ...(raw && typeof raw === 'object' ? raw : {}),
 
-        periodStart,
-        periodEnd,
+          periodStart,
+          periodEnd,
 
-        businessTimeZone: zone,
+          businessTimeZone: zone,
 
-        generatedAt: new Date().toISOString(),
+          generatedAt: new Date().toISOString(),
 
-        contractVersion: P06_CONTRACT_VERSION,
+          contractVersion: P06_CONTRACT_VERSION,
 
-        refresh: 'READ_TIME_NO_CACHE',
+          refresh: 'READ_TIME_NO_CACHE',
 
-        population: 'DISTINCT_INDIVIDUALS_WITH_OVERLAPPING_ENROLLMENT',
+          population: 'DISTINCT_INDIVIDUALS_WITH_OVERLAPPING_ENROLLMENT',
 
-        demographicBasis: 'CURRENT_PROFILE_NOT_HISTORICAL_SNAPSHOT',
+          demographicBasis: 'CURRENT_PROFILE_NOT_HISTORICAL_SNAPSHOT',
 
-        privacy: {
-          threshold: 5,
-          complementarySuppression: true,
-          policy: 'FIXED_CLOSED_PROJECT_PERIOD_V1',
-          crossFilters: 'PROJECT_ONLY_NO_CROSS_FILTERS',
-        },
-      })
+          privacy: {
+            threshold: 5,
+            complementarySuppression: true,
+            policy: 'FIXED_CLOSED_PROJECT_PERIOD_V1',
+            crossFilters: 'PROJECT_ONLY_NO_CROSS_FILTERS',
+          },
+        })
 
-      if (!parsed.success) {
-        throw new ServiceUnavailableException('SADDD response contract is unavailable.')
-      }
+        if (!parsed.success) {
+          throw new ServiceUnavailableException('SADDD response contract is unavailable.')
+        }
 
-      return parsed.data
-    })
+        return parsed.data
+      },
+    )
   }
 }

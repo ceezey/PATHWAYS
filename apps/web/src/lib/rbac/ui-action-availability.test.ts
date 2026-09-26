@@ -39,7 +39,7 @@ describe('UI actions against the accepted backend policy', () => {
     )
     expect(isUiActionAvailable('Project Officer', 'beneficiaries.participation.record')).toBe(true)
     expect(isUiActionAvailable('Project Officer', 'journeys.manage')).toBe(false)
-    expect(isUiActionAvailable('Project Manager', 'journeys.manage')).toBe(false)
+    expect(isUiActionAvailable('Project Manager', 'journeys.manage')).toBe(true)
     expect(isUiActionAvailable('Program Manager', 'beneficiaries.create')).toBe(false)
     expect(isUiActionAvailable('Grant Manager', 'beneficiaries.edit')).toBe(false)
   })

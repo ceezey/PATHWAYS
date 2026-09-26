@@ -126,9 +126,9 @@ describe('P02 metadata service', () => {
   })
 
   it('keeps Grant Manager and Program Manager outside raw direct-entry permission', () => {
-    expect(rolePermissions.GRANT_MANAGER).toContain('forms.read')
+    expect(rolePermissions.GRANT_MANAGER).not.toContain('forms.read')
     expect(rolePermissions.GRANT_MANAGER).not.toContain('submissions.write')
-    expect(rolePermissions.PROGRAM_MANAGER).toContain('forms.read')
+    expect(rolePermissions.PROGRAM_MANAGER).not.toContain('forms.read')
     expect(rolePermissions.PROGRAM_MANAGER).not.toContain('submissions.write')
   })
 

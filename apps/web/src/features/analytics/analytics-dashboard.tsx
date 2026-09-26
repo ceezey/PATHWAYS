@@ -243,7 +243,7 @@ export const AnalyticsDashboard = () => {
   }, [projectId, sadddEligible, sadddLoadAttempt, sadddUnavailableReason, selectedProject])
 
   useEffect(() => {
-    if (!projectId || !selectedPeriod) {
+    if (!projectId || !selectedPeriod || !canReadIndicators) {
       setMonitoringLoading(false)
       setMonitoring(null)
       setMonitoringError('')
@@ -275,7 +275,7 @@ export const AnalyticsDashboard = () => {
     return () => {
       active = false
     }
-  }, [monitoringLoadAttempt, projectId, selectedPeriod])
+  }, [canReadIndicators, monitoringLoadAttempt, projectId, selectedPeriod])
 
   const handleProjectChange = (nextProjectId: string) => {
     if (nextProjectId === projectId) return

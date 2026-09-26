@@ -327,8 +327,9 @@ describe('finite route and feature contract', () => {
     })
 
     expect(routeAllowed(principal('MONITORING_AND_EVALUATION_OFFICER'), extend)).toBe(true)
-    expect(routeAllowed(principal('PROJECT_OFFICER'), extend)).toBe(true)
-    for (const role of ['SYSTEM_ADMINISTRATOR', 'PROJECT_MANAGER'] as const) {
+    expect(routeAllowed(principal('PROJECT_OFFICER'), extend)).toBe(false)
+    expect(routeAllowed(principal('SYSTEM_ADMINISTRATOR'), extend)).toBe(true)
+    for (const role of ['PROJECT_MANAGER'] as const) {
       expect(routeAllowed(principal(role), extend)).toBe(false)
     }
   })

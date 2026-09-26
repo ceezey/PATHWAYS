@@ -9,11 +9,17 @@ import { Button } from '@/components/ui/button'
 import { PathwaysClientError, pathwaysClient } from '@/lib/services/pathways-client'
 import type { Activity, JourneyStageConfig, ProjectDetail } from '@/types/pathways'
 
+import { useCurrentRole } from '@/hooks/use-current-role'
+
 import { JourneyStagesWorkspace } from './journey-stages-workspace'
 
 export const JourneyStagesLoader = ({ projectId }: { projectId: string }) => {
+  const { profile } = useCurrentRole()
+  const contextOnly = profile?.permissions.includes('activities.context.read') === true
   const [project, setProject] = useState<ProjectDetail | null>(null)
-  const [activities, setActivities] = useState<Activity[]>([])
+  const [activities, setActivities] = useState<Pick<Activity, 'id' | 'title' | 'journeyStageId'>[]>(
+    [],
+  )
   const [stages, setStages] = useState<JourneyStageConfig[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -24,7 +30,9 @@ export const JourneyStagesLoader = ({ projectId }: { projectId: string }) => {
     setError('')
     Promise.all([
       pathwaysClient.getProject(projectId),
-      pathwaysClient.getActivities(projectId),
+      contextOnly
+        ? pathwaysClient.getActivityContext(projectId)
+        : pathwaysClient.getActivities(projectId),
       pathwaysClient.getJourneyStages(projectId),
     ])
       .then(([projectRecord, activityRecords, stageRecords]) => {
@@ -47,7 +55,7 @@ export const JourneyStagesLoader = ({ projectId }: { projectId: string }) => {
     return () => {
       active = false
     }
-  }, [projectId])
+  }, [projectId, contextOnly])
 
   if (loading) {
     return (

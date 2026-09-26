@@ -5,15 +5,18 @@ param(
   [switch]$RuleBasedAccessAlignment,
   [switch]$DashboardHomeProjectScope,
   [switch]$ProjectActivityCreationRepair,
-  [switch]$CsvRbacRealignment
+  [switch]$CsvRbacRealignment,
+  [switch]$MigrationBaseline
 )
 $ErrorActionPreference = 'Stop'
+if ($MigrationBaseline) { $CsvRbacRealignment = $true }
 if ($CsvRbacRealignment) { $ProjectActivityCreationRepair = $true }
 $phase6Root = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot '../../..')).Path
 $phase6Bin = 'C:\Program Files\PostgreSQL\18\bin'
 $phase6Parent = Join-Path $phase6Root ('.tmp/pathways-phase6-' + [guid]::NewGuid().ToString('N'))
 $phase6Data = Join-Path $phase6Parent 'data'
 $phase6Stage = Join-Path $phase6Parent 'migrations'
+$phase6History = Join-Path $phase6Parent 'history'
 $phase6Config = Join-Path $PSScriptRoot 'prisma.replay.config.ts'
 $phase6Database = 'pathways_phase4_phase6_replay'
 $phase6Port = 55448
@@ -38,6 +41,8 @@ try {
   $phase6Listener = [Net.Sockets.TcpListener]::new([Net.IPAddress]::Loopback, $phase6Port)
   try { $phase6Listener.Start() } finally { $phase6Listener.Stop() }
   New-Item -ItemType Directory -Path $phase6Stage -Force | Out-Null
+  python (Join-Path $phase6Root 'scripts/migrations/history.py') --extract $phase6History
+  if ($LASTEXITCODE -ne 0) { throw 'Historical archive integrity/extraction failed' }
   & "$phase6Bin\initdb.exe" -D $phase6Data -U postgres -A trust --encoding=UTF8 --locale=C | Out-Null
   if ($LASTEXITCODE -ne 0) { throw 'Disposable cluster creation failed.' }
   Add-Content -LiteralPath (Join-Path $phase6Data 'postgresql.conf') -Value "`nlisten_addresses='127.0.0.1'`nport=$phase6Port`n"
@@ -60,7 +65,7 @@ try {
   Invoke-LocalSql ([IO.File]::ReadAllText((Join-Path $phase6Root 'apps/api/prisma/tests/security-adapter-local-bootstrap.sql'))) $phase6Database
 
   foreach ($phase6Migration in @('0001_init','0002_pathways_foundation','0003_pathways_projects_collection','0004_pathways_finance_evaluation_decisions')) {
-    Copy-Item -LiteralPath (Join-Path $phase6Root "apps/api/prisma/migrations/$phase6Migration") -Destination $phase6Stage -Recurse
+    Copy-Item -LiteralPath (Join-Path $phase6History "$phase6Migration") -Destination $phase6Stage -Recurse
   }
   $env:PATHWAYS_PHASE6_REPLAY_MIGRATIONS = $phase6Stage
   $env:DIRECT_URL = "postgresql://prisma@127.0.0.1:${phase6Port}/${phase6Database}?sslmode=disable&connection_limit=1"
@@ -69,25 +74,25 @@ try {
   try {
     pnpm --filter @pathways/api exec prisma migrate deploy --config $phase6Config
     if ($LASTEXITCODE -ne 0) { throw '0001-0004 supported replay failed.' }
-    Copy-Item -LiteralPath (Join-Path $phase6Root 'apps/api/prisma/migrations/0005_supabase_security_adapter') -Destination $phase6Stage -Recurse
+    Copy-Item -LiteralPath (Join-Path $phase6History '0005_supabase_security_adapter') -Destination $phase6Stage -Recurse
     $env:DIRECT_URL = "postgresql://postgres@127.0.0.1:${phase6Port}/${phase6Database}?sslmode=disable&connection_limit=1"
     $env:DATABASE_URL = $env:DIRECT_URL
     pnpm --filter @pathways/api exec prisma migrate deploy --config $phase6Config
     if ($LASTEXITCODE -ne 0) { throw '0005 administrator replay failed.' }
 
-    Copy-Item -LiteralPath (Join-Path $phase6Root 'apps/api/prisma/migrations/0006_auth_session_liveness') -Destination $phase6Stage -Recurse
+    Copy-Item -LiteralPath (Join-Path $phase6History '0006_auth_session_liveness') -Destination $phase6Stage -Recurse
     $env:DIRECT_URL = "postgresql://postgres@127.0.0.1:${phase6Port}/${phase6Database}?sslmode=disable&connection_limit=1"
     $env:DATABASE_URL = $env:DIRECT_URL
     pnpm --filter @pathways/api exec prisma migrate deploy --config $phase6Config
     if ($LASTEXITCODE -ne 0) { throw '0006 supported replay failed.' }
 
-    Copy-Item -LiteralPath (Join-Path $phase6Root 'apps/api/prisma/migrations/0007_core_workspace_foundation') -Destination $phase6Stage -Recurse
+    Copy-Item -LiteralPath (Join-Path $phase6History '0007_core_workspace_foundation') -Destination $phase6Stage -Recurse
     $env:DIRECT_URL = "postgresql://prisma@127.0.0.1:${phase6Port}/${phase6Database}?sslmode=disable&connection_limit=1"
     $env:DATABASE_URL = $env:DIRECT_URL
     pnpm --filter @pathways/api exec prisma migrate deploy --config $phase6Config
     if ($LASTEXITCODE -ne 0) { throw '0007 P01 replay failed.' }
 
-    Copy-Item -LiteralPath (Join-Path $phase6Root 'apps/api/prisma/migrations/0008_metadata_forms_direct_entry') -Destination $phase6Stage -Recurse
+    Copy-Item -LiteralPath (Join-Path $phase6History '0008_metadata_forms_direct_entry') -Destination $phase6Stage -Recurse
     $env:DIRECT_URL = "postgresql://prisma@127.0.0.1:${phase6Port}/${phase6Database}?sslmode=disable&connection_limit=1"
     $env:DATABASE_URL = $env:DIRECT_URL
     pnpm --filter @pathways/api exec prisma migrate deploy --config $phase6Config
@@ -95,45 +100,45 @@ try {
       & "$phase6Bin\psql.exe" -X -w -q -A -t -h 127.0.0.1 -p $phase6Port -U postgres -d $phase6Database `
         -c "SELECT coalesce(logs,'') FROM public._prisma_migrations WHERE migration_name='0008_metadata_forms_direct_entry' ORDER BY started_at DESC LIMIT 1"
       & "$phase6Bin\psql.exe" -X -w -h 127.0.0.1 -p $phase6Port -U prisma -d $phase6Database `
-        -v ON_ERROR_STOP=1 -v VERBOSITY=verbose -f (Join-Path $phase6Root 'apps/api/prisma/migrations/0008_metadata_forms_direct_entry/migration.sql')
+        -v ON_ERROR_STOP=1 -v VERBOSITY=verbose -f (Join-Path $phase6History '0008_metadata_forms_direct_entry/migration.sql')
       throw '0008 P02 replay failed.'
     }
     $rbacUpgradeFixture = [IO.File]::ReadAllText((Join-Path $phase6Root 'apps/api/prisma/tests/import-pipeline-upgrade-fixture.sql'))
     Invoke-LocalSql $rbacUpgradeFixture $phase6Database
 
-    Copy-Item -LiteralPath (Join-Path $phase6Root 'apps/api/prisma/migrations/0009_import_state_enums') -Destination $phase6Stage -Recurse
+    Copy-Item -LiteralPath (Join-Path $phase6History '0009_import_state_enums') -Destination $phase6Stage -Recurse
     $env:DIRECT_URL = "postgresql://prisma@127.0.0.1:${phase6Port}/${phase6Database}?sslmode=disable&connection_limit=1"
     $env:DATABASE_URL = $env:DIRECT_URL
     pnpm --filter @pathways/api exec prisma migrate deploy --config $phase6Config
     if ($LASTEXITCODE -ne 0) { throw '0009 P03 enum replay failed.' }
 
-    Copy-Item -LiteralPath (Join-Path $phase6Root 'apps/api/prisma/migrations/0010_secure_import_pipeline') -Destination $phase6Stage -Recurse
+    Copy-Item -LiteralPath (Join-Path $phase6History '0010_secure_import_pipeline') -Destination $phase6Stage -Recurse
     pnpm --filter @pathways/api exec prisma migrate deploy --config $phase6Config
     if ($LASTEXITCODE -ne 0) {
       & "$phase6Bin\psql.exe" -X -w -q -A -t -h 127.0.0.1 -p $phase6Port -U postgres -d $phase6Database `
         -c "SELECT coalesce(logs,'') FROM public._prisma_migrations WHERE migration_name='0010_secure_import_pipeline' ORDER BY started_at DESC LIMIT 1"
       & "$phase6Bin\psql.exe" -X -w -h 127.0.0.1 -p $phase6Port -U prisma -d $phase6Database `
-        -v ON_ERROR_STOP=1 -v VERBOSITY=verbose -f (Join-Path $phase6Root 'apps/api/prisma/migrations/0010_secure_import_pipeline/migration.sql')
+        -v ON_ERROR_STOP=1 -v VERBOSITY=verbose -f (Join-Path $phase6History '0010_secure_import_pipeline/migration.sql')
       throw '0010 P03 replay failed.'
     }
 
-    Copy-Item -LiteralPath (Join-Path $phase6Root 'apps/api/prisma/migrations/0011_beneficiary_registration') -Destination $phase6Stage -Recurse
+    Copy-Item -LiteralPath (Join-Path $phase6History '0011_beneficiary_registration') -Destination $phase6Stage -Recurse
     pnpm --filter @pathways/api exec prisma migrate deploy --config $phase6Config
     if ($LASTEXITCODE -ne 0) {
       & "$phase6Bin\psql.exe" -X -w -q -A -t -h 127.0.0.1 -p $phase6Port -U postgres -d $phase6Database `
         -c "SELECT coalesce(logs,'') FROM public._prisma_migrations WHERE migration_name='0011_beneficiary_registration' ORDER BY started_at DESC LIMIT 1"
       & "$phase6Bin\psql.exe" -X -w -h 127.0.0.1 -p $phase6Port -U prisma -d $phase6Database `
-        -v ON_ERROR_STOP=1 -v VERBOSITY=verbose -f (Join-Path $phase6Root 'apps/api/prisma/migrations/0011_beneficiary_registration/migration.sql')
+        -v ON_ERROR_STOP=1 -v VERBOSITY=verbose -f (Join-Path $phase6History '0011_beneficiary_registration/migration.sql')
       throw '0011 P04 replay failed.'
     }
-    Copy-Item -LiteralPath (Join-Path $phase6Root 'apps/api/prisma/migrations/0012_project_activity_journeys') -Destination $phase6Stage -Recurse
+    Copy-Item -LiteralPath (Join-Path $phase6History '0012_project_activity_journeys') -Destination $phase6Stage -Recurse
     pnpm --filter @pathways/api exec prisma migrate deploy --config $phase6Config
     if ($LASTEXITCODE -ne 0) {
       & "$phase6Bin\psql.exe" -X -w -q -A -t -h 127.0.0.1 -p $phase6Port -U postgres -d $phase6Database `
         -c "SELECT coalesce(logs,'') FROM public._prisma_migrations WHERE migration_name='0012_project_activity_journeys' ORDER BY started_at DESC LIMIT 1"
       throw '0012 P05 replay failed.'
     }
-    Copy-Item -LiteralPath (Join-Path $phase6Root 'apps/api/prisma/migrations/0013_project_indicators_saddd_dashboard') -Destination $phase6Stage -Recurse
+    Copy-Item -LiteralPath (Join-Path $phase6History '0013_project_indicators_saddd_dashboard') -Destination $phase6Stage -Recurse
     pnpm --filter @pathways/api exec prisma migrate deploy --config $phase6Config
     if ($LASTEXITCODE -ne 0) { throw '0013 P06 replay failed. Inspect the failed migration; do not reset a managed database.' }
 
@@ -146,7 +151,7 @@ try {
       '0019_journey_correction_lock_compatibility',
       '0020_fixed_sensitive_release_policy'
     )) {
-      Copy-Item -LiteralPath (Join-Path $phase6Root "apps/api/prisma/migrations/$phase7Migration") -Destination $phase6Stage -Recurse
+      Copy-Item -LiteralPath (Join-Path $phase6History "$phase7Migration") -Destination $phase6Stage -Recurse
       pnpm --filter @pathways/api exec prisma migrate deploy --config $phase6Config
       if ($LASTEXITCODE -ne 0) {
         throw "$phase7Migration P07 forward-correction replay failed. Inspect the failed migration; do not reset a managed database."
@@ -162,7 +167,7 @@ INSERT INTO pathways.roles(id,code,name)
 VALUES ('89000000-0000-4000-8000-000000000021','PROJECT_MANAGER','Project Manager');
 '@
       Invoke-LocalSql $phase4SeedSql $phase6Database
-      Copy-Item -LiteralPath (Join-Path $phase6Root 'apps/api/prisma/migrations/0021_project_manager_indicator_access') -Destination $phase6Stage -Recurse
+      Copy-Item -LiteralPath (Join-Path $phase6History '0021_project_manager_indicator_access') -Destination $phase6Stage -Recurse
       pnpm --filter @pathways/api exec prisma migrate deploy --config $phase6Config
       if ($LASTEXITCODE -ne 0) { throw '0021 narrow Project Manager indicator replay failed.' }
       $phase4MappingSql = @'
@@ -189,7 +194,7 @@ WHERE id='89000000-0000-4000-8000-000000000021'::uuid
 '@
       Invoke-LocalSql $phase4RemoveSeedSql $phase6Database
 
-      Copy-Item -LiteralPath (Join-Path $phase6Root 'apps/api/prisma/migrations/0022_project_target_goal') -Destination $phase6Stage -Recurse
+      Copy-Item -LiteralPath (Join-Path $phase6History '0022_project_target_goal') -Destination $phase6Stage -Recurse
       pnpm --filter @pathways/api exec prisma migrate deploy --config $phase6Config
       if ($LASTEXITCODE -ne 0) { throw '0022 project target-goal replay failed.' }
 
@@ -212,7 +217,7 @@ WHERE (r.code='MONITORING_AND_EVALUATION_OFFICER' AND p.code='rules.read')
    OR (r.code='PROJECT_MANAGER' AND p.code IN ('rules.read','recommendations.outcome.record'));
 '@
         Invoke-LocalSql $ruleAccessSeedSql $phase6Database
-        Copy-Item -LiteralPath (Join-Path $phase6Root 'apps/api/prisma/migrations/0023_rule_based_access_alignment') -Destination $phase6Stage -Recurse
+        Copy-Item -LiteralPath (Join-Path $phase6History '0023_rule_based_access_alignment') -Destination $phase6Stage -Recurse
         pnpm --filter @pathways/api exec prisma migrate deploy --config $phase6Config
         if ($LASTEXITCODE -ne 0) { throw '0023 rule-based access alignment replay failed.' }
 
@@ -258,7 +263,7 @@ WHERE code IN ('PROJECT_MANAGER','MONITORING_AND_EVALUATION_OFFICER','PROJECT_OF
         Invoke-LocalSql $ruleAccessRemoveSeedSql $phase6Database
 
         if ($DashboardHomeProjectScope -or $ProjectActivityCreationRepair) {
-          Copy-Item -LiteralPath (Join-Path $phase6Root 'apps/api/prisma/migrations/0024_dashboard_home_project_scope') -Destination $phase6Stage -Recurse
+          Copy-Item -LiteralPath (Join-Path $phase6History '0024_dashboard_home_project_scope') -Destination $phase6Stage -Recurse
           pnpm --filter @pathways/api exec prisma migrate deploy --config $phase6Config
           if ($LASTEXITCODE -ne 0) { throw '0024 dashboard-home project-scope replay failed.' }
 
@@ -277,7 +282,7 @@ SELECT
           }
 
           if ($ProjectActivityCreationRepair) {
-            Copy-Item -LiteralPath (Join-Path $phase6Root 'apps/api/prisma/migrations/0025_project_activity_creation_contract') -Destination $phase6Stage -Recurse
+            Copy-Item -LiteralPath (Join-Path $phase6History '0025_project_activity_creation_contract') -Destination $phase6Stage -Recurse
             pnpm --filter @pathways/api exec prisma migrate deploy --config $phase6Config
             if ($LASTEXITCODE -ne 0) { throw '0025 Project/Activity creation-contract replay failed.' }
 
@@ -538,13 +543,13 @@ DO $$ DECLARE targets text; BEGIN
  EXECUTE 'TRUNCATE TABLE '||targets||' CASCADE';
 END $$;
 '@ 'pathways_phase4_rbac_fresh'
-    Copy-Item -LiteralPath (Join-Path $phase6Root 'apps/api/prisma/migrations/0026_csv_rbac_realignment') -Destination $phase6Stage -Recurse
+    Copy-Item -LiteralPath (Join-Path $phase6History '0026_csv_rbac_realignment') -Destination $phase6Stage -Recurse
     foreach ($rbacDatabase in @($phase6Database, 'pathways_phase4_rbac_fresh')) {
       $env:DIRECT_URL = "postgresql://prisma@127.0.0.1:${phase6Port}/${rbacDatabase}?sslmode=disable&connection_limit=1"
       $env:DATABASE_URL = $env:DIRECT_URL
       pnpm --filter @pathways/api exec prisma migrate deploy --config $phase6Config
       if ($LASTEXITCODE -ne 0) {
-        $rbacDiagnostic = [IO.File]::ReadAllText((Join-Path $phase6Root 'apps/api/prisma/migrations/0026_csv_rbac_realignment/migration.sql')).Replace('COMMIT;', 'ROLLBACK;')
+        $rbacDiagnostic = [IO.File]::ReadAllText((Join-Path $phase6History '0026_csv_rbac_realignment/migration.sql')).Replace('COMMIT;', 'ROLLBACK;')
         $rbacDiagnostic | & "$phase6Bin\psql.exe" -X -w -h 127.0.0.1 -p $phase6Port -U prisma -d $rbacDatabase -v ON_ERROR_STOP=1
         throw 'CSV RBAC forward replay failed.'
       }
@@ -578,6 +583,7 @@ END $$;
       if ($LASTEXITCODE -ne 0) { throw 'CSV RBAC API runtime checks failed.' }
     } finally { Pop-Location }
     Write-Output 'CSV_RBAC_UPGRADE_AND_FRESH_REPLAY=PASS'
+    if ($MigrationBaseline) { . (Join-Path $PSScriptRoot 'Verify-Baseline.ps1') }
   }
   Write-Output 'LEGACY_TABLE_PRESERVATION=PASS'
   $phase6Exit = 0
