@@ -11,7 +11,7 @@ It centralizes project, activity, Beneficiary, indicator, monitoring, and report
 - Supabase Auth and Storage
 - six canonical roles including Grant Manager
 - core feature development first
-- `Backend-DB` for development; `origin/master` for deployment
+- `dev` for development; `origin/master` for deployment
 - Vercel API/web release authorized; SSO and AWS hosting postponed
 - no user-facing prototype/mock/presentation-only product framing
 - no AI/autonomous humanitarian decisions

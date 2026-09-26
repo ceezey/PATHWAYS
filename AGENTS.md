@@ -61,9 +61,9 @@ For frontend tasks, read the canonical `docs/dsd-pathways.md` and use root `BRAN
 ### Branch and release workflow
 
 - `origin/master` is the deployment branch.
-- `Backend-DB` is the development branch; preserve this existing Git branch capitalization.
-- Prepare and verify changes on `Backend-DB`, then bring the approved release into `master` and push normally.
-- The Vercel `pathways-api` and `pathways-web` projects use `master` for production and `Backend-DB` for development previews.
+- `dev` is the development branch.
+- Prepare and verify changes on `dev`, then bring the approved release into `master` and push normally.
+- The Vercel `pathways-api` and `pathways-web` projects use `master` for production and `dev` for development previews.
 - Preserve branch history. Do not force-push a deployment branch or run database migrations as a deployment shortcut.
 
 ## 3. Traceability

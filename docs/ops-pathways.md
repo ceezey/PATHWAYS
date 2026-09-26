@@ -10,12 +10,12 @@ Vercel API and web release work was explicitly authorized on 2026-09-26. SSO and
 
 | Purpose | Branch/project | Root | Production URL |
 |---|---|---|---|
-| Development | `Backend-DB` | repository | Vercel Preview |
+| Development | `dev` | repository | Vercel Preview |
 | Deployment | `origin/master` | repository | Vercel Production |
 | NestJS API | `pathways-api` | `apps/api` | `https://pathways-api.vercel.app` |
 | Next.js web | `pathways-web` | `apps/web` | `https://pathways-web-lyart.vercel.app` |
 
-Both Vercel projects connect to `ceezey/PATHWAYS` and use `master` as the production branch. Prepare releases on `Backend-DB`, verify them, then bring the release into `master` and push without rewriting history.
+Both Vercel projects connect to `ceezey/PATHWAYS` and use `master` as the production branch. Prepare releases on `dev`, verify them, then bring the release into `master` and push without rewriting history.
 
 The API build generates the Prisma client with its schema-only generation configuration before compiling NestJS. Database commands retain their separate credential-requiring configuration. Deployment does not apply database migrations or bootstrap identities.
 
@@ -26,7 +26,7 @@ Prisma client generation includes the native development engine and `rhel-openss
 - Web: `NEXT_PUBLIC_SUPABASE_URL`, a public Supabase publishable key, `NEXT_PUBLIC_API_BASE_URL`, and `NEXT_PUBLIC_STAFF_PORTAL_BASE_URL`.
 - API: `DATABASE_URL` for the dedicated `pathways_runtime` login, `SUPABASE_URL`, the public `SUPABASE_PUBLISHABLE_KEY` for token verification, the server-only `SUPABASE_SERVICE_ROLE_KEY` for authorized Auth/Storage operations, and `WEB_ORIGIN`, an exact HTTPS browser origin. Configure database/service credentials as Sensitive in Vercel. Runtime does not require the migration-only `DIRECT_URL` or a JWT signing secret.
 - Remote bearer requests require the explicitly configured HTTPS API destination; local development retains IPv4 loopback.
-- Production uses the stable API/web domains above. `Backend-DB` preview configuration uses the corresponding Git branch aliases.
+- Production uses the stable API/web domains above. `dev` preview configuration uses the corresponding Git branch aliases.
 - Password recovery accepts the configured staff portal origin. Its callback must also be approved in Supabase Auth URL configuration.
 - Before claiming a release complete, verify Vercel build status, API health, unauthorized protected-request denial, web/login responses, and CORS acceptance/rejection.
 
