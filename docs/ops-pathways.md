@@ -22,7 +22,7 @@ The API build generates the Prisma client with its schema-only generation config
 ### Deployment configuration
 
 - Web: `NEXT_PUBLIC_SUPABASE_URL`, a public Supabase publishable key, `NEXT_PUBLIC_API_BASE_URL`, and `NEXT_PUBLIC_STAFF_PORTAL_BASE_URL`.
-- API: existing database/Supabase configuration plus `WEB_ORIGIN`, an exact HTTPS browser origin.
+- API: `DATABASE_URL` for the dedicated `pathways_runtime` login, `SUPABASE_URL`, the public `SUPABASE_PUBLISHABLE_KEY` for token verification, the server-only `SUPABASE_SERVICE_ROLE_KEY` for authorized Auth/Storage operations, and `WEB_ORIGIN`, an exact HTTPS browser origin. Configure database/service credentials as Sensitive in Vercel. Runtime does not require the migration-only `DIRECT_URL` or a JWT signing secret.
 - Remote bearer requests require the explicitly configured HTTPS API destination; local development retains IPv4 loopback.
 - Production uses the stable API/web domains above. `Backend-DB` preview configuration uses the corresponding Git branch aliases.
 - Password recovery accepts the configured staff portal origin. Its callback must also be approved in Supabase Auth URL configuration.
