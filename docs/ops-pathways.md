@@ -13,11 +13,11 @@ Vercel API and web release work was explicitly authorized on 2026-09-26. SSO and
 | Development | `Backend-DB` | repository | Vercel Preview |
 | Deployment | `origin/master` | repository | Vercel Production |
 | NestJS API | `pathways-api` | `apps/api` | `https://pathways-api.vercel.app` |
-| Next.js web | `pathways-web` | `apps/web` | `https://pathways-web.vercel.app` |
+| Next.js web | `pathways-web` | `apps/web` | `https://pathways-web-lyart.vercel.app` |
 
 Both Vercel projects connect to `ceezey/PATHWAYS` and use `master` as the production branch. Prepare releases on `Backend-DB`, verify them, then bring the release into `master` and push without rewriting history.
 
-The API build generates the Prisma client before compiling NestJS. Deployment does not apply database migrations or bootstrap identities.
+The API build generates the Prisma client with its schema-only generation configuration before compiling NestJS. Database commands retain their separate credential-requiring configuration. Deployment does not apply database migrations or bootstrap identities.
 
 ### Deployment configuration
 
