@@ -1,6 +1,6 @@
 # RFC: Authentication, RBAC, Organization and Project Isolation
 
-**Status:** Working; approved CSV contract, local enforcement verified, development application pending
+**Status:** Locked
 **Last reconciled:** 2026-09-26
 **Decision:** [CSV RBAC Change Record](cr-pathways-csv-rbac-realignment.md)
 
@@ -10,7 +10,7 @@ The developer approved the CSV realignment on 2026-09-26. The source is `PATHWAY
 
 The normalized action rows, source row numbers, effective atomic matrix, and supporting-read dispositions are in `apps/api/src/modules/auth/rbac-contract.json`. The API ceiling in `authorization-policy.ts` narrows current active database grants; it never substitutes for them. Frontend profiles and routes consume that same ceiling. No wildcard or administrator bypass exists.
 
-This RFC becomes Locked and the Change Record becomes Applied only when existing enforcement, required checks, and PATHWAYS-dev match this matrix. Other Working contracts remain Working. Missing handlers stay deferred, regardless of permission definitions.
+This RFC is Locked and the Change Record is Applied following verification of existing enforcement, required checks, PATHWAYS-dev, and both Vercel development previews on 2026-09-26. Other Working contracts remain Working. Missing handlers stay deferred, regardless of permission definitions.
 
 ## 2. Identity and Scope
 
@@ -144,7 +144,7 @@ Preserve migration files 0001-0025 and their applied checksums. Use the single `
 
 Verify historical replay, pre-realignment upgrade, empty-reference provisioning, API/frontend/database permission parity, role hierarchy, Grant assignments, supporting-read denial, forged scope, inactive account/permission denial, next-request revocation, aggregate-only privacy, and unchanged datamodel catalogs. Compare security objects that Prisma cannot model separately. Live verification is read-only; synthetic behavioral tests run only in isolated local PostgreSQL.
 
-The PATHWAYS-dev ledger has 25 finished migrations. 0015's recorded checksum matches a CRLF representation of the unchanged repository SQL. 0020's checksum does not match the current SQL or LF/CRLF variants. The developer cannot supply its original applied SQL. Read-only comparison matches the current database with the unchanged pre-realignment replay for columns, indexes, policies, triggers, table security, all 86 function definitions and ACLs, and constraints after accounting for PostgreSQL 18 NOT NULL catalog entries. This establishes current catalog parity, not the originally applied file bytes. The developer explicitly approved the historical 0020 checksum exception on 2026-09-26 and authorized proceeding with tested 0026 after development preview and backup checks. Neither history nor the ledger is rewritten; any additional drift stops application. A protected backup is retained outside the repository. Work remains on `dev`; production release and core-feature repairs require separate authorization.
+The PATHWAYS-dev ledger has 26 finished migrations; the original 25 entries and historical files remain unchanged. 0015's recorded checksum matches a CRLF representation of the unchanged repository SQL. 0020's checksum does not match the current SQL or LF/CRLF variants. The developer cannot supply its original applied SQL. Read-only comparison matches the current database with the unchanged pre-realignment replay for columns, indexes, policies, triggers, table security, all 86 function definitions and ACLs, and constraints after accounting for PostgreSQL 18 NOT NULL catalog entries. This establishes current catalog parity, not the originally applied file bytes. The developer explicitly approved the historical 0020 checksum exception on 2026-09-26 and authorized proceeding with tested 0026 after development preview and backup checks. Neither history nor the ledger is rewritten; any additional drift stops application. Migration `0026_csv_rbac_realignment` is applied with SHA-256 `c4586a1640bd4f510b3685941916711d42ca318842bd5e0167d1e957617e5c74`. Post-application security catalog parity is verified against local replay. Business data, Auth identities, Storage metadata, and historical assignments are preserved. A protected backup with verified isolated restoration is retained outside the repository. Work remains on `dev`; production release and core-feature repairs require separate authorization.
 
 ## 7. Revising the Contract
 

@@ -2,7 +2,7 @@
 
 **ID:** `cr-pathways-csv-rbac-realignment`
 **Date:** 2026-09-26
-**Status:** Approved; checksum exception accepted, development application pending
+**Status:** Applied
 
 ## 1. Trigger
 
@@ -46,8 +46,8 @@ API/frontend regression suites, type checks, builds, documentation materializati
 
 ## 8. Approval
 
-Developer explicitly approved the supplied implementation plan on 2026-09-26. The approved scope includes PATHWAYS-dev forward correction after safety checks and excludes production release and subsequent feature repairs. The developer confirmed target beneficiaries are part of project creation and the activity/indicator workflow; retain them. The developer subsequently approved the 0020 checksum exception and authorized committing/pushing the prepared changes to dev, verifying both Vercel development previews before applying 0026, and publishing the verified contract status updates.
+Developer explicitly approved the supplied implementation plan on 2026-09-26. The approved scope includes PATHWAYS-dev forward correction after safety checks and excludes production release and subsequent feature repairs. The developer confirmed target beneficiaries are part of project creation and the activity/indicator workflow; retain them. The developer subsequently approved the 0020 checksum exception and authorized committing/pushing the prepared changes to dev, verifying both Vercel development previews before applying 0026, and publishing the verified contract status updates. The developer explicitly authorized transferring the protected development runtime credential to the Sensitive Vercel API Preview setting restricted to branch `dev`.
 
 ## 9. Disposition
 
-Approved. Local enforcement and required local checks are verified. The 0020 historical checksum exception is accepted. Do not mark Applied or the auth RFC Locked until required checks and existing enforcement, including PATHWAYS-dev and both Vercel development previews, match the matrix. Missing handlers remain deferred.
+Applied on 2026-09-26. Required local checks and existing enforcement, including PATHWAYS-dev and both Vercel development previews, match the matrix. The auth RFC is Locked. Only forward migration 0026 was applied; historical files and ledger entries remain unchanged. Business data, Auth identities, Storage metadata, and historical assignments are preserved. The approved 0020 historical checksum exception remains documented; original applied bytes remain unverifiable. Missing handlers remain deferred.
