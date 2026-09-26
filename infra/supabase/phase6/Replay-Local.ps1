@@ -556,6 +556,7 @@ END $$;
     $env:DIRECT_URL = $env:DATABASE_URL
     $rbacUpgradeCatalog = (& "$phase6Bin\psql.exe" -X -q -A -t -w -h 127.0.0.1 -p $phase6Port -U postgres -d $phase6Database -v ON_ERROR_STOP=1 -f $rbacCatalogSql) | ConvertFrom-Json
     if ($LASTEXITCODE -ne 0) { throw 'Upgrade catalog unavailable.' }
+    [IO.File]::WriteAllText((Join-Path $phase6Root '.tmp/rbac-local-after-catalog.json'), ($rbacUpgradeCatalog | ConvertTo-Json -Depth 100))
     $rbacFreshCatalog = (& "$phase6Bin\psql.exe" -X -q -A -t -w -h 127.0.0.1 -p $phase6Port -U postgres -d pathways_phase4_rbac_fresh -v ON_ERROR_STOP=1 -f $rbacCatalogSql) | ConvertFrom-Json
     if ($LASTEXITCODE -ne 0) { throw 'Fresh catalog unavailable.' }
     if (($rbacUpgradeCatalog | ConvertTo-Json -Depth 100 -Compress) -cne ($rbacFreshCatalog | ConvertTo-Json -Depth 100 -Compress)) { throw 'Fresh/upgrade catalog or security objects differ.' }
