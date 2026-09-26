@@ -47,7 +47,6 @@ These are repository facts that block or qualify a release claim. They are recor
 | API listener policy | `apps/api/src/main.ts` calls `listenOnIpv4Loopback` (`apps/api/src/common/network/local-listener.ts`), which binds `127.0.0.1` and notes a non-local deployment needs a reviewed listener policy | Development preview health and unauthenticated denial verified 2026-09-26; production listener/release verification remains separate |
 | Swagger in production | `packages/config/src/env.ts` defaults `ENABLE_SWAGGER` to `true`, serving `/api/docs` | set `ENABLE_SWAGGER=false` in Vercel or change the default |
 | API env schema drift | `token-auth.service.ts` reads `SUPABASE_PUBLISHABLE_KEY`, absent from `apiEnvSchema` and `.env.example` files; the templates still list `SUPABASE_JWT_SECRET`, which runtime does not need | align schema and templates with the list above |
-| CI branch trigger | `.github/workflows/ci.yml` runs on pushes to `main`/`master` and on PRs, not on `Backend-DB` pushes | add `Backend-DB` if development pushes must be validated |
 | Engines range | root `package.json` `engines.node` is `>=20.11.0` | pin `22.x` to match `.nvmrc` |
 
 ## 1. Current Development Evidence to Track
@@ -61,6 +60,12 @@ These are repository facts that block or qualify a release claim. They are recor
 - backup/restore success.
 
 Do not invent production SLOs.
+
+### Review checks and local CI databases
+
+The [SAD](sad-pathways.md) defines specialist triggers, deterministic diagnostics, and final agent sign-off evidence. `pnpm sad:check` and the independent CI job provide automated review routing/diagnostics; they do not authenticate reviewers or establish complete semantic approval. Use `pnpm sad:signoff -- --reviews <external-json-path>` for current digest-bound specialist evidence. Keep reports outside tracked files; any reviewed content change invalidates evidence.
+
+CI validates PRs and pushes to `dev`/`master`. Migration replay is isolated to disposable loopback PostgreSQL 18, with verified extraction of archived bytes instead of removed historical migration directories. It exercises fresh provisioning, preserved-ledger baseline registration/upgrade, and forward corrections using existing SQL fixtures/catalog validators. Preserve pinned checksums and approved exceptions. Do not apply a baseline to populated databases or use hosted credentials for CI. CI checks do not authorize database application or deployment; inspect actual run results before reporting completion.
 
 ## 2. Logging
 

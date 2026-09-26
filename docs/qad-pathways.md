@@ -13,6 +13,8 @@ Every implemented feature requires:
 
 A successful build alone is not completion evidence.
 
+Use the [SAD review gates](sad-pathways.md) alongside feature tests. Proposed changes require concurrent matching specialist/design reviews before implementation; final content requires renewed review and external evidence validation. Automated check success does not imply semantic approval.
+
 ## 2. Test Data
 
 Use synthetic/anonymized:
@@ -164,3 +166,18 @@ The approved [auth contract](rfc-pathways-auth-rbac-isolation.md) supplies the m
 Permission grants for missing handlers are contract checks, not feature acceptance. Synthetic behavior stays local. No destructive or live-data behavioral tests are part of this phase.
 
 Additional PRD-F1 checks cover blank definitions versus responses, collected-data versus template imports, journey freeze/privacy, PO alert/SADDD versus monitoring denials, escalation boundaries, archive integrity, and Prisma 6.19.2 compatibility without resets.
+
+## 9. SAD Tooling and Disposable CI Replay
+
+Run `pnpm sad:test`, `pnpm sad:typecheck`, and `pnpm sad:check`; use `--base REV --head REV` for a committed range. Store `--output` manifests and review evidence outside tracked repository files. Final engineering sign-off requires `pnpm sad:signoff -- --reviews <external-json-path>` against the current digest, covering each required role/path pair and its ISO pillars.
+
+| Required regression | Expected result |
+|---|---|
+| Trigger routing, renames, deletions, Windows paths | All applicable roles match either renamed path; deterministic normalized ordering |
+| Executable code versus comments/strings | AST flags executable `eval`/dynamic `Function`; descriptive text alone is not a violation |
+| Unsafe raw queries and destructive SQL | Review flags require semantic evidence, including parameterization/preservation where applicable |
+| Dependency additions and preserved migration edits | Dependency warnings require justification; immutable-history changes block |
+| Missing/stale/malformed/BLOCKED evidence | Final sign-off fails; complete digest-matching PASS evidence succeeds |
+| Disposable PostgreSQL 18 replay | Archived history, fresh baseline provisioning, preserved-ledger registration/upgrade, and forward corrections preserve expected data/security/catalog behavior |
+
+CI publishes automated diagnostics without claiming full SAD approval. The Linux replay uses verified archive extraction, existing SQL fixtures and catalog validators, and documented checksum exceptions. Local execution limitations must be reported; an unexecuted CI job is not verified evidence. Hosted databases and confidential data are excluded.

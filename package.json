@@ -16,6 +16,10 @@
     "typecheck": "pnpm -r --if-present run typecheck",
     "docs:check": "python scripts/docs/check.py docs",
     "docs:materialize": "python scripts/docs/materialize.py docs",
+    "sad:check": "tsx scripts/sad/check.ts",
+    "sad:signoff": "tsx scripts/sad/check.ts --signoff",
+    "sad:test": "vitest run --config scripts/sad/vitest.config.ts",
+    "sad:typecheck": "tsc -p scripts/sad/tsconfig.json",
     "prepare": "node scripts/setup-husky.mjs"
   },
   "devDependencies": {

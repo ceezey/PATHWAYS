@@ -6,13 +6,28 @@ param(
   [switch]$DashboardHomeProjectScope,
   [switch]$ProjectActivityCreationRepair,
   [switch]$CsvRbacRealignment,
-  [switch]$MigrationBaseline
+  [switch]$MigrationBaseline,
+  [string]$PostgresBin
 )
 $ErrorActionPreference = 'Stop'
 if ($MigrationBaseline) { $CsvRbacRealignment = $true }
 if ($CsvRbacRealignment) { $ProjectActivityCreationRepair = $true }
 $phase6Root = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot '../../..')).Path
-$phase6Bin = 'C:\Program Files\PostgreSQL\18\bin'
+$phase6Windows = $env:OS -eq 'Windows_NT'
+if (-not $PostgresBin) {
+  $PostgresBin = if ($phase6Windows) { 'C:\Program Files\PostgreSQL\18\bin' } else { '/usr/lib/postgresql/18/bin' }
+}
+$phase6Bin = (Resolve-Path -LiteralPath $PostgresBin).Path
+$phase6ExecutableSuffix = if ($phase6Windows) { '.exe' } else { '' }
+$phase6Tools = @{}
+foreach ($phase6Tool in @('psql','initdb','pg_ctl','pg_isready','createdb')) {
+  $phase6Tools[$phase6Tool] = Join-Path $phase6Bin ($phase6Tool + $phase6ExecutableSuffix)
+  if (-not (Test-Path -LiteralPath $phase6Tools[$phase6Tool] -PathType Leaf)) { throw "PostgreSQL executable unavailable: $phase6Tool" }
+}
+$phase6Version = & $phase6Tools['initdb'] --version
+if ($LASTEXITCODE -ne 0 -or $phase6Version -notmatch '\b18\.') { throw 'Disposable replay requires PostgreSQL 18.' }
+$phase6ProcessOptions = @{ PassThru = $true }
+if ($phase6Windows) { $phase6ProcessOptions.WindowStyle = 'Hidden' }
 $phase6Parent = Join-Path $phase6Root ('.tmp/pathways-phase6-' + [guid]::NewGuid().ToString('N'))
 $phase6Data = Join-Path $phase6Parent 'data'
 $phase6Stage = Join-Path $phase6Parent 'migrations'
@@ -33,7 +48,7 @@ foreach ($phase6EnvironmentName in @('PATHWAYS_PHASE6_REPLAY_MIGRATIONS','PATHWA
 }
 
 function Invoke-LocalSql([string]$Sql, [string]$Database, [string]$Role = 'postgres') {
-  $Sql | & "$phase6Bin\psql.exe" -X -w -q -h 127.0.0.1 -p $phase6Port -U $Role -d $Database -v ON_ERROR_STOP=1
+  $Sql | & $phase6Tools['psql'] -X -w -q -h 127.0.0.1 -p $phase6Port -U $Role -d $Database -v ON_ERROR_STOP=1
   if ($LASTEXITCODE -ne 0) { throw "Disposable local SQL failed for $Database." }
 }
 
@@ -43,15 +58,15 @@ try {
   New-Item -ItemType Directory -Path $phase6Stage -Force | Out-Null
   python (Join-Path $phase6Root 'scripts/migrations/history.py') --extract $phase6History
   if ($LASTEXITCODE -ne 0) { throw 'Historical archive integrity/extraction failed' }
-  & "$phase6Bin\initdb.exe" -D $phase6Data -U postgres -A trust --encoding=UTF8 --locale=C | Out-Null
+  & $phase6Tools['initdb'] -D $phase6Data -U postgres -A trust --encoding=UTF8 --locale=C | Out-Null
   if ($LASTEXITCODE -ne 0) { throw 'Disposable cluster creation failed.' }
-  Add-Content -LiteralPath (Join-Path $phase6Data 'postgresql.conf') -Value "`nlisten_addresses='127.0.0.1'`nport=$phase6Port`n"
-  $phase6Start = Start-Process -FilePath "$phase6Bin\pg_ctl.exe" `
+  Add-Content -LiteralPath (Join-Path $phase6Data 'postgresql.conf') -Value "`nlisten_addresses='127.0.0.1'`nport=$phase6Port`nunix_socket_directories=''`n"
+  $phase6Start = Start-Process -FilePath $phase6Tools['pg_ctl'] `
     -ArgumentList @('-D',$phase6Data,'-l',(Join-Path $phase6Parent 'postgres.log'),'-s','start') `
-    -PassThru -WindowStyle Hidden
+    @phase6ProcessOptions
   $phase6StartDeadline = [DateTime]::UtcNow.AddSeconds(15)
   do {
-    & "$phase6Bin\pg_isready.exe" -q -h 127.0.0.1 -p $phase6Port
+    & $phase6Tools['pg_isready'] -q -h 127.0.0.1 -p $phase6Port
     if ($LASTEXITCODE -eq 0) { break }
     if ($phase6Start.HasExited -and $phase6Start.ExitCode -ne 0) {
       throw 'Disposable cluster start failed.'
@@ -60,7 +75,7 @@ try {
   } while ([DateTime]::UtcNow -lt $phase6StartDeadline)
   if ($LASTEXITCODE -ne 0) { throw 'Disposable cluster readiness timed out.' }
   $phase6Started = $true
-  & "$phase6Bin\createdb.exe" -w -h 127.0.0.1 -p $phase6Port -U postgres $phase6Database
+  & $phase6Tools['createdb'] -w -h 127.0.0.1 -p $phase6Port -U postgres $phase6Database
   if ($LASTEXITCODE -ne 0) { throw 'Disposable database creation failed.' }
   Invoke-LocalSql ([IO.File]::ReadAllText((Join-Path $phase6Root 'apps/api/prisma/tests/security-adapter-local-bootstrap.sql'))) $phase6Database
 
@@ -97,9 +112,9 @@ try {
     $env:DATABASE_URL = $env:DIRECT_URL
     pnpm --filter @pathways/api exec prisma migrate deploy --config $phase6Config
     if ($LASTEXITCODE -ne 0) {
-      & "$phase6Bin\psql.exe" -X -w -q -A -t -h 127.0.0.1 -p $phase6Port -U postgres -d $phase6Database `
+      & $phase6Tools['psql'] -X -w -q -A -t -h 127.0.0.1 -p $phase6Port -U postgres -d $phase6Database `
         -c "SELECT coalesce(logs,'') FROM public._prisma_migrations WHERE migration_name='0008_metadata_forms_direct_entry' ORDER BY started_at DESC LIMIT 1"
-      & "$phase6Bin\psql.exe" -X -w -h 127.0.0.1 -p $phase6Port -U prisma -d $phase6Database `
+      & $phase6Tools['psql'] -X -w -h 127.0.0.1 -p $phase6Port -U prisma -d $phase6Database `
         -v ON_ERROR_STOP=1 -v VERBOSITY=verbose -f (Join-Path $phase6History '0008_metadata_forms_direct_entry/migration.sql')
       throw '0008 P02 replay failed.'
     }
@@ -115,9 +130,9 @@ try {
     Copy-Item -LiteralPath (Join-Path $phase6History '0010_secure_import_pipeline') -Destination $phase6Stage -Recurse
     pnpm --filter @pathways/api exec prisma migrate deploy --config $phase6Config
     if ($LASTEXITCODE -ne 0) {
-      & "$phase6Bin\psql.exe" -X -w -q -A -t -h 127.0.0.1 -p $phase6Port -U postgres -d $phase6Database `
+      & $phase6Tools['psql'] -X -w -q -A -t -h 127.0.0.1 -p $phase6Port -U postgres -d $phase6Database `
         -c "SELECT coalesce(logs,'') FROM public._prisma_migrations WHERE migration_name='0010_secure_import_pipeline' ORDER BY started_at DESC LIMIT 1"
-      & "$phase6Bin\psql.exe" -X -w -h 127.0.0.1 -p $phase6Port -U prisma -d $phase6Database `
+      & $phase6Tools['psql'] -X -w -h 127.0.0.1 -p $phase6Port -U prisma -d $phase6Database `
         -v ON_ERROR_STOP=1 -v VERBOSITY=verbose -f (Join-Path $phase6History '0010_secure_import_pipeline/migration.sql')
       throw '0010 P03 replay failed.'
     }
@@ -125,16 +140,16 @@ try {
     Copy-Item -LiteralPath (Join-Path $phase6History '0011_beneficiary_registration') -Destination $phase6Stage -Recurse
     pnpm --filter @pathways/api exec prisma migrate deploy --config $phase6Config
     if ($LASTEXITCODE -ne 0) {
-      & "$phase6Bin\psql.exe" -X -w -q -A -t -h 127.0.0.1 -p $phase6Port -U postgres -d $phase6Database `
+      & $phase6Tools['psql'] -X -w -q -A -t -h 127.0.0.1 -p $phase6Port -U postgres -d $phase6Database `
         -c "SELECT coalesce(logs,'') FROM public._prisma_migrations WHERE migration_name='0011_beneficiary_registration' ORDER BY started_at DESC LIMIT 1"
-      & "$phase6Bin\psql.exe" -X -w -h 127.0.0.1 -p $phase6Port -U prisma -d $phase6Database `
+      & $phase6Tools['psql'] -X -w -h 127.0.0.1 -p $phase6Port -U prisma -d $phase6Database `
         -v ON_ERROR_STOP=1 -v VERBOSITY=verbose -f (Join-Path $phase6History '0011_beneficiary_registration/migration.sql')
       throw '0011 P04 replay failed.'
     }
     Copy-Item -LiteralPath (Join-Path $phase6History '0012_project_activity_journeys') -Destination $phase6Stage -Recurse
     pnpm --filter @pathways/api exec prisma migrate deploy --config $phase6Config
     if ($LASTEXITCODE -ne 0) {
-      & "$phase6Bin\psql.exe" -X -w -q -A -t -h 127.0.0.1 -p $phase6Port -U postgres -d $phase6Database `
+      & $phase6Tools['psql'] -X -w -q -A -t -h 127.0.0.1 -p $phase6Port -U postgres -d $phase6Database `
         -c "SELECT coalesce(logs,'') FROM public._prisma_migrations WHERE migration_name='0012_project_activity_journeys' ORDER BY started_at DESC LIMIT 1"
       throw '0012 P05 replay failed.'
     }
@@ -183,7 +198,7 @@ JOIN pathways.permissions p ON p.id=rp.permission_id
 WHERE r.code='PROJECT_MANAGER'
   AND p.code IN ('indicators.create','indicators.update');
 '@
-      $phase4Mapping = $phase4MappingSql | & "$phase6Bin\psql.exe" -X -w -q -A -t -h 127.0.0.1 -p $phase6Port -U postgres -d $phase6Database -v ON_ERROR_STOP=1
+      $phase4Mapping = $phase4MappingSql | & $phase6Tools['psql'] -X -w -q -A -t -h 127.0.0.1 -p $phase6Port -U postgres -d $phase6Database -v ON_ERROR_STOP=1
       if ($LASTEXITCODE -ne 0 -or $phase4Mapping.Trim() -cne 't') {
         throw '0021 existing-role permission mapping was not installed.'
       }
@@ -252,7 +267,7 @@ SELECT
          AND p.code IN ('rules.create','rules.update','rules.activate'))
   AND NOT (SELECT rolbypassrls FROM pg_roles WHERE rolname='pathways_runtime');
 '@
-        $ruleAccessMapping = $ruleAccessMappingSql | & "$phase6Bin\psql.exe" -X -w -q -A -t -h 127.0.0.1 -p $phase6Port -U postgres -d $phase6Database -v ON_ERROR_STOP=1
+        $ruleAccessMapping = $ruleAccessMappingSql | & $phase6Tools['psql'] -X -w -q -A -t -h 127.0.0.1 -p $phase6Port -U postgres -d $phase6Database -v ON_ERROR_STOP=1
         if ($LASTEXITCODE -ne 0 -or $ruleAccessMapping.Trim() -cne 't') {
           throw '0023 exact permission delta or unrelated-role preservation failed.'
         }
@@ -276,7 +291,7 @@ SELECT
   AND NOT has_function_privilege('service_role','pathways.p06_home_dashboard(uuid,uuid[],date,date,text)','EXECUTE')
   AND NOT (SELECT rolsuper OR rolbypassrls FROM pg_roles WHERE rolname='pathways_runtime');
 '@
-          $dashboardHomePostflight = $dashboardHomePostflightSql | & "$phase6Bin\psql.exe" -X -w -q -A -t -h 127.0.0.1 -p $phase6Port -U postgres -d $phase6Database -v ON_ERROR_STOP=1
+          $dashboardHomePostflight = $dashboardHomePostflightSql | & $phase6Tools['psql'] -X -w -q -A -t -h 127.0.0.1 -p $phase6Port -U postgres -d $phase6Database -v ON_ERROR_STOP=1
           if ($LASTEXITCODE -ne 0 -or $dashboardHomePostflight.Trim() -cne 't') {
             throw '0024 dashboard-home function hardening failed.'
           }
@@ -307,7 +322,7 @@ SELECT
   AND NOT has_function_privilege('service_role','pathways.p08_activity_beneficiaries_reached(uuid,uuid,uuid[])','EXECUTE')
   AND NOT (SELECT rolsuper OR rolbypassrls FROM pg_roles WHERE rolname='pathways_runtime');
 '@
-            $projectActivityPostflight = $projectActivityPostflightSql | & "$phase6Bin\psql.exe" -X -w -q -A -t -h 127.0.0.1 -p $phase6Port -U postgres -d $phase6Database -v ON_ERROR_STOP=1
+            $projectActivityPostflight = $projectActivityPostflightSql | & $phase6Tools['psql'] -X -w -q -A -t -h 127.0.0.1 -p $phase6Port -U postgres -d $phase6Database -v ON_ERROR_STOP=1
             if ($LASTEXITCODE -ne 0 -or $projectActivityPostflight.Trim() -cne 't') {
               throw '0025 Project/Activity function or RLS hardening failed.'
             }
@@ -462,7 +477,7 @@ SELECT (SELECT count(*) FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamesp
   } elseif ($Phase4IndicatorPolicy) {
     $phase6Post = $phase6Post.Replace('FROM public._prisma_migrations)=20', 'FROM public._prisma_migrations)=22')
   }
-  $phase6Result = $phase6Post | & "$phase6Bin\psql.exe" -X -w -q -A -t -h 127.0.0.1 -p $phase6Port -U postgres -d $phase6Database -v ON_ERROR_STOP=1
+  $phase6Result = $phase6Post | & $phase6Tools['psql'] -X -w -q -A -t -h 127.0.0.1 -p $phase6Port -U postgres -d $phase6Database -v ON_ERROR_STOP=1
   if ($LASTEXITCODE -ne 0 -or $phase6Result.Trim() -cne 't') { throw 'Replay postflight failed.' }
   $env:PATHWAYS_FEATURE_READ_LOCAL_TESTS = '1'
   if ($ProjectActivityCreationRepair) {
@@ -522,7 +537,7 @@ SELECT (SELECT count(*) FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamesp
   if ($RuleBasedAccessAlignment -or $DashboardHomeProjectScope -or $ProjectActivityCreationRepair) { Write-Output 'RULE_BASED_ACCESS_ALIGNMENT_RUNTIME=PASS' }
   if ($CsvRbacRealignment) {
     $rbacCatalogSql = Join-Path $phase6Root 'apps/api/prisma/tests/csv-rbac-catalog.sql'
-    $rbacBeforeCatalog = (& "$phase6Bin\psql.exe" -X -q -A -t -w -h 127.0.0.1 -p $phase6Port -U postgres -d $phase6Database -v ON_ERROR_STOP=1 -f $rbacCatalogSql) | ConvertFrom-Json
+    $rbacBeforeCatalog = (& $phase6Tools['psql'] -X -q -A -t -w -h 127.0.0.1 -p $phase6Port -U postgres -d $phase6Database -v ON_ERROR_STOP=1 -f $rbacCatalogSql) | ConvertFrom-Json
     if ($LASTEXITCODE -ne 0) { throw 'Baseline catalog unavailable.' }
     [IO.File]::WriteAllText((Join-Path $phase6Root '.tmp/rbac-local-before-catalog.json'), ($rbacBeforeCatalog | ConvertTo-Json -Depth 100))
     $rbacModelDiffBefore = Join-Path $phase6Parent 'prisma-before.sql'
@@ -550,7 +565,7 @@ END $$;
       pnpm --filter @pathways/api exec prisma migrate deploy --config $phase6Config
       if ($LASTEXITCODE -ne 0) {
         $rbacDiagnostic = [IO.File]::ReadAllText((Join-Path $phase6History '0026_csv_rbac_realignment/migration.sql')).Replace('COMMIT;', 'ROLLBACK;')
-        $rbacDiagnostic | & "$phase6Bin\psql.exe" -X -w -h 127.0.0.1 -p $phase6Port -U prisma -d $rbacDatabase -v ON_ERROR_STOP=1
+        $rbacDiagnostic | & $phase6Tools['psql'] -X -w -h 127.0.0.1 -p $phase6Port -U prisma -d $rbacDatabase -v ON_ERROR_STOP=1
         throw 'CSV RBAC forward replay failed.'
       }
       Invoke-LocalSql ([IO.File]::ReadAllText((Join-Path $phase6Root 'apps/api/prisma/tests/csv-rbac-runtime.sql'))) $rbacDatabase
@@ -559,10 +574,10 @@ END $$;
     }
     $env:DATABASE_URL = "postgresql://prisma@127.0.0.1:${phase6Port}/${phase6Database}?sslmode=disable&connection_limit=1"
     $env:DIRECT_URL = $env:DATABASE_URL
-    $rbacUpgradeCatalog = (& "$phase6Bin\psql.exe" -X -q -A -t -w -h 127.0.0.1 -p $phase6Port -U postgres -d $phase6Database -v ON_ERROR_STOP=1 -f $rbacCatalogSql) | ConvertFrom-Json
+    $rbacUpgradeCatalog = (& $phase6Tools['psql'] -X -q -A -t -w -h 127.0.0.1 -p $phase6Port -U postgres -d $phase6Database -v ON_ERROR_STOP=1 -f $rbacCatalogSql) | ConvertFrom-Json
     if ($LASTEXITCODE -ne 0) { throw 'Upgrade catalog unavailable.' }
     [IO.File]::WriteAllText((Join-Path $phase6Root '.tmp/rbac-local-after-catalog.json'), ($rbacUpgradeCatalog | ConvertTo-Json -Depth 100))
-    $rbacFreshCatalog = (& "$phase6Bin\psql.exe" -X -q -A -t -w -h 127.0.0.1 -p $phase6Port -U postgres -d pathways_phase4_rbac_fresh -v ON_ERROR_STOP=1 -f $rbacCatalogSql) | ConvertFrom-Json
+    $rbacFreshCatalog = (& $phase6Tools['psql'] -X -q -A -t -w -h 127.0.0.1 -p $phase6Port -U postgres -d pathways_phase4_rbac_fresh -v ON_ERROR_STOP=1 -f $rbacCatalogSql) | ConvertFrom-Json
     if ($LASTEXITCODE -ne 0) { throw 'Fresh catalog unavailable.' }
     if (($rbacUpgradeCatalog | ConvertTo-Json -Depth 100 -Compress) -cne ($rbacFreshCatalog | ConvertTo-Json -Depth 100 -Compress)) { throw 'Fresh/upgrade catalog or security objects differ.' }
     foreach ($rbacKey in @('columns','constraints','indexes')) {
@@ -600,8 +615,8 @@ END $$;
     }
   }
   if ($phase6Started) {
-    $phase6Stop = Start-Process -FilePath "$phase6Bin\pg_ctl.exe" `
-      -ArgumentList @('-D',$phase6Data,'-m','fast','-s','stop') -PassThru -WindowStyle Hidden
+    $phase6Stop = Start-Process -FilePath $phase6Tools['pg_ctl'] `
+      -ArgumentList @('-D',$phase6Data,'-m','fast','-s','stop') @phase6ProcessOptions
     if (-not $phase6Stop.WaitForExit(15000) -or $phase6Stop.ExitCode -ne 0) {
       $phase6Exit = 1
     } else {

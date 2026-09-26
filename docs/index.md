@@ -44,7 +44,7 @@
 | DSD | dsd-pathways.md | Working; frontend source reconciled |
 | SDD | sdd-pathways.md | Working |
 | QAD | qad-pathways.md | Working |
-| SAD | sad-pathways.md | Draft |
+| SAD | sad-pathways.md | Control |
 | BUILD | build-pathways.md | Working |
 | CLR | clr-pathways.md | Working |
 | AIA | aia-pathways.md | Working; not triggered |
@@ -113,6 +113,7 @@ Newest first.
 
 | CR ID | Date | Summary | Status |
 |---|---|---|---|
+| sad-review-adoption-2026-09-26 | 2026-09-26 | Developer-approved seven-role SAD, digest-bound external sign-off, automated CI diagnostics, and disposable PostgreSQL 18 archive/baseline replay | Applied; local checker and replay verified; hosted application excluded |
 | [cr-pathways-revised-rbac-baseline](cr-pathways-revised-rbac-baseline.md) | 2026-09-26 | Revised grants and archived baseline consolidation | Applied |
 | [cr-pathways-csv-rbac-realignment](cr-pathways-csv-rbac-realignment.md) | 2026-09-26 | CSV action matrix, authorization realignment, preserved migration history and development-only correction | Applied; PATHWAYS-dev 0026 verified, approved 0020 checksum exception retained |
 | development-branch-dev-2026-09-26 | 2026-09-26 | Developer replaced `Backend-DB` with `dev` for development; retained `origin/master` for deployment and aligned development preview configuration | Applied |
@@ -136,6 +137,7 @@ Last run: 2026-09-26 (`pnpm docs:check`).
 - [x] SADDD policy captured as Locked RFC.
 - [x] Build guide -> AGENTS and DSD -> BRAND/DESIGN materialization via `pnpm docs:materialize`.
 - [x] Documentation checker: `pnpm docs:check`.
+- [x] Seven-role SAD registered as Control; checker regressions/type interfaces and disposable historical/baseline/forward replay verified locally. CI execution remains separately observed.
 - [x] Audit / Change Record / postmortem distinctions documented.
 - [x] Vercel API/web release separately authorized; SSO/AWS remain deferred.
 - [x] six-role model carried forward.

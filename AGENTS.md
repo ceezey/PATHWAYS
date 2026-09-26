@@ -23,6 +23,8 @@ Before substantial implementation:
 11. `docs/ops-pathways.md`
 12. this build guide
 
+Read `docs/sad-pathways.md` before proposing or implementing changed code; its specialist triggers and evidence gate apply alongside the relevant contracts.
+
 Read the manuscript/Master Context Pack when academic/domain context is needed.
 
 ### Status Semantics
@@ -201,6 +203,10 @@ explore
 
 Audits record findings. Change Records record decisions.
 
+### SAD review and sign-off
+
+Use the seven-role [SAD](sad-pathways.md) for changed-path matching and engineering rules. Review proposed changes with matching specialists and design QA concurrently in bounded batches before implementation; stop dependent work on a violation. After implementation, run `pnpm sad:check`, relevant tests, and renewed specialist reviews against the final change digest. Run `pnpm sad:signoff -- --reviews <external-json-path>` before engineering sign-off. Missing, stale, malformed, or BLOCKED evidence withholds sign-off; changed content invalidates previous evidence. Automated diagnostics do not certify semantic safety. Keep review reports outside tracked files, and omit unmatched roles rather than claiming PASS.
+
 ## 8. Human Intervention Contract
 
 ```text
@@ -235,6 +241,7 @@ Do not bury a human gate inside a long phase report.
 - [ ] security/privacy invariants preserved
 - [ ] schema/API matches current SDD/RFC or approved CR
 - [ ] relevant QAD happy/sad/abuse tests pass
+- [ ] required SAD specialist/design reviews pass against final content and external evidence validates
 - [ ] no secrets committed
 - [ ] no unauthorized cross-org/project access
 - [ ] no user-facing prototype/mock/presentation-only labels introduced
