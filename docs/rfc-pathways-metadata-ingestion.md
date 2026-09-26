@@ -40,6 +40,12 @@ Only approved system/form fields are mapping targets.
 
 No arbitrary DB column names, SQL, or executable expressions.
 
+### Conservative code/label matching V1
+
+Preview suggestions use stable parser source-column keys rather than display labels as identity. Compare each source label with the union of approved field codes and labels. Normalize names with Unicode NFKC, trim only ASCII space/tab/LF/CR/form-feed/vertical-tab, fold only ASCII A-Z, then replace runs of those whitespace characters or hyphen with underscore. Preserve other punctuation and non-ASCII case. Aliases are excluded until an approved representation exists.
+
+A source is suggested only when it has exactly one candidate and no other source claims that candidate, including an ambiguous source whose candidate set contains it. Unknown, blank, ambiguous or competing sources remain unresolved. Missing required mappings block validation/normalization. Suggestions confer no manual review or processing authority; existing explicit reviewer confirmation and canonical server validation remain required. This matching definition does not install a server automatic-mapping endpoint or its supporting SQL.
+
 ## Provenance
 
 Preserve uploader, org/project, storage object, batch, row index, mapping version, validation result, normalized references, timestamps.

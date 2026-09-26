@@ -59,6 +59,8 @@ Do not use confidential live Beneficiary data.
 | QAD-T25 | disallowed upload rejected |
 | QAD-T26 | export/report failure leaves source data intact |
 
+PRD-F6 mapping suggestions additionally cover stable source keys, ASCII whitespace/hyphen folding, fullwidth NFKC, preserved accented-case distinctions, non-ASCII whitespace, punctuation and blank names. Competing code/label candidates and an ambiguous source sharing another source's sole target must remain unresolved. Suggested mappings retain existing reviewer confirmation and server validation; no new authority is inferred.
+
 ### Abuse
 
 | ID | Scenario |

@@ -114,6 +114,7 @@ Newest first.
 | CR ID | Date | Summary | Status |
 |---|---|---|---|
 | [cr-pathways-retire-project-target-goal](cr-pathways-retire-project-target-goal.md) | 2026-09-26 | Retire live project benchmark inputs, outputs and comparisons; preserve database history, target beneficiaries and independent indicator targets | Approved; implementation/verification pending; no migration or release |
+| conservative-mapping-v1-2026-09-27 | 2026-09-27 | Register stable source keys, conservative NFKC/ASCII code-label matching and unresolved candidate collisions for PRD-F6 preview suggestions | Contract clarification; preview implementation pending; no server authority or SQL installed |
 | [cr-pathways-f10-f11-runtime-authority](cr-pathways-f10-f11-runtime-authority.md) | 2026-09-26 | Local least-privilege worker/sweeper boundary, SYSTEM attribution, calendar equality, conservative exposure and legacy preservation; human matrix unchanged | Approved; implementation/verification pending; hosted application, scheduler and release excluded |
 | sad-review-adoption-2026-09-26 | 2026-09-26 | Developer-approved seven-role SAD, digest-bound external sign-off, automated CI diagnostics, and disposable PostgreSQL 18 archive/baseline replay | Applied; local checker and replay verified; hosted application excluded |
 | [cr-pathways-revised-rbac-baseline](cr-pathways-revised-rbac-baseline.md) | 2026-09-26 | Revised grants and archived baseline consolidation | Applied |
