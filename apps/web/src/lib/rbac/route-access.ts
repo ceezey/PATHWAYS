@@ -56,7 +56,7 @@ export const routePolicy = {
   budget: entry(
     '/projects/:projectId/budget',
     'Budget',
-    ['budgets.read', 'expenses.read', 'expenses.submit'],
+    ['budgets.read'],
     'project',
   ),
   journey: entry(

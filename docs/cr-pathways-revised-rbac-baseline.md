@@ -110,3 +110,5 @@ Supporting operations are separate from source actions. Admin activity configura
 | 103 | Review Alert & Make Action: Admin, PO, M&E, PM, Program, Grant.  |
 | 104 | Review Rule-Based Recommendations: Admin, PO, M&E, PM, Program, Grant.  |
 | 105 | Review Linked Evaluation Result & Make Action: Admin, PO, M&E, PM, Program, Grant.  |
+
+The Budget tab requires `budgets.read` (PM/Program/Grant). Assigned PO/M&E expense logging/review permissions authorize their respective operations without granting that tab or budget data; separate missing financial UI work remains deferred.

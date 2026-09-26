@@ -163,3 +163,5 @@ The approved 0015 CRLF checksum explanation and 0020 exception remain unchanged.
 ## 7. Revising the Contract
 
 A revised CSV or explicit developer RBAC decision triggers the registered Change Record workflow. Record the new source filename and SHA-256 when applicable, compare each changed action and scope with this matrix, and identify affected supporting reads and privacy boundaries. Reconcile the canonical matrix, reference data, API checks, database policies/functions, frontend navigation/action visibility, dependent documents, and relevant tests together. Preserve exact archived/applied bytes and ledger checksums; corrections use forward migrations. Consolidation requires an explicit approved Change Record. Re-lock the revised contract and mark its Change Record Applied only after required enforcement and verification match the approved revision. Missing handlers remain deferred unless separately authorized.
+
+The Budget tab requires `budgets.read` (PM/Program/Grant). Assigned PO/M&E expense logging/review permissions authorize their respective operations without granting that tab or budget data; separate missing financial UI work remains deferred.
