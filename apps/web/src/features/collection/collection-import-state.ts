@@ -42,29 +42,31 @@ export const createMappingRows = (
     }
   })
 
-const normalizeDefinitionName = (value: string) =>
+export const normalizeMappingNameV1 = (value: string) =>
   value
     .normalize('NFKC')
-    .trim()
-    .toLowerCase()
-    .replace(/[\s-]+/gu, '_')
+    .replace(/^[ \t\n\r\f\v]+|[ \t\n\r\f\v]+$/g, '')
+    .replace(/[A-Z]/g, (character) => String.fromCharCode(character.charCodeAt(0) + 32))
+    .replace(/[ \t\n\r\f\v-]+/g, '_')
 
 export const createDefinitionMappingRows = (
   headers: string[],
   fields: readonly { code: string; label: string }[],
 ): MappingRow[] => {
   const candidates = headers.map((header) => {
-    const normalized = normalizeDefinitionName(header)
+    const normalized = normalizeMappingNameV1(header)
     return fields.filter(
       (field) =>
         normalized !== '' &&
-        (normalized === normalizeDefinitionName(field.code) ||
-          normalized === normalizeDefinitionName(field.label)),
+        (normalized === normalizeMappingNameV1(field.code) ||
+          normalized === normalizeMappingNameV1(field.label)),
     )
   })
   const counts = new Map<string, number>()
   for (const matches of candidates) {
-    if (matches.length === 1) counts.set(matches[0].code, (counts.get(matches[0].code) ?? 0) + 1)
+    for (const field of matches) {
+      counts.set(field.code, (counts.get(field.code) ?? 0) + 1)
+    }
   }
   return headers.map((header, index) => {
     const matches = candidates[index]
