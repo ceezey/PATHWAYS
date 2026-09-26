@@ -10,6 +10,8 @@ import { Dialog, DialogFooter } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
+import { useCurrentRole } from '@/hooks/use-current-role'
+import { type SensitiveDraftOwner, useSensitiveDraftOwner } from '@/lib/auth/sensitive-drafts'
 import {
   registerProofFilePreviews,
   releaseProofFilePreviews,
@@ -17,16 +19,36 @@ import {
 import { pathwaysClient } from '@/lib/services/pathways-client'
 import type { Activity } from '@/types/pathways'
 
-export const ActivityProofDialog = ({
+export const ActivityProofDialog = (props: {
+  activity: Activity | null
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  onSubmitted: (activity: Activity) => void
+}) => {
+  const { profile } = useCurrentRole()
+  const scope = useSensitiveDraftOwner(
+    profile,
+    'proof',
+    'activities.proof.submit',
+    props.activity?.projectId ?? null,
+    props.activity?.id ?? null,
+    props.open && Boolean(props.activity),
+  )
+  if (!scope || !props.activity || !props.open) return null
+  return <ScopedActivityProofDialog key={scope.key + scope.generation} {...props} scope={scope} />
+}
+const ScopedActivityProofDialog = ({
   activity,
   open,
   onOpenChange,
   onSubmitted,
+  scope,
 }: {
   activity: Activity | null
   open: boolean
   onOpenChange: (open: boolean) => void
   onSubmitted: (activity: Activity) => void
+  scope: SensitiveDraftOwner
 }) => {
   const [beneficiariesReachedThisSession, setBeneficiariesReachedThisSession] = useState(0)
   const [note, setNote] = useState('')
@@ -51,7 +73,7 @@ export const ActivityProofDialog = ({
   }, [activity, open])
 
   const submitUpdate = async () => {
-    if (!activity) {
+    if (!activity || submitting || !scope.isCurrent()) {
       return
     }
 
@@ -72,11 +94,13 @@ export const ActivityProofDialog = ({
       return
     }
 
-    const fileReferences = await registerProofFilePreviews(files)
     setSubmitting(true)
     setError('')
+    let fileReferences: Awaited<ReturnType<typeof registerProofFilePreviews>> = []
 
     try {
+      fileReferences = await registerProofFilePreviews(files)
+      if (!scope.isCurrent()) return
       const updatedActivity = await pathwaysClient.submitActivityProof({
         projectId: activity.projectId,
         activityId: activity.id,
@@ -86,6 +110,7 @@ export const ActivityProofDialog = ({
         files,
       })
 
+      if (!scope.isCurrent()) return
       toast.success('Progress update submitted.', {
         description:
           files.length > 0
@@ -95,14 +120,15 @@ export const ActivityProofDialog = ({
       onSubmitted(updatedActivity)
       onOpenChange(false)
     } catch (caught) {
-      releaseProofFilePreviews(fileReferences)
+      if (!scope.isCurrent()) return
       setError(
         caught instanceof Error
           ? caught.message
           : 'The activity update could not be completed. Review the details and try again.',
       )
     } finally {
-      setSubmitting(false)
+      releaseProofFilePreviews(fileReferences)
+      if (scope.isCurrent()) setSubmitting(false)
     }
   }
 

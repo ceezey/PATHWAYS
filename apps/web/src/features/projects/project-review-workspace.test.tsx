@@ -10,6 +10,10 @@ const api = vi.hoisted(() => ({
   getEvidence: vi.fn(),
   getProject: vi.fn(),
   getReports: vi.fn(),
+  getProjectIndicators: vi.fn(),
+  getEvaluation: vi.fn(),
+  getBudgets: vi.fn(),
+  getTransparencySections: vi.fn(),
 }))
 const access = vi.hoisted(() => ({
   role: 'Monitoring and Evaluation Officer',
@@ -45,6 +49,7 @@ vi.mock('./project-workspace-header', () => ({
 
 describe('shared project workspace optional loading', () => {
   beforeEach(() => {
+    access.profile.permissions = ['projects.read', 'evidence.review', 'reports.read']
     api.getProject.mockResolvedValue({
       id: projectId,
       title: 'Project Alpha',
@@ -52,6 +57,8 @@ describe('shared project workspace optional loading', () => {
     })
     api.getEvidence.mockRejectedValue(new Error('not_configured'))
     api.getReports.mockResolvedValue([])
+    api.getProjectIndicators.mockResolvedValue([])
+    api.getEvaluation.mockResolvedValue(null)
   })
 
   afterEach(() => {
@@ -68,4 +75,76 @@ describe('shared project workspace optional loading', () => {
     expect(screen.getByText('No evidence records are available for this project.')).toBeTruthy()
     await waitFor(() => expect(api.getReports).toHaveBeenCalledWith(projectId))
   })
+  it.each([false, undefined])(
+    'does not block existing authorized evidence content for metric availability %s',
+    async (metricsAvailable) => {
+      api.getProject.mockResolvedValue({ id: projectId, title: 'Project Alpha', metricsAvailable })
+      api.getEvidence.mockResolvedValue([])
+      render(<ProjectPhaseFiveWorkspace projectId={projectId} view="evidence" />)
+      expect(await screen.findByRole('heading', { name: 'Evidence' })).toBeTruthy()
+      expect(
+        await screen.findByText('No evidence records are available for this project.'),
+      ).toBeTruthy()
+      await waitFor(() => expect(api.getEvidence).toHaveBeenCalledWith(projectId))
+      expect(screen.queryByRole('heading', { name: 'Workspace unavailable' })).toBeNull()
+    },
+  )
+  it('preserves current permission-driven optional reads with unavailable metrics', async () => {
+    access.profile.permissions = ['projects.read', 'evidence.review']
+    api.getProject.mockResolvedValue({
+      id: projectId,
+      title: 'Project Alpha',
+      metricsAvailable: false,
+    })
+    api.getEvidence.mockResolvedValue([])
+    render(<ProjectPhaseFiveWorkspace projectId={projectId} view="evidence" />)
+    expect(await screen.findByRole('heading', { name: 'Evidence' })).toBeTruthy()
+    expect(api.getReports).not.toHaveBeenCalled()
+  })
+  it('keeps failed project authorization authoritative and does not read children', async () => {
+    api.getProject.mockRejectedValue(new Error('Project unavailable.'))
+    render(<ProjectPhaseFiveWorkspace projectId={projectId} view="evidence" />)
+    expect(await screen.findByRole('heading', { name: 'Workspace unavailable' })).toBeTruthy()
+    expect(api.getEvidence).not.toHaveBeenCalled()
+    expect(api.getReports).not.toHaveBeenCalled()
+  })
+  it.each(['indicators', 'monitor-evaluate'] as const)(
+    'loads existing authorized %s content without metric availability',
+    async (view) => {
+      access.profile.permissions = ['projects.read', 'monitoring.read']
+      api.getProject.mockResolvedValue({
+        id: projectId,
+        title: 'Project Alpha',
+        metricsAvailable: false,
+      })
+      render(<ProjectPhaseFiveWorkspace projectId={projectId} view={view} />)
+      expect(
+        await screen.findByRole('heading', {
+          name: view === 'indicators' ? 'Indicators' : 'Monitor & Evaluate',
+        }),
+      ).toBeTruthy()
+      await waitFor(() =>
+        expect(
+          view === 'indicators' ? api.getProjectIndicators : api.getEvaluation,
+        ).toHaveBeenCalledWith(projectId),
+      )
+      expect(screen.queryByRole('heading', { name: 'Workspace unavailable' })).toBeNull()
+    },
+  )
+  it.each(['budget', 'transparency'] as const)(
+    'retains existing %s metric admission until truthful finance displays are reviewed',
+    async (view) => {
+      access.profile.permissions = ['projects.read', 'budgets.read', 'transparency.read']
+      api.getProject.mockResolvedValue({
+        id: projectId,
+        title: 'Project Alpha',
+        metricsAvailable: false,
+      })
+      render(<ProjectPhaseFiveWorkspace projectId={projectId} view={view} />)
+      expect(await screen.findByRole('heading', { name: 'Workspace unavailable' })).toBeTruthy()
+      expect(api.getBudgets).not.toHaveBeenCalled()
+      expect(api.getTransparencySections).not.toHaveBeenCalled()
+      expect(api.getEvidence).not.toHaveBeenCalled()
+    },
+  )
 })

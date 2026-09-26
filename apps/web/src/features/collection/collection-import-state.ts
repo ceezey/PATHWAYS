@@ -42,6 +42,44 @@ export const createMappingRows = (
     }
   })
 
+export const normalizeMappingNameV1 = (value: string) =>
+  value
+    .normalize('NFKC')
+    .replace(/^[ \t\n\r\f\v]+|[ \t\n\r\f\v]+$/g, '')
+    .replace(/[A-Z]/g, (character) => String.fromCharCode(character.charCodeAt(0) + 32))
+    .replace(/[ \t\n\r\f\v-]+/g, '_')
+
+export const createDefinitionMappingRows = (
+  headers: string[],
+  fields: readonly { code: string; label: string }[],
+): MappingRow[] => {
+  const candidates = headers.map((header) => {
+    const normalized = normalizeMappingNameV1(header)
+    return fields.filter(
+      (field) =>
+        normalized !== '' &&
+        (normalized === normalizeMappingNameV1(field.code) ||
+          normalized === normalizeMappingNameV1(field.label)),
+    )
+  })
+  const counts = new Map<string, number>()
+  for (const matches of candidates) {
+    for (const field of matches) {
+      counts.set(field.code, (counts.get(field.code) ?? 0) + 1)
+    }
+  }
+  return headers.map((header, index) => {
+    const matches = candidates[index]
+    const target = matches.length === 1 && counts.get(matches[0].code) === 1 ? matches[0].code : ''
+    return {
+      id: `mapping-${index}`,
+      sourceColumn: header,
+      targetField: target,
+      status: target ? 'mapped' : 'unmapped',
+    }
+  })
+}
+
 export const getMappingReadiness = (mappingRows: readonly MappingRow[]): MappingReadiness => {
   const invalid = mappingRows.filter((row) => row.status === 'invalid').length
   const unmapped = mappingRows.filter(

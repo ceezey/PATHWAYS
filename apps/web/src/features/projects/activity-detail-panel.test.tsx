@@ -32,7 +32,7 @@ const activity: Activity = {
   budgetAllocation: 55678.9,
   budgetLogged: null,
   progress: 0,
-  projectGoalComparison: { state: 'BELOW_TARGET', reason: null },
+
   submittedProof: [],
   updateNotes: [],
   updatedAt: '2026-09-25T00:00:00.000Z',
@@ -66,5 +66,6 @@ describe('ActivityDetailContent server read model', () => {
     expect(screen.getByText('No journey stage linked')).toBeTruthy()
     expect(screen.getByText('No indicators are connected to this activity.')).toBeTruthy()
     expect(document.body.textContent).not.toContain('NaN')
+    expect(document.body.textContent).not.toContain('Project target comparison')
   })
 })

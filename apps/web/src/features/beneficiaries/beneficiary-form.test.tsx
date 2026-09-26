@@ -7,6 +7,7 @@ import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
 import { mockProjects } from '@/mocks/pathways/projects'
 import { testBeneficiaries } from '@/mocks/pathways/real-api-fixtures'
 
+import { sensitiveDraftKey } from '@/lib/auth/sensitive-drafts'
 import { BeneficiaryForm } from './beneficiary-form'
 
 const { client, routerPush, toastError, toastSuccess } = vi.hoisted(() => ({
@@ -72,6 +73,21 @@ vi.mock('@/components/ui/select', async () => {
   }
 })
 
+const profileState = {
+  userId: 'actor-a',
+  organizationId: 'org-a',
+  roles: ['PROJECT_OFFICER'],
+  permissions: ['beneficiaries.records.register', 'beneficiaries.profiles.update'],
+  assignedProjectIds: mockProjects.map((p) => p.id),
+}
+vi.mock('@/hooks/use-current-role', () => ({ useCurrentRole: () => ({ profile: profileState }) }))
+const draftKey = (projectId: string | null = null) =>
+  sensitiveDraftKey('beneficiary', {
+    userId: profileState.userId,
+    organizationId: profileState.organizationId,
+    projectId,
+    resourceId: null,
+  })
 const validDraft = {
   code: 'BEN-C3-NEW-001',
   firstName: 'Synthetic',
@@ -112,9 +128,74 @@ afterEach(() => {
   window.localStorage.clear()
   window.sessionStorage.clear()
   vi.clearAllMocks()
+  profileState.userId = 'actor-a'
+  profileState.organizationId = 'org-a'
 })
 
 describe('BeneficiaryForm', () => {
+  it('does not restore globally scoped legacy PII', () => {
+    window.sessionStorage.setItem('pathways.beneficiaryDraft', JSON.stringify(validDraft))
+    render(<BeneficiaryForm projects={mockProjects} />)
+    expect((screen.getByLabelText(/First name/) as HTMLInputElement).value).toBe('')
+    expect(screen.queryByText(/Recovered your unsaved beneficiary draft/)).toBeNull()
+  })
+  it('never transfers PII or consent between projects', () => {
+    render(<BeneficiaryForm projects={mockProjects} />)
+    fireEvent.change(screen.getByRole('combobox', { name: /Project enrollment/ }), {
+      target: { value: mockProjects[0].id },
+    })
+    fireEvent.change(screen.getByLabelText(/First name/), {
+      target: { value: 'Private synthetic name' },
+    })
+    fireEvent.click(screen.getByLabelText(/Beneficiary consent confirmed/))
+    fireEvent.change(screen.getByRole('combobox', { name: /Project enrollment/ }), {
+      target: { value: mockProjects[1].id },
+    })
+    expect((screen.getByLabelText(/First name/) as HTMLInputElement).value).toBe('')
+    expect(
+      (screen.getByLabelText(/Beneficiary consent confirmed/) as HTMLInputElement).checked,
+    ).toBe(false)
+  })
+  it('hides old values on an actor or organization change without waiting for reset effects', () => {
+    const view = render(<BeneficiaryForm projects={mockProjects} />)
+    fireEvent.change(screen.getByLabelText(/First name/), {
+      target: { value: 'Actor A private draft' },
+    })
+    profileState.userId = 'actor-b'
+    profileState.organizationId = 'org-b'
+    view.rerender(<BeneficiaryForm projects={mockProjects} />)
+    expect((screen.getByLabelText(/First name/) as HTMLInputElement).value).toBe('')
+    expect(window.sessionStorage.getItem(draftKey())).toBeNull()
+  })
+  it('cannot register after scope changes while form discovery awaits', async () => {
+    window.sessionStorage.setItem(draftKey(validDraft.projectId), JSON.stringify(validDraft))
+    let resolve!: (forms: Array<Record<string, unknown>>) => void
+    client.getDigitalForms.mockReturnValue(
+      new Promise((done) => {
+        resolve = done
+      }),
+    )
+    const view = render(<BeneficiaryForm projects={mockProjects} />)
+    await completeSelects()
+    fireEvent.click(screen.getByRole('button', { name: 'Save beneficiary' }))
+    fireEvent.click(
+      within(screen.getByRole('dialog')).getByRole('button', { name: 'Save beneficiary' }),
+    )
+    await waitFor(() => expect(client.getDigitalForms).toHaveBeenCalledOnce())
+    profileState.userId = 'actor-b'
+    view.rerender(<BeneficiaryForm projects={mockProjects} />)
+    resolve([
+      {
+        id: 'registration-form',
+        status: 'PUBLISHED',
+        formType: 'BENEFICIARY_REGISTRATION',
+        version: 1,
+      },
+    ])
+    await Promise.resolve()
+    expect(client.registerBeneficiary).not.toHaveBeenCalled()
+    expect(routerPush).not.toHaveBeenCalled()
+  })
   it('reports every invalid field, associates messages, focuses first invalid, and retains input', () => {
     render(<BeneficiaryForm projects={mockProjects} />)
 
@@ -150,9 +231,7 @@ describe('BeneficiaryForm', () => {
       target: { value: 'Preserved' },
     })
 
-    expect(window.sessionStorage.getItem('pathways.beneficiaryDraft')).toContain(
-      'BEN-PROT-RECOVERED',
-    )
+    expect(window.sessionStorage.getItem(draftKey())).toContain('BEN-PROT-RECOVERED')
     firstRender.unmount()
 
     render(<BeneficiaryForm projects={mockProjects} />)
@@ -164,7 +243,7 @@ describe('BeneficiaryForm', () => {
 
   it('registers through the published project form and preserves the server identity', async () => {
     const saved = { ...testBeneficiaries[0], id: 'beneficiary-created', code: validDraft.code }
-    window.sessionStorage.setItem('pathways.beneficiaryDraft', JSON.stringify(validDraft))
+    window.sessionStorage.setItem(draftKey(validDraft.projectId), JSON.stringify(validDraft))
     client.getDigitalForms.mockResolvedValue([
       {
         id: 'registration-form',
@@ -176,8 +255,8 @@ describe('BeneficiaryForm', () => {
     client.registerBeneficiary.mockResolvedValue(saved)
 
     render(<BeneficiaryForm projects={mockProjects} />)
-    await screen.findByText(/Recovered your unsaved beneficiary draft/)
     await completeSelects()
+    await screen.findByText(/Recovered your unsaved beneficiary draft/)
     fireEvent.click(screen.getByRole('button', { name: 'Save beneficiary' }))
     const confirmation = screen.getByRole('dialog')
     fireEvent.click(within(confirmation).getByRole('button', { name: 'Save beneficiary' }))
@@ -202,7 +281,7 @@ describe('BeneficiaryForm', () => {
   })
 
   it('keeps an exact-code rejection truthful and does not navigate', async () => {
-    window.sessionStorage.setItem('pathways.beneficiaryDraft', JSON.stringify(validDraft))
+    window.sessionStorage.setItem(draftKey(validDraft.projectId), JSON.stringify(validDraft))
     client.getDigitalForms.mockResolvedValue([
       {
         id: 'registration-form',
@@ -214,8 +293,8 @@ describe('BeneficiaryForm', () => {
     client.registerBeneficiary.mockRejectedValue(new Error('Beneficiary code already exists.'))
 
     render(<BeneficiaryForm projects={mockProjects} />)
-    await screen.findByText(/Recovered your unsaved beneficiary draft/)
     await completeSelects()
+    await screen.findByText(/Recovered your unsaved beneficiary draft/)
     fireEvent.click(screen.getByRole('button', { name: 'Save beneficiary' }))
     fireEvent.click(
       within(screen.getByRole('dialog')).getByRole('button', { name: 'Save beneficiary' }),

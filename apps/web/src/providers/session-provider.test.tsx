@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 
 import type { Session } from '@supabase/supabase-js'
-import { act, cleanup, render, screen, waitFor } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { authState, validateRestoredSession } = vi.hoisted(() => ({
@@ -35,19 +35,45 @@ const session = (accessToken: string, subject = 'user-a') =>
 
 const State = () => {
   const value = useSessionContext()
-  return <output>{`${value.status}:${value.session?.access_token ?? 'none'}`}</output>
+  return (
+    <>
+      <output>{`${value.status}:${value.session?.access_token ?? 'none'}`}</output>
+      <button type="button" onClick={() => void value.signOut().catch(() => {})}>
+        Sign out
+      </button>
+    </>
+  )
 }
 
 beforeEach(() => {
   authState.callback = null
   auth.onAuthStateChange.mockClear()
   auth.signOut.mockClear()
+  auth.signOut.mockResolvedValue({ error: null })
+  window.sessionStorage.clear()
+  window.localStorage.clear()
   validateRestoredSession.mockReset()
 })
 
 afterEach(() => cleanup())
 
 describe('SessionProvider background validation', () => {
+  it('clears sensitive drafts synchronously even when Supabase sign-out fails', async () => {
+    validateRestoredSession.mockResolvedValueOnce(session('token-1'))
+    auth.signOut.mockResolvedValueOnce({ error: new Error('synthetic failure') } as never)
+    render(
+      <SessionProvider>
+        <State />
+      </SessionProvider>,
+    )
+    await screen.findByText('authenticated:token-1')
+    window.sessionStorage.setItem('pathways:sensitive-draft:v1:test', 'private')
+    window.sessionStorage.setItem('unrelated', 'keep')
+    fireEvent.click(screen.getByText('Sign out'))
+    expect(window.sessionStorage.getItem('pathways:sensitive-draft:v1:test')).toBeNull()
+    expect(window.sessionStorage.getItem('unrelated')).toBe('keep')
+    expect(screen.getByText('unauthenticated:none')).toBeTruthy()
+  })
   it('keeps a verified same-subject session mounted until a refreshed token is validated', async () => {
     const initial = session('token-1')
     let resolveRefresh!: (value: Session | null) => void
@@ -67,9 +93,11 @@ describe('SessionProvider background validation', () => {
     act(() => authState.callback?.('TOKEN_REFRESHED', session('token-2')))
     await waitFor(() => expect(validateRestoredSession).toHaveBeenCalledTimes(2))
     expect(screen.getByText('authenticated:token-1')).toBeTruthy()
+    window.sessionStorage.setItem('pathways:sensitive-draft:v1:test', 'retain')
 
     resolveRefresh(session('token-2'))
     expect(await screen.findByText('authenticated:token-2')).toBeTruthy()
+    expect(window.sessionStorage.getItem('pathways:sensitive-draft:v1:test')).toBe('retain')
   })
 
   it('fails closed after background validation rejects the retained session', async () => {

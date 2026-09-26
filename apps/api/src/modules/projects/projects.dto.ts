@@ -1,4 +1,3 @@
-import { normalizeTargetGoal } from '@pathways/shared'
 import { Transform } from 'class-transformer'
 import {
   ArrayMaxSize,
@@ -18,23 +17,6 @@ import {
 } from 'class-validator'
 
 const projectStatuses = ['PLANNED', 'ONGOING', 'COMPLETED', 'ON_HOLD', 'CANCELLED']
-const IsTargetGoal = () =>
-  ValidateBy({
-    name: 'isTargetGoal',
-    validator: {
-      validate: (value: unknown) => {
-        if (typeof value !== 'string') return false
-        try {
-          normalizeTargetGoal(value)
-          return true
-        } catch {
-          return false
-        }
-      },
-      defaultMessage: () =>
-        'targetGoal must be greater than 0 and at most 100, with at most 4 decimal places.',
-    },
-  })
 
 const IsMoneyAmount = () =>
   ValidateBy({
@@ -133,20 +115,9 @@ class ProjectFieldsDto {
   programId?: string
 }
 
-export class CreateProjectDto extends ProjectFieldsDto {
-  @IsString()
-  @IsTargetGoal()
-  @Transform(({ value }) => (typeof value === 'string' ? value.trim() : value))
-  targetGoal!: string
-}
+export class CreateProjectDto extends ProjectFieldsDto {}
 
 export class UpdateProjectDto extends ProjectFieldsDto {
-  @IsOptional()
-  @IsString()
-  @IsTargetGoal()
-  @Transform(({ value }) => (typeof value === 'string' ? value.trim() : value))
-  targetGoal?: string
-
   @IsDateString()
   expectedUpdatedAt!: string
 }

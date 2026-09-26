@@ -46,7 +46,7 @@ const row = {
   periodEnd: '2026-06-30',
   baseline: '-10',
   target: '10',
-  projectTargetGoal: '75',
+
   current: { state: 'MISSING', value: null, reason: 'NO_MEASUREMENT' },
   measurementId: null,
   measuredAt: null,
@@ -113,7 +113,7 @@ describe('P06 IndicatorsService', () => {
       {
         id: indicatorId,
         current: { state: 'MISSING', value: null },
-        projectGoalComparison: { state: 'UNAVAILABLE', reason: 'NO_MEASUREMENT' },
+
         contractVersion: 'p06.v1',
       },
     ])
@@ -129,7 +129,7 @@ describe('P06 IndicatorsService', () => {
       }),
     )
   })
-  it('keeps the analytics-facing monitoring contract free of the Project comparison extension', async () => {
+  it('keeps both project and analytics monitoring contracts free of retired comparison', async () => {
     const [indicator] = await service.readInTransaction(
       tx as unknown as Prisma.TransactionClient,
       actor,
@@ -139,7 +139,7 @@ describe('P06 IndicatorsService', () => {
     expect(indicator).toMatchObject({ id: indicatorId, contractVersion: 'p06.v1' })
     expect(indicator).not.toHaveProperty('projectGoalComparison')
   })
-  it('compares exact indicator progress with the Project benchmark without replacing its target', async () => {
+  it('calculates exact indicator progress using its own baseline and target', async () => {
     tx.$queryRaw.mockImplementation(async (query: unknown) => {
       const sql = sqlText(query)
       if (sql.includes('computed.payload')) {
@@ -147,7 +147,6 @@ describe('P06 IndicatorsService', () => {
           {
             ...row,
             current: { state: 'AVAILABLE', value: '5', reason: null },
-            projectTargetGoal: '75.0000',
           },
         ]
       }
@@ -157,7 +156,6 @@ describe('P06 IndicatorsService', () => {
     await expect(service.get(actor, projectId, indicatorId)).resolves.toMatchObject({
       target: '10',
       progress: { state: 'AVAILABLE', value: '75' },
-      projectGoalComparison: { state: 'AT_TARGET', reason: null },
     })
   })
   it('fails closed on missing scope and on a role without management permission', async () => {

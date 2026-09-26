@@ -52,7 +52,7 @@ const project = {
   implementingPartners: 'Partner',
   sector: 'Livelihood',
   targetBeneficiaries: 250,
-  targetGoal: new Prisma.Decimal('75.5'),
+
   programManagerId: null,
   startDate: new Date('2026-01-01T00:00:00.000Z'),
   endDate: new Date('2026-12-31T00:00:00.000Z'),
@@ -85,6 +85,7 @@ const tx = {
   systemUser: { findFirst: vi.fn(), findMany: vi.fn() },
   project: {
     create: vi.fn(),
+    updateMany: vi.fn(),
     findFirst: vi.fn(),
     findUniqueOrThrow: vi.fn(),
   },
@@ -135,7 +136,7 @@ describe('Project creation contract', () => {
       sector: project.sector,
       targetBeneficiaries: 250,
       projectBudget: '125000.50',
-      targetGoal: '75.5000',
+
       startDate: '2026-01-01',
       endDate: '2026-12-31',
       status: 'PLANNED' as const,
@@ -149,10 +150,13 @@ describe('Project creation contract', () => {
       sector: 'Livelihood',
       targetBeneficiaries: 250,
       projectBudget: '125000.50',
-      targetGoal: '75.5',
+
       projectManagerId: managerId,
       projectOfficerIds: [officerId],
     })
+    expect(created).not.toHaveProperty('targetGoal')
+    expect(tx.project.create.mock.calls[0]?.[0].data).not.toHaveProperty('targetGoal')
+    expect(tx.auditLog.create.mock.calls[0]?.[0].data.changes).not.toHaveProperty('targetGoal')
     await expect(service.get(manager, projectId)).resolves.toEqual(created)
     expect(tx.project.create).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -161,7 +165,6 @@ describe('Project creation contract', () => {
           implementingPartners: 'Partner',
           sector: 'Livelihood',
           targetBeneficiaries: 250,
-          targetGoal: expect.any(Prisma.Decimal),
         }),
       }),
     )
@@ -181,6 +184,33 @@ describe('Project creation contract', () => {
     })
   })
 
+  it.each([new Prisma.Decimal('75.1234'), null])(
+    'preserves stored historical target %s by omitting it from update data',
+    async (historical) => {
+      const stored = { ...project, targetGoal: historical }
+      tx.project.findFirst.mockImplementation(async () => stored)
+      tx.project.findUniqueOrThrow.mockImplementation(async () => stored)
+      tx.project.updateMany.mockImplementation(async ({ data }) => {
+        Object.assign(stored, data)
+        return { count: 1 }
+      })
+      const result = await service.update(manager, projectId, {
+        title: 'Updated scope',
+        status: 'ONGOING',
+        expectedUpdatedAt: now.toISOString(),
+        targetBeneficiaries: 350,
+      })
+      const update = tx.project.updateMany.mock.calls[0]?.[0]
+      expect(update.where).toMatchObject({ organizationId, id: projectId, updatedAt: now })
+      expect(update.data).not.toHaveProperty('targetGoal')
+      expect(stored.targetGoal).toBe(historical)
+      if (stored.targetGoal !== null) expect(stored.targetGoal.toFixed(4)).toBe('75.1234')
+      expect(stored.targetBeneficiaries).toBe(350)
+      expect(result).not.toHaveProperty('targetGoal')
+      expect(tx.auditLog.create.mock.calls[0]?.[0].data.changes).not.toHaveProperty('targetGoal')
+    },
+  )
+
   it('rejects unavailable or cross-organization team selections', async () => {
     tx.systemUser.findMany.mockResolvedValueOnce([
       { id: managerId, role: { code: 'PROJECT_MANAGER' } },
@@ -188,7 +218,7 @@ describe('Project creation contract', () => {
     await expect(
       service.create(manager, {
         title: project.title,
-        targetGoal: '75',
+
         status: 'PLANNED',
         projectOfficerIds: [officerId],
       }),
@@ -205,7 +235,7 @@ describe('Project creation contract', () => {
     await expect(
       service.create(state.actor, {
         title: project.title,
-        targetGoal: '75',
+
         status: 'PLANNED',
       }),
     ).rejects.toBeInstanceOf(ForbiddenException)

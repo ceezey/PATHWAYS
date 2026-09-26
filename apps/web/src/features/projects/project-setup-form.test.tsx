@@ -3,6 +3,7 @@
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { sensitiveDraftKey } from '@/lib/auth/sensitive-drafts'
 import type { ProjectDetail } from '@/types/pathways'
 
 const testState = vi.hoisted(() => ({
@@ -25,6 +26,14 @@ vi.mock('@/lib/services/pathways-client', () => ({
   },
 }))
 
+const profileState = {
+  userId: 'actor-a',
+  organizationId: 'org-a',
+  roles: ['PROJECT_MANAGER'],
+  permissions: ['projects.create', 'projects.update'],
+  assignedProjectIds: ['73500000-0000-4000-8000-000000000004'],
+}
+vi.mock('@/hooks/use-current-role', () => ({ useCurrentRole: () => ({ profile: profileState }) }))
 import { ProjectSetupForm } from './project-setup-form'
 
 const project: ProjectDetail = {
@@ -48,7 +57,7 @@ const project: ProjectDetail = {
   monitoringOfficer: 'Not assigned',
   projectOfficers: [],
   targetBeneficiaries: 0,
-  targetGoal: '75',
+
   budgetCode: 'Not recorded',
   startDate: '2026-10-01',
   endDate: '2026-12-31',
@@ -72,6 +81,7 @@ afterEach(() => {
 describe('ProjectSetupForm', () => {
   it('saves the activated server-backed project profile fields', async () => {
     render(<ProjectSetupForm />)
+    expect(screen.queryByLabelText(/Project target goal/)).toBeNull()
 
     expect((screen.getByLabelText('Implementing partners') as HTMLInputElement).disabled).toBe(
       false,
@@ -82,9 +92,6 @@ describe('ProjectSetupForm', () => {
 
     fireEvent.change(screen.getByLabelText(/Objectives/), {
       target: { value: 'Deliver core project outcomes' },
-    })
-    fireEvent.change(screen.getByLabelText(/Project target goal/), {
-      target: { value: '62.5' },
     })
     fireEvent.change(screen.getByLabelText(/Project title/), {
       target: { value: 'Core project profile' },
@@ -123,7 +130,7 @@ describe('ProjectSetupForm', () => {
       implementingPartners: 'Community Partner',
       projectBudget: '125000.50',
       targetBeneficiaries: 450,
-      targetGoal: '62.5',
+
       sector: 'Education',
       implementationArea: 'Navotas',
       startDate: '2026-10-01',
@@ -137,7 +144,7 @@ describe('ProjectSetupForm', () => {
     render(<ProjectSetupForm projectId={project.id} />)
 
     const title = await screen.findByDisplayValue(project.title)
-    expect(screen.getByDisplayValue('75')).toBeTruthy()
+    expect(screen.queryByLabelText(/Project target goal/)).toBeNull()
     fireEvent.change(title, { target: { value: 'Updated project' } })
     fireEvent.click(screen.getByRole('button', { name: 'Save Project' }))
 
@@ -152,5 +159,39 @@ describe('ProjectSetupForm', () => {
       }),
     )
     expect(testState.routerPush).toHaveBeenCalledWith(`/projects/${project.id}`)
+  })
+})
+
+describe('retired project draft fields', () => {
+  it('restores allowed owned fields and never sends a retired goal from an older draft', async () => {
+    const key = sensitiveDraftKey('project', {
+      organizationId: 'org-a',
+      userId: 'actor-a',
+      projectId: null,
+      resourceId: null,
+    })
+    window.sessionStorage.setItem(
+      key,
+      JSON.stringify({
+        projectId: null,
+        title: 'Recovered project',
+        objectives: 'Recovered objectives',
+        description: 'Recovered valid description.',
+        area: 'Navotas',
+        startDate: '2026-10-01',
+        endDate: '2026-12-31',
+        status: 'Planned',
+        targetBeneficiaries: '30',
+        targetGoal: '75.1234',
+      }),
+    )
+    render(<ProjectSetupForm />)
+    await screen.findByDisplayValue('Recovered project')
+    expect(screen.queryByLabelText(/Project target goal/)).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: 'Create Project' }))
+    await waitFor(() => expect(testState.createProject).toHaveBeenCalledOnce())
+    expect(testState.createProject.mock.calls[0]?.[0]).not.toHaveProperty('targetGoal')
+    expect(testState.createProject.mock.calls[0]?.[0].targetBeneficiaries).toBe(30)
+    expect(window.sessionStorage.getItem(key)).toBeNull()
   })
 })

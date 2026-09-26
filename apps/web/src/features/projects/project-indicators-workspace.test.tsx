@@ -100,7 +100,7 @@ describe('P06 dedicated indicator workspace', () => {
     expect(html).toContain('Manual measurement')
     expect(html).not.toContain('Indicator Library')
   })
-  it('shows the read-time project target comparison without replacing the native target', () => {
+  it('shows native indicator target and progress without the retired project comparison', () => {
     state.data = [
       {
         id: '79000000-0000-4000-8000-000000000010',
@@ -127,7 +127,6 @@ describe('P06 dedicated indicator workspace', () => {
         revision: 1,
         status: 'ACTIVE',
         contractVersion: 'p06.v1',
-        projectGoalComparison: { state: 'AT_TARGET', reason: null },
       },
     ]
 
@@ -137,7 +136,8 @@ describe('P06 dedicated indicator workspace', () => {
       }),
     )
     expect(html).toContain('Target</dt><dd>20</dd>')
-    expect(html).toContain('Project target comparison:')
-    expect(html).toContain('At project target')
+    expect(html).not.toContain('Project target comparison:')
+    expect(html).not.toContain('At project target')
+    expect(html).toContain('Progress toward configured change: 75%')
   })
 })

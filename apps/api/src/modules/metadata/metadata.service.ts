@@ -313,9 +313,6 @@ export class MetadataService {
     input: ExpectedVersionDto,
   ) {
     return withAuthorizedOperation(this.prisma, identity, 'forms.publish', async (tx, actor) => {
-      if (actor.roles[0] !== 'MONITORING_AND_EVALUATION_OFFICER') {
-        throw new ForbiddenException('Only Monitoring and Evaluation Officers publish forms.')
-      }
       const current = await this.requireForm(tx, actor, projectId, formId)
       if (current.status !== 'DRAFT') throw new ConflictException('Only a draft can be published.')
       if (current.createdById === actor.userId) {

@@ -7,6 +7,7 @@ import { useEffect, useState } from 'react'
 import { AsyncState, StatusMessage } from '@/components/pathways'
 import { Button } from '@/components/ui/button'
 import { useCurrentRole } from '@/hooks/use-current-role'
+import { principalHasAtomicPermission } from '@/lib/rbac/route-access'
 import { pathwaysClient } from '@/lib/services/pathways-client'
 import { PathwaysClientError } from '@/lib/services/pathways-client'
 import type {
@@ -43,7 +44,8 @@ export const BeneficiaryDetailLoader = ({
   beneficiaryId: string
   projectId?: string
 }) => {
-  const { role } = useCurrentRole()
+  const { role, profile } = useCurrentRole()
+  const canReadForms = principalHasAtomicPermission(profile, 'forms.read')
   const [state, setState] = useState<DetailState>({ status: 'loading' })
   const [loadAttempt, setLoadAttempt] = useState(0)
 
@@ -83,7 +85,7 @@ export const BeneficiaryDetailLoader = ({
           pathwaysClient.getActivities(scopedProjectId),
           pathwaysClient.getJourneyStages(scopedProjectId),
           pathwaysClient.getBeneficiaryJourneyHistory(scopedProjectId, beneficiaryId),
-          pathwaysClient.getDigitalForms(scopedProjectId),
+          canReadForms ? pathwaysClient.getDigitalForms(scopedProjectId) : Promise.resolve([]),
         ])
         const journey = mapBeneficiaryJourneyHistory(history)
 
@@ -122,7 +124,7 @@ export const BeneficiaryDetailLoader = ({
     return () => {
       active = false
     }
-  }, [beneficiaryId, loadAttempt, projectId, role])
+  }, [beneficiaryId, loadAttempt, projectId, role, canReadForms])
 
   if (state.status === 'loading') {
     return (

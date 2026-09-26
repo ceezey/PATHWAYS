@@ -28,6 +28,13 @@ import {
 } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
 import { useCurrentRole } from '@/hooks/use-current-role'
+import {
+  type SensitiveDraftOwner,
+  readSensitiveDraft,
+  removeSensitiveDraft,
+  useSensitiveDraftOwner,
+  writeSensitiveDraft,
+} from '@/lib/auth/sensitive-drafts'
 import { isUiActionAvailable } from '@/lib/rbac/ui-action-availability'
 import { pathwaysClient } from '@/lib/services/pathways-client'
 import type { Activity, Indicator, JourneyStageConfig, UserRecord } from '@/types/pathways'
@@ -52,8 +59,31 @@ const defaultValues: ActivityFormSchema = {
   budgetLogged: 0,
 }
 
-export const ActivityFormDialog = ({
+export const ActivityFormDialog = (props: {
+  activity: Activity | null
+  indicators: Indicator[]
+  journeyStages: JourneyStageConfig[]
+  open: boolean
+  projectId: string
+  users: UserRecord[]
+  onCreatedOrUpdated: (activity: Activity) => void
+  onOpenChange: (open: boolean) => void
+}) => {
+  const { profile } = useCurrentRole()
+  const scope = useSensitiveDraftOwner(
+    profile,
+    'activity',
+    props.activity ? 'activities.update' : 'activities.create',
+    props.projectId,
+    props.activity?.id ?? null,
+    props.open,
+  )
+  if (!scope || (props.activity && props.activity.projectId !== props.projectId)) return null
+  return <ScopedActivityFormDialog key={scope.key + scope.generation} {...props} scope={scope} />
+}
+const ScopedActivityFormDialog = ({
   activity,
+  scope,
   indicators,
   journeyStages,
   open,
@@ -63,6 +93,7 @@ export const ActivityFormDialog = ({
   onOpenChange,
 }: {
   activity: Activity | null
+  scope: SensitiveDraftOwner
   indicators: Indicator[]
   journeyStages: JourneyStageConfig[]
   open: boolean
@@ -97,7 +128,7 @@ export const ActivityFormDialog = ({
     resolver: zodResolver(formSchema),
     defaultValues,
   })
-  const draftStorageKey = `pathways.activityDraft.${projectId}.${activity?.id ?? 'new'}`
+  const draftStorageKey = scope.key
   const initialValues = useMemo<ActivityFormSchema>(
     () =>
       activity
@@ -136,17 +167,25 @@ export const ActivityFormDialog = ({
 
     let nextValues = initialValues
     try {
-      const stored = window.sessionStorage.getItem(draftStorageKey)
+      const stored = readSensitiveDraft(draftStorageKey)
       if (stored) {
-        const parsed = JSON.parse(stored) as Partial<Record<keyof ActivityFormSchema, unknown>>
+        const parsed = stored as Partial<Record<keyof ActivityFormSchema, unknown>>
+        if (stored.projectId !== projectId) return
         const restored = { ...initialValues }
 
         for (const key of Object.keys(initialValues) as Array<keyof ActivityFormSchema>) {
           const value = parsed[key]
           const baseline = initialValues[key]
           if (Array.isArray(baseline) && Array.isArray(value)) {
-            Object.assign(restored, { [key]: value.filter((item) => typeof item === 'string') })
-          } else if (typeof value === typeof baseline) {
+            Object.assign(restored, {
+              [key]: value
+                .slice(0, 100)
+                .filter((item) => typeof item === 'string' && item.length <= 10_000),
+            })
+          } else if (
+            typeof value === typeof baseline &&
+            (typeof value !== 'string' || value.length <= 10_000)
+          ) {
             Object.assign(restored, { [key]: value })
           }
         }
@@ -164,12 +203,21 @@ export const ActivityFormDialog = ({
         setDraftRecovered(true)
       }
     } catch {
-      window.sessionStorage.removeItem(draftStorageKey)
+      removeSensitiveDraft(draftStorageKey)
     }
 
     form.reset(nextValues)
     setDraftHydrated(true)
-  }, [draftStorageKey, form, indicatorIds, initialValues, journeyStageIds, officerNames, open])
+  }, [
+    draftStorageKey,
+    form,
+    indicatorIds,
+    initialValues,
+    journeyStageIds,
+    officerNames,
+    open,
+    projectId,
+  ])
 
   useEffect(() => {
     if (!open || !draftHydrated) {
@@ -177,18 +225,29 @@ export const ActivityFormDialog = ({
     }
 
     const subscription = form.watch((values) => {
+      if (!scope.isCurrent()) return
       const nextValues = values as ActivityFormSchema
       if (JSON.stringify(nextValues) === JSON.stringify(initialValues)) {
-        window.sessionStorage.removeItem(draftStorageKey)
+        removeSensitiveDraft(draftStorageKey)
       } else {
-        window.sessionStorage.setItem(draftStorageKey, JSON.stringify(nextValues))
+        writeSensitiveDraft(draftStorageKey, { ...nextValues, projectId }, scope.generation)
       }
     })
 
     return () => subscription.unsubscribe()
-  }, [draftHydrated, draftStorageKey, form, initialValues, open])
+  }, [
+    draftHydrated,
+    draftStorageKey,
+    form,
+    initialValues,
+    open,
+    projectId,
+    scope.isCurrent,
+    scope.generation,
+  ])
 
   const onSubmit = async (values: ActivityFormSchema) => {
+    if (!scope.isCurrent()) return
     // TODO(RBAC): Enforce create, edit, review, and approval permissions.
     // TODO(ALERTS): Recalculate overdue and progress alerts server-side.
     try {
@@ -226,6 +285,7 @@ export const ActivityFormDialog = ({
           })
         : await pathwaysClient.createActivity(input)
 
+      if (!scope.isCurrent()) return
       if (requestedStatus === 'In Progress' && savedActivity.status !== 'In Progress') {
         savedActivity = await pathwaysClient.transitionActivity(
           projectId,
@@ -235,13 +295,15 @@ export const ActivityFormDialog = ({
         )
       }
 
+      if (!scope.isCurrent()) return
       toast.success(activity ? 'Activity updated.' : 'Activity created.', {
         description: `${savedActivity.title} is available with its saved targets, budget, assignments, and optional links.`,
       })
-      window.sessionStorage.removeItem(draftStorageKey)
+      removeSensitiveDraft(draftStorageKey)
       onCreatedOrUpdated(savedActivity)
       onOpenChange(false)
     } catch (error) {
+      if (!scope.isCurrent()) return
       toast.error('Activity could not be saved.', {
         description: error instanceof Error ? error.message : 'Keep the dialog open and try again.',
       })
@@ -258,7 +320,7 @@ export const ActivityFormDialog = ({
   }
 
   const discardChanges = () => {
-    window.sessionStorage.removeItem(draftStorageKey)
+    removeSensitiveDraft(draftStorageKey)
     form.reset(form.getValues())
     setDiscardDialogOpen(false)
     onOpenChange(false)

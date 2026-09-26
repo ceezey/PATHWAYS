@@ -275,11 +275,14 @@ export const ProjectPhaseFiveWorkspace = ({
       try {
         const projectRecord = await pathwaysClient.getProject(projectId)
         if (!mounted) return
-        if (projectRecord.metricsAvailable !== true) {
+        setProject(projectRecord)
+        if (
+          (view === 'budget' || view === 'transparency') &&
+          projectRecord.metricsAvailable !== true
+        ) {
           setError(true)
           return
         }
-        setProject(projectRecord)
 
         const requests: Promise<void>[] = []
         if (view === 'evidence') {

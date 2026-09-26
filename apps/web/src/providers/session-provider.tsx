@@ -3,9 +3,16 @@
 import type { Session } from '@supabase/supabase-js'
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react'
 
+import { clearSensitiveDraftStorage } from '@/lib/auth/sensitive-drafts'
+import { clearAllProofFilePreviews } from '@/lib/files/proof-file-previews'
 import { getBrowserSupabaseClient } from '@/lib/supabase/client'
 import { validateRestoredSession } from '@/lib/supabase/session-restoration'
 import type { SessionContextValue } from '@/types/auth'
+
+const invalidateSensitiveState = () => {
+  clearSensitiveDraftStorage()
+  clearAllProofFilePreviews()
+}
 
 const SessionContext = createContext<SessionContextValue | null>(null)
 
@@ -20,6 +27,7 @@ export const SessionProvider = ({ children }: { children: React.ReactNode }) => 
   const refreshSession = useCallback(async () => {
     const requestRevision = ++revision.current
     if (!supabase) {
+      invalidateSensitiveState()
       validatedAccessToken.current = null
       validatedSubject.current = null
       setSession(null)
@@ -29,6 +37,11 @@ export const SessionProvider = ({ children }: { children: React.ReactNode }) => 
 
     const nextSession = await validateRestoredSession(supabase.auth)
     if (requestRevision !== revision.current) return null
+    if (
+      !nextSession ||
+      (validatedSubject.current && validatedSubject.current !== nextSession.user.id)
+    )
+      invalidateSensitiveState()
     validatedAccessToken.current = nextSession?.access_token ?? null
     validatedSubject.current = nextSession?.user.id ?? null
     setSession(nextSession)
@@ -38,6 +51,7 @@ export const SessionProvider = ({ children }: { children: React.ReactNode }) => 
 
   const signOut = async () => {
     ++revision.current
+    invalidateSensitiveState()
     validatedAccessToken.current = null
     validatedSubject.current = null
     setSession(null)
@@ -50,7 +64,9 @@ export const SessionProvider = ({ children }: { children: React.ReactNode }) => 
   }
 
   useEffect(() => {
+    clearSensitiveDraftStorage(true)
     if (!supabase) {
+      invalidateSensitiveState()
       validatedAccessToken.current = null
       validatedSubject.current = null
       setSession(null)
@@ -65,6 +81,7 @@ export const SessionProvider = ({ children }: { children: React.ReactNode }) => 
     } = supabase.auth.onAuthStateChange((_event, nextSession) => {
       ++revision.current
       if (!nextSession) {
+        invalidateSensitiveState()
         validatedAccessToken.current = null
         validatedSubject.current = null
         setSession(null)
@@ -85,6 +102,8 @@ export const SessionProvider = ({ children }: { children: React.ReactNode }) => 
         validatedAccessToken.current === null ||
         validatedSubject.current !== nextSession.user.id
       ) {
+        if (validatedSubject.current && validatedSubject.current !== nextSession.user.id)
+          invalidateSensitiveState()
         setSession(null)
         setStatus('loading')
       }

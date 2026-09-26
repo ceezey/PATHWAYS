@@ -7,7 +7,6 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common'
-import { normalizeTargetGoal } from '@pathways/shared'
 import { Prisma } from '@prisma/client'
 
 import { PrismaService } from '../../prisma/prisma.service'
@@ -32,7 +31,7 @@ const projectSelection = {
   implementingPartners: true,
   sector: true,
   targetBeneficiaries: true,
-  targetGoal: true,
+
   programManagerId: true,
   startDate: true,
   endDate: true,
@@ -83,8 +82,7 @@ function mapProject(
     sector: project.sector,
     targetBeneficiaries: project.targetBeneficiaries,
     projectBudget,
-    targetGoal:
-      project.targetGoal === null ? null : normalizeTargetGoal(project.targetGoal.toString()),
+
     startDate: project.startDate?.toISOString().slice(0, 10),
     endDate: project.endDate?.toISOString().slice(0, 10),
     status: project.status,
@@ -113,14 +111,7 @@ function projectData(input: CreateProjectDto | UpdateProjectDto, code: string) {
   if (input.startDate && input.endDate && input.endDate < input.startDate) {
     throw new BadRequestException('End date must not precede start date.')
   }
-  let targetGoal: Prisma.Decimal | undefined
-  if (input.targetGoal !== undefined) {
-    try {
-      targetGoal = new Prisma.Decimal(normalizeTargetGoal(input.targetGoal))
-    } catch {
-      throw new BadRequestException('Project target goal must be greater than 0 and at most 100.')
-    }
-  }
+
   return {
     code,
     title: input.title,
@@ -134,7 +125,6 @@ function projectData(input: CreateProjectDto | UpdateProjectDto, code: string) {
     ...(input.targetBeneficiaries === undefined
       ? {}
       : { targetBeneficiaries: input.targetBeneficiaries }),
-    ...(targetGoal === undefined ? {} : { targetGoal }),
     startDate: input.startDate ? new Date(`${input.startDate}T00:00:00.000Z`) : null,
     endDate: input.endDate ? new Date(`${input.endDate}T00:00:00.000Z`) : null,
     status: input.status,
@@ -425,9 +415,7 @@ export class ProjectsService {
       const id = randomUUID()
       const code = input.code ?? `PRJ-${id.toUpperCase()}`
       const data = projectData(input, code)
-      if (data.targetGoal === undefined) {
-        throw new BadRequestException('Project target goal is required.')
-      }
+
       await this.requireProgram(tx, actor.organizationId, data.programId)
       const programManagerId = await this.requireProgramManager(
         tx,
@@ -457,7 +445,6 @@ export class ProjectsService {
           changes: {
             code,
             status: input.status,
-            targetGoal: { old: null, new: normalizeTargetGoal(data.targetGoal.toString()) },
           },
         },
       })
@@ -476,7 +463,7 @@ export class ProjectsService {
       if (!UUID_PATTERN.test(projectId)) throw new NotFoundException('Project unavailable.')
       const current = await tx.project.findFirst({
         where: { AND: [projectScope(actor), { id: projectId.toLowerCase() }] },
-        select: { id: true, code: true, targetGoal: true, updatedAt: true },
+        select: { id: true, code: true, updatedAt: true },
       })
       if (!current) throw new NotFoundException('Project unavailable.')
       const expected = new Date(input.expectedUpdatedAt)
@@ -511,18 +498,6 @@ export class ProjectsService {
           changes: {
             code: data.code,
             status: input.status,
-            targetGoal: {
-              old:
-                current.targetGoal === null
-                  ? null
-                  : normalizeTargetGoal(current.targetGoal.toString()),
-              new:
-                data.targetGoal === undefined
-                  ? current.targetGoal === null
-                    ? null
-                    : normalizeTargetGoal(current.targetGoal.toString())
-                  : normalizeTargetGoal(data.targetGoal.toString()),
-            },
           },
         },
       })

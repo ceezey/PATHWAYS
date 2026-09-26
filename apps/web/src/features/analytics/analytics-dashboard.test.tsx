@@ -104,7 +104,7 @@ const project = (id: string, title: string, startDate: string | null, endDate: s
   title,
   startDate,
   endDate,
-  targetGoal: null,
+
   area: 'Area',
   sector: 'Sector',
   status: 'Active',
@@ -142,7 +142,6 @@ const indicator = (projectId: string, id: string, periodStart: string, periodEnd
   revision: 1,
   status: 'ACTIVE',
   contractVersion: 'p06.v1',
-  projectGoalComparison: { state: 'UNAVAILABLE', reason: 'TARGET_GOAL_UNSET' },
 })
 
 const monitoring = {

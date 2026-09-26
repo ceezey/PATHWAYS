@@ -113,11 +113,11 @@ describe.skipIf(!enabled)('CSV RBAC API against runtime RLS', () => {
               title: 'Synthetic PM project',
               code: 'CSV_PM_CREATE',
               status: 'PLANNED',
-              targetGoal: '80',
+
               targetBeneficiaries: 125,
             })
             expect(created.targetBeneficiaries).toBe(125)
-            expect(created.targetGoal).toBe('80')
+            expect(created).not.toHaveProperty('targetGoal')
             expect(created.projectManagerId).toBe(id(6))
             expect((await projects.get(manager, created.id)).id).toBe(created.id)
             passed = true

@@ -17,7 +17,7 @@ const field: BuilderFormField = {
   required: true,
   metadataKey: false,
   sadddField: false,
-  allowedValues: '',
+  allowedValues: [],
   minimumValue: '',
   maximumValue: '',
   minimumLength: '',
@@ -26,7 +26,7 @@ const field: BuilderFormField = {
 }
 
 const draft: FormBuilderSessionDraft = {
-  schemaVersion: 1,
+  schemaVersion: 2,
   baseUpdatedAt: '2026-09-20T10:00:00.000Z',
   mode: 'scratch',
   view: 'builder',
@@ -40,6 +40,12 @@ const draft: FormBuilderSessionDraft = {
   selectedFieldId: field.id,
 }
 
+const scope = {
+  organizationId: 'org-1',
+  userId: 'user-1',
+  projectId: draft.projectId,
+  resourceId: 'form-1',
+}
 const storage = () => {
   const values = new Map<string, string>()
   return {
@@ -52,22 +58,35 @@ const storage = () => {
 describe('form builder session draft', () => {
   it('round-trips a bounded user/form-scoped draft and clears it explicitly', () => {
     const target = storage()
-    const key = formBuilderSessionDraftKey('user-1', 'form-1')
+    const key = formBuilderSessionDraftKey(scope)
     writeFormBuilderSessionDraft(target, key, draft)
-    expect(readFormBuilderSessionDraft(target, key, draft.baseUpdatedAt)).toEqual(draft)
+    expect(readFormBuilderSessionDraft(target, key, draft.baseUpdatedAt, draft.projectId)).toEqual(
+      draft,
+    )
     clearFormBuilderSessionDraft(target, key)
-    expect(readFormBuilderSessionDraft(target, key, draft.baseUpdatedAt)).toBeNull()
+    expect(
+      readFormBuilderSessionDraft(target, key, draft.baseUpdatedAt, draft.projectId),
+    ).toBeNull()
   })
 
   it('rejects stale, malformed and structurally unsafe browser values', () => {
     const target = storage()
-    const key = formBuilderSessionDraftKey('user-1', 'form-1')
+    const key = formBuilderSessionDraftKey(scope)
     writeFormBuilderSessionDraft(target, key, draft)
-    expect(readFormBuilderSessionDraft(target, key, '2026-09-20T11:00:00.000Z')).toBeNull()
+    expect(
+      readFormBuilderSessionDraft(target, key, draft.baseUpdatedAt, 'different-project'),
+    ).toBeNull()
+    expect(
+      readFormBuilderSessionDraft(target, key, '2026-09-20T11:00:00.000Z', draft.projectId),
+    ).toBeNull()
     target.setItem(key, '{bad json')
-    expect(readFormBuilderSessionDraft(target, key, draft.baseUpdatedAt)).toBeNull()
+    expect(
+      readFormBuilderSessionDraft(target, key, draft.baseUpdatedAt, draft.projectId),
+    ).toBeNull()
     target.setItem(key, JSON.stringify({ ...draft, fields: [{ __proto__: { polluted: true } }] }))
-    expect(readFormBuilderSessionDraft(target, key, draft.baseUpdatedAt)).toBeNull()
+    expect(
+      readFormBuilderSessionDraft(target, key, draft.baseUpdatedAt, draft.projectId),
+    ).toBeNull()
   })
 
   it('does not throw when browser storage is unavailable', () => {
@@ -82,15 +101,17 @@ describe('form builder session draft', () => {
         throw new Error('blocked')
       }),
     }
-    const key = formBuilderSessionDraftKey('user-1', null)
+    const key = formBuilderSessionDraftKey({ ...scope, resourceId: null })
     expect(() => writeFormBuilderSessionDraft(unavailable, key, draft)).not.toThrow()
-    expect(readFormBuilderSessionDraft(unavailable, key, draft.baseUpdatedAt)).toBeNull()
+    expect(
+      readFormBuilderSessionDraft(unavailable, key, draft.baseUpdatedAt, draft.projectId),
+    ).toBeNull()
     expect(() => clearFormBuilderSessionDraft(unavailable, key)).not.toThrow()
   })
 
   it('does not recover untouched new-form state as an unsaved edit', () => {
     const target = storage()
-    const key = formBuilderSessionDraftKey('user-1', null)
+    const key = formBuilderSessionDraftKey({ ...scope, resourceId: null })
     writeFormBuilderSessionDraft(target, key, {
       ...draft,
       baseUpdatedAt: null,
@@ -99,6 +120,6 @@ describe('form builder session draft', () => {
       formCode: '',
     })
     expect(target.getItem(key)).toBeNull()
-    expect(readFormBuilderSessionDraft(target, key, null)).toBeNull()
+    expect(readFormBuilderSessionDraft(target, key, null, draft.projectId)).toBeNull()
   })
 })

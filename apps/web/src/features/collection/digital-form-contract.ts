@@ -24,7 +24,7 @@ export interface BuilderFormField {
   required: boolean
   metadataKey: boolean
   sadddField: boolean
-  allowedValues: string
+  allowedValues: string[]
   minimumValue: string
   maximumValue: string
   minimumLength: string
@@ -85,18 +85,25 @@ export function toDigitalFormInput(input: {
       sadddField: field.sadddField,
       allowedValues:
         field.type === 'single_select' || field.type === 'multi_select'
-          ? field.allowedValues
-              .split(',')
-              .map((value) => value.trim())
-              .filter(Boolean)
+          ? [...field.allowedValues]
           : undefined,
-      minimumValue: optionalString(field.minimumValue),
-      maximumValue: optionalString(field.maximumValue),
+      minimumValue:
+        field.type === 'integer' || field.type === 'decimal'
+          ? optionalString(field.minimumValue)
+          : undefined,
+      maximumValue:
+        field.type === 'integer' || field.type === 'decimal'
+          ? optionalString(field.maximumValue)
+          : undefined,
       minimumDate: field.type === 'date' ? optionalString(field.minimumValue) : undefined,
       maximumDate: field.type === 'date' ? optionalString(field.maximumValue) : undefined,
       ...(field.type === 'date' ? { minimumValue: undefined, maximumValue: undefined } : {}),
-      minimumLength: optionalNumber(field.minimumLength),
-      maximumLength: optionalNumber(field.maximumLength),
+      minimumLength: ['text', 'long_text', 'multi_select'].includes(field.type)
+        ? optionalNumber(field.minimumLength)
+        : undefined,
+      maximumLength: ['text', 'long_text', 'multi_select'].includes(field.type)
+        ? optionalNumber(field.maximumLength)
+        : undefined,
     })),
   }
 }
@@ -110,7 +117,7 @@ export function fromDigitalForm(form: DigitalFormDefinition): BuilderFormField[]
     required: field.required,
     metadataKey: field.metadataKey,
     sadddField: field.sadddField,
-    allowedValues: field.allowedValues?.join(', ') ?? '',
+    allowedValues: [...(field.allowedValues ?? [])],
     minimumValue:
       field.dataType === 'DATE' ? (field.minimumDate ?? '') : (field.minimumValue ?? ''),
     maximumValue:
