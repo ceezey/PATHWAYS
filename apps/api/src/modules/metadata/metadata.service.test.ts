@@ -143,12 +143,17 @@ describe('P02 metadata service', () => {
     expect(tx.digitalForm.findFirst).not.toHaveBeenCalled()
   })
 
-  it('denies publication by a role name that lacks the locked M&E publishing authority', async () => {
+  it('allows an authorized Admin reviewer to publish through forms.publish', async () => {
     state.actor = actor('SYSTEM_ADMINISTRATOR')
-    await expect(
-      service.publishForm(state.actor, projectId, formId, { expectedUpdatedAt: now.toISOString() }),
-    ).rejects.toBeInstanceOf(ForbiddenException)
-    expect(tx.digitalForm.findFirst).not.toHaveBeenCalled()
+    await service.publishForm(state.actor, projectId, formId, {
+      expectedUpdatedAt: now.toISOString(),
+    })
+    expect(tx.digitalForm.updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ status: 'PUBLISHED', publishedById: reviewerId }),
+      }),
+    )
+    expect(tx.auditLog.create).toHaveBeenCalled()
   })
 
   it('denies self-approval before publication mutation or audit', async () => {

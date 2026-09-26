@@ -28,9 +28,17 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import {
+  type SensitiveDraftOwner,
+  readSensitiveDraft,
+  removeSensitiveDraft,
+  useSensitiveDraftOwner,
+  writeSensitiveDraft,
+} from '@/lib/auth/sensitive-drafts'
 import { PathwaysClientError, pathwaysClient } from '@/lib/services/pathways-client'
 import type { ProjectDetail, ProjectStatus, UserRecord } from '@/types/pathways'
 
+import { useCurrentRole } from '@/hooks/use-current-role'
 import {
   type ProjectSetupSchema,
   projectSetupSchema,
@@ -41,7 +49,6 @@ import {
 import { ProjectTeamSelectors } from './project-team-selectors'
 
 const projectStatuses: ProjectStatus[] = ['Active', 'Needs Attention', 'Planned', 'Completed']
-const projectDraftStorageKey = 'pathways.projectSetupDraft'
 const projectDraftFields = [
   'objectives',
   'partners',
@@ -79,7 +86,23 @@ const projectDefaultValues: ProjectSetupSchema = {
   projectOfficers: '',
 }
 
-export const ProjectSetupForm = ({ projectId }: { projectId?: string }) => {
+export const ProjectSetupForm = (props: { projectId?: string }) => {
+  const { profile } = useCurrentRole()
+  const scope = useSensitiveDraftOwner(
+    profile,
+    'project',
+    props.projectId ? 'projects.update' : 'projects.create',
+    props.projectId ?? null,
+    props.projectId ?? null,
+  )
+  if (!scope) return <output>Current project access is required.</output>
+  return <ScopedProjectSetupForm key={scope.key + scope.generation} {...props} scope={scope} />
+}
+const ScopedProjectSetupForm = ({
+  projectId,
+  scope,
+}: { projectId?: string; scope: SensitiveDraftOwner }) => {
+  const projectDraftStorageKey = scope.key
   const router = useRouter()
   const [draftHydrated, setDraftHydrated] = useState(false)
   const [draftRecovered, setDraftRecovered] = useState(false)
@@ -99,6 +122,7 @@ export const ProjectSetupForm = ({ projectId }: { projectId?: string }) => {
       void pathwaysClient
         .getProject(projectId)
         .then((project) => {
+          if (!scope.isCurrent()) return
           setExistingProject(project)
           form.reset({
             ...projectDefaultValues,
@@ -122,20 +146,22 @@ export const ProjectSetupForm = ({ projectId }: { projectId?: string }) => {
           })
         })
         .catch(() => {
+          if (!scope.isCurrent()) return
           form.setError('title', { message: 'The project could not be loaded from the service.' })
         })
       setDraftHydrated(true)
       return
     }
     try {
-      const stored = window.sessionStorage.getItem(projectDraftStorageKey)
+      const stored = readSensitiveDraft(projectDraftStorageKey)
       if (stored) {
-        const parsed = JSON.parse(stored) as Partial<Record<keyof ProjectSetupSchema, unknown>>
+        const parsed = stored as Partial<Record<keyof ProjectSetupSchema, unknown>>
+        if (stored.projectId !== null) return
         const restored = { ...projectDefaultValues }
 
         for (const key of projectDraftFields) {
           const value = parsed[key]
-          if (typeof value === 'string') {
+          if (typeof value === 'string' && value.length <= 10_000) {
             Object.assign(restored, { [key]: value })
           }
         }
@@ -148,11 +174,11 @@ export const ProjectSetupForm = ({ projectId }: { projectId?: string }) => {
         setDraftRecovered(true)
       }
     } catch {
-      window.sessionStorage.removeItem(projectDraftStorageKey)
+      removeSensitiveDraft(projectDraftStorageKey)
     } finally {
       setDraftHydrated(true)
     }
-  }, [form, projectId])
+  }, [form, projectId, projectDraftStorageKey, scope.isCurrent])
 
   useEffect(() => {
     void usersLoadAttempt
@@ -162,21 +188,21 @@ export const ProjectSetupForm = ({ projectId }: { projectId?: string }) => {
     pathwaysClient
       .getUsers()
       .then((records) => {
-        if (mounted) setUsers(records)
+        if (mounted && scope.isCurrent()) setUsers(records)
       })
       .catch((error: unknown) => {
-        if (!mounted) return
+        if (!mounted || !scope.isCurrent()) return
         setUsersLoadError(
           error instanceof Error ? error.message : 'The team directory could not be loaded.',
         )
       })
       .finally(() => {
-        if (mounted) setUsersLoading(false)
+        if (mounted && scope.isCurrent()) setUsersLoading(false)
       })
     return () => {
       mounted = false
     }
-  }, [usersLoadAttempt])
+  }, [usersLoadAttempt, scope.isCurrent])
 
   useEffect(() => {
     if (!draftHydrated || projectId) {
@@ -184,22 +210,24 @@ export const ProjectSetupForm = ({ projectId }: { projectId?: string }) => {
     }
 
     const subscription = form.watch((values) => {
+      if (!scope.isCurrent()) return
       const nextValues = values as ProjectSetupSchema
       const draft = Object.fromEntries(projectDraftFields.map((key) => [key, nextValues[key]]))
       const emptyDraft = Object.fromEntries(
         projectDraftFields.map((key) => [key, projectDefaultValues[key]]),
       )
       if (JSON.stringify(draft) === JSON.stringify(emptyDraft)) {
-        window.sessionStorage.removeItem(projectDraftStorageKey)
+        removeSensitiveDraft(projectDraftStorageKey)
       } else {
-        window.sessionStorage.setItem(projectDraftStorageKey, JSON.stringify(draft))
+        writeSensitiveDraft(projectDraftStorageKey, { ...draft, projectId: null }, scope.generation)
       }
     })
 
     return () => subscription.unsubscribe()
-  }, [draftHydrated, form, projectId])
+  }, [draftHydrated, form, projectId, projectDraftStorageKey, scope.isCurrent, scope.generation])
 
   const onSubmit = async (values: ProjectSetupSchema) => {
+    if (!scope.isCurrent()) return
     setSaveError(null)
     if (projectId && !existingProject) {
       setSaveError('The current project must finish loading before it can be updated.')
@@ -222,10 +250,12 @@ export const ProjectSetupForm = ({ projectId }: { projectId?: string }) => {
             ...toCreateProjectInput(values),
             ...toProjectTeamInput(values, users),
           })
-      if (!projectId) window.sessionStorage.removeItem(projectDraftStorageKey)
+      if (!scope.isCurrent()) return
+      if (!projectId) removeSensitiveDraft(projectDraftStorageKey)
       toast.success(existingProject ? 'Project profile updated.' : 'Project profile created.')
       router.push(`/projects/${project.id}`)
     } catch (error) {
+      if (!scope.isCurrent()) return
       const message =
         error instanceof PathwaysClientError || error instanceof Error
           ? error.message

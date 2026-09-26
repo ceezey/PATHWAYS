@@ -1,8 +1,9 @@
+import { type DraftScope, sensitiveDraftKey } from '@/lib/auth/sensitive-drafts'
 import type { DigitalFormType } from '@/types/pathways'
 import type { BuilderFormField } from './digital-form-contract'
 
 export type FormBuilderSessionDraft = {
-  schemaVersion: 1
+  schemaVersion: 2
   baseUpdatedAt: string | null
   mode: 'scratch' | 'import' | 'extend'
   view: 'home' | 'forms' | 'builder' | 'import'
@@ -56,7 +57,9 @@ const isField = (value: unknown): value is BuilderFormField => {
     typeof field.required === 'boolean' &&
     typeof field.metadataKey === 'boolean' &&
     typeof field.sadddField === 'boolean' &&
-    isString(field.allowedValues) &&
+    Array.isArray(field.allowedValues) &&
+    field.allowedValues.length <= 100 &&
+    field.allowedValues.every(isString) &&
     isString(field.minimumValue) &&
     isString(field.maximumValue) &&
     isString(field.minimumLength) &&
@@ -70,7 +73,7 @@ const isDraft = (value: unknown): value is FormBuilderSessionDraft => {
   if (typeof value !== 'object' || value === null || Array.isArray(value)) return false
   const draft = value as Record<string, unknown>
   return (
-    draft.schemaVersion === 1 &&
+    draft.schemaVersion === 2 &&
     (draft.baseUpdatedAt === null || isString(draft.baseUpdatedAt)) &&
     typeof draft.mode === 'string' &&
     modes.has(draft.mode) &&
@@ -93,19 +96,25 @@ const isDraft = (value: unknown): value is FormBuilderSessionDraft => {
 const hasFormContent = (draft: FormBuilderSessionDraft) =>
   draft.fields.length > 0 || draft.formTitle.trim().length > 0 || draft.formCode.trim().length > 0
 
-export const formBuilderSessionDraftKey = (userId: string, formId: string | null) =>
-  `pathways:form-builder-draft:v1:${userId}:${formId ?? 'new'}`
+export const formBuilderSessionDraftKey = (scope: DraftScope) =>
+  sensitiveDraftKey('form-builder', scope)
 
 export function readFormBuilderSessionDraft(
   storage: SessionStorage,
   key: string,
   expectedBaseUpdatedAt: string | null,
+  expectedProjectId: string,
 ) {
   try {
     const serialized = storage.getItem(key)
     if (!serialized || serialized.length > maximumDraftBytes) return null
     const value: unknown = JSON.parse(serialized)
-    if (!isDraft(value) || value.baseUpdatedAt !== expectedBaseUpdatedAt || !hasFormContent(value))
+    if (
+      !isDraft(value) ||
+      value.projectId !== expectedProjectId ||
+      value.baseUpdatedAt !== expectedBaseUpdatedAt ||
+      !hasFormContent(value)
+    )
       return null
     return value
   } catch {

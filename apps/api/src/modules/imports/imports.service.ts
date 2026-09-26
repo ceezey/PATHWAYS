@@ -625,7 +625,23 @@ export class ImportsService {
         },
         take: IMPORT_ENGINEERING_LIMITS.maxSourceColumns,
       })
-      if (mappings.length !== safeSourceColumns(batch.sourceHeaders).length) {
+      const sourceKeys = new Set(safeSourceColumns(batch.sourceHeaders).map((column) => column.key))
+      const mappedSourceKeys = new Set(mappings.map((mapping) => mapping.sourceFieldName))
+      const mappedTargets = mappings.flatMap((mapping) =>
+        mapping.status === 'MAPPED' && mapping.targetField ? [mapping.targetField.code] : [],
+      )
+      if (
+        mappings.length !== sourceKeys.size ||
+        mappedSourceKeys.size !== sourceKeys.size ||
+        mappings.some(
+          (mapping) =>
+            !sourceKeys.has(mapping.sourceFieldName) ||
+            (mapping.status !== 'MAPPED' && mapping.status !== 'IGNORED') ||
+            (mapping.status === 'MAPPED' && !mapping.targetField) ||
+            (mapping.status === 'IGNORED' && mapping.targetField !== null),
+        ) ||
+        new Set(mappedTargets).size !== mappedTargets.length
+      ) {
         throw new ConflictException('The reviewed mapping is incomplete.')
       }
       const mappedFields = mappings.flatMap((mapping) =>

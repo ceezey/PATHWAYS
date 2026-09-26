@@ -35,7 +35,11 @@ describe('Deferred legacy-table retirement contract', () => {
       .filter((entry) => entry.isDirectory())
       .map((entry) => entry.name)
       .sort()
-    expect(directories).toEqual(['0000_pathways_baseline_through_0026', '0027_revised_csv_rbac'])
+    expect(directories).toEqual([
+      '0000_pathways_baseline_through_0026',
+      '0027_revised_csv_rbac',
+      '0028_revised_aggregate_permission_guards',
+    ])
     expect(migration).toContain('DEFERRED REVIEW ARTIFACT -- NOT AN ACTIVE PRISMA MIGRATION')
   })
   it('contains only the 15 explicit reviewed DROP TABLE RESTRICT statements', () => {

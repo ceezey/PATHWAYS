@@ -1,18 +1,38 @@
 /* @vitest-environment jsdom */
 
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { sensitiveDraftKey } from '@/lib/auth/sensitive-drafts'
 
 import type { Activity, UserRecord } from '@/types/pathways'
 
-const state = vi.hoisted(() => ({ createActivity: vi.fn(), onSaved: vi.fn() }))
+const state = vi.hoisted(() => ({
+  createActivity: vi.fn(),
+  transitionActivity: vi.fn(),
+  onSaved: vi.fn(),
+  profile: {
+    userId: 'actor-a',
+    organizationId: 'org-a',
+    roles: ['PROJECT_MANAGER'],
+    permissions: ['activities.create', 'activities.update', 'activities.complete'],
+    assignedProjectIds: ['72000000-0000-4000-8000-000000000004'],
+  },
+}))
 
 vi.mock('sonner', () => ({ toast: { error: vi.fn(), success: vi.fn() } }))
 vi.mock('@/hooks/use-current-role', () => ({
-  useCurrentRole: () => ({ role: 'Project Manager' }),
+  useCurrentRole: () => ({
+    role: 'Project Manager',
+    profile: state.profile,
+  }),
 }))
 vi.mock('@/lib/services/pathways-client', () => ({
-  pathwaysClient: { createActivity: state.createActivity, updateActivity: vi.fn() },
+  pathwaysClient: {
+    createActivity: state.createActivity,
+    updateActivity: vi.fn(),
+    transitionActivity: state.transitionActivity,
+  },
 }))
 
 import { ActivityFormDialog } from './activity-form-dialog'
@@ -59,6 +79,11 @@ describe('ActivityFormDialog activation', () => {
   beforeEach(() => {
     state.createActivity.mockReset().mockResolvedValue(savedActivity)
     state.onSaved.mockReset()
+    state.transitionActivity
+      .mockReset()
+      .mockResolvedValue({ ...savedActivity, status: 'In Progress' })
+    state.profile.assignedProjectIds = [projectId]
+    state.profile.permissions = ['activities.create', 'activities.update', 'activities.complete']
   })
 
   afterEach(() => {
@@ -116,5 +141,79 @@ describe('ActivityFormDialog activation', () => {
       journeyStageId: null,
     })
     expect(state.onSaved).toHaveBeenCalledWith(savedActivity)
+  })
+})
+
+describe('activity save continuation ownership', () => {
+  it.each(['assignment', 'permission'] as const)(
+    'does not transition or notify after %s changes during save',
+    async (change) => {
+      state.profile.assignedProjectIds = [projectId]
+      state.profile.permissions = ['activities.create', 'activities.update', 'activities.complete']
+      state.onSaved.mockReset()
+      state.transitionActivity.mockReset()
+      let finish!: (value: Activity) => void
+      state.createActivity.mockReset().mockImplementation(
+        () =>
+          new Promise<Activity>((resolve) => {
+            finish = resolve
+          }),
+      )
+      const element = () => (
+        <ActivityFormDialog
+          activity={null}
+          indicators={[]}
+          journeyStages={[]}
+          onCreatedOrUpdated={state.onSaved}
+          onOpenChange={vi.fn()}
+          open
+          projectId={projectId}
+          users={[officer]}
+        />
+      )
+      window.sessionStorage.setItem(
+        sensitiveDraftKey('activity', {
+          organizationId: 'org-a',
+          userId: 'actor-a',
+          projectId,
+          resourceId: null,
+        }),
+        JSON.stringify({ projectId, status: 'In Progress' }),
+      )
+      const view = render(element())
+      expect(screen.getByRole('combobox', { name: /Activity status/ }).textContent).toContain(
+        'In Progress',
+      )
+      fireEvent.change(screen.getByLabelText(/Activity title/), {
+        target: { value: savedActivity.title },
+      })
+      fireEvent.change(screen.getByLabelText(/Description/), {
+        target: { value: savedActivity.description },
+      })
+      fireEvent.change(screen.getByLabelText(/Start date/), {
+        target: { value: savedActivity.startDate },
+      })
+      fireEvent.change(screen.getByLabelText(/Due date/), {
+        target: { value: savedActivity.dueDate },
+      })
+      fireEvent.change(screen.getByLabelText('Target beneficiaries'), { target: { value: '30' } })
+      fireEvent.change(screen.getByLabelText('Activity budget'), { target: { value: '10000' } })
+      fireEvent.click(screen.getByRole('checkbox', { name: /Project Officer A/ }))
+      fireEvent.click(screen.getByRole('button', { name: 'Create Activity' }))
+
+      await waitFor(() => expect(state.createActivity).toHaveBeenCalledOnce())
+      if (change === 'assignment') state.profile.assignedProjectIds = []
+      else state.profile.permissions = []
+      view.rerender(element())
+      await act(async () => finish(savedActivity))
+      expect(state.transitionActivity).not.toHaveBeenCalled()
+      expect(state.onSaved).not.toHaveBeenCalled()
+      state.profile.assignedProjectIds = [projectId]
+      state.profile.permissions = ['activities.create', 'activities.update', 'activities.complete']
+    },
+  )
+  afterEach(() => {
+    cleanup()
+    window.sessionStorage.clear()
   })
 })

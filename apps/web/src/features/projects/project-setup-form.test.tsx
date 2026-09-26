@@ -25,6 +25,14 @@ vi.mock('@/lib/services/pathways-client', () => ({
   },
 }))
 
+const profileState = {
+  userId: 'actor-a',
+  organizationId: 'org-a',
+  roles: ['PROJECT_MANAGER'],
+  permissions: ['projects.create', 'projects.update'],
+  assignedProjectIds: ['73500000-0000-4000-8000-000000000004'],
+}
+vi.mock('@/hooks/use-current-role', () => ({ useCurrentRole: () => ({ profile: profileState }) }))
 import { ProjectSetupForm } from './project-setup-form'
 
 const project: ProjectDetail = {

@@ -26,6 +26,14 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import { useCurrentRole } from '@/hooks/use-current-role'
+import {
+  type SensitiveDraftOwner,
+  readSensitiveDraft,
+  removeSensitiveDraft,
+  useSensitiveDraftOwner,
+  writeSensitiveDraft,
+} from '@/lib/auth/sensitive-drafts'
 import { pathwaysClient } from '@/lib/services/pathways-client'
 import type { BeneficiaryRecord, ProjectSummary } from '@/types/pathways'
 
@@ -66,7 +74,6 @@ const initialDraft: BeneficiaryDraft = {
   guardianConsent: false,
   projectId: '',
 }
-const beneficiaryDraftStorageKey = 'pathways.beneficiaryDraft'
 
 const beneficiarySexValue = (value: string) => {
   const values = {
@@ -159,21 +166,54 @@ const fieldIds: Record<BeneficiaryFieldKey, string> = {
   guardianConsent: 'beneficiary-guardian-consent',
 }
 
-export const BeneficiaryForm = ({
-  projects,
-  beneficiary,
-}: {
+export const BeneficiaryForm = (props: {
   projects: ProjectSummary[]
   beneficiary?: BeneficiaryRecord
 }) => {
+  const { profile } = useCurrentRole()
+  const [projectId, setProjectId] = useState(
+    props.beneficiary ? draftFromBeneficiary(props.beneficiary, props.projects).projectId : '',
+  )
+  const scope = useSensitiveDraftOwner(
+    profile,
+    'beneficiary',
+    props.beneficiary ? 'beneficiaries.profiles.update' : 'beneficiaries.records.register',
+    projectId || null,
+    props.beneficiary?.id ?? null,
+  )
+  if (!scope) return <output>Current beneficiary access is required.</output>
+  return (
+    <ScopedBeneficiaryForm
+      key={scope.key + scope.generation}
+      {...props}
+      scope={scope}
+      selectedProjectId={projectId}
+      onProjectChange={setProjectId}
+    />
+  )
+}
+const ScopedBeneficiaryForm = ({
+  projects,
+  beneficiary,
+  scope,
+  selectedProjectId,
+  onProjectChange,
+}: {
+  projects: ProjectSummary[]
+  beneficiary?: BeneficiaryRecord
+  scope: SensitiveDraftOwner
+  selectedProjectId: string
+  onProjectChange: (projectId: string) => void
+}) => {
   const router = useRouter()
   const startingDraft = useMemo(
-    () => (beneficiary ? draftFromBeneficiary(beneficiary, projects) : initialDraft),
-    [beneficiary, projects],
+    () =>
+      beneficiary
+        ? draftFromBeneficiary(beneficiary, projects)
+        : { ...initialDraft, projectId: selectedProjectId },
+    [beneficiary, projects, selectedProjectId],
   )
-  const draftStorageKey = beneficiary
-    ? `${beneficiaryDraftStorageKey}.${beneficiary.id}`
-    : beneficiaryDraftStorageKey
+  const draftStorageKey = scope.key
   const [draft, setDraft] = useState<BeneficiaryDraft>(startingDraft)
   const [draftHydrated, setDraftHydrated] = useState(false)
   const [draftRecovered, setDraftRecovered] = useState(false)
@@ -188,13 +228,29 @@ export const BeneficiaryForm = ({
     setSubmitted(false)
 
     try {
-      const stored = window.sessionStorage.getItem(draftStorageKey)
+      const stored = scope.isCurrent() ? readSensitiveDraft(draftStorageKey) : null
       if (stored) {
-        const parsed = JSON.parse(stored) as Partial<Record<keyof BeneficiaryDraft, unknown>>
+        const parsed = stored as Partial<Record<keyof BeneficiaryDraft, unknown>>
+        if (parsed.projectId !== selectedProjectId) return
         const restored = { ...startingDraft }
 
         for (const key of Object.keys(startingDraft) as Array<keyof BeneficiaryDraft>) {
-          if (typeof parsed[key] === typeof startingDraft[key]) {
+          if (
+            beneficiary &&
+            [
+              'code',
+              'projectId',
+              'consentToParticipate',
+              'consentToStoreData',
+              'isMinor',
+              'guardianConsent',
+            ].includes(key)
+          )
+            continue
+          if (
+            typeof parsed[key] === typeof startingDraft[key] &&
+            (typeof parsed[key] !== 'string' || (parsed[key] as string).length <= 10_000)
+          ) {
             Object.assign(restored, { [key]: parsed[key] })
           }
         }
@@ -203,23 +259,23 @@ export const BeneficiaryForm = ({
         setDraftRecovered(true)
       }
     } catch {
-      window.sessionStorage.removeItem(draftStorageKey)
+      removeSensitiveDraft(draftStorageKey)
     } finally {
       setDraftHydrated(true)
     }
-  }, [draftStorageKey, startingDraft])
+  }, [draftStorageKey, startingDraft, selectedProjectId, beneficiary, scope.isCurrent])
 
   useEffect(() => {
-    if (!draftHydrated) {
+    if (!draftHydrated || !scope.isCurrent()) {
       return
     }
 
     if (JSON.stringify(draft) === JSON.stringify(startingDraft)) {
-      window.sessionStorage.removeItem(draftStorageKey)
+      removeSensitiveDraft(draftStorageKey)
     } else {
-      window.sessionStorage.setItem(draftStorageKey, JSON.stringify(draft))
+      writeSensitiveDraft(draftStorageKey, draft, scope.generation)
     }
-  }, [draft, draftHydrated, draftStorageKey, startingDraft])
+  }, [draft, draftHydrated, draftStorageKey, startingDraft, scope.isCurrent, scope.generation])
 
   const validationIssues = useMemo(() => {
     const issues: ValidationIssue[] = []
@@ -311,7 +367,7 @@ export const BeneficiaryForm = ({
   }
 
   const confirmSave = async () => {
-    if (saving) return
+    if (saving || !scope.isCurrent()) return
     setSaving(true)
 
     try {
@@ -339,7 +395,8 @@ export const BeneficiaryForm = ({
           locationProvince: draft.province.trim(),
           expectedUpdatedAt: beneficiary.updatedAt,
         })
-        window.sessionStorage.removeItem(draftStorageKey)
+        if (!scope.isCurrent()) return
+        removeSensitiveDraft(draftStorageKey)
         setConfirmOpen(false)
         toast.success('Beneficiary profile updated.')
         router.push(`/beneficiaries/${saved.id}?projectId=${encodeURIComponent(draft.projectId)}`)
@@ -347,6 +404,7 @@ export const BeneficiaryForm = ({
       }
 
       const forms = await pathwaysClient.getDigitalForms(draft.projectId)
+      if (!scope.isCurrent()) return
       const registrationForm = forms
         .filter(
           (form) => form.formType === 'BENEFICIARY_REGISTRATION' && form.status === 'PUBLISHED',
@@ -356,6 +414,7 @@ export const BeneficiaryForm = ({
         throw new Error('No published beneficiary registration form is available for this project.')
       }
       clientRegistrationId.current ??= crypto.randomUUID()
+      if (!scope.isCurrent()) return
       const saved = await pathwaysClient.registerBeneficiary(draft.projectId, {
         formId: registrationForm.id,
         clientRegistrationId: clientRegistrationId.current,
@@ -387,15 +446,17 @@ export const BeneficiaryForm = ({
           profile_update_fields: null,
         },
       })
-      window.sessionStorage.removeItem(draftStorageKey)
+      if (!scope.isCurrent()) return
+      removeSensitiveDraft(draftStorageKey)
       setConfirmOpen(false)
       clientRegistrationId.current = null
       toast.success('Beneficiary registered.')
       router.push(`/beneficiaries/${saved.id}?projectId=${encodeURIComponent(draft.projectId)}`)
     } catch (error) {
+      if (!scope.isCurrent()) return
       toast.error(error instanceof Error ? error.message : 'The beneficiary could not be saved.')
     } finally {
-      setSaving(false)
+      if (scope.isCurrent()) setSaving(false)
     }
   }
 
@@ -475,7 +536,7 @@ export const BeneficiaryForm = ({
               <Select
                 value={draft.projectId}
                 disabled={Boolean(beneficiary)}
-                onValueChange={(value) => updateDraft('projectId', value)}
+                onValueChange={onProjectChange}
               >
                 <SelectTrigger aria-required="true" {...controlA11y('projectId')}>
                   <SelectValue placeholder="Select project" />

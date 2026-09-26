@@ -9,6 +9,14 @@ import { CollectionWorkspace } from './collection-workspace'
 
 const api = vi.hoisted(() => ({
   createDigitalForm: vi.fn(),
+  createDigitalFormVersion: vi.fn(),
+  publishDigitalForm: vi.fn(),
+  updateDigitalForm: vi.fn(),
+  uploadImport: vi.fn(),
+  getImportBatch: vi.fn(),
+  saveImportMapping: vi.fn(),
+  validateImport: vi.fn(),
+  processImport: vi.fn(),
   getActivities: vi.fn(),
   getDigitalForm: vi.fn(),
   getDigitalForms: vi.fn(),
@@ -19,6 +27,8 @@ const currentAccess = vi.hoisted(() => ({
   role: 'Monitoring and Evaluation Officer',
   assignedProjectIds: ['futuremakers-ncr'],
   profile: {
+    userId: 'actor-a',
+    organizationId: 'org-a',
     roles: ['MONITORING_AND_EVALUATION_OFFICER'],
     permissions: [
       'projects.read',
@@ -26,6 +36,7 @@ const currentAccess = vi.hoisted(() => ({
       'monitoring.read',
       'collection.read',
       'forms.read',
+      'forms.export',
       'forms.manage',
       'forms.templates.import',
       'forms.publish',
@@ -33,6 +44,7 @@ const currentAccess = vi.hoisted(() => ({
       'imports.read',
       'imports.upload',
       'imports.review',
+      'imports.validate',
       'imports.process',
     ],
     assignedProjectIds: ['futuremakers-ncr'],
@@ -50,11 +62,22 @@ vi.mock('@/lib/services/pathways-client', () => ({
     getActivities: api.getActivities,
     getIndicators: api.getIndicators,
     createDigitalForm: api.createDigitalForm,
+    createDigitalFormVersion: api.createDigitalFormVersion,
+    publishDigitalForm: api.publishDigitalForm,
+    updateDigitalForm: api.updateDigitalForm,
+    uploadImport: api.uploadImport,
+    getImportBatch: api.getImportBatch,
+    saveImportMapping: api.saveImportMapping,
+    validateImport: api.validateImport,
+    processImport: api.processImport,
     getDigitalForm: api.getDigitalForm,
   },
 }))
 
 beforeEach(() => {
+  currentAccess.profile.userId = 'actor-a'
+  currentAccess.profile.organizationId = 'org-a'
+  currentAccess.profile.assignedProjectIds = ['futuremakers-ncr']
   currentAccess.role = 'Monitoring and Evaluation Officer'
   currentAccess.profile.roles = ['MONITORING_AND_EVALUATION_OFFICER']
   currentAccess.profile.permissions = [
@@ -63,6 +86,7 @@ beforeEach(() => {
     'monitoring.read',
     'collection.read',
     'forms.read',
+    'forms.export',
     'forms.manage',
     'forms.templates.import',
     'forms.publish',
@@ -70,6 +94,7 @@ beforeEach(() => {
     'imports.read',
     'imports.upload',
     'imports.review',
+    'imports.validate',
     'imports.process',
   ]
   api.getProjectsForRole.mockResolvedValue([{ id: 'futuremakers-ncr', title: 'Futuremakers NCR' }])
@@ -98,6 +123,215 @@ const csvFile = (name: string, readText: () => Promise<string>) => {
 }
 
 describe('collection import workspace', () => {
+  it('cannot create an unrelated draft while an existing form is delayed or unavailable', async () => {
+    let rejectLoad: ((error: Error) => void) | undefined
+    api.getDigitalForms.mockImplementation(
+      () =>
+        new Promise((_resolve, reject) => {
+          rejectLoad = reject
+        }),
+    )
+    render(
+      <DisplayLabelsProvider>
+        <CollectionWorkspace
+          initialProjectId="futuremakers-ncr"
+          initialFormId="saved-form"
+          initialView="builder"
+        />
+      </DisplayLabelsProvider>,
+    )
+    await waitFor(() => expect(api.getDigitalForms).toHaveBeenCalled())
+    const save = screen.getByRole('button', { name: 'Save Draft' }) as HTMLButtonElement
+    expect(save.matches(':disabled')).toBe(true)
+    fireEvent.click(save)
+    const dialog = screen.queryByRole('dialog')
+    if (dialog) {
+      fireEvent.click(within(dialog).getByRole('button', { name: 'Save Draft' }))
+      fireEvent.click(within(dialog).getByRole('button', { name: 'Cancel' }))
+    }
+    expect(api.createDigitalForm).not.toHaveBeenCalled()
+    expect(api.updateDigitalForm).not.toHaveBeenCalled()
+    await act(async () => rejectLoad?.(new Error('Form unavailable')))
+    expect(save.matches(':disabled')).toBe(true)
+    expect(screen.getByRole('status').textContent).toContain('saved form is not ready')
+    expect(api.createDigitalForm).not.toHaveBeenCalled()
+    expect(api.updateDigitalForm).not.toHaveBeenCalled()
+  })
+
+  it('submits the server column keys instead of display headers for dataset mapping', async () => {
+    api.getDigitalForms.mockResolvedValue([
+      {
+        id: 'published-form',
+        projectId: 'futuremakers-ncr',
+        code: 'attendance',
+        name: 'Attendance',
+        version: 1,
+        formType: 'OTHER',
+        status: 'PUBLISHED',
+        updatedAt: '2026-09-22T00:00:00Z',
+        activityId: null,
+        journeyStageId: null,
+        fields: [
+          {
+            code: 'beneficiary_id',
+            label: 'Beneficiary ID',
+            dataType: 'TEXT',
+            required: true,
+            metadataKey: true,
+            sadddField: false,
+          },
+          {
+            code: 'attendance_status',
+            label: 'Attendance status',
+            dataType: 'SELECT',
+            required: true,
+            metadataKey: false,
+            sadddField: false,
+            allowedValues: ['Present'],
+          },
+        ],
+      },
+    ])
+    api.uploadImport.mockResolvedValue({ id: 'batch-1', mappingRevision: 0 })
+    api.getImportBatch.mockResolvedValue({
+      sourceColumns: [
+        { key: 'column_0001', columnIndex: 1, header: 'Beneficiary ID' },
+        { key: 'column_0002', columnIndex: 2, header: 'Attendance status' },
+      ],
+    })
+    api.saveImportMapping.mockResolvedValue({ id: 'batch-1', mappingRevision: 1 })
+    api.validateImport.mockResolvedValue({
+      id: 'batch-1',
+      mappingRevision: 1,
+      validationRevision: 1,
+      totals: { invalid: 0 },
+    })
+    api.processImport.mockResolvedValue({ id: 'batch-1', totals: { processed: 1, failed: 0 } })
+    render(
+      <DisplayLabelsProvider>
+        <CollectionWorkspace
+          initialView="import"
+          initialMode="import"
+          initialProjectId="futuremakers-ncr"
+          initialFormId="published-form"
+        />
+      </DisplayLabelsProvider>,
+    )
+    await waitFor(() =>
+      expect((screen.getByLabelText('Form information') as HTMLInputElement).value).toBe(
+        'Attendance',
+      ),
+    )
+    fireEvent.change(screen.getByLabelText('Source file'), {
+      target: {
+        files: [
+          csvFile(
+            'attendance.csv',
+            async () => 'Beneficiary ID,Attendance status\nBEN-001,Present',
+          ),
+        ],
+      },
+    })
+    await screen.findByText(/Preview ready for attendance.csv/)
+    fireEvent.click(screen.getByRole('button', { name: 'Proceed' }))
+    fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Proceed' }))
+    await waitFor(() => expect(api.saveImportMapping).toHaveBeenCalled())
+    expect(api.saveImportMapping).toHaveBeenCalledWith('futuremakers-ncr', 'batch-1', 0, [
+      { sourceFieldName: 'column_0001', targetFieldCode: 'beneficiary_id', ignored: false },
+      { sourceFieldName: 'column_0002', targetFieldCode: 'attendance_status', ignored: false },
+    ])
+  })
+
+  it('opens a saved definition and saves its exact types, options, links and limits', async () => {
+    const saved = {
+      id: 'form-1',
+      projectId: 'futuremakers-ncr',
+      code: 'original_code',
+      name: 'Saved assessment',
+      description: 'Preserved description',
+      formType: 'POST_TEST',
+      status: 'DRAFT',
+      version: 3,
+      updatedAt: '2026-09-22T00:00:00Z',
+      activityId: 'activity-1',
+      journeyStageId: 'stage-1',
+      createdByCurrentUser: true,
+      fields: [
+        {
+          id: 'field-1',
+          code: 'choice',
+          label: 'Choice',
+          dataType: 'SELECT',
+          required: true,
+          metadataKey: true,
+          sadddField: true,
+          allowedValues: ['Yes, with support', 'No'],
+        },
+        {
+          id: 'field-2',
+          code: 'count',
+          label: 'Count',
+          dataType: 'INTEGER',
+          required: false,
+          metadataKey: false,
+          sadddField: false,
+          minimumValue: '1',
+          maximumValue: '10',
+        },
+      ],
+    }
+    api.getDigitalForms.mockResolvedValue([saved])
+    api.updateDigitalForm.mockResolvedValue(saved)
+    render(
+      <DisplayLabelsProvider>
+        <CollectionWorkspace
+          initialProjectId="futuremakers-ncr"
+          initialFormId="form-1"
+          initialView="builder"
+        />
+      </DisplayLabelsProvider>,
+    )
+    await waitFor(() =>
+      expect((screen.getByLabelText('Form code') as HTMLInputElement).value).toBe('original_code'),
+    )
+    expect((screen.getByLabelText('Description') as HTMLInputElement).value).toBe(
+      'Preserved description',
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'Save Draft' }))
+    fireEvent.click(
+      within(screen.getByRole('dialog', { name: 'Save form draft?' })).getByRole('button', {
+        name: 'Save Draft',
+      }),
+    )
+    await waitFor(() => expect(api.updateDigitalForm).toHaveBeenCalled())
+    expect(api.updateDigitalForm).toHaveBeenCalledWith(
+      'futuremakers-ncr',
+      'form-1',
+      expect.objectContaining({
+        code: 'original_code',
+        formType: 'POST_TEST',
+        description: 'Preserved description',
+        activityId: 'activity-1',
+        journeyStageId: 'stage-1',
+        expectedUpdatedAt: saved.updatedAt,
+        fields: expect.arrayContaining([
+          expect.objectContaining({
+            dataType: 'SELECT',
+            allowedValues: ['Yes, with support', 'No'],
+            metadataKey: true,
+            sadddField: true,
+          }),
+          expect.objectContaining({
+            dataType: 'INTEGER',
+            minimumValue: '1',
+            maximumValue: '10',
+            allowedValues: undefined,
+          }),
+        ]),
+      }),
+    )
+  })
+
   it('creates a Forms draft from a header-only questionnaire file', async () => {
     api.createDigitalForm.mockImplementation(async (projectId, input) => ({
       ...input,
@@ -108,6 +342,7 @@ describe('collection import workspace', () => {
       fields: input.fields,
     }))
     renderImportWorkspace()
+    await waitFor(() => expect(api.getDigitalForms).toHaveBeenCalled())
 
     fireEvent.change(screen.getByLabelText('Source file'), {
       target: {
@@ -141,6 +376,7 @@ describe('collection import workspace', () => {
 
   it('uses one visible labelled chooser and reports reading, completion, and mapping readiness', async () => {
     renderImportWorkspace()
+    await waitFor(() => expect(api.getDigitalForms).toHaveBeenCalled())
 
     const chooser = screen.getByLabelText('Source file') as HTMLInputElement
     const helpId = chooser.getAttribute('aria-describedby')
@@ -193,6 +429,7 @@ describe('collection import workspace', () => {
 
   it('blocks unresolved mappings and retains prior work through a failed read and retry', async () => {
     renderImportWorkspace()
+    await waitFor(() => expect(api.getDigitalForms).toHaveBeenCalled())
 
     const chooser = screen.getByLabelText('Source file') as HTMLInputElement
     fireEvent.change(chooser, {
@@ -364,6 +601,7 @@ describe('collection permission integration', () => {
       'activities.read',
       'collection.read',
       'forms.read',
+      'forms.export',
       'submissions.write',
       'imports.read',
       'imports.upload',
@@ -392,6 +630,7 @@ describe('collection permission integration', () => {
       'monitoring.read',
       'collection.read',
       'forms.read',
+      'forms.export',
     ]
 
     render(
@@ -408,5 +647,360 @@ describe('collection permission integration', () => {
     expect(screen.queryByText('Import then extend')).toBeNull()
     expect(api.getActivities).not.toHaveBeenCalled()
     expect(api.getIndicators).not.toHaveBeenCalled()
+  })
+})
+
+const deferred = <T,>() => {
+  let resolve!: (value: T) => void
+  let reject!: (error: Error) => void
+  const promise = new Promise<T>((yes, no) => {
+    resolve = yes
+    reject = no
+  })
+  return { promise, resolve, reject }
+}
+const ownedDataset = async () => {
+  api.getDigitalForms.mockResolvedValue([
+    {
+      id: 'published-form',
+      projectId: 'futuremakers-ncr',
+      code: 'attendance',
+      name: 'Attendance',
+      version: 1,
+      formType: 'OTHER',
+      status: 'PUBLISHED',
+      updatedAt: '2026-09-22T00:00:00Z',
+      activityId: null,
+      journeyStageId: null,
+      fields: [
+        {
+          code: 'beneficiary_id',
+          label: 'Beneficiary ID',
+          dataType: 'TEXT',
+          required: true,
+          metadataKey: true,
+          sadddField: false,
+        },
+      ],
+    },
+  ])
+  api.getImportBatch.mockResolvedValue({
+    sourceColumns: [{ key: 'column_0001', columnIndex: 1, header: 'beneficiary_id' }],
+  })
+  api.saveImportMapping.mockResolvedValue({ id: 'batch-owned', mappingRevision: 1 })
+  api.validateImport.mockResolvedValue({
+    id: 'batch-owned',
+    mappingRevision: 1,
+    validationRevision: 1,
+    totals: { invalid: 0 },
+  })
+  api.processImport.mockResolvedValue({ id: 'batch-owned', totals: { processed: 1, failed: 0 } })
+  const element = () => (
+    <DisplayLabelsProvider>
+      <CollectionWorkspace
+        initialMode="import"
+        initialView="import"
+        initialProjectId="futuremakers-ncr"
+        initialFormId="published-form"
+      />
+    </DisplayLabelsProvider>
+  )
+  const view = render(element())
+  await waitFor(() =>
+    expect((screen.getByLabelText('Form information') as HTMLInputElement).value).toBe(
+      'Attendance',
+    ),
+  )
+  fireEvent.change(screen.getByLabelText('Source file'), {
+    target: { files: [csvFile('owned.csv', async () => 'beneficiary_id\nBEN-OWNER')] },
+  })
+  await screen.findByText(/Preview ready for owned.csv/)
+  fireEvent.click(screen.getByRole('button', { name: 'Proceed' }))
+  const submit = within(screen.getByRole('dialog')).getByRole('button', { name: 'Proceed' })
+  return { view, element, submit }
+}
+describe('collection operation ownership', () => {
+  it.each([
+    'actor',
+    'organization',
+    'assignment',
+    'permission',
+    'project',
+    'form',
+    'unmount',
+  ] as const)('stops a delayed upload after %s invalidation', async (reason) => {
+    const pending = deferred<{ id: string; mappingRevision: number }>()
+    api.uploadImport.mockReturnValue(pending.promise)
+    const { view, element, submit } = await ownedDataset()
+    fireEvent.click(submit)
+    expect(api.uploadImport).toHaveBeenCalledOnce()
+    if (reason === 'unmount') view.unmount()
+    else if (reason === 'project' || reason === 'form')
+      view.rerender(
+        <DisplayLabelsProvider>
+          <CollectionWorkspace
+            initialView="import"
+            initialMode="import"
+            initialProjectId={reason === 'project' ? 'another-project' : 'futuremakers-ncr'}
+            initialFormId={reason === 'form' ? 'another-form' : 'published-form'}
+          />
+        </DisplayLabelsProvider>,
+      )
+    else {
+      if (reason === 'actor') currentAccess.profile.userId = 'actor-b'
+      if (reason === 'organization') currentAccess.profile.organizationId = 'org-b'
+      if (reason === 'assignment') currentAccess.profile.assignedProjectIds = []
+      if (reason === 'permission')
+        currentAccess.profile.permissions = currentAccess.profile.permissions.filter(
+          (p) => p !== 'imports.review',
+        )
+      view.rerender(element())
+    }
+    await act(async () => pending.resolve({ id: 'batch-owned', mappingRevision: 0 }))
+    expect(api.getImportBatch).not.toHaveBeenCalled()
+    expect(api.saveImportMapping).not.toHaveBeenCalled()
+    expect(api.validateImport).not.toHaveBeenCalled()
+    expect(api.processImport).not.toHaveBeenCalled()
+  })
+  it.each(['mapping', 'validation'] as const)(
+    'rechecks permission after delayed %s',
+    async (stage) => {
+      api.uploadImport.mockResolvedValue({ id: 'batch-owned', mappingRevision: 0 })
+      const { view, element, submit } = await ownedDataset()
+      const pending = deferred<unknown>()
+      if (stage === 'mapping') api.saveImportMapping.mockReturnValue(pending.promise)
+      else api.validateImport.mockReturnValue(pending.promise)
+      fireEvent.click(submit)
+      await waitFor(() =>
+        expect(
+          stage === 'mapping' ? api.saveImportMapping : api.validateImport,
+        ).toHaveBeenCalledOnce(),
+      )
+      currentAccess.profile.permissions = currentAccess.profile.permissions.filter(
+        (p) => p !== (stage === 'mapping' ? 'imports.validate' : 'imports.process'),
+      )
+      view.rerender(element())
+      await act(async () =>
+        pending.resolve(
+          stage === 'mapping'
+            ? { id: 'batch-owned', mappingRevision: 1 }
+            : {
+                id: 'batch-owned',
+                mappingRevision: 1,
+                validationRevision: 1,
+                totals: { invalid: 0 },
+              },
+        ),
+      )
+      if (stage === 'mapping') expect(api.validateImport).not.toHaveBeenCalled()
+      expect(api.processImport).not.toHaveBeenCalled()
+    },
+  )
+  it('keeps one upload ticket and immutable inputs across duplicate clicks and a same-scope refresh', async () => {
+    const pending = deferred<{ id: string; mappingRevision: number }>()
+    api.uploadImport.mockReturnValue(pending.promise)
+    const { view, element, submit } = await ownedDataset()
+    fireEvent.click(submit)
+    fireEvent.click(submit)
+    fireEvent.change(screen.getByLabelText('Form information'), {
+      target: { value: 'Injected change' },
+    })
+    currentAccess.profile = {
+      ...currentAccess.profile,
+      permissions: [...currentAccess.profile.permissions],
+    }
+    view.rerender(element())
+    expect(api.uploadImport).toHaveBeenCalledOnce()
+    expect((screen.getByLabelText('Form information') as HTMLInputElement).value).toBe('Attendance')
+    await act(async () => pending.resolve({ id: 'batch-owned', mappingRevision: 0 }))
+    await waitFor(() => expect(api.processImport).toHaveBeenCalledOnce())
+  })
+  it.each(['success', 'failure'] as const)(
+    'ignores older file read %s after a newer selection',
+    async (outcome) => {
+      renderImportWorkspace()
+      await waitFor(() => expect(api.getDigitalForms).toHaveBeenCalled())
+      const old = deferred<string>()
+      fireEvent.change(screen.getByLabelText('Source file'), {
+        target: { files: [csvFile('old.csv', () => old.promise)] },
+      })
+      fireEvent.change(screen.getByLabelText('Source file'), {
+        target: { files: [csvFile('new.csv', async () => 'beneficiary_id\nCURRENT')] },
+      })
+      await screen.findByText(/Preview ready for new.csv/)
+      await act(async () => {
+        if (outcome === 'success') old.resolve('beneficiary_id\nSTALE')
+        else old.reject(new Error('Old failure'))
+      })
+      expect(screen.getByText(/Preview ready for new.csv/)).toBeTruthy()
+      expect(screen.queryByText('STALE')).toBeNull()
+      expect(screen.queryByText(/Old failure/)).toBeNull()
+    },
+  )
+  it('does not show a stale form-save completion after organization changes', async () => {
+    const pending = deferred<unknown>()
+    api.createDigitalForm.mockReturnValue(pending.promise)
+    const element = () => (
+      <DisplayLabelsProvider>
+        <CollectionWorkspace initialView="builder" initialProjectId="futuremakers-ncr" />
+      </DisplayLabelsProvider>
+    )
+    const view = render(element())
+    await waitFor(() => expect(api.getDigitalForms).toHaveBeenCalled())
+    fireEvent.click(screen.getByRole('button', { name: 'Save Draft' }))
+    fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Save Draft' }))
+    expect(api.createDigitalForm).toHaveBeenCalledOnce()
+    currentAccess.profile.organizationId = 'org-b'
+    view.rerender(element())
+    await act(async () =>
+      pending.resolve({
+        id: 'old-form',
+        projectId: 'futuremakers-ncr',
+        name: 'Old saved form',
+        fields: [],
+        updatedAt: 'old',
+      }),
+    )
+    expect(screen.queryByText('Draft saved to the server.')).toBeNull()
+    expect(screen.queryByText('Old saved form')).toBeNull()
+  })
+})
+
+describe('persisted collection completion ownership', () => {
+  it.each(['export', 'publish', 'version'] as const)(
+    'rejects stale %s completion after an actor switch',
+    async (operation) => {
+      if (operation === 'publish') {
+        currentAccess.role = 'System Administrator'
+        currentAccess.profile.roles = ['SYSTEM_ADMINISTRATOR']
+      }
+      const form = {
+        id: 'form-owned',
+        projectId: 'futuremakers-ncr',
+        code: 'owned',
+        version: 1,
+        name: 'Owned definition',
+        description: null,
+        formType: 'OTHER',
+        status: operation === 'publish' ? 'DRAFT' : 'PUBLISHED',
+        activityId: null,
+        journeyStageId: null,
+        updatedAt: '2026-09-23T00:00:00Z',
+        createdByCurrentUser: false,
+        fields: [
+          {
+            code: 'beneficiary_id',
+            label: 'Beneficiary ID',
+            dataType: 'TEXT',
+            required: true,
+            metadataKey: true,
+            sadddField: false,
+          },
+        ],
+      }
+      api.getDigitalForms.mockResolvedValue([form])
+      const pending = deferred<unknown>()
+      const apiCall =
+        operation === 'export'
+          ? api.getDigitalForm
+          : operation === 'publish'
+            ? api.publishDigitalForm
+            : api.createDigitalFormVersion
+      apiCall.mockReturnValue(pending.promise)
+      const create = vi.fn(() => 'blob:should-not-exist')
+      Object.defineProperty(URL, 'createObjectURL', { configurable: true, value: create })
+      Object.defineProperty(URL, 'revokeObjectURL', { configurable: true, value: vi.fn() })
+      const download = vi
+        .spyOn(HTMLAnchorElement.prototype, 'click')
+        .mockImplementation(() => undefined)
+      const element = () => (
+        <DisplayLabelsProvider>
+          <CollectionWorkspace
+            initialProjectId="futuremakers-ncr"
+            initialFormId={operation === 'export' ? undefined : 'form-owned'}
+            initialView={operation === 'export' ? 'forms' : 'builder'}
+          />
+        </DisplayLabelsProvider>
+      )
+      const view = render(element())
+      if (operation === 'export') await screen.findByText('Owned definition')
+      else
+        await waitFor(() =>
+          expect((screen.getByLabelText('Form information') as HTMLInputElement).value).toBe(
+            'Owned definition',
+          ),
+        )
+      fireEvent.click(
+        screen.getByRole('button', {
+          name:
+            operation === 'export'
+              ? 'Export form'
+              : operation === 'publish'
+                ? 'Publish saved draft'
+                : 'Create new version',
+        }),
+      )
+      await waitFor(() => expect(apiCall).toHaveBeenCalledOnce())
+      currentAccess.profile.userId = 'actor-b'
+      api.getDigitalForms.mockResolvedValue([])
+      view.rerender(element())
+      await act(async () => pending.resolve({ ...form, id: 'late-definition' }))
+      expect(create).not.toHaveBeenCalled()
+      expect(download).not.toHaveBeenCalled()
+      expect(screen.queryByText('Form published to the server.')).toBeNull()
+      expect(screen.queryByText('A new draft version is ready for editing.')).toBeNull()
+    },
+  )
+})
+
+describe('collection initial file ownership readiness', () => {
+  it('disables the source chooser until the selected definition revision is ready', async () => {
+    const pending = deferred<unknown[]>()
+    api.getDigitalForms.mockReturnValue(pending.promise)
+    render(
+      <DisplayLabelsProvider>
+        <CollectionWorkspace
+          initialMode="import"
+          initialView="import"
+          initialProjectId="futuremakers-ncr"
+          initialFormId="waiting-form"
+        />
+      </DisplayLabelsProvider>,
+    )
+    await waitFor(() => expect(api.getDigitalForms).toHaveBeenCalled())
+    const input = screen.getByLabelText('Source file') as HTMLInputElement
+    expect(input.disabled).toBe(true)
+    const read = vi.fn(async () => 'beneficiary_id\nEARLY')
+    fireEvent.change(input, { target: { files: [csvFile('early.csv', read)] } })
+    expect(read).not.toHaveBeenCalled()
+    await act(async () =>
+      pending.resolve([
+        {
+          id: 'waiting-form',
+          projectId: 'futuremakers-ncr',
+          code: 'waiting',
+          name: 'Ready definition',
+          version: 1,
+          formType: 'OTHER',
+          status: 'PUBLISHED',
+          updatedAt: '2026-09-22T00:00:00Z',
+          activityId: null,
+          journeyStageId: null,
+          fields: [
+            {
+              code: 'beneficiary_id',
+              label: 'Beneficiary ID',
+              dataType: 'TEXT',
+              required: true,
+              metadataKey: true,
+              sadddField: false,
+            },
+          ],
+        },
+      ]),
+    )
+    await waitFor(() => expect(input.disabled).toBe(false))
+    fireEvent.change(input, { target: { files: [csvFile('ready.csv', read)] } })
+    expect(await screen.findByText(/Preview ready for ready.csv/)).toBeTruthy()
   })
 })

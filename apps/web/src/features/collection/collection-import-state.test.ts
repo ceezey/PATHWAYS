@@ -1,10 +1,37 @@
 import { describe, expect, it } from 'vitest'
 
-import { createMappingRows, getMappingReadiness } from './collection-import-state'
+import {
+  createDefinitionMappingRows,
+  createMappingRows,
+  getMappingReadiness,
+} from './collection-import-state'
 
 const expectedHeaders = ['beneficiary_id', 'attendance_status']
 
 describe('collection import mapping readiness', () => {
+  it('matches unique definition codes and labels without fuzzy punctuation matching', () => {
+    expect(
+      createDefinitionMappingRows(
+        ['Age at registration', 'birth-date', 'birth.date'],
+        [
+          { code: 'age_at_registration', label: 'Age' },
+          { code: 'birth_date', label: 'Birth date' },
+        ],
+      ).map((row) => row.status),
+    ).toEqual(['mapped', 'mapped', 'unmapped'])
+  })
+
+  it('leaves ambiguous labels and competing source columns unresolved', () => {
+    const fields = [
+      { code: 'first', label: 'Shared label' },
+      { code: 'second', label: 'Shared label' },
+    ]
+    expect(createDefinitionMappingRows(['Shared label'], fields)[0].status).toBe('unmapped')
+    expect(
+      createDefinitionMappingRows(['first', 'first'], fields).map((row) => row.status),
+    ).toEqual(['unmapped', 'unmapped'])
+  })
+
   it('permits only a non-empty set of fully resolved mappings', () => {
     const valid = getMappingReadiness(
       createMappingRows(['beneficiary_id', 'attendance_status'], expectedHeaders),

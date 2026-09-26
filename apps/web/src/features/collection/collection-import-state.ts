@@ -42,6 +42,42 @@ export const createMappingRows = (
     }
   })
 
+const normalizeDefinitionName = (value: string) =>
+  value
+    .normalize('NFKC')
+    .trim()
+    .toLowerCase()
+    .replace(/[\s-]+/gu, '_')
+
+export const createDefinitionMappingRows = (
+  headers: string[],
+  fields: readonly { code: string; label: string }[],
+): MappingRow[] => {
+  const candidates = headers.map((header) => {
+    const normalized = normalizeDefinitionName(header)
+    return fields.filter(
+      (field) =>
+        normalized !== '' &&
+        (normalized === normalizeDefinitionName(field.code) ||
+          normalized === normalizeDefinitionName(field.label)),
+    )
+  })
+  const counts = new Map<string, number>()
+  for (const matches of candidates) {
+    if (matches.length === 1) counts.set(matches[0].code, (counts.get(matches[0].code) ?? 0) + 1)
+  }
+  return headers.map((header, index) => {
+    const matches = candidates[index]
+    const target = matches.length === 1 && counts.get(matches[0].code) === 1 ? matches[0].code : ''
+    return {
+      id: `mapping-${index}`,
+      sourceColumn: header,
+      targetField: target,
+      status: target ? 'mapped' : 'unmapped',
+    }
+  })
+}
+
 export const getMappingReadiness = (mappingRows: readonly MappingRow[]): MappingReadiness => {
   const invalid = mappingRows.filter((row) => row.status === 'invalid').length
   const unmapped = mappingRows.filter(

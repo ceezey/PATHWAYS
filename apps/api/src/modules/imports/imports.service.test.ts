@@ -408,6 +408,35 @@ describe('P03 import service', () => {
     expect(storage.uploadPrivateFile).toHaveBeenCalledTimes(1)
   })
 
+  it.each(['PENDING', 'INVALID'])(
+    'rejects unresolved %s mappings before validating rows',
+    async (status) => {
+      tx.dataImportBatch.findFirst.mockResolvedValue(batch())
+      tx.dataImportBatch.findUnique.mockResolvedValue(batch())
+      tx.metadataMapping.findMany.mockResolvedValue([
+        { sourceFieldName: 'score', status, targetField: null },
+      ])
+      await expect(
+        service.validate(actor, projectId, batchId, { expectedMappingRevision: 1 }),
+      ).rejects.toBeInstanceOf(ConflictException)
+      expect(tx.dataImportRow.findMany).not.toHaveBeenCalled()
+      expect(tx.$executeRaw).not.toHaveBeenCalled()
+      expect(tx.auditLog.create).not.toHaveBeenCalled()
+    },
+  )
+
+  it('rejects unknown source keys even when the mapping count matches', async () => {
+    tx.dataImportBatch.findFirst.mockResolvedValue(batch())
+    tx.dataImportBatch.findUnique.mockResolvedValue(batch())
+    tx.metadataMapping.findMany.mockResolvedValue([
+      { sourceFieldName: 'other_column', status: 'IGNORED', targetField: null },
+    ])
+    await expect(
+      service.validate(actor, projectId, batchId, { expectedMappingRevision: 1 }),
+    ).rejects.toBeInstanceOf(ConflictException)
+    expect(tx.dataImportRow.findMany).not.toHaveBeenCalled()
+  })
+
   it('rejects a stale mapping revision before row validation writes', async () => {
     tx.dataImportBatch.findFirst.mockResolvedValue(batch({ mappingRevision: 2 }))
     tx.dataImportBatch.findUnique.mockResolvedValue(batch({ mappingRevision: 2 }))
