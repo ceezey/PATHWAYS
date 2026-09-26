@@ -137,3 +137,7 @@ Every authorized phase:
 - [x] no AI overclaim
 
 Journey configuration belongs to Admin/M&E/PM under PRD-F3/F4. Admin configuration cannot retrieve beneficiary events. Activity escalation under PRD-F2 authorizes scoped viewing/raising only; missing handlers remain deferred.
+
+## Local PRD-F3/F5/F6 supporting repair
+
+The [core P1 supporting operations](cr-pathways-core-p1-supporting-operations.md) contract specifies scoped blank registration definitions for existing authorized registration actors and conservative server-derived mapping for the current uploader. General form-management, manual review and normalization permissions remain unchanged. Individual registration selects an eligible published version, validates its supported canonical and custom fields, and independently reauthorizes at submission. No installed endpoint or completed acceptance is implied.

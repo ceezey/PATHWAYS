@@ -53,3 +53,7 @@ Preserve uploader, org/project, storage object, batch, row index, mapping versio
 ## Tests
 
 Invalid headers, missing fields, wrong types, duplicates, mixed rows, retries, cross-project access, malicious spreadsheet content, large bounded input, failed normalization recovery.
+
+## Server-derived mapping support
+
+The [core P1 supporting operations](cr-pathways-core-p1-supporting-operations.md) contract extends the same conservative code/label algorithm to bounded, scoped server-derived choices. The request supplies batch identity and expected revision only; it cannot choose targets, ignore columns or impersonate a reviewer. All ambiguous claims count, including claims sharing another source's sole candidate. Unresolved columns remain PENDING. One attributable immutable automatic revision and audit commit atomically; stale/frozen/changed retries conflict. A complete automatic mapping may be MAPPED, but status alone grants no review or processing authority: existing explicit authorized review confirmation, canonical validation and authorized normalization remain required. No aliases, external parsing inside long database transactions, or application capability is installed by this contract.

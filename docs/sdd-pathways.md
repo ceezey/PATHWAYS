@@ -138,3 +138,7 @@ No runtime AI/ML product feature is currently approved.
 ## Revised Authorization Boundaries (PRD-F1/F2/F3/F4/F5/F6/F8)
 
 All roles view scoped projects, with separate tab guards and selections. Admin activity context excludes detail and assignment identities. Blank-form management is separate from assessment access; Admin processing reads only its own imported submissions/values. Journey events and participation require beneficiary access; Admin configuration receives a scoped event-existence boolean. PO analytics/SADDD differs from monitoring/descriptive grants. Evaluation-weight writes change only weights/timestamp and retain lifecycle guards. Escalation permissions define viewing/raising; missing handlers remain deferred.
+
+## Core P1 supporting interfaces
+
+The [core P1 supporting operations](cr-pathways-core-p1-supporting-operations.md) contract defines GET /beneficiaries/projects/:projectId/registration-context under beneficiaries.records.register and POST /imports/projects/:projectId/batches/:batchId/automatic-mapping under imports.upload for the current scoped uploader. Exact output allowlists, bounded definition discovery, revision-bound retries, locked definitions and millisecond transaction attribution are specified there. Supporting SQL remains an uninstalled forward proposal; preserved broad policies are not claimed to become universally narrow. Applied/archive migration history and the single Prisma ledger remain intact.

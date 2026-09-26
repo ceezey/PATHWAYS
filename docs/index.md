@@ -111,8 +111,11 @@ Backend status verified 2026-09-26 against `apps/api/src/modules/*` controllers 
 
 Newest first.
 
+Core P1 supporting contract reconciliation is approved for local implementation after coordinator and independent reviews; no installed endpoint or complete migration acceptance is claimed.
+
 | CR ID | Date | Summary | Status |
 |---|---|---|---|
+| [cr-pathways-core-p1-supporting-operations](cr-pathways-core-p1-supporting-operations.md) | 2026-09-27 | Scoped registration context and revision-bound server-derived mapping; human review/normalization authority preserved | Approved for local P1 implementation; installation/runtime acceptance pending |
 | [cr-pathways-retire-project-target-goal](cr-pathways-retire-project-target-goal.md) | 2026-09-26 | Retire live project benchmark inputs, outputs and comparisons; preserve database history, target beneficiaries and independent indicator targets | Approved; implementation/verification pending; no migration or release |
 | [cr-pathways-private-activity-proof-inspection](cr-pathways-private-activity-proof-inspection.md) | 2026-09-27 | Assigned distinct M&E pending private-proof inspection, bounded verified transfer and final authorization/audit; withdraw generic old downloads | Approved; local implementation/verification pending; hosted application and release excluded |
 | conservative-mapping-v1-2026-09-27 | 2026-09-27 | Register stable source keys, conservative NFKC/ASCII code-label matching and unresolved candidate collisions for PRD-F6 preview suggestions | Contract clarification; preview implementation pending; no server authority or SQL installed |
