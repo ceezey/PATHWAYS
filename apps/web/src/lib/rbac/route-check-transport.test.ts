@@ -146,6 +146,18 @@ describe('route-check deadlines and malformed inputs remain fail closed', () => 
   const run = (signal?: AbortSignal, base = 'http://127.0.0.1:4000/api') =>
     requestRouteCheck(base, canary, context, { route: 'dashboard' }, signal)
 
+  it('uses the explicitly configured HTTPS API for deployed route checks', async () => {
+    const base = 'https://pathways-api.vercel.app/api'
+    const fetch = vi.fn(async (_url: URL) => Response.json(decision))
+    vi.stubGlobal('fetch', fetch)
+    await expect(
+      requestRouteCheck(base, canary, context, { route: 'dashboard' }, undefined, base),
+    ).resolves.toEqual(decision)
+    expect(fetch.mock.calls[0]?.[0].toString()).toBe(
+      'https://pathways-api.vercel.app/api/access/route-check?route=dashboard',
+    )
+  })
+
   it('preserves the 15-second deadline and separates it from an actual HTTP 503', async () => {
     vi.useFakeTimers()
     const fetch = vi.fn(

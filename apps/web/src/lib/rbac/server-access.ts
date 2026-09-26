@@ -92,6 +92,8 @@ export async function requireServerRoute(selection: RouteSelection) {
       session.data.session.access_token,
       context,
       selection,
+      undefined,
+      webEnv.NEXT_PUBLIC_API_BASE_URL,
     )
   } catch (error) {
     recordNavigationDenial('SERVER_PAGE', stage, error)

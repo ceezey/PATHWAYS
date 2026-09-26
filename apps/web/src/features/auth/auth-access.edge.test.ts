@@ -15,6 +15,18 @@ const bundle = buildSync({
 }).outputFiles[0].text
 
 describe('auth access in the installed Next middleware runtime', () => {
+  it('accepts the explicitly configured HTTPS API without Node globals', async () => {
+    const runtime = new EdgeRuntime()
+    runtime.evaluate(bundle)
+    const result = await runtime.evaluate(`
+      AuthAccess.requestAuthJson('https://pathways-api.vercel.app/api', '/auth/me',
+        'synthetic-token', undefined, undefined,
+        async (url) => ({ ok: true, json: async () => ({ endpoint: url }) }),
+        'https://pathways-api.vercel.app/api')
+    `)
+    expect(result.endpoint).toBe('https://pathways-api.vercel.app/api/auth/me')
+  })
+
   it('accepts a verified API response when AbortSignal.any is unavailable', async () => {
     const runtime = new EdgeRuntime()
     runtime.evaluate('AbortSignal.any = undefined')

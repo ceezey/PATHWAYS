@@ -59,7 +59,7 @@ export const PasswordRecoveryRequestForm = () => {
         <div>
           <CardTitle className="text-2xl font-bold tracking-normal">Reset your password</CardTitle>
           <CardDescription className="mt-2">
-            Request a private recovery message for the existing developer account.
+            Request a private recovery message for your existing account.
           </CardDescription>
         </div>
       </CardHeader>
@@ -68,15 +68,14 @@ export const PasswordRecoveryRequestForm = () => {
           <output className="block space-y-4">
             <p className="text-sm leading-6 text-foreground">{acknowledgement}</p>
             <p className="text-sm leading-6 text-muted-foreground">
-              Keep this server running. Open the message in this same browser profile and return to
-              the exact 127.0.0.1 address. Do not copy the recovery link into chat or another
-              browser.
+              Open the message in this same browser profile and return to this staff portal. Do not
+              copy the recovery link into chat or another browser.
             </p>
           </output>
         ) : (
           <>
             <p className="text-sm leading-6 text-muted-foreground">
-              Enter only the email already attached to the approved PATHWAYS-dev account. This form
+              Enter only the email already attached to your approved PATHWAYS account. This form
               never creates an account and never asks for a database password.
             </p>
             <Form {...form}>

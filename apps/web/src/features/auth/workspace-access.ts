@@ -40,15 +40,24 @@ export async function resolveWorkspaceProfile(
   subject: string,
   signal: AbortSignal,
   fetcher: typeof fetch = fetch,
+  trustedBaseUrl?: string,
 ): Promise<ApplicationProfile | null> {
   const workspace = parseWorkspaceResolution(
-    await requestAuthJson(baseUrl, '/auth/workspaces', token, signal, undefined, fetcher),
+    await requestAuthJson(
+      baseUrl,
+      '/auth/workspaces',
+      token,
+      signal,
+      undefined,
+      fetcher,
+      trustedBaseUrl,
+    ),
     subject,
   )
   if (signal.aborted) throw new AuthAccessError('network')
   if (!workspace) return null
   const profile = parseApplicationProfile(
-    await requestAuthJson(baseUrl, '/auth/me', token, signal, workspace, fetcher),
+    await requestAuthJson(baseUrl, '/auth/me', token, signal, workspace, fetcher, trustedBaseUrl),
   )
   if (signal.aborted) throw new AuthAccessError('network')
   if (
@@ -111,9 +120,10 @@ export async function requestAuthorizedProjects(
   profile: ApplicationProfile,
   signal: AbortSignal,
   fetcher: typeof fetch = fetch,
+  trustedBaseUrl?: string,
 ) {
   if (!workspacePermissions(profile).readProjects) throw new Error('Project access is unavailable.')
-  const endpoint = getLocalAuthEndpoint(baseUrl, '/auth/me').replace(
+  const endpoint = getLocalAuthEndpoint(baseUrl, '/auth/me', trustedBaseUrl).replace(
     /\/auth\/me$/,
     '/access/projects',
   )

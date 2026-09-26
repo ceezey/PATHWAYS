@@ -1,5 +1,6 @@
 import { z } from 'zod'
 
+import { approvedApiBaseUrl } from '@/lib/api-base-url'
 import type { PathwaysRole } from '@/types/pathways-role'
 
 const uuid = z.string().uuid()
@@ -52,10 +53,10 @@ export class AuthAccessError extends Error {
           : status === 503
             ? 'Application access verification is temporarily unavailable (503). Wait a moment and retry; do not change your password or provision another account.'
             : status === 'timeout'
-              ? 'The local API check timed out. Check that the developer API is running, then retry.'
+              ? 'The API check timed out. Try again shortly.'
               : status === 'network'
-                ? 'The local API could not be reached. Check that the developer API is running.'
-                : 'The local API could not complete the access check.'
+                ? 'The API could not be reached. Try again shortly.'
+                : 'The API could not complete the access check.'
     super(`${detail} No protected access was granted.`)
   }
 }
@@ -69,22 +70,8 @@ export const parseApplicationProfile = (value: unknown): ApplicationProfile =>
 
 type AuthPath = '/auth/mfa/status' | '/auth/me' | '/auth/workspaces'
 
-export const getLocalAuthEndpoint = (baseUrl: string, path: AuthPath) => {
-  const url = new URL(baseUrl)
-  if (
-    !['localhost', '127.0.0.1', '[::1]'].includes(url.hostname) ||
-    !['http:', 'https:'].includes(url.protocol) ||
-    url.username ||
-    url.password ||
-    url.search ||
-    url.hash
-  ) {
-    throw new Error('This developer MFA preparation requires a local PATHWAYS API.')
-  }
-  // The API deliberately listens on IPv4 loopback only. Normalize every
-  // accepted loopback spelling so `localhost` cannot resolve to IPv6 first and
-  // make a running local API look unavailable.
-  url.hostname = '127.0.0.1'
+export const getLocalAuthEndpoint = (baseUrl: string, path: AuthPath, trustedBaseUrl?: string) => {
+  const url = approvedApiBaseUrl(baseUrl, trustedBaseUrl)
   return `${url.toString().replace(/\/$/, '')}${path}`
 }
 
@@ -95,6 +82,7 @@ export async function requestAuthJson(
   signal?: AbortSignal,
   context?: ApplicationContext,
   fetcher: typeof fetch = fetch,
+  trustedBaseUrl?: string,
 ): Promise<unknown> {
   const headers: Record<string, string> = { Authorization: `Bearer ${token}` }
   if (path === '/auth/workspaces' && context) throw new AuthAccessError(400)
@@ -104,7 +92,7 @@ export async function requestAuthJson(
     headers['X-Pathways-User-Id'] = selected.userId
     headers['X-Pathways-Organization-Id'] = selected.organizationId
   }
-  const endpoint = getLocalAuthEndpoint(baseUrl, path)
+  const endpoint = getLocalAuthEndpoint(baseUrl, path, trustedBaseUrl)
   // Next 15's Edge Runtime has no AbortSignal.any. Compose cancellation without
   // that API so the same helper works in middleware and in the browser.
   const controller = new AbortController()

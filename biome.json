@@ -5,6 +5,7 @@
       "node_modules",
       ".next",
       ".next-dev",
+      ".vercel",
       "dist",
       "coverage",
       ".pnpm-store",

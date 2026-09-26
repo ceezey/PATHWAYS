@@ -76,6 +76,7 @@ export function RouteAccessGuard({ children }: { children: React.ReactNode }) {
           profile,
           selection,
           controller.signal,
+          webEnv.NEXT_PUBLIC_API_BASE_URL,
         )
         if (!controller.signal.aborted) {
           setState({ key, revision: verificationRevision, decision })

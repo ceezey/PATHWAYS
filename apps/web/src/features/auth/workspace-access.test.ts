@@ -112,7 +112,7 @@ describe('server-authoritative workspace integration', () => {
     },
   )
 
-  it('refuses non-local APIs and malformed server responses', async () => {
+  it('refuses unapproved APIs and malformed server responses', async () => {
     const fetcher = vi.fn().mockResolvedValue(Response.json({ role: 'ADMIN' }))
     await expect(
       requestAuthorizedProjects(
@@ -122,7 +122,7 @@ describe('server-authoritative workspace integration', () => {
         new AbortController().signal,
         fetcher,
       ),
-    ).rejects.toThrow('local')
+    ).rejects.toThrow('API')
     expect(fetcher).not.toHaveBeenCalled()
     await expect(
       requestAuthorizedProjects(

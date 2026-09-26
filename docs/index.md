@@ -106,6 +106,7 @@ Newest first.
 
 | CR ID | Date | Summary | Status |
 |---|---|---|---|
+| deployment-branch-policy-2026-09-26 | 2026-09-26 | Developer designated `origin/master` for deployment and `Backend-DB` for development; authorized connected Vercel API/web projects and explicit remote API/web-origin configuration | Applied as release configuration; runtime verification required |
 | workflow-adoption-2026-09-26 | 2026-09-26 | Curated ArkiLaunch-style documentation/AI workflow for PATHWAYS; added manifest, suite, build/AGENTS materialization, RFC/runbook/templates while preserving PATHWAYS execution controls | Applied as documentation package |
 
 Future material changes to Locked docs should use `cr-pathways-<slug>.md`.
@@ -124,7 +125,7 @@ Future material changes to Locked docs should use `cr-pathways-<slug>.md`.
 - [x] SADDD policy captured as Locked RFC.
 - [x] Build guide -> AGENTS materialization exists.
 - [x] Audit / Change Record / postmortem distinctions documented.
-- [x] Deployment/SSO/AWS deferral carried forward.
+- [x] Vercel API/web release separately authorized; SSO/AWS remain deferred.
 - [x] six-role model carried forward.
 - [x] rule-based/no-autonomous-AI boundary carried forward.
 - [~] Current repository has **not** been reconciled against all generated Working docs in this package.

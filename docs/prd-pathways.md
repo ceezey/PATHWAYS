@@ -108,7 +108,7 @@ Minimum domain surfaces:
 - full ERP;
 - full real-time external-system synchronization;
 - Beneficiary self-service;
-- deployment/SSO/AWS implementation.
+- SSO/AWS implementation and deployment work outside separately authorized releases.
 
 ## 8. AI / Agent Features
 

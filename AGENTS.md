@@ -1,6 +1,6 @@
 # PATHWAYS Build Guide
 
-**Materialized from:** `docs/build-pathways.md`. Edit the canonical guide first, then synchronize this file.
+**Canonical:** `docs/build-pathways.md`
 
 Root `AGENTS.md` is a materialized copy. Edit this guide first, then synchronize `AGENTS.md`.
 
@@ -55,6 +55,14 @@ Never silently resolve material contradictions.
 ### Frontend / visual work
 
 For frontend tasks, read the canonical `docs/dsd-pathways.md` and use root `BRAND.md` / `DESIGN.md` as quick materialized references. If they conflict with newer verified code, reconcile the canonical DSD first rather than silently choosing whichever file is convenient.
+
+### Branch and release workflow
+
+- `origin/master` is the deployment branch.
+- `Backend-DB` is the development branch; preserve this existing Git branch capitalization.
+- Prepare and verify changes on `Backend-DB`, then bring the approved release into `master` and push normally.
+- The Vercel `pathways-api` and `pathways-web` projects use `master` for production and `Backend-DB` for development previews.
+- Preserve branch history. Do not force-push a deployment branch or run database migrations as a deployment shortcut.
 
 ## 3. Traceability
 

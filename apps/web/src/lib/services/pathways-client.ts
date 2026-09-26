@@ -1,4 +1,5 @@
 import { contextCookieName, decodeWorkspaceContext } from '@/features/auth/workspace-access'
+import { approvedApiBaseUrl } from '@/lib/api-base-url'
 import { webEnv } from '@/lib/env'
 import { getBrowserSupabaseClient } from '@/lib/supabase/client'
 import type {
@@ -1306,18 +1307,12 @@ async function requestFoundationResponse(path: string, init: RequestInit = {}) {
     throw new PathwaysClientError('Current session unavailable.', 'unauthorized')
   const context = decodeWorkspaceContext(readContextCookie(), session.user.id)
   if (!context) throw new PathwaysClientError('Workspace context unavailable.', 'forbidden')
-  const base = new URL(webEnv.NEXT_PUBLIC_API_BASE_URL)
-  if (
-    !['localhost', '127.0.0.1', '[::1]'].includes(base.hostname) ||
-    !['http:', 'https:'].includes(base.protocol) ||
-    base.username ||
-    base.password ||
-    base.search ||
-    base.hash
-  ) {
+  let base: URL
+  try {
+    base = approvedApiBaseUrl(webEnv.NEXT_PUBLIC_API_BASE_URL, webEnv.NEXT_PUBLIC_API_BASE_URL)
+  } catch {
     throw new PathwaysClientError('API endpoint is not approved.', 'not_configured')
   }
-  base.hostname = '127.0.0.1'
   const isMultipart = typeof FormData !== 'undefined' && init.body instanceof FormData
   const response = await fetch(`${base.toString().replace(/\/$/, '')}${path}`, {
     ...init,

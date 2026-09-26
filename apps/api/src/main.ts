@@ -9,6 +9,7 @@ import { Logger } from 'nestjs-pino'
 import { readApiEnv } from '@pathways/config'
 
 import { AppModule } from '@app/app.module'
+import { allowedWebOrigins } from '@app/common/network/cors-origins'
 import { listenOnIpv4Loopback } from '@app/common/network/local-listener'
 import { initializeApiSentry } from '@app/common/sentry'
 
@@ -34,7 +35,7 @@ async function bootstrap() {
   )
   app.setGlobalPrefix(env.API_PREFIX)
   app.enableCors({
-    origin: ['http://127.0.0.1:3000', 'http://localhost:3000'],
+    origin: allowedWebOrigins(env.WEB_ORIGIN),
     credentials: false,
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'OPTIONS'],
     allowedHeaders: [

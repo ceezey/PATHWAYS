@@ -71,8 +71,8 @@ export default async function UpdatePasswordPage() {
           </CardHeader>
           <CardContent className="space-y-4">
             <p className="text-sm leading-6 text-muted-foreground">
-              Request one new message and open it in the same browser profile at the exact 127.0.0.1
-              address. Do not copy its URL into chat.
+              Request one new message and open it in the same browser profile at this staff portal.
+              Do not copy its URL into chat.
             </p>
             <Button asChild className="w-full">
               <Link href="/staff/forgot-password">Request a new recovery message</Link>

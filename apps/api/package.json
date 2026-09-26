@@ -5,7 +5,7 @@
   "scripts": {
     "dev": "nest build && powershell.exe -NoProfile -File ../../infra/supabase/security-adapter/Start-DevRuntime.ps1 -Action Start",
     "start:dev": "nest build && powershell.exe -NoProfile -File ../../infra/supabase/security-adapter/Start-DevRuntime.ps1 -Action Start",
-    "build": "nest build",
+    "build": "prisma generate && nest build",
     "start": "node dist/apps/api/src/main.js",
     "lint": "biome check .",
     "test": "vitest run --passWithNoTests",

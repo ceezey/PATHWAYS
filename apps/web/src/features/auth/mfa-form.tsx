@@ -235,7 +235,15 @@ export function MfaForm() {
     setCode('')
     try {
       const fresh = parseMfaStatus(
-        await requestAuthJson(webEnv.NEXT_PUBLIC_API_BASE_URL, '/auth/mfa/status', token),
+        await requestAuthJson(
+          webEnv.NEXT_PUBLIC_API_BASE_URL,
+          '/auth/mfa/status',
+          token,
+          undefined,
+          undefined,
+          undefined,
+          webEnv.NEXT_PUBLIC_API_BASE_URL,
+        ),
       )
       if (fresh.authUserId !== currentUserId || fresh.aal !== 'aal1')
         throw new Error('No enrollment is needed.')
@@ -285,7 +293,15 @@ export function MfaForm() {
     setCode('')
     try {
       const fresh = parseMfaStatus(
-        await requestAuthJson(webEnv.NEXT_PUBLIC_API_BASE_URL, '/auth/mfa/status', token),
+        await requestAuthJson(
+          webEnv.NEXT_PUBLIC_API_BASE_URL,
+          '/auth/mfa/status',
+          token,
+          undefined,
+          undefined,
+          undefined,
+          webEnv.NEXT_PUBLIC_API_BASE_URL,
+        ),
       )
       if (fresh.authUserId !== currentUserId || fresh.aal !== 'aal1')
         throw new Error('Recheck the current session.')

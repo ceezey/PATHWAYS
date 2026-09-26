@@ -114,7 +114,7 @@ trusted metrics -> structured rule -> snapshot -> alert -> predefined recommenda
 Current feature work does not implement:
 - SSO;
 - AWS hosting;
-- production deployment architecture.
+- deployment architecture beyond the separately authorized Vercel API/web release documented in OPS.
 
 Existing CI/Docker behavior must be inspected rather than inferred.
 

@@ -15,6 +15,7 @@ export const webEnv = readWebEnv({
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? suppliedSupabasePublishableKey,
   NEXT_PUBLIC_API_BASE_URL: process.env.NEXT_PUBLIC_API_BASE_URL,
   NEXT_PUBLIC_SENTRY_DSN: process.env.NEXT_PUBLIC_SENTRY_DSN,
+  NEXT_PUBLIC_STAFF_PORTAL_BASE_URL: process.env.NEXT_PUBLIC_STAFF_PORTAL_BASE_URL,
   STAFF_PORTAL_BASE_URL: process.env.STAFF_PORTAL_BASE_URL,
   WEB_PORT: process.env.WEB_PORT,
 })

@@ -1,7 +1,21 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { z } from 'zod'
 
-export const localPasswordRecoveryOrigin = 'http://127.0.0.1:3000'
+import { webEnv } from '@/lib/env'
+
+const configuredPortalOrigin = webEnv.NEXT_PUBLIC_STAFF_PORTAL_BASE_URL
+const portalUrl = new URL(configuredPortalOrigin || 'http://127.0.0.1:3000')
+if (
+  (portalUrl.protocol !== 'https:' && portalUrl.origin !== 'http://127.0.0.1:3000') ||
+  portalUrl.username ||
+  portalUrl.password ||
+  portalUrl.pathname !== '/' ||
+  portalUrl.search ||
+  portalUrl.hash
+) {
+  throw new Error('Invalid staff portal origin configuration.')
+}
+export const localPasswordRecoveryOrigin = portalUrl.origin
 export const passwordRecoveryCallbackPath = '/auth/recovery/callback'
 export const passwordRecoveryCallbackUrl = `${localPasswordRecoveryOrigin}${passwordRecoveryCallbackPath}`
 export const passwordRecoveryRequestPath = '/staff/forgot-password'

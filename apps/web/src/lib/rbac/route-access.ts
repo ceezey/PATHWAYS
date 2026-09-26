@@ -1,4 +1,3 @@
-// Pure route contract shared with the API; a ceiling, never identity authority.
 import {
   type AtomicPermission,
   type CanonicalRole,
@@ -6,7 +5,9 @@ import {
   roleNames,
   rolePermissions,
 } from '../../../../api/src/modules/auth/authorization-policy'
+import { approvedApiBaseUrl } from '../api-base-url'
 import type { PermissionCode } from './permissions'
+// Route decisions are a UI ceiling; the API remains identity authority.
 export type RoutePrincipal = {
   roles: readonly string[]
   permissions: readonly string[]
@@ -593,6 +594,7 @@ export async function requestRouteCheck(
   context: { userId: string; organizationId: string },
   selection: RouteSelection,
   signal?: AbortSignal,
+  trustedBaseUrl?: string,
 ): Promise<RouteDecision> {
   if (
     !parseRouteSelection(selection) ||
@@ -602,20 +604,10 @@ export async function requestRouteCheck(
     throw new RouteCheckError(403)
   let target: URL
   try {
-    target = new URL(base)
+    target = approvedApiBaseUrl(base, trustedBaseUrl)
   } catch {
     throw new RouteCheckError(503, 'configuration')
   }
-  if (
-    !['localhost', '127.0.0.1', '[::1]'].includes(target.hostname) ||
-    !['http:', 'https:'].includes(target.protocol) ||
-    target.username ||
-    target.password ||
-    target.search ||
-    target.hash
-  )
-    throw new RouteCheckError(503, 'configuration')
-  target.hostname = '127.0.0.1'
   target.pathname = `${target.pathname.replace(/\/$/, '')}/access/route-check`
   target.search = new URLSearchParams(selection as Record<string, string>).toString()
   const controller = new AbortController()

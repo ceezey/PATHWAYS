@@ -126,7 +126,15 @@ export const CurrentRoleProvider = ({ children }: { children: React.ReactNode })
     }
     void owner
       .run(JSON.stringify([token, subject, refresh]), (signal) =>
-        verifyWorkspace(webEnv.NEXT_PUBLIC_API_BASE_URL, token, subject, signal, hint),
+        verifyWorkspace(
+          webEnv.NEXT_PUBLIC_API_BASE_URL,
+          token,
+          subject,
+          signal,
+          hint,
+          undefined,
+          webEnv.NEXT_PUBLIC_API_BASE_URL,
+        ),
       )
       .then(commit, (error: unknown) => {
         if (active()) commit(verificationFailure(error))

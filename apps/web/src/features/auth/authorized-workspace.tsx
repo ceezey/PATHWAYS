@@ -33,6 +33,8 @@ export function AuthorizedWorkspace() {
       token,
       profile,
       controller.signal,
+      undefined,
+      webEnv.NEXT_PUBLIC_API_BASE_URL,
     )
       .then((projects) => {
         if (!controller.signal.aborted) setResult({ token, profile, projects, denied: false })

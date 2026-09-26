@@ -12,6 +12,7 @@ export const webEnvSchema = z.object({
     .or(z.string().startsWith('/'))
     .default('http://127.0.0.1:4000/api'),
   NEXT_PUBLIC_SENTRY_DSN: optionalString,
+  NEXT_PUBLIC_STAFF_PORTAL_BASE_URL: optionalUrl,
   STAFF_PORTAL_BASE_URL: optionalUrl,
   WEB_PORT: z.coerce.number().default(3000),
 })
@@ -28,6 +29,7 @@ export const apiEnvSchema = z.object({
   SUPABASE_URL: optionalUrl,
   SUPABASE_SERVICE_ROLE_KEY: optionalString,
   SUPABASE_JWT_SECRET: optionalString,
+  WEB_ORIGIN: optionalUrl,
   SENTRY_DSN_API: optionalString,
   UPLOADS_BUCKET: z.string().default('uploads'),
   EVIDENCE_BUCKET: z.string().default('pathways-private'),

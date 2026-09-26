@@ -90,7 +90,7 @@ export const PasswordUpdateForm = () => {
           <CardDescription>
             {completion.sessionClosed
               ? 'Your recovery session was closed. Sign in with the new password, then continue the existing MFA check.'
-              : 'The password changed, but Supabase did not confirm that this browser session closed. Close this browser window now. Then reopen the exact 127.0.0.1 address and sign in with the new password.'}
+              : 'The password changed, but Supabase did not confirm that this browser session closed. Close this browser window now. Then reopen this staff portal and sign in with the new password.'}
           </CardDescription>
         </CardHeader>
         {completion.sessionClosed ? (

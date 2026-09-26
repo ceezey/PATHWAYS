@@ -48,13 +48,22 @@ export async function verifyWorkspace(
   signal: AbortSignal,
   selection?: ApplicationContext,
   fetcher: typeof fetch = fetch,
+  trustedBaseUrl?: string,
 ): Promise<WorkspaceVerification> {
   const ensureActive = () => {
     if (signal.aborted) throw new AuthAccessError('network')
   }
   const status = async () => {
     const mfa = parseMfaStatus(
-      await requestAuthJson(base, '/auth/mfa/status', token, signal, undefined, fetcher),
+      await requestAuthJson(
+        base,
+        '/auth/mfa/status',
+        token,
+        signal,
+        undefined,
+        fetcher,
+        trustedBaseUrl,
+      ),
     )
     ensureActive()
     if (mfa.authUserId !== subject) throw new AuthAccessError(403)
@@ -72,7 +81,15 @@ export async function verifyWorkspace(
     if (selection) {
       let raw: unknown
       try {
-        raw = await requestAuthJson(base, '/auth/me', token, signal, selection, fetcher)
+        raw = await requestAuthJson(
+          base,
+          '/auth/me',
+          token,
+          signal,
+          selection,
+          fetcher,
+          trustedBaseUrl,
+        )
       } catch (error) {
         ensureActive()
         // A 403 alone does not prove MFA is missing. Ask the MFA endpoint only
@@ -109,7 +126,14 @@ export async function verifyWorkspace(
     }
     const mfa = await status()
     if (mfa.aal !== 'aal2' || !mfa.applicationAccessEnabled) return notReady(mfa)
-    const profile = await resolveWorkspaceProfile(base, token, subject, signal, fetcher)
+    const profile = await resolveWorkspaceProfile(
+      base,
+      token,
+      subject,
+      signal,
+      fetcher,
+      trustedBaseUrl,
+    )
     ensureActive()
     return {
       access: profile ? 'ready' : 'no_workspace',
