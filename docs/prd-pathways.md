@@ -51,6 +51,8 @@ Server-side authorization by identity/profile/org/role/permission/assignment. Di
 ### F2
 Project profiles, target beneficiaries, activities, milestones, lifecycle, assigned scope, derived overdue. The [approved target-goal retirement](cr-pathways-retire-project-target-goal.md) removes the project benchmark from live inputs, outputs and comparisons while preserving database history; implementation and verification remain pending. Indicator-specific targets remain independent. Unlisted milestone administration is denied under the CSV RBAC contract; feature design remains Working.
 
+The F2 pending activity-review workflow additionally follows the [approved private-proof inspection contract](cr-pathways-private-activity-proof-inspection.md). Only assigned, distinct M&E reviewers with both evidence grants inspect pure pending activity proofs; generic uploader/PO/PM/post-review downloads are withdrawn. Inspection establishes neither classification nor public consent. Local implementation/verification remains pending.
+
 ### F3/F4
 Sensitive Beneficiary profiles, normalized enrollment, participation/journey history, project scope, consent/provenance as required.
 

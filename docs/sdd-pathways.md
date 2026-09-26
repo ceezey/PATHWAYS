@@ -107,6 +107,9 @@ private object -> batch -> raw rows -> mapping -> validation -> normalization ->
 ### Rule
 trusted metrics -> structured rule -> snapshot -> alert -> predefined recommendation -> human outcome
 
+### Private pending activity-proof inspection
+The [approved inspection contract](cr-pathways-private-activity-proof-inspection.md) separates scoped advisory context from private transfer: initial human authorization -> bounded private object read outside transactions -> fresh live authorization and committed access audit -> safe attachment admission. It fixes pending/revision/pure-lineage guards, ten-second storage and thirty-second request bounds, 10 MiB size/digest verification and no cache/inline/public URL. Generic old downloads are withdrawn with the reviewed route/UI. Implementation and executable deadline/privacy checks remain pending.
+
 ## 8. Infrastructure
 
 Current feature work does not implement:

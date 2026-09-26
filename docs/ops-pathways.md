@@ -95,6 +95,8 @@ Preserve raw staging. Stop normalization. Fix safely. Reprocess only with idempo
 ### Storage / Publication
 Revoke unintended exposure. Distinguish private evidence from approved public media.
 
+The [approved local pending-proof inspection](cr-pathways-private-activity-proof-inspection.md) requires counted private storage reads, shared deadlines, size/digest verification, final authorization/audit and no response cache or private identifiers in logs. Inspection does not establish classification/consent. Generic download withdrawal must accompany the reviewed inspection UI; local verification remains pending and hosted application/release is separately gated.
+
 ### Rule Engine
 Disable affected evaluation path/rule if necessary. Preserve snapshots. Do not rewrite history to erase incorrect alerts.
 

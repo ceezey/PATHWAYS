@@ -95,6 +95,8 @@ Test once the rules API exists (PRD-F10/PRD-F11 are schema-only today):
 
 ## 5. Automated vs Manual
 
+PRD-F1/F2 private pending-proof inspection follows [its approved Change Record](cr-pathways-private-activity-proof-inspection.md): test all roles and individual grants, self/cross-scope/revoked access, pending states and revisions, mixed lineage/incomplete uploads, private bucket and redirect, counted size/digest/deadline/disconnect, revocation or review during storage, failing audit with zero body release, safe headers/no cache, old URL/HEAD/range denial and keyboard-accessible review controls. Synthetic identifying proofs with unchanged false-consent defaults are eligible only for this approved pending-verification purpose, never publication. These are required scenarios, not executed evidence.
+
 Use current repo commands after reconciliation.
 
 Automate:
