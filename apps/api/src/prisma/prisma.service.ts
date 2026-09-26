@@ -68,8 +68,10 @@ export class PrismaService extends PrismaClient implements OnModuleInit, OnModul
       throw new Error('DATABASE_URL is required to initialize Prisma.')
     }
 
+    let initializationStage = 'connection'
     try {
       await this.$connect()
+      initializationStage = 'role-query'
       const [security] = await this.$queryRaw<Array<{ safe: boolean }>>`
         SELECT current_user = 'pathways_runtime'
           AND session_user = 'pathways_runtime'
@@ -86,13 +88,23 @@ export class PrismaService extends PrismaClient implements OnModuleInit, OnModul
           AS safe
         FROM pg_roles r WHERE r.rolname = current_user
       `
+      initializationStage = 'role-check'
       if (!security?.safe) {
         throw new Error('Unsafe runtime database role.')
       }
-    } catch {
+    } catch (error) {
       await this.$disconnect().catch(() => undefined)
+      const failure =
+        typeof error === 'object' && error !== null ? (error as Record<string, unknown>) : {}
+      const candidateCode = failure.errorCode ?? failure.code
+      const code =
+        typeof candidateCode === 'string' && /^P\d{4}$/.test(candidateCode)
+          ? candidateCode
+          : typeof failure.message === 'string' && failure.message.includes('Query Engine')
+            ? 'ENGINE_UNAVAILABLE'
+            : 'UNKNOWN'
       throw new Error(
-        'Prisma runtime initialization failed. Verify the dedicated runtime credential, database availability, and least-privilege role checks.',
+        `Prisma runtime initialization failed. Verify the dedicated runtime credential, database availability, and least-privilege role checks. (stage=${initializationStage}; code=${code})`,
       )
     }
   }

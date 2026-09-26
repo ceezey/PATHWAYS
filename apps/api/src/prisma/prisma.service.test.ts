@@ -37,8 +37,27 @@ describe('PrismaService', () => {
     vi.spyOn(prisma, '$connect').mockResolvedValue()
     vi.spyOn(prisma, '$queryRaw').mockResolvedValue([{ safe: false }])
     const disconnect = vi.spyOn(prisma, '$disconnect').mockResolvedValue()
-    await expect(prisma.onModuleInit()).rejects.toThrow('runtime initialization failed')
+    await expect(prisma.onModuleInit()).rejects.toThrow('stage=role-check; code=UNKNOWN')
     expect(disconnect).toHaveBeenCalledOnce()
+  })
+
+  it.each([
+    [{ errorCode: 'P1001', message: 'Sensitive provider detail' }, 'P1001'],
+    [{ code: 'P1000', message: 'Sensitive provider detail' }, 'P1000'],
+    [{ code: 'Sensitive provider detail' }, 'UNKNOWN'],
+    [{ message: 'Query Engine missing: Sensitive provider detail' }, 'ENGINE_UNAVAILABLE'],
+  ])('reports only a bounded initialization diagnostic %#', async (failure, expectedCode) => {
+    vi.stubEnv('DATABASE_URL', 'postgresql://example.invalid/database')
+    const prisma = new PrismaService()
+    vi.spyOn(prisma, '$connect').mockRejectedValue(failure)
+    let message = ''
+    try {
+      await prisma.onModuleInit()
+    } catch (error) {
+      message = (error as Error).message
+    }
+    expect(message).toContain(`stage=connection; code=${expectedCode}`)
+    expect(message).not.toContain('Sensitive provider detail')
   })
 
   it('accepts only a verified least-privilege runtime identity', async () => {

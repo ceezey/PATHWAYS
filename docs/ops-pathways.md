@@ -19,6 +19,8 @@ Both Vercel projects connect to `ceezey/PATHWAYS` and use `master` as the produc
 
 The API build generates the Prisma client with its schema-only generation configuration before compiling NestJS. Database commands retain their separate credential-requiring configuration. Deployment does not apply database migrations or bootstrap identities.
 
+Prisma client generation includes the native development engine and `rhel-openssl-3.0.x` for the Vercel Node runtime. Initialization failures report only a fixed stage and bounded Prisma error code; provider messages and connection credentials remain withheld.
+
 ### Deployment configuration
 
 - Web: `NEXT_PUBLIC_SUPABASE_URL`, a public Supabase publishable key, `NEXT_PUBLIC_API_BASE_URL`, and `NEXT_PUBLIC_STAFF_PORTAL_BASE_URL`.
