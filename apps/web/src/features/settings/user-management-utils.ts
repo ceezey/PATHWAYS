@@ -111,7 +111,6 @@ export const getProjectAccessLabels = (
   }
 
   if (role === 'System Administrator') return ['System administration']
-  if (role === 'Grant Manager') return ['Organization grant portfolio']
   return ['Organization portfolio']
 }
 

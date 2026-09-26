@@ -174,6 +174,12 @@ describe('PATHWAYS frontend data boundary', () => {
             projectManager: null,
             updatedAt: '2026-09-13T00:00:00.000Z',
           },
+          {
+            id: '73000000-0000-4000-8000-000000000005',
+            code: 'P01-CONTEXT',
+            title: 'Scoped project context',
+            status: 'PLANNED',
+          },
         ]),
         { status: 200, headers: { 'Content-Type': 'application/json' } },
       ),
@@ -187,6 +193,12 @@ describe('PATHWAYS frontend data boundary', () => {
         targetGoal: null,
         startDate: '2026-01-01',
         endDate: null,
+        metricsAvailable: false,
+      },
+      {
+        title: 'Scoped project context',
+        targetGoal: null,
+        description: '',
         metricsAvailable: false,
       },
     ])

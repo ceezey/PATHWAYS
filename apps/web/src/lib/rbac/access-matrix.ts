@@ -1,4 +1,12 @@
 import { type PathwaysRole, pathwaysRoles } from '@/types/pathways-role'
+import {
+  type AtomicPermission,
+  type CanonicalRole,
+  canAssignRole,
+  canAuthorizeRole,
+  roleNames,
+  rolePermissions,
+} from '../../../../api/src/modules/auth/authorization-policy'
 import type { DataScopeCode, PermissionCode } from './permissions'
 
 export type AccessLevel = 'none' | 'view' | 'aggregate' | 'scoped' | 'full' | 'configure'
@@ -14,6 +22,7 @@ export const projectAssignableRoles = [
   'Project Manager',
   'Project Officer',
   'Monitoring and Evaluation Officer',
+  'Grant Manager',
 ] as const satisfies readonly PathwaysRole[]
 
 export type ProjectAssignableRole = (typeof projectAssignableRoles)[number]
@@ -43,238 +52,123 @@ export interface RoleAccessProfile {
   }
 }
 
-const noUserAdministration = {
-  createAndAuthorizeRoles: [],
-  projectAssignmentRoles: [],
-  projectAssignmentScope: 'none',
-} as const satisfies UserAdministrationCapabilities
-
-export const roleAccessProfiles: Record<PathwaysRole, RoleAccessProfile> = {
-  'Project Officer': {
-    role: 'Project Officer',
-    permissions: [
-      'projects.view',
-      'activities.view',
-      'activities.submit_update_proof',
-      'budget.expense.log',
-      'rules.view',
-      'alerts.view',
-      'alerts.review',
-      'alerts.outcome.record',
-      'recommendations.view',
-      'recommendations.review',
-      'recommendations.outcome.record',
-      'beneficiaries.scoped_view',
-      'collection.view',
-      'reports.view',
-      'reports.beneficiary_summary.view',
-    ],
-    dataScopes: ['assigned_projects', 'assigned_activities'],
-    projectAccess: 'assigned-projects',
-    beneficiaryDataAccess: 'assigned-project-records',
-    userAdministration: noUserAdministration,
-    modules: {
-      budget: 'scoped',
-      monitorEvaluate: 'none',
-      rules: 'view',
-      beneficiaries: 'scoped',
-      alerts: 'full',
-      activities: 'scoped',
-      evaluation: 'none',
-      transparency: 'none',
-    },
-  },
-  'Monitoring and Evaluation Officer': {
-    role: 'Monitoring and Evaluation Officer',
-    permissions: [
-      'projects.view',
-      'activities.view',
-      'evidence.review',
-      'indicators.manage',
-      'budget.expense.view',
-      'budget.expense.verify',
-      'monitor_evaluate.view',
-      'monitor_evaluate.full',
-      'rules.view',
-      'alerts.view',
-      'alerts.review',
-      'alerts.outcome.record',
-      'recommendations.view',
-      'recommendations.review',
-      'recommendations.outcome.record',
-      'beneficiaries.scoped_view',
-      'evaluation.formal.submit',
-      'collection.view',
-      'analytics.view',
-      'reports.view',
-      'reports.project_summary.view',
-      'reports.indicator_summary.view',
-      'reports.beneficiary_summary.view',
-    ],
-    dataScopes: ['monitored_projects'],
-    projectAccess: 'assigned-projects',
-    beneficiaryDataAccess: 'assigned-project-records',
-    userAdministration: noUserAdministration,
-    modules: {
-      budget: 'view',
-      monitorEvaluate: 'full',
-      rules: 'view',
-      beneficiaries: 'scoped',
-      alerts: 'full',
-      activities: 'view',
-      evaluation: 'full',
-      transparency: 'none',
-    },
-  },
-  'Project Manager': {
-    role: 'Project Manager',
-    permissions: [
-      'projects.view',
-      'projects.create',
-      'activities.view',
-      'activities.create_edit',
-      'indicators.manage',
-      'budget.full',
-      'budget.expense.view',
-      'budget.expense.approve',
-      'monitor_evaluate.view',
-      'monitor_evaluate.full',
-      'rules.view',
-      'beneficiaries.scoped_view',
-      'alerts.outcome.log',
-      'evaluation.approve',
-      'transparency.preview',
-      'transparency.publish',
-      'collection.view',
-      'analytics.view',
-      'reports.view',
-      'reports.project_summary.view',
-      'reports.indicator_summary.view',
-      'settings.users.manage',
-      'reports.beneficiary_summary.view',
-    ],
-    dataScopes: ['managed_projects'],
-    projectAccess: 'assigned-projects',
-    beneficiaryDataAccess: 'assigned-project-records',
-    userAdministration: {
-      createAndAuthorizeRoles: ['Project Officer', 'Monitoring and Evaluation Officer'],
-      projectAssignmentRoles: ['Project Officer', 'Monitoring and Evaluation Officer'],
-      projectAssignmentScope: 'assigned-projects',
-    },
-    modules: {
-      budget: 'full',
-      monitorEvaluate: 'full',
-      rules: 'view',
-      beneficiaries: 'scoped',
-      alerts: 'full',
-      activities: 'full',
-      evaluation: 'full',
-      transparency: 'full',
-    },
-  },
-  'Program Manager': {
-    role: 'Program Manager',
-    permissions: [
-      'projects.view',
-      'activities.view',
-      'budget.portfolio_view',
-      'monitor_evaluate.view',
-      'monitor_evaluate.full',
-      'rules.view',
-      'alerts.outcome.log',
-      'transparency.preview',
-      'collection.view',
-      'analytics.view',
-      'reports.view',
-      'reports.project_summary.view',
-      'reports.indicator_summary.view',
-      'settings.users.manage',
-    ],
-    dataScopes: ['portfolio_projects'],
-    projectAccess: 'portfolio',
-    beneficiaryDataAccess: 'aggregate-only',
-    userAdministration: {
-      createAndAuthorizeRoles: ['Project Manager', 'Monitoring and Evaluation Officer'],
-      projectAssignmentRoles: ['Project Manager', 'Monitoring and Evaluation Officer'],
-      projectAssignmentScope: 'portfolio-projects',
-    },
-    modules: {
-      budget: 'view',
-      monitorEvaluate: 'full',
-      rules: 'view',
-      beneficiaries: 'aggregate',
-      alerts: 'full',
-      activities: 'view',
-      evaluation: 'view',
-      transparency: 'view',
-    },
-  },
-  'Grant Manager': {
-    role: 'Grant Manager',
-    permissions: [
-      'projects.view',
-      'budget.portfolio_view',
-      'analytics.view',
-      'reports.view',
-      'reports.project_summary.view',
-      'reports.indicator_summary.view',
-    ],
-    dataScopes: ['portfolio_projects'],
-    projectAccess: 'portfolio',
-    beneficiaryDataAccess: 'aggregate-only',
-    userAdministration: noUserAdministration,
-    modules: {
-      budget: 'view',
-      monitorEvaluate: 'view',
-      rules: 'none',
-      beneficiaries: 'aggregate',
-      alerts: 'none',
-      activities: 'none',
-      evaluation: 'view',
-      transparency: 'none',
-    },
-  },
-  'System Administrator': {
-    role: 'System Administrator',
-    permissions: [
-      'projects.view',
-      'projects.create',
-      'activities.view',
-      'activities.create_edit',
-      'budget.full',
-      'budget.expense.view',
-      'monitor_evaluate.view',
-      'monitor_evaluate.full',
-      'rules.view',
-      'rules.configure',
-      'beneficiaries.full_view',
-      'alerts.outcome.log',
-      'collection.view',
-      'analytics.view',
-      'reports.view',
-      'reports.project_summary.view',
-      'reports.indicator_summary.view',
-      'reports.beneficiary_summary.view',
-      'settings.users.manage',
-      'settings.view',
-    ],
-    dataScopes: ['organization'],
-    projectAccess: 'organization',
-    beneficiaryDataAccess: 'all-records',
-    userAdministration: {
-      createAndAuthorizeRoles: [...pathwaysRoles],
-      projectAssignmentRoles: [...projectAssignableRoles],
-      projectAssignmentScope: 'all-projects',
-    },
-    modules: {
-      budget: 'full',
-      monitorEvaluate: 'full',
-      rules: 'configure',
-      beneficiaries: 'full',
-      alerts: 'full',
-      activities: 'full',
-      evaluation: 'none',
-      transparency: 'none',
-    },
-  },
+export const legacyAtomicPermissions: Record<PermissionCode, readonly AtomicPermission[]> = {
+  'projects.view': ['projects.detail.read'],
+  'projects.create': ['projects.create'],
+  'activities.view': ['activities.read'],
+  'activities.create_edit': ['activities.create', 'activities.update'],
+  'activities.submit_update_proof': ['activities.proof.submit'],
+  'budget.expense.log': ['expenses.submit'],
+  'budget.expense.view': ['expenses.read'],
+  'budget.expense.verify': ['expenses.verify'],
+  'budget.expense.approve': ['expenses.approve'],
+  'budget.full': ['budgets.create', 'budgets.update'],
+  'budget.portfolio_view': ['budgets.read'],
+  'monitor_evaluate.view': ['monitoring.read'],
+  'monitor_evaluate.full': ['monitoring.review'],
+  'rules.view': ['rules.read'],
+  'rules.configure': ['rules.update'],
+  'beneficiaries.scoped_view': ['beneficiaries.records.read'],
+  'beneficiaries.full_view': ['beneficiaries.records.read'],
+  'alerts.view': ['alerts.read'],
+  'alerts.review': ['alerts.review'],
+  'alerts.outcome.record': ['alerts.outcome.record'],
+  'alerts.outcome.log': ['recommendations.outcome.record'],
+  'recommendations.view': ['recommendations.read'],
+  'recommendations.review': ['recommendations.review'],
+  'recommendations.outcome.record': ['recommendations.outcome.record'],
+  'evaluation.formal.submit': ['evaluations.submit'],
+  'evaluation.approve': ['evaluations.approve'],
+  'transparency.preview': ['public.preview'],
+  'transparency.publish': ['public.publish'],
+  'evidence.review': ['evidence.review'],
+  'indicators.manage': ['indicators.create', 'indicators.update'],
+  'collection.view': ['collection.read'],
+  'analytics.view': ['analytics.read'],
+  'reports.view': ['reports.read'],
+  'reports.project_summary.view': ['reports.project.read'],
+  'reports.indicator_summary.view': ['reports.indicator.read'],
+  'reports.beneficiary_summary.view': ['reports.beneficiary.read'],
+  'settings.users.manage': ['users.authorize'],
+  'settings.view': ['settings.read'],
 }
+
+const entries = Object.entries(roleNames) as Array<[CanonicalRole, PathwaysRole]>
+const roleCodesByName = Object.fromEntries(entries.map(([code, name]) => [name, code])) as Record<
+  PathwaysRole,
+  CanonicalRole
+>
+export const roleAccessProfiles = Object.fromEntries(
+  entries.map(([code, role]) => {
+    const permissions = rolePermissions[code]
+    const has = (permission: AtomicPermission) => permissions.includes(permission)
+    const managesUsers = has('users.authorize')
+    const aggregate = code === 'PROGRAM_MANAGER' || code === 'GRANT_MANAGER'
+    const profile: RoleAccessProfile = {
+      role,
+      permissions: (Object.keys(legacyAtomicPermissions) as PermissionCode[]).filter((permission) =>
+        legacyAtomicPermissions[permission].some(has),
+      ),
+      dataScopes:
+        code === 'SYSTEM_ADMINISTRATOR'
+          ? ['organization']
+          : code === 'PROGRAM_MANAGER'
+            ? ['portfolio_projects']
+            : ['assigned_projects'],
+      projectAccess:
+        code === 'SYSTEM_ADMINISTRATOR'
+          ? 'organization'
+          : code === 'PROGRAM_MANAGER'
+            ? 'portfolio'
+            : 'assigned-projects',
+      beneficiaryDataAccess:
+        aggregate || !has('beneficiaries.records.read')
+          ? 'aggregate-only'
+          : 'assigned-project-records',
+      userAdministration: {
+        createAndAuthorizeRoles: managesUsers
+          ? pathwaysRoles.filter((name) => canAuthorizeRole(code, roleCodesByName[name]))
+          : [],
+        projectAssignmentRoles: managesUsers
+          ? projectAssignableRoles.filter((name) => canAssignRole(code, roleCodesByName[name]))
+          : [],
+        projectAssignmentScope: !managesUsers
+          ? 'none'
+          : code === 'SYSTEM_ADMINISTRATOR'
+            ? 'all-projects'
+            : code === 'PROGRAM_MANAGER'
+              ? 'portfolio-projects'
+              : 'assigned-projects',
+      },
+      modules: {
+        budget: has('budgets.update')
+          ? 'full'
+          : has('expenses.submit')
+            ? 'scoped'
+            : has('budgets.read')
+              ? 'view'
+              : 'none',
+        monitorEvaluate: has('monitoring.review')
+          ? 'full'
+          : has('monitoring.read')
+            ? 'view'
+            : 'none',
+        rules: has('rules.update') ? 'configure' : 'none',
+        beneficiaries: has('beneficiaries.records.read')
+          ? 'scoped'
+          : aggregate
+            ? 'aggregate'
+            : 'none',
+        alerts: has('alerts.review') ? 'full' : 'none',
+        activities: has('activities.update') ? 'full' : has('activities.read') ? 'scoped' : 'none',
+        evaluation: has('evaluations.submit')
+          ? 'full'
+          : has('evaluations.approve') || has('evaluations.signoff')
+            ? 'view'
+            : 'none',
+        transparency: has('public.publish') ? 'full' : 'none',
+      },
+    }
+    return [role, profile]
+  }),
+) as Record<PathwaysRole, RoleAccessProfile>

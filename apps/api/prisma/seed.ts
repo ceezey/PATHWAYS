@@ -1,5 +1,5 @@
 export const LEGACY_SEED_DISABLED_MESSAGE =
-  'Implicit bootstrap seed is disabled. Use the reviewed, target-guarded Phase 5 runner for canonical reference data only.'
+  'Implicit bootstrap seed is disabled. Current RBAC reference changes require reviewed forward Prisma migrations; the historical Phase 5 runner is not a seed for the current database.'
 
 export async function main() {
   console.info(LEGACY_SEED_DISABLED_MESSAGE)

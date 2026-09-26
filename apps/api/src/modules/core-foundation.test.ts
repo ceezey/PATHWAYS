@@ -40,7 +40,7 @@ const actor = (role: string, assignedProjectIds: string[] = []): ApplicationIden
   organizationId,
   fullName: 'Synthetic actor',
   roles: [role],
-  permissions: ['projects.read', 'projects.create', 'users.authorize'],
+  permissions: ['projects.read', 'projects.detail.read', 'projects.create', 'users.authorize'],
   assignedProjectIds,
 })
 
@@ -110,12 +110,13 @@ describe('P01 workspace and project services', () => {
   })
 
   it('links an existing verified Auth identity to a permitted six-role profile and audits atomically', async () => {
+    tx.project.findMany.mockResolvedValue([{ id: projectId }])
     const service = new UsersService(prisma, authDirectory as unknown as AuthDirectoryService)
     const result = await service.authorizeExisting(actor('SYSTEM_ADMINISTRATOR'), {
       authUserId: authId,
       fullName: 'Synthetic target',
       role: 'GRANT_MANAGER',
-      projectIds: [],
+      projectIds: [projectId],
     })
     expect(result.roleCode).toBe('GRANT_MANAGER')
     expect(tx.systemUser.create).toHaveBeenCalledWith(
@@ -133,7 +134,7 @@ describe('P01 workspace and project services', () => {
       expect.objectContaining({
         data: expect.objectContaining({
           action: 'USER_AUTHORIZED',
-          changes: { role: 'GRANT_MANAGER', projectCount: 0 },
+          changes: { role: 'GRANT_MANAGER', projectCount: 1 },
         }),
       }),
     )

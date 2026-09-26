@@ -175,14 +175,14 @@ export class IndicatorsService {
     return row
   }
   list(identity: ApplicationIdentity, projectId: string) {
-    return withAuthorizedOperation(this.prisma, identity, 'monitoring.read', async (tx, actor) =>
+    return withAuthorizedOperation(this.prisma, identity, 'indicators.read', async (tx, actor) =>
       this.readProjectIndicatorsInTransaction(tx, actor, [
         await this.requireProject(tx, actor, projectId),
       ]),
     )
   }
   get(identity: ApplicationIdentity, projectId: string, indicatorId: string) {
-    return withAuthorizedOperation(this.prisma, identity, 'monitoring.read', async (tx, actor) =>
+    return withAuthorizedOperation(this.prisma, identity, 'indicators.read', async (tx, actor) =>
       this.readOne(
         tx,
         actor,
@@ -351,7 +351,7 @@ export class IndicatorsService {
     return withAuthorizedOperation(
       this.prisma,
       identity,
-      'indicators.update',
+      'indicators.archive',
       async (tx, actor) => {
         const id = await this.requireProject(tx, actor, projectId)
         const selected = this.indicatorId(indicatorId)

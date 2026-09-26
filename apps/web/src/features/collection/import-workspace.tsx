@@ -46,6 +46,7 @@ export function ImportWorkspace() {
   const { profile } = useCurrentRole()
   const canUpload = profile?.permissions.includes('imports.upload') === true
   const canReview = profile?.permissions.includes('imports.review') === true
+  const canValidate = profile?.permissions.includes('imports.validate') === true
   const canProcess = profile?.permissions.includes('imports.process') === true
   const [projects, setProjects] = useState<ProjectSummary[]>([])
   const [projectId, setProjectId] = useState('')
@@ -463,7 +464,7 @@ export function ImportWorkspace() {
                       </Button>
                       <Button
                         disabled={
-                          !canReview ||
+                          !canValidate ||
                           pending ||
                           batch.mappingRevision < 1 ||
                           mappingLockedStatuses.has(batch.status)

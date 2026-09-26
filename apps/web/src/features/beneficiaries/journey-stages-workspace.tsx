@@ -50,8 +50,8 @@ export const JourneyStagesWorkspace = ({
   activities,
   initialStages,
 }: JourneyStagesWorkspaceProps) => {
-  const { role } = useCurrentRole()
-  const canManageJourneys = isUiActionAvailable(role, 'journeys.manage')
+  const { role, profile } = useCurrentRole()
+  const canManageJourneys = isUiActionAvailable(role, 'journeys.manage', profile)
   const [stages, setStages] = useState(initialStages)
   const [selectedStageId, setSelectedStageId] = useState(initialStages[0]?.id ?? '')
   const [saveOpen, setSaveOpen] = useState(false)

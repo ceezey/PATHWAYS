@@ -374,6 +374,14 @@ export class ProjectsService {
 
   list(identity: ApplicationIdentity) {
     return withAuthorizedOperation(this.prisma, identity, 'projects.read', async (tx, actor) => {
+      if (!hasAtomicPermission(actor.roles[0], actor.permissions, 'projects.detail.read')) {
+        return tx.project.findMany({
+          where: projectScope(actor),
+          select: { id: true, code: true, title: true, status: true },
+          orderBy: { id: 'asc' },
+          take: 100,
+        })
+      }
       const rows = await tx.project.findMany({
         relationLoadStrategy: 'join',
         where: projectScope(actor),
@@ -391,17 +399,22 @@ export class ProjectsService {
   }
 
   get(identity: ApplicationIdentity, projectId: string) {
-    return withAuthorizedOperation(this.prisma, identity, 'projects.read', async (tx, actor) => {
-      if (!UUID_PATTERN.test(projectId)) throw new NotFoundException('Project unavailable.')
-      const row = await tx.project.findFirst({
-        relationLoadStrategy: 'join',
-        where: { AND: [projectScope(actor), { id: projectId.toLowerCase() }] },
-        select: projectSelection,
-      })
-      if (!row) throw new NotFoundException('Project unavailable.')
-      const budgets = await this.readProjectBudgets(tx, actor, [row.id])
-      return mapProject(row, budgets.get(row.id) ?? null)
-    })
+    return withAuthorizedOperation(
+      this.prisma,
+      identity,
+      'projects.detail.read',
+      async (tx, actor) => {
+        if (!UUID_PATTERN.test(projectId)) throw new NotFoundException('Project unavailable.')
+        const row = await tx.project.findFirst({
+          relationLoadStrategy: 'join',
+          where: { AND: [projectScope(actor), { id: projectId.toLowerCase() }] },
+          select: projectSelection,
+        })
+        if (!row) throw new NotFoundException('Project unavailable.')
+        const budgets = await this.readProjectBudgets(tx, actor, [row.id])
+        return mapProject(row, budgets.get(row.id) ?? null)
+      },
+    )
   }
 
   create(identity: ApplicationIdentity, input: CreateProjectDto) {
@@ -459,7 +472,7 @@ export class ProjectsService {
   }
 
   update(identity: ApplicationIdentity, projectId: string, input: UpdateProjectDto) {
-    return withAuthorizedOperation(this.prisma, identity, 'projects.create', async (tx, actor) => {
+    return withAuthorizedOperation(this.prisma, identity, 'projects.update', async (tx, actor) => {
       if (!UUID_PATTERN.test(projectId)) throw new NotFoundException('Project unavailable.')
       const current = await tx.project.findFirst({
         where: { AND: [projectScope(actor), { id: projectId.toLowerCase() }] },

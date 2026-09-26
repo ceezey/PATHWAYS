@@ -73,19 +73,19 @@ describe('project activities permission-aware loading', () => {
   })
 
   it('keeps indicator and user dependencies for principals authorized to read them', async () => {
-    access.role = 'System Administrator'
-    access.assignedProjectIds = []
-    access.profile.roles = ['SYSTEM_ADMINISTRATOR']
+    access.role = 'Project Manager'
+    access.assignedProjectIds = [projectId]
+    access.profile.roles = ['PROJECT_MANAGER']
     access.profile.permissions = [
       'projects.read',
       'activities.read',
       'activities.create',
       'activities.update',
       'journeys.read',
-      'monitoring.read',
+      'indicators.read',
       'users.authorize',
     ]
-    access.profile.assignedProjectIds = []
+    access.profile.assignedProjectIds = [projectId]
 
     render(<ProjectActivitiesWorkspace projectId={projectId} />)
 

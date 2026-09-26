@@ -61,7 +61,7 @@ export function MilestoneProgressPanel({ projectId }: { projectId: string }) {
   return (
     <div className="space-y-4">
       <SectionCard title="Milestones">
-        {isUiActionAvailable(role, 'activities.edit') ? (
+        {isUiActionAvailable(role, 'milestones.manage', profile) ? (
           <form
             className="grid gap-3 sm:grid-cols-3"
             onSubmit={(event) => {
@@ -129,7 +129,8 @@ export function MilestoneProgressPanel({ projectId }: { projectId: string }) {
                   Review milestone variance
                 </Button>
               ) : null}
-              {isUiActionAvailable(role, 'activities.edit') && milestone.status !== 'COMPLETED' ? (
+              {isUiActionAvailable(role, 'milestones.manage', profile) &&
+              milestone.status !== 'COMPLETED' ? (
                 <Button
                   variant="outline"
                   onClick={() => {

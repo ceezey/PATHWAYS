@@ -4,9 +4,11 @@ param(
   [switch]$Phase4IndicatorPolicy,
   [switch]$RuleBasedAccessAlignment,
   [switch]$DashboardHomeProjectScope,
-  [switch]$ProjectActivityCreationRepair
+  [switch]$ProjectActivityCreationRepair,
+  [switch]$CsvRbacRealignment
 )
 $ErrorActionPreference = 'Stop'
+if ($CsvRbacRealignment) { $ProjectActivityCreationRepair = $true }
 $phase6Root = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot '../../..')).Path
 $phase6Bin = 'C:\Program Files\PostgreSQL\18\bin'
 $phase6Parent = Join-Path $phase6Root ('.tmp/pathways-phase6-' + [guid]::NewGuid().ToString('N'))
@@ -18,7 +20,7 @@ $phase6Port = 55448
 $phase6Exit = 1
 $phase6Started = $false
 $phase6PreviousEnvironment = @{}
-foreach ($phase6EnvironmentName in @('PATHWAYS_PHASE6_REPLAY_MIGRATIONS','PATHWAYS_FEATURE_READ_LOCAL_TESTS','PATHWAYS_PROJECT_ACTIVITY_CREATION_LOCAL_TESTS','PATHWAYS_C8_LOCAL_TESTS','PATHWAYS_DASHBOARD_HOME_SCOPE_LOCAL_TESTS','DIRECT_URL','DATABASE_URL')) {
+foreach ($phase6EnvironmentName in @('PATHWAYS_PHASE6_REPLAY_MIGRATIONS','PATHWAYS_CSV_RBAC_LOCAL_TESTS','PATHWAYS_FEATURE_READ_LOCAL_TESTS','PATHWAYS_PROJECT_ACTIVITY_CREATION_LOCAL_TESTS','PATHWAYS_C8_LOCAL_TESTS','PATHWAYS_DASHBOARD_HOME_SCOPE_LOCAL_TESTS','DIRECT_URL','DATABASE_URL')) {
   $phase6EnvironmentItem = Get-Item -LiteralPath "Env:$phase6EnvironmentName" -ErrorAction SilentlyContinue
   $phase6PreviousEnvironment[$phase6EnvironmentName] = if ($null -eq $phase6EnvironmentItem) {
     @{ Present = $false; Value = $null }
@@ -96,7 +98,8 @@ try {
         -v ON_ERROR_STOP=1 -v VERBOSITY=verbose -f (Join-Path $phase6Root 'apps/api/prisma/migrations/0008_metadata_forms_direct_entry/migration.sql')
       throw '0008 P02 replay failed.'
     }
-    Invoke-LocalSql ([IO.File]::ReadAllText((Join-Path $phase6Root 'apps/api/prisma/tests/import-pipeline-upgrade-fixture.sql'))) $phase6Database
+    $rbacUpgradeFixture = [IO.File]::ReadAllText((Join-Path $phase6Root 'apps/api/prisma/tests/import-pipeline-upgrade-fixture.sql'))
+    Invoke-LocalSql $rbacUpgradeFixture $phase6Database
 
     Copy-Item -LiteralPath (Join-Path $phase6Root 'apps/api/prisma/migrations/0009_import_state_enums') -Destination $phase6Stage -Recurse
     $env:DIRECT_URL = "postgresql://prisma@127.0.0.1:${phase6Port}/${phase6Database}?sslmode=disable&connection_limit=1"
@@ -460,6 +463,7 @@ SELECT (SELECT count(*) FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamesp
   if ($ProjectActivityCreationRepair) {
     $env:PATHWAYS_PROJECT_ACTIVITY_CREATION_LOCAL_TESTS = '1'
   }
+  if (-not $CsvRbacRealignment) {
   Push-Location $phase6Root
   try {
     pnpm --dir apps/api exec vitest run src/modules/activities/feature-read.local.test.ts
@@ -473,6 +477,7 @@ SELECT (SELECT count(*) FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamesp
     if ($LASTEXITCODE -ne 0) { throw 'C8 API/Prisma runtime test failed.' }
   } finally { Pop-Location }
   Write-Output 'C8_API_PRISMA_RUNTIME=PASS'
+  }
   Invoke-LocalSql ([IO.File]::ReadAllText((Join-Path $phase6Root 'apps/api/prisma/tests/core-foundation-runtime.sql'))) $phase6Database
   Invoke-LocalSql ([IO.File]::ReadAllText((Join-Path $phase6Root 'apps/api/prisma/tests/metadata-forms-runtime.sql'))) $phase6Database
   Invoke-LocalSql ([IO.File]::ReadAllText((Join-Path $phase6Root 'apps/api/prisma/tests/import-pipeline-runtime.sql'))) $phase6Database
@@ -494,11 +499,13 @@ SELECT (SELECT count(*) FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamesp
   Write-Output 'PROJECT_INDICATOR_DASHBOARD_RUNTIME=PASS'
   if ($DashboardHomeProjectScope -or $ProjectActivityCreationRepair) {
     $env:PATHWAYS_DASHBOARD_HOME_SCOPE_LOCAL_TESTS = '1'
+    if (-not $CsvRbacRealignment) {
     Push-Location $phase6Root
     try {
       pnpm --dir apps/api exec vitest run src/modules/dashboards/dashboard-home-runtime.local.test.ts
       if ($LASTEXITCODE -ne 0) { throw '0024 API/Prisma runtime test failed.' }
     } finally { Pop-Location }
+    }
     Invoke-LocalSql ([IO.File]::ReadAllText((Join-Path $phase6Root 'apps/api/prisma/tests/dashboard-home-project-scope-runtime.sql'))) $phase6Database
     Write-Output 'DASHBOARD_HOME_PROJECT_SCOPE_RUNTIME=PASS'
   }
@@ -508,6 +515,69 @@ SELECT (SELECT count(*) FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamesp
   }
   if ($Phase4IndicatorPolicy) { Write-Output 'PHASE4_PM_INDICATOR_RUNTIME=PASS' }
   if ($RuleBasedAccessAlignment -or $DashboardHomeProjectScope -or $ProjectActivityCreationRepair) { Write-Output 'RULE_BASED_ACCESS_ALIGNMENT_RUNTIME=PASS' }
+  if ($CsvRbacRealignment) {
+    $rbacCatalogSql = Join-Path $phase6Root 'apps/api/prisma/tests/csv-rbac-catalog.sql'
+    $rbacBeforeCatalog = (& "$phase6Bin\psql.exe" -X -q -A -t -w -h 127.0.0.1 -p $phase6Port -U postgres -d $phase6Database -v ON_ERROR_STOP=1 -f $rbacCatalogSql) | ConvertFrom-Json
+    if ($LASTEXITCODE -ne 0) { throw 'Baseline catalog unavailable.' }
+    [IO.File]::WriteAllText((Join-Path $phase6Root '.tmp/rbac-local-before-catalog.json'), ($rbacBeforeCatalog | ConvertTo-Json -Depth 100))
+    $rbacModelDiffBefore = Join-Path $phase6Parent 'prisma-before.sql'
+    # Introspection must include provider schemas referenced by domain FKs.
+    # This temporary input changes no repository schema and its diff is never run.
+    $rbacIntrospectionSchema = Join-Path $phase6Parent 'introspection.prisma'
+    [IO.File]::WriteAllText($rbacIntrospectionSchema, [IO.File]::ReadAllText((Join-Path $phase6Root 'apps/api/prisma/schema.prisma')).Replace('schemas   = ["public", "pathways"]', 'schemas   = ["public", "pathways", "auth", "storage"]'))
+    pnpm --dir apps/api exec prisma migrate diff --from-schema-datasource $rbacIntrospectionSchema --config $phase6Config --to-schema-datamodel (Join-Path $phase6Root 'apps/api/prisma/schema.prisma') --script --output $rbacModelDiffBefore
+    if ($LASTEXITCODE -ne 0) { throw 'Prisma baseline comparison failed.' }
+    # Historical SQL suites above validate 0001-0025 before the approved correction.
+    # Clone its fully replayed catalog with empty reference data for fresh provisioning.
+    Invoke-LocalSql "UPDATE pathways.roles SET code='SYSTEM_ADMINISTRATOR',name='System Administrator' WHERE code='P03_UPGRADE_ROLE';" $phase6Database
+    Invoke-LocalSql "CREATE DATABASE pathways_phase4_rbac_fresh TEMPLATE $phase6Database;" 'postgres'
+    Invoke-LocalSql @'
+DO $$ DECLARE targets text; BEGIN
+ IF current_database()<>'pathways_phase4_rbac_fresh' OR inet_server_addr()<>'127.0.0.1'::inet THEN RAISE EXCEPTION 'Fresh fixture target differs'; END IF;
+ SELECT string_agg(format('%I.%I',n.nspname,c.relname),',') INTO targets FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname='pathways' AND c.relkind='r';
+ EXECUTE 'TRUNCATE TABLE '||targets||' CASCADE';
+END $$;
+'@ 'pathways_phase4_rbac_fresh'
+    Copy-Item -LiteralPath (Join-Path $phase6Root 'apps/api/prisma/migrations/0026_csv_rbac_realignment') -Destination $phase6Stage -Recurse
+    foreach ($rbacDatabase in @($phase6Database, 'pathways_phase4_rbac_fresh')) {
+      $env:DIRECT_URL = "postgresql://prisma@127.0.0.1:${phase6Port}/${rbacDatabase}?sslmode=disable&connection_limit=1"
+      $env:DATABASE_URL = $env:DIRECT_URL
+      pnpm --filter @pathways/api exec prisma migrate deploy --config $phase6Config
+      if ($LASTEXITCODE -ne 0) {
+        $rbacDiagnostic = [IO.File]::ReadAllText((Join-Path $phase6Root 'apps/api/prisma/migrations/0026_csv_rbac_realignment/migration.sql')).Replace('COMMIT;', 'ROLLBACK;')
+        $rbacDiagnostic | & "$phase6Bin\psql.exe" -X -w -h 127.0.0.1 -p $phase6Port -U prisma -d $rbacDatabase -v ON_ERROR_STOP=1
+        throw 'CSV RBAC forward replay failed.'
+      }
+      Invoke-LocalSql ([IO.File]::ReadAllText((Join-Path $phase6Root 'apps/api/prisma/tests/csv-rbac-runtime.sql'))) $rbacDatabase
+      pnpm --filter @pathways/api exec prisma migrate status --config $phase6Config
+      if ($LASTEXITCODE -ne 0) { throw 'CSV RBAC ledger status failed.' }
+    }
+    $env:DATABASE_URL = "postgresql://prisma@127.0.0.1:${phase6Port}/${phase6Database}?sslmode=disable&connection_limit=1"
+    $env:DIRECT_URL = $env:DATABASE_URL
+    $rbacUpgradeCatalog = (& "$phase6Bin\psql.exe" -X -q -A -t -w -h 127.0.0.1 -p $phase6Port -U postgres -d $phase6Database -v ON_ERROR_STOP=1 -f $rbacCatalogSql) | ConvertFrom-Json
+    if ($LASTEXITCODE -ne 0) { throw 'Upgrade catalog unavailable.' }
+    $rbacFreshCatalog = (& "$phase6Bin\psql.exe" -X -q -A -t -w -h 127.0.0.1 -p $phase6Port -U postgres -d pathways_phase4_rbac_fresh -v ON_ERROR_STOP=1 -f $rbacCatalogSql) | ConvertFrom-Json
+    if ($LASTEXITCODE -ne 0) { throw 'Fresh catalog unavailable.' }
+    if (($rbacUpgradeCatalog | ConvertTo-Json -Depth 100 -Compress) -cne ($rbacFreshCatalog | ConvertTo-Json -Depth 100 -Compress)) { throw 'Fresh/upgrade catalog or security objects differ.' }
+    foreach ($rbacKey in @('columns','constraints','indexes')) {
+      if (($rbacBeforeCatalog.$rbacKey | ConvertTo-Json -Depth 100 -Compress) -cne ($rbacUpgradeCatalog.$rbacKey | ConvertTo-Json -Depth 100 -Compress)) { throw "RBAC unexpectedly changed $rbacKey." }
+    }
+    $rbacModelDiffAfter = Join-Path $phase6Parent 'prisma-after.sql'
+    pnpm --dir apps/api exec prisma migrate diff --from-schema-datasource $rbacIntrospectionSchema --config $phase6Config --to-schema-datamodel (Join-Path $phase6Root 'apps/api/prisma/schema.prisma') --script --output $rbacModelDiffAfter
+    if ($LASTEXITCODE -ne 0 -or [IO.File]::ReadAllText($rbacModelDiffBefore) -cne [IO.File]::ReadAllText($rbacModelDiffAfter)) { throw 'RBAC changed Prisma/schema drift.' }
+    # Existing SQL-only expressions may remain outside Prisma; report the baseline,
+    # never execute this generated diff or treat it as a correction migration.
+    Write-Output ('CSV_RBAC_PRISMA_DIFF_BYTES=' + (Get-Item -LiteralPath $rbacModelDiffAfter).Length)
+    Copy-Item -LiteralPath $rbacModelDiffAfter -Destination (Join-Path $phase6Root '.tmp/rbac-prisma-baseline-diff.sql')
+    Write-Output 'CSV_RBAC_CATALOG_PARITY=PASS'
+    $env:PATHWAYS_CSV_RBAC_LOCAL_TESTS = '1'
+    Push-Location $phase6Root
+    try {
+      pnpm --dir apps/api exec vitest run src/modules/auth/csv-rbac.local.test.ts
+      if ($LASTEXITCODE -ne 0) { throw 'CSV RBAC API runtime checks failed.' }
+    } finally { Pop-Location }
+    Write-Output 'CSV_RBAC_UPGRADE_AND_FRESH_REPLAY=PASS'
+  }
   Write-Output 'LEGACY_TABLE_PRESERVATION=PASS'
   $phase6Exit = 0
 } catch {

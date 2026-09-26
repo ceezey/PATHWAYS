@@ -19,6 +19,7 @@ import { Card, CardContent, CardFooter, CardHeader } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { useCurrentRole } from '@/hooks/use-current-role'
 import { useDisplayLabels } from '@/hooks/use-display-labels'
+import { principalHasAtomicPermission } from '@/lib/rbac/route-access'
 import { pathwaysClient } from '@/lib/services/pathways-client'
 import { cn } from '@/lib/utils'
 import type { ProjectDetail, ProjectStatus, ProjectSummary } from '@/types/pathways'
@@ -44,6 +45,7 @@ const directoryDescription = {
 export const ProjectDirectory = () => {
   const { labels } = useDisplayLabels()
   const { role, profile } = useCurrentRole()
+  const canReadDetail = principalHasAtomicPermission(profile, 'projects.detail.read')
   const [projects, setProjects] = useState<ProjectSummary[]>([])
   const [status, setStatus] = useState<'loading' | 'success' | 'error'>('loading')
   const [query, setQuery] = useState('')
@@ -97,6 +99,7 @@ export const ProjectDirectory = () => {
   }, [projects, query, statusFilter])
 
   const openPreview = async (projectId: string) => {
+    if (!canReadDetail) return
     const project = await pathwaysClient.getProject(projectId)
     setPreviewProject(project)
   }
@@ -108,7 +111,7 @@ export const ProjectDirectory = () => {
         title={labels.moduleProjects}
         description={role ? directoryDescription[role] : 'Loading your authorized projects.'}
         actions={
-          profile?.permissions.includes('projects.create') ? (
+          principalHasAtomicPermission(profile, 'projects.create') ? (
             <Button asChild className="gap-2">
               <Link href="/projects/new">
                 <Plus className="h-4 w-4" aria-hidden="true" />
@@ -260,23 +263,25 @@ export const ProjectDirectory = () => {
                     {project.projectManager}
                   </span>
                 </div>
-                <div className="grid w-full grid-cols-2 gap-2 2xl:flex 2xl:w-auto 2xl:justify-end">
-                  <Button
-                    className="gap-2 px-3"
-                    onClick={() => void openPreview(project.id)}
-                    type="button"
-                    variant="outline"
-                  >
-                    <Eye className="h-4 w-4" aria-hidden="true" />
-                    Quick Preview
-                  </Button>
-                  <Button asChild className="gap-2 px-3">
-                    <Link href={`/projects/${project.id}`}>
-                      Open Project
-                      <ArrowRight className="h-4 w-4" aria-hidden="true" />
-                    </Link>
-                  </Button>
-                </div>
+                {canReadDetail ? (
+                  <div className="grid w-full grid-cols-2 gap-2 2xl:flex 2xl:w-auto 2xl:justify-end">
+                    <Button
+                      className="gap-2 px-3"
+                      onClick={() => void openPreview(project.id)}
+                      type="button"
+                      variant="outline"
+                    >
+                      <Eye className="h-4 w-4" aria-hidden="true" />
+                      Quick Preview
+                    </Button>
+                    <Button asChild className="gap-2 px-3">
+                      <Link href={`/projects/${project.id}`}>
+                        Open Project
+                        <ArrowRight className="h-4 w-4" aria-hidden="true" />
+                      </Link>
+                    </Button>
+                  </div>
+                ) : null}
               </CardFooter>
             </Card>
           ))}

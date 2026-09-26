@@ -74,7 +74,7 @@ export const BeneficiaryDirectory = ({
   stages,
 }: BeneficiaryDirectoryProps) => {
   const { labels } = useDisplayLabels()
-  const { role, assignedProjectIds } = useCurrentRole()
+  const { role, profile, assignedProjectIds } = useCurrentRole()
   const searchParams = useSearchParams()
   const readParam = (name: string) => searchParams?.get(name) ?? null
   const projectAccess = role ? getAccessProfile(role).projectAccess : 'assigned-projects'
@@ -309,12 +309,12 @@ export const BeneficiaryDirectory = ({
         editableLabelKey="moduleBeneficiaries"
         actions={
           <>
-            {isUiActionAvailable(role, 'beneficiaries.merge') ? (
+            {isUiActionAvailable(role, 'beneficiaries.merge', profile) ? (
               <Button asChild variant="outline">
                 <Link href="/beneficiaries/duplicates">Review possible duplicates</Link>
               </Button>
             ) : null}
-            {isUiActionAvailable(role, 'beneficiaries.create') ? (
+            {isUiActionAvailable(role, 'beneficiaries.create', profile) ? (
               <Button asChild size="icon" title="Add beneficiary">
                 <Link aria-label="Add beneficiary" href="/beneficiaries/new">
                   <Plus className="h-4 w-4" aria-hidden="true" />

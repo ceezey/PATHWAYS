@@ -31,9 +31,11 @@ const identity = (role: (typeof targetRoles)[number], assignedProjectIds = [assi
   }) satisfies ApplicationIdentity
 
 describe('rule-based access alignment contract', () => {
-  it.each(targetRoles)('%s receives exactly the seven target capabilities', (role) => {
+  it.each(targetRoles)('%s receives the detailed CSV alert capabilities', (role) => {
     for (const permission of targetPermissions) {
-      expect(hasAtomicPermission(role, rolePermissions[role], permission)).toBe(true)
+      expect(hasAtomicPermission(role, rolePermissions[role], permission)).toBe(
+        role === 'MONITORING_AND_EVALUATION_OFFICER' && permission !== 'rules.read',
+      )
     }
     for (const permission of ['rules.create', 'rules.update', 'rules.activate'] as const) {
       expect(hasAtomicPermission(role, [permission], permission)).toBe(false)

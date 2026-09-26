@@ -164,7 +164,7 @@ describe('Activity creation contract authorization', () => {
       'activities.create',
       'activities.update',
       'indicators.update',
-      'journeys.manage',
+      'journeys.read',
       'budgets.read',
       'budgets.create',
     ],

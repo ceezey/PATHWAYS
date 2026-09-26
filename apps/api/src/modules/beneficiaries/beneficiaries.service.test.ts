@@ -269,15 +269,14 @@ describe('P04 beneficiary registration service', () => {
     })
     await expect(
       promote(values({ external_identifier_type: 'PARTNER_ID', external_identifier_value: 'A-1' })),
-    ).resolves.toEqual({ kind: 'REVIEW', code: 'AMBIGUOUS_IDENTITY' })
+    ).resolves.toEqual({ kind: 'REVIEW', code: 'IDENTITY_REVIEW_REQUIRED' })
     expect(tx.beneficiary.create).not.toHaveBeenCalled()
   })
 
   it('does not merge unknown LINK input using names, dates or email', async () => {
-    await expect(promote(values({ registration_operation: 'LINK' }))).resolves.toEqual({
-      kind: 'REVIEW',
-      code: 'UNKNOWN_IDENTITY',
-    })
+    await expect(promote(values({ registration_operation: 'LINK' }))).rejects.toBeInstanceOf(
+      ForbiddenException,
+    )
     expect(tx.beneficiary.create).not.toHaveBeenCalled()
   })
 
@@ -343,7 +342,7 @@ describe('P04 beneficiary registration service', () => {
     const updateFields = ['display_name']
     await expect(
       promote(values({ registration_operation: 'UPDATE', profile_update_fields: updateFields })),
-    ).resolves.toEqual({ kind: 'REVIEW', code: 'SHARED_PROFILE_UPDATE_REVIEW_REQUIRED' })
+    ).rejects.toBeInstanceOf(ForbiddenException)
     expect(tx.beneficiary.updateMany).not.toHaveBeenCalled()
   })
 

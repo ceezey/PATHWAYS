@@ -84,7 +84,7 @@ export class MetadataController {
   }
 
   @Post(':formId/archive')
-  @RequirePermission('forms.manage')
+  @RequirePermission('forms.archive')
   archive(
     @Req() request: AuthenticatedRequest,
     @Param('projectId') projectId: string,

@@ -150,7 +150,7 @@ describe('survey report helpers', () => {
     ['Project Officer', ['project-alpha']],
     ['Monitoring and Evaluation Officer', ['project-alpha', 'project-beta']],
     ['Program Manager', ['project-alpha', 'project-beta']],
-    ['Grant Manager', ['project-alpha', 'project-beta']],
+    ['Grant Manager', []],
     ['System Administrator', ['project-alpha', 'project-beta']],
   ] as const)('limits %s Survey/Form filters to visible project scope', (role, expectedIds) => {
     const visibleFormProjectIds = [

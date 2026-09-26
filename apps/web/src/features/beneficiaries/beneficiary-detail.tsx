@@ -78,7 +78,7 @@ export const BeneficiaryDetail = ({
   participationForms,
   projectId,
 }: BeneficiaryDetailProps) => {
-  const { role } = useCurrentRole()
+  const { role, profile } = useCurrentRole()
   const searchParams = useSearchParams()
   const [participation, setParticipation] = useState(beneficiary.participation)
   const [notes, setNotes] = useState(beneficiary.notes)
@@ -97,8 +97,12 @@ export const BeneficiaryDetail = ({
     attendanceStatus: 'Present',
     note: '',
   })
-  const canEditBeneficiary = isUiActionAvailable(role, 'beneficiaries.edit')
-  const canRecordParticipation = isUiActionAvailable(role, 'beneficiaries.participation.record')
+  const canEditBeneficiary = isUiActionAvailable(role, 'beneficiaries.edit', profile)
+  const canRecordParticipation = isUiActionAvailable(
+    role,
+    'beneficiaries.participation.record',
+    profile,
+  )
 
   const currentStage = useMemo(
     () => deriveCurrentStage(participation, stages, activities),

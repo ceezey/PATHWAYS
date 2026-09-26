@@ -231,22 +231,20 @@ describe('Stage 3 preserves transaction-level role/project scope', () => {
       expect(tx.project.findFirst).not.toHaveBeenCalled()
     },
   )
-  it.each([
-    'PROJECT_OFFICER',
-    'PROJECT_MANAGER',
-    'MONITORING_AND_EVALUATION_OFFICER',
-    'GRANT_MANAGER',
-  ])('requires current same-organization project assignment for %s', async (role) => {
-    const { service, tx } = dataService(role)
-    await expect(
-      service.beneficiaryAggregate({ ...profile, assignedProjectIds: [foreignId] }, foreignId),
-    ).rejects.toThrow('Project unavailable.')
-    expect(tx.project.findFirst).toHaveBeenCalledWith({
-      where: { AND: [{ organizationId, archivedAt: null, id: { in: [] } }, { id: foreignId }] },
-      select: { id: true },
-    })
-    expect(tx.beneficiaryProjectEnrollment.count).not.toHaveBeenCalled()
-  })
+  it.each(['PROJECT_MANAGER', 'MONITORING_AND_EVALUATION_OFFICER', 'GRANT_MANAGER'])(
+    'requires current same-organization project assignment for %s',
+    async (role) => {
+      const { service, tx } = dataService(role)
+      await expect(
+        service.beneficiaryAggregate({ ...profile, assignedProjectIds: [foreignId] }, foreignId),
+      ).rejects.toThrow('Project unavailable.')
+      expect(tx.project.findFirst).toHaveBeenCalledWith({
+        where: { AND: [{ organizationId, archivedAt: null, id: { in: [] } }, { id: foreignId }] },
+        select: { id: true },
+      })
+      expect(tx.beneficiaryProjectEnrollment.count).not.toHaveBeenCalled()
+    },
+  )
   it('denies a role revoked inside the business transaction after guard success', async () => {
     const { service, tx } = dataService('SYSTEM_ADMINISTRATOR')
     tx.$queryRaw.mockResolvedValue([])

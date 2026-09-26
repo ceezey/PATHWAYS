@@ -416,7 +416,7 @@ export class MetadataService {
     formId: string,
     input: ExpectedVersionDto,
   ) {
-    return withAuthorizedOperation(this.prisma, identity, 'forms.manage', async (tx, actor) => {
+    return withAuthorizedOperation(this.prisma, identity, 'forms.archive', async (tx, actor) => {
       const current = await this.requireForm(tx, actor, projectId, formId)
       if (current.status === 'ARCHIVED') return mapForm(current, actor)
       const expected = this.expectedDate(input.expectedUpdatedAt)

@@ -84,7 +84,7 @@ const expenseTone = (status: BudgetExpense['status']) => {
 type RecommendationReview = { recommendation: RecommendationRecord; alertTitle: string }
 
 export function ConnectedBudgetWorkspace({ projectId }: { projectId: string }) {
-  const { role } = useCurrentRole()
+  const { role, profile } = useCurrentRole()
   const [project, setProject] = useState<ProjectDetail | null>(null)
   const [budget] = useState<BudgetRecord | null>(null)
   const [expenses] = useState<BudgetExpense[]>([])
@@ -115,7 +115,7 @@ export function ConnectedBudgetWorkspace({ projectId }: { projectId: string }) {
 
   if (!project || !role) return <p role="alert">Project unavailable or outside your scope.</p>
 
-  const canLogOutcome = isUiActionAvailable(role, 'outcomes.log')
+  const canLogOutcome = isUiActionAvailable(role, 'outcomes.log', profile)
   const utilization = budget
     ? Math.round((budget.actualSpending / Math.max(1, budget.plannedAmount)) * 100)
     : 0
@@ -529,7 +529,7 @@ const indicatorTextFields = [
 ] as const
 
 export function ConnectedIndicatorWorkspace({ projectId }: { projectId?: string }) {
-  const { role } = useCurrentRole()
+  const { role, profile } = useCurrentRole()
   const [project, setProject] = useState<ProjectDetail | null>(null)
   const [projects, setProjects] = useState<ProjectSummary[]>([])
   const [indicators, setIndicators] = useState<IndicatorDisplay[]>([])
@@ -541,7 +541,7 @@ export function ConnectedIndicatorWorkspace({ projectId }: { projectId?: string 
   const [query, setQuery] = useState('')
   const [message, setMessage] = useState('')
   const [dialogOpen, setDialogOpen] = useState(false)
-  const canManage = isUiActionAvailable(role, 'indicators.manage')
+  const canManage = isUiActionAvailable(role, 'indicators.manage', profile)
   const rows = useMemo(
     () =>
       indicators.filter(

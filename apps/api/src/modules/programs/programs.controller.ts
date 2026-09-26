@@ -22,7 +22,7 @@ export class ProgramsController {
   }
 
   @Post()
-  @RequirePermission('projects.create')
+  @RequirePermission('programs.create')
   create(@Req() request: AuthenticatedRequest, @Body() body: CreateProgramDto) {
     return this.programs.create(profile(request), body)
   }

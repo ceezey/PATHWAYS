@@ -12,7 +12,7 @@ const access = vi.hoisted(() => ({
   role: 'System Administrator',
   profile: {
     roles: ['SYSTEM_ADMINISTRATOR'],
-    permissions: ['projects.read', 'monitoring.read', 'budgets.read'],
+    permissions: ['projects.read', 'indicators.read', 'budgets.read'],
     assignedProjectIds: [] as string[],
   },
 }))
@@ -45,7 +45,7 @@ describe('project workspace tab access', () => {
   beforeEach(() => {
     access.role = 'System Administrator'
     access.profile.roles = ['SYSTEM_ADMINISTRATOR']
-    access.profile.permissions = ['projects.read', 'monitoring.read', 'budgets.read']
+    access.profile.permissions = ['projects.read', 'indicators.read', 'budgets.read']
     access.profile.assignedProjectIds = []
   })
 

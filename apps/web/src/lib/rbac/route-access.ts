@@ -26,8 +26,8 @@ export const routePolicy = {
   unauthorized: entry('/unauthorized', 'Unauthorized', ['projects.read']),
   projects: entry('/projects', 'Projects', ['projects.read']),
   projectCreate: entry('/projects/new', 'Project setup', ['projects.create']),
-  project: entry('/projects/:projectId', 'Projects', ['projects.read'], 'project'),
-  projectEdit: entry('/projects/:projectId/edit', 'Edit project', ['projects.create'], 'project'),
+  project: entry('/projects/:projectId', 'Projects', ['projects.detail.read'], 'project'),
+  projectEdit: entry('/projects/:projectId/edit', 'Edit project', ['projects.update'], 'project'),
   activities: entry(
     '/projects/:projectId/activities',
     'Activities',
@@ -49,7 +49,7 @@ export const routePolicy = {
   indicators: entry(
     '/projects/:projectId/indicators',
     'Target indicators',
-    ['monitoring.read'],
+    ['indicators.read'],
     'project',
   ),
   monitoring: entry(
@@ -67,7 +67,7 @@ export const routePolicy = {
   journey: entry(
     '/projects/:projectId/journey-stages',
     'Journey stages',
-    ['activities.create', 'monitoring.review'],
+    ['journeys.manage'],
     'project',
   ),
   transparency: entry(
@@ -132,28 +132,19 @@ export const routePolicy = {
   surveyReport: entry('/reports/survey-results', 'Survey/Form Results', ['reports.read']),
   reportPreview: entry('/reports/preview', 'Report preview', ['reports.read']),
   users: entry('/settings/users', 'User Management', ['users.authorize']),
-  labels: entry('/settings/labels', 'Edit Labels', ['settings.read']),
-  audit: entry('/settings/audit', 'Audit Log', ['settings.read']),
-  backups: entry('/settings/backups', 'Backup & Recovery', ['settings.read']),
-  profile: entry('/settings/profile', 'My Profile', ['settings.read']),
+  labels: entry('/settings/labels', 'Edit Labels', ['settings.labels.manage']),
+  audit: entry('/settings/audit', 'Audit Log', ['audit.read']),
+  backups: entry('/settings/backups', 'Backup & Recovery', ['backups.create', 'backups.restore']),
+  profile: entry('/settings/profile', 'My Profile', ['profile.manage']),
   settings: entry('/settings', 'Settings', ['settings.read']),
 } as const
 export type RouteKey = keyof typeof routePolicy
-const legacyDecisionSupportReadRoles = new Set([
-  'SYSTEM_ADMINISTRATOR',
-  'PROGRAM_MANAGER',
-  'PROJECT_MANAGER',
-])
 const hasRoutePermission = (
   role: string,
   granted: readonly string[],
-  route: RouteKey,
+  _route: RouteKey,
   permissions: readonly AtomicPermission[],
-) =>
-  permissions.some((permission) => hasAtomicPermission(role, granted, permission)) ||
-  ((route === 'alerts' || route === 'recommendations') &&
-    legacyDecisionSupportReadRoles.has(role) &&
-    hasAtomicPermission(role, granted, 'recommendations.outcome.record'))
+) => permissions.some((permission) => hasAtomicPermission(role, granted, permission))
 
 export type RouteSelection = {
   route: RouteKey
@@ -326,8 +317,8 @@ export function routeAllowed(
   if (
     selection.route === 'imports' &&
     selection.mode === 'extend' &&
-    !(['forms.manage', 'imports.upload', 'imports.review', 'imports.process'] as const).every(
-      (permission) => hasAtomicPermission(role, principal.permissions, permission),
+    !(['forms.manage', 'imports.upload'] as const).every((permission) =>
+      hasAtomicPermission(role, principal.permissions, permission),
     )
   )
     return false
@@ -517,7 +508,7 @@ export interface WorkspaceTabAccess {
   anyPermissions?: PermissionCode[]
 }
 const legacyPermissions: Partial<Record<PermissionCode, readonly AtomicPermission[]>> = {
-  'projects.view': ['projects.read'],
+  'projects.view': ['projects.detail.read'],
   'projects.create': ['projects.create'],
   'activities.view': ['activities.read'],
   'activities.create_edit': ['activities.create', 'activities.update'],

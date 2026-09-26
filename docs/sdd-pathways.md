@@ -36,7 +36,7 @@ Core domain CRUD does not depend on direct browser PostgREST/Data API access.
 
 ## 3. Data Domains
 
-Source: `apps/api/prisma/schema.prisma` (datasource `schemas = ["public", "pathways"]`; domain tables in `pathways`), migrations `0001_init` through `0025_project_activity_creation_contract`, including `0005_supabase_security_adapter` and the runtime-grant migrations. Table names below are the `@@map` names, verified 2026-09-26.
+Source: `apps/api/prisma/schema.prisma` (datasource `schemas = ["public", "pathways"]`; domain tables in `pathways`), migrations `0001_init` through `0026_csv_rbac_realignment` (0026 pending PATHWAYS-dev application), including `0005_supabase_security_adapter` and the runtime-grant migrations. Table names below are the `@@map` names, verified 2026-09-26.
 
 | Domain | PRD | Tables |
 |---|---|---|
@@ -95,7 +95,9 @@ Never:
 - trust client scope;
 - expose private Beneficiary data through public surfaces.
 
-RLS may supplement but not replace backend authz.
+RLS supplements backend authorization. The approved [CSV auth contract](rfc-pathways-auth-rbac-isolation.md) controls atomic grants, role ceilings, supporting reads, hierarchy, and assignment scope. Migration 0026 adds restrictive checks while preserving the datamodel and existing business/lifecycle guards. API and frontend share the canonical ceiling; active database grants remain authoritative. Inspect policies, functions, ACLs, triggers, and assignment predicates separately from Prisma schema diffs. Preserve the single public ledger and all historical files.
+
+PATHWAYS-dev 0020 checksum drift blocks remote correction pending the original applied SQL. 0015 differs only by CRLF representation. Missing financial/evaluation/reporting/alert/publishing handlers remain deferred. Target beneficiaries and project target goal are retained.
 
 ## 7. Runtime Sequences
 

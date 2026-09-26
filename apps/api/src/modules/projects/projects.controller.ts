@@ -32,7 +32,7 @@ export class ProjectsController {
   }
 
   @Get(':projectId')
-  @RequirePermission('projects.read')
+  @RequirePermission('projects.detail.read')
   get(@Req() request: AuthenticatedRequest, @Param('projectId') projectId: string) {
     return this.projects.get(profile(request), projectId)
   }
@@ -44,7 +44,7 @@ export class ProjectsController {
   }
 
   @Patch(':projectId')
-  @RequirePermission('projects.create')
+  @RequirePermission('projects.update')
   update(
     @Req() request: AuthenticatedRequest,
     @Param('projectId') projectId: string,

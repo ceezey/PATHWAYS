@@ -23,9 +23,9 @@ import {
 import { ProjectWorkspaceHeader } from './project-workspace-header'
 
 export const ProjectDetailView = ({ projectId }: { projectId: string }) => {
-  const { role } = useCurrentRole()
-  const canManageProjectProfile = isUiActionAvailable(role, 'projects.profile.manage')
-  const canManageProjectTeam = isUiActionAvailable(role, 'projects.team.manage')
+  const { role, profile } = useCurrentRole()
+  const canManageProjectProfile = isUiActionAvailable(role, 'projects.profile.manage', profile)
+  const canManageProjectTeam = isUiActionAvailable(role, 'projects.team.manage', profile)
   const [project, setProject] = useState<ProjectDetail | null>(null)
   const [status, setStatus] = useState<'loading' | 'success' | 'not-found' | 'error'>('loading')
   const [loadAttempt, setLoadAttempt] = useState(0)

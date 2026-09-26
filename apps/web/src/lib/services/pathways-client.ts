@@ -1412,7 +1412,10 @@ function mapProject(project: ApiProject): ProjectDetail {
     objectives: project.objectives ?? '',
     implementingPartners: project.implementingPartners,
     projectBudget: project.projectBudget,
-    targetGoal: project.targetGoal === null ? null : normalizeTargetGoal(project.targetGoal),
+    targetGoal:
+      project.targetGoal === null || project.targetGoal === undefined
+        ? null
+        : normalizeTargetGoal(project.targetGoal),
     area: project.implementationArea ?? 'Area not recorded',
     sector: project.sector ?? 'Sector not recorded',
     status,

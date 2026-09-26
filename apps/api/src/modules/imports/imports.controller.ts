@@ -108,7 +108,7 @@ export class ImportsController {
   }
 
   @Post(':batchId/validate')
-  @RequirePermission('imports.review')
+  @RequirePermission('imports.validate')
   validate(
     @Req() request: AuthenticatedRequest,
     @Param('projectId') projectId: string,

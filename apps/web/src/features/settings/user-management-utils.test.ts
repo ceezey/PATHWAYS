@@ -123,8 +123,8 @@ describe('user management utilities', () => {
       'Monitoring and Evaluation Officer',
     ])
     expect(getManageableUserRoles('Project Manager')).toEqual([
-      'Project Officer',
       'Monitoring and Evaluation Officer',
+      'Project Officer',
     ])
     expect(getManageableUserRoles('Project Officer')).toEqual([])
     expect(getManageableUserRoles('Monitoring and Evaluation Officer')).toEqual([])
@@ -184,7 +184,7 @@ describe('user management utilities', () => {
       ),
     ).toEqual(['Project Alpha', 'Project Beta'])
     expect(getProjectAccessLabels('Grant Manager', [], testProjects)).toEqual([
-      'Organization grant portfolio',
+      'No project assigned',
     ])
   })
 })

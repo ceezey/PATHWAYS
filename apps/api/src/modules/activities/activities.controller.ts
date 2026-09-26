@@ -76,7 +76,7 @@ export class ActivitiesController {
   }
 
   @Post(':activityId/transition')
-  @RequirePermission('activities.update')
+  @RequirePermission('activities.read')
   transition(
     @Req() request: AuthenticatedRequest,
     @Param('projectId') projectId: string,
@@ -147,7 +147,7 @@ export class MilestonesController {
   }
 
   @Post()
-  @RequirePermission('activities.update')
+  @RequirePermission('milestones.manage')
   create(
     @Req() request: AuthenticatedRequest,
     @Param('projectId') projectId: string,
@@ -157,7 +157,7 @@ export class MilestonesController {
   }
 
   @Patch(':milestoneId')
-  @RequirePermission('activities.update')
+  @RequirePermission('milestones.manage')
   update(
     @Req() request: AuthenticatedRequest,
     @Param('projectId') projectId: string,

@@ -31,16 +31,20 @@ const transaction = vi.fn(async (_context, work) => work(tx))
 const service = new RouteAccessService({
   withVerifiedContext: transaction,
 } as unknown as PrismaService)
-const common = 'dashboard unauthorized projects project analytics reports surveyReport'
-// Independent, explicit expected route matrix; no expectations computed from the policy under test.
+// Explicit approved CSV route matrix, independent of the route implementation.
 const allowed: Record<CanonicalRole, string> = {
-  SYSTEM_ADMINISTRATOR: `${common} analytics projectCreate projectEdit activities activity indicators budget journey monitoring beneficiaries beneficiaryCreate beneficiary beneficiaryEdit collection manualEntry forms formCreate form formEntry imports alerts recommendations rules settingsRules projectReport indicatorReport beneficiaryReport reportPreview users labels audit backups profile settings`,
-  PROGRAM_MANAGER: `${common} analytics activities activity indicators budget journey monitoring transparency transparencyPreview transparencyQueue collection forms form alerts recommendations rules settingsRules projectReport indicatorReport users`,
-  GRANT_MANAGER: `${common} analytics budget projectReport indicatorReport`,
-  PROJECT_MANAGER: `${common} analytics projectCreate projectEdit activities activity indicators budget journey monitoring transparency transparencyPreview transparencyQueue beneficiaries beneficiaryCreate beneficiary collection manualEntry forms formCreate form formEntry imports alerts recommendations rules settingsRules projectReport indicatorReport beneficiaryReport reportPreview users`,
-  MONITORING_AND_EVALUATION_OFFICER: `${common} analytics activities activity evidence indicators budget journey monitoring beneficiaries beneficiaryCreate beneficiary beneficiaryEdit collection manualEntry forms formCreate form formEntry imports alerts recommendations rules settingsRules projectReport indicatorReport beneficiaryReport reportPreview`,
+  SYSTEM_ADMINISTRATOR:
+    'dashboard unauthorized projects reports surveyReport forms form profile settings projectReport indicatorReport analytics activities activity indicators budget monitoring collection imports alerts recommendations rules settingsRules users audit backups transparency transparencyPreview transparencyQueue',
+  PROGRAM_MANAGER:
+    'dashboard unauthorized projects reports surveyReport forms form profile settings projectReport indicatorReport project analytics budget monitoring transparency transparencyPreview transparencyQueue alerts recommendations users audit',
+  GRANT_MANAGER:
+    'dashboard unauthorized projects reports surveyReport forms form profile settings projectReport indicatorReport project analytics budget monitoring transparency transparencyPreview transparencyQueue alerts recommendations',
+  PROJECT_MANAGER:
+    'dashboard unauthorized projects reports surveyReport forms form profile settings projectReport indicatorReport project projectCreate projectEdit analytics activities activity indicators budget monitoring transparency transparencyPreview transparencyQueue beneficiaries beneficiaryCreate beneficiary beneficiaryEdit alerts recommendations users audit beneficiaryReport reportPreview',
+  MONITORING_AND_EVALUATION_OFFICER:
+    'dashboard unauthorized projects reports surveyReport forms form profile settings projectReport indicatorReport project analytics activities activity evidence indicators budget monitoring beneficiaries beneficiaryCreate beneficiary beneficiaryEdit collection manualEntry formCreate formEntry imports alerts recommendations beneficiaryReport reportPreview',
   PROJECT_OFFICER:
-    'dashboard unauthorized projects project reports surveyReport activities activity budget beneficiaries beneficiaryCreate beneficiary collection manualEntry forms form formEntry imports alerts recommendations rules settingsRules beneficiaryReport reportPreview',
+    'dashboard unauthorized projects reports surveyReport forms form profile settings projectReport indicatorReport activities activity budget beneficiaries beneficiaryCreate beneficiary beneficiaryEdit collection manualEntry formCreate formEntry imports beneficiaryReport reportPreview',
 }
 const select = (route: RouteKey): RouteSelection => ({
   route,
@@ -85,8 +89,7 @@ describe('bounded development-only route-check failure evidence', () => {
     vi.stubEnv('NODE_ENV', 'development')
     output = vi.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined)
   })
-  const fail = () =>
-    service.check(fixture('SYSTEM_ADMINISTRATOR'), { route: 'project', projectId: id })
+  const fail = () => service.check(fixture('PROJECT_MANAGER'), { route: 'project', projectId: id })
 
   it.each([
     'P1000',
@@ -144,9 +147,9 @@ describe('bounded development-only route-check failure evidence', () => {
     'classifies %s scope failure without disclosing selectors',
     async (route, model, stage) => {
       tx[model].findFirst.mockRejectedValue({ code: 'P2010', meta: privateContent })
-      await expect(
-        service.check(fixture('SYSTEM_ADMINISTRATOR'), select(route)),
-      ).rejects.toMatchObject({ status: 503 })
+      await expect(service.check(fixture('PROJECT_MANAGER'), select(route))).rejects.toMatchObject({
+        status: 503,
+      })
       expect(output).toHaveBeenCalledExactlyOnceWith({
         event: 'PATHWAYS_ROUTE_CHECK_UNAVAILABLE',
         stage,
@@ -184,10 +187,7 @@ describe('bounded development-only route-check failure evidence', () => {
   it('does not label successful access or expected permission denial as an outage', async () => {
     await expect(fail()).resolves.toHaveProperty('route', 'project')
     await expect(
-      service.check(
-        { ...fixture('SYSTEM_ADMINISTRATOR'), permissions: [] },
-        { route: 'dashboard' },
-      ),
+      service.check({ ...fixture('PROJECT_MANAGER'), permissions: [] }, { route: 'dashboard' }),
     ).rejects.toMatchObject({ status: 403 })
     expect(output).not.toHaveBeenCalled()
   })
@@ -234,8 +234,8 @@ describe('same-request authority and relational object scope', () => {
   it.each([
     ['MONITORING_AND_EVALUATION_OFFICER', 'alerts', 'alerts.read'],
     ['MONITORING_AND_EVALUATION_OFFICER', 'recommendations', 'recommendations.read'],
-    ['PROJECT_OFFICER', 'alerts', 'alerts.read'],
-    ['PROJECT_OFFICER', 'recommendations', 'recommendations.read'],
+    ['GRANT_MANAGER', 'alerts', 'alerts.read'],
+    ['GRANT_MANAGER', 'recommendations', 'recommendations.read'],
   ] as const)('requires the exact read grant: %s / %s', async (role, route, permission) => {
     const identity = fixture(role)
     await expect(service.check(identity, { route })).resolves.toHaveProperty('route', route)
@@ -248,7 +248,7 @@ describe('same-request authority and relational object scope', () => {
   })
   it.each([
     ['SYSTEM_ADMINISTRATOR', 'dashboard'],
-    ['PROJECT_MANAGER', 'collection'],
+    ['PROJECT_OFFICER', 'collection'],
     ['MONITORING_AND_EVALUATION_OFFICER', 'imports'],
     ['MONITORING_AND_EVALUATION_OFFICER', 'reports'],
     ['SYSTEM_ADMINISTRATOR', 'users'],
@@ -304,26 +304,28 @@ describe('same-request authority and relational object scope', () => {
     ).rejects.toMatchObject({ status: 403 })
     expect(transaction).not.toHaveBeenCalled()
   })
-  it.each([
-    'PROJECT_MANAGER',
-    'MONITORING_AND_EVALUATION_OFFICER',
-    'PROJECT_OFFICER',
-    'GRANT_MANAGER',
-  ] as const)('requires current project assignment: %s', async (role) => {
-    const identity = fixture(role)
-    await service.check(identity, { route: 'project', projectId: id })
-    expect(tx.project.findFirst).toHaveBeenCalledWith({
-      where: { AND: [{ organizationId: id, archivedAt: null, id: { in: [id] } }, { id }] },
-      select: { id: true },
-    })
-    tx.project.findFirst.mockResolvedValue(null)
-    await expect(
-      service.check({ ...identity, assignedProjectIds: [] }, { route: 'project', projectId: id }),
-    ).rejects.toMatchObject({ status: 404 })
-    expect(tx.project.findFirst.mock.lastCall?.[0].where.AND[0].id.in).toEqual([])
-  })
+  it.each(['PROJECT_MANAGER', 'MONITORING_AND_EVALUATION_OFFICER', 'GRANT_MANAGER'] as const)(
+    'requires current project assignment: %s',
+    async (role) => {
+      const identity = fixture(role)
+      await service.check(identity, { route: 'project', projectId: id })
+      expect(tx.project.findFirst).toHaveBeenCalledWith({
+        where: { AND: [{ organizationId: id, archivedAt: null, id: { in: [id] } }, { id }] },
+        select: { id: true },
+      })
+      tx.project.findFirst.mockResolvedValue(null)
+      await expect(
+        service.check({ ...identity, assignedProjectIds: [] }, { route: 'project', projectId: id }),
+      ).rejects.toMatchObject({ status: 404 })
+      expect(tx.project.findFirst.mock.lastCall?.[0].where.AND[0].id.in).toEqual([])
+    },
+  )
   it('keeps administrator organization scope and manager portfolio scope', async () => {
-    await service.check(fixture('SYSTEM_ADMINISTRATOR'), { route: 'project', projectId: other })
+    await service.check(fixture('SYSTEM_ADMINISTRATOR'), {
+      route: 'activity',
+      projectId: other,
+      activityId: id,
+    })
     expect(tx.project.findFirst.mock.lastCall?.[0].where.AND[0]).toEqual({
       organizationId: id,
       archivedAt: null,
@@ -336,7 +338,7 @@ describe('same-request authority and relational object scope', () => {
   it('rejects changed activity parent and non-enrolled Beneficiary', async () => {
     tx.projectActivity.findFirst.mockResolvedValue(null)
     await expect(
-      service.check(fixture('SYSTEM_ADMINISTRATOR'), {
+      service.check(fixture('PROJECT_MANAGER'), {
         route: 'activity',
         projectId: id,
         activityId: other,
@@ -350,7 +352,7 @@ describe('same-request authority and relational object scope', () => {
     })
     tx.beneficiaryProjectEnrollment.findFirst.mockResolvedValue(null)
     await expect(
-      service.check(fixture('SYSTEM_ADMINISTRATOR'), {
+      service.check(fixture('PROJECT_MANAGER'), {
         route: 'beneficiary',
         beneficiaryId: other,
       }),
@@ -426,7 +428,7 @@ describe('same-request authority and relational object scope', () => {
   it('sanitizes database failure and never returns records, selectors or provider details', async () => {
     tx.project.findFirst.mockRejectedValue(new Error('private-provider-detail'))
     await expect(
-      service.check(fixture('SYSTEM_ADMINISTRATOR'), { route: 'project', projectId: id }),
+      service.check(fixture('PROJECT_MANAGER'), { route: 'project', projectId: id }),
     ).rejects.toMatchObject({
       status: 503,
       message: 'Route verification is temporarily unavailable.',

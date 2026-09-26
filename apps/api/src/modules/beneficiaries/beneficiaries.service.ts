@@ -972,48 +972,19 @@ export class BeneficiariesService {
         const project = await this.requireProject(tx, actor, projectId)
         if (!UUID_PATTERN.test(beneficiaryId))
           throw new NotFoundException('Beneficiary unavailable.')
-        const beneficiary = await tx.beneficiary.findFirst({
-          where: {
-            id: beneficiaryId.toLowerCase(),
-            organizationId: actor.organizationId,
-            archivedAt: null,
-          },
-          select: {
-            id: true,
-            beneficiaryProjectEnrollment_beneficiary: {
-              where: { organizationId: actor.organizationId, projectId: project.id },
-              select: { id: true },
-              take: 1,
-            },
-          },
-        })
-        if (!beneficiary) throw new NotFoundException('Beneficiary unavailable.')
-        if (
-          beneficiary.beneficiaryProjectEnrollment_beneficiary.length === 0 &&
-          !hasAtomicPermission(actor.roles[0], actor.permissions, 'beneficiaries.identities.review')
-        ) {
-          throw new NotFoundException('Beneficiary unavailable.')
-        }
         const date = exactDate(input.enrollmentDate, 'enrollmentDate')
         if (!date || date > new Date()) throw new BadRequestException('Enrollment date is invalid.')
-        const enrollment = await tx.beneficiaryProjectEnrollment.upsert({
-          where: {
-            organizationId_projectId_beneficiaryId: {
-              organizationId: actor.organizationId,
-              projectId: project.id,
-              beneficiaryId: beneficiary.id,
-            },
-          },
-          create: {
-            organizationId: actor.organizationId,
-            projectId: project.id,
-            beneficiaryId: beneficiary.id,
-            enrollmentDate: date,
-            recordedById: actor.userId,
-          },
-          update: {},
-          select: { id: true, enrollmentDate: true, status: true },
-        })
+        const [result] = await tx.$queryRaw<
+          Array<{ id: string; enrollment_date: Date; status: string }>
+        >`
+          SELECT * FROM pathways.p09_enroll(${project.id}::uuid, ${beneficiaryId.toLowerCase()}::uuid, ${date}::date)
+        `
+        if (!result) throw new NotFoundException('Beneficiary unavailable.')
+        const enrollment = {
+          id: result.id,
+          enrollmentDate: result.enrollment_date,
+          status: result.status,
+        }
         await tx.auditLog.create({
           data: {
             organizationId: actor.organizationId,
@@ -1022,7 +993,7 @@ export class BeneficiariesService {
             action: 'BENEFICIARY_ENROLLMENT_ENSURED',
             entityType: 'BeneficiaryProjectEnrollment',
             entityId: enrollment.id,
-            changes: { beneficiaryId: beneficiary.id },
+            changes: { beneficiaryId: beneficiaryId.toLowerCase() },
           },
         })
         return {

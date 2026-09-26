@@ -607,7 +607,7 @@ export class ImportsService {
     batchId: string,
     input: ValidateImportDto,
   ) {
-    return withAuthorizedOperation(this.prisma, identity, 'imports.review', async (tx, actor) => {
+    return withAuthorizedOperation(this.prisma, identity, 'imports.validate', async (tx, actor) => {
       await this.lockBatch(tx, actor, projectId, batchId)
       const batch = await this.requireBatchWithHeaders(tx, actor, projectId, batchId)
       if (batch.mappingRevision !== input.expectedMappingRevision || batch.mappingRevision < 1) {

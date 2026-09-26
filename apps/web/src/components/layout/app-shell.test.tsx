@@ -10,7 +10,7 @@ const access = vi.hoisted(() => ({
   role: 'System Administrator',
   profile: {
     roles: ['SYSTEM_ADMINISTRATOR'],
-    permissions: ['projects.read', 'settings.read'],
+    permissions: ['projects.read', 'settings.read', 'profile.manage'],
     assignedProjectIds: [] as string[],
   },
 }))
@@ -36,7 +36,7 @@ describe('account menu profile access', () => {
   beforeEach(() => {
     access.role = 'System Administrator'
     access.profile.roles = ['SYSTEM_ADMINISTRATOR']
-    access.profile.permissions = ['projects.read', 'settings.read']
+    access.profile.permissions = ['projects.read', 'settings.read', 'profile.manage']
   })
 
   afterEach(() => cleanup())

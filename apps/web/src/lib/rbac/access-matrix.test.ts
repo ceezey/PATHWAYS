@@ -19,23 +19,23 @@ describe('RBAC matrix', () => {
     ['Project Officer', 'analytics.view', false],
     ['Project Officer', 'reports.view', true],
     ['Project Officer', 'reports.beneficiary_summary.view', true],
-    ['Project Officer', 'reports.project_summary.view', false],
-    ['Project Officer', 'reports.indicator_summary.view', false],
+    ['Project Officer', 'reports.project_summary.view', true],
+    ['Project Officer', 'reports.indicator_summary.view', true],
     ['Monitoring and Evaluation Officer', 'budget.expense.verify', true],
-    ['Monitoring and Evaluation Officer', 'alerts.outcome.log', false],
+    ['Monitoring and Evaluation Officer', 'alerts.outcome.log', true],
     ['Monitoring and Evaluation Officer', 'alerts.view', true],
     ['Monitoring and Evaluation Officer', 'alerts.review', true],
     ['Monitoring and Evaluation Officer', 'alerts.outcome.record', true],
     ['Monitoring and Evaluation Officer', 'recommendations.view', true],
     ['Monitoring and Evaluation Officer', 'recommendations.review', true],
     ['Monitoring and Evaluation Officer', 'recommendations.outcome.record', true],
-    ['Project Officer', 'rules.view', true],
-    ['Project Officer', 'alerts.view', true],
-    ['Project Officer', 'alerts.review', true],
-    ['Project Officer', 'alerts.outcome.record', true],
-    ['Project Officer', 'recommendations.view', true],
-    ['Project Officer', 'recommendations.review', true],
-    ['Project Officer', 'recommendations.outcome.record', true],
+    ['Project Officer', 'rules.view', false],
+    ['Project Officer', 'alerts.view', false],
+    ['Project Officer', 'alerts.review', false],
+    ['Project Officer', 'alerts.outcome.record', false],
+    ['Project Officer', 'recommendations.view', false],
+    ['Project Officer', 'recommendations.review', false],
+    ['Project Officer', 'recommendations.outcome.record', false],
     ['Monitoring and Evaluation Officer', 'settings.users.manage', false],
     ['Monitoring and Evaluation Officer', 'indicators.manage', true],
     ['Project Manager', 'indicators.manage', true],
@@ -45,10 +45,10 @@ describe('RBAC matrix', () => {
     ['Project Manager', 'evaluation.formal.submit', false],
     ['Project Manager', 'settings.users.manage', true],
     ['Program Manager', 'budget.portfolio_view', true],
-    ['Program Manager', 'activities.view', true],
-    ['Program Manager', 'collection.view', true],
+    ['Program Manager', 'activities.view', false],
+    ['Program Manager', 'collection.view', false],
     ['Program Manager', 'transparency.preview', true],
-    ['Program Manager', 'transparency.publish', false],
+    ['Program Manager', 'transparency.publish', true],
     ['Program Manager', 'settings.users.manage', true],
     ['System Administrator', 'rules.configure', true],
     ['System Administrator', 'collection.view', true],
@@ -62,7 +62,7 @@ describe('RBAC matrix', () => {
     ['Grant Manager', 'reports.beneficiary_summary.view', false],
     ['Grant Manager', 'activities.view', false],
     ['Grant Manager', 'collection.view', false],
-    ['Grant Manager', 'settings.view', false],
+    ['Grant Manager', 'settings.view', true],
     ['Grant Manager', 'settings.users.manage', false],
   ] as const)('%s permission %s is %s', (role, permission, expected) => {
     expect(can(role, permission)).toBe(expected)
@@ -71,13 +71,14 @@ describe('RBAC matrix', () => {
   it('encodes the exact project, Beneficiary, and assignment scope for every role', () => {
     expect(roleAccessProfiles['System Administrator']).toMatchObject({
       projectAccess: 'organization',
-      beneficiaryDataAccess: 'all-records',
+      beneficiaryDataAccess: 'aggregate-only',
       userAdministration: {
         createAndAuthorizeRoles: pathwaysRoles,
         projectAssignmentRoles: [
           'Project Manager',
           'Project Officer',
           'Monitoring and Evaluation Officer',
+          'Grant Manager',
         ],
         projectAssignmentScope: 'all-projects',
       },
@@ -95,7 +96,7 @@ describe('RBAC matrix', () => {
       projectAccess: 'assigned-projects',
       beneficiaryDataAccess: 'assigned-project-records',
       userAdministration: {
-        createAndAuthorizeRoles: ['Project Officer', 'Monitoring and Evaluation Officer'],
+        createAndAuthorizeRoles: ['Monitoring and Evaluation Officer', 'Project Officer'],
         projectAssignmentRoles: ['Project Officer', 'Monitoring and Evaluation Officer'],
         projectAssignmentScope: 'assigned-projects',
       },
@@ -120,7 +121,7 @@ describe('RBAC matrix', () => {
     })
     expect(roleAccessProfiles['Grant Manager']).toMatchObject({
       role: 'Grant Manager',
-      projectAccess: 'portfolio',
+      projectAccess: 'assigned-projects',
       beneficiaryDataAccess: 'aggregate-only',
       userAdministration: {
         createAndAuthorizeRoles: [],
@@ -142,8 +143,8 @@ describe('RBAC matrix', () => {
     ).toEqual(['Monitoring and Evaluation Officer', 'Project Officer'])
 
     for (const role of [
-      'Project Officer',
       'Monitoring and Evaluation Officer',
+      'Project Officer',
       'Grant Manager',
     ] as const) {
       expect(pathwaysRoles.some((targetRole) => canCreateOrAuthorizeRole(role, targetRole))).toBe(
@@ -158,9 +159,9 @@ describe('RBAC matrix', () => {
       const visiblePaths = filterDashboardNavGroups(createDashboardNavGroups(), role).flatMap(
         (group) => group.items.map((item) => item.href),
       )
-      expect(visiblePaths).toContain('/alerts')
-      expect(visiblePaths).toContain('/alerts/repository')
-      expect(can(role, 'rules.view')).toBe(true)
+      expect(visiblePaths.includes('/alerts')).toBe(role === 'Monitoring and Evaluation Officer')
+      expect(visiblePaths).not.toContain('/alerts/repository')
+      expect(can(role, 'rules.view')).toBe(false)
       expect(can(role, 'rules.configure')).toBe(false)
     },
   )
@@ -173,7 +174,7 @@ describe('RBAC matrix', () => {
 
     expect(pathsFor('Program Manager')).toContain('/transparency')
     expect(pathsFor('Project Manager')).toContain('/transparency')
-    expect(pathsFor('Grant Manager')).not.toContain('/transparency')
+    expect(pathsFor('Grant Manager')).toContain('/transparency')
     expect(pathsFor('System Administrator')).toEqual(
       expect.arrayContaining(['/settings/audit', '/settings/backups']),
     )
@@ -209,8 +210,8 @@ describe('RBAC matrix', () => {
     expect(canConfigureProjectAssignmentsForRole('Project Manager', 'Project Manager')).toBe(false)
 
     for (const role of [
-      'Project Officer',
       'Monitoring and Evaluation Officer',
+      'Project Officer',
       'Grant Manager',
     ] as const) {
       expect(canConfigureProjectAssignmentsForRole(role, 'Project Manager')).toBe(false)
@@ -228,7 +229,7 @@ describe('RBAC matrix', () => {
         '/projects/10000000-0000-4000-8000-000000000001/activities',
       ),
     ).toMatchObject({
-      allowed: true,
+      allowed: false,
       moduleName: 'Activities',
     })
     expect(
@@ -240,20 +241,21 @@ describe('RBAC matrix', () => {
       allowed: false,
       moduleName: 'Monitor & Evaluate',
     })
-    expect(getRouteAccess('Monitoring and Evaluation Officer', '/alerts/repository')).toMatchObject(
-      {
-        allowed: true,
-        moduleName: 'Alerts Repository',
-      },
-    )
-    expect(getRouteAccess('Project Officer', '/alerts/repository')).toMatchObject({
+    expect(getRouteAccess('System Administrator', '/alerts/repository')).toMatchObject({
       allowed: true,
       moduleName: 'Alerts Repository',
     })
+    expect(getRouteAccess('Project Officer', '/alerts/repository')).toMatchObject({
+      allowed: false,
+      moduleName: 'Alerts Repository',
+    })
     for (const role of ['Monitoring and Evaluation Officer', 'Project Officer'] as const) {
-      expect(getRouteAccess(role, '/alerts')).toMatchObject({ allowed: true, moduleName: 'Alerts' })
+      expect(getRouteAccess(role, '/alerts')).toMatchObject({
+        allowed: role !== 'Project Officer',
+        moduleName: 'Alerts',
+      })
       expect(getRouteAccess(role, '/recommendations')).toMatchObject({
-        allowed: true,
+        allowed: role !== 'Project Officer',
         moduleName: 'Recommendations',
       })
     }
@@ -313,10 +315,10 @@ describe('RBAC matrix', () => {
     }
   })
 
-  it('allows the System Administrator to open every project summary route', () => {
+  it('denies administrator detail screens while retaining supporting project context', () => {
     for (const projectId of testProjectIds) {
       expect(getRouteAccess('System Administrator', `/projects/${projectId}`)).toMatchObject({
-        allowed: true,
+        allowed: false,
         moduleName: 'Projects',
       })
     }
@@ -372,11 +374,11 @@ describe('RBAC matrix', () => {
       moduleName: 'User Management',
     })
     expect(getRouteAccess('Grant Manager', '/alerts')).toMatchObject({
-      allowed: false,
+      allowed: true,
       moduleName: 'Alerts',
     })
     expect(getRouteAccess('Grant Manager', '/recommendations')).toMatchObject({
-      allowed: false,
+      allowed: true,
       moduleName: 'Recommendations',
     })
   })
@@ -439,11 +441,11 @@ describe('RBAC matrix', () => {
       moduleName: 'Beneficiary Summary',
     })
     expect(getRouteAccess('Project Officer', '/reports/project-summary')).toMatchObject({
-      allowed: false,
+      allowed: true,
       moduleName: 'Project Summary',
     })
     expect(getRouteAccess('Project Officer', '/reports/indicator-summary')).toMatchObject({
-      allowed: false,
+      allowed: true,
       moduleName: 'Indicator Summary',
     })
     expect(getRouteAccess('Project Officer', '/reports/survey-results')).toMatchObject({
@@ -458,7 +460,7 @@ describe('RBAC matrix', () => {
       requiresBeneficiaryStepUp: false,
     })
     expect(getRouteAccess('System Administrator', '/beneficiaries')).toMatchObject({
-      allowed: true,
+      allowed: false,
       requiresBeneficiaryStepUp: false,
     })
     expect(
@@ -473,8 +475,6 @@ describe('RBAC matrix', () => {
   })
 
   it.each([
-    'Program Manager',
-    'Project Manager',
     'Monitoring and Evaluation Officer',
     'Project Officer',
     'System Administrator',
@@ -487,7 +487,7 @@ describe('RBAC matrix', () => {
 
   it('keeps label settings in the System Administrator area', () => {
     expect(getRouteAccess('System Administrator', '/settings/labels')).toMatchObject({
-      allowed: true,
+      allowed: false,
       moduleName: 'Edit Labels',
     })
     expect(getRouteAccess('Program Manager', '/settings/labels')).toMatchObject({
@@ -505,8 +505,8 @@ describe('RBAC matrix', () => {
     }
 
     for (const role of [
-      'Project Officer',
       'Monitoring and Evaluation Officer',
+      'Project Officer',
       'Grant Manager',
     ] as const) {
       expect(getRouteAccess(role, '/settings/users')).toMatchObject({

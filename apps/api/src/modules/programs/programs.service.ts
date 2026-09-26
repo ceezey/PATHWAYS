@@ -44,7 +44,7 @@ export class ProgramsService {
   }
 
   create(identity: ApplicationIdentity, input: CreateProgramDto) {
-    return withAuthorizedOperation(this.prisma, identity, 'projects.create', async (tx, actor) => {
+    return withAuthorizedOperation(this.prisma, identity, 'programs.create', async (tx, actor) => {
       if (actor.roles[0] !== 'SYSTEM_ADMINISTRATOR') {
         throw new ForbiddenException('Program creation requires System Administrator authority.')
       }

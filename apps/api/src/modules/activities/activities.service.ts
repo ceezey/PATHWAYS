@@ -415,7 +415,7 @@ export class ActivitiesService {
     journeyStageId: string | null | undefined,
   ) {
     if (journeyStageId === undefined || journeyStageId === null) return journeyStageId
-    if (!hasAtomicPermission(actor.roles[0], actor.permissions, 'journeys.manage')) {
+    if (!hasAtomicPermission(actor.roles[0], actor.permissions, 'journeys.read')) {
       throw new ForbiddenException('Journey-stage link authority is missing.')
     }
     const id = journeyStageId.toLowerCase()
@@ -843,7 +843,7 @@ export class ActivitiesService {
     return withAuthorizedOperation(
       this.prisma,
       identity,
-      'activities.update',
+      input.status === 'IN_PROGRESS' ? 'activities.complete' : 'activities.update',
       async (tx, actor) => {
         const current = await this.requireActivity(tx, actor, projectId, activityId)
         const expected = new Date(input.expectedUpdatedAt)
@@ -1233,7 +1233,7 @@ export class ActivitiesService {
     return withAuthorizedOperation(
       this.prisma,
       identity,
-      'activities.update',
+      'milestones.manage',
       async (tx, actor) => {
         const project = await this.requireProject(tx, actor, projectId)
         if (input.targetDate) {
@@ -1272,7 +1272,7 @@ export class ActivitiesService {
     return withAuthorizedOperation(
       this.prisma,
       identity,
-      'activities.update',
+      'milestones.manage',
       async (tx, actor) => {
         const project = await this.requireProject(tx, actor, projectId)
         if (!UUID_PATTERN.test(milestoneId)) throw new NotFoundException('Milestone unavailable.')

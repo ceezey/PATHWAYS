@@ -23,13 +23,13 @@ export class IndicatorsController {
   constructor(@Inject(IndicatorsService) private readonly service: IndicatorsService) {}
   @Get()
   @Header('Cache-Control', 'private, no-store')
-  @RequirePermission('monitoring.read')
+  @RequirePermission('indicators.read')
   list(@Req() request: AuthenticatedRequest, @Param('projectId') projectId: string) {
     return this.service.list(identity(request), projectId)
   }
   @Get(':indicatorId')
   @Header('Cache-Control', 'private, no-store')
-  @RequirePermission('monitoring.read')
+  @RequirePermission('indicators.read')
   get(
     @Req() request: AuthenticatedRequest,
     @Param('projectId') projectId: string,
@@ -71,7 +71,7 @@ export class IndicatorsController {
   }
   @Post(':indicatorId/archive')
   @Header('Cache-Control', 'private, no-store')
-  @RequirePermission('indicators.update')
+  @RequirePermission('indicators.archive')
   archive(
     @Req() request: AuthenticatedRequest,
     @Param('projectId') projectId: string,

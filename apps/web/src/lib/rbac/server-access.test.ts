@@ -288,8 +288,8 @@ describe('finite route and feature contract', () => {
   })
   it('requires active grants and current assignment, never a role string alone', () => {
     const principal = {
-      roles: ['PROJECT_OFFICER'],
-      permissions: ['projects.read'],
+      roles: ['PROJECT_MANAGER'],
+      permissions: ['projects.read', 'projects.detail.read'],
       assignedProjectIds: [id],
     }
     expect(routeAllowed(principal, { route: 'project', projectId: id })).toBe(true)
@@ -316,7 +316,7 @@ describe('finite route and feature contract', () => {
     expect(routeAllowed(principal('PROJECT_MANAGER'), projectEdit)).toBe(true)
     expect(routeAllowed(principal('PROGRAM_MANAGER'), projectEdit)).toBe(false)
     expect(routeAllowed(principal('MONITORING_AND_EVALUATION_OFFICER'), beneficiaryEdit)).toBe(true)
-    expect(routeAllowed(principal('PROJECT_OFFICER'), beneficiaryEdit)).toBe(false)
+    expect(routeAllowed(principal('PROJECT_OFFICER'), beneficiaryEdit)).toBe(true)
   })
   it('requires the complete atomic chain for Extend Existing Form', () => {
     const extend = { route: 'imports', mode: 'extend' } as const
@@ -327,7 +327,8 @@ describe('finite route and feature contract', () => {
     })
 
     expect(routeAllowed(principal('MONITORING_AND_EVALUATION_OFFICER'), extend)).toBe(true)
-    for (const role of ['SYSTEM_ADMINISTRATOR', 'PROJECT_MANAGER', 'PROJECT_OFFICER'] as const) {
+    expect(routeAllowed(principal('PROJECT_OFFICER'), extend)).toBe(true)
+    for (const role of ['SYSTEM_ADMINISTRATOR', 'PROJECT_MANAGER'] as const) {
       expect(routeAllowed(principal(role), extend)).toBe(false)
     }
   })

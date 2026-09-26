@@ -1,0 +1,1797 @@
+{
+  "sourceFile": "PATHWAYS - RBAC.csv",
+  "sourceSha256": "f547cc3faf8c2670b1a8bc3ab058c271eba62878bf4fee74c3542a5e6b4f724e",
+  "roles": [
+    "SYSTEM_ADMINISTRATOR",
+    "PROJECT_OFFICER",
+    "MONITORING_AND_EVALUATION_OFFICER",
+    "PROJECT_MANAGER",
+    "PROGRAM_MANAGER",
+    "GRANT_MANAGER"
+  ],
+  "permissionRows": {
+    "projects.detail.read": [62],
+    "projects.create": [52],
+    "projects.update": [53],
+    "projects.archive": [54],
+    "activities.create": [58],
+    "activities.update": [59],
+    "activities.proof.submit": [60],
+    "activities.complete": [5],
+    "journeys.read": [86],
+    "participation.record": [87],
+    "budgets.create": [55],
+    "budgets.update": [56],
+    "budgets.read": [99],
+    "expenses.read": [61, 8],
+    "expenses.submit": [61],
+    "expenses.evidence.submit": [7],
+    "monitoring.read": [94],
+    "monitoring.review": [101],
+    "indicators.read": [65],
+    "indicators.create": [66],
+    "indicators.update": [67],
+    "rules.read": [18],
+    "rules.create": [18],
+    "rules.update": [18],
+    "rules.activate": [117],
+    "alerts.read": [104],
+    "alerts.review": [105],
+    "alerts.outcome.record": [105],
+    "recommendations.read": [106],
+    "recommendations.review": [106],
+    "recommendations.outcome.record": [106],
+    "beneficiaries.records.read": [84],
+    "beneficiaries.records.register": [83],
+    "beneficiaries.profiles.update": [85],
+    "beneficiaries.enrollments.manage": [14],
+    "beneficiaries.aggregates.read": [94],
+    "evaluations.submit": [9],
+    "evaluations.archive": [10],
+    "evaluations.approve": [11],
+    "evaluations.signoff": [12],
+    "assessments.read": [92],
+    "public.preview": [128],
+    "public.approve": [126],
+    "public.publish": [127],
+    "forms.manage": [71],
+    "forms.generate": [16],
+    "forms.export": [73],
+    "forms.import": [74],
+    "submissions.write": [77],
+    "imports.upload": [79],
+    "imports.validate": [78],
+    "imports.review": [80],
+    "analytics.read": [98],
+    "analytics.export": [102],
+    "reports.read": [109],
+    "reports.project.read": [109],
+    "reports.indicator.read": [109],
+    "reports.generate": [111],
+    "reports.export": [112],
+    "users.authorize": [42],
+    "assignments.manage": [46],
+    "audit.read": [47],
+    "settings.configure": [117],
+    "backups.create": [121],
+    "backups.restore": [122],
+    "profile.manage": [38]
+  },
+  "permissions": {
+    "projects.read": [
+      "SYSTEM_ADMINISTRATOR",
+      "PROJECT_OFFICER",
+      "MONITORING_AND_EVALUATION_OFFICER",
+      "PROJECT_MANAGER",
+      "PROGRAM_MANAGER",
+      "GRANT_MANAGER"
+    ],
+    "projects.create": ["PROJECT_MANAGER"],
+    "activities.read": [
+      "SYSTEM_ADMINISTRATOR",
+      "PROJECT_OFFICER",
+      "MONITORING_AND_EVALUATION_OFFICER",
+      "PROJECT_MANAGER"
+    ],
+    "activities.create": ["PROJECT_MANAGER", "PROJECT_OFFICER"],
+    "activities.update": ["PROJECT_MANAGER", "PROJECT_OFFICER"],
+    "activities.proof.submit": ["PROJECT_MANAGER", "PROJECT_OFFICER"],
+    "journeys.read": ["MONITORING_AND_EVALUATION_OFFICER", "PROJECT_MANAGER", "PROJECT_OFFICER"],
+    "journeys.manage": [],
+    "participation.record": [
+      "MONITORING_AND_EVALUATION_OFFICER",
+      "PROJECT_MANAGER",
+      "PROJECT_OFFICER"
+    ],
+    "budgets.read": [
+      "GRANT_MANAGER",
+      "MONITORING_AND_EVALUATION_OFFICER",
+      "PROGRAM_MANAGER",
+      "PROJECT_MANAGER",
+      "SYSTEM_ADMINISTRATOR"
+    ],
+    "budgets.create": ["GRANT_MANAGER", "PROGRAM_MANAGER", "PROJECT_MANAGER"],
+    "budgets.update": ["GRANT_MANAGER", "PROGRAM_MANAGER", "PROJECT_MANAGER"],
+    "expenses.read": [
+      "GRANT_MANAGER",
+      "MONITORING_AND_EVALUATION_OFFICER",
+      "PROGRAM_MANAGER",
+      "PROJECT_MANAGER",
+      "PROJECT_OFFICER"
+    ],
+    "expenses.submit": ["MONITORING_AND_EVALUATION_OFFICER", "PROJECT_MANAGER", "PROJECT_OFFICER"],
+    "expenses.verify": ["MONITORING_AND_EVALUATION_OFFICER"],
+    "expenses.approve": ["PROJECT_MANAGER"],
+    "monitoring.read": [
+      "GRANT_MANAGER",
+      "MONITORING_AND_EVALUATION_OFFICER",
+      "PROGRAM_MANAGER",
+      "PROJECT_MANAGER",
+      "SYSTEM_ADMINISTRATOR"
+    ],
+    "monitoring.review": [
+      "GRANT_MANAGER",
+      "MONITORING_AND_EVALUATION_OFFICER",
+      "PROGRAM_MANAGER",
+      "PROJECT_MANAGER",
+      "SYSTEM_ADMINISTRATOR"
+    ],
+    "rules.read": ["SYSTEM_ADMINISTRATOR"],
+    "rules.create": ["SYSTEM_ADMINISTRATOR"],
+    "rules.update": ["SYSTEM_ADMINISTRATOR"],
+    "rules.activate": ["SYSTEM_ADMINISTRATOR"],
+    "alerts.read": [
+      "GRANT_MANAGER",
+      "MONITORING_AND_EVALUATION_OFFICER",
+      "PROGRAM_MANAGER",
+      "PROJECT_MANAGER",
+      "SYSTEM_ADMINISTRATOR"
+    ],
+    "alerts.review": [
+      "GRANT_MANAGER",
+      "MONITORING_AND_EVALUATION_OFFICER",
+      "PROGRAM_MANAGER",
+      "PROJECT_MANAGER",
+      "SYSTEM_ADMINISTRATOR"
+    ],
+    "alerts.outcome.record": [
+      "GRANT_MANAGER",
+      "MONITORING_AND_EVALUATION_OFFICER",
+      "PROGRAM_MANAGER",
+      "PROJECT_MANAGER",
+      "SYSTEM_ADMINISTRATOR"
+    ],
+    "recommendations.read": [
+      "GRANT_MANAGER",
+      "MONITORING_AND_EVALUATION_OFFICER",
+      "PROGRAM_MANAGER",
+      "PROJECT_MANAGER",
+      "SYSTEM_ADMINISTRATOR"
+    ],
+    "recommendations.review": [
+      "GRANT_MANAGER",
+      "MONITORING_AND_EVALUATION_OFFICER",
+      "PROGRAM_MANAGER",
+      "PROJECT_MANAGER",
+      "SYSTEM_ADMINISTRATOR"
+    ],
+    "beneficiaries.records.read": [
+      "MONITORING_AND_EVALUATION_OFFICER",
+      "PROJECT_MANAGER",
+      "PROJECT_OFFICER"
+    ],
+    "beneficiaries.records.register": [
+      "MONITORING_AND_EVALUATION_OFFICER",
+      "PROJECT_MANAGER",
+      "PROJECT_OFFICER"
+    ],
+    "beneficiaries.profiles.update": [
+      "MONITORING_AND_EVALUATION_OFFICER",
+      "PROJECT_MANAGER",
+      "PROJECT_OFFICER"
+    ],
+    "beneficiaries.enrollments.manage": [
+      "MONITORING_AND_EVALUATION_OFFICER",
+      "PROJECT_OFFICER",
+      "SYSTEM_ADMINISTRATOR"
+    ],
+    "beneficiaries.identities.review": [],
+    "beneficiaries.records.archive": [],
+    "beneficiaries.aggregates.read": [
+      "GRANT_MANAGER",
+      "MONITORING_AND_EVALUATION_OFFICER",
+      "PROGRAM_MANAGER",
+      "PROJECT_MANAGER",
+      "SYSTEM_ADMINISTRATOR"
+    ],
+    "recommendations.outcome.record": [
+      "GRANT_MANAGER",
+      "MONITORING_AND_EVALUATION_OFFICER",
+      "PROGRAM_MANAGER",
+      "PROJECT_MANAGER",
+      "SYSTEM_ADMINISTRATOR"
+    ],
+    "evaluations.submit": ["MONITORING_AND_EVALUATION_OFFICER"],
+    "evaluations.approve": ["PROJECT_MANAGER"],
+    "public.preview": [
+      "GRANT_MANAGER",
+      "PROGRAM_MANAGER",
+      "PROJECT_MANAGER",
+      "SYSTEM_ADMINISTRATOR"
+    ],
+    "public.publish": [
+      "GRANT_MANAGER",
+      "PROGRAM_MANAGER",
+      "PROJECT_MANAGER",
+      "SYSTEM_ADMINISTRATOR"
+    ],
+    "evidence.review": ["MONITORING_AND_EVALUATION_OFFICER"],
+    "indicators.create": [
+      "MONITORING_AND_EVALUATION_OFFICER",
+      "PROJECT_MANAGER",
+      "SYSTEM_ADMINISTRATOR"
+    ],
+    "indicators.update": [
+      "MONITORING_AND_EVALUATION_OFFICER",
+      "PROJECT_MANAGER",
+      "SYSTEM_ADMINISTRATOR"
+    ],
+    "collection.read": [
+      "SYSTEM_ADMINISTRATOR",
+      "PROJECT_OFFICER",
+      "MONITORING_AND_EVALUATION_OFFICER"
+    ],
+    "forms.read": [
+      "SYSTEM_ADMINISTRATOR",
+      "PROJECT_OFFICER",
+      "MONITORING_AND_EVALUATION_OFFICER",
+      "PROJECT_MANAGER",
+      "PROGRAM_MANAGER",
+      "GRANT_MANAGER"
+    ],
+    "forms.manage": ["MONITORING_AND_EVALUATION_OFFICER", "PROJECT_OFFICER"],
+    "forms.publish": ["PROJECT_OFFICER", "MONITORING_AND_EVALUATION_OFFICER"],
+    "submissions.write": ["MONITORING_AND_EVALUATION_OFFICER", "PROJECT_OFFICER"],
+    "imports.read": [
+      "SYSTEM_ADMINISTRATOR",
+      "PROJECT_OFFICER",
+      "MONITORING_AND_EVALUATION_OFFICER"
+    ],
+    "imports.upload": [
+      "MONITORING_AND_EVALUATION_OFFICER",
+      "PROJECT_OFFICER",
+      "SYSTEM_ADMINISTRATOR"
+    ],
+    "imports.review": ["MONITORING_AND_EVALUATION_OFFICER", "SYSTEM_ADMINISTRATOR"],
+    "imports.process": [
+      "SYSTEM_ADMINISTRATOR",
+      "PROJECT_OFFICER",
+      "MONITORING_AND_EVALUATION_OFFICER"
+    ],
+    "analytics.read": [
+      "GRANT_MANAGER",
+      "MONITORING_AND_EVALUATION_OFFICER",
+      "PROGRAM_MANAGER",
+      "PROJECT_MANAGER",
+      "SYSTEM_ADMINISTRATOR"
+    ],
+    "reports.read": [
+      "GRANT_MANAGER",
+      "MONITORING_AND_EVALUATION_OFFICER",
+      "PROGRAM_MANAGER",
+      "PROJECT_MANAGER",
+      "PROJECT_OFFICER",
+      "SYSTEM_ADMINISTRATOR"
+    ],
+    "reports.project.read": [
+      "GRANT_MANAGER",
+      "MONITORING_AND_EVALUATION_OFFICER",
+      "PROGRAM_MANAGER",
+      "PROJECT_MANAGER",
+      "PROJECT_OFFICER",
+      "SYSTEM_ADMINISTRATOR"
+    ],
+    "reports.indicator.read": [
+      "GRANT_MANAGER",
+      "MONITORING_AND_EVALUATION_OFFICER",
+      "PROGRAM_MANAGER",
+      "PROJECT_MANAGER",
+      "PROJECT_OFFICER",
+      "SYSTEM_ADMINISTRATOR"
+    ],
+    "reports.beneficiary.read": [
+      "PROJECT_OFFICER",
+      "MONITORING_AND_EVALUATION_OFFICER",
+      "PROJECT_MANAGER"
+    ],
+    "users.authorize": ["PROGRAM_MANAGER", "PROJECT_MANAGER", "SYSTEM_ADMINISTRATOR"],
+    "assignments.manage": ["PROGRAM_MANAGER", "PROJECT_MANAGER", "SYSTEM_ADMINISTRATOR"],
+    "settings.read": [
+      "SYSTEM_ADMINISTRATOR",
+      "PROJECT_OFFICER",
+      "MONITORING_AND_EVALUATION_OFFICER",
+      "PROJECT_MANAGER",
+      "PROGRAM_MANAGER",
+      "GRANT_MANAGER"
+    ],
+    "projects.detail.read": [
+      "GRANT_MANAGER",
+      "MONITORING_AND_EVALUATION_OFFICER",
+      "PROGRAM_MANAGER",
+      "PROJECT_MANAGER"
+    ],
+    "projects.update": ["PROJECT_MANAGER"],
+    "projects.archive": [
+      "GRANT_MANAGER",
+      "PROGRAM_MANAGER",
+      "PROJECT_MANAGER",
+      "SYSTEM_ADMINISTRATOR"
+    ],
+    "activities.complete": [
+      "MONITORING_AND_EVALUATION_OFFICER",
+      "PROJECT_MANAGER",
+      "PROJECT_OFFICER",
+      "SYSTEM_ADMINISTRATOR"
+    ],
+    "expenses.evidence.submit": ["PROJECT_OFFICER"],
+    "indicators.read": [
+      "MONITORING_AND_EVALUATION_OFFICER",
+      "PROJECT_MANAGER",
+      "SYSTEM_ADMINISTRATOR"
+    ],
+    "evaluations.archive": ["MONITORING_AND_EVALUATION_OFFICER"],
+    "evaluations.signoff": ["GRANT_MANAGER", "PROGRAM_MANAGER"],
+    "assessments.read": [
+      "GRANT_MANAGER",
+      "MONITORING_AND_EVALUATION_OFFICER",
+      "PROGRAM_MANAGER",
+      "PROJECT_MANAGER",
+      "PROJECT_OFFICER",
+      "SYSTEM_ADMINISTRATOR"
+    ],
+    "public.approve": [
+      "GRANT_MANAGER",
+      "PROGRAM_MANAGER",
+      "PROJECT_MANAGER",
+      "SYSTEM_ADMINISTRATOR"
+    ],
+    "forms.generate": [
+      "GRANT_MANAGER",
+      "MONITORING_AND_EVALUATION_OFFICER",
+      "PROGRAM_MANAGER",
+      "PROJECT_MANAGER",
+      "PROJECT_OFFICER",
+      "SYSTEM_ADMINISTRATOR"
+    ],
+    "forms.export": ["MONITORING_AND_EVALUATION_OFFICER", "PROJECT_OFFICER"],
+    "forms.import": ["MONITORING_AND_EVALUATION_OFFICER", "PROJECT_OFFICER"],
+    "imports.validate": [
+      "MONITORING_AND_EVALUATION_OFFICER",
+      "PROJECT_OFFICER",
+      "SYSTEM_ADMINISTRATOR"
+    ],
+    "analytics.export": [
+      "GRANT_MANAGER",
+      "MONITORING_AND_EVALUATION_OFFICER",
+      "PROGRAM_MANAGER",
+      "PROJECT_MANAGER",
+      "SYSTEM_ADMINISTRATOR"
+    ],
+    "reports.generate": [
+      "GRANT_MANAGER",
+      "MONITORING_AND_EVALUATION_OFFICER",
+      "PROGRAM_MANAGER",
+      "PROJECT_MANAGER",
+      "PROJECT_OFFICER",
+      "SYSTEM_ADMINISTRATOR"
+    ],
+    "reports.export": [
+      "GRANT_MANAGER",
+      "MONITORING_AND_EVALUATION_OFFICER",
+      "PROGRAM_MANAGER",
+      "PROJECT_MANAGER",
+      "PROJECT_OFFICER",
+      "SYSTEM_ADMINISTRATOR"
+    ],
+    "audit.read": ["PROGRAM_MANAGER", "PROJECT_MANAGER", "SYSTEM_ADMINISTRATOR"],
+    "settings.configure": ["SYSTEM_ADMINISTRATOR"],
+    "backups.create": ["SYSTEM_ADMINISTRATOR"],
+    "backups.restore": ["SYSTEM_ADMINISTRATOR"],
+    "profile.manage": [
+      "GRANT_MANAGER",
+      "MONITORING_AND_EVALUATION_OFFICER",
+      "PROGRAM_MANAGER",
+      "PROJECT_MANAGER",
+      "PROJECT_OFFICER",
+      "SYSTEM_ADMINISTRATOR"
+    ],
+    "expenses.signoff": ["PROGRAM_MANAGER", "GRANT_MANAGER"],
+    "programs.create": [],
+    "settings.labels.manage": [],
+    "assessments.detail.read": [
+      "SYSTEM_ADMINISTRATOR",
+      "PROJECT_OFFICER",
+      "MONITORING_AND_EVALUATION_OFFICER",
+      "PROJECT_MANAGER"
+    ],
+    "forms.archive": [],
+    "indicators.archive": [],
+    "milestones.manage": []
+  },
+  "rows": [
+    {
+      "row": 2,
+      "action": "Create New Project",
+      "roles": ["SYSTEM_ADMINISTRATOR", "PROJECT_MANAGER"],
+      "permissions": ["projects.create"],
+      "precedence": "overview",
+      "scope": "organization / managed-program-or-assignment / explicit-assignment, according to canonical role",
+      "disposition": "Detailed rows override conflicting overview grants; effective role grants are in permissions"
+    },
+    {
+      "row": 3,
+      "action": "Add new indicator",
+      "roles": ["SYSTEM_ADMINISTRATOR", "MONITORING_AND_EVALUATION_OFFICER", "PROJECT_MANAGER"],
+      "permissions": ["indicators.create"],
+      "precedence": "overview",
+      "scope": "organization / managed-program-or-assignment / explicit-assignment, according to canonical role",
+      "disposition": "Detailed rows override conflicting overview grants; effective role grants are in permissions"
+    },
+    {
+      "row": 4,
+      "action": "Create New Activity",
+      "roles": ["MONITORING_AND_EVALUATION_OFFICER", "PROJECT_MANAGER"],
+      "permissions": ["activities.create"],
+      "precedence": "overview",
+      "scope": "organization / managed-program-or-assignment / explicit-assignment, according to canonical role",
+      "disposition": "Detailed rows override conflicting overview grants; effective role grants are in permissions"
+    },
+    {
+      "row": 5,
+      "action": "Accomplish Activities",
+      "roles": [
+        "SYSTEM_ADMINISTRATOR",
+        "PROJECT_OFFICER",
+        "MONITORING_AND_EVALUATION_OFFICER",
+        "PROJECT_MANAGER"
+      ],
+      "permissions": ["activities.complete"],
+      "precedence": "overview",
+      "scope": "organization / managed-program-or-assignment / explicit-assignment, according to canonical role",
+      "disposition": "Detailed rows override conflicting overview grants; effective role grants are in permissions"
+    },
+    {
+      "row": 6,
+      "action": "Import Dataset",
+      "roles": [
+        "SYSTEM_ADMINISTRATOR",
+        "PROJECT_OFFICER",
+        "MONITORING_AND_EVALUATION_OFFICER",
+        "PROJECT_MANAGER"
+      ],
+      "permissions": ["imports.upload", "imports.validate", "imports.process"],
+      "precedence": "overview",
+      "scope": "organization / managed-program-or-assignment / explicit-assignment, according to canonical role",
+      "disposition": "Detailed rows override conflicting overview grants; effective role grants are in permissions"
+    },
+    {
+      "row": 7,
+      "action": "Add Financial Evidence",
+      "roles": ["PROJECT_OFFICER"],
+      "permissions": ["expenses.evidence.submit"],
+      "precedence": "overview",
+      "scope": "organization / managed-program-or-assignment / explicit-assignment, according to canonical role",
+      "disposition": "Detailed rows override conflicting overview grants; effective role grants are in permissions"
+    },
+    {
+      "row": 8,
+      "action": "Approve Financial Evidence",
+      "roles": [
+        "MONITORING_AND_EVALUATION_OFFICER",
+        "PROJECT_MANAGER",
+        "PROGRAM_MANAGER",
+        "GRANT_MANAGER"
+      ],
+      "permissions": ["expenses.verify", "expenses.approve", "expenses.signoff"],
+      "precedence": "overview",
+      "scope": "organization / managed-program-or-assignment / explicit-assignment, according to canonical role",
+      "disposition": "Detailed rows override conflicting overview grants; effective role grants are in permissions"
+    },
+    {
+      "row": 9,
+      "action": "M&E Evaluator Checklist",
+      "roles": ["MONITORING_AND_EVALUATION_OFFICER"],
+      "permissions": ["evaluations.submit"],
+      "precedence": "overview",
+      "scope": "organization / managed-program-or-assignment / explicit-assignment, according to canonical role",
+      "disposition": "Detailed rows override conflicting overview grants; effective role grants are in permissions"
+    },
+    {
+      "row": 10,
+      "action": "Save and archive to evaluation library",
+      "roles": ["MONITORING_AND_EVALUATION_OFFICER"],
+      "permissions": ["evaluations.archive"],
+      "precedence": "overview",
+      "scope": "organization / managed-program-or-assignment / explicit-assignment, according to canonical role",
+      "disposition": "Detailed rows override conflicting overview grants; effective role grants are in permissions"
+    },
+    {
+      "row": 11,
+      "action": "Project Manager Approval",
+      "roles": ["PROJECT_MANAGER"],
+      "permissions": ["evaluations.approve"],
+      "precedence": "overview",
+      "scope": "organization / managed-program-or-assignment / explicit-assignment, according to canonical role",
+      "disposition": "Detailed rows override conflicting overview grants; effective role grants are in permissions"
+    },
+    {
+      "row": 12,
+      "action": "Program Directory & Sign",
+      "roles": ["PROGRAM_MANAGER", "GRANT_MANAGER"],
+      "permissions": ["evaluations.signoff"],
+      "precedence": "overview",
+      "scope": "organization / managed-program-or-assignment / explicit-assignment, according to canonical role",
+      "disposition": "Detailed rows override conflicting overview grants; effective role grants are in permissions"
+    },
+    {
+      "row": 13,
+      "action": "Add Beneficiary",
+      "roles": ["SYSTEM_ADMINISTRATOR", "PROJECT_OFFICER", "MONITORING_AND_EVALUATION_OFFICER"],
+      "permissions": ["beneficiaries.records.register"],
+      "precedence": "overview",
+      "scope": "organization / managed-program-or-assignment / explicit-assignment, according to canonical role",
+      "disposition": "Detailed rows override conflicting overview grants; effective role grants are in permissions"
+    },
+    {
+      "row": 14,
+      "action": "Enroll a beneficiary to a project",
+      "roles": ["SYSTEM_ADMINISTRATOR", "PROJECT_OFFICER", "MONITORING_AND_EVALUATION_OFFICER"],
+      "permissions": ["beneficiaries.enrollments.manage"],
+      "precedence": "overview",
+      "scope": "organization / managed-program-or-assignment / explicit-assignment, according to canonical role",
+      "disposition": "Detailed rows override conflicting overview grants; effective role grants are in permissions"
+    },
+    {
+      "row": 15,
+      "action": "Add activity event",
+      "roles": ["PROJECT_OFFICER", "MONITORING_AND_EVALUATION_OFFICER"],
+      "permissions": ["participation.record"],
+      "precedence": "overview",
+      "scope": "organization / managed-program-or-assignment / explicit-assignment, according to canonical role",
+      "disposition": "Detailed rows override conflicting overview grants; effective role grants are in permissions"
+    },
+    {
+      "row": 16,
+      "action": "Generate Forms",
+      "roles": [
+        "SYSTEM_ADMINISTRATOR",
+        "PROJECT_OFFICER",
+        "MONITORING_AND_EVALUATION_OFFICER",
+        "PROJECT_MANAGER",
+        "PROGRAM_MANAGER",
+        "GRANT_MANAGER"
+      ],
+      "permissions": ["forms.generate"],
+      "precedence": "overview",
+      "scope": "organization / managed-program-or-assignment / explicit-assignment, according to canonical role",
+      "disposition": "Detailed rows override conflicting overview grants; effective role grants are in permissions"
+    },
+    {
+      "row": 17,
+      "action": "Review Alerts (Mark as done, View recommended action, and View details)",
+      "roles": [
+        "SYSTEM_ADMINISTRATOR",
+        "PROJECT_OFFICER",
+        "MONITORING_AND_EVALUATION_OFFICER",
+        "PROJECT_MANAGER",
+        "PROGRAM_MANAGER",
+        "GRANT_MANAGER"
+      ],
+      "permissions": [
+        "alerts.read",
+        "alerts.review",
+        "alerts.outcome.record",
+        "recommendations.read"
+      ],
+      "precedence": "overview",
+      "scope": "organization / managed-program-or-assignment / explicit-assignment, according to canonical role",
+      "disposition": "Detailed rows override conflicting overview grants; effective role grants are in permissions"
+    },
+    {
+      "row": 18,
+      "action": "Manage Rule repositories (Add and Configure)",
+      "roles": ["SYSTEM_ADMINISTRATOR"],
+      "permissions": ["rules.read", "rules.create", "rules.update", "rules.activate"],
+      "precedence": "overview",
+      "scope": "organization / managed-program-or-assignment / explicit-assignment, according to canonical role",
+      "disposition": "Detailed rows override conflicting overview grants; effective role grants are in permissions"
+    },
+    {
+      "row": 19,
+      "action": "Generate System Reports",
+      "roles": [
+        "SYSTEM_ADMINISTRATOR",
+        "PROJECT_OFFICER",
+        "MONITORING_AND_EVALUATION_OFFICER",
+        "PROJECT_MANAGER",
+        "PROGRAM_MANAGER",
+        "GRANT_MANAGER"
+      ],
+      "permissions": ["reports.generate"],
+      "precedence": "overview",
+      "scope": "organization / managed-program-or-assignment / explicit-assignment, according to canonical role",
+      "disposition": "Detailed rows override conflicting overview grants; effective role grants are in permissions"
+    },
+    {
+      "row": 20,
+      "action": "Update public dashboard",
+      "roles": ["SYSTEM_ADMINISTRATOR", "PROJECT_MANAGER", "PROGRAM_MANAGER", "GRANT_MANAGER"],
+      "permissions": ["public.publish"],
+      "precedence": "overview",
+      "scope": "organization / managed-program-or-assignment / explicit-assignment, according to canonical role",
+      "disposition": "Detailed rows override conflicting overview grants; effective role grants are in permissions"
+    },
+    {
+      "row": 22,
+      "action": "Authentication",
+      "roles": [
+        "SYSTEM_ADMINISTRATOR",
+        "PROJECT_OFFICER",
+        "MONITORING_AND_EVALUATION_OFFICER",
+        "PROJECT_MANAGER",
+        "PROGRAM_MANAGER",
+        "GRANT_MANAGER"
+      ],
+      "permissions": [],
+      "precedence": "overview",
+      "scope": "organization / managed-program-or-assignment / explicit-assignment, according to canonical role",
+      "disposition": "Supabase identity/session operation; no discretionary domain grant"
+    },
+    {
+      "row": 23,
+      "action": "Profile Management",
+      "roles": [
+        "SYSTEM_ADMINISTRATOR",
+        "PROJECT_OFFICER",
+        "MONITORING_AND_EVALUATION_OFFICER",
+        "PROJECT_MANAGER",
+        "PROGRAM_MANAGER",
+        "GRANT_MANAGER"
+      ],
+      "permissions": ["profile.manage"],
+      "precedence": "overview",
+      "scope": "organization / managed-program-or-assignment / explicit-assignment, according to canonical role",
+      "disposition": "Detailed rows override conflicting overview grants; effective role grants are in permissions"
+    },
+    {
+      "row": 24,
+      "action": "Project Information Management",
+      "roles": ["PROJECT_MANAGER"],
+      "permissions": ["projects.detail.read", "projects.create", "projects.update"],
+      "precedence": "overview",
+      "scope": "organization / managed-program-or-assignment / explicit-assignment, according to canonical role",
+      "disposition": "Detailed rows override conflicting overview grants; effective role grants are in permissions"
+    },
+    {
+      "row": 25,
+      "action": "Data Collection and Integration",
+      "roles": ["SYSTEM_ADMINISTRATOR", "PROJECT_OFFICER", "MONITORING_AND_EVALUATION_OFFICER"],
+      "permissions": ["collection.read", "forms.generate", "imports.read"],
+      "precedence": "overview",
+      "scope": "organization / managed-program-or-assignment / explicit-assignment, according to canonical role",
+      "disposition": "Detailed rows override conflicting overview grants; effective role grants are in permissions"
+    },
+    {
+      "row": 26,
+      "action": "Beneficiary Management",
+      "roles": ["PROJECT_OFFICER", "MONITORING_AND_EVALUATION_OFFICER"],
+      "permissions": [
+        "beneficiaries.records.read",
+        "beneficiaries.records.register",
+        "beneficiaries.profiles.update"
+      ],
+      "precedence": "overview",
+      "scope": "organization / managed-program-or-assignment / explicit-assignment, according to canonical role",
+      "disposition": "Detailed rows override conflicting overview grants; effective role grants are in permissions"
+    },
+    {
+      "row": 27,
+      "action": "Monitoring, Analytics, and Evaluation",
+      "roles": ["MONITORING_AND_EVALUATION_OFFICER", "PROJECT_MANAGER", "PROGRAM_MANAGER"],
+      "permissions": ["monitoring.read", "analytics.read", "evaluations.submit"],
+      "precedence": "overview",
+      "scope": "organization / managed-program-or-assignment / explicit-assignment, according to canonical role",
+      "disposition": "Detailed rows override conflicting overview grants; effective role grants are in permissions"
+    },
+    {
+      "row": 28,
+      "action": "Reporting and Outputs",
+      "roles": [
+        "SYSTEM_ADMINISTRATOR",
+        "PROJECT_OFFICER",
+        "MONITORING_AND_EVALUATION_OFFICER",
+        "PROJECT_MANAGER",
+        "PROGRAM_MANAGER",
+        "GRANT_MANAGER"
+      ],
+      "permissions": ["reports.generate", "reports.export"],
+      "precedence": "overview",
+      "scope": "organization / managed-program-or-assignment / explicit-assignment, according to canonical role",
+      "disposition": "Detailed rows override conflicting overview grants; effective role grants are in permissions"
+    },
+    {
+      "row": 29,
+      "action": "System Administration",
+      "roles": ["SYSTEM_ADMINISTRATOR"],
+      "permissions": ["users.authorize", "settings.configure"],
+      "precedence": "overview",
+      "scope": "organization / managed-program-or-assignment / explicit-assignment, according to canonical role",
+      "disposition": "Detailed rows override conflicting overview grants; effective role grants are in permissions"
+    },
+    {
+      "row": 30,
+      "action": "Public Project Visibility",
+      "roles": [
+        "SYSTEM_ADMINISTRATOR",
+        "PROJECT_OFFICER",
+        "MONITORING_AND_EVALUATION_OFFICER",
+        "PROJECT_MANAGER",
+        "PROGRAM_MANAGER",
+        "GRANT_MANAGER"
+      ],
+      "permissions": ["public.preview", "public.publish"],
+      "precedence": "overview",
+      "scope": "organization / managed-program-or-assignment / explicit-assignment, according to canonical role",
+      "disposition": "Detailed rows override conflicting overview grants; effective role grants are in permissions"
+    },
+    {
+      "row": 32,
+      "action": "Login",
+      "roles": [
+        "SYSTEM_ADMINISTRATOR",
+        "PROJECT_OFFICER",
+        "MONITORING_AND_EVALUATION_OFFICER",
+        "PROJECT_MANAGER",
+        "PROGRAM_MANAGER",
+        "GRANT_MANAGER"
+      ],
+      "permissions": [],
+      "precedence": "detailed",
+      "scope": "organization / managed-program-or-assignment / explicit-assignment, according to canonical role",
+      "disposition": "Supabase identity/session operation; no discretionary domain grant"
+    },
+    {
+      "row": 33,
+      "action": "Verify Role Permissions",
+      "roles": [
+        "SYSTEM_ADMINISTRATOR",
+        "PROJECT_OFFICER",
+        "MONITORING_AND_EVALUATION_OFFICER",
+        "PROJECT_MANAGER",
+        "PROGRAM_MANAGER",
+        "GRANT_MANAGER"
+      ],
+      "permissions": [],
+      "precedence": "detailed",
+      "scope": "organization / managed-program-or-assignment / explicit-assignment, according to canonical role",
+      "disposition": "Automatic protected-operation check or audit recording; always required"
+    },
+    {
+      "row": 34,
+      "action": "Redirect to Role-Based Dashboard",
+      "roles": [
+        "SYSTEM_ADMINISTRATOR",
+        "PROJECT_OFFICER",
+        "MONITORING_AND_EVALUATION_OFFICER",
+        "PROJECT_MANAGER",
+        "PROGRAM_MANAGER",
+        "GRANT_MANAGER"
+      ],
+      "permissions": ["projects.read"],
+      "precedence": "detailed",
+      "scope": "organization / managed-program-or-assignment / explicit-assignment, according to canonical role",
+      "disposition": "Detailed rows override conflicting overview grants; effective role grants are in permissions"
+    },
+    {
+      "row": 35,
+      "action": "Reset Password",
+      "roles": [
+        "SYSTEM_ADMINISTRATOR",
+        "PROJECT_OFFICER",
+        "MONITORING_AND_EVALUATION_OFFICER",
+        "PROJECT_MANAGER",
+        "PROGRAM_MANAGER",
+        "GRANT_MANAGER"
+      ],
+      "permissions": [],
+      "precedence": "detailed",
+      "scope": "organization / managed-program-or-assignment / explicit-assignment, according to canonical role",
+      "disposition": "Supabase identity/session operation; no discretionary domain grant"
+    },
+    {
+      "row": 36,
+      "action": "Set New Password",
+      "roles": [
+        "SYSTEM_ADMINISTRATOR",
+        "PROJECT_OFFICER",
+        "MONITORING_AND_EVALUATION_OFFICER",
+        "PROJECT_MANAGER",
+        "PROGRAM_MANAGER",
+        "GRANT_MANAGER"
+      ],
+      "permissions": [],
+      "precedence": "detailed",
+      "scope": "organization / managed-program-or-assignment / explicit-assignment, according to canonical role",
+      "disposition": "Supabase identity/session operation; no discretionary domain grant"
+    },
+    {
+      "row": 37,
+      "action": "Logout",
+      "roles": [
+        "SYSTEM_ADMINISTRATOR",
+        "PROJECT_OFFICER",
+        "MONITORING_AND_EVALUATION_OFFICER",
+        "PROJECT_MANAGER",
+        "PROGRAM_MANAGER",
+        "GRANT_MANAGER"
+      ],
+      "permissions": [],
+      "precedence": "detailed",
+      "scope": "organization / managed-program-or-assignment / explicit-assignment, according to canonical role",
+      "disposition": "Supabase identity/session operation; no discretionary domain grant"
+    },
+    {
+      "row": 38,
+      "action": "Manage Profile",
+      "roles": [
+        "SYSTEM_ADMINISTRATOR",
+        "PROJECT_OFFICER",
+        "MONITORING_AND_EVALUATION_OFFICER",
+        "PROJECT_MANAGER",
+        "PROGRAM_MANAGER",
+        "GRANT_MANAGER"
+      ],
+      "permissions": ["profile.manage"],
+      "precedence": "detailed",
+      "scope": "organization / managed-program-or-assignment / explicit-assignment, according to canonical role",
+      "disposition": "Detailed rows override conflicting overview grants; effective role grants are in permissions"
+    },
+    {
+      "row": 39,
+      "action": "Update Profile Information",
+      "roles": [
+        "SYSTEM_ADMINISTRATOR",
+        "PROJECT_OFFICER",
+        "MONITORING_AND_EVALUATION_OFFICER",
+        "PROJECT_MANAGER",
+        "PROGRAM_MANAGER",
+        "GRANT_MANAGER"
+      ],
+      "permissions": ["profile.manage"],
+      "precedence": "detailed",
+      "scope": "organization / managed-program-or-assignment / explicit-assignment, according to canonical role",
+      "disposition": "Detailed rows override conflicting overview grants; effective role grants are in permissions"
+    },
+    {
+      "row": 40,
+      "action": "Save Profile Changes",
+      "roles": [
+        "SYSTEM_ADMINISTRATOR",
+        "PROJECT_OFFICER",
+        "MONITORING_AND_EVALUATION_OFFICER",
+        "PROJECT_MANAGER",
+        "PROGRAM_MANAGER",
+        "GRANT_MANAGER"
+      ],
+      "permissions": ["profile.manage"],
+      "precedence": "detailed",
+      "scope": "organization / managed-program-or-assignment / explicit-assignment, according to canonical role",
+      "disposition": "Detailed rows override conflicting overview grants; effective role grants are in permissions"
+    },
+    {
+      "row": 42,
+      "action": "Manage Users and Roles",
+      "roles": ["SYSTEM_ADMINISTRATOR", "PROJECT_MANAGER", "PROGRAM_MANAGER"],
+      "permissions": ["users.authorize"],
+      "precedence": "detailed",
+      "scope": "organization / managed-program-or-assignment / explicit-assignment, according to canonical role",
+      "disposition": "Detailed rows override conflicting overview grants; effective role grants are in permissions"
+    },
+    {
+      "row": 43,
+      "action": "Create User",
+      "roles": ["SYSTEM_ADMINISTRATOR", "PROJECT_MANAGER", "PROGRAM_MANAGER"],
+      "permissions": ["users.authorize"],
+      "precedence": "detailed",
+      "scope": "organization / managed-program-or-assignment / explicit-assignment, according to canonical role",
+      "disposition": "Detailed rows override conflicting overview grants; effective role grants are in permissions"
+    },
+    {
+      "row": 44,
+      "action": "Update User Access & Role",
+      "roles": ["SYSTEM_ADMINISTRATOR", "PROJECT_MANAGER", "PROGRAM_MANAGER"],
+      "permissions": ["users.authorize", "assignments.manage"],
+      "precedence": "detailed",
+      "scope": "organization / managed-program-or-assignment / explicit-assignment, according to canonical role",
+      "disposition": "Detailed rows override conflicting overview grants; effective role grants are in permissions"
+    },
+    {
+      "row": 45,
+      "action": "Deactivate User",
+      "roles": ["SYSTEM_ADMINISTRATOR", "PROJECT_MANAGER", "PROGRAM_MANAGER"],
+      "permissions": ["users.authorize"],
+      "precedence": "detailed",
+      "scope": "organization / managed-program-or-assignment / explicit-assignment, according to canonical role",
+      "disposition": "Detailed rows override conflicting overview grants; effective role grants are in permissions"
+    },
+    {
+      "row": 46,
+      "action": "Assign Role",
+      "roles": ["SYSTEM_ADMINISTRATOR", "PROJECT_MANAGER", "PROGRAM_MANAGER"],
+      "permissions": ["users.authorize", "assignments.manage"],
+      "precedence": "detailed",
+      "scope": "organization / managed-program-or-assignment / explicit-assignment, according to canonical role",
+      "disposition": "Detailed rows override conflicting overview grants; effective role grants are in permissions"
+    },
+    {
+      "row": 47,
+      "action": "View Audit Logs",
+      "roles": ["SYSTEM_ADMINISTRATOR", "PROJECT_MANAGER", "PROGRAM_MANAGER"],
+      "permissions": ["audit.read"],
+      "precedence": "detailed",
+      "scope": "organization / managed-program-or-assignment / explicit-assignment, according to canonical role",
+      "disposition": "Detailed rows override conflicting overview grants; effective role grants are in permissions"
+    },
+    {
+      "row": 48,
+      "action": "Verify Role Permissions",
+      "roles": ["SYSTEM_ADMINISTRATOR", "PROJECT_MANAGER", "PROGRAM_MANAGER"],
+      "permissions": [],
+      "precedence": "detailed",
+      "scope": "organization / managed-program-or-assignment / explicit-assignment, according to canonical role",
+      "disposition": "Automatic protected-operation check or audit recording; always required"
+    },
+    {
+      "row": 49,
+      "action": "Record Audit Log",
+      "roles": ["SYSTEM_ADMINISTRATOR", "PROJECT_MANAGER", "PROGRAM_MANAGER"],
+      "permissions": [],
+      "precedence": "detailed",
+      "scope": "organization / managed-program-or-assignment / explicit-assignment, according to canonical role",
+      "disposition": "Automatic protected-operation check or audit recording; always required"
+    },
+    {
+      "row": 51,
+      "action": "Manage Project Profiles",
+      "roles": ["SYSTEM_ADMINISTRATOR", "PROJECT_MANAGER"],
+      "permissions": [
+        "projects.detail.read",
+        "projects.create",
+        "projects.update",
+        "projects.archive"
+      ],
+      "precedence": "detailed",
+      "scope": "organization / managed-program-or-assignment / explicit-assignment, according to canonical role",
+      "disposition": "Detailed rows override conflicting overview grants; effective role grants are in permissions"
+    },
+    {
+      "row": 52,
+      "action": "Create Project",
+      "roles": ["PROJECT_MANAGER"],
+      "permissions": ["projects.create"],
+      "precedence": "detailed",
+      "scope": "organization / managed-program-or-assignment / explicit-assignment, according to canonical role",
+      "disposition": "Detailed rows override conflicting overview grants; effective role grants are in permissions"
+    },
+    {
+      "row": 53,
+      "action": "Update Project",
+      "roles": ["PROJECT_MANAGER"],
+      "permissions": ["projects.update"],
+      "precedence": "detailed",
+      "scope": "organization / managed-program-or-assignment / explicit-assignment, according to canonical role",
+      "disposition": "Detailed rows override conflicting overview grants; effective role grants are in permissions"
+    },
+    {
+      "row": 54,
+      "action": "Archive Project",
+      "roles": ["SYSTEM_ADMINISTRATOR", "PROJECT_MANAGER", "PROGRAM_MANAGER", "GRANT_MANAGER"],
+      "permissions": ["projects.archive"],
+      "precedence": "detailed",
+      "scope": "organization / managed-program-or-assignment / explicit-assignment, according to canonical role",
+      "disposition": "Detailed rows override conflicting overview grants; effective role grants are in permissions"
+    },
+    {
+      "row": 55,
+      "action": "Create Budget",
+      "roles": ["PROJECT_MANAGER", "PROGRAM_MANAGER", "GRANT_MANAGER"],
+      "permissions": ["budgets.create"],
+      "precedence": "detailed",
+      "scope": "organization / managed-program-or-assignment / explicit-assignment, according to canonical role",
+      "disposition": "Detailed rows override conflicting overview grants; effective role grants are in permissions"
+    },
+    {
+      "row": 56,
+      "action": "Update Budget",
+      "roles": ["PROJECT_MANAGER", "PROGRAM_MANAGER", "GRANT_MANAGER"],
+      "permissions": ["budgets.update"],
+      "precedence": "detailed",
+      "scope": "organization / managed-program-or-assignment / explicit-assignment, according to canonical role",
+      "disposition": "Detailed rows override conflicting overview grants; effective role grants are in permissions"
+    },
+    {
+      "row": 57,
+      "action": "Track Project Activities",
+      "roles": ["PROJECT_OFFICER", "MONITORING_AND_EVALUATION_OFFICER", "PROJECT_MANAGER"],
+      "permissions": ["activities.read"],
+      "precedence": "detailed",
+      "scope": "organization / managed-program-or-assignment / explicit-assignment, according to canonical role",
+      "disposition": "Detailed rows override conflicting overview grants; effective role grants are in permissions"
+    },
+    {
+      "row": 58,
+      "action": "Add Project Activity",
+      "roles": ["PROJECT_OFFICER", "PROJECT_MANAGER"],
+      "permissions": ["activities.create"],
+      "precedence": "detailed",
+      "scope": "organization / managed-program-or-assignment / explicit-assignment, according to canonical role",
+      "disposition": "Detailed rows override conflicting overview grants; effective role grants are in permissions"
+    },
+    {
+      "row": 59,
+      "action": "Edit / Update Project Activity",
+      "roles": ["PROJECT_OFFICER", "PROJECT_MANAGER"],
+      "permissions": ["activities.update"],
+      "precedence": "detailed",
+      "scope": "organization / managed-program-or-assignment / explicit-assignment, according to canonical role",
+      "disposition": "Detailed rows override conflicting overview grants; effective role grants are in permissions"
+    },
+    {
+      "row": 60,
+      "action": "Submit Project Proof",
+      "roles": ["PROJECT_OFFICER", "PROJECT_MANAGER"],
+      "permissions": ["activities.proof.submit"],
+      "precedence": "detailed",
+      "scope": "organization / managed-program-or-assignment / explicit-assignment, according to canonical role",
+      "disposition": "Detailed rows override conflicting overview grants; effective role grants are in permissions"
+    },
+    {
+      "row": 61,
+      "action": "Log Expense",
+      "roles": ["PROJECT_OFFICER", "MONITORING_AND_EVALUATION_OFFICER", "PROJECT_MANAGER"],
+      "permissions": ["expenses.submit", "expenses.read"],
+      "precedence": "detailed",
+      "scope": "organization / managed-program-or-assignment / explicit-assignment, according to canonical role",
+      "disposition": "Detailed rows override conflicting overview grants; effective role grants are in permissions"
+    },
+    {
+      "row": 62,
+      "action": "View project",
+      "roles": [
+        "MONITORING_AND_EVALUATION_OFFICER",
+        "PROJECT_MANAGER",
+        "PROGRAM_MANAGER",
+        "GRANT_MANAGER"
+      ],
+      "permissions": ["projects.detail.read"],
+      "precedence": "detailed",
+      "scope": "organization / managed-program-or-assignment / explicit-assignment, according to canonical role",
+      "disposition": "Detailed rows override conflicting overview grants; effective role grants are in permissions"
+    },
+    {
+      "row": 63,
+      "action": "Save Project",
+      "roles": ["PROJECT_MANAGER"],
+      "permissions": ["projects.create", "projects.update"],
+      "precedence": "detailed",
+      "scope": "organization / managed-program-or-assignment / explicit-assignment, according to canonical role",
+      "disposition": "Detailed rows override conflicting overview grants; effective role grants are in permissions"
+    },
+    {
+      "row": 64,
+      "action": "Manage Indicators",
+      "roles": ["SYSTEM_ADMINISTRATOR", "MONITORING_AND_EVALUATION_OFFICER", "PROJECT_MANAGER"],
+      "permissions": ["indicators.read", "indicators.create", "indicators.update"],
+      "precedence": "detailed",
+      "scope": "organization / managed-program-or-assignment / explicit-assignment, according to canonical role",
+      "disposition": "Detailed rows override conflicting overview grants; effective role grants are in permissions"
+    },
+    {
+      "row": 65,
+      "action": "View Indicators Tab",
+      "roles": ["SYSTEM_ADMINISTRATOR", "MONITORING_AND_EVALUATION_OFFICER", "PROJECT_MANAGER"],
+      "permissions": ["indicators.read"],
+      "precedence": "detailed",
+      "scope": "organization / managed-program-or-assignment / explicit-assignment, according to canonical role",
+      "disposition": "Detailed rows override conflicting overview grants; effective role grants are in permissions"
+    },
+    {
+      "row": 66,
+      "action": "Create Indicator",
+      "roles": ["SYSTEM_ADMINISTRATOR", "MONITORING_AND_EVALUATION_OFFICER", "PROJECT_MANAGER"],
+      "permissions": ["indicators.create"],
+      "precedence": "detailed",
+      "scope": "organization / managed-program-or-assignment / explicit-assignment, according to canonical role",
+      "disposition": "Detailed rows override conflicting overview grants; effective role grants are in permissions"
+    },
+    {
+      "row": 67,
+      "action": "Update Indicator",
+      "roles": ["SYSTEM_ADMINISTRATOR", "MONITORING_AND_EVALUATION_OFFICER", "PROJECT_MANAGER"],
+      "permissions": ["indicators.update"],
+      "precedence": "detailed",
+      "scope": "organization / managed-program-or-assignment / explicit-assignment, according to canonical role",
+      "disposition": "Detailed rows override conflicting overview grants; effective role grants are in permissions"
+    },
+    {
+      "row": 68,
+      "action": "Assign Indicators to Project Activities",
+      "roles": ["SYSTEM_ADMINISTRATOR", "MONITORING_AND_EVALUATION_OFFICER", "PROJECT_MANAGER"],
+      "permissions": ["indicators.update"],
+      "precedence": "detailed",
+      "scope": "organization / managed-program-or-assignment / explicit-assignment, according to canonical role",
+      "disposition": "Detailed rows override conflicting overview grants; effective role grants are in permissions"
+    },
+    {
+      "row": 70,
+      "action": "Prepare Data Collection Forms (Form Generator)",
+      "roles": ["PROJECT_OFFICER", "MONITORING_AND_EVALUATION_OFFICER"],
+      "permissions": ["forms.generate"],
+      "precedence": "detailed",
+      "scope": "organization / managed-program-or-assignment / explicit-assignment, according to canonical role",
+      "disposition": "Detailed rows override conflicting overview grants; effective role grants are in permissions"
+    },
+    {
+      "row": 71,
+      "action": "Create New Form (Build)",
+      "roles": ["PROJECT_OFFICER", "MONITORING_AND_EVALUATION_OFFICER"],
+      "permissions": ["forms.manage"],
+      "precedence": "detailed",
+      "scope": "organization / managed-program-or-assignment / explicit-assignment, according to canonical role",
+      "disposition": "Detailed rows override conflicting overview grants; effective role grants are in permissions"
+    },
+    {
+      "row": 72,
+      "action": "Edit Form (Build)",
+      "roles": ["PROJECT_OFFICER", "MONITORING_AND_EVALUATION_OFFICER"],
+      "permissions": ["forms.manage"],
+      "precedence": "detailed",
+      "scope": "organization / managed-program-or-assignment / explicit-assignment, according to canonical role",
+      "disposition": "Detailed rows override conflicting overview grants; effective role grants are in permissions"
+    },
+    {
+      "row": 73,
+      "action": "Export Form (Build)",
+      "roles": ["PROJECT_OFFICER", "MONITORING_AND_EVALUATION_OFFICER"],
+      "permissions": ["forms.export"],
+      "precedence": "detailed",
+      "scope": "organization / managed-program-or-assignment / explicit-assignment, according to canonical role",
+      "disposition": "Detailed rows override conflicting overview grants; effective role grants are in permissions"
+    },
+    {
+      "row": 74,
+      "action": "Import Form",
+      "roles": ["PROJECT_OFFICER", "MONITORING_AND_EVALUATION_OFFICER"],
+      "permissions": ["forms.import", "imports.upload"],
+      "precedence": "detailed",
+      "scope": "organization / managed-program-or-assignment / explicit-assignment, according to canonical role",
+      "disposition": "Detailed rows override conflicting overview grants; effective role grants are in permissions"
+    },
+    {
+      "row": 75,
+      "action": "Import Existing File (mode)",
+      "roles": ["PROJECT_OFFICER", "MONITORING_AND_EVALUATION_OFFICER"],
+      "permissions": ["imports.upload"],
+      "precedence": "detailed",
+      "scope": "organization / managed-program-or-assignment / explicit-assignment, according to canonical role",
+      "disposition": "Detailed rows override conflicting overview grants; effective role grants are in permissions"
+    },
+    {
+      "row": 76,
+      "action": "Import then Extend (mode)",
+      "roles": ["PROJECT_OFFICER", "MONITORING_AND_EVALUATION_OFFICER"],
+      "permissions": ["imports.upload", "forms.manage"],
+      "precedence": "detailed",
+      "scope": "organization / managed-program-or-assignment / explicit-assignment, according to canonical role",
+      "disposition": "Detailed rows override conflicting overview grants; effective role grants are in permissions"
+    },
+    {
+      "row": 77,
+      "action": "Encode Project Data",
+      "roles": ["PROJECT_OFFICER", "MONITORING_AND_EVALUATION_OFFICER"],
+      "permissions": ["submissions.write"],
+      "precedence": "detailed",
+      "scope": "organization / managed-program-or-assignment / explicit-assignment, according to canonical role",
+      "disposition": "Detailed rows override conflicting overview grants; effective role grants are in permissions"
+    },
+    {
+      "row": 78,
+      "action": "Import and Validate Field Metadata",
+      "roles": ["SYSTEM_ADMINISTRATOR", "PROJECT_OFFICER", "MONITORING_AND_EVALUATION_OFFICER"],
+      "permissions": ["imports.validate"],
+      "precedence": "detailed",
+      "scope": "organization / managed-program-or-assignment / explicit-assignment, according to canonical role",
+      "disposition": "Detailed rows override conflicting overview grants; effective role grants are in permissions"
+    },
+    {
+      "row": 79,
+      "action": "Upload Dataset",
+      "roles": ["SYSTEM_ADMINISTRATOR", "PROJECT_OFFICER", "MONITORING_AND_EVALUATION_OFFICER"],
+      "permissions": ["imports.upload"],
+      "precedence": "detailed",
+      "scope": "organization / managed-program-or-assignment / explicit-assignment, according to canonical role",
+      "disposition": "Detailed rows override conflicting overview grants; effective role grants are in permissions"
+    },
+    {
+      "row": 80,
+      "action": "Map Metadata Fields",
+      "roles": ["SYSTEM_ADMINISTRATOR", "MONITORING_AND_EVALUATION_OFFICER"],
+      "permissions": ["imports.review"],
+      "precedence": "detailed",
+      "scope": "organization / managed-program-or-assignment / explicit-assignment, according to canonical role",
+      "disposition": "Detailed rows override conflicting overview grants; effective role grants are in permissions"
+    },
+    {
+      "row": 82,
+      "action": "Manage Beneficiary Profiles",
+      "roles": ["PROJECT_OFFICER", "MONITORING_AND_EVALUATION_OFFICER", "PROJECT_MANAGER"],
+      "permissions": ["beneficiaries.records.read", "beneficiaries.profiles.update"],
+      "precedence": "detailed",
+      "scope": "organization / managed-program-or-assignment / explicit-assignment, according to canonical role",
+      "disposition": "Detailed rows override conflicting overview grants; effective role grants are in permissions"
+    },
+    {
+      "row": 83,
+      "action": "Create Beneficiary Profile",
+      "roles": ["PROJECT_OFFICER", "MONITORING_AND_EVALUATION_OFFICER", "PROJECT_MANAGER"],
+      "permissions": ["beneficiaries.records.register"],
+      "precedence": "detailed",
+      "scope": "organization / managed-program-or-assignment / explicit-assignment, according to canonical role",
+      "disposition": "Detailed rows override conflicting overview grants; effective role grants are in permissions"
+    },
+    {
+      "row": 84,
+      "action": "Search Beneficiary Profile",
+      "roles": ["PROJECT_OFFICER", "MONITORING_AND_EVALUATION_OFFICER", "PROJECT_MANAGER"],
+      "permissions": ["beneficiaries.records.read"],
+      "precedence": "detailed",
+      "scope": "organization / managed-program-or-assignment / explicit-assignment, according to canonical role",
+      "disposition": "Detailed rows override conflicting overview grants; effective role grants are in permissions"
+    },
+    {
+      "row": 85,
+      "action": "Update Beneficiary Profile",
+      "roles": ["PROJECT_OFFICER", "MONITORING_AND_EVALUATION_OFFICER", "PROJECT_MANAGER"],
+      "permissions": ["beneficiaries.profiles.update"],
+      "precedence": "detailed",
+      "scope": "organization / managed-program-or-assignment / explicit-assignment, according to canonical role",
+      "disposition": "Detailed rows override conflicting overview grants; effective role grants are in permissions"
+    },
+    {
+      "row": 86,
+      "action": "Track Beneficiary Journey",
+      "roles": ["PROJECT_OFFICER", "MONITORING_AND_EVALUATION_OFFICER", "PROJECT_MANAGER"],
+      "permissions": ["journeys.read"],
+      "precedence": "detailed",
+      "scope": "organization / managed-program-or-assignment / explicit-assignment, according to canonical role",
+      "disposition": "Detailed rows override conflicting overview grants; effective role grants are in permissions"
+    },
+    {
+      "row": 87,
+      "action": "Record Participation",
+      "roles": ["PROJECT_OFFICER", "MONITORING_AND_EVALUATION_OFFICER", "PROJECT_MANAGER"],
+      "permissions": ["participation.record"],
+      "precedence": "detailed",
+      "scope": "organization / managed-program-or-assignment / explicit-assignment, according to canonical role",
+      "disposition": "Detailed rows override conflicting overview grants; effective role grants are in permissions"
+    },
+    {
+      "row": 88,
+      "action": "Update Progress",
+      "roles": ["PROJECT_OFFICER", "MONITORING_AND_EVALUATION_OFFICER", "PROJECT_MANAGER"],
+      "permissions": ["participation.record"],
+      "precedence": "detailed",
+      "scope": "organization / managed-program-or-assignment / explicit-assignment, according to canonical role",
+      "disposition": "Detailed rows override conflicting overview grants; effective role grants are in permissions"
+    },
+    {
+      "row": 89,
+      "action": "View Beneficiary History",
+      "roles": ["PROJECT_OFFICER", "MONITORING_AND_EVALUATION_OFFICER", "PROJECT_MANAGER"],
+      "permissions": ["journeys.read"],
+      "precedence": "detailed",
+      "scope": "organization / managed-program-or-assignment / explicit-assignment, according to canonical role",
+      "disposition": "Detailed rows override conflicting overview grants; effective role grants are in permissions"
+    },
+    {
+      "row": 90,
+      "action": "View Participation History",
+      "roles": ["PROJECT_OFFICER", "MONITORING_AND_EVALUATION_OFFICER", "PROJECT_MANAGER"],
+      "permissions": ["journeys.read"],
+      "precedence": "detailed",
+      "scope": "organization / managed-program-or-assignment / explicit-assignment, according to canonical role",
+      "disposition": "Detailed rows override conflicting overview grants; effective role grants are in permissions"
+    },
+    {
+      "row": 91,
+      "action": "View Progression Across Activities",
+      "roles": ["PROJECT_OFFICER", "MONITORING_AND_EVALUATION_OFFICER", "PROJECT_MANAGER"],
+      "permissions": ["journeys.read"],
+      "precedence": "detailed",
+      "scope": "organization / managed-program-or-assignment / explicit-assignment, according to canonical role",
+      "disposition": "Detailed rows override conflicting overview grants; effective role grants are in permissions"
+    },
+    {
+      "row": 92,
+      "action": "View Assessment/Survey Records",
+      "roles": [
+        "SYSTEM_ADMINISTRATOR",
+        "PROJECT_OFFICER",
+        "MONITORING_AND_EVALUATION_OFFICER",
+        "PROJECT_MANAGER",
+        "PROGRAM_MANAGER",
+        "GRANT_MANAGER"
+      ],
+      "permissions": ["assessments.read", "assessments.detail.read"],
+      "precedence": "detailed",
+      "scope": "organization / managed-program-or-assignment / explicit-assignment, according to canonical role",
+      "disposition": "Program/Grant aggregate-only; detail requires assessments.detail.read and existing beneficiary scope"
+    },
+    {
+      "row": 94,
+      "action": "View Aggregated Monitoring Dashboards",
+      "roles": [
+        "SYSTEM_ADMINISTRATOR",
+        "MONITORING_AND_EVALUATION_OFFICER",
+        "PROJECT_MANAGER",
+        "PROGRAM_MANAGER",
+        "GRANT_MANAGER"
+      ],
+      "permissions": ["monitoring.read"],
+      "precedence": "detailed",
+      "scope": "organization / managed-program-or-assignment / explicit-assignment, according to canonical role",
+      "disposition": "Detailed rows override conflicting overview grants; effective role grants are in permissions"
+    },
+    {
+      "row": 95,
+      "action": "View Indicators / Target-versus-Actual Results",
+      "roles": [
+        "SYSTEM_ADMINISTRATOR",
+        "MONITORING_AND_EVALUATION_OFFICER",
+        "PROJECT_MANAGER",
+        "PROGRAM_MANAGER",
+        "GRANT_MANAGER"
+      ],
+      "permissions": ["monitoring.read"],
+      "precedence": "detailed",
+      "scope": "organization / managed-program-or-assignment / explicit-assignment, according to canonical role",
+      "disposition": "Detailed rows override conflicting overview grants; effective role grants are in permissions"
+    },
+    {
+      "row": 96,
+      "action": "Perform SADDD Analysis",
+      "roles": [
+        "SYSTEM_ADMINISTRATOR",
+        "MONITORING_AND_EVALUATION_OFFICER",
+        "PROJECT_MANAGER",
+        "PROGRAM_MANAGER",
+        "GRANT_MANAGER"
+      ],
+      "permissions": ["analytics.read"],
+      "precedence": "detailed",
+      "scope": "organization / managed-program-or-assignment / explicit-assignment, according to canonical role",
+      "disposition": "Detailed rows override conflicting overview grants; effective role grants are in permissions"
+    },
+    {
+      "row": 97,
+      "action": "View SADDD Breakdown",
+      "roles": [
+        "SYSTEM_ADMINISTRATOR",
+        "MONITORING_AND_EVALUATION_OFFICER",
+        "PROJECT_MANAGER",
+        "PROGRAM_MANAGER",
+        "GRANT_MANAGER"
+      ],
+      "permissions": ["analytics.read"],
+      "precedence": "detailed",
+      "scope": "organization / managed-program-or-assignment / explicit-assignment, according to canonical role",
+      "disposition": "Detailed rows override conflicting overview grants; effective role grants are in permissions"
+    },
+    {
+      "row": 98,
+      "action": "View Descriptive Analytics",
+      "roles": [
+        "SYSTEM_ADMINISTRATOR",
+        "MONITORING_AND_EVALUATION_OFFICER",
+        "PROJECT_MANAGER",
+        "PROGRAM_MANAGER",
+        "GRANT_MANAGER"
+      ],
+      "permissions": ["analytics.read"],
+      "precedence": "detailed",
+      "scope": "organization / managed-program-or-assignment / explicit-assignment, according to canonical role",
+      "disposition": "Detailed rows override conflicting overview grants; effective role grants are in permissions"
+    },
+    {
+      "row": 99,
+      "action": "KPI / Survey / Budget Summary",
+      "roles": [
+        "SYSTEM_ADMINISTRATOR",
+        "MONITORING_AND_EVALUATION_OFFICER",
+        "PROJECT_MANAGER",
+        "PROGRAM_MANAGER",
+        "GRANT_MANAGER"
+      ],
+      "permissions": ["monitoring.read", "budgets.read", "assessments.read"],
+      "precedence": "detailed",
+      "scope": "organization / managed-program-or-assignment / explicit-assignment, according to canonical role",
+      "disposition": "Detailed rows override conflicting overview grants; effective role grants are in permissions"
+    },
+    {
+      "row": 100,
+      "action": "Assess Survey Improvements / Assessment Result",
+      "roles": [
+        "SYSTEM_ADMINISTRATOR",
+        "MONITORING_AND_EVALUATION_OFFICER",
+        "PROJECT_MANAGER",
+        "PROGRAM_MANAGER",
+        "GRANT_MANAGER"
+      ],
+      "permissions": ["assessments.read", "monitoring.review"],
+      "precedence": "detailed",
+      "scope": "organization / managed-program-or-assignment / explicit-assignment, according to canonical role",
+      "disposition": "Program/Grant aggregate-only; detail requires assessments.detail.read and existing beneficiary scope"
+    },
+    {
+      "row": 101,
+      "action": "Assess KPI / Budget / Timeline",
+      "roles": [
+        "SYSTEM_ADMINISTRATOR",
+        "MONITORING_AND_EVALUATION_OFFICER",
+        "PROJECT_MANAGER",
+        "PROGRAM_MANAGER",
+        "GRANT_MANAGER"
+      ],
+      "permissions": ["monitoring.review"],
+      "precedence": "detailed",
+      "scope": "organization / managed-program-or-assignment / explicit-assignment, according to canonical role",
+      "disposition": "Detailed rows override conflicting overview grants; effective role grants are in permissions"
+    },
+    {
+      "row": 102,
+      "action": "Export Output",
+      "roles": [
+        "SYSTEM_ADMINISTRATOR",
+        "MONITORING_AND_EVALUATION_OFFICER",
+        "PROJECT_MANAGER",
+        "PROGRAM_MANAGER",
+        "GRANT_MANAGER"
+      ],
+      "permissions": ["analytics.export"],
+      "precedence": "detailed",
+      "scope": "organization / managed-program-or-assignment / explicit-assignment, according to canonical role",
+      "disposition": "Detailed rows override conflicting overview grants; effective role grants are in permissions"
+    },
+    {
+      "row": 103,
+      "action": "Review Rule-Based Alerts",
+      "roles": [
+        "SYSTEM_ADMINISTRATOR",
+        "MONITORING_AND_EVALUATION_OFFICER",
+        "PROJECT_MANAGER",
+        "PROGRAM_MANAGER",
+        "GRANT_MANAGER"
+      ],
+      "permissions": ["alerts.read", "alerts.review"],
+      "precedence": "detailed",
+      "scope": "organization / managed-program-or-assignment / explicit-assignment, according to canonical role",
+      "disposition": "Detailed rows override conflicting overview grants; effective role grants are in permissions"
+    },
+    {
+      "row": 104,
+      "action": "View Alert / Triggered Condition",
+      "roles": [
+        "SYSTEM_ADMINISTRATOR",
+        "MONITORING_AND_EVALUATION_OFFICER",
+        "PROJECT_MANAGER",
+        "PROGRAM_MANAGER",
+        "GRANT_MANAGER"
+      ],
+      "permissions": ["alerts.read"],
+      "precedence": "detailed",
+      "scope": "organization / managed-program-or-assignment / explicit-assignment, according to canonical role",
+      "disposition": "Detailed rows override conflicting overview grants; effective role grants are in permissions"
+    },
+    {
+      "row": 105,
+      "action": "Mark Alert as Reviewed",
+      "roles": [
+        "SYSTEM_ADMINISTRATOR",
+        "MONITORING_AND_EVALUATION_OFFICER",
+        "PROJECT_MANAGER",
+        "PROGRAM_MANAGER",
+        "GRANT_MANAGER"
+      ],
+      "permissions": ["alerts.review"],
+      "precedence": "detailed",
+      "scope": "organization / managed-program-or-assignment / explicit-assignment, according to canonical role",
+      "disposition": "Detailed rows override conflicting overview grants; effective role grants are in permissions"
+    },
+    {
+      "row": 106,
+      "action": "Review Rule-Based Recommendations",
+      "roles": [
+        "SYSTEM_ADMINISTRATOR",
+        "MONITORING_AND_EVALUATION_OFFICER",
+        "PROJECT_MANAGER",
+        "PROGRAM_MANAGER",
+        "GRANT_MANAGER"
+      ],
+      "permissions": [
+        "recommendations.read",
+        "recommendations.review",
+        "recommendations.outcome.record"
+      ],
+      "precedence": "detailed",
+      "scope": "organization / managed-program-or-assignment / explicit-assignment, according to canonical role",
+      "disposition": "Detailed rows override conflicting overview grants; effective role grants are in permissions"
+    },
+    {
+      "row": 107,
+      "action": "Review Linked Evaluation Result",
+      "roles": [
+        "SYSTEM_ADMINISTRATOR",
+        "MONITORING_AND_EVALUATION_OFFICER",
+        "PROJECT_MANAGER",
+        "PROGRAM_MANAGER",
+        "GRANT_MANAGER"
+      ],
+      "permissions": ["monitoring.read"],
+      "precedence": "detailed",
+      "scope": "organization / managed-program-or-assignment / explicit-assignment, according to canonical role",
+      "disposition": "Detailed rows override conflicting overview grants; effective role grants are in permissions"
+    },
+    {
+      "row": 109,
+      "action": "Generate Project Report",
+      "roles": [
+        "SYSTEM_ADMINISTRATOR",
+        "PROJECT_OFFICER",
+        "MONITORING_AND_EVALUATION_OFFICER",
+        "PROJECT_MANAGER",
+        "PROGRAM_MANAGER",
+        "GRANT_MANAGER"
+      ],
+      "permissions": ["reports.generate"],
+      "precedence": "detailed",
+      "scope": "organization / managed-program-or-assignment / explicit-assignment, according to canonical role",
+      "disposition": "Detailed rows override conflicting overview grants; effective role grants are in permissions"
+    },
+    {
+      "row": 110,
+      "action": "Select Report Scope",
+      "roles": [
+        "SYSTEM_ADMINISTRATOR",
+        "PROJECT_OFFICER",
+        "MONITORING_AND_EVALUATION_OFFICER",
+        "PROJECT_MANAGER",
+        "PROGRAM_MANAGER",
+        "GRANT_MANAGER"
+      ],
+      "permissions": ["reports.read"],
+      "precedence": "detailed",
+      "scope": "organization / managed-program-or-assignment / explicit-assignment, according to canonical role",
+      "disposition": "Detailed rows override conflicting overview grants; effective role grants are in permissions"
+    },
+    {
+      "row": 111,
+      "action": "Generate Report Content",
+      "roles": [
+        "SYSTEM_ADMINISTRATOR",
+        "PROJECT_OFFICER",
+        "MONITORING_AND_EVALUATION_OFFICER",
+        "PROJECT_MANAGER",
+        "PROGRAM_MANAGER",
+        "GRANT_MANAGER"
+      ],
+      "permissions": ["reports.generate"],
+      "precedence": "detailed",
+      "scope": "organization / managed-program-or-assignment / explicit-assignment, according to canonical role",
+      "disposition": "Detailed rows override conflicting overview grants; effective role grants are in permissions"
+    },
+    {
+      "row": 112,
+      "action": "Export Monitoring Output",
+      "roles": [
+        "SYSTEM_ADMINISTRATOR",
+        "PROJECT_OFFICER",
+        "MONITORING_AND_EVALUATION_OFFICER",
+        "PROJECT_MANAGER",
+        "PROGRAM_MANAGER",
+        "GRANT_MANAGER"
+      ],
+      "permissions": ["reports.export"],
+      "precedence": "detailed",
+      "scope": "organization / managed-program-or-assignment / explicit-assignment, according to canonical role",
+      "disposition": "Detailed rows override conflicting overview grants; effective role grants are in permissions"
+    },
+    {
+      "row": 113,
+      "action": "View Data Visualizations",
+      "roles": [
+        "SYSTEM_ADMINISTRATOR",
+        "PROJECT_OFFICER",
+        "MONITORING_AND_EVALUATION_OFFICER",
+        "PROJECT_MANAGER",
+        "PROGRAM_MANAGER",
+        "GRANT_MANAGER"
+      ],
+      "permissions": ["reports.read"],
+      "precedence": "detailed",
+      "scope": "organization / managed-program-or-assignment / explicit-assignment, according to canonical role",
+      "disposition": "Detailed rows override conflicting overview grants; effective role grants are in permissions"
+    },
+    {
+      "row": 114,
+      "action": "View Charts / Tables",
+      "roles": [
+        "SYSTEM_ADMINISTRATOR",
+        "PROJECT_OFFICER",
+        "MONITORING_AND_EVALUATION_OFFICER",
+        "PROJECT_MANAGER",
+        "PROGRAM_MANAGER",
+        "GRANT_MANAGER"
+      ],
+      "permissions": ["reports.read"],
+      "precedence": "detailed",
+      "scope": "organization / managed-program-or-assignment / explicit-assignment, according to canonical role",
+      "disposition": "Detailed rows override conflicting overview grants; effective role grants are in permissions"
+    },
+    {
+      "row": 115,
+      "action": "Apply Filters",
+      "roles": [
+        "SYSTEM_ADMINISTRATOR",
+        "PROJECT_OFFICER",
+        "MONITORING_AND_EVALUATION_OFFICER",
+        "PROJECT_MANAGER",
+        "PROGRAM_MANAGER",
+        "GRANT_MANAGER"
+      ],
+      "permissions": ["reports.read"],
+      "precedence": "detailed",
+      "scope": "organization / managed-program-or-assignment / explicit-assignment, according to canonical role",
+      "disposition": "Detailed rows override conflicting overview grants; effective role grants are in permissions"
+    },
+    {
+      "row": 117,
+      "action": "Configure Evaluation & Alert Parameters",
+      "roles": ["SYSTEM_ADMINISTRATOR"],
+      "permissions": ["settings.configure", "rules.update"],
+      "precedence": "detailed",
+      "scope": "organization / managed-program-or-assignment / explicit-assignment, according to canonical role",
+      "disposition": "Detailed rows override conflicting overview grants; effective role grants are in permissions"
+    },
+    {
+      "row": 118,
+      "action": "Define / Update Thresholds",
+      "roles": ["SYSTEM_ADMINISTRATOR"],
+      "permissions": ["settings.configure", "rules.update"],
+      "precedence": "detailed",
+      "scope": "organization / managed-program-or-assignment / explicit-assignment, according to canonical role",
+      "disposition": "Detailed rows override conflicting overview grants; effective role grants are in permissions"
+    },
+    {
+      "row": 119,
+      "action": "Manage Backup and Recovery",
+      "roles": ["SYSTEM_ADMINISTRATOR"],
+      "permissions": ["backups.create", "backups.restore"],
+      "precedence": "detailed",
+      "scope": "organization / managed-program-or-assignment / explicit-assignment, according to canonical role",
+      "disposition": "Detailed rows override conflicting overview grants; effective role grants are in permissions"
+    },
+    {
+      "row": 120,
+      "action": "Record Audit Log",
+      "roles": ["SYSTEM_ADMINISTRATOR"],
+      "permissions": [],
+      "precedence": "detailed",
+      "scope": "organization / managed-program-or-assignment / explicit-assignment, according to canonical role",
+      "disposition": "Automatic protected-operation check or audit recording; always required"
+    },
+    {
+      "row": 121,
+      "action": "Create Backup",
+      "roles": ["SYSTEM_ADMINISTRATOR"],
+      "permissions": ["backups.create"],
+      "precedence": "detailed",
+      "scope": "organization / managed-program-or-assignment / explicit-assignment, according to canonical role",
+      "disposition": "Detailed rows override conflicting overview grants; effective role grants are in permissions"
+    },
+    {
+      "row": 122,
+      "action": "Restore Backup",
+      "roles": ["SYSTEM_ADMINISTRATOR"],
+      "permissions": ["backups.restore"],
+      "precedence": "detailed",
+      "scope": "organization / managed-program-or-assignment / explicit-assignment, according to canonical role",
+      "disposition": "Detailed rows override conflicting overview grants; effective role grants are in permissions"
+    },
+    {
+      "row": 124,
+      "action": "Manage Public Project Tracker",
+      "roles": ["SYSTEM_ADMINISTRATOR", "PROJECT_MANAGER", "PROGRAM_MANAGER", "GRANT_MANAGER"],
+      "permissions": ["public.preview", "public.approve", "public.publish"],
+      "precedence": "detailed",
+      "scope": "organization / managed-program-or-assignment / explicit-assignment, according to canonical role",
+      "disposition": "Detailed rows override conflicting overview grants; effective role grants are in permissions"
+    },
+    {
+      "row": 125,
+      "action": "Select Approved Project Information",
+      "roles": ["SYSTEM_ADMINISTRATOR", "PROJECT_MANAGER", "PROGRAM_MANAGER", "GRANT_MANAGER"],
+      "permissions": ["public.approve"],
+      "precedence": "detailed",
+      "scope": "organization / managed-program-or-assignment / explicit-assignment, according to canonical role",
+      "disposition": "Detailed rows override conflicting overview grants; effective role grants are in permissions"
+    },
+    {
+      "row": 126,
+      "action": "Approve Public Content",
+      "roles": ["SYSTEM_ADMINISTRATOR", "PROJECT_MANAGER", "PROGRAM_MANAGER", "GRANT_MANAGER"],
+      "permissions": ["public.approve"],
+      "precedence": "detailed",
+      "scope": "organization / managed-program-or-assignment / explicit-assignment, according to canonical role",
+      "disposition": "Detailed rows override conflicting overview grants; effective role grants are in permissions"
+    },
+    {
+      "row": 127,
+      "action": "Publish / Update Visibility",
+      "roles": ["SYSTEM_ADMINISTRATOR", "PROJECT_MANAGER", "PROGRAM_MANAGER", "GRANT_MANAGER"],
+      "permissions": ["public.publish"],
+      "precedence": "detailed",
+      "scope": "organization / managed-program-or-assignment / explicit-assignment, according to canonical role",
+      "disposition": "Detailed rows override conflicting overview grants; effective role grants are in permissions"
+    },
+    {
+      "row": 128,
+      "action": "View Public Project Tracker (Preview)",
+      "roles": ["SYSTEM_ADMINISTRATOR", "PROJECT_MANAGER", "PROGRAM_MANAGER", "GRANT_MANAGER"],
+      "permissions": ["public.preview"],
+      "precedence": "detailed",
+      "scope": "organization / managed-program-or-assignment / explicit-assignment, according to canonical role",
+      "disposition": "Detailed rows override conflicting overview grants; effective role grants are in permissions"
+    },
+    {
+      "row": 129,
+      "action": "View Approved Project Summary",
+      "roles": ["SYSTEM_ADMINISTRATOR", "PROJECT_MANAGER", "PROGRAM_MANAGER", "GRANT_MANAGER"],
+      "permissions": ["public.preview"],
+      "precedence": "detailed",
+      "scope": "organization / managed-program-or-assignment / explicit-assignment, according to canonical role",
+      "disposition": "Detailed rows override conflicting overview grants; effective role grants are in permissions"
+    },
+    {
+      "row": 130,
+      "action": "View Milestone / Performance Status",
+      "roles": ["SYSTEM_ADMINISTRATOR", "PROJECT_MANAGER", "PROGRAM_MANAGER", "GRANT_MANAGER"],
+      "permissions": ["public.preview"],
+      "precedence": "detailed",
+      "scope": "organization / managed-program-or-assignment / explicit-assignment, according to canonical role",
+      "disposition": "Detailed rows override conflicting overview grants; effective role grants are in permissions"
+    }
+  ],
+  "supportingReads": {
+    "projects.read": "Scoped id, code, title, status only without projects.detail.read",
+    "forms.read": "Scoped blank form definitions required for generation; response data requires separate detail permission",
+    "imports.process": "Finalize granted imports after validation; mapping still requires imports.review",
+    "beneficiaries.enrollments.manage": "Opaque enrollment lookup through p09_enroll; no beneficiary profile for Admin",
+    "journeys.read": "Existing stage selection for activity linking and permitted beneficiary history; stage configuration denied"
+  },
+  "financialStages": {
+    "verification": "MONITORING_AND_EVALUATION_OFFICER",
+    "approval": "PROJECT_MANAGER",
+    "finalSignoff": ["PROGRAM_MANAGER", "GRANT_MANAGER"],
+    "actorSeparation": true
+  }
+}

@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { useMonitoringRead } from '@/features/analytics/use-monitoring-read'
 import { useCurrentRole } from '@/hooks/use-current-role'
+import { principalHasAtomicPermission } from '@/lib/rbac/route-access'
 import { PathwaysClientError, pathwaysClient } from '@/lib/services/pathways-client'
 import type { Activity, DigitalFormDefinition } from '@/types/pathways'
 import {
@@ -302,11 +303,13 @@ function IndicatorEditor({
   onSave,
   onUpdate,
   onArchive,
+  canArchive,
 }: {
   indicator: ProjectIndicator
   busy: boolean
   onSave: (input: ManualMeasurementInput) => Promise<boolean>
   onUpdate: (name: string, description: string) => Promise<boolean>
+  canArchive: boolean
   onArchive: () => Promise<boolean>
 }) {
   const [error, setError] = useState<string | null>(null)
@@ -416,24 +419,26 @@ function IndicatorEditor({
           permitted.
         </p>
       )}
-      <div className="mt-5 flex flex-wrap items-center gap-3 border-t border-border pt-3">
-        <label className="flex items-center gap-2 text-sm">
-          <input
-            type="checkbox"
-            checked={archiveConfirmed}
-            onChange={(event) => setArchiveConfirmed(event.target.checked)}
-          />
-          Confirm archive (no deletion)
-        </label>
-        <Button
-          type="button"
-          variant="outline"
-          disabled={!archiveConfirmed || busy}
-          onClick={() => void onArchive()}
-        >
-          Archive indicator
-        </Button>
-      </div>
+      {canArchive ? (
+        <div className="mt-5 flex flex-wrap items-center gap-3 border-t border-border pt-3">
+          <label className="flex items-center gap-2 text-sm">
+            <input
+              type="checkbox"
+              checked={archiveConfirmed}
+              onChange={(event) => setArchiveConfirmed(event.target.checked)}
+            />
+            Confirm archive (no deletion)
+          </label>
+          <Button
+            type="button"
+            variant="outline"
+            disabled={!archiveConfirmed || busy}
+            onClick={() => void onArchive()}
+          >
+            Archive indicator
+          </Button>
+        </div>
+      ) : null}
     </details>
   )
 }
@@ -627,6 +632,7 @@ export function ProjectIndicatorsWorkspace({ projectId }: { projectId: string })
                         }),
                       )
                     }
+                    canArchive={principalHasAtomicPermission(profile, 'indicators.archive')}
                     onArchive={() =>
                       mutate(() =>
                         pathwaysClient.archiveProjectIndicator(

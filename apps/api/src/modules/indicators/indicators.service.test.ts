@@ -27,7 +27,7 @@ const actor: ApplicationIdentity = {
   userId,
   fullName: 'Synthetic M&E',
   roles: ['MONITORING_AND_EVALUATION_OFFICER'],
-  permissions: ['monitoring.read', 'indicators.create', 'indicators.update'],
+  permissions: ['indicators.read', 'indicators.create', 'indicators.update'],
   assignedProjectIds: [projectId],
 }
 const row = {
@@ -120,7 +120,7 @@ describe('P06 IndicatorsService', () => {
     expect(boundary.run).toHaveBeenCalledWith(
       expect.anything(),
       actor,
-      'monitoring.read',
+      'indicators.read',
       expect.any(Function),
     )
     expect(tx.project.findFirst).toHaveBeenCalledWith(
@@ -166,7 +166,7 @@ describe('P06 IndicatorsService', () => {
       NotFoundException,
     )
     await expect(
-      service.create({ ...actor, permissions: ['monitoring.read'] }, projectId, input),
+      service.create({ ...actor, permissions: ['indicators.read'] }, projectId, input),
     ).rejects.toBeInstanceOf(ForbiddenException)
     expect(tx.$executeRaw).not.toHaveBeenCalled()
   })
