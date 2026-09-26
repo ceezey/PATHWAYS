@@ -113,6 +113,7 @@ Newest first.
 
 | CR ID | Date | Summary | Status |
 |---|---|---|---|
+| [cr-pathways-f10-f11-runtime-authority](cr-pathways-f10-f11-runtime-authority.md) | 2026-09-26 | Local least-privilege worker/sweeper boundary, SYSTEM attribution, calendar equality, conservative exposure and legacy preservation; human matrix unchanged | Approved; implementation/verification pending; hosted application, scheduler and release excluded |
 | sad-review-adoption-2026-09-26 | 2026-09-26 | Developer-approved seven-role SAD, digest-bound external sign-off, automated CI diagnostics, and disposable PostgreSQL 18 archive/baseline replay | Applied; local checker and replay verified; hosted application excluded |
 | [cr-pathways-revised-rbac-baseline](cr-pathways-revised-rbac-baseline.md) | 2026-09-26 | Revised grants and archived baseline consolidation | Applied |
 | [cr-pathways-csv-rbac-realignment](cr-pathways-csv-rbac-realignment.md) | 2026-09-26 | CSV action matrix, authorization realignment, preserved migration history and development-only correction | Applied; PATHWAYS-dev 0026 verified, approved 0020 checksum exception retained |
@@ -163,4 +164,4 @@ Last run: 2026-09-26 (`pnpm docs:check`).
 
 ## 11. Current Next Step
 
-The revised RBAC and baseline Change Record is Applied; the auth RFC is Locked following PATHWAYS-dev and development-preview verification. Production release and subsequent core-feature repairs require separate authorization. Remaining OPS and PRD-F10 to PRD-F13 gaps are recorded in `state.md` and the relevant contracts.
+The revised RBAC and baseline Change Record is Applied; the auth RFC is Locked following PATHWAYS-dev and development-preview verification. The F10/F11 local runtime authority Change Record is Approved with implementation and verification pending; it does not establish feature availability or authorize hosted provisioning, scheduler application or production release. Production release and subsequent core-feature repairs retain their separate authorization boundaries. Remaining OPS and PRD-F10 to PRD-F13 gaps are recorded in `state.md` and the relevant contracts.

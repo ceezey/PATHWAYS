@@ -16,6 +16,14 @@ The revised contract is approved; re-locking requires verified local enforcement
 
 Supabase Auth establishes verified identity and session. Every protected operation resolves the linked system user, allowed account state, organization, active canonical role, active database permissions, and required project scope again. Email, client role, app metadata, cached browser permissions, and client assignment arrays never establish authority. Revocation takes effect on the next protected request. The runtime identity remains non-superuser and NOBYPASSRLS; the established `prisma` identity owns migrations.
 
+### Approved F10/F11 machine exception (implementation pending)
+
+The developer-approved [local runtime authority Change Record](cr-pathways-f10-f11-runtime-authority.md) defines a separate machine exception for local F10/F11 implementation/testing. It does not change the human identity chain, six-role ceiling, permissions or assignments. Approval does not establish available handlers or installed capabilities; machine operation remains disabled until exact implementation, specialist review and runtime verification pass.
+
+Separate non-superuser/NOBYPASSRLS/NOINHERIT worker and sweeper identities use only fixed reviewed entrypoints under scoped RLS and narrow NOLOGIN owners. Worker may claim/capture/commit/release snapshot-bound work; sweeper may enqueue bounded hourly recovery for initialized state, without metric detail, evaluation or bootstrap authority. Neither may impersonate a human/MFA session, mutate sources, configure rules, approve eligibility or record human outcomes. No broad source/table access, privileged shared Prisma fallback or browser machine capability is permitted.
+
+Only the exact POST machine drain/sweep handlers, under verified existing API-prefix behavior, use their distinct server-only credentials. Strict single Authorization-header parsing and constant-time fixed-length comparison apply. All ordinary routes retain the unchanged human guard and current-operation checks. SYSTEM evaluation/proposal attribution has null human actor references; HUMAN rows require genuine actors. Existing attribution/history remains intact. Calendar, whole-resource configuration denial, private note omission and compatibility requirements are specified in the approved Change Record. Hosted roles/database application, scheduler provisioning, production release and private proof-inspection/download retirement remain separately gated.
+
 | CSV name / canonical role | Project boundary | Beneficiary and assessment privacy |
 |---|---|---|
 | System Administrator / SYSTEM_ADMINISTRATOR | Own organization | Beneficiary and assessment/survey detail denied; analytical aggregates retain SADDD protections. Blank-form configuration grants no response-data access. |
@@ -143,6 +151,7 @@ Admin = System Administrator; Program = Program Manager; Grant = Grant Manager; 
 - PO may open analytics, SADDD, alerts, and recommendations. Monitoring dashboards and descriptive analytics remain separately denied to PO. SADDD suppression applies to every role.
 - Activity escalation grants scoped viewing and raising only. Resolution, approval, and financial actions require separate permissions.
 - Authentication, role checks, and automatic audit recording remain mandatory for every protected operation. `audit.read` separately authorizes viewing. Transaction-bound INSERT RETURNING support does not grant historical log access.
+- Approved F10/F11 in-app notification support derives the recipient from the current linked user and rechecks the applicable alert/recommendation permissions, account, project scope and whole-resource eligibility before retrieval, counting or read acknowledgement. Preview, confirmation and delivery recheck recipients independently. It adds no permission seed or unrestricted profile data access. This supporting disposition is approved for local implementation; handlers remain unavailable until verified.
 
 ## 5. Approval Stages and Deferred Capabilities
 
