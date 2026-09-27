@@ -118,6 +118,9 @@ export type AtomicPermission = (typeof permissionCodes)[number]
 export const rolePermissions: Record<CanonicalRole, readonly AtomicPermission[]> = {
   SYSTEM_ADMINISTRATOR: [
     'projects.read',
+    // Read-only activity and budget views: cr-pathways-admin-read-access (0035).
+    'activities.read',
+    'budgets.read',
     'activities.context.read',
     'journeys.read',
     'journeys.manage',

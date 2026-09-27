@@ -70,6 +70,7 @@ describe('shared project workspace optional loading', () => {
     access.profile.assignedProjectIds = [projectId]
     access.profile.permissions = [
       'projects.read',
+      'activities.read',
       'evidence.read',
       'evidence.review',
       'reports.read',
@@ -208,16 +209,21 @@ describe('shared project workspace optional loading', () => {
       expect(screen.queryByRole('button', { name: 'Approve' })).toBeNull()
     },
   )
-  it.each(['evidence.review', 'activities.read'])(
-    'does not advertise a review workflow after current %s revocation',
-    async (permission) => {
-      access.profile.permissions = reviewerPermissions.filter((value) => value !== permission)
-      api.getEvidence.mockResolvedValue([proof])
-      render(<ProjectPhaseFiveWorkspace projectId={projectId} view="evidence" />)
-      expect(await screen.findByRole('button', { name: 'Preview' })).toBeTruthy()
-      expect(screen.queryByRole('link', { name: 'Review proof' })).toBeNull()
-    },
-  )
+  it('does not advertise a review workflow after current evidence.review revocation', async () => {
+    access.profile.permissions = reviewerPermissions.filter((value) => value !== 'evidence.review')
+    api.getEvidence.mockResolvedValue([proof])
+    render(<ProjectPhaseFiveWorkspace projectId={projectId} view="evidence" />)
+    expect(await screen.findByRole('button', { name: 'Preview' })).toBeTruthy()
+    expect(screen.queryByRole('link', { name: 'Review proof' })).toBeNull()
+  })
+  it('does not fetch evidence without activities.read, which the evidence list is read from', async () => {
+    access.profile.permissions = reviewerPermissions.filter((value) => value !== 'activities.read')
+    api.getEvidence.mockResolvedValue([proof])
+    render(<ProjectPhaseFiveWorkspace projectId={projectId} view="evidence" />)
+    expect(await screen.findByRole('heading', { name: 'Evidence' })).toBeTruthy()
+    expect(api.getEvidence).not.toHaveBeenCalled()
+    expect(screen.queryByRole('button', { name: 'Preview' })).toBeNull()
+  })
   it('does not fetch or preview evidence after current evidence.read revocation', async () => {
     access.profile.permissions = reviewerPermissions.filter((value) => value !== 'evidence.read')
     api.getEvidence.mockResolvedValue([proof])

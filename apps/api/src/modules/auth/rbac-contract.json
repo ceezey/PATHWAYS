@@ -108,7 +108,12 @@
       "GRANT_MANAGER"
     ],
     "projects.create": ["PROJECT_MANAGER"],
-    "activities.read": ["PROJECT_OFFICER", "MONITORING_AND_EVALUATION_OFFICER", "PROJECT_MANAGER"],
+    "activities.read": [
+      "SYSTEM_ADMINISTRATOR",
+      "PROJECT_OFFICER",
+      "MONITORING_AND_EVALUATION_OFFICER",
+      "PROJECT_MANAGER"
+    ],
     "activities.create": ["PROJECT_OFFICER", "PROJECT_MANAGER"],
     "activities.update": ["PROJECT_MANAGER"],
     "activities.proof.submit": ["PROJECT_OFFICER", "PROJECT_MANAGER"],
@@ -128,7 +133,7 @@
       "MONITORING_AND_EVALUATION_OFFICER",
       "PROJECT_MANAGER"
     ],
-    "budgets.read": ["PROJECT_MANAGER", "PROGRAM_MANAGER", "GRANT_MANAGER"],
+    "budgets.read": ["SYSTEM_ADMINISTRATOR", "PROJECT_MANAGER", "PROGRAM_MANAGER", "GRANT_MANAGER"],
     "budgets.create": ["PROJECT_MANAGER", "PROGRAM_MANAGER", "GRANT_MANAGER"],
     "budgets.update": ["PROJECT_MANAGER", "PROGRAM_MANAGER", "GRANT_MANAGER"],
     "expenses.read": [
@@ -763,17 +768,22 @@
     {
       "row": 39,
       "action": "View Budget Tab",
-      "roles": ["PROJECT_MANAGER", "PROGRAM_MANAGER", "GRANT_MANAGER"],
+      "roles": ["SYSTEM_ADMINISTRATOR", "PROJECT_MANAGER", "PROGRAM_MANAGER", "GRANT_MANAGER"],
       "permissions": ["budgets.read"],
-      "notes": "",
+      "notes": "System Administrator read added by cr-pathways-admin-read-access (migration 0035).",
       "disposition": "Scoped action grant; detail and supporting operations remain separately authorized"
     },
     {
       "row": 40,
       "action": "Track Project Activities",
-      "roles": ["PROJECT_OFFICER", "MONITORING_AND_EVALUATION_OFFICER", "PROJECT_MANAGER"],
+      "roles": [
+        "SYSTEM_ADMINISTRATOR",
+        "PROJECT_OFFICER",
+        "MONITORING_AND_EVALUATION_OFFICER",
+        "PROJECT_MANAGER"
+      ],
       "permissions": ["activities.read"],
-      "notes": "",
+      "notes": "System Administrator read added by cr-pathways-admin-read-access (migration 0035).",
       "disposition": "Scoped action grant; detail and supporting operations remain separately authorized"
     },
     {
@@ -1776,5 +1786,16 @@
     "forms.read": "Scoped blank definitions only; response detail separately authorized",
     "journeys.read": "Stage definitions for configuration/support; beneficiary events require beneficiary detail permission",
     "activities.context.read": "Admin scoped id/title/status and stage IDs only; activity detail remains denied"
-  }
+  },
+  "amendments": [
+    {
+      "changeRecord": "cr-pathways-admin-read-access",
+      "migration": "0035_admin_read_access",
+      "rows": [39, 40],
+      "grants": [
+        ["SYSTEM_ADMINISTRATOR", "activities.read"],
+        ["SYSTEM_ADMINISTRATOR", "budgets.read"]
+      ]
+    }
+  ]
 }
