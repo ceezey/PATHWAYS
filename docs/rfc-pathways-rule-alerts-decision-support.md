@@ -1,8 +1,8 @@
 # RFC: Dynamic Rule-Based Alerts and Human-Reviewed Decision Support
 
-## Current Schema (verified 2026-09-26)
+## Current implementation (reconciled 2026-09-27)
 
-`apps/api/prisma/schema.prisma` already defines the rule tables (`alert_rules`, `alert_rule_conditions`, `alert_rule_recommendations`, `rule_based_alerts`, `decision_recommendations`). No rules/alerts/recommendations API exists yet (PRD-F10/PRD-F11 are schema-only).
+`apps/api/prisma/schema.prisma` already defines the rule tables (`alert_rules`, `alert_rule_conditions`, `alert_rule_recommendations`, `rule_based_alerts`, `decision_recommendations`). Local rules, alerts and recommendations controllers now exist under the approved runtime authority CR. Migration 0031 adds the initial runtime storage and fixed operations; integrated runtime acceptance and hosted installation remain pending.
 
 | Concept | Prisma enum / field | Values |
 |---|---|---|
@@ -146,3 +146,9 @@ Missing inputs -> unavailable, not invented zero.
 ## Required Tests
 
 Type/operator validation, ALL/ANY, boundary equality, missing metrics, idempotency, dedup, cooldown, re-trigger, auto-resolution, project/org isolation, snapshots, human outcome permissions.
+
+## Initial local runtime scope
+
+The [approved runtime authority CR](cr-pathways-f10-f11-runtime-authority.md) governs the local human API, source-operation acknowledgements, separate worker/sweeper entrypoints, SYSTEM attribution, private-note omission and preserved legacy history. Machine processing defaults to disabled. The admitted metric catalog covers indicator, timeline and activity observations; budget, Beneficiary and survey metrics remain unavailable. Indicator exposure requires a current non-sensitive eligibility approval; this implementation adds no eligibility administration UI or autonomous approval.
+
+Forward SQL preserves the single Prisma ledger and existing rows. Local unit tests establish bounded typed behavior; they do not substitute for combined PostgreSQL, revocation, legacy compatibility, recovery, physical deadline and preview evidence. No hosted feature availability or complete acceptance of every alert family is claimed.

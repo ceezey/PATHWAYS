@@ -17,6 +17,8 @@ import { prismaDiagnosticCode, transactionDiagnostic } from '../../prisma/transa
 import { hasAtomicPermission, isCanonicalRole } from './authorization-policy'
 import { type ApplicationIdentity, UUID_PATTERN } from './developer-access'
 
+import type { InspectionRequestBudget } from '../../common/network/inspection-request-budget'
+
 type ProfileRow = {
   id: string
   organizationId: string
@@ -117,11 +119,19 @@ export class ApplicationProfileService {
     organizationSelector: unknown,
     userSelector: unknown,
     onTiming?: (timing: VerifiedTransactionTiming) => void,
+    budget?: InspectionRequestBudget,
   ): Promise<ApplicationIdentity> {
     if (typeof sessionId !== 'string' || !UUID_PATTERN.test(sessionId)) {
       throw new UnauthorizedException('Invalid or expired authentication. Sign in again.')
     }
-    return this.resolveContext(authSubject, organizationSelector, userSelector, sessionId, onTiming)
+    return this.resolveContext(
+      authSubject,
+      organizationSelector,
+      userSelector,
+      sessionId,
+      onTiming,
+      budget,
+    )
   }
 
   private async resolveContext(
@@ -130,6 +140,7 @@ export class ApplicationProfileService {
     userSelector: unknown,
     sessionId?: string,
     onTiming?: (timing: VerifiedTransactionTiming) => void,
+    budget?: InspectionRequestBudget,
   ): Promise<ApplicationIdentity> {
     if (
       typeof authSubject !== 'string' ||
@@ -151,9 +162,15 @@ export class ApplicationProfileService {
         : { authSubject, organizationId, userId }
       const readProfile = (transaction: Prisma.TransactionClient) =>
         readApplicationProfile(transaction, authSubject, organizationId, userId)
-      return await (onTiming
-        ? this.prisma.withVerifiedContext(databaseContext, readProfile, { onTiming })
+      budget?.check()
+      const result = await (onTiming || budget
+        ? this.prisma.withVerifiedContext(databaseContext, readProfile, {
+            onTiming,
+            requestBudget: budget,
+          })
         : this.prisma.withVerifiedContext(databaseContext, readProfile))
+      budget?.check()
+      return result
     } catch (error) {
       if (error instanceof InactiveVerifiedSessionError) {
         throw new UnauthorizedException('Invalid or expired authentication. Sign in again.')

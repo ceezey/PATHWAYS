@@ -95,54 +95,64 @@ const definitionFields = {
   target: decimal.nullable(),
   binding: indicatorBindingSchema.optional(),
 }
-export const createIndicatorSchema = z
-  .object(definitionFields)
-  .strict()
-  .superRefine((input, ctx) => {
-    try {
-      validateMetricPeriod(input.periodStart, input.periodEnd)
-      for (const value of [input.baseline, input.target])
-        if (value !== null) normalizeMetricDecimal(value, input.numericKind)
-      if (input.numericKind === 'COUNT' && input.displayPrecision !== 0)
-        throw new Error('Counts use zero display decimal places.')
-      if ((input.mode === 'DERIVED') !== Boolean(input.binding))
-        throw new Error('Exactly derived indicators require a binding.')
-      const recipe = input.binding?.recipe
-      if (
-        recipe &&
-        [
-          'PARTICIPATION_RECORD_COUNT',
-          'DISTINCT_ATTENDING_INDIVIDUALS',
-          'EFFECTIVE_JOURNEY_EVENT_COUNT',
-        ].includes(recipe) &&
-        input.numericKind !== 'COUNT'
+const draftDefinitionSchema = z.object(definitionFields).strict()
+const validateIndicatorDefinition = (
+  input: z.infer<typeof draftDefinitionSchema>,
+  ctx: z.RefinementCtx,
+) => {
+  try {
+    validateMetricPeriod(input.periodStart, input.periodEnd)
+    for (const value of [input.baseline, input.target])
+      if (value !== null) normalizeMetricDecimal(value, input.numericKind)
+    if (input.numericKind === 'COUNT' && input.displayPrecision !== 0)
+      throw new Error('Counts use zero display decimal places.')
+    if ((input.mode === 'DERIVED') !== Boolean(input.binding))
+      throw new Error('Exactly derived indicators require a binding.')
+    const recipe = input.binding?.recipe
+    if (
+      recipe &&
+      [
+        'PARTICIPATION_RECORD_COUNT',
+        'DISTINCT_ATTENDING_INDIVIDUALS',
+        'EFFECTIVE_JOURNEY_EVENT_COUNT',
+      ].includes(recipe) &&
+      input.numericKind !== 'COUNT'
+    )
+      throw new Error('This recipe produces a count.')
+    if (recipe === 'ATTENDANCE_RECORDS_PER_INDIVIDUAL' && input.numericKind !== 'RATIO')
+      throw new Error('This recipe produces an uncapped non-negative ratio.')
+    if (recipe === 'ACTIVITY_COMPLETION_PERCENTAGE' && input.numericKind !== 'PERCENTAGE')
+      throw new Error('This recipe produces a percentage.')
+    if (input.baseline !== null && input.target !== null && input.direction !== 'DESCRIPTIVE') {
+      const progress = indicatorProgress(
+        { state: 'AVAILABLE', value: '1', reason: null },
+        input.baseline,
+        input.target,
+        input.direction,
       )
-        throw new Error('This recipe produces a count.')
-      if (recipe === 'ATTENDANCE_RECORDS_PER_INDIVIDUAL' && input.numericKind !== 'RATIO')
-        throw new Error('This recipe produces an uncapped non-negative ratio.')
-      if (recipe === 'ACTIVITY_COMPLETION_PERCENTAGE' && input.numericKind !== 'PERCENTAGE')
-        throw new Error('This recipe produces a percentage.')
-      if (input.baseline !== null && input.target !== null && input.direction !== 'DESCRIPTIVE') {
-        const progress = indicatorProgress(
-          { state: 'AVAILABLE', value: '1', reason: null },
-          input.baseline,
-          input.target,
-          input.direction,
-        )
-        if (progress.reason === 'DIRECTION_CONFLICT')
-          throw new Error('Target conflicts with the selected direction.')
-      }
-    } catch (error) {
-      ctx.addIssue({
-        code: 'custom',
-        message: error instanceof Error ? error.message : 'Invalid metric definition.',
-      })
+      if (progress.reason === 'DIRECTION_CONFLICT')
+        throw new Error('Target conflicts with the selected direction.')
     }
-  })
+  } catch (error) {
+    ctx.addIssue({
+      code: 'custom',
+      message: error instanceof Error ? error.message : 'Invalid metric definition.',
+    })
+  }
+}
+export const createIndicatorDraftSchema = draftDefinitionSchema.superRefine(
+  validateIndicatorDefinition,
+)
+export type CreateIndicatorDraftInput = z.infer<typeof createIndicatorDraftSchema>
+export const createIndicatorSchema = z
+  .object({ ...definitionFields, clientMutationId: uuid })
+  .strict()
+  .superRefine(validateIndicatorDefinition)
 export type CreateIndicatorInput = z.infer<typeof createIndicatorSchema>
 /** Semantic fields are immutable: create a new code/definition for a different metric or period. */
 export const updateIndicatorSchema = z
   .object({
+    clientMutationId: uuid,
     name: definitionFields.name,
     description: definitionFields.description,
     expectedRevision: z.number().int().min(1),
@@ -150,7 +160,7 @@ export const updateIndicatorSchema = z
   .strict()
 export type UpdateIndicatorInput = z.infer<typeof updateIndicatorSchema>
 export const archiveIndicatorSchema = z
-  .object({ expectedRevision: z.number().int().min(1) })
+  .object({ clientMutationId: uuid, expectedRevision: z.number().int().min(1) })
   .strict()
 export const manualMeasurementSchema = z
   .object({

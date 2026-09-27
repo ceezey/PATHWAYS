@@ -104,14 +104,19 @@ foreach($modelDatabase in @($phase6Database,'pathways_phase4_baseline')){
 }
 Write-Output 'BASELINE_REVISED_PRISMA_DATAMODEL_PARITY=PASS'
 
+. (Join-Path $PSScriptRoot 'Verify-Forward.ps1')
+
 # Create a real subsequent migration through Prisma diff between disposable catalogs.
 Invoke-LocalSql "CREATE DATABASE pathways_phase4_baseline_probe TEMPLATE pathways_phase4_baseline;" 'postgres'
 Invoke-LocalSql 'SET ROLE prisma; CREATE TABLE pathways.baseline_compatibility_probe(id uuid PRIMARY KEY);' 'pathways_phase4_baseline_probe'
-$probeMigration=Join-Path $baselineStage '0029_disposable_compatibility_probe'
+$probeMigration=Join-Path $baselineStage '0034_disposable_compatibility_probe'
 New-Item -ItemType Directory -Path $probeMigration | Out-Null
 $probeFromSchema=Join-Path $phase6Parent 'probe-from.prisma'
 $probeToSchema=Join-Path $phase6Parent 'probe-to.prisma'
 $probeSchema=[IO.File]::ReadAllText($rbacIntrospectionSchema)
+# This isolated post-forward datasource must include the SQL-private FK target.
+$probeSchema=$probeSchema.Replace('schemas   = ["public", "pathways", "auth", "storage"]', 'schemas   = ["public", "pathways", "auth", "storage", "pathways_rules_internal"]')
+if ($probeSchema -notmatch 'schemas\s*=\s*\[[^\]]*"pathways_rules_internal"') { throw 'Post-forward probe datasource lacks the private FK schema.' }
 [IO.File]::WriteAllText($probeFromSchema,$probeSchema.Replace('env("DATABASE_URL")','env("PATHWAYS_PROBE_FROM")').Replace('env("DIRECT_URL")','env("PATHWAYS_PROBE_FROM")'))
 [IO.File]::WriteAllText($probeToSchema,$probeSchema.Replace('env("DATABASE_URL")','env("PATHWAYS_PROBE_TO")').Replace('env("DIRECT_URL")','env("PATHWAYS_PROBE_TO")'))
 $env:PATHWAYS_PROBE_FROM='postgresql://prisma@127.0.0.1:55448/pathways_phase4_baseline?sslmode=disable'

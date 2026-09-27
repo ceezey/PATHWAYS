@@ -2,7 +2,7 @@
 
 import { ArrowRight, Eye, FolderKanban, Plus, Search } from 'lucide-react'
 import Link from 'next/link'
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 
 import { PageHeader } from '@/components/layout/page-header'
 import {
@@ -20,9 +20,10 @@ import { Input } from '@/components/ui/input'
 import { useCurrentRole } from '@/hooks/use-current-role'
 import { useDisplayLabels } from '@/hooks/use-display-labels'
 import { principalHasAtomicPermission } from '@/lib/rbac/route-access'
-import { pathwaysClient } from '@/lib/services/pathways-client'
+import { PathwaysClientError, pathwaysClient } from '@/lib/services/pathways-client'
 import { cn } from '@/lib/utils'
-import type { ProjectDetail, ProjectStatus, ProjectSummary } from '@/types/pathways'
+import { useAuthorizedRead } from '@/providers/authorized-query-provider'
+import type { ProjectStatus, ProjectSummary } from '@/types/pathways'
 
 import { ProjectPreviewDialog } from './project-preview-dialog'
 import {
@@ -46,41 +47,26 @@ export const ProjectDirectory = () => {
   const { labels } = useDisplayLabels()
   const { role, profile } = useCurrentRole()
   const canReadDetail = principalHasAtomicPermission(profile, 'projects.detail.read')
-  const [projects, setProjects] = useState<ProjectSummary[]>([])
-  const [status, setStatus] = useState<'loading' | 'success' | 'error'>('loading')
+  const directory = useAuthorizedRead('projects', null, 'projects.read', (signal) =>
+    pathwaysClient.getProjects(signal),
+  )
+  const projects: ProjectSummary[] = directory.data ?? []
+  const status =
+    !directory.eligible || directory.isPending ? 'loading' : directory.isError ? 'error' : 'success'
   const [query, setQuery] = useState('')
   const [statusFilter, setStatusFilter] = useState<ProjectStatusFilter>('All')
-  const [previewProject, setPreviewProject] = useState<ProjectDetail | null>(null)
-  const [loadAttempt, setLoadAttempt] = useState(0)
-
-  useEffect(() => {
-    void loadAttempt
-    let mounted = true
-    setStatus('loading')
-
-    pathwaysClient
-      .getProjects()
-      .then((records) => {
-        if (!mounted) {
-          return
-        }
-
-        setProjects(records)
-        setStatus('success')
-      })
-      .catch(() => {
-        if (!mounted) {
-          return
-        }
-
-        setStatus('error')
-      })
-
-    return () => {
-      mounted = false
-    }
-  }, [loadAttempt])
-
+  const [previewId, setPreviewId] = useState<string | null>(null)
+  const preview = useAuthorizedRead(
+    'project-preview',
+    previewId,
+    'projects.detail.read',
+    (signal) => {
+      if (!previewId) throw new PathwaysClientError('Select a project preview.', 'invalid')
+      return pathwaysClient.getProject(previewId, signal)
+    },
+    Boolean(previewId && canReadDetail),
+  )
+  const previewProject = preview.data ?? null
   const filteredProjects = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase()
 
@@ -98,10 +84,8 @@ export const ProjectDirectory = () => {
     })
   }, [projects, query, statusFilter])
 
-  const openPreview = async (projectId: string) => {
-    if (!canReadDetail) return
-    const project = await pathwaysClient.getProject(projectId)
-    setPreviewProject(project)
+  const openPreview = (id: string) => {
+    if (canReadDetail) setPreviewId(id)
   }
 
   return (
@@ -165,7 +149,7 @@ export const ProjectDirectory = () => {
         <AsyncState
           description="The project directory could not be loaded. Check your connection and try again."
           icon={FolderKanban}
-          onRetry={() => setLoadAttempt((attempt) => attempt + 1)}
+          onRetry={() => void directory.refetch()}
           status="error"
           title="Project data unavailable"
         />
@@ -224,11 +208,11 @@ export const ProjectDirectory = () => {
                     value={project.metricsAvailable ? `${project.kpiAchievement}%` : 'Unavailable'}
                   />
                   <ProjectMeasure
-                    label="Beneficiaries"
+                    label="Target beneficiaries"
                     value={
-                      project.metricsAvailable && project.targetBeneficiaries !== undefined
-                        ? `${formatNumber(project.beneficiariesReached)} / ${formatNumber(project.targetBeneficiaries)}`
-                        : 'Unavailable'
+                      project.targetBeneficiaries !== undefined
+                        ? formatNumber(project.targetBeneficiaries)
+                        : 'Not recorded'
                     }
                   />
                   <ProjectMeasure
@@ -287,10 +271,27 @@ export const ProjectDirectory = () => {
           ))}
         </section>
       ) : null}
+      {previewId && !previewProject ? (
+        <div className="space-y-3">
+          <AsyncState
+            status={preview.isError ? 'error' : 'loading'}
+            title="Project preview"
+            description={
+              preview.isError
+                ? 'The preview could not be loaded. Try again.'
+                : 'Loading project details.'
+            }
+            onRetry={preview.isError ? () => void preview.refetch() : undefined}
+          />
+          <Button type="button" variant="outline" onClick={() => setPreviewId(null)}>
+            Cancel preview
+          </Button>
+        </div>
+      ) : null}
       <ProjectPreviewDialog
         onOpenChange={(open) => {
           if (!open) {
-            setPreviewProject(null)
+            setPreviewId(null)
           }
         }}
         open={Boolean(previewProject)}

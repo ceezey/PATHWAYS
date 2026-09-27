@@ -47,6 +47,8 @@ const observation = (
   cell: { state, value, reason: value === null ? 'NO_MEASUREMENT' : null },
   calculation: {
     kind: 'PROJECT_TIMELINE',
+    projectStatus: 'PLANNED',
+    projectArchived: false,
     reportingDate: '2026-09-26',
     startDate: '2026-09-20',
     endDate: '2026-09-30',

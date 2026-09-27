@@ -63,6 +63,14 @@ class ProjectFieldsDto {
   implementingPartners?: string
 
   @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(20)
+  @ArrayUnique()
+  @IsString({ each: true })
+  @Length(1, 120, { each: true })
+  implementingPartnerNames?: string[]
+
+  @IsOptional()
   @IsString()
   @Length(0, 160)
   sector?: string
@@ -118,6 +126,9 @@ class ProjectFieldsDto {
 export class CreateProjectDto extends ProjectFieldsDto {}
 
 export class UpdateProjectDto extends ProjectFieldsDto {
+  @IsUUID()
+  clientMutationId!: string
+
   @IsDateString()
   expectedUpdatedAt!: string
 }

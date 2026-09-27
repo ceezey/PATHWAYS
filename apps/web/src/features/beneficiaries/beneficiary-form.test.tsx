@@ -1,18 +1,23 @@
 /* @vitest-environment jsdom */
 
+import { beneficiaryRegistrationFieldRules } from '@pathways/shared'
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import type { ChangeEvent, ReactNode } from 'react'
-import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { mockProjects } from '@/mocks/pathways/projects'
 import { testBeneficiaries } from '@/mocks/pathways/real-api-fixtures'
 
 import { sensitiveDraftKey } from '@/lib/auth/sensitive-drafts'
-import { BeneficiaryForm } from './beneficiary-form'
+import {
+  BeneficiaryForm,
+  projectRegistrationValues,
+  registrationAgeAtDate,
+} from './beneficiary-form'
 
 const { client, routerPush, toastError, toastSuccess } = vi.hoisted(() => ({
   client: {
-    getDigitalForms: vi.fn(),
+    getBeneficiaryRegistrationContext: vi.fn(),
     registerBeneficiary: vi.fn(),
     updateBeneficiary: vi.fn(),
   },
@@ -107,6 +112,30 @@ const validDraft = {
   projectId: mockProjects[0]?.id ?? 'project-a',
 }
 
+const context = (
+  definitions: { id: string; version: number; status?: string; formType?: string }[],
+) => ({
+  projectId: validDraft.projectId,
+  businessDate: '2026-09-27',
+  definitions: definitions.map((definition) => ({
+    ...definition,
+    code: 'REGISTRATION',
+    name: 'Registration',
+    status: 'PUBLISHED' as const,
+    formType: 'BENEFICIARY_REGISTRATION' as const,
+    fields: Object.entries(beneficiaryRegistrationFieldRules).map(([code, rule], index) => ({
+      id: code,
+      code,
+      label: code,
+      dataType: rule.dataType,
+      required: 'required' in rule ? rule.required : false,
+      allowedValues: 'allowedValues' in rule ? [...rule.allowedValues] : null,
+      metadataKey: false,
+      sadddField: false,
+      sequence: index + 1,
+    })),
+  })),
+})
 const completeSelects = async () => {
   fireEvent.change(screen.getByRole('combobox', { name: /Project enrollment/ }), {
     target: { value: validDraft.projectId },
@@ -118,6 +147,13 @@ const completeSelects = async () => {
     target: { value: validDraft.disabilityStatus },
   })
 }
+
+beforeEach(() => {
+  client.getBeneficiaryRegistrationContext.mockImplementation(async (projectId: string) => ({
+    ...context([]),
+    projectId,
+  }))
+})
 
 beforeAll(() => {
   HTMLElement.prototype.scrollIntoView = vi.fn()
@@ -133,6 +169,15 @@ afterEach(() => {
 })
 
 describe('BeneficiaryForm', () => {
+  it('preserves protected canonical precedence and omits fields not in the selected definition', () => {
+    expect(
+      projectRegistrationValues(
+        [{ code: 'consent_recorded' }, { code: 'custom_detail' }],
+        { consent_recorded: true, sex: 'NOT_SPECIFIED' },
+        { consent_recorded: false, custom_detail: 'Synthetic', outside: 'omit' },
+      ),
+    ).toEqual({ consent_recorded: true, custom_detail: 'Synthetic' })
+  })
   it('does not restore globally scoped legacy PII', () => {
     window.sessionStorage.setItem('pathways.beneficiaryDraft', JSON.stringify(validDraft))
     render(<BeneficiaryForm projects={mockProjects} />)
@@ -169,8 +214,8 @@ describe('BeneficiaryForm', () => {
   })
   it('cannot register after scope changes while form discovery awaits', async () => {
     window.sessionStorage.setItem(draftKey(validDraft.projectId), JSON.stringify(validDraft))
-    let resolve!: (forms: Array<Record<string, unknown>>) => void
-    client.getDigitalForms.mockReturnValue(
+    let resolve!: (forms: unknown) => void
+    client.getBeneficiaryRegistrationContext.mockReturnValue(
       new Promise((done) => {
         resolve = done
       }),
@@ -178,20 +223,19 @@ describe('BeneficiaryForm', () => {
     const view = render(<BeneficiaryForm projects={mockProjects} />)
     await completeSelects()
     fireEvent.click(screen.getByRole('button', { name: 'Save beneficiary' }))
-    fireEvent.click(
-      within(screen.getByRole('dialog')).getByRole('button', { name: 'Save beneficiary' }),
-    )
-    await waitFor(() => expect(client.getDigitalForms).toHaveBeenCalledOnce())
+    await waitFor(() => expect(client.getBeneficiaryRegistrationContext).toHaveBeenCalledOnce())
     profileState.userId = 'actor-b'
     view.rerender(<BeneficiaryForm projects={mockProjects} />)
-    resolve([
-      {
-        id: 'registration-form',
-        status: 'PUBLISHED',
-        formType: 'BENEFICIARY_REGISTRATION',
-        version: 1,
-      },
-    ])
+    resolve(
+      context([
+        {
+          id: 'registration-form',
+          status: 'PUBLISHED',
+          formType: 'BENEFICIARY_REGISTRATION',
+          version: 1,
+        },
+      ]),
+    )
     await Promise.resolve()
     expect(client.registerBeneficiary).not.toHaveBeenCalled()
     expect(routerPush).not.toHaveBeenCalled()
@@ -244,21 +288,24 @@ describe('BeneficiaryForm', () => {
   it('registers through the published project form and preserves the server identity', async () => {
     const saved = { ...testBeneficiaries[0], id: 'beneficiary-created', code: validDraft.code }
     window.sessionStorage.setItem(draftKey(validDraft.projectId), JSON.stringify(validDraft))
-    client.getDigitalForms.mockResolvedValue([
-      {
-        id: 'registration-form',
-        formType: 'BENEFICIARY_REGISTRATION',
-        status: 'PUBLISHED',
-        version: 2,
-      },
-    ])
+    client.getBeneficiaryRegistrationContext.mockResolvedValue(
+      context([
+        {
+          id: 'registration-form',
+          formType: 'BENEFICIARY_REGISTRATION',
+          status: 'PUBLISHED',
+          version: 2,
+        },
+      ]),
+    )
     client.registerBeneficiary.mockResolvedValue(saved)
 
     render(<BeneficiaryForm projects={mockProjects} />)
     await completeSelects()
     await screen.findByText(/Recovered your unsaved beneficiary draft/)
+    await screen.findByText(/Registration, version/)
     fireEvent.click(screen.getByRole('button', { name: 'Save beneficiary' }))
-    const confirmation = screen.getByRole('dialog')
+    const confirmation = await screen.findByRole('dialog')
     fireEvent.click(within(confirmation).getByRole('button', { name: 'Save beneficiary' }))
 
     await waitFor(() => expect(client.registerBeneficiary).toHaveBeenCalledTimes(1))
@@ -282,14 +329,16 @@ describe('BeneficiaryForm', () => {
 
   it('keeps an exact-code rejection truthful and does not navigate', async () => {
     window.sessionStorage.setItem(draftKey(validDraft.projectId), JSON.stringify(validDraft))
-    client.getDigitalForms.mockResolvedValue([
-      {
-        id: 'registration-form',
-        formType: 'BENEFICIARY_REGISTRATION',
-        status: 'PUBLISHED',
-        version: 1,
-      },
-    ])
+    client.getBeneficiaryRegistrationContext.mockResolvedValue(
+      context([
+        {
+          id: 'registration-form',
+          formType: 'BENEFICIARY_REGISTRATION',
+          status: 'PUBLISHED',
+          version: 1,
+        },
+      ]),
+    )
     client.registerBeneficiary.mockRejectedValue(new Error('Beneficiary code already exists.'))
 
     render(<BeneficiaryForm projects={mockProjects} />)
@@ -345,5 +394,231 @@ describe('BeneficiaryForm', () => {
     expect(routerPush).toHaveBeenCalledWith(
       `/beneficiaries/${beneficiary.id}?projectId=${encodeURIComponent(validDraft.projectId)}`,
     )
+  })
+  it('requires explicit selection and preserves custom required values for the selected definition', async () => {
+    window.sessionStorage.setItem(draftKey(validDraft.projectId), JSON.stringify(validDraft))
+    const value = context([
+      { id: 'registration-first', version: 1 },
+      { id: 'registration-second', version: 1 },
+    ])
+    value.definitions[1].code = 'second_registration'
+    value.definitions[1].fields.push({
+      id: 'custom-text',
+      code: 'custom_required',
+      label: 'Additional registration detail',
+      dataType: 'TEXT',
+      required: true,
+      allowedValues: null,
+      metadataKey: false,
+      sadddField: false,
+      sequence: 100,
+    })
+    client.getBeneficiaryRegistrationContext.mockResolvedValue(value)
+    client.registerBeneficiary.mockResolvedValue({ id: 'created' })
+    render(<BeneficiaryForm projects={mockProjects} />)
+    await completeSelects()
+    await screen.findByRole('combobox', { name: 'Published registration form' })
+    fireEvent.click(screen.getByRole('button', { name: 'Save beneficiary' }))
+    expect(screen.queryByRole('dialog')).toBeNull()
+    fireEvent.change(screen.getByRole('combobox', { name: 'Published registration form' }), {
+      target: { value: 'registration-second' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Save beneficiary' }))
+    expect(screen.queryByRole('dialog')).toBeNull()
+    fireEvent.change(screen.getByLabelText(/Additional registration detail/), {
+      target: { value: 'Synthetic custom response' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Save beneficiary' }))
+    const dialog = await screen.findByRole('dialog')
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Save beneficiary' }))
+    await waitFor(() =>
+      expect(client.registerBeneficiary).toHaveBeenCalledWith(
+        validDraft.projectId,
+        expect.objectContaining({
+          formId: 'registration-second',
+          values: expect.objectContaining({
+            custom_required: 'Synthetic custom response',
+            enrollment_date: '2026-09-27',
+          }),
+        }),
+      ),
+    )
+  })
+  it('keeps absent eligible definitions distinct from request failure and blocks submission', async () => {
+    window.sessionStorage.setItem(draftKey(validDraft.projectId), JSON.stringify(validDraft))
+    client.getBeneficiaryRegistrationContext.mockResolvedValue(context([]))
+    render(<BeneficiaryForm projects={mockProjects} />)
+    await completeSelects()
+    await screen.findByText('No published registration form is available for this project.')
+    fireEvent.click(screen.getByRole('button', { name: 'Save beneficiary' }))
+    expect(screen.queryByRole('dialog')).toBeNull()
+    expect(client.registerBeneficiary).not.toHaveBeenCalled()
+  })
+
+  it('submits a sparse definition with empty unsupported sex/disability draft values', async () => {
+    window.sessionStorage.setItem(
+      draftKey(validDraft.projectId),
+      JSON.stringify({ ...validDraft, sex: '', disabilityStatus: '' }),
+    )
+    const value = context([{ id: 'sparse-registration', version: 1 }])
+    value.definitions[0].fields = value.definitions[0].fields.filter(
+      (field) =>
+        ![
+          'sex',
+          'disability_status',
+          'external_identifier_type',
+          'external_identifier_value',
+          'profile_update_fields',
+        ].includes(field.code),
+    )
+    client.getBeneficiaryRegistrationContext.mockResolvedValue(value)
+    client.registerBeneficiary.mockResolvedValue({ id: 'created' })
+    render(<BeneficiaryForm projects={mockProjects} />)
+    fireEvent.change(screen.getByRole('combobox', { name: /Project enrollment/ }), {
+      target: { value: validDraft.projectId },
+    })
+    await screen.findByText(/Registration, version/)
+    expect(screen.queryByLabelText(/^Sex/)).toBeNull()
+    expect(screen.queryByLabelText(/Disability status/)).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: 'Save beneficiary' }))
+    const dialog = await screen.findByRole('dialog')
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Save beneficiary' }))
+    await waitFor(() => expect(client.registerBeneficiary).toHaveBeenCalledOnce())
+    const values = client.registerBeneficiary.mock.calls[0][1].values
+    for (const code of [
+      'sex',
+      'disability_status',
+      'external_identifier_type',
+      'external_identifier_value',
+      'profile_update_fields',
+    ])
+      expect(values).not.toHaveProperty(code)
+    expect(values).toEqual(
+      expect.objectContaining({
+        first_name: 'Synthetic',
+        last_name: 'Person',
+        birth_date: '2000-01-01',
+        consent_recorded: true,
+        data_processing_consent_recorded: true,
+      }),
+    )
+  })
+  it('counts only supported invalid inputs in sparse-form feedback', async () => {
+    window.sessionStorage.setItem(
+      draftKey(validDraft.projectId),
+      JSON.stringify({ ...validDraft, sex: '', disabilityStatus: '', firstName: '' }),
+    )
+    const value = context([{ id: 'sparse-registration', version: 1 }])
+    value.definitions[0].fields = value.definitions[0].fields.filter(
+      (field) => !['sex', 'disability_status'].includes(field.code),
+    )
+    client.getBeneficiaryRegistrationContext.mockResolvedValue(value)
+    render(<BeneficiaryForm projects={mockProjects} />)
+    fireEvent.change(screen.getByRole('combobox', { name: /Project enrollment/ }), {
+      target: { value: validDraft.projectId },
+    })
+    await screen.findByText(/Registration, version/)
+    fireEvent.click(screen.getByRole('button', { name: 'Save beneficiary' }))
+    expect(toastError).toHaveBeenCalledWith(
+      'Check beneficiary form fields.',
+      expect.objectContaining({ description: expect.stringContaining('1 field needs attention.') }),
+    )
+    expect(screen.queryByRole('dialog')).toBeNull()
+    expect(client.registerBeneficiary).not.toHaveBeenCalled()
+  })
+  it('explains an individual-incompatible general definition before confirmation', async () => {
+    window.sessionStorage.setItem(draftKey(validDraft.projectId), JSON.stringify(validDraft))
+    const value = context([{ id: 'general-registration', version: 1 }])
+    value.definitions[0].fields = value.definitions[0].fields.filter(
+      (field) =>
+        !['first_name', 'last_name', 'birth_date', 'age_at_registration'].includes(field.code),
+    )
+    client.getBeneficiaryRegistrationContext.mockResolvedValue(value)
+    render(<BeneficiaryForm projects={mockProjects} />)
+    fireEvent.change(screen.getByRole('combobox', { name: /Project enrollment/ }), {
+      target: { value: validDraft.projectId },
+    })
+    await screen.findByText(
+      /This published definition does not support the current individual registration/,
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'Save beneficiary' }))
+    expect(screen.queryByRole('dialog')).toBeNull()
+    expect(client.registerBeneficiary).not.toHaveBeenCalled()
+  })
+  it('focuses the supported AGE-only control and associates missing-answer errors', async () => {
+    window.sessionStorage.setItem(
+      draftKey(validDraft.projectId),
+      JSON.stringify({ ...validDraft, age: '' }),
+    )
+    const value = context([{ id: 'age-registration', version: 1 }])
+    value.definitions[0].fields = value.definitions[0].fields.filter(
+      (field) => field.code !== 'birth_date',
+    )
+    client.getBeneficiaryRegistrationContext.mockResolvedValue(value)
+    render(<BeneficiaryForm projects={mockProjects} />)
+    fireEvent.change(screen.getByRole('combobox', { name: /Project enrollment/ }), {
+      target: { value: validDraft.projectId },
+    })
+    await screen.findByText(/Registration, version/)
+    expect(screen.queryByLabelText(/Birth date/)).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: 'Save beneficiary' }))
+    const age = screen.getByLabelText(/^Age/) as HTMLInputElement
+    expect(document.activeElement).toBe(age)
+    expect(age.getAttribute('aria-invalid')).toBe('true')
+    expect(age.getAttribute('aria-describedby')).toBe('beneficiary-age-error')
+    expect(document.getElementById('beneficiary-age-error')?.textContent).toContain(
+      'accepted by the selected form',
+    )
+    expect(screen.queryByRole('dialog')).toBeNull()
+    expect(client.registerBeneficiary).not.toHaveBeenCalled()
+  })
+  it('rejects minor-incompatible definitions from accepted age despite unchecked minor draft flag', async () => {
+    window.sessionStorage.setItem(
+      draftKey(validDraft.projectId),
+      JSON.stringify({ ...validDraft, birthDate: '2015-01-01', isMinor: false }),
+    )
+    const value = context([{ id: 'minor-incompatible', version: 1 }])
+    value.definitions[0].fields = value.definitions[0].fields.filter(
+      (field) => !['is_minor', 'guardian_consent_recorded'].includes(field.code),
+    )
+    client.getBeneficiaryRegistrationContext.mockResolvedValue(value)
+    render(<BeneficiaryForm projects={mockProjects} />)
+    fireEvent.change(screen.getByRole('combobox', { name: /Project enrollment/ }), {
+      target: { value: validDraft.projectId },
+    })
+    await screen.findByText(
+      /This published definition does not support the current individual registration/,
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'Save beneficiary' }))
+    expect(screen.queryByRole('dialog')).toBeNull()
+    expect(client.registerBeneficiary).not.toHaveBeenCalled()
+  })
+  it('does not let an adult stale hidden minor flag block an otherwise supported registration', async () => {
+    window.sessionStorage.setItem(
+      draftKey(validDraft.projectId),
+      JSON.stringify({ ...validDraft, isMinor: true, guardianConsent: false }),
+    )
+    const value = context([{ id: 'adult-registration', version: 1 }])
+    value.definitions[0].fields = value.definitions[0].fields.filter(
+      (field) => !['is_minor', 'guardian_consent_recorded'].includes(field.code),
+    )
+    client.getBeneficiaryRegistrationContext.mockResolvedValue(value)
+    client.registerBeneficiary.mockResolvedValue({ id: 'adult-created' })
+    render(<BeneficiaryForm projects={mockProjects} />)
+    fireEvent.change(screen.getByRole('combobox', { name: /Project enrollment/ }), {
+      target: { value: validDraft.projectId },
+    })
+    await screen.findByText(/Registration, version/)
+    expect(screen.queryByText(/does not support the current individual registration/)).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: 'Save beneficiary' }))
+    const dialog = await screen.findByRole('dialog')
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Save beneficiary' }))
+    await waitFor(() => expect(client.registerBeneficiary).toHaveBeenCalledOnce())
+  })
+  it('uses captured business calendar birthday boundaries and rejects invalid dates for applicability', () => {
+    expect(registrationAgeAtDate('2008-09-28', '', '2026-09-27')).toBe(17)
+    expect(registrationAgeAtDate('2008-09-27', '', '2026-09-27')).toBe(18)
+    expect(registrationAgeAtDate('2026-99-99', '', '2026-09-27')).toBeNull()
+    expect(registrationAgeAtDate('', '17', '2026-09-27')).toBe(17)
   })
 })

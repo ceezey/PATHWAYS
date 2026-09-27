@@ -1,3 +1,54 @@
+// These existing domain tests isolate receipt transport; dedicated source tests cover its boundary.
+vi.mock('../rules/rules-source-operation', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../rules/rules-source-operation')>()),
+  beginRuleSourceOperation: async (
+    _tx: unknown,
+    operation: string,
+    projectId: string,
+    sourceId: string | null,
+    _key: unknown,
+    body: Record<string, unknown>,
+  ) => ({
+    kind: 'NEW',
+    operationHandle: 'f0000000-0000-4000-8000-000000000001',
+    reservedRecordId: ['ACTIVITY_CREATE', 'INDICATOR_CREATE', 'INDICATOR_MEASUREMENT'].includes(
+      operation,
+    )
+      ? 'f0000000-0000-4000-8000-000000000002'
+      : null,
+    generatedValues: {
+      timestamp: '2026-09-27T00:00:00.001Z',
+      businessDate: '2026-09-27',
+      normalizedValue: operation === 'INDICATOR_MEASUREMENT' ? body.value : null,
+      requestHash:
+        operation === 'INDICATOR_MEASUREMENT'
+          ? (await import('node:crypto'))
+              .createHash('sha256')
+              .update(
+                JSON.stringify({
+                  projectId,
+                  indicatorId: sourceId,
+                  periodStart: body.periodStart,
+                  periodEnd: body.periodEnd,
+                  value: body.value,
+                  source: body.source,
+                  note: body.note ?? null,
+                  correctsMeasurementId: body.correctsMeasurementId ?? null,
+                  correctionReason: body.correctionReason ?? null,
+                }),
+              )
+              .digest('hex')
+          : null,
+    },
+  }),
+  finishRuleSourceOperation: async (_tx: unknown, _handle: string, requestId: string) => ({
+    requestId,
+    committed: true,
+    replayed: false,
+  }),
+  readRuleSourceAcknowledgement: async () => null,
+  bootstrapRuleSourceProject: async () => undefined,
+}))
 import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common'
 import { Prisma } from '@prisma/client'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -50,6 +101,9 @@ const project = {
   objectives: 'Objectives',
   implementationArea: 'Area',
   implementingPartners: 'Partner',
+  implementingPartnerLinks: [
+    { partner: { id: '77000000-0000-4000-8000-000000000007', name: 'Synthetic Partner' } },
+  ],
   sector: 'Livelihood',
   targetBeneficiaries: 250,
 
@@ -102,6 +156,7 @@ const tx = {
     update: vi.fn(),
   },
   auditLog: { create: vi.fn() },
+  $queryRaw: vi.fn().mockResolvedValue([]),
 }
 
 describe('Project creation contract', () => {
@@ -147,6 +202,9 @@ describe('Project creation contract', () => {
     expect(created).toMatchObject({
       id: projectId,
       implementingPartners: 'Partner',
+      implementingPartnerRecords: [
+        { id: '77000000-0000-4000-8000-000000000007', name: 'Synthetic Partner' },
+      ],
       sector: 'Livelihood',
       targetBeneficiaries: 250,
       projectBudget: '125000.50',
@@ -197,6 +255,7 @@ describe('Project creation contract', () => {
       const result = await service.update(manager, projectId, {
         title: 'Updated scope',
         status: 'ONGOING',
+        clientMutationId: 'e0000000-0000-4000-8000-000000000001',
         expectedUpdatedAt: now.toISOString(),
         targetBeneficiaries: 350,
       })

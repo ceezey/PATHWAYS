@@ -127,19 +127,26 @@ describe('ActivityFormDialog activation', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Create Activity' }))
 
     await waitFor(() => expect(state.createActivity).toHaveBeenCalledOnce())
-    expect(state.createActivity).toHaveBeenCalledWith({
-      projectId,
-      title: savedActivity.title,
-      description: savedActivity.description,
-      startDate: savedActivity.startDate,
-      dueDate: savedActivity.dueDate,
-      timelineOverrideJustification: undefined,
-      targetBeneficiaries: 30,
-      budgetAllocation: '10000',
-      assignedUserIds: [officer.id],
-      indicatorIds: [],
-      journeyStageId: null,
-    })
+    expect(state.createActivity).toHaveBeenCalledWith(
+      {
+        projectId,
+        title: savedActivity.title,
+        description: savedActivity.description,
+        startDate: savedActivity.startDate,
+        dueDate: savedActivity.dueDate,
+        timelineOverrideJustification: undefined,
+        targetBeneficiaries: 30,
+        budgetAllocation: '10000',
+        assignedUserIds: [officer.id],
+        indicatorIds: [],
+        journeyStageId: null,
+      },
+      expect.objectContaining({
+        principalKey: expect.any(String),
+        isCurrent: expect.any(Function),
+      }),
+    )
+    expect(state.createActivity.mock.calls[0][1].isCurrent()).toBe(true)
     expect(state.onSaved).toHaveBeenCalledWith(savedActivity)
   })
 })

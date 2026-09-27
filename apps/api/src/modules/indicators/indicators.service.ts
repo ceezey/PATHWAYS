@@ -1,4 +1,4 @@
-import { createHash, randomUUID } from 'node:crypto'
+import { createHash } from 'node:crypto'
 import {
   BadRequestException,
   ConflictException,
@@ -26,6 +26,13 @@ import { PrismaService } from '../../prisma/prisma.service'
 import { projectScope } from '../auth/authorized-data.service'
 import { withAuthorizedOperation } from '../auth/authorized-operation'
 import { type ApplicationIdentity, UUID_PATTERN } from '../auth/developer-access'
+import {
+  beginRuleSourceOperation,
+  bootstrapRuleSourceProject,
+  finishRuleSourceOperation,
+  readRuleSourceAcknowledgement,
+  sourceMutationBody,
+} from '../rules/rules-source-operation'
 import {
   createIndicatorSchema,
   manualMeasurementSchema,
@@ -251,6 +258,15 @@ export class IndicatorsService {
       identity,
       'indicators.create',
       async (tx, actor) => {
+        const source = await beginRuleSourceOperation(
+          tx,
+          'INDICATOR_CREATE',
+          projectId,
+          null,
+          { kind: 'CLIENT_MUTATION', id: input.clientMutationId },
+          sourceMutationBody(input),
+        )
+        if (source.kind === 'REPLAY') return source.acknowledgement
         const id = await this.requireProject(tx, actor, projectId)
         await tx.$queryRaw`SELECT id FROM pathways.projects WHERE organization_id=${actor.organizationId}::uuid AND id=${id}::uuid FOR UPDATE`
         await this.validateBinding(tx, actor, id, input)
@@ -261,7 +277,9 @@ export class IndicatorsService {
           throw new ConflictException(
             'Archive unused indicators before adding more than 100 active definitions.',
           )
-        const indicatorId = randomUUID()
+        const indicatorId = source.reservedRecordId
+        if (!indicatorId)
+          throw new ServiceUnavailableException('Indicator creation could not be confirmed.')
         const baseline =
           input.baseline === null ? null : normalizeMetricDecimal(input.baseline, input.numericKind)
         const target =
@@ -293,7 +311,12 @@ export class IndicatorsService {
         } catch (error) {
           monitoringSqlError(error)
         }
-        return this.readOne(tx, actor, id, indicatorId)
+        const sourceAcknowledgement = await finishRuleSourceOperation(
+          tx,
+          source.operationHandle,
+          input.clientMutationId,
+        )
+        return { ...(await this.readOne(tx, actor, id, indicatorId)), sourceAcknowledgement }
       },
     )
   }
@@ -309,11 +332,20 @@ export class IndicatorsService {
       identity,
       'indicators.update',
       async (tx, actor) => {
+        const source = await beginRuleSourceOperation(
+          tx,
+          'INDICATOR_UPDATE',
+          projectId,
+          indicatorId,
+          { kind: 'CLIENT_MUTATION', id: input.clientMutationId },
+          sourceMutationBody(input),
+        )
+        if (source.kind === 'REPLAY') return source.acknowledgement
         const id = await this.requireProject(tx, actor, projectId)
         const selected = this.indicatorId(indicatorId)
         try {
           const count =
-            await tx.$executeRaw`UPDATE pathways.project_indicators SET name=${input.name},description=${input.description ?? null},revision=revision+1,updated_at=CURRENT_TIMESTAMP WHERE organization_id=${actor.organizationId}::uuid AND project_id=${id}::uuid AND id=${selected}::uuid AND revision=${input.expectedRevision} AND archived_at IS NULL`
+            await tx.$executeRaw`UPDATE pathways.project_indicators SET name=${input.name},description=${input.description ?? null},revision=revision+1,updated_at=${source.generatedValues.timestamp}::timestamptz WHERE organization_id=${actor.organizationId}::uuid AND project_id=${id}::uuid AND id=${selected}::uuid AND revision=${input.expectedRevision} AND archived_at IS NULL`
           if (count !== 1)
             throw new ConflictException(
               'Indicator changed or is unavailable. Reload before editing.',
@@ -324,7 +356,12 @@ export class IndicatorsService {
         } catch (error) {
           monitoringSqlError(error)
         }
-        return this.readOne(tx, actor, id, selected)
+        const sourceAcknowledgement = await finishRuleSourceOperation(
+          tx,
+          source.operationHandle,
+          input.clientMutationId,
+        )
+        return { ...(await this.readOne(tx, actor, id, selected)), sourceAcknowledgement }
       },
     )
   }
@@ -332,29 +369,43 @@ export class IndicatorsService {
     identity: ApplicationIdentity,
     projectId: string,
     indicatorId: string,
-    expectedRevision: number,
+    input: { clientMutationId: string; expectedRevision: number },
   ) {
     return withAuthorizedOperation(
       this.prisma,
       identity,
       'indicators.archive',
       async (tx, actor) => {
+        const source = await beginRuleSourceOperation(
+          tx,
+          'INDICATOR_ARCHIVE',
+          projectId,
+          indicatorId,
+          { kind: 'CLIENT_MUTATION', id: input.clientMutationId },
+          sourceMutationBody(input),
+        )
+        if (source.kind === 'REPLAY') return source.acknowledgement
         const id = await this.requireProject(tx, actor, projectId)
         const selected = this.indicatorId(indicatorId)
         try {
           const count =
-            await tx.$executeRaw`UPDATE pathways.project_indicators SET archived_at=CURRENT_TIMESTAMP,revision=revision+1,updated_at=CURRENT_TIMESTAMP WHERE organization_id=${actor.organizationId}::uuid AND project_id=${id}::uuid AND id=${selected}::uuid AND revision=${expectedRevision} AND archived_at IS NULL`
+            await tx.$executeRaw`UPDATE pathways.project_indicators SET archived_at=${source.generatedValues.timestamp}::timestamptz,revision=revision+1,updated_at=${source.generatedValues.timestamp}::timestamptz WHERE organization_id=${actor.organizationId}::uuid AND project_id=${id}::uuid AND id=${selected}::uuid AND revision=${input.expectedRevision} AND archived_at IS NULL`
           if (count !== 1)
             throw new ConflictException(
               'Indicator changed or is unavailable. Reload before archiving.',
             )
           await this.audit(tx, actor, id, 'PROJECT_INDICATOR_ARCHIVED', selected, {
-            revision: expectedRevision + 1,
+            revision: input.expectedRevision + 1,
           })
         } catch (error) {
           monitoringSqlError(error)
         }
-        return this.readOne(tx, actor, id, selected)
+        const sourceAcknowledgement = await finishRuleSourceOperation(
+          tx,
+          source.operationHandle,
+          input.clientMutationId,
+        )
+        return { ...(await this.readOne(tx, actor, id, selected)), sourceAcknowledgement }
       },
     )
   }
@@ -370,10 +421,21 @@ export class IndicatorsService {
       identity,
       'indicators.update',
       async (tx, actor) => {
+        const body = sourceMutationBody(input)
+        const key = { kind: 'CLIENT_MEASUREMENT' as const, id: input.clientMeasurementId }
+        const acknowledgement = await readRuleSourceAcknowledgement(
+          tx,
+          'INDICATOR_MEASUREMENT',
+          projectId,
+          indicatorId,
+          key,
+          body,
+        )
+        if (acknowledgement) return acknowledgement
+        await bootstrapRuleSourceProject(tx, projectId, 'INDICATOR_MEASUREMENT')
         const id = await this.requireProject(tx, actor, projectId)
         const selected = this.indicatorId(indicatorId)
-        await tx.$queryRaw`SELECT id FROM pathways.project_indicators WHERE organization_id=${actor.organizationId}::uuid AND project_id=${id}::uuid AND id=${selected}::uuid FOR UPDATE`
-        const definition = await this.readOne(tx, actor, id, selected)
+        let definition = await this.readOne(tx, actor, id, selected)
         if (definition.mode !== 'MANUAL' || !definition.numericKind)
           throw new ConflictException('Manual measurements require a reviewed manual definition.')
         if (
@@ -410,17 +472,40 @@ export class IndicatorsService {
             throw new ConflictException('The idempotency key was already used for different input.')
           return definition
         }
+        const source = await beginRuleSourceOperation(
+          tx,
+          'INDICATOR_MEASUREMENT',
+          id,
+          selected,
+          key,
+          body,
+        )
+        if (source.kind === 'REPLAY') return source.acknowledgement
+        await tx.$queryRaw`SELECT id FROM pathways.project_indicators WHERE organization_id=${actor.organizationId}::uuid AND project_id=${id}::uuid AND id=${selected}::uuid FOR UPDATE`
+        definition = await this.readOne(tx, actor, id, selected)
+        if (
+          !source.generatedValues.normalizedValue ||
+          !source.generatedValues.requestHash ||
+          normalizeMetricDecimal(
+            source.generatedValues.normalizedValue,
+            definition.numericKind ?? 'SIGNED_CHANGE',
+          ) !== source.generatedValues.normalizedValue
+        )
+          throw new ServiceUnavailableException('Measurement verification could not be confirmed.')
+        exact = source.generatedValues.normalizedValue
         if (definition.status === 'ARCHIVED')
           throw new ConflictException('Archived indicators do not accept measurements.')
-        if (definition.measurementId !== (input.correctsMeasurementId ?? null))
+        if (definition.measurementId !== (input.correctsMeasurementId?.toLowerCase() ?? null))
           throw new ConflictException(
             'Correct the latest measurement with a reason, or reload before creating the first value.',
           )
-        const measurementId = randomUUID()
+        const measurementId = source.reservedRecordId
+        if (!measurementId)
+          throw new ServiceUnavailableException('Measurement creation could not be confirmed.')
         try {
           await tx.$executeRaw`
           INSERT INTO pathways.project_indicator_measurements(id,organization_id,project_id,indicator_id,period_start,period_end,value,source,note,client_measurement_id,request_hash,corrects_measurement_id,correction_reason,recorded_by_id)
-          VALUES (${measurementId}::uuid,${actor.organizationId}::uuid,${id}::uuid,${selected}::uuid,${input.periodStart}::date,${input.periodEnd}::date,${exact}::numeric,${input.source},${input.note ?? null},${input.clientMeasurementId}::uuid,${requestHash},${input.correctsMeasurementId ?? null}::uuid,${input.correctionReason ?? null},${actor.userId}::uuid)
+          VALUES (${measurementId}::uuid,${actor.organizationId}::uuid,${id}::uuid,${selected}::uuid,${input.periodStart}::date,${input.periodEnd}::date,${exact}::numeric,${input.source},${input.note ?? null},${input.clientMeasurementId}::uuid,${source.generatedValues.requestHash},${input.correctsMeasurementId?.toLowerCase() ?? null}::uuid,${input.correctionReason ?? null},${actor.userId}::uuid)
         `
           await this.audit(
             tx,
@@ -435,7 +520,12 @@ export class IndicatorsService {
         } catch (error) {
           monitoringSqlError(error)
         }
-        return this.readOne(tx, actor, id, selected)
+        const sourceAcknowledgement = await finishRuleSourceOperation(
+          tx,
+          source.operationHandle,
+          input.clientMeasurementId,
+        )
+        return { ...(await this.readOne(tx, actor, id, selected)), sourceAcknowledgement }
       },
     )
   }

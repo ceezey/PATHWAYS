@@ -79,6 +79,6 @@ export class IndicatorsController {
     @Body() body: unknown,
   ) {
     const input = parseIndicatorInput(archiveIndicatorSchema, body)
-    return this.service.archive(identity(request), projectId, indicatorId, input.expectedRevision)
+    return this.service.archive(identity(request), projectId, indicatorId, input)
   }
 }

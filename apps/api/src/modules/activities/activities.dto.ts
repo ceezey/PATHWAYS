@@ -33,6 +33,9 @@ const IsMoneyAmount = () =>
   })
 
 export class CreateActivityDto {
+  @IsUUID()
+  clientMutationId!: string
+
   @IsOptional()
   @IsString()
   @Length(2, 40)
@@ -102,6 +105,9 @@ export class UpdateActivityDto extends CreateActivityDto {
 }
 
 export class TransitionActivityDto {
+  @IsUUID()
+  clientMutationId!: string
+
   @IsIn(['IN_PROGRESS', 'CANCELLED'])
   status!: 'IN_PROGRESS' | 'CANCELLED'
 
@@ -130,6 +136,9 @@ export class SubmitActivityUpdateDto {
 }
 
 export class ReviewActivityUpdateDto {
+  @IsUUID()
+  clientMutationId!: string
+
   @IsIn(['APPROVE', 'RETURN'])
   decision!: 'APPROVE' | 'RETURN'
 

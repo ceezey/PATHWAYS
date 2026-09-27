@@ -4,7 +4,7 @@
 
 **Date:** 2026-09-26
 
-**Status:** Approved; implementation and verification pending
+**Status:** Approved; local implementation verified; coordinated preview verification pending
 
 **Approval:** Developer-approved Three-chat workflow, Chat A: remove target-goal inputs, displays and API requirements while retaining the database column and historical values.
 
@@ -26,7 +26,7 @@ Human permissions, project/organization predicates, optimistic concurrency, tran
 
 Required checks cover goal-free creation, unknown-field rejection, updates preserving non-null historical Decimal and null values, output/audit omission, old draft omission, unaffected target-beneficiary behavior, and independent indicator/unavailable calculations. Shared client/type changes require relevant API/web/shared tests and typechecks, documentation checks, and renewed digest-bound SAD reviews/sign-off.
 
-This record approves implementation; it does not claim those checks have run or that previews have been verified. Applied status requires final evidence. No hosted database changes, deployment, scheduler provisioning, private proof inspection or release is authorized here.
+Local implementation now removes the live benchmark contract while preserving historical storage, active target beneficiaries and independent indicator targets. API, web and shared checks pass locally; native verification confirms the current source boundary. Coordinated API/web preview verification and final release evidence remain pending. Applied status requires that final evidence. No hosted database changes, deployment, scheduler provisioning, private proof inspection or release is authorized here.
 
 ## 4. Supersession and Traceability
 

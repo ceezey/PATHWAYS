@@ -1,3 +1,54 @@
+// These existing domain tests isolate receipt transport; dedicated source tests cover its boundary.
+vi.mock('./rules/rules-source-operation', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('./rules/rules-source-operation')>()),
+  beginRuleSourceOperation: async (
+    _tx: unknown,
+    operation: string,
+    projectId: string,
+    sourceId: string | null,
+    _key: unknown,
+    body: Record<string, unknown>,
+  ) => ({
+    kind: 'NEW',
+    operationHandle: 'f0000000-0000-4000-8000-000000000001',
+    reservedRecordId: ['ACTIVITY_CREATE', 'INDICATOR_CREATE', 'INDICATOR_MEASUREMENT'].includes(
+      operation,
+    )
+      ? 'f0000000-0000-4000-8000-000000000002'
+      : null,
+    generatedValues: {
+      timestamp: '2026-09-27T00:00:00.001Z',
+      businessDate: '2026-09-27',
+      normalizedValue: operation === 'INDICATOR_MEASUREMENT' ? body.value : null,
+      requestHash:
+        operation === 'INDICATOR_MEASUREMENT'
+          ? (await import('node:crypto'))
+              .createHash('sha256')
+              .update(
+                JSON.stringify({
+                  projectId,
+                  indicatorId: sourceId,
+                  periodStart: body.periodStart,
+                  periodEnd: body.periodEnd,
+                  value: body.value,
+                  source: body.source,
+                  note: body.note ?? null,
+                  correctsMeasurementId: body.correctsMeasurementId ?? null,
+                  correctionReason: body.correctionReason ?? null,
+                }),
+              )
+              .digest('hex')
+          : null,
+    },
+  }),
+  finishRuleSourceOperation: async (_tx: unknown, _handle: string, requestId: string) => ({
+    requestId,
+    committed: true,
+    replayed: false,
+  }),
+  readRuleSourceAcknowledgement: async () => null,
+  bootstrapRuleSourceProject: async () => undefined,
+}))
 import {
   BadRequestException,
   ConflictException,
@@ -399,6 +450,7 @@ describe('P01 workspace and project services', () => {
       programManagerId: null,
       programManager: null,
       updatedAt: now,
+      implementingPartnerLinks: [],
       userProjectAssignment_project: [
         {
           user: {
@@ -457,6 +509,7 @@ describe('P01 workspace and project services', () => {
         programManagerId: null,
         programManager: null,
         updatedAt: now,
+        implementingPartnerLinks: [],
         userProjectAssignment_project: [
           {
             user: {
@@ -509,6 +562,7 @@ describe('P01 workspace and project services', () => {
       startDate: null,
       endDate: null,
       programManager: null,
+      implementingPartnerLinks: [],
       userProjectAssignment_project: [],
       updatedAt: now,
     })
@@ -545,6 +599,7 @@ describe('P01 workspace and project services', () => {
       programManagerId: null,
       programManager: null,
       updatedAt: new Date('2026-09-23T01:00:00.000Z'),
+      implementingPartnerLinks: [],
       userProjectAssignment_project: [
         {
           user: {
@@ -571,6 +626,7 @@ describe('P01 workspace and project services', () => {
         status: 'ONGOING',
 
         programId: targetId,
+        clientMutationId: 'e0000000-0000-4000-8000-000000000001',
         expectedUpdatedAt: now.toISOString(),
       }),
     ).resolves.toMatchObject({ title: 'Updated project', programId: targetId })
@@ -609,6 +665,7 @@ describe('P01 workspace and project services', () => {
         code: 'PRJ-001',
         title: 'Out-of-scope update',
         status: 'ONGOING',
+        clientMutationId: 'e0000000-0000-4000-8000-000000000001',
         expectedUpdatedAt: now.toISOString(),
       }),
     ).rejects.toBeInstanceOf(NotFoundException)
@@ -647,6 +704,7 @@ describe('P01 workspace and project services', () => {
         code: 'PRJ-001',
         title: 'Synthetic project',
         status: 'ONGOING',
+        clientMutationId: 'e0000000-0000-4000-8000-000000000001',
         expectedUpdatedAt: '2026-09-12T00:00:00.000Z',
       }),
     ).rejects.toBeInstanceOf(ConflictException)
@@ -664,6 +722,7 @@ describe('P01 workspace and project services', () => {
         title: 'Synthetic project',
         status: 'ONGOING',
         programId: targetId,
+        clientMutationId: 'e0000000-0000-4000-8000-000000000001',
         expectedUpdatedAt: now.toISOString(),
       }),
     ).rejects.toBeInstanceOf(NotFoundException)

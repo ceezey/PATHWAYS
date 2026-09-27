@@ -1,4 +1,5 @@
 'use client'
+import { SourceMutationRecovery } from './source-mutation-recovery'
 
 import { EmptyState } from '@/components/pathways/empty-state'
 import { Button } from '@/components/ui/button'
@@ -6,14 +7,20 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { useMonitoringRead } from '@/features/analytics/use-monitoring-read'
 import { useCurrentRole } from '@/hooks/use-current-role'
+import { useSourceMutationContext } from '@/hooks/use-source-mutation-context'
 import { principalHasAtomicPermission } from '@/lib/rbac/route-access'
 import { PathwaysClientError, pathwaysClient } from '@/lib/services/pathways-client'
+import {
+  type SourceMutationResult,
+  isSourceReplay,
+  sourceMutationTickets,
+} from '@/lib/services/source-mutation'
 import type { Activity, DigitalFormDefinition } from '@/types/pathways'
 import {
-  type CreateIndicatorInput,
+  type CreateIndicatorDraftInput as CreateIndicatorInput,
   type ManualMeasurementInput,
   type ProjectIndicator,
-  createIndicatorSchema,
+  createIndicatorDraftSchema,
   formatMetricCell,
   manualMeasurementSchema,
   metricRecipes,
@@ -44,7 +51,7 @@ export function indicatorInputFromForm(
   const recipe = text(form, 'recipe')
   const selectedForm = forms.find((item) => item.id === text(form, 'formId'))
   const formRecipe = recipe === 'FORM_NUMERIC_SUM' || recipe === 'FORM_NUMERIC_AVERAGE'
-  return createIndicatorSchema.parse({
+  return createIndicatorDraftSchema.parse({
     code: text(form, 'code'),
     name: text(form, 'name'),
     description: optional(form, 'description'),
@@ -329,12 +336,16 @@ function IndicatorEditor({
     }
     try {
       const signature = JSON.stringify(payload)
-      if (retry.current?.signature !== signature)
-        retry.current = { signature, id: crypto.randomUUID() }
+      if (retry.current && retry.current.signature !== signature)
+        throw new Error(
+          'The earlier measurement outcome is unresolved. Retry its unchanged values before changing them.',
+        )
+      const attempt = retry.current ?? { signature, id: crypto.randomUUID() }
       const parsed = manualMeasurementSchema.parse({
         ...payload,
-        clientMeasurementId: retry.current.id,
+        clientMeasurementId: attempt.id,
       })
+      retry.current = attempt
       setError(null)
       if (await onSave(parsed)) {
         retry.current = null
@@ -443,12 +454,16 @@ function IndicatorEditor({
 
 export function ProjectIndicatorsWorkspace({ projectId }: { projectId: string }) {
   const { profile } = useCurrentRole()
+  const createContext = useSourceMutationContext(profile, 'indicators.create', projectId, null)
+  const updateContext = useSourceMutationContext(profile, 'indicators.update', projectId, null)
+  const archiveContext = useSourceMutationContext(profile, 'indicators.archive', projectId, null)
   const canCreate = profile?.permissions.includes('indicators.create') === true
   const canUpdate = profile?.permissions.includes('indicators.update') === true
   const load = useCallback(() => pathwaysClient.getProjectIndicators(projectId), [projectId])
   const { data, error, loading, reload, authorityKey } = useMonitoringRead(projectId, load)
   const [busy, setBusy] = useState(false)
   const [message, setMessage] = useState<string | null>(null)
+  const [recoveryGeneration, setRecoveryGeneration] = useState(0)
   const [bindings, setBindings] = useState<{
     key: string
     forms: DigitalFormDefinition[]
@@ -478,13 +493,20 @@ export function ProjectIndicatorsWorkspace({ projectId }: { projectId: string })
       active = false
     }
   }, [activeKey, canCreate, projectId, profile?.permissions])
-  const mutate = async (action: () => Promise<ProjectIndicator>) => {
+  const mutate = async (action: () => Promise<SourceMutationResult<ProjectIndicator>>) => {
     if (busy) return false
     const startedKey = activeKey
     setBusy(true)
     setMessage(null)
     try {
-      await action()
+      const result = await action()
+      const owner = updateContext ?? createContext ?? archiveContext
+      if (!owner?.isCurrent()) return false
+      if (isSourceReplay(result)) {
+        await pathwaysClient.getProjectIndicators(projectId)
+        if (!owner.isCurrent()) return false
+        sourceMutationTickets.finishAcknowledgement(owner, result.requestId)
+      }
       if (currentKey.current === startedKey) {
         reload()
         setMessage('Saved. The persisted indicator is being reloaded.')
@@ -518,6 +540,18 @@ export function ProjectIndicatorsWorkspace({ projectId }: { projectId: string })
   const availableBindings = bindings?.key === activeKey ? bindings : null
   return (
     <section className="space-y-5">
+      <SourceMutationRecovery
+        context={updateContext ?? createContext ?? archiveContext}
+        prefix={`/projects/${projectId}/indicators`}
+        onRecovered={async () => {
+          await pathwaysClient.getProjectIndicators(projectId)
+          return () => {
+            setRecoveryGeneration((value) => value + 1)
+            reload()
+            setMessage('The earlier outcome is confirmed. Current indicators are reloading.')
+          }
+        }}
+      />
       <header className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h1 className="text-2xl font-semibold">Target indicators</h1>
@@ -541,7 +575,11 @@ export function ProjectIndicatorsWorkspace({ projectId }: { projectId: string })
           forms={availableBindings?.forms ?? []}
           activities={availableBindings?.activities ?? []}
           busy={busy}
-          onSave={(input) => mutate(() => pathwaysClient.createProjectIndicator(projectId, input))}
+          onSave={(input) =>
+            mutate(() =>
+              pathwaysClient.createProjectIndicator(projectId, input, createContext ?? undefined),
+            )
+          }
         />
       ) : null}
       {canCreate && data && !availableBindings ? (
@@ -613,21 +651,31 @@ export function ProjectIndicatorsWorkspace({ projectId }: { projectId: string })
                 ) : null}
                 {canUpdate && indicator.status === 'ACTIVE' ? (
                   <IndicatorEditor
-                    key={`${indicator.id}:${indicator.revision}:${indicator.measurementId ?? 'first'}`}
+                    key={`${indicator.id}:${indicator.revision}:${indicator.measurementId ?? 'first'}:${recoveryGeneration}`}
                     indicator={indicator}
                     busy={busy}
                     onSave={(input) =>
                       mutate(() =>
-                        pathwaysClient.recordIndicatorMeasurement(projectId, indicator.id, input),
+                        pathwaysClient.recordIndicatorMeasurement(
+                          projectId,
+                          indicator.id,
+                          input,
+                          updateContext ?? undefined,
+                        ),
                       )
                     }
                     onUpdate={(name, description) =>
                       mutate(() =>
-                        pathwaysClient.updateProjectIndicator(projectId, indicator.id, {
-                          name,
-                          description,
-                          expectedRevision: indicator.revision,
-                        }),
+                        pathwaysClient.updateProjectIndicator(
+                          projectId,
+                          indicator.id,
+                          {
+                            name,
+                            description,
+                            expectedRevision: indicator.revision,
+                          },
+                          updateContext ?? undefined,
+                        ),
                       )
                     }
                     canArchive={principalHasAtomicPermission(profile, 'indicators.archive')}
@@ -637,6 +685,7 @@ export function ProjectIndicatorsWorkspace({ projectId }: { projectId: string })
                           projectId,
                           indicator.id,
                           indicator.revision,
+                          archiveContext ?? undefined,
                         ),
                       )
                     }

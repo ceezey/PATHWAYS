@@ -98,6 +98,7 @@ describe('ProjectsController active project contract', () => {
         title: 'Synthetic project',
         status: 'ONGOING',
         expectedUpdatedAt: '2026-09-24T00:00:00.000Z',
+        clientMutationId: '10000000-0000-4000-8000-000000000001',
       },
       { type: 'body', metatype: UpdateProjectDto },
     )

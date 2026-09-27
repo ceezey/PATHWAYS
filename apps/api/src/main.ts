@@ -10,7 +10,9 @@ import { readApiEnv } from '@pathways/config'
 
 import { AppModule } from './app.module'
 import { allowedWebOrigins } from './common/network/cors-origins'
+import { inspectionBudgetMiddleware } from './common/network/inspection-request-budget'
 import { listenOnIpv4Loopback } from './common/network/local-listener'
+import { machineBudgetMiddleware } from './common/network/machine-request-budget'
 import { initializeApiSentry } from './common/sentry'
 
 async function bootstrap() {
@@ -21,6 +23,9 @@ async function bootstrap() {
     bufferLogs: true,
   })
 
+  // app.use is registered before Nest init/listen installs its body parser.
+  app.use(machineBudgetMiddleware(env.API_PREFIX))
+  app.use(inspectionBudgetMiddleware(env.API_PREFIX))
   app.useLogger(app.get(Logger))
   app.use(helmet())
   app.use(compression())
@@ -37,6 +42,8 @@ async function bootstrap() {
   app.enableCors({
     origin: allowedWebOrigins(env.WEB_ORIGIN),
     credentials: false,
+    maxAge: 300,
+    exposedHeaders: ['Content-Disposition', 'X-Content-Type-Options'],
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'OPTIONS'],
     allowedHeaders: [
       'Authorization',

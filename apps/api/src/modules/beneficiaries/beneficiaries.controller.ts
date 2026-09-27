@@ -52,6 +52,12 @@ export class BeneficiariesController {
     return this.beneficiaries.register(profile(request), projectId, body)
   }
 
+  @Get('registration-context')
+  @RequirePermission('beneficiaries.records.register')
+  registrationContext(@Req() request: AuthenticatedRequest, @Param('projectId') projectId: string) {
+    return this.beneficiaries.registrationContext(profile(request), projectId)
+  }
+
   @Get(':beneficiaryId')
   @RequirePermission('beneficiaries.records.read')
   get(

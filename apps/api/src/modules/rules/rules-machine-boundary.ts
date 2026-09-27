@@ -1,6 +1,5 @@
-// Dormant feature support. No module, controller or global guard registration.
+// Exact server-bound machine authentication; HTTP entry timing is separate.
 import { timingSafeEqual } from 'node:crypto'
-import { performance } from 'node:perf_hooks'
 import { type ExecutionContext, ForbiddenException, RequestMethod, type Type } from '@nestjs/common'
 import { METHOD_METADATA, PATH_METADATA } from '@nestjs/common/constants'
 import type { Reflector } from '@nestjs/core'
@@ -8,6 +7,7 @@ import { AUTH_BOUNDARY_KEY } from '../../common/decorators/auth-boundary.decorat
 import { PERMISSION_KEY } from '../../common/decorators/permission.decorator'
 import { IS_PUBLIC_KEY } from '../../common/decorators/public.decorator'
 import { ROLES_KEY } from '../../common/decorators/roles.decorator'
+import { machineRequestEntry } from '../../common/network/machine-request-budget'
 
 export const MACHINE_PURPOSE = 'pathways:rules-machine-purpose'
 export type Purpose = 'DRAIN' | 'SWEEP'
@@ -56,10 +56,9 @@ export class RulesMachineBoundary {
     private readonly reflector: Reflector,
     private readonly config: () => unknown,
     private readonly bindings: readonly Binding[],
-    private readonly now: () => number = performance.now.bind(performance),
   ) {}
 
-  enter(context: ExecutionContext, enteredAt = this.now()): boolean | null {
+  enter(context: ExecutionContext): boolean | null {
     const handler = context.getHandler()
     const controller = context.getClass()
     const declared = this.reflector.get<unknown>(MACHINE_PURPOSE, handler)
@@ -142,10 +141,15 @@ export class RulesMachineBoundary {
     const expected =
       binding.purpose === 'DRAIN' ? configuration.drainToken : configuration.sweepToken
     if (!timingSafeEqual(Buffer.from(header.slice(7), 'hex'), Buffer.from(expected, 'hex'))) deny()
-    if (!Number.isFinite(enteredAt) || enteredAt > this.now()) deny()
-    const deadlineAt = enteredAt + 25_000
-    const remainingMs = () => Math.max(0, Math.floor(deadlineAt - this.now()))
+    const entry = machineRequestEntry(request)
+    if (!entry) deny()
+    const { enteredAt, deadlineAt, remainingMs } = entry
     const assertRemaining = () => {
+      try {
+        entry.check()
+      } catch {
+        deny()
+      }
       if (remainingMs() === 0) deny()
     }
     assertRemaining()

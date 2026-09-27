@@ -1,4 +1,8 @@
 'use client'
+import { SourceMutationRecovery } from './source-mutation-recovery'
+
+import { useSourceMutationContext } from '@/hooks/use-source-mutation-context'
+import { isSourceReplay, sourceMutationTickets } from '@/lib/services/source-mutation'
 
 import { zodResolver } from '@hookform/resolvers/zod'
 import { ArrowLeft, Loader2, Save } from 'lucide-react'
@@ -27,6 +31,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import { Textarea } from '@/components/ui/textarea'
 import {
   type SensitiveDraftOwner,
   readSensitiveDraft,
@@ -51,6 +56,7 @@ const projectStatuses: ProjectStatus[] = ['Active', 'Needs Attention', 'Planned'
 const projectDraftFields = [
   'objectives',
   'partners',
+  'partnerOrganizations',
   'projectBudget',
   'targetBeneficiaries',
   'title',
@@ -68,6 +74,7 @@ const projectDraftFields = [
 const projectDefaultValues: ProjectSetupSchema = {
   objectives: '',
   partners: '',
+  partnerOrganizations: '',
   projectBudget: '',
   targetBeneficiaries: '',
 
@@ -100,6 +107,13 @@ const ScopedProjectSetupForm = ({
   projectId,
   scope,
 }: { projectId?: string; scope: SensitiveDraftOwner }) => {
+  const { profile } = useCurrentRole()
+  const mutationContext = useSourceMutationContext(
+    profile,
+    'projects.update',
+    projectId ?? null,
+    projectId ?? null,
+  )
   const projectDraftStorageKey = scope.key
   const router = useRouter()
   const [draftHydrated, setDraftHydrated] = useState(false)
@@ -127,8 +141,11 @@ const ScopedProjectSetupForm = ({
             title: project.title,
             objectives: project.objectives ?? '',
             partners: project.implementingPartners ?? '',
+            partnerOrganizations:
+              project.implementingPartnerRecords?.map((partner) => partner.name).join('\n') ?? '',
             projectBudget: project.projectBudget ?? '',
-            targetBeneficiaries: String(project.targetBeneficiaries),
+            targetBeneficiaries:
+              project.targetBeneficiaries === undefined ? '' : String(project.targetBeneficiaries),
 
             sector: project.sector === 'Sector not recorded' ? '' : project.sector,
             area: project.area === 'Area not recorded' ? '' : project.area,
@@ -234,10 +251,14 @@ const ScopedProjectSetupForm = ({
 
     try {
       const project = existingProject
-        ? await pathwaysClient.updateProject(projectId ?? existingProject.id, {
-            ...toUpdateProjectInput(values, existingProject),
-            ...toProjectTeamInput(values, users),
-          })
+        ? await pathwaysClient.updateProject(
+            projectId ?? existingProject.id,
+            {
+              ...toUpdateProjectInput(values, existingProject),
+              ...toProjectTeamInput(values, users),
+            },
+            mutationContext ?? undefined,
+          )
         : await pathwaysClient.createProject({
             ...toCreateProjectInput(values),
             ...toProjectTeamInput(values, users),
@@ -245,7 +266,15 @@ const ScopedProjectSetupForm = ({
       if (!scope.isCurrent()) return
       if (!projectId) removeSensitiveDraft(projectDraftStorageKey)
       toast.success(existingProject ? 'Project profile updated.' : 'Project profile created.')
-      router.push(`/projects/${project.id}`)
+      if (isSourceReplay(project)) {
+        if (!projectId || !mutationContext?.isCurrent()) return
+        await pathwaysClient.getProject(projectId)
+        if (!scope.isCurrent() || !mutationContext.isCurrent()) return
+        sourceMutationTickets.finishAcknowledgement(mutationContext, project.requestId)
+      }
+      router.push(
+        `/projects/${isSourceReplay(project) ? (existingProject?.id ?? projectId) : project.id}`,
+      )
     } catch (error) {
       if (!scope.isCurrent()) return
       const message =
@@ -286,6 +315,20 @@ const ScopedProjectSetupForm = ({
       >
         <Form {...form}>
           <form className="space-y-6" onSubmit={form.handleSubmit(onSubmit)}>
+            {projectId ? (
+              <SourceMutationRecovery
+                context={mutationContext}
+                prefix={`/projects/${projectId}`}
+                onRecovered={async () => {
+                  await pathwaysClient.getProject(projectId)
+                  return () => {
+                    removeSensitiveDraft(projectDraftStorageKey)
+                    router.push(`/projects/${projectId}`)
+                    router.refresh()
+                  }
+                }}
+              />
+            ) : null}
             {saveError ? (
               <p
                 className="rounded-sm border border-danger/30 bg-danger/5 p-3 text-sm text-danger"
@@ -309,6 +352,23 @@ const ScopedProjectSetupForm = ({
                 )}
               />
 
+              <FormField
+                control={form.control}
+                name="partnerOrganizations"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Implementing partner organizations</FormLabel>
+                    <FormControl>
+                      <Textarea {...field} placeholder="One organization per line" />
+                    </FormControl>
+                    <p className="text-sm text-muted-foreground">
+                      Each organization receives a stable identifier when saved. Existing partner
+                      notes are preserved below.
+                    </p>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
               {(['partners', 'projectBudget', 'targetBeneficiaries'] as const).map((name) => (
                 <FormField
                   key={name}

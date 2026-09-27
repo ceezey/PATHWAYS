@@ -11,6 +11,7 @@ vi.mock('@/lib/supabase/client', () => ({
 
 import type { JourneyStageConfig } from '@/types/pathways'
 import { pathwaysClient } from './pathways-client'
+import { sourceMutationTickets } from './source-mutation'
 
 const authUserId = '76000000-0000-4000-8000-000000000001'
 const organizationId = '76000000-0000-4000-8000-000000000002'
@@ -18,6 +19,9 @@ const userId = '76000000-0000-4000-8000-000000000003'
 const projectId = '76000000-0000-4000-8000-000000000004'
 const activityId = '76000000-0000-4000-8000-000000000005'
 const updateId = '76000000-0000-4000-8000-000000000006'
+const mutationContext = { principalKey: 'synthetic-owner', isCurrent: () => true }
+const firstMutation = '76000000-0000-4000-8000-000000000011'
+const secondMutation = '76000000-0000-4000-8000-000000000012'
 const stageId = '76000000-0000-4000-8000-000000000007'
 
 const activity = {
@@ -75,15 +79,32 @@ function json(value: unknown) {
 describe('PATHWAYS C2/C4 browser client', () => {
   beforeEach(() => {
     browser.getSession.mockReset()
+    sourceMutationTickets.clear()
+    vi.spyOn(crypto, 'randomUUID')
+      .mockReturnValueOnce(firstMutation)
+      .mockReturnValueOnce(secondMutation)
     establishSession()
   })
-  afterEach(() => vi.unstubAllGlobals())
+  afterEach(() => {
+    vi.unstubAllGlobals()
+    vi.restoreAllMocks()
+  })
 
   it('persists an activity transition and review through the scoped endpoints', async () => {
     const fetcher = vi
       .fn()
-      .mockResolvedValueOnce(json(activity))
-      .mockResolvedValueOnce(json(activity))
+      .mockResolvedValueOnce(
+        json({
+          ...activity,
+          sourceAcknowledgement: { requestId: firstMutation, committed: true, replayed: false },
+        }),
+      )
+      .mockResolvedValueOnce(
+        json({
+          ...activity,
+          sourceAcknowledgement: { requestId: secondMutation, committed: true, replayed: false },
+        }),
+      )
     vi.stubGlobal('fetch', fetcher)
 
     await pathwaysClient.transitionActivity(
@@ -91,6 +112,8 @@ describe('PATHWAYS C2/C4 browser client', () => {
       activityId,
       'IN_PROGRESS',
       activity.updatedAt,
+      undefined,
+      mutationContext,
     )
     await pathwaysClient.reviewActivityUpdate(
       projectId,
@@ -99,6 +122,7 @@ describe('PATHWAYS C2/C4 browser client', () => {
       'RETURN',
       'Please revise the proof.',
       '2026-09-21T00:01:00.000Z',
+      mutationContext,
     )
 
     expect(fetcher.mock.calls[0]?.[0]).toContain(
@@ -106,11 +130,13 @@ describe('PATHWAYS C2/C4 browser client', () => {
     )
     expect(JSON.parse(String((fetcher.mock.calls[0]?.[1] as RequestInit).body))).toEqual({
       status: 'IN_PROGRESS',
+      clientMutationId: firstMutation,
       expectedUpdatedAt: activity.updatedAt,
     })
     expect(fetcher.mock.calls[1]?.[0]).toContain(`/updates/${updateId}/review`)
     expect(JSON.parse(String((fetcher.mock.calls[1]?.[1] as RequestInit).body))).toEqual({
       decision: 'RETURN',
+      clientMutationId: secondMutation,
       reason: 'Please revise the proof.',
       expectedUpdatedAt: '2026-09-21T00:01:00.000Z',
     })
@@ -121,14 +147,17 @@ describe('PATHWAYS C2/C4 browser client', () => {
     vi.stubGlobal('fetch', fetcher)
     const proof = new File(['synthetic'], 'proof.pdf', { type: 'application/pdf' })
 
-    await pathwaysClient.submitActivityProof({
-      projectId,
-      activityId,
-      clientUpdateId: '76000000-0000-4000-8000-000000000009',
-      progress: 60,
-      note: 'Synthetic proof submission',
-      files: [proof],
-    })
+    await pathwaysClient.submitActivityProof(
+      {
+        projectId,
+        activityId,
+        clientUpdateId: '76000000-0000-4000-8000-000000000009',
+        progress: 60,
+        note: 'Synthetic proof submission',
+        files: [proof],
+      },
+      mutationContext,
+    )
 
     const request = fetcher.mock.calls[0]?.[1] as RequestInit
     expect(request.body).toBeInstanceOf(FormData)

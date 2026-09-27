@@ -1,3 +1,54 @@
+// These existing domain tests isolate receipt transport; dedicated source tests cover its boundary.
+vi.mock('../rules/rules-source-operation', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../rules/rules-source-operation')>()),
+  beginRuleSourceOperation: async (
+    _tx: unknown,
+    operation: string,
+    projectId: string,
+    sourceId: string | null,
+    _key: unknown,
+    body: Record<string, unknown>,
+  ) => ({
+    kind: 'NEW',
+    operationHandle: 'f0000000-0000-4000-8000-000000000001',
+    reservedRecordId: ['ACTIVITY_CREATE', 'INDICATOR_CREATE', 'INDICATOR_MEASUREMENT'].includes(
+      operation,
+    )
+      ? 'f0000000-0000-4000-8000-000000000002'
+      : null,
+    generatedValues: {
+      timestamp: '2026-09-27T00:00:00.001Z',
+      businessDate: '2026-09-27',
+      normalizedValue: operation === 'INDICATOR_MEASUREMENT' ? body.value : null,
+      requestHash:
+        operation === 'INDICATOR_MEASUREMENT'
+          ? (await import('node:crypto'))
+              .createHash('sha256')
+              .update(
+                JSON.stringify({
+                  projectId,
+                  indicatorId: sourceId,
+                  periodStart: body.periodStart,
+                  periodEnd: body.periodEnd,
+                  value: body.value,
+                  source: body.source,
+                  note: body.note ?? null,
+                  correctsMeasurementId: body.correctsMeasurementId ?? null,
+                  correctionReason: body.correctionReason ?? null,
+                }),
+              )
+              .digest('hex')
+          : null,
+    },
+  }),
+  finishRuleSourceOperation: async (_tx: unknown, _handle: string, requestId: string) => ({
+    requestId,
+    committed: true,
+    replayed: false,
+  }),
+  readRuleSourceAcknowledgement: async () => null,
+  bootstrapRuleSourceProject: async () => undefined,
+}))
 import { createHash } from 'node:crypto'
 import type { ApplicationIdentity } from '@app/modules/auth/developer-access'
 import type { PrismaService } from '@app/prisma/prisma.service'
@@ -56,6 +107,7 @@ const row = {
   status: 'ACTIVE',
 }
 const input = {
+  clientMutationId: 'e0000000-0000-4000-8000-000000000001',
   code: row.code,
   name: row.name,
   unitLabel: row.unitLabel,
@@ -244,7 +296,11 @@ describe('P06 IndicatorsService', () => {
   it('rejects stale label edits without writing an audit success', async () => {
     tx.$executeRaw.mockResolvedValue(0)
     await expect(
-      service.update(actor, projectId, indicatorId, { name: 'Updated label', expectedRevision: 1 }),
+      service.update(actor, projectId, indicatorId, {
+        clientMutationId: 'e0000000-0000-4000-8000-000000000001',
+        name: 'Updated label',
+        expectedRevision: 1,
+      }),
     ).rejects.toBeInstanceOf(ConflictException)
     expect(tx.auditLog.create).not.toHaveBeenCalled()
   })

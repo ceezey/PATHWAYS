@@ -9,6 +9,8 @@ import {
 } from '@nestjs/common'
 import { Reflector } from '@nestjs/core'
 
+import { RulesMachineBoundary } from '../../modules/rules/rules-machine-boundary'
+
 import { hasAtomicPermission } from '../../modules/auth/authorization-policy'
 import {
   type AuthorizedOperationTiming,
@@ -21,6 +23,10 @@ import type { VerifiedTransactionTiming } from '../../prisma/prisma.service'
 import { AUTH_BOUNDARY_KEY } from '../decorators/auth-boundary.decorator'
 import { PERMISSION_KEY } from '../decorators/permission.decorator'
 import { IS_PUBLIC_KEY } from '../decorators/public.decorator'
+import {
+  bindInspectionIdentity,
+  inspectionRequestBudget,
+} from '../network/inspection-request-budget'
 
 const MAX_REPORTED_STAGE_MS = 30_000
 const stageDuration = (startedAt: number) =>
@@ -68,9 +74,13 @@ export class SupabaseAuthGuard implements CanActivate {
     @Inject(Reflector) private readonly reflector: Reflector,
     @Inject(TokenAuthService) private readonly tokens: TokenAuthService,
     @Inject(WorkspaceResolutionService) private readonly workspaces: WorkspaceResolutionService,
+    @Inject(RulesMachineBoundary) private readonly machines: RulesMachineBoundary,
   ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
+    // Exact registered machine handlers never enter Public or human auth paths.
+    const machine = this.machines.enter(context)
+    if (machine !== null) return machine
     const request = context.switchToHttp().getRequest<AuthenticatedRequest>()
     request.user = undefined
     request.auth = undefined
@@ -87,13 +97,16 @@ export class SupabaseAuthGuard implements CanActivate {
       throw new UnauthorizedException('A bearer token is required.')
     }
     const authStartedAt = performance.now()
-    const verified = await this.tokens.verifyCurrent(header.slice(7))
+    const budget = inspectionRequestBudget(request)
+    budget?.check()
+    const verified = await this.tokens.verifyCurrent(header.slice(7), budget)
+    budget?.check()
     const identity = verified.identity
     const boundary = this.reflector.getAllAndOverride<string>(AUTH_BOUNDARY_KEY, handlers)
     const assertSeparateSession = async () => {
       const sessionStartedAt = performance.now()
       try {
-        await this.tokens.assertSessionLive(verified)
+        await this.tokens.assertSessionLive(verified, budget)
       } finally {
         exposeDevelopmentAuthTiming(
           response,
@@ -137,6 +150,7 @@ export class SupabaseAuthGuard implements CanActivate {
         (timing) => {
           databaseTiming = timing
         },
+        budget,
       )
     } finally {
       authTiming = exposeDevelopmentAuthTiming(
@@ -148,6 +162,7 @@ export class SupabaseAuthGuard implements CanActivate {
         databaseTiming,
       )
     }
+    budget?.check()
     request.auth = identity
     if (
       permission &&
@@ -157,6 +172,7 @@ export class SupabaseAuthGuard implements CanActivate {
       request.user = undefined
       throw new ForbiddenException('Required application permission is missing.')
     }
+    if (budget) bindInspectionIdentity(request.user, verified.sessionId, budget)
     if (authTiming) {
       registerAuthorizedOperationTiming(request.user, (timing) => {
         response.setHeader('Server-Timing', `${authTiming}, ${operationTimingValue(timing)}`)

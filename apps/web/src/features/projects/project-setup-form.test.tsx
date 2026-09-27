@@ -120,6 +120,9 @@ describe('ProjectSetupForm', () => {
     fireEvent.change(screen.getByLabelText(/Description/), {
       target: { value: 'A supported core project profile.' },
     })
+    fireEvent.change(screen.getByLabelText('Implementing partner organizations'), {
+      target: { value: 'Synthetic Partner A\nSynthetic Partner B' },
+    })
     fireEvent.click(screen.getByRole('button', { name: 'Create Project' }))
 
     await waitFor(() => expect(testState.createProject).toHaveBeenCalledTimes(1))
@@ -128,6 +131,7 @@ describe('ProjectSetupForm', () => {
       description: 'A supported core project profile.',
       objectives: 'Deliver core project outcomes',
       implementingPartners: 'Community Partner',
+      implementingPartnerNames: ['Synthetic Partner A', 'Synthetic Partner B'],
       projectBudget: '125000.50',
       targetBeneficiaries: 450,
 
@@ -157,7 +161,12 @@ describe('ProjectSetupForm', () => {
         expectedUpdatedAt: project.updatedAt,
         status: 'Planned',
       }),
+      expect.objectContaining({
+        principalKey: expect.any(String),
+        isCurrent: expect.any(Function),
+      }),
     )
+    expect(testState.updateProject.mock.calls[0][2].isCurrent()).toBe(true)
     expect(testState.routerPush).toHaveBeenCalledWith(`/projects/${project.id}`)
   })
 })

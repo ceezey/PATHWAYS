@@ -20,7 +20,8 @@
     "sad:signoff": "tsx scripts/sad/check.ts --signoff",
     "sad:test": "vitest run --config scripts/sad/vitest.config.ts",
     "sad:typecheck": "tsc -p scripts/sad/tsconfig.json",
-    "prepare": "node scripts/setup-husky.mjs"
+    "prepare": "node scripts/setup-husky.mjs",
+    "rules:dispatch": "tsx apps/api/src/rules-dispatcher.ts"
   },
   "devDependencies": {
     "@biomejs/biome": "^1.9.4",

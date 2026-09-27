@@ -1,3 +1,54 @@
+// These existing domain tests isolate receipt transport; dedicated source tests cover its boundary.
+vi.mock('../rules/rules-source-operation', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../rules/rules-source-operation')>()),
+  beginRuleSourceOperation: async (
+    _tx: unknown,
+    operation: string,
+    projectId: string,
+    sourceId: string | null,
+    _key: unknown,
+    body: Record<string, unknown>,
+  ) => ({
+    kind: 'NEW',
+    operationHandle: 'f0000000-0000-4000-8000-000000000001',
+    reservedRecordId: ['ACTIVITY_CREATE', 'INDICATOR_CREATE', 'INDICATOR_MEASUREMENT'].includes(
+      operation,
+    )
+      ? 'f0000000-0000-4000-8000-000000000002'
+      : null,
+    generatedValues: {
+      timestamp: '2026-09-27T00:00:00.001Z',
+      businessDate: '2026-09-27',
+      normalizedValue: operation === 'INDICATOR_MEASUREMENT' ? body.value : null,
+      requestHash:
+        operation === 'INDICATOR_MEASUREMENT'
+          ? (await import('node:crypto'))
+              .createHash('sha256')
+              .update(
+                JSON.stringify({
+                  projectId,
+                  indicatorId: sourceId,
+                  periodStart: body.periodStart,
+                  periodEnd: body.periodEnd,
+                  value: body.value,
+                  source: body.source,
+                  note: body.note ?? null,
+                  correctsMeasurementId: body.correctsMeasurementId ?? null,
+                  correctionReason: body.correctionReason ?? null,
+                }),
+              )
+              .digest('hex')
+          : null,
+    },
+  }),
+  finishRuleSourceOperation: async (_tx: unknown, _handle: string, requestId: string) => ({
+    requestId,
+    committed: true,
+    replayed: false,
+  }),
+  readRuleSourceAcknowledgement: async () => null,
+  bootstrapRuleSourceProject: async () => undefined,
+}))
 import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common'
 import { Prisma } from '@prisma/client'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -11,6 +62,9 @@ const state = vi.hoisted(() => ({
   tx: undefined as Prisma.TransactionClient | undefined,
 }))
 
+vi.mock('@app/modules/auth/application-profile.service', () => ({
+  readApplicationProfile: vi.fn(async () => state.actor),
+}))
 vi.mock('@app/modules/auth/authorized-operation', () => ({
   withAuthorizedOperation: vi.fn(async (_prisma, _identity, _permission, work) =>
     work(state.tx, state.actor),
@@ -65,6 +119,7 @@ const activity = {
 }
 
 const tx = {
+  $queryRaw: vi.fn(),
   project: { findFirst: vi.fn() },
   projectActivity: { findFirst: vi.fn(), create: vi.fn() },
   userProjectAssignment: { findMany: vi.fn() },
@@ -90,6 +145,7 @@ describe('P05 activity proof authorization', () => {
 
   beforeEach(() => {
     vi.clearAllMocks()
+    tx.$queryRaw.mockResolvedValue([])
     state.actor = actor
     state.tx = tx as unknown as Prisma.TransactionClient
     tx.project.findFirst.mockResolvedValue({ id: projectId, startDate: null, endDate: null })
@@ -132,11 +188,12 @@ describe('P05 activity proof authorization', () => {
     expect(tx.evidenceMedia.findFirst).not.toHaveBeenCalled()
   })
 
-  it('does not fetch private proof when project scope is unavailable', async () => {
-    tx.project.findFirst.mockResolvedValueOnce(null)
+  it('uniformly denies retired generic proof capability without metadata or storage reads', async () => {
+    tx.project.findFirst.mockResolvedValue(null)
     await expect(
       service.downloadProof(actor, projectId, activityId, updateId),
-    ).rejects.toBeInstanceOf(NotFoundException)
+    ).rejects.toBeInstanceOf(ForbiddenException)
+    expect(tx.project.findFirst).not.toHaveBeenCalled()
     expect(tx.evidenceMedia.findFirst).not.toHaveBeenCalled()
     expect(storage.downloadPrivateFile).not.toHaveBeenCalled()
   })
@@ -167,7 +224,7 @@ describe('P05 activity proof authorization', () => {
     tx.evidenceMedia.findFirst.mockResolvedValueOnce(null)
     await expect(
       service.downloadProof(actor, projectId, activityId, updateId),
-    ).rejects.toBeInstanceOf(NotFoundException)
+    ).rejects.toBeInstanceOf(ForbiddenException)
     expect(storage.downloadPrivateFile).not.toHaveBeenCalled()
   })
 
@@ -184,6 +241,7 @@ describe('P05 activity proof authorization', () => {
       service.reviewUpdate(actor, projectId, activityId, updateId, {
         decision: 'APPROVE',
         reason: 'Not allowed',
+        clientMutationId: 'e0000000-0000-4000-8000-000000000001',
         expectedUpdatedAt: '2026-09-13T00:00:00.000Z',
       }),
     ).rejects.toBeInstanceOf(ForbiddenException)
@@ -244,6 +302,7 @@ describe('Activity creation contract authorization', () => {
   })
 
   const input = () => ({
+    clientMutationId: 'e0000000-0000-4000-8000-000000000001',
     title: 'Synthetic repaired activity',
     plannedStartDate: '2025-12-15',
     plannedEndDate: '2026-06-30',
@@ -266,7 +325,10 @@ describe('Activity creation contract authorization', () => {
       timelineOverrideJustification: 'Approved early mobilization',
     })
     tx.project.findFirst.mockResolvedValueOnce({ projectActivity_project: [repairedActivity] })
-    await expect(service.list(projectManager, projectId)).resolves.toEqual([created])
+    if (!('sourceAcknowledgement' in created)) throw new Error('Expected fresh source projection')
+    const { sourceAcknowledgement, ...savedActivity } = created
+    expect(sourceAcknowledgement).toMatchObject({ committed: true, replayed: false })
+    await expect(service.list(projectManager, projectId)).resolves.toEqual([savedActivity])
     expect(tx.projectActivity.create).toHaveBeenCalledWith(
       expect.objectContaining({
         data: expect.objectContaining({

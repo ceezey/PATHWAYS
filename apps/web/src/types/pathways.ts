@@ -49,6 +49,7 @@ export interface ProjectDetail extends ProjectSummary {
   description: string
   objectives?: string
   implementingPartners?: string | null
+  implementingPartnerRecords?: { id: string; name: string }[]
   projectBudget?: string | null
   programManager: string
   programManagerId?: string | null
@@ -57,7 +58,6 @@ export interface ProjectDetail extends ProjectSummary {
   projectManagerId?: string | null
   projectOfficers: string[]
   projectOfficerIds?: string[]
-  targetBeneficiaries: number
   budgetCode: string
 }
 
@@ -91,6 +91,7 @@ export interface CreateProjectInput {
   status: ProjectStatus
   description?: string
   implementingPartners?: string
+  implementingPartnerNames?: string[]
   sector?: string
   targetBeneficiaries?: number | null
   projectBudget?: string
@@ -788,7 +789,7 @@ export interface ImportBatchDefinition {
   sourceColumns?: ImportSourceColumn[]
   mappings?: Array<{
     sourceFieldName: string
-    status: 'MAPPED' | 'IGNORED'
+    status: 'PENDING' | 'MAPPED' | 'IGNORED' | 'INVALID'
     revision: number
     targetField: { code: string; label: string } | null
     validationMessage: string | null
@@ -1083,4 +1084,18 @@ export interface RoleDashboardViewModel {
   executive?: ExecutiveDashboardViewModel
   metrics: DashboardMetric[]
   sections: DashboardSection[]
+}
+
+export interface BeneficiaryRegistrationContext {
+  projectId: string
+  businessDate: string
+  definitions: {
+    id: string
+    code: string
+    version: number
+    name: string
+    formType: 'BENEFICIARY_REGISTRATION'
+    status: 'PUBLISHED'
+    fields: DigitalFormFieldDefinition[]
+  }[]
 }

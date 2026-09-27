@@ -1,7 +1,5 @@
 'use client'
-
-import { CheckCircle2, Loader2, RotateCcw } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { SourceMutationRecovery } from './source-mutation-recovery'
 
 import { DialogShell, StatusBadge } from '@/components/pathways'
 import { Button } from '@/components/ui/button'
@@ -15,188 +13,225 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
+import { useCurrentRole } from '@/hooks/use-current-role'
+import { useSession } from '@/hooks/use-session'
+import { useSourceMutationContext } from '@/hooks/use-source-mutation-context'
+import { type SensitiveDraftOwner, useSensitiveDraftOwner } from '@/lib/auth/sensitive-drafts'
+import { pathwaysClient } from '@/lib/services/pathways-client'
+import { isSourceReplay, sourceMutationTickets } from '@/lib/services/source-mutation'
 import type { Activity, ActivityProof } from '@/types/pathways'
-
+import { useEffect, useRef, useState } from 'react'
 import { ActivityProofFiles } from './activity-proof-files'
+import { PrivateProofInspection } from './private-proof-inspection'
 
-export const ActivityProofReviewDialog = ({
-  activity,
-  mode,
-  onOpenChange,
-  onUpdated,
-  open,
-  proof,
-}: {
+type Props = {
   activity: Activity
   mode: 'validate' | 'decide'
-  onOpenChange: (open: boolean) => void
-  onUpdated: (activity: Activity) => void
   open: boolean
   proof: ActivityProof | null
-}) => {
+  onOpenChange: (open: boolean) => void
+  onUpdated: (activity: Activity) => void
+}
+export function ActivityProofReviewDialog(props: Props) {
+  const { profile, access } = useCurrentRole()
+  const { session } = useSession()
+  const enabled =
+    props.open &&
+    props.mode === 'validate' &&
+    props.proof?.status === 'Submitted' &&
+    access === 'ready' &&
+    session?.user.id === profile?.id &&
+    profile?.roles[0] === 'MONITORING_AND_EVALUATION_OFFICER'
+  const owner = useSensitiveDraftOwner(
+    profile,
+    'activity-update-review',
+    'evidence.review',
+    props.activity.projectId,
+    JSON.stringify([props.activity.id, props.proof?.updateId, props.proof?.updateUpdatedAt]),
+    enabled,
+  )
+  return owner && props.proof ? (
+    <OwnedReview
+      key={`${owner.generation}:${owner.key}`}
+      {...props}
+      owner={owner}
+      proof={props.proof}
+    />
+  ) : null
+}
+function OwnedReview({
+  activity,
+  open,
+  proof,
+  onOpenChange,
+  onUpdated,
+  owner,
+}: Props & {
+  proof: ActivityProof
+  owner: SensitiveDraftOwner
+}) {
+  const { profile } = useCurrentRole()
+  const mutationContext = useSourceMutationContext(
+    profile,
+    'evidence.review',
+    activity.projectId,
+    JSON.stringify([proof.updateId, proof.updateUpdatedAt]),
+    open,
+  )
+  const [decision, setDecision] = useState<'APPROVE' | 'RETURN'>('APPROVE')
   const [reason, setReason] = useState('')
-  const [validationDecision, setValidationDecision] = useState<'Validate' | 'Flag'>('Validate')
-  const [submitting, setSubmitting] = useState(false)
-  const [error, setError] = useState('')
-
+  const [busy, setBusy] = useState(false)
+  const [notice, setNotice] = useState('')
+  const pending = useRef(false)
+  const mounted = useRef(true)
   useEffect(() => {
-    void proof?.id
-    if (!open) return
-    setReason('')
-    setValidationDecision('Validate')
-    setError('')
-  }, [open, proof?.id])
-
-  if (!proof) return null
-
-  const version = activity.submittedProof.indexOf(proof) + 1
-  const progress =
-    activity.updateNotes.find((update) => update.id === proof.updateId)?.progress ??
-    activity.progress
-  const completesActivity = progress === 100
-
-  const runDecision = (approved?: boolean) => {
-    if (submitting) return
-    setSubmitting(true)
-    setError('')
-
-    setError(
-      'This two-stage proof decision is unavailable in the current API. No review was recorded.',
-    )
-    setSubmitting(false)
+    mounted.current = true
+    return () => {
+      mounted.current = false
+    }
+  }, [])
+  const current = () => mounted.current && owner.isCurrent()
+  const update = activity.updateNotes.find(
+    (entry) => entry.id === proof.updateId && entry.status === 'Submitted',
+  )
+  const ready = Boolean(update && update.updatedAt === proof.updateUpdatedAt)
+  const submit = async () => {
+    if (!current() || !mutationContext?.isCurrent() || pending.current || !ready) return
+    if (!reason.trim() || reason.trim().length > 1000) {
+      setNotice('Enter a review reason using 1 to 1000 characters.')
+      return
+    }
+    pending.current = true
+    setBusy(true)
+    setNotice('')
+    try {
+      const updated = await pathwaysClient.reviewActivityUpdate(
+        activity.projectId,
+        activity.id,
+        proof.updateId,
+        decision,
+        reason.trim(),
+        proof.updateUpdatedAt,
+        mutationContext,
+      )
+      if (!current() || !mutationContext.isCurrent()) return
+      const record = isSourceReplay(updated)
+        ? await pathwaysClient.getActivity(activity.projectId, activity.id)
+        : updated
+      if (!current() || !mutationContext.isCurrent()) return
+      if (isSourceReplay(updated))
+        sourceMutationTickets.finishAcknowledgement(mutationContext, updated.requestId)
+      onUpdated(record)
+      if (current()) onOpenChange(false)
+    } catch {
+      if (current())
+        setNotice('The review could not be confirmed. Reload the activity before trying again.')
+    } finally {
+      pending.current = false
+      if (current()) setBusy(false)
+    }
   }
-
   return (
     <Dialog
-      onOpenChange={(nextOpen) => {
-        if (!submitting) onOpenChange(nextOpen)
-      }}
       open={open}
+      onOpenChange={(next) => {
+        if (!busy && current()) onOpenChange(next)
+      }}
     >
       <DialogShell
-        title={mode === 'validate' ? 'Review & validate proof' : `Review proof version ${version}`}
-        description={
-          mode === 'validate'
-            ? 'Review the submitted proof list, tag the exact version, then submit your review.'
-            : 'Confirm the exact M&E-validated version before recording the next decision.'
-        }
+        title="Review activity update"
+        description="An assigned M&E reviewer approves or returns this exact pending update."
       >
+        <SourceMutationRecovery
+          context={mutationContext}
+          prefix={`/projects/${activity.projectId}/activities/${activity.id}/updates/${proof.updateId}/review`}
+          onRecovered={async () => {
+            const record = await pathwaysClient.getActivity(activity.projectId, activity.id)
+            return () => {
+              onUpdated(record)
+              onOpenChange(false)
+            }
+          }}
+        />
         <div className="space-y-4">
-          <div className="flex flex-wrap items-center justify-between gap-3 rounded-sm border border-border bg-surface-subtle p-4">
+          <div className="flex items-center justify-between gap-3">
             <div>
-              <p className="text-sm font-medium text-foreground">{activity.title}</p>
-              <p className="mt-1 text-sm text-muted-foreground">Submitted progress: {progress}%</p>
+              <p className="font-medium">{activity.title}</p>
+              <p className="text-sm">Submitted progress: {update?.progress ?? 'Unavailable'}%</p>
             </div>
-            <StatusBadge tone={proof.status === 'Accepted' ? 'success' : 'warning'}>
-              {proof.status}
-            </StatusBadge>
+            <StatusBadge tone="warning">Submitted</StatusBadge>
           </div>
-          <div>
-            <p className="text-sm font-medium text-foreground">Submitted proofs</p>
-            <div className="mt-2">
-              <ActivityProofFiles proof={proof} />
-            </div>
+          <ActivityProofFiles proof={proof} />
+          {ready && (
+            <PrivateProofInspection
+              projectId={activity.projectId}
+              activityId={activity.id}
+              updateId={proof.updateId}
+            />
+          )}
+          <p className="text-sm text-muted-foreground">
+            Approval preserves submitted progress. The activity completes only when an approved
+            update reaches 100%.
+          </p>
+          <div className="space-y-2">
+            <Label htmlFor="activity-proof-decision">Review decision</Label>
+            <Select
+              disabled={busy || !ready}
+              value={decision}
+              onValueChange={(value) => {
+                if (current() && !pending.current && (value === 'APPROVE' || value === 'RETURN'))
+                  setDecision(value)
+              }}
+            >
+              <SelectTrigger id="activity-proof-decision" aria-required="true">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="APPROVE">Approve update</SelectItem>
+                <SelectItem value="RETURN">Return for revision</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
-          {mode === 'validate' ? (
-            <div className="space-y-2">
-              <Label htmlFor="proof-validation-decision">Review decision</Label>
-              <Select
-                onValueChange={(value) => setValidationDecision(value as 'Validate' | 'Flag')}
-                value={validationDecision}
-              >
-                <SelectTrigger id="proof-validation-decision">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="Validate">Validate</SelectItem>
-                  <SelectItem value="Flag">Flag as insufficient</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          ) : null}
-          <div>
-            <p className="text-sm font-medium text-foreground">Notes</p>
-            <p className="mt-1 text-sm leading-6 text-muted-foreground">
-              {proof.note || 'No note was recorded.'}
-            </p>
+          <div className="space-y-2">
+            <Label htmlFor="activity-proof-reason">Review reason</Label>
+            <Textarea
+              id="activity-proof-reason"
+              maxLength={1000}
+              required
+              aria-required="true"
+              disabled={busy || !ready}
+              value={reason}
+              onChange={(event) => {
+                if (current() && !pending.current) setReason(event.target.value)
+              }}
+            />
           </div>
-          {mode === 'decide' ? (
-            <div className="space-y-2">
-              <Label htmlFor="proof-return-reason">Return reason</Label>
-              <Textarea
-                className="min-h-24"
-                id="proof-return-reason"
-                onChange={(event) => {
-                  setReason(event.target.value)
-                  if (error) setError('')
-                }}
-                placeholder="Required only when returning this version for revision."
-                value={reason}
-              />
-            </div>
-          ) : null}
-          {mode === 'decide' && progress !== 100 ? (
-            <p className="rounded-sm border border-info/25 bg-info-subtle p-3 text-sm text-info">
-              This validated version records {progress}% progress. Approval records this update and
-              keeps the activity active; completion occurs only when an approved update reaches
-              100%.
+          {!ready && <p role="alert">This update changed. Reload the activity before reviewing.</p>}
+          {notice && (
+            <p role="alert" className="text-sm text-destructive">
+              {notice}
             </p>
-          ) : null}
-          {error ? (
-            <p className="text-sm font-medium text-destructive" role="alert">
-              {error}
-            </p>
-          ) : null}
+          )}
           <DialogFooter>
             <Button
-              disabled={submitting}
-              onClick={() => onOpenChange(false)}
               type="button"
               variant="outline"
+              disabled={busy}
+              onClick={() => onOpenChange(false)}
             >
               Cancel
             </Button>
-            {mode === 'validate' ? (
-              <Button
-                className="gap-2"
-                disabled={submitting}
-                onClick={() => runDecision()}
-                type="button"
-              >
-                {submitting ? (
-                  <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
-                ) : (
-                  <CheckCircle2 className="h-4 w-4" aria-hidden="true" />
-                )}
-                Submit review
-              </Button>
-            ) : (
-              <>
-                <Button
-                  className="gap-2"
-                  disabled={submitting || !reason.trim()}
-                  onClick={() => runDecision(false)}
-                  type="button"
-                  variant="outline"
-                >
-                  <RotateCcw className="h-4 w-4" aria-hidden="true" />
-                  Return for revision
-                </Button>
-                <Button
-                  className="gap-2"
-                  disabled={submitting}
-                  onClick={() => runDecision(true)}
-                  type="button"
-                >
-                  {submitting ? (
-                    <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
-                  ) : (
-                    <CheckCircle2 className="h-4 w-4" aria-hidden="true" />
-                  )}
-                  {completesActivity ? 'Approve & complete' : 'Approve update'}
-                </Button>
-              </>
-            )}
+            <Button
+              type="button"
+              disabled={busy || !ready || !reason.trim()}
+              onClick={() => void submit()}
+            >
+              {busy
+                ? 'Saving review...'
+                : decision === 'APPROVE'
+                  ? 'Approve update'
+                  : 'Return for revision'}
+            </Button>
           </DialogFooter>
         </div>
       </DialogShell>

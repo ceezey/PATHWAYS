@@ -20,7 +20,7 @@ if (-not $PostgresBin) {
 $phase6Bin = (Resolve-Path -LiteralPath $PostgresBin).Path
 $phase6ExecutableSuffix = if ($phase6Windows) { '.exe' } else { '' }
 $phase6Tools = @{}
-foreach ($phase6Tool in @('psql','initdb','pg_ctl','pg_isready','createdb')) {
+foreach ($phase6Tool in @('psql','initdb','pg_ctl','pg_isready','createdb','pg_dump','pg_restore')) {
   $phase6Tools[$phase6Tool] = Join-Path $phase6Bin ($phase6Tool + $phase6ExecutableSuffix)
   if (-not (Test-Path -LiteralPath $phase6Tools[$phase6Tool] -PathType Leaf)) { throw "PostgreSQL executable unavailable: $phase6Tool" }
 }
@@ -591,6 +591,8 @@ END $$;
     Write-Output ('CSV_RBAC_PRISMA_DIFF_BYTES=' + (Get-Item -LiteralPath $rbacModelDiffAfter).Length)
     Copy-Item -LiteralPath $rbacModelDiffAfter -Destination (Join-Path $phase6Root '.tmp/rbac-prisma-baseline-diff.sql')
     Write-Output 'CSV_RBAC_CATALOG_PARITY=PASS'
+    if ($MigrationBaseline) { . (Join-Path $PSScriptRoot 'Verify-Baseline.ps1') }
+    Invoke-LocalSql 'ALTER ROLE pathways_runtime LOGIN;' $phase6Database
     $env:PATHWAYS_CSV_RBAC_LOCAL_TESTS = '1'
     Push-Location $phase6Root
     try {
@@ -598,7 +600,6 @@ END $$;
       if ($LASTEXITCODE -ne 0) { throw 'CSV RBAC API runtime checks failed.' }
     } finally { Pop-Location }
     Write-Output 'CSV_RBAC_UPGRADE_AND_FRESH_REPLAY=PASS'
-    if ($MigrationBaseline) { . (Join-Path $PSScriptRoot 'Verify-Baseline.ps1') }
   }
   Write-Output 'LEGACY_TABLE_PRESERVATION=PASS'
   $phase6Exit = 0
@@ -617,7 +618,7 @@ END $$;
   if ($phase6Started) {
     $phase6Stop = Start-Process -FilePath $phase6Tools['pg_ctl'] `
       -ArgumentList @('-D',$phase6Data,'-m','fast','-s','stop') @phase6ProcessOptions
-    if (-not $phase6Stop.WaitForExit(15000) -or $phase6Stop.ExitCode -ne 0) {
+    if (-not $phase6Stop.WaitForExit(30000) -or $phase6Stop.ExitCode -ne 0) {
       $phase6Exit = 1
     } else {
       $phase6Started = $false

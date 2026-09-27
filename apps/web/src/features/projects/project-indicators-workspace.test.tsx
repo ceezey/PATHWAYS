@@ -6,7 +6,19 @@ import { ProjectIndicatorsWorkspace, indicatorInputFromForm } from './project-in
 
 const state = vi.hoisted(() => ({ permissions: ['monitoring.read'], data: [] as unknown[] }))
 vi.mock('@/hooks/use-current-role', () => ({
-  useCurrentRole: () => ({ profile: { permissions: state.permissions } }),
+  useCurrentRole: () => ({
+    access: 'ready',
+    profile: {
+      id: '79000000-0000-4000-8000-000000000004',
+      organizationId: '79000000-0000-4000-8000-000000000005',
+      userId: '79000000-0000-4000-8000-000000000006',
+      roles: ['PROJECT_MANAGER'],
+      permissions: state.permissions,
+      assignedProjectIds: ['79000000-0000-4000-8000-000000000003'],
+      aal: 'aal2',
+      fullName: 'Synthetic indicator manager',
+    },
+  }),
 }))
 vi.mock('@/features/analytics/use-monitoring-read', () => ({
   useMonitoringRead: () => ({

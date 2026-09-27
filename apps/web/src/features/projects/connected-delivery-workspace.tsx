@@ -1,4 +1,5 @@
 'use client'
+import { SourceMutationRecovery } from './source-mutation-recovery'
 
 import { AlertTriangle, Check, ChevronDown, Eye, Pencil, Plus, ReceiptText, X } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
@@ -32,8 +33,10 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Textarea } from '@/components/ui/textarea'
 import { useCurrentRole } from '@/hooks/use-current-role'
+import { useSourceMutationContext } from '@/hooks/use-source-mutation-context'
 import { isUiActionAvailable } from '@/lib/rbac/ui-action-availability'
 import { pathwaysClient } from '@/lib/services/pathways-client'
+import { isSourceReplay, sourceMutationTickets } from '@/lib/services/source-mutation'
 import type {
   Activity,
   AlertRecord,
@@ -535,12 +538,19 @@ export function ConnectedIndicatorWorkspace({ projectId }: { projectId?: string 
   const [indicators, setIndicators] = useState<IndicatorDisplay[]>([])
   const [draft, setDraft] = useState(blankIndicator)
   const [editing, setEditing] = useState<IndicatorDisplay>()
+  const [dialogOpen, setDialogOpen] = useState(false)
+  const mutationContext = useSourceMutationContext(
+    profile,
+    'indicators.update',
+    editing?.projectId ?? projectId ?? null,
+    JSON.stringify([editing?.id, editing?.revision]),
+    dialogOpen,
+  )
   const [selectedProjectIds, setSelectedProjectIds] = useState<string[]>(
     projectId ? [projectId] : [],
   )
   const [query, setQuery] = useState('')
   const [message, setMessage] = useState('')
-  const [dialogOpen, setDialogOpen] = useState(false)
   const canManage = isUiActionAvailable(role, 'indicators.manage', profile)
   const rows = useMemo(
     () =>
@@ -625,6 +635,7 @@ export function ConnectedIndicatorWorkspace({ projectId }: { projectId?: string 
 
   const submit = async (event: React.FormEvent) => {
     event.preventDefault()
+    if (!mutationContext?.isCurrent()) return
     try {
       if (!editing)
         throw new Error(
@@ -643,19 +654,32 @@ export function ConnectedIndicatorWorkspace({ projectId }: { projectId?: string 
         throw new Error(
           'The current API only changes an indicator name and description. Definition changes need a new version.',
         )
-      const saved = await pathwaysClient.updateProjectIndicator(editing.projectId, editing.id, {
-        name: draft.label.trim(),
-        description: draft.description.trim(),
-        expectedRevision: editing.revision,
-      })
+      const saved = await pathwaysClient.updateProjectIndicator(
+        editing.projectId,
+        editing.id,
+        {
+          name: draft.label.trim(),
+          description: draft.description.trim(),
+          expectedRevision: editing.revision,
+        },
+        mutationContext,
+      )
+      if (!mutationContext.isCurrent()) return
+      const record = isSourceReplay(saved)
+        ? await pathwaysClient.getProjectIndicator(editing.projectId, editing.id)
+        : saved
+      if (!mutationContext.isCurrent()) return
+      if (isSourceReplay(saved))
+        sourceMutationTickets.finishAcknowledgement(mutationContext, saved.requestId)
       setIndicators((current) =>
-        current.map((row) => (row.id === saved.id ? displayIndicator(saved) : row)),
+        current.map((row) => (row.id === record.id ? displayIndicator(record) : row)),
       )
       setDialogOpen(false)
       setEditing(undefined)
       setDraft(blankIndicator)
       setMessage('Indicator name and description saved to the server.')
     } catch (error) {
+      if (!mutationContext?.isCurrent()) return
       setMessage(error instanceof Error ? error.message : 'Indicator could not be saved.')
     }
   }
@@ -761,6 +785,26 @@ export function ConnectedIndicatorWorkspace({ projectId }: { projectId?: string 
             </DialogDescription>
           </DialogHeader>
           <form className="space-y-5" onSubmit={submit}>
+            {editing ? (
+              <SourceMutationRecovery
+                context={mutationContext}
+                prefix={`/projects/${editing.projectId}/indicators/${editing.id}`}
+                onRecovered={async () => {
+                  const record = await pathwaysClient.getProjectIndicator(
+                    editing.projectId,
+                    editing.id,
+                  )
+                  return () => {
+                    setDialogOpen(false)
+                    setIndicators((items) =>
+                      items.map((item) =>
+                        item.id === record.id ? displayIndicator(record) : item,
+                      ),
+                    )
+                  }
+                }}
+              />
+            ) : null}
             <div className="space-y-2">
               <Label id="indicator-projects-label">Projects</Label>
               <DropdownMenu>

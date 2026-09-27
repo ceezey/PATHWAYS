@@ -44,6 +44,7 @@ import {
 import type { DisplayLabelKey } from '@/constants/display-labels'
 import { useCurrentRole } from '@/hooks/use-current-role'
 import { useDisplayLabels } from '@/hooks/use-display-labels'
+import { canAccessProjectForRole } from '@/lib/rbac/data-scope'
 import { getVerifiedRouteAccess, principalHasAtomicPermission } from '@/lib/rbac/route-access'
 import { pathwaysClient } from '@/lib/services/pathways-client'
 import type {
@@ -52,7 +53,6 @@ import type {
   BudgetRecord,
   EvaluationRecord,
   EvidenceRecord,
-  EvidenceReviewStatus,
   ExpenseRecord,
   LiquidationStatus,
   ProjectDetail,
@@ -262,7 +262,7 @@ export const ProjectPhaseFiveWorkspace = ({
       }
     }
     const canReadActivities = principalHasAtomicPermission(profile, 'activities.read')
-    const canReadEvidence = principalHasAtomicPermission(profile, 'evidence.review')
+    const canReadEvidence = principalHasAtomicPermission(profile, 'evidence.read')
     const canReadIndicators = principalHasAtomicPermission(profile, 'monitoring.read')
     const canReadBudgets = principalHasAtomicPermission(profile, 'budgets.read')
     const canReadExpenses = principalHasAtomicPermission(profile, 'expenses.read')
@@ -286,9 +286,13 @@ export const ProjectPhaseFiveWorkspace = ({
 
         const requests: Promise<void>[] = []
         if (view === 'evidence') {
-          requests.push(
-            optional('Evidence records', pathwaysClient.getEvidence(projectId), setEvidence),
-          )
+          if (canReadEvidence) {
+            requests.push(
+              optional('Evidence records', pathwaysClient.getEvidence(projectId), setEvidence),
+            )
+          } else {
+            unavailable.push('Evidence records are not available for this role')
+          }
           if (canReadReports) {
             requests.push(
               optional('Report records', pathwaysClient.getReports(projectId), setReports),
@@ -417,7 +421,12 @@ export const ProjectPhaseFiveWorkspace = ({
   const utilization = plannedAmount > 0 ? Math.round((actualSpending / plannedAmount) * 100) : 0
   const expenseTotal = calculateExpenseTotal(expenses)
   const canConfigureWeights = principalHasAtomicPermission(profile, 'monitoring.review')
-  const canReviewEvidence = principalHasAtomicPermission(profile, 'evidence.review')
+  const canReviewEvidence =
+    role === 'Monitoring and Evaluation Officer' &&
+    canAccessProjectForRole(role, projectId, profile?.assignedProjectIds) &&
+    principalHasAtomicPermission(profile, 'evidence.read') &&
+    principalHasAtomicPermission(profile, 'evidence.review') &&
+    principalHasAtomicPermission(profile, 'activities.read')
   const canAddIndicator = principalHasAtomicPermission(profile, 'indicators.create')
   const canSubmitFormalEvaluation = principalHasAtomicPermission(profile, 'evaluations.submit')
   const canLogRecommendationOutcome = principalHasAtomicPermission(
@@ -431,17 +440,6 @@ export const ProjectPhaseFiveWorkspace = ({
   const heading = {
     ...viewTitles[view],
     title: labels[viewLabelKeys[view]],
-  }
-
-  const updateEvidenceStatus = (record: EvidenceRecord, status: EvidenceReviewStatus) => {
-    if (!canReviewEvidence) {
-      toast.error('Evidence review is not available for this role.')
-      return
-    }
-
-    void record
-    void status
-    backendNotConfigured('Evidence review')
   }
 
   const addIndicator = () => {
@@ -644,11 +642,11 @@ export const ProjectPhaseFiveWorkspace = ({
       ) : null}
       {view === 'evidence' ? (
         <EvidenceView
+          projectId={projectId}
           canReviewEvidence={canReviewEvidence}
           evidence={evidence}
           reports={reports}
           onPreview={setPreviewEvidence}
-          onStatusChange={updateEvidenceStatus}
         />
       ) : null}
       {view === 'indicators' ? (
@@ -667,7 +665,7 @@ export const ProjectPhaseFiveWorkspace = ({
           canConfigureWeights={canConfigureWeights}
           evaluation={evaluation}
           evidenceCount={
-            principalHasAtomicPermission(profile, 'evidence.review') ? evidence.length : null
+            principalHasAtomicPermission(profile, 'evidence.read') ? evidence.length : null
           }
           canSubmitFormalEvaluation={canSubmitFormalEvaluation}
           onAddAnnotation={() => {
@@ -1062,17 +1060,17 @@ const LabeledInput = ({
 )
 
 const EvidenceView = ({
+  projectId,
   canReviewEvidence,
   evidence,
   reports,
   onPreview,
-  onStatusChange,
 }: {
+  projectId: string
   canReviewEvidence: boolean
   evidence: EvidenceRecord[]
   reports: ReportRecord[]
   onPreview: (record: EvidenceRecord) => void
-  onStatusChange: (record: EvidenceRecord, status: EvidenceReviewStatus) => void
 }) => (
   <section className="grid gap-4 xl:grid-cols-[1.4fr_0.6fr]">
     <SectionCard
@@ -1117,40 +1115,17 @@ const EvidenceView = ({
                   <Eye className="h-4 w-4" aria-hidden="true" />
                   Preview
                 </Button>
-                {canReviewEvidence ? (
-                  <>
-                    <Button
-                      onClick={() => onStatusChange(record, 'Validated')}
-                      size="sm"
-                      type="button"
-                      variant="outline"
+                {canReviewEvidence &&
+                record.projectId === projectId &&
+                record.status === 'Submitted' ? (
+                  <Button asChild size="sm" variant="outline">
+                    <Link
+                      prefetch={false}
+                      href={`/projects/${encodeURIComponent(projectId)}/activities/${encodeURIComponent(record.activityId)}?review=${encodeURIComponent(record.id)}`}
                     >
-                      Validate
-                    </Button>
-                    <Button
-                      onClick={() => onStatusChange(record, 'Flagged')}
-                      size="sm"
-                      type="button"
-                      variant="outline"
-                    >
-                      Flag
-                    </Button>
-                    <Button
-                      onClick={() => onStatusChange(record, 'Approved')}
-                      size="sm"
-                      type="button"
-                    >
-                      Approve
-                    </Button>
-                    <Button
-                      onClick={() => onStatusChange(record, 'Returned')}
-                      size="sm"
-                      type="button"
-                      variant="outline"
-                    >
-                      Return for Revision
-                    </Button>
-                  </>
+                      Review proof
+                    </Link>
+                  </Button>
                 ) : null}
               </div>
             </div>

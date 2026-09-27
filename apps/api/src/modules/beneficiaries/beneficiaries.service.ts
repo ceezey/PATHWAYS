@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto'
 import {
   BadRequestException,
   ConflictException,
@@ -25,6 +26,7 @@ import {
   type BeneficiaryListQueryDto,
   type EnrollBeneficiaryDto,
   type RegisterBeneficiaryDto,
+  type RegistrationContextDto,
   type UpdateBeneficiaryDto,
   canonicalCode,
   canonicalIdentifierType,
@@ -465,6 +467,129 @@ export class BeneficiariesService {
     )
   }
 
+  registrationContext(
+    identity: ApplicationIdentity,
+    projectId: string,
+  ): Promise<RegistrationContextDto> {
+    if (!UUID_PATTERN.test(projectId))
+      throw new BadRequestException('Project identifier is invalid.')
+    return withAuthorizedOperation(
+      this.prisma,
+      identity,
+      'beneficiaries.records.register',
+      async (tx, actor) => {
+        const project = await this.requireProject(tx, actor, projectId)
+        const where = {
+          organizationId: actor.organizationId,
+          projectId: project.id,
+          formType: 'BENEFICIARY_REGISTRATION' as const,
+          status: 'PUBLISHED' as const,
+          archivedAt: null,
+        }
+        // Bound code discovery before loading any definitions, rather than broad reads filtered in memory.
+        const codes = await tx.digitalForm.groupBy({
+          by: ['code'],
+          where,
+          _max: { version: true },
+          orderBy: { code: 'asc' },
+          take: 101,
+        })
+        if (codes.length > 100)
+          throw new ConflictException('Registration definitions exceed supported bounds.')
+        if (codes.length === 0)
+          return {
+            projectId: project.id,
+            businessDate: businessCalendarDate(
+              new Date(),
+              readApiEnv(process.env).BUSINESS_TIME_ZONE,
+            ),
+            definitions: [],
+          }
+        if (codes.some((item) => item._max.version === null))
+          throw new ConflictException('Registration definitions are invalid.')
+        const rows = await tx.digitalForm.findMany({
+          where: {
+            ...where,
+            OR: codes.map((item) => ({ code: item.code, version: item._max.version as number })),
+          },
+          orderBy: [{ code: 'asc' }, { id: 'asc' }],
+          take: 101,
+          select: {
+            id: true,
+            code: true,
+            version: true,
+            name: true,
+            formType: true,
+            status: true,
+            formField_form: {
+              where: { organizationId: actor.organizationId, projectId: project.id },
+              take: 101,
+              orderBy: [{ sequenceNo: 'asc' }, { id: 'asc' }],
+              select: { ...fieldSelection, isMetadataKey: true, isSadddField: true },
+            },
+          },
+        })
+        if (rows.length !== codes.length)
+          throw new ConflictException('Registration definitions changed. Reload before continuing.')
+        const definitions = rows.map((form) => {
+          if (
+            !/^[a-z][a-z0-9_]{1,63}$/.test(form.code) ||
+            form.name.trim().length < 3 ||
+            form.name.length > 160 ||
+            form.formField_form.length > 100 ||
+            form.formField_form.some(
+              (field) =>
+                field.code.length > 64 ||
+                field.label.length > 160 ||
+                !Number.isSafeInteger(field.sequenceNo) ||
+                field.sequenceNo < 1 ||
+                (field.allowedValues !== null &&
+                  (!Array.isArray(field.allowedValues) ||
+                    field.allowedValues.length > 100 ||
+                    field.allowedValues.some(
+                      (value) => typeof value !== 'string' || value.length > 120,
+                    ))),
+            )
+          ) {
+            throw new ConflictException('Registration definitions are invalid.')
+          }
+          const fields = form.formField_form.map((field) => ({
+            ...contract(field),
+            id: field.id,
+            metadataKey: field.isMetadataKey,
+            sadddField: field.isSadddField,
+            sequence: field.sequenceNo,
+          }))
+          if (
+            beneficiaryRegistrationDefinitionErrors(fields).length ||
+            validateAndNormalizeFormData(fields, {}, 'draft').errors.some(
+              (error) => error.code === 'invalid_definition',
+            )
+          ) {
+            throw new ConflictException('Registration definitions are invalid.')
+          }
+          return {
+            id: form.id,
+            code: form.code,
+            version: form.version,
+            name: form.name,
+            formType: 'BENEFICIARY_REGISTRATION' as const,
+            status: 'PUBLISHED' as const,
+            fields,
+          }
+        })
+        return {
+          projectId: project.id,
+          businessDate: businessCalendarDate(
+            new Date(),
+            readApiEnv(process.env).BUSINESS_TIME_ZONE,
+          ),
+          definitions,
+        }
+      },
+    )
+  }
+
   get(identity: ApplicationIdentity, projectId: string, beneficiaryId: string) {
     return withAuthorizedOperation(
       this.prisma,
@@ -538,6 +663,20 @@ export class BeneficiariesService {
       },
     })
     if (!form) throw new NotFoundException('Published registration form unavailable.')
+    if (input.source === 'DIRECT_ENTRY') {
+      const [definitionLock] = await tx.$queryRaw<Array<{ locked: boolean }>>`
+        SELECT pathways.p29_lock_registration_definition(
+          ${actor.organizationId}::uuid, ${input.projectId}::uuid,
+          ${form.id}::uuid, ${form.version}::integer
+        ) AS locked
+      `
+      if (typeof definitionLock?.locked !== 'boolean') {
+        throw new Error('Registration definition lock is unavailable.')
+      }
+      if (!definitionLock.locked) {
+        throw new NotFoundException('Published registration form unavailable.')
+      }
+    }
     const formContract = form.formField_form.map(contract)
     const definitionErrors = beneficiaryRegistrationDefinitionErrors(formContract)
     if (definitionErrors.length > 0) {
@@ -665,8 +804,11 @@ export class BeneficiariesService {
       ) {
         throw new ForbiddenException('Beneficiary registration permission is missing.')
       }
-      const created = await tx.beneficiary.create({
+      const createdId = randomUUID()
+      // The profile is readable only after enrollment; INSERT RETURNING would require SELECT now.
+      const created = await tx.beneficiary.createMany({
         data: {
+          id: createdId,
           organizationId: actor.organizationId,
           code: registration.code,
           subjectType: registration.subjectType,
@@ -687,9 +829,10 @@ export class BeneficiariesService {
           guardianConsentRecorded: registration.guardianConsentRecorded,
           createdById: actor.userId,
         },
-        select: { id: true },
       })
-      beneficiaryId = created.id
+      if (created.count !== 1)
+        throw new ConflictException('Beneficiary registration was not created.')
+      beneficiaryId = createdId
     } else if (registration.operation === 'UPDATE') {
       if (
         !hasAtomicPermission(actor.roles[0], actor.permissions, 'beneficiaries.profiles.update')
@@ -768,9 +911,14 @@ export class BeneficiariesService {
         })
       }
     }
-    const [databaseClock] = await tx.$queryRaw<Array<{ transactionTime: Date }>>`
-      SELECT CURRENT_TIMESTAMP AS "transactionTime"
-    `
+    const [databaseClock] =
+      input.source === 'DIRECT_ENTRY'
+        ? await tx.$queryRaw<Array<{ transactionTime: Date }>>`
+          SELECT date_trunc('milliseconds', CURRENT_TIMESTAMP) AS "transactionTime"
+        `
+        : await tx.$queryRaw<Array<{ transactionTime: Date }>>`
+          SELECT CURRENT_TIMESTAMP AS "transactionTime"
+        `
     if (!(databaseClock?.transactionTime instanceof Date)) {
       throw new Error('Database transaction time is unavailable.')
     }

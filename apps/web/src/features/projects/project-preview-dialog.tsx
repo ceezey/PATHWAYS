@@ -63,8 +63,8 @@ export const ProjectPreviewDialog = ({
               label="Beneficiaries"
               value={
                 project.metricsAvailable
-                  ? `${formatNumber(project.beneficiariesReached)} / ${formatNumber(project.targetBeneficiaries)}`
-                  : `Unavailable / ${formatNumber(project.targetBeneficiaries)}`
+                  ? `${formatNumber(project.beneficiariesReached)} / ${project.targetBeneficiaries === undefined ? 'Not recorded' : formatNumber(project.targetBeneficiaries)}`
+                  : `Unavailable / ${project.targetBeneficiaries === undefined ? 'Not recorded' : formatNumber(project.targetBeneficiaries)}`
               }
             />
             <PreviewMeasure

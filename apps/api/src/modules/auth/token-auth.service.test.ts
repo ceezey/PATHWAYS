@@ -118,7 +118,7 @@ describe('TokenAuthService cryptographic verification and current identity', () 
         user_metadata: { session_id: '20000000-0000-4000-8000-000000000002' },
       }),
     )
-    expect(sessions.assertLive).toHaveBeenCalledWith(DEVELOPER_AUTH_UUID, sessionId)
+    expect(sessions.assertLive).toHaveBeenCalledWith(DEVELOPER_AUTH_UUID, sessionId, undefined)
   })
 
   it('accepts a genuinely signed aal2 token with a current verified TOTP factor', async () => {
@@ -127,7 +127,7 @@ describe('TokenAuthService cryptographic verification and current identity', () 
       aal: 'aal2',
     })
     expect(identityReads()).toHaveLength(1)
-    expect(sessions.assertLive).toHaveBeenCalledWith(DEVELOPER_AUTH_UUID, sessionId)
+    expect(sessions.assertLive).toHaveBeenCalledWith(DEVELOPER_AUTH_UUID, sessionId, undefined)
   })
 
   it('can defer database liveness to the selected-profile transaction without caching authority', async () => {
@@ -150,7 +150,11 @@ describe('TokenAuthService cryptographic verification and current identity', () 
     expect(sessions.assertLive).not.toHaveBeenCalled()
 
     await service.assertSessionLive(verified)
-    expect(sessions.assertLive).toHaveBeenCalledExactlyOnceWith(DEVELOPER_AUTH_UUID, sessionId)
+    expect(sessions.assertLive).toHaveBeenCalledExactlyOnceWith(
+      DEVELOPER_AUTH_UUID,
+      sessionId,
+      undefined,
+    )
   })
 
   it('rejects an attacker signature even when all decoded claims look valid', async () => {

@@ -1,7 +1,7 @@
 'use client'
 
 import { Loader2, UploadCloud } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
 
 import { DialogShell } from '@/components/pathways'
@@ -11,12 +11,14 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { useCurrentRole } from '@/hooks/use-current-role'
+import { useSourceMutationContext } from '@/hooks/use-source-mutation-context'
 import { type SensitiveDraftOwner, useSensitiveDraftOwner } from '@/lib/auth/sensitive-drafts'
 import {
   registerProofFilePreviews,
   releaseProofFilePreviews,
 } from '@/lib/files/proof-file-previews'
 import { pathwaysClient } from '@/lib/services/pathways-client'
+import { isSourceReplay, sourceMutationTickets } from '@/lib/services/source-mutation'
 import type { Activity } from '@/types/pathways'
 
 export const ActivityProofDialog = (props: {
@@ -50,30 +52,71 @@ const ScopedActivityProofDialog = ({
   onSubmitted: (activity: Activity) => void
   scope: SensitiveDraftOwner
 }) => {
+  const { profile } = useCurrentRole()
+  const mutationContext = useSourceMutationContext(
+    profile,
+    'activities.proof.submit',
+    activity?.projectId ?? null,
+    activity?.id ?? null,
+    open,
+  )
+  const attempt = useRef<{ id: string; progress: number; note: string; files: File[] } | null>(null)
+  const committed = useRef<string | null>(null)
   const [beneficiariesReachedThisSession, setBeneficiariesReachedThisSession] = useState(0)
   const [note, setNote] = useState('')
   const [files, setFiles] = useState<File[]>([])
-  const [clientUpdateId, setClientUpdateId] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState('')
   const noteError = error === 'Enter an update note before submitting proof.'
   const beneficiariesError = error.startsWith('Beneficiaries reached this session')
-  const fileError = error.startsWith('Attach at least one') || error.includes('20 MB')
+  const fileError = error.includes('proof file') || error.startsWith('Attach at least one')
 
   useEffect(() => {
     if (!activity || !open) {
       return
     }
 
+    const retained = mutationContext
+      ? sourceMutationTickets.proofSnapshot(
+          mutationContext,
+          `POST:/projects/${activity.projectId}/activities/${activity.id}/updates`,
+        )
+      : null
+    if (retained)
+      attempt.current = {
+        id: retained.requestId,
+        progress: retained.body.progressPercent,
+        note: retained.body.note,
+        files: retained.files,
+      }
+    committed.current = retained?.committed ? retained.requestId : null
     setBeneficiariesReachedThisSession(0)
-    setNote('')
-    setFiles([])
-    setClientUpdateId(crypto.randomUUID())
+    setNote(retained?.body.note ?? '')
+    setFiles(retained?.files ?? [])
     setError('')
-  }, [activity, open])
+  }, [activity, mutationContext, open])
 
   const submitUpdate = async () => {
-    if (!activity || submitting || !scope.isCurrent()) {
+    if (!activity || submitting || !scope.isCurrent() || !mutationContext?.isCurrent()) {
+      return
+    }
+    if (committed.current) {
+      setSubmitting(true)
+      try {
+        const record = await pathwaysClient.getActivity(activity.projectId, activity.id)
+        if (!scope.isCurrent() || !mutationContext.isCurrent()) return
+        if (committed.current !== 'fresh')
+          sourceMutationTickets.finishAcknowledgement(mutationContext, committed.current)
+        onSubmitted(record)
+        onOpenChange(false)
+      } catch {
+        if (scope.isCurrent() && mutationContext.isCurrent())
+          setError(
+            'The proof is committed. Reloading its current record failed; retry to reload without resubmitting.',
+          )
+      } finally {
+        if (scope.isCurrent() && mutationContext.isCurrent()) setSubmitting(false)
+      }
       return
     }
 
@@ -89,42 +132,97 @@ const ScopedActivityProofDialog = ({
       setError('Attach at least one proof-of-conduct file.')
       return
     }
-    if (files.some((file) => file.size > 20 * 1024 * 1024)) {
-      setError('Each proof-of-conduct file must be 20 MB or smaller.')
+    if (
+      files.length > 5 ||
+      files.reduce((sum, file) => sum + file.size, 0) > 25 * 1024 * 1024 ||
+      files.some(
+        (file) =>
+          file.size < 1 ||
+          file.size > 10 * 1024 * 1024 ||
+          file.name.trim().length > 128 ||
+          /[\\/]/.test(file.name) ||
+          !['application/pdf', 'image/jpeg', 'image/png', 'image/webp', 'video/mp4'].includes(
+            file.type.toLowerCase(),
+          ),
+      )
+    ) {
+      setError(
+        'Select up to five PDF, JPEG, PNG, WebP or MP4 proof files: 10 MB per file and 25 MB total, with valid names.',
+      )
       return
     }
 
+    const prior = attempt.current
+    if (
+      prior &&
+      (prior.note !== note ||
+        prior.files.length !== files.length ||
+        prior.files.some((file, index) => file !== files[index]))
+    ) {
+      setError(
+        'The earlier proof outcome is unresolved. Retry the original note and files unchanged.',
+      )
+      return
+    }
+    const captured = prior ?? {
+      id: crypto.randomUUID(),
+      progress: activity.progress,
+      note,
+      files: [...files],
+    }
+    attempt.current = captured
     setSubmitting(true)
     setError('')
     let fileReferences: Awaited<ReturnType<typeof registerProofFilePreviews>> = []
+    let dispatched = false
+    const previouslyUnresolved = sourceMutationTickets.pendingRecovery(
+      mutationContext,
+      `POST:/projects/${activity.projectId}/activities/${activity.id}/updates`,
+    )
 
     try {
-      fileReferences = await registerProofFilePreviews(files)
-      if (!scope.isCurrent()) return
-      const updatedActivity = await pathwaysClient.submitActivityProof({
-        projectId: activity.projectId,
-        activityId: activity.id,
-        clientUpdateId: clientUpdateId || crypto.randomUUID(),
-        progress: activity.progress,
-        note,
-        files,
-      })
+      fileReferences = await registerProofFilePreviews(captured.files)
+      if (!scope.isCurrent() || !mutationContext.isCurrent()) return
+      dispatched = true
+      const updatedActivity = await pathwaysClient.submitActivityProof(
+        {
+          projectId: activity.projectId,
+          activityId: activity.id,
+          clientUpdateId: captured.id,
+          progress: captured.progress,
+          note: captured.note,
+          files: captured.files,
+        },
+        mutationContext,
+      )
 
-      if (!scope.isCurrent()) return
+      if (!scope.isCurrent() || !mutationContext.isCurrent()) return
+      committed.current = isSourceReplay(updatedActivity) ? updatedActivity.requestId : 'fresh'
+      attempt.current = null
       toast.success('Progress update submitted.', {
         description:
           files.length > 0
             ? `${files.length} proof file${files.length === 1 ? '' : 's'} selected for review.`
             : 'Proof submitted for M&E review.',
       })
-      onSubmitted(updatedActivity)
+      const record = isSourceReplay(updatedActivity)
+        ? await pathwaysClient.getActivity(activity.projectId, activity.id)
+        : updatedActivity
+      if (!scope.isCurrent() || !mutationContext.isCurrent()) return
+      if (isSourceReplay(updatedActivity))
+        sourceMutationTickets.finishAcknowledgement(mutationContext, updatedActivity.requestId)
+      attempt.current = null
+      onSubmitted(record)
       onOpenChange(false)
     } catch (caught) {
       if (!scope.isCurrent()) return
+      if (!dispatched && !previouslyUnresolved) attempt.current = null
       setError(
-        caught instanceof Error
-          ? caught.message
-          : 'The activity update could not be completed. Review the details and try again.',
+        committed.current
+          ? 'The proof is committed. Reloading its current record failed; retry to reload without resubmitting.'
+          : caught instanceof Error
+            ? caught.message
+            : 'The activity update could not be completed. Review the details and try again.',
       )
     } finally {
       releaseProofFilePreviews(fileReferences)
@@ -132,8 +230,18 @@ const ScopedActivityProofDialog = ({
     }
   }
 
+  const requestOpenChange = (next: boolean) => {
+    if (!next && (submitting || attempt.current)) {
+      setError(
+        'The proof outcome is unresolved. Keep the original note and files and retry before closing.',
+      )
+      return
+    }
+    onOpenChange(next)
+  }
+
   return (
-    <Dialog onOpenChange={onOpenChange} open={open}>
+    <Dialog onOpenChange={requestOpenChange} open={open}>
       <DialogShell
         title="Submit Update & Proof"
         description="Record a progress update and attach supporting evidence for review."
@@ -185,6 +293,7 @@ const ScopedActivityProofDialog = ({
               <span className="sr-only"> (required)</span>
             </Label>
             <Textarea
+              disabled={submitting || Boolean(attempt.current) || Boolean(committed.current)}
               aria-describedby={noteError ? 'activity-note-error' : undefined}
               aria-invalid={noteError}
               aria-required="true"
@@ -208,8 +317,10 @@ const ScopedActivityProofDialog = ({
             </Label>
             <Input
               aria-describedby={fileError ? 'activity-proof-error' : 'activity-proof-help'}
+              disabled={submitting || Boolean(attempt.current) || Boolean(committed.current)}
               aria-invalid={fileError}
               id="activity-proof"
+              accept="application/pdf,image/jpeg,image/png,image/webp,video/mp4"
               multiple
               onChange={(event) => {
                 setFiles(Array.from(event.target.files ?? []))
@@ -218,7 +329,8 @@ const ScopedActivityProofDialog = ({
               type="file"
             />
             <p className="text-sm text-muted-foreground" id="activity-proof-help">
-              Select one or more files. Maximum 20 MB per file; files are uploaded with the update.
+              Select up to five PDF, JPEG, PNG, WebP or MP4 files, with 10 MB per file and 25 MB
+              total. Files and notes stay unchanged while a save is unresolved.
             </p>
           </div>
           {files.length > 0 ? (
@@ -251,7 +363,12 @@ const ScopedActivityProofDialog = ({
             </p>
           ) : null}
           <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+            <Button
+              type="button"
+              variant="outline"
+              disabled={submitting || Boolean(attempt.current)}
+              onClick={() => requestOpenChange(false)}
+            >
               Cancel
             </Button>
             <Button className="gap-2" disabled={submitting} type="submit">
@@ -260,7 +377,7 @@ const ScopedActivityProofDialog = ({
               ) : (
                 <UploadCloud className="h-4 w-4" aria-hidden="true" />
               )}
-              Submit update & proof
+              {committed.current ? 'Reload committed proof' : 'Submit update & proof'}
             </Button>
           </DialogFooter>
         </form>

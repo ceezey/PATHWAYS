@@ -507,6 +507,7 @@ const OwnedCollectionWorkspace = ({
     intent.current++
     parsing.current++
     lastSelectedFileRef.current = null
+    uploadIdentity.current = null
     setParsedImport(null)
     setImportStatus('idle')
     setUploadProgress(0)
@@ -535,6 +536,14 @@ const OwnedCollectionWorkspace = ({
       setter(value)
     }
   const lastSelectedFileRef = useRef<File | null>(null)
+  const uploadIdentity = useRef<{
+    file: File
+    projectId: string
+    formId: string
+    version: number
+    generation: number
+    id: string
+  } | null>(null)
 
   const editingReady =
     !editingFormId ||
@@ -646,6 +655,7 @@ const OwnedCollectionWorkspace = ({
     intent.current++
     parsing.current++
     lastSelectedFileRef.current = null
+    uploadIdentity.current = null
     setParsedImport(null)
     setMappingRows([])
     const form = forms.find((f) => f.id === summary.id)
@@ -720,7 +730,8 @@ const OwnedCollectionWorkspace = ({
   }, [parsedImport])
 
   const mappingReadiness = useMemo(() => getMappingReadiness(mappingRows), [mappingRows])
-  const importCanProceed = importStatus === 'ready' && mappingReadiness.canProceed
+  const importCanProceed =
+    importStatus === 'ready' && (Boolean(parsedImport?.rows.length) || mappingReadiness.canProceed)
   const visibleModes = modeDetails.filter((item) => {
     if (item.id === 'scratch') return canManageForms
     if (item.id === 'import') return canOpenImport
@@ -1015,7 +1026,7 @@ const OwnedCollectionWorkspace = ({
   }
   const confirmImportProceed = async () => {
     if (!parsedImport || !importCanProceed || !projectId) return
-    if (!canUseExtend) {
+    if (parsedImport.rows.length === 0 && !canUseExtend) {
       setImportMessage('Extend Existing Form is not available for this role.')
       setProceedDialogOpen(false)
       return
@@ -1024,13 +1035,7 @@ const OwnedCollectionWorkspace = ({
     const needed =
       parsedImport.rows.length === 0
         ? (['forms.manage', 'forms.templates.import'] as const)
-        : ([
-            'imports.upload',
-            'imports.read',
-            'imports.review',
-            'imports.validate',
-            'imports.process',
-          ] as const)
+        : (['imports.upload', 'imports.read'] as const)
     if (!needed.every((grant) => eligible(grant))) return
     const ticket = beginOperation(permission)
     if (!ticket) return
@@ -1096,13 +1101,52 @@ const OwnedCollectionWorkspace = ({
       })
       const file = lastSelectedFileRef.current
       if (!file) throw new Error('Select the source file again before upload.')
+      const generation = sensitiveDraftGeneration()
+      const priorUpload = uploadIdentity.current
+      const uploadAttempt =
+        priorUpload &&
+        priorUpload.file === file &&
+        priorUpload.projectId === projectId &&
+        priorUpload.formId === selectedForm.id &&
+        priorUpload.version === selectedForm.version &&
+        priorUpload.generation === generation
+          ? priorUpload
+          : {
+              file,
+              projectId,
+              formId: selectedForm.id,
+              version: selectedForm.version,
+              generation,
+              id: crypto.randomUUID(),
+            }
+      uploadIdentity.current = uploadAttempt
+      const clientImportId = uploadAttempt.id
       const uploaded = await pathwaysClient.uploadImport(
         projectId,
         selectedForm.id,
-        crypto.randomUUID(),
+        clientImportId,
         file,
       )
+      if (!ticket.valid('imports.upload')) return
+      let automaticRevision: number | undefined
+      if (uploaded.mappingRevision === 0 && uploaded.storageStatus === 'STORED') {
+        const automatic = await pathwaysClient.automaticImportMapping(projectId, uploaded.id, 0)
+        if (!ticket.valid('imports.read')) return
+        automaticRevision = automatic.mappingRevision
+      }
       if (!ticket.valid('imports.read')) return
+      if (
+        !mappingReadiness.canProceed ||
+        !(['imports.review', 'imports.validate', 'imports.process'] as const).every((grant) =>
+          eligible(grant),
+        )
+      ) {
+        setImportMessage(
+          `Import ${uploaded.id} was staged. Unresolved mappings and processing require an authorized reviewer.`,
+        )
+        setProceedDialogOpen(false)
+        return
+      }
       const detail = await pathwaysClient.getImportBatch(projectId, uploaded.id)
       if (!ticket.valid('imports.review')) return
       const sourceColumns = detail.sourceColumns
@@ -1121,7 +1165,7 @@ const OwnedCollectionWorkspace = ({
       const mapped = await pathwaysClient.saveImportMapping(
         projectId,
         uploaded.id,
-        uploaded.mappingRevision,
+        detail.mappingRevision ?? automaticRevision ?? uploaded.mappingRevision,
         mappings,
       )
       if (!ticket.valid('imports.validate')) return
@@ -1472,14 +1516,8 @@ const OwnedCollectionWorkspace = ({
                             <Input
                               aria-label={`Row ${index + 1}: ${column}`}
                               value={String(row[column] ?? '')}
-                              onChange={(e) =>
-                                changeInput(setParsedImport)({
-                                  ...parsedImport,
-                                  rows: parsedImport.rows.map((r, ri) =>
-                                    ri === index ? { ...r, [column]: e.target.value } : r,
-                                  ),
-                                })
-                              }
+                              readOnly
+                              aria-readonly="true"
                             />
                           </td>
                         ))}
@@ -2630,15 +2668,19 @@ const MappingTable = ({
     <p
       className={cn(
         'mt-3 rounded-md px-3 py-2 text-sm',
-        canProceed ? 'bg-success-subtle text-success' : 'bg-warning-subtle text-warning',
+        canProceed && mappingReadiness.canProceed
+          ? 'bg-success-subtle text-success'
+          : 'bg-warning-subtle text-warning',
       )}
       id="mapping-readiness-message"
     >
-      {canProceed
-        ? mappingReadiness.message
-        : mappingReadiness.canProceed
-          ? 'The current file must finish successfully before proceeding.'
-          : mappingReadiness.message}
+      {canProceed && !mappingReadiness.canProceed && !createsDraft
+        ? 'This file can be uploaded to staging. An authorized reviewer must resolve unmatched columns before validation and processing.'
+        : canProceed
+          ? mappingReadiness.message
+          : mappingReadiness.canProceed
+            ? 'The current file must finish successfully before proceeding.'
+            : mappingReadiness.message}
     </p>
     <div className="mt-4 overflow-x-auto">
       <table className="w-full min-w-[720px] text-left text-sm">

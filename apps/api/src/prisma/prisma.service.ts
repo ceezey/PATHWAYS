@@ -2,6 +2,12 @@ import { performance } from 'node:perf_hooks'
 import { Injectable, type OnModuleDestroy, type OnModuleInit } from '@nestjs/common'
 import { type Prisma, PrismaClient } from '@prisma/client'
 
+import {
+  type InspectionRequestBudget,
+  inspectionTransactionPlan,
+  setInspectionTransactionBudget,
+} from '../common/network/inspection-request-budget'
+
 /** Internal backend context only. The caller must first verify the Auth subject.
  * Authorized operations recheck current permissions and active assignments in this context.
  */
@@ -17,6 +23,7 @@ export interface VerifiedDatabaseContext {
 
 export interface VerifiedTransactionOptions {
   timeoutMs?: number
+  requestBudget?: InspectionRequestBudget
   onTiming?: (timing: VerifiedTransactionTiming) => void
 }
 
@@ -125,6 +132,8 @@ export class PrismaService extends PrismaClient implements OnModuleInit, OnModul
       throw new Error('Database context requires a valid session UUID when supplied.')
     }
     const timeout = verifiedTransactionTimeout(options)
+    const budget = options?.requestBudget
+    const plan = budget ? inspectionTransactionPlan(budget, timeout) : { maxWait: 5_000, timeout }
     const transactionStartedAt = performance.now()
     const timing: VerifiedTransactionTiming = { acquisitionMs: 0, contextMs: 0, workMs: 0 }
     let transactionEntered = false
@@ -139,9 +148,10 @@ export class PrismaService extends PrismaClient implements OnModuleInit, OnModul
       }
     }
     try {
-      return await this.$transaction(
+      const result = await this.$transaction(
         async (transaction) => {
           transactionEntered = true
+          if (budget) await setInspectionTransactionBudget(transaction, budget)
           timing.acquisitionMs = boundedStageDuration(transactionStartedAt)
           const contextStartedAt = performance.now()
           try {
@@ -201,9 +211,12 @@ export class PrismaService extends PrismaClient implements OnModuleInit, OnModul
           } finally {
             timing.contextMs = boundedStageDuration(contextStartedAt)
           }
+          if (budget) await setInspectionTransactionBudget(transaction, budget)
           const workStartedAt = performance.now()
           try {
-            return await work(transaction)
+            const value = await work(transaction)
+            budget?.check()
+            return value
           } finally {
             timing.workMs = boundedStageDuration(workStartedAt)
           }
@@ -212,10 +225,12 @@ export class PrismaService extends PrismaClient implements OnModuleInit, OnModul
           // A protected page can overlap its server and browser checks on the
           // bounded development pool. Keep queue/work time bounded without
           // Prisma's 2s/5s defaults turning valid remote profile reads into P2028.
-          maxWait: 5_000,
-          timeout,
+          maxWait: plan.maxWait,
+          timeout: plan.timeout,
         },
       )
+      budget?.check()
+      return result
     } finally {
       if (!transactionEntered) {
         timing.acquisitionMs = boundedStageDuration(transactionStartedAt)

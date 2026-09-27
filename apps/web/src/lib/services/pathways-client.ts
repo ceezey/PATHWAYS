@@ -1,3 +1,19 @@
+import {
+  sensitiveDraftGeneration,
+  subscribeSensitiveDraftInvalidation,
+} from '@/lib/auth/sensitive-drafts'
+import {
+  type AutomaticMappingReceipt,
+  parseAutomaticMappingReceipt,
+} from './automatic-mapping-receipt'
+import {
+  type SourceMutationContext,
+  SourceMutationRecoveryError,
+  type SourceMutationResult,
+  parseSourceMutationResult,
+  sourceMutationTickets,
+} from './source-mutation'
+
 import { contextCookieName, decodeWorkspaceContext } from '@/features/auth/workspace-access'
 import { approvedApiBaseUrl } from '@/lib/api-base-url'
 import { webEnv } from '@/lib/env'
@@ -11,6 +27,7 @@ import type {
   BeneficiaryJourneyHistory,
   BeneficiaryMediaProofRecord,
   BeneficiaryRecord,
+  BeneficiaryRegistrationContext,
   BeneficiarySadddAggregate,
   BudgetRecord,
   CorrectJourneyEventInput,
@@ -58,13 +75,13 @@ import type {
 } from '@/types/pathways'
 import type { PathwaysRole } from '@/types/pathways-role'
 import {
-  type CreateIndicatorInput,
+  type CreateIndicatorInput as ApiCreateIndicatorInput,
+  type UpdateIndicatorInput as ApiUpdateIndicatorInput,
   type DashboardQuery,
   type ManualMeasurementInput,
   type MonitoringDashboard,
   type SadddDashboard,
   type SadddQuery,
-  type UpdateIndicatorInput,
   dashboardQuerySchema,
   formatMetricCell,
   monitoringDashboardSchema,
@@ -73,6 +90,9 @@ import {
   sadddDashboardSchema,
   sadddQuerySchema,
 } from '@pathways/shared'
+type CreateIndicatorInput = Omit<ApiCreateIndicatorInput, 'clientMutationId'>
+type UpdateIndicatorInput = Omit<ApiUpdateIndicatorInput, 'clientMutationId'>
+import { parseRegistrationContext } from './registration-context'
 
 export class PathwaysClientError extends Error {
   constructor(
@@ -85,6 +105,7 @@ export class PathwaysClientError extends Error {
       | 'not_found'
       | 'invalid',
     readonly fieldErrors: FormValidationError[] = [],
+    readonly status?: number,
   ) {
     super(message)
     this.name = 'PathwaysClientError'
@@ -92,27 +113,45 @@ export class PathwaysClientError extends Error {
 }
 
 export interface PathwaysClient {
-  getProjects(): Promise<ProjectSummary[]>
+  getProjects(signal?: AbortSignal): Promise<ProjectSummary[]>
   getProjectsForRole(role: PathwaysRole): Promise<ProjectSummary[]>
-  getProject(id: string): Promise<ProjectDetail>
+  getProject(id: string, signal?: AbortSignal): Promise<ProjectDetail>
   createProject(input: CreateProjectInput): Promise<ProjectDetail>
-  updateProject(id: string, input: UpdateProjectInput): Promise<ProjectDetail>
-  updateProjectPeriod(id: string, endDate: string): Promise<ProjectDetail>
+  updateProject(
+    id: string,
+    input: UpdateProjectInput,
+    context?: SourceMutationContext,
+  ): Promise<SourceMutationResult<ProjectDetail>>
+  updateProjectPeriod(
+    id: string,
+    endDate: string,
+    context?: SourceMutationContext,
+  ): Promise<SourceMutationResult<ProjectDetail>>
   getActivityContext(
     projectId: string,
   ): Promise<Pick<Activity, 'id' | 'title' | 'journeyStageId'>[]>
-  getActivities(projectId: string): Promise<Activity[]>
+  getActivities(projectId: string, signal?: AbortSignal): Promise<Activity[]>
   getActivity(projectId: string, activityId: string): Promise<Activity>
-  createActivity(input: CreateActivityInput): Promise<Activity>
-  updateActivity(input: UpdateActivityInput): Promise<Activity>
+  createActivity(
+    input: CreateActivityInput,
+    context?: SourceMutationContext,
+  ): Promise<SourceMutationResult<Activity>>
+  updateActivity(
+    input: UpdateActivityInput,
+    context?: SourceMutationContext,
+  ): Promise<SourceMutationResult<Activity>>
   transitionActivity(
     projectId: string,
     activityId: string,
     status: 'IN_PROGRESS' | 'CANCELLED',
     expectedUpdatedAt: string,
     reason?: string,
-  ): Promise<Activity>
-  submitActivityProof(input: SubmitActivityProofInput): Promise<Activity>
+    context?: SourceMutationContext,
+  ): Promise<SourceMutationResult<Activity>>
+  submitActivityProof(
+    input: SubmitActivityProofInput,
+    context?: SourceMutationContext,
+  ): Promise<SourceMutationResult<Activity>>
   reviewActivityUpdate(
     projectId: string,
     activityId: string,
@@ -120,7 +159,8 @@ export interface PathwaysClient {
     decision: 'APPROVE' | 'RETURN',
     reason: string,
     expectedUpdatedAt: string,
-  ): Promise<Activity>
+    context?: SourceMutationContext,
+  ): Promise<SourceMutationResult<Activity>>
   downloadActivityProof(projectId: string, activityId: string, evidenceId: string): Promise<Blob>
   getMilestones(projectId: string): Promise<ProjectMilestone[]>
   createMilestone(projectId: string, input: SaveMilestoneInput): Promise<ProjectMilestone>
@@ -130,24 +170,31 @@ export interface PathwaysClient {
     input: UpdateMilestoneInput,
   ): Promise<ProjectMilestone>
   getEvidence(projectId: string): Promise<EvidenceRecord[]>
-  getProjectIndicators(projectId: string): Promise<ProjectIndicator[]>
+  getProjectIndicators(projectId: string, signal?: AbortSignal): Promise<ProjectIndicator[]>
   getProjectIndicator(projectId: string, indicatorId: string): Promise<ProjectIndicator>
-  createProjectIndicator(projectId: string, input: CreateIndicatorInput): Promise<ProjectIndicator>
+  createProjectIndicator(
+    projectId: string,
+    input: CreateIndicatorInput,
+    context?: SourceMutationContext,
+  ): Promise<SourceMutationResult<ProjectIndicator>>
   updateProjectIndicator(
     projectId: string,
     indicatorId: string,
     input: UpdateIndicatorInput,
-  ): Promise<ProjectIndicator>
+    context?: SourceMutationContext,
+  ): Promise<SourceMutationResult<ProjectIndicator>>
   recordIndicatorMeasurement(
     projectId: string,
     indicatorId: string,
     input: ManualMeasurementInput,
-  ): Promise<ProjectIndicator>
+    context?: SourceMutationContext,
+  ): Promise<SourceMutationResult<ProjectIndicator>>
   archiveProjectIndicator(
     projectId: string,
     indicatorId: string,
     expectedRevision: number,
-  ): Promise<ProjectIndicator>
+    context?: SourceMutationContext,
+  ): Promise<SourceMutationResult<ProjectIndicator>>
   getMonitoringDashboard(query?: DashboardQuery): Promise<MonitoringDashboard>
   getSadddDashboard(query: SadddQuery): Promise<SadddDashboard>
   getEvaluation(projectId: string): Promise<EvaluationRecord>
@@ -186,7 +233,7 @@ export interface PathwaysClient {
     role: PathwaysRole,
     query: SadddQuery,
   ): Promise<BeneficiarySadddAggregate>
-  getJourneyStages(projectId: string): Promise<JourneyStageConfig[]>
+  getJourneyStages(projectId: string, signal?: AbortSignal): Promise<JourneyStageConfig[]>
   saveJourneyStages(projectId: string, stages: JourneyStageConfig[]): Promise<JourneyStageConfig[]>
   getBeneficiaryJourneyHistory(
     projectId: string,
@@ -203,7 +250,7 @@ export interface PathwaysClient {
     eventId: string,
     input: CorrectJourneyEventInput,
   ): Promise<{ id: string }>
-  getIndicators(projectId?: string): Promise<Indicator[]>
+  getIndicators(projectId?: string, signal?: AbortSignal): Promise<Indicator[]>
   getBudgets(projectId?: string): Promise<BudgetRecord[]>
   getAlerts(projectId?: string): Promise<AlertRecord[]>
   getAlertsForRole(role: PathwaysRole, projectId?: string): Promise<AlertRecord[]>
@@ -213,6 +260,7 @@ export interface PathwaysClient {
   getRules(): Promise<RuleDefinition[]>
   getReports(projectId?: string): Promise<ReportRecord[]>
   getSurveyForms(projectId?: string): Promise<SurveyFormDefinition[]>
+  getBeneficiaryRegistrationContext(projectId: string): Promise<BeneficiaryRegistrationContext>
   getDigitalForms(projectId: string): Promise<DigitalFormDefinition[]>
   getDigitalForm(projectId: string, formId: string): Promise<DigitalFormDefinition>
   createDigitalForm(projectId: string, input: SaveDigitalFormInput): Promise<DigitalFormDefinition>
@@ -287,6 +335,11 @@ export interface PathwaysClient {
     file: File,
   ): Promise<ImportBatchDefinition>
   resumeImportUpload(projectId: string, batchId: string): Promise<ImportBatchDefinition>
+  automaticImportMapping(
+    projectId: string,
+    batchId: string,
+    expectedMappingRevision: 0 | 1,
+  ): Promise<AutomaticMappingReceipt>
   saveImportMapping(
     projectId: string,
     batchId: string,
@@ -306,7 +359,7 @@ export interface PathwaysClient {
   getSurveyAggregateResults(filters?: SurveyAggregateFilters): Promise<SurveyAggregateResultSet[]>
   getPublicProjects(): Promise<PublicProjectRecord[]>
   getPublicProject(id: string): Promise<PublicProjectRecord>
-  getUsers(): Promise<UserRecord[]>
+  getUsers(signal?: AbortSignal): Promise<UserRecord[]>
   authorizeExistingUser(input: AuthorizeExistingUserInput): Promise<UserRecord>
   updateAuthorizedUser(id: string, input: UpdateAuthorizedUserInput): Promise<UserRecord>
   getDashboard(role: PathwaysRole): Promise<RoleDashboardViewModel>
@@ -326,17 +379,17 @@ const backendNotConfigured = (operation: string) =>
  * corresponding real endpoint exists.
  */
 class BackendReadyPathwaysClient implements PathwaysClient {
-  async getProjects(): Promise<ProjectSummary[]> {
-    return requestFoundation('/projects').then(parseProjects)
+  async getProjects(signal?: AbortSignal): Promise<ProjectSummary[]> {
+    return requestFoundation('/projects', { signal }).then(parseProjects)
   }
 
   async getProjectsForRole(_role: PathwaysRole): Promise<ProjectSummary[]> {
     return this.getProjects()
   }
 
-  async getProject(id: string): Promise<ProjectDetail> {
+  async getProject(id: string, signal?: AbortSignal): Promise<ProjectDetail> {
     return mapProject(
-      (await requestFoundation(`/projects/${encodeURIComponent(id)}`)) as ApiProject,
+      (await requestFoundation(`/projects/${encodeURIComponent(id)}`, { signal })) as ApiProject,
     )
   }
 
@@ -350,34 +403,44 @@ class BackendReadyPathwaysClient implements PathwaysClient {
     )
   }
 
-  async updateProject(id: string, input: UpdateProjectInput): Promise<ProjectDetail> {
-    return mapProject(
-      (await requestFoundation(`/projects/${encodeURIComponent(id)}`, {
-        method: 'PATCH',
-        body: JSON.stringify({ ...input, status: apiProjectStatus(input.status) }),
-      })) as ApiProject,
+  async updateProject(
+    id: string,
+    input: UpdateProjectInput,
+    context?: SourceMutationContext,
+  ): Promise<SourceMutationResult<ProjectDetail>> {
+    return requestSourceMutation(
+      `/projects/${encodeURIComponent(id)}`,
+      'PATCH',
+      { ...input, status: apiProjectStatus(input.status) },
+      context,
+      (value) => mapProject(value as ApiProject),
     )
   }
 
-  async updateProjectPeriod(id: string, endDate: string): Promise<ProjectDetail> {
+  async updateProjectPeriod(
+    id: string,
+    endDate: string,
+    context?: SourceMutationContext,
+  ): Promise<SourceMutationResult<ProjectDetail>> {
     const path = `/projects/${encodeURIComponent(id)}`
     const current = (await requestFoundation(path)) as ApiProject
-    return mapProject(
-      (await requestFoundation(path, {
-        method: 'PATCH',
-        body: JSON.stringify({
-          code: current.code,
-          title: current.title,
-          description: current.description ?? undefined,
-          objectives: current.objectives ?? undefined,
-          implementationArea: current.implementationArea ?? undefined,
-          startDate: current.startDate,
-          endDate,
-          status: current.status,
-          programId: current.programId ?? undefined,
-          expectedUpdatedAt: current.updatedAt,
-        }),
-      })) as ApiProject,
+    return requestSourceMutation(
+      path,
+      'PATCH',
+      {
+        code: current.code,
+        title: current.title,
+        description: current.description ?? undefined,
+        objectives: current.objectives ?? undefined,
+        implementationArea: current.implementationArea ?? undefined,
+        startDate: current.startDate,
+        endDate,
+        status: current.status,
+        programId: current.programId ?? undefined,
+        expectedUpdatedAt: current.updatedAt,
+      },
+      context,
+      (value) => mapProject(value as ApiProject),
     )
   }
 
@@ -403,10 +466,10 @@ class BackendReadyPathwaysClient implements PathwaysClient {
     return rows.map((row) => ({ id: row.id, title: row.title, journeyStageId: row.journeyStageId }))
   }
 
-  async getActivities(projectId: string): Promise<Activity[]> {
-    return requestFoundation(`/projects/${encodeURIComponent(projectId)}/activities`).then(
-      parseActivities,
-    )
+  async getActivities(projectId: string, signal?: AbortSignal): Promise<Activity[]> {
+    return requestFoundation(`/projects/${encodeURIComponent(projectId)}/activities`, {
+      signal,
+    }).then(parseActivities)
   }
 
   async getActivity(projectId: string, activityId: string): Promise<Activity> {
@@ -417,47 +480,52 @@ class BackendReadyPathwaysClient implements PathwaysClient {
     )
   }
 
-  async createActivity(input: CreateActivityInput): Promise<Activity> {
-    return parseActivity(
-      await requestFoundation(`/projects/${encodeURIComponent(input.projectId)}/activities`, {
-        method: 'POST',
-        body: JSON.stringify({
-          title: input.title,
-          description: input.description,
-          plannedStartDate: input.startDate,
-          plannedEndDate: input.dueDate,
-          timelineOverrideJustification: input.timelineOverrideJustification,
-          targetBeneficiaries: input.targetBeneficiaries,
-          budgetAllocation: input.budgetAllocation,
-          assignedUserIds: input.assignedUserIds,
-          indicatorIds: input.indicatorIds,
-          journeyStageId: input.journeyStageId,
-        }),
-      }),
+  async createActivity(
+    input: CreateActivityInput,
+    context?: SourceMutationContext,
+  ): Promise<SourceMutationResult<Activity>> {
+    return requestSourceMutation(
+      `/projects/${encodeURIComponent(input.projectId)}/activities`,
+      'POST',
+      {
+        title: input.title,
+        description: input.description,
+        plannedStartDate: input.startDate,
+        plannedEndDate: input.dueDate,
+        timelineOverrideJustification: input.timelineOverrideJustification,
+        targetBeneficiaries: input.targetBeneficiaries,
+        budgetAllocation: input.budgetAllocation,
+        assignedUserIds: input.assignedUserIds,
+        indicatorIds: input.indicatorIds,
+        journeyStageId: input.journeyStageId,
+      },
+      context,
+      parseActivity,
     )
   }
 
-  async updateActivity(input: UpdateActivityInput): Promise<Activity> {
-    return parseActivity(
-      await requestFoundation(
-        `/projects/${encodeURIComponent(input.projectId)}/activities/${encodeURIComponent(input.id)}`,
-        {
-          method: 'PATCH',
-          body: JSON.stringify({
-            title: input.title,
-            description: input.description,
-            plannedStartDate: input.startDate,
-            plannedEndDate: input.dueDate,
-            timelineOverrideJustification: input.timelineOverrideJustification,
-            targetBeneficiaries: input.targetBeneficiaries,
-            budgetAllocation: input.budgetAllocation,
-            assignedUserIds: input.assignedUserIds,
-            indicatorIds: input.indicatorIds,
-            journeyStageId: input.journeyStageId,
-            expectedUpdatedAt: input.expectedUpdatedAt,
-          }),
-        },
-      ),
+  async updateActivity(
+    input: UpdateActivityInput,
+    context?: SourceMutationContext,
+  ): Promise<SourceMutationResult<Activity>> {
+    return requestSourceMutation(
+      `/projects/${encodeURIComponent(input.projectId)}/activities/${encodeURIComponent(input.id)}`,
+      'PATCH',
+      {
+        title: input.title,
+        description: input.description,
+        plannedStartDate: input.startDate,
+        plannedEndDate: input.dueDate,
+        timelineOverrideJustification: input.timelineOverrideJustification,
+        targetBeneficiaries: input.targetBeneficiaries,
+        budgetAllocation: input.budgetAllocation,
+        assignedUserIds: input.assignedUserIds,
+        indicatorIds: input.indicatorIds,
+        journeyStageId: input.journeyStageId,
+        expectedUpdatedAt: input.expectedUpdatedAt,
+      },
+      context,
+      parseActivity,
     )
   }
 
@@ -467,29 +535,43 @@ class BackendReadyPathwaysClient implements PathwaysClient {
     status: 'IN_PROGRESS' | 'CANCELLED',
     expectedUpdatedAt: string,
     reason?: string,
-  ): Promise<Activity> {
-    return parseActivity(
-      await requestFoundation(
-        `/projects/${encodeURIComponent(projectId)}/activities/${encodeURIComponent(activityId)}/transition`,
-        {
-          method: 'POST',
-          body: JSON.stringify({ status, expectedUpdatedAt, reason }),
-        },
-      ),
+    context?: SourceMutationContext,
+  ): Promise<SourceMutationResult<Activity>> {
+    return requestSourceMutation(
+      `/projects/${encodeURIComponent(projectId)}/activities/${encodeURIComponent(activityId)}/transition`,
+      'POST',
+      { status, expectedUpdatedAt, reason },
+      context,
+      parseActivity,
     )
   }
 
-  async submitActivityProof(input: SubmitActivityProofInput): Promise<Activity> {
-    const body = new FormData()
-    body.set('clientUpdateId', input.clientUpdateId)
-    body.set('progressPercent', String(input.progress))
-    body.set('note', input.note)
-    for (const file of input.files) body.append('files', file, file.name)
-    return parseActivity(
-      await requestFoundation(
-        `/projects/${encodeURIComponent(input.projectId)}/activities/${encodeURIComponent(input.activityId)}/updates`,
-        { method: 'POST', body },
-      ),
+  async submitActivityProof(
+    input: SubmitActivityProofInput,
+    context?: SourceMutationContext,
+  ): Promise<SourceMutationResult<Activity>> {
+    if (!context?.isCurrent())
+      throw new PathwaysClientError('Current proof ownership is required.', 'unauthorized')
+    const path = `/projects/${encodeURIComponent(input.projectId)}/activities/${encodeURIComponent(input.activityId)}/updates`
+    return sourceTickets.execute(
+      context,
+      `POST:${path}`,
+      { progressPercent: input.progress, note: input.note },
+      (captured) => {
+        const body = new FormData()
+        body.set('clientUpdateId', String(captured.clientUpdateId))
+        body.set('progressPercent', String(captured.progressPercent))
+        body.set('note', String(captured.note))
+        for (const file of input.files) body.append('files', file, file.name)
+        return requestFoundation(path, { method: 'POST', body }, context.isCurrent)
+      },
+      parseActivity,
+      {
+        requestId: input.clientUpdateId,
+        keyField: 'clientUpdateId',
+        allowLegacy: true,
+        files: input.files,
+      },
     )
   }
 
@@ -500,15 +582,14 @@ class BackendReadyPathwaysClient implements PathwaysClient {
     decision: 'APPROVE' | 'RETURN',
     reason: string,
     expectedUpdatedAt: string,
-  ): Promise<Activity> {
-    return parseActivity(
-      await requestFoundation(
-        `/projects/${encodeURIComponent(projectId)}/activities/${encodeURIComponent(activityId)}/updates/${encodeURIComponent(updateId)}/review`,
-        {
-          method: 'POST',
-          body: JSON.stringify({ decision, reason, expectedUpdatedAt }),
-        },
-      ),
+    context?: SourceMutationContext,
+  ): Promise<SourceMutationResult<Activity>> {
+    return requestSourceMutation(
+      `/projects/${encodeURIComponent(projectId)}/activities/${encodeURIComponent(activityId)}/updates/${encodeURIComponent(updateId)}/review`,
+      'POST',
+      { decision, reason, expectedUpdatedAt },
+      context,
+      parseActivity,
     )
   }
 
@@ -571,9 +652,9 @@ class BackendReadyPathwaysClient implements PathwaysClient {
     )
   }
 
-  async getProjectIndicators(projectId: string): Promise<ProjectIndicator[]> {
+  async getProjectIndicators(projectId: string, signal?: AbortSignal): Promise<ProjectIndicator[]> {
     return projectIndicatorListSchema.parse(
-      await requestFoundation(`/projects/${encodeURIComponent(projectId)}/indicators`),
+      await requestFoundation(`/projects/${encodeURIComponent(projectId)}/indicators`, { signal }),
     )
   }
 
@@ -588,12 +669,14 @@ class BackendReadyPathwaysClient implements PathwaysClient {
   async createProjectIndicator(
     projectId: string,
     input: CreateIndicatorInput,
-  ): Promise<ProjectIndicator> {
-    return projectIndicatorSchema.parse(
-      await requestFoundation(`/projects/${encodeURIComponent(projectId)}/indicators`, {
-        method: 'POST',
-        body: JSON.stringify(input),
-      }),
+    context?: SourceMutationContext,
+  ): Promise<SourceMutationResult<ProjectIndicator>> {
+    return requestSourceMutation(
+      `/projects/${encodeURIComponent(projectId)}/indicators`,
+      'POST',
+      input,
+      context,
+      (value) => projectIndicatorSchema.parse(value),
     )
   }
 
@@ -601,15 +684,14 @@ class BackendReadyPathwaysClient implements PathwaysClient {
     projectId: string,
     indicatorId: string,
     input: UpdateIndicatorInput,
-  ): Promise<ProjectIndicator> {
-    return projectIndicatorSchema.parse(
-      await requestFoundation(
-        `/projects/${encodeURIComponent(projectId)}/indicators/${encodeURIComponent(indicatorId)}`,
-        {
-          method: 'PATCH',
-          body: JSON.stringify(input),
-        },
-      ),
+    context?: SourceMutationContext,
+  ): Promise<SourceMutationResult<ProjectIndicator>> {
+    return requestSourceMutation(
+      `/projects/${encodeURIComponent(projectId)}/indicators/${encodeURIComponent(indicatorId)}`,
+      'PATCH',
+      input,
+      context,
+      (value) => projectIndicatorSchema.parse(value),
     )
   }
 
@@ -617,15 +699,24 @@ class BackendReadyPathwaysClient implements PathwaysClient {
     projectId: string,
     indicatorId: string,
     input: ManualMeasurementInput,
-  ): Promise<ProjectIndicator> {
-    return projectIndicatorSchema.parse(
-      await requestFoundation(
-        `/projects/${encodeURIComponent(projectId)}/indicators/${encodeURIComponent(indicatorId)}/measurements`,
-        {
-          method: 'POST',
-          body: JSON.stringify(input),
-        },
-      ),
+    context?: SourceMutationContext,
+  ): Promise<SourceMutationResult<ProjectIndicator>> {
+    if (!context?.isCurrent())
+      throw new PathwaysClientError('Current measurement ownership is required.', 'unauthorized')
+    const { clientMeasurementId, ...body } = input
+    const path = `/projects/${encodeURIComponent(projectId)}/indicators/${encodeURIComponent(indicatorId)}/measurements`
+    return sourceTickets.execute(
+      context,
+      `POST:${path}`,
+      body,
+      (captured) =>
+        requestFoundation(
+          path,
+          { method: 'POST', body: JSON.stringify(captured) },
+          context.isCurrent,
+        ),
+      (value) => projectIndicatorSchema.parse(value),
+      { requestId: clientMeasurementId, keyField: 'clientMeasurementId', allowLegacy: true },
     )
   }
 
@@ -633,15 +724,14 @@ class BackendReadyPathwaysClient implements PathwaysClient {
     projectId: string,
     indicatorId: string,
     expectedRevision: number,
-  ): Promise<ProjectIndicator> {
-    return projectIndicatorSchema.parse(
-      await requestFoundation(
-        `/projects/${encodeURIComponent(projectId)}/indicators/${encodeURIComponent(indicatorId)}/archive`,
-        {
-          method: 'POST',
-          body: JSON.stringify({ expectedRevision }),
-        },
-      ),
+    context?: SourceMutationContext,
+  ): Promise<SourceMutationResult<ProjectIndicator>> {
+    return requestSourceMutation(
+      `/projects/${encodeURIComponent(projectId)}/indicators/${encodeURIComponent(indicatorId)}/archive`,
+      'POST',
+      { expectedRevision },
+      context,
+      (value) => projectIndicatorSchema.parse(value),
     )
   }
 
@@ -783,9 +873,11 @@ class BackendReadyPathwaysClient implements PathwaysClient {
     return this.getSadddDashboard(query)
   }
 
-  async getJourneyStages(projectId: string): Promise<JourneyStageConfig[]> {
+  async getJourneyStages(projectId: string, signal?: AbortSignal): Promise<JourneyStageConfig[]> {
     return parseJourneyStages(
-      await requestFoundation(`/projects/${encodeURIComponent(projectId)}/journey-stages`),
+      await requestFoundation(`/projects/${encodeURIComponent(projectId)}/journey-stages`, {
+        signal,
+      }),
     )
   }
 
@@ -854,12 +946,12 @@ class BackendReadyPathwaysClient implements PathwaysClient {
     ) as Promise<{ id: string }>
   }
 
-  async getIndicators(projectId?: string): Promise<Indicator[]> {
+  async getIndicators(projectId?: string, signal?: AbortSignal): Promise<Indicator[]> {
     if (!projectId) {
       throw new PathwaysClientError('Project scope is required.', 'invalid')
     }
 
-    return (await this.getProjectIndicators(projectId)).map(
+    return (await this.getProjectIndicators(projectId, signal)).map(
       ({ id, projectId: scope, code, name }) => ({
         id,
         projectId: scope,
@@ -903,6 +995,20 @@ class BackendReadyPathwaysClient implements PathwaysClient {
 
   async getSurveyForms(_projectId?: string): Promise<SurveyFormDefinition[]> {
     throw backendNotConfigured('Survey forms')
+  }
+
+  async getBeneficiaryRegistrationContext(
+    projectId: string,
+  ): Promise<BeneficiaryRegistrationContext> {
+    if (!projectId) throw new PathwaysClientError('Project scope is required.', 'invalid')
+    const value = await requestFoundation(
+      `/beneficiaries/projects/${encodeURIComponent(projectId)}/registration-context`,
+    )
+    try {
+      return parseRegistrationContext(value, projectId)
+    } catch {
+      throw new PathwaysClientError('Invalid registration context response.', 'network')
+    }
   }
 
   async getDigitalForms(projectId: string): Promise<DigitalFormDefinition[]> {
@@ -1080,6 +1186,18 @@ class BackendReadyPathwaysClient implements PathwaysClient {
     ) as Promise<ImportBatchDefinition>
   }
 
+  async automaticImportMapping(projectId: string, batchId: string, expectedMappingRevision: 0 | 1) {
+    const value = await requestFoundation(
+      `/imports/projects/${encodeURIComponent(projectId)}/batches/${encodeURIComponent(batchId)}/automatic-mapping`,
+      { method: 'POST', body: JSON.stringify({ expectedMappingRevision }) },
+    )
+    try {
+      return parseAutomaticMappingReceipt(value, batchId)
+    } catch {
+      throw new PathwaysClientError('Invalid automatic mapping receipt.', 'network')
+    }
+  }
+
   async saveImportMapping(
     projectId: string,
     batchId: string,
@@ -1120,8 +1238,8 @@ class BackendReadyPathwaysClient implements PathwaysClient {
     throw backendNotConfigured('Published project details')
   }
 
-  async getUsers(): Promise<UserRecord[]> {
-    return requestFoundation('/users').then(parseUsers)
+  async getUsers(signal?: AbortSignal): Promise<UserRecord[]> {
+    return requestFoundation('/users', { signal }).then(parseUsers)
   }
 
   async authorizeExistingUser(input: AuthorizeExistingUserInput): Promise<UserRecord> {
@@ -1162,7 +1280,7 @@ class BackendReadyPathwaysClient implements PathwaysClient {
       role,
       greetingName: role,
       heading: 'Project monitoring overview',
-      summary: `${result.periodStart} to ${result.periodEnd} Ã‚Â· ${result.businessTimeZone}. Current operational states; no automated success rating.`,
+      summary: `${result.periodStart} to ${result.periodEnd}; ${result.businessTimeZone}. Current operational states; no automated success rating.`,
       primaryAction: {
         id: 'monitoring',
         label: 'Open monitoring',
@@ -1231,6 +1349,7 @@ interface ApiProject {
   objectives: string | null
   implementationArea: string | null
   implementingPartners: string | null
+  implementingPartnerRecords?: { id: string; name: string }[]
   sector: string | null
   targetBeneficiaries: number | null
   projectBudget: string | null
@@ -1309,6 +1428,95 @@ interface ApiBeneficiary {
   updatedAt: string
 }
 
+const sourceTickets = sourceMutationTickets
+let sourceInvalidationSubscribed = false
+function ensureSourceInvalidationSubscription() {
+  if (typeof window === 'undefined' || sourceInvalidationSubscribed) return
+  subscribeSensitiveDraftInvalidation(() => sourceTickets.clear())
+  sourceInvalidationSubscribed = true
+}
+ensureSourceInvalidationSubscription()
+/** Only existing owned source operations are eligible; proof and project creation are excluded. */
+export async function recoverSourceMutation(context: SourceMutationContext, operationKey: string) {
+  const match =
+    /^(POST|PATCH):\/projects\/([0-9a-f-]{36})(?:\/(activities|indicators)(?:\/([0-9a-f-]{36})(?:\/(transition|archive|measurements|updates\/([0-9a-f-]{36})\/review))?)?)?$/.exec(
+      operationKey,
+    )
+  if (!match) throw new PathwaysClientError('This request does not support recovery.', 'invalid')
+  const [, method, projectId, resource, sourceId, action, updateId] = match
+  return sourceTickets.recover(context, operationKey, async (captured) => {
+    const operation =
+      !resource && method === 'PATCH'
+        ? 'PROJECT_UPDATE'
+        : resource === 'activities'
+          ? !sourceId && method === 'POST'
+            ? 'ACTIVITY_CREATE'
+            : action === 'transition'
+              ? captured.body.status === 'IN_PROGRESS'
+                ? 'ACTIVITY_START'
+                : captured.body.status === 'CANCELLED'
+                  ? 'ACTIVITY_CANCEL'
+                  : null
+              : updateId
+                ? 'ACTIVITY_REVIEW'
+                : !action && method === 'PATCH'
+                  ? 'ACTIVITY_UPDATE'
+                  : null
+          : resource === 'indicators'
+            ? !sourceId && method === 'POST'
+              ? 'INDICATOR_CREATE'
+              : action === 'archive'
+                ? 'INDICATOR_ARCHIVE'
+                : action === 'measurements'
+                  ? 'INDICATOR_MEASUREMENT'
+                  : !action && method === 'PATCH'
+                    ? 'INDICATOR_UPDATE'
+                    : null
+            : null
+    if (!operation)
+      throw new PathwaysClientError('This request does not support recovery.', 'invalid')
+    if (!context.isCurrent())
+      throw new PathwaysClientError('Current recovery ownership is required.', 'unauthorized')
+    return requestFoundation(
+      `/projects/${projectId}/source-operations/abandon`,
+      {
+        method: 'POST',
+        body: JSON.stringify({
+          operation,
+          sourceId: sourceId ?? (resource ? null : projectId),
+          requestId: captured.requestId,
+          body: updateId ? { ...captured.body, updateId } : captured.body,
+        }),
+      },
+      context.isCurrent,
+    )
+  })
+}
+async function requestSourceMutation<T>(
+  path: string,
+  method: 'POST' | 'PATCH',
+  body: Record<string, unknown>,
+  context: SourceMutationContext | undefined,
+  parse: (value: unknown) => T,
+): Promise<SourceMutationResult<T>> {
+  if (!context)
+    throw new PathwaysClientError('Current mutation ownership is required.', 'unauthorized')
+  try {
+    return await sourceTickets.execute(
+      context,
+      `${method}:${path}`,
+      body,
+      (captured) =>
+        requestFoundation(path, { method, body: JSON.stringify(captured) }, context.isCurrent),
+      parse,
+    )
+  } catch (error) {
+    if (error instanceof SourceMutationRecoveryError)
+      throw new PathwaysClientError(error.message, 'invalid')
+    throw error
+  }
+}
+
 function readContextCookie() {
   const value = document.cookie
     .split(';')
@@ -1318,17 +1526,35 @@ function readContextCookie() {
   return value
 }
 
-async function requestFoundationResponse(path: string, init: RequestInit = {}) {
+export async function requestFoundationResponse(
+  path: string,
+  init: RequestInit = {},
+  isCurrent?: () => boolean,
+) {
+  if (isCurrent && !isCurrent())
+    throw new PathwaysClientError('Request ownership changed.', 'unauthorized')
   if (typeof window === 'undefined')
     throw new PathwaysClientError('Browser session required.', 'unauthorized')
+  ensureSourceInvalidationSubscription()
   const supabase = getBrowserSupabaseClient()
   if (!supabase)
     throw new PathwaysClientError('Authentication is not configured.', 'not_configured')
+  // Capture the operation's workspace before asynchronous token acquisition.
+  // A singleton account switch must not redirect an already-entered payload.
+  const ownerCookie = readContextCookie()
+  const ownerGeneration = sensitiveDraftGeneration()
   const { data, error } = await supabase.auth.getSession()
+  if (
+    ownerCookie !== readContextCookie() ||
+    ownerGeneration !== sensitiveDraftGeneration() ||
+    (isCurrent && !isCurrent())
+  ) {
+    throw new PathwaysClientError('Request ownership changed.', 'unauthorized')
+  }
   const session = data.session
   if (error || !session)
     throw new PathwaysClientError('Current session unavailable.', 'unauthorized')
-  const context = decodeWorkspaceContext(readContextCookie(), session.user.id)
+  const context = decodeWorkspaceContext(ownerCookie, session.user.id)
   if (!context) throw new PathwaysClientError('Workspace context unavailable.', 'forbidden')
   let base: URL
   try {
@@ -1341,7 +1567,7 @@ async function requestFoundationResponse(path: string, init: RequestInit = {}) {
     ...init,
     headers: {
       Authorization: `Bearer ${session.access_token}`,
-      ...(isMultipart ? {} : { 'Content-Type': 'application/json' }),
+      ...(init.body != null && !isMultipart ? { 'Content-Type': 'application/json' } : {}),
       'X-Pathways-Organization-Id': context.organizationId,
       'X-Pathways-User-Id': context.userId,
       ...init.headers,
@@ -1405,13 +1631,18 @@ async function requestFoundationResponse(path: string, init: RequestInit = {}) {
         : (serverMessage ?? 'The requested operation could not be completed.'),
       code,
       fieldErrors,
+      response.status,
     )
   }
   return response
 }
 
-async function requestFoundation(path: string, init: RequestInit = {}) {
-  const response = await requestFoundationResponse(path, init)
+export async function requestFoundation(
+  path: string,
+  init: RequestInit = {},
+  isCurrent?: () => boolean,
+) {
+  const response = await requestFoundationResponse(path, init, isCurrent)
   return response.json()
 }
 
@@ -1425,7 +1656,7 @@ function mapProject(project: ApiProject): ProjectDetail {
           ? 'Planned'
           : 'Needs Attention'
   const period =
-    [project.startDate, project.endDate].filter(Boolean).join(' Ã¢â‚¬â€œ ') || 'Dates not recorded'
+    [project.startDate, project.endDate].filter(Boolean).join(' to ') || 'Dates not recorded'
   return {
     metricsAvailable: false,
     id: project.id,
@@ -1434,6 +1665,10 @@ function mapProject(project: ApiProject): ProjectDetail {
     description: project.description ?? '',
     objectives: project.objectives ?? '',
     implementingPartners: project.implementingPartners,
+    implementingPartnerRecords: (project.implementingPartnerRecords ?? []).map(({ id, name }) => ({
+      id,
+      name,
+    })),
     projectBudget: project.projectBudget,
 
     area: project.implementationArea ?? 'Area not recorded',
@@ -1454,7 +1689,7 @@ function mapProject(project: ApiProject): ProjectDetail {
     monitoringOfficerId: project.monitoringOfficerId,
     projectOfficers: project.projectOfficers ?? [],
     projectOfficerIds: project.projectOfficerIds ?? [],
-    targetBeneficiaries: project.targetBeneficiaries ?? 0,
+    targetBeneficiaries: project.targetBeneficiaries ?? undefined,
     budgetCode: 'Not recorded',
     startDate: project.startDate,
     endDate: project.endDate,

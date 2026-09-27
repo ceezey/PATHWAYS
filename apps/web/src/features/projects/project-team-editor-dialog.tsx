@@ -1,4 +1,9 @@
 'use client'
+import { SourceMutationRecovery } from './source-mutation-recovery'
+
+import { useCurrentRole } from '@/hooks/use-current-role'
+import { useSourceMutationContext } from '@/hooks/use-source-mutation-context'
+import { isSourceReplay, sourceMutationTickets } from '@/lib/services/source-mutation'
 
 import { Pencil, Save } from 'lucide-react'
 import { useEffect, useState } from 'react'
@@ -36,8 +41,11 @@ const teamFields = [
 const formDefaults = (project: ProjectDetail): ProjectSetupSchema => ({
   objectives: project.objectives ?? project.description,
   partners: project.implementingPartners ?? '',
+  partnerOrganizations:
+    project.implementingPartnerRecords?.map((partner) => partner.name).join('\n') ?? '',
   projectBudget: project.projectBudget ?? '',
-  targetBeneficiaries: String(project.targetBeneficiaries),
+  targetBeneficiaries:
+    project.targetBeneficiaries === undefined ? '' : String(project.targetBeneficiaries),
 
   title: project.title,
   sector: project.sector,
@@ -59,6 +67,13 @@ export const ProjectTeamEditorDialog = ({
   project: ProjectDetail
   onUpdated: (project: ProjectDetail) => void
 }) => {
+  const { profile } = useCurrentRole()
+  const mutationContext = useSourceMutationContext(
+    profile,
+    'projects.update',
+    project.id,
+    JSON.stringify([project.id, project.updatedAt]),
+  )
   const [open, setOpen] = useState(false)
   const [users, setUsers] = useState<UserRecord[]>([])
   const [loadError, setLoadError] = useState<string | null>(null)
@@ -97,6 +112,7 @@ export const ProjectTeamEditorDialog = ({
   }, [loadAttempt, open])
 
   const saveTeam = async (values: ProjectSetupSchema) => {
+    if (!mutationContext?.isCurrent()) return
     form.clearErrors(teamFields)
     const errors = validateProjectTeamSelections(values, users)
     for (const field of teamFields) {
@@ -110,14 +126,24 @@ export const ProjectTeamEditorDialog = ({
     }
 
     try {
-      const updated = await pathwaysClient.updateProject(project.id, {
-        ...toUpdateProjectInput(values, project),
-        ...toProjectTeamInput(values, users),
-      })
-      onUpdated(updated)
+      const updated = await pathwaysClient.updateProject(
+        project.id,
+        {
+          ...toUpdateProjectInput(values, project),
+          ...toProjectTeamInput(values, users),
+        },
+        mutationContext,
+      )
+      if (!mutationContext.isCurrent()) return
+      const record = isSourceReplay(updated) ? await pathwaysClient.getProject(project.id) : updated
+      if (!mutationContext.isCurrent()) return
+      if (isSourceReplay(updated))
+        sourceMutationTickets.finishAcknowledgement(mutationContext, updated.requestId)
+      onUpdated(record)
       toast.success('Project team updated.')
       setOpen(false)
     } catch (error) {
+      if (!mutationContext?.isCurrent()) return
       toast.error('Project team could not be updated.', {
         description: error instanceof Error ? error.message : 'Try again.',
       })
@@ -142,6 +168,17 @@ export const ProjectTeamEditorDialog = ({
         </DialogHeader>
         <Form {...form}>
           <form className="space-y-6" onSubmit={form.handleSubmit(saveTeam)}>
+            <SourceMutationRecovery
+              context={mutationContext}
+              prefix={`/projects/${project.id}`}
+              onRecovered={async () => {
+                const current = await pathwaysClient.getProject(project.id)
+                return () => {
+                  onUpdated(current)
+                  setOpen(false)
+                }
+              }}
+            />
             <ProjectTeamSelectors
               control={form.control}
               loadError={loadError}

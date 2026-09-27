@@ -8,6 +8,11 @@ import {
   NotFoundException,
 } from '@nestjs/common'
 import { Prisma } from '@prisma/client'
+import {
+  beginRuleSourceOperation,
+  finishRuleSourceOperation,
+  sourceMutationBody,
+} from '../rules/rules-source-operation'
 
 import { PrismaService } from '../../prisma/prisma.service'
 import {
@@ -29,6 +34,11 @@ const projectSelection = {
   objectives: true,
   implementationArea: true,
   implementingPartners: true,
+  implementingPartnerLinks: {
+    select: { partner: { select: { id: true, name: true } } },
+    orderBy: { partnerId: 'asc' as const },
+    take: 20,
+  },
   sector: true,
   targetBeneficiaries: true,
 
@@ -79,6 +89,7 @@ function mapProject(
     objectives: project.objectives,
     implementationArea: project.implementationArea,
     implementingPartners: project.implementingPartners,
+    implementingPartnerRecords: project.implementingPartnerLinks.map((link) => link.partner),
     sector: project.sector,
     targetBeneficiaries: project.targetBeneficiaries,
     projectBudget,
@@ -434,6 +445,9 @@ export class ProjectsService {
       })
       await this.replaceTeamAssignments(tx, actor, created.id, input, true)
       await this.saveProjectBudget(tx, actor, created.id, input.projectBudget, 'create')
+      if (input.implementingPartnerNames !== undefined)
+        await tx.$queryRaw`
+        SELECT pathways.p10_replace_project_partners(${created.id}::uuid, ${input.implementingPartnerNames}::text[])::text`
       await tx.auditLog.create({
         data: {
           organizationId: actor.organizationId,
@@ -461,6 +475,15 @@ export class ProjectsService {
   update(identity: ApplicationIdentity, projectId: string, input: UpdateProjectDto) {
     return withAuthorizedOperation(this.prisma, identity, 'projects.update', async (tx, actor) => {
       if (!UUID_PATTERN.test(projectId)) throw new NotFoundException('Project unavailable.')
+      const source = await beginRuleSourceOperation(
+        tx,
+        'PROJECT_UPDATE',
+        projectId,
+        projectId,
+        { kind: 'CLIENT_MUTATION', id: input.clientMutationId },
+        sourceMutationBody(input),
+      )
+      if (source.kind === 'REPLAY') return source.acknowledgement
       const current = await tx.project.findFirst({
         where: { AND: [projectScope(actor), { id: projectId.toLowerCase() }] },
         select: { id: true, code: true, updatedAt: true },
@@ -481,12 +504,16 @@ export class ProjectsService {
         where: { id: current.id, organizationId: actor.organizationId, updatedAt: expected },
         data: {
           ...data,
+          updatedAt: new Date(source.generatedValues.timestamp),
           ...(programManagerId === undefined ? {} : { programManagerId }),
         },
       })
       if (changed.count !== 1) throw new ConflictException('Project changed; reload before saving.')
       await this.replaceTeamAssignments(tx, actor, current.id, input, false)
       await this.saveProjectBudget(tx, actor, current.id, input.projectBudget, 'update')
+      if (input.implementingPartnerNames !== undefined)
+        await tx.$queryRaw`
+        SELECT pathways.p10_replace_project_partners(${current.id}::uuid, ${input.implementingPartnerNames}::text[])::text`
       await tx.auditLog.create({
         data: {
           organizationId: actor.organizationId,
@@ -501,13 +528,18 @@ export class ProjectsService {
           },
         },
       })
+      const sourceAcknowledgement = await finishRuleSourceOperation(
+        tx,
+        source.operationHandle,
+        input.clientMutationId,
+      )
       const result = await tx.project.findUniqueOrThrow({
         relationLoadStrategy: 'join',
         where: { id: current.id },
         select: projectSelection,
       })
       const budgets = await this.readProjectBudgets(tx, actor, [current.id])
-      return mapProject(result, budgets.get(current.id) ?? null)
+      return { ...mapProject(result, budgets.get(current.id) ?? null), sourceAcknowledgement }
     })
   }
 }

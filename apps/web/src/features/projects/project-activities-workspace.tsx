@@ -34,14 +34,8 @@ import { canAccessProjectForRole } from '@/lib/rbac/data-scope'
 import { principalHasAtomicPermission } from '@/lib/rbac/route-access'
 import { pathwaysClient } from '@/lib/services/pathways-client'
 import { PathwaysClientError } from '@/lib/services/pathways-client'
-import type {
-  Activity,
-  ActivityStatus,
-  Indicator,
-  JourneyStageConfig,
-  ProjectDetail,
-  UserRecord,
-} from '@/types/pathways'
+import { useAuthorizedRead } from '@/providers/authorized-query-provider'
+import type { Activity, ActivityStatus, Indicator } from '@/types/pathways'
 
 import { ActivityDetailPanel } from './activity-detail-panel'
 import { ActivityFormDialog } from './activity-form-dialog'
@@ -252,15 +246,12 @@ export const ProjectActivitiesWorkspace = ({
     ? can(role, 'activities.submit_update_proof') && inProjectScope
     : false
   const canLogExpense = role === 'Project Officer' && inProjectScope
-  const canValidateProof = role === 'Monitoring and Evaluation Officer' && inProjectScope
-  const canDecideProof = role === 'Project Manager' && inProjectScope
-  const [project, setProject] = useState<ProjectDetail | null>(null)
-  const [activities, setActivities] = useState<Activity[]>([])
-  const [indicators, setIndicators] = useState<Indicator[]>([])
-  const [journeyStages, setJourneyStages] = useState<JourneyStageConfig[]>([])
-  const [users, setUsers] = useState<UserRecord[]>([])
-  const [loading, setLoading] = useState(true)
-  const [loadError, setLoadError] = useState<'none' | 'not-found' | 'error'>('none')
+  const canValidateProof =
+    role === 'Monitoring and Evaluation Officer' &&
+    inProjectScope &&
+    principalHasAtomicPermission(profile, 'evidence.review')
+  const canDecideProof = false
+
   const [query, setQuery] = useState('')
   const [statusFilter, setStatusFilter] = useState<ActivityStatus | null>(null)
   const [viewMode, setViewMode] = useState<'board' | 'list'>('list')
@@ -270,69 +261,53 @@ export const ProjectActivitiesWorkspace = ({
   const [proofActivity, setProofActivity] = useState<Activity | null>(null)
   const [formOpen, setFormOpen] = useState(false)
   const [proofOpen, setProofOpen] = useState(false)
-  const [loadAttempt, setLoadAttempt] = useState(0)
-
-  useEffect(() => {
-    void loadAttempt
-    let mounted = true
-    setLoading(true)
-    setLoadError('none')
-
-    Promise.all([
-      pathwaysClient.getProject(projectId),
-      pathwaysClient.getActivities(projectId),
-      canReadIndicators ? pathwaysClient.getIndicators(projectId) : Promise.resolve([]),
-      canReadJourneyStages ? pathwaysClient.getJourneyStages(projectId) : Promise.resolve([]),
-      canReadUsers ? pathwaysClient.getUsers() : Promise.resolve([]),
-    ])
-      .then(([projectRecord, activityRecords, indicatorRecords, stageRecords, userRecords]) => {
-        if (!mounted) {
-          return
-        }
-
-        setProject(projectRecord)
-        setActivities(activityRecords)
-        setIndicators(indicatorRecords)
-        setJourneyStages(stageRecords)
-        setUsers(userRecords)
-        const initialActivity = initialActivityId
-          ? (activityRecords.find((activity) => activity.id === initialActivityId) ?? null)
-          : null
-        setSelectedActivity(initialActivity)
-
-        if (initialActivityId && !initialActivity) {
-          router.replace(`/projects/${projectId}/activities`)
-        }
-      })
-      .catch((error) => {
-        if (!mounted) {
-          return
-        }
-
-        setLoadError(
-          error instanceof PathwaysClientError && error.code === 'not_found'
-            ? 'not-found'
-            : 'error',
-        )
-      })
-      .finally(() => {
-        if (mounted) {
-          setLoading(false)
-        }
-      })
-
-    return () => {
-      mounted = false
-    }
-  }, [
-    canReadIndicators,
-    canReadJourneyStages,
-    canReadUsers,
-    initialActivityId,
-    loadAttempt,
+  const workspace = useAuthorizedRead(
+    'activity-workspace',
     projectId,
-    router,
-  ])
+    'activities.read',
+    async (signal) => {
+      const [project, activities] = await Promise.all([
+        pathwaysClient.getProject(projectId, signal),
+        pathwaysClient.getActivities(projectId, signal),
+      ])
+      return { project, activities }
+    },
+    principalHasAtomicPermission(profile, 'projects.detail.read'),
+  )
+  const project = workspace.data?.project ?? null
+  const activities = workspace.data?.activities ?? []
+  const loading = !workspace.eligible || workspace.isPending
+  const loadError = workspace.isError
+    ? workspace.error instanceof PathwaysClientError && workspace.error.code === 'not_found'
+      ? 'not-found'
+      : 'error'
+    : 'none'
+  const supporting = useAuthorizedRead(
+    formOpen ? 'activity-editor-context' : 'activity-detail-context',
+    projectId,
+    'activities.read',
+    async (signal) => {
+      const [indicators, journeyStages, users] = await Promise.all([
+        canReadIndicators ? pathwaysClient.getIndicators(projectId, signal) : Promise.resolve([]),
+        canReadJourneyStages
+          ? pathwaysClient.getJourneyStages(projectId, signal)
+          : Promise.resolve([]),
+        canReadUsers && formOpen ? pathwaysClient.getUsers(signal) : Promise.resolve([]),
+      ])
+      return { indicators, journeyStages, users }
+    },
+    Boolean(selectedActivity || formOpen),
+  )
+  const indicators = supporting.data?.indicators ?? []
+  const journeyStages = supporting.data?.journeyStages ?? []
+  const users = supporting.data?.users ?? []
+  useEffect(() => {
+    if (!initialActivityId || !workspace.data) return
+    const initial =
+      workspace.data.activities.find((activity) => activity.id === initialActivityId) ?? null
+    setSelectedActivity(initial)
+    if (!initial) router.replace(`/projects/${projectId}/activities`)
+  }, [initialActivityId, workspace.data, projectId, router])
 
   const filteredActivities = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase()
@@ -395,10 +370,14 @@ export const ProjectActivitiesWorkspace = ({
   )
 
   const upsertActivity = (activity: Activity, selectActivity = true) => {
-    setActivities((currentActivities) => [
-      ...currentActivities.filter((item) => item.id !== activity.id),
-      activity,
-    ])
+    if (!project) return
+    workspace.replaceData((previous) => ({
+      project: previous?.project ?? project,
+      activities: [
+        ...(previous?.activities ?? []).filter((item) => item.id !== activity.id),
+        activity,
+      ],
+    }))
     setSelectedActivity((currentActivity) =>
       currentActivity?.id === activity.id || selectActivity ? activity : currentActivity,
     )
@@ -473,7 +452,7 @@ export const ProjectActivitiesWorkspace = ({
         <AsyncState
           description="The project could not be loaded. Check your connection and try again."
           icon={LayoutGrid}
-          onRetry={() => setLoadAttempt((attempt) => attempt + 1)}
+          onRetry={() => void workspace.refetch()}
           status="error"
           title="Activities unavailable"
         />
@@ -636,13 +615,26 @@ export const ProjectActivitiesWorkspace = ({
         open={Boolean(selectedActivity)}
         requestedProofId={initialProofId}
       />
+      {formOpen && !supporting.data ? (
+        <AsyncState
+          status={supporting.isError ? 'error' : 'loading'}
+          title="Activity editor"
+          description={
+            supporting.isError
+              ? 'Editor information could not be loaded. Try again.'
+              : 'Loading editor information.'
+          }
+          onRetry={supporting.isError ? () => void supporting.refetch() : undefined}
+        />
+      ) : null}
       <ActivityFormDialog
+        onAcknowledged={() => workspace.refetch()}
         activity={editingActivity}
         indicators={indicators}
         journeyStages={journeyStages}
         onCreatedOrUpdated={upsertActivity}
         onOpenChange={setFormOpen}
-        open={formOpen}
+        open={formOpen && Boolean(supporting.data)}
         projectId={projectId}
         users={users}
       />

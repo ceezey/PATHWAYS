@@ -35,7 +35,22 @@ function submit() {
     target: { value: 'Synthetic proof note' },
   })
   fireEvent.change(screen.getByLabelText(/Upload proof of conduct/), {
-    target: { files: [new File(['synthetic'], 'proof.txt')] },
+    target: {
+      files: [
+        new File(
+          [
+            Uint8Array.from(
+              atob(
+                'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jhV0AAAAASUVORK5CYII=',
+              ),
+              (byte) => byte.charCodeAt(0),
+            ),
+          ],
+          'proof.png',
+          { type: 'image/png' },
+        ),
+      ],
+    },
   })
   fireEvent.click(screen.getByRole('button', { name: /Submit update & proof/ }))
 }

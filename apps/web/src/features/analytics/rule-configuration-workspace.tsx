@@ -1,532 +1,462 @@
 'use client'
 
-import { CheckCircle2, Pencil, Plus, Power, Save } from 'lucide-react'
-import { useMemo, useState } from 'react'
-import { toast } from 'sonner'
-
 import { PageHeader } from '@/components/layout/page-header'
-import { StatusBadge } from '@/components/pathways/status-badge'
+import { AsyncState, EmptyState, SectionCard, StatusBadge } from '@/components/pathways'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
   DialogContent,
   DialogDescription,
-  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
-import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
+import { RuleTreeView } from '@/features/analytics/rule-condition-editor'
+import { RuleEditor } from '@/features/analytics/rule-editor'
+import type { HumanRule } from '@/features/analytics/rules-human-contract'
 import { useCurrentRole } from '@/hooks/use-current-role'
 import { useDisplayLabels } from '@/hooks/use-display-labels'
-import { can } from '@/lib/rbac/can'
-import type {
-  RuleCategory,
-  RuleDefinition,
-  RuleOperator,
-  RuleSeverity,
-  RuleStatus,
-} from '@/types/pathways'
+import { type SensitiveDraftOwner, useSensitiveDraftOwner } from '@/lib/auth/sensitive-drafts'
+import { principalHasAtomicPermission } from '@/lib/rbac/route-access'
+import { PathwaysClientError, pathwaysClient } from '@/lib/services/pathways-client'
+import { rulesHumanClient } from '@/lib/services/rules-human-client'
+import { useAuthorizedRead } from '@/providers/authorized-query-provider'
+import { useEffect, useRef, useState } from 'react'
+import { RuleTestWorkspace } from './rule-test-workspace'
 
-import {
-  humanReviewDisclaimer,
-  operatorCopy,
-  ruleSeverityTone,
-  ruleStatusTone,
-} from './analytics-utils'
-
-const categories: RuleCategory[] = [
-  'KPI / Indicator',
-  'Activity Timeline',
-  'Budget',
-  'Beneficiary Progress',
-  'Assessment',
-  'Project Health',
-]
-const operators: RuleOperator[] = ['below', 'above', 'between', 'equals']
-const severities: RuleSeverity[] = ['Low', 'Medium', 'High', 'Critical']
-const statuses: RuleStatus[] = ['Active', 'Inactive']
-
-type RuleDraft = Omit<RuleDefinition, 'id' | 'triggeredCount' | 'lastTriggeredAt'>
-type RuleFieldErrors = Partial<Record<'name' | 'parameter' | 'suggestedAction', string>>
-
-const emptyDraft: RuleDraft = {
-  name: '',
-  category: 'KPI / Indicator',
-  parameter: 'KPI achievement rate',
-  operator: 'below',
-  threshold: 70,
-  severity: 'High',
-  status: 'Active',
-  suggestedAction:
-    'Review beneficiary outreach strategy and intensify vocational track engagement.',
-  description: 'Rule created from the configuration form.',
-}
-
-export const RuleConfigurationWorkspace = ({
-  initialRules,
-  loadError = false,
-}: { initialRules: RuleDefinition[]; loadError?: boolean }) => {
+type DialogAction =
+  | { kind: 'create' }
+  | { kind: 'draft' | 'copy' | 'activate' | 'archive'; rule: HumanRule }
+export function RuleConfigurationWorkspace() {
+  const { profile } = useCurrentRole()
   const { labels } = useDisplayLabels()
-  const { role } = useCurrentRole()
-  const canConfigureRules = Boolean(role && can(role, 'rules.configure')) && !loadError
-  const [rules, setRules] = useState(initialRules)
-  const [selectedRuleId, setSelectedRuleId] = useState(initialRules[0]?.id ?? '')
-  const [dialogOpen, setDialogOpen] = useState(false)
-  const [editingRuleId, setEditingRuleId] = useState<string | null>(null)
-  const [draft, setDraft] = useState<RuleDraft>(emptyDraft)
-  const [fieldErrors, setFieldErrors] = useState<RuleFieldErrors>({})
-
-  const selectedRule = useMemo(
-    () => rules.find((rule) => rule.id === selectedRuleId) ?? rules[0],
-    [rules, selectedRuleId],
+  const [projectId, setProjectId] = useState<string | null>(null)
+  const [cursor, setCursor] = useState<string | null>(null)
+  const [selection, setSelection] = useState<string | null>(null)
+  const [action, setAction] = useState<DialogAction | null>(null)
+  const [showTest, setShowTest] = useState(false)
+  const [copyProject, setCopyProject] = useState<string | null>(null)
+  const projects = useAuthorizedRead('rules-project-choices', null, 'projects.read', (signal) =>
+    pathwaysClient.getProjects(signal),
   )
-  const activeCount = rules.filter((rule) => rule.status === 'Active').length
-
-  const openCreate = () => {
-    if (!canConfigureRules) {
-      toast.error('Rule configuration is only available to System Administrator.')
-      return
-    }
-
-    setEditingRuleId(null)
-    setDraft(emptyDraft)
-    setFieldErrors({})
-    setDialogOpen(true)
+  const queue = useAuthorizedRead(
+    `rules-list:${cursor ?? 'first'}`,
+    projectId,
+    'rules.read',
+    (signal) =>
+      rulesHumanClient.listRules(
+        {
+          ...(projectId ? { projectId, kind: 'PROJECT' as const } : { kind: 'TEMPLATE' as const }),
+          ...(cursor ? { cursor } : {}),
+        },
+        signal,
+      ),
+  )
+  const selectedId = selection ?? queue.data?.items[0]?.id ?? null
+  const detail = useAuthorizedRead(
+    `rule-detail:${selectedId ?? 'none'}`,
+    projectId,
+    'rules.read',
+    (signal) => rulesHumanClient.getRule(selectedId ?? '', signal),
+    Boolean(selectedId),
+  )
+  const rule = detail.data
+  const has = (permission: Parameters<typeof principalHasAtomicPermission>[1]) =>
+    principalHasAtomicPermission(profile, permission)
+  const refresh = () => {
+    setAction(null)
+    void queue.refetch()
+    void detail.refetch()
   }
-
-  const openEdit = (rule: RuleDefinition) => {
-    if (!canConfigureRules) {
-      toast.error('Rule editing is only available to System Administrator.')
-      return
-    }
-
-    setEditingRuleId(rule.id)
-    setFieldErrors({})
-    setDraft({
-      name: rule.name,
-      category: rule.category,
-      parameter: rule.parameter,
-      operator: rule.operator,
-      threshold: rule.threshold,
-      upperThreshold: rule.upperThreshold,
-      severity: rule.severity,
-      status: rule.status,
-      suggestedAction: rule.suggestedAction,
-      description: rule.description,
-    })
-    setDialogOpen(true)
+  const open = (next: DialogAction) => {
+    setCopyProject(null)
+    setAction(next)
   }
-
-  const saveRule = () => {
-    if (!canConfigureRules) {
-      toast.error('Rule configuration is only available to System Administrator.')
-      return
-    }
-
-    const nextErrors: RuleFieldErrors = {}
-    if (!draft.name.trim()) nextErrors.name = 'Enter a rule name.'
-    if (!draft.parameter.trim()) nextErrors.parameter = 'Enter a rule parameter.'
-    if (!draft.suggestedAction.trim()) {
-      nextErrors.suggestedAction = 'Enter a suggested action.'
-    }
-    setFieldErrors(nextErrors)
-
-    if (Object.keys(nextErrors).length > 0) {
-      toast.error('Check the required rule fields.', {
-        description: 'Each invalid field now has an inline message.',
-      })
-      return
-    }
-
-    toast.error('Rule changes are unavailable until a server-backed rules service is available.')
-  }
-
-  const toggleRuleStatus = (rule: RuleDefinition) => {
-    if (!canConfigureRules) {
-      toast.error('Rule activation is only available to System Administrator.')
-      return
-    }
-
-    toast.error(
-      'Rule status changes are unavailable until a server-backed rules service is available.',
+  if (!has('rules.read'))
+    return (
+      <AsyncState
+        status="error"
+        title="Rule access unavailable"
+        description="Current rule repository permission is required."
+      />
     )
-  }
-
   return (
     <div className="space-y-6">
-      {loadError ? (
-        <p role="alert" className="text-sm text-destructive">
-          Monitoring rules are unavailable in the current API.
-        </p>
-      ) : null}
       <PageHeader
-        actions={
-          <div className="flex flex-wrap items-center gap-2">
-            <StatusBadge tone={canConfigureRules ? 'neutral' : 'warning'}>
-              {canConfigureRules ? 'Configuration access' : 'View-only access'}
-            </StatusBadge>
-            {canConfigureRules ? (
-              <Button onClick={openCreate}>
-                <Plus className="mr-2 h-4 w-4" aria-hidden="true" />
-                Create rule
-              </Button>
-            ) : null}
-          </div>
-        }
-        description="Review predefined alert and recommendation rules for human-reviewed decision support. System Administrators can configure rules; no autonomous action is taken."
-        editableLabelKey="moduleAlertsRepository"
-        eyebrow="Decision Support"
         title={labels.moduleAlertsRepository}
+        description="Manage versioned project rules and organization templates with typed conditions and predefined recommendations."
       />
-
-      <section className="rounded-sm border border-info/25 bg-info-subtle p-4 text-sm leading-6 text-info">
-        {humanReviewDisclaimer} Rules are predefined conditions configured by people; each alert and
-        recommendation requires human review before action is taken.
-      </section>
-
-      <div className="grid min-w-0 gap-6 xl:grid-cols-[minmax(320px,0.9fr)_minmax(0,1.35fr)] xl:items-start">
-        <section className="min-w-0 rounded-lg border border-border bg-card p-5">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <h2 className="text-lg font-semibold text-foreground">
-              {rules.length} rules configured
-            </h2>
-            <p className="text-sm text-muted-foreground">
-              {activeCount} active · {rules.length - activeCount} inactive
-            </p>
-          </div>
-          <div className="mt-4 max-h-[680px] space-y-3 overflow-y-auto pr-1">
-            {rules.map((rule) => (
-              <button
-                aria-controls="selected-rule-detail"
-                aria-pressed={selectedRule?.id === rule.id}
-                key={rule.id}
-                className={`w-full rounded-sm border p-4 text-left transition-colors ${
-                  selectedRule?.id === rule.id
-                    ? 'border-primary bg-primary-subtle'
-                    : 'border-border bg-background hover:bg-surface-subtle'
-                }`}
-                type="button"
-                onClick={() => setSelectedRuleId(rule.id)}
-              >
-                <div className="flex flex-wrap items-start justify-between gap-3">
-                  <div className="min-w-0">
-                    <p className="font-semibold text-foreground">{rule.name}</p>
-                    <p className="mt-1 text-sm text-muted-foreground">
-                      {rule.category} · {rule.parameter} {operatorCopy(rule.operator)}{' '}
-                      {rule.threshold}
-                      {rule.upperThreshold ? ` to ${rule.upperThreshold}` : ''}
-                    </p>
-                  </div>
-                  <div className="flex flex-wrap gap-2">
-                    {selectedRule?.id === rule.id ? (
-                      <span className="inline-flex items-center gap-1 text-xs font-semibold text-foreground">
-                        <CheckCircle2 className="h-4 w-4" aria-hidden="true" />
-                        Selected
-                      </span>
-                    ) : null}
-                    <StatusBadge tone={ruleSeverityTone(rule.severity)}>
-                      {rule.severity}
-                    </StatusBadge>
-                    <StatusBadge tone={ruleStatusTone(rule.status)}>{rule.status}</StatusBadge>
-                  </div>
-                </div>
-                <p className="mt-3 text-sm leading-6 text-muted-foreground">
-                  {rule.suggestedAction}
-                </p>
-              </button>
-            ))}
-          </div>
-        </section>
-
-        {selectedRule ? (
-          <section
-            aria-live="polite"
-            className="min-w-0 rounded-lg border border-border bg-card p-5"
-            id="selected-rule-detail"
-          >
-            <h2 className="text-lg font-semibold text-foreground">Selected rule</h2>
-            <p className="mt-1 text-sm text-muted-foreground">
-              Details update here when another rule is selected.
-            </p>
-            <div className="mt-4 grid gap-3 md:grid-cols-2">
-              <InfoRow label="Rule name" value={selectedRule.name} />
-              <InfoRow label="Category" value={selectedRule.category} />
-              <InfoRow label="Parameter" value={selectedRule.parameter} />
-              <InfoRow label="Operator" value={selectedRule.operator} />
-              <InfoRow label="Threshold" value={`${selectedRule.threshold}`} />
-              <InfoRow
-                label="Optional upper threshold"
-                value={selectedRule.upperThreshold ? `${selectedRule.upperThreshold}` : 'None'}
-              />
-              <InfoRow label="Severity" value={selectedRule.severity} />
-              <InfoRow label="Status" value={selectedRule.status} />
-            </div>
-            <div className="mt-4 rounded-sm border border-border bg-surface-subtle p-4 text-sm leading-6">
-              <p className="font-medium text-foreground">Suggested action</p>
-              <p className="mt-2 text-muted-foreground">{selectedRule.suggestedAction}</p>
-            </div>
-            <div className="mt-4 rounded-sm border border-border bg-surface-subtle p-4 text-sm">
-              <p className="font-medium text-foreground">Trigger history</p>
-              <div className="mt-3 flex flex-wrap items-end justify-between gap-3">
-                <div>
-                  <p className="text-muted-foreground">Triggered total</p>
-                  <p className="mt-1 text-3xl font-semibold text-foreground">
-                    {selectedRule.triggeredCount}
-                  </p>
-                </div>
-                <p className="text-muted-foreground">
-                  Last triggered: {selectedRule.lastTriggeredAt ?? 'Not yet triggered'}
-                </p>
-              </div>
-            </div>
-            {canConfigureRules ? (
-              <div className="mt-4 flex flex-wrap gap-2">
-                <Button variant="outline" onClick={() => openEdit(selectedRule)}>
-                  <Pencil className="mr-2 h-4 w-4" aria-hidden="true" />
-                  Edit rule
-                </Button>
-                <Button variant="outline" onClick={() => toggleRuleStatus(selectedRule)}>
-                  <Power className="mr-2 h-4 w-4" aria-hidden="true" />
-                  {selectedRule.status === 'Active' ? 'Deactivate' : 'Activate'}
-                </Button>
-              </div>
-            ) : null}
-          </section>
-        ) : null}
-      </div>
-
-      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl">
-          <DialogHeader>
-            <DialogTitle>{editingRuleId ? 'Edit rule' : 'Create rule'}</DialogTitle>
-            <DialogDescription>
-              Define a predefined condition and suggested action for human review.
-            </DialogDescription>
-          </DialogHeader>
-          <form
-            className="space-y-4"
-            onSubmit={(event) => {
-              event.preventDefault()
-              saveRule()
+      <div className="flex flex-wrap items-end gap-3">
+        <div className="min-w-64 space-y-2">
+          <Label htmlFor="rules-project">Rule scope</Label>
+          <select
+            id="rules-project"
+            className="h-10 w-full rounded-sm border border-input bg-background px-3"
+            value={projectId ?? ''}
+            onChange={(event) => {
+              setProjectId(event.target.value || null)
+              setCursor(null)
+              setSelection(null)
+              setAction(null)
+              setShowTest(false)
             }}
           >
-            <div className="grid gap-4 md:grid-cols-2">
-              <div className="space-y-2">
-                <RequiredLabel htmlFor="rule-name">Rule name</RequiredLabel>
-                <Input
-                  aria-describedby={fieldErrors.name ? 'rule-name-error' : undefined}
-                  aria-invalid={Boolean(fieldErrors.name)}
-                  aria-required="true"
-                  id="rule-name"
-                  value={draft.name}
-                  onChange={(event) => setDraftValue('name', event.target.value, setDraft)}
-                />
-                <InlineError id="rule-name-error" message={fieldErrors.name} />
-              </div>
-              <Field label="Category">
-                <Select
-                  value={draft.category}
-                  onValueChange={(value) =>
-                    setDraftValue('category', value as RuleCategory, setDraft)
-                  }
+            <option value="">Organization templates</option>
+            {projects.data?.map((project) => (
+              <option value={project.id} key={project.id}>
+                {project.title}
+              </option>
+            ))}
+          </select>
+        </div>
+        <Button type="button" variant="outline" onClick={refresh}>
+          Refresh rules
+        </Button>
+        {has('rules.create') ? (
+          <Button type="button" onClick={() => open({ kind: 'create' })}>
+            New rule draft
+          </Button>
+        ) : null}
+        {projects.isError ? (
+          <Button type="button" variant="outline" onClick={() => void projects.refetch()}>
+            Retry project choices
+          </Button>
+        ) : null}
+      </div>
+      {queue.isError ? (
+        <AsyncState
+          status="error"
+          title="Rules unavailable"
+          description="The scoped repository could not be loaded."
+          onRetry={() => void queue.refetch()}
+        />
+      ) : !queue.data ? (
+        <AsyncState
+          status="loading"
+          title="Loading rules"
+          description="Loading the current rule scope."
+        />
+      ) : !queue.data.items.length ? (
+        <EmptyState
+          title="No rules in this scope"
+          description="Create a draft or choose another project scope."
+        />
+      ) : (
+        <div className="grid gap-6 xl:grid-cols-[minmax(260px,.7fr)_minmax(0,1.3fr)]">
+          <SectionCard title="Rule repository">
+            <ul className="space-y-2">
+              {queue.data.items.map((item) => (
+                <li key={item.id}>
+                  <button
+                    className="w-full rounded-sm border border-border p-3 text-left hover:bg-primary-subtle"
+                    aria-pressed={item.id === selectedId}
+                    onClick={() => {
+                      setSelection(item.id)
+                      setAction(null)
+                      setShowTest(false)
+                    }}
+                    type="button"
+                  >
+                    <span className="block font-semibold">{item.name}</span>
+                    <span className="text-sm text-muted-foreground">
+                      Version {item.version}; {item.status.toLowerCase()}
+                    </span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+            <div className="mt-4 flex gap-2">
+              {cursor ? (
+                <Button
+                  variant="outline"
+                  type="button"
+                  onClick={() => {
+                    setCursor(null)
+                    setSelection(null)
+                  }}
                 >
-                  <SelectTrigger aria-label="Rule category">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {categories.map((category) => (
-                      <SelectItem key={category} value={category}>
-                        {category}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </Field>
-              <div className="space-y-2">
-                <RequiredLabel htmlFor="rule-parameter">Parameter</RequiredLabel>
-                <Input
-                  aria-describedby={fieldErrors.parameter ? 'rule-parameter-error' : undefined}
-                  aria-invalid={Boolean(fieldErrors.parameter)}
-                  aria-required="true"
-                  id="rule-parameter"
-                  value={draft.parameter}
-                  onChange={(event) => setDraftValue('parameter', event.target.value, setDraft)}
-                />
-                <InlineError id="rule-parameter-error" message={fieldErrors.parameter} />
-              </div>
-              <Field label="Operator">
-                <Select
-                  value={draft.operator}
-                  onValueChange={(value) =>
-                    setDraftValue('operator', value as RuleOperator, setDraft)
-                  }
+                  First page
+                </Button>
+              ) : null}
+              {queue.data.nextCursor ? (
+                <Button
+                  variant="outline"
+                  type="button"
+                  onClick={() => {
+                    setCursor(queue.data?.nextCursor ?? null)
+                    setSelection(null)
+                  }}
                 >
-                  <SelectTrigger aria-label="Rule operator">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {operators.map((operator) => (
-                      <SelectItem key={operator} value={operator}>
-                        {operator}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </Field>
-              <Field label="Threshold">
-                <Input
-                  aria-label="Rule threshold"
-                  type="number"
-                  value={draft.threshold}
-                  onChange={(event) =>
-                    setDraftValue('threshold', Number(event.target.value), setDraft)
-                  }
-                />
-              </Field>
-              <Field label="Optional upper threshold">
-                <Input
-                  aria-label="Optional upper threshold"
-                  type="number"
-                  value={draft.upperThreshold ?? ''}
-                  onChange={(event) =>
-                    setDraftValue(
-                      'upperThreshold',
-                      event.target.value ? Number(event.target.value) : undefined,
-                      setDraft,
-                    )
-                  }
-                />
-              </Field>
-              <Field label="Severity">
-                <Select
-                  value={draft.severity}
-                  onValueChange={(value) =>
-                    setDraftValue('severity', value as RuleSeverity, setDraft)
-                  }
-                >
-                  <SelectTrigger aria-label="Rule severity">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {severities.map((severity) => (
-                      <SelectItem key={severity} value={severity}>
-                        {severity}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </Field>
-              <Field label="Status">
-                <Select
-                  value={draft.status}
-                  onValueChange={(value) => setDraftValue('status', value as RuleStatus, setDraft)}
-                >
-                  <SelectTrigger aria-label="Rule status">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {statuses.map((status) => (
-                      <SelectItem key={status} value={status}>
-                        {status}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </Field>
-              <div className="space-y-2 md:col-span-2">
-                <RequiredLabel htmlFor="rule-suggested-action">Suggested action</RequiredLabel>
-                <Input
-                  aria-describedby={
-                    fieldErrors.suggestedAction ? 'rule-suggested-action-error' : undefined
-                  }
-                  aria-invalid={Boolean(fieldErrors.suggestedAction)}
-                  aria-required="true"
-                  id="rule-suggested-action"
-                  value={draft.suggestedAction}
-                  onChange={(event) =>
-                    setDraftValue('suggestedAction', event.target.value, setDraft)
-                  }
-                />
-                <InlineError
-                  id="rule-suggested-action-error"
-                  message={fieldErrors.suggestedAction}
-                />
-              </div>
-              <div className="space-y-2 md:col-span-2">
-                <span className="text-sm font-medium">Description</span>
-                <Textarea
-                  aria-label="Rule description"
-                  value={draft.description}
-                  onChange={(event) => setDraftValue('description', event.target.value, setDraft)}
-                />
-              </div>
+                  Next page
+                </Button>
+              ) : null}
             </div>
-            <div className="rounded-sm border border-info/25 bg-info-subtle p-4 text-sm leading-6 text-info">
-              <p className="font-medium">Rule preview</p>
-              <p className="mt-2">
-                When {draft.parameter} {operatorCopy(draft.operator)} {draft.threshold}
-                {draft.upperThreshold ? ` and ${draft.upperThreshold}` : ''}, send a{' '}
-                {draft.severity} alert and recommend: {draft.suggestedAction}
-              </p>
+          </SectionCard>
+          <SectionCard title="Rule details">
+            {detail.isError ? (
+              <AsyncState
+                status="error"
+                title="Rule unavailable"
+                description="This rule could not be verified."
+                onRetry={() => void detail.refetch()}
+              />
+            ) : !rule ? (
+              <output>Loading rule...</output>
+            ) : (
+              <div className="space-y-4">
+                <h2 className="text-xl font-semibold">{rule.name}</h2>
+                <p className="text-sm">
+                  {rule.code}; version {rule.version}
+                </p>
+                <StatusBadge tone="neutral">{rule.status.toLowerCase()}</StatusBadge>
+                <p>Severity: {rule.severity.toLowerCase()}</p>
+                <RuleTreeView node={rule.conditions} />
+                <h3 className="font-semibold">Predefined recommendations</h3>
+                <ul className="space-y-2">
+                  {rule.recommendations.map((item) => (
+                    <li key={item.id}>
+                      <strong>{item.title}</strong>
+                      <p>{item.text}</p>
+                    </li>
+                  ))}
+                </ul>
+                <div className="flex flex-wrap gap-2">
+                  {has('rules.update') && rule.status !== 'ARCHIVED' ? (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => open({ kind: 'draft', rule })}
+                    >
+                      {rule.status === 'DRAFT' ? 'Edit draft' : 'Create next draft'}
+                    </Button>
+                  ) : null}
+                  {has('rules.activate') && rule.projectId !== null && rule.status === 'DRAFT' ? (
+                    <Button type="button" onClick={() => open({ kind: 'activate', rule })}>
+                      Activate rule
+                    </Button>
+                  ) : null}
+                  {has('rules.update') && rule.status === 'ACTIVE' ? (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => open({ kind: 'archive', rule })}
+                    >
+                      Archive rule
+                    </Button>
+                  ) : null}
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => setShowTest((value) => !value)}
+                  >
+                    {showTest ? 'Hide condition test' : 'Test conditions'}
+                  </Button>
+                  {has('rules.create') && rule.projectId === null ? (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => open({ kind: 'copy', rule })}
+                    >
+                      Copy to project
+                    </Button>
+                  ) : null}
+                </div>
+                {showTest ? (
+                  <RuleTestWorkspace key={`${rule.id}:${rule.version}`} rule={rule} />
+                ) : null}
+              </div>
+            )}
+          </SectionCard>
+        </div>
+      )}
+      <Dialog
+        open={Boolean(action)}
+        onOpenChange={(open) => {
+          if (!open) setAction(null)
+        }}
+      >
+        <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-3xl">
+          <DialogHeader>
+            <DialogTitle>
+              {action?.kind === 'activate'
+                ? 'Activate rule'
+                : action?.kind === 'archive'
+                  ? 'Archive rule'
+                  : action?.kind === 'copy'
+                    ? 'Copy template to project'
+                    : 'Rule draft'}
+            </DialogTitle>
+            <DialogDescription>
+              Changes are checked against your current workspace authority and the recorded rule
+              version.
+            </DialogDescription>
+          </DialogHeader>
+          {action?.kind === 'copy' ? (
+            <div className="space-y-2">
+              <Label htmlFor="rule-copy-project">Project</Label>
+              <select
+                id="rule-copy-project"
+                className="h-10 w-full rounded-sm border border-input bg-background px-3"
+                value={copyProject ?? ''}
+                onChange={(event) => setCopyProject(event.target.value || null)}
+              >
+                <option value="">Choose a project</option>
+                {projects.data?.map((project) => (
+                  <option key={project.id} value={project.id}>
+                    {project.title}
+                  </option>
+                ))}
+              </select>
             </div>
-            <DialogFooter>
-              <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>
-                Cancel
-              </Button>
-              <Button type="submit">
-                <Save className="mr-2 h-4 w-4" aria-hidden="true" />
-                {editingRuleId ? 'Save changes' : 'Save rule'}
-              </Button>
-            </DialogFooter>
-          </form>
+          ) : null}
+          {action?.kind === 'create' ? (
+            <RuleEditor projectId={projectId} onSaved={refresh} />
+          ) : action?.kind === 'draft' ? (
+            <RuleEditor
+              projectId={action.rule.projectId}
+              original={action.rule}
+              onSaved={refresh}
+            />
+          ) : action?.kind === 'copy' && copyProject ? (
+            <RuleEditor projectId={copyProject} template={action.rule} onSaved={refresh} />
+          ) : action?.kind === 'activate' || action?.kind === 'archive' ? (
+            <RuleLifecycle rule={action.rule} action={action.kind} onSaved={refresh} />
+          ) : null}
         </DialogContent>
       </Dialog>
     </div>
   )
 }
-
-const setDraftValue = <Key extends keyof RuleDraft>(
-  key: Key,
-  value: RuleDraft[Key],
-  setDraft: React.Dispatch<React.SetStateAction<RuleDraft>>,
-) => setDraft((current) => ({ ...current, [key]: value }))
-
-const Field = ({ label, children }: { label: string; children: React.ReactNode }) => (
-  <div className="space-y-2">
-    <span className="text-sm font-medium">{label}</span>
-    {children}
-  </div>
-)
-
-const RequiredLabel = ({ children, htmlFor }: { children: React.ReactNode; htmlFor: string }) => (
-  <Label htmlFor={htmlFor}>
-    {children}
-    <span aria-hidden="true" className="ml-1 text-danger">
-      *
-    </span>
-    <span className="sr-only"> (required)</span>
-  </Label>
-)
-
-const InlineError = ({ id, message }: { id: string; message?: string }) =>
-  message ? (
-    <p className="text-sm font-medium text-danger" id={id}>
-      {message}
-    </p>
-  ) : null
-
-const InfoRow = ({ label, value }: { label: string; value: string }) => (
-  <div className="rounded-sm border border-border bg-surface-subtle p-3">
-    <p className="text-xs uppercase text-muted-foreground">{label}</p>
-    <p className="mt-1 font-medium text-foreground">{value}</p>
-  </div>
-)
+function RuleLifecycle({
+  rule,
+  action,
+  onSaved,
+}: { rule: HumanRule; action: 'activate' | 'archive'; onSaved: () => void }) {
+  const { profile, access } = useCurrentRole()
+  const owner = useSensitiveDraftOwner(
+    profile,
+    'rule-lifecycle',
+    action === 'activate' ? 'rules.activate' : 'rules.update',
+    rule.projectId,
+    `${rule.id}:${rule.version}:${action}`,
+    access === 'ready',
+  )
+  if (!owner) return <output>Current rule permission is required.</output>
+  return (
+    <OwnedRuleLifecycle
+      key={`${owner.generation}:${owner.key}`}
+      rule={rule}
+      action={action}
+      onSaved={onSaved}
+      owner={owner}
+    />
+  )
+}
+function OwnedRuleLifecycle({
+  rule,
+  action,
+  onSaved,
+  owner,
+}: {
+  rule: HumanRule
+  action: 'activate' | 'archive'
+  onSaved: () => void
+  owner: SensitiveDraftOwner
+}) {
+  const [note, setNote] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [locked, setLocked] = useState(false)
+  const [notice, setNotice] = useState('')
+  const mounted = useRef(true)
+  const inFlight = useRef(false)
+  const captured = useRef<{
+    expectedVersion: number
+    clientOperationId: string
+    note?: string
+  } | null>(null)
+  useEffect(() => {
+    mounted.current = true
+    return () => {
+      mounted.current = false
+    }
+  }, [])
+  const current = () => mounted.current && owner.isCurrent()
+  const submit = async () => {
+    if (!current() || inFlight.current || (action === 'archive' && !note.trim())) return
+    captured.current ??= {
+      expectedVersion: rule.version,
+      clientOperationId: crypto.randomUUID(),
+      ...(action === 'archive' ? { note: note.trim() } : {}),
+    }
+    inFlight.current = true
+    setBusy(true)
+    setLocked(true)
+    setNotice('')
+    try {
+      if (action === 'activate') await rulesHumanClient.activateRule(rule.id, captured.current)
+      else
+        await rulesHumanClient.archiveRule(rule.id, {
+          ...captured.current,
+          note: captured.current.note ?? '',
+        })
+      if (current()) {
+        captured.current = null
+        setNote('')
+        onSaved()
+      }
+    } catch (error) {
+      if (current()) {
+        if (
+          error instanceof PathwaysClientError &&
+          [400, 403, 404, 409].includes(error.status ?? 0)
+        ) {
+          captured.current = null
+          setLocked(false)
+          setNotice(
+            'This operation could not be completed. Refresh the rule and verify current access.',
+          )
+        } else setNotice('A response was not confirmed. Retry the same operation.')
+      }
+    } finally {
+      inFlight.current = false
+      if (current()) setBusy(false)
+    }
+  }
+  return (
+    <form
+      className="space-y-4"
+      onSubmit={(event) => {
+        event.preventDefault()
+        void submit()
+      }}
+    >
+      <p>
+        {action === 'activate'
+          ? 'Activate this version for deterministic evaluation and predefined recommendations?'
+          : 'Archive this version? Recorded history remains available.'}
+      </p>
+      {action === 'archive' ? (
+        <div className="space-y-2">
+          <Label htmlFor="rule-archive-note">Archive note</Label>
+          <Textarea
+            id="rule-archive-note"
+            maxLength={2000}
+            required
+            value={note}
+            disabled={busy || locked}
+            onChange={(event) => setNote(event.target.value)}
+          />
+        </div>
+      ) : null}
+      {notice ? <output className="block text-sm">{notice}</output> : null}
+      <Button disabled={busy} type="submit">
+        {busy
+          ? 'Submitting...'
+          : action === 'activate'
+            ? 'Activate this version'
+            : 'Archive this version'}
+      </Button>
+    </form>
+  )
+}

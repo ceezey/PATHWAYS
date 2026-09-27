@@ -200,8 +200,8 @@ export const ProjectDetailView = ({ projectId }: { projectId: string }) => {
                 <p className="text-sm text-muted-foreground">Beneficiaries reached / target</p>
                 <p className="mt-2 text-2xl font-semibold tabular-nums text-foreground">
                   {project.metricsAvailable
-                    ? `${formatNumber(project.beneficiariesReached)} / ${formatNumber(project.targetBeneficiaries)}`
-                    : `Unavailable / ${formatNumber(project.targetBeneficiaries)}`}
+                    ? `${formatNumber(project.beneficiariesReached)} / ${project.targetBeneficiaries === undefined ? 'Not recorded' : formatNumber(project.targetBeneficiaries)}`
+                    : `Unavailable / ${project.targetBeneficiaries === undefined ? 'Not recorded' : formatNumber(project.targetBeneficiaries)}`}
                 </p>
               </div>
               <div className="bg-surface-subtle p-4">
@@ -226,13 +226,17 @@ export const ProjectDetailView = ({ projectId }: { projectId: string }) => {
               <div>
                 <dt className="text-muted-foreground">Implementing partners</dt>
                 <dd className="mt-1 font-medium text-foreground">
-                  {project.implementingPartners || 'Not recorded'}
+                  {project.implementingPartnerRecords?.length
+                    ? project.implementingPartnerRecords.map((partner) => partner.name).join(', ')
+                    : project.implementingPartners || 'Not recorded'}
                 </dd>
               </div>
               <div>
                 <dt className="text-muted-foreground">Target beneficiaries</dt>
                 <dd className="mt-1 font-medium text-foreground">
-                  {formatNumber(project.targetBeneficiaries)}
+                  {project.targetBeneficiaries === undefined
+                    ? 'Not recorded'
+                    : formatNumber(project.targetBeneficiaries)}
                 </dd>
               </div>
               <div>

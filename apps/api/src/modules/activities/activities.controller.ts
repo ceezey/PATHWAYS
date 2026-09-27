@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Body,
   Controller,
   ForbiddenException,
@@ -7,7 +8,9 @@ import {
   Param,
   Patch,
   Post,
+  Query,
   Req,
+  Res,
   StreamableFile,
   UploadedFiles,
   UseInterceptors,
@@ -15,6 +18,7 @@ import {
 import { FilesInterceptor } from '@nestjs/platform-express'
 
 import { RequirePermission } from '../../common/decorators/permission.decorator'
+import { inspectionRequestBudget } from '../../common/network/inspection-request-budget'
 import type { AuthenticatedRequest } from '../auth/developer-access'
 // biome-ignore lint/style/useImportType: Nest validation needs the DTO constructors at runtime.
 import {
@@ -28,6 +32,10 @@ import {
 } from './activities.dto'
 import type { UploadedProofFile } from './activities.dto'
 import { ActivitiesService } from './activities.service'
+import {
+  PrivateProofInspectionService,
+  inspectionRevisions,
+} from './private-proof-inspection.service'
 
 function profile(request: AuthenticatedRequest) {
   if (!request.user) throw new ForbiddenException('Application profile is required.')
@@ -36,7 +44,11 @@ function profile(request: AuthenticatedRequest) {
 
 @Controller('projects/:projectId/activities')
 export class ActivitiesController {
-  constructor(@Inject(ActivitiesService) private readonly activities: ActivitiesService) {}
+  constructor(
+    @Inject(ActivitiesService) private readonly activities: ActivitiesService,
+    @Inject(PrivateProofInspectionService)
+    private readonly inspection: PrivateProofInspectionService,
+  ) {}
 
   @Get()
   @RequirePermission('activities.read')
@@ -121,6 +133,50 @@ export class ActivitiesController {
     return this.activities.reviewUpdate(profile(request), projectId, activityId, updateId, body)
   }
 
+  @Get(':activityId/updates/:updateId/inspection-context')
+  @RequirePermission('evidence.review')
+  inspectionContext(
+    @Req() request: AuthenticatedRequest,
+    @Param('projectId') projectId: string,
+    @Param('activityId') activityId: string,
+    @Param('updateId') updateId: string,
+    @Query() query: Record<string, unknown>,
+  ) {
+    if (Object.keys(query).length)
+      throw new BadRequestException('Invalid inspection context query.')
+    return this.inspection.context(profile(request), projectId, activityId, updateId)
+  }
+
+  @Get(':activityId/updates/:updateId/proof/:evidenceId/inspection')
+  @RequirePermission('evidence.review')
+  async inspectProof(
+    @Req() request: AuthenticatedRequest,
+    @Param('projectId') projectId: string,
+    @Param('activityId') activityId: string,
+    @Param('updateId') updateId: string,
+    @Param('evidenceId') evidenceId: string,
+    @Query() query: Record<string, unknown>,
+    @Res({ passthrough: true }) response: { setHeader(name: string, value: string): void },
+  ) {
+    if (request.headers.range !== undefined)
+      throw new BadRequestException('Partial inspection is unavailable.')
+    const body = await this.inspection.inspect(
+      profile(request),
+      projectId,
+      activityId,
+      updateId,
+      evidenceId,
+      inspectionRevisions(query),
+    )
+    inspectionRequestBudget(request)?.check()
+    response.setHeader('Cache-Control', 'private, no-store')
+    response.setHeader('X-Content-Type-Options', 'nosniff')
+    return new StreamableFile(body, {
+      type: 'application/octet-stream',
+      disposition: 'attachment; filename="activity-proof.bin"',
+    })
+  }
+
   @Get(':activityId/proof/:evidenceId')
   @RequirePermission('evidence.read')
   async proof(
@@ -129,16 +185,7 @@ export class ActivitiesController {
     @Param('activityId') activityId: string,
     @Param('evidenceId') evidenceId: string,
   ) {
-    const proof = await this.activities.downloadProof(
-      profile(request),
-      projectId,
-      activityId,
-      evidenceId,
-    )
-    return new StreamableFile(proof.body, {
-      type: proof.contentType,
-      disposition: `attachment; filename="${proof.fileName.replace(/["\\\r\n]/g, '_')}"`,
-    })
+    return this.activities.downloadProof(profile(request), projectId, activityId, evidenceId)
   }
 }
 

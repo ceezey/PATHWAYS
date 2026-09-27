@@ -4,6 +4,7 @@ import type { IncomingMessage, ServerResponse } from 'node:http'
 import { Module } from '@nestjs/common'
 import { ConfigModule } from '@nestjs/config'
 import { APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core'
+import { readApiEnv } from '@pathways/config'
 import { LoggerModule } from 'nestjs-pino'
 
 import { RolesGuard } from './common/guards/roles.guard'
@@ -19,9 +20,14 @@ import { ImportsModule } from './modules/imports/imports.module'
 import { IndicatorsModule } from './modules/indicators/indicators.module'
 import { MetadataModule } from './modules/metadata/metadata.module'
 import { ParticipantsModule } from './modules/participants/participants.module'
+import { ProfileModule } from './modules/profile/profile.module'
 import { ProgramsModule } from './modules/programs/programs.module'
 import { ProjectsModule } from './modules/projects/projects.module'
 import { ReportsModule } from './modules/reports/reports.module'
+import { RulesHumanModule } from './modules/rules/rules-human.module'
+import { rulesMachineOptions } from './modules/rules/rules-machine-options'
+import { RulesMachineModule } from './modules/rules/rules-machine.module'
+import { RulesSourceOperationsModule } from './modules/rules/rules-source-operations.module'
 import { StorageModule } from './modules/storage/storage.module'
 import { UsersModule } from './modules/users/users.module'
 import { PrismaModule } from './prisma/prisma.module'
@@ -148,9 +154,13 @@ export function createPathwaysPinoHttpOptions(environment = process.env.NODE_ENV
     LoggerModule.forRoot({
       pinoHttp: createPathwaysPinoHttpOptions(),
     }),
+    RulesMachineModule.register(rulesMachineOptions(readApiEnv(process.env))),
+    RulesHumanModule,
+    RulesSourceOperationsModule,
     PrismaModule,
     HealthModule,
     AuthModule,
+    ProfileModule,
     ActivitiesModule,
     BeneficiariesModule,
     UsersModule,

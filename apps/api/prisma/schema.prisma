@@ -32,6 +32,7 @@ enum AccountStatus {
 }
 
 model Organization {
+  implementingPartners ImplementingPartner[]
   activityIndicatorLink_organization            ActivityIndicatorLink[]            @relation("ActivityIndicatorLink_organization")
   indicatorBindings                             ProjectIndicatorBinding[]          @relation("P06BindingOrganization")
   indicatorMeasurements                         ProjectIndicatorMeasurement[]      @relation("P06MeasurementOrganization")
@@ -611,7 +612,34 @@ model Program {
   @@schema("pathways")
 }
 
+model ImplementingPartner {
+  id String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String @map("organization_id") @db.Uuid
+  name String
+  normalizedName String @map("normalized_name")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  projectLinks ProjectImplementingPartner[]
+  @@unique([organizationId, normalizedName])
+  @@unique([organizationId, id])
+  @@map("implementing_partners")
+  @@schema("pathways")
+}
+
+model ProjectImplementingPartner {
+  organizationId String @map("organization_id") @db.Uuid
+  projectId String @map("project_id") @db.Uuid
+  partnerId String @map("partner_id") @db.Uuid
+  project Project @relation(fields: [organizationId, projectId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+  partner ImplementingPartner @relation(fields: [organizationId, partnerId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+  @@id([organizationId, projectId, partnerId])
+  @@index([organizationId, partnerId])
+  @@map("project_implementing_partners")
+  @@schema("pathways")
+}
+
 model Project {
+  implementingPartnerLinks ProjectImplementingPartner[]
   activityIndicatorLink_project            ActivityIndicatorLink[]            @relation("ActivityIndicatorLink_project")
   indicatorBindings                        ProjectIndicatorBinding[]          @relation("P06BindingProject")
   indicatorMeasurements                    ProjectIndicatorMeasurement[]      @relation("P06MeasurementProject")
@@ -1955,7 +1983,7 @@ model RuleBasedAlert {
   severity                     AlertSeverity
   observedValues               Json                     @map("observed_values")
   evaluatedSnapshot            Json                     @map("evaluated_snapshot")
-  evaluatedById                String                   @map("evaluated_by_id") @db.Uuid
+  evaluatedById                String?                  @map("evaluated_by_id") @db.Uuid
   evaluatedAt                  DateTime                 @default(now()) @map("evaluated_at") @db.Timestamptz(3)
   createdAt                    DateTime                 @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt                    DateTime                 @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
@@ -1964,7 +1992,7 @@ model RuleBasedAlert {
   rule                         AlertRule                @relation("RuleBasedAlert_rule", fields: [organizationId, ruleId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict, map: "rule_based_alerts_rule_fkey")
   indicator                    ProjectIndicator?        @relation("RuleBasedAlert_indicator", fields: [organizationId, projectId, indicatorId], references: [organizationId, projectId, id], onDelete: Restrict, onUpdate: Restrict, map: "rule_based_alerts_indicator_fkey")
   activity                     ProjectActivity?         @relation("RuleBasedAlert_activity", fields: [organizationId, projectId, activityId], references: [organizationId, projectId, id], onDelete: Restrict, onUpdate: Restrict, map: "rule_based_alerts_activity_fkey")
-  evaluatedBy                  SystemUser               @relation("RuleBasedAlert_evaluatedBy", fields: [organizationId, evaluatedById], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict, map: "rule_based_alerts_evaluated_by_fkey")
+  evaluatedBy                  SystemUser?              @relation("RuleBasedAlert_evaluatedBy", fields: [organizationId, evaluatedById], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict, map: "rule_based_alerts_evaluated_by_fkey")
   decisionRecommendation_alert DecisionRecommendation[] @relation("DecisionRecommendation_alert")
 
   @@unique([organizationId, projectId, id], map: "rule_based_alerts_scope_key")
@@ -1987,7 +2015,7 @@ model DecisionRecommendation {
   basis                      RecommendationBasis
   type                       RecommendationType       @default(SUGGESTED_ACTION)
   sourceSnapshot             Json?                    @map("source_snapshot")
-  proposedById               String                   @map("proposed_by_id") @db.Uuid
+  proposedById               String?                  @map("proposed_by_id") @db.Uuid
   proposedAt                 DateTime                 @default(now()) @map("proposed_at") @db.Timestamptz(3)
   status                     DecisionStatus           @default(NEW)
   reviewedById               String?                  @map("reviewed_by_id") @db.Uuid
@@ -2003,7 +2031,7 @@ model DecisionRecommendation {
   project                    Project                  @relation("DecisionRecommendation_project", fields: [organizationId, projectId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict, map: "decision_recommendations_project_fkey")
   alert                      RuleBasedAlert?          @relation("DecisionRecommendation_alert", fields: [organizationId, projectId, alertId], references: [organizationId, projectId, id], onDelete: Restrict, onUpdate: Restrict, map: "decision_recommendations_alert_fkey")
   sourceRuleRecommendation   AlertRuleRecommendation? @relation("DecisionRecommendation_sourceRuleRecommendation", fields: [organizationId, sourceRuleRecommendationId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict, map: "decision_recommendations_source_rule_recommendation_fkey")
-  proposedBy                 SystemUser               @relation("DecisionRecommendation_proposedBy", fields: [organizationId, proposedById], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict, map: "decision_recommendations_proposed_by_fkey")
+  proposedBy                 SystemUser?              @relation("DecisionRecommendation_proposedBy", fields: [organizationId, proposedById], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict, map: "decision_recommendations_proposed_by_fkey")
   reviewedBy                 SystemUser?              @relation("DecisionRecommendation_reviewedBy", fields: [organizationId, reviewedById], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict, map: "decision_recommendations_reviewed_by_fkey")
   outcomeBy                  SystemUser?              @relation("DecisionRecommendation_outcomeBy", fields: [organizationId, outcomeById], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict, map: "decision_recommendations_outcome_by_fkey")
 

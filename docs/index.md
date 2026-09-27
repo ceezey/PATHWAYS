@@ -100,12 +100,12 @@ Do not build directly against an audit finding until the appropriate contract/CR
 | PRD-F7 | Indicators / Monitoring | Must-Have | yes | yes | - | implemented |
 | PRD-F8 | Dashboard / SADDD | Must-Have | yes | yes | SADDD RFC | implemented |
 | PRD-F9 | Descriptive Analytics | Supporting | yes | yes | - | partial (dashboard endpoints) |
-| PRD-F10 | Rule Alerts | Supporting | yes | yes | rules RFC | schema only; no API |
-| PRD-F11 | Decision Support | Supporting | yes | yes | rules RFC | schema only; no API |
+| PRD-F10 | Rule Alerts | Supporting | yes | yes | rules RFC | local API and initial runtime slice; integration verification pending |
+| PRD-F11 | Decision Support | Supporting | yes | yes | rules RFC | local human review API; integration verification pending |
 | PRD-F12 | Reporting / Visualization | Supporting | yes | yes | - | schema only; reports module empty |
 | PRD-F13 | Public Tracker | Supporting | yes | yes | - | no API |
 
-Backend status verified 2026-09-26 against `apps/api/src/modules/*` controllers and `apps/web/src/lib/services/pathways-client.ts` (`backendNotConfigured` surfaces).
+Backend status reconciled 2026-09-27 for local integration against `apps/api/src/modules/*` controllers and `apps/web/src/lib/services/pathways-client.ts` (`backendNotConfigured` surfaces).
 
 ## 7. Change Log
 
@@ -116,7 +116,7 @@ Core P1 supporting contract reconciliation is approved for local implementation 
 | CR ID | Date | Summary | Status |
 |---|---|---|---|
 | [cr-pathways-core-p1-supporting-operations](cr-pathways-core-p1-supporting-operations.md) | 2026-09-27 | Scoped registration context and revision-bound server-derived mapping; human review/normalization authority preserved | Approved for local P1 implementation; installation/runtime acceptance pending |
-| [cr-pathways-retire-project-target-goal](cr-pathways-retire-project-target-goal.md) | 2026-09-26 | Retire live project benchmark inputs, outputs and comparisons; preserve database history, target beneficiaries and independent indicator targets | Approved; implementation/verification pending; no migration or release |
+| [cr-pathways-retire-project-target-goal](cr-pathways-retire-project-target-goal.md) | 2026-09-26 | Retire live project benchmark inputs, outputs and comparisons; preserve database history, target beneficiaries and independent indicator targets | Approved; local implementation verified; coordinated previews pending; no hosted migration or completed release |
 | [cr-pathways-private-activity-proof-inspection](cr-pathways-private-activity-proof-inspection.md) | 2026-09-27 | Assigned distinct M&E pending private-proof inspection, bounded verified transfer and final authorization/audit; withdraw generic old downloads | Approved; local implementation/verification pending; hosted application and release excluded |
 | conservative-mapping-v1-2026-09-27 | 2026-09-27 | Register stable source keys, conservative NFKC/ASCII code-label matching and unresolved candidate collisions for PRD-F6 preview suggestions | Contract clarification; preview implementation pending; no server authority or SQL installed |
 | [cr-pathways-f10-f11-runtime-authority](cr-pathways-f10-f11-runtime-authority.md) | 2026-09-26 | Local least-privilege worker/sweeper boundary, SYSTEM attribution, calendar equality, conservative exposure and legacy preservation; human matrix unchanged | Approved; implementation/verification pending; hosted application, scheduler and release excluded |
@@ -153,8 +153,8 @@ Last run: 2026-09-26 (`pnpm docs:check`).
 - [x] Brand mark verified at `apps/web/public/brand/pathways-mark.png`.
 - [x] SDD table list reconciled with `apps/api/prisma/schema.prisma` (99 mapped models/enums; verified 0001-0026 archived, active baseline plus 0027/0028; PATHWAYS-dev transition verified).
 - [x] Vercel development API/web previews verified against PATHWAYS-dev; production verification remains separate (see OPS).
-- [~] PRD-F10 to PRD-F13 have no backend API yet.
-- [~] Rules RFC items beyond the current Prisma enums remain proposals.
+- [~] PRD-F10/F11 have local controllers and forward runtime SQL under integration verification; hosted installation is pending. PRD-F12/F13 still lack complete APIs.
+- [~] The approved F10/F11 runtime CR governs the initial local implementation. Unapproved rules RFC extensions remain proposals.
 - [~] QAD exact executable commands require repository test-tool inspection.
 
 ## 10. Maintenance Rules

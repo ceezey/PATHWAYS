@@ -151,6 +151,8 @@ const monitoring = {
 
 describe('Analytics dashboard request dependencies', () => {
   beforeEach(() => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(new Date('2026-09-27T04:00:00.000Z'))
     currentAccess.role = 'Monitoring and Evaluation Officer'
     currentAccess.profile.roles = ['MONITORING_AND_EVALUATION_OFFICER']
     currentAccess.profile.permissions = [
@@ -192,6 +194,7 @@ describe('Analytics dashboard request dependencies', () => {
   afterEach(() => {
     cleanup()
     vi.clearAllMocks()
+    vi.useRealTimers()
   })
 
   it('derives exact periods and keeps period changes monitoring-only', async () => {

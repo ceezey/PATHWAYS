@@ -19,7 +19,7 @@ const access = vi.hoisted(() => ({
   role: 'Monitoring and Evaluation Officer',
   profile: {
     roles: ['MONITORING_AND_EVALUATION_OFFICER'],
-    permissions: ['projects.read', 'evidence.review', 'reports.read'],
+    permissions: ['projects.read', 'evidence.read', 'evidence.review', 'reports.read'],
     assignedProjectIds: ['72000000-0000-4000-8000-000000000004'],
   },
 }))
@@ -49,7 +49,15 @@ vi.mock('./project-workspace-header', () => ({
 
 describe('shared project workspace optional loading', () => {
   beforeEach(() => {
-    access.profile.permissions = ['projects.read', 'evidence.review', 'reports.read']
+    access.role = 'Monitoring and Evaluation Officer'
+    access.profile.roles = ['MONITORING_AND_EVALUATION_OFFICER']
+    access.profile.assignedProjectIds = [projectId]
+    access.profile.permissions = [
+      'projects.read',
+      'evidence.read',
+      'evidence.review',
+      'reports.read',
+    ]
     api.getProject.mockResolvedValue({
       id: projectId,
       title: 'Project Alpha',
@@ -145,6 +153,88 @@ describe('shared project workspace optional loading', () => {
       expect(api.getBudgets).not.toHaveBeenCalled()
       expect(api.getTransparencySections).not.toHaveBeenCalled()
       expect(api.getEvidence).not.toHaveBeenCalled()
+    },
+  )
+  const proofId = '72000000-0000-4000-8000-000000000005'
+  const activityId = '72000000-0000-4000-8000-000000000006'
+  const proof = {
+    id: proofId,
+    projectId,
+    activityId,
+    status: 'Submitted',
+    fileName: 'synthetic.pdf',
+    reportTitle: 'Activity proof',
+    submittedDate: '2026-01-01',
+    submitter: 'Synthetic staff',
+    previewSummary: 'Submitted proof',
+  }
+  const reviewerPermissions = [
+    'projects.read',
+    'activities.read',
+    'evidence.read',
+    'evidence.review',
+  ]
+  it('routes the eligible assigned reviewer to the real activity proof workflow instead of dead status controls', async () => {
+    access.profile.permissions = reviewerPermissions
+    api.getEvidence.mockResolvedValue([proof])
+    render(<ProjectPhaseFiveWorkspace projectId={projectId} view="evidence" />)
+    const link = await screen.findByRole('link', { name: 'Review proof' })
+    expect(link.getAttribute('href')).toBe(
+      `/projects/${projectId}/activities/${activityId}?review=${proofId}`,
+    )
+    for (const name of ['Validate', 'Flag', 'Approve', 'Return for Revision'])
+      expect(screen.queryByRole('button', { name })).toBeNull()
+    expect(screen.getByRole('button', { name: 'Preview' })).toBeTruthy()
+  })
+  it.each(['Project Officer', 'Project Manager'])(
+    'preserves %s read-only evidence without dead approval controls',
+    async (role) => {
+      access.role = role
+      access.profile.roles = [role === 'Project Officer' ? 'PROJECT_OFFICER' : 'PROJECT_MANAGER']
+      access.profile.permissions = reviewerPermissions
+      api.getEvidence.mockResolvedValue([proof])
+      render(<ProjectPhaseFiveWorkspace projectId={projectId} view="evidence" />)
+      expect(await screen.findByRole('button', { name: 'Preview' })).toBeTruthy()
+      expect(screen.queryByRole('link', { name: 'Review proof' })).toBeNull()
+      expect(screen.queryByRole('button', { name: 'Approve' })).toBeNull()
+    },
+  )
+  it.each(['evidence.review', 'activities.read'])(
+    'does not advertise a review workflow after current %s revocation',
+    async (permission) => {
+      access.profile.permissions = reviewerPermissions.filter((value) => value !== permission)
+      api.getEvidence.mockResolvedValue([proof])
+      render(<ProjectPhaseFiveWorkspace projectId={projectId} view="evidence" />)
+      expect(await screen.findByRole('button', { name: 'Preview' })).toBeTruthy()
+      expect(screen.queryByRole('link', { name: 'Review proof' })).toBeNull()
+    },
+  )
+  it('does not fetch or preview evidence after current evidence.read revocation', async () => {
+    access.profile.permissions = reviewerPermissions.filter((value) => value !== 'evidence.read')
+    api.getEvidence.mockResolvedValue([proof])
+    render(<ProjectPhaseFiveWorkspace projectId={projectId} view="evidence" />)
+    expect(await screen.findByRole('heading', { name: 'Evidence' })).toBeTruthy()
+    expect(api.getEvidence).not.toHaveBeenCalled()
+    expect(screen.queryByRole('button', { name: 'Preview' })).toBeNull()
+    expect(screen.queryByRole('link', { name: 'Review proof' })).toBeNull()
+  })
+  it.each(['unassigned', 'already-reviewed', 'foreign-record'])(
+    'does not advertise review for %s evidence',
+    async (condition) => {
+      access.profile.permissions = reviewerPermissions
+      if (condition === 'unassigned') access.profile.assignedProjectIds = []
+      api.getEvidence.mockResolvedValue([
+        {
+          ...proof,
+          ...(condition === 'foreign-record'
+            ? { projectId: '72000000-0000-4000-8000-000000000099' }
+            : {}),
+          ...(condition === 'already-reviewed' ? { status: 'Approved' } : {}),
+        },
+      ])
+      render(<ProjectPhaseFiveWorkspace projectId={projectId} view="evidence" />)
+      expect(await screen.findByRole('button', { name: 'Preview' })).toBeTruthy()
+      expect(screen.queryByRole('link', { name: 'Review proof' })).toBeNull()
     },
   )
 })

@@ -49,7 +49,7 @@ Source: `apps/api/prisma/schema.prisma` (datasource `schemas = ["public", "pathw
 | Rules / Decision support | PRD-F10, PRD-F11 | alert_rules, alert_rule_conditions, alert_rule_recommendations, rule_based_alerts, decision_recommendations |
 | Evidence / Reporting | PRD-F12, PRD-F13 | evidence_media, reports |
 
-Enums are mapped in the same schema (for example `rule_metric`, `rule_operator`, `decision_status`). Tables for PRD-F10 to PRD-F13 exist in the schema but have no API controllers yet (see `index.md` backend status).
+Enums are mapped in the same schema (for example `rule_metric`, `rule_operator`, `decision_status`). PRD-F10/F11 now have local human, source-operation and default-disabled machine controllers. Forward migrations 0029-0033 support the integrated implementation; full runtime and hosted application acceptance remain pending. PRD-F12/F13 still lack complete APIs (see `index.md`).
 
 ## 4. Data Integrity
 
@@ -97,7 +97,7 @@ Never:
 
 RLS supplements backend authorization. The approved revised [CSV auth contract](rfc-pathways-auth-rbac-isolation.md) controls atomic grants, role ceilings, supporting reads, hierarchy, and assignment scope. Migrations 0027/0028 revise restrictive checks and atomic aggregate entrypoint permissions while preserving the datamodel and existing business/lifecycle guards. API and frontend share the canonical ceiling; active database grants remain authoritative. Inspect policies, functions, ACLs, triggers, and assignment predicates separately from Prisma schema diffs. Preserve the single public ledger and exact archived bytes. Register the verified baseline on existing databases without executing its DDL; retain historical ledger rows.
 
-PATHWAYS-dev 0020 retains the explicitly approved historical checksum exception; original applied SQL remains unavailable. The approved baseline registration and 0027/0028 corrections are verified with all 26 original ledger entries/checksums preserved (29 finished entries in total). 0015 differs only by CRLF representation. Missing financial/evaluation/reporting/alert/publishing handlers remain deferred. Target beneficiaries remain active. The [approved project target-goal retirement](cr-pathways-retire-project-target-goal.md) preserves its nullable column and historical values while removing live inputs, outputs and comparisons; implementation and verification remain pending. Independent indicator targets and unavailable-metric semantics remain unchanged.
+PATHWAYS-dev 0020 retains the explicitly approved historical checksum exception; original applied SQL remains unavailable. The approved baseline registration and 0027/0028 corrections are verified with all 26 original ledger entries/checksums preserved (29 finished entries in total). 0015 differs only by CRLF representation. Missing financial/evaluation/reporting/publishing handlers remain deferred. Alert and recommendation controllers are implemented locally under the approved F10/F11 runtime CR; hosted availability is not established. Target beneficiaries remain active. The [approved project target-goal retirement](cr-pathways-retire-project-target-goal.md) preserves its nullable column and historical values while removing live inputs, outputs and comparisons. Local implementation and checks are verified; coordinated preview and release verification remain pending. Independent indicator targets and unavailable-metric semantics remain unchanged.
 
 ## 7. Runtime Sequences
 

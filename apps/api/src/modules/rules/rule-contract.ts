@@ -232,6 +232,8 @@ const calculationSchema = z.discriminatedUnion('kind', [
   z
     .object({
       kind: z.literal('PROJECT_TIMELINE'),
+      projectStatus: z.enum(['PLANNED', 'ONGOING', 'COMPLETED', 'ON_HOLD', 'CANCELLED']),
+      projectArchived: z.boolean(),
       reportingDate: calendarDateSchema,
       startDate: calendarDateSchema.nullable(),
       endDate: calendarDateSchema.nullable(),

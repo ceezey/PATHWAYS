@@ -1,8 +1,9 @@
 'use client'
+import { SourceMutationRecovery } from './source-mutation-recovery'
 
 import { zodResolver } from '@hookform/resolvers/zod'
 import { Loader2, Save } from 'lucide-react'
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { toast } from 'sonner'
 
@@ -28,6 +29,7 @@ import {
 } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
 import { useCurrentRole } from '@/hooks/use-current-role'
+import { useSourceMutationContext } from '@/hooks/use-source-mutation-context'
 import {
   type SensitiveDraftOwner,
   readSensitiveDraft,
@@ -37,6 +39,7 @@ import {
 } from '@/lib/auth/sensitive-drafts'
 import { isUiActionAvailable } from '@/lib/rbac/ui-action-availability'
 import { pathwaysClient } from '@/lib/services/pathways-client'
+import { isSourceReplay, sourceMutationTickets } from '@/lib/services/source-mutation'
 import type { Activity, Indicator, JourneyStageConfig, UserRecord } from '@/types/pathways'
 
 import { type ActivityFormSchema, createActivityFormSchema } from './activity-form-validation'
@@ -66,6 +69,7 @@ export const ActivityFormDialog = (props: {
   open: boolean
   projectId: string
   users: UserRecord[]
+  onAcknowledged?: () => Promise<unknown>
   onCreatedOrUpdated: (activity: Activity) => void
   onOpenChange: (open: boolean) => void
 }) => {
@@ -89,6 +93,7 @@ const ScopedActivityFormDialog = ({
   open,
   projectId,
   users,
+  onAcknowledged,
   onCreatedOrUpdated,
   onOpenChange,
 }: {
@@ -99,10 +104,27 @@ const ScopedActivityFormDialog = ({
   open: boolean
   projectId: string
   users: UserRecord[]
+  onAcknowledged?: () => Promise<unknown>
   onCreatedOrUpdated: (activity: Activity) => void
   onOpenChange: (open: boolean) => void
 }) => {
   const { role, profile } = useCurrentRole()
+  const mutationContext = useSourceMutationContext(
+    profile,
+    activity ? 'activities.update' : 'activities.create',
+    projectId,
+    JSON.stringify([activity?.id, activity?.updatedAt]),
+    open,
+  )
+  const transitionContext = useSourceMutationContext(
+    profile,
+    'activities.complete',
+    projectId,
+    activity?.id ?? null,
+    open,
+  )
+  const savedPhase = useRef<{ input: string; activity: Activity } | null>(null)
+  const [recoveringPhase, setRecoveringPhase] = useState(false)
   const canEditStatus = isUiActionAvailable(role, 'activities.status.edit', profile)
   const [discardDialogOpen, setDiscardDialogOpen] = useState(false)
   const [draftHydrated, setDraftHydrated] = useState(false)
@@ -277,23 +299,57 @@ const ScopedActivityFormDialog = ({
         indicatorIds: values.connectedIndicators,
         journeyStageId: values.journeyStageId || null,
       }
-      let savedActivity = activity
-        ? await pathwaysClient.updateActivity({
-            ...input,
-            id: activity.id,
-            expectedUpdatedAt: activity.updatedAt,
-          })
-        : await pathwaysClient.createActivity(input)
-
-      if (!scope.isCurrent()) return
+      if (!mutationContext?.isCurrent()) return
+      const semanticInput = JSON.stringify([input, requestedStatus])
+      if (savedPhase.current && savedPhase.current.input !== semanticInput)
+        throw new Error(
+          'The activity save committed, but its status outcome remains unresolved. Retry unchanged before editing it.',
+        )
+      const first =
+        savedPhase.current?.activity ??
+        (activity
+          ? await pathwaysClient.updateActivity(
+              { ...input, id: activity.id, expectedUpdatedAt: activity.updatedAt },
+              mutationContext,
+            )
+          : await pathwaysClient.createActivity(input, mutationContext))
+      if (!scope.isCurrent() || !mutationContext.isCurrent()) return
+      if (isSourceReplay(first)) {
+        await pathwaysClient.getActivities(projectId)
+        if (!scope.isCurrent() || !mutationContext.isCurrent()) return
+        sourceMutationTickets.finishAcknowledgement(mutationContext, first.requestId)
+        removeSensitiveDraft(draftStorageKey)
+        void onAcknowledged?.()
+        toast.success(
+          'The earlier activity save is committed. Open its current record to check the status.',
+        )
+        onOpenChange(false)
+        return
+      }
+      let savedActivity = first
+      savedPhase.current = { input: semanticInput, activity: first }
       if (requestedStatus === 'In Progress' && savedActivity.status !== 'In Progress') {
-        savedActivity = await pathwaysClient.transitionActivity(
+        if (!transitionContext?.isCurrent())
+          throw new Error('Current activity transition access is required.')
+        setRecoveringPhase(true)
+        const transition = await pathwaysClient.transitionActivity(
           projectId,
           savedActivity.id,
           'IN_PROGRESS',
           savedActivity.updatedAt,
+          undefined,
+          transitionContext,
         )
+        if (!scope.isCurrent() || !transitionContext.isCurrent()) return
+        savedActivity = isSourceReplay(transition)
+          ? await pathwaysClient.getActivity(projectId, savedActivity.id)
+          : transition
+        if (!scope.isCurrent() || !transitionContext.isCurrent()) return
+        if (isSourceReplay(transition))
+          sourceMutationTickets.finishAcknowledgement(transitionContext, transition.requestId)
       }
+      savedPhase.current = null
+      setRecoveringPhase(false)
 
       if (!scope.isCurrent()) return
       toast.success(activity ? 'Activity updated.' : 'Activity created.', {
@@ -311,6 +367,10 @@ const ScopedActivityFormDialog = ({
   }
 
   const requestOpenChange = (nextOpen: boolean) => {
+    if (!nextOpen && recoveringPhase) {
+      toast.error('Resolve the earlier activity status save before closing. Retry unchanged.')
+      return
+    }
     if (!nextOpen && form.formState.isDirty) {
       setDiscardDialogOpen(true)
       return
@@ -320,6 +380,7 @@ const ScopedActivityFormDialog = ({
   }
 
   const discardChanges = () => {
+    if (recoveringPhase || form.formState.isSubmitting) return
     removeSensitiveDraft(draftStorageKey)
     form.reset(form.getValues())
     setDiscardDialogOpen(false)
@@ -335,6 +396,26 @@ const ScopedActivityFormDialog = ({
         >
           <Form {...form}>
             <form className="space-y-5" onSubmit={form.handleSubmit(onSubmit)}>
+              <SourceMutationRecovery
+                context={savedPhase.current ? transitionContext : mutationContext}
+                prefix={
+                  savedPhase.current
+                    ? `/projects/${projectId}/activities/${savedPhase.current.activity.id}/transition`
+                    : activity
+                      ? `/projects/${projectId}/activities/${activity.id}`
+                      : `/projects/${projectId}/activities`
+                }
+                onRecovered={async () => {
+                  await pathwaysClient.getActivities(projectId)
+                  return () => {
+                    savedPhase.current = null
+                    setRecoveringPhase(false)
+                    removeSensitiveDraft(draftStorageKey)
+                    onOpenChange(false)
+                    void onAcknowledged?.()
+                  }
+                }}
+              />
               <FormField
                 control={form.control}
                 name="overrideJustification"

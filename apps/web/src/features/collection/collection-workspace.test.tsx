@@ -13,6 +13,7 @@ const api = vi.hoisted(() => ({
   publishDigitalForm: vi.fn(),
   updateDigitalForm: vi.fn(),
   uploadImport: vi.fn(),
+  automaticImportMapping: vi.fn(),
   getImportBatch: vi.fn(),
   saveImportMapping: vi.fn(),
   validateImport: vi.fn(),
@@ -66,6 +67,7 @@ vi.mock('@/lib/services/pathways-client', () => ({
     publishDigitalForm: api.publishDigitalForm,
     updateDigitalForm: api.updateDigitalForm,
     uploadImport: api.uploadImport,
+    automaticImportMapping: api.automaticImportMapping,
     getImportBatch: api.getImportBatch,
     saveImportMapping: api.saveImportMapping,
     validateImport: api.validateImport,
@@ -240,6 +242,158 @@ describe('collection import workspace', () => {
       { sourceFieldName: 'column_0001', targetFieldCode: 'beneficiary_id', ignored: false },
       { sourceFieldName: 'column_0002', targetFieldCode: 'attendance_status', ignored: false },
     ])
+  })
+
+  it('reuses the same import id after an uncertain upload and starts a new id for a new file', async () => {
+    const definition = {
+      id: 'published-form',
+      projectId: 'futuremakers-ncr',
+      code: 'attendance',
+      name: 'Attendance',
+      version: 1,
+      formType: 'OTHER',
+      status: 'PUBLISHED',
+      updatedAt: '2026-09-22T00:00:00Z',
+      activityId: null,
+      journeyStageId: null,
+      fields: [
+        {
+          code: 'beneficiary_id',
+          label: 'Beneficiary ID',
+          dataType: 'TEXT',
+          required: true,
+          metadataKey: true,
+          sadddField: false,
+        },
+      ],
+    }
+    api.getDigitalForms.mockResolvedValue([definition])
+    api.uploadImport
+      .mockRejectedValueOnce(new Error('Upload response was lost.'))
+      .mockResolvedValue({ id: 'staged-batch', mappingRevision: 0, storageStatus: 'STORED' })
+    api.automaticImportMapping.mockResolvedValue({ mappingRevision: 1 })
+    render(
+      <DisplayLabelsProvider>
+        <CollectionWorkspace
+          initialView="import"
+          initialMode="import"
+          initialProjectId="futuremakers-ncr"
+          initialFormId="published-form"
+        />
+      </DisplayLabelsProvider>,
+    )
+    await waitFor(() =>
+      expect((screen.getByLabelText('Form information') as HTMLInputElement).value).toBe(
+        'Attendance',
+      ),
+    )
+    const file = csvFile(
+      'uncertain.csv',
+      async () => 'beneficiary_id,unknown_column\nBEN-001,value',
+    )
+    fireEvent.change(screen.getByLabelText('Source file'), { target: { files: [file] } })
+    await screen.findByText(/Preview ready for uncertain.csv/)
+    const proceed = () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Proceed' }))
+      fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Proceed' }))
+    }
+    proceed()
+    await screen.findByText('Upload response was lost.')
+    proceed()
+    await screen.findByText(
+      'Import staged-batch was staged. Unresolved mappings and processing require an authorized reviewer.',
+    )
+    expect(api.uploadImport).toHaveBeenCalledTimes(2)
+    const firstId = api.uploadImport.mock.calls[0][2]
+    expect(firstId).toMatch(/^[0-9a-f-]{36}$/)
+    expect(api.uploadImport.mock.calls[1]).toEqual([
+      'futuremakers-ncr',
+      'published-form',
+      firstId,
+      file,
+    ])
+    expect(api.saveImportMapping).not.toHaveBeenCalled()
+    expect(api.validateImport).not.toHaveBeenCalled()
+    expect(api.processImport).not.toHaveBeenCalled()
+    fireEvent.change(screen.getByLabelText('Source file'), {
+      target: {
+        files: [csvFile('changed.csv', async () => 'beneficiary_id,unknown_column\nBEN-002,next')],
+      },
+    })
+    await screen.findByText(/Preview ready for changed.csv/)
+    proceed()
+    await waitFor(() => expect(api.uploadImport).toHaveBeenCalledTimes(3))
+    expect(api.uploadImport.mock.calls[2][2]).not.toBe(firstId)
+    expect(api.saveImportMapping).not.toHaveBeenCalled()
+    expect(api.validateImport).not.toHaveBeenCalled()
+    expect(api.processImport).not.toHaveBeenCalled()
+  })
+
+  it('stages an unresolved file but never invokes review, validation or processing from the pending mapping', async () => {
+    api.getDigitalForms.mockResolvedValue([
+      {
+        id: 'published-form',
+        projectId: 'futuremakers-ncr',
+        code: 'attendance',
+        name: 'Attendance',
+        version: 1,
+        formType: 'OTHER',
+        status: 'PUBLISHED',
+        updatedAt: '2026-09-22T00:00:00Z',
+        activityId: null,
+        journeyStageId: null,
+        fields: [
+          {
+            code: 'beneficiary_id',
+            label: 'Beneficiary ID',
+            dataType: 'TEXT',
+            required: true,
+            metadataKey: true,
+            sadddField: false,
+          },
+        ],
+      },
+    ])
+    api.uploadImport.mockResolvedValue({
+      id: 'staged-batch',
+      mappingRevision: 0,
+      storageStatus: 'STORED',
+    })
+    api.automaticImportMapping.mockResolvedValue({ mappingRevision: 1 })
+    render(
+      <DisplayLabelsProvider>
+        <CollectionWorkspace
+          initialView="import"
+          initialMode="import"
+          initialProjectId="futuremakers-ncr"
+          initialFormId="published-form"
+        />
+      </DisplayLabelsProvider>,
+    )
+    await waitFor(() =>
+      expect((screen.getByLabelText('Form information') as HTMLInputElement).value).toBe(
+        'Attendance',
+      ),
+    )
+    fireEvent.change(screen.getByLabelText('Source file'), {
+      target: {
+        files: [csvFile('pending.csv', async () => 'beneficiary_id,unknown_column\nBEN-001,value')],
+      },
+    })
+    await screen.findByText(
+      'This file can be uploaded to staging. An authorized reviewer must resolve unmatched columns before validation and processing.',
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'Proceed' }))
+    fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Proceed' }))
+    await screen.findByText(
+      'Import staged-batch was staged. Unresolved mappings and processing require an authorized reviewer.',
+    )
+    expect(api.uploadImport).toHaveBeenCalledOnce()
+    expect(api.automaticImportMapping).toHaveBeenCalledWith('futuremakers-ncr', 'staged-batch', 0)
+    expect(api.getImportBatch).not.toHaveBeenCalled()
+    expect(api.saveImportMapping).not.toHaveBeenCalled()
+    expect(api.validateImport).not.toHaveBeenCalled()
+    expect(api.processImport).not.toHaveBeenCalled()
   })
 
   it('opens a saved definition and saves its exact types, options, links and limits', async () => {
@@ -427,7 +581,7 @@ describe('collection import workspace', () => {
     ).toBe('100')
   })
 
-  it('blocks unresolved mappings and retains prior work through a failed read and retry', async () => {
+  it('permits staging pending mappings and retains prior work through a failed read and retry', async () => {
     renderImportWorkspace()
     await waitFor(() => expect(api.getDigitalForms).toHaveBeenCalled())
 
@@ -442,10 +596,12 @@ describe('collection import workspace', () => {
 
     await waitFor(() => {
       expect(
-        screen.getByText('1 unmapped source column remains. Resolve them before proceeding.'),
+        screen.getByText(
+          'This file can be uploaded to staging. An authorized reviewer must resolve unmatched columns before validation and processing.',
+        ),
       ).toBeTruthy()
     })
-    expect(screen.getByRole('button', { name: 'Proceed' }).hasAttribute('disabled')).toBe(true)
+    expect(screen.getByRole('button', { name: 'Proceed' }).hasAttribute('disabled')).toBe(false)
 
     fireEvent.change(chooser, {
       target: {
@@ -1002,5 +1158,76 @@ describe('collection initial file ownership readiness', () => {
     await waitFor(() => expect(input.disabled).toBe(false))
     fireEvent.change(input, { target: { files: [csvFile('ready.csv', read)] } })
     expect(await screen.findByText(/Preview ready for ready.csv/)).toBeTruthy()
+  })
+})
+
+describe('collection conservative uploader mapping', () => {
+  it.each([true, false])(
+    'stages PO data with automatic complete=%s without reviewer calls',
+    async (complete) => {
+      currentAccess.role = 'Project Officer'
+      currentAccess.profile.roles = ['PROJECT_OFFICER']
+      currentAccess.profile.permissions = [
+        'projects.read',
+        'collection.read',
+        'forms.read',
+        'imports.upload',
+        'imports.read',
+      ]
+      api.uploadImport.mockResolvedValue({
+        id: 'batch-owned',
+        mappingRevision: 0,
+        storageStatus: 'STORED',
+      })
+      api.automaticImportMapping.mockResolvedValue({
+        batchId: 'batch-owned',
+        mappingRevision: 1,
+        mapped: complete ? 1 : 0,
+        pending: complete ? 0 : 1,
+        requiredUnmapped: complete ? 0 : 1,
+        complete,
+      })
+      const { submit } = await ownedDataset()
+      fireEvent.click(submit)
+      await waitFor(() =>
+        expect(api.automaticImportMapping).toHaveBeenCalledWith(
+          'futuremakers-ncr',
+          'batch-owned',
+          0,
+        ),
+      )
+      expect(await screen.findByText(/batch-owned was staged.*authorized reviewer/)).toBeTruthy()
+      expect(api.saveImportMapping).not.toHaveBeenCalled()
+      expect(api.validateImport).not.toHaveBeenCalled()
+      expect(api.processImport).not.toHaveBeenCalled()
+    },
+  )
+  it('stops after a delayed automatic mapping when upload authority is revoked', async () => {
+    api.uploadImport.mockResolvedValue({
+      id: 'batch-owned',
+      mappingRevision: 0,
+      storageStatus: 'STORED',
+    })
+    const pending = deferred<unknown>()
+    api.automaticImportMapping.mockReturnValue(pending.promise)
+    const { submit, view, element } = await ownedDataset()
+    fireEvent.click(submit)
+    await waitFor(() => expect(api.automaticImportMapping).toHaveBeenCalledOnce())
+    currentAccess.profile.permissions = currentAccess.profile.permissions.filter(
+      (grant) => grant !== 'imports.upload',
+    )
+    view.rerender(element())
+    await act(async () =>
+      pending.resolve({
+        batchId: 'batch-owned',
+        mappingRevision: 1,
+        mapped: 1,
+        pending: 0,
+        requiredUnmapped: 0,
+        complete: true,
+      }),
+    )
+    expect(api.getImportBatch).not.toHaveBeenCalled()
+    expect(api.saveImportMapping).not.toHaveBeenCalled()
   })
 })

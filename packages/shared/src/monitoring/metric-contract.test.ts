@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   businessCalendarDate,
+  createIndicatorDraftSchema,
   createIndicatorSchema,
   dashboardQuerySchema,
   indicatorProgress,
@@ -16,6 +17,7 @@ import {
 } from './metric-contract'
 
 const definition = {
+  clientMutationId: '77000000-0000-4000-8000-000000000009',
   code: 'TRAINING_2026',
   name: 'Training participation',
   unitLabel: 'records',
@@ -31,6 +33,18 @@ const definition = {
 } as const
 
 describe('P06 exact numeric and missing-value contracts', () => {
+  it('validates a strict semantic draft without weakening API request UUID admission', () => {
+    const { clientMutationId, ...draft } = definition
+    expect(createIndicatorDraftSchema.safeParse(draft).success).toBe(true)
+    expect(createIndicatorSchema.safeParse(draft).success).toBe(false)
+    expect(createIndicatorSchema.safeParse({ ...draft, clientMutationId }).success).toBe(true)
+    expect(createIndicatorDraftSchema.safeParse({ ...draft, clientMutationId }).success).toBe(false)
+    expect(createIndicatorDraftSchema.safeParse({ ...draft, target: '-1' }).success).toBe(false)
+    expect(
+      createIndicatorSchema.safeParse({ ...draft, clientMutationId, target: '-1' }).success,
+    ).toBe(false)
+  })
+
   it.each([
     ['0', 'COUNT', '0'],
     ['12.0000', 'COUNT', '12'],

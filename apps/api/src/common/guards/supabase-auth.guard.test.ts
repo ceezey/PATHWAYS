@@ -9,9 +9,10 @@ import {
   Req,
   UnauthorizedException,
 } from '@nestjs/common'
-import { APP_GUARD } from '@nestjs/core'
+import { APP_GUARD, Reflector } from '@nestjs/core'
 import { Test } from '@nestjs/testing'
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import { RulesMachineBoundary } from '../../modules/rules/rules-machine-boundary'
 
 import { ApplicationProfileService } from '../../modules/auth/application-profile.service'
 import { AuthController } from '../../modules/auth/auth.controller'
@@ -138,6 +139,16 @@ beforeAll(async () => {
   const module = await Test.createTestingModule({
     controllers: [AuthController, BoundaryTestController, RouteAccessController],
     providers: [
+      {
+        provide: RulesMachineBoundary,
+        inject: [Reflector],
+        useFactory: (reflector: Reflector) =>
+          new RulesMachineBoundary(
+            reflector,
+            () => ({ enabled: false, drainToken: '', sweepToken: '' }),
+            [],
+          ),
+      },
       { provide: TokenAuthService, useValue: tokens },
       { provide: ApplicationProfileService, useValue: profiles },
       { provide: PrismaService, useValue: prisma },
@@ -212,6 +223,7 @@ describe('SupabaseAuthGuard local HTTP fail-closed boundary', () => {
       organizationId,
       userId,
       expect.any(Function),
+      undefined,
     )
     expect(prisma.discoverWorkspace).not.toHaveBeenCalled()
     profiles.resolveWithSession.mockRejectedValueOnce(new ForbiddenException())
@@ -294,6 +306,7 @@ describe('SupabaseAuthGuard local HTTP fail-closed boundary', () => {
       organizationId,
       userId,
       expect.any(Function),
+      undefined,
     )
   })
 
@@ -448,6 +461,7 @@ describe('SupabaseAuthGuard local HTTP fail-closed boundary', () => {
       organizationId,
       userId,
       expect.any(Function),
+      undefined,
     )
     expect(tokens.assertSessionLive).not.toHaveBeenCalled()
     expect(result.serverTiming).toMatch(
@@ -514,6 +528,7 @@ describe('SupabaseAuthGuard local HTTP fail-closed boundary', () => {
       organizationId,
       userId,
       expect.any(Function),
+      undefined,
     )
   })
 })

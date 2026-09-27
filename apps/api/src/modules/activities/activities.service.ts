@@ -1,5 +1,12 @@
 import { createHash, randomUUID } from 'node:crypto'
 import { extname } from 'node:path'
+import {
+  beginRuleSourceOperation,
+  finishRuleSourceOperation,
+  proofClientAcknowledgement,
+  readRuleSourceAcknowledgement,
+  sourceMutationBody,
+} from '../rules/rules-source-operation'
 
 import {
   BadRequestException,
@@ -14,6 +21,7 @@ import { Prisma } from '@prisma/client'
 
 import { readApiEnv } from '@pathways/config'
 import { PrismaService } from '../../prisma/prisma.service'
+import { readApplicationProfile } from '../auth/application-profile.service'
 import { hasAtomicPermission } from '../auth/authorization-policy'
 import { projectScope } from '../auth/authorized-data.service'
 import { withAuthorizedOperation } from '../auth/authorized-operation'
@@ -664,6 +672,15 @@ export class ActivitiesService {
       identity,
       'activities.create',
       async (tx, actor) => {
+        const source = await beginRuleSourceOperation(
+          tx,
+          'ACTIVITY_CREATE',
+          projectId,
+          null,
+          { kind: 'CLIENT_MUTATION', id: input.clientMutationId },
+          sourceMutationBody(input),
+        )
+        if (source.kind === 'REPLAY') return source.acknowledgement
         const project = await this.requireProject(tx, actor, projectId)
         const timelineOverrideJustification = this.validateDates(
           input.plannedStartDate,
@@ -684,7 +701,9 @@ export class ActivitiesService {
           project.id,
           input.journeyStageId,
         )
-        const activityId = randomUUID()
+        const activityId = source.reservedRecordId
+        if (!activityId)
+          throw new ServiceUnavailableException('Activity creation could not be confirmed.')
         await tx.projectActivity.create({
           data: {
             id: activityId,
@@ -699,6 +718,8 @@ export class ActivitiesService {
             plannedStartDate: new Date(`${input.plannedStartDate}T00:00:00.000Z`),
             plannedEndDate: new Date(`${input.plannedEndDate}T00:00:00.000Z`),
             createdById: actor.userId,
+            createdAt: new Date(source.generatedValues.timestamp),
+            updatedAt: new Date(source.generatedValues.timestamp),
           },
         })
         if (assignments.length) {
@@ -739,11 +760,17 @@ export class ActivitiesService {
             changes: { code: input.code ?? 'SERVER_GENERATED', assigneeCount: assignments.length },
           },
         })
-        return this.mapWithMetrics(
+        const sourceAcknowledgement = await finishRuleSourceOperation(
+          tx,
+          source.operationHandle,
+          input.clientMutationId,
+        )
+        const result = await this.mapWithMetrics(
           tx,
           actor,
           await this.requireActivity(tx, actor, project.id, activityId),
         )
+        return { ...result, sourceAcknowledgement }
       },
     )
   }
@@ -759,6 +786,15 @@ export class ActivitiesService {
       identity,
       'activities.update',
       async (tx, actor) => {
+        const source = await beginRuleSourceOperation(
+          tx,
+          'ACTIVITY_UPDATE',
+          projectId,
+          activityId,
+          { kind: 'CLIENT_MUTATION', id: input.clientMutationId },
+          sourceMutationBody(input),
+        )
+        if (source.kind === 'REPLAY') return source.acknowledgement
         const current = await this.requireActivity(tx, actor, projectId, activityId)
         if (['COMPLETED', 'CANCELLED'].includes(current.status)) {
           throw new ConflictException('Terminal activity history cannot be edited.')
@@ -803,6 +839,7 @@ export class ActivitiesService {
               : { targetBeneficiaries: input.targetBeneficiaries }),
             plannedStartDate: new Date(`${input.plannedStartDate}T00:00:00.000Z`),
             plannedEndDate: new Date(`${input.plannedEndDate}T00:00:00.000Z`),
+            updatedAt: new Date(source.generatedValues.timestamp),
           },
         })
         if (changed.count !== 1)
@@ -816,7 +853,7 @@ export class ActivitiesService {
           },
           data: {
             status: 'REMOVED',
-            endedAt: new Date(),
+            endedAt: new Date(source.generatedValues.timestamp),
             endReason: 'Activity assignment replaced.',
           },
         })
@@ -858,11 +895,17 @@ export class ActivitiesService {
             changes: { assigneeCount: assignments.length },
           },
         })
-        return this.mapWithMetrics(
+        const sourceAcknowledgement = await finishRuleSourceOperation(
+          tx,
+          source.operationHandle,
+          input.clientMutationId,
+        )
+        const result = await this.mapWithMetrics(
           tx,
           actor,
           await this.requireActivity(tx, actor, project.id, current.id),
         )
+        return { ...result, sourceAcknowledgement }
       },
     )
   }
@@ -878,6 +921,16 @@ export class ActivitiesService {
       identity,
       input.status === 'IN_PROGRESS' ? 'activities.complete' : 'activities.update',
       async (tx, actor) => {
+        const operation = input.status === 'IN_PROGRESS' ? 'ACTIVITY_START' : 'ACTIVITY_CANCEL'
+        const source = await beginRuleSourceOperation(
+          tx,
+          operation,
+          projectId,
+          activityId,
+          { kind: 'CLIENT_MUTATION', id: input.clientMutationId },
+          sourceMutationBody(input),
+        )
+        if (source.kind === 'REPLAY') return source.acknowledgement
         const current = await this.requireActivity(tx, actor, projectId, activityId)
         const expected = new Date(input.expectedUpdatedAt)
         if (expected.valueOf() !== current.updatedAt.valueOf())
@@ -888,16 +941,22 @@ export class ActivitiesService {
         if (input.status === 'CANCELLED' && !input.reason?.trim()) {
           throw new BadRequestException('A cancellation reason is required.')
         }
-        const now = new Date()
+        const now = new Date(source.generatedValues.timestamp)
         const changed = await tx.projectActivity.updateMany({
           where: { id: current.id, organizationId: actor.organizationId, updatedAt: expected },
           data:
             input.status === 'IN_PROGRESS'
               ? {
                   status: 'IN_PROGRESS',
-                  actualStartDate: new Date(`${this.businessDate(now)}T00:00:00.000Z`),
+                  actualStartDate: new Date(`${source.generatedValues.businessDate}T00:00:00.000Z`),
+                  updatedAt: now,
                 }
-              : { status: 'CANCELLED', cancelledAt: now, cancellationReason: input.reason?.trim() },
+              : {
+                  status: 'CANCELLED',
+                  cancelledAt: now,
+                  cancellationReason: input.reason?.trim(),
+                  updatedAt: now,
+                },
         })
         if (changed.count !== 1)
           throw new ConflictException('Activity changed; reload before saving.')
@@ -912,11 +971,17 @@ export class ActivitiesService {
             changes: input.status === 'CANCELLED' ? { reason: input.reason?.trim() } : {},
           },
         })
-        return this.mapWithMetrics(
+        const sourceAcknowledgement = await finishRuleSourceOperation(
+          tx,
+          source.operationHandle,
+          input.clientMutationId,
+        )
+        const result = await this.mapWithMetrics(
           tx,
           actor,
           await this.requireActivity(tx, actor, current.projectId, current.id),
         )
+        return { ...result, sourceAcknowledgement }
       },
     )
   }
@@ -935,9 +1000,6 @@ export class ActivitiesService {
       'activities.proof.submit',
       async (tx, actor) => {
         const activity = await this.requireActivity(tx, actor, projectId, activityId)
-        if (!['IN_PROGRESS', 'FOR_REVIEW'].includes(activity.status)) {
-          throw new ConflictException('Only an in-progress activity can be submitted for review.')
-        }
         const assigned = await tx.projectActivityAssignment.findFirst({
           where: {
             organizationId: actor.organizationId,
@@ -968,6 +1030,8 @@ export class ActivitiesService {
                 id: true,
                 fileName: true,
                 sha256: true,
+                contentType: true,
+                byteSize: true,
                 bucket: true,
                 objectKey: true,
                 storageReady: true,
@@ -976,9 +1040,11 @@ export class ActivitiesService {
           },
         })
         if (existing) {
-          const expectedFiles = metadata.map((item) => `${item.name}:${item.sha256}`).sort()
+          const expectedFiles = metadata
+            .map((item) => `${item.name}:${item.sha256}:${item.contentType}:${item.file.size}`)
+            .sort()
           const storedFiles = existing.evidenceMedia_update
-            .map((item) => `${item.fileName}:${item.sha256}`)
+            .map((item) => `${item.fileName}:${item.sha256}:${item.contentType}:${item.byteSize}`)
             .sort()
           if (
             existing.projectId !== activity.projectId ||
@@ -988,6 +1054,32 @@ export class ActivitiesService {
             JSON.stringify(expectedFiles) !== JSON.stringify(storedFiles)
           )
             throw new ConflictException('The activity update id was reused with different input.')
+          const acknowledgement = await readRuleSourceAcknowledgement(
+            tx,
+            'ACTIVITY_PROOF_FINALIZE',
+            activity.projectId,
+            activity.id,
+            { kind: 'PROOF_FINALIZE', id: existing.id, phase: 'FINALIZE' },
+            sourceMutationBody({
+              updateId: existing.id,
+              progressPercent: input.progressPercent,
+              note: input.note,
+              files: metadata.map((item) => ({
+                fileName: item.name,
+                sha256: item.sha256,
+                contentType: item.contentType,
+                byteSize: item.file.size,
+              })),
+            }),
+          )
+          if (acknowledgement)
+            return {
+              acknowledgement: proofClientAcknowledgement(
+                acknowledgement,
+                existing.id,
+                input.clientUpdateId,
+              ),
+            }
           return {
             actor,
             activity,
@@ -1021,6 +1113,8 @@ export class ActivitiesService {
             bucket: this.env.EVIDENCE_BUCKET,
             objectKey: `organizations/${actor.organizationId}/projects/${activity.projectId}/evidence/${id}/proof${item.extension}`,
             storageReady: false,
+            contentType: item.contentType,
+            byteSize: BigInt(item.file.size),
           }
         })
         for (const [index, row] of evidence.entries()) {
@@ -1043,19 +1137,29 @@ export class ActivitiesService {
       },
     )
 
+    if ('acknowledgement' in reservation) return reservation.acknowledgement
+
     if (reservation.existing && reservation.evidence.every((row) => row.storageReady)) {
       return this.get(identity, reservation.activity.projectId, reservation.activity.id)
     }
 
     try {
-      for (const [index, row] of reservation.evidence.entries()) {
+      for (const row of reservation.evidence) {
         if (row.storageReady) continue
+        const file = metadata.find(
+          (item) =>
+            item.name === row.fileName &&
+            item.sha256 === row.sha256 &&
+            item.contentType === row.contentType &&
+            BigInt(item.file.size) === row.byteSize,
+        )
+        if (!file) throw new Error('PROOF_METADATA_MISMATCH')
         try {
           await this.storage.uploadPrivateFile(
             row.bucket,
             row.objectKey,
-            metadata[index].file.buffer,
-            metadata[index].contentType,
+            file.file.buffer,
+            file.contentType,
           )
         } catch {
           const recovered = await this.storage
@@ -1076,6 +1180,30 @@ export class ActivitiesService {
       identity,
       'activities.proof.submit',
       async (tx, actor) => {
+        const source = await beginRuleSourceOperation(
+          tx,
+          'ACTIVITY_PROOF_FINALIZE',
+          reservation.activity.projectId,
+          reservation.activity.id,
+          { kind: 'PROOF_FINALIZE', id: reservation.updateId, phase: 'FINALIZE' },
+          sourceMutationBody({
+            updateId: reservation.updateId,
+            progressPercent: input.progressPercent,
+            note: input.note,
+            files: metadata.map((item) => ({
+              fileName: item.name,
+              sha256: item.sha256,
+              contentType: item.contentType,
+              byteSize: item.file.size,
+            })),
+          }),
+        )
+        if (source.kind === 'REPLAY')
+          return proofClientAcknowledgement(
+            source.acknowledgement,
+            reservation.updateId,
+            input.clientUpdateId,
+          )
         const update = await tx.activityUpdate.findFirst({
           where: {
             id: reservation.updateId,
@@ -1094,9 +1222,21 @@ export class ActivitiesService {
         if (current.status === 'IN_PROGRESS') {
           await tx.projectActivity.update({
             where: { id: current.id },
-            data: { status: 'FOR_REVIEW', progressPercent: update.progressPercent },
+            data: {
+              status: 'FOR_REVIEW',
+              progressPercent: update.progressPercent,
+              updatedAt: new Date(source.generatedValues.timestamp),
+            },
           })
-        } else if (current.status !== 'FOR_REVIEW') {
+        } else if (current.status === 'FOR_REVIEW') {
+          await tx.projectActivity.update({
+            where: { id: current.id },
+            data: {
+              progressPercent: update.progressPercent,
+              updatedAt: new Date(source.generatedValues.timestamp),
+            },
+          })
+        } else {
           throw new ConflictException('The activity can no longer enter review.')
         }
         await tx.auditLog.create({
@@ -1115,11 +1255,22 @@ export class ActivitiesService {
             },
           },
         })
-        return this.mapWithMetrics(
+        const internalAcknowledgement = await finishRuleSourceOperation(
+          tx,
+          source.operationHandle,
+          reservation.updateId,
+        )
+        const sourceAcknowledgement = proofClientAcknowledgement(
+          internalAcknowledgement,
+          reservation.updateId,
+          input.clientUpdateId,
+        )
+        const result = await this.mapWithMetrics(
           tx,
           actor,
           await this.requireActivity(tx, actor, update.projectId, update.activityId),
         )
+        return { ...result, sourceAcknowledgement }
       },
     )
   }
@@ -1132,12 +1283,52 @@ export class ActivitiesService {
     input: ReviewActivityUpdateDto,
   ) {
     return withAuthorizedOperation(this.prisma, identity, 'evidence.review', async (tx, actor) => {
-      const activity = await this.requireActivity(tx, actor, projectId, activityId)
-      if (!UUID_PATTERN.test(updateId)) throw new NotFoundException('Activity update unavailable.')
+      if (
+        actor.roles.length !== 1 ||
+        actor.roles[0] !== 'MONITORING_AND_EVALUATION_OFFICER' ||
+        !hasAtomicPermission(actor.roles[0], actor.permissions, 'evidence.review')
+      )
+        throw new ForbiddenException('Activity review is unavailable.')
+      if (![projectId, activityId, updateId].every((id) => UUID_PATTERN.test(id)))
+        throw new NotFoundException('Activity update unavailable.')
+      if (
+        !['APPROVE', 'RETURN'].includes(input.decision) ||
+        !input.reason.trim() ||
+        input.reason.trim().length > 1000 ||
+        !Number.isFinite(Date.parse(input.expectedUpdatedAt))
+      )
+        throw new BadRequestException('Invalid activity review.')
+      const source = await beginRuleSourceOperation(
+        tx,
+        'ACTIVITY_REVIEW',
+        projectId,
+        activityId,
+        { kind: 'CLIENT_MUTATION', id: input.clientMutationId },
+        sourceMutationBody(input, { updateId: updateId.toLowerCase() }),
+      )
+      if (source.kind === 'REPLAY') return source.acknowledgement
+      await tx.$queryRaw`SELECT id FROM pathways.project_activities WHERE organization_id=${actor.organizationId}::uuid
+        AND project_id=${projectId.toLowerCase()}::uuid AND id=${activityId.toLowerCase()}::uuid FOR UPDATE`
+      await tx.$queryRaw`SELECT id FROM pathways.activity_updates WHERE organization_id=${actor.organizationId}::uuid
+        AND project_id=${projectId.toLowerCase()}::uuid AND activity_id=${activityId.toLowerCase()}::uuid
+        AND id=${updateId.toLowerCase()}::uuid FOR UPDATE`
+      const reviewer = await readApplicationProfile(
+        tx,
+        actor.id,
+        actor.organizationId,
+        actor.userId,
+      )
+      if (
+        reviewer.roles.length !== 1 ||
+        reviewer.roles[0] !== 'MONITORING_AND_EVALUATION_OFFICER' ||
+        !hasAtomicPermission(reviewer.roles[0], reviewer.permissions, 'evidence.review')
+      )
+        throw new ForbiddenException('Activity review is unavailable.')
+      const activity = await this.requireActivity(tx, reviewer, projectId, activityId)
       const update = await tx.activityUpdate.findFirst({
         where: {
           id: updateId.toLowerCase(),
-          organizationId: actor.organizationId,
+          organizationId: reviewer.organizationId,
           projectId: activity.projectId,
           activityId: activity.id,
         },
@@ -1151,7 +1342,7 @@ export class ActivitiesService {
         },
       })
       if (!update) throw new NotFoundException('Activity update unavailable.')
-      if (update.submittedById === actor.userId)
+      if (update.submittedById === reviewer.userId)
         throw new ForbiddenException('A submitter cannot review their own update.')
       if (update.status !== 'PENDING' || activity.status !== 'FOR_REVIEW')
         throw new ConflictException('This update is no longer awaiting review.')
@@ -1160,47 +1351,69 @@ export class ActivitiesService {
         throw new ConflictException('Activity update changed; reload before reviewing.')
       if (update.evidenceMedia_update.some((proof) => !proof.storageReady))
         throw new ConflictException('Proof upload is incomplete.')
-      const now = new Date()
+      const now = new Date(source.generatedValues.timestamp)
       await tx.activityUpdate.update({
-        where: { id: update.id },
+        where: {
+          id: update.id,
+          organizationId: reviewer.organizationId,
+          projectId: activity.projectId,
+          activityId: activity.id,
+          status: 'PENDING',
+          updatedAt: expected,
+        },
         data: {
           status: input.decision === 'APPROVE' ? 'APPROVED' : 'REJECTED',
-          reviewedById: actor.userId,
+          reviewedById: reviewer.userId,
           reviewedAt: now,
+          updatedAt: now,
           reviewReason: input.reason.trim(),
         },
       })
       if (update.evidenceMedia_update.length) {
         await tx.evidenceMedia.updateMany({
-          where: { activityUpdateId: update.id, status: 'PENDING' },
+          where: {
+            organizationId: reviewer.organizationId,
+            projectId: activity.projectId,
+            activityId: activity.id,
+            activityUpdateId: update.id,
+            status: 'PENDING',
+          },
           data:
             input.decision === 'APPROVE'
-              ? { status: 'VERIFIED', verifiedById: actor.userId, verifiedAt: now }
+              ? { status: 'VERIFIED', verifiedById: reviewer.userId, verifiedAt: now }
               : {
                   status: 'REJECTED',
-                  rejectedById: actor.userId,
+                  rejectedById: reviewer.userId,
                   rejectedAt: now,
                   rejectionReason: input.reason.trim(),
                 },
         })
       }
       await tx.projectActivity.update({
-        where: { id: activity.id },
+        where: {
+          id: activity.id,
+          organizationId: reviewer.organizationId,
+          projectId: activity.projectId,
+        },
         data:
           input.decision === 'APPROVE'
             ? {
-                status: 'COMPLETED',
-                progressPercent: 100,
-                actualEndDate: new Date(`${this.businessDate(now)}T00:00:00.000Z`),
-                reviewedById: actor.userId,
-                reviewedAt: now,
+                status: update.progressPercent === 100 ? 'COMPLETED' : 'IN_PROGRESS',
+                progressPercent: update.progressPercent,
+                actualEndDate:
+                  update.progressPercent === 100
+                    ? new Date(`${source.generatedValues.businessDate}T00:00:00.000Z`)
+                    : null,
+                reviewedById: update.progressPercent === 100 ? reviewer.userId : null,
+                reviewedAt: update.progressPercent === 100 ? now : null,
+                updatedAt: now,
               }
-            : { status: 'IN_PROGRESS', progressPercent: update.progressPercent },
+            : { status: 'IN_PROGRESS', progressPercent: update.progressPercent, updatedAt: now },
       })
       await tx.auditLog.create({
         data: {
-          organizationId: actor.organizationId,
-          actorUserId: actor.userId,
+          organizationId: reviewer.organizationId,
+          actorUserId: reviewer.userId,
           projectId: activity.projectId,
           action:
             input.decision === 'APPROVE' ? 'ACTIVITY_UPDATE_APPROVED' : 'ACTIVITY_UPDATE_RETURNED',
@@ -1209,47 +1422,29 @@ export class ActivitiesService {
           changes: { reason: input.reason.trim() },
         },
       })
-      return this.mapWithMetrics(
+      const sourceAcknowledgement = await finishRuleSourceOperation(
         tx,
-        actor,
-        await this.requireActivity(tx, actor, activity.projectId, activity.id),
+        source.operationHandle,
+        input.clientMutationId,
       )
+      const result = await this.mapWithMetrics(
+        tx,
+        reviewer,
+        await this.requireActivity(tx, reviewer, activity.projectId, activity.id),
+      )
+      return { ...result, sourceAcknowledgement }
     })
   }
 
   async downloadProof(
     identity: ApplicationIdentity,
-    projectId: string,
-    activityId: string,
-    evidenceId: string,
+    _projectId: string,
+    _activityId: string,
+    _evidenceId: string,
   ) {
-    const metadata = await withAuthorizedOperation(
-      this.prisma,
-      identity,
-      'evidence.read',
-      async (tx, actor) => {
-        const project = await this.requireProject(tx, actor, projectId)
-        if (!UUID_PATTERN.test(activityId)) throw new NotFoundException('Proof unavailable.')
-        if (!UUID_PATTERN.test(evidenceId)) throw new NotFoundException('Proof unavailable.')
-        const proof = await tx.evidenceMedia.findFirst({
-          where: {
-            id: evidenceId.toLowerCase(),
-            organizationId: actor.organizationId,
-            projectId: project.id,
-            activityId: activityId.toLowerCase(),
-            storageReady: true,
-            activityUpdateId: { not: null },
-          },
-          select: { bucket: true, objectKey: true, fileName: true, contentType: true },
-        })
-        if (!proof) throw new NotFoundException('Proof unavailable.')
-        return proof
-      },
-    )
-    return {
-      ...metadata,
-      body: await this.storage.downloadPrivateFile(metadata.bucket, metadata.objectKey),
-    }
+    return withAuthorizedOperation(this.prisma, identity, 'evidence.read', async () => {
+      throw new ForbiddenException('Private proof download is unavailable.')
+    })
   }
 
   listMilestones(identity: ApplicationIdentity, projectId: string) {

@@ -30,7 +30,9 @@ import { type ApplicationIdentity, UUID_PATTERN } from '../auth/developer-access
 import { BeneficiariesService } from '../beneficiaries/beneficiaries.service'
 import { ParticipantsService } from '../participants/participants.service'
 import { StorageService } from '../storage/storage.service'
+import { parseAutomaticMappingReceipt } from './automatic-mapping-receipt'
 import type {
+  AutomaticImportMappingDto,
   ImportRowsQueryDto,
   ProcessImportDto,
   SaveImportMappingDto,
@@ -308,6 +310,51 @@ export class ImportsService {
         sourceHeaders: sourceColumns.map((column) => column.key),
         sourceColumns,
         mappings,
+      }
+    })
+  }
+
+  automaticMapping(
+    identity: ApplicationIdentity,
+    projectId: string,
+    batchId: string,
+    input: AutomaticImportMappingDto,
+  ) {
+    if (
+      !UUID_PATTERN.test(projectId) ||
+      !UUID_PATTERN.test(batchId) ||
+      !input ||
+      Object.keys(input).length !== 1 ||
+      !Object.hasOwn(input, 'expectedMappingRevision') ||
+      (input.expectedMappingRevision !== 0 && input.expectedMappingRevision !== 1)
+    ) {
+      throw new BadRequestException('Invalid automatic mapping request.')
+    }
+    return withAuthorizedOperation(this.prisma, identity, 'imports.upload', async (tx, actor) => {
+      const batch = await this.requireBatch(tx, actor, projectId, batchId)
+      if (batch.uploadedById !== actor.userId)
+        throw new ForbiddenException('Automatic mapping is unavailable.')
+      let receipt: unknown
+      try {
+        const rows = await tx.$queryRaw<Array<{ receipt: unknown }>>(Prisma.sql`
+          SELECT pathways.p29_auto_map_import(${batch.id}::uuid, ${input.expectedMappingRevision}::integer) AS receipt
+        `)
+        if (rows.length !== 1)
+          throw new ServiceUnavailableException('Automatic mapping is unavailable.')
+        receipt = rows[0].receipt
+      } catch (error) {
+        const meta = error && typeof error === 'object' && 'meta' in error ? error.meta : null
+        const code = meta && typeof meta === 'object' && 'code' in meta ? meta.code : null
+        if (code === '22023') throw new BadRequestException('Invalid automatic mapping request.')
+        if (code === '40001')
+          throw new ConflictException('The import changed. Reload before retrying.')
+        if (code === '42501') throw new ForbiddenException('Automatic mapping is unavailable.')
+        throw new ServiceUnavailableException('Automatic mapping is unavailable.')
+      }
+      try {
+        return parseAutomaticMappingReceipt(receipt, batch.id)
+      } catch {
+        throw new ServiceUnavailableException('Automatic mapping is unavailable.')
       }
     })
   }

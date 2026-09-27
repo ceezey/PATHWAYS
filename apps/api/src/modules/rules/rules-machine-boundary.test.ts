@@ -1,12 +1,15 @@
+import { EventEmitter } from 'node:events'
+import type { IncomingMessage, ServerResponse } from 'node:http'
 import { type ExecutionContext, ForbiddenException, RequestMethod, type Type } from '@nestjs/common'
 import { METHOD_METADATA, PATH_METADATA } from '@nestjs/common/constants'
 import { Reflector } from '@nestjs/core'
 // Machine boundary support unit tests.
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it } from 'vitest'
 import { AUTH_BOUNDARY_KEY } from '../../common/decorators/auth-boundary.decorator'
 import { PERMISSION_KEY } from '../../common/decorators/permission.decorator'
 import { IS_PUBLIC_KEY } from '../../common/decorators/public.decorator'
 import { ROLES_KEY } from '../../common/decorators/roles.decorator'
+import { machineBudgetMiddleware } from '../../common/network/machine-request-budget'
 import {
   MACHINE_PURPOSE,
   RulesMachineBoundary,
@@ -16,6 +19,10 @@ import {
 
 const drain = 'a'.repeat(64)
 const sweep = 'b'.repeat(64)
+const responses: EventEmitter[] = []
+afterEach(() => {
+  for (const response of responses.splice(0)) response.emit('finish')
+})
 const fixture = () => {
   class Controller {
     drain() {}
@@ -44,9 +51,9 @@ const fixture = () => {
       { controller: Controller, handler: Controller.prototype.drain, purpose: 'DRAIN' },
       { controller: Controller, handler: Controller.prototype.sweep, purpose: 'SWEEP' },
     ],
-    () => now,
   )
-  const request = {
+  const request = Object.assign(new EventEmitter(), {
+    url: '/api/internal/rules/drain',
     method: 'POST',
     rawHeaders: ['Authorization', `Bearer ${drain}`],
     headers: { authorization: `Bearer ${drain}` } as Record<string, unknown>,
@@ -54,10 +61,16 @@ const fixture = () => {
     query: {} as unknown,
     user: undefined as unknown,
     auth: undefined as unknown,
-  }
+  })
   let handler = Controller.prototype.drain
   let controller: Type<object> = Controller
-  const response = { setHeader: () => {} }
+  const response = Object.assign(new EventEmitter(), { setHeader: () => {}, destroy: () => {} })
+  responses.push(response)
+  machineBudgetMiddleware('api', { now: () => now })(
+    request as unknown as IncomingMessage,
+    response as unknown as ServerResponse,
+    () => {},
+  )
   const context = {
     getHandler: () => handler,
     getClass: () => controller,
@@ -291,6 +304,6 @@ describe('exact machine boundary proposal', () => {
   it('preserves the entry deadline rather than resetting it after authentication', () => {
     const f = fixture()
     f.setTime(26000)
-    expect(() => f.boundary.enter(f.context, 100)).toThrow(ForbiddenException)
+    expect(() => f.boundary.enter(f.context)).toThrow(ForbiddenException)
   })
 })

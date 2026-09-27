@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest'
-import { activityObservation, indicatorObservation, timelineObservation } from './rule-metrics'
+import {
+  activityObservation,
+  indicatorObservation,
+  timelineObservation as observeTimeline,
+} from './rule-metrics'
+const timelineObservation = (input: Record<string, unknown>) =>
+  observeTimeline({ projectStatus: 'PLANNED', projectArchived: false, ...input })
 
 const org = '10000000-0000-4000-8000-000000000001'
 const project = '20000000-0000-4000-8000-000000000002'
@@ -196,6 +202,34 @@ describe('trusted indicator observations', () => {
 })
 
 describe('business calendar timeline metrics', () => {
+  it('withdraws completed, held, cancelled and archived timelines under the approved applicability contract', () => {
+    const base = {
+      ...context,
+      reportingDate: '2026-09-26',
+      startDate: '2026-09-20',
+      endDate: '2026-09-25',
+      revision: '1',
+    }
+    for (const metric of [
+      'PROJECT_TIMELINE_ELAPSED_PERCENT',
+      'PROJECT_REMAINING_DAYS',
+      'PROJECT_OVERDUE_DAYS',
+    ]) {
+      for (const projectStatus of ['COMPLETED', 'ON_HOLD', 'CANCELLED'])
+        expect(timelineObservation({ ...base, metric, projectStatus }).cell).toEqual({
+          state: 'NOT_APPLICABLE',
+          value: null,
+          reason: 'NOT_APPLICABLE',
+        })
+      expect(timelineObservation({ ...base, metric, projectArchived: true }).cell.state).toBe(
+        'NOT_APPLICABLE',
+      )
+      expect(
+        timelineObservation({ ...base, metric, projectStatus: 'ONGOING' }).cell.value,
+      ).not.toBeNull()
+    }
+    expect(() => observeTimeline({ ...base, metric: 'PROJECT_OVERDUE_DAYS' })).toThrow()
+  })
   it.each([
     ['2026-09-19', '0', '11', '0'],
     ['2026-09-20', '0', '10', '0'],
@@ -260,6 +294,8 @@ describe('business calendar timeline metrics', () => {
     })
     expect(result.calculation).toEqual({
       kind: 'PROJECT_TIMELINE',
+      projectStatus: 'PLANNED',
+      projectArchived: false,
       reportingDate: '2026-09-26',
       startDate: '2026-09-20',
       endDate: '2026-09-30',

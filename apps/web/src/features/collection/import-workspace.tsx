@@ -1,7 +1,7 @@
 'use client'
 
 import { FileSpreadsheet, RefreshCw, Upload } from 'lucide-react'
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { toast } from 'sonner'
 
 import { PageHeader } from '@/components/layout/page-header'
@@ -18,6 +18,8 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { useCurrentRole } from '@/hooks/use-current-role'
+import { type SensitiveDraftOwner, useSensitiveDraftOwner } from '@/lib/auth/sensitive-drafts'
+import { principalHasAtomicPermission } from '@/lib/rbac/route-access'
 import { pathwaysClient } from '@/lib/services/pathways-client'
 import type {
   DigitalFormDefinition,
@@ -44,10 +46,21 @@ function displayValue(value: unknown) {
 
 export function ImportWorkspace() {
   const { profile } = useCurrentRole()
-  const canUpload = profile?.permissions.includes('imports.upload') === true
-  const canReview = profile?.permissions.includes('imports.review') === true
-  const canValidate = profile?.permissions.includes('imports.validate') === true
-  const canProcess = profile?.permissions.includes('imports.process') === true
+  const scope = useSensitiveDraftOwner(profile, 'import-workspace', 'imports.read', null, null)
+  if (!scope) return <output>Current import access is required.</output>
+  const accessKey = JSON.stringify([
+    profile?.roles,
+    profile?.permissions,
+    profile?.assignedProjectIds,
+  ])
+  return <OwnedImportWorkspace key={scope.key + scope.generation + accessKey} scope={scope} />
+}
+function OwnedImportWorkspace({ scope }: { scope: SensitiveDraftOwner }) {
+  const { profile } = useCurrentRole()
+  const canUpload = principalHasAtomicPermission(profile, 'imports.upload')
+  const canReview = principalHasAtomicPermission(profile, 'imports.review')
+  const canValidate = principalHasAtomicPermission(profile, 'imports.validate')
+  const canProcess = principalHasAtomicPermission(profile, 'imports.process')
   const [projects, setProjects] = useState<ProjectSummary[]>([])
   const [projectId, setProjectId] = useState('')
   const [forms, setForms] = useState<DigitalFormDefinition[]>([])
@@ -59,32 +72,90 @@ export function ImportWorkspace() {
   const [mapping, setMapping] = useState<Record<string, string>>({})
   const [pending, setPending] = useState(false)
   const [loadState, setLoadState] = useState<'loading' | 'ready' | 'error'>('loading')
+  const mounted = useRef(true)
+  const mutation = useRef<object | null>(null)
+  const latest = useRef({ projectId, formId, file, batch, profile })
+  latest.current = { projectId, formId, file, batch, profile }
+  const uploadIdentity = useRef<{
+    file: File
+    projectId: string
+    formId: string
+    id: string
+  } | null>(null)
+  useEffect(() => {
+    mounted.current = true
+    return () => {
+      mounted.current = false
+    }
+  }, [])
+  const eligible = (
+    permission: Parameters<typeof principalHasAtomicPermission>[1],
+    wantedProject = latest.current.projectId,
+  ) => {
+    const principal = latest.current.profile
+    return (
+      mounted.current &&
+      scope.isCurrent() &&
+      principalHasAtomicPermission(principal, permission) &&
+      (!wantedProject ||
+        principal?.assignedProjectIds.includes(wantedProject) ||
+        principal?.roles[0] === 'SYSTEM_ADMINISTRATOR' ||
+        principal?.roles[0] === 'PROGRAM_MANAGER')
+    )
+  }
+  const begin = (permission: Parameters<typeof principalHasAtomicPermission>[1]) => {
+    if (mutation.current || !eligible(permission)) return null
+    const snapshot = latest.current
+    const marker = {}
+    mutation.current = marker
+    setPending(true)
+    return {
+      valid: (nextPermission = permission) =>
+        mutation.current === marker &&
+        eligible(nextPermission) &&
+        snapshot.projectId === latest.current.projectId &&
+        snapshot.formId === latest.current.formId &&
+        snapshot.file === latest.current.file,
+      finish: () => {
+        if (mutation.current === marker) {
+          mutation.current = null
+          if (mounted.current && scope.isCurrent()) setPending(false)
+        }
+      },
+    }
+  }
+  type Ticket = NonNullable<ReturnType<typeof begin>>
 
   useEffect(() => {
     let mounted = true
     pathwaysClient
       .getProjects()
       .then((value) => {
-        if (!mounted) return
+        if (!mounted || !scope.isCurrent()) return
         setProjects(value)
         setProjectId(value[0]?.id ?? '')
         setLoadState('ready')
       })
-      .catch(() => mounted && setLoadState('error'))
+      .catch(() => mounted && scope.isCurrent() && setLoadState('error'))
     return () => {
       mounted = false
     }
-  }, [])
+  }, [scope.isCurrent])
 
   useEffect(() => {
     if (!projectId) return
     let mounted = true
+    setForms([])
+    setBatches([])
+    setBatch(null)
+    setRows([])
+    setMapping({})
     Promise.all([
       pathwaysClient.getDigitalForms(projectId),
       pathwaysClient.getImportBatches(projectId),
     ])
       .then(([formRecords, batchRecords]) => {
-        if (!mounted) return
+        if (!mounted || !scope.isCurrent() || latest.current.projectId !== projectId) return
         const published = formRecords.filter((item) => item.status === 'PUBLISHED')
         setForms(published)
         setFormId((current) =>
@@ -95,12 +166,13 @@ export function ImportWorkspace() {
         setRows([])
       })
       .catch(() => {
-        if (mounted) toast.error('Import workspace data could not be loaded.')
+        if (mounted && scope.isCurrent() && latest.current.projectId === projectId)
+          toast.error('Import workspace data could not be loaded.')
       })
     return () => {
       mounted = false
     }
-  }, [projectId])
+  }, [projectId, scope.isCurrent])
 
   const selectedForm = forms.find((item) => item.id === (batch?.formId ?? formId))
   const sourceColumns: ImportSourceColumn[] =
@@ -112,16 +184,19 @@ export function ImportWorkspace() {
     }))
   const sourceColumnByKey = new Map(sourceColumns.map((column) => [column.key, column]))
 
-  const loadBatch = async (batchId: string) => {
-    setPending(true)
+  const loadBatch = async (batchId: string, parentTicket?: Ticket) => {
+    const ticket = parentTicket ?? begin('imports.read')
+    if (!ticket || !ticket.valid('imports.read')) return
     try {
       const [detail, page] = await Promise.all([
         pathwaysClient.getImportBatch(projectId, batchId),
         pathwaysClient.getImportRows(projectId, batchId),
       ])
+      if (!ticket.valid('forms.read')) return
       const definition =
         forms.find((item) => item.id === detail.formId) ??
         (await pathwaysClient.getDigitalForm(projectId, detail.formId))
+      if (!ticket.valid('imports.read')) return
       setForms((current) =>
         current.some((item) => item.id === definition.id) ? current : [...current, definition],
       )
@@ -138,106 +213,193 @@ export function ImportWorkspace() {
             }))
           ).map((column) => {
             const reviewed = detail.mappings?.find((item) => item.sourceFieldName === column.key)
-            return [column.key, reviewed?.targetField?.code ?? '__ignore__']
+            return [
+              column.key,
+              reviewed?.status === 'IGNORED'
+                ? '__ignore__'
+                : reviewed?.status === 'MAPPED' && reviewed.targetField
+                  ? reviewed.targetField.code
+                  : '__pending__',
+            ]
           }),
         ),
       )
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'The import batch could not be loaded.')
+      if (parentTicket && ticket.valid('imports.read')) throw error
+      if (ticket.valid('imports.read'))
+        toast.error(
+          error instanceof Error ? error.message : 'The import batch could not be loaded.',
+        )
     } finally {
-      setPending(false)
+      if (!parentTicket) ticket.finish()
     }
   }
 
-  const refreshBatches = async () => {
+  const refreshBatches = async (parentTicket?: Ticket) => {
     if (!projectId) return
-    const records = await pathwaysClient.getImportBatches(projectId)
-    setBatches(records)
-    if (batch) await loadBatch(batch.id)
+    const ticket = parentTicket ?? begin('imports.read')
+    if (!ticket || !ticket.valid('imports.read')) return
+    try {
+      const records = await pathwaysClient.getImportBatches(projectId)
+      if (!ticket.valid('imports.read')) return
+      setBatches(records)
+      if (batch) await loadBatch(batch.id, ticket)
+    } catch (error) {
+      if (parentTicket && ticket.valid('imports.read')) throw error
+      if (ticket.valid('imports.read'))
+        toast.error(
+          error instanceof Error ? error.message : 'Import batches could not be refreshed.',
+        )
+    } finally {
+      if (!parentTicket) ticket.finish()
+    }
   }
 
   const upload = async () => {
-    if (!file || !formId || !projectId) {
+    if (
+      !file ||
+      !formId ||
+      !projectId ||
+      !forms.some(
+        (definition) =>
+          definition.id === formId &&
+          definition.projectId === projectId &&
+          definition.status === 'PUBLISHED',
+      )
+    ) {
       toast.error('Choose a project, a published form, and one source file.')
       return
     }
-    setPending(true)
+    const ticket = begin('imports.upload')
+    if (!ticket) return
+    if (
+      !uploadIdentity.current ||
+      uploadIdentity.current.file !== file ||
+      uploadIdentity.current.projectId !== projectId ||
+      uploadIdentity.current.formId !== formId
+    ) {
+      uploadIdentity.current = { file, projectId, formId, id: crypto.randomUUID() }
+    }
     try {
       const created = await pathwaysClient.uploadImport(
         projectId,
         formId,
-        crypto.randomUUID(),
+        uploadIdentity.current.id,
         file,
       )
+      if (!ticket.valid('imports.upload')) return
+      if (created.mappingRevision === 0 && created.storageStatus === 'STORED') {
+        await pathwaysClient.automaticImportMapping(projectId, created.id, 0)
+        if (!ticket.valid('imports.read')) return
+      }
+      await refreshBatches(ticket)
+      if (!ticket.valid('imports.read')) return
+      await loadBatch(created.id, ticket)
+      if (!ticket.valid()) return
       setFile(null)
-      await refreshBatches()
-      await loadBatch(created.id)
-      toast.success('The private upload was staged for mapping.')
+      uploadIdentity.current = null
+      toast.success(
+        'The private upload was staged. Unresolved mappings require an authorized reviewer.',
+      )
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'The source file could not be uploaded.')
+      if (ticket.valid())
+        toast.error(
+          error instanceof Error
+            ? error.message
+            : 'The source file could not be uploaded. The same selected file can be retried.',
+        )
     } finally {
-      setPending(false)
+      ticket.finish()
     }
   }
 
   const saveMapping = async () => {
-    if (!batch) return
+    if (
+      !batch ||
+      sourceColumns.some((column) => !mapping[column.key] || mapping[column.key] === '__pending__')
+    ) {
+      toast.error('Resolve every pending source column before saving.')
+      return
+    }
     const mappings: ImportMappingInput[] = sourceColumns.map((column) => ({
       sourceFieldName: column.key,
       ignored: mapping[column.key] === '__ignore__',
       targetFieldCode: mapping[column.key] === '__ignore__' ? undefined : mapping[column.key],
     }))
-    setPending(true)
+    const ticket = begin('imports.review')
+    if (!ticket) return
     try {
       await pathwaysClient.saveImportMapping(projectId, batch.id, batch.mappingRevision, mappings)
-      await loadBatch(batch.id)
+      if (!ticket.valid('imports.read')) return
+      await loadBatch(batch.id, ticket)
+      if (!ticket.valid()) return
       toast.success('Mapping revision saved. Validation results were reset.')
     } catch (error) {
+      if (!ticket.valid()) return
       toast.error(error instanceof Error ? error.message : 'The mapping could not be saved.')
     } finally {
-      setPending(false)
+      ticket.finish()
     }
   }
 
   const validate = async () => {
     if (!batch) return
-    setPending(true)
+    const ticket = begin('imports.validate')
+    if (!ticket) return
     try {
       await pathwaysClient.validateImport(projectId, batch.id, batch.mappingRevision)
-      await loadBatch(batch.id)
+      if (!ticket.valid('imports.read')) return
+      await loadBatch(batch.id, ticket)
+      if (!ticket.valid()) return
       toast.success('Validation revision completed.')
     } catch (error) {
+      if (!ticket.valid()) return
       toast.error(error instanceof Error ? error.message : 'Validation could not be completed.')
     } finally {
-      setPending(false)
+      ticket.finish()
     }
   }
 
   const process = async () => {
     if (!batch) return
-    setPending(true)
+    const ticket = begin('imports.process')
+    if (!ticket) return
     try {
       await pathwaysClient.processImport(projectId, batch.id, batch.validationRevision)
-      await loadBatch(batch.id)
+      if (!ticket.valid('imports.read')) return
+      await loadBatch(batch.id, ticket)
+      if (!ticket.valid()) return
       toast.success('A bounded processing checkpoint completed.')
     } catch (error) {
+      if (!ticket.valid()) return
       toast.error(error instanceof Error ? error.message : 'Processing could not be completed.')
     } finally {
-      setPending(false)
+      ticket.finish()
     }
   }
 
   const resume = async () => {
     if (!batch) return
-    setPending(true)
+    const ticket = begin('imports.upload')
+    if (!ticket) return
     try {
       await pathwaysClient.resumeImportUpload(projectId, batch.id)
-      await loadBatch(batch.id)
+      if (!ticket.valid('imports.upload')) return
+      const stored = await pathwaysClient.getImportBatch(projectId, batch.id)
+      if (!ticket.valid('imports.upload')) return
+      if (stored.mappingRevision === 0 && stored.storageStatus === 'STORED') {
+        await pathwaysClient.automaticImportMapping(projectId, batch.id, 0)
+        if (!ticket.valid('imports.read')) return
+      }
+      if (!ticket.valid('imports.read')) return
+      await loadBatch(batch.id, ticket)
+      if (!ticket.valid()) return
       toast.success('Stored source finalization resumed.')
     } catch (error) {
+      if (!ticket.valid()) return
       toast.error(error instanceof Error ? error.message : 'Stored source recovery failed.')
     } finally {
-      setPending(false)
+      ticket.finish()
     }
   }
 
@@ -247,7 +409,7 @@ export function ImportWorkspace() {
   )
 
   return (
-    <div className="space-y-6">
+    <fieldset disabled={pending} className="space-y-6">
       <PageHeader
         eyebrow="Data workspace"
         title="Metadata-Driven Data Integration"
@@ -276,6 +438,7 @@ export function ImportWorkspace() {
             <Select
               value={projectId}
               onValueChange={(value) => {
+                if (mutation.current || !scope.isCurrent()) return
                 setProjectId(value)
                 setFile(null)
                 setFormId('')
@@ -299,7 +462,15 @@ export function ImportWorkspace() {
           </div>
           <div className="space-y-2">
             <Label>Published form version</Label>
-            <Select value={formId} onValueChange={setFormId}>
+            <Select
+              value={formId}
+              onValueChange={(value) => {
+                if (!mutation.current && scope.isCurrent()) {
+                  setFormId(value)
+                  setFile(null)
+                }
+              }}
+            >
               <SelectTrigger>
                 <SelectValue placeholder="Choose form" />
               </SelectTrigger>
@@ -320,7 +491,9 @@ export function ImportWorkspace() {
               accept=".csv,.xlsx,.xls"
               disabled={!canUpload || pending}
               type="file"
-              onChange={(event) => setFile(event.target.files?.[0] ?? null)}
+              onChange={(event) => {
+                if (!mutation.current && scope.isCurrent()) setFile(event.target.files?.[0] ?? null)
+              }}
             />
           </div>
           <div className="md:col-span-3">
@@ -436,8 +609,10 @@ export function ImportWorkspace() {
                           disabled={
                             !canReview || pending || mappingLockedStatuses.has(batch.status)
                           }
-                          value={mapping[column.key] ?? '__ignore__'}
+                          value={mapping[column.key] ?? '__pending__'}
                           onValueChange={(value) =>
+                            !mutation.current &&
+                            scope.isCurrent() &&
                             setMapping((current) => ({ ...current, [column.key]: value }))
                           }
                         >
@@ -445,6 +620,9 @@ export function ImportWorkspace() {
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent>
+                            <SelectItem value="__pending__">
+                              Pending: select a target or explicit ignore
+                            </SelectItem>
                             <SelectItem value="__ignore__">Ignore this source column</SelectItem>
                             {selectedForm?.fields.map((field) => (
                               <SelectItem key={field.code} value={field.code}>
@@ -584,6 +762,6 @@ export function ImportWorkspace() {
         Beneficiary registration rows remain marked unprocessed until P04 supplies the domain
         handler; generic valid rows alone become versioned submissions.
       </div>
-    </div>
+    </fieldset>
   )
 }

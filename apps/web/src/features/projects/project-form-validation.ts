@@ -18,6 +18,18 @@ export const projectSetupSchema = z
   .object({
     objectives: z.string().trim().min(3, 'Enter project objectives.'),
     partners: z.string().trim().max(1000, 'Use at most 1,000 characters.'),
+    partnerOrganizations: z
+      .string()
+      .trim()
+      .max(2500)
+      .refine((value) => {
+        const names = value
+          .split('\n')
+          .map((name) => name.trim())
+          .filter(Boolean)
+        return names.length <= 20 && names.every((name) => name.length <= 120)
+      }, 'Use at most 20 organizations, one per line, with names of at most 120 characters.')
+      .optional(),
     projectBudget: z.union([
       z.literal(''),
       z.string().regex(moneyPattern, 'Enter a valid PHP amount.'),
@@ -49,6 +61,14 @@ const projectCoreInput = (values: ProjectSetupSchema) => ({
   objectives: values.objectives,
   implementationArea: values.area,
   implementingPartners: values.partners || undefined,
+  implementingPartnerNames: [
+    ...new Set(
+      (values.partnerOrganizations ?? '')
+        .split('\n')
+        .map((name) => name.trim())
+        .filter(Boolean),
+    ),
+  ],
   projectBudget: values.projectBudget || undefined,
   targetBeneficiaries:
     values.targetBeneficiaries === '' ? undefined : Number(values.targetBeneficiaries),

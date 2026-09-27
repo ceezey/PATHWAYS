@@ -29,6 +29,7 @@ import type {
   UpdateFormDto,
   UpdateSubmissionDto,
 } from './metadata.dto'
+import { PublishedDefinitionCache } from './published-definition-cache'
 
 type Tx = Prisma.TransactionClient
 
@@ -177,6 +178,10 @@ function sameValues(
 
 @Injectable()
 export class MetadataService {
+  private readonly publishedDefinitions = new PublishedDefinitionCache<{
+    fingerprint: string
+    value: ReturnType<typeof mapForm>
+  }>()
   constructor(
     @Inject(PrismaService) private readonly prisma: PrismaService,
     @Inject(ParticipantsService) private readonly participants: ParticipantsService,
@@ -197,8 +202,49 @@ export class MetadataService {
 
   getForm(identity: ApplicationIdentity, projectId: string, formId: string) {
     return withAuthorizedOperation(this.prisma, identity, 'forms.read', async (tx, actor) => {
-      const row = await this.requireForm(tx, actor, projectId, formId)
-      return mapForm(row, actor)
+      const scopedProjectId = await this.requireProject(tx, actor, projectId)
+      if (!UUID_PATTERN.test(formId)) throw new NotFoundException('Form unavailable.')
+      const id = formId.toLowerCase()
+      const key = JSON.stringify([
+        actor.id,
+        actor.organizationId,
+        actor.userId,
+        actor.aal,
+        [...actor.roles].sort(),
+        [...actor.permissions].sort(),
+        [...actor.assignedProjectIds].sort(),
+        scopedProjectId,
+        id,
+      ])
+      // Cached data is a candidate only. Current scoped SQL source/status must
+      // match before this payload can be returned; authority is never cached.
+      const candidate = this.publishedDefinitions.read(key)
+      const current = await this.currentDefinition(
+        tx,
+        actor,
+        scopedProjectId,
+        id,
+        candidate?.fingerprint ?? null,
+      )
+      if (!current) throw new NotFoundException('Form unavailable.')
+      if (!current.fingerprint) {
+        this.publishedDefinitions.evictForm(id)
+        return mapForm(await this.findForm(tx, actor, scopedProjectId, id), actor)
+      }
+      if (
+        current.status === 'PUBLISHED' &&
+        candidate?.fingerprint === current.fingerprint &&
+        current.payload === null
+      )
+        return candidate.value
+      if (!current.payload) throw new NotFoundException('Form unavailable.')
+      if (current.status === 'PUBLISHED')
+        this.publishedDefinitions.write(key, id, {
+          fingerprint: current.fingerprint,
+          value: current.payload,
+        })
+      else this.publishedDefinitions.evictForm(id)
+      return current.payload
     })
   }
 
@@ -258,6 +304,7 @@ export class MetadataService {
     assertDefinition(input)
     return withAuthorizedOperation(this.prisma, identity, 'forms.manage', async (tx, actor) => {
       const current = await this.requireForm(tx, actor, projectId, formId)
+      this.publishedDefinitions.evictForm(current.id)
       if (current.status !== 'DRAFT') {
         return this.createVersion(tx, actor, current, input)
       }
@@ -314,6 +361,7 @@ export class MetadataService {
   ) {
     return withAuthorizedOperation(this.prisma, identity, 'forms.publish', async (tx, actor) => {
       const current = await this.requireForm(tx, actor, projectId, formId)
+      this.publishedDefinitions.evictForm(current.id)
       if (current.status !== 'DRAFT') throw new ConflictException('Only a draft can be published.')
       if (current.createdById === actor.userId) {
         throw new ForbiddenException('A form author cannot approve and publish the same version.')
@@ -415,6 +463,7 @@ export class MetadataService {
   ) {
     return withAuthorizedOperation(this.prisma, identity, 'forms.archive', async (tx, actor) => {
       const current = await this.requireForm(tx, actor, projectId, formId)
+      this.publishedDefinitions.evictForm(current.id)
       if (current.status === 'ARCHIVED') return mapForm(current, actor)
       const expected = this.expectedDate(input.expectedUpdatedAt)
       const changed = await tx.digitalForm.updateMany({
@@ -818,6 +867,74 @@ export class MetadataService {
         return this.findSubmission(tx, actor, form, submission.id)
       },
     )
+  }
+
+  private async currentDefinition(
+    tx: Tx,
+    actor: ApplicationIdentity,
+    projectId: string,
+    formId: string,
+    candidateFingerprint: string | null,
+  ) {
+    // Current header, exact source digest and conditional projection share one
+    // statement snapshot. Cache hits avoid returning/hydrating the field payload.
+    // Fixed JSON tuples bind every returned header/field value, without repeating
+    // property names or unrelated audit timestamps/scope columns. Native JSON
+    // escaping preserves boundaries; 1KiB per row conservatively bounds omitted
+    // fixed-name/scope serialization overhead inside the unchanged 256KiB cap.
+    const rows = await tx.$queryRaw<
+      Array<{
+        status: string
+        fingerprint: string | null
+        fieldCount: number
+        sourceBytes: bigint
+        payload: ReturnType<typeof mapForm> | null
+      }>
+    >`
+      WITH form AS (
+        SELECT f.*, json_build_array(f.id,f.project_id,f.code,f.version,f.name,f.description,f.form_type,f.status,
+          f.activity_id,f.journey_stage_id,f.created_by_id,f.published_at,f.archived_at,f.updated_at)::text AS source
+        FROM pathways.digital_forms f
+        WHERE organization_id=${actor.organizationId}::uuid AND project_id=${projectId}::uuid AND id=${formId}::uuid
+      ), fields AS (
+        SELECT f.*, json_build_array(f.id,f.code,f.label,f.data_type,f.is_required,f.is_metadata_key,f.is_saddd_field,
+          f.allowed_values,f.minimum_value,f.maximum_value,f.minimum_date,f.maximum_date,
+          f.minimum_length,f.maximum_length,f.sequence_no)::text AS source
+        FROM pathways.form_fields f
+        WHERE organization_id=${actor.organizationId}::uuid AND project_id=${projectId}::uuid AND form_id=${formId}::uuid
+        ORDER BY sequence_no,id LIMIT 101
+      ), stats AS (
+        SELECT count(*)::integer AS count,
+          coalesce(sum(octet_length(source)+1024),0)::bigint AS bytes FROM fields
+      ), snapshot AS (
+        SELECT form.*, stats.count AS field_count, stats.bytes + octet_length(form.source)+1024 AS source_bytes,
+          CASE WHEN stats.count<=100 AND stats.bytes+octet_length(form.source)+1024<=262144 THEN
+            encode(pg_catalog.sha256(convert_to('['||form.source||',['||
+              (SELECT coalesce(string_agg(source,',' ORDER BY id),'') FROM fields)||']]','UTF8')),'hex')
+            ELSE NULL END AS fingerprint FROM form CROSS JOIN stats
+      )
+      SELECT status::text, fingerprint, field_count AS "fieldCount", source_bytes AS "sourceBytes",
+        CASE WHEN fingerprint IS NULL OR (status='PUBLISHED' AND fingerprint=${candidateFingerprint}::text) THEN NULL ELSE
+          jsonb_build_object('id',id,'projectId',project_id,'code',code,'version',version,'name',name,
+            'description',description,'formType',form_type,'status',status,'activityId',activity_id,
+            'journeyStageId',journey_stage_id,'updatedAt',to_char(updated_at AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.MS"Z"'),
+            'createdByCurrentUser',coalesce(created_by_id=${actor.userId}::uuid,false),
+            'fields',(SELECT coalesce(jsonb_agg(jsonb_build_object(
+              'id',id,'code',code,'label',label,'dataType',data_type,'required',is_required,
+              'metadataKey',is_metadata_key,'sadddField',is_saddd_field,
+              'allowedValues',CASE WHEN jsonb_typeof(allowed_values)='array' THEN
+                CASE WHEN NOT EXISTS(SELECT FROM jsonb_array_elements(allowed_values) v WHERE jsonb_typeof(v)<>'string') THEN allowed_values ELSE NULL END ELSE NULL END,
+              'minimumLength',minimum_length,'maximumLength',maximum_length,'sequence',sequence_no
+            ) || jsonb_strip_nulls(jsonb_build_object(
+              'minimumValue',CASE WHEN minimum_value=trunc(minimum_value) THEN trunc(minimum_value)::text ELSE trim(trailing '.' from trim(trailing '0' from minimum_value::text)) END,
+              'maximumValue',CASE WHEN maximum_value=trunc(maximum_value) THEN trunc(maximum_value)::text ELSE trim(trailing '.' from trim(trailing '0' from maximum_value::text)) END,
+              'minimumDate',to_char(minimum_date,'YYYY-MM-DD'),'maximumDate',to_char(maximum_date,'YYYY-MM-DD')
+            )) ORDER BY sequence_no,id),'[]'::jsonb) FROM fields)
+          ) || jsonb_strip_nulls(jsonb_build_object(
+            'publishedAt',to_char(published_at AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.MS"Z"'),
+            'archivedAt',to_char(archived_at AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.MS"Z"')
+          )) END AS payload FROM snapshot`
+    return rows[0] ?? null
   }
 
   private async requireProject(tx: Tx, actor: ApplicationIdentity, projectId: string) {

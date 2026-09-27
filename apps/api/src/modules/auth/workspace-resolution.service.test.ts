@@ -153,6 +153,7 @@ describe('verified-subject workspace resolution (no live resources)', () => {
       organizationId,
       userId,
       onTiming,
+      undefined,
     )
   })
   it.each([

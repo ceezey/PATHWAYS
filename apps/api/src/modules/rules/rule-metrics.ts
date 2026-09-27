@@ -183,6 +183,8 @@ const timelineInputSchema = z
     conditionId: conditionIdSchema,
     asOf: instant,
     reportingDate: z.string().refine(isCalendarDate),
+    projectStatus: z.enum(['PLANNED', 'ONGOING', 'COMPLETED', 'ON_HOLD', 'CANCELLED']),
+    projectArchived: z.boolean(),
     revision,
     metric: z.enum([
       'PROJECT_TIMELINE_ELAPSED_PERCENT',
@@ -201,6 +203,8 @@ export function timelineObservation(input: unknown): MetricObservation {
     conditionId,
     asOf,
     reportingDate,
+    projectStatus,
+    projectArchived,
     metric,
     startDate,
     endDate,
@@ -211,9 +215,14 @@ export function timelineObservation(input: unknown): MetricObservation {
     conditionId,
     asOf,
     metric,
-    cell: timelineCells(startDate, endDate, reportingDate)[metric],
+    cell:
+      projectArchived || !['PLANNED', 'ONGOING'].includes(projectStatus)
+        ? unavailable('NOT_APPLICABLE', 'NOT_APPLICABLE')
+        : timelineCells(startDate, endDate, reportingDate)[metric],
     calculation: {
       kind: 'PROJECT_TIMELINE',
+      projectStatus,
+      projectArchived,
       reportingDate,
       startDate: startDate !== null && isCalendarDate(startDate) ? startDate : null,
       endDate: endDate !== null && isCalendarDate(endDate) ? endDate : null,

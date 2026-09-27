@@ -5,6 +5,11 @@ import type { PrismaService } from '@app/prisma/prisma.service'
 import type { ApplicationIdentity } from '../auth/developer-access'
 import { BeneficiariesService } from './beneficiaries.service'
 
+vi.mock('node:crypto', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('node:crypto')>()),
+  randomUUID: () => '50000000-0000-4000-8000-000000000005',
+}))
+
 const organizationId = '10000000-0000-4000-8000-000000000001'
 const actorId = '20000000-0000-4000-8000-000000000002'
 const projectId = '30000000-0000-4000-8000-000000000003'
@@ -121,7 +126,12 @@ describe('P04 beneficiary registration service', () => {
     digitalForm: { findFirst: vi.fn() },
     formSubmission: { findFirst: vi.fn(), create: vi.fn(), update: vi.fn() },
     formResponseValue: { createMany: vi.fn() },
-    beneficiary: { findUnique: vi.fn(), findFirst: vi.fn(), create: vi.fn(), updateMany: vi.fn() },
+    beneficiary: {
+      findUnique: vi.fn(),
+      findFirst: vi.fn(),
+      createMany: vi.fn(),
+      updateMany: vi.fn(),
+    },
     beneficiaryIdentifier: { findUnique: vi.fn(), create: vi.fn() },
     beneficiaryProjectEnrollment: {
       findUnique: vi.fn(),
@@ -143,12 +153,18 @@ describe('P04 beneficiary registration service', () => {
       status: 'PUBLISHED',
       formField_form: fields,
     })
-    tx.$queryRaw.mockResolvedValue([{ transactionTime: new Date('2026-01-01T00:00:00.000Z') }])
+    tx.$queryRaw.mockImplementation((query: TemplateStringsArray) =>
+      Promise.resolve(
+        query.join('').includes('p29_lock_registration_definition')
+          ? [{ locked: true }]
+          : [{ transactionTime: new Date('2026-01-01T00:00:00.000Z') }],
+      ),
+    )
     tx.formSubmission.findFirst.mockResolvedValue(null)
     tx.beneficiary.findUnique.mockResolvedValue(null)
     tx.beneficiary.findFirst.mockResolvedValue(null)
     tx.beneficiaryIdentifier.findUnique.mockResolvedValue(null)
-    tx.beneficiary.create.mockResolvedValue({ id: beneficiaryId })
+    tx.beneficiary.createMany.mockResolvedValue({ count: 1 })
     tx.beneficiaryProjectEnrollment.findUnique.mockResolvedValue(null)
     tx.beneficiaryProjectEnrollment.findMany.mockResolvedValue([])
     tx.beneficiaryProjectEnrollment.findFirst.mockResolvedValue(null)
@@ -176,6 +192,80 @@ describe('P04 beneficiary registration service', () => {
         : {}),
     })
 
+  it.each(['PROJECT_OFFICER', 'MONITORING_AND_EVALUATION_OFFICER', 'PROJECT_MANAGER'])(
+    'checks the exact direct definition lock before mutation for %s',
+    async (role) => {
+      await service.promoteRegistration(
+        tx as never,
+        { ...actor, roles: [role] },
+        {
+          projectId,
+          formId,
+          clientRegistrationId: registrationId,
+          values: values(),
+          source: 'DIRECT_ENTRY',
+          validatedById: actorId,
+        },
+      )
+      const first = tx.$queryRaw.mock.calls[0]
+      expect(first[0].join('')).toContain('p29_lock_registration_definition')
+      expect(first.slice(1)).toEqual([organizationId, projectId, formId, 1])
+      expect(tx.$queryRaw.mock.invocationCallOrder[0]).toBeLessThan(
+        tx.beneficiary.createMany.mock.invocationCallOrder[0],
+      )
+      expect(
+        tx.$queryRaw.mock.calls.some((call) =>
+          call[0].join('').includes("date_trunc('milliseconds', CURRENT_TIMESTAMP)"),
+        ),
+      ).toBe(true)
+    },
+  )
+  it('inserts without returning the unreadable profile and carries its server-generated ID into enrollment', async () => {
+    await promote()
+    expect(tx.beneficiary.createMany).toHaveBeenCalledWith({
+      data: expect.objectContaining({ id: beneficiaryId, organizationId, createdById: actorId }),
+    })
+    expect(tx.beneficiaryProjectEnrollment.create).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ beneficiaryId, projectId }) }),
+    )
+    expect(tx.beneficiary.createMany.mock.invocationCallOrder[0]).toBeLessThan(
+      tx.beneficiaryProjectEnrollment.create.mock.invocationCallOrder[0],
+    )
+  })
+  it('fails closed if the insert does not create exactly one profile', async () => {
+    tx.beneficiary.createMany.mockResolvedValueOnce({ count: 0 })
+    await expect(promote()).rejects.toThrow('Beneficiary registration was not created.')
+    expect(tx.beneficiaryProjectEnrollment.create).not.toHaveBeenCalled()
+    expect(tx.formSubmission.create).not.toHaveBeenCalled()
+    expect(tx.auditLog.create).not.toHaveBeenCalled()
+  })
+  it('stops false definition authorization before any domain mutation', async () => {
+    tx.$queryRaw.mockResolvedValueOnce([{ locked: false }])
+    await expect(promote()).rejects.toMatchObject({
+      status: 404,
+      message: 'Published registration form unavailable.',
+    })
+    expect(tx.beneficiary.createMany).not.toHaveBeenCalled()
+    expect(tx.beneficiaryProjectEnrollment.create).not.toHaveBeenCalled()
+    expect(tx.formSubmission.create).not.toHaveBeenCalled()
+    expect(tx.auditLog.create).not.toHaveBeenCalled()
+  })
+  it.each([{ reply: [] }, { reply: [{}] }, { reply: [{ locked: 'true' }] }])(
+    'fails closed on malformed lock reply: %j',
+    async ({ reply }) => {
+      tx.$queryRaw.mockResolvedValueOnce(reply)
+      await expect(promote()).rejects.toThrow('Registration definition lock is unavailable.')
+      expect(tx.beneficiary.createMany).not.toHaveBeenCalled()
+      expect(tx.formSubmission.create).not.toHaveBeenCalled()
+    },
+  )
+  it('preserves imported registration without direct helper or clock rewrite', async () => {
+    await promote(values(), 'IMPORTED_DATASET')
+    const queries = tx.$queryRaw.mock.calls.map((call) => call[0].join(''))
+    expect(queries.some((query) => query.includes('p29_lock_registration_definition'))).toBe(false)
+    expect(queries.some((query) => query.includes("date_trunc('milliseconds'"))).toBe(false)
+    expect(queries.some((query) => query.includes('SELECT CURRENT_TIMESTAMP'))).toBe(true)
+  })
   it('atomically creates an individual, enrollment, versioned submission, consent provenance and audit', async () => {
     await expect(promote()).resolves.toEqual({
       kind: 'PROCESSED',
@@ -183,7 +273,7 @@ describe('P04 beneficiary registration service', () => {
       enrollmentId,
       submissionId,
     })
-    expect(tx.beneficiary.create).toHaveBeenCalledOnce()
+    expect(tx.beneficiary.createMany).toHaveBeenCalledOnce()
     expect(tx.formSubmission.create).toHaveBeenCalledWith(
       expect.objectContaining({ data: expect.objectContaining({ enrollmentId, formVersion: 1 }) }),
     )
@@ -230,7 +320,7 @@ describe('P04 beneficiary registration service', () => {
         ]),
       }),
     })
-    expect(tx.beneficiary.create).not.toHaveBeenCalled()
+    expect(tx.beneficiary.createMany).not.toHaveBeenCalled()
     expect(tx.formSubmission.create).not.toHaveBeenCalled()
   })
 
@@ -245,7 +335,7 @@ describe('P04 beneficiary registration service', () => {
         age_at_registration: null,
       }),
     )
-    expect(tx.beneficiary.create).toHaveBeenCalledWith(
+    expect(tx.beneficiary.createMany).toHaveBeenCalledWith(
       expect.objectContaining({
         data: expect.objectContaining({ subjectType: 'GROUP', firstName: null, birthDate: null }),
       }),
@@ -259,7 +349,7 @@ describe('P04 beneficiary registration service', () => {
     { external_identifier_type: 'EMAIL', external_identifier_value: 'synthetic@example.invalid' },
   ])('rejects invalid or inferred registration facts: %s', async (patch) => {
     await expect(promote(values(patch))).rejects.toBeInstanceOf(BadRequestException)
-    expect(tx.beneficiary.create).not.toHaveBeenCalled()
+    expect(tx.beneficiary.createMany).not.toHaveBeenCalled()
   })
 
   it('returns review without disclosing a record for ambiguous exact identifiers', async () => {
@@ -270,14 +360,14 @@ describe('P04 beneficiary registration service', () => {
     await expect(
       promote(values({ external_identifier_type: 'PARTNER_ID', external_identifier_value: 'A-1' })),
     ).resolves.toEqual({ kind: 'REVIEW', code: 'IDENTITY_REVIEW_REQUIRED' })
-    expect(tx.beneficiary.create).not.toHaveBeenCalled()
+    expect(tx.beneficiary.createMany).not.toHaveBeenCalled()
   })
 
   it('does not merge unknown LINK input using names, dates or email', async () => {
     await expect(promote(values({ registration_operation: 'LINK' }))).rejects.toBeInstanceOf(
       ForbiddenException,
     )
-    expect(tx.beneficiary.create).not.toHaveBeenCalled()
+    expect(tx.beneficiary.createMany).not.toHaveBeenCalled()
   })
 
   it('denies exact LINK and UPDATE resolution before lookup without identity-review permission', async () => {
@@ -365,7 +455,7 @@ describe('P04 beneficiary registration service', () => {
       enrollmentId,
       submissionId,
     })
-    expect(tx.beneficiary.create).not.toHaveBeenCalled()
+    expect(tx.beneficiary.createMany).not.toHaveBeenCalled()
   })
 
   it('rejects reuse of a registration key with conflicting values', async () => {
@@ -383,7 +473,7 @@ describe('P04 beneficiary registration service', () => {
 
   it('uses the same domain writes for direct and imported registration sources', async () => {
     await promote(values(), 'DIRECT_ENTRY')
-    const directCreate = tx.beneficiary.create.mock.calls[0]?.[0]
+    const directCreate = tx.beneficiary.createMany.mock.calls[0]?.[0]
     vi.clearAllMocks()
     tx.digitalForm.findFirst.mockResolvedValue({
       id: formId,
@@ -391,11 +481,11 @@ describe('P04 beneficiary registration service', () => {
       status: 'PUBLISHED',
       formField_form: fields,
     })
-    tx.beneficiary.create.mockResolvedValue({ id: beneficiaryId })
+    tx.beneficiary.createMany.mockResolvedValue({ count: 1 })
     tx.beneficiaryProjectEnrollment.create.mockResolvedValue({ id: enrollmentId })
     tx.formSubmission.create.mockResolvedValue({ id: submissionId })
     await promote(values(), 'IMPORTED_DATASET')
-    expect(tx.beneficiary.create.mock.calls[0]?.[0]).toEqual(directCreate)
+    expect(tx.beneficiary.createMany.mock.calls[0]?.[0]).toEqual(directCreate)
     expect(tx.formSubmission.create).toHaveBeenCalledWith(
       expect.objectContaining({
         data: expect.objectContaining({ source: 'IMPORTED_DATASET', importRowId: registrationId }),

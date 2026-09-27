@@ -17,6 +17,14 @@ const legacyPrefixes = [
 ]
 let generation = 0
 const listeners = new Set<() => void>()
+/** Existing invalidation lifecycle; callers may clear ephemeral private state immediately. */
+export const subscribeSensitiveDraftInvalidation = (listener: () => void) => {
+  listeners.add(listener)
+  return () => {
+    listeners.delete(listener)
+  }
+}
+
 export const sensitiveDraftGeneration = () => generation
 export type DraftScope = {
   organizationId: string

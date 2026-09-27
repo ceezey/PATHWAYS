@@ -1,7 +1,10 @@
 /* @vitest-environment jsdom */
 
-import { cleanup, render, screen, waitFor } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { AuthorizedQueryProvider } from '@/providers/authorized-query-provider'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 
 import { ProjectActivitiesWorkspace } from './project-activities-workspace'
 
@@ -15,16 +18,29 @@ const api = vi.hoisted(() => ({
 }))
 const access = vi.hoisted(() => ({
   role: 'Project Officer',
+  access: 'ready',
   assignedProjectIds: ['4baf1a98-7285-4671-a897-64787e31fe93'],
   profile: {
+    id: 'synthetic-subject',
+    userId: 'synthetic-user',
+    organizationId: 'synthetic-org',
     roles: ['PROJECT_OFFICER'],
-    permissions: ['projects.read', 'activities.read', 'activities.proof.submit', 'journeys.read'],
+    permissions: [
+      'projects.read',
+      'projects.detail.read',
+      'activities.read',
+      'activities.proof.submit',
+      'journeys.read',
+    ],
     assignedProjectIds: ['4baf1a98-7285-4671-a897-64787e31fe93'],
   },
 }))
 
 vi.mock('next/navigation', () => ({ useRouter: () => ({ replace: vi.fn() }) }))
-vi.mock('@/lib/services/pathways-client', () => ({ pathwaysClient: api }))
+vi.mock('@/lib/services/pathways-client', () => ({
+  pathwaysClient: api,
+  PathwaysClientError: class extends Error {},
+}))
 vi.mock('@/hooks/use-current-role', () => ({ useCurrentRole: () => access }))
 vi.mock('@/hooks/use-display-labels', () => ({
   useDisplayLabels: () => ({ labels: { projectActivities: 'Activities' } }),
@@ -37,6 +53,15 @@ vi.mock('./activity-detail-panel', () => ({ ActivityDetailPanel: () => null }))
 vi.mock('./activity-form-dialog', () => ({ ActivityFormDialog: () => null }))
 vi.mock('./activity-proof-dialog', () => ({ ActivityProofDialog: () => null }))
 
+const renderWorkspace = () =>
+  render(
+    <QueryClientProvider client={new QueryClient()}>
+      <AuthorizedQueryProvider>
+        <ProjectActivitiesWorkspace projectId={projectId} />
+      </AuthorizedQueryProvider>
+    </QueryClientProvider>,
+  )
+
 describe('project activities permission-aware loading', () => {
   beforeEach(() => {
     access.role = 'Project Officer'
@@ -44,6 +69,7 @@ describe('project activities permission-aware loading', () => {
     access.profile.roles = ['PROJECT_OFFICER']
     access.profile.permissions = [
       'projects.read',
+      'projects.detail.read',
       'activities.read',
       'activities.proof.submit',
       'journeys.read',
@@ -61,23 +87,24 @@ describe('project activities permission-aware loading', () => {
     vi.clearAllMocks()
   })
 
-  it('loads only authorized activity and journey dependencies for a Project Officer', async () => {
-    render(<ProjectActivitiesWorkspace projectId={projectId} />)
+  it('loads required activity data without fetching editor dependencies for a Project Officer', async () => {
+    renderWorkspace()
 
     expect(await screen.findByRole('heading', { name: 'Activities' })).toBeTruthy()
-    expect(api.getProject).toHaveBeenCalledWith(projectId)
-    expect(api.getActivities).toHaveBeenCalledWith(projectId)
+    expect(api.getProject).toHaveBeenCalledWith(projectId, expect.any(AbortSignal))
+    expect(api.getActivities).toHaveBeenCalledWith(projectId, expect.any(AbortSignal))
     expect(api.getIndicators).not.toHaveBeenCalled()
-    expect(api.getJourneyStages).toHaveBeenCalledWith(projectId)
+    expect(api.getJourneyStages).not.toHaveBeenCalled()
     expect(api.getUsers).not.toHaveBeenCalled()
   })
 
-  it('keeps indicator and user dependencies for principals authorized to read them', async () => {
+  it('loads authorized editor dependencies only after opening the activity editor', async () => {
     access.role = 'Project Manager'
     access.assignedProjectIds = [projectId]
     access.profile.roles = ['PROJECT_MANAGER']
     access.profile.permissions = [
       'projects.read',
+      'projects.detail.read',
       'activities.read',
       'activities.create',
       'activities.update',
@@ -87,10 +114,18 @@ describe('project activities permission-aware loading', () => {
     ]
     access.profile.assignedProjectIds = [projectId]
 
-    render(<ProjectActivitiesWorkspace projectId={projectId} />)
+    renderWorkspace()
 
-    await waitFor(() => expect(api.getIndicators).toHaveBeenCalledWith(projectId))
-    expect(api.getJourneyStages).toHaveBeenCalledWith(projectId)
+    await screen.findByRole('heading', { name: 'Activities' })
+    expect(api.getIndicators).not.toHaveBeenCalled()
+    expect(api.getJourneyStages).not.toHaveBeenCalled()
+    expect(api.getUsers).not.toHaveBeenCalled()
+    fireEvent.click(screen.getByRole('button', { name: 'New Activity' }))
+
+    await waitFor(() =>
+      expect(api.getIndicators).toHaveBeenCalledWith(projectId, expect.any(AbortSignal)),
+    )
+    expect(api.getJourneyStages).toHaveBeenCalledWith(projectId, expect.any(AbortSignal))
     expect(api.getUsers).toHaveBeenCalledOnce()
   })
 })
