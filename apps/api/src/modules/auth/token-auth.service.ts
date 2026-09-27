@@ -7,6 +7,7 @@ import {
 } from '@nestjs/common'
 import { createClient } from '@supabase/supabase-js'
 
+import { isApprovedServiceProtocol } from '@pathways/config'
 import type { InspectionRequestBudget } from '../../common/network/inspection-request-budget'
 import { UUID_PATTERN, type VerifiedAuthIdentity } from './developer-access'
 import { SessionLivenessService } from './session-liveness.service'
@@ -44,7 +45,7 @@ export class TokenAuthService {
     let authOrigin: string
     try {
       const configured = new URL(url ?? '')
-      if (configured.protocol !== 'https:' || configured.username || configured.password)
+      if (!isApprovedServiceProtocol(configured) || configured.username || configured.password)
         throw new Error()
       authOrigin = configured.origin
     } catch {

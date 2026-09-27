@@ -27,6 +27,8 @@ const shared = {
 }
 const apiEnv = {
   ...shared,
+  // Loopback HTTP Supabase is accepted only outside production.
+  NODE_ENV: 'development',
   API_PORT: apiPort,
   DATABASE_URL: localDatabase.runtimeUrl,
   DIRECT_URL: localDatabase.prismaUrl,
@@ -49,12 +51,17 @@ const children = [
     stdio: 'inherit',
     env: apiEnv,
   }),
-  spawn('pnpm', ['--filter', '@pathways/web', 'dev'], {
-    cwd: root,
-    stdio: 'inherit',
-    env: shared,
-    shell,
-  }),
+  // --api-only leaves an already running web server untouched.
+  ...(process.argv.includes('--api-only')
+    ? []
+    : [
+        spawn('pnpm', ['--filter', '@pathways/web', 'dev'], {
+          cwd: root,
+          stdio: 'inherit',
+          env: shared,
+          shell,
+        }),
+      ]),
 ]
 // pnpm runs under a shell on Windows, so stop each whole process tree.
 const stop = () => {
