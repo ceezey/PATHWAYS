@@ -1,10 +1,10 @@
 'use client'
 
 import { CalendarDays, FilterX, ScrollText, Search } from 'lucide-react'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 
 import { PageHeader } from '@/components/layout/page-header'
-import { EmptyState, SectionCard, StatusBadge } from '@/components/pathways'
+import { EmptyState, LoadingSkeleton, SectionCard, StatusBadge } from '@/components/pathways'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -22,6 +22,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import { useCurrentRole } from '@/hooks/use-current-role'
+import { useSensitiveDraftOwner } from '@/lib/auth/sensitive-drafts'
+import { coreDataClient } from '@/lib/services/core-feature-client'
+import { useAuthorizedRead } from '@/providers/authorized-query-provider'
 
 type AuditEvent = {
   id: string
@@ -30,9 +34,8 @@ type AuditEvent = {
   action: string
   module: string
   target: string
-  outcome: 'Succeeded' | 'Denied' | 'Failed'
+  outcome: 'Recorded'
   summary: string
-  correlationId: string
 }
 
 const dateFormatter = new Intl.DateTimeFormat('en-PH', {
@@ -41,24 +44,61 @@ const dateFormatter = new Intl.DateTimeFormat('en-PH', {
   timeZone: 'Asia/Manila',
 })
 
-const outcomeTone = (outcome: AuditEvent['outcome']) => {
-  if (outcome === 'Succeeded') return 'success'
-  if (outcome === 'Denied') return 'warning'
-  return 'danger'
-}
+const outcomeTone = (_outcome: AuditEvent['outcome']) => 'neutral' as const
 
 export const AuditLogWorkspace = () => {
+  const { profile } = useCurrentRole()
+  const owner = useSensitiveDraftOwner(profile, 'audit-screen', 'audit.read', null, null)
+  return (
+    <AuditContent
+      key={`${owner?.key ?? 'unavailable'}:${owner?.generation ?? 0}`}
+      authorized={Boolean(owner)}
+    />
+  )
+}
+const businessDate = (timestamp: string) => {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Manila',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(new Date(timestamp))
+  const part = (type: string) => parts.find((value) => value.type === type)?.value ?? ''
+  return `${part('year')}-${part('month')}-${part('day')}`
+}
+const AuditContent = ({ authorized }: { authorized: boolean }) => {
   const [from, setFrom] = useState('')
   const [to, setTo] = useState('')
   const [page, setPage] = useState(0)
-  const accessError =
-    'Audit records are unavailable until a server-backed audit query is available.'
-  const events: AuditEvent[] = []
+  const [cursor, setCursor] = useState<string | undefined>()
+  const read = useAuthorizedRead(
+    `audit-events:${cursor ?? 'first'}`,
+    null,
+    'audit.read',
+    (signal) => coreDataClient.audit(cursor, signal),
+  )
+  const accessError = read.isError ? 'Current audit access could not be verified.' : ''
+  const loading = !read.isError && read.isPending
+  const currentData = authorized && !read.isError && !read.isPending ? read.data : undefined
+  const events: AuditEvent[] = (currentData?.rows ?? []).map((row) => ({
+    id: row.id,
+    at: row.occurredAt,
+    actor: row.actorUserId ?? 'System',
+    action: row.action,
+    module: row.entityType,
+    target: row.entityId ?? 'No record ID',
+    outcome: 'Recorded',
+    summary: `${row.action} recorded for ${row.entityType}.`,
+  }))
 
   const [query, setQuery] = useState('')
   const [moduleFilter, setModuleFilter] = useState('All')
   const [outcomeFilter, setOutcomeFilter] = useState('All')
   const [selected, setSelected] = useState<AuditEvent | null>(null)
+  const selectedCurrent = Boolean(currentData?.rows.some((row) => row.id === selected?.id))
+  useEffect(() => {
+    if (!selectedCurrent) setSelected(null)
+  }, [selectedCurrent])
 
   const visibleEvents = (() => {
     const normalizedQuery = query.trim().toLocaleLowerCase()
@@ -70,8 +110,8 @@ export const AuditLogWorkspace = () => {
         )
       return (
         matchesQuery &&
-        (!from || event.at.slice(0, 10) >= from) &&
-        (!to || event.at.slice(0, 10) <= to) &&
+        (!from || businessDate(event.at) >= from) &&
+        (!to || businessDate(event.at) <= to) &&
         (moduleFilter === 'All' || event.module === moduleFilter) &&
         (outcomeFilter === 'All' || event.outcome === outcomeFilter)
       )
@@ -98,7 +138,7 @@ export const AuditLogWorkspace = () => {
       {accessError ? (
         <div role="alert">
           {accessError}
-          <Button onClick={() => window.location.reload()}>Retry audit access</Button>
+          <Button onClick={() => void read.refetch()}>Retry audit access</Button>
         </div>
       ) : null}
       <div className="grid gap-3 sm:grid-cols-2">
@@ -129,7 +169,7 @@ export const AuditLogWorkspace = () => {
       </div>
       <SectionCard
         title="Event filters"
-        description="Narrow the visible preview without changing any audit record."
+        description="Filter this authorized page without changing any audit record."
         actions={
           <Button onClick={clearFilters} size="sm" variant="outline">
             <FilterX className="mr-2 h-4 w-4" aria-hidden="true" />
@@ -150,13 +190,22 @@ export const AuditLogWorkspace = () => {
                 className="pl-9"
                 type="search"
                 value={query}
-                onChange={(event) => setQuery(event.target.value)}
+                onChange={(event) => {
+                  setQuery(event.target.value)
+                  setPage(0)
+                }}
               />
             </span>
           </div>
           <div className="space-y-2">
             <Label htmlFor="audit-module">Module</Label>
-            <Select value={moduleFilter} onValueChange={setModuleFilter}>
+            <Select
+              value={currentData ? moduleFilter : 'All'}
+              onValueChange={(value) => {
+                setModuleFilter(value)
+                setPage(0)
+              }}
+            >
               <SelectTrigger id="audit-module">
                 <SelectValue />
               </SelectTrigger>
@@ -171,12 +220,18 @@ export const AuditLogWorkspace = () => {
           </div>
           <div className="space-y-2">
             <Label htmlFor="audit-outcome">Outcome</Label>
-            <Select value={outcomeFilter} onValueChange={setOutcomeFilter}>
+            <Select
+              value={outcomeFilter}
+              onValueChange={(value) => {
+                setOutcomeFilter(value)
+                setPage(0)
+              }}
+            >
               <SelectTrigger id="audit-outcome">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                {['All', 'Succeeded', 'Denied', 'Failed'].map((item) => (
+                {['All', 'Recorded'].map((item) => (
                   <SelectItem key={item} value={item}>
                     {item}
                   </SelectItem>
@@ -188,7 +243,9 @@ export const AuditLogWorkspace = () => {
       </SectionCard>
 
       <SectionCard title="Significant events" description={accessError}>
-        {visibleEvents.length && !accessError ? (
+        {loading ? (
+          <LoadingSkeleton />
+        ) : visibleEvents.length && !accessError ? (
           <section className="overflow-x-auto rounded-md border" aria-label="Audit events">
             <table className="w-full min-w-[760px] text-left text-sm">
               <thead className="bg-muted text-xs uppercase tracking-wide text-muted-foreground">
@@ -219,7 +276,12 @@ export const AuditLogWorkspace = () => {
                       <StatusBadge tone={outcomeTone(event.outcome)}>{event.outcome}</StatusBadge>
                     </td>
                     <td className="px-4 py-3 text-right">
-                      <Button size="sm" variant="ghost" onClick={() => setSelected(event)}>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        aria-label={`View ${event.action} for ${event.target}, event ${event.id}`}
+                        onClick={() => setSelected(event)}
+                      >
                         View
                       </Button>
                     </td>
@@ -231,13 +293,13 @@ export const AuditLogWorkspace = () => {
         ) : (
           <EmptyState
             icon={ScrollText}
-            title="Audit records unavailable"
-            description={accessError}
+            title={accessError ? 'Audit records unavailable' : 'No matching audit records'}
+            description={accessError || 'No recorded events match the filters on this page.'}
           />
         )}
       </SectionCard>
 
-      {!accessError ? (
+      {!accessError && !loading ? (
         <div className="flex items-center gap-3">
           <Button variant="outline" disabled={page === 0} onClick={() => setPage(page - 1)}>
             Previous page
@@ -254,13 +316,42 @@ export const AuditLogWorkspace = () => {
           </Button>
         </div>
       ) : null}
-      <Dialog open={Boolean(selected)} onOpenChange={(open) => !open && setSelected(null)}>
+      <div className="flex flex-wrap gap-3">
+        <Button
+          variant="outline"
+          disabled={!cursor}
+          onClick={() => {
+            setCursor(undefined)
+            setPage(0)
+            setSelected(null)
+          }}
+        >
+          Latest events
+        </Button>
+        <Button
+          variant="outline"
+          disabled={!currentData?.nextCursor}
+          onClick={() => {
+            if (currentData?.nextCursor) {
+              setCursor(currentData.nextCursor)
+              setPage(0)
+              setSelected(null)
+            }
+          }}
+        >
+          Load older events
+        </Button>
+      </div>
+      <Dialog
+        open={Boolean(selected) && selectedCurrent}
+        onOpenChange={(open) => !open && setSelected(null)}
+      >
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Audit event detail</DialogTitle>
             <DialogDescription>Read-only event context.</DialogDescription>
           </DialogHeader>
-          {selected ? (
+          {selected && selectedCurrent ? (
             <dl className="grid gap-4 text-sm sm:grid-cols-2">
               <div>
                 <dt className="text-muted-foreground">Event ID</dt>
@@ -279,7 +370,7 @@ export const AuditLogWorkspace = () => {
                 <dd className="mt-1 font-medium">{selected.module}</dd>
               </div>
               <div className="sm:col-span-2">
-                <dt className="text-muted-foreground">Change summary</dt>
+                <dt className="text-muted-foreground">Recorded action</dt>
                 <dd className="mt-1 leading-6">{selected.summary}</dd>
               </div>
               <div>
@@ -287,10 +378,6 @@ export const AuditLogWorkspace = () => {
                 <dd className="mt-1">
                   <StatusBadge tone={outcomeTone(selected.outcome)}>{selected.outcome}</StatusBadge>
                 </dd>
-              </div>
-              <div>
-                <dt className="text-muted-foreground">Correlation ID</dt>
-                <dd className="mt-1 font-mono text-xs">{selected.correlationId}</dd>
               </div>
             </dl>
           ) : null}

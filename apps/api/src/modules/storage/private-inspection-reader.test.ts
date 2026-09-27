@@ -65,6 +65,38 @@ afterEach(() => {
 })
 
 describe('proposed bounded private storage companion (synthetic fetch only)', () => {
+  it('accepts only the server-selected reports prefix and verifies private digest/bytes unchanged', async () => {
+    const mock = transport([bucket(), new Response(bytes), bucket()])
+    const read = createSyntheticPrivateInspectionReader(
+      { ...config, objectKind: 'reports' },
+      { fetch: mock as typeof fetch, now: () => 0 },
+    )
+    await expect(
+      read({ ...input(), objectKey: input().objectKey.replace('/evidence/', '/reports/') }),
+    ).resolves.toEqual(bytes)
+    expect(mock.mock.calls[1][0]).toContain('/reports/')
+  })
+  it('cannot use an evidence prefix for a reports reader or set purpose from the object DTO', async () => {
+    const mock = transport([])
+    const read = createSyntheticPrivateInspectionReader(
+      { ...config, objectKind: 'reports' },
+      { fetch: mock as typeof fetch, now: () => 0 },
+    )
+    await expect(
+      read({ ...input(), objectKind: 'evidence' } as Parameters<typeof read>[0]),
+    ).rejects.toBeInstanceOf(PrivateInspectionReadError)
+    expect(mock).not.toHaveBeenCalled()
+  })
+  it('rejects an invalid internal purpose before requesting storage', () => {
+    const mock = transport([])
+    expect(() =>
+      createSyntheticPrivateInspectionReader(
+        { ...config, objectKind: 'other' as 'reports' },
+        { fetch: mock as typeof fetch, now: () => 0 },
+      ),
+    ).toThrow(PrivateInspectionReadError)
+    expect(mock).not.toHaveBeenCalled()
+  })
   it('requires private metadata before and after counted chunked verified bytes', async () => {
     const mock = transport([
       bucket(),

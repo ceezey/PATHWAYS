@@ -260,6 +260,24 @@ function invocations(file: string, text: string) {
   visit(source)
   return result
 }
+// Developer-approved, unapplied transition only. Authority:
+// docs/cr-pathways-self-managed-rollout-scenarios.md, 2026-09-27.
+// This exact exception does not establish application or runtime safety.
+export function approvedUnappliedTransition(
+  file: string,
+  oldFile: string,
+  beforeSha256: string | null,
+  afterSha256: string | null,
+): boolean {
+  const target = 'apps/api/prisma/migrations/0031_f10_f11_rules_runtime/migration.sql'
+  return (
+    file === target &&
+    oldFile === target &&
+    beforeSha256 === '210f0f52abdf273c134e4aa66423dd1c5cbce5a3d61e4ad711c73f2a5fd34551' &&
+    afterSha256 === '2ad17c0810939c8f392f4a35062643ad692c423517ff124b8bea0dbaae5e6375'
+  )
+}
+
 export function analyze(changes: Change[]): Report {
   const required = routing(changes)
   const evaluations: Evaluation[] = []
@@ -273,9 +291,16 @@ export function analyze(changes: Change[]): Report {
     const oldFile = normalize(change.oldPath ?? file)
     const immutable = (p: string) =>
       p.startsWith('apps/api/prisma/history/') || matches(p, 'apps/api/prisma/migrations/**/*.sql')
+    const approved = approvedUnappliedTransition(
+      file,
+      oldFile,
+      change.before === null ? null : createHash('sha256').update(change.before).digest('hex'),
+      change.after === null ? null : createHash('sha256').update(change.after).digest('hex'),
+    )
     if (
-      (immutable(oldFile) && change.before !== null) ||
-      file.startsWith('apps/api/prisma/history/')
+      ((immutable(oldFile) && change.before !== null) ||
+        file.startsWith('apps/api/prisma/history/')) &&
+      !approved
     )
       evaluations.push(
         evaluation(
@@ -284,6 +309,16 @@ export function analyze(changes: Change[]): Report {
           'BLOCKED',
           'Preserved migration/history content or location changed.',
           'Preserve existing migration bytes and history; use an approved forward migration. Consolidation requires separately approved review.',
+        ),
+      )
+    if (approved)
+      evaluations.push(
+        evaluation(
+          'migration-integrity-guardian',
+          file,
+          'PASS',
+          'REVIEW REQUIRED: exact developer-approved unapplied 0031 transition; semantic migration and role-security review remains mandatory.',
+          'Verify registered Change Record, unchanged applied history, role-profile negatives and replay/recovery before final sign-off.',
         ),
       )
     if (/\.[cm]?[jt]sx?$/.test(file) && change.after !== null) {
@@ -501,19 +536,23 @@ export function collect(root: string, base?: string, head?: string): Change[] {
       .filter(Boolean)
     changes.push(...untracked.map((file) => ({ path: normalize(file) })))
   }
+  // Literal-pathspec plumbing: `<ref>:<path>` revision syntax misreads dot, bracket and glob paths.
   const blob = (ref: string, file: string): Buffer | null => {
-    try {
-      return git(['show', `${ref}:${file}`])
-    } catch (error) {
-      const stderr = String((error as { stderr?: Buffer }).stderr ?? '')
-      if (
-        stderr.includes('does not exist') ||
-        stderr.includes('exists on disk, but not in') ||
-        stderr.includes('not in the index')
+    const listing = ref
+      ? git(['--literal-pathspecs', 'ls-tree', '-z', ref, '--', file])
+      : git(['--literal-pathspecs', 'ls-files', '-s', '-z', '--', file])
+    const entries = listing
+      .toString('utf8')
+      .split('\0')
+      .map((record) =>
+        ref
+          ? /^\d+ blob ([0-9a-f]+)()\t(.*)$/s.exec(record)
+          : /^\d+ ([0-9a-f]+) (\d)\t(.*)$/s.exec(record),
       )
-        return null
-      throw error
-    }
+      .filter((m): m is RegExpExecArray => m !== null && normalize(m[3]) === normalize(file))
+    if (entries.some((m) => m[2] !== '' && m[2] !== '0'))
+      throw new Error(`Unmerged index entry; resolve conflicts before SAD review: ${file}`)
+    return entries.length ? git(['cat-file', 'blob', entries[0][1]]) : null
   }
   const unique = new Map<string, { path: string; oldPath?: string }>()
   for (const change of changes) if (!unique.has(change.path)) unique.set(change.path, change)

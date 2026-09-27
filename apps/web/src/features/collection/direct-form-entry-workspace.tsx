@@ -1,6 +1,7 @@
 'use client'
 
 import { FormDefinitionEntryField as EntryField } from './form-definition-entry-field'
+import { SurveySubjectPicker } from './survey-subject-picker'
 
 import { CheckCircle2, Save, Send } from 'lucide-react'
 import Link from 'next/link'
@@ -24,6 +25,26 @@ import type {
   FormValidationError,
 } from '@/types/pathways'
 
+function verifySurveySubject(
+  submission: DirectFormSubmission,
+  form: DigitalFormDefinition,
+  expected?: string | null,
+) {
+  if (submission.formId !== form.id || submission.formVersion !== form.version)
+    throw new Error('The submission version could not be verified.')
+  if (form.formType !== 'TRAINING_SURVEY') return
+  if (
+    submission.beneficiaryId !== null &&
+    (typeof submission.beneficiaryId !== 'string' ||
+      !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+        submission.beneficiaryId,
+      ))
+  )
+    throw new Error('The persisted contributor could not be verified.')
+  if (expected !== undefined && submission.beneficiaryId !== expected)
+    throw new Error('The saved contributor does not match this submission.')
+}
+
 type EntryProps = { initialSubmissionId?: string; projectId: string; formId: string }
 export function DirectFormEntryWorkspace(props: EntryProps) {
   const { profile } = useCurrentRole()
@@ -45,6 +66,30 @@ function OwnedDirectFormEntryWorkspace({
   formId,
   scope,
 }: EntryProps & { scope: SensitiveDraftOwner }) {
+  const { profile } = useCurrentRole()
+  const subjectOwner = useSensitiveDraftOwner(
+    profile,
+    'survey-contributor',
+    'beneficiaries.records.read',
+    projectId,
+    formId,
+  )
+  const newResponseOwner = useSensitiveDraftOwner(
+    profile,
+    'direct-entry-retry',
+    'submissions.write',
+    projectId,
+    JSON.stringify([formId, null]),
+  )
+  const prepareSeparateResponse = (event: { preventDefault: () => void }) => {
+    if (operation.current || !scope.isCurrent() || !newResponseOwner?.isCurrent()) {
+      event.preventDefault()
+      return
+    }
+    removeSensitiveDraft(newResponseOwner.key)
+  }
+  const [beneficiaryId, setBeneficiaryId] = useState('')
+  const [subjectLocked, setSubjectLocked] = useState(false)
   const [form, setForm] = useState<DigitalFormDefinition | null>(null)
   const [submission, setSubmission] = useState<DirectFormSubmission | null>(null)
   const [values, setValues] = useState<Record<string, unknown>>({})
@@ -53,6 +98,7 @@ function OwnedDirectFormEntryWorkspace({
   const [pending, setPending] = useState<'save' | 'validate' | 'submit' | null>(null)
   const [notice, setNotice] = useState('')
   const clientSubmissionId = useRef('')
+  const loadEpoch = useRef(0)
   const storageKey = scope.key
   const operation = useRef<object | null>(null)
   const currentFormVersion = useRef<number | null>(null)
@@ -60,12 +106,14 @@ function OwnedDirectFormEntryWorkspace({
   const begin = (kind: 'save' | 'validate' | 'submit') => {
     if (
       operation.current ||
+      (beneficiaryId && !subjectOwner?.isCurrent()) ||
       !scope.isCurrent() ||
       !form ||
       form.status !== 'PUBLISHED' ||
       loadStatus !== 'ready'
     )
       return null
+    const identifiedOwner = beneficiaryId ? subjectOwner : null
     const marker = {}
     const version = form.version
     operation.current = marker
@@ -73,7 +121,10 @@ function OwnedDirectFormEntryWorkspace({
     setNotice('')
     return {
       valid: () =>
-        scope.isCurrent() && operation.current === marker && currentFormVersion.current === version,
+        scope.isCurrent() &&
+        (!identifiedOwner || identifiedOwner.isCurrent()) &&
+        operation.current === marker &&
+        currentFormVersion.current === version,
       finish: () => {
         if (operation.current === marker) {
           operation.current = null
@@ -85,10 +136,11 @@ function OwnedDirectFormEntryWorkspace({
 
   useEffect(() => {
     let active = true
+    const epoch = loadEpoch.current
     pathwaysClient
       .getDigitalForm(projectId, formId)
       .then(async (definition) => {
-        if (!active || !scope.isCurrent()) return
+        if (!active || epoch !== loadEpoch.current || !scope.isCurrent()) return
         if (definition.projectId !== projectId || definition.id !== formId)
           throw new Error('The selected form could not be verified.')
         setForm(definition)
@@ -117,7 +169,7 @@ function OwnedDirectFormEntryWorkspace({
               )
                 ? stored.clientSubmissionId
                 : crypto.randomUUID()
-            if (!active || !scope.isCurrent()) return
+            if (!active || epoch !== loadEpoch.current || !scope.isCurrent()) return
             writeSensitiveDraft(
               storageKey,
               { formVersion: definition.version, clientSubmissionId: retryId },
@@ -130,7 +182,22 @@ function OwnedDirectFormEntryWorkspace({
               retryId,
             )
           }
-          if (!active || !scope.isCurrent()) return
+          if (!active || epoch !== loadEpoch.current || !scope.isCurrent()) return
+          verifySurveySubject(persisted, definition)
+          if (
+            persisted.formId !== formId ||
+            persisted.formVersion !== definition.version ||
+            (persisted.beneficiaryId !== null &&
+              persisted.beneficiaryId !== undefined &&
+              (definition.formType !== 'TRAINING_SURVEY' ||
+                !subjectOwner?.isCurrent() ||
+                !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+                  persisted.beneficiaryId,
+                )))
+          )
+            throw new Error('The persisted contributor could not be verified.')
+          setBeneficiaryId(persisted.beneficiaryId ?? '')
+          setSubjectLocked(true)
           setSubmission(persisted)
           setValues(persisted.values)
           setNotice(
@@ -139,22 +206,30 @@ function OwnedDirectFormEntryWorkspace({
               : 'Your persisted draft was restored.',
           )
         } catch (error) {
-          if (!active || !scope.isCurrent()) return
+          if (!active || epoch !== loadEpoch.current || !scope.isCurrent()) return
           if (!(error instanceof PathwaysClientError) || error.code !== 'not_found') throw error
           if (initialSubmissionId) throw error
           // Preserve the exact allocated request identity when the server has no draft yet.
           if (!clientSubmissionId.current)
             throw new Error('A draft retry identity could not be allocated.')
         }
-        if (active && scope.isCurrent()) setLoadStatus('ready')
+        if (active && epoch === loadEpoch.current && scope.isCurrent()) setLoadStatus('ready')
       })
       .catch(() => {
-        if (active && scope.isCurrent()) setLoadStatus('error')
+        if (active && epoch === loadEpoch.current && scope.isCurrent()) setLoadStatus('error')
       })
     return () => {
       active = false
     }
-  }, [formId, initialSubmissionId, projectId, storageKey, scope.isCurrent, scope.generation])
+  }, [
+    formId,
+    initialSubmissionId,
+    projectId,
+    storageKey,
+    scope.isCurrent,
+    scope.generation,
+    subjectOwner?.isCurrent,
+  ])
 
   const errorsByField = useMemo(
     () =>
@@ -165,10 +240,33 @@ function OwnedDirectFormEntryWorkspace({
     [errors],
   )
 
+  const startSeparateResponse = () => {
+    if (operation.current || !scope.isCurrent() || !form || !newResponseOwner?.isCurrent()) return
+    loadEpoch.current++
+    const nextId = crypto.randomUUID()
+    clientSubmissionId.current = nextId
+    writeSensitiveDraft(
+      storageKey,
+      { formVersion: form.version, clientSubmissionId: nextId },
+      scope.generation,
+    )
+    setSubmission(null)
+    setValues({})
+    setBeneficiaryId('')
+    setSubjectLocked(false)
+    setErrors([])
+    setNotice(
+      'A separate response is ready. The previous attempt and its history remain unchanged.',
+    )
+    setLoadStatus('ready')
+  }
+
   const save = async () => {
+    if (!form) return
     const ticket = begin('save')
     if (!ticket) return
     try {
+      if (!submission) setSubjectLocked(true)
       const result = submission
         ? await pathwaysClient.updateDirectSubmission(
             projectId,
@@ -182,8 +280,10 @@ function OwnedDirectFormEntryWorkspace({
             formId,
             clientSubmissionId.current,
             values,
+            form.formType === 'TRAINING_SURVEY' && beneficiaryId ? beneficiaryId : undefined,
           )
       if (!ticket.valid()) return
+      verifySurveySubject(result, form, beneficiaryId || null)
       setSubmission(result)
       setValues(result.values)
       setErrors([])
@@ -219,9 +319,11 @@ function OwnedDirectFormEntryWorkspace({
   }
 
   const submit = async () => {
+    if (!form) return
     const ticket = begin('submit')
     if (!ticket) return
     try {
+      if (!submission) setSubjectLocked(true)
       const draft = submission
         ? await pathwaysClient.updateDirectSubmission(
             projectId,
@@ -235,8 +337,10 @@ function OwnedDirectFormEntryWorkspace({
             formId,
             clientSubmissionId.current,
             values,
+            form.formType === 'TRAINING_SURVEY' && beneficiaryId ? beneficiaryId : undefined,
           )
       if (!ticket.valid()) return
+      verifySurveySubject(draft, form, beneficiaryId || null)
       const result = await pathwaysClient.submitDirectSubmission(
         projectId,
         formId,
@@ -244,6 +348,7 @@ function OwnedDirectFormEntryWorkspace({
         draft.updatedAt,
       )
       if (!ticket.valid()) return
+      verifySurveySubject(result, form, beneficiaryId || null)
       setSubmission(result)
       setValues(result.values)
       setErrors([])
@@ -257,6 +362,29 @@ function OwnedDirectFormEntryWorkspace({
     }
   }
 
+  if (form?.formType === 'TRAINING_SURVEY' && beneficiaryId && !subjectOwner?.isCurrent())
+    return (
+      <div className="space-y-3 rounded-lg border p-5">
+        <output>
+          Current identified survey access is unavailable. Existing values and contributor details
+          are hidden; the saved record is unchanged.
+        </output>
+        {initialSubmissionId ? (
+          <Button asChild variant="outline">
+            <Link
+              onClick={prepareSeparateResponse}
+              href={`/collection/projects/${encodeURIComponent(projectId)}/forms/${encodeURIComponent(formId)}/entries/new`}
+            >
+              Open a separate response
+            </Link>
+          </Button>
+        ) : (
+          <Button variant="outline" onClick={startSeparateResponse}>
+            Open a separate response
+          </Button>
+        )}
+      </div>
+    )
   if (loadStatus !== 'ready' || !form) {
     return (
       <div className="rounded-lg border bg-card p-6 text-sm text-muted-foreground">
@@ -312,6 +440,17 @@ function OwnedDirectFormEntryWorkspace({
       ) : null}
 
       <div className="space-y-5 rounded-lg border bg-card p-5 shadow-sm">
+        {form.formType === 'TRAINING_SURVEY' ? (
+          <SurveySubjectPicker
+            projectId={projectId}
+            formId={formId}
+            value={beneficiaryId}
+            locked={subjectLocked || Boolean(submission) || Boolean(pending)}
+            onChange={(value) => {
+              if (!operation.current && !subjectLocked && scope.isCurrent()) setBeneficiaryId(value)
+            }}
+          />
+        ) : null}
         {form.fields.map((field) => (
           <EntryField
             key={field.id ?? field.code}
@@ -332,9 +471,34 @@ function OwnedDirectFormEntryWorkspace({
           </p>
         ) : null}
 
+        {form.formType === 'TRAINING_SURVEY' && subjectLocked && !finalized ? (
+          <div className="space-y-2 rounded-md border p-3 text-sm">
+            <p>
+              The previous draft or uncertain save may already exist. Retry preserves its exact
+              contributor and submission identifier. Starting a separate response preserves that
+              prior record; review it in the project's entries.
+            </p>
+            {initialSubmissionId ? (
+              <Button asChild variant="outline">
+                <Link
+                  onClick={prepareSeparateResponse}
+                  href={`/collection/projects/${encodeURIComponent(projectId)}/forms/${encodeURIComponent(formId)}/entries/new`}
+                >
+                  Start a separate response
+                </Link>
+              </Button>
+            ) : (
+              <Button variant="outline" disabled={Boolean(pending)} onClick={startSeparateResponse}>
+                Start a separate response
+              </Button>
+            )}
+          </div>
+        ) : null}
         <div className="flex flex-wrap gap-2 border-t pt-4">
           <Button
-            disabled={Boolean(pending) || finalized}
+            disabled={
+              Boolean(pending) || finalized || Boolean(beneficiaryId && !subjectOwner?.isCurrent())
+            }
             variant="outline"
             onClick={() => void save()}
           >
@@ -342,13 +506,20 @@ function OwnedDirectFormEntryWorkspace({
             {pending === 'save' ? 'Saving...' : 'Save draft'}
           </Button>
           <Button
-            disabled={Boolean(pending) || finalized}
+            disabled={
+              Boolean(pending) || finalized || Boolean(beneficiaryId && !subjectOwner?.isCurrent())
+            }
             variant="outline"
             onClick={() => void validate()}
           >
             {pending === 'validate' ? 'Validating...' : 'Validate'}
           </Button>
-          <Button disabled={Boolean(pending) || finalized} onClick={() => void submit()}>
+          <Button
+            disabled={
+              Boolean(pending) || finalized || Boolean(beneficiaryId && !subjectOwner?.isCurrent())
+            }
+            onClick={() => void submit()}
+          >
             <Send className="mr-2 h-4 w-4" aria-hidden="true" />
             {pending === 'submit' ? 'Submitting...' : 'Submit'}
           </Button>
@@ -356,6 +527,7 @@ function OwnedDirectFormEntryWorkspace({
             initialSubmissionId ? (
               <Button asChild variant="outline">
                 <Link
+                  onClick={prepareSeparateResponse}
                   href={`/collection/projects/${encodeURIComponent(projectId)}/forms/${encodeURIComponent(formId)}/entries/new`}
                 >
                   Start another record

@@ -6,14 +6,34 @@ SET LOCAL check_function_bodies=off;
 
 -- runtime-prerequisites.proposed.sql
 -- DBA exact preprovision required; this migration never creates roles.
-DO $$ DECLARE role_name text;existing record; BEGIN
+DO $$ DECLARE role_name text;existing record;postgres_oid oid;prisma_oid oid;bootstrap_oid oid;hosted boolean;
+BEGIN
+ SELECT oid INTO postgres_oid FROM pg_catalog.pg_roles WHERE rolname='postgres';
+ SELECT oid INTO prisma_oid FROM pg_catalog.pg_roles WHERE rolname='prisma';
+ SELECT oid INTO bootstrap_oid FROM pg_catalog.pg_roles WHERE rolname='supabase_admin' AND rolsuper;
+ SELECT NOT rolsuper AND rolcreaterole AND rolcanlogin AND bootstrap_oid IS NOT NULL INTO hosted
+  FROM pg_catalog.pg_roles WHERE oid=postgres_oid;
+ IF postgres_oid IS NULL OR prisma_oid IS NULL OR hosted IS NULL OR
+  (NOT hosted AND NOT EXISTS(SELECT FROM pg_catalog.pg_roles WHERE oid=postgres_oid AND rolsuper)) THEN
+  RAISE EXCEPTION 'Exact DBA role provisioning required' USING ERRCODE='55000';
+ END IF;
+ -- Hosted creator ADMIN authority is an explicitly trusted control-plane boundary.
+ -- It grants neither inherited privileges nor SET ROLE; do not remove its bootstrap grant.
  FOREACH role_name IN ARRAY ARRAY['rules_store_owner','rules_lease_owner','rules_projection_owner','rules_commit_owner','rules_sweep_owner','rules_enqueue_owner','rules_human_owner','rules_context_owner','rules_eligibility_owner','rules_config_owner','rules_capacity_owner','rules_source_proof_owner','rules_outcome_owner','rules_runtime_guard_owner','pathways_rules_worker','pathways_rules_sweeper'] LOOP
   SELECT r.* INTO existing FROM pg_catalog.pg_roles r WHERE r.rolname=role_name;
   IF NOT FOUND OR existing.rolsuper OR existing.rolbypassrls OR existing.rolinherit OR existing.rolcreatedb OR existing.rolcreaterole OR existing.rolreplication
    OR existing.rolcanlogin IS DISTINCT FROM (role_name=ANY(ARRAY['pathways_rules_worker','pathways_rules_sweeper']))
-   OR EXISTS(SELECT FROM pg_catalog.pg_auth_members m WHERE m.member=existing.oid OR (m.roleid=existing.oid AND (role_name=ANY(ARRAY['pathways_rules_worker','pathways_rules_sweeper']) OR m.member<>(SELECT oid FROM pg_catalog.pg_roles WHERE rolname='prisma') OR m.admin_option OR NOT m.inherit_option OR NOT m.set_option)))
-   OR (role_name=ANY(ARRAY['rules_store_owner','rules_lease_owner','rules_projection_owner','rules_commit_owner','rules_sweep_owner','rules_enqueue_owner','rules_human_owner','rules_context_owner','rules_eligibility_owner','rules_config_owner','rules_capacity_owner','rules_source_proof_owner','rules_outcome_owner','rules_runtime_guard_owner']) AND NOT EXISTS(SELECT FROM pg_catalog.pg_auth_members m WHERE m.roleid=existing.oid AND m.member=(SELECT oid FROM pg_catalog.pg_roles WHERE rolname='prisma') AND NOT m.admin_option AND m.inherit_option AND m.set_option)) THEN
-    RAISE EXCEPTION 'Exact DBA role provisioning required' USING ERRCODE='55000';
+   OR EXISTS(SELECT FROM pg_catalog.pg_auth_members m WHERE m.member=existing.oid)
+   OR EXISTS(SELECT FROM pg_catalog.pg_auth_members m WHERE m.roleid=existing.oid AND NOT
+    ((hosted AND m.member=postgres_oid AND m.grantor=bootstrap_oid AND m.admin_option AND NOT m.inherit_option AND NOT m.set_option) OR (role_name<>ALL(ARRAY['pathways_rules_worker','pathways_rules_sweeper']) AND m.member=prisma_oid AND m.grantor=postgres_oid AND NOT m.admin_option AND m.inherit_option AND m.set_option)))
+   OR (SELECT count(*) FROM pg_catalog.pg_auth_members m WHERE m.roleid=existing.oid AND
+    (hosted AND m.member=postgres_oid AND m.grantor=bootstrap_oid AND m.admin_option AND NOT m.inherit_option AND NOT m.set_option)) <> (CASE WHEN hosted THEN 1 ELSE 0 END)
+   OR (role_name<>ALL(ARRAY['pathways_rules_worker','pathways_rules_sweeper']) AND (SELECT count(*) FROM pg_catalog.pg_auth_members m
+    WHERE m.roleid=existing.oid AND m.member=prisma_oid AND m.grantor=postgres_oid AND NOT m.admin_option AND m.inherit_option AND m.set_option)<>1)
+   OR EXISTS(SELECT FROM pg_catalog.pg_roles app WHERE app.rolname=ANY(ARRAY['anon','authenticated','service_role','pathways_runtime','pathways_rules_worker','pathways_rules_sweeper'])
+    AND app.oid<>existing.oid AND (pg_catalog.pg_has_role(app.oid,existing.oid,'MEMBER') OR pg_catalog.pg_has_role(app.oid,existing.oid,'USAGE') OR pg_catalog.pg_has_role(app.oid,existing.oid,'SET')))
+ THEN
+   RAISE EXCEPTION 'Exact DBA role provisioning required' USING ERRCODE='55000';
   END IF;
  END LOOP;
 END $$;
@@ -87,17 +107,36 @@ REVOKE ALL ON pathways_rules_internal.project_state,pathways_rules_internal.cale
 -- Owner-only catalog readiness; no new application capability or mutable flag.
 CREATE FUNCTION pathways_rules_internal.assert_runtime_provisioned()
 RETURNS void LANGUAGE plpgsql STABLE SECURITY INVOKER SET search_path='' AS $$
-DECLARE name text;r record;
+DECLARE role_name text;existing record;postgres_oid oid;prisma_oid oid;bootstrap_oid oid;hosted boolean;
 BEGIN
- FOREACH name IN ARRAY ARRAY['rules_store_owner','rules_lease_owner','rules_projection_owner','rules_commit_owner','rules_sweep_owner','rules_enqueue_owner','rules_human_owner','rules_context_owner','rules_eligibility_owner','rules_config_owner','rules_capacity_owner','rules_source_proof_owner','rules_outcome_owner','rules_runtime_guard_owner','pathways_rules_worker','pathways_rules_sweeper'] LOOP
-  SELECT * INTO r FROM pg_catalog.pg_roles WHERE rolname=name;
-  IF NOT FOUND OR r.rolsuper OR r.rolbypassrls OR r.rolinherit OR r.rolcreatedb OR r.rolcreaterole OR r.rolreplication
-   OR r.rolcanlogin IS DISTINCT FROM (name=ANY(ARRAY['pathways_rules_worker','pathways_rules_sweeper']))
-   OR EXISTS(SELECT FROM pg_catalog.pg_auth_members m WHERE m.member=r.oid OR m.roleid=r.oid)
-   OR pg_catalog.has_database_privilege(r.oid,pg_catalog.current_database(),'CREATE')
-   OR pg_catalog.has_database_privilege(r.oid,pg_catalog.current_database(),'TEMPORARY')
-   OR EXISTS(SELECT FROM pg_catalog.pg_namespace n WHERE pg_catalog.has_schema_privilege(r.oid,n.oid,'CREATE') AND NOT(name='rules_store_owner' AND n.nspname='pathways_rules_internal' AND n.nspowner=r.oid)) THEN
-    RAISE EXCEPTION 'Rules runtime provisioning incomplete' USING ERRCODE='42501';
+ SELECT oid INTO postgres_oid FROM pg_catalog.pg_roles WHERE rolname='postgres';
+ SELECT oid INTO prisma_oid FROM pg_catalog.pg_roles WHERE rolname='prisma';
+ SELECT oid INTO bootstrap_oid FROM pg_catalog.pg_roles WHERE rolname='supabase_admin' AND rolsuper;
+ SELECT NOT rolsuper AND rolcreaterole AND rolcanlogin AND bootstrap_oid IS NOT NULL INTO hosted
+  FROM pg_catalog.pg_roles WHERE oid=postgres_oid;
+ IF postgres_oid IS NULL OR prisma_oid IS NULL OR hosted IS NULL OR
+  (NOT hosted AND NOT EXISTS(SELECT FROM pg_catalog.pg_roles WHERE oid=postgres_oid AND rolsuper)) THEN
+  RAISE EXCEPTION 'Rules runtime provisioning incomplete' USING ERRCODE='42501';
+ END IF;
+ -- Hosted creator ADMIN authority is an explicitly trusted control-plane boundary.
+ -- It grants neither inherited privileges nor SET ROLE; do not remove its bootstrap grant.
+ FOREACH role_name IN ARRAY ARRAY['rules_store_owner','rules_lease_owner','rules_projection_owner','rules_commit_owner','rules_sweep_owner','rules_enqueue_owner','rules_human_owner','rules_context_owner','rules_eligibility_owner','rules_config_owner','rules_capacity_owner','rules_source_proof_owner','rules_outcome_owner','rules_runtime_guard_owner','pathways_rules_worker','pathways_rules_sweeper'] LOOP
+  SELECT r.* INTO existing FROM pg_catalog.pg_roles r WHERE r.rolname=role_name;
+  IF NOT FOUND OR existing.rolsuper OR existing.rolbypassrls OR existing.rolinherit OR existing.rolcreatedb OR existing.rolcreaterole OR existing.rolreplication
+   OR existing.rolcanlogin IS DISTINCT FROM (role_name=ANY(ARRAY['pathways_rules_worker','pathways_rules_sweeper']))
+   OR EXISTS(SELECT FROM pg_catalog.pg_auth_members m WHERE m.member=existing.oid)
+   OR EXISTS(SELECT FROM pg_catalog.pg_auth_members m WHERE m.roleid=existing.oid AND NOT
+    ((hosted AND m.member=postgres_oid AND m.grantor=bootstrap_oid AND m.admin_option AND NOT m.inherit_option AND NOT m.set_option)))
+   OR (SELECT count(*) FROM pg_catalog.pg_auth_members m WHERE m.roleid=existing.oid AND
+    (hosted AND m.member=postgres_oid AND m.grantor=bootstrap_oid AND m.admin_option AND NOT m.inherit_option AND NOT m.set_option)) <> (CASE WHEN hosted THEN 1 ELSE 0 END)
+   OR EXISTS(SELECT FROM pg_catalog.pg_roles app WHERE app.rolname=ANY(ARRAY['anon','authenticated','service_role','pathways_runtime','pathways_rules_worker','pathways_rules_sweeper'])
+    AND app.oid<>existing.oid AND (pg_catalog.pg_has_role(app.oid,existing.oid,'MEMBER') OR pg_catalog.pg_has_role(app.oid,existing.oid,'USAGE') OR pg_catalog.pg_has_role(app.oid,existing.oid,'SET')))
+   OR pg_catalog.has_database_privilege(existing.oid,pg_catalog.current_database(),'CREATE')
+   OR pg_catalog.has_database_privilege(existing.oid,pg_catalog.current_database(),'TEMPORARY')
+   OR EXISTS(SELECT FROM pg_catalog.pg_namespace n WHERE pg_catalog.has_schema_privilege(existing.oid,n.oid,'CREATE')
+    AND NOT(role_name='rules_store_owner' AND n.nspname='pathways_rules_internal' AND n.nspowner=existing.oid))
+ THEN
+   RAISE EXCEPTION 'Rules runtime provisioning incomplete' USING ERRCODE='42501';
   END IF;
  END LOOP;
 END $$;

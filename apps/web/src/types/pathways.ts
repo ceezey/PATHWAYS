@@ -712,6 +712,7 @@ export interface FormValidationResult {
 }
 
 export interface DirectFormSubmission {
+  beneficiaryId?: string | null
   id: string
   clientSubmissionId: string
   status: 'DRAFT' | 'VALIDATED'
@@ -953,7 +954,7 @@ export interface PublicProjectRecord {
   milestones: PublicMilestone[]
   accomplishments: string[]
   progressTrend: number[]
-  beneficiariesReached: number
+  beneficiariesReached: number | null
   budgetSummary: string
   assessmentSummary: string
   publicationState: 'Approved for public preview'

@@ -2,7 +2,7 @@
 
 **Status:** Control
 
-**Last reconciled:** 2026-09-26
+**Last reconciled:** 2026-09-28
 
 **Basis:** developer-approved SAD adoption, 2026-09-26.
 
@@ -12,15 +12,15 @@ These are review roles, not autonomous project owners. This governance reconcile
 
 Paths are repository-relative globs normalized to forward slashes. `**` includes zero or more directories. Match both old and new paths for renames; deletions require review of affected callers. Semantic changes outside these paths still require the relevant specialist.
 
-| Specialist | Trigger globs | ISO 25010 pillars |
-|---|---|---|
-| organization-isolation-checker | `apps/api/src/**/*.service.ts`, `apps/api/prisma/schema.prisma`, `infra/supabase/**/*.sql`, `apps/api/prisma/migrations/**/*.sql`, `infra/supabase/phase6/*.ps1` | Security: confidentiality and accountability |
-| migration-integrity-guardian | `apps/api/prisma/migrations/**/*.sql`, `apps/api/prisma/schema.prisma`, `apps/api/prisma/history/**`, `infra/supabase/**/*.sql`, `infra/supabase/phase6/*.ps1`, `scripts/migrations/**`, `.github/workflows/ci.yml` | Reliability: fault tolerance and recoverability |
-| beneficiary-privacy-guardian | `apps/api/src/**/*.controller.ts`, `apps/web/src/api/**/*.ts`, `**/schemas/*.zod.ts`, `apps/web/src/lib/services/**/*.ts`, `packages/shared/src/validation/**/*.ts` | Compatibility: interoperability; Security: data protection |
-| metadata-import-validator | `packages/imports/src/**/*.ts`, `apps/api/src/modules/imports/**/*.ts` | Functional Suitability: correctness and appropriateness |
-| rule-engine-determinism-checker | `packages/shared/src/monitoring/**/*.ts`, `apps/api/src/modules/indicators/**/*.ts` | Performance Efficiency: time behaviour and resource utilization |
-| restraint-guardian | `**/package.json`, `pnpm-workspace.yaml`, `**/tsconfig*.json`, `scripts/sad/**` | Maintainability: modularity and reusability |
-| design-qa-agent | `apps/api/src/**`, `apps/web/src/**`, `packages/**`, `scripts/sad/**`, `infra/supabase/phase6/*.ps1`, `.github/workflows/ci.yml` | All eight pillars below |
+| Specialist | Trigger globs | ISO 25010 pillars | Model |
+|---|---|---|---|
+| organization-isolation-checker | `apps/api/src/**/*.service.ts`, `apps/api/prisma/schema.prisma`, `infra/supabase/**/*.sql`, `apps/api/prisma/migrations/**/*.sql`, `infra/supabase/phase6/*.ps1` | Security: confidentiality and accountability | sonnet |
+| migration-integrity-guardian | `apps/api/prisma/migrations/**/*.sql`, `apps/api/prisma/schema.prisma`, `apps/api/prisma/history/**`, `infra/supabase/**/*.sql`, `infra/supabase/phase6/*.ps1`, `scripts/migrations/**`, `.github/workflows/ci.yml` | Reliability: fault tolerance and recoverability | opus |
+| beneficiary-privacy-guardian | `apps/api/src/**/*.controller.ts`, `apps/web/src/api/**/*.ts`, `**/schemas/*.zod.ts`, `apps/web/src/lib/services/**/*.ts`, `packages/shared/src/validation/**/*.ts` | Compatibility: interoperability; Security: data protection | opus |
+| metadata-import-validator | `packages/imports/src/**/*.ts`, `apps/api/src/modules/imports/**/*.ts` | Functional Suitability: correctness and appropriateness | sonnet |
+| rule-engine-determinism-checker | `packages/shared/src/monitoring/**/*.ts`, `apps/api/src/modules/indicators/**/*.ts` | Performance Efficiency: time behaviour and resource utilization | sonnet |
+| restraint-guardian | `**/package.json`, `pnpm-workspace.yaml`, `**/tsconfig*.json`, `scripts/sad/**` | Maintainability: modularity and reusability | opus |
+| design-qa-agent | `apps/api/src/**`, `apps/web/src/**`, `packages/**`, `scripts/sad/**`, `infra/supabase/phase6/*.ps1`, `.github/workflows/ci.yml` | All eight pillars below | opus |
 
 The core design QA role evaluates every modified or added application/package file before engineering sign-off. Review tooling and migration replay also receive QA because their correctness controls other reviews. Trigger routing is a minimum, not permission to omit an implicated specialist.
 
@@ -77,15 +77,46 @@ The core design QA role evaluates every modified or added application/package fi
 
 Mark irrelevant pillar details as not applicable in evidence; a PASS must still state all eight were considered. Passing this review does not establish complete ISO certification.
 
-## 3. Sequential Review Protocol
+## 3. Sequenced Review Pipeline
 
-1. Ground in the manifest, build guide, applicable contracts, and proposed changed paths before implementation. Review the proposed behavior with matching specialists and design QA concurrently, in bounded batches within available agent slots.
-2. If a review identifies a violation, output BLOCKED with exact evidence/remediation and stop the dependent implementation until corrected. Missing required evidence withholds engineering sign-off.
-3. Implement only the authorized reviewed scope. Run appropriate tests and automated checks against the final changed content.
-4. Repeat specialist/design review against the final change digest. Any subsequent content/path change invalidates evidence and requires renewed review.
-5. Run final evidence validation. Sign off only when all required roles have valid matching PASS evidence and required tests pass. Unmatched roles are omitted; documentation-only changes do not imply code compliance.
+Stages run in order. A gate failure stops every later stage.
 
-Review reports, manifests, and task tracking belong outside tracked repository files. Use paths outside the repository or a Git-ignored disposable directory such as `.tmp`; unignored in-repository reports are prohibited. Evidence input and manifest output must use different paths. Do not commit disposable review artifacts. Platform-specific generated agent files are optional future work; do not claim they exist.
+| Stage | Action | Output |
+|---|---|---|
+| S0 Ground | Read the manifest, build guide, applicable contracts and proposed changed paths. | contract list |
+| S1 Route | Run `pnpm sad:check --output .tmp/sad/<run>/manifest.json`. | roles, role/path pairs, digest |
+| S2 Pre-review | Dispatch matching specialists and design QA concurrently, in bounded batches within available agent slots. | evaluation envelopes |
+| G1 Block gate | Any BLOCKED entry stops dependent implementation until corrected. Remediation returns to the implementer. | pass or remediation list |
+| S3 Implement | The main session or developer implements only the authorized reviewed scope and runs tests. The orchestrator never edits source. | changed content |
+| S4 Re-route | Rerun S1. A new digest invalidates earlier evidence; newly matched paths add roles. | final manifest |
+| S5 Final review | Repeat specialist and design review against the final digest. | final envelopes |
+| S6 Assemble | Merge final envelopes into `.tmp/sad/<run>/reviews.json` with the final digest, sorted by role then path. | evidence file |
+| G2 Sign-off gate | Run `pnpm sad:signoff -- --reviews <evidence>`. Sign off only when all required roles have valid matching PASS evidence and required tests pass; otherwise raise a Human Intervention block from the build guide. | sign-off or block |
+
+Missing required evidence withholds engineering sign-off. Unmatched roles are omitted; documentation-only changes do not imply code compliance.
+
+### 3.1 Handoff Packet
+
+The orchestrator dispatches one role per specialist call with this packet:
+
+```json
+{
+  "run_id": "<timestamp-slug>",
+  "stage": "S2",
+  "change_digest": "<manifest digest>",
+  "role": "beneficiary-privacy-guardian",
+  "paths": ["apps/web/src/lib/services/pathways-client.ts"],
+  "contracts": ["docs/sad-pathways.md#2", "docs/clr-pathways.md"],
+  "prior_findings": [],
+  "constraints": ["read-only", "review listed paths only", "return section 5 envelope only"]
+}
+```
+
+The specialist returns exactly the section 5 envelope, with one entry per finding or one PASS entry per reviewed path, and its role's required ISO pillars. Specialists never edit files. The orchestrator discards a return whose packet digest differs from the current manifest, and redispatches a malformed return once before recording BLOCKED. `prior_findings` carries unresolved G1 findings into S5 so remediation is verified.
+
+Agent definitions live in `.claude/agents/`: `sad-orchestrator`, one file per section 1 specialist, `release-integrator` and `requirements-qa-gate`. Each definition sets its `model:` frontmatter: specialists use the section 1 Model column, `release-integrator` and `requirements-qa-gate` use opus, and `sad-orchestrator` uses sonnet. Changing a model is a SAD change. Definitions point to this document instead of restating rules; this document stays authoritative, and `pnpm docs:check` fails on roster drift. Claude Code subagents cannot spawn subagents, so coordinators run as the main thread (`claude --agent sad-orchestrator`). The release sequence that composes this pipeline is in the build guide section 2.
+
+Review reports, manifests, and task tracking belong outside tracked repository files. Use paths outside the repository or a Git-ignored disposable directory such as `.tmp`; unignored in-repository reports are prohibited. Evidence input and manifest output must use different paths. Do not commit disposable review artifacts.
 
 ## 4. Commands and Evidence
 
@@ -96,6 +127,8 @@ Review reports, manifests, and task tracking belong outside tracked repository f
 - `pnpm sad:signoff -- --reviews <external-json-path>` validates external specialist evidence against the current change digest. Range/output flags follow the checker interface.
 
 The digest binds normalized changed paths, base and final file contents, and differing staged contents, including deletion/rename context. Staged code remains reviewed even when working content restores HEAD; re-staging invalidates its evidence. Ordering is deterministic. Automated checks route reviews, detect executable `eval`/`Function` through the TypeScript AST, flag unsafe raw queries/destructive SQL/dependency additions, and protect preserved migration history. Warning entries use PASS with explicit warning evidence and no semantic certification. Semantic safety still requires specialist evidence.
+
+The [approved rollout Change Record](cr-pathways-self-managed-rollout-scenarios.md) permits one exact unapplied 0031 source transition at its existing path: SHA-256 `210f0f52abdf273c134e4aa66423dd1c5cbce5a3d61e4ad711c73f2a5fd34551` to `2ad17c0810939c8f392f4a35062643ad692c423517ff124b8bea0dbaae5e6375`. The checker emits a required semantic-review diagnostic for this pair; it does not certify migration execution. Renames, deletion, different bytes, differing staged content and all other existing migration/history changes retain the integrity block. Final digest-bound specialist evidence and replay/recovery checks remain mandatory.
 
 CI runs automated SAD checks independently on PRs and `dev`/`master` pushes, publishing diagnostics as artifacts. Automated CI is not an authenticated reviewer or full SAD approval system. Missing, stale, malformed, or BLOCKED external evidence fails final agent sign-off.
 

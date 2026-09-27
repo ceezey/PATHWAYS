@@ -35,6 +35,26 @@ const prisma = (failure: unknown) =>
   }) as unknown as PrismaService
 
 describe('authorized operation concurrency errors', () => {
+  it.each(['', false, null])(
+    'forwards supplied invalid isolation %s to fail-closed transaction validation',
+    async (value) => {
+      const client = prisma(new Error('Verified aggregate isolation must be RepeatableRead.'))
+      await expect(
+        withAuthorizedOperation(
+          client,
+          identity,
+          'beneficiaries.records.register',
+          async () => true,
+          { isolationLevel: value as never },
+        ),
+      ).rejects.toBeInstanceOf(ForbiddenException)
+      expect(client.withVerifiedContext).toHaveBeenCalledWith(
+        expect.any(Object),
+        expect.any(Function),
+        expect.objectContaining({ isolationLevel: value }),
+      )
+    },
+  )
   it.each(['P2002', 'P2034'])('returns a safe conflict for %s', async (code) => {
     await expect(
       withAuthorizedOperation(

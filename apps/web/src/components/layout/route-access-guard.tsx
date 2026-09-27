@@ -58,7 +58,6 @@ export function RouteAccessGuard({ children }: { children: React.ReactNode }) {
     if (accessRefreshing) return () => controller.abort()
     const selection = authorizationPath ? matchRoute(authorizationPath) : null
     const check = async () => {
-      if (document.visibilityState === 'hidden') return
       if (
         !token ||
         !profile ||
@@ -95,8 +94,19 @@ export function RouteAccessGuard({ children }: { children: React.ReactNode }) {
         })
       }
     }
-    void check()
-    return () => controller.abort()
+    // A route mounted in a background tab defers its one check until shown;
+    // otherwise nothing re-triggers it and the skeleton never resolves.
+    const runWhenVisible = () => {
+      if (document.visibilityState === 'hidden') return
+      document.removeEventListener('visibilitychange', runWhenVisible)
+      void check()
+    }
+    document.addEventListener('visibilitychange', runWhenVisible)
+    runWhenVisible()
+    return () => {
+      document.removeEventListener('visibilitychange', runWhenVisible)
+      controller.abort()
+    }
   }, [
     accessRefreshing,
     verificationRevision,

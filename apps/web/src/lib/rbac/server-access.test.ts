@@ -374,7 +374,13 @@ describe('finite route and feature contract', () => {
     for (const file of pages) {
       const source = readFileSync(path.join(root, file), 'utf8')
       expect(source).toContain("export const dynamic = 'force-dynamic'")
-      expect(source).toMatch(/await requireServerPage\('[A-Za-z]+', props\)/)
+      if (file.replaceAll('\\', '/') === 'recommendations/[recommendationId]/page.tsx') {
+        expect(source).toContain(
+          "await requireServerPage('recommendations', { searchParams: props.searchParams })",
+        )
+      } else {
+        expect(source).toMatch(/await requireServerPage\('[A-Za-z]+', props\)/)
+      }
       const exitAt = Math.max(source.lastIndexOf('return '), source.lastIndexOf('redirect('))
       expect(source.indexOf('await requireServerPage')).toBeLessThan(exitAt)
     }

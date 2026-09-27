@@ -123,6 +123,36 @@ describe('RouteAccessGuard beneficiary boundary', () => {
     expect(await screen.findByText('Protected beneficiary record')).toBeTruthy()
   })
 
+  it('defers the route check for a hidden tab and runs it once the tab becomes visible', async () => {
+    let visibility: DocumentVisibilityState = 'hidden'
+    const visibilitySpy = vi
+      .spyOn(document, 'visibilityState', 'get')
+      .mockImplementation(() => visibility)
+    requestRouteCheck.mockResolvedValue(allowedDecision)
+    try {
+      render(
+        <RouteAccessGuard>
+          <p>Protected beneficiary record</p>
+        </RouteAccessGuard>,
+      )
+      await new Promise((resolve) => setTimeout(resolve, 20))
+      expect(requestRouteCheck).not.toHaveBeenCalled()
+      expect(screen.getByLabelText('Loading content')).toBeTruthy()
+      expect(screen.queryByText('Protected beneficiary record')).toBeNull()
+
+      visibility = 'visible'
+      document.dispatchEvent(new Event('visibilitychange'))
+      expect(await screen.findByText('Protected beneficiary record')).toBeTruthy()
+      expect(requestRouteCheck).toHaveBeenCalledTimes(1)
+
+      document.dispatchEvent(new Event('visibilitychange'))
+      await new Promise((resolve) => setTimeout(resolve, 20))
+      expect(requestRouteCheck).toHaveBeenCalledTimes(1)
+    } finally {
+      visibilitySpy.mockRestore()
+    }
+  })
+
   it('keeps verified content mounted while provider and same-route checks refresh', async () => {
     requestRouteCheck.mockResolvedValueOnce(allowedDecision)
     const view = render(

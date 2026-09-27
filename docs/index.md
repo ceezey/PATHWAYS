@@ -102,10 +102,10 @@ Do not build directly against an audit finding until the appropriate contract/CR
 | PRD-F9 | Descriptive Analytics | Supporting | yes | yes | - | partial (dashboard endpoints) |
 | PRD-F10 | Rule Alerts | Supporting | yes | yes | rules RFC | local API and initial runtime slice; integration verification pending |
 | PRD-F11 | Decision Support | Supporting | yes | yes | rules RFC | local human review API; integration verification pending |
-| PRD-F12 | Reporting / Visualization | Supporting | yes | yes | - | schema only; reports module empty |
-| PRD-F13 | Public Tracker | Supporting | yes | yes | - | no API |
+| PRD-F12 | Reporting / Visualization | Supporting | yes | yes | rollout CR | local preview/artifact APIs; final verification pending; hosted application deferred |
+| PRD-F13 | Public Tracker | Supporting | yes | yes | rollout CR | local publication/approved-public APIs; final verification pending; hosted application deferred |
 
-Backend status reconciled 2026-09-27 for local integration against `apps/api/src/modules/*` controllers and `apps/web/src/lib/services/pathways-client.ts` (`backendNotConfigured` surfaces).
+Backend status reconciled 2026-09-27 for local source against `apps/api/src/modules/*` controllers and the canonical web service clients. The [approved rollout Change Record](cr-pathways-self-managed-rollout-scenarios.md) limits the current phase to Core and Alerts source verification and dev release. The team will populate the system and perform manual acceptance testing; hosted schema application, account provisioning and master release remain deferred.
 
 ## 7. Change Log
 
@@ -115,6 +115,8 @@ Core P1 supporting contract reconciliation is approved for local implementation 
 
 | CR ID | Date | Summary | Status |
 |---|---|---|---|
+| [cr-pathways-sad-orchestration](cr-pathways-sad-orchestration.md) | 2026-09-28 | Staged SAD review pipeline with typed handoff packets, `.claude/agents` coordinator and specialist definitions, multi-branch release sequence with gated autonomous master push and roster drift check | Applied |
+| [cr-pathways-self-managed-rollout-scenarios](cr-pathways-self-managed-rollout-scenarios.md) | 2026-09-27 | Trusted hosted creator-admin exception, Singapore staging, approved feature completion and verified synthetic record replacement with protected history | Approved; implementation and staging/live verification pending |
 | [cr-pathways-core-p1-supporting-operations](cr-pathways-core-p1-supporting-operations.md) | 2026-09-27 | Scoped registration context and revision-bound server-derived mapping; human review/normalization authority preserved | Approved for local P1 implementation; installation/runtime acceptance pending |
 | [cr-pathways-retire-project-target-goal](cr-pathways-retire-project-target-goal.md) | 2026-09-26 | Retire live project benchmark inputs, outputs and comparisons; preserve database history, target beneficiaries and independent indicator targets | Approved; local implementation verified; coordinated previews pending; no hosted migration or completed release |
 | [cr-pathways-private-activity-proof-inspection](cr-pathways-private-activity-proof-inspection.md) | 2026-09-27 | Assigned distinct M&E pending private-proof inspection, bounded verified transfer and final authorization/audit; withdraw generic old downloads | Approved; local implementation/verification pending; hosted application and release excluded |
@@ -153,7 +155,7 @@ Last run: 2026-09-26 (`pnpm docs:check`).
 - [x] Brand mark verified at `apps/web/public/brand/pathways-mark.png`.
 - [x] SDD table list reconciled with `apps/api/prisma/schema.prisma` (99 mapped models/enums; verified 0001-0026 archived, active baseline plus 0027/0028; PATHWAYS-dev transition verified).
 - [x] Vercel development API/web previews verified against PATHWAYS-dev; production verification remains separate (see OPS).
-- [~] PRD-F10/F11 have local controllers and forward runtime SQL under integration verification; hosted installation is pending. PRD-F12/F13 still lack complete APIs.
+- [~] PRD-F10/F11 local rule configuration, machine drain, alert/recommendation review and outcome recording are verified on a synthetic local replay at 0034; hosted installation is pending. PRD-F12 reporting and PRD-F13 publication APIs exist from migration 0034 and are verified locally; hosted installation is pending.
 - [~] The approved F10/F11 runtime CR governs the initial local implementation. Unapproved rules RFC extensions remain proposals.
 - [~] QAD exact executable commands require repository test-tool inspection.
 

@@ -10,7 +10,7 @@ DECLARE routine record; actual record; checked integer:=0;
 BEGIN
  IF current_user<>'postgres' OR session_user<>'postgres'
   OR inet_server_addr() IS DISTINCT FROM '127.0.0.1'::inet OR inet_server_port() IS DISTINCT FROM 55448
-  OR current_database() NOT IN ('pathways_phase4_phase6_replay','pathways_phase4_baseline','pathways_phase4_forward_restore') THEN
+  OR current_database() NOT IN ('pathways_phase4_phase6_replay','pathways_phase4_baseline','pathways_phase4_forward_restore','pathways_phase4_core_retry') THEN
   RAISE EXCEPTION 'Only owned disposable forward validation is permitted';
  END IF;
  FOR routine IN
@@ -18,7 +18,7 @@ BEGIN
   FROM pg_catalog.pg_proc p JOIN pg_catalog.pg_namespace n ON n.oid=p.pronamespace
   JOIN pg_catalog.pg_language l ON l.oid=p.prolang
   WHERE l.lanname IN ('plpgsql','sql') AND
-   (n.nspname='pathways_rules_internal' OR (n.nspname='pathways' AND p.proname ~ '^f10_'))
+   (n.nspname='pathways_rules_internal' OR (n.nspname='pathways' AND p.proname ~ '^(f10_|p34_)'))
   ORDER BY n.nspname,p.proname,pg_get_function_identity_arguments(p.oid)
  LOOP
   EXECUTE routine.definition;

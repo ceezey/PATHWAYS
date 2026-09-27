@@ -90,6 +90,7 @@ import {
   sadddDashboardSchema,
   sadddQuerySchema,
 } from '@pathways/shared'
+import { readPublicProjects } from './public-projects'
 type CreateIndicatorInput = Omit<ApiCreateIndicatorInput, 'clientMutationId'>
 type UpdateIndicatorInput = Omit<ApiUpdateIndicatorInput, 'clientMutationId'>
 import { parseRegistrationContext } from './registration-context'
@@ -206,6 +207,15 @@ export interface PathwaysClient {
     projectId?: string,
     filters?: BeneficiaryFilters,
   ): Promise<BeneficiaryRecord[]>
+  getSurveySubjectPage(
+    projectId: string,
+    search?: string,
+    cursor?: string,
+    signal?: AbortSignal,
+  ): Promise<{
+    items: Array<{ id: string; code: string; displayName: string }>
+    nextCursor: string | null
+  }>
   getBeneficiaryRecordForRole(
     role: PathwaysRole,
     projectId: string,
@@ -290,6 +300,7 @@ export interface PathwaysClient {
     formId: string,
     clientSubmissionId: string,
     values: Record<string, unknown>,
+    beneficiaryId?: string,
   ): Promise<DirectFormSubmission>
   listDirectSubmissions(
     projectId: string,
@@ -813,6 +824,83 @@ class BackendReadyPathwaysClient implements PathwaysClient {
     return records
   }
 
+  async getSurveySubjectPage(
+    projectId: string,
+    search = '',
+    cursor?: string,
+    signal?: AbortSignal,
+  ) {
+    const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+    if (
+      !uuid.test(projectId) ||
+      search.trim().length > 80 ||
+      (cursor !== undefined && !uuid.test(cursor))
+    )
+      throw new PathwaysClientError('Invalid contributor search.', 'invalid')
+    const params = new URLSearchParams({ enrollmentStatus: 'ACTIVE', limit: '25' })
+    if (search.trim()) params.set('search', search.trim())
+    if (cursor) params.set('cursor', cursor)
+    const page = (await requestFoundation(
+      `/beneficiaries/projects/${encodeURIComponent(projectId)}?${params}`,
+      { signal },
+    )) as { items?: unknown; nextCursor?: unknown }
+    if (
+      !page ||
+      typeof page !== 'object' ||
+      Array.isArray(page) ||
+      !Array.isArray(page.items) ||
+      page.items.length > 25 ||
+      (page.nextCursor !== null &&
+        (typeof page.nextCursor !== 'string' ||
+          !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(page.nextCursor)))
+    )
+      throw new PathwaysClientError('Invalid contributor page.', 'network')
+    const items = page.items
+      .map((value) => {
+        if (!value || typeof value !== 'object' || Array.isArray(value))
+          throw new PathwaysClientError('Invalid contributor response.', 'network')
+        const record = value as Record<string, unknown>
+        if (
+          typeof record.id !== 'string' ||
+          !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(record.id) ||
+          record.projectId !== projectId ||
+          typeof record.code !== 'string' ||
+          !record.code.length ||
+          record.code.length > 64 ||
+          typeof record.displayName !== 'string' ||
+          !record.displayName.length ||
+          record.displayName.length > 240 ||
+          !['INDIVIDUAL', 'GROUP', 'COMMUNITY', 'UNSPECIFIED_LEGACY'].includes(
+            String(record.subjectType),
+          ) ||
+          typeof record.consentRecorded !== 'boolean' ||
+          typeof record.dataProcessingConsentRecorded !== 'boolean' ||
+          !record.enrollment ||
+          typeof record.enrollment !== 'object' ||
+          Array.isArray(record.enrollment) ||
+          (record.enrollment as Record<string, unknown>).projectId !== projectId
+        )
+          throw new PathwaysClientError('Contributor scope could not be verified.', 'network')
+        return record
+      })
+      .filter(
+        (record) =>
+          record.subjectType === 'INDIVIDUAL' &&
+          record.status === 'ACTIVE' &&
+          record.consentRecorded &&
+          record.dataProcessingConsentRecorded &&
+          (record.enrollment as Record<string, unknown>).status === 'ACTIVE' &&
+          ((record.enrollment as Record<string, unknown>).endedDate === null ||
+            (record.enrollment as Record<string, unknown>).endedDate === undefined),
+      )
+      .map((record) => ({
+        id: record.id as string,
+        code: record.code as string,
+        displayName: record.displayName as string,
+      }))
+    return { items, nextCursor: page.nextCursor as string | null }
+  }
+
   async getBeneficiaryRecordForRole(
     _role: PathwaysRole,
     projectId: string,
@@ -1085,10 +1173,18 @@ class BackendReadyPathwaysClient implements PathwaysClient {
     formId: string,
     clientSubmissionId: string,
     values: Record<string, unknown>,
+    beneficiaryId?: string,
   ) {
     return requestFoundation(
       `/metadata/projects/${encodeURIComponent(projectId)}/forms/${encodeURIComponent(formId)}/submissions`,
-      { method: 'POST', body: JSON.stringify({ clientSubmissionId, values }) },
+      {
+        method: 'POST',
+        body: JSON.stringify({
+          clientSubmissionId,
+          values,
+          ...(beneficiaryId ? { beneficiaryId } : {}),
+        }),
+      },
     ) as Promise<DirectFormSubmission>
   }
 
@@ -1231,11 +1327,24 @@ class BackendReadyPathwaysClient implements PathwaysClient {
   }
 
   async getPublicProjects(): Promise<PublicProjectRecord[]> {
-    throw backendNotConfigured('Published project list')
+    try {
+      return await readPublicProjects()
+    } catch {
+      throw new PathwaysClientError('Published projects are temporarily unavailable.', 'network')
+    }
   }
 
-  async getPublicProject(_id: string): Promise<PublicProjectRecord> {
-    throw backendNotConfigured('Published project details')
+  async getPublicProject(id: string): Promise<PublicProjectRecord> {
+    try {
+      const [project] = await readPublicProjects(id)
+      if (!project) throw new Error('PUBLIC_NOT_FOUND')
+      return project
+    } catch (error) {
+      throw new PathwaysClientError(
+        'Published project unavailable.',
+        error instanceof Error && error.message === 'PUBLIC_NOT_FOUND' ? 'not_found' : 'network',
+      )
+    }
   }
 
   async getUsers(signal?: AbortSignal): Promise<UserRecord[]> {

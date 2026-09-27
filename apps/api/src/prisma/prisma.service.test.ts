@@ -308,6 +308,43 @@ describe('PrismaService', () => {
     expect(transaction).not.toHaveBeenCalled()
   })
 
+  it('opts internal aggregate transactions into RepeatableRead before context work', async () => {
+    const prisma = new PrismaService()
+    const transaction = vi.spyOn(prisma, '$transaction').mockResolvedValue('fixture')
+    await prisma.withVerifiedContext(
+      {
+        authSubject: 'a5000000-0000-4000-8000-000000000001',
+        organizationId: 'a5000000-0000-4000-8000-000000000002',
+        userId: 'a5000000-0000-4000-8000-000000000003',
+      },
+      vi.fn(),
+      { isolationLevel: 'RepeatableRead' },
+    )
+    expect(transaction).toHaveBeenCalledWith(expect.any(Function), {
+      maxWait: 5000,
+      timeout: 10000,
+      isolationLevel: 'RepeatableRead',
+    })
+  })
+  it.each(['', false, null, 'ReadCommitted'])(
+    'rejects supplied unsupported isolation %s before a transaction',
+    async (value) => {
+      const prisma = new PrismaService()
+      const transaction = vi.spyOn(prisma, '$transaction')
+      await expect(
+        prisma.withVerifiedContext(
+          {
+            authSubject: 'a5000000-0000-4000-8000-000000000001',
+            organizationId: 'a5000000-0000-4000-8000-000000000002',
+            userId: 'a5000000-0000-4000-8000-000000000003',
+          },
+          vi.fn(),
+          { isolationLevel: value as never },
+        ),
+      ).rejects.toThrow('RepeatableRead')
+      expect(transaction).not.toHaveBeenCalled()
+    },
+  )
   it.each([1_000, 20_000, 30_000])(
     'accepts a bounded verified transaction timeout of %i ms',
     async (timeoutMs) => {

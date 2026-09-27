@@ -1,10 +1,39 @@
 import { describe, expect, it } from 'vitest'
-import { authorizationPathForUiPath, matchRoute } from './route-access'
+import { authorizationPathForUiPath, getVerifiedRouteAccess, matchRoute } from './route-access'
 
 const projectId = '72000000-0000-4000-8000-000000000004'
 const beneficiaryId = '72000000-0000-4000-8000-000000000006'
 
 describe('frontend route aliases', () => {
+  it('admits only a valid recommendation display UUID through the existing current permission', () => {
+    const path = `/recommendations/${beneficiaryId}`
+    expect(authorizationPathForUiPath(path)).toBe('/recommendations')
+    expect(matchRoute(authorizationPathForUiPath(path) ?? '')).toEqual({ route: 'recommendations' })
+    const principal = {
+      roles: ['PROJECT_OFFICER'],
+      permissions: ['recommendations.read'],
+      assignedProjectIds: [],
+    }
+    expect(getVerifiedRouteAccess(principal, authorizationPathForUiPath(path) ?? '').allowed).toBe(
+      true,
+    )
+    expect(
+      getVerifiedRouteAccess(
+        { ...principal, permissions: [] },
+        authorizationPathForUiPath(path) ?? '',
+      ).allowed,
+    ).toBe(false)
+    for (const invalid of [
+      '/recommendations/not-a-uuid',
+      `${path}/extra`,
+      '/recommendations/%31',
+      `${path}?projectId=${projectId}`,
+      `${path}?role=PROJECT_MANAGER`,
+      `${path}?recommendation=other`,
+    ]) {
+      expect(authorizationPathForUiPath(invalid)).toBeNull()
+    }
+  })
   it('keeps distinct authorization contracts for edit and settings destinations', () => {
     expect(matchRoute(authorizationPathForUiPath('/beneficiaries/duplicates') ?? '')?.route).toBe(
       'beneficiaries',

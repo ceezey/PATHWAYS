@@ -22,6 +22,7 @@ const api = vi.hoisted(() => ({
   updateDirectSubmission: vi.fn(),
   submitDirectSubmission: vi.fn(),
   validateDigitalFormValues: vi.fn(),
+  getSurveySubjectPage: vi.fn(),
 }))
 vi.mock('@/hooks/use-current-role', () => ({ useCurrentRole: () => state }))
 vi.mock('@/lib/services/pathways-client', () => ({
@@ -82,6 +83,173 @@ describe('direct entry scoped retry and continuation ownership', () => {
     api.validateDigitalFormValues.mockResolvedValue({ valid: true, errors: [] })
   })
   afterEach(cleanup)
+  it.each(['save', 'submit'] as const)(
+    'rejects a %s acknowledgement for another contributor without displaying its values',
+    async (operation) => {
+      const subject = '70000000-0000-4000-8000-000000000007'
+      const otherSubject = '80000000-0000-4000-8000-000000000008'
+      state.profile.permissions = ['submissions.write', 'beneficiaries.records.read']
+      api.getDigitalForm.mockResolvedValue({ ...definition, formType: 'TRAINING_SURVEY' })
+      api.getDirectSubmission.mockResolvedValue({ ...draft, beneficiaryId: subject })
+      const mismatched = {
+        ...draft,
+        beneficiaryId: otherSubject,
+        values: { note: 'Another contributor private response' },
+      }
+      api.updateDirectSubmission.mockResolvedValue(
+        operation === 'save' ? mismatched : { ...draft, beneficiaryId: subject },
+      )
+      api.submitDirectSubmission.mockResolvedValue({ ...mismatched, status: 'VALIDATED' })
+      render(<DirectFormEntryWorkspace {...props} initialSubmissionId={draft.id} />)
+      await ready()
+      fireEvent.click(
+        screen.getByRole('button', { name: operation === 'save' ? 'Save draft' : 'Submit' }),
+      )
+      await screen.findByText('The saved contributor does not match this submission.')
+      expect(screen.queryByDisplayValue('Another contributor private response')).toBeNull()
+      expect(screen.getByDisplayValue('Saved private note')).toBeTruthy()
+      expect(screen.queryByText(/Draft saved to PATHWAYS|and finalized/)).toBeNull()
+      expect(screen.getByRole('button', { name: 'Submit' }).hasAttribute('disabled')).toBe(false)
+      if (operation === 'save') expect(api.submitDirectSubmission).not.toHaveBeenCalled()
+      else expect(api.submitDirectSubmission).toHaveBeenCalledOnce()
+    },
+  )
+  it('keeps the new anonymous retry identity when an obsolete identified reload finishes later', async () => {
+    const subject = '70000000-0000-4000-8000-000000000007'
+    state.profile.permissions = ['submissions.write', 'beneficiaries.records.read']
+    const survey = { ...definition, formType: 'TRAINING_SURVEY' }
+    let finish: (value: typeof survey) => void = () => {}
+    api.getDigitalForm.mockResolvedValueOnce(survey).mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          finish = resolve
+        }),
+    )
+    api.getDirectSubmissionByClientId.mockResolvedValue({ ...draft, beneficiaryId: subject })
+    const view = render(<DirectFormEntryWorkspace {...props} />)
+    await ready()
+    state.profile.permissions = ['submissions.write']
+    view.rerender(<DirectFormEntryWorkspace {...props} />)
+    await waitFor(() => expect(api.getDigitalForm).toHaveBeenCalledTimes(2))
+    fireEvent.click(screen.getByRole('button', { name: 'Open a separate response' }))
+    await ready()
+    const newPointer = window.sessionStorage.getItem(pointerKey())
+    await act(async () => finish(survey))
+    expect(window.sessionStorage.getItem(pointerKey())).toBe(newPointer)
+    expect(screen.queryByDisplayValue('Saved private note')).toBeNull()
+    expect(screen.getByLabelText('Note')).toBeTruthy()
+    expect(screen.getByText(/A separate response is ready/)).toBeTruthy()
+    expect(api.getDirectSubmissionByClientId).toHaveBeenCalledOnce()
+    expect(api.saveDirectSubmission).not.toHaveBeenCalled()
+    expect(api.updateDirectSubmission).not.toHaveBeenCalled()
+  })
+  it('rejects a delayed identified save callback when detail authority is lost but write authority remains', async () => {
+    const subject = '70000000-0000-4000-8000-000000000007'
+    state.profile.permissions = ['submissions.write', 'beneficiaries.records.read']
+    api.getDigitalForm.mockResolvedValue({ ...definition, formType: 'TRAINING_SURVEY' })
+    api.getDirectSubmissionByClientId.mockResolvedValue({ ...draft, beneficiaryId: subject })
+    let finish: (value: unknown) => void = () => {}
+    api.updateDirectSubmission.mockReturnValue(
+      new Promise((resolve) => {
+        finish = resolve
+      }),
+    )
+    const view = render(<DirectFormEntryWorkspace {...props} />)
+    await ready()
+    fireEvent.click(screen.getByRole('button', { name: 'Submit' }))
+    await waitFor(() => expect(api.updateDirectSubmission).toHaveBeenCalledOnce())
+    state.profile.permissions = ['submissions.write']
+    view.rerender(<DirectFormEntryWorkspace {...props} />)
+    expect(screen.queryByDisplayValue('Saved private note')).toBeNull()
+    await act(async () => finish({ ...draft, beneficiaryId: subject }))
+    expect(api.submitDirectSubmission).not.toHaveBeenCalled()
+    expect(screen.queryByText(/finalized/)).toBeNull()
+  })
+  it('clears only the destination retry pointer for a separate response from an existing identified entry', async () => {
+    const subject = '70000000-0000-4000-8000-000000000007'
+    state.profile.permissions = ['submissions.write', 'beneficiaries.records.read']
+    api.getDigitalForm.mockResolvedValue({ ...definition, formType: 'TRAINING_SURVEY' })
+    api.getDirectSubmission.mockResolvedValue({ ...draft, beneficiaryId: subject })
+    window.sessionStorage.setItem(
+      pointerKey(),
+      JSON.stringify({ clientSubmissionId: subject, formVersion: 1 }),
+    )
+    window.sessionStorage.setItem('unrelated-owned-pointer', 'preserved')
+    render(<DirectFormEntryWorkspace {...props} initialSubmissionId={draft.id} />)
+    await ready()
+    const link = screen.getByRole('link', { name: 'Start a separate response' })
+    link.addEventListener('click', (event) => event.preventDefault())
+    expect(link.getAttribute('href')).toBe(
+      `/collection/projects/${projectId}/forms/${formId}/entries/new`,
+    )
+    fireEvent.click(link)
+    expect(window.sessionStorage.getItem(pointerKey())).toBeNull()
+    expect(window.sessionStorage.getItem('unrelated-owned-pointer')).toBe('preserved')
+    expect(api.saveDirectSubmission).not.toHaveBeenCalled()
+    expect(api.updateDirectSubmission).not.toHaveBeenCalled()
+  })
+  it('hides identified survey values immediately after detail loss and resets an anonymous response on the same new route', async () => {
+    const subject = '70000000-0000-4000-8000-000000000007'
+    state.profile.permissions = ['submissions.write', 'beneficiaries.records.read']
+    api.getDigitalForm.mockResolvedValue({ ...definition, formType: 'TRAINING_SURVEY' })
+    api.getDirectSubmissionByClientId.mockResolvedValue({ ...draft, beneficiaryId: subject })
+    const view = render(<DirectFormEntryWorkspace {...props} />)
+    await ready()
+    expect(screen.getByDisplayValue('Saved private note')).toBeTruthy()
+    const oldKey = window.sessionStorage.getItem(pointerKey())
+    state.profile.permissions = ['submissions.write']
+    view.rerender(<DirectFormEntryWorkspace {...props} />)
+    expect(screen.queryByDisplayValue('Saved private note')).toBeNull()
+    expect(screen.queryByLabelText('Note')).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: 'Open a separate response' }))
+    await ready()
+    expect(window.sessionStorage.getItem(pointerKey())).not.toBe(oldKey)
+    expect(screen.getByLabelText('Note')).toBeTruthy()
+    expect(screen.queryByDisplayValue('Saved private note')).toBeNull()
+    api.saveDirectSubmission.mockResolvedValue({
+      ...draft,
+      values: { note: null },
+      beneficiaryId: null,
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Save draft' }))
+    await waitFor(() => expect(api.saveDirectSubmission).toHaveBeenCalledOnce())
+    expect(api.saveDirectSubmission.mock.calls[0][4]).toBeUndefined()
+    expect(api.updateDirectSubmission).not.toHaveBeenCalled()
+  })
+  it('preserves an identified contributor and exact request key after an uncertain save', async () => {
+    const subject = '70000000-0000-4000-8000-000000000007'
+    state.profile.permissions = ['submissions.write', 'beneficiaries.records.read']
+    api.getDigitalForm.mockResolvedValue({ ...definition, formType: 'TRAINING_SURVEY' })
+    api.getDirectSubmissionByClientId.mockRejectedValue(
+      Object.assign(Error('Missing'), { code: 'not_found' }),
+    )
+    // Use the same exported boundary error class the component checks.
+    const { PathwaysClientError } = await import('@/lib/services/pathways-client')
+    api.getDirectSubmissionByClientId.mockRejectedValue(
+      new PathwaysClientError('Missing', 'not_found'),
+    )
+    api.getSurveySubjectPage.mockResolvedValue({
+      items: [{ id: subject, code: 'synthetic', displayName: 'Synthetic contributor' }],
+      nextCursor: null,
+    })
+    api.saveDirectSubmission
+      .mockRejectedValueOnce(Error('Response lost'))
+      .mockResolvedValue({ ...draft, beneficiaryId: subject, values: { note: 'New note' } })
+    render(<DirectFormEntryWorkspace {...props} />)
+    await ready()
+    await screen.findByRole('option', { name: /synthetic.*Synthetic contributor/ })
+    fireEvent.change(screen.getByLabelText('Contributor (optional)'), {
+      target: { value: subject },
+    })
+    fireEvent.change(screen.getByLabelText('Note'), { target: { value: 'New note' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Save draft' }))
+    await screen.findByText('Response lost')
+    expect(screen.queryByLabelText('Contributor (optional)')).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: 'Save draft' }))
+    await screen.findByText(/Draft saved to PATHWAYS/)
+    expect(api.saveDirectSubmission.mock.calls[1]).toEqual(api.saveDirectSubmission.mock.calls[0])
+    expect(api.saveDirectSubmission.mock.calls[0][4]).toBe(subject)
+  })
   it('preserves the owned request pointer through provider legacy cleanup and remount', async () => {
     const clientSubmissionId = '60000000-0000-4000-8000-000000000006'
     window.sessionStorage.setItem(

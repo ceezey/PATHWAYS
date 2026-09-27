@@ -213,7 +213,7 @@ export function HumanReviewWorkspace({
           description="The queue could not be loaded. Try again."
           onRetry={() => void queue.refetch()}
         />
-      ) : !queue.data?.items.length ? (
+      ) : !queue.data?.items.length && !selectedId ? (
         <EmptyState
           title="No records"
           description="No records are available for this project selection."
@@ -222,7 +222,7 @@ export function HumanReviewWorkspace({
         <div className="grid gap-6 xl:grid-cols-[minmax(260px,.7fr)_minmax(0,1.3fr)]">
           <SectionCard title={kind === 'alert' ? 'Alert queue' : 'Recommendation queue'}>
             <ul className="space-y-2">
-              {queue.data.items.map((record) => (
+              {queue.data?.items.map((record) => (
                 <li key={record.id}>
                   <button
                     className="w-full rounded-sm border border-border p-3 text-left hover:bg-primary-subtle"
@@ -238,6 +238,9 @@ export function HumanReviewWorkspace({
                 </li>
               ))}
             </ul>
+            {!queue.data?.items.length ? (
+              <p className="text-sm text-muted-foreground">No records in this queue.</p>
+            ) : null}
             <div className="mt-4 flex gap-2">
               {cursor ? (
                 <Button
@@ -252,7 +255,7 @@ export function HumanReviewWorkspace({
                   First page
                 </Button>
               ) : null}
-              {queue.data.nextCursor ? (
+              {queue.data?.nextCursor ? (
                 <Button
                   type="button"
                   variant="outline"
@@ -294,7 +297,10 @@ export function HumanReviewWorkspace({
                     <h3 className="font-semibold">Recommendation basis</h3>
                     <p className="whitespace-pre-wrap">{item.basis}</p>
                     {principalHasAtomicPermission(profile, 'alerts.read') ? (
-                      <Link className="text-primary underline" href={`/alerts/${item.alertId}`}>
+                      <Link
+                        className="text-primary underline"
+                        href={`/alerts?alert=${item.alertId}`}
+                      >
                         View linked alert
                       </Link>
                     ) : null}
@@ -567,7 +573,7 @@ function NotificationRow({ item, onRead }: { item: HumanNotification; onRead: ()
       <p className="text-sm text-muted-foreground">
         {instant(item.createdAt)} Asia/Manila; {copy(item.deliveryState)}
       </p>
-      <Link className="text-primary underline" href={`/alerts/${item.alertId}`}>
+      <Link className="text-primary underline" href={`/alerts?alert=${item.alertId}`}>
         View alert
       </Link>
       {item.readAt ? (

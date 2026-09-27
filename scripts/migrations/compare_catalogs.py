@@ -55,11 +55,49 @@ def normalized(value):
         row[2] = row[2].replace('\r\n', '\n')
         if row[3] is not None:
             row[3] = sorted(row[3])
-    for row in value['tableSecurity']:
-        # The verified owner is prisma. An explicit default owner ACL and a null
-        # default ACL have the same effective privileges; other grants stay exact.
-        acl = sorted(row[3] or [])
-        row[3] = [entry for entry in acl if entry != 'prisma=arwdDxtm/prisma']
+    if 'tableSecurityFormat' in value:
+        if value['tableSecurityFormat'] != 'OWNER_DERIVED_EFFECTIVE_ACL_V1':
+            raise ValueError('Unsupported forward table security format')
+        owners = value.get('forwardSecurity', {}).get('relationOwners')
+        if not isinstance(owners, list):
+            raise ValueError('Forward relation owners missing')
+        owner_map = {}
+        for row in owners:
+            if (not isinstance(row, list) or len(row) != 3 or
+                    any(not isinstance(x, str) or not x for x in row) or
+                    row[0] not in ['pathways', 'pathways_rules_internal'] or
+                    tuple(row[:2]) in owner_map):
+                raise ValueError('Malformed forward relation owners')
+            owner_map[tuple(row[:2])] = row[2]
+        tables = value['tableSecurity']
+        if not isinstance(tables, list):
+            raise ValueError('Malformed forward table security')
+        seen = set()
+        for row in tables:
+            if (not isinstance(row, list) or len(row) != 6 or
+                    any(not isinstance(x, str) or not x for x in row[:3]) or
+                    row[0] not in ['pathways', 'pathways_rules_internal'] or
+                    type(row[3]) is not bool or type(row[4]) is not bool or
+                    not isinstance(row[5], list) or
+                    any(not isinstance(x, str) or not x for x in row[5]) or
+                    len(set(row[5])) != len(row[5])):
+                raise ValueError('Malformed forward table security')
+            key = tuple(row[:2])
+            if key in seen or owner_map.get(key) != row[2]:
+                raise ValueError('Forward table owner absent or inconsistent')
+            seen.add(key)
+            # PostgreSQL derives NULL defaults from the actual owner OID.
+            # All effective grant strings remain exact, including grant options.
+            row[5] = sorted(row[5])
+    elif 'forwardSecurity' in value:
+        raise ValueError('Forward table security format missing')
+    else:
+        for row in value['tableSecurity']:
+            if not isinstance(row, list) or len(row) != 4:
+                raise ValueError('Malformed legacy table security')
+            # Historical fixtures verify Prisma ownership separately.
+            acl = sorted(row[3] or [])
+            row[3] = [entry for entry in acl if entry != 'prisma=arwdDxtm/prisma']
     for row in value['constraints']:
         row[2] = boolean_expression(row[2])
     return value

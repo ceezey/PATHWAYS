@@ -23,6 +23,8 @@ export interface VerifiedDatabaseContext {
 
 export interface VerifiedTransactionOptions {
   timeoutMs?: number
+  /** Internal aggregate/report callers only; never derived from an HTTP payload. */
+  isolationLevel?: 'RepeatableRead'
   requestBudget?: InspectionRequestBudget
   onTiming?: (timing: VerifiedTransactionTiming) => void
 }
@@ -125,6 +127,8 @@ export class PrismaService extends PrismaClient implements OnModuleInit, OnModul
     work: (transaction: Prisma.TransactionClient) => Promise<T>,
     options?: VerifiedTransactionOptions,
   ): Promise<T> {
+    if (options?.isolationLevel !== undefined && options.isolationLevel !== 'RepeatableRead')
+      throw new Error('Verified aggregate isolation must be RepeatableRead.')
     if (![context.authSubject, context.organizationId, context.userId].every((v) => uuid.test(v))) {
       throw new Error('Database context requires three UUID identifiers.')
     }
@@ -227,6 +231,7 @@ export class PrismaService extends PrismaClient implements OnModuleInit, OnModul
           // Prisma's 2s/5s defaults turning valid remote profile reads into P2028.
           maxWait: plan.maxWait,
           timeout: plan.timeout,
+          ...(options?.isolationLevel ? { isolationLevel: options.isolationLevel } : {}),
         },
       )
       budget?.check()

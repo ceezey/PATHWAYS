@@ -119,7 +119,7 @@ export const routePolicy = {
   beneficiaryReport: entry('/reports/beneficiary-summary', 'Beneficiary Summary', [
     'reports.beneficiary.read',
   ]),
-  surveyReport: entry('/reports/survey-results', 'Survey/Form Results', ['reports.read']),
+  surveyReport: entry('/reports/survey-results', 'Survey/Form Results', ['reports.project.read']),
   reportPreview: entry('/reports/preview', 'Report preview', ['reports.read']),
   users: entry('/settings/users', 'User Management', ['users.authorize']),
   labels: entry('/settings/labels', 'Edit Labels', ['settings.labels.manage']),
@@ -173,7 +173,11 @@ export function authorizationPathForUiPath(input: string): string | null {
     canonical = '/beneficiaries'
   else if (pathname === '/imports') canonical = '/collection/import'
   else if (pathname === '/indicators') canonical = '/projects'
-  else if (/^\/transparency\/[^/]+\/preview\/?$/.test(pathname))
+  else if (/^\/recommendations\/[^/]+\/?$/.test(pathname)) {
+    const id = pathname.split('/')[2]
+    if (!uuid.test(id)) return null
+    canonical = '/recommendations'
+  } else if (/^\/transparency\/[^/]+\/preview\/?$/.test(pathname))
     canonical = pathname
       .replace(/^\/transparency\//, '/projects/')
       .replace(/\/preview\/?$/, '/transparency/preview')

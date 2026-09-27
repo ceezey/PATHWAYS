@@ -78,7 +78,7 @@ PRD-F6 mapping suggestions additionally cover stable source keys, ASCII whitespa
 
 ## 4. Rule-Engine Matrix
 
-Test once the rules API exists (PRD-F10/PRD-F11 are schema-only today):
+PRD-F10/PRD-F11 have a local human rules API and a disabled-by-default machine drain/sweep runtime (migration 0031). Hosted installation remains pending. Indicator metrics additionally require a current non-sensitive eligibility approval, which has no administration path yet.
 
 - `< <= = >= >` (Prisma `RuleOperator`: LT, LTE, EQ, GTE, GT);
 - BETWEEN;

@@ -16,6 +16,7 @@ import {
   validateAndNormalizeFormData,
 } from '@pathways/shared'
 import { PrismaService } from '../../prisma/prisma.service'
+import { hasAtomicPermission } from '../auth/authorization-policy'
 import { projectScope } from '../auth/authorized-data.service'
 import { withAuthorizedOperation } from '../auth/authorized-operation'
 import { type ApplicationIdentity, UUID_PATTERN } from '../auth/developer-access'
@@ -543,20 +544,32 @@ export class MetadataService {
           'draft',
         )
         this.assertValues(validation)
+        const beneficiaryId = await this.requireSurveySubject(tx, actor, form, input.beneficiaryId)
         const clientSubmissionId = input.clientSubmissionId.toLowerCase()
         const existing = await tx.formSubmission.findFirst({
           where: {
             organizationId: actor.organizationId,
             submittedById: actor.userId,
             clientSubmissionId,
+            ...(form.formType === 'TRAINING_SURVEY' &&
+            !hasAtomicPermission(actor.roles[0], actor.permissions, 'beneficiaries.records.read')
+              ? { beneficiaryId: null }
+              : {}),
           },
-          select: { id: true, projectId: true, formId: true, formVersion: true },
+          select: {
+            id: true,
+            projectId: true,
+            formId: true,
+            formVersion: true,
+            beneficiaryId: true,
+          },
         })
         if (existing) {
           if (
             existing.projectId !== form.projectId ||
             existing.formId !== form.id ||
-            existing.formVersion !== form.version
+            existing.formVersion !== form.version ||
+            existing.beneficiaryId !== beneficiaryId
           ) {
             throw new ConflictException('Submission identifier is already in use.')
           }
@@ -575,6 +588,7 @@ export class MetadataService {
               formId: form.id,
               formVersion: form.version,
               clientSubmissionId,
+              beneficiaryId,
               submittedById: actor.userId,
               source: 'DIRECT_ENCODING',
               status: 'DRAFT',
@@ -800,6 +814,8 @@ export class MetadataService {
       async (tx, actor) => {
         const form = await this.requireForm(tx, actor, projectId, formId)
         const submission = await this.findSubmission(tx, actor, form, submissionId)
+        if (form.formType === 'TRAINING_SURVEY')
+          await this.requireSurveySubject(tx, actor, form, submission.beneficiaryId ?? undefined)
         if (submission.status === 'VALIDATED') return submission
         if (submission.status !== 'DRAFT')
           throw new ConflictException('Submission is not editable.')
@@ -1110,6 +1126,42 @@ export class MetadataService {
     return mapForm(await this.findForm(tx, actor, source.projectId, created.id), actor)
   }
 
+  private async requireSurveySubject(
+    tx: Tx,
+    actor: ApplicationIdentity,
+    form: FormRow,
+    beneficiaryId?: string,
+  ): Promise<string | null> {
+    if (beneficiaryId === undefined) return null
+    if (form.formType !== 'TRAINING_SURVEY' || !UUID_PATTERN.test(beneficiaryId))
+      throw new BadRequestException(
+        'An identified subject is supported only for a training survey.',
+      )
+    if (!hasAtomicPermission(actor.roles[0], actor.permissions, 'beneficiaries.records.read'))
+      throw new ForbiddenException('Current beneficiary detail access is required.')
+    const id = beneficiaryId.toLowerCase()
+    const enrollment = await tx.beneficiaryProjectEnrollment.findFirst({
+      where: {
+        organizationId: actor.organizationId,
+        projectId: form.projectId,
+        beneficiaryId: id,
+        status: 'ACTIVE',
+        endedDate: null,
+        beneficiary: {
+          organizationId: actor.organizationId,
+          subjectType: 'INDIVIDUAL',
+          isDummyRecord: false,
+          archivedAt: null,
+          consentRecorded: true,
+          dataProcessingConsentRecorded: true,
+        },
+      },
+      select: { id: true },
+    })
+    if (!enrollment) throw new NotFoundException('Eligible survey contributor unavailable.')
+    return id
+  }
+
   private async findSubmission(
     tx: Tx,
     actor: ApplicationIdentity,
@@ -1126,10 +1178,15 @@ export class MetadataService {
         formVersion: form.version,
         submittedById: actor.userId,
         source: 'DIRECT_ENCODING',
+        ...(form.formType === 'TRAINING_SURVEY' &&
+        !hasAtomicPermission(actor.roles[0], actor.permissions, 'beneficiaries.records.read')
+          ? { beneficiaryId: null }
+          : {}),
       },
       select: {
         id: true,
         clientSubmissionId: true,
+        beneficiaryId: true,
         status: true,
         formVersion: true,
         submittedAt: true,
@@ -1150,6 +1207,7 @@ export class MetadataService {
     return {
       id: row.id,
       clientSubmissionId: row.clientSubmissionId,
+      beneficiaryId: form.formType === 'TRAINING_SURVEY' ? row.beneficiaryId : null,
       status: row.status,
       formId: form.id,
       formVersion: row.formVersion,

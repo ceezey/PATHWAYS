@@ -143,6 +143,10 @@ export class ExpectedVersionDto {
 }
 
 export class SaveSubmissionDto {
+  @IsOptional()
+  @IsUUID()
+  beneficiaryId?: string
+
   @IsUUID()
   clientSubmissionId!: string
 

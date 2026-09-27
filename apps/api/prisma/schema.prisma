@@ -32,7 +32,7 @@ enum AccountStatus {
 }
 
 model Organization {
-  implementingPartners ImplementingPartner[]
+  implementingPartners                          ImplementingPartner[]
   activityIndicatorLink_organization            ActivityIndicatorLink[]            @relation("ActivityIndicatorLink_organization")
   indicatorBindings                             ProjectIndicatorBinding[]          @relation("P06BindingOrganization")
   indicatorMeasurements                         ProjectIndicatorMeasurement[]      @relation("P06MeasurementOrganization")
@@ -215,6 +215,11 @@ model SystemUser {
   activityUpdate_submittedBy                  ActivityUpdate[]                   @relation("ActivityUpdate_submittedBy")
   activityUpdate_reviewedBy                   ActivityUpdate[]                   @relation("ActivityUpdate_reviewedBy")
   userProjectAssignment_user                  UserProjectAssignment[]            @relation("UserProjectAssignment_user")
+  projectPublication_submittedBy              ProjectPublication[]               @relation("ProjectPublication_submittedBy")
+  projectPublication_approvedBy               ProjectPublication[]               @relation("ProjectPublication_approvedBy")
+  projectPublication_publishedBy              ProjectPublication[]               @relation("ProjectPublication_publishedBy")
+  publicationRequest_actor                    PublicationRequest[]               @relation("PublicationRequest_actor")
+  expenseSignoff_signedOffBy                  ExpenseSignoff[]                   @relation("ExpenseSignoff_signedOffBy")
 
   @@unique([organizationId, id], map: "system_users_organization_id_id_key")
   @@index([organizationId, accountStatus], map: "system_users_organization_id_account_status_idx")
@@ -613,13 +618,14 @@ model Program {
 }
 
 model ImplementingPartner {
-  id String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  organizationId String @map("organization_id") @db.Uuid
-  name String
-  normalizedName String @map("normalized_name")
-  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
-  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict, onUpdate: Restrict)
-  projectLinks ProjectImplementingPartner[]
+  id             String                       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String                       @map("organization_id") @db.Uuid
+  name           String
+  normalizedName String                       @map("normalized_name")
+  createdAt      DateTime                     @default(now()) @map("created_at") @db.Timestamptz(3)
+  organization   Organization                 @relation(fields: [organizationId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  projectLinks   ProjectImplementingPartner[]
+
   @@unique([organizationId, normalizedName])
   @@unique([organizationId, id])
   @@map("implementing_partners")
@@ -627,11 +633,12 @@ model ImplementingPartner {
 }
 
 model ProjectImplementingPartner {
-  organizationId String @map("organization_id") @db.Uuid
-  projectId String @map("project_id") @db.Uuid
-  partnerId String @map("partner_id") @db.Uuid
-  project Project @relation(fields: [organizationId, projectId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
-  partner ImplementingPartner @relation(fields: [organizationId, partnerId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+  organizationId String              @map("organization_id") @db.Uuid
+  projectId      String              @map("project_id") @db.Uuid
+  partnerId      String              @map("partner_id") @db.Uuid
+  project        Project             @relation(fields: [organizationId, projectId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+  partner        ImplementingPartner @relation(fields: [organizationId, partnerId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+
   @@id([organizationId, projectId, partnerId])
   @@index([organizationId, partnerId])
   @@map("project_implementing_partners")
@@ -639,7 +646,7 @@ model ProjectImplementingPartner {
 }
 
 model Project {
-  implementingPartnerLinks ProjectImplementingPartner[]
+  implementingPartnerLinks                 ProjectImplementingPartner[]
   activityIndicatorLink_project            ActivityIndicatorLink[]            @relation("ActivityIndicatorLink_project")
   indicatorBindings                        ProjectIndicatorBinding[]          @relation("P06BindingProject")
   indicatorMeasurements                    ProjectIndicatorMeasurement[]      @relation("P06MeasurementProject")
@@ -708,6 +715,7 @@ model Project {
   beneficiaryActivityParticipation_project BeneficiaryActivityParticipation[] @relation("BeneficiaryActivityParticipation_project")
   beneficiaryJourneyEvent_project          BeneficiaryJourneyEvent[]          @relation("BeneficiaryJourneyEvent_project")
   activityUpdate_project                   ActivityUpdate[]                   @relation("ActivityUpdate_project")
+  projectPublication_project               ProjectPublication?                @relation("ProjectPublication_project")
 
   @@unique([organizationId, id], map: "projects_scope_key")
   @@unique([organizationId, code], map: "projects_org_code_key")
@@ -952,37 +960,38 @@ model ActivityIndicatorLink {
 }
 
 model DigitalForm {
-  indicatorBindings      ProjectIndicatorBinding[] @relation("P06BindingForm")
-  report_form            Report[]                  @relation("Report_form")
-  id                     String                    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  organizationId         String                    @map("organization_id") @db.Uuid
-  projectId              String                    @map("project_id") @db.Uuid
-  code                   String
-  version                Int                       @default(1)
-  name                   String
-  description            String?
-  formType               FormType                  @default(OTHER) @map("form_type")
-  status                 FormStatus                @default(DRAFT)
-  activityId             String?                   @map("activity_id") @db.Uuid
-  journeyStageId         String?                   @map("journey_stage_id") @db.Uuid
-  createdById            String?                   @map("created_by_id") @db.Uuid
-  publishedById          String?                   @map("published_by_id") @db.Uuid
-  publishedAt            DateTime?                 @map("published_at") @db.Timestamptz(3)
-  archivedAt             DateTime?                 @map("archived_at") @db.Timestamptz(3)
-  createdAt              DateTime                  @default(now()) @map("created_at") @db.Timestamptz(3)
-  updatedAt              DateTime                  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
-  organization           Organization              @relation("DigitalForm_organization", fields: [organizationId], references: [id], onDelete: Restrict, onUpdate: Restrict, map: "digital_forms_organization_fk")
-  project                Project                   @relation("DigitalForm_project", fields: [organizationId, projectId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict, map: "digital_forms_project_fk")
-  createdBy              SystemUser?               @relation("DigitalForm_createdBy", fields: [organizationId, createdById], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict, map: "digital_forms_created_by_fk")
-  publishedBy            SystemUser?               @relation("DigitalForm_publishedBy", fields: [organizationId, publishedById], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict, map: "digital_forms_published_by_fk")
-  activity               ProjectActivity?          @relation("DigitalForm_activity", fields: [organizationId, projectId, activityId], references: [organizationId, projectId, id], onDelete: Restrict, onUpdate: Restrict, map: "digital_forms_activity_fk")
-  journeyStage           JourneyStage?             @relation("DigitalForm_journeyStage", fields: [organizationId, projectId, journeyStageId], references: [organizationId, projectId, id], onDelete: Restrict, onUpdate: Restrict, map: "digital_forms_journey_stage_fk")
-  formField_form         FormField[]               @relation("FormField_form")
-  dataImportBatch_form   DataImportBatch[]         @relation("DataImportBatch_form")
-  dataImportRow_form     DataImportRow[]           @relation("DataImportRow_form")
-  metadataMapping_form   MetadataMapping[]         @relation("MetadataMapping_form")
-  formSubmission_form    FormSubmission[]          @relation("FormSubmission_form")
-  formResponseValue_form FormResponseValue[]       @relation("FormResponseValue_form")
+  indicatorBindings           ProjectIndicatorBinding[] @relation("P06BindingForm")
+  report_form                 Report[]                  @relation("Report_form")
+  id                          String                    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId              String                    @map("organization_id") @db.Uuid
+  projectId                   String                    @map("project_id") @db.Uuid
+  code                        String
+  version                     Int                       @default(1)
+  name                        String
+  description                 String?
+  formType                    FormType                  @default(OTHER) @map("form_type")
+  status                      FormStatus                @default(DRAFT)
+  activityId                  String?                   @map("activity_id") @db.Uuid
+  journeyStageId              String?                   @map("journey_stage_id") @db.Uuid
+  createdById                 String?                   @map("created_by_id") @db.Uuid
+  publishedById               String?                   @map("published_by_id") @db.Uuid
+  publishedAt                 DateTime?                 @map("published_at") @db.Timestamptz(3)
+  archivedAt                  DateTime?                 @map("archived_at") @db.Timestamptz(3)
+  createdAt                   DateTime                  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt                   DateTime                  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
+  organization                Organization              @relation("DigitalForm_organization", fields: [organizationId], references: [id], onDelete: Restrict, onUpdate: Restrict, map: "digital_forms_organization_fk")
+  project                     Project                   @relation("DigitalForm_project", fields: [organizationId, projectId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict, map: "digital_forms_project_fk")
+  createdBy                   SystemUser?               @relation("DigitalForm_createdBy", fields: [organizationId, createdById], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict, map: "digital_forms_created_by_fk")
+  publishedBy                 SystemUser?               @relation("DigitalForm_publishedBy", fields: [organizationId, publishedById], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict, map: "digital_forms_published_by_fk")
+  activity                    ProjectActivity?          @relation("DigitalForm_activity", fields: [organizationId, projectId, activityId], references: [organizationId, projectId, id], onDelete: Restrict, onUpdate: Restrict, map: "digital_forms_activity_fk")
+  journeyStage                JourneyStage?             @relation("DigitalForm_journeyStage", fields: [organizationId, projectId, journeyStageId], references: [organizationId, projectId, id], onDelete: Restrict, onUpdate: Restrict, map: "digital_forms_journey_stage_fk")
+  formField_form              FormField[]               @relation("FormField_form")
+  dataImportBatch_form        DataImportBatch[]         @relation("DataImportBatch_form")
+  dataImportRow_form          DataImportRow[]           @relation("DataImportRow_form")
+  metadataMapping_form        MetadataMapping[]         @relation("MetadataMapping_form")
+  formSubmission_form         FormSubmission[]          @relation("FormSubmission_form")
+  formResponseValue_form      FormResponseValue[]       @relation("FormResponseValue_form")
+  surveyAggregateRelease_form SurveyAggregateRelease[]  @relation("SurveyAggregateRelease_form")
 
   @@unique([organizationId, projectId, id], map: "digital_forms_scope_key")
   @@unique([organizationId, projectId, id, version], map: "digital_forms_version_scope_key")
@@ -1172,6 +1181,7 @@ model FormSubmission {
   importBatchId                                     String?                            @map("import_batch_id") @db.Uuid
   importRowId                                       String?                            @map("import_row_id") @db.Uuid
   enrollmentId                                      String?                            @map("enrollment_id") @db.Uuid
+  beneficiaryId                                     String?                            @map("beneficiary_id") @db.Uuid
   submittedById                                     String                             @map("submitted_by_id") @db.Uuid
   source                                            SubmissionSource                   @default(DIRECT_ENCODING)
   status                                            SubmissionStatus                   @default(DRAFT)
@@ -1191,6 +1201,7 @@ model FormSubmission {
   importBatch                                       DataImportBatch?                   @relation("FormSubmission_importBatch", fields: [organizationId, projectId, formId, importBatchId], references: [organizationId, projectId, formId, id], onDelete: Restrict, onUpdate: Restrict, map: "form_submissions_import_batch_fk")
   importRow                                         DataImportRow?                     @relation("FormSubmission_importRow", fields: [organizationId, projectId, formId, importBatchId, importRowId], references: [organizationId, projectId, formId, importBatchId, id], onDelete: Restrict, onUpdate: Restrict, map: "form_submissions_import_row_fk")
   enrollment                                        BeneficiaryProjectEnrollment?      @relation("FormSubmission_enrollment", fields: [organizationId, projectId, enrollmentId], references: [organizationId, projectId, id], onDelete: Restrict, onUpdate: Restrict, map: "form_submissions_enrollment_fk")
+  surveySubject                                     BeneficiaryProjectEnrollment?      @relation("FormSubmission_surveySubject", fields: [organizationId, projectId, beneficiaryId], references: [organizationId, projectId, beneficiaryId], onDelete: Restrict, onUpdate: Restrict, map: "form_submissions_beneficiary_fk")
   formResponseValue_submission                      FormResponseValue[]                @relation("FormResponseValue_submission")
   beneficiaryConsentRecord_submission               BeneficiaryConsentRecord[]         @relation("BeneficiaryConsentRecord_submission")
   beneficiaryActivityParticipation_sourceSubmission BeneficiaryActivityParticipation[] @relation("BeneficiaryActivityParticipation_sourceSubmission")
@@ -1315,6 +1326,7 @@ model BeneficiaryProjectEnrollment {
   project                                     Project                            @relation("BeneficiaryProjectEnrollment_project", fields: [organizationId, projectId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict, map: "beneficiary_project_enrollments_project_fk")
   recordedBy                                  SystemUser                         @relation("BeneficiaryProjectEnrollment_recordedBy", fields: [organizationId, recordedById], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict, map: "beneficiary_project_enrollments_recorded_by_fk")
   beneficiary                                 Beneficiary                        @relation("BeneficiaryProjectEnrollment_beneficiary", fields: [organizationId, beneficiaryId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict, map: "beneficiary_project_enrollments_beneficiary_fk")
+  formSubmission_surveySubject                FormSubmission[]                   @relation("FormSubmission_surveySubject")
   formSubmission_enrollment                   FormSubmission[]                   @relation("FormSubmission_enrollment")
   beneficiaryConsentRecord_enrollment         BeneficiaryConsentRecord[]         @relation("BeneficiaryConsentRecord_enrollment")
   beneficiaryActivityParticipation_enrollment BeneficiaryActivityParticipation[] @relation("BeneficiaryActivityParticipation_enrollment")
@@ -1680,6 +1692,7 @@ enum ReportType {
 }
 
 enum ReportFormat {
+  XLS
   PDF
   XLSX
   CSV
@@ -1726,35 +1739,37 @@ model ProjectBudgetRecord {
 }
 
 model BudgetExpenseEntry {
-  id                    String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  organizationId        String              @map("organization_id") @db.Uuid
-  projectId             String              @map("project_id") @db.Uuid
-  budgetRecordId        String              @map("budget_record_id") @db.Uuid
-  description           String
-  amount                Decimal             @db.Decimal(18, 2)
-  expenseDate           DateTime            @map("expense_date") @db.Date
-  receiptEvidenceId     String?             @map("receipt_evidence_id") @db.Uuid
-  status                ReviewStatus        @default(PENDING)
-  submittedById         String              @map("submitted_by_id") @db.Uuid
-  submittedAt           DateTime            @default(now()) @map("submitted_at") @db.Timestamptz(3)
-  verifiedById          String?             @map("verified_by_id") @db.Uuid
-  verifiedAt            DateTime?           @map("verified_at") @db.Timestamptz(3)
-  approvedById          String?             @map("approved_by_id") @db.Uuid
-  approvedAt            DateTime?           @map("approved_at") @db.Timestamptz(3)
-  rejectedById          String?             @map("rejected_by_id") @db.Uuid
-  rejectedAt            DateTime?           @map("rejected_at") @db.Timestamptz(3)
-  rejectionReason       String?             @map("rejection_reason")
-  createdAt             DateTime            @default(now()) @map("created_at") @db.Timestamptz(3)
-  updatedAt             DateTime            @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
-  organization          Organization        @relation("BudgetExpenseEntry_organization", fields: [organizationId], references: [id], onDelete: Restrict, onUpdate: Restrict, map: "budget_expense_entries_organization_fkey")
-  project               Project             @relation("BudgetExpenseEntry_project", fields: [organizationId, projectId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict, map: "budget_expense_entries_project_fkey")
-  budgetRecord          ProjectBudgetRecord @relation("BudgetExpenseEntry_budgetRecord", fields: [organizationId, projectId, budgetRecordId], references: [organizationId, projectId, id], onDelete: Restrict, onUpdate: Restrict, map: "budget_expense_entries_budget_record_fkey")
-  receiptEvidence       EvidenceMedia?      @relation("BudgetExpenseEntry_receiptEvidence", fields: [organizationId, projectId, receiptEvidenceId], references: [organizationId, projectId, id], onDelete: Restrict, onUpdate: Restrict, map: "budget_expense_entries_receipt_evidence_fkey")
-  submittedBy           SystemUser          @relation("BudgetExpenseEntry_submittedBy", fields: [organizationId, submittedById], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict, map: "budget_expense_entries_submitted_by_fkey")
-  verifiedBy            SystemUser?         @relation("BudgetExpenseEntry_verifiedBy", fields: [organizationId, verifiedById], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict, map: "budget_expense_entries_verified_by_fkey")
-  approvedBy            SystemUser?         @relation("BudgetExpenseEntry_approvedBy", fields: [organizationId, approvedById], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict, map: "budget_expense_entries_approved_by_fkey")
-  rejectedBy            SystemUser?         @relation("BudgetExpenseEntry_rejectedBy", fields: [organizationId, rejectedById], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict, map: "budget_expense_entries_rejected_by_fkey")
-  evidenceMedia_expense EvidenceMedia[]     @relation("EvidenceMedia_expense")
+  clientRequestId        String?             @map("client_request_id") @db.Uuid
+  id                     String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId         String              @map("organization_id") @db.Uuid
+  projectId              String              @map("project_id") @db.Uuid
+  budgetRecordId         String              @map("budget_record_id") @db.Uuid
+  description            String
+  amount                 Decimal             @db.Decimal(18, 2)
+  expenseDate            DateTime            @map("expense_date") @db.Date
+  receiptEvidenceId      String?             @map("receipt_evidence_id") @db.Uuid
+  status                 ReviewStatus        @default(PENDING)
+  submittedById          String              @map("submitted_by_id") @db.Uuid
+  submittedAt            DateTime            @default(now()) @map("submitted_at") @db.Timestamptz(3)
+  verifiedById           String?             @map("verified_by_id") @db.Uuid
+  verifiedAt             DateTime?           @map("verified_at") @db.Timestamptz(3)
+  approvedById           String?             @map("approved_by_id") @db.Uuid
+  approvedAt             DateTime?           @map("approved_at") @db.Timestamptz(3)
+  rejectedById           String?             @map("rejected_by_id") @db.Uuid
+  rejectedAt             DateTime?           @map("rejected_at") @db.Timestamptz(3)
+  rejectionReason        String?             @map("rejection_reason")
+  createdAt              DateTime            @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt              DateTime            @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
+  organization           Organization        @relation("BudgetExpenseEntry_organization", fields: [organizationId], references: [id], onDelete: Restrict, onUpdate: Restrict, map: "budget_expense_entries_organization_fkey")
+  project                Project             @relation("BudgetExpenseEntry_project", fields: [organizationId, projectId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict, map: "budget_expense_entries_project_fkey")
+  budgetRecord           ProjectBudgetRecord @relation("BudgetExpenseEntry_budgetRecord", fields: [organizationId, projectId, budgetRecordId], references: [organizationId, projectId, id], onDelete: Restrict, onUpdate: Restrict, map: "budget_expense_entries_budget_record_fkey")
+  receiptEvidence        EvidenceMedia?      @relation("BudgetExpenseEntry_receiptEvidence", fields: [organizationId, projectId, receiptEvidenceId], references: [organizationId, projectId, id], onDelete: Restrict, onUpdate: Restrict, map: "budget_expense_entries_receipt_evidence_fkey")
+  submittedBy            SystemUser          @relation("BudgetExpenseEntry_submittedBy", fields: [organizationId, submittedById], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict, map: "budget_expense_entries_submitted_by_fkey")
+  verifiedBy             SystemUser?         @relation("BudgetExpenseEntry_verifiedBy", fields: [organizationId, verifiedById], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict, map: "budget_expense_entries_verified_by_fkey")
+  approvedBy             SystemUser?         @relation("BudgetExpenseEntry_approvedBy", fields: [organizationId, approvedById], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict, map: "budget_expense_entries_approved_by_fkey")
+  rejectedBy             SystemUser?         @relation("BudgetExpenseEntry_rejectedBy", fields: [organizationId, rejectedById], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict, map: "budget_expense_entries_rejected_by_fkey")
+  evidenceMedia_expense  EvidenceMedia[]     @relation("EvidenceMedia_expense")
+  expenseSignoff_expense ExpenseSignoff?     @relation("ExpenseSignoff_expense")
 
   @@unique([organizationId, projectId, id], map: "budget_expense_entries_scope_key")
   @@index([organizationId, projectId, budgetRecordId], map: "budget_expense_entries_ref_1_idx")
@@ -1765,6 +1780,21 @@ model BudgetExpenseEntry {
   @@index([organizationId, rejectedById], map: "budget_expense_entries_ref_6_idx")
   @@index([organizationId, projectId, status, expenseDate], map: "budget_expense_entries_ref_7_idx")
   @@map("budget_expense_entries")
+  @@schema("pathways")
+}
+
+// Written only by 0034 finance functions; CHECK constraints live in SQL.
+model ExpenseSignoff {
+  organizationId String             @map("organization_id") @db.Uuid
+  projectId      String             @map("project_id") @db.Uuid
+  expenseId      String             @map("expense_id") @db.Uuid
+  signedOffById  String             @map("signed_off_by_id") @db.Uuid
+  signedOffAt    DateTime           @default(now()) @map("signed_off_at") @db.Timestamptz(3)
+  expense        BudgetExpenseEntry @relation("ExpenseSignoff_expense", fields: [organizationId, projectId, expenseId], references: [organizationId, projectId, id], onDelete: Restrict, onUpdate: Restrict, map: "expense_signoffs_organization_id_project_id_expense_id_fkey")
+  signedOffBy    SystemUser         @relation("ExpenseSignoff_signedOffBy", fields: [organizationId, signedOffById], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict, map: "expense_signoffs_organization_id_signed_off_by_id_fkey")
+
+  @@id([organizationId, projectId, expenseId], map: "expense_signoffs_pkey")
+  @@map("expense_signoffs")
   @@schema("pathways")
 }
 
@@ -2122,41 +2152,45 @@ model EvidenceMedia {
 }
 
 model Report {
-  id             String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  organizationId String             @map("organization_id") @db.Uuid
-  projectId      String?            @map("project_id") @db.Uuid
-  programId      String?            @map("program_id") @db.Uuid
-  formId         String?            @map("form_id") @db.Uuid
-  activityId     String?            @map("activity_id") @db.Uuid
-  journeyStageId String?            @map("journey_stage_id") @db.Uuid
-  evaluationId   String?            @map("evaluation_id") @db.Uuid
-  name           String
-  type           ReportType         @default(OTHER)
-  format         ReportFormat?
-  status         ReportStatus       @default(DRAFT)
-  location       String?
-  reportDate     DateTime?          @map("report_date") @db.Date
-  periodStart    DateTime?          @map("period_start") @db.Date
-  periodEnd      DateTime?          @map("period_end") @db.Date
-  aggregateOnly  Boolean            @default(true) @map("aggregate_only")
-  bucket         String?
-  objectKey      String?            @map("object_key")
-  sha256         String?            @db.Char(64)
-  createdById    String             @map("created_by_id") @db.Uuid
-  generatedById  String?            @map("generated_by_id") @db.Uuid
-  generatedAt    DateTime?          @map("generated_at") @db.Timestamptz(3)
-  archivedAt     DateTime?          @map("archived_at") @db.Timestamptz(3)
-  createdAt      DateTime           @default(now()) @map("created_at") @db.Timestamptz(3)
-  updatedAt      DateTime           @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
-  organization   Organization       @relation("Report_organization", fields: [organizationId], references: [id], onDelete: Restrict, onUpdate: Restrict, map: "reports_organization_fkey")
-  project        Project?           @relation("Report_project", fields: [organizationId, projectId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict, map: "reports_project_fkey")
-  program        Program?           @relation("Report_program", fields: [organizationId, programId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict, map: "reports_program_fkey")
-  form           DigitalForm?       @relation("Report_form", fields: [organizationId, projectId, formId], references: [organizationId, projectId, id], onDelete: Restrict, onUpdate: Restrict, map: "reports_form_fkey")
-  activity       ProjectActivity?   @relation("Report_activity", fields: [organizationId, projectId, activityId], references: [organizationId, projectId, id], onDelete: Restrict, onUpdate: Restrict, map: "reports_activity_fkey")
-  journeyStage   JourneyStage?      @relation("Report_journeyStage", fields: [organizationId, projectId, journeyStageId], references: [organizationId, projectId, id], onDelete: Restrict, onUpdate: Restrict, map: "reports_journey_stage_fkey")
-  evaluation     ProjectEvaluation? @relation("Report_evaluation", fields: [organizationId, projectId, evaluationId], references: [organizationId, projectId, id], onDelete: Restrict, onUpdate: Restrict, map: "reports_evaluation_fkey")
-  createdBy      SystemUser         @relation("Report_createdBy", fields: [organizationId, createdById], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict, map: "reports_created_by_fkey")
-  generatedBy    SystemUser?        @relation("Report_generatedBy", fields: [organizationId, generatedById], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict, map: "reports_generated_by_fkey")
+  sourceFingerprint String?            @map("source_fingerprint") @db.Char(64)
+  clientRequestId   String?            @map("client_request_id") @db.Uuid
+  requestHash       String?            @map("request_hash") @db.Char(64)
+  artifactByteSize  BigInt?            @map("artifact_byte_size")
+  id                String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId    String             @map("organization_id") @db.Uuid
+  projectId         String?            @map("project_id") @db.Uuid
+  programId         String?            @map("program_id") @db.Uuid
+  formId            String?            @map("form_id") @db.Uuid
+  activityId        String?            @map("activity_id") @db.Uuid
+  journeyStageId    String?            @map("journey_stage_id") @db.Uuid
+  evaluationId      String?            @map("evaluation_id") @db.Uuid
+  name              String
+  type              ReportType         @default(OTHER)
+  format            ReportFormat?
+  status            ReportStatus       @default(DRAFT)
+  location          String?
+  reportDate        DateTime?          @map("report_date") @db.Date
+  periodStart       DateTime?          @map("period_start") @db.Date
+  periodEnd         DateTime?          @map("period_end") @db.Date
+  aggregateOnly     Boolean            @default(true) @map("aggregate_only")
+  bucket            String?
+  objectKey         String?            @map("object_key")
+  sha256            String?            @db.Char(64)
+  createdById       String             @map("created_by_id") @db.Uuid
+  generatedById     String?            @map("generated_by_id") @db.Uuid
+  generatedAt       DateTime?          @map("generated_at") @db.Timestamptz(3)
+  archivedAt        DateTime?          @map("archived_at") @db.Timestamptz(3)
+  createdAt         DateTime           @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt         DateTime           @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
+  organization      Organization       @relation("Report_organization", fields: [organizationId], references: [id], onDelete: Restrict, onUpdate: Restrict, map: "reports_organization_fkey")
+  project           Project?           @relation("Report_project", fields: [organizationId, projectId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict, map: "reports_project_fkey")
+  program           Program?           @relation("Report_program", fields: [organizationId, programId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict, map: "reports_program_fkey")
+  form              DigitalForm?       @relation("Report_form", fields: [organizationId, projectId, formId], references: [organizationId, projectId, id], onDelete: Restrict, onUpdate: Restrict, map: "reports_form_fkey")
+  activity          ProjectActivity?   @relation("Report_activity", fields: [organizationId, projectId, activityId], references: [organizationId, projectId, id], onDelete: Restrict, onUpdate: Restrict, map: "reports_activity_fkey")
+  journeyStage      JourneyStage?      @relation("Report_journeyStage", fields: [organizationId, projectId, journeyStageId], references: [organizationId, projectId, id], onDelete: Restrict, onUpdate: Restrict, map: "reports_journey_stage_fkey")
+  evaluation        ProjectEvaluation? @relation("Report_evaluation", fields: [organizationId, projectId, evaluationId], references: [organizationId, projectId, id], onDelete: Restrict, onUpdate: Restrict, map: "reports_evaluation_fkey")
+  createdBy         SystemUser         @relation("Report_createdBy", fields: [organizationId, createdById], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict, map: "reports_created_by_fkey")
+  generatedBy       SystemUser?        @relation("Report_generatedBy", fields: [organizationId, generatedById], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict, map: "reports_generated_by_fkey")
 
   @@unique([organizationId, id], map: "reports_scope_key")
   @@unique([bucket, objectKey], map: "reports_unique_1")
@@ -2169,6 +2203,71 @@ model Report {
   @@index([organizationId, generatedById], map: "reports_ref_7_idx")
   @@index([organizationId, projectId, type, generatedAt], map: "reports_ref_8_idx")
   @@map("reports")
+  @@schema("pathways")
+}
+
+// Public tracker state; written only by 0034 publication functions. State,
+// snapshot allowlist and distinct-approver CHECK constraints live in SQL.
+model ProjectPublication {
+  organizationId String               @map("organization_id") @db.Uuid
+  projectId      String               @map("project_id") @db.Uuid
+  revision       Int
+  state          String
+  lastOperation  String               @map("last_operation")
+  summary        String
+  snapshot       Json
+  submittedById  String               @map("submitted_by_id") @db.Uuid
+  submittedAt    DateTime             @map("submitted_at") @db.Timestamptz(3)
+  approvedById   String?              @map("approved_by_id") @db.Uuid
+  approvedAt     DateTime?            @map("approved_at") @db.Timestamptz(3)
+  publishedById  String?              @map("published_by_id") @db.Uuid
+  publishedAt    DateTime?            @map("published_at") @db.Timestamptz(3)
+  updatedAt      DateTime             @default(now()) @map("updated_at") @db.Timestamptz(3)
+  project        Project              @relation("ProjectPublication_project", fields: [organizationId, projectId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict, map: "project_publications_organization_id_project_id_fkey")
+  submittedBy    SystemUser           @relation("ProjectPublication_submittedBy", fields: [organizationId, submittedById], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict, map: "project_publications_organization_id_submitted_by_id_fkey")
+  approvedBy     SystemUser?          @relation("ProjectPublication_approvedBy", fields: [organizationId, approvedById], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict, map: "project_publications_organization_id_approved_by_id_fkey")
+  publishedBy    SystemUser?          @relation("ProjectPublication_publishedBy", fields: [organizationId, publishedById], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict, map: "project_publications_organization_id_published_by_id_fkey")
+  requests       PublicationRequest[] @relation("PublicationRequest_publication")
+
+  @@id([organizationId, projectId], map: "project_publications_pkey")
+  @@map("project_publications")
+  @@schema("pathways")
+}
+
+// Idempotency ledger for publication operations.
+model PublicationRequest {
+  organizationId     String             @map("organization_id") @db.Uuid
+  projectId          String             @map("project_id") @db.Uuid
+  actorId            String             @map("actor_id") @db.Uuid
+  requestId          String             @map("request_id") @db.Uuid
+  operationCode      String             @map("operation_code")
+  requestHash        String             @map("request_hash")
+  resultingRevision  Int                @map("resulting_revision")
+  resultingState     String             @map("resulting_state")
+  resultingUpdatedAt DateTime           @map("resulting_updated_at") @db.Timestamptz(3)
+  recordedAt         DateTime           @default(now()) @map("recorded_at") @db.Timestamptz(3)
+  publication        ProjectPublication @relation("PublicationRequest_publication", fields: [organizationId, projectId], references: [organizationId, projectId], onDelete: Restrict, onUpdate: Restrict, map: "publication_requests_organization_id_project_id_fkey")
+  actor              SystemUser         @relation("PublicationRequest_actor", fields: [organizationId, actorId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict, map: "publication_requests_organization_id_actor_id_fkey")
+
+  @@id([organizationId, actorId, requestId], map: "publication_requests_pkey")
+  @@map("publication_requests")
+  @@schema("pathways")
+}
+
+// Suppressed survey aggregate snapshot; owned by report_projection_owner.
+model SurveyAggregateRelease {
+  organizationId String      @map("organization_id") @db.Uuid
+  projectId      String      @map("project_id") @db.Uuid
+  formId         String      @map("form_id") @db.Uuid
+  formVersion    Int         @map("form_version")
+  formCode       String      @map("form_code")
+  sourceHash     String      @map("source_hash") @db.Char(64)
+  payload        Json
+  createdAt      DateTime    @default(dbgenerated("clock_timestamp()")) @map("created_at") @db.Timestamptz(6)
+  form           DigitalForm @relation("SurveyAggregateRelease_form", fields: [organizationId, projectId, formId], references: [organizationId, projectId, id], onDelete: Restrict, onUpdate: Restrict, map: "survey_aggregate_releases_organization_id_project_id_form__fkey")
+
+  @@id([organizationId, projectId, formCode], map: "survey_aggregate_releases_pkey")
+  @@map("survey_aggregate_releases")
   @@schema("pathways")
 }
 

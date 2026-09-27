@@ -44,6 +44,7 @@ describe('Deferred legacy-table retirement contract', () => {
       '0031_f10_f11_rules_runtime',
       '0032_core_workflow_actor_locks',
       '0033_core_canonical_activity_review_guard',
+      '0034_core_feature_completion',
     ])
     expect(migration).toContain('DEFERRED REVIEW ARTIFACT -- NOT AN ACTIVE PRISMA MIGRATION')
   })
@@ -70,7 +71,11 @@ describe('Deferred legacy-table retirement contract', () => {
 
   it('keeps the datamodel and verifier aligned with the reviewed migration', () => {
     expect(schema).not.toMatch(/^model Legacy/m)
-    expect(schema.match(/^model /gm)).toHaveLength(48)
+    expect(schema.match(/^model /gm)).toHaveLength(52)
+    expect(schema).toMatch(/^model ExpenseSignoff\s*\{/m)
+    expect(schema).toMatch(/^model ProjectPublication\s*\{/m)
+    expect(schema).toMatch(/^model PublicationRequest\s*\{/m)
+    expect(schema).toMatch(/^model SurveyAggregateRelease\s*\{/m)
     expect(schema).toMatch(/^model ImplementingPartner\s*\{/m)
     expect(schema).toMatch(/^model ProjectImplementingPartner\s*\{/m)
     expect(schema).toMatch(/^model ProjectIndicatorBinding\s*\{/m)

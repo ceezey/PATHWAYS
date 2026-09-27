@@ -17,6 +17,8 @@ export interface PrivateInspectionStorageConfig {
   serviceOrigin: string
   serviceRoleKey: string
   evidenceBucket: string
+  /** Fixed server-owned purpose; never sourced from a request or artifact DTO. */
+  objectKind?: 'evidence' | 'reports'
 }
 
 // Every field is internal authorized context, never an HTTP path/choice/DTO.
@@ -63,6 +65,7 @@ function buildReader(
       serviceOrigin: configuration.serviceOrigin,
       serviceRoleKey: configuration.serviceRoleKey,
       evidenceBucket: configuration.evidenceBucket,
+      objectKind: configuration.objectKind ?? 'evidence',
     }
   } catch {
     return unavailable()
@@ -70,7 +73,8 @@ function buildReader(
   if (
     typeof config.serviceOrigin !== 'string' ||
     typeof config.serviceRoleKey !== 'string' ||
-    typeof config.evidenceBucket !== 'string'
+    typeof config.evidenceBucket !== 'string' ||
+    (config.objectKind !== 'evidence' && config.objectKind !== 'reports')
   )
     return unavailable()
   let origin: URL
@@ -144,7 +148,7 @@ function buildReader(
       input.organizationId,
       'projects',
       input.projectId,
-      'evidence',
+      config.objectKind,
       input.evidenceId,
     ]
     if (

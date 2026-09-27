@@ -6,6 +6,7 @@ import { afterEach, describe, expect, it } from 'vitest'
 import {
   type Change,
   analyze,
+  approvedUnappliedTransition,
   collect,
   digest,
   externalPath,
@@ -80,6 +81,49 @@ describe('routing and digest', () => {
   })
 })
 describe('automated diagnostics', () => {
+  const unappliedPath = 'apps/api/prisma/migrations/0031_f10_f11_rules_runtime/migration.sql'
+  const approvedBefore = '210f0f52abdf273c134e4aa66423dd1c5cbce5a3d61e4ad711c73f2a5fd34551'
+  const approvedAfter = '2ad17c0810939c8f392f4a35062643ad692c423517ff124b8bea0dbaae5e6375'
+  it('admits only the exact approved unapplied migration byte transition', () => {
+    expect(
+      approvedUnappliedTransition(unappliedPath, unappliedPath, approvedBefore, approvedAfter),
+    ).toBe(true)
+  })
+  it.each([
+    [unappliedPath, unappliedPath, null, approvedAfter],
+    [unappliedPath, unappliedPath, approvedBefore, null],
+    [unappliedPath, unappliedPath, 'different', approvedAfter],
+    [unappliedPath, unappliedPath, approvedBefore, 'different'],
+    [unappliedPath, 'apps/api/prisma/history/0031.sql', approvedBefore, approvedAfter],
+    [
+      'apps/api/prisma/migrations/0031_other/migration.sql',
+      unappliedPath,
+      approvedBefore,
+      approvedAfter,
+    ],
+    [
+      unappliedPath,
+      'apps/api/prisma/migrations/0031_other/migration.sql',
+      approvedBefore,
+      approvedAfter,
+    ],
+  ])('rejects unauthorized migration transition %j', (file, oldFile, before, after) => {
+    expect(approvedUnappliedTransition(file as string, oldFile as string, before, after)).toBe(
+      false,
+    )
+  })
+  it('does not exempt arbitrary SQL at the approved path or differing staged bytes', () => {
+    const report = analyze([
+      { ...change(unappliedPath, 'new', 'old'), staged: Buffer.from('staged mutation') },
+    ])
+    expect(blocked(report)).toBe(true)
+    expect(report.required_subagents['migration-integrity-guardian']).toContain(unappliedPath)
+    expect(
+      signoff(report, approved(report)).subagent_evaluations.some(
+        (entry) => entry.status === 'BLOCKED',
+      ),
+    ).toBe(true)
+  })
   it('ignores strings, comments, declarations and unchanged execution', () => {
     expect(
       blocked(
@@ -246,6 +290,42 @@ describe('git collection', () => {
     git('rm', 'b.ts')
     fs.writeFileSync(path.join(root, 'b.ts'), 'recreated')
     expect(collect(root).filter((c) => c.path === 'b.ts')).toHaveLength(1)
+    fs.mkdirSync(path.join(root, '.claude'))
+    fs.writeFileSync(path.join(root, '.claude', 'dot.md'), 'untracked dot path')
+    const dot = collect(root).find((c) => c.path === '.claude/dot.md')
+    expect(dot?.before).toBeNull()
+    expect(dot?.after?.toString()).toBe('untracked dot path')
+  })
+  it('reads index bytes by literal path and rejects unmerged entries', () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'pathways-sad-test-'))
+    temporary.push(root)
+    const git = (...args: string[]) =>
+      execFileSync('git', args, { cwd: root, windowsHide: true, encoding: 'utf8' }).trim()
+    git('init', '-q', '-b', 'main')
+    git('config', 'user.email', 'synthetic@example.invalid')
+    git('config', 'user.name', 'Synthetic SAD test')
+    fs.writeFileSync(path.join(root, 'ab.ts'), 'sibling')
+    fs.writeFileSync(path.join(root, 'c.ts'), 'base')
+    git('add', '.')
+    git('commit', '-qm', 'fixture')
+    fs.writeFileSync(path.join(root, 'a[bc].ts'), 'untracked')
+    fs.writeFileSync(path.join(root, 'ab.ts'), 'sibling staged')
+    git('add', 'ab.ts')
+    const changes = collect(root)
+    const bracket = changes.find((c) => c.path === 'a[bc].ts')
+    expect(bracket?.before).toBeNull()
+    expect(bracket?.staged).toBeUndefined()
+    expect(bracket?.after?.toString()).toBe('untracked')
+    fs.unlinkSync(path.join(root, 'a[bc].ts'))
+    git('commit', '-qam', 'sibling')
+    git('switch', '-qc', 'other')
+    fs.writeFileSync(path.join(root, 'c.ts'), 'other')
+    git('commit', '-qam', 'other')
+    git('switch', '-q', 'main')
+    fs.writeFileSync(path.join(root, 'c.ts'), 'main')
+    git('commit', '-qam', 'main')
+    expect(() => git('merge', '-q', 'other')).toThrow()
+    expect(() => collect(root)).toThrow(/Unmerged index entry/)
   })
   it('reviews staged code even when unstaged content restores HEAD', () => {
     const root = fs.mkdtempSync(path.join(os.tmpdir(), 'pathways-sad-index-'))

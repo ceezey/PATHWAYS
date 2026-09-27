@@ -69,6 +69,19 @@ For frontend tasks, read the canonical `docs/dsd-pathways.md` and use root `BRAN
 - Verify both development previews when shared web route policy affects API imports. If Vercel skips the API build, redeploy the reviewed development source explicitly and confirm both previews before database application.
 - Preserve branch history. Do not force-push a deployment branch or run database migrations as a deployment shortcut.
 
+### Release sequence
+
+Use `release-integrator` as the main-thread agent (`claude --agent release-integrator`) when integrating one or more feature branches for deployment. Stages run in order; any failure stops later stages and produces a report.
+
+1. **R1 Feature review:** each feature branch passes the SAD pipeline independently against `dev`.
+2. **R2 Integrate:** create `integration/<slug>` from current `dev` and merge each feature branch with `--no-ff`. Any conflict halts the run with a Human Intervention block; conflicts are never auto-resolved.
+3. **R3 Merged review:** run the SAD pipeline on the merged digest. Passing branches can still conflict semantically.
+4. **R4 Requirements QA:** `requirements-qa-gate` verifies each feature against its PRD acceptance criteria and QAD happy/sad/abuse rows. Every feature needs PASS.
+5. **R5 Development release:** merge into `dev`, push, and verify that both Vercel development previews build and respond.
+6. **R6 Deployment:** merge `dev` into `master` and push normally.
+
+The developer authorized R6 without per-release approval on 2026-09-28, only when all of these pass on the exact commit pushed: `pnpm -r typecheck`, test and build scripts, `pnpm docs:check`, `pnpm sad:signoff` with valid PASS evidence, R4 PASS for every feature, and healthy development previews. A release containing schema or migration changes stops before R6 for human authorization. Run logs and evidence go to `.tmp/release/<run>/`.
+
 ## 3. Traceability
 
 | Work | Read | Verify |
@@ -206,6 +219,8 @@ Audits record findings. Change Records record decisions.
 ### SAD review and sign-off
 
 Use the seven-role [SAD](sad-pathways.md) for changed-path matching and engineering rules. Review proposed changes with matching specialists and design QA concurrently in bounded batches before implementation; stop dependent work on a violation. After implementation, run `pnpm sad:check`, relevant tests, and renewed specialist reviews against the final change digest. Run `pnpm sad:signoff -- --reviews <external-json-path>` before engineering sign-off. Missing, stale, malformed, or BLOCKED evidence withholds sign-off; changed content invalidates previous evidence. Automated diagnostics do not certify semantic safety. Keep review reports outside tracked files, and omit unmatched roles rather than claiming PASS.
+
+Run reviews through `sad-orchestrator` as the main-thread agent (`claude --agent sad-orchestrator`), following the SAD section 3 stage order and section 3.1 handoff packet. Definitions live in `.claude/agents/` and defer to the SAD.
 
 ## 8. Human Intervention Contract
 

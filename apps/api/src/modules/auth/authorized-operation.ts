@@ -21,6 +21,7 @@ import type { ApplicationIdentity } from './developer-access'
 
 export interface AuthorizedOperationOptions {
   transactionTimeoutMs?: number
+  isolationLevel?: 'RepeatableRead'
 }
 
 import {
@@ -176,6 +177,9 @@ export async function withAuthorizedOperation<T>(
           ? {}
           : { timeoutMs: options.transactionTimeoutMs }),
         ...(inspection ? { requestBudget: inspection.budget } : {}),
+        ...(options?.isolationLevel !== undefined
+          ? { isolationLevel: options.isolationLevel }
+          : {}),
         onTiming: (timing) => {
           databaseTiming = timing
         },

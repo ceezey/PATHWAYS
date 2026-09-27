@@ -406,7 +406,13 @@ describe('P02 metadata service', () => {
   it('returns a repeat retry-safe submission when its form version and normalized values match', async () => {
     tx.digitalForm.findFirst.mockResolvedValue(form({ status: 'PUBLISHED' }))
     tx.formSubmission.findFirst
-      .mockResolvedValueOnce({ id: submissionId, projectId, formId, formVersion: 1 })
+      .mockResolvedValueOnce({
+        id: submissionId,
+        projectId,
+        formId,
+        formVersion: 1,
+        beneficiaryId: null,
+      })
       .mockResolvedValueOnce({
         id: submissionId,
         clientSubmissionId,
@@ -432,7 +438,13 @@ describe('P02 metadata service', () => {
   it('rejects reuse of a submission identifier with different normalized values', async () => {
     tx.digitalForm.findFirst.mockResolvedValue(form({ status: 'PUBLISHED' }))
     tx.formSubmission.findFirst
-      .mockResolvedValueOnce({ id: submissionId, projectId, formId, formVersion: 1 })
+      .mockResolvedValueOnce({
+        id: submissionId,
+        projectId,
+        formId,
+        formVersion: 1,
+        beneficiaryId: null,
+      })
       .mockResolvedValueOnce({
         id: submissionId,
         clientSubmissionId,

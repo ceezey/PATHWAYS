@@ -15,6 +15,8 @@ import { AuditModule } from './modules/audit/audit.module'
 import { AuthModule } from './modules/auth/auth.module'
 import { BeneficiariesModule } from './modules/beneficiaries/beneficiaries.module'
 import { DashboardsModule } from './modules/dashboards/dashboards.module'
+import { EvaluationsModule } from './modules/evaluations/evaluations.module'
+import { FinanceModule } from './modules/finance/finance.module'
 import { HealthModule } from './modules/health/health.module'
 import { ImportsModule } from './modules/imports/imports.module'
 import { IndicatorsModule } from './modules/indicators/indicators.module'
@@ -23,6 +25,7 @@ import { ParticipantsModule } from './modules/participants/participants.module'
 import { ProfileModule } from './modules/profile/profile.module'
 import { ProgramsModule } from './modules/programs/programs.module'
 import { ProjectsModule } from './modules/projects/projects.module'
+import { PublicModule } from './modules/public/public.module'
 import { ReportsModule } from './modules/reports/reports.module'
 import { RulesHumanModule } from './modules/rules/rules-human.module'
 import { rulesMachineOptions } from './modules/rules/rules-machine-options'
@@ -171,7 +174,10 @@ export function createPathwaysPinoHttpOptions(environment = process.env.NODE_ENV
     ImportsModule,
     IndicatorsModule,
     DashboardsModule,
+    EvaluationsModule,
+    FinanceModule,
     ReportsModule,
+    PublicModule,
     AuditModule,
     StorageModule,
   ],
