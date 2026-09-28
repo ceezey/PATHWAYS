@@ -175,7 +175,70 @@ export class PathwaysClientError extends Error {
   }
 }
 
+export interface AssessmentDetail {
+  id: string
+  projectId: string
+  activityId: string | null
+  enrollmentId: string | null
+  type: 'PRE_TEST' | 'POST_TEST' | 'OUTCOME_SURVEY' | 'FEEDBACK_SURVEY' | 'OTHER'
+  score: string
+  maximumScore: string
+  assessmentDate: string
+  recordedAt: string
+  beneficiary: { id: string; code: string } | null
+}
+
+const assessmentTypes = new Set([
+  'PRE_TEST',
+  'POST_TEST',
+  'OUTCOME_SURVEY',
+  'FEEDBACK_SURVEY',
+  'OTHER',
+])
+const isNullableString = (value: unknown) => value === null || typeof value === 'string'
+
+function parseAssessmentDetail(value: unknown): AssessmentDetail {
+  const row = value as Record<string, unknown> | null
+  const beneficiary = row?.beneficiary as Record<string, unknown> | null | undefined
+  if (
+    !row ||
+    typeof row.id !== 'string' ||
+    typeof row.projectId !== 'string' ||
+    !isNullableString(row.activityId) ||
+    !isNullableString(row.enrollmentId) ||
+    !assessmentTypes.has(row.type as string) ||
+    typeof row.score !== 'string' ||
+    typeof row.maximumScore !== 'string' ||
+    typeof row.assessmentDate !== 'string' ||
+    typeof row.recordedAt !== 'string' ||
+    (beneficiary !== null &&
+      (typeof beneficiary !== 'object' ||
+        typeof beneficiary.id !== 'string' ||
+        typeof beneficiary.code !== 'string'))
+  )
+    throw new PathwaysClientError('Invalid assessment response.', 'network')
+  return {
+    id: row.id,
+    projectId: row.projectId,
+    activityId: row.activityId as string | null,
+    enrollmentId: row.enrollmentId as string | null,
+    type: row.type as AssessmentDetail['type'],
+    score: row.score,
+    maximumScore: row.maximumScore,
+    assessmentDate: row.assessmentDate,
+    recordedAt: row.recordedAt,
+    beneficiary: beneficiary
+      ? { id: beneficiary.id as string, code: beneficiary.code as string }
+      : null,
+  }
+}
+
 export interface PathwaysClient {
+  getAssessmentDetail(
+    projectId: string,
+    assessmentId: string,
+    signal?: AbortSignal,
+  ): Promise<AssessmentDetail>
   getProjects(signal?: AbortSignal): Promise<ProjectSummary[]>
   getProjectsForRole(role: PathwaysRole): Promise<ProjectSummary[]>
   getProject(id: string, signal?: AbortSignal): Promise<ProjectDetail>
@@ -453,6 +516,18 @@ const backendNotConfigured = (operation: string) =>
  * corresponding real endpoint exists.
  */
 class BackendReadyPathwaysClient implements PathwaysClient {
+  async getAssessmentDetail(
+    projectId: string,
+    assessmentId: string,
+    signal?: AbortSignal,
+  ): Promise<AssessmentDetail> {
+    return parseAssessmentDetail(
+      await requestFoundation(
+        `/projects/${encodeURIComponent(projectId)}/evaluation/assessments/${encodeURIComponent(assessmentId)}`,
+        { signal },
+      ),
+    )
+  }
   async getProjects(signal?: AbortSignal): Promise<ProjectSummary[]> {
     return requestFoundation('/projects', { signal }).then(parseProjects)
   }
@@ -1080,7 +1155,11 @@ class BackendReadyPathwaysClient implements PathwaysClient {
     return requestFoundation(
       `/beneficiaries/projects/${encodeURIComponent(projectId)}/${encodeURIComponent(beneficiaryId)}/journey/events`,
       { method: 'POST', body: JSON.stringify(input) },
-    ) as Promise<{ enrollmentId: string; eventType: string; eventDate: string }>
+    ) as Promise<{
+      enrollmentId: string
+      eventType: string
+      eventDate: string
+    }>
   }
 
   async correctBeneficiaryJourneyEvent(
@@ -1363,7 +1442,10 @@ class BackendReadyPathwaysClient implements PathwaysClient {
   ) {
     return requestFoundation(
       `/imports/projects/${encodeURIComponent(projectId)}/batches/${encodeURIComponent(batchId)}/mapping`,
-      { method: 'PATCH', body: JSON.stringify({ expectedMappingRevision, mappings }) },
+      {
+        method: 'PATCH',
+        body: JSON.stringify({ expectedMappingRevision, mappings }),
+      },
     ) as Promise<ImportBatchDefinition>
   }
 
@@ -2022,7 +2104,10 @@ const activityResponseKeys = [
 ] as const satisfies readonly (keyof Activity)[]
 
 function parseActivity(value: unknown): Activity {
-  const row = value as Partial<Activity> & { budgetAllocation?: unknown; budgetLogged?: unknown }
+  const row = value as Partial<Activity> & {
+    budgetAllocation?: unknown
+    budgetLogged?: unknown
+  }
   if (
     !row ||
     typeof row !== 'object' ||
