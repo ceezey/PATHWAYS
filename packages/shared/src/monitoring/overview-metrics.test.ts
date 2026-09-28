@@ -53,9 +53,9 @@ describe('project overview metric math', () => {
     expect(moneyCents('1234.5')).toBe(123450n)
     expect(budgetUtilization('1000.00', '333.33')).toEqual(available('33.3'))
     expect(budgetUtilization('1000.00', '0.00')).toEqual({
-      state: 'ZERO',
-      value: '0',
-      reason: null,
+      state: 'MISSING',
+      value: null,
+      reason: 'NO_APPROVED_EXPENSES',
     })
     expect(budgetUtilization('100.00', '120.00')).toEqual(available('120'))
     expect(budgetUtilization(null, '50.00')).toEqual({

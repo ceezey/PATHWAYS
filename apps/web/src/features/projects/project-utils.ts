@@ -47,6 +47,7 @@ export const metricUnavailableLabel = (cell: MetricCell) => {
     // Known empty sources: readable, but nothing recorded yet.
     case 'NO_INDICATORS':
     case 'NO_MEASUREMENT':
+    case 'NO_APPROVED_EXPENSES':
       return 'None yet'
     case 'PROJECT_DATES_REQUIRED':
     case 'PROJECT_DATES_INVALID':

@@ -201,7 +201,7 @@ const modeDetails: Array<{
   {
     id: 'import',
     title: 'Import existing file',
-    description: 'Upload XLS, XLSX, or CSV and review detected mappings.',
+    description: 'Upload CSV, XLSX, XLS, or a text-based PDF and review detected mappings.',
     href: '/collection/import',
   },
   {
