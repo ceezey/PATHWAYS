@@ -1,7 +1,7 @@
 'use client'
 
 import { Loader2, TrendingUp } from 'lucide-react'
-import { useRef, useState } from 'react'
+import { useState } from 'react'
 import { toast } from 'sonner'
 
 import { DialogShell } from '@/components/pathways'
@@ -10,8 +10,17 @@ import { Dialog, DialogFooter } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
-import { pathwaysClient } from '@/lib/services/pathways-client'
+import { PathwaysClientError, pathwaysClient } from '@/lib/services/pathways-client'
 import type { Activity } from '@/types/pathways'
+
+/** A 4xx other than 408/429 means the server decided; the same payload will not succeed. */
+export const definitiveRejection = (caught: unknown) =>
+  caught instanceof PathwaysClientError &&
+  typeof caught.status === 'number' &&
+  caught.status >= 400 &&
+  caught.status < 500 &&
+  caught.status !== 408 &&
+  caught.status !== 429
 
 export const ActivityProgressDialog = ({
   activity,
@@ -28,36 +37,43 @@ export const ActivityProgressDialog = ({
   const [note, setNote] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState('')
-  // Reused on retry so an unresolved request replays instead of creating a second update.
-  const attemptId = useRef<string | null>(null)
+  // Kept only after an indeterminate failure, so a retry replays the same request instead of
+  // creating a second update. A definitive rejection clears it and unlocks the inputs.
+  const [attemptId, setAttemptId] = useState<string | null>(null)
 
   const submit = async () => {
     if (submitting) return
     const value = Number(progress)
-    if (!Number.isInteger(value) || value < 0 || value > 100) {
-      setError('Enter a whole-number progress between 0 and 100.')
+    if (value === 100) {
+      setError('Completion requires proof. Use Submit Update & Proof to record 100% progress.')
+      return
+    }
+    if (!Number.isInteger(value) || value < 0 || value > 99) {
+      setError('Enter a whole-number progress between 0 and 99.')
       return
     }
     if (!note.trim()) {
       setError('Enter a progress note.')
       return
     }
-    attemptId.current ??= crypto.randomUUID()
+    const clientUpdateId = attemptId ?? crypto.randomUUID()
+    setAttemptId(clientUpdateId)
     setSubmitting(true)
     setError('')
     try {
       const updated = await pathwaysClient.recordActivityProgress({
         projectId: activity.projectId,
         activityId: activity.id,
-        clientUpdateId: attemptId.current,
+        clientUpdateId,
         progress: value,
         note,
       })
-      attemptId.current = null
+      setAttemptId(null)
       toast.success('Progress recorded for review.')
       onRecorded(updated)
       onOpenChange(false)
     } catch (caught) {
+      if (definitiveRejection(caught)) setAttemptId(null)
       setError(
         caught instanceof Error ? caught.message : 'Progress could not be recorded. Try again.',
       )
@@ -74,6 +90,7 @@ export const ActivityProgressDialog = ({
       >
         <form
           className="space-y-5"
+          noValidate
           onSubmit={(event) => {
             event.preventDefault()
             void submit()
@@ -82,9 +99,9 @@ export const ActivityProgressDialog = ({
           <div className="space-y-2">
             <Label htmlFor="activity-progress-percent">Progress (%)</Label>
             <Input
-              disabled={submitting || Boolean(attemptId.current)}
+              disabled={submitting || Boolean(attemptId)}
               id="activity-progress-percent"
-              max={100}
+              max={99}
               min={0}
               onChange={(event) => setProgress(event.target.value)}
               step={1}
@@ -103,7 +120,7 @@ export const ActivityProgressDialog = ({
             <Textarea
               aria-required="true"
               className="min-h-28"
-              disabled={submitting || Boolean(attemptId.current)}
+              disabled={submitting || Boolean(attemptId)}
               id="activity-progress-note"
               maxLength={4000}
               onChange={(event) => setNote(event.target.value)}
