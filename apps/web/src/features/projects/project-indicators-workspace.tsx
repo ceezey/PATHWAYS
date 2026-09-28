@@ -472,16 +472,21 @@ export function ProjectIndicatorsWorkspace({ projectId }: { projectId: string })
   const activeKey = `${authorityKey}:${projectId}`
   const currentKey = useRef(activeKey)
   currentKey.current = activeKey
+  const canReadForms = principalHasAtomicPermission(profile, 'forms.read')
+  const canReadActivityContext = principalHasAtomicPermission(profile, 'activities.context.read')
+  const canReadActivities = principalHasAtomicPermission(profile, 'activities.read')
   useEffect(() => {
     let active = true
     if (canCreate)
       void Promise.all([
-        profile?.permissions.includes('forms.read')
+        canReadForms
           ? pathwaysClient.getDigitalForms(projectId)
           : Promise.resolve<DigitalFormDefinition[]>([]),
-        profile?.permissions.includes('activities.context.read')
+        canReadActivityContext
           ? pathwaysClient.getActivityContext(projectId)
-          : pathwaysClient.getActivities(projectId),
+          : canReadActivities
+            ? pathwaysClient.getActivities(projectId)
+            : Promise.resolve([]),
       ])
         .then(([forms, activities]) => {
           if (active) setBindings({ key: activeKey, forms, activities })
@@ -492,7 +497,7 @@ export function ProjectIndicatorsWorkspace({ projectId }: { projectId: string })
     return () => {
       active = false
     }
-  }, [activeKey, canCreate, projectId, profile?.permissions])
+  }, [activeKey, canCreate, projectId, canReadForms, canReadActivityContext, canReadActivities])
   const mutate = async (action: () => Promise<SourceMutationResult<ProjectIndicator>>) => {
     if (busy) return false
     const startedKey = activeKey

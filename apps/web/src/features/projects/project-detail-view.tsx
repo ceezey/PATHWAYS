@@ -25,7 +25,9 @@ import { ProjectWorkspaceHeader } from './project-workspace-header'
 export const ProjectDetailView = ({ projectId }: { projectId: string }) => {
   const { role, profile } = useCurrentRole()
   const canManageProjectProfile = isUiActionAvailable(role, 'projects.profile.manage', profile)
-  const canManageProjectTeam = isUiActionAvailable(role, 'projects.team.manage', profile)
+  // Team changes are saved through PATCH /projects/:id, which also requires projects.update.
+  const canManageProjectTeam =
+    isUiActionAvailable(role, 'projects.team.manage', profile) && canManageProjectProfile
   const [project, setProject] = useState<ProjectDetail | null>(null)
   const [status, setStatus] = useState<'loading' | 'success' | 'not-found' | 'error'>('loading')
   const [loadAttempt, setLoadAttempt] = useState(0)

@@ -115,6 +115,7 @@ Core P1 supporting contract reconciliation is approved for local implementation 
 
 | CR ID | Date | Summary | Status |
 |---|---|---|---|
+| [cr-pathways-admin-read-access](cr-pathways-admin-read-access.md) | 2026-09-28 | System Administrator read-only `activities.read` and `budgets.read` (migration 0035); web reads gated on the permission each call needs | Approved; local implementation verified; hosted application and release pending |
 | [cr-pathways-sad-orchestration](cr-pathways-sad-orchestration.md) | 2026-09-28 | Staged SAD review pipeline with typed handoff packets, `.claude/agents` coordinator and specialist definitions, multi-branch release sequence with gated autonomous master push and roster drift check | Applied |
 | [cr-pathways-self-managed-rollout-scenarios](cr-pathways-self-managed-rollout-scenarios.md) | 2026-09-27 | Trusted hosted creator-admin exception, Singapore staging, approved feature completion and verified synthetic record replacement with protected history | Approved; implementation and staging/live verification pending |
 | [cr-pathways-core-p1-supporting-operations](cr-pathways-core-p1-supporting-operations.md) | 2026-09-27 | Scoped registration context and revision-bound server-derived mapping; human review/normalization authority preserved | Approved for local P1 implementation; installation/runtime acceptance pending |

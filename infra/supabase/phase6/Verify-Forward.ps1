@@ -10,7 +10,7 @@ foreach ($name in @($baselineName,'0027_revised_csv_rbac','0028_revised_aggregat
 Copy-Item -LiteralPath (Join-Path $baselineStage 'migration_lock.toml') -Destination $forwardStage
 $forwardMigrations = @(Get-ChildItem -LiteralPath (Join-Path $phase6Root 'apps/api/prisma/migrations') -Directory |
   Where-Object { $_.Name -cmatch '^\d{4}_' -and [int]$_.Name.Substring(0,4) -ge 29 } | Sort-Object Name)
-if (($forwardMigrations.Name -join ',') -cne '0029_core_registration_and_import_support,0030_core_profile_partners,0031_f10_f11_rules_runtime,0032_core_workflow_actor_locks,0033_core_canonical_activity_review_guard,0034_core_feature_completion') { throw 'Forward migration inventory requires renewed review.' }
+if (($forwardMigrations.Name -join ',') -cne '0029_core_registration_and_import_support,0030_core_profile_partners,0031_f10_f11_rules_runtime,0032_core_workflow_actor_locks,0033_core_canonical_activity_review_guard,0034_core_feature_completion,0035_admin_read_access') { throw 'Forward migration inventory requires renewed review.' }
 
 function Assert-ForwardTarget([string]$Database) {
   if ($Database -cnotin $forwardDatabases) { throw 'Unapproved forward database.' }
@@ -270,10 +270,10 @@ try {
     }
     foreach ($db in $forwardDatabases[0..1]) { Invoke-ForwardDeploy $db ($migration.Name -ceq '0031_f10_f11_rules_runtime') $false ($migration.Name -ceq '0034_core_feature_completion') }
     if ([int]$migration.Name.Substring(0,4) -ge 31) { Invoke-ForwardDeploy 'pathways_phase4_forward_restore' ($migration.Name -ceq '0031_f10_f11_rules_runtime') $false ($migration.Name -ceq '0034_core_feature_completion') }
-    if ($migration.Name -ceq '0034_core_feature_completion') { Invoke-ForwardDeploy 'pathways_phase4_core_retry' $false $false $true }
+    if ([int]$migration.Name.Substring(0,4) -ge 34) { Invoke-ForwardDeploy 'pathways_phase4_core_retry' $false $false ($migration.Name -ceq '0034_core_feature_completion') }
   }
   foreach ($db in $forwardDatabases[0..1]) {
-    if ((Read-ForwardLedger $db "migration_name !~ '^00(29|3[0-4])_'") -cne $originalForwardLedgers[$db]) { throw 'Historical ledger rows changed during forward upgrade.' }
+    if ((Read-ForwardLedger $db "migration_name !~ '^00(29|3[0-5])_'") -cne $originalForwardLedgers[$db]) { throw 'Historical ledger rows changed during forward upgrade.' }
     Assert-ForwardChecksums $db
     $beforeRepeat = Read-ForwardLedger $db
     Invoke-ForwardDeploy $db
@@ -292,6 +292,26 @@ try {
   Write-Output 'FORWARD_FRESH_UPGRADE_CHECKSUM_PARITY=PASS'
   Write-Output 'FORWARD_IDEMPOTENT_DEPLOY=PASS'
   Write-Output 'FORWARD_BACKUP_RESTORE_RECOVERY=PASS'
+  # cr-pathways-admin-read-access: Admin gains only the two reads; writes, expenses and
+  # Beneficiary detail stay denied, and aggregate-only roles are unchanged.
+  foreach ($db in @('pathways_phase4_baseline', 'pathways_phase4_forward_restore', 'pathways_phase4_core_retry')) {
+    $adminRead = Read-ForwardSql $db @"
+SELECT (pathways.p09_role_allows('SYSTEM_ADMINISTRATOR','activities.read')
+ AND pathways.p09_role_allows('SYSTEM_ADMINISTRATOR','budgets.read')
+ AND NOT pathways.p09_role_allows('SYSTEM_ADMINISTRATOR','beneficiaries.records.read')
+ AND NOT pathways.p09_role_allows('SYSTEM_ADMINISTRATOR','activities.update')
+ AND NOT pathways.p09_role_allows('SYSTEM_ADMINISTRATOR','budgets.create')
+ AND NOT pathways.p09_role_allows('SYSTEM_ADMINISTRATOR','expenses.read')
+ AND NOT pathways.p09_role_allows('PROGRAM_MANAGER','beneficiaries.records.read')
+ AND NOT pathways.p09_role_allows('GRANT_MANAGER','beneficiaries.records.read')
+ AND (SELECT count(*) FROM pathways.role_permissions rp JOIN pathways.roles r ON r.id=rp.role_id
+      JOIN pathways.permissions p ON p.id=rp.permission_id
+      WHERE r.code='SYSTEM_ADMINISTRATOR' AND p.code IN ('activities.read','budgets.read'))=2
+ AND (SELECT count(*) FROM pathways.role_permissions)=308)::text;
+"@
+    if ($adminRead.Trim() -cne 'true') { throw "0035 admin read grants differ in $db." }
+  }
+  Write-Output 'FORWARD_0035_ADMIN_READ_GRANTS=PASS'
 } finally {
   foreach ($key in $forwardPriorEnvironment.Keys) { Set-Item -LiteralPath "Env:$key" -Value $forwardPriorEnvironment[$key] }
 }

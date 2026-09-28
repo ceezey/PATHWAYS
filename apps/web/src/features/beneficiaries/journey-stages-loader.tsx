@@ -10,12 +10,14 @@ import { PathwaysClientError, pathwaysClient } from '@/lib/services/pathways-cli
 import type { Activity, JourneyStageConfig, ProjectDetail } from '@/types/pathways'
 
 import { useCurrentRole } from '@/hooks/use-current-role'
+import { principalHasAtomicPermission } from '@/lib/rbac/route-access'
 
 import { JourneyStagesWorkspace } from './journey-stages-workspace'
 
 export const JourneyStagesLoader = ({ projectId }: { projectId: string }) => {
   const { profile } = useCurrentRole()
-  const contextOnly = profile?.permissions.includes('activities.context.read') === true
+  const contextOnly = principalHasAtomicPermission(profile, 'activities.context.read')
+  const canReadActivities = principalHasAtomicPermission(profile, 'activities.read')
   const [project, setProject] = useState<ProjectDetail | null>(null)
   const [activities, setActivities] = useState<Pick<Activity, 'id' | 'title' | 'journeyStageId'>[]>(
     [],
@@ -32,7 +34,9 @@ export const JourneyStagesLoader = ({ projectId }: { projectId: string }) => {
       pathwaysClient.getProject(projectId),
       contextOnly
         ? pathwaysClient.getActivityContext(projectId)
-        : pathwaysClient.getActivities(projectId),
+        : canReadActivities
+          ? pathwaysClient.getActivities(projectId)
+          : Promise.resolve([]),
       pathwaysClient.getJourneyStages(projectId),
     ])
       .then(([projectRecord, activityRecords, stageRecords]) => {
@@ -55,7 +59,7 @@ export const JourneyStagesLoader = ({ projectId }: { projectId: string }) => {
     return () => {
       active = false
     }
-  }, [projectId, contextOnly])
+  }, [projectId, contextOnly, canReadActivities])
 
   if (loading) {
     return (

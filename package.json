@@ -21,7 +21,12 @@
     "sad:test": "vitest run --config scripts/sad/vitest.config.ts",
     "sad:typecheck": "tsc -p scripts/sad/tsconfig.json",
     "prepare": "node scripts/setup-husky.mjs",
-    "rules:dispatch": "tsx apps/api/src/rules-dispatcher.ts"
+    "rules:dispatch": "tsx apps/api/src/rules-dispatcher.ts",
+    "db:local:start": "supabase start",
+    "db:local:stop": "supabase stop",
+    "db:local:reset": "node scripts/db/local-reset.mjs",
+    "db:local:seed": "node scripts/db/local-seed.mjs",
+    "dev:local": "node scripts/db/local-dev.mjs"
   },
   "devDependencies": {
     "@biomejs/biome": "^1.9.4",
@@ -29,6 +34,7 @@
     "@types/node": "^24.0.15",
     "husky": "^9.1.7",
     "lint-staged": "^16.1.0",
+    "supabase": "2.118.0",
     "tsx": "^4.20.5",
     "typescript": "^5.9.3",
     "vitest": "^3.2.4"

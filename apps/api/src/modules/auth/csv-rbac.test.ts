@@ -16,21 +16,32 @@ describe('approved CSV RBAC contract', () => {
       expect(row.disposition.length).toBeGreaterThan(0)
       for (const permission of row.permissions) expect(permissionCodes).toContain(permission)
     }
-    const sql = readFileSync(
-      path.resolve(__dirname, '../../../prisma/migrations/0027_revised_csv_rbac/migration.sql'),
-      'utf8',
-    )
+    const migration = (name: string) =>
+      readFileSync(
+        path.resolve(__dirname, `../../../prisma/migrations/${name}/migration.sql`),
+        'utf8',
+      )
+    const sql = migration('0027_revised_csv_rbac')
+    const latestMatrix = migration('0035_admin_read_access')
     const expected = Object.entries(contract.permissions)
       .flatMap(([permission, roles]) => roles.map((role) => `${role}:${permission}`))
       .sort()
-    for (const block of [
-      sql.split('INSERT INTO rbac_expected VALUES')[1].split(';')[0],
-      sql.split('AS $matrix$')[1].split('$matrix$;')[0],
-    ]) {
-      const actual = [...block.matchAll(/\('([A-Z_]+)','([a-z.]+)'\)/g)]
-        .map((match) => `${match[1]}:${match[2]}`)
-        .sort()
-      expect(actual).toEqual(expected)
+    const pairs = (block: string) =>
+      [...block.matchAll(/\('([A-Z_]+)','([a-z.]+)'\)/g)].map((match) => `${match[1]}:${match[2]}`)
+    const amended = contract.amendments.flatMap((amendment) =>
+      amendment.grants.map(([role, permission]) => `${role}:${permission}`),
+    )
+    // Effective grants: the 0027 baseline plus forward amendments (0035 inserts them).
+    expect(
+      [...pairs(sql.split('INSERT INTO rbac_expected VALUES')[1].split(';')[0]), ...amended].sort(),
+    ).toEqual(expected)
+    // The immutable ceiling is replaced wholesale; the latest definition must match.
+    expect(pairs(latestMatrix.split('AS $matrix$')[1].split('$matrix$;')[0]).sort()).toEqual(
+      expected,
+    )
+    for (const [role, permission] of contract.amendments.flatMap((amendment) => amendment.grants)) {
+      expect(latestMatrix).toContain(`WHERE r.code='${role}'`)
+      expect(latestMatrix).toContain(`'${permission}'`)
     }
   })
   it('matches every canonical grant and preserves unique permission definitions', () => {
@@ -78,6 +89,22 @@ describe('approved CSV RBAC contract', () => {
     expect(contract.sourceSha256).toBe(
       'ef1339d951a61d6d8f10c3463a91af696569c304b34614b077e8e485b0ebaafd',
     )
+  })
+  it('gives System Administrator read-only activity and budget views without detail or writes', () => {
+    expect(rolePermissions.SYSTEM_ADMINISTRATOR).toContain('activities.read')
+    expect(rolePermissions.SYSTEM_ADMINISTRATOR).toContain('budgets.read')
+    for (const permission of [
+      'beneficiaries.records.read',
+      'activities.create',
+      'activities.update',
+      'activities.proof.submit',
+      'budgets.create',
+      'budgets.update',
+      'expenses.read',
+      'expenses.submit',
+    ] as const) {
+      expect(rolePermissions.SYSTEM_ADMINISTRATOR).not.toContain(permission)
+    }
   })
   it('permits only Admin to assign Grant Manager', () => {
     for (const role of Object.keys(rolePermissions) as Array<keyof typeof rolePermissions>) {

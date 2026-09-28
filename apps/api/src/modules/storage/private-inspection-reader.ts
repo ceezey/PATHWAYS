@@ -1,6 +1,8 @@
 import { createHash } from 'node:crypto'
 import { performance } from 'node:perf_hooks'
 
+import { isApprovedServiceProtocol } from '@pathways/config'
+
 const MAX_BYTES = 10 * 1024 * 1024
 const MAX_METADATA_BYTES = 16 * 1024
 const STORAGE_DEADLINE_MS = 10_000
@@ -83,10 +85,9 @@ function buildReader(
   } catch {
     return unavailable()
   }
-  const expectedProtocol = 'https:'
-  const rawRootOnly = /^https:\/\/[^/?#]+\/?$/
+  const rawRootOnly = /^https?:\/\/[^/?#]+\/?$/
   if (
-    origin.protocol !== expectedProtocol ||
+    !isApprovedServiceProtocol(origin) ||
     !rawRootOnly.test(config.serviceOrigin) ||
     origin.pathname !== '/' ||
     origin.search ||

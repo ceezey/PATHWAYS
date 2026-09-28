@@ -5,3 +5,4 @@ apps/api/prisma/migrations/0031_f10_f11_rules_runtime/migration.sql -text
 apps/api/prisma/migrations/0032_core_workflow_actor_locks/migration.sql -text
 apps/api/prisma/migrations/0033_core_canonical_activity_review_guard/migration.sql -text
 apps/api/prisma/migrations/0034_core_feature_completion/migration.sql -text
+apps/api/prisma/migrations/0035_admin_read_access/migration.sql -text

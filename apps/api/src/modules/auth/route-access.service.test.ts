@@ -34,7 +34,7 @@ const service = new RouteAccessService({
 // Explicit approved CSV route matrix, independent of the route implementation.
 const allowed: Record<CanonicalRole, string> = {
   SYSTEM_ADMINISTRATOR:
-    'dashboard unauthorized projects reports surveyReport forms form profile settings projectReport indicatorReport analytics indicators monitoring collection imports alerts recommendations rules settingsRules users audit backups transparency transparencyPreview transparencyQueue evidence formCreate journey project',
+    'dashboard unauthorized projects reports surveyReport forms form profile settings projectReport indicatorReport analytics indicators monitoring collection imports alerts recommendations rules settingsRules users audit backups transparency transparencyPreview transparencyQueue evidence formCreate journey project activities activity budget',
   PROGRAM_MANAGER:
     'dashboard unauthorized projects reports surveyReport profile settings projectReport indicatorReport project analytics budget monitoring transparency transparencyPreview transparencyQueue alerts recommendations users audit evidence',
   GRANT_MANAGER:

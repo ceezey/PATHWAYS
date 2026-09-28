@@ -183,7 +183,8 @@ const LegacyProjectWorkspace = ({
         setProject(projectRecord)
         const requests: Promise<void>[] = []
         if (view === 'evidence') {
-          if (canReadEvidence) {
+          // Evidence is assembled from the activity list, so both reads are required.
+          if (canReadEvidence && canReadActivities) {
             requests.push(
               optional('Evidence records', pathwaysClient.getEvidence(projectId), setEvidence),
             )

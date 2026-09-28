@@ -249,14 +249,33 @@ describe('proposed bounded private storage companion (synthetic fetch only)', ()
   ])(
     'production rejects unsupported/ambiguous configured origins before native fetch: %s',
     (origin) => {
+      vi.stubEnv('NODE_ENV', 'production')
       const mock = vi.fn()
       vi.stubGlobal('fetch', mock)
-      expect(() => createPrivateInspectionReader({ ...config, serviceOrigin: origin })).toThrow(
-        PrivateInspectionReadError,
-      )
-      expect(mock).not.toHaveBeenCalled()
+      try {
+        expect(() => createPrivateInspectionReader({ ...config, serviceOrigin: origin })).toThrow(
+          PrivateInspectionReadError,
+        )
+        expect(mock).not.toHaveBeenCalled()
+      } finally {
+        vi.unstubAllEnvs()
+      }
     },
   )
+
+  it('accepts the loopback local Supabase origin only outside production', () => {
+    vi.stubEnv('NODE_ENV', 'development')
+    try {
+      expect(() =>
+        createPrivateInspectionReader({ ...config, serviceOrigin: 'http://127.0.0.1:54321' }),
+      ).not.toThrow()
+      expect(() =>
+        createPrivateInspectionReader({ ...config, serviceOrigin: 'http://remote.invalid' }),
+      ).toThrow(PrivateInspectionReadError)
+    } finally {
+      vi.unstubAllEnvs()
+    }
+  })
 
   it('test-local injection rejects native fetch and production rejects HTTP origins', () => {
     expect(() =>
