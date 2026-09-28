@@ -331,6 +331,7 @@ const OwnedCollectionWorkspace = ({
   const canReadForms = principalHasAtomicPermission(profile, 'forms.read')
   const canManageForms = principalHasAtomicPermission(profile, 'forms.manage')
   const canPublishForms = principalHasAtomicPermission(profile, 'forms.publish')
+  const canGenerateForms = principalHasAtomicPermission(profile, 'forms.generate')
   const canReadActivities = principalHasAtomicPermission(profile, 'activities.read')
   const canReadIndicators = principalHasAtomicPermission(profile, 'monitoring.read')
   const canEncodeData = Boolean(
@@ -1381,6 +1382,43 @@ const OwnedCollectionWorkspace = ({
             }}
           >
             Create new version
+          </Button>
+        )}
+      {view === 'builder' &&
+        canGenerateForms &&
+        forms.some((form) => form.id === editingFormId) && (
+          <Button
+            type="button"
+            variant="outline"
+            disabled={creatingVersion}
+            onClick={async () => {
+              const source = forms.find((form) => form.id === editingFormId)
+              if (!source || creatingVersion) return
+              const ticket = beginOperation('forms.generate')
+              if (!ticket) return
+              setCreatingVersion(true)
+              try {
+                const suffix = `_copy_${Date.now().toString(36)}`
+                const created = await pathwaysClient.generateDigitalForm(projectId, {
+                  sourceFormId: source.id,
+                  code: `${source.code.slice(0, 64 - suffix.length)}${suffix}`,
+                  name: `${source.name.slice(0, 150)} (copy)`,
+                })
+                if (!ticket.valid()) return
+                setForms((current) => [...current, created])
+                setSavedNotice(`Generated draft form ${created.name}.`)
+              } catch (error) {
+                if (!ticket.valid()) return
+                toast.error(
+                  error instanceof Error ? error.message : 'The form could not be generated.',
+                )
+              } finally {
+                if (ticket.valid()) setCreatingVersion(false)
+                ticket.finish()
+              }
+            }}
+          >
+            Generate copy
           </Button>
         )}
       {view === 'builder' ? (

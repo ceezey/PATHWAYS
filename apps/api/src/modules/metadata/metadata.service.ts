@@ -21,9 +21,11 @@ import { projectScope } from '../auth/authorized-data.service'
 import { withAuthorizedOperation } from '../auth/authorized-operation'
 import { type ApplicationIdentity, UUID_PATTERN } from '../auth/developer-access'
 import { ParticipantsService } from '../participants/participants.service'
+import { type FormTemplateKey, formTemplates } from './form-templates'
 import type {
   CreateFormDto,
   ExpectedVersionDto,
+  GenerateFormDto,
   ListSubmissionsQueryDto,
   SaveSubmissionDto,
   SubmitSubmissionDto,
@@ -127,6 +129,24 @@ function mapForm(form: FormRow, actor: ApplicationIdentity) {
       maximumLength: field.maximumLength,
       sequence: field.sequenceNo,
     })),
+  }
+}
+
+function fieldInput(field: FormRow['formField_form'][number]): CreateFormDto['fields'][number] {
+  return {
+    code: field.code,
+    label: field.label,
+    dataType: field.dataType,
+    required: field.isRequired,
+    metadataKey: field.isMetadataKey,
+    sadddField: field.isSadddField,
+    allowedValues: allowedValues(field.allowedValues) ?? undefined,
+    minimumValue: field.minimumValue?.toString(),
+    maximumValue: field.maximumValue?.toString(),
+    minimumDate: field.minimumDate?.toISOString().slice(0, 10),
+    maximumDate: field.maximumDate?.toISOString().slice(0, 10),
+    minimumLength: field.minimumLength ?? undefined,
+    maximumLength: field.maximumLength ?? undefined,
   }
 }
 
@@ -253,47 +273,110 @@ export class MetadataService {
     assertDefinition(input)
     return withAuthorizedOperation(this.prisma, identity, 'forms.manage', async (tx, actor) => {
       const scopedProjectId = await this.requireProject(tx, actor, projectId)
-      await this.requireLinks(tx, actor, scopedProjectId, input.activityId, input.journeyStageId)
-      const exists = await tx.digitalForm.findFirst({
-        where: {
-          organizationId: actor.organizationId,
-          projectId: scopedProjectId,
-          code: input.code,
-        },
-        select: { id: true },
-      })
-      if (exists) throw new ConflictException('That form code already exists in this project.')
-      const created = await tx.digitalForm.create({
-        data: {
-          organizationId: actor.organizationId,
-          projectId: scopedProjectId,
-          code: input.code,
-          version: 1,
-          name: input.name,
-          description: input.description?.trim() || null,
-          formType: input.formType,
-          activityId: input.activityId?.toLowerCase(),
-          journeyStageId: input.journeyStageId?.toLowerCase(),
-          createdById: actor.userId,
-        },
-        select: { id: true },
-      })
-      await tx.formField.createMany({
-        data: fieldData(actor.organizationId, scopedProjectId, created.id, input.fields),
-      })
-      await tx.auditLog.create({
-        data: {
-          organizationId: actor.organizationId,
-          actorUserId: actor.userId,
-          projectId: scopedProjectId,
-          action: 'FORM_DRAFT_CREATED',
-          entityType: 'DigitalForm',
-          entityId: created.id,
-          changes: { code: input.code, version: 1, fieldCount: input.fields.length },
-        },
-      })
-      return mapForm(await this.findForm(tx, actor, scopedProjectId, created.id), actor)
+      return this.insertDraft(tx, actor, scopedProjectId, input, 'FORM_DRAFT_CREATED', {})
     })
+  }
+
+  /**
+   * `forms.generate`: new version-1 draft from a server-owned template or an
+   * existing form in the same scoped project. Exactly one source is allowed.
+   */
+  async generateForm(identity: ApplicationIdentity, projectId: string, input: GenerateFormDto) {
+    const hasTemplate = input.templateKey !== undefined
+    const hasSource = input.sourceFormId !== undefined
+    if (hasTemplate === hasSource)
+      throw new BadRequestException('Provide exactly one of templateKey or sourceFormId.')
+    if (hasTemplate && !Object.hasOwn(formTemplates, input.templateKey as string))
+      throw new BadRequestException('Unknown form template.')
+    return withAuthorizedOperation(this.prisma, identity, 'forms.generate', async (tx, actor) => {
+      const scopedProjectId = await this.requireProject(tx, actor, projectId)
+      let definition: CreateFormDto
+      let origin: Prisma.InputJsonObject
+      if (hasTemplate) {
+        const key = input.templateKey as FormTemplateKey
+        const template = formTemplates[key]
+        definition = {
+          code: input.code,
+          name: input.name,
+          description: template.description,
+          formType: template.formType,
+          fields: template.fields.map((item) => ({
+            ...item,
+            allowedValues: item.allowedValues ? [...item.allowedValues] : undefined,
+          })),
+        }
+        origin = { templateKey: key }
+      } else {
+        const source = await this.requireForm(
+          tx,
+          actor,
+          scopedProjectId,
+          input.sourceFormId as string,
+        )
+        definition = {
+          code: input.code,
+          name: input.name,
+          description: source.description ?? undefined,
+          formType: source.formType,
+          activityId: source.activityId ?? undefined,
+          journeyStageId: source.journeyStageId ?? undefined,
+          fields: source.formField_form.map(fieldInput),
+        }
+        origin = { sourceFormId: source.id, sourceVersion: source.version }
+      }
+      assertDefinition(definition)
+      return this.insertDraft(tx, actor, scopedProjectId, definition, 'FORM_GENERATED', origin)
+    })
+  }
+
+  private async insertDraft(
+    tx: Tx,
+    actor: ApplicationIdentity,
+    scopedProjectId: string,
+    input: CreateFormDto,
+    action: 'FORM_DRAFT_CREATED' | 'FORM_GENERATED',
+    origin: Prisma.InputJsonObject,
+  ) {
+    await this.requireLinks(tx, actor, scopedProjectId, input.activityId, input.journeyStageId)
+    const exists = await tx.digitalForm.findFirst({
+      where: {
+        organizationId: actor.organizationId,
+        projectId: scopedProjectId,
+        code: input.code,
+      },
+      select: { id: true },
+    })
+    if (exists) throw new ConflictException('That form code already exists in this project.')
+    const created = await tx.digitalForm.create({
+      data: {
+        organizationId: actor.organizationId,
+        projectId: scopedProjectId,
+        code: input.code,
+        version: 1,
+        name: input.name,
+        description: input.description?.trim() || null,
+        formType: input.formType,
+        activityId: input.activityId?.toLowerCase(),
+        journeyStageId: input.journeyStageId?.toLowerCase(),
+        createdById: actor.userId,
+      },
+      select: { id: true },
+    })
+    await tx.formField.createMany({
+      data: fieldData(actor.organizationId, scopedProjectId, created.id, input.fields),
+    })
+    await tx.auditLog.create({
+      data: {
+        organizationId: actor.organizationId,
+        actorUserId: actor.userId,
+        projectId: scopedProjectId,
+        action,
+        entityType: 'DigitalForm',
+        entityId: created.id,
+        changes: { code: input.code, version: 1, fieldCount: input.fields.length, ...origin },
+      },
+    })
+    return mapForm(await this.findForm(tx, actor, scopedProjectId, created.id), actor)
   }
 
   updateForm(
@@ -1087,23 +1170,7 @@ export class MetadataService {
       }
       throw caught
     }
-    const fields =
-      override?.fields ??
-      source.formField_form.map((field) => ({
-        code: field.code,
-        label: field.label,
-        dataType: field.dataType,
-        required: field.isRequired,
-        metadataKey: field.isMetadataKey,
-        sadddField: field.isSadddField,
-        allowedValues: allowedValues(field.allowedValues) ?? undefined,
-        minimumValue: field.minimumValue?.toString(),
-        maximumValue: field.maximumValue?.toString(),
-        minimumDate: field.minimumDate?.toISOString().slice(0, 10),
-        maximumDate: field.maximumDate?.toISOString().slice(0, 10),
-        minimumLength: field.minimumLength ?? undefined,
-        maximumLength: field.maximumLength ?? undefined,
-      }))
+    const fields = override?.fields ?? source.formField_form.map(fieldInput)
     await tx.formField.createMany({
       data: fieldData(actor.organizationId, source.projectId, created.id, fields),
     })
