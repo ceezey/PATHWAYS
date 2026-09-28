@@ -616,9 +616,11 @@ END $$;
     }
   }
   if ($phase6Started) {
+    # The shutdown checkpoint grows with every recovery clone pair (0031, 0034, 0036, 0037);
+    # a clean fast stop measured 40 s locally, so allow up to 170 s before reporting failure.
     $phase6Stop = Start-Process -FilePath $phase6Tools['pg_ctl'] `
-      -ArgumentList @('-D',$phase6Data,'-m','fast','-s','stop') @phase6ProcessOptions
-    if (-not $phase6Stop.WaitForExit(30000) -or $phase6Stop.ExitCode -ne 0) {
+      -ArgumentList @('-D',$phase6Data,'-m','fast','-t','170','-s','stop') @phase6ProcessOptions
+    if (-not $phase6Stop.WaitForExit(180000) -or $phase6Stop.ExitCode -ne 0) {
       $phase6Exit = 1
     } else {
       $phase6Started = $false
