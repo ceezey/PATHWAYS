@@ -653,38 +653,40 @@ export class ActivitiesService {
           select: {
             projectActivity_project: {
               where: activityWhere,
-              select: {
-                id: true,
-                title: true,
-                activityUpdate_activity: {
-                  select: {
-                    evidenceMedia_update: {
-                      where: { storageReady: true },
-                      select: { status: true },
-                      take: 10,
-                    },
-                  },
-                  take: 100,
-                },
-              },
+              select: { id: true, title: true },
               orderBy: [{ plannedEndDate: 'asc' }, { id: 'asc' }],
               take: 100,
             },
           },
         })
         if (!project) throw new NotFoundException('Project unavailable.')
+        const activityIds = project.projectActivity_project.map((row) => row.id)
+        // Counts come from the database, so they are exact rather than capped by row limits.
+        const groups = activityIds.length
+          ? await tx.evidenceMedia.groupBy({
+              by: ['activityId', 'status'],
+              where: {
+                organizationId: actor.organizationId,
+                projectId: projectId.toLowerCase(),
+                activityId: { in: activityIds },
+                activityUpdateId: { not: null },
+                storageReady: true,
+              },
+              _count: { _all: true },
+            })
+          : []
         return {
           scope: 'aggregate' as const,
           activities: project.projectActivity_project.map((row) => {
             const counts = { total: 0, submitted: 0, approved: 0, returned: 0 }
-            for (const update of row.activityUpdate_activity) {
-              for (const proof of update.evidenceMedia_update) {
-                counts.total += 1
-                const status = reviewStatus[proof.status]
-                if (status === 'Accepted') counts.approved += 1
-                else if (status === 'Flagged') counts.returned += 1
-                else counts.submitted += 1
-              }
+            for (const group of groups) {
+              if (group.activityId !== row.id) continue
+              const count = group._count._all
+              counts.total += count
+              const status = reviewStatus[group.status]
+              if (status === 'Accepted') counts.approved += count
+              else if (status === 'Flagged') counts.returned += count
+              else counts.submitted += count
             }
             return { activityId: row.id, activityTitle: row.title, ...counts }
           }),
@@ -699,6 +701,8 @@ export class ActivitiesService {
               id: true,
               projectId: true,
               title: true,
+              // Detail keeps the same bounded page as the activity list (100 activities,
+              // 100 updates, 10 proofs per update); counts for totals use the aggregate path.
               activityUpdate_activity: activitySelection.activityUpdate_activity,
             },
             orderBy: [{ plannedEndDate: 'asc' }, { id: 'asc' }],
