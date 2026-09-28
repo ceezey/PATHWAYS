@@ -1,4 +1,5 @@
 import { type Page, expect, test } from '@playwright/test'
+import { stubBeneficiaryStepUp } from './fixtures/step-up'
 
 async function switchAccount(page: Page, accountId: string) {
   await page.goto('/review/demo-controls')
@@ -29,10 +30,8 @@ test('journey stages are sequential and future stages cannot be opened', async (
   page,
 }, testInfo) => {
   await resetAndSwitch(page, 'project-officer')
+  await stubBeneficiaryStepUp(page)
   await page.goto('/beneficiaries/ben-001')
-  const gate = page.getByRole('dialog', { name: 'Verify beneficiary module access' })
-  await gate.getByLabel('Beneficiary access PIN').fill('2468')
-  await gate.getByRole('button', { name: 'Verify and enter' }).click()
 
   await expect(
     page.getByRole('button', { name: /J1 Registration and intake: Reached/i }),

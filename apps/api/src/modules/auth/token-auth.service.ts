@@ -104,6 +104,24 @@ export class TokenAuthService {
             Number.isFinite(method.timestamp) &&
             method.timestamp <= now + 30,
         )
+      // Latest signed TOTP verification, used only for Beneficiary step-up
+      // freshness. Future-dated entries beyond clock skew are ignored.
+      let mfaVerifiedAt: number | undefined
+      if (Array.isArray(claims.amr)) {
+        for (const method of claims.amr) {
+          if (
+            typeof method === 'object' &&
+            method !== null &&
+            method.method === 'totp' &&
+            typeof method.timestamp === 'number' &&
+            Number.isFinite(method.timestamp) &&
+            method.timestamp <= now + 30 &&
+            (mfaVerifiedAt === undefined || method.timestamp > mfaVerifiedAt)
+          ) {
+            mfaVerifiedAt = method.timestamp
+          }
+        }
+      }
       if (
         claims.iss !== `${authOrigin}/auth/v1` ||
         claims.aud !== 'authenticated' ||
@@ -145,7 +163,11 @@ export class TokenAuthService {
         throw new Error('Invalid current identity')
       }
       verified = {
-        identity: { id: claims.sub, aal: claims.aal },
+        identity: {
+          id: claims.sub,
+          aal: claims.aal,
+          ...(claims.aal === 'aal2' && mfaVerifiedAt !== undefined ? { mfaVerifiedAt } : {}),
+        },
         sessionId: claims.session_id,
         stageTimings: { claimsMs, currentUserMs },
       }

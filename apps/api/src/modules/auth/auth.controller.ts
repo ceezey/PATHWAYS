@@ -12,6 +12,7 @@ import { ApiOkResponse, ApiTags } from '@nestjs/swagger'
 
 import { AuthBoundary } from '../../common/decorators/auth-boundary.decorator'
 import { AuthService } from './auth.service'
+import { STEP_UP_WINDOW_SECONDS, evaluateBeneficiaryStepUp } from './beneficiary-step-up'
 import type { AuthenticatedRequest } from './developer-access'
 import { WorkspaceResolutionService } from './workspace-resolution.service'
 
@@ -51,6 +52,22 @@ export class AuthController {
       aal: request.auth?.aal,
       enrollmentAllowed: true,
       applicationAccessEnabled: true,
+    }
+  }
+
+  @Get('step-up/status')
+  @AuthBoundary('workspace-discovery')
+  @Header('Cache-Control', 'private, no-store')
+  @ApiOkResponse({
+    description: 'Beneficiary step-up freshness from signed claims; no business data.',
+  })
+  getStepUpStatus(@Req() request: AuthenticatedRequest) {
+    if (!request.auth) throw new UnauthorizedException('Verified authentication required.')
+    const state = evaluateBeneficiaryStepUp(request.auth.mfaVerifiedAt)
+    return {
+      fresh: state.fresh,
+      expiresAt: state.fresh ? new Date(state.expiresAt * 1000).toISOString() : null,
+      windowSeconds: STEP_UP_WINDOW_SECONDS,
     }
   }
 

@@ -154,8 +154,16 @@ export function RouteAccessGuard({ children }: { children: React.ReactNode }) {
         </button>
       </section>
     )
-  if (pathname === '/beneficiaries' || pathname.startsWith('/beneficiaries/')) {
-    return <BeneficiaryAccessGate>{children}</BeneficiaryAccessGate>
-  }
-  return children
+  // Beneficiary routes check step-up first; every route can show the prompt when
+  // the API returns STEP_UP_REQUIRED (for example the survey subject picker).
+  return (
+    <BeneficiaryAccessGate
+      preflight={
+        (pathname === '/beneficiaries' || pathname.startsWith('/beneficiaries/')) &&
+        current.decision?.beneficiaryAccess !== 'aggregate-only'
+      }
+    >
+      {children}
+    </BeneficiaryAccessGate>
+  )
 }

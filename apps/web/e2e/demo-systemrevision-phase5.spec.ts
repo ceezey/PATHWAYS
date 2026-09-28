@@ -1,10 +1,12 @@
 import { resolve } from 'node:path'
 
 import { type Page, expect, test } from '@playwright/test'
+import { stubBeneficiaryStepUp } from './fixtures/step-up'
 
 const browserErrors = new WeakMap<Page, string[]>()
 
 test.beforeEach(async ({ page }) => {
+  await stubBeneficiaryStepUp(page)
   const errors: string[] = []
   browserErrors.set(page, errors)
   page.on('pageerror', (error) => errors.push(`pageerror: ${error.message}`))
@@ -50,12 +52,11 @@ async function resetAndSwitch(page: Page, accountId = 'project-manager') {
   await switchAccount(page, accountId)
 }
 
+// A fresh server-reported step-up opens Beneficiary routes without a prompt.
 async function verifyBeneficiaryGate(page: Page) {
-  const gate = page.getByRole('dialog', { name: 'Verify beneficiary module access' })
-  await expect(gate).toBeVisible()
-  await gate.getByLabel('Beneficiary access PIN').fill('2468')
-  await gate.getByRole('button', { name: 'Verify and enter' }).click()
-  await expect(gate).toBeHidden()
+  await expect(page.getByRole('dialog', { name: 'Verify beneficiary module access' })).toHaveCount(
+    0,
+  )
 }
 
 test.describe.configure({ mode: 'serial' })
@@ -64,16 +65,17 @@ test('Ref17 gates every entry and supports cancel, retry, direct-link resume, an
   page,
 }) => {
   await resetAndSwitch(page)
+  await stubBeneficiaryStepUp(page, false)
   await page.goto('/beneficiaries/ben-001')
   const gate = page.getByRole('dialog', { name: 'Verify beneficiary module access' })
-  await expect(gate.getByText(/Frontend demo gate only/i)).toBeVisible()
-  await gate.getByLabel('Beneficiary access PIN').fill('9999')
-  await gate.getByRole('button', { name: 'Verify and enter' }).click()
-  await expect(gate.getByText(/PIN is incorrect/i)).toBeVisible()
+  await expect(gate).toBeVisible()
+  await expect(gate.getByText(/2468|PIN/)).toHaveCount(0)
+  await expect(gate.getByRole('button', { name: 'Verify and enter' })).toBeDisabled()
   await expect(page.getByRole('heading', { name: 'Beneficiary NCR-001' })).toHaveCount(0)
   await gate.getByRole('button', { name: 'Back to dashboard' }).click()
   await expect(page).toHaveURL(/\/dashboard$/)
 
+  await stubBeneficiaryStepUp(page)
   await page.goto('/beneficiaries/ben-001')
   await verifyBeneficiaryGate(page)
   await expect(page).toHaveURL(/\/beneficiaries\/ben-001$/)
@@ -81,6 +83,7 @@ test('Ref17 gates every entry and supports cancel, retry, direct-link resume, an
 
   await expect(page.getByRole('button', { name: 'Relock beneficiary records' })).toHaveCount(0)
   await switchAccount(page, 'project-officer')
+  await stubBeneficiaryStepUp(page, false)
   await page.goto('/beneficiaries/ben-001')
   await expect(gate).toBeVisible()
 })

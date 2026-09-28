@@ -1,4 +1,5 @@
 import { type Page, expect, test } from '@playwright/test'
+import { stubBeneficiaryStepUp } from './fixtures/step-up'
 
 const prototypePassword = 'PathwaysDemo!2026'
 
@@ -99,41 +100,29 @@ test.describe('P5-C1 controlled remediation', () => {
     expect(verificationRequests).toBe(2)
   })
 
-  test('beneficiary step-up rejection keeps safe input and retries without reload', async ({
+  test('beneficiary step-up outage keeps safe input and focus without revealing records', async ({
     page,
   }) => {
     test.setTimeout(90_000)
     await seedPrototypeSession(page)
-    let verificationRequests = 0
-    await page.route('**/api/beneficiary-step-up/verify', async (route) => {
-      verificationRequests += 1
-      if (verificationRequests === 1) {
-        await route.abort('failed')
-        return
-      }
-      await route.continue()
-    })
+    await stubBeneficiaryStepUp(page, false)
+    await page.route('**/auth/v1/factors**', (route) => route.abort('failed'))
 
     await page.goto('/beneficiaries')
-    const pin = page.getByLabel('Beneficiary access PIN')
+    const code = page.getByLabel('Authenticator code')
     const verifyButton = page.getByRole('button', { name: 'Verify and enter' })
-    await pin.fill('2468')
+    await code.fill('123456')
     await verifyButton.click()
 
     await expect(
       page.getByText(
-        'The beneficiary access service could not be reached. Check your connection and try again.',
+        'The verification service could not be reached. Check your connection and try again.',
       ),
     ).toBeVisible()
-    await expect(pin).toHaveValue('2468')
+    await expect(code).toHaveValue('123456')
     await expect(verifyButton).toBeEnabled()
     await expect(verifyButton).toBeFocused()
-
-    await verifyButton.click()
-    await expect(page.getByRole('heading', { name: 'Beneficiary Journey Tracking' })).toBeVisible({
-      timeout: 30_000,
-    })
-    expect(verificationRequests).toBe(2)
+    await expect(page.getByRole('heading', { name: 'Beneficiary Journey Tracking' })).toHaveCount(0)
   })
 
   test('settled beneficiary, project, and activity results announce without moving focus', async ({

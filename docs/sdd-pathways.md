@@ -86,8 +86,11 @@ token validation
 → org
 → role/permissions
 → assignments
+→ Beneficiary step-up on marked detail routes (signed TOTP `amr` within 15 minutes)
 → scoped Prisma query
 ```
+
+Beneficiary step-up follows the [Beneficiary step-up Change Record](cr-pathways-beneficiary-step-up.md): `RequireBeneficiaryStepUp` handlers return 403 `STEP_UP_REQUIRED` when the factor is stale. `GET /auth/step-up/status` reports freshness from signed claims and returns no business data.
 
 Never:
 - authorize via email;

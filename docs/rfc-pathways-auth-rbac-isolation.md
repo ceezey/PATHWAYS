@@ -16,6 +16,10 @@ The revised contract is approved; re-locking requires verified local enforcement
 
 Supabase Auth establishes verified identity and session. Every protected operation resolves the linked system user, allowed account state, organization, active canonical role, active database permissions, and required project scope again. Email, client role, app metadata, cached browser permissions, and client assignment arrays never establish authority. Revocation takes effect on the next protected request. The runtime identity remains non-superuser and NOBYPASSRLS; the established `prisma` identity owns migrations.
 
+### Beneficiary step-up (approved; local implementation)
+
+The developer-approved [Beneficiary step-up Change Record](cr-pathways-beneficiary-step-up.md) adds a server-enforced step-up for Beneficiary identifying detail and delivers manuscript Objective 2.2. After identity, account, organization, role, permission and route project-assignment checks, the global guard requires a signed `amr` TOTP entry verified within the last 15 minutes (30-second skew) on every step-up route. The check runs before any Beneficiary query and does not depend on the target record. A stale or missing factor returns 403 `STEP_UP_REQUIRED`. The client supplies no step-up value, flag or storage. Aggregate routes and aggregate-only roles are unchanged, and no step-up replaces project scope. Each decision writes one human-attributed `BENEFICIARY_STEP_UP_ACCEPTED` or `BENEFICIARY_STEP_UP_REQUIRED` audit row per verified factor. If the acceptance audit cannot be written, access is withheld (503).
+
 ### Approved F10/F11 machine exception (implementation pending)
 
 The developer-approved [local runtime authority Change Record](cr-pathways-f10-f11-runtime-authority.md) defines a separate machine exception for local F10/F11 implementation/testing. It does not change the human identity chain, six-role ceiling, permissions or assignments. Approval does not establish available handlers or installed capabilities; machine operation remains disabled until exact implementation, specialist review and runtime verification pass.

@@ -1,4 +1,5 @@
 import { type Page, expect, test } from '@playwright/test'
+import { stubBeneficiaryStepUp } from './fixtures/step-up'
 
 const prototypePassword = 'PathwaysDemo!2026'
 
@@ -682,21 +683,17 @@ for (const viewport of [
 test('beneficiary directory and analytics screens expose critical controls', async ({ page }) => {
   test.setTimeout(90_000)
   await seedPrototypeSession(page, 'Monitoring and Evaluation Officer')
+  await stubBeneficiaryStepUp(page, false)
   await page.goto('/beneficiaries')
 
   await expect(
     page.getByRole('heading', { name: 'Verify beneficiary module access' }),
   ).toBeVisible()
-  await expect(page.getByText('Client demonstration PIN: 2468')).toBeVisible()
+  await expect(page.getByText(/2468|demonstration PIN/)).toHaveCount(0)
   await expect(page.getByRole('heading', { name: 'Beneficiary management' })).toHaveCount(0)
-  await page.getByLabel('Beneficiary access PIN').fill('0000')
-  const beneficiaryVerifyButton = page.getByRole('button', { name: 'Verify and enter' })
-  await expect(beneficiaryVerifyButton).toBeEnabled()
-  await beneficiaryVerifyButton.click()
-  await expect(page.getByText('Invalid beneficiary access PIN.')).toBeVisible({ timeout: 15_000 })
-  await page.getByLabel('Beneficiary access PIN').fill('2468')
-  await expect(beneficiaryVerifyButton).toBeEnabled()
-  await beneficiaryVerifyButton.click()
+  await expect(page.getByRole('button', { name: 'Verify and enter' })).toBeDisabled()
+  await stubBeneficiaryStepUp(page)
+  await page.reload()
   await expect(page.getByRole('heading', { name: 'Beneficiary Journey Tracking' })).toBeVisible()
   await expect(page.getByText('Assigned projects', { exact: true })).toBeVisible()
   const beneficiarySearch = page.getByRole('searchbox', { name: 'Search by name or code' })

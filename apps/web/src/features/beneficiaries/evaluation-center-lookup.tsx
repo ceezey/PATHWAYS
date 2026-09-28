@@ -39,7 +39,7 @@ export function EvaluationCenterLookup() {
       <PageHeader
         eyebrow="Evaluation Center"
         title="Beneficiary code lookup"
-        description="The short-lived PIN check is completed before any personal details are loaded."
+        description="A recent authenticator verification is required before any personal details are loaded."
       />
       <SectionCard
         title="Find a beneficiary"

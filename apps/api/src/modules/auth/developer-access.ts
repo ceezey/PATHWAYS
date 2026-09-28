@@ -8,6 +8,8 @@ export const DEVELOPER_SUPABASE_URL = 'https://pdqwsknbzkdtiwjjibqt.supabase.co'
 export interface VerifiedAuthIdentity {
   id: string
   aal: 'aal1' | 'aal2'
+  /** Latest signed TOTP `amr` timestamp (epoch seconds); step-up freshness only. */
+  mfaVerifiedAt?: number
 }
 
 export interface ApplicationIdentity extends VerifiedAuthIdentity {

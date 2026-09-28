@@ -75,6 +75,8 @@ PRD-F6 mapping suggestions additionally cover stable source keys, ASCII whitespa
 | QAD-A08 | rule attempts raw SQL/code -> rejected |
 | QAD-A09 | public route requests private media -> denied |
 | QAD-A10 | SADDD suppressed cells cannot be trivially reconstructed |
+| QAD-A11 | Beneficiary detail request with stale, missing or future-dated TOTP `amr` -> 403 `STEP_UP_REQUIRED`, handler not run, denial audited |
+| QAD-A12 | client-supplied step-up flag/header/storage or a client-only MFA success does not open Beneficiary detail; the server status must report fresh |
 
 ## 4. Rule-Engine Matrix
 
