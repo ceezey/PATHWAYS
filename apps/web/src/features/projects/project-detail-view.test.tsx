@@ -1,5 +1,6 @@
 /* @vitest-environment jsdom */
 
+import type { ReactNode } from 'react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -30,7 +31,12 @@ vi.mock('@/lib/services/pathways-client', async (importOriginal) => ({
 }))
 vi.mock('@/hooks/use-current-role', () => ({ useCurrentRole: () => access }))
 vi.mock('@/components/layout/page-header', () => ({
-  PageHeader: ({ title }: { title: string }) => <h1>{title}</h1>,
+  PageHeader: ({ title, actions }: { title: string; actions?: ReactNode }) => (
+    <>
+      <h1>{title}</h1>
+      {actions}
+    </>
+  ),
 }))
 vi.mock('./project-workspace-header', () => ({ ProjectWorkspaceHeader: () => <nav>Tabs</nav> }))
 vi.mock('./project-team-editor-dialog', () => ({

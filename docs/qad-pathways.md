@@ -229,3 +229,20 @@ Covers step 2 of the [performance and scaling Change Record](cr-pathways-perform
 | QAD-P07 | Abuse | Sign-out, workspace change or any 401/403 clears or hides cached reads; each mounted reader re-verifies at most once per denial and ends in data, pending or an error with retry; a persistent 401/403 does not loop, including when its reader remounts under a re-verifying parent; an explicit retry requests exactly once; one denial raises the epoch once; pre-denial data never reaches `replaceData`; a committed write re-reads active reads and removes inactive ones so pre-write data never reappears |
 | QAD-P08 | Abuse | Overview metrics deny cross-organization, unassigned and malformed project ids before any metric read; budget is `null` without budget read; reach counts 1-4 are suppressed and no Beneficiary rows are read |
 | QAD-P09 | Abuse | Activity update, transition and progress still deny an out-of-scope project or activity before any write after the duplicate reads are removed |
+
+## 11. Project RBAC UI alignment and structured partners
+
+Covers the [project RBAC UI alignment and structured partners Change Record](cr-pathways-project-rbac-ui-and-partners.md).
+
+| ID | Type | Required check |
+|---|---|---|
+| QAD-RBP-01 | Happy | Each of the six roles sees only the activity/indicator/tab actions its own API permissions and project scope allow; a Project Officer sees Create Activity and Record progress/Submit proof only when personally assigned |
+| QAD-RBP-02 | Happy | The activity dialog's officer list comes from the assignable-officer read and lists only active Project Officers with an active assignment to that project, ordered by display name then ID and bounded to 50 rows |
+| QAD-RBP-03 | Happy | A locked activity budget, indicator link or project profile field shows its current value, stays disabled, and exposes the tooltip "You are not authorized to change this field" on hover and keyboard focus through `aria-describedby` |
+| QAD-RBP-04 | Happy | The project form shows a single "Implementing partners" structured field; the detail view shows only structured partners |
+| QAD-RBP-05 | Sad | A forged capability flag or a hidden UI action still returns 403 from the API when called directly |
+| QAD-RBP-06 | Sad | A write carrying `implementingPartners` is rejected with 400 |
+| QAD-RBP-07 | Sad | `LockedField` never submits a value for the field it locks, even if the disabled control is force-submitted |
+| QAD-RBP-08 | Abuse | The assignable-officer read denies Admin, M&E Officer, Program Manager and Grant Manager (neither holds `activities.create` nor `activities.update`), denies an unassigned project, denies cross-organization access, and returns the uniform 404 for an inaccessible project |
+| QAD-RBP-09 | Abuse | The assignable-officer read never returns email, contact number, auth identifiers, role list, account status, other-project data or assignment dates, and excludes archived or ended users |
+| QAD-RBP-10 | Abuse | Migration 0039 splits legacy text on newline, `;` and `,`, de-duplicates by `lower(btrim(name))`, skips (never truncates) pieces outside 1-120 characters, skips a whole project that would exceed 20 linked partners, never removes an existing structured link, writes exactly one `PROJECT_PARTNERS_BACKFILLED` audit row per changed project, and is a no-op on a second run |

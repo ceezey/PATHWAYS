@@ -8,3 +8,4 @@ apps/api/prisma/migrations/0034_core_feature_completion/migration.sql -text
 apps/api/prisma/migrations/0035_admin_read_access/migration.sql -text
 apps/api/prisma/migrations/0036_import_pdf_file_type/migration.sql -text
 apps/api/prisma/migrations/0037_step_up_pin/migration.sql -text
+apps/api/prisma/migrations/0039_project_partner_backfill/migration.sql -text
