@@ -41,7 +41,7 @@ Do not use confidential live Beneficiary data.
 | QAD-T06 | PRD-F6 | mapped import validates and normalizes |
 | QAD-T07 | PRD-F7 | indicator shows correct trusted metric/target/source |
 | QAD-T08 | PRD-F8 | dashboard/SADDD uses trusted data and suppression |
-| QAD-T12 | PRD-F9 | descriptive summary uses trusted persisted metrics; missing data shown as unavailable |
+| QAD-T12 | PRD-F9 | descriptive summary uses trusted persisted metrics; a readable but empty set shows "None yet"; missing, withheld or unauthorized data keeps the existing unavailable or restricted wording; no value is ever fabricated as 0 |
 | QAD-T09 | PRD-F10 | rule triggers once with versioned evidence |
 | QAD-T10 | PRD-F11 | authorized human reviews predefined recommendation |
 | QAD-T13 | PRD-F12 | report/visualization output respects role scope and SADDD suppression |
@@ -201,7 +201,7 @@ Covers step 2 of the [performance and scaling Change Record](cr-pathways-perform
 | QAD-P01 | Happy | List and summary reads are reused for at most 30 seconds under the same organization, user, role, permissions, assignments and project; the Activities tab reuses the Overview project read |
 | QAD-P02 | Happy | Activity list returns the lean projection; the detail route reads `GET /activities/:id`; indicators and journey stages load once per workspace and indicator search works without opening a panel |
 | QAD-P03 | Happy | Overview metrics derive KPI achievement, budget utilization, suppressed reach and timeline deterministically with documented rounding |
-| QAD-P04 | Sad | Missing sources show "None yet" or their specific reason, never 0; load failures and permission states keep error wording; an unknown activity id shows a not-found state without redirecting |
+| QAD-P04 | Sad | Readable but empty sources show "None yet" or their specific reason, never 0; an activity logged budget shows "None yet" only for an expense reader with no approved expenses and "Unavailable" when withheld; load failures and permission states keep error wording; an unknown activity id shows a not-found state without redirecting |
 | QAD-P05 | Sad | A replayed indicator save or recovery displays its confirming authorized read without a second reload |
 | QAD-P06 | Abuse | Beneficiary, step-up and import batch-status reads are never cached, even when a caller requests the summary window |
 | QAD-P07 | Abuse | Sign-out, workspace change or any 401/403 clears cached reads; 401/403 is not retried; a committed write marks cached reads stale |
