@@ -19,6 +19,18 @@ describe('env readers', () => {
     expect(env).not.toHaveProperty('DEV_ADMIN_SUPABASE_ID')
   })
 
+  it('bounds the per-file evidence limit between 1 MiB and 100 MiB with a 50 MiB default', () => {
+    expect(readApiEnv({}).EVIDENCE_MAX_FILE_BYTES).toBe(52_428_800)
+    expect(readApiEnv({ EVIDENCE_MAX_FILE_BYTES: '50000000' }).EVIDENCE_MAX_FILE_BYTES).toBe(
+      50_000_000,
+    )
+    expect(readApiEnv({ EVIDENCE_MAX_FILE_BYTES: '104857600' }).EVIDENCE_MAX_FILE_BYTES).toBe(
+      104_857_600,
+    )
+    for (const value of ['104857601', '1048575', '0', '-1', '5e7', '50.5', ' 52428800', 'x'])
+      expect(() => readApiEnv({ EVIDENCE_MAX_FILE_BYTES: value })).toThrow()
+  })
+
   it('does not expose retired developer-only workspace gates', () => {
     const retiredGate = 'synthetic-retired-configuration'
     expect(readWebEnv({ PATHWAYS_DEVELOPER_WORKSPACE_CANDIDATES: retiredGate })).not.toHaveProperty(

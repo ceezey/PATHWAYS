@@ -47,6 +47,14 @@ export const apiEnvSchema = z
     SENTRY_DSN_API: optionalString,
     UPLOADS_BUCKET: z.string().default('uploads'),
     EVIDENCE_BUCKET: z.string().default('pathways-private'),
+    // Per-file activity evidence limit in bytes. The default matches the local 50 MiB storage
+    // limit and must not exceed the hosted bucket/global limits; 104857600 is the ceiling.
+    EVIDENCE_MAX_FILE_BYTES: z
+      .string()
+      .regex(/^[1-9][0-9]{0,8}$/, 'EVIDENCE_MAX_FILE_BYTES must be a whole number of bytes.')
+      .default('52428800')
+      .transform(Number)
+      .pipe(z.number().int().min(1_048_576).max(104_857_600)),
     BUSINESS_TIME_ZONE: z.string().default('Asia/Manila'),
     REPORTS_BUCKET: z.string().default('reports'),
     PARTICIPANT_CARDS_BUCKET: z.string().default('participant-cards'),

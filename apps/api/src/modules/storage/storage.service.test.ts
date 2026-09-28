@@ -5,6 +5,7 @@ const provider = vi.hoisted(() => ({
   getBucket: vi.fn(),
   upload: vi.fn(),
   download: vi.fn(),
+  createSignedUploadUrl: vi.fn(),
 }))
 
 vi.mock('@supabase/supabase-js', () => ({ createClient: provider.createClient }))
@@ -22,7 +23,11 @@ describe('private Storage adapter', () => {
     provider.createClient.mockReturnValue({
       storage: {
         getBucket: provider.getBucket,
-        from: () => ({ upload: provider.upload, download: provider.download }),
+        from: () => ({
+          upload: provider.upload,
+          download: provider.download,
+          createSignedUploadUrl: provider.createSignedUploadUrl,
+        }),
       },
     })
   })
@@ -74,5 +79,35 @@ describe('private Storage adapter', () => {
     await expect(service.downloadPrivateFile('uploads', 'scoped/file.csv')).resolves.toEqual(
       Buffer.from([1, 2, 3]),
     )
+  })
+
+  it('signs upload URLs for exact keys with upsert disabled, one bucket check and one client', async () => {
+    provider.getBucket.mockResolvedValue({ data: { public: false }, error: null })
+    provider.createSignedUploadUrl.mockImplementation(async (path: string) => ({
+      data: { path, token: 'synthetic', signedUrl: `https://storage.invalid/${path}?token=x` },
+      error: null,
+    }))
+    const service = new StorageService()
+    const signed = await service.createPrivateUploadUrls('pathways-private', ['a/1.pdf', 'a/2.mp4'])
+    await service.createPrivateUploadUrls('pathways-private', ['a/3.mov'])
+    expect(signed.map((entry) => entry.path)).toEqual(['a/1.pdf', 'a/2.mp4'])
+    expect(provider.createSignedUploadUrl).toHaveBeenCalledWith('a/1.pdf', { upsert: false })
+    expect(provider.getBucket).toHaveBeenCalledTimes(2)
+    expect(provider.createClient).toHaveBeenCalledTimes(1)
+  })
+
+  it('refuses to sign for a public bucket or a mismatched path', async () => {
+    provider.getBucket.mockResolvedValue({ data: { public: true }, error: null })
+    const service = new StorageService()
+    await expect(service.createPrivateUploadUrls('pathways-private', ['a/1.pdf'])).rejects.toThrow(
+      /not private/,
+    )
+    expect(provider.createSignedUploadUrl).not.toHaveBeenCalled()
+    provider.getBucket.mockResolvedValue({ data: { public: false }, error: null })
+    provider.createSignedUploadUrl.mockResolvedValue({
+      data: { path: 'other', token: 't', signedUrl: 'https://storage.invalid/other' },
+      error: null,
+    })
+    await expect(service.createPrivateUploadUrls('pathways-private', ['a/1.pdf'])).rejects.toThrow()
   })
 })
