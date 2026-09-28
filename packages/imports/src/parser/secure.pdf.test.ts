@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
 import { IMPORT_ENGINEERING_LIMITS } from '../limits'
-import { type PdfTextItem, reconstructPdfTable } from './pdf-table'
+import { type PdfTextItem, pdfTableErrorCode, reconstructPdfTable } from './pdf-table'
 import { parseSecureImport } from './secure'
 
 interface PlacedText {
@@ -14,6 +14,7 @@ interface PdfFixtureOptions {
   encrypt?: boolean
   activeContent?: boolean
   pagesWithoutText?: boolean
+  pageWidth?: number
 }
 
 function escapePdfText(text: string) {
@@ -48,7 +49,7 @@ function buildPdf(pages: PlacedText[][], options: PdfFixtureOptions = {}) {
       : ''
     pageIds.push(
       add(
-        `<< /Type /Page /Parent ${pagesId} 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 ${fontId} 0 R >> >> /Contents ${contentId} 0 R${annotations} >>`,
+        `<< /Type /Page /Parent ${pagesId} 0 R /MediaBox [0 0 ${options.pageWidth ?? 612} 792] /Resources << /Font << /F1 ${fontId} 0 R >> >> /Contents ${contentId} 0 R${annotations} >>`,
       ),
     )
   }
@@ -204,6 +205,55 @@ describe('text-layer PDF import', () => {
     await expect(parseSecureImport(pdf, 'PDF')).rejects.toMatchObject({ code: 'PDF_PAGE_LIMIT' })
   }, 20_000)
 
+  it('rejects a wide-header PDF inside the worker with a sanitized column-limit error', async () => {
+    const header = Array.from(
+      { length: IMPORT_ENGINEERING_LIMITS.maxSourceColumns + 1 },
+      (_, index) => ({ x: 10 + index * 13, y: 780, text: 'h' }),
+    )
+    const pdf = buildPdf([[...header, { x: 10, y: 700, text: 'v' }]], { pageWidth: 7_000 })
+    await expect(parseSecureImport(pdf, 'PDF')).rejects.toMatchObject({
+      code: 'COLUMN_LIMIT',
+      message: 'The file has too many columns.',
+    })
+  }, 20_000)
+
+  it('rejects a many-row PDF inside the worker at the row bound', async () => {
+    const pdf = buildPdf([
+      tablePage(
+        Array.from({ length: 12 }, (_, index) => (index === 0 ? ['a', 'b'] : [`r${index}`, '1'])),
+      ),
+    ])
+    await expect(parseSecureImport(pdf, 'PDF', { maxRows: 10 })).rejects.toMatchObject({
+      code: 'ROW_LIMIT',
+      message: 'The file has too many rows.',
+    })
+  }, 20_000)
+
+  it('rejects PDFs over the text-item bound inside the worker', async () => {
+    const pdf = buildPdf([
+      tablePage(
+        Array.from({ length: 8 }, (_, index) => (index === 0 ? ['a', 'b'] : [`r${index}`, '1'])),
+      ),
+    ])
+    await expect(parseSecureImport(pdf, 'PDF', { maxPdfTextItems: 10 })).rejects.toMatchObject({
+      code: 'PDF_TEXT_LIMIT',
+      message: 'The PDF contains too much text to import safely.',
+    })
+  }, 20_000)
+
+  it('never lets a caller raise a limit above the engineering bound', async () => {
+    const page = tablePage([
+      ['a', 'b'],
+      ['1', '2'],
+    ])
+    const pdf = buildPdf(
+      Array.from({ length: IMPORT_ENGINEERING_LIMITS.maxPdfPages + 1 }, () => page),
+    )
+    await expect(parseSecureImport(pdf, 'PDF', { maxPdfPages: 10_000 })).rejects.toMatchObject({
+      code: 'PDF_PAGE_LIMIT',
+    })
+  }, 20_000)
+
   it('rejects oversized PDFs before parsing', async () => {
     const pdf = Buffer.concat([
       Buffer.from('%PDF-1.4\n'),
@@ -232,6 +282,12 @@ describe('text-layer PDF import', () => {
 })
 
 describe('reconstructPdfTable', () => {
+  const limits = {
+    maxPdfTextItems: IMPORT_ENGINEERING_LIMITS.maxPdfTextItems,
+    maxSourceColumns: IMPORT_ENGINEERING_LIMITS.maxSourceColumns,
+    maxRows: IMPORT_ENGINEERING_LIMITS.maxRows,
+    maxCells: IMPORT_ENGINEERING_LIMITS.maxCells,
+  }
   const item = (page: number, x: number, y: number, text: string, width = 30): PdfTextItem => [
     page,
     x,
@@ -243,14 +299,17 @@ describe('reconstructPdfTable', () => {
 
   it('joins split words inside one cell and keeps separate columns apart', () => {
     expect(
-      reconstructPdfTable([
-        item(1, 50, 700, 'first', 22),
-        item(1, 75, 700, 'name', 20),
-        item(1, 200, 700, 'age'),
-        item(1, 50, 682, 'Ana', 15),
-        item(1, 68, 682, 'Cruz', 20),
-        item(1, 200, 682, '31'),
-      ]),
+      reconstructPdfTable(
+        [
+          item(1, 50, 700, 'first', 22),
+          item(1, 75, 700, 'name', 20),
+          item(1, 200, 700, 'age'),
+          item(1, 50, 682, 'Ana', 15),
+          item(1, 68, 682, 'Cruz', 20),
+          item(1, 200, 682, '31'),
+        ],
+        limits,
+      ),
     ).toEqual([
       ['first name', 'age'],
       ['Ana Cruz', '31'],
@@ -259,12 +318,15 @@ describe('reconstructPdfTable', () => {
 
   it('tolerates small baseline jitter and strips control characters', () => {
     expect(
-      reconstructPdfTable([
-        item(1, 50, 700, 'a'),
-        item(1, 200, 700.8, 'b'),
-        item(1, 50, 682, '1\u0000'),
-        item(1, 200, 681.5, '2'),
-      ]),
+      reconstructPdfTable(
+        [
+          item(1, 50, 700, 'a'),
+          item(1, 200, 700.8, 'b'),
+          item(1, 50, 682, '1\u0000'),
+          item(1, 200, 681.5, '2'),
+        ],
+        limits,
+      ),
     ).toEqual([
       ['a', 'b'],
       ['1', '2'],
@@ -273,11 +335,77 @@ describe('reconstructPdfTable', () => {
 
   it('rejects data left of the first header column', () => {
     expect(() =>
-      reconstructPdfTable([item(1, 100, 700, 'a'), item(1, 250, 700, 'b'), item(1, 10, 682, 'x')]),
+      reconstructPdfTable(
+        [item(1, 100, 700, 'a'), item(1, 250, 700, 'b'), item(1, 10, 682, 'x')],
+        limits,
+      ),
     ).toThrow('PDF_TABLE_UNRECOGNIZED')
   })
 
   it('reports no text layer for whitespace-only items', () => {
-    expect(() => reconstructPdfTable([item(1, 50, 700, '   ')])).toThrow('PDF_NO_TEXT_LAYER')
+    expect(() => reconstructPdfTable([item(1, 50, 700, '   ')], limits)).toThrow(
+      'PDF_NO_TEXT_LAYER',
+    )
+  })
+
+  // Crafted item sets must fail on a bound before any large allocation.
+  const expectFastRejection = (items: PdfTextItem[], code: string) => {
+    const started = performance.now()
+    let caught: unknown
+    try {
+      reconstructPdfTable(items, limits)
+    } catch (error) {
+      caught = error
+    }
+    expect(pdfTableErrorCode(caught)).toBe(code)
+    expect((caught as Error).message).toBe(code)
+    expect(performance.now() - started).toBeLessThan(2_000)
+  }
+
+  it('rejects a 5,000-cell header with 95,000 single-item lines before allocating rows', () => {
+    const header = Array.from({ length: 5_000 }, (_, index) =>
+      item(1, index * 40, 700, `h${index}`),
+    )
+    const lines = Array.from({ length: 95_000 }, (_, index) => item(1, 0, 690 - index, 'v'))
+    expectFastRejection([...header, ...lines], 'COLUMN_LIMIT')
+  })
+
+  it('stops at the row bound on many single-item lines', () => {
+    const header = [item(1, 0, 100_000, 'a'), item(1, 100, 100_000, 'b')]
+    const lines = Array.from({ length: 95_000 }, (_, index) => item(1, 0, 99_990 - index, 'v'))
+    expectFastRejection([...header, ...lines], 'ROW_LIMIT')
+  })
+
+  it('stops at the cell bound on a wide header with many lines', () => {
+    const header = Array.from({ length: 500 }, (_, index) =>
+      item(1, index * 40, 100_000, `h${index}`),
+    )
+    const lines = Array.from({ length: 4_000 }, (_, index) => item(1, 0, 99_990 - index, 'v'))
+    expectFastRejection([...header, ...lines], 'CELL_LIMIT')
+  })
+
+  it('rejects item sets above the text-item bound before sorting them', () => {
+    const items = Array.from({ length: limits.maxPdfTextItems + 1 }, () => item(1, 0, 0, 'x'))
+    expectFastRejection(items, 'PDF_TEXT_LIMIT')
+  })
+
+  it('handles a header at the column bound without spreading its cells', () => {
+    const header = Array.from({ length: 500 }, (_, index) => item(1, index * 40, 700, `h${index}`))
+    const matrix = reconstructPdfTable([...header, item(1, 19_960, 690, 'last')], limits)
+    expect(matrix[0]).toHaveLength(500)
+    expect(matrix[1][499]).toBe('last')
+    expect(matrix[1].filter((value) => value !== null)).toEqual(['last'])
+  })
+
+  it('is self-contained so the sandbox worker can embed its source', () => {
+    const embedded = new Function(
+      `return ${reconstructPdfTable.toString()}`,
+    )() as typeof reconstructPdfTable
+    expect(
+      embedded([item(1, 50, 700, 'a'), item(1, 200, 700, 'b'), item(1, 50, 682, '1')], limits),
+    ).toEqual([
+      ['a', 'b'],
+      ['1', null],
+    ])
   })
 })

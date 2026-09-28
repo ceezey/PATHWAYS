@@ -42,7 +42,9 @@ The web client calls process repeatedly until the batch is complete, a call fail
 
 The sandbox parser worker loads the approved `unpdf` dependency only for PDF input. It reads positioned horizontal text items under the same byte, time, row, column, cell and cell-length bounds, plus a 50-page and a 500,000-text-item bound. Rows come from shared baselines. Columns come from the x positions of the header, which is the first line with at least two separated cells; text above it is ignored and a header repeated on a later page is skipped. Text left of the first header column fails the table. Wrapped multi-line cells become separate rows and then fail or pass validation like any other row. The result is the same `column_NNNN` source envelope that spreadsheets produce, so mapping, validation and normalization are unchanged. Embedded scripts, attachments, forms, annotations and links are never executed or followed, and control characters are removed from extracted text.
 
-Stable sanitized codes: `PDF_NO_TEXT_LAYER` (scanned or image-only, with the message to export CSV or XLSX), `PDF_ENCRYPTED`, `PDF_TABLE_UNRECOGNIZED`, `PDF_PAGE_LIMIT`, `PDF_TEXT_LIMIT` and `PDF_PARSE_FAILED`. No OCR is performed.
+Text extraction and table reconstruction both run inside the worker, so their CPU falls under the parse timeout. Reconstruction rejects a header wider than the column bound before any row is allocated, and stops at the row and cell bounds as rows are built. Every parser worker, for all file types, runs with a 512 MiB heap limit; exceeding it ends the worker, never the API, and returns `PARSE_MEMORY_LIMIT`. Worker error codes outside the known set collapse to a generic rejection.
+
+Stable sanitized codes: `PDF_NO_TEXT_LAYER` (scanned or image-only, with the message to export CSV or XLSX), `PDF_ENCRYPTED`, `PDF_TABLE_UNRECOGNIZED`, `PDF_PAGE_LIMIT`, `PDF_TEXT_LIMIT` and `PDF_PARSE_FAILED`, plus the shared `COLUMN_LIMIT`, `ROW_LIMIT` and `CELL_LIMIT`. No OCR is performed.
 
 ## Mapping Safety
 

@@ -1,13 +1,12 @@
 import { Worker } from 'node:worker_threads'
 
 import { IMPORT_ENGINEERING_LIMITS, type SupportedImportFileType } from '../limits'
-import { PdfTableError, type PdfTextItem, reconstructPdfTable } from './pdf-table'
+import { type PdfTableLimits, reconstructPdfTable } from './pdf-table'
 
 type CellValue = string | number | boolean | null
 
 interface WorkerResult {
   matrix?: unknown[][]
-  pdfItems?: PdfTextItem[]
   sheetNames?: string[]
   formulas?: boolean
   links?: boolean
@@ -42,8 +41,11 @@ export class ImportParseError extends Error {
   }
 }
 
+// The PDF table reconstruction is embedded as source so its CPU and memory fall under
+// the worker's parse timeout and resource limits, in both source and compiled builds.
 const WORKER_SOURCE = String.raw`
 const { parentPort, workerData } = require('node:worker_threads');
+const reconstructPdfTable = ${reconstructPdfTable.toString()};
 try {
   const input = Buffer.from(workerData.input);
   if (workerData.fileType === 'CSV') {
@@ -106,7 +108,15 @@ try {
           }
           page.cleanup();
         }
-        parentPort.postMessage({ pdfItems: items, sheetNames: [] });
+        let matrix;
+        try {
+          matrix = reconstructPdfTable(items, workerData.pdfTableLimits);
+        } catch (error) {
+          const code = error && typeof error.code === 'string' ? error.code : 'PDF_PARSE_FAILED';
+          parentPort.postMessage({ error: code });
+          return;
+        }
+        parentPort.postMessage({ matrix, sheetNames: [] });
       } finally {
         await document.destroy();
       }
@@ -254,35 +264,71 @@ function inspectPdfSignature(input: Buffer) {
   }
 }
 
-function runParserWorker(input: Buffer, fileType: SupportedImportFileType) {
+/**
+ * Memory backstop for the sandbox parser. Sized from measurement: the largest
+ * accepted workbook (5 MiB, 25 MiB uncompressed) and PDF (50 pages at the text-item
+ * bound) stay well below it. Exceeding it terminates the worker, never the API.
+ */
+export const PARSER_WORKER_RESOURCE_LIMITS = Object.freeze({
+  maxOldGenerationSizeMb: 512,
+  maxYoungGenerationSizeMb: 64,
+  codeRangeSizeMb: 64,
+  stackSizeMb: 4,
+})
+
+type ParserLimits = PdfTableLimits & { maxPdfPages: number }
+
+function runParserWorker(input: Buffer, fileType: SupportedImportFileType, limits: ParserLimits) {
   return new Promise<WorkerResult>((resolve, rejectPromise) => {
     const worker = new Worker(WORKER_SOURCE, {
       eval: true,
+      resourceLimits: PARSER_WORKER_RESOURCE_LIMITS,
       workerData: {
         input,
         fileType,
         papaPath: require.resolve('papaparse'),
         xlsxPath: require.resolve('xlsx'),
         unpdfPath: fileType === 'PDF' ? require.resolve('unpdf') : null,
-        maxPdfPages: IMPORT_ENGINEERING_LIMITS.maxPdfPages,
-        maxPdfTextItems: IMPORT_ENGINEERING_LIMITS.maxPdfTextItems,
+        maxPdfPages: limits.maxPdfPages,
+        maxPdfTextItems: limits.maxPdfTextItems,
+        pdfTableLimits: {
+          maxPdfTextItems: limits.maxPdfTextItems,
+          maxSourceColumns: limits.maxSourceColumns,
+          maxRows: limits.maxRows,
+          maxCells: limits.maxCells,
+        },
       },
     })
-    const timeout = setTimeout(() => {
+    let settled = false
+    const settle = (action: () => void) => {
+      if (settled) return
+      settled = true
+      clearTimeout(timeout)
       void worker.terminate()
-      rejectPromise(
-        new ImportParseError('PARSE_TIMEOUT', 'The file exceeded the parsing time limit.'),
+      action()
+    }
+    const timeout = setTimeout(() => {
+      settle(() =>
+        rejectPromise(
+          new ImportParseError('PARSE_TIMEOUT', 'The file exceeded the parsing time limit.'),
+        ),
       )
     }, IMPORT_ENGINEERING_LIMITS.parseTimeoutMilliseconds)
-    worker.once('message', (message: WorkerResult) => {
-      clearTimeout(timeout)
-      void worker.terminate()
-      resolve(message)
-    })
-    worker.once('error', () => {
-      clearTimeout(timeout)
-      rejectPromise(new ImportParseError('PARSER_FAILED', 'The parser could not read the file.'))
-    })
+    worker.once('message', (message: WorkerResult) => settle(() => resolve(message)))
+    worker.once('error', (error: NodeJS.ErrnoException) =>
+      settle(() =>
+        rejectPromise(
+          error?.code === 'ERR_WORKER_OUT_OF_MEMORY'
+            ? new ImportParseError('PARSE_MEMORY_LIMIT', 'The file needs too much memory to parse.')
+            : new ImportParseError('PARSER_FAILED', 'The parser could not read the file.'),
+        ),
+      ),
+    )
+    worker.once('exit', () =>
+      settle(() =>
+        rejectPromise(new ImportParseError('PARSER_FAILED', 'The parser could not read the file.')),
+      ),
+    )
   })
 }
 
@@ -297,17 +343,17 @@ const parserErrorMessages: Record<string, string> = {
   PDF_PAGE_LIMIT: `The PDF has more than ${IMPORT_ENGINEERING_LIMITS.maxPdfPages} pages.`,
   PDF_TEXT_LIMIT: 'The PDF contains too much text to import safely.',
   PDF_PARSE_FAILED: 'The PDF could not be read safely.',
+  COLUMN_LIMIT: 'The file has too many columns.',
+  ROW_LIMIT: 'The file has too many rows.',
+  CELL_LIMIT: 'The file has too many cells.',
 }
 
-function pdfMatrix(parsed: WorkerResult) {
-  if (!Array.isArray(parsed.pdfItems)) reject('PDF_PARSE_FAILED', genericParserMessage)
-  try {
-    return reconstructPdfTable(parsed.pdfItems)
-  } catch (error) {
-    if (error instanceof PdfTableError) reject(error.code, parserErrorMessages[error.code])
-    reject('PDF_PARSE_FAILED', parserErrorMessages.PDF_PARSE_FAILED)
-  }
-}
+// Worker results carry only codes; anything else collapses to a generic rejection.
+const workerErrorCodes = new Set([
+  'CSV_PARSE_FAILED',
+  'PARSER_REJECTED_INPUT',
+  ...Object.keys(parserErrorMessages),
+])
 
 function sourceColumnKey(columnIndex: number) {
   return `column_${String(columnIndex).padStart(4, '0')}`
@@ -379,10 +425,24 @@ function normalizeMatrix(
   return { rows, sourceColumns }
 }
 
+/**
+ * `tighter` exists for tests: each value can only lower the engineering limit, never
+ * raise it. Production callers pass nothing.
+ */
 export async function parseSecureImport(
   input: Buffer,
   fileType: SupportedImportFileType,
+  tighter: Partial<ParserLimits> = {},
 ): Promise<SecureImportParseResult> {
+  const bounded = (key: keyof ParserLimits) =>
+    Math.min(IMPORT_ENGINEERING_LIMITS[key], tighter[key] ?? Number.POSITIVE_INFINITY)
+  const limits: ParserLimits = {
+    maxPdfTextItems: bounded('maxPdfTextItems'),
+    maxSourceColumns: bounded('maxSourceColumns'),
+    maxRows: bounded('maxRows'),
+    maxCells: bounded('maxCells'),
+    maxPdfPages: bounded('maxPdfPages'),
+  }
   if (!Buffer.isBuffer(input) || input.length === 0) reject('FILE_EMPTY', 'The file is empty.')
   if (input.length > IMPORT_ENGINEERING_LIMITS.maxBytes) {
     reject('FILE_SIZE_LIMIT', 'The file exceeds the upload byte limit.')
@@ -391,8 +451,11 @@ export async function parseSecureImport(
   if (fileType === 'XLSX') inspectXlsxContainer(input)
   if (fileType === 'XLS') inspectXlsSignature(input)
   if (fileType === 'PDF') inspectPdfSignature(input)
-  const parsed = await runParserWorker(input, fileType)
-  if (parsed.error) reject(parsed.error, parserErrorMessages[parsed.error] ?? genericParserMessage)
+  const parsed = await runParserWorker(input, fileType, limits)
+  if (parsed.error) {
+    const code = workerErrorCodes.has(parsed.error) ? parsed.error : 'PARSER_REJECTED_INPUT'
+    reject(code, parserErrorMessages[code] ?? genericParserMessage)
+  }
   if (parsed.formulas) {
     reject(
       'WORKBOOK_FORMULA_REQUIRES_VALUES_ONLY',
@@ -411,7 +474,7 @@ export async function parseSecureImport(
       'Workbooks must contain exactly one worksheet so no source rows are silently omitted.',
     )
   }
-  const normalized = normalizeMatrix(fileType === 'PDF' ? pdfMatrix(parsed) : (parsed.matrix ?? []))
+  const normalized = normalizeMatrix(parsed.matrix ?? [])
   return {
     sourceColumns: normalized.sourceColumns,
     rows: normalized.rows,
