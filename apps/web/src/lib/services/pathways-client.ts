@@ -78,11 +78,15 @@ import {
   type CreateIndicatorInput as ApiCreateIndicatorInput,
   type UpdateIndicatorInput as ApiUpdateIndicatorInput,
   type DashboardQuery,
+  type DescriptiveAnalytics,
+  type DescriptiveAnalyticsQuery,
   type ManualMeasurementInput,
   type MonitoringDashboard,
   type SadddDashboard,
   type SadddQuery,
   dashboardQuerySchema,
+  descriptiveAnalyticsQuerySchema,
+  descriptiveAnalyticsSchema,
   formatMetricCell,
   monitoringDashboardSchema,
   projectIndicatorListSchema,
@@ -204,6 +208,7 @@ export interface PathwaysClient {
   ): Promise<SourceMutationResult<ProjectIndicator>>
   getMonitoringDashboard(query?: DashboardQuery): Promise<MonitoringDashboard>
   getSadddDashboard(query: SadddQuery): Promise<SadddDashboard>
+  getDescriptiveAnalytics(query: DescriptiveAnalyticsQuery): Promise<DescriptiveAnalytics>
   getEvaluation(projectId: string): Promise<EvaluationRecord>
   getExpenses(projectId: string): Promise<ExpenseRecord[]>
   getRecommendationOutcomes(projectId: string): Promise<RecommendationOutcomeRecord[]>
@@ -762,6 +767,12 @@ class BackendReadyPathwaysClient implements PathwaysClient {
     const { projectId } = sadddQuerySchema.parse(query)
     return sadddDashboardSchema.parse(
       await requestFoundation(`/dashboards/saddd?projectId=${encodeURIComponent(projectId)}`),
+    )
+  }
+
+  async getDescriptiveAnalytics(query: DescriptiveAnalyticsQuery): Promise<DescriptiveAnalytics> {
+    return descriptiveAnalyticsSchema.parse(
+      await requestFoundation(`/analytics/descriptive${descriptiveAnalyticsSearch(query)}`),
     )
   }
 
@@ -1443,6 +1454,17 @@ class BackendReadyPathwaysClient implements PathwaysClient {
       ],
     }
   }
+}
+
+/** Validated query string shared by the descriptive read and its CSV export. */
+export function descriptiveAnalyticsSearch(query: DescriptiveAnalyticsQuery): string {
+  const parsed = descriptiveAnalyticsQuerySchema.parse(query)
+  const params = new URLSearchParams({ projectId: parsed.projectId })
+  if (parsed.periodStart && parsed.periodEnd) {
+    params.set('periodStart', parsed.periodStart)
+    params.set('periodEnd', parsed.periodEnd)
+  }
+  return `?${params.toString()}`
 }
 
 export const pathwaysClient: PathwaysClient = new BackendReadyPathwaysClient()

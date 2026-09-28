@@ -11,7 +11,9 @@ const api = vi.hoisted(() => ({
   getProjectIndicators: vi.fn(),
   getProjectsForRole: vi.fn(),
   getSadddDashboard: vi.fn(),
+  getDescriptiveAnalytics: vi.fn(),
 }))
+const download = vi.hoisted(() => vi.fn())
 const coverageMap = vi.hoisted(() => ({
   instanceCount: 0,
   featureCollections: [] as unknown[],
@@ -25,7 +27,12 @@ const currentAccess = vi.hoisted(() => ({
   },
 }))
 
-vi.mock('@/lib/services/pathways-client', () => ({ pathwaysClient: api }))
+vi.mock('@/lib/services/pathways-client', () => ({
+  pathwaysClient: api,
+  descriptiveAnalyticsSearch: (query: Record<string, string>) =>
+    `?${new URLSearchParams(query).toString()}`,
+}))
+vi.mock('@/lib/services/core-feature-client', () => ({ downloadCoreArtifact: download }))
 vi.mock('@/hooks/use-current-role', () => ({
   useCurrentRole: () => currentAccess,
 }))
@@ -372,5 +379,77 @@ describe('Analytics dashboard request dependencies', () => {
     expect(api.getActivities).not.toHaveBeenCalled()
     expect(api.getProjectIndicators).not.toHaveBeenCalled()
     expect(api.getMonitoringDashboard).not.toHaveBeenCalled()
+  })
+  it('loads descriptive statistics and exports suppressed aggregates with the analytics permissions', async () => {
+    currentAccess.profile.permissions = [
+      ...currentAccess.profile.permissions,
+      'analytics.descriptive.read',
+      'analytics.export',
+    ]
+    const suppressed = { state: 'SUPPRESSED', value: null, reason: 'SMALL_CELL' }
+    api.getDescriptiveAnalytics.mockResolvedValue({
+      contractVersion: 'analytics.descriptive.v1',
+      projectId: 'project-a',
+      generatedAt: '2026-09-27T04:00:00.000Z',
+      monitoringPeriod: {
+        periodStart: '2026-09-01',
+        periodEnd: '2026-09-30',
+        businessTimeZone: 'Asia/Manila',
+      },
+      sadddPeriod: { periodStart: null, periodEnd: null },
+      sadddReleaseState: 'RELEASED',
+      privacy: {
+        threshold: 5,
+        complementarySuppression: true,
+        source: 'P06_SADDD_RELEASE',
+        beneficiaryRows: false,
+      },
+      counts: [{ key: 'sadddTotal', label: 'SADDD individuals', metric: suppressed }],
+      distributions: [
+        { section: 'SADDD_SEX', key: 'FEMALE', label: 'Female', metric: suppressed, share: null },
+      ],
+      indicatorSummaries: [],
+    })
+    download.mockResolvedValue(undefined)
+    render(<AnalyticsDashboard />)
+
+    await waitFor(() =>
+      expect(api.getDescriptiveAnalytics).toHaveBeenCalledWith({
+        projectId: 'project-a',
+        periodStart: '2026-09-01',
+        periodEnd: '2026-09-30',
+      }),
+    )
+    const table = await screen.findByTestId('descriptive-statistics')
+    expect(table.textContent).toContain('Withheld')
+    expect(table.textContent).toContain('Suppressed')
+
+    fireEvent.click(screen.getByRole('button', { name: 'Export aggregates (CSV)' }))
+    await waitFor(() =>
+      expect(download).toHaveBeenCalledWith(
+        '/analytics/descriptive/export?projectId=project-a&periodStart=2026-09-01&periodEnd=2026-09-30',
+        'descriptive-analytics-project-a.csv',
+      ),
+    )
+  })
+
+  it('hides descriptive statistics and export for roles without the analytics permissions', async () => {
+    render(<AnalyticsDashboard />)
+    await waitFor(() => expect(api.getMonitoringDashboard).toHaveBeenCalled())
+    expect(api.getDescriptiveAnalytics).not.toHaveBeenCalled()
+    expect(screen.queryByRole('button', { name: 'Export aggregates (CSV)' })).toBeNull()
+    expect(screen.queryByTestId('descriptive-statistics')).toBeNull()
+  })
+
+  it('does not offer export when only the descriptive read permission is held', async () => {
+    currentAccess.profile.permissions = [
+      ...currentAccess.profile.permissions,
+      'analytics.descriptive.read',
+    ]
+    api.getDescriptiveAnalytics.mockRejectedValue(new Error('Descriptive statistics unavailable.'))
+    render(<AnalyticsDashboard />)
+    await waitFor(() => expect(api.getDescriptiveAnalytics).toHaveBeenCalled())
+    expect(screen.queryByRole('button', { name: 'Export aggregates (CSV)' })).toBeNull()
+    expect(download).not.toHaveBeenCalled()
   })
 })
