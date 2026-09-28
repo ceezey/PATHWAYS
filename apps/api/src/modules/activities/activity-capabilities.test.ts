@@ -206,13 +206,11 @@ describe('server-computed activity capabilities', () => {
 })
 
 describe('each role sees exactly the actions the API accepts', () => {
-  const pdf = Buffer.from('%PDF-1.4 synthetic')
   const proofFile = {
-    fieldname: 'files',
-    originalname: 'proof.pdf',
-    mimetype: 'application/pdf',
-    size: pdf.length,
-    buffer: pdf,
+    fileName: 'proof.pdf',
+    contentType: 'application/pdf' as const,
+    byteSize: 19,
+    sha256: 'a'.repeat(64),
   }
   const cases = roles.flatMap((role) =>
     [true, false].flatMap((assigned) =>
@@ -276,17 +274,12 @@ describe('each role sees exactly the actions the API accepts', () => {
       evidenceMedia_update: [],
     })
     const proofError = await service
-      .submitUpdate(
-        actor,
-        projectId,
-        activityId,
-        {
-          clientUpdateId: 'b0000000-0000-4000-8000-00000000000b',
-          progressPercent: 100,
-          note: 'Synthetic proof',
-        },
-        [proofFile],
-      )
+      .reserveProof(actor, projectId, activityId, {
+        clientUpdateId: 'b0000000-0000-4000-8000-00000000000b',
+        progressPercent: 100,
+        note: 'Synthetic proof',
+        files: [proofFile],
+      })
       .catch((error: unknown) => error)
     if (flags.canSubmitProof) {
       expect(proofError).toBeInstanceOf(ConflictException)
