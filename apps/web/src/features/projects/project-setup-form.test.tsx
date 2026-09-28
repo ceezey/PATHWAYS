@@ -10,8 +10,10 @@ const testState = vi.hoisted(() => ({
   createProject: vi.fn(),
   getProject: vi.fn(),
   getUsers: vi.fn(),
+  refreshAccess: vi.fn(),
   routerPush: vi.fn(),
   updateProject: vi.fn(),
+  callOrder: [] as string[],
 }))
 
 vi.mock('next/navigation', () => ({ useRouter: () => ({ push: testState.routerPush }) }))
@@ -33,7 +35,9 @@ const profileState = {
   permissions: ['projects.create', 'projects.update'],
   assignedProjectIds: ['73500000-0000-4000-8000-000000000004'],
 }
-vi.mock('@/hooks/use-current-role', () => ({ useCurrentRole: () => ({ profile: profileState }) }))
+vi.mock('@/hooks/use-current-role', () => ({
+  useCurrentRole: () => ({ profile: profileState, refreshAccess: testState.refreshAccess }),
+}))
 import { ProjectSetupForm } from './project-setup-form'
 
 const project: ProjectDetail = {
@@ -41,7 +45,6 @@ const project: ProjectDetail = {
   code: 'PRJ-73500000-0000-4000-8000-000000000004',
   title: 'Persisted project',
   description: 'Persisted project description.',
-  objectives: 'Persisted project objectives.',
   area: 'Navotas',
   sector: 'Sector not recorded',
   status: 'Planned',
@@ -62,11 +65,18 @@ const project: ProjectDetail = {
 }
 
 beforeEach(() => {
+  testState.callOrder = []
   testState.createProject.mockReset().mockResolvedValue(project)
   testState.getProject.mockReset().mockResolvedValue(project)
   testState.getUsers.mockReset().mockResolvedValue([])
   testState.updateProject.mockReset().mockResolvedValue({ ...project, title: 'Updated project' })
-  testState.routerPush.mockReset()
+  testState.routerPush.mockReset().mockImplementation(() => {
+    testState.callOrder.push('routerPush')
+  })
+  testState.refreshAccess.mockReset().mockImplementation(() => {
+    testState.callOrder.push('refreshAccess')
+    return Promise.resolve()
+  })
 })
 
 afterEach(() => {
@@ -75,6 +85,19 @@ afterEach(() => {
 })
 
 describe('ProjectSetupForm', () => {
+  it('does not render an Objectives field', () => {
+    render(<ProjectSetupForm />)
+
+    expect(screen.queryByLabelText(/Objectives/)).toBeNull()
+  })
+
+  it('places the project title as the first field in the form', () => {
+    render(<ProjectSetupForm />)
+
+    const firstField = document.querySelector('form')?.querySelector('input, select')
+    expect(firstField).toBe(screen.getByLabelText(/Project title/))
+  })
+
   it('saves the activated server-backed project profile fields', async () => {
     render(<ProjectSetupForm />)
     expect(screen.queryByLabelText(/Project target goal/)).toBeNull()
@@ -86,9 +109,6 @@ describe('ProjectSetupForm', () => {
     expect((screen.getByLabelText('Target beneficiaries') as HTMLInputElement).disabled).toBe(false)
     expect((screen.getByLabelText('Sector') as HTMLInputElement).disabled).toBe(false)
 
-    fireEvent.change(screen.getByLabelText(/Objectives/), {
-      target: { value: 'Deliver core project outcomes' },
-    })
     fireEvent.change(screen.getByLabelText(/Project title/), {
       target: { value: 'Core project profile' },
     })
@@ -125,7 +145,6 @@ describe('ProjectSetupForm', () => {
     expect(testState.createProject).toHaveBeenCalledWith({
       title: 'Core project profile',
       description: 'A supported core project profile.',
-      objectives: 'Deliver core project outcomes',
       implementingPartners: 'Community Partner',
       implementingPartnerNames: ['Synthetic Partner A', 'Synthetic Partner B'],
       projectBudget: '125000.50',
@@ -137,7 +156,9 @@ describe('ProjectSetupForm', () => {
       endDate: '2026-12-31',
       status: 'Planned',
     })
-    expect(testState.routerPush).toHaveBeenCalledWith(`/projects/${project.id}`)
+    await waitFor(() => expect(testState.routerPush).toHaveBeenCalledWith(`/projects/${project.id}`))
+    expect(testState.refreshAccess).toHaveBeenCalledTimes(1)
+    expect(testState.callOrder).toEqual(['refreshAccess', 'routerPush'])
   })
 
   it('loads and updates an existing project with its code and optimistic revision', async () => {

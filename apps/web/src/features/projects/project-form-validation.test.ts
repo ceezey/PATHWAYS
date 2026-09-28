@@ -8,7 +8,6 @@ import {
 } from './project-form-validation'
 
 const validValues = {
-  objectives: 'Develop youth skills',
   partners: '',
   projectBudget: '',
   targetBeneficiaries: '',
@@ -29,7 +28,6 @@ const validValues = {
 describe('project setup validation', () => {
   it('requires project setup fields', () => {
     const result = projectSetupSchema.safeParse({
-      objectives: '',
       partners: '',
       projectBudget: '',
       targetBeneficiaries: '',
@@ -92,7 +90,6 @@ describe('project setup validation', () => {
 
     expect(input).toMatchObject({
       title: validValues.title,
-      objectives: validValues.objectives,
       implementationArea: validValues.area,
       implementingPartners: 'Fictional Partner',
       projectBudget: '100000',

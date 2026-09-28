@@ -33,7 +33,7 @@ interface CurrentRoleContextValue {
   mfaStatus: MfaStatus | null
   access: WorkspaceAccess
   accessError: string | null
-  refreshAccess: () => void
+  refreshAccess: () => Promise<void>
   accessRefreshing: boolean
   verificationRevision: number
   claimWorkspaceHandoff: () => boolean
@@ -65,11 +65,17 @@ export const CurrentRoleProvider = ({ children }: { children: React.ReactNode })
   const resetWorkspaceHandoff = useCallback(() => {
     handoffSubject.current = null
   }, [])
+  const pendingRefreshes = useRef<Array<() => void>>([])
   const refreshAccess = useCallback(() => {
     const identity = identityRef.current
-    if (!identity.internal || identity.sessionStatus !== 'authenticated' || inFlight.current) return
-    inFlight.current = true
-    setRefresh((value) => value + 1)
+    if (!identity.internal || identity.sessionStatus !== 'authenticated') return Promise.resolve()
+    return new Promise<void>((resolve) => {
+      pendingRefreshes.current.push(resolve)
+      if (!inFlight.current) {
+        inFlight.current = true
+        setRefresh((value) => value + 1)
+      }
+    })
   }, [])
 
   useEffect(() => {
@@ -79,6 +85,9 @@ export const CurrentRoleProvider = ({ children }: { children: React.ReactNode })
     if (!internal || sessionStatus !== 'authenticated' || !token || !subject) {
       flight.current.cancel()
       inFlight.current = false
+      const resolvers = pendingRefreshes.current
+      pendingRefreshes.current = []
+      resolvers.forEach((resolve) => resolve())
       setResult(null)
       // Public navigation and temporary token refresh are not sign-out.
       if (sessionStatus === 'unauthenticated') {
@@ -141,6 +150,9 @@ export const CurrentRoleProvider = ({ children }: { children: React.ReactNode })
       })
       .finally(() => {
         if (active()) inFlight.current = false
+        const resolvers = pendingRefreshes.current
+        pendingRefreshes.current = []
+        resolvers.forEach((resolve) => resolve())
       })
     return () => {
       ++operation.current
