@@ -296,6 +296,10 @@ export interface PathwaysClient {
     expectedUpdatedAt: string,
   ): Promise<DigitalFormDefinition>
   createDigitalFormVersion(projectId: string, formId: string): Promise<DigitalFormDefinition>
+  generateDigitalForm(
+    projectId: string,
+    input: { templateKey?: string; sourceFormId?: string; code: string; name: string },
+  ): Promise<DigitalFormDefinition>
   validateDigitalFormValues(
     projectId: string,
     formId: string,
@@ -1161,6 +1165,16 @@ class BackendReadyPathwaysClient implements PathwaysClient {
       `/metadata/projects/${encodeURIComponent(projectId)}/forms/${encodeURIComponent(formId)}/versions`,
       { method: 'POST' },
     ) as Promise<DigitalFormDefinition>
+  }
+
+  async generateDigitalForm(
+    projectId: string,
+    input: { templateKey?: string; sourceFormId?: string; code: string; name: string },
+  ) {
+    return requestFoundation(`/metadata/projects/${encodeURIComponent(projectId)}/forms/generate`, {
+      method: 'POST',
+      body: JSON.stringify(input),
+    }) as Promise<DigitalFormDefinition>
   }
 
   async validateDigitalFormValues(

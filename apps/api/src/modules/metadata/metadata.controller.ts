@@ -17,6 +17,7 @@ import type { AuthenticatedRequest } from '../auth/developer-access'
 import {
   CreateFormDto,
   ExpectedVersionDto,
+  GenerateFormDto,
   ListSubmissionsQueryDto,
   SaveSubmissionDto,
   SubmitSubmissionDto,
@@ -49,6 +50,16 @@ export class MetadataController {
     @Body() body: CreateFormDto,
   ) {
     return this.metadata.createForm(profile(request), projectId, body)
+  }
+
+  @Post('generate')
+  @RequirePermission('forms.generate')
+  generate(
+    @Req() request: AuthenticatedRequest,
+    @Param('projectId') projectId: string,
+    @Body() body: GenerateFormDto,
+  ) {
+    return this.metadata.generateForm(profile(request), projectId, body)
   }
 
   @Get(':formId')
