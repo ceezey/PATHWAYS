@@ -6,3 +6,4 @@ apps/api/prisma/migrations/0032_core_workflow_actor_locks/migration.sql -text
 apps/api/prisma/migrations/0033_core_canonical_activity_review_guard/migration.sql -text
 apps/api/prisma/migrations/0034_core_feature_completion/migration.sql -text
 apps/api/prisma/migrations/0035_admin_read_access/migration.sql -text
+apps/api/prisma/migrations/0037_step_up_pin/migration.sql -text
