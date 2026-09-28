@@ -7,6 +7,7 @@ import { Reflector } from '@nestjs/core'
 import { Test } from '@nestjs/testing'
 import { readApiEnv } from '@pathways/config'
 import { describe, expect, it, vi } from 'vitest'
+import { BeneficiaryStepUpService } from '../../modules/auth/beneficiary-step-up.service'
 import { TokenAuthService } from '../../modules/auth/token-auth.service'
 import { WorkspaceResolutionService } from '../../modules/auth/workspace-resolution.service'
 import { RulesMachineBoundary } from '../../modules/rules/rules-machine-boundary'
@@ -62,6 +63,7 @@ function fixture(enabled = true) {
     tokens as unknown as TokenAuthService,
     workspaces as unknown as WorkspaceResolutionService,
     boundary,
+    { enforce: vi.fn() } as unknown as BeneficiaryStepUpService,
   )
   return { tokens, workspaces, request, response, context, guard }
 }
@@ -74,6 +76,7 @@ describe('mandatory machine boundary before human/Public delegation', () => {
         SupabaseAuthGuard,
         { provide: TokenAuthService, useValue: { verifyCurrent: vi.fn() } },
         { provide: WorkspaceResolutionService, useValue: { resolveSelection: vi.fn() } },
+        { provide: BeneficiaryStepUpService, useValue: { enforce: vi.fn() } },
       ],
     }).compile()
     try {

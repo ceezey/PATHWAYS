@@ -93,6 +93,10 @@ import {
 import { readPublicProjects } from './public-projects'
 type CreateIndicatorInput = Omit<ApiCreateIndicatorInput, 'clientMutationId'>
 type UpdateIndicatorInput = Omit<ApiUpdateIndicatorInput, 'clientMutationId'>
+import {
+  STEP_UP_REQUIRED_CODE,
+  announceStepUpRequired,
+} from '@/lib/auth/beneficiary-step-up-events'
 import { parseRegistrationContext } from './registration-context'
 
 export class PathwaysClientError extends Error {
@@ -107,6 +111,8 @@ export class PathwaysClientError extends Error {
       | 'invalid',
     readonly fieldErrors: FormValidationError[] = [],
     readonly status?: number,
+    /** Set when the API requires a recent Beneficiary MFA step-up. */
+    readonly stepUpRequired = false,
   ) {
     super(message)
     this.name = 'PathwaysClientError'
@@ -1689,6 +1695,19 @@ export async function requestFoundationResponse(
   if (!response.ok) {
     let fieldErrors: FormValidationError[] = []
     let serverMessage: string | undefined
+    if (response.status === 403) {
+      const body = (await response.json().catch(() => null)) as { code?: unknown } | null
+      if (body?.code === STEP_UP_REQUIRED_CODE) {
+        announceStepUpRequired()
+        throw new PathwaysClientError(
+          'Recent MFA verification is required for Beneficiary detail.',
+          'forbidden',
+          [],
+          403,
+          true,
+        )
+      }
+    }
     if (response.status === 400 || response.status === 409) {
       const body = (await response.json().catch(() => null)) as {
         message?: { errors?: unknown; message?: unknown } | string | unknown[]

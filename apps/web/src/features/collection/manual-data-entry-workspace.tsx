@@ -367,7 +367,7 @@ export function ManualDataEntryWorkspace() {
                   >
                     <option value="">Select participant</option>
                     <option value="" disabled>
-                      Server-side beneficiary selection requires PIN verification
+                      Beneficiary selection is not available in this workspace
                     </option>
                   </select>
                 </label>

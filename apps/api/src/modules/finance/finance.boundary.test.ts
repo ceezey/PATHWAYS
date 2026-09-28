@@ -54,6 +54,7 @@ const guard = new SupabaseAuthGuard(
   } as never,
   { resolveSelection: async () => actor } as never,
   { enter: () => null } as never,
+  { enforce: async () => {} } as never,
 )
 const context = {
   getHandler: () => FinanceController.prototype.review,

@@ -125,6 +125,7 @@ describe('TokenAuthService cryptographic verification and current identity', () 
     await expect(new TokenAuthService(sessions).verify(signedToken())).resolves.toEqual({
       id: DEVELOPER_AUTH_UUID,
       aal: 'aal2',
+      mfaVerifiedAt: expect.any(Number),
     })
     expect(identityReads()).toHaveLength(1)
     expect(sessions.assertLive).toHaveBeenCalledWith(DEVELOPER_AUTH_UUID, sessionId, undefined)
@@ -247,6 +248,39 @@ describe('TokenAuthService cryptographic verification and current identity', () 
           ],
         }),
       ),
+    ).resolves.toEqual({
+      id: DEVELOPER_AUTH_UUID,
+      aal: 'aal2',
+      mfaVerifiedAt: expect.any(Number),
+    })
+  })
+
+  it('carries only the latest signed TOTP timestamp for step-up and ignores future-dated entries', async () => {
+    const now = Math.floor(Date.now() / 1000)
+    await expect(
+      new TokenAuthService(sessions).verify(
+        signedToken({
+          ...validClaims(),
+          amr: [
+            { method: 'password', timestamp: now - 3_000 },
+            { method: 'totp', timestamp: now - 2_000 },
+            { method: 'totp', timestamp: now - 100 },
+            { method: 'totp', timestamp: now + 3_600 },
+            { method: 'otp', timestamp: now - 1 },
+          ],
+        }),
+      ),
+    ).resolves.toEqual({ id: DEVELOPER_AUTH_UUID, aal: 'aal2', mfaVerifiedAt: now - 100 })
+    await expect(
+      new TokenAuthService(sessions).verify(
+        signedToken({
+          ...validClaims(),
+          amr: [
+            { method: 'password', timestamp: now - 30 },
+            { method: 'totp', timestamp: 'recent' },
+          ],
+        }),
+      ),
     ).resolves.toEqual({ id: DEVELOPER_AUTH_UUID, aal: 'aal2' })
   })
 
@@ -296,7 +330,11 @@ describe('TokenAuthService cryptographic verification and current identity', () 
       new TokenAuthService(sessions).verify(
         signedToken({ ...validClaims(), app_metadata: metadata, user_metadata: metadata }),
       ),
-    ).resolves.toEqual({ id: DEVELOPER_AUTH_UUID, aal: 'aal2' })
+    ).resolves.toEqual({
+      id: DEVELOPER_AUTH_UUID,
+      aal: 'aal2',
+      mfaVerifiedAt: expect.any(Number),
+    })
   })
 
   it('sanitizes provider error details and never logs them', async () => {

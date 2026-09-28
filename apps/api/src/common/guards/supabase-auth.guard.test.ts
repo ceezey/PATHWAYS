@@ -18,6 +18,7 @@ import { ApplicationProfileService } from '../../modules/auth/application-profil
 import { AuthController } from '../../modules/auth/auth.controller'
 import { AuthService } from '../../modules/auth/auth.service'
 import { reportAuthorizedOperationTiming } from '../../modules/auth/authorized-operation-timing'
+import { BeneficiaryStepUpService } from '../../modules/auth/beneficiary-step-up.service'
 import {
   type ApplicationIdentity,
   type AuthenticatedRequest,
@@ -29,9 +30,12 @@ import { RouteAccessService } from '../../modules/auth/route-access.service'
 import { TokenAuthService, type VerifiedAuthSession } from '../../modules/auth/token-auth.service'
 import { WorkspaceResolutionService } from '../../modules/auth/workspace-resolution.service'
 import { PrismaService, type VerifiedTransactionTiming } from '../../prisma/prisma.service'
+import { RequireBeneficiaryStepUp } from '../decorators/beneficiary-step-up.decorator'
 import { RequirePermission } from '../decorators/permission.decorator'
 import { Public } from '../decorators/public.decorator'
 import { SupabaseAuthGuard } from './supabase-auth.guard'
+
+const beneficiaryHandler = vi.fn()
 
 // Actual local HTTP routing, reflection and guard execution; only the Auth
 // provider and database-facing profile service are mocked. No app startup,
@@ -56,6 +60,22 @@ class BoundaryTestController {
       totalMs: 11,
     })
     return { allowed: true }
+  }
+
+  @Get('beneficiary-detail')
+  @RequirePermission('projects.read')
+  @RequireBeneficiaryStepUp()
+  beneficiaryDetail() {
+    beneficiaryHandler()
+    return { detail: true }
+  }
+
+  @Get('beneficiary-detail-unpermitted')
+  @RequirePermission('beneficiaries.records.read')
+  @RequireBeneficiaryStepUp()
+  beneficiaryDetailUnpermitted() {
+    beneficiaryHandler()
+    return { detail: true }
   }
 
   @Get('business')
@@ -86,8 +106,9 @@ const profile: ApplicationIdentity = {
 const verifiedSession = (
   aal: 'aal1' | 'aal2' = 'aal2',
   id = DEVELOPER_AUTH_UUID,
+  mfaVerifiedAt?: number,
 ): VerifiedAuthSession => ({
-  identity: { id, aal },
+  identity: { id, aal, ...(mfaVerifiedAt === undefined ? {} : { mfaVerifiedAt }) },
   sessionId,
   stageTimings: { claimsMs: 2, currentUserMs: 3 },
 })
@@ -96,7 +117,13 @@ const tokens = {
   assertSessionLive: vi.fn<(verified: VerifiedAuthSession) => Promise<void>>(),
 }
 const profiles = { resolve: vi.fn(), resolveWithSession: vi.fn() }
-const prisma = { discoverWorkspace: vi.fn() }
+const auditCreate = vi.fn()
+const prisma = {
+  discoverWorkspace: vi.fn(),
+  withVerifiedContext: vi.fn(async (_context: unknown, work: (tx: unknown) => Promise<unknown>) =>
+    work({ auditLog: { create: auditCreate } }),
+  ),
+}
 const routeChecks = { check: vi.fn() }
 let app: INestApplication
 let port: number
@@ -154,6 +181,7 @@ beforeAll(async () => {
       { provide: PrismaService, useValue: prisma },
       { provide: RouteAccessService, useValue: routeChecks },
       WorkspaceResolutionService,
+      BeneficiaryStepUpService,
       { provide: AuthService, useValue: { getStatus: () => ({ authenticated: true }) } },
       { provide: APP_GUARD, useClass: SupabaseAuthGuard },
     ],
@@ -190,6 +218,8 @@ beforeEach(() => {
       },
     )
   prisma.discoverWorkspace.mockReset().mockResolvedValue([{ organizationId, userId }])
+  auditCreate.mockReset().mockResolvedValue({})
+  beneficiaryHandler.mockReset()
   routeChecks.check.mockReset().mockResolvedValue({
     route: 'dashboard',
     authorization: 'database-verified',
@@ -530,5 +560,106 @@ describe('SupabaseAuthGuard local HTTP fail-closed boundary', () => {
       expect.any(Function),
       undefined,
     )
+  })
+})
+
+describe('Beneficiary step-up (cr-pathways-beneficiary-step-up)', () => {
+  const headers = {
+    authorization: 'Bearer local-test-token',
+    'x-pathways-user-id': userId,
+    'x-pathways-organization-id': organizationId,
+  }
+  const now = () => Math.floor(Date.now() / 1000)
+  const auditActions = () =>
+    auditCreate.mock.calls.map(([input]) => (input as { data: { action: string } }).data.action)
+  const stepUpSession = (mfaVerifiedAt?: number) =>
+    verifiedSession('aal2', DEVELOPER_AUTH_UUID, mfaVerifiedAt)
+
+  beforeEach(() => vi.stubEnv('PATHWAYS_DEVELOPER_ACCESS_ENABLED', 'true'))
+
+  it('admits a fresh signed TOTP factor once audited, without re-auditing the same factor', async () => {
+    const verifiedAt = now() - 60
+    tokens.verifyCurrent.mockResolvedValue(stepUpSession(verifiedAt))
+    const first = await get('/boundary-test/beneficiary-detail', headers)
+    expect(first.status).toBe(200)
+    expect(first.body).toEqual({ detail: true })
+    expect(await get('/boundary-test/beneficiary-detail', headers)).toMatchObject({ status: 200 })
+    expect(auditActions()).toEqual(['BENEFICIARY_STEP_UP_ACCEPTED'])
+    const audit = auditCreate.mock.calls[0]?.[0] as { data: Record<string, unknown> }
+    expect(audit.data).toMatchObject({
+      organizationId,
+      actorUserId: userId,
+      entityType: 'BeneficiaryStepUp',
+      changes: {
+        operation: 'BoundaryTestController.beneficiaryDetail',
+        factorVerifiedAt: new Date(verifiedAt * 1000).toISOString(),
+        windowSeconds: 900,
+      },
+    })
+    expect(JSON.stringify(audit)).not.toContain('local-test-token')
+    expect(beneficiaryHandler).toHaveBeenCalledTimes(2)
+  })
+
+  it.each([
+    ['STALE', -901],
+    ['MISSING', undefined],
+    ['MISSING', 600],
+  ] as const)(
+    'denies a %s factor with STEP_UP_REQUIRED before the handler runs',
+    async (reason, offset) => {
+      tokens.verifyCurrent.mockResolvedValue(
+        stepUpSession(offset === undefined ? undefined : now() + offset),
+      )
+      const denied = await get('/boundary-test/beneficiary-detail', headers)
+      expect(denied.status).toBe(403)
+      expect(denied.body).toMatchObject({ statusCode: 403, code: 'STEP_UP_REQUIRED' })
+      expect(Object.keys(denied.body).sort()).toEqual(['code', 'error', 'message', 'statusCode'])
+      expect(beneficiaryHandler).not.toHaveBeenCalled()
+      // Each case has a distinct factor/reason dedupe key, so exactly one denial is audited.
+      expect(auditCreate).toHaveBeenCalledOnce()
+      const data = (
+        auditCreate.mock.calls[0]?.[0] as {
+          data: { action: string; changes: { reason: string } }
+        }
+      ).data
+      expect(data.action).toBe('BENEFICIARY_STEP_UP_REQUIRED')
+      expect(data.changes.reason).toBe(reason)
+    },
+  )
+
+  it('still denies when the denial audit fails, and withholds access when acceptance cannot be audited', async () => {
+    auditCreate.mockRejectedValue(new Error('synthetic audit outage'))
+    tokens.verifyCurrent.mockResolvedValue(stepUpSession(now() - 1_000))
+    expect(await get('/boundary-test/beneficiary-detail', headers)).toMatchObject({
+      status: 403,
+      body: { code: 'STEP_UP_REQUIRED' },
+    })
+    tokens.verifyCurrent.mockResolvedValue(stepUpSession(now() - 5))
+    const withheld = await get('/boundary-test/beneficiary-detail', headers)
+    expect(withheld.status).toBe(503)
+    expect(JSON.stringify(withheld.body)).not.toContain('synthetic audit outage')
+    expect(beneficiaryHandler).not.toHaveBeenCalled()
+  })
+
+  it('reports step-up freshness from signed claims only and requires verified MFA', async () => {
+    const verifiedAt = now() - 30
+    tokens.verifyCurrent.mockResolvedValue(stepUpSession(verifiedAt))
+    const fresh = await get('/auth/step-up/status', { authorization: 'Bearer local-test-token' })
+    expect(fresh.status).toBe(200)
+    expect(fresh.cacheControl).toBe('private, no-store')
+    expect(fresh.body).toEqual({
+      fresh: true,
+      expiresAt: new Date((verifiedAt + 900) * 1000).toISOString(),
+      windowSeconds: 900,
+    })
+    tokens.verifyCurrent.mockResolvedValue(stepUpSession(now() - 901))
+    expect((await get('/auth/step-up/status', { authorization: 'Bearer t' })).body).toEqual({
+      fresh: false,
+      expiresAt: null,
+      windowSeconds: 900,
+    })
+    tokens.verifyCurrent.mockResolvedValue(verifiedSession('aal1'))
+    expect((await get('/auth/step-up/status', { authorization: 'Bearer t' })).status).toBe(403)
+    expect(auditCreate).not.toHaveBeenCalled()
   })
 })

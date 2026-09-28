@@ -1,6 +1,7 @@
 import { resolve } from 'node:path'
 
 import { type Page, expect, test } from '@playwright/test'
+import { stubBeneficiaryStepUp } from './fixtures/step-up'
 
 const browserErrors = new WeakMap<Page, string[]>()
 
@@ -103,10 +104,8 @@ test('Phase 7 tablet sweep keeps every revised module readable without horizonta
   await page.goto('/reports')
   await expectTabletSurface(page, 'Reports', '09-reports-tablet.png')
 
+  await stubBeneficiaryStepUp(page)
   await page.goto('/beneficiaries/ben-001')
-  const gate = page.getByRole('dialog', { name: 'Verify beneficiary module access' })
-  await gate.getByLabel('Beneficiary access PIN').fill('2468')
-  await gate.getByRole('button', { name: 'Verify and enter' }).click()
   await expectTabletSurface(page, 'Beneficiary NCR-001', '10-beneficiary-tablet.png')
 
   await switchAccount(page, 'monitoring-evaluation-officer')

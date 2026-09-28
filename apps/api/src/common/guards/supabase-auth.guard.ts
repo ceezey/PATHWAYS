@@ -16,11 +16,13 @@ import {
   type AuthorizedOperationTiming,
   registerAuthorizedOperationTiming,
 } from '../../modules/auth/authorized-operation-timing'
+import { BeneficiaryStepUpService } from '../../modules/auth/beneficiary-step-up.service'
 import type { AuthenticatedRequest } from '../../modules/auth/developer-access'
 import { TokenAuthService, type VerifiedAuthSession } from '../../modules/auth/token-auth.service'
 import { WorkspaceResolutionService } from '../../modules/auth/workspace-resolution.service'
 import type { VerifiedTransactionTiming } from '../../prisma/prisma.service'
 import { AUTH_BOUNDARY_KEY } from '../decorators/auth-boundary.decorator'
+import { BENEFICIARY_STEP_UP_KEY } from '../decorators/beneficiary-step-up.decorator'
 import { PERMISSION_KEY } from '../decorators/permission.decorator'
 import { IS_PUBLIC_KEY } from '../decorators/public.decorator'
 import {
@@ -75,6 +77,7 @@ export class SupabaseAuthGuard implements CanActivate {
     @Inject(TokenAuthService) private readonly tokens: TokenAuthService,
     @Inject(WorkspaceResolutionService) private readonly workspaces: WorkspaceResolutionService,
     @Inject(RulesMachineBoundary) private readonly machines: RulesMachineBoundary,
+    @Inject(BeneficiaryStepUpService) private readonly stepUp: BeneficiaryStepUpService,
   ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
@@ -171,6 +174,20 @@ export class SupabaseAuthGuard implements CanActivate {
     ) {
       request.user = undefined
       throw new ForbiddenException('Required application permission is missing.')
+    }
+    // Server-derived step-up after identity/account/org/role/permission and
+    // before any Beneficiary query; independent of the target, so no existence signal.
+    if (this.reflector.getAllAndOverride<boolean>(BENEFICIARY_STEP_UP_KEY, handlers)) {
+      try {
+        await this.stepUp.enforce(
+          identity,
+          request.user,
+          `${context.getClass().name}.${context.getHandler().name}`,
+        )
+      } catch (error) {
+        request.user = undefined
+        throw error
+      }
     }
     if (budget) bindInspectionIdentity(request.user, verified.sessionId, budget)
     if (authTiming) {

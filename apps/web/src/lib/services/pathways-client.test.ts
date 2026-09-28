@@ -929,3 +929,46 @@ describe('workspace ownership during asynchronous token acquisition', () => {
     expect(fetcher.mock.calls[0][1].headers['X-Pathways-Organization-Id']).toBe(organizationId)
   })
 })
+
+describe('Beneficiary step-up denial', () => {
+  const authUserId = '73900000-0000-4000-8000-000000000001'
+  const setup = (body: unknown) => {
+    const dispatchEvent = vi.fn()
+    vi.stubGlobal('window', { dispatchEvent })
+    vi.stubGlobal('document', {
+      cookie: `pathways-context=${encodeURIComponent(
+        JSON.stringify({
+          authUserId,
+          organizationId: '73900000-0000-4000-8000-000000000002',
+          userId: '73900000-0000-4000-8000-000000000003',
+        }),
+      )}`,
+    })
+    browser.getSession.mockResolvedValue({
+      data: { session: { access_token: 'synthetic-token', user: { id: authUserId } } },
+      error: null,
+    })
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(new Response(JSON.stringify(body), { status: 403 })),
+    )
+    return dispatchEvent
+  }
+  afterEach(() => vi.unstubAllGlobals())
+
+  it('announces the prompt and marks STEP_UP_REQUIRED without exposing detail', async () => {
+    const dispatchEvent = setup({ statusCode: 403, code: 'STEP_UP_REQUIRED', message: 'x' })
+    const error = await requestFoundationResponse('/beneficiaries/projects/p').catch((e) => e)
+    expect(error).toBeInstanceOf(PathwaysClientError)
+    expect(error).toMatchObject({ code: 'forbidden', status: 403, stepUpRequired: true })
+    expect(dispatchEvent).toHaveBeenCalledOnce()
+    expect(dispatchEvent.mock.calls[0][0].type).toBe('pathways:beneficiary-step-up-required')
+  })
+
+  it('keeps an ordinary 403 as a plain denial with no prompt', async () => {
+    const dispatchEvent = setup({ statusCode: 403, message: 'Missing permission.' })
+    const error = await requestFoundationResponse('/beneficiaries/projects/p').catch((e) => e)
+    expect(error).toMatchObject({ code: 'forbidden', status: 403, stepUpRequired: false })
+    expect(dispatchEvent).not.toHaveBeenCalled()
+  })
+})
