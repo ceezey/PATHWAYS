@@ -19,6 +19,7 @@ const baseline = '0000_pathways_baseline_through_0026'
 const preprovision = {
   '0031_f10_f11_rules_runtime': 'hosted-rules-preprovision.sql',
   '0034_core_feature_completion': 'hosted-core-preprovision.sql',
+  '0037_step_up_pin': 'hosted-step-up-pin-preprovision.sql',
 }
 
 function run(command, args, { input, env, label } = {}) {
