@@ -1,6 +1,6 @@
 -- Disposable PostgreSQL checks for 0036_import_pdf_file_type. Synthetic rows only.
 -- Run as postgres inside the local container against a replayed, disposable database
--- named pathways_phase2_*. Part 1 commits synthetic fixtures into that disposable
+-- named pathways_phase2_* (or a pathways_phase4_* replay clone). Part 1 commits synthetic fixtures into that disposable
 -- database; part 2 reconnects as pathways_runtime over loopback and rolls back.
 -- Drop the database afterwards.
 \set ON_ERROR_STOP on
@@ -8,9 +8,9 @@ BEGIN;
 
 DO $$
 BEGIN
-  IF current_database() NOT LIKE 'pathways\_phase2\_%'
+  IF (current_database() NOT LIKE 'pathways\_phase2\_%' AND current_database() NOT LIKE 'pathways\_phase4\_%')
      OR current_user <> 'postgres' THEN
-    RAISE EXCEPTION '0036 checks require a disposable pathways_phase2_* database';
+    RAISE EXCEPTION '0036 checks require a disposable pathways_phase2_* or pathways_phase4_* database';
   END IF;
 END
 $$;
@@ -111,7 +111,7 @@ COMMIT;
 BEGIN;
 DO $$
 BEGIN
-  IF current_database() NOT LIKE 'pathways\_phase2\_%' OR session_user <> 'pathways_runtime' THEN
+  IF (current_database() NOT LIKE 'pathways\_phase2\_%' AND current_database() NOT LIKE 'pathways\_phase4\_%') OR session_user <> 'pathways_runtime' THEN
     RAISE EXCEPTION 'Runtime checks require the disposable database and runtime login';
   END IF;
 END
