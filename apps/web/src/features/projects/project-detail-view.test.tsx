@@ -1,8 +1,8 @@
 /* @vitest-environment jsdom */
 
-import type { ReactNode } from 'react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import type { ReactNode } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { AuthorizedQueryProvider } from '@/providers/authorized-query-provider'
