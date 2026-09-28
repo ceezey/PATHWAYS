@@ -52,6 +52,7 @@ export function MfaForm() {
     token: string
     factorId: string
     qr: string
+    secret: string
   } | null>(null)
   const [factorId, setFactorId] = useState('')
   const [code, setCode] = useState('')
@@ -261,6 +262,7 @@ export function MfaForm() {
         token,
         factorId: result.data.id,
         qr: getQrImageSource(result.data.totp.qr_code),
+        secret: result.data.totp.secret,
       })
       setFactorId(result.data.id)
     } catch {
@@ -449,6 +451,15 @@ export function MfaForm() {
                   height={240}
                   className="mx-auto bg-white p-3"
                 />
+                <section className="space-y-1" aria-labelledby="mfa-setup-key-label">
+                  <p className="text-sm" id="mfa-setup-key-label">
+                    Can&apos;t scan? Choose &quot;Enter a setup key&quot; in your authenticator app,
+                    select time-based, and type this key. Keep it private like the QR code.
+                  </p>
+                  <code className="block select-all break-all rounded border bg-muted p-3 text-center font-mono text-sm tracking-wider">
+                    {privateEnrollment.secret.replace(/(.{4})(?=.)/g, '$1 ')}
+                  </code>
+                </section>
               </>
             ) : current.factors.length === 0 ? (
               <>
