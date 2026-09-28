@@ -17,6 +17,7 @@ import { PageHeader } from '@/components/layout/page-header'
 import { AsyncState, StatusMessage } from '@/components/pathways'
 import { EmptyState } from '@/components/pathways/empty-state'
 import { MetricCard } from '@/components/pathways/metric-card'
+import { UnavailableHint, unavailableControlProps } from '@/components/pathways/unavailable-hint'
 import { Button } from '@/components/ui/button'
 import {
   Select,
@@ -50,8 +51,8 @@ import { humanReviewDisclaimer } from './analytics-utils'
 const analysisViews = [
   { value: 'kpi', label: 'KPI / indicator performance' },
   { value: 'participation', label: 'Participation patterns' },
-  { value: 'survey', label: 'Survey improvement' },
-  { value: 'timeline', label: 'Project / activity timeline adherence' },
+  { value: 'survey', label: 'Survey improvement', disabled: true },
+  { value: 'timeline', label: 'Project / activity timeline adherence', disabled: true },
 ] as const
 const visualizationTypes = [
   { value: 'bar', label: 'Bar chart' },
@@ -549,7 +550,12 @@ export const AnalyticsDashboard = () => {
             </SelectTrigger>
             <SelectContent>
               {analysisViews.map((view) => (
-                <SelectItem key={view.value} value={view.value}>
+                <SelectItem
+                  disabled={'disabled' in view && view.disabled}
+                  key={view.value}
+                  title={'disabled' in view && view.disabled ? 'Not available yet' : undefined}
+                  value={view.value}
+                >
                   {view.label}
                 </SelectItem>
               ))}
@@ -610,10 +616,15 @@ export const AnalyticsDashboard = () => {
               {exporting ? 'Exporting aggregates' : 'Export aggregates (CSV)'}
             </Button>
           ) : null}
-          <Button disabled className="shrink-0" type="button">
+          <Button
+            className="shrink-0"
+            type="button"
+            {...unavailableControlProps('analytics-add-to-dashboard-hint')}
+          >
             <Plus className="mr-2 h-4 w-4" aria-hidden="true" />
             Add to Dashboard
           </Button>
+          <UnavailableHint id="analytics-add-to-dashboard-hint" />
         </div>
       </section>
 

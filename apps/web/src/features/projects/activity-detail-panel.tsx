@@ -11,7 +11,7 @@ import {
 } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 
-import { ProgressBar, SidePanel, StatusBadge } from '@/components/pathways'
+import { ProgressBar, SidePanel, StatusBadge, UnavailableHint, unavailableControlProps } from '@/components/pathways'
 import { Button } from '@/components/ui/button'
 import { Sheet } from '@/components/ui/sheet'
 import type { Activity, ActivityProof, Indicator, JourneyStageConfig } from '@/types/pathways'
@@ -414,10 +414,18 @@ export const ActivityDetailContent = ({
           </Button>
         ) : null}
         {canRequestExtension && activity.status !== 'Completed' ? (
-          <Button className="gap-2" disabled type="button" variant="outline">
-            <BellRing className="h-4 w-4" aria-hidden="true" />
-            Request an extension
-          </Button>
+          <>
+            <Button
+              className="gap-2"
+              type="button"
+              variant="outline"
+              {...unavailableControlProps('activity-request-extension-hint')}
+            >
+              <BellRing className="h-4 w-4" aria-hidden="true" />
+              Request an extension
+            </Button>
+            <UnavailableHint id="activity-request-extension-hint" />
+          </>
         ) : null}
       </div>
 

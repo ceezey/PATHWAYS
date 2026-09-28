@@ -69,6 +69,31 @@ describe('ActivityDetailContent server read model', () => {
     expect(document.body.textContent).not.toContain('Project target comparison')
   })
 
+  it('shows Request an extension as disabled with a Not available yet hint', () => {
+    render(
+      <ActivityDetailContent
+        activity={activity}
+        canDecideProof={false}
+        canEdit={false}
+        canLogExpense={false}
+        canRequestExtension
+        canSubmitProof={false}
+        canValidateExpense={false}
+        canValidateProof={false}
+        indicators={[]}
+        journeyStages={[]}
+        onActivityChanged={vi.fn()}
+        onEdit={vi.fn()}
+        onSubmitProof={vi.fn()}
+      />,
+    )
+    const button = screen.getByRole('button', { name: 'Request an extension' })
+    expect(button.hasAttribute('disabled')).toBe(true)
+    const describedBy = button.getAttribute('aria-describedby')
+    expect(describedBy).toBeTruthy()
+    expect(document.getElementById(describedBy as string)?.textContent).toBe('Not available yet')
+  })
+
   it.each([
     [true, 'None yet'],
     [false, 'Unavailable'],

@@ -23,6 +23,8 @@ import {
   SectionCard,
   SidePanel,
   StatusBadge,
+  UnavailableHint,
+  unavailableControlProps,
 } from '@/components/pathways'
 import { Button } from '@/components/ui/button'
 import {
@@ -246,9 +248,14 @@ const SavedMonitoringCharts = ({ projectId }: { projectId: string }) => (
       <h3 className="text-lg font-semibold" id="saved-charts-title">
         Monitoring charts
       </h3>
-      <Button asChild size="sm" variant="outline">
-        <Link href="/analytics">Add a chart</Link>
+      <Button
+        size="sm"
+        variant="outline"
+        {...unavailableControlProps('role-dashboard-add-chart-hint')}
+      >
+        Add a chart
       </Button>
+      <UnavailableHint id="role-dashboard-add-chart-hint" />
     </div>
     <EmptyState
       description={
