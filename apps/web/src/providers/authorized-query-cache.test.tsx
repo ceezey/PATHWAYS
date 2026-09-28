@@ -1,6 +1,6 @@
 /* @vitest-environment jsdom */
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { act, cleanup, render, screen, waitFor } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import {
@@ -400,5 +400,143 @@ describe('committed writes (G1)', () => {
     view.rerender(<Later show />)
     expect(screen.queryByText('Old')).toBeNull()
     expect(await screen.findByText('New')).toBeTruthy()
+  })
+})
+
+const forbidden = () => new PathwaysClientError('Denied', 'forbidden', [], 403)
+const Child = ({ read, freshness }: { read: Read; freshness: 'summary' | 'live' }) => {
+  const value = useAuthorizedRead(
+    'project-overview-metrics',
+    'project-a',
+    'projects.read',
+    read,
+    true,
+    {
+      freshness,
+    },
+  )
+  return (
+    <div>
+      <output aria-label="child">
+        {value.isError
+          ? `Error:${(value.error as { code?: string } | null)?.code ?? 'unknown'}`
+          : value.isPending
+            ? 'Pending'
+            : (value.data ?? 'Empty')}
+      </output>
+      <button onClick={() => void value.refetch()} type="button">
+        Retry child
+      </button>
+    </div>
+  )
+}
+/** A parent gated on its own read renders the child only once its data is visible. */
+const GatedParent = ({
+  parentRead,
+  childRead,
+  freshness,
+  renders,
+}: {
+  parentRead: Read
+  childRead: Read
+  freshness: 'summary' | 'live'
+  renders: string[]
+}) => {
+  const project = useAuthorizedRead('project', 'project-a', 'projects.read', parentRead, true, {
+    freshness: 'summary',
+  })
+  renders.push(project.data ? 'content' : 'loading')
+  return project.data ? (
+    <section>
+      <h2>{project.data}</h2>
+      <Child freshness={freshness} read={childRead} />
+    </section>
+  ) : (
+    <p>Loading parent</p>
+  )
+}
+
+describe('a persistently denied reader does not loop when it remounts (G1)', () => {
+  it.each(['summary', 'live'] as const)(
+    'settles a %s child 403 under a gated parent without a flicker loop',
+    async (freshness) => {
+      const client = new QueryClient()
+      const parentRead = vi.fn<Read>().mockResolvedValue('Project A')
+      const childRead = vi.fn<Read>().mockRejectedValue(forbidden())
+      const renders: string[] = []
+      render(
+        probeTree(
+          client,
+          <GatedParent
+            childRead={childRead}
+            freshness={freshness}
+            parentRead={parentRead}
+            renders={renders}
+          />,
+        ),
+      )
+      await waitFor(() => expect(text('child')).toBe('Error:forbidden'))
+      await settle()
+      await settle()
+      await settle()
+      expect(childRead).toHaveBeenCalledOnce()
+      expect(parentRead.mock.calls.length).toBeLessThanOrEqual(2)
+      expect(screen.getByRole('heading', { name: 'Project A' })).toBeTruthy()
+      expect(text('child')).toBe('Error:forbidden')
+      // At most one loading gap after the first content (the single re-verification).
+      const gaps = renders
+        .slice(renders.indexOf('content'))
+        .filter((state, index, all) => state === 'loading' && all[index - 1] === 'content')
+      expect(gaps.length).toBeLessThanOrEqual(1)
+    },
+  )
+
+  it('clears the sticky denial on an explicit retry and requests exactly once', async () => {
+    const client = new QueryClient()
+    const parentRead = vi.fn<Read>().mockResolvedValue('Project A')
+    const childRead = vi.fn<Read>().mockRejectedValue(forbidden())
+    render(
+      probeTree(
+        client,
+        <GatedParent childRead={childRead} freshness="live" parentRead={parentRead} renders={[]} />,
+      ),
+    )
+    await waitFor(() => expect(text('child')).toBe('Error:forbidden'))
+    await settle()
+    expect(childRead).toHaveBeenCalledOnce()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Retry child' }))
+    await waitFor(() => expect(childRead).toHaveBeenCalledTimes(2))
+    await waitFor(() => expect(text('child')).toBe('Error:forbidden'))
+    await settle()
+    await settle()
+    expect(childRead).toHaveBeenCalledTimes(2)
+
+    childRead.mockResolvedValue('Metrics')
+    fireEvent.click(screen.getByRole('button', { name: 'Retry child' }))
+    await waitFor(() => expect(text('child')).toBe('Metrics'))
+    expect(childRead).toHaveBeenCalledTimes(3)
+  })
+
+  it('raises the epoch once per denial: the same denial token is not counted twice', async () => {
+    const client = new QueryClient()
+    const read = vi.fn<Read>().mockResolvedValue('Value')
+    render(probeTree(client, <Probe read={read} resource="projects" />))
+    expect(await screen.findByText('Value')).toBeTruthy()
+    const token = forbidden()
+    act(() => {
+      window.dispatchEvent(new CustomEvent(AUTHORIZATION_DENIED_EVENT, { detail: token }))
+    })
+    await waitFor(() => expect(read).toHaveBeenCalledTimes(2))
+    expect(await screen.findByText('Value')).toBeTruthy()
+    act(() => {
+      window.dispatchEvent(new CustomEvent(AUTHORIZATION_DENIED_EVENT, { detail: token }))
+    })
+    await settle()
+    expect(read).toHaveBeenCalledTimes(2)
+    act(() => {
+      window.dispatchEvent(new CustomEvent(AUTHORIZATION_DENIED_EVENT, { detail: forbidden() }))
+    })
+    await waitFor(() => expect(read).toHaveBeenCalledTimes(3))
   })
 })

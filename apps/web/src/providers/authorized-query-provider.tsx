@@ -1,7 +1,7 @@
 'use client'
 
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { createContext, useContext, useEffect, useMemo, useRef, useState } from 'react'
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react'
 
 import type { ApplicationProfile } from '@/features/auth/auth-access'
 import { useCurrentRole } from '@/hooks/use-current-role'
@@ -11,6 +11,7 @@ import { principalHasAtomicPermission } from '@/lib/rbac/route-access'
 import {
   AUTHORIZATION_DENIED_EVENT,
   WRITE_COMMITTED_EVENT,
+  authorizationDenialToken,
 } from '@/lib/services/authorized-read-events'
 import { PathwaysClientError } from '@/lib/services/pathways-client'
 
@@ -24,9 +25,19 @@ type Context = {
   epoch: number
   /** Latest epoch, read when a fetch starts or cached data is replaced. */
   currentEpoch: () => number
-  deny: () => void
+  /** Changes when a recorded denial is cleared, so readers re-render. */
+  denialVersion: number
+  /** Raises the epoch once per denial; a token already seen (the same 401/403) is ignored. */
+  deny: (token?: object | null) => void
   /** True once per query per epoch: the single automatic re-read after a denial. */
   claimReread: (key: string, epoch: number) => boolean
+  /**
+   * Keys whose last result was a 401/403. Outlives the observer, so a remounted reader
+   * does not fetch again by itself. Cleared on identity change or an explicit retry.
+   */
+  deniedRead: (key: string) => PathwaysClientError | null
+  recordDenial: (key: string, error: PathwaysClientError) => void
+  clearDenial: (key: string) => void
 }
 /** Cached value plus the denial epoch its read started in. */
 type Envelope<T> = { epoch: number; value: T }
@@ -49,7 +60,7 @@ export function authorizedReadPolicy(resource: string, freshness: AuthorizedRead
     : { staleTime: 0, gcTime: 0, refetchOnMount: 'always' as const }
 }
 
-const isAuthorizationFailure = (error: unknown) =>
+const isAuthorizationFailure = (error: unknown): error is PathwaysClientError =>
   error instanceof PathwaysClientError &&
   (error.code === 'unauthorized' ||
     error.code === 'forbidden' ||
@@ -85,6 +96,9 @@ export function AuthorizedQueryProvider({ children }: { children: React.ReactNod
   const epochRef = useRef(0)
   const [epoch, setEpoch] = useState(0)
   const rereads = useRef(new Map<string, number>())
+  const denials = useRef(new Map<string, PathwaysClientError>())
+  const [denialVersion, setDenialVersion] = useState(0)
+  const seenDenials = useRef(new WeakSet<object>())
   current.current = identity
   useEffect(() => {
     mounted.current = true
@@ -101,8 +115,16 @@ export function AuthorizedQueryProvider({ children }: { children: React.ReactNod
     }
     void client.cancelQueries(obsolete)
     client.removeQueries(obsolete)
+    denials.current.clear()
+    rereads.current.clear()
   }, [client, identity])
-  const deny = useRef(() => {
+  const deny = useRef((token?: object | null) => {
+    // The client announces a 401/403 and the reader's own catch reports the same error:
+    // one denial raises the epoch once.
+    if (token) {
+      if (seenDenials.current.has(token)) return
+      seenDenials.current.add(token)
+    }
     // Unobserved entries go. Observed entries are not removed (that would refetch them in
     // a loop): their pre-denial data is masked by epoch and each re-reads at most once.
     epochRef.current += 1
@@ -119,13 +141,19 @@ export function AuthorizedQueryProvider({ children }: { children: React.ReactNod
       queueMicrotask(() => {
         queued = false
         client.removeQueries({ queryKey: privateKey, type: 'inactive' })
-        void client.invalidateQueries({ queryKey: privateKey, refetchType: 'active' })
+        void client.invalidateQueries({
+          queryKey: privateKey,
+          refetchType: 'active',
+          // A denied reader waits for an explicit retry; a write does not re-request it.
+          predicate: (query) => !isAuthorizationFailure(query.state.error),
+        })
       })
     }
-    window.addEventListener(AUTHORIZATION_DENIED_EVENT, deny)
+    const denied = (event: Event) => deny(authorizationDenialToken(event))
+    window.addEventListener(AUTHORIZATION_DENIED_EVENT, denied)
     window.addEventListener(WRITE_COMMITTED_EVENT, written)
     return () => {
-      window.removeEventListener(AUTHORIZATION_DENIED_EVENT, deny)
+      window.removeEventListener(AUTHORIZATION_DENIED_EVENT, denied)
       window.removeEventListener(WRITE_COMMITTED_EVENT, written)
     }
   }, [client, deny])
@@ -147,6 +175,7 @@ export function AuthorizedQueryProvider({ children }: { children: React.ReactNod
             sensitiveDraftGeneration() === ownerGeneration,
         ),
       epoch,
+      denialVersion,
       currentEpoch: () => epochRef.current,
       deny,
       claimReread: (key, wanted) => {
@@ -154,8 +183,26 @@ export function AuthorizedQueryProvider({ children }: { children: React.ReactNod
         rereads.current.set(key, wanted)
         return true
       },
+      deniedRead: (key) => denials.current.get(key) ?? null,
+      recordDenial: (key, error) => {
+        denials.current.set(key, error)
+      },
+      clearDenial: (key) => {
+        // A retry must re-render its reader so the re-enabled query fetches.
+        if (denials.current.delete(key)) setDenialVersion((version) => version + 1)
+      },
     }),
-    [identity, profile, role, assignedProjectIds, ownerIsCurrent, ownerGeneration, deny, epoch],
+    [
+      identity,
+      profile,
+      role,
+      assignedProjectIds,
+      ownerIsCurrent,
+      ownerGeneration,
+      deny,
+      epoch,
+      denialVersion,
+    ],
   )
   return (
     <AuthorizedQueryContext.Provider key={identity ?? 'unauthorized'} value={value}>
@@ -187,9 +234,15 @@ export function useAuthorizedRead<T>(
   )
   const queryKey = [privateKey[0], context.identity, resource, projectId]
   const keyText = JSON.stringify(queryKey)
+  // A key whose last result was a 401/403 never fetches by itself again, even after it
+  // remounts; only an explicit retry (the returned `refetch`) or a new identity clears it.
+  const recordedDenial = context.deniedRead(keyText)
+  const sticky = recordedDenial !== null
+  const policy = authorizedReadPolicy(resource, options.freshness ?? 'live')
   const result = useQuery<Envelope<T>>({
     queryKey,
-    enabled: eligible,
+    // A recorded denial disables automatic fetches, also for a re-created (gcTime 0) key.
+    enabled: eligible && !sticky,
     queryFn: async ({ signal }) => {
       if (signal.aborted || !context.isCurrent())
         throw new PathwaysClientError('Current workspace access is required.', 'unauthorized')
@@ -199,19 +252,27 @@ export function useAuthorizedRead<T>(
       try {
         value = await read(signal)
       } catch (error) {
-        if (isAuthorizationFailure(error)) context.deny()
+        if (isAuthorizationFailure(error)) {
+          context.recordDenial(keyText, error)
+          context.deny(error)
+        }
         throw error
       }
+      context.clearDenial(keyText)
       if (signal.aborted || !context.isCurrent())
         throw new PathwaysClientError('Current workspace access is required.', 'unauthorized')
       return { epoch: startedEpoch, value }
     },
-    ...authorizedReadPolicy(resource, options.freshness ?? 'live'),
+    staleTime: policy.staleTime,
+    gcTime: policy.gcTime,
+    refetchOnMount: (query) =>
+      isAuthorizationFailure(query.state.error) ? false : policy.refetchOnMount,
+    retryOnMount: !sticky,
     // No read is retried; a 401 or 403 in particular is final until access changes.
     retry: false,
     refetchOnWindowFocus: false,
   })
-  const ownDenial = result.error !== null && isAuthorizationFailure(result.error)
+  const ownDenial = sticky || (result.error !== null && isAuthorizationFailure(result.error))
   const masked = Boolean(eligible && result.data && result.data.epoch < context.epoch)
   // A query whose own last result was a 401/403 never re-reads by itself, so it cannot loop.
   const canReread = masked && !ownDenial && !result.isError
@@ -227,17 +288,31 @@ export function useAuthorizedRead<T>(
   // Masked data is always an explicit state: re-verifying (pending) or an error to retry.
   const stalled = canReread && settledEpoch === context.epoch && !result.isFetching
   const reverifying = canReread && !stalled
-  const visible = eligible && context.isCurrent() && !masked
+  const visible = eligible && context.isCurrent() && !masked && !sticky
+  // Explicit consumer retry: clears the recorded denial and requests exactly once. The
+  // cleared denial re-enables the query, and that re-enable fetches a stale key by itself.
+  const retry = useCallback(async (): Promise<unknown> => {
+    if (!context.deniedRead(keyText)) return refetch()
+    const query = client.getQueryCache().find({ queryKey: JSON.parse(keyText), exact: true })
+    context.clearDenial(keyText)
+    if (query && !query.isStaleByTime(policy.staleTime)) return refetch()
+    return undefined
+  }, [client, context, keyText, policy.staleTime, refetch])
+  const deniedWithoutState = sticky && !result.isError
+  const failed = result.isError || stalled || deniedWithoutState
   return {
     ...result,
     data: visible ? result.data?.value : undefined,
-    error: stalled
-      ? new PathwaysClientError('Current access must be verified again.', 'unauthorized')
-      : result.error,
-    isError: result.isError || stalled,
-    isPending: result.isPending || reverifying,
-    isLoading: result.isLoading || reverifying,
-    status: stalled ? ('error' as const) : reverifying ? ('pending' as const) : result.status,
+    error: deniedWithoutState
+      ? recordedDenial
+      : stalled
+        ? new PathwaysClientError('Current access must be verified again.', 'unauthorized')
+        : result.error,
+    isError: failed,
+    isPending: !failed && (result.isPending || reverifying),
+    isLoading: !failed && (result.isLoading || reverifying),
+    status: failed ? ('error' as const) : reverifying ? ('pending' as const) : result.status,
+    refetch: retry,
     reverifying,
     eligible,
     replaceData: (update: (previous: T | undefined) => T) => {
