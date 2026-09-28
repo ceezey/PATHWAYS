@@ -84,6 +84,7 @@
 | Audit | Date | Scope | Status |
 |---|---|---|---|
 | [audit-pathways-rbac-csv-20260928](audit-pathways-rbac-csv-20260928.md) | 2026-09-28 | Revised RBAC CSV against contract, API, SQL and web enforcement | Dispositioned by [RBAC audit closure](cr-pathways-rbac-audit-closure.md); implementation applied locally |
+| [audit-pathways-frontend-controls-20260929](audit-pathways-frontend-controls-20260929.md) | 2026-09-29 | Web controls, client methods, UiActions and routes against current API/RBAC enforcement | Dispositioned by [frontend usability Change Record](cr-pathways-frontend-usability.md); implementation pending |
 
 ### Workflow rule
 
@@ -121,6 +122,7 @@ Core P1 supporting contract reconciliation is approved for local implementation 
 
 | CR ID | Date | Summary | Status |
 |---|---|---|---|
+| [cr-pathways-frontend-usability](cr-pathways-frontend-usability.md) | 2026-09-29 | Wires four stubbed web controls (expenses, evidence preview, create user, journey transition/correction) to existing endpoints; removes "Edit Labels" and disables the page-heading pencil and all other confirmed no-backend controls with "Not available yet" (organization display labels deferred, `settings.labels.manage` stays reserved); removes Objectives from the UI only; fixes the post-create unauthorized redirect and team-edit silent-failure bugs; frontend only, no migration | Approved; implementation pending |
 | [cr-pathways-import-throughput-and-pdf](cr-pathways-import-throughput-and-pdf.md) | 2026-09-28 | Chunked import promotion, automatic continuation, parse-once, text-layer PDF import via `unpdf` (migration 0036) and server form-definition export in CSV/XLSX/XLS/PDF under `forms.export` | Approved; implemented on Wave A integration; hosted application pending |
 | [cr-pathways-smart-import-mapping](cr-pathways-smart-import-mapping.md) | 2026-09-28 | Deterministic `AUTO_SMART_V2` mapping with integer scores, versioned synonyms and value-type checks; high-confidence auto-map, reviewer-confirmed suggestions, no AI (migration 0037); V1 kept as rollback | Approved; implementation pending |
 | [cr-pathways-project-rbac-ui-and-partners](cr-pathways-project-rbac-ui-and-partners.md) | 2026-09-28 | Split activity create/update UI checks, server capability flags, scoped assignable Project Officer read, `LockedField` pattern and structured-partner backfill (migration 0039); permission matrix unchanged | Approved; implementation pending |
