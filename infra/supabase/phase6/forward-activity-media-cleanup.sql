@@ -2,7 +2,7 @@
 -- after a successful 0041 deploy and also after a failed or rolled-back attempt.
 \set ON_ERROR_STOP on
 BEGIN;
-DO $$ BEGIN IF current_database() NOT IN ('pathways_phase4_phase6_replay','pathways_phase4_baseline','pathways_phase4_media_fault','pathways_phase4_media_retry')
+DO $$ BEGIN IF current_database() NOT IN ('pathways_phase4_phase6_replay','pathways_phase4_baseline','pathways_phase4_forward_restore','pathways_phase4_core_retry','pathways_phase4_pdf_retry','pathways_phase4_pin_retry','pathways_phase4_import_retry','pathways_phase4_partner_retry','pathways_phase4_drf_retry','pathways_phase4_media_fault','pathways_phase4_media_retry')
  OR inet_server_addr() IS DISTINCT FROM '127.0.0.1'::inet OR inet_server_port() IS DISTINCT FROM 55448
  OR current_user<>'postgres' OR session_user<>'postgres' THEN RAISE EXCEPTION 'Only root-owned disposable 55448 target is permitted'; END IF; END $$;
 REVOKE rules_store_owner,rules_enqueue_owner FROM prisma GRANTED BY postgres;
