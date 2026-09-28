@@ -97,6 +97,20 @@ describe('"None yet" empty states versus error and permission wording', () => {
       "indicator.disaggregation || 'None yet'",
     )
   })
+
+  it('derives the participation empty-chart title from the shared metric-unavailable helper, not an unconditional "None yet"', () => {
+    const analytics = source('features/analytics/analytics-dashboard.tsx')
+    expect(analytics).toContain(
+      "import { metricUnavailableLabel } from '@/features/projects/project-utils'",
+    )
+    expect(analytics).toContain('participationEmptyTitle')
+    expect(analytics).toContain(
+      "analysisView === 'participation'\n                      ? participationEmptyTitle\n                      : 'None yet'",
+    )
+    const projectUtils = source('features/projects/project-utils.ts')
+    expect(projectUtils).toContain('export const metricUnavailableLabel')
+    expect(projectUtils).toContain('return metricUnavailableLabel(cell)')
+  })
 })
 
 describe('Phase 4 UI copy cleanup contract', () => {
