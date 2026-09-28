@@ -68,4 +68,48 @@ describe('ActivityDetailContent server read model', () => {
     expect(document.body.textContent).not.toContain('NaN')
     expect(document.body.textContent).not.toContain('Project target comparison')
   })
+
+  it('shows a pending progress note as a progress review, not as submitted proof', () => {
+    const noteActivity: Activity = {
+      ...activity,
+      storedStatus: 'IN_PROGRESS',
+      status: 'In Progress',
+      updateNotes: [
+        {
+          id: 'b0000000-0000-4000-8000-00000000000b',
+          kind: 'progress',
+          note: 'Halfway through sessions.',
+          progress: 50,
+          status: 'Submitted',
+          submittedBy: 'Synthetic officer',
+          submittedAt: '2026-09-27T00:00:00.000Z',
+          reviewedBy: null,
+          reviewedAt: null,
+          reviewReason: null,
+          updatedAt: '2026-09-27T00:00:00.000Z',
+        },
+      ],
+    }
+    const props = {
+      canDecideProof: false,
+      canEdit: false,
+      canLogExpense: false,
+      canRequestExtension: false,
+      canSubmitProof: false,
+      canValidateExpense: false,
+      indicators: [],
+      journeyStages: [],
+      onActivityChanged: vi.fn(),
+      onEdit: vi.fn(),
+      onSubmitProof: vi.fn(),
+    }
+    const { rerender } = render(
+      <ActivityDetailContent activity={noteActivity} canValidateProof {...props} />,
+    )
+    expect(screen.getByText('No proof has been submitted.')).toBeTruthy()
+    expect(screen.getByText(/progress note, awaiting review/)).toBeTruthy()
+    expect(screen.getByRole('button', { name: /Review progress/ })).toBeTruthy()
+    rerender(<ActivityDetailContent activity={noteActivity} canValidateProof={false} {...props} />)
+    expect(screen.queryByRole('button', { name: /Review progress/ })).toBeNull()
+  })
 })

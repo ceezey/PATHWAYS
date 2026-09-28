@@ -23,6 +23,7 @@ import type { AuthenticatedRequest } from '../auth/developer-access'
 // biome-ignore lint/style/useImportType: Nest validation needs the DTO constructors at runtime.
 import {
   CreateActivityDto,
+  RecordActivityProgressDto,
   ReviewActivityUpdateDto,
   SaveMilestoneDto,
   SubmitActivityUpdateDto,
@@ -102,6 +103,17 @@ export class ActivitiesController {
     @Body() body: TransitionActivityDto,
   ) {
     return this.activities.transition(profile(request), projectId, activityId, body)
+  }
+
+  @Post(':activityId/progress')
+  @RequirePermission('activities.progress.update')
+  recordProgress(
+    @Req() request: AuthenticatedRequest,
+    @Param('projectId') projectId: string,
+    @Param('activityId') activityId: string,
+    @Body() body: RecordActivityProgressDto,
+  ) {
+    return this.activities.recordProgress(profile(request), projectId, activityId, body)
   }
 
   @Post(':activityId/updates')

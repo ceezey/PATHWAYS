@@ -95,6 +95,7 @@ function OwnedReview({
     (entry) => entry.id === proof.updateId && entry.status === 'Submitted',
   )
   const ready = Boolean(update && update.updatedAt === proof.updateUpdatedAt)
+  const progressOnly = update?.kind === 'progress'
   const submit = async () => {
     if (!current() || !mutationContext?.isCurrent() || pending.current || !ready) return
     if (!reason.trim() || reason.trim().length > 1000) {
@@ -161,8 +162,14 @@ function OwnedReview({
             </div>
             <StatusBadge tone="warning">Submitted</StatusBadge>
           </div>
-          <ActivityProofFiles proof={proof} />
-          {ready && (
+          {progressOnly ? (
+            <p className="rounded-sm border border-border bg-surface-subtle p-3 text-sm">
+              Progress note without proof files: {update?.note}
+            </p>
+          ) : (
+            <ActivityProofFiles proof={proof} />
+          )}
+          {ready && !progressOnly && (
             <PrivateProofInspection
               projectId={activity.projectId}
               activityId={activity.id}
@@ -170,8 +177,9 @@ function OwnedReview({
             />
           )}
           <p className="text-sm text-muted-foreground">
-            Approval preserves submitted progress. The activity completes only when an approved
-            update reaches 100%.
+            {progressOnly
+              ? 'Approval updates the recorded progress only. It does not verify proof or complete the activity.'
+              : 'Approval preserves submitted progress. The activity completes only when an approved update reaches 100%.'}
           </p>
           <div className="space-y-2">
             <Label htmlFor="activity-proof-decision">Review decision</Label>

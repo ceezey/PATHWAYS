@@ -135,6 +135,20 @@ export class SubmitActivityUpdateDto {
   note!: string
 }
 
+export class RecordActivityProgressDto {
+  @IsUUID()
+  clientUpdateId!: string
+
+  @IsInt()
+  @Min(0)
+  @Max(100)
+  progressPercent!: number
+
+  @IsString()
+  @Length(1, 4000)
+  note!: string
+}
+
 export class ReviewActivityUpdateDto {
   @IsUUID()
   clientMutationId!: string

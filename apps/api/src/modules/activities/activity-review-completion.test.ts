@@ -249,3 +249,53 @@ describe('canonical M&E activity update approval', () => {
     },
   )
 })
+describe('progress-only activity update review', () => {
+  const progressNote = (progressPercent = 60) => ({
+    ...update(),
+    progressPercent,
+    evidenceMedia_update: [],
+  })
+  const inProgress = () => {
+    let row = { ...activity(), status: 'IN_PROGRESS' }
+    tx.projectActivity.findFirst.mockImplementation(async () => row)
+    tx.projectActivity.update.mockImplementation(async ({ data }) => {
+      row = { ...row, ...data }
+      return row
+    })
+  }
+
+  it('applies approved progress without completing or touching evidence', async () => {
+    inProgress()
+    tx.activityUpdate.findFirst.mockResolvedValue(progressNote(60))
+    const result = await review()
+    expect(result).toMatchObject({ progress: 60, storedStatus: 'IN_PROGRESS' })
+    expect(tx.projectActivity.update.mock.calls[0][0].data).toEqual({
+      progressPercent: 60,
+      updatedAt: expect.any(Date),
+    })
+    expect(tx.evidenceMedia.updateMany).not.toHaveBeenCalled()
+    expect(tx.auditLog.create.mock.calls[0][0].data.changes).toMatchObject({ kind: 'PROGRESS' })
+  })
+
+  it('returns a progress note without changing activity progress', async () => {
+    inProgress()
+    tx.activityUpdate.findFirst.mockResolvedValue(progressNote(60))
+    const result = await review('RETURN')
+    expect(result).toMatchObject({ progress: 45, storedStatus: 'IN_PROGRESS' })
+    expect(tx.activityUpdate.update.mock.calls[0][0].data.status).toBe('REJECTED')
+  })
+
+  it('cannot be approved as proof while the activity awaits proof review', async () => {
+    tx.activityUpdate.findFirst.mockResolvedValue(progressNote(60))
+    await expect(review()).rejects.toThrow('no longer awaiting review')
+    expect(tx.activityUpdate.update).not.toHaveBeenCalled()
+    expect(tx.projectActivity.update).not.toHaveBeenCalled()
+  })
+
+  it('never completes an activity from a progress note', async () => {
+    inProgress()
+    tx.activityUpdate.findFirst.mockResolvedValue(progressNote(100))
+    await expect(review()).rejects.toThrow('no longer awaiting review')
+    expect(tx.projectActivity.update).not.toHaveBeenCalled()
+  })
+})

@@ -10,6 +10,7 @@ import {
 export type UiAction =
   | 'activities.status.edit'
   | 'activities.edit'
+  | 'activities.progress.record'
   | 'beneficiaries.edit'
   | 'beneficiaries.merge'
   | 'beneficiaries.create'
@@ -28,6 +29,7 @@ export type UiAction =
 const supportedActionPermission: Partial<Record<UiAction, AtomicPermission>> = {
   'activities.status.edit': 'activities.complete',
   'activities.edit': 'activities.update',
+  'activities.progress.record': 'activities.progress.update',
   'beneficiaries.create': 'beneficiaries.records.register',
   'beneficiaries.edit': 'beneficiaries.profiles.update',
   'beneficiaries.participation.record': 'participation.record',
