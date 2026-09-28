@@ -174,6 +174,8 @@ export interface ActivityProofFile {
 
 export interface ActivityUpdateNote {
   id: string
+  /** 'progress' marks a progress-only note without proof files. */
+  kind?: 'proof' | 'progress'
   note: string
   progress: number
   status: 'Submitted' | 'Flagged' | 'Accepted'

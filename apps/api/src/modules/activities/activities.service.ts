@@ -90,6 +90,9 @@ const activitySelection = {
         orderBy: { id: 'asc' as const },
         take: 10,
       },
+      // Proof submissions always carry at least one evidence row; a zero count marks a
+      // progress-only note recorded under activities.progress.update.
+      _count: { select: { evidenceMedia_update: true } },
     },
     orderBy: { submittedAt: 'asc' as const },
     take: 100,
@@ -158,6 +161,15 @@ const emptyActivityReadMetrics: ActivityReadMetrics = {
   reached: new Map(),
 }
 
+function updateKind(update: {
+  _count?: { evidenceMedia_update: number }
+  evidenceMedia_update: unknown[]
+}): 'proof' | 'progress' {
+  return (update._count?.evidenceMedia_update ?? update.evidenceMedia_update.length) > 0
+    ? 'proof'
+    : 'progress'
+}
+
 function mapActivity(
   row: ActivityRow,
   businessDate: string,
@@ -214,6 +226,7 @@ function mapActivity(
     ),
     updateNotes: updates.map((update) => ({
       id: update.id,
+      kind: updateKind(update),
       note: update.note,
       progress: update.progressPercent,
       status: reviewStatus[update.status],
@@ -1039,6 +1052,19 @@ export class ActivitiesService {
         }
         if (activity.status !== 'IN_PROGRESS')
           throw new ConflictException('Progress can be recorded only for an in-progress activity.')
+        if (input.progressPercent === 100)
+          throw new BadRequestException('Completion requires a proof submission.')
+        const pending = await tx.activityUpdate.findFirst({
+          where: {
+            organizationId: actor.organizationId,
+            projectId: activity.projectId,
+            activityId: activity.id,
+            status: 'PENDING',
+          },
+          select: { id: true },
+        })
+        if (pending)
+          throw new ConflictException('Another activity update is already awaiting review.')
         const updateId = randomUUID()
         await tx.activityUpdate.create({
           data: {
@@ -1177,6 +1203,17 @@ export class ActivitiesService {
         if (activity.status !== 'IN_PROGRESS') {
           throw new ConflictException('Another activity update is already awaiting review.')
         }
+        const pendingProgress = await tx.activityUpdate.findFirst({
+          where: {
+            organizationId: actor.organizationId,
+            projectId: activity.projectId,
+            activityId: activity.id,
+            status: 'PENDING',
+          },
+          select: { id: true },
+        })
+        if (pendingProgress)
+          throw new ConflictException('Another activity update is already awaiting review.')
         const updateId = randomUUID()
         await tx.activityUpdate.create({
           data: {
@@ -1430,7 +1467,14 @@ export class ActivitiesService {
       if (!update) throw new NotFoundException('Activity update unavailable.')
       if (update.submittedById === reviewer.userId)
         throw new ForbiddenException('A submitter cannot review their own update.')
-      if (update.status !== 'PENDING' || activity.status !== 'FOR_REVIEW')
+      // A progress-only note (no evidence) is reviewed while the activity stays in progress and
+      // can never complete it; proof updates keep the FOR_REVIEW lifecycle.
+      const progressOnly = update.evidenceMedia_update.length === 0
+      if (
+        update.status !== 'PENDING' ||
+        activity.status !== (progressOnly ? 'IN_PROGRESS' : 'FOR_REVIEW') ||
+        (progressOnly && update.progressPercent >= 100)
+      )
         throw new ConflictException('This update is no longer awaiting review.')
       const expected = new Date(input.expectedUpdatedAt)
       if (expected.valueOf() !== update.updatedAt.valueOf())
@@ -1481,8 +1525,11 @@ export class ActivitiesService {
           organizationId: reviewer.organizationId,
           projectId: activity.projectId,
         },
-        data:
-          input.decision === 'APPROVE'
+        data: progressOnly
+          ? input.decision === 'APPROVE'
+            ? { progressPercent: update.progressPercent, updatedAt: now }
+            : { updatedAt: now }
+          : input.decision === 'APPROVE'
             ? {
                 status: update.progressPercent === 100 ? 'COMPLETED' : 'IN_PROGRESS',
                 progressPercent: update.progressPercent,
@@ -1505,7 +1552,11 @@ export class ActivitiesService {
             input.decision === 'APPROVE' ? 'ACTIVITY_UPDATE_APPROVED' : 'ACTIVITY_UPDATE_RETURNED',
           entityType: 'ActivityUpdate',
           entityId: update.id,
-          changes: { reason: input.reason.trim() },
+          changes: {
+            reason: input.reason.trim(),
+            kind: progressOnly ? 'PROGRESS' : 'PROOF',
+            progressPercent: update.progressPercent,
+          },
         },
       })
       const sourceAcknowledgement = await finishRuleSourceOperation(

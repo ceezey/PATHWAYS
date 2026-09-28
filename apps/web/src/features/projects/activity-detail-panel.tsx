@@ -296,7 +296,9 @@ export const ActivityDetailContent = ({
           </div>
         ) : (
           <p className="mt-3 rounded-sm border border-dashed border-border p-4 text-sm text-muted-foreground">
-            No update or proof has been submitted.
+            {activity.updateNotes.length > 0
+              ? 'No proof has been submitted.'
+              : 'No update or proof has been submitted.'}
           </p>
         )}
       </section>
@@ -317,6 +319,40 @@ export const ActivityDetailContent = ({
               >
                 <span className="font-medium text-foreground">{update.progress}%</span> ·{' '}
                 {update.note}
+                {update.kind === 'progress' ? (
+                  <span className="ml-1 text-xs">
+                    (progress note{update.status === 'Submitted' ? ', awaiting review' : ''})
+                  </span>
+                ) : null}
+                {update.kind === 'progress' &&
+                canValidateProof &&
+                update.status === 'Submitted' &&
+                activity.storedStatus === 'IN_PROGRESS' ? (
+                  <Button
+                    className="mt-2 gap-2"
+                    onClick={() =>
+                      setReviewTarget({
+                        mode: 'validate',
+                        proof: {
+                          id: update.id,
+                          updateId: update.id,
+                          fileName: '',
+                          status: 'Submitted',
+                          submittedAt: update.submittedAt,
+                          submittedBy: update.submittedBy,
+                          updateUpdatedAt: update.updatedAt,
+                          note: update.note,
+                        },
+                      })
+                    }
+                    size="sm"
+                    type="button"
+                    variant="outline"
+                  >
+                    <ClipboardCheck className="h-4 w-4" aria-hidden="true" />
+                    Review progress
+                  </Button>
+                ) : null}
               </li>
             ))}
           </ul>
@@ -346,7 +382,7 @@ export const ActivityDetailContent = ({
             Submit Update & Proof
           </Button>
         ) : null}
-        {canRecordProgress && activity.status === 'In Progress' ? (
+        {canRecordProgress && activity.storedStatus === 'IN_PROGRESS' ? (
           <Button
             className="gap-2"
             onClick={() => setProgressOpen(true)}

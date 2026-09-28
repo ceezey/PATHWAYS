@@ -1,6 +1,11 @@
 import 'reflect-metadata'
 
-import { ConflictException, ForbiddenException, NotFoundException } from '@nestjs/common'
+import {
+  BadRequestException,
+  ConflictException,
+  ForbiddenException,
+  NotFoundException,
+} from '@nestjs/common'
 import type { Prisma } from '@prisma/client'
 import { plainToInstance } from 'class-transformer'
 import { validate } from 'class-validator'
@@ -210,6 +215,27 @@ describe('Activity progress update (activities.progress.update)', () => {
     await expect(
       service.recordProgress(actor, projectId, activityId, input),
     ).rejects.toBeInstanceOf(ConflictException)
+    expect(tx.activityUpdate.create).not.toHaveBeenCalled()
+  })
+
+  it('rejects a new progress update while one is pending for the activity (409)', async () => {
+    tx.activityUpdate.findFirst.mockResolvedValueOnce(null).mockResolvedValueOnce({ id: 'pending' })
+    await expect(
+      service.recordProgress(actor, projectId, activityId, input),
+    ).rejects.toBeInstanceOf(ConflictException)
+    expect(tx.activityUpdate.findFirst.mock.calls[1][0].where).toMatchObject({
+      organizationId,
+      projectId,
+      activityId,
+      status: 'PENDING',
+    })
+    expect(tx.activityUpdate.create).not.toHaveBeenCalled()
+  })
+
+  it('requires proof submission for 100% completion', async () => {
+    await expect(
+      service.recordProgress(actor, projectId, activityId, { ...input, progressPercent: 100 }),
+    ).rejects.toBeInstanceOf(BadRequestException)
     expect(tx.activityUpdate.create).not.toHaveBeenCalled()
   })
 })
