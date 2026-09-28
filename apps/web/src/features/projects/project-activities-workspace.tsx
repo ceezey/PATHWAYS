@@ -32,6 +32,7 @@ import { useDisplayLabels } from '@/hooks/use-display-labels'
 import { can } from '@/lib/rbac/can'
 import { canAccessProjectForRole } from '@/lib/rbac/data-scope'
 import { principalHasAtomicPermission } from '@/lib/rbac/route-access'
+import { isUiActionAvailable } from '@/lib/rbac/ui-action-availability'
 import { pathwaysClient } from '@/lib/services/pathways-client'
 import { PathwaysClientError } from '@/lib/services/pathways-client'
 import { useAuthorizedRead } from '@/providers/authorized-query-provider'
@@ -245,6 +246,8 @@ export const ProjectActivitiesWorkspace = ({
   const canSubmitProof = role
     ? can(role, 'activities.submit_update_proof') && inProjectScope
     : false
+  const canRecordProgress =
+    inProjectScope && isUiActionAvailable(role, 'activities.progress.record', profile)
   const canLogExpense = role === 'Project Officer' && inProjectScope
   const canValidateProof =
     role === 'Monitoring and Evaluation Officer' &&
@@ -602,6 +605,7 @@ export const ProjectActivitiesWorkspace = ({
         canDecideProof={canDecideProof}
         canEdit={canCreateEdit}
         canLogExpense={canLogExpense}
+        canRecordProgress={canRecordProgress}
         canRequestExtension={role === 'Project Officer' && inProjectScope}
         canSubmitProof={canSubmitProof}
         canValidateExpense={role === 'Monitoring and Evaluation Officer' && inProjectScope}

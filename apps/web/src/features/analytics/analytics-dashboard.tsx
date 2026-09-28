@@ -5,6 +5,7 @@ import {
   BarChart3,
   CircleDollarSign,
   ClipboardCheck,
+  Download,
   Plus,
   Target,
   UsersRound,
@@ -28,9 +29,16 @@ import { useCurrentRole } from '@/hooks/use-current-role'
 import { useDisplayLabels } from '@/hooks/use-display-labels'
 import { can } from '@/lib/rbac/can'
 import { principalHasAtomicPermission } from '@/lib/rbac/route-access'
-import { pathwaysClient } from '@/lib/services/pathways-client'
+import { downloadCoreArtifact } from '@/lib/services/core-feature-client'
+import { descriptiveAnalyticsSearch, pathwaysClient } from '@/lib/services/pathways-client'
 import type { Activity, ProjectIndicator, ProjectSummary } from '@/types/pathways'
-import { type MonitoringDashboard, type SadddDashboard, formatMetricCell } from '@pathways/shared'
+import {
+  type DescriptiveAnalytics,
+  type MonitoringDashboard,
+  type SadddDashboard,
+  formatMetricCell,
+} from '@pathways/shared'
+import { toast } from 'sonner'
 
 import { ActivityCompletionChart, DescriptiveAnalysisChart, SadddChart } from './analytics-charts'
 import { AnalyticsCoverageMap } from './analytics-coverage-map'
@@ -78,6 +86,14 @@ export const AnalyticsDashboard = () => {
   const { role, profile } = useCurrentRole()
   const canReadActivities = principalHasAtomicPermission(profile, 'activities.read')
   const canReadIndicators = principalHasAtomicPermission(profile, 'monitoring.read')
+  const canReadDescriptive = principalHasAtomicPermission(profile, 'analytics.descriptive.read')
+  const canExportAnalytics =
+    canReadDescriptive && principalHasAtomicPermission(profile, 'analytics.export')
+  const [descriptive, setDescriptive] = useState<DescriptiveAnalytics | null>(null)
+  const [descriptiveLoading, setDescriptiveLoading] = useState(false)
+  const [descriptiveError, setDescriptiveError] = useState('')
+  const [descriptiveLoadAttempt, setDescriptiveLoadAttempt] = useState(0)
+  const [exporting, setExporting] = useState(false)
   const [projects, setProjects] = useState<ProjectSummary[]>([])
   const [projectId, setProjectId] = useState('')
   const [period, setPeriod] = useState('')
@@ -277,6 +293,61 @@ export const AnalyticsDashboard = () => {
     }
   }, [canReadIndicators, monitoringLoadAttempt, projectId, selectedPeriod])
 
+  useEffect(() => {
+    if (!projectId || !selectedPeriod || !canReadDescriptive) {
+      setDescriptiveLoading(false)
+      setDescriptive(null)
+      setDescriptiveError('')
+      return
+    }
+    void descriptiveLoadAttempt
+    let active = true
+    setDescriptiveLoading(true)
+    setDescriptive(null)
+    setDescriptiveError('')
+    pathwaysClient
+      .getDescriptiveAnalytics({
+        projectId,
+        periodStart: selectedPeriod.start,
+        periodEnd: selectedPeriod.end,
+      })
+      .then((result) => {
+        if (active) setDescriptive(result)
+      })
+      .catch((caught: unknown) => {
+        if (active)
+          setDescriptiveError(
+            caught instanceof Error ? caught.message : 'Descriptive statistics are unavailable.',
+          )
+      })
+      .finally(() => {
+        if (active) setDescriptiveLoading(false)
+      })
+    return () => {
+      active = false
+    }
+  }, [canReadDescriptive, descriptiveLoadAttempt, projectId, selectedPeriod])
+
+  const exportDescriptive = async () => {
+    if (!canExportAnalytics || !projectId || !selectedPeriod || exporting) return
+    const capturedProject = projectId
+    setExporting(true)
+    try {
+      await downloadCoreArtifact(
+        `/analytics/descriptive/export${descriptiveAnalyticsSearch({
+          projectId: capturedProject,
+          periodStart: selectedPeriod.start,
+          periodEnd: selectedPeriod.end,
+        })}`,
+        `descriptive-analytics-${capturedProject.toLowerCase()}.csv`,
+      )
+    } catch (caught) {
+      toast.error(caught instanceof Error ? caught.message : 'Aggregate export unavailable.')
+    } finally {
+      setExporting(false)
+    }
+  }
+
   const handleProjectChange = (nextProjectId: string) => {
     if (nextProjectId === projectId) return
     setProjectId(nextProjectId)
@@ -285,6 +356,8 @@ export const AnalyticsDashboard = () => {
     setMonitoring(null)
     setActivities([])
     setSaddd(null)
+    setDescriptive(null)
+    setDescriptiveError('')
     setProjectDataLoading(true)
     setMonitoringLoading(false)
     setSadddLoading(false)
@@ -458,6 +531,18 @@ export const AnalyticsDashboard = () => {
           {humanReviewDisclaimer}
         </div>
         <div className="flex flex-wrap justify-end gap-2 border-t border-border pt-4 sm:col-span-2 xl:col-span-12 xl:row-start-4">
+          {canExportAnalytics ? (
+            <Button
+              className="shrink-0"
+              disabled={!selectedProject || !selectedPeriod || exporting}
+              onClick={() => void exportDescriptive()}
+              type="button"
+              variant="outline"
+            >
+              <Download className="mr-2 h-4 w-4" aria-hidden="true" />
+              {exporting ? 'Exporting aggregates' : 'Export aggregates (CSV)'}
+            </Button>
+          ) : null}
           <Button disabled className="shrink-0" type="button">
             <Plus className="mr-2 h-4 w-4" aria-hidden="true" />
             Add to Dashboard
@@ -669,6 +754,33 @@ export const AnalyticsDashboard = () => {
                 <UnavailableChart description="SADDD analysis is unavailable for this project." />
               )}
             </ChartPanel>
+            {canReadDescriptive ? (
+              <ChartPanel
+                description="Counts and shares come from suppressed aggregates. A suppressed cell withholds every share in its group."
+                title="Descriptive statistics"
+              >
+                {descriptiveLoading ? (
+                  <AsyncState
+                    status="loading"
+                    title="Loading descriptive statistics"
+                    description="Loading scoped aggregate data."
+                    icon={BarChart3}
+                  />
+                ) : descriptiveError ? (
+                  <AsyncState
+                    status="error"
+                    title="Descriptive statistics unavailable"
+                    description={descriptiveError}
+                    icon={AlertTriangle}
+                    onRetry={() => setDescriptiveLoadAttempt((value) => value + 1)}
+                  />
+                ) : descriptive ? (
+                  <DescriptiveStatisticsTable data={descriptive} />
+                ) : (
+                  <UnavailableChart description="No active Indicator reporting period is available for this project." />
+                )}
+              </ChartPanel>
+            ) : null}
             <ChartPanel title="Activity completion">
               {canReadActivities ? (
                 <ActivityCompletionChart activities={activities} />
@@ -705,6 +817,87 @@ const ChartPanel = ({
     {description ? <p className="mt-1 text-sm text-muted-foreground">{description}</p> : null}
     <div className="mt-4">{children}</div>
   </section>
+)
+
+const sectionLabels: Record<DescriptiveAnalytics['distributions'][number]['section'], string> = {
+  ACTIVITY_STATE: 'Activity state',
+  MILESTONE_STATE: 'Milestone state',
+  SADDD_SEX: 'Sex',
+  SADDD_AGE: 'Age band',
+  SADDD_DISABILITY: 'Disability',
+}
+
+const formatShare = (share: string | null) =>
+  share === null ? 'Withheld' : `${(Number(share) * 100).toFixed(1)}%`
+
+const DescriptiveStatisticsTable = ({ data }: { data: DescriptiveAnalytics }) => (
+  <div className="space-y-4 overflow-x-auto text-sm" data-testid="descriptive-statistics">
+    <table className="w-full text-left">
+      <caption className="sr-only">Descriptive counts</caption>
+      <thead>
+        <tr className="border-b">
+          <th className="p-2">Measure</th>
+          <th className="p-2">Count</th>
+        </tr>
+      </thead>
+      <tbody>
+        {data.counts.map((row) => (
+          <tr className="border-b" key={row.key}>
+            <td className="p-2">{row.label}</td>
+            <td className="p-2 tabular-nums">{formatMetricCell(row.metric)}</td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+    <table className="w-full text-left">
+      <caption className="sr-only">Distributions</caption>
+      <thead>
+        <tr className="border-b">
+          <th className="p-2">Dimension</th>
+          <th className="p-2">Category</th>
+          <th className="p-2">Count</th>
+          <th className="p-2">Share</th>
+        </tr>
+      </thead>
+      <tbody>
+        {data.distributions.map((row) => (
+          <tr className="border-b" key={`${row.section}-${row.key}`}>
+            <td className="p-2">{sectionLabels[row.section]}</td>
+            <td className="p-2">{row.label}</td>
+            <td className="p-2 tabular-nums">{formatMetricCell(row.metric)}</td>
+            <td className="p-2 tabular-nums">{formatShare(row.share)}</td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+    {data.indicatorSummaries.length ? (
+      <table className="w-full text-left">
+        <caption className="sr-only">Indicator means by unit</caption>
+        <thead>
+          <tr className="border-b">
+            <th className="p-2">Unit</th>
+            <th className="p-2">Reported</th>
+            <th className="p-2">Mean</th>
+            <th className="p-2">Minimum</th>
+            <th className="p-2">Maximum</th>
+          </tr>
+        </thead>
+        <tbody>
+          {data.indicatorSummaries.map((row) => (
+            <tr className="border-b" key={`${row.unitLabel}-${row.numericKind}`}>
+              <td className="p-2">{row.unitLabel ?? 'No unit'}</td>
+              <td className="p-2 tabular-nums">
+                {row.reportedCount}/{row.indicatorCount}
+              </td>
+              <td className="p-2 tabular-nums">{row.mean ?? 'Unavailable'}</td>
+              <td className="p-2 tabular-nums">{row.minimum ?? 'Unavailable'}</td>
+              <td className="p-2 tabular-nums">{row.maximum ?? 'Unavailable'}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    ) : null}
+  </div>
 )
 
 const UnavailableChart = ({ description }: { description: string }) => (

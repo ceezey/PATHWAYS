@@ -85,4 +85,13 @@ describe('project team editing authority', () => {
     render(<ProjectDetailView projectId={project.id} />)
     expect(await screen.findByRole('button', { name: 'Edit team' })).toBeTruthy()
   })
+
+  it('omits the project archive control because no archive endpoint exists', async () => {
+    access.role = 'Project Manager'
+    access.profile.roles = ['PROJECT_MANAGER']
+    access.profile.permissions = ['projects.read', 'projects.detail.read', 'projects.update']
+    render(<ProjectDetailView projectId={project.id} />)
+    expect(await screen.findByText('Project team')).toBeTruthy()
+    expect(screen.queryByRole('button', { name: 'Archive project' })).toBeNull()
+  })
 })

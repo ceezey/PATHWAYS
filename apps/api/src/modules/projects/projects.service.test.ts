@@ -301,6 +301,18 @@ describe('Project creation contract', () => {
     expect(tx.project.create).not.toHaveBeenCalled()
   })
 
+  it('rejects Project creation for System Administrator even with a forged create grant', async () => {
+    state.actor = {
+      ...manager,
+      roles: ['SYSTEM_ADMINISTRATOR'],
+      permissions: ['projects.read', 'projects.create'],
+    }
+    await expect(
+      service.create(state.actor, { title: project.title, status: 'PLANNED' }),
+    ).rejects.toBeInstanceOf(ForbiddenException)
+    expect(tx.project.create).not.toHaveBeenCalled()
+  })
+
   it('does not disclose an unscoped Project on reload', async () => {
     tx.project.findFirst.mockResolvedValueOnce(null)
     await expect(service.get(manager, foreignProjectId)).rejects.toBeInstanceOf(NotFoundException)

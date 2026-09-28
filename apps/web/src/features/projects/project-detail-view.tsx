@@ -1,6 +1,6 @@
 'use client'
 
-import { Archive, ArrowLeft, CalendarDays, FolderKanban, Pencil } from 'lucide-react'
+import { ArrowLeft, CalendarDays, FolderKanban, Pencil } from 'lucide-react'
 import Link from 'next/link'
 import { useEffect, useState } from 'react'
 
@@ -153,16 +153,6 @@ export const ProjectDetailView = ({ projectId }: { projectId: string }) => {
                     <Pencil className="h-4 w-4" aria-hidden="true" />
                   </Button>
                 )}
-                <Button
-                  disabled
-                  aria-label="Archive project"
-                  size="icon"
-                  title="Archive project unavailable"
-                  type="button"
-                  variant="outline"
-                >
-                  <Archive className="h-4 w-4" aria-hidden="true" />
-                </Button>
               </>
             ) : null}
           </div>

@@ -22,13 +22,14 @@ import { Prisma } from '@prisma/client'
 import { readApiEnv } from '@pathways/config'
 import { PrismaService } from '../../prisma/prisma.service'
 import { readApplicationProfile } from '../auth/application-profile.service'
-import { hasAtomicPermission } from '../auth/authorization-policy'
+import { aggregateOnlyRoles, hasAtomicPermission } from '../auth/authorization-policy'
 import { projectScope } from '../auth/authorized-data.service'
 import { withAuthorizedOperation } from '../auth/authorized-operation'
 import { type ApplicationIdentity, UUID_PATTERN } from '../auth/developer-access'
 import { StorageService } from '../storage/storage.service'
 import type {
   CreateActivityDto,
+  RecordActivityProgressDto,
   ReviewActivityUpdateDto,
   SaveMilestoneDto,
   SubmitActivityUpdateDto,
@@ -89,6 +90,9 @@ const activitySelection = {
         orderBy: { id: 'asc' as const },
         take: 10,
       },
+      // Proof submissions always carry at least one evidence row; a zero count marks a
+      // progress-only note recorded under activities.progress.update.
+      _count: { select: { evidenceMedia_update: true } },
     },
     orderBy: { submittedAt: 'asc' as const },
     take: 100,
@@ -157,6 +161,15 @@ const emptyActivityReadMetrics: ActivityReadMetrics = {
   reached: new Map(),
 }
 
+function updateKind(update: {
+  _count?: { evidenceMedia_update: number }
+  evidenceMedia_update: unknown[]
+}): 'proof' | 'progress' {
+  return (update._count?.evidenceMedia_update ?? update.evidenceMedia_update.length) > 0
+    ? 'proof'
+    : 'progress'
+}
+
 function mapActivity(
   row: ActivityRow,
   businessDate: string,
@@ -213,6 +226,7 @@ function mapActivity(
     ),
     updateNotes: updates.map((update) => ({
       id: update.id,
+      kind: updateKind(update),
       note: update.note,
       progress: update.progressPercent,
       status: reviewStatus[update.status],
@@ -640,6 +654,108 @@ export class ActivitiesService {
     })
   }
 
+  /** Evidence list under `evidence.read`. Aggregate-only roles receive per-activity
+   * counts selected without file names, submitters, notes, or storage references. */
+  listEvidence(identity: ApplicationIdentity, projectId: string) {
+    return withAuthorizedOperation(this.prisma, identity, 'evidence.read', async (tx, actor) => {
+      if (!UUID_PATTERN.test(projectId)) throw new NotFoundException('Project unavailable.')
+      const where = { AND: [projectScope(actor), { id: projectId.toLowerCase() }] }
+      const activityWhere = { organizationId: actor.organizationId, archivedAt: null }
+      if (aggregateOnlyRoles.includes(actor.roles[0])) {
+        const project = await tx.project.findFirst({
+          where,
+          select: {
+            projectActivity_project: {
+              where: activityWhere,
+              select: { id: true, title: true },
+              orderBy: [{ plannedEndDate: 'asc' }, { id: 'asc' }],
+              take: 100,
+            },
+          },
+        })
+        if (!project) throw new NotFoundException('Project unavailable.')
+        const activityIds = project.projectActivity_project.map((row) => row.id)
+        // Counts come from the database, so they are exact rather than capped by row limits.
+        const groups = activityIds.length
+          ? await tx.evidenceMedia.groupBy({
+              by: ['activityId', 'status'],
+              where: {
+                organizationId: actor.organizationId,
+                projectId: projectId.toLowerCase(),
+                activityId: { in: activityIds },
+                activityUpdateId: { not: null },
+                storageReady: true,
+              },
+              _count: { _all: true },
+            })
+          : []
+        return {
+          scope: 'aggregate' as const,
+          activities: project.projectActivity_project.map((row) => {
+            const counts = { total: 0, submitted: 0, approved: 0, returned: 0 }
+            for (const group of groups) {
+              if (group.activityId !== row.id) continue
+              const count = group._count._all
+              counts.total += count
+              const status = reviewStatus[group.status]
+              if (status === 'Accepted') counts.approved += count
+              else if (status === 'Flagged') counts.returned += count
+              else counts.submitted += count
+            }
+            return { activityId: row.id, activityTitle: row.title, ...counts }
+          }),
+        }
+      }
+      const project = await tx.project.findFirst({
+        where,
+        select: {
+          projectActivity_project: {
+            where: activityWhere,
+            select: {
+              id: true,
+              projectId: true,
+              title: true,
+              // Detail keeps the same bounded page as the activity list (100 activities,
+              // 100 updates, 10 proofs per update); counts for totals use the aggregate path.
+              activityUpdate_activity: activitySelection.activityUpdate_activity,
+            },
+            orderBy: [{ plannedEndDate: 'asc' }, { id: 'asc' }],
+            take: 100,
+          },
+        },
+      })
+      if (!project) throw new NotFoundException('Project unavailable.')
+      return {
+        scope: 'detail' as const,
+        records: project.projectActivity_project.flatMap((row) =>
+          row.activityUpdate_activity.flatMap((update) =>
+            update.evidenceMedia_update.map((proof) => {
+              const status = reviewStatus[proof.status]
+              return {
+                id: proof.id,
+                projectId: row.projectId,
+                activityId: row.id,
+                updateId: update.id,
+                updateUpdatedAt: update.updatedAt.toISOString(),
+                fileName: proof.fileName,
+                reportTitle: row.title,
+                status:
+                  status === 'Accepted'
+                    ? ('Approved' as const)
+                    : status === 'Flagged'
+                      ? ('Returned' as const)
+                      : ('Submitted' as const),
+                submitter: update.submittedBy.fullName,
+                submittedDate: proof.submittedAt.toISOString(),
+                previewSummary: update.note ?? 'Activity evidence submission',
+              }
+            }),
+          ),
+        ),
+      }
+    })
+  }
+
   get(identity: ApplicationIdentity, projectId: string, activityId: string) {
     return withAuthorizedOperation(this.prisma, identity, 'activities.read', async (tx, actor) => {
       if (!UUID_PATTERN.test(projectId) || !UUID_PATTERN.test(activityId)) {
@@ -986,6 +1102,104 @@ export class ActivitiesService {
     )
   }
 
+  /**
+   * Records a progress-only update (no proof files) for review. Scope is resolved
+   * through projectScope before any activity read; the caller must hold an active
+   * assignment on the activity. Replays with the same clientUpdateId are idempotent.
+   */
+  recordProgress(
+    identity: ApplicationIdentity,
+    projectId: string,
+    activityId: string,
+    input: RecordActivityProgressDto,
+  ) {
+    return withAuthorizedOperation(
+      this.prisma,
+      identity,
+      'activities.progress.update',
+      async (tx, actor) => {
+        const activity = await this.requireActivity(tx, actor, projectId, activityId)
+        const assigned = await tx.projectActivityAssignment.findFirst({
+          where: {
+            organizationId: actor.organizationId,
+            projectId: activity.projectId,
+            activityId: activity.id,
+            status: 'ACTIVE',
+            endedAt: null,
+            projectAssignment: { userId: actor.userId, status: 'ACTIVE', endedAt: null },
+          },
+          select: { id: true },
+        })
+        if (!assigned) throw new ForbiddenException('An active activity assignment is required.')
+        const clientUpdateId = input.clientUpdateId.toLowerCase()
+        const note = input.note.trim()
+        if (!note) throw new BadRequestException('A progress note is required.')
+        const existing = await tx.activityUpdate.findFirst({
+          where: {
+            organizationId: actor.organizationId,
+            submittedById: actor.userId,
+            clientUpdateId,
+          },
+          select: { projectId: true, activityId: true, progressPercent: true, note: true },
+        })
+        if (existing) {
+          if (
+            existing.projectId !== activity.projectId ||
+            existing.activityId !== activity.id ||
+            existing.progressPercent !== input.progressPercent ||
+            existing.note !== note
+          )
+            throw new ConflictException('The activity update id was reused with different input.')
+          return this.mapWithMetrics(tx, actor, activity)
+        }
+        if (activity.status !== 'IN_PROGRESS')
+          throw new ConflictException('Progress can be recorded only for an in-progress activity.')
+        if (input.progressPercent === 100)
+          throw new BadRequestException('Completion requires a proof submission.')
+        const pending = await tx.activityUpdate.findFirst({
+          where: {
+            organizationId: actor.organizationId,
+            projectId: activity.projectId,
+            activityId: activity.id,
+            status: 'PENDING',
+          },
+          select: { id: true },
+        })
+        if (pending)
+          throw new ConflictException('Another activity update is already awaiting review.')
+        const updateId = randomUUID()
+        await tx.activityUpdate.create({
+          data: {
+            id: updateId,
+            organizationId: actor.organizationId,
+            projectId: activity.projectId,
+            activityId: activity.id,
+            clientUpdateId,
+            progressPercent: input.progressPercent,
+            note,
+            submittedById: actor.userId,
+          },
+        })
+        await tx.auditLog.create({
+          data: {
+            organizationId: actor.organizationId,
+            actorUserId: actor.userId,
+            projectId: activity.projectId,
+            action: 'ACTIVITY_PROGRESS_RECORDED',
+            entityType: 'ActivityUpdate',
+            entityId: updateId,
+            changes: { activityId: activity.id, progressPercent: input.progressPercent },
+          },
+        })
+        return this.mapWithMetrics(
+          tx,
+          actor,
+          await this.requireActivity(tx, actor, activity.projectId, activity.id),
+        )
+      },
+    )
+  }
+
   async submitUpdate(
     identity: ApplicationIdentity,
     projectId: string,
@@ -1091,6 +1305,17 @@ export class ActivitiesService {
         if (activity.status !== 'IN_PROGRESS') {
           throw new ConflictException('Another activity update is already awaiting review.')
         }
+        const pendingProgress = await tx.activityUpdate.findFirst({
+          where: {
+            organizationId: actor.organizationId,
+            projectId: activity.projectId,
+            activityId: activity.id,
+            status: 'PENDING',
+          },
+          select: { id: true },
+        })
+        if (pendingProgress)
+          throw new ConflictException('Another activity update is already awaiting review.')
         const updateId = randomUUID()
         await tx.activityUpdate.create({
           data: {
@@ -1344,7 +1569,14 @@ export class ActivitiesService {
       if (!update) throw new NotFoundException('Activity update unavailable.')
       if (update.submittedById === reviewer.userId)
         throw new ForbiddenException('A submitter cannot review their own update.')
-      if (update.status !== 'PENDING' || activity.status !== 'FOR_REVIEW')
+      // A progress-only note (no evidence) is reviewed while the activity stays in progress and
+      // can never complete it; proof updates keep the FOR_REVIEW lifecycle.
+      const progressOnly = update.evidenceMedia_update.length === 0
+      if (
+        update.status !== 'PENDING' ||
+        activity.status !== (progressOnly ? 'IN_PROGRESS' : 'FOR_REVIEW') ||
+        (progressOnly && update.progressPercent >= 100)
+      )
         throw new ConflictException('This update is no longer awaiting review.')
       const expected = new Date(input.expectedUpdatedAt)
       if (expected.valueOf() !== update.updatedAt.valueOf())
@@ -1395,8 +1627,11 @@ export class ActivitiesService {
           organizationId: reviewer.organizationId,
           projectId: activity.projectId,
         },
-        data:
-          input.decision === 'APPROVE'
+        data: progressOnly
+          ? input.decision === 'APPROVE'
+            ? { progressPercent: update.progressPercent, updatedAt: now }
+            : { updatedAt: now }
+          : input.decision === 'APPROVE'
             ? {
                 status: update.progressPercent === 100 ? 'COMPLETED' : 'IN_PROGRESS',
                 progressPercent: update.progressPercent,
@@ -1419,7 +1654,11 @@ export class ActivitiesService {
             input.decision === 'APPROVE' ? 'ACTIVITY_UPDATE_APPROVED' : 'ACTIVITY_UPDATE_RETURNED',
           entityType: 'ActivityUpdate',
           entityId: update.id,
-          changes: { reason: input.reason.trim() },
+          changes: {
+            reason: input.reason.trim(),
+            kind: progressOnly ? 'PROGRESS' : 'PROOF',
+            progressPercent: update.progressPercent,
+          },
         },
       })
       const sourceAcknowledgement = await finishRuleSourceOperation(

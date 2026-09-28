@@ -16,6 +16,13 @@ import { withAuthorizedOperation } from '../auth/authorized-operation'
 import type { ApplicationIdentity } from '../auth/developer-access'
 
 const projectIdSchema = z.string().uuid()
+// Locked auth RFC: System Administrator is denied assessment/survey detail and
+// Program/Grant Managers are aggregate-only, independent of any stored grant.
+const assessmentDetailDeniedRoles = new Set([
+  'SYSTEM_ADMINISTRATOR',
+  'PROGRAM_MANAGER',
+  'GRANT_MANAGER',
+])
 const criterionNumber = z
   .number()
   .finite()
@@ -264,6 +271,84 @@ export class EvaluationsService {
         })),
       }
     })
+  }
+
+  getAssessmentDetail(identity: ApplicationIdentity, projectId: string, assessmentId: string) {
+    return withAuthorizedOperation(
+      this.prisma,
+      identity,
+      'assessments.detail.read',
+      async (tx, actor) => {
+        if (assessmentDetailDeniedRoles.has(actor.roles[0]))
+          throw new ForbiddenException('Assessment detail is not available to this role.')
+        const id = await this.requireProject(tx, actor, projectId)
+        const parsed = projectIdSchema.safeParse(assessmentId)
+        if (!parsed.success) throw new NotFoundException('Assessment unavailable.')
+        const includeBeneficiary = hasAtomicPermission(
+          actor.roles[0],
+          actor.permissions,
+          'beneficiaries.records.read',
+        )
+        const row = await tx.assessmentResult.findFirst({
+          where: {
+            organizationId: actor.organizationId,
+            projectId: id,
+            id: parsed.data,
+            project: projectScope(actor),
+          },
+          select: {
+            id: true,
+            projectId: true,
+            activityId: true,
+            enrollmentId: true,
+            type: true,
+            score: true,
+            maximumScore: true,
+            assessmentDate: true,
+            recordedAt: true,
+            ...(includeBeneficiary
+              ? {
+                  enrollment: {
+                    select: {
+                      id: true,
+                      beneficiary: {
+                        select: { id: true, code: true, archivedAt: true },
+                      },
+                    },
+                  },
+                }
+              : {}),
+          },
+        })
+        if (!row) throw new NotFoundException('Assessment unavailable.')
+        const linked = (
+          row as {
+            enrollment?: {
+              beneficiary: { id: string; code: string; archivedAt: Date | null }
+            } | null
+          }
+        ).enrollment?.beneficiary
+        const beneficiary =
+          includeBeneficiary && linked && !linked.archivedAt
+            ? {
+                id: linked.id,
+                code: linked.code,
+              }
+            : null
+        return {
+          id: row.id,
+          projectId: row.projectId,
+          activityId: row.activityId,
+          enrollmentId: includeBeneficiary ? row.enrollmentId : null,
+          type: row.type,
+          score: row.score.toString(),
+          maximumScore: row.maximumScore.toString(),
+          assessmentDate: row.assessmentDate.toISOString().slice(0, 10),
+          recordedAt: row.recordedAt.toISOString(),
+          beneficiary,
+        }
+      },
+    )
   }
 
   configureWeights(identity: ApplicationIdentity, projectId: string, input: unknown) {

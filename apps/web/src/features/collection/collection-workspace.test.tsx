@@ -10,6 +10,7 @@ import { CollectionWorkspace } from './collection-workspace'
 const api = vi.hoisted(() => ({
   createDigitalForm: vi.fn(),
   createDigitalFormVersion: vi.fn(),
+  generateDigitalForm: vi.fn(),
   publishDigitalForm: vi.fn(),
   updateDigitalForm: vi.fn(),
   uploadImport: vi.fn(),
@@ -64,6 +65,7 @@ vi.mock('@/lib/services/pathways-client', () => ({
     getIndicators: api.getIndicators,
     createDigitalForm: api.createDigitalForm,
     createDigitalFormVersion: api.createDigitalFormVersion,
+    generateDigitalForm: api.generateDigitalForm,
     publishDigitalForm: api.publishDigitalForm,
     updateDigitalForm: api.updateDigitalForm,
     uploadImport: api.uploadImport,
@@ -1107,6 +1109,75 @@ describe('persisted collection completion ownership', () => {
       expect(screen.queryByText('A new draft version is ready for editing.')).toBeNull()
     },
   )
+})
+
+describe('forms.generate action', () => {
+  const source = {
+    id: 'form-source',
+    projectId: 'futuremakers-ncr',
+    code: 'baseline',
+    version: 1,
+    name: 'Baseline',
+    description: null,
+    formType: 'OTHER',
+    status: 'PUBLISHED',
+    activityId: null,
+    journeyStageId: null,
+    updatedAt: '2026-09-28T00:00:00Z',
+    createdByCurrentUser: false,
+    fields: [
+      {
+        code: 'score',
+        label: 'Score',
+        dataType: 'INTEGER',
+        required: true,
+        metadataKey: false,
+        sadddField: false,
+      },
+    ],
+  }
+  const renderBuilder = () =>
+    render(
+      <DisplayLabelsProvider>
+        <CollectionWorkspace
+          initialProjectId="futuremakers-ncr"
+          initialFormId="form-source"
+          initialView="builder"
+        />
+      </DisplayLabelsProvider>,
+    )
+
+  it('hides Generate copy without forms.generate', async () => {
+    api.getDigitalForms.mockResolvedValue([source])
+    renderBuilder()
+    await waitFor(() =>
+      expect((screen.getByLabelText('Form information') as HTMLInputElement).value).toBe(
+        'Baseline',
+      ),
+    )
+    expect(screen.queryByRole('button', { name: 'Generate copy' })).toBeNull()
+  })
+
+  it('generates a draft copy from the open form through the API', async () => {
+    currentAccess.profile.permissions = [...currentAccess.profile.permissions, 'forms.generate']
+    api.getDigitalForms.mockResolvedValue([source])
+    api.generateDigitalForm.mockResolvedValue({
+      ...source,
+      id: 'form-generated',
+      code: 'baseline_copy_x',
+      name: 'Baseline (copy)',
+      status: 'DRAFT',
+    })
+    renderBuilder()
+    fireEvent.click(await screen.findByRole('button', { name: 'Generate copy' }))
+    await waitFor(() => expect(api.generateDigitalForm).toHaveBeenCalledOnce())
+    expect(api.generateDigitalForm).toHaveBeenCalledWith(
+      'futuremakers-ncr',
+      expect.objectContaining({ sourceFormId: 'form-source', name: 'Baseline (copy)' }),
+    )
+    expect(api.generateDigitalForm.mock.calls[0]?.[1].code).toMatch(/^baseline_copy_[a-z0-9]+$/)
+    expect(await screen.findByText('Generated draft form Baseline (copy).')).toBeTruthy()
+  })
 })
 
 describe('collection initial file ownership readiness', () => {

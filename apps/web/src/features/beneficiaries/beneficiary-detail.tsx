@@ -10,7 +10,7 @@ import {
 } from 'lucide-react'
 import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
-import { useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { toast } from 'sonner'
 
 import { StatusBadge } from '@/components/pathways/status-badge'
@@ -36,7 +36,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Textarea } from '@/components/ui/textarea'
 import { useCurrentRole } from '@/hooks/use-current-role'
 import { isUiActionAvailable } from '@/lib/rbac/ui-action-availability'
-import { pathwaysClient } from '@/lib/services/pathways-client'
+import { type AssessmentDetail, pathwaysClient } from '@/lib/services/pathways-client'
 import type {
   Activity,
   BeneficiaryAssessmentRecord,
@@ -60,6 +60,14 @@ import {
   stageForActivity,
   stageTypeTone,
 } from './beneficiary-utils'
+
+const assessmentTypeLabel: Record<AssessmentDetail['type'], string> = {
+  PRE_TEST: 'Pre-test',
+  POST_TEST: 'Post-test',
+  OUTCOME_SURVEY: 'Outcome survey',
+  FEEDBACK_SURVEY: 'Feedback survey',
+  OTHER: 'Other',
+}
 
 type BeneficiaryDetailProps = {
   beneficiary: BeneficiaryRecord
@@ -98,6 +106,22 @@ export const BeneficiaryDetail = ({
     note: '',
   })
   const canEditBeneficiary = isUiActionAvailable(role, 'beneficiaries.edit', profile)
+  const canViewAssessmentDetail = isUiActionAvailable(role, 'assessments.detail.view', profile)
+  const [assessmentDetail, setAssessmentDetail] = useState<
+    { state: 'idle' | 'loading' | 'error' } | { state: 'ready'; detail: AssessmentDetail }
+  >({ state: 'idle' })
+  useEffect(() => {
+    if (!assessmentOpen || !selectedAssessment || !canViewAssessmentDetail) return
+    const controller = new AbortController()
+    setAssessmentDetail({ state: 'loading' })
+    pathwaysClient
+      .getAssessmentDetail(selectedAssessment.projectId, selectedAssessment.id, controller.signal)
+      .then((detail) => setAssessmentDetail({ state: 'ready', detail }))
+      .catch(() => {
+        if (!controller.signal.aborted) setAssessmentDetail({ state: 'error' })
+      })
+    return () => controller.abort()
+  }, [assessmentOpen, selectedAssessment, canViewAssessmentDetail])
   const canRecordParticipation = isUiActionAvailable(
     role,
     'beneficiaries.participation.record',
@@ -467,17 +491,19 @@ export const BeneficiaryDetail = ({
                               <ClipboardCheck className="h-4 w-4" aria-hidden="true" />
                             </Button>
                           ) : null}
-                          <Button
-                            aria-label="View assessment"
-                            disabled={selectedStageAssessments.length === 0}
-                            onClick={openAssessmentForSelectedStage}
-                            size="icon"
-                            title="View assessment"
-                            type="button"
-                            variant="outline"
-                          >
-                            <FileText className="h-4 w-4" aria-hidden="true" />
-                          </Button>
+                          {canViewAssessmentDetail ? (
+                            <Button
+                              aria-label="View assessment"
+                              disabled={selectedStageAssessments.length === 0}
+                              onClick={openAssessmentForSelectedStage}
+                              size="icon"
+                              title="View assessment"
+                              type="button"
+                              variant="outline"
+                            >
+                              <FileText className="h-4 w-4" aria-hidden="true" />
+                            </Button>
+                          ) : null}
                           {canEditBeneficiary ? (
                             <Button
                               aria-label="Add note"
@@ -564,19 +590,36 @@ export const BeneficiaryDetail = ({
             <DialogTitle>{selectedAssessment?.title ?? 'Assessment record'}</DialogTitle>
             <DialogDescription>Human-reviewed assessment basis.</DialogDescription>
           </DialogHeader>
-          {selectedAssessment ? (
+          {selectedAssessment && assessmentDetail.state === 'loading' ? (
+            <output className="block text-sm text-muted-foreground">
+              Loading assessment detail.
+            </output>
+          ) : selectedAssessment && assessmentDetail.state === 'error' ? (
+            <p className="text-sm text-destructive" role="alert">
+              Assessment detail is unavailable for your current access.
+            </p>
+          ) : selectedAssessment && assessmentDetail.state === 'ready' ? (
             <div className="space-y-4">
               <div className="rounded-sm border border-border bg-surface-subtle p-4">
                 <p className="text-sm text-muted-foreground">Score</p>
                 <p className="mt-1 text-3xl font-semibold text-foreground">
-                  {selectedAssessment.score}%
+                  {assessmentDetail.detail.score} / {assessmentDetail.detail.maximumScore}
                 </p>
               </div>
-              <SummaryRow label="Source" value={selectedAssessment.source} />
-              <SummaryRow label="Reviewed date" value={formatDate(selectedAssessment.assessedAt)} />
-              <p className="rounded-sm border border-border bg-surface-subtle p-4 text-sm leading-6">
-                {selectedAssessment.note}
-              </p>
+              <SummaryRow
+                label="Assessment type"
+                value={assessmentTypeLabel[assessmentDetail.detail.type]}
+              />
+              <SummaryRow
+                label="Assessment date"
+                value={formatDate(assessmentDetail.detail.assessmentDate)}
+              />
+              {assessmentDetail.detail.beneficiary ? (
+                <SummaryRow
+                  label="Beneficiary code"
+                  value={assessmentDetail.detail.beneficiary.code}
+                />
+              ) : null}
             </div>
           ) : (
             <p className="text-sm text-muted-foreground">No assessment is available.</p>

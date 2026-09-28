@@ -38,6 +38,7 @@ import type {
   DirectFormSubmissionPage,
   EnrollmentJourneyEventInput,
   EvaluationRecord,
+  EvidenceList,
   EvidenceRecord,
   ExpenseRecord,
   FormValidationError,
@@ -55,6 +56,7 @@ import type {
   PublicProjectRecord,
   RecommendationOutcomeRecord,
   RecommendationRecord,
+  RecordActivityProgressInput,
   RegisterBeneficiaryInput,
   ReportRecord,
   RoleDashboardViewModel,
@@ -78,11 +80,15 @@ import {
   type CreateIndicatorInput as ApiCreateIndicatorInput,
   type UpdateIndicatorInput as ApiUpdateIndicatorInput,
   type DashboardQuery,
+  type DescriptiveAnalytics,
+  type DescriptiveAnalyticsQuery,
   type ManualMeasurementInput,
   type MonitoringDashboard,
   type SadddDashboard,
   type SadddQuery,
   dashboardQuerySchema,
+  descriptiveAnalyticsQuerySchema,
+  descriptiveAnalyticsSchema,
   formatMetricCell,
   monitoringDashboardSchema,
   projectIndicatorListSchema,
@@ -98,6 +104,60 @@ import {
   announceStepUpRequired,
 } from '@/lib/auth/beneficiary-step-up-events'
 import { parseRegistrationContext } from './registration-context'
+
+const evidenceStatuses = new Set(['Submitted', 'Validated', 'Flagged', 'Approved', 'Returned'])
+
+function evidenceText(value: unknown) {
+  if (typeof value !== 'string') throw new Error('invalid_evidence_response')
+  return value
+}
+
+function evidenceCount(value: unknown) {
+  if (typeof value !== 'number' || !Number.isInteger(value) || value < 0)
+    throw new Error('invalid_evidence_response')
+  return value
+}
+
+/** Copies only the fields each scope permits, so unexpected detail is never rendered. */
+export function parseEvidenceList(value: unknown): EvidenceList {
+  const body = value as { scope?: unknown; records?: unknown; activities?: unknown } | null
+  if (body?.scope === 'aggregate' && Array.isArray(body.activities)) {
+    return {
+      scope: 'aggregate',
+      activities: body.activities.map((row: Record<string, unknown>) => ({
+        activityId: evidenceText(row.activityId),
+        activityTitle: evidenceText(row.activityTitle),
+        total: evidenceCount(row.total),
+        submitted: evidenceCount(row.submitted),
+        approved: evidenceCount(row.approved),
+        returned: evidenceCount(row.returned),
+      })),
+    }
+  }
+  if (body?.scope === 'detail' && Array.isArray(body.records)) {
+    return {
+      scope: 'detail',
+      records: body.records.map((row: Record<string, unknown>) => {
+        const status = evidenceText(row.status)
+        if (!evidenceStatuses.has(status)) throw new Error('invalid_evidence_response')
+        return {
+          id: evidenceText(row.id),
+          projectId: evidenceText(row.projectId),
+          activityId: evidenceText(row.activityId),
+          updateId: evidenceText(row.updateId),
+          updateUpdatedAt: evidenceText(row.updateUpdatedAt),
+          fileName: evidenceText(row.fileName),
+          reportTitle: evidenceText(row.reportTitle),
+          status: status as EvidenceRecord['status'],
+          submitter: evidenceText(row.submitter),
+          submittedDate: evidenceText(row.submittedDate),
+          previewSummary: evidenceText(row.previewSummary),
+        }
+      }),
+    }
+  }
+  throw new Error('invalid_evidence_response')
+}
 
 export class PathwaysClientError extends Error {
   constructor(
@@ -119,7 +179,70 @@ export class PathwaysClientError extends Error {
   }
 }
 
+export interface AssessmentDetail {
+  id: string
+  projectId: string
+  activityId: string | null
+  enrollmentId: string | null
+  type: 'PRE_TEST' | 'POST_TEST' | 'OUTCOME_SURVEY' | 'FEEDBACK_SURVEY' | 'OTHER'
+  score: string
+  maximumScore: string
+  assessmentDate: string
+  recordedAt: string
+  beneficiary: { id: string; code: string } | null
+}
+
+const assessmentTypes = new Set([
+  'PRE_TEST',
+  'POST_TEST',
+  'OUTCOME_SURVEY',
+  'FEEDBACK_SURVEY',
+  'OTHER',
+])
+const isNullableString = (value: unknown) => value === null || typeof value === 'string'
+
+function parseAssessmentDetail(value: unknown): AssessmentDetail {
+  const row = value as Record<string, unknown> | null
+  const beneficiary = row?.beneficiary as Record<string, unknown> | null | undefined
+  if (
+    !row ||
+    typeof row.id !== 'string' ||
+    typeof row.projectId !== 'string' ||
+    !isNullableString(row.activityId) ||
+    !isNullableString(row.enrollmentId) ||
+    !assessmentTypes.has(row.type as string) ||
+    typeof row.score !== 'string' ||
+    typeof row.maximumScore !== 'string' ||
+    typeof row.assessmentDate !== 'string' ||
+    typeof row.recordedAt !== 'string' ||
+    (beneficiary !== null &&
+      (typeof beneficiary !== 'object' ||
+        typeof beneficiary.id !== 'string' ||
+        typeof beneficiary.code !== 'string'))
+  )
+    throw new PathwaysClientError('Invalid assessment response.', 'network')
+  return {
+    id: row.id,
+    projectId: row.projectId,
+    activityId: row.activityId as string | null,
+    enrollmentId: row.enrollmentId as string | null,
+    type: row.type as AssessmentDetail['type'],
+    score: row.score,
+    maximumScore: row.maximumScore,
+    assessmentDate: row.assessmentDate,
+    recordedAt: row.recordedAt,
+    beneficiary: beneficiary
+      ? { id: beneficiary.id as string, code: beneficiary.code as string }
+      : null,
+  }
+}
+
 export interface PathwaysClient {
+  getAssessmentDetail(
+    projectId: string,
+    assessmentId: string,
+    signal?: AbortSignal,
+  ): Promise<AssessmentDetail>
   getProjects(signal?: AbortSignal): Promise<ProjectSummary[]>
   getProjectsForRole(role: PathwaysRole): Promise<ProjectSummary[]>
   getProject(id: string, signal?: AbortSignal): Promise<ProjectDetail>
@@ -159,6 +282,7 @@ export interface PathwaysClient {
     input: SubmitActivityProofInput,
     context?: SourceMutationContext,
   ): Promise<SourceMutationResult<Activity>>
+  recordActivityProgress(input: RecordActivityProgressInput): Promise<Activity>
   reviewActivityUpdate(
     projectId: string,
     activityId: string,
@@ -176,7 +300,7 @@ export interface PathwaysClient {
     milestoneId: string,
     input: UpdateMilestoneInput,
   ): Promise<ProjectMilestone>
-  getEvidence(projectId: string): Promise<EvidenceRecord[]>
+  getEvidence(projectId: string): Promise<EvidenceList>
   getProjectIndicators(projectId: string, signal?: AbortSignal): Promise<ProjectIndicator[]>
   getProjectIndicator(projectId: string, indicatorId: string): Promise<ProjectIndicator>
   createProjectIndicator(
@@ -204,6 +328,7 @@ export interface PathwaysClient {
   ): Promise<SourceMutationResult<ProjectIndicator>>
   getMonitoringDashboard(query?: DashboardQuery): Promise<MonitoringDashboard>
   getSadddDashboard(query: SadddQuery): Promise<SadddDashboard>
+  getDescriptiveAnalytics(query: DescriptiveAnalyticsQuery): Promise<DescriptiveAnalytics>
   getEvaluation(projectId: string): Promise<EvaluationRecord>
   getExpenses(projectId: string): Promise<ExpenseRecord[]>
   getRecommendationOutcomes(projectId: string): Promise<RecommendationOutcomeRecord[]>
@@ -296,6 +421,10 @@ export interface PathwaysClient {
     expectedUpdatedAt: string,
   ): Promise<DigitalFormDefinition>
   createDigitalFormVersion(projectId: string, formId: string): Promise<DigitalFormDefinition>
+  generateDigitalForm(
+    projectId: string,
+    input: { templateKey?: string; sourceFormId?: string; code: string; name: string },
+  ): Promise<DigitalFormDefinition>
   validateDigitalFormValues(
     projectId: string,
     formId: string,
@@ -396,6 +525,18 @@ const backendNotConfigured = (operation: string) =>
  * corresponding real endpoint exists.
  */
 class BackendReadyPathwaysClient implements PathwaysClient {
+  async getAssessmentDetail(
+    projectId: string,
+    assessmentId: string,
+    signal?: AbortSignal,
+  ): Promise<AssessmentDetail> {
+    return parseAssessmentDetail(
+      await requestFoundation(
+        `/projects/${encodeURIComponent(projectId)}/evaluation/assessments/${encodeURIComponent(assessmentId)}`,
+        { signal },
+      ),
+    )
+  }
   async getProjects(signal?: AbortSignal): Promise<ProjectSummary[]> {
     return requestFoundation('/projects', { signal }).then(parseProjects)
   }
@@ -563,6 +704,22 @@ class BackendReadyPathwaysClient implements PathwaysClient {
     )
   }
 
+  async recordActivityProgress(input: RecordActivityProgressInput): Promise<Activity> {
+    return parseActivity(
+      await requestFoundation(
+        `/projects/${encodeURIComponent(input.projectId)}/activities/${encodeURIComponent(input.activityId)}/progress`,
+        {
+          method: 'POST',
+          body: JSON.stringify({
+            clientUpdateId: input.clientUpdateId,
+            progressPercent: input.progress,
+            note: input.note,
+          }),
+        },
+      ),
+    )
+  }
+
   async submitActivityProof(
     input: SubmitActivityProofInput,
     context?: SourceMutationContext,
@@ -645,27 +802,9 @@ class BackendReadyPathwaysClient implements PathwaysClient {
     )
   }
 
-  async getEvidence(projectId: string): Promise<EvidenceRecord[]> {
-    const activities = await this.getActivities(projectId)
-    return activities.flatMap((activity) =>
-      activity.submittedProof.map((proof) => ({
-        id: proof.id,
-        projectId: activity.projectId,
-        activityId: activity.id,
-        updateId: proof.updateId,
-        updateUpdatedAt: proof.updateUpdatedAt,
-        fileName: proof.fileName,
-        reportTitle: activity.title,
-        status:
-          proof.status === 'Accepted'
-            ? 'Approved'
-            : proof.status === 'Flagged'
-              ? 'Returned'
-              : 'Submitted',
-        submitter: proof.submittedBy,
-        submittedDate: proof.submittedAt,
-        previewSummary: proof.note ?? 'Activity evidence submission',
-      })),
+  async getEvidence(projectId: string): Promise<EvidenceList> {
+    return parseEvidenceList(
+      await requestFoundation(`/projects/${encodeURIComponent(projectId)}/evidence`),
     )
   }
 
@@ -762,6 +901,12 @@ class BackendReadyPathwaysClient implements PathwaysClient {
     const { projectId } = sadddQuerySchema.parse(query)
     return sadddDashboardSchema.parse(
       await requestFoundation(`/dashboards/saddd?projectId=${encodeURIComponent(projectId)}`),
+    )
+  }
+
+  async getDescriptiveAnalytics(query: DescriptiveAnalyticsQuery): Promise<DescriptiveAnalytics> {
+    return descriptiveAnalyticsSchema.parse(
+      await requestFoundation(`/analytics/descriptive${descriptiveAnalyticsSearch(query)}`),
     )
   }
 
@@ -1025,7 +1170,11 @@ class BackendReadyPathwaysClient implements PathwaysClient {
     return requestFoundation(
       `/beneficiaries/projects/${encodeURIComponent(projectId)}/${encodeURIComponent(beneficiaryId)}/journey/events`,
       { method: 'POST', body: JSON.stringify(input) },
-    ) as Promise<{ enrollmentId: string; eventType: string; eventDate: string }>
+    ) as Promise<{
+      enrollmentId: string
+      eventType: string
+      eventDate: string
+    }>
   }
 
   async correctBeneficiaryJourneyEvent(
@@ -1161,6 +1310,16 @@ class BackendReadyPathwaysClient implements PathwaysClient {
       `/metadata/projects/${encodeURIComponent(projectId)}/forms/${encodeURIComponent(formId)}/versions`,
       { method: 'POST' },
     ) as Promise<DigitalFormDefinition>
+  }
+
+  async generateDigitalForm(
+    projectId: string,
+    input: { templateKey?: string; sourceFormId?: string; code: string; name: string },
+  ) {
+    return requestFoundation(`/metadata/projects/${encodeURIComponent(projectId)}/forms/generate`, {
+      method: 'POST',
+      body: JSON.stringify(input),
+    }) as Promise<DigitalFormDefinition>
   }
 
   async validateDigitalFormValues(
@@ -1308,7 +1467,10 @@ class BackendReadyPathwaysClient implements PathwaysClient {
   ) {
     return requestFoundation(
       `/imports/projects/${encodeURIComponent(projectId)}/batches/${encodeURIComponent(batchId)}/mapping`,
-      { method: 'PATCH', body: JSON.stringify({ expectedMappingRevision, mappings }) },
+      {
+        method: 'PATCH',
+        body: JSON.stringify({ expectedMappingRevision, mappings }),
+      },
     ) as Promise<ImportBatchDefinition>
   }
 
@@ -1443,6 +1605,17 @@ class BackendReadyPathwaysClient implements PathwaysClient {
       ],
     }
   }
+}
+
+/** Validated query string shared by the descriptive read and its CSV export. */
+export function descriptiveAnalyticsSearch(query: DescriptiveAnalyticsQuery): string {
+  const parsed = descriptiveAnalyticsQuerySchema.parse(query)
+  const params = new URLSearchParams({ projectId: parsed.projectId })
+  if (parsed.periodStart && parsed.periodEnd) {
+    params.set('periodStart', parsed.periodStart)
+    params.set('periodEnd', parsed.periodEnd)
+  }
+  return `?${params.toString()}`
 }
 
 export const pathwaysClient: PathwaysClient = new BackendReadyPathwaysClient()
@@ -1967,7 +2140,10 @@ const activityResponseKeys = [
 ] as const satisfies readonly (keyof Activity)[]
 
 function parseActivity(value: unknown): Activity {
-  const row = value as Partial<Activity> & { budgetAllocation?: unknown; budgetLogged?: unknown }
+  const row = value as Partial<Activity> & {
+    budgetAllocation?: unknown
+    budgetLogged?: unknown
+  }
   if (
     !row ||
     typeof row !== 'object' ||
