@@ -334,7 +334,7 @@ Page Header
 → Section Cards / domain panels
 ```
 
-**Dashboards.** Use trusted metrics and explicit project context. Do not introduce one universal overall project-success percentage unless an approved methodology defines it.
+**Dashboards.** Use trusted metrics and explicit project context. Do not introduce one universal overall project-success percentage unless an approved methodology defines it. The Project Overview KPI achievement tile uses the developer-approved methodology (2026-09-28) in the SDD "Project workspace reads" section.
 
 **Rule configuration.** Current implementation is a single-condition configuration shell. Existing visual grammar: rule list left, selected rule detail right, configuration/view-only status, create/edit dialog, two-column form at medium sizes, info-subtle rule preview, human-review disclaimer, explicit server-unavailable state. Future rule-builder work preserves this grammar while adding project/scope, trusted metric selector, typed operators, conditional threshold fields, recommendation linkage, dry run, and ALL/ANY condition groups when approved. No arbitrary SQL/code input.
 
