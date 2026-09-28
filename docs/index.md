@@ -83,7 +83,7 @@
 
 | Audit | Date | Scope | Status |
 |---|---|---|---|
-| [audit-pathways-rbac-csv-20260928](audit-pathways-rbac-csv-20260928.md) | 2026-09-28 | Revised RBAC CSV against contract, API, SQL and web enforcement | Open: 2 Medium, 3 Low, 1 Info |
+| [audit-pathways-rbac-csv-20260928](audit-pathways-rbac-csv-20260928.md) | 2026-09-28 | Revised RBAC CSV against contract, API, SQL and web enforcement | Dispositioned by [RBAC audit closure](cr-pathways-rbac-audit-closure.md); implementation pending |
 
 ### Workflow rule
 
@@ -121,6 +121,7 @@ Core P1 supporting contract reconciliation is approved for local implementation 
 
 | CR ID | Date | Summary | Status |
 |---|---|---|---|
+| [cr-pathways-rbac-audit-closure](cr-pathways-rbac-audit-closure.md) | 2026-09-28 | Closes RBAC CSV audit findings A-01 to A-06: scoped evidence list, five action implementations, four deferrals, UI hiding, reserved permissions and confirmed user hierarchy | Approved; implementation pending |
 | [cr-pathways-admin-read-access](cr-pathways-admin-read-access.md) | 2026-09-28 | System Administrator read-only `activities.read` and `budgets.read` (migration 0035); web reads gated on the permission each call needs | Approved; local implementation verified; hosted application and release pending |
 | [cr-pathways-beneficiary-step-up](cr-pathways-beneficiary-step-up.md) | 2026-09-28 | Replace client-only hardcoded Beneficiary PIN gate with server-enforced fresh-MFA step-up (manuscript Objective 2.2); alternatives: server-hashed PIN or documented removal | Approved (Option A, 15 min); implemented locally; SAD sign-off and hosted MFA refresh verification pending |
 | [cr-pathways-sad-orchestration](cr-pathways-sad-orchestration.md) | 2026-09-28 | Staged SAD review pipeline with typed handoff packets, `.claude/agents` coordinator and specialist definitions, multi-branch release sequence with gated autonomous master push and roster drift check | Applied |
