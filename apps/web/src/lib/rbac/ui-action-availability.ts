@@ -10,6 +10,7 @@ import {
 export type UiAction =
   | 'activities.status.edit'
   | 'activities.edit'
+  | 'assessments.detail.view'
   | 'beneficiaries.edit'
   | 'beneficiaries.merge'
   | 'beneficiaries.create'
@@ -28,6 +29,7 @@ export type UiAction =
 const supportedActionPermission: Partial<Record<UiAction, AtomicPermission>> = {
   'activities.status.edit': 'activities.complete',
   'activities.edit': 'activities.update',
+  'assessments.detail.view': 'assessments.detail.read',
   'beneficiaries.create': 'beneficiaries.records.register',
   'beneficiaries.edit': 'beneficiaries.profiles.update',
   'beneficiaries.participation.record': 'participation.record',
@@ -41,7 +43,10 @@ const supportedActionPermission: Partial<Record<UiAction, AtomicPermission>> = {
 export const isUiActionAvailable = (
   role: PathwaysRole | null,
   action: UiAction,
-  principal?: { roles: readonly string[]; permissions: readonly string[] } | null,
+  principal?: {
+    roles: readonly string[]
+    permissions: readonly string[]
+  } | null,
 ) => {
   if (!role) return false
   const permission = supportedActionPermission[action]

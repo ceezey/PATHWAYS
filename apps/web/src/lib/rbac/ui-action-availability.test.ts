@@ -50,4 +50,15 @@ describe('UI actions against the accepted backend policy', () => {
     expect(isUiActionAvailable('Program Manager', 'projects.profile.manage')).toBe(false)
     expect(isUiActionAvailable('Project Officer', 'projects.profile.manage')).toBe(false)
   })
+
+  it('offers assessment detail only to the granted project roles', () => {
+    expect(isUiActionAvailable('Project Officer', 'assessments.detail.view')).toBe(true)
+    expect(
+      isUiActionAvailable('Monitoring and Evaluation Officer', 'assessments.detail.view'),
+    ).toBe(true)
+    expect(isUiActionAvailable('Project Manager', 'assessments.detail.view')).toBe(true)
+    expect(isUiActionAvailable('System Administrator', 'assessments.detail.view')).toBe(false)
+    expect(isUiActionAvailable('Program Manager', 'assessments.detail.view')).toBe(false)
+    expect(isUiActionAvailable('Grant Manager', 'assessments.detail.view')).toBe(false)
+  })
 })
