@@ -55,6 +55,11 @@ vi.mock('./auth-access', async (original) => ({
   requestAuthJson: vi.fn(async () => mfaStatus),
 }))
 
+const toast = vi.hoisted(() => ({ success: vi.fn(), error: vi.fn() }))
+vi.mock('sonner', () => ({ toast }))
+
+const clipboardWriteText = vi.hoisted(() => vi.fn())
+
 import { MfaForm } from './mfa-form'
 
 beforeEach(() => {
@@ -70,6 +75,8 @@ beforeEach(() => {
     },
     error: null,
   })
+  clipboardWriteText.mockResolvedValue(undefined)
+  Object.assign(navigator, { clipboard: { writeText: clipboardWriteText } })
 })
 
 afterEach(() => {
@@ -77,23 +84,48 @@ afterEach(() => {
   vi.clearAllMocks()
 })
 
+const fillCode = (digits: string) => {
+  const boxes = screen.getAllByLabelText(/Digit \d of 6/)
+  digits.split('').forEach((digit, index) => {
+    fireEvent.change(boxes[index], { target: { value: digit } })
+  })
+  return boxes
+}
+
 describe('MfaForm enrollment', () => {
-  it('offers the setup key as a manual alternative to the QR code', async () => {
+  it('shows the QR first, with the setup key collapsed behind a details toggle', async () => {
     render(<MfaForm />)
     fireEvent.click(await screen.findByRole('button', { name: 'Set up authenticator' }))
 
     expect(await screen.findByAltText('Private authenticator setup QR code')).toBeTruthy()
-    const group = screen.getByRole('region', { name: /Can't scan\?/ })
-    expect(group.textContent).toContain('Enter a setup key')
-    const key = screen.getByText('JBSW Y3DP EHPK 3PXP')
-    expect(group.contains(key)).toBe(true)
-    expect(key.hasAttribute('aria-labelledby')).toBe(false)
+    const summary = await screen.findByText("Can't scan? Enter key manually")
+    const details = summary.closest('details')
+    expect(details?.open).toBe(false)
     expect(mfa.enroll).toHaveBeenCalledOnce()
+
+    fireEvent.click(summary)
+    expect(details?.open).toBe(true)
+    const key = await screen.findByText('JBSW Y3DP EHPK 3PXP')
+    expect(key).toBeTruthy()
+  })
+
+  it('copies the setup key to the clipboard and shows a success toast', async () => {
+    render(<MfaForm />)
+    fireEvent.click(await screen.findByRole('button', { name: 'Set up authenticator' }))
+    await screen.findByAltText('Private authenticator setup QR code')
+    fireEvent.click(await screen.findByText("Can't scan? Enter key manually"))
+    await screen.findByText('JBSW Y3DP EHPK 3PXP')
+
+    fireEvent.click(screen.getByRole('button', { name: 'Copy key' }))
+    await waitFor(() => expect(clipboardWriteText).toHaveBeenCalledWith('JBSWY3DPEHPK3PXP'))
+    await waitFor(() => expect(toast.success).toHaveBeenCalledWith('Setup key copied.'))
   })
 
   it('clears the setup key from the page when it is hidden', async () => {
     render(<MfaForm />)
     fireEvent.click(await screen.findByRole('button', { name: 'Set up authenticator' }))
+    await screen.findByAltText('Private authenticator setup QR code')
+    fireEvent.click(await screen.findByText("Can't scan? Enter key manually"))
     await screen.findByText('JBSW Y3DP EHPK 3PXP')
     fireEvent(window, new Event('pagehide'))
     await waitFor(() => expect(screen.queryByText('JBSW Y3DP EHPK 3PXP')).toBeNull())
@@ -105,5 +137,69 @@ describe('MfaForm enrollment', () => {
     await screen.findByRole('button', { name: 'Set up authenticator' })
     expect(screen.queryByText(/Can't scan\?/)).toBeNull()
     expect(mfa.enroll).not.toHaveBeenCalled()
+  })
+})
+
+describe('MfaForm code entry', () => {
+  it('renders six single-digit boxes as a labelled group and auto-advances while typing', async () => {
+    render(<MfaForm />)
+    fireEvent.click(await screen.findByRole('button', { name: 'Set up authenticator' }))
+    await screen.findByAltText('Private authenticator setup QR code')
+
+    const group = screen.getByRole('group', { name: 'Authenticator code' })
+    const boxes = screen.getAllByLabelText(/Digit \d of 6/)
+    expect(boxes).toHaveLength(6)
+    boxes.forEach((box) => expect(group.contains(box)).toBe(true))
+
+    fireEvent.change(boxes[0], { target: { value: '1' } })
+    expect(boxes[1]).toBe(document.activeElement)
+    fireEvent.change(boxes[1], { target: { value: '2' } })
+    expect(boxes[2]).toBe(document.activeElement)
+  })
+
+  it('moves focus back on backspace from an empty box', async () => {
+    render(<MfaForm />)
+    fireEvent.click(await screen.findByRole('button', { name: 'Set up authenticator' }))
+    await screen.findByAltText('Private authenticator setup QR code')
+
+    const boxes = screen.getAllByLabelText(/Digit \d of 6/)
+    fireEvent.change(boxes[0], { target: { value: '1' } })
+    fireEvent.change(boxes[1], { target: { value: '2' } })
+    boxes[2].focus()
+    fireEvent.keyDown(boxes[2], { key: 'Backspace' })
+    expect(boxes[1]).toBe(document.activeElement)
+    fireEvent.keyDown(boxes[1], { key: 'Backspace' })
+    expect((boxes[1] as HTMLInputElement).value).toBe('')
+  })
+
+  it('fills all boxes when six digits are pasted', async () => {
+    render(<MfaForm />)
+    fireEvent.click(await screen.findByRole('button', { name: 'Set up authenticator' }))
+    await screen.findByAltText('Private authenticator setup QR code')
+
+    const boxes = screen.getAllByLabelText(/Digit \d of 6/)
+    const clipboardData = { getData: () => '123456' }
+    fireEvent.paste(boxes[0], { clipboardData })
+    boxes.forEach((box, index) => {
+      expect((box as HTMLInputElement).value).toBe(String(index + 1))
+    })
+  })
+
+  it('keeps submit disabled until all six digits are entered, and codes are not masked', async () => {
+    render(<MfaForm />)
+    fireEvent.click(await screen.findByRole('button', { name: 'Set up authenticator' }))
+    await screen.findByAltText('Private authenticator setup QR code')
+
+    const submit = screen.getByRole('button', {
+      name: 'Verify authenticator code',
+    }) as HTMLButtonElement
+    expect(submit.disabled).toBe(true)
+
+    const boxes = fillCode('12345')
+    expect(submit.disabled).toBe(true)
+    boxes.forEach((box) => expect(box.getAttribute('type')).toBe('text'))
+
+    fillCode('123456')
+    expect(submit.disabled).toBe(false)
   })
 })
