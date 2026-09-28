@@ -1,5 +1,6 @@
 /// <reference path="./types/papaparse.d.ts" />
 
+export * from './mappers/smart-match'
 export * from './mappers/summary'
 export * from './limits'
 export * from './parser/csv'

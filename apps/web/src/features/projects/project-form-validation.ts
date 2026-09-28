@@ -15,7 +15,6 @@ const targetBeneficiariesSchema = z
   .refine((value) => Number(value) <= 2_147_483_647, 'Enter a smaller target.')
 
 const projectSetupBaseSchema = z.object({
-  partners: z.string().trim().max(1000, 'Use at most 1,000 characters.'),
   partnerOrganizations: z
     .string()
     .trim()
@@ -81,7 +80,6 @@ const projectCoreInput = (values: ProjectSetupSchema) => ({
   title: values.title,
   description: values.description,
   implementationArea: values.area,
-  implementingPartners: values.partners || undefined,
   implementingPartnerNames: [
     ...new Set(
       (values.partnerOrganizations ?? '')

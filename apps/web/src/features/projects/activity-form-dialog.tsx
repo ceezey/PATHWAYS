@@ -7,7 +7,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { toast } from 'sonner'
 
-import { ConfirmationDialog, DialogShell } from '@/components/pathways'
+import { ConfirmationDialog, DialogShell, LockedField } from '@/components/pathways'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogFooter } from '@/components/ui/dialog'
 import {
@@ -37,13 +37,19 @@ import {
   useSensitiveDraftOwner,
   writeSensitiveDraft,
 } from '@/lib/auth/sensitive-drafts'
+import { principalHasAtomicPermission } from '@/lib/rbac/route-access'
 import { isUiActionAvailable } from '@/lib/rbac/ui-action-availability'
 import { pathwaysClient } from '@/lib/services/pathways-client'
 import { isSourceReplay, sourceMutationTickets } from '@/lib/services/source-mutation'
-import type { Activity, Indicator, JourneyStageConfig, UserRecord } from '@/types/pathways'
+import type {
+  Activity,
+  AssignableProjectOfficer,
+  Indicator,
+  JourneyStageConfig,
+} from '@/types/pathways'
 
 import { type ActivityFormSchema, createActivityFormSchema } from './activity-form-validation'
-import { activityStatuses } from './activity-utils'
+import { activityStatuses, formatCurrency } from './activity-utils'
 
 const defaultValues: ActivityFormSchema = {
   overrideJustification: '',
@@ -59,7 +65,7 @@ const defaultValues: ActivityFormSchema = {
   status: 'Planned',
   progress: 0,
   beneficiariesReached: 0,
-  budgetLogged: 0,
+  budgetLogged: null,
 }
 
 export const ActivityFormDialog = (props: {
@@ -68,7 +74,8 @@ export const ActivityFormDialog = (props: {
   journeyStages: JourneyStageConfig[]
   open: boolean
   projectId: string
-  users: UserRecord[]
+  /** From the project-scoped assignable-officer read, never from GET /users. */
+  officers: AssignableProjectOfficer[]
   onAcknowledged?: () => Promise<unknown>
   onCreatedOrUpdated: (activity: Activity) => void
   onOpenChange: (open: boolean) => void
@@ -92,7 +99,7 @@ const ScopedActivityFormDialog = ({
   journeyStages,
   open,
   projectId,
-  users,
+  officers,
   onAcknowledged,
   onCreatedOrUpdated,
   onOpenChange,
@@ -103,7 +110,7 @@ const ScopedActivityFormDialog = ({
   journeyStages: JourneyStageConfig[]
   open: boolean
   projectId: string
-  users: UserRecord[]
+  officers: AssignableProjectOfficer[]
   onAcknowledged?: () => Promise<unknown>
   onCreatedOrUpdated: (activity: Activity) => void
   onOpenChange: (open: boolean) => void
@@ -129,22 +136,27 @@ const ScopedActivityFormDialog = ({
   const [discardDialogOpen, setDiscardDialogOpen] = useState(false)
   const [draftHydrated, setDraftHydrated] = useState(false)
   const [draftRecovered, setDraftRecovered] = useState(false)
-  const projectOfficers = useMemo(
-    () =>
-      users.filter(
-        (user) =>
-          user.role === 'Project Officer' &&
-          user.accountStatus === 'Active' &&
-          user.projectIds.includes(projectId),
-      ),
-    [projectId, users],
-  )
-  const officerNames = useMemo(() => projectOfficers.map((user) => user.name), [projectOfficers])
+  // The API accepts exactly these assignees; the form stores their user ids.
+  const officerIds = useMemo(() => officers.map((officer) => officer.userId), [officers])
   const indicatorIds = useMemo(() => indicators.map((indicator) => indicator.id), [indicators])
   const journeyStageIds = useMemo(() => journeyStages.map((stage) => stage.id), [journeyStages])
+  // Locked fields mirror the API checks in activities.service (saveActivityBudget,
+  // resolveIndicators). A locked field is never sent; readable values show locked.
+  const canEditBudget =
+    principalHasAtomicPermission(profile, 'budgets.create') &&
+    (!activity || principalHasAtomicPermission(profile, 'budgets.update'))
+  const canReadBudget = !activity || principalHasAtomicPermission(profile, 'budgets.read')
+  const canLinkIndicators = principalHasAtomicPermission(profile, 'indicators.update')
+  const canReadIndicators = principalHasAtomicPermission(profile, 'indicators.read')
+  const lockedIndicatorValue = (activity?.indicatorIds ?? [])
+    .map((indicatorId) => {
+      const indicator = indicators.find((item) => item.id === indicatorId)
+      return indicator ? `${indicator.code} - ${indicator.label}` : 'Linked indicator'
+    })
+    .join('\n')
   const formSchema = useMemo(
-    () => createActivityFormSchema({ indicatorIds, journeyStageIds, officerNames }),
-    [indicatorIds, journeyStageIds, officerNames],
+    () => createActivityFormSchema({ indicatorIds, journeyStageIds, officerIds }),
+    [indicatorIds, journeyStageIds, officerIds],
   )
   const form = useForm<ActivityFormSchema>({
     resolver: zodResolver(formSchema),
@@ -162,8 +174,8 @@ const ScopedActivityFormDialog = ({
             dueDate: activity.dueDate,
             targetBeneficiaries: activity.targetBeneficiaries,
             budgetAllocation: activity.budgetAllocation ?? '',
-            assignedOfficers: activity.assignedTo.filter((officer) =>
-              officerNames.includes(officer),
+            assignedOfficers: activity.assignedUserIds.filter((userId) =>
+              officerIds.includes(userId),
             ),
             connectedIndicators: activity.indicatorIds.filter((indicatorId) =>
               indicatorIds.includes(indicatorId),
@@ -174,10 +186,10 @@ const ScopedActivityFormDialog = ({
             status: activity.status === 'Cancelled' ? 'Planned' : activity.status,
             progress: activity.progress,
             beneficiariesReached: activity.beneficiariesReached,
-            budgetLogged: activity.budgetLogged ?? 0,
+            budgetLogged: activity.budgetLogged,
           }
         : defaultValues,
-    [activity, indicatorIds, journeyStageIds, officerNames],
+    [activity, indicatorIds, journeyStageIds, officerIds],
   )
 
   useEffect(() => {
@@ -213,7 +225,7 @@ const ScopedActivityFormDialog = ({
         }
 
         restored.assignedOfficers = restored.assignedOfficers.filter((officer) =>
-          officerNames.includes(officer),
+          officerIds.includes(officer),
         )
         restored.connectedIndicators = restored.connectedIndicators.filter((indicatorId) =>
           indicatorIds.includes(indicatorId),
@@ -236,7 +248,7 @@ const ScopedActivityFormDialog = ({
     indicatorIds,
     initialValues,
     journeyStageIds,
-    officerNames,
+    officerIds,
     open,
     projectId,
   ])
@@ -280,10 +292,11 @@ const ScopedActivityFormDialog = ({
       if (requestedStatus !== priorStatus && requestedStatus !== 'In Progress') {
         throw new Error('This activity status transition is not supported by the current API.')
       }
-      const assignedUserIds = values.assignedOfficers.map(
-        (name) => projectOfficers.find((officer) => officer.name === name)?.id,
+      const assignedUserIds = values.assignedOfficers.filter((userId) =>
+        officerIds.includes(userId),
       )
-      if (assignedUserIds.some((id) => !id)) throw new Error('Select assigned project officers.')
+      if (assignedUserIds.length !== values.assignedOfficers.length)
+        throw new Error('Select assigned project officers.')
       const input = {
         projectId,
         title: values.title,
@@ -292,11 +305,11 @@ const ScopedActivityFormDialog = ({
         dueDate: values.dueDate,
         timelineOverrideJustification: values.overrideJustification?.trim() || undefined,
         targetBeneficiaries: values.targetBeneficiaries,
-        ...(values.budgetAllocation === ''
+        ...(!canEditBudget || values.budgetAllocation === ''
           ? {}
           : { budgetAllocation: String(values.budgetAllocation) }),
-        assignedUserIds: assignedUserIds as string[],
-        indicatorIds: values.connectedIndicators,
+        assignedUserIds,
+        ...(canLinkIndicators ? { indicatorIds: values.connectedIndicators } : {}),
         journeyStageId: values.journeyStageId || null,
       }
       if (!mutationContext?.isCurrent()) return
@@ -547,19 +560,31 @@ const ScopedActivityFormDialog = ({
                     </FormItem>
                   )}
                 />
-                <FormField
-                  control={form.control}
-                  name="budgetAllocation"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Activity budget</FormLabel>
-                      <FormControl>
-                        <Input min={0} step="0.01" type="number" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
+                {canEditBudget ? (
+                  <FormField
+                    control={form.control}
+                    name="budgetAllocation"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Activity budget</FormLabel>
+                        <FormControl>
+                          <Input min={0} step="0.01" type="number" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                ) : canReadBudget ? (
+                  <LockedField
+                    label="Activity budget"
+                    value={
+                      activity?.budgetAllocation === null ||
+                      activity?.budgetAllocation === undefined
+                        ? ''
+                        : formatCurrency(activity.budgetAllocation)
+                    }
+                  />
+                ) : null}
                 {activity ? (
                   <>
                     <FormField
@@ -607,6 +632,9 @@ const ScopedActivityFormDialog = ({
                               type="number"
                               disabled
                               {...field}
+                              placeholder={
+                                activity?.budgetLogged === null ? 'Unavailable' : undefined
+                              }
                               value={activity?.budgetLogged ?? ''}
                             />
                           </FormControl>
@@ -635,33 +663,28 @@ const ScopedActivityFormDialog = ({
                             </span>
                             <span className="sr-only"> (required)</span>
                           </legend>
-                          {projectOfficers.length > 0 ? (
-                            projectOfficers.map((officer) => (
+                          {officers.length > 0 ? (
+                            officers.map((officer) => (
                               <label
-                                className="flex items-center gap-3 rounded-md border border-border p-3 text-sm"
-                                key={officer.id}
+                                className="flex min-h-11 items-center gap-3 rounded-md border border-border p-3 text-sm"
+                                key={officer.userId}
                               >
                                 <input
-                                  checked={field.value.includes(officer.name)}
+                                  checked={field.value.includes(officer.userId)}
                                   className="h-4 w-4 rounded border-input focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                                   onBlur={field.onBlur}
                                   onChange={(event) =>
                                     field.onChange(
                                       event.target.checked
-                                        ? [...field.value, officer.name]
-                                        : field.value.filter((name) => name !== officer.name),
+                                        ? [...field.value, officer.userId]
+                                        : field.value.filter((id) => id !== officer.userId),
                                     )
                                   }
                                   type="checkbox"
-                                  value={officer.name}
+                                  value={officer.userId}
                                 />
-                                <span>
-                                  <span className="font-medium text-foreground">
-                                    {officer.name}
-                                  </span>
-                                  <span className="block text-xs text-muted-foreground">
-                                    {officer.email}
-                                  </span>
+                                <span className="font-medium text-foreground">
+                                  {officer.displayName}
                                 </span>
                               </label>
                             ))
@@ -679,62 +702,71 @@ const ScopedActivityFormDialog = ({
                     </FormItem>
                   )}
                 />
-                <FormField
-                  control={form.control}
-                  name="connectedIndicators"
-                  render={({ field }) => (
-                    <FormItem className="lg:col-span-2">
-                      <FormControl>
-                        <fieldset className="space-y-2 rounded-md border border-input bg-background p-3">
-                          <legend className="px-1 text-sm font-medium text-foreground">
-                            Connected indicators
-                          </legend>
-                          {indicators.length > 0 ? (
-                            indicators.map((indicator) => (
-                              <label
-                                className="flex items-start gap-3 rounded-md border border-border p-3 text-sm"
-                                key={indicator.id}
-                              >
-                                <input
-                                  checked={field.value.includes(indicator.id)}
-                                  className="mt-0.5 h-4 w-4 rounded border-input focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                                  onBlur={field.onBlur}
-                                  onChange={(event) =>
-                                    field.onChange(
-                                      event.target.checked
-                                        ? [...field.value, indicator.id]
-                                        : field.value.filter(
-                                            (indicatorId) => indicatorId !== indicator.id,
-                                          ),
-                                    )
-                                  }
-                                  type="checkbox"
-                                  value={indicator.id}
-                                />
-                                <span>
-                                  <span className="font-medium text-foreground">
-                                    {indicator.code}
+                {canLinkIndicators ? (
+                  <FormField
+                    control={form.control}
+                    name="connectedIndicators"
+                    render={({ field }) => (
+                      <FormItem className="lg:col-span-2">
+                        <FormControl>
+                          <fieldset className="space-y-2 rounded-md border border-input bg-background p-3">
+                            <legend className="px-1 text-sm font-medium text-foreground">
+                              Connected indicators
+                            </legend>
+                            {indicators.length > 0 ? (
+                              indicators.map((indicator) => (
+                                <label
+                                  className="flex items-start gap-3 rounded-md border border-border p-3 text-sm"
+                                  key={indicator.id}
+                                >
+                                  <input
+                                    checked={field.value.includes(indicator.id)}
+                                    className="mt-0.5 h-4 w-4 rounded border-input focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                                    onBlur={field.onBlur}
+                                    onChange={(event) =>
+                                      field.onChange(
+                                        event.target.checked
+                                          ? [...field.value, indicator.id]
+                                          : field.value.filter(
+                                              (indicatorId) => indicatorId !== indicator.id,
+                                            ),
+                                      )
+                                    }
+                                    type="checkbox"
+                                    value={indicator.id}
+                                  />
+                                  <span>
+                                    <span className="font-medium text-foreground">
+                                      {indicator.code}
+                                    </span>
+                                    <span className="block text-xs text-muted-foreground">
+                                      {indicator.label}
+                                    </span>
                                   </span>
-                                  <span className="block text-xs text-muted-foreground">
-                                    {indicator.label}
-                                  </span>
-                                </span>
-                              </label>
-                            ))
-                          ) : (
-                            <p className="text-sm text-muted-foreground">
-                              No indicators are configured for this project.
-                            </p>
-                          )}
-                        </fieldset>
-                      </FormControl>
-                      <FormDescription>
-                        Optional. Only indicators from this project are available.
-                      </FormDescription>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
+                                </label>
+                              ))
+                            ) : (
+                              <p className="text-sm text-muted-foreground">
+                                No indicators are configured for this project.
+                              </p>
+                            )}
+                          </fieldset>
+                        </FormControl>
+                        <FormDescription>
+                          Optional. Only indicators from this project are available.
+                        </FormDescription>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                ) : canReadIndicators ? (
+                  <LockedField
+                    className="lg:col-span-2"
+                    label="Connected indicators"
+                    multiline
+                    value={lockedIndicatorValue || 'None linked'}
+                  />
+                ) : null}
                 <FormField
                   control={form.control}
                   name="journeyStageId"

@@ -56,6 +56,34 @@ describe('project workspace tab access', () => {
     expect(screen.getByRole('tab', { name: 'Indicators' })).toBeTruthy()
   })
 
+  it('matches each tab to the route it opens', () => {
+    // Readers, not managers: indicators.read opens Indicators, evidence.read opens Evidence.
+    access.role = 'Project Officer'
+    access.profile.roles = ['PROJECT_OFFICER']
+    access.profile.permissions = [
+      'projects.read',
+      'projects.detail.read',
+      'activities.read',
+      'activities.create',
+      'evidence.read',
+    ]
+    access.profile.assignedProjectIds = [projectId]
+    render(<ProjectWorkspaceHeader project={project} />)
+    expect(screen.getByRole('tab', { name: 'Evidence' })).toBeTruthy()
+    expect(screen.getByRole('tab', { name: 'Activities' })).toBeTruthy()
+    // activities.create no longer opens Journey Stages; its route needs journeys.manage.
+    expect(screen.queryByRole('tab', { name: 'Journey Stages' })).toBeNull()
+    cleanup()
+
+    access.role = 'Monitoring and Evaluation Officer'
+    access.profile.roles = ['MONITORING_AND_EVALUATION_OFFICER']
+    access.profile.permissions = ['projects.read', 'indicators.read', 'journeys.manage']
+    render(<ProjectWorkspaceHeader project={project} />)
+    expect(screen.getByRole('tab', { name: 'Indicators' })).toBeTruthy()
+    expect(screen.getByRole('tab', { name: 'Journey Stages' })).toBeTruthy()
+    expect(screen.queryByRole('tab', { name: 'Evidence' })).toBeNull()
+  })
+
   it('denies Budget and Indicators for expense-only Project Officer access', () => {
     access.role = 'Project Officer'
     access.profile.roles = ['PROJECT_OFFICER']

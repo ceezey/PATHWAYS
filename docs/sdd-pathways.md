@@ -119,6 +119,9 @@ trusted metrics -> structured rule -> snapshot -> alert -> predefined recommenda
 ### Private pending activity-proof inspection
 The [approved inspection contract](cr-pathways-private-activity-proof-inspection.md) separates scoped advisory context from private transfer: initial human authorization -> bounded private object read outside transactions -> fresh live authorization and committed access audit -> safe attachment admission. It fixes pending/revision/pure-lineage guards, ten-second storage and thirty-second request bounds, 10 MiB size/digest verification and no cache/inline/public URL. Generic old downloads are withdrawn with the reviewed route/UI. Implementation and executable deadline/privacy checks remain pending.
 
+### Activity proof direct upload (reduced scope)
+The [approved change record](cr-pathways-activity-progress-media.md) is implemented on its feature branch with a developer-authorized scope reduction, section 9. Only Submit proof changes: reserve (JSON, one activity update plus one to ten evidence rows, `storage_ready = false`) -> direct signed upload to `pathways-private` per file, outside the API request body -> per-file finalize (stored size, leading-byte signature and streamed SHA-256 against the declaration, `EVIDENCE_MAX_FILE_BYTES`) -> the existing `ACTIVITY_PROOF_FINALIZE` commit once every file is verified. Accepted types are PDF, JPEG, PNG, WebP, MP4, MOV and WebM. Activity-update evidence is typed `PHOTO`, `VIDEO` or `DOCUMENT` from the verified content type (migration `0041_activity_media_evidence`, widening `evidence_media_activity_update_check`); `PROGRESS_PROOF` and `COMPLETION_PROOF` stay valid on existing rows. The inspection bounds in the section above scale to ten proofs and `EVIDENCE_MAX_FILE_BYTES` for this path. Deferred, not built on this branch: files on Record progress, a combined Update-progress dialog, and upload progress bars. Record progress is unchanged.
+
 ## 8. Infrastructure
 
 Current feature work does not implement:
@@ -158,6 +161,20 @@ All roles view scoped projects, with separate tab guards and selections. Admin a
   - Beneficiaries reached (`beneficiaries.aggregates.read` and `analytics.saddd.read`): the distinct-individual total of the Locked [SADDD release](rfc-pathways-saddd-privacy.md), with counts 1-4 suppressed. Before the fixed project period closes it reports `RELEASED_AFTER_PROJECT_CLOSE`. No Beneficiary rows are read. The developer confirmed this SADDD-release-only behavior on 2026-09-28; no live aggregate or migration is planned.
   - Timeline: elapsed share of the inclusive project dates on the business date, clamped to 0-100.
 
+### Project implementing partners (PRD-F1/F2)
+
+The [approved project RBAC UI alignment and structured partners record](cr-pathways-project-rbac-ui-and-partners.md) makes `project_implementing_partners`/`implementing_partners` (migration 0030) the single source of a project's partners, labelled "Implementing partners" in the UI. The legacy `projects.implementing_partners` free-text column is deprecated and read-only: the API no longer writes it, and a write carrying `implementingPartners` is rejected with 400. Migration `0039_project_partner_backfill` moved existing legacy text into structured partner records and links once, idempotently, and left the column in place with `COMMENT ... IS 'Deprecated by migration 0039; read-only legacy text.'` for rollback and historical reference. Existing structured links are never replaced by the backfill or by later writes.
+
 ## Core P1 supporting interfaces
 
 The [core P1 supporting operations](cr-pathways-core-p1-supporting-operations.md) contract defines GET /beneficiaries/projects/:projectId/registration-context under beneficiaries.records.register and POST /imports/projects/:projectId/batches/:batchId/automatic-mapping under imports.upload for the current scoped uploader. Exact output allowlists, bounded definition discovery, revision-bound retries, locked definitions and millisecond transaction attribution are specified there. Supporting SQL remains an uninstalled forward proposal; preserved broad policies are not claimed to become universally narrow. Applied/archive migration history and the single Prisma ledger remain intact.
+
+### Default registration form and minimum age
+
+The [default registration form Change Record](cr-pathways-default-registration-form.md) adds `POST /beneficiaries/projects/:projectId/registration-context/default-form` under `beneficiaries.records.register` with the full protected request path and no Beneficiary step-up. It returns the registration context shape and no Beneficiary data.
+
+- Migration 0040 adds `digital_forms.system_template_key` (only `SYSTEM_DEFAULT_REGISTRATION_V1`, pinned by a check to code `system_default_registration`, version 1, type `BENEFICIARY_REGISTRATION` and a null author), a partial unique index for one tagged form per organization and project, and `pathways.ensure_default_registration_form(uuid)`.
+- The function is SECURITY DEFINER, owned by `prisma` with an empty `search_path`, and executable only by `pathways_runtime`. It derives organization and actor from the verified transaction context, checks `beneficiaries.records.register` with project scope through `p05_has_project_permission` before and after a per-project advisory lock, and returns `PROVISIONED`, `EXISTING` (including an archived template, which is never recreated) or `CODE_IN_USE`. It writes the fixed canonical field set, publishes with the registrar as `published_by_id`, and audits `DEFAULT_REGISTRATION_FORM_PROVISIONED`.
+- `p2_guard_form` keeps the maker-checker rule for every other form. The only exemption is a tagged row published with a null author while running as `prisma`. The runtime role cannot set, change or clear the tag.
+- Registration context offers the template only when no project-authored registration form is eligible. The web calls the endpoint once when context is empty.
+- `parseRegistration` rejects a birth date after the business date and an age below 5 at the enrollment date, for direct and imported rows. Profile edits apply both rules only when the birth date or age changes.

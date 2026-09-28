@@ -94,6 +94,11 @@ export const ActivityDetailContent = ({
     mode: 'validate' | 'decide'
     proof: ActivityProof
   } | null>(null)
+  // A role-level grant alone never shows a per-activity action: the server-computed
+  // capability (update authority, personal assignment, editable state) must agree too.
+  const showEdit = canEdit && activity.capabilities?.canEdit === true
+  const showSubmitProof = canSubmitProof && activity.capabilities?.canSubmitProof === true
+  const showRecordProgress = canRecordProgress && activity.capabilities?.canRecordProgress === true
   const latestProof = activity.submittedProof.at(-1)
   const correctionRequired = latestProof?.status === 'Flagged'
 
@@ -368,13 +373,13 @@ export const ActivityDetailContent = ({
         </section>
       ) : null}
 
-      {correctionRequired && canSubmitProof ? (
+      {correctionRequired && showSubmitProof ? (
         <p className="rounded-sm border border-danger/25 bg-danger-subtle p-3 text-sm text-danger">
           A correction is required. Review the return reason above, then submit a new proof version.
         </p>
       ) : null}
       <div className="sticky bottom-0 -mx-1 grid grid-cols-1 gap-2 border-t border-border bg-card/95 px-1 pb-1 pt-4 backdrop-blur">
-        {canEdit ? (
+        {showEdit ? (
           <Button
             className="gap-2"
             onClick={() => onEdit(activity)}
@@ -385,13 +390,13 @@ export const ActivityDetailContent = ({
             Edit activity
           </Button>
         ) : null}
-        {canSubmitProof && activity.status !== 'Completed' ? (
+        {showSubmitProof && activity.status !== 'Completed' ? (
           <Button className="gap-2" onClick={() => onSubmitProof(activity)} type="button">
             <UploadCloud className="h-4 w-4" aria-hidden="true" />
             Submit Update & Proof
           </Button>
         ) : null}
-        {canRecordProgress && activity.storedStatus === 'IN_PROGRESS' ? (
+        {showRecordProgress && activity.storedStatus === 'IN_PROGRESS' ? (
           <Button
             className="gap-2"
             onClick={() => setProgressOpen(true)}

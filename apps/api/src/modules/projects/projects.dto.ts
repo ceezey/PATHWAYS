@@ -57,10 +57,8 @@ class ProjectFieldsDto {
   @Length(0, 240)
   implementationArea?: string
 
-  @IsOptional()
-  @IsString()
-  @Length(0, 1000)
-  implementingPartners?: string
+  // `implementingPartners` (legacy free text) is not accepted: migration 0039 moved it into
+  // structured partners, and the global whitelist pipe rejects the unknown key with 400.
 
   @IsOptional()
   @IsArray()

@@ -82,6 +82,42 @@ describe('ProjectsController active project contract', () => {
     },
   )
 
+  it.each(['Partner A, Partner B', '', null])(
+    'rejects deprecated free-text implementingPartners %j through the configured ValidationPipe',
+    async (implementingPartners) => {
+      const pipe = new ValidationPipe({
+        whitelist: true,
+        forbidNonWhitelisted: true,
+        transform: true,
+        forbidUnknownValues: false,
+      })
+      for (const metatype of [CreateProjectDto, UpdateProjectDto]) {
+        await expect(
+          pipe.transform(
+            {
+              title: 'Synthetic project',
+              status: 'PLANNED',
+              ...(metatype === UpdateProjectDto
+                ? {
+                    expectedUpdatedAt: '2026-09-24T00:00:00.000Z',
+                    clientMutationId: '10000000-0000-4000-8000-000000000001',
+                  }
+                : {}),
+              implementingPartnerNames: ['Partner A'],
+              implementingPartners,
+            },
+            { type: 'body', metatype },
+          ),
+        ).rejects.toMatchObject({
+          status: 400,
+          response: {
+            message: expect.arrayContaining(['property implementingPartners should not exist']),
+          },
+        })
+      }
+    },
+  )
+
   it('accepts goal-free creation and optimistic updates through the configured ValidationPipe', async () => {
     const pipe = new ValidationPipe({
       whitelist: true,
@@ -130,7 +166,7 @@ describe('ProjectsController active project contract', () => {
       description: 'Description',
       objectives: 'Objectives',
       implementationArea: 'Area',
-      implementingPartners: 'Partner',
+      implementingPartnerNames: ['Partner'],
       sector: 'Livelihood',
       targetBeneficiaries: '250',
       projectBudget: '125000.50',

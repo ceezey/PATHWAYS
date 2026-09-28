@@ -239,6 +239,19 @@ describe('request-scoped server page authority', () => {
   })
 })
 describe('finite route and feature contract', () => {
+  it('filters role-only project tabs by the route each tab opens', () => {
+    const tabs = [
+      { label: 'Indicators', path: 'indicators', route: 'indicators' as const },
+      { label: 'Evidence', path: 'evidence', route: 'evidence' as const },
+      { label: 'Journey stages', path: 'journey-stages', route: 'journey' as const },
+    ]
+    expect(filterWorkspaceTabs(tabs, 'Project Officer').map((tab) => tab.label)).toEqual([
+      'Evidence',
+    ])
+    expect(
+      filterWorkspaceTabs(tabs, 'Monitoring and Evaluation Officer').map((tab) => tab.label),
+    ).toEqual(['Indicators', 'Evidence', 'Journey stages'])
+  })
   it('filters project tabs using current grants, not the display-role ceiling', () => {
     const tabs = [
       { label: 'Activities', path: 'activities' },

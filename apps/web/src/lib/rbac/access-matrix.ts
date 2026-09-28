@@ -56,7 +56,9 @@ export const legacyAtomicPermissions: Record<PermissionCode, readonly AtomicPerm
   'projects.view': ['projects.detail.read'],
   'projects.create': ['projects.create'],
   'activities.view': ['activities.read'],
-  'activities.create_edit': ['activities.create', 'activities.update'],
+  // Create and update are separate: a Project Officer creates but never edits activities.
+  'activities.create': ['activities.create'],
+  'activities.update': ['activities.update'],
   'activities.submit_update_proof': ['activities.proof.submit'],
   'budget.expense.log': ['expenses.submit'],
   'budget.expense.view': ['expenses.read'],

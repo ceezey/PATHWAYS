@@ -20,6 +20,7 @@ const preprovision = {
   '0031_f10_f11_rules_runtime': 'hosted-rules-preprovision.sql',
   '0034_core_feature_completion': 'hosted-core-preprovision.sql',
   '0037_step_up_pin': 'hosted-step-up-pin-preprovision.sql',
+  '0041_activity_media_evidence': 'hosted-activity-media-preprovision.sql',
 }
 // Hosted DBAs revoke the temporary owner-role memberships right after 0031 and 0034.
 // Local runs the same reviewed cleanups at the same points, so later migrations (0037's
@@ -31,6 +32,8 @@ const cleanup = {
     ['-v', 'original_prisma_database_create=true'],
   ],
   '0034_core_feature_completion': ['hosted-core-cleanup.sql', []],
+  // 0041's temporary SET chain to rules_store_owner/rules_enqueue_owner is revoked right after it.
+  '0041_activity_media_evidence': ['hosted-activity-media-cleanup.sql', []],
 }
 
 function run(command, args, { input, env, label } = {}) {

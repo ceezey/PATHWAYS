@@ -4,7 +4,11 @@ import { renderToStaticMarkup } from 'react-dom/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { ProjectIndicatorsWorkspace, indicatorInputFromForm } from './project-indicators-workspace'
 
-const state = vi.hoisted(() => ({ permissions: ['monitoring.read'], data: [] as unknown[] }))
+const state = vi.hoisted(() => ({
+  roles: ['PROJECT_MANAGER'],
+  permissions: ['monitoring.read'],
+  data: [] as unknown[],
+}))
 vi.mock('@/hooks/use-current-role', () => ({
   useCurrentRole: () => ({
     access: 'ready',
@@ -12,7 +16,7 @@ vi.mock('@/hooks/use-current-role', () => ({
       id: '79000000-0000-4000-8000-000000000004',
       organizationId: '79000000-0000-4000-8000-000000000005',
       userId: '79000000-0000-4000-8000-000000000006',
-      roles: ['PROJECT_MANAGER'],
+      roles: state.roles,
       permissions: state.permissions,
       assignedProjectIds: ['79000000-0000-4000-8000-000000000003'],
       aal: 'aal2',
@@ -60,6 +64,7 @@ function form(overrides: Record<string, string> = {}) {
 }
 describe('P06 dedicated indicator workspace', () => {
   beforeEach(() => {
+    state.roles = ['PROJECT_MANAGER']
     state.permissions = ['monitoring.read']
     state.data = []
   })
@@ -115,6 +120,17 @@ describe('P06 dedicated indicator workspace', () => {
     expect(html).toContain('Add project indicator')
     expect(html).toContain('Manual measurement')
     expect(html).not.toContain('Indicator Library')
+  })
+  it('hides creation for a forged grant beyond the role ceiling', () => {
+    // A Project Officer never holds indicators.create; a stray grant cannot show the action.
+    state.roles = ['PROJECT_OFFICER']
+    state.permissions = ['monitoring.read', 'indicators.create', 'indicators.update']
+    const html = renderToStaticMarkup(
+      createElement(ProjectIndicatorsWorkspace, {
+        projectId: '79000000-0000-4000-8000-000000000003',
+      }),
+    )
+    expect(html).not.toContain('Add project indicator')
   })
   it('shows native indicator target and progress without the retired project comparison', () => {
     state.data = [

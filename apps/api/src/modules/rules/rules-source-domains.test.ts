@@ -26,7 +26,11 @@ vi.mock('./rules-source-operation', async (importOriginal) => ({
   finishRuleSourceOperation: boundary.finish,
 }))
 vi.mock('@pathways/config', () => ({
-  readApiEnv: () => ({ BUSINESS_TIME_ZONE: 'Asia/Manila', EVIDENCE_BUCKET: 'private-evidence' }),
+  readApiEnv: () => ({
+    BUSINESS_TIME_ZONE: 'Asia/Manila',
+    EVIDENCE_BUCKET: 'private-evidence',
+    EVIDENCE_MAX_FILE_BYTES: 52_428_800,
+  }),
 }))
 import { ActivitiesService } from '../activities/activities.service'
 import { IndicatorsService } from '../indicators/indicators.service'
@@ -234,14 +238,8 @@ describe('current source handler immutable receipts precede mutable state and so
     expect(boundary.tx.$queryRaw).not.toHaveBeenCalled()
   })
   it('recovers finalized proof before external storage even after activity became terminal', async () => {
-    const file = {
-      buffer: Buffer.from('synthetic-proof'),
-      originalname: 'synthetic.png',
-      mimetype: 'image/png',
-      size: 15,
-    }
-    const hash = createHash('sha256').update(file.buffer).digest('hex')
-    const storage = { uploadPrivateFile: vi.fn(), downloadPrivateFile: vi.fn() }
+    const hash = createHash('sha256').update('synthetic-proof').digest('hex')
+    const storage = { createPrivateUploadUrls: vi.fn(), deleteFile: vi.fn() }
     const service = new ActivitiesService({} as PrismaService, storage as unknown as StorageService)
     boundary.tx = {
       project: { findFirst: vi.fn(async () => ({ id: project, startDate: null, endDate: null })) },
@@ -256,6 +254,7 @@ describe('current source handler immutable receipts precede mutable state and so
           activityId: source,
           progressPercent: 100,
           note: 'Synthetic proof',
+          status: 'APPROVED',
           evidenceMedia_update: [
             {
               id: source,
@@ -263,7 +262,7 @@ describe('current source handler immutable receipts precede mutable state and so
               sha256: hash,
               contentType: 'image/png',
               byteSize: 15n,
-              bucket: 'private',
+              bucket: 'private-evidence',
               objectKey: 'private-key',
               storageReady: true,
             },
@@ -272,57 +271,58 @@ describe('current source handler immutable receipts precede mutable state and so
       },
     }
     expect(
-      await service.submitUpdate(
-        boundary.actor,
-        project,
-        source,
-        { clientUpdateId: request, progressPercent: 100, note: 'Synthetic proof' },
-        [file],
-      ),
-    ).toEqual(acknowledgement)
+      await service.reserveProof(boundary.actor, project, source, {
+        clientUpdateId: request,
+        progressPercent: 100,
+        note: 'Synthetic proof',
+        files: [
+          { fileName: 'synthetic.png', contentType: 'image/png', byteSize: 15, sha256: hash },
+        ],
+      }),
+    ).toEqual({ clientUpdateId: request, status: 'COMMITTED', acknowledgement })
     expect(boundary.ack).toHaveBeenCalled()
     expect(boundary.begin).not.toHaveBeenCalled()
-    expect(storage.uploadPrivateFile).not.toHaveBeenCalled()
-    expect(storage.downloadPrivateFile).not.toHaveBeenCalled()
+    expect(storage.createPrivateUploadUrls).not.toHaveBeenCalled()
   })
-  it('uploads retry bytes to their immutable metadata-matched objects despite changed database row order', async () => {
+  it('finalize retry commits from stored declarations independent of database row order', async () => {
     const reservation = '40000000-0000-4000-8000-000000000004'
-    const files = ['a', 'b'].map((name) => ({
-      buffer: Buffer.from(name),
-      originalname: `${name}.png`,
-      mimetype: 'image/png',
-      size: 1,
-    }))
-    const evidence = files
-      .map((file) => ({
-        id: source,
-        fileName: file.originalname,
-        sha256: createHash('sha256').update(file.buffer).digest('hex'),
-        contentType: file.mimetype,
+    const evidence = ['a', 'b']
+      .map((name, index) => ({
+        id: `5000000${index}-0000-4000-8000-000000000005`,
+        fileName: `${name}.png`,
+        sha256: createHash('sha256').update(name).digest('hex'),
+        contentType: 'image/png',
         byteSize: 1n,
-        bucket: 'private',
-        objectKey: `private/${file.originalname}`,
-        storageReady: false,
+        bucket: 'private-evidence',
+        objectKey: `private/${name}.png`,
+        storageReady: true,
       }))
       .reverse()
-    const storage = { uploadPrivateFile: vi.fn(), downloadPrivateFile: vi.fn() }
+    const storage = { createPrivateUploadUrls: vi.fn(), deleteFile: vi.fn() }
     const service = new ActivitiesService({} as PrismaService, storage as unknown as StorageService)
-    boundary.ack.mockResolvedValueOnce(null)
     boundary.begin.mockResolvedValueOnce({
       kind: 'REPLAY',
       acknowledgement: { ...acknowledgement, requestId: reservation },
     })
     boundary.tx = {
+      $queryRaw: vi.fn(async () => []),
       project: { findFirst: vi.fn(async () => ({ id: project, startDate: null, endDate: null })) },
       projectActivity: {
         findFirst: vi.fn(async () => ({ id: source, projectId: project, status: 'FOR_REVIEW' })),
       },
       projectActivityAssignment: { findFirst: vi.fn(async () => ({ id: source })) },
+      evidenceMedia: {
+        findFirst: vi.fn(async () => ({
+          ...evidence[0],
+          activityUpdate: { status: 'PENDING' },
+        })),
+        updateMany: vi.fn(),
+      },
       activityUpdate: {
         findFirst: vi.fn(async () => ({
           id: reservation,
-          projectId: project,
-          activityId: source,
+          clientUpdateId: request,
+          status: 'PENDING',
           progressPercent: 50,
           note: 'Synthetic proof',
           evidenceMedia_update: evidence,
@@ -330,33 +330,26 @@ describe('current source handler immutable receipts precede mutable state and so
       },
     }
     expect(
-      await service.submitUpdate(
-        boundary.actor,
-        project,
-        source,
-        { clientUpdateId: request, progressPercent: 50, note: 'Synthetic proof' },
-        files,
-      ),
-    ).toEqual(acknowledgement)
-    expect(storage.uploadPrivateFile.mock.calls).toEqual([
-      ['private', 'private/b.png', Buffer.from('b'), 'image/png'],
-      ['private', 'private/a.png', Buffer.from('a'), 'image/png'],
-    ])
+      await service.finalizeProofFile(boundary.actor, project, source, reservation, evidence[0].id),
+    ).toEqual({ status: 'COMMITTED', acknowledgement })
     expect(boundary.begin.mock.calls[0]?.[4]).toEqual({
       kind: 'PROOF_FINALIZE',
       id: reservation,
       phase: 'FINALIZE',
     })
+    expect(
+      (boundary.begin.mock.calls[0]?.[5] as { files: Array<{ fileName: string }> }).files.map(
+        (file) => file.fileName,
+      ),
+    ).toEqual(['a.png', 'b.png'])
+    expect(
+      (boundary.tx.evidenceMedia as { updateMany: ReturnType<typeof vi.fn> }).updateMany,
+    ).not.toHaveBeenCalled()
+    expect(storage.deleteFile).not.toHaveBeenCalled()
   })
   it('rejects altered retry proof MIME/size before any receipt lookup or external storage', async () => {
-    const file = {
-      buffer: Buffer.from('synthetic-proof'),
-      originalname: 'synthetic.png',
-      mimetype: 'image/png',
-      size: 15,
-    }
-    const hash = createHash('sha256').update(file.buffer).digest('hex')
-    const storage = { uploadPrivateFile: vi.fn(), downloadPrivateFile: vi.fn() }
+    const hash = createHash('sha256').update('synthetic-proof').digest('hex')
+    const storage = { createPrivateUploadUrls: vi.fn(), deleteFile: vi.fn() }
     const service = new ActivitiesService({} as PrismaService, storage as unknown as StorageService)
     boundary.tx = {
       project: { findFirst: vi.fn(async () => ({ id: project, startDate: null, endDate: null })) },
@@ -371,6 +364,7 @@ describe('current source handler immutable receipts precede mutable state and so
           activityId: source,
           progressPercent: 50,
           note: 'Synthetic proof',
+          status: 'PENDING',
           evidenceMedia_update: [
             {
               id: source,
@@ -378,7 +372,7 @@ describe('current source handler immutable receipts precede mutable state and so
               sha256: hash,
               contentType: 'image/webp',
               byteSize: 15n,
-              bucket: 'private',
+              bucket: 'private-evidence',
               objectKey: 'private-key',
               storageReady: false,
             },
@@ -387,15 +381,16 @@ describe('current source handler immutable receipts precede mutable state and so
       },
     }
     await expect(
-      service.submitUpdate(
-        boundary.actor,
-        project,
-        source,
-        { clientUpdateId: request, progressPercent: 50, note: 'Synthetic proof' },
-        [file],
-      ),
+      service.reserveProof(boundary.actor, project, source, {
+        clientUpdateId: request,
+        progressPercent: 50,
+        note: 'Synthetic proof',
+        files: [
+          { fileName: 'synthetic.png', contentType: 'image/png', byteSize: 15, sha256: hash },
+        ],
+      }),
     ).rejects.toThrow('different input')
     expect(boundary.ack).not.toHaveBeenCalled()
-    expect(storage.uploadPrivateFile).not.toHaveBeenCalled()
+    expect(storage.createPrivateUploadUrls).not.toHaveBeenCalled()
   })
 })

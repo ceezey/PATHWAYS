@@ -94,6 +94,7 @@ export const activitySummary = (activity: Activity): ActivitySummary => ({
   targetBeneficiaries: activity.targetBeneficiaries,
   progress: activity.progress,
   updatedAt: activity.updatedAt,
+  capabilities: activity.capabilities,
 })
 
 /** `missing` names why no amount is shown: "None yet" only when the viewer could see one. */

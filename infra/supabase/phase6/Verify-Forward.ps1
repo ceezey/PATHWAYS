@@ -1,7 +1,7 @@
 # Called inside the guarded synthetic Replay-Local cluster, after 0028 parity.
 if (-not $MigrationBaseline -or -not $phase6Started -or $phase6Port -ne 55448 -or
     $phase6Database -cne 'pathways_phase4_phase6_replay') { throw 'Forward verification requires owned baseline replay.' }
-$forwardDatabases = @($phase6Database, 'pathways_phase4_baseline', 'pathways_phase4_forward_fault', 'pathways_phase4_forward_restore', 'pathways_phase4_core_fault', 'pathways_phase4_core_retry', 'pathways_phase4_pdf_fault', 'pathways_phase4_pdf_retry', 'pathways_phase4_pin_fault', 'pathways_phase4_pin_retry')
+$forwardDatabases = @($phase6Database, 'pathways_phase4_baseline', 'pathways_phase4_forward_fault', 'pathways_phase4_forward_restore', 'pathways_phase4_core_fault', 'pathways_phase4_core_retry', 'pathways_phase4_pdf_fault', 'pathways_phase4_pdf_retry', 'pathways_phase4_pin_fault', 'pathways_phase4_pin_retry', 'pathways_phase4_import_fault', 'pathways_phase4_import_retry', 'pathways_phase4_partner_fault', 'pathways_phase4_partner_retry', 'pathways_phase4_partner_suite', 'pathways_phase4_drf_fault', 'pathways_phase4_drf_retry', 'pathways_phase4_media_fault', 'pathways_phase4_media_retry')
 $forwardStage = Join-Path $phase6Parent 'forward-migrations'
 New-Item -ItemType Directory -Path $forwardStage | Out-Null
 foreach ($name in @($baselineName,'0027_revised_csv_rbac','0028_revised_aggregate_permission_guards')) {
@@ -22,6 +22,10 @@ $forwardInventory = @(
   '0035_admin_read_access'
   '0036_import_pdf_file_type'
   '0037_step_up_pin'
+  '0038_import_smart_mapping'
+  '0039_project_partner_backfill'
+  '0040_default_registration_form'
+  '0041_activity_media_evidence'
 )
 if (($forwardMigrations.Name -join ',') -cne ($forwardInventory -join ',')) { throw 'Forward migration inventory requires renewed review.' }
 
@@ -70,7 +74,7 @@ BEGIN;
 DO $acl$
 DECLARE source_db record;target_db record;entry record;principal text;
 BEGIN
- IF current_user<>'postgres' OR session_user<>'postgres' OR inet_server_addr() IS DISTINCT FROM '127.0.0.1'::inet OR inet_server_port()<>55448 OR current_database() NOT IN ('pathways_phase4_forward_fault','pathways_phase4_forward_restore','pathways_phase4_core_fault','pathways_phase4_core_retry','pathways_phase4_pdf_fault','pathways_phase4_pdf_retry','pathways_phase4_pin_fault','pathways_phase4_pin_retry') THEN RAISE EXCEPTION 'Only owned restored database ACLs may be reconstructed'; END IF;
+ IF current_user<>'postgres' OR session_user<>'postgres' OR inet_server_addr() IS DISTINCT FROM '127.0.0.1'::inet OR inet_server_port()<>55448 OR current_database() NOT IN ('pathways_phase4_forward_fault','pathways_phase4_forward_restore','pathways_phase4_core_fault','pathways_phase4_core_retry','pathways_phase4_pdf_fault','pathways_phase4_pdf_retry','pathways_phase4_pin_fault','pathways_phase4_pin_retry','pathways_phase4_import_fault','pathways_phase4_import_retry','pathways_phase4_partner_fault','pathways_phase4_partner_retry','pathways_phase4_drf_fault','pathways_phase4_drf_retry','pathways_phase4_media_fault','pathways_phase4_media_retry') THEN RAISE EXCEPTION 'Only owned restored database ACLs may be reconstructed'; END IF;
  SELECT * INTO STRICT source_db FROM pg_catalog.pg_database WHERE datname='pathways_phase4_baseline';
  SELECT * INTO STRICT target_db FROM pg_catalog.pg_database WHERE datname=current_database();
  IF source_db.datdba<>target_db.datdba OR source_db.datdba<>(SELECT oid FROM pg_catalog.pg_roles WHERE rolname='postgres') THEN RAISE EXCEPTION 'Unexpected source/restore database owner'; END IF;
@@ -90,7 +94,15 @@ COMMIT;
   if ((Read-ForwardDatabaseAcl $Database) -cne (Read-ForwardDatabaseAcl 'pathways_phase4_baseline')) { throw 'Restored database ACL differs from source, including default PUBLIC rights.' }
 }
 
-function Invoke-ForwardDeploy([string]$Database, [bool]$Provision = $false, [bool]$ExpectFailure = $false, [bool]$ProvisionCore = $false, [bool]$ProvisionPin = $false) {
+function Invoke-ForwardDeploy {
+  param(
+    [Parameter(Mandatory)][string]$Database,
+    [switch]$Provision,
+    [switch]$ExpectFailure,
+    [switch]$ProvisionCore,
+    [switch]$ProvisionPin,
+    [switch]$ProvisionMedia
+  )
   Assert-ForwardTarget $Database
   $beforeDeployLog = Read-ForwardPostgresLog
   $env:PATHWAYS_PHASE6_REPLAY_MIGRATIONS = $forwardStage
@@ -107,6 +119,10 @@ function Invoke-ForwardDeploy([string]$Database, [bool]$Provision = $false, [boo
     if ($ProvisionPin) {
       # Idempotent DBA prerequisite for 0037; runs in the post-0031/0034-cleanup role state.
       Invoke-LocalSql ([IO.File]::ReadAllText((Join-Path $PSScriptRoot 'forward-step-up-pin-preprovision.sql'))) $Database
+    }
+    if ($ProvisionMedia) {
+      # Idempotent DBA prerequisite for 0041; temporary SET-only chain to the rules owner roles.
+      Invoke-LocalSql ([IO.File]::ReadAllText((Join-Path $PSScriptRoot 'forward-activity-media-preprovision.sql'))) $Database
     }
     # Native failure is expected only for the isolated copied fault migration.
     $savedPreference = $ErrorActionPreference
@@ -136,12 +152,103 @@ function Invoke-ForwardDeploy([string]$Database, [bool]$Provision = $false, [boo
       Assert-ForwardTarget $Database
       Invoke-LocalSql ([IO.File]::ReadAllText((Join-Path $PSScriptRoot 'forward-rules-cleanup.sql'))) $Database
     }
+    if ($ProvisionMedia) {
+      # Run after a successful 0041 deploy and also after a failed/rolled-back attempt.
+      Assert-ForwardTarget $Database
+      Invoke-LocalSql ([IO.File]::ReadAllText((Join-Path $PSScriptRoot 'forward-activity-media-cleanup.sql'))) $Database
+    }
   }
   if (($Provision -or $ProvisionCore) -and -not $ExpectFailure) {
     Assert-ForwardTarget $Database
     Invoke-LocalSql ([IO.File]::ReadAllText((Join-Path $PSScriptRoot 'forward-function-validation.sql'))) $Database
     Write-Output "FORWARD_FUNCTION_COMPILATION_${Database}=PASS"
   }
+}
+function Invoke-ForwardFaultRetryClones {
+  # Shared pre-N dump/clone/restore/ACL/parity/inject/restore-file/marker sequence used by the
+  # 0038-0041 independent fault/retry clone blocks. Each caller supplies only what differs:
+  # the migration, its on-disk path, the message/marker label and the injected fault token.
+  param(
+    [Parameter(Mandatory)][string]$Migration,
+    [Parameter(Mandatory)][string]$MigrationPath,
+    [Parameter(Mandatory)][string]$Label,
+    [Parameter(Mandatory)][string]$Token,
+    [Parameter(Mandatory)][string]$FaultDatabase,
+    [Parameter(Mandatory)][string]$RetryDatabase,
+    [switch]$ProvisionMedia
+  )
+  $snapshot = Join-Path $phase6Parent ('forward-pre' + $Label + '.dump')
+  Assert-ForwardTarget 'pathways_phase4_baseline'
+  & $phase6Tools['pg_dump'] -w -h 127.0.0.1 -p 55448 -U postgres -d pathways_phase4_baseline --format=custom --file=$snapshot
+  if ($LASTEXITCODE -ne 0) { throw "$Label recovery backup failed." }
+  foreach ($db in @($FaultDatabase, $RetryDatabase)) {
+    Invoke-LocalSql "CREATE DATABASE $db;" 'postgres'
+    Assert-ForwardTarget $db
+    & $phase6Tools['pg_restore'] -w -h 127.0.0.1 -p 55448 -U postgres -d $db --exit-on-error $snapshot
+    if ($LASTEXITCODE -ne 0) { throw "$Label recovery restore failed." }
+    Restore-ForwardDatabaseAcl $db
+    if ((Read-ForwardLedger $db) -cne (Read-ForwardLedger 'pathways_phase4_baseline')) { throw "$Label recovery changed original ledger." }
+    Assert-ForwardParity 'pathways_phase4_baseline' $db
+    if ((Read-ForwardData $db) -cne (Read-ForwardData 'pathways_phase4_baseline')) { throw "$Label recovery changed table data." }
+  }
+  # Invoke-ForwardDeploy performs the preprovision/cleanup pair itself when -ProvisionMedia is
+  # set; an extra manual call here would double-grant and trip its own already-granted guard.
+  $beforeLedger = Read-ForwardLedger $FaultDatabase
+  $beforeCatalog = Read-ForwardCatalog $FaultDatabase
+  $beforeData = Read-ForwardData $FaultDatabase
+  $faultPath = Join-Path $forwardStage ($Migration + '/migration.sql')
+  $canonicalSql = [IO.File]::ReadAllText($faultPath)
+  if ($canonicalSql -notmatch '(?s)COMMIT;\s*$') { throw "Unexpected $Label fault injection boundary." }
+  try {
+    $faultSql = [regex]::Replace($canonicalSql, 'COMMIT;\s*$', "DO `$fault`$ BEGIN RAISE EXCEPTION 'PATHWAYS_EXPECTED_${Token}_FORWARD_FAULT'; END `$fault`$;`nCOMMIT;`n")
+    [IO.File]::WriteAllText($faultPath, $faultSql)
+    Invoke-ForwardDeploy -Database $FaultDatabase -ExpectFailure -ProvisionMedia:$ProvisionMedia
+  } finally { Copy-Item -LiteralPath (Join-Path $MigrationPath 'migration.sql') -Destination $faultPath -Force }
+  if ((Read-ForwardLedger $FaultDatabase "migration_name<>'$Migration'") -cne $beforeLedger -or
+      (Read-ForwardCatalog $FaultDatabase) -cne $beforeCatalog -or (Read-ForwardData $FaultDatabase) -cne $beforeData) {
+    throw "Injected $Label failure changed pre$Label ledger, catalog, data or database ACL."
+  }
+  if ($script:forwardFaultLog -notmatch "(?m)^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\.\d{3} \S+ \[\d+\] ERROR:\s+PATHWAYS_EXPECTED_${Token}_FORWARD_FAULT\s*`$") { throw "Exact $Label ERROR marker absent from this invocation interval." }
+  Write-Output "${Token}_FORWARD_INJECTED_TRANSACTION_ROLLBACK=PASS"
+}
+function Invoke-ForwardBoundedNode {
+  # Runs a node concurrency race under a bounded wall-clock timeout so a hang cannot stall the
+  # replay indefinitely. Output is captured (not inherited) so the script's own PASS marker can
+  # still be asserted here, in addition to the exit code.
+  param(
+    [Parameter(Mandatory)][string]$ScriptPath,
+    [Parameter(Mandatory)][string]$ExpectedMarker,
+    [int]$TimeoutMilliseconds = 180000
+  )
+  # Resolve the exact same node executable that `& node ...` would use, rather than letting
+  # .NET's own PATH search pick a possibly different shim/install, and pin the working directory
+  # to the caller's current location, since Process.Start does not otherwise guarantee either.
+  $nodeCommand = Get-Command node -CommandType Application -ErrorAction Stop | Select-Object -First 1
+  $psi = [System.Diagnostics.ProcessStartInfo]::new()
+  $psi.FileName = $nodeCommand.Source
+  $psi.Arguments = '"' + $ScriptPath + '"'
+  $psi.WorkingDirectory = (Get-Location).ProviderPath
+  $psi.UseShellExecute = $false
+  $psi.RedirectStandardOutput = $true
+  $psi.RedirectStandardError = $true
+  $psi.CreateNoWindow = $true
+  $proc = [System.Diagnostics.Process]::new()
+  $proc.StartInfo = $psi
+  $null = $proc.Start()
+  $stdoutTask = $proc.StandardOutput.ReadToEndAsync()
+  $stderrTask = $proc.StandardError.ReadToEndAsync()
+  $exited = $proc.WaitForExit($TimeoutMilliseconds)
+  if (-not $exited) {
+    try { $proc.Kill($true) } catch { try { $proc.Kill() } catch {} }
+    $null = $proc.WaitForExit(10000)
+    throw "Timed out after ${TimeoutMilliseconds}ms waiting for $ScriptPath."
+  }
+  $stdout = $stdoutTask.GetAwaiter().GetResult()
+  $stderr = $stderrTask.GetAwaiter().GetResult()
+  if ($stdout) { Write-Output $stdout }
+  if ($stderr) { Write-Output $stderr }
+  if ($proc.ExitCode -ne 0) { throw "$ScriptPath failed." }
+  if (($stdout + "`n" + $stderr) -notmatch [regex]::Escape($ExpectedMarker)) { throw "$ScriptPath did not emit $ExpectedMarker." }
 }
 function Read-ForwardCatalog([string]$Database) {
   # Extend the established comparison to include the private rules schema.
@@ -241,7 +348,7 @@ try {
       try {
         $faultSql = [regex]::Replace($canonicalSql, 'COMMIT;\s*$', "DO `$fault`$ BEGIN RAISE EXCEPTION 'PATHWAYS_EXPECTED_FORWARD_FAULT'; END `$fault`$;`nCOMMIT;`n")
         [IO.File]::WriteAllText($faultPath, $faultSql)
-        Invoke-ForwardDeploy $faultDb $true $true
+        Invoke-ForwardDeploy -Database $faultDb -Provision -ExpectFailure
       } finally { Copy-Item -LiteralPath (Join-Path $migration.FullName 'migration.sql') -Destination $faultPath -Force }
       if ((Read-ForwardLedger $faultDb "migration_name<>'0031_f10_f11_rules_runtime'") -cne $beforeFaultLedger -or
           (Read-ForwardCatalog $faultDb) -cne $beforeFaultCatalog -or
@@ -276,7 +383,7 @@ try {
       try {
         $coreFaultSql = [regex]::Replace($coreCanonicalSql, 'COMMIT;\s*$', "DO `$fault`$ BEGIN RAISE EXCEPTION 'PATHWAYS_EXPECTED_CORE_FORWARD_FAULT'; END `$fault`$;`nCOMMIT;`n")
         [IO.File]::WriteAllText($coreFaultPath, $coreFaultSql)
-        Invoke-ForwardDeploy $coreFaultDb $false $true $true
+        Invoke-ForwardDeploy -Database $coreFaultDb -ExpectFailure -ProvisionCore
       } finally { Copy-Item -LiteralPath (Join-Path $migration.FullName 'migration.sql') -Destination $coreFaultPath -Force }
       if ((Read-ForwardLedger $coreFaultDb "migration_name<>'0034_core_feature_completion'") -cne $coreBeforeLedger -or
           (Read-ForwardCatalog $coreFaultDb) -cne $coreBeforeCatalog -or (Read-ForwardData $coreFaultDb) -cne $coreBeforeData) {
@@ -316,7 +423,7 @@ try {
       try {
         $pdfFaultSql = [regex]::Replace($pdfCanonicalSql, 'COMMIT;\s*$', "DO `$fault`$ BEGIN RAISE EXCEPTION 'PATHWAYS_EXPECTED_PDF_FORWARD_FAULT'; END `$fault`$;`nCOMMIT;`n")
         [IO.File]::WriteAllText($pdfFaultPath, $pdfFaultSql)
-        Invoke-ForwardDeploy $pdfFaultDb $false $true
+        Invoke-ForwardDeploy -Database $pdfFaultDb -ExpectFailure
       } finally { Copy-Item -LiteralPath (Join-Path $migration.FullName 'migration.sql') -Destination $pdfFaultPath -Force }
       if ((Read-ForwardLedger $pdfFaultDb "migration_name<>'0036_import_pdf_file_type'") -cne $pdfBeforeLedger -or
           (Read-ForwardCatalog $pdfFaultDb) -cne $pdfBeforeCatalog -or (Read-ForwardData $pdfFaultDb) -cne $pdfBeforeData -or
@@ -374,7 +481,7 @@ SELECT NOT EXISTS(SELECT FROM pg_catalog.pg_auth_members m JOIN pg_catalog.pg_ro
       try {
         $pinFaultSql = [regex]::Replace($pinCanonicalSql, 'COMMIT;\s*$', "DO `$fault`$ BEGIN RAISE EXCEPTION 'PATHWAYS_EXPECTED_PIN_FORWARD_FAULT'; END `$fault`$;`nCOMMIT;`n")
         [IO.File]::WriteAllText($pinFaultPath, $pinFaultSql)
-        Invoke-ForwardDeploy $pinFaultDb $false $true $false $true
+        Invoke-ForwardDeploy -Database $pinFaultDb -ExpectFailure -ProvisionPin
       } finally { Copy-Item -LiteralPath (Join-Path $migration.FullName 'migration.sql') -Destination $pinFaultPath -Force }
       if ((Read-ForwardLedger $pinFaultDb "migration_name<>'0037_step_up_pin'") -cne $pinBeforeLedger -or
           (Read-ForwardCatalog $pinFaultDb) -cne $pinBeforeCatalog -or (Read-ForwardData $pinFaultDb) -cne $pinBeforeData -or
@@ -384,30 +491,52 @@ SELECT NOT EXISTS(SELECT FROM pg_catalog.pg_auth_members m JOIN pg_catalog.pg_ro
       if ($script:forwardFaultLog -notmatch '(?m)^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\.\d{3} \S+ \[\d+\] ERROR:\s+PATHWAYS_EXPECTED_PIN_FORWARD_FAULT\s*$') { throw 'Exact step-up PIN ERROR marker absent from this invocation interval.' }
       Write-Output 'PIN_FORWARD_INJECTED_TRANSACTION_ROLLBACK=PASS'
     }
+    if ($migration.Name -ceq '0038_import_smart_mapping') {
+      # cr-pathways-smart-import-mapping: independent pre-0038 fault/retry clones.
+      Invoke-ForwardFaultRetryClones -Migration $migration.Name -MigrationPath $migration.FullName -Label '0038' -Token 'IMPORT' -FaultDatabase 'pathways_phase4_import_fault' -RetryDatabase 'pathways_phase4_import_retry'
+    }
+    if ($migration.Name -ceq '0039_project_partner_backfill') {
+      # cr-pathways-project-rbac-ui-and-partners 3.5: independent pre-0039 fault/retry clones.
+      Invoke-ForwardFaultRetryClones -Migration $migration.Name -MigrationPath $migration.FullName -Label '0039' -Token 'PARTNER' -FaultDatabase 'pathways_phase4_partner_fault' -RetryDatabase 'pathways_phase4_partner_retry'
+    }
+    if ($migration.Name -ceq '0040_default_registration_form') {
+      # cr-pathways-default-registration-form: independent pre-0040 fault/retry clones.
+      Invoke-ForwardFaultRetryClones -Migration $migration.Name -MigrationPath $migration.FullName -Label '0040' -Token 'DRF' -FaultDatabase 'pathways_phase4_drf_fault' -RetryDatabase 'pathways_phase4_drf_retry'
+    }
+    if ($migration.Name -ceq '0041_activity_media_evidence') {
+      # cr-pathways-activity-progress-media: independent pre-0041 fault/retry clones. The DBA
+      # preprovision precedes the rollback snapshots, as it precedes 0041 when hosted.
+      Invoke-ForwardFaultRetryClones -Migration $migration.Name -MigrationPath $migration.FullName -Label '0041' -Token 'MEDIA' -FaultDatabase 'pathways_phase4_media_fault' -RetryDatabase 'pathways_phase4_media_retry' -ProvisionMedia
+    }
     $forwardPin = $migration.Name -ceq '0037_step_up_pin'
-    foreach ($db in $forwardDatabases[0..1]) { Invoke-ForwardDeploy $db ($migration.Name -ceq '0031_f10_f11_rules_runtime') $false ($migration.Name -ceq '0034_core_feature_completion') $forwardPin }
-    if ([int]$migration.Name.Substring(0,4) -ge 31) { Invoke-ForwardDeploy 'pathways_phase4_forward_restore' ($migration.Name -ceq '0031_f10_f11_rules_runtime') $false ($migration.Name -ceq '0034_core_feature_completion') $forwardPin }
-    if ([int]$migration.Name.Substring(0,4) -ge 34) { Invoke-ForwardDeploy 'pathways_phase4_core_retry' $false $false ($migration.Name -ceq '0034_core_feature_completion') $forwardPin }
-    if ([int]$migration.Name.Substring(0,4) -ge 36) { Invoke-ForwardDeploy 'pathways_phase4_pdf_retry' $false $false $false $forwardPin }
-    if ([int]$migration.Name.Substring(0,4) -ge 37) { Invoke-ForwardDeploy 'pathways_phase4_pin_retry' $false $false $false $forwardPin }
+    $forwardMedia = $migration.Name -ceq '0041_activity_media_evidence'
+    foreach ($db in $forwardDatabases[0..1]) { Invoke-ForwardDeploy -Database $db -Provision:($migration.Name -ceq '0031_f10_f11_rules_runtime') -ProvisionCore:($migration.Name -ceq '0034_core_feature_completion') -ProvisionPin:$forwardPin -ProvisionMedia:$forwardMedia }
+    if ([int]$migration.Name.Substring(0,4) -ge 31) { Invoke-ForwardDeploy -Database 'pathways_phase4_forward_restore' -Provision:($migration.Name -ceq '0031_f10_f11_rules_runtime') -ProvisionCore:($migration.Name -ceq '0034_core_feature_completion') -ProvisionPin:$forwardPin -ProvisionMedia:$forwardMedia }
+    if ([int]$migration.Name.Substring(0,4) -ge 34) { Invoke-ForwardDeploy -Database 'pathways_phase4_core_retry' -ProvisionCore:($migration.Name -ceq '0034_core_feature_completion') -ProvisionPin:$forwardPin -ProvisionMedia:$forwardMedia }
+    if ([int]$migration.Name.Substring(0,4) -ge 36) { Invoke-ForwardDeploy -Database 'pathways_phase4_pdf_retry' -ProvisionPin:$forwardPin -ProvisionMedia:$forwardMedia }
+    if ([int]$migration.Name.Substring(0,4) -ge 37) { Invoke-ForwardDeploy -Database 'pathways_phase4_pin_retry' -ProvisionPin:$forwardPin -ProvisionMedia:$forwardMedia }
+    if ([int]$migration.Name.Substring(0,4) -ge 38) { Invoke-ForwardDeploy -Database 'pathways_phase4_import_retry' -ProvisionMedia:$forwardMedia }
+    if ([int]$migration.Name.Substring(0,4) -ge 39) { Invoke-ForwardDeploy -Database 'pathways_phase4_partner_retry' -ProvisionMedia:$forwardMedia }
+    if ([int]$migration.Name.Substring(0,4) -ge 40) { Invoke-ForwardDeploy -Database 'pathways_phase4_drf_retry' -ProvisionMedia:$forwardMedia }
+    if ([int]$migration.Name.Substring(0,4) -ge 41) { Invoke-ForwardDeploy -Database 'pathways_phase4_media_retry' -ProvisionMedia }
   }
   foreach ($db in $forwardDatabases[0..1]) {
     if ((Read-ForwardLedger $db ("migration_name NOT IN ('" + ($forwardInventory -join "','") + "')")) -cne $originalForwardLedgers[$db]) { throw 'Historical ledger rows changed during forward upgrade.' }
     Assert-ForwardChecksums $db
     $beforeRepeat = Read-ForwardLedger $db
-    Invoke-ForwardDeploy $db
+    Invoke-ForwardDeploy -Database $db
     if ((Read-ForwardLedger $db) -cne $beforeRepeat) { throw 'Repeated forward deployment changed ledger.' }
   }
   Assert-ForwardChecksums 'pathways_phase4_core_retry'
   $coreRepeatLedger = Read-ForwardLedger 'pathways_phase4_core_retry'
-  Invoke-ForwardDeploy 'pathways_phase4_core_retry'
+  Invoke-ForwardDeploy -Database 'pathways_phase4_core_retry'
   if ((Read-ForwardLedger 'pathways_phase4_core_retry') -cne $coreRepeatLedger) { throw 'Repeated core recovery deployment changed ledger.' }
   Assert-ForwardParity 'pathways_phase4_baseline' 'pathways_phase4_core_retry'
   Write-Output 'CORE_FORWARD_BACKUP_RESTORE_RECOVERY=PASS'
   Write-Output 'CORE_FORWARD_IDEMPOTENT_DEPLOY=PASS'
   Assert-ForwardChecksums 'pathways_phase4_pin_retry'
   $pinRepeatLedger = Read-ForwardLedger 'pathways_phase4_pin_retry'
-  Invoke-ForwardDeploy 'pathways_phase4_pin_retry' $false $false $false $true
+  Invoke-ForwardDeploy -Database 'pathways_phase4_pin_retry' -ProvisionPin
   if ((Read-ForwardLedger 'pathways_phase4_pin_retry') -cne $pinRepeatLedger) { throw 'Repeated step-up PIN recovery deployment changed ledger.' }
   Assert-ForwardParity 'pathways_phase4_baseline' 'pathways_phase4_pin_retry'
   Write-Output 'PIN_FORWARD_BACKUP_RESTORE_RECOVERY=PASS'
@@ -443,7 +572,7 @@ SELECT (pathways.p09_role_allows('SYSTEM_ADMINISTRATOR','activities.read')
   # target holds exactly the six ordered import_file_type labels under prisma ownership.
   Assert-ForwardChecksums 'pathways_phase4_pdf_retry'
   $pdfRepeatLedger = Read-ForwardLedger 'pathways_phase4_pdf_retry'
-  Invoke-ForwardDeploy 'pathways_phase4_pdf_retry'
+  Invoke-ForwardDeploy -Database 'pathways_phase4_pdf_retry'
   if ((Read-ForwardLedger 'pathways_phase4_pdf_retry') -cne $pdfRepeatLedger) { throw 'Repeated 0036 recovery deployment changed ledger.' }
   Assert-ForwardParity 'pathways_phase4_baseline' 'pathways_phase4_pdf_retry'
   foreach ($db in @($phase6Database, 'pathways_phase4_baseline', 'pathways_phase4_forward_restore', 'pathways_phase4_core_retry', 'pathways_phase4_pdf_retry')) {
@@ -485,13 +614,93 @@ FROM pg_catalog.pg_enum e JOIN pg_catalog.pg_type t ON t.oid=e.enumtypid WHERE t
   try {
     Invoke-LocalSql 'ALTER ROLE pathways_runtime LOGIN;' 'pathways_phase4_pin_retry'
     foreach ($key in $pinRaceEnvironment.Keys) { Set-Item -LiteralPath "Env:$key" -Value $pinRaceEnvironment[$key] }
-    node (Join-Path $phase6Root 'apps/api/prisma/tests/step-up-pin-concurrency.mjs')
-    if ($LASTEXITCODE -ne 0) { throw 'Step-up PIN concurrency test failed.' }
+    Invoke-ForwardBoundedNode -ScriptPath (Join-Path $phase6Root 'apps/api/prisma/tests/step-up-pin-concurrency.mjs') -ExpectedMarker 'STEP_UP_PIN_CONCURRENCY=PASS' -TimeoutMilliseconds 180000
   } finally {
     foreach ($key in $pinRaceEnvironment.Keys) { Remove-Item -LiteralPath "Env:$key" -ErrorAction SilentlyContinue }
     if ($pinRuntimeLogin -cne 't') { Invoke-LocalSql 'ALTER ROLE pathways_runtime NOLOGIN;' 'pathways_phase4_pin_retry' }
   }
   Write-Output 'FORWARD_0037_STEP_UP_PIN_CONCURRENCY=PASS'
+  # cr-pathways-smart-import-mapping (0038): the pre-0038 recovery clone retries cleanly,
+  # redeploys idempotently and matches the upgraded baseline catalog.
+  Assert-ForwardChecksums 'pathways_phase4_import_retry'
+  $importRepeatLedger = Read-ForwardLedger 'pathways_phase4_import_retry'
+  Invoke-ForwardDeploy -Database 'pathways_phase4_import_retry'
+  if ((Read-ForwardLedger 'pathways_phase4_import_retry') -cne $importRepeatLedger) { throw 'Repeated 0038 recovery deployment changed ledger.' }
+  Assert-ForwardParity 'pathways_phase4_baseline' 'pathways_phase4_import_retry'
+  Write-Output 'IMPORT_FORWARD_BACKUP_RESTORE_RECOVERY=PASS'
+  Write-Output 'IMPORT_FORWARD_IDEMPOTENT_DEPLOY=PASS'
+  foreach ($db in @('pathways_phase4_baseline', 'pathways_phase4_import_retry')) {
+    $importSuite = Read-ForwardSql $db ([IO.File]::ReadAllText((Join-Path $phase6Root 'apps/api/prisma/tests/import-smart-mapping-runtime.sql')))
+    if ($importSuite -notmatch 'IMPORT_SMART_MAPPING_RUNTIME=PASS') { throw "Smart mapping runtime suite failed in $db." }
+  }
+  Write-Output 'FORWARD_0038_IMPORT_SMART_MAPPING_RUNTIME=PASS'
+  # cr-pathways-project-rbac-ui-and-partners 3.5 (0039): the pre-0039 recovery clone retries
+  # cleanly and redeploys idempotently. The runtime suite commits synthetic data and re-sources
+  # the migration.sql itself to prove idempotency, so it runs only on a disposable throwaway
+  # clone of the retry database, dropped afterwards; the retry clone's own ledger/catalog stay
+  # untouched by the suite.
+  Assert-ForwardChecksums 'pathways_phase4_partner_retry'
+  $partnerRepeatLedger = Read-ForwardLedger 'pathways_phase4_partner_retry'
+  Invoke-ForwardDeploy -Database 'pathways_phase4_partner_retry'
+  if ((Read-ForwardLedger 'pathways_phase4_partner_retry') -cne $partnerRepeatLedger) { throw 'Repeated 0039 recovery deployment changed ledger.' }
+  Assert-ForwardParity 'pathways_phase4_baseline' 'pathways_phase4_partner_retry'
+  Write-Output 'PARTNER_FORWARD_BACKUP_RESTORE_RECOVERY=PASS'
+  Write-Output 'PARTNER_FORWARD_IDEMPOTENT_DEPLOY=PASS'
+  $partnerSuiteDb = 'pathways_phase4_partner_suite'
+  Invoke-LocalSql "CREATE DATABASE $partnerSuiteDb TEMPLATE pathways_phase4_partner_retry;" 'postgres'
+  try {
+    Assert-ForwardTarget $partnerSuiteDb
+    $partnerSuiteOutput = (& $phase6Tools['psql'] -X -q -w -h 127.0.0.1 -p 55448 -U prisma -d $partnerSuiteDb -v ON_ERROR_STOP=1 -f (Join-Path $phase6Root 'apps/api/prisma/tests/project-partner-backfill-runtime.sql') 2>&1) -join "`n"
+    if ($LASTEXITCODE -ne 0 -or $partnerSuiteOutput -notmatch 'PROJECT_PARTNER_BACKFILL_RUNTIME_ASSERTIONS_PASSED=13') { throw '0039 runtime suite failed.' }
+  } finally {
+    Assert-ForwardTarget 'pathways_phase4_baseline'
+    Invoke-LocalSql "DROP DATABASE $partnerSuiteDb;" 'postgres'
+  }
+  Write-Output 'FORWARD_0039_PROJECT_PARTNER_BACKFILL_RUNTIME=PASS'
+  # cr-pathways-default-registration-form (0040): the pre-0040 recovery clone retries cleanly,
+  # redeploys idempotently, then the behavioral suite (rolled back) and the concurrency race.
+  Assert-ForwardChecksums 'pathways_phase4_drf_retry'
+  $drfRepeatLedger = Read-ForwardLedger 'pathways_phase4_drf_retry'
+  Invoke-ForwardDeploy -Database 'pathways_phase4_drf_retry'
+  if ((Read-ForwardLedger 'pathways_phase4_drf_retry') -cne $drfRepeatLedger) { throw 'Repeated 0040 recovery deployment changed ledger.' }
+  Assert-ForwardParity 'pathways_phase4_baseline' 'pathways_phase4_drf_retry'
+  Write-Output 'DRF_FORWARD_BACKUP_RESTORE_RECOVERY=PASS'
+  Write-Output 'DRF_FORWARD_IDEMPOTENT_DEPLOY=PASS'
+  foreach ($db in @('pathways_phase4_baseline', 'pathways_phase4_drf_retry')) {
+    $drfSuite = Read-ForwardSql $db ([IO.File]::ReadAllText((Join-Path $phase6Root 'apps/api/prisma/tests/default-registration-form-runtime.sql')))
+    if ($drfSuite -notmatch 'DEFAULT_REGISTRATION_FORM_ASSERTIONS_PASSED=12') { throw "Default registration form runtime suite failed in $db." }
+  }
+  Write-Output 'FORWARD_0040_DEFAULT_REGISTRATION_FORM_RUNTIME=PASS'
+  Assert-ForwardTarget 'pathways_phase4_drf_retry'
+  Invoke-LocalSql ([IO.File]::ReadAllText((Join-Path $phase6Root 'apps/api/prisma/tests/default-registration-form-concurrency-fixture.sql'))) 'pathways_phase4_drf_retry'
+  $drfRuntimeLogin = (Read-ForwardSql 'pathways_phase4_drf_retry' "SELECT rolcanlogin FROM pg_catalog.pg_roles WHERE rolname='pathways_runtime';").Trim()
+  $drfRaceEnvironment = @{ PHASE2_RACE_DATABASE = 'pathways_phase4_drf_retry'; PHASE2_LOCAL_PORT = '55448'; PHASE2_RUNTIME_PASSWORD = 'trust-local'; PHASE2_OWNER_PASSWORD = 'trust-local' }
+  try {
+    Invoke-LocalSql 'ALTER ROLE pathways_runtime LOGIN;' 'pathways_phase4_drf_retry'
+    foreach ($key in $drfRaceEnvironment.Keys) { Set-Item -LiteralPath "Env:$key" -Value $drfRaceEnvironment[$key] }
+    Invoke-ForwardBoundedNode -ScriptPath (Join-Path $phase6Root 'apps/api/prisma/tests/default-registration-form-concurrency.mjs') -ExpectedMarker 'DEFAULT_REGISTRATION_FORM_CONCURRENCY=PASS' -TimeoutMilliseconds 180000
+  } finally {
+    foreach ($key in $drfRaceEnvironment.Keys) { Remove-Item -LiteralPath "Env:$key" -ErrorAction SilentlyContinue }
+    if ($drfRuntimeLogin -cne 't') { Invoke-LocalSql 'ALTER ROLE pathways_runtime NOLOGIN;' 'pathways_phase4_drf_retry' }
+  }
+  Write-Output 'FORWARD_0040_DEFAULT_REGISTRATION_FORM_CONCURRENCY=PASS'
+  # cr-pathways-activity-progress-media (0041): the pre-0041 recovery clone retries cleanly and
+  # redeploys idempotently under the same temporary preprovision/cleanup pair used when hosted.
+  Assert-ForwardChecksums 'pathways_phase4_media_retry'
+  $mediaRepeatLedger = Read-ForwardLedger 'pathways_phase4_media_retry'
+  Invoke-ForwardDeploy -Database 'pathways_phase4_media_retry' -ProvisionMedia
+  if ((Read-ForwardLedger 'pathways_phase4_media_retry') -cne $mediaRepeatLedger) { throw 'Repeated 0041 recovery deployment changed ledger.' }
+  Assert-ForwardParity 'pathways_phase4_baseline' 'pathways_phase4_media_retry'
+  Write-Output 'MEDIA_FORWARD_BACKUP_RESTORE_RECOVERY=PASS'
+  Write-Output 'MEDIA_FORWARD_IDEMPOTENT_DEPLOY=PASS'
+  foreach ($db in @('pathways_phase4_baseline', 'pathways_phase4_media_retry')) {
+    # The suite's completion marker is a RAISE NOTICE (stderr), so merge streams rather than
+    # using the stdout-only Read-ForwardSql helper.
+    Assert-ForwardTarget $db
+    $mediaSuite = (& $phase6Tools['psql'] -X -q -w -h 127.0.0.1 -p 55448 -U postgres -d $db -v ON_ERROR_STOP=1 -f (Join-Path $phase6Root 'apps/api/prisma/tests/activity-media-evidence-runtime.sql') 2>&1) -join "`n"
+    if ($LASTEXITCODE -ne 0 -or $mediaSuite -notmatch 'ACTIVITY_MEDIA_EVIDENCE_RUNTIME=PASS') { throw "Activity media evidence runtime suite failed in $db." }
+  }
+  Write-Output 'FORWARD_0041_ACTIVITY_MEDIA_EVIDENCE_RUNTIME=PASS'
 } finally {
   foreach ($key in $forwardPriorEnvironment.Keys) { Set-Item -LiteralPath "Env:$key" -Value $forwardPriorEnvironment[$key] }
 }

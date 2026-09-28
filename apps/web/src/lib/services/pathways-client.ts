@@ -20,9 +20,15 @@ import { webEnv } from '@/lib/env'
 import { getBrowserSupabaseClient } from '@/lib/supabase/client'
 import type {
   Activity,
+  ActivityCapabilities,
+  ActivityProofFinalizeResult,
+  ActivityProofReservation,
+  ActivityProofReservedFile,
+  ActivityProofUploadLimits,
   ActivitySummary,
   AlertRecord,
   AnalyticsLocationRecord,
+  AssignableProjectOfficer,
   AuthorizeExistingUserInput,
   BeneficiaryFilters,
   BeneficiaryJourneyHistory,
@@ -60,6 +66,7 @@ import type {
   RecordActivityProgressInput,
   RegisterBeneficiaryInput,
   ReportRecord,
+  ReserveActivityProofUploadInput,
   RoleDashboardViewModel,
   RuleDefinition,
   SaveDigitalFormInput,
@@ -265,6 +272,11 @@ export interface PathwaysClient {
   ): Promise<Pick<Activity, 'id' | 'title' | 'journeyStageId'>[]>
   getActivities(projectId: string, signal?: AbortSignal): Promise<ActivitySummary[]>
   getActivity(projectId: string, activityId: string, signal?: AbortSignal): Promise<Activity>
+  // Assignable Project Officers (feature/project-rbac-ui-and-partners).
+  getAssignableProjectOfficers(
+    projectId: string,
+    signal?: AbortSignal,
+  ): Promise<AssignableProjectOfficer[]>
   getProjectOverviewMetrics(
     projectId: string,
     signal?: AbortSignal,
@@ -409,6 +421,8 @@ export interface PathwaysClient {
   getReports(projectId?: string): Promise<ReportRecord[]>
   getSurveyForms(projectId?: string): Promise<SurveyFormDefinition[]>
   getBeneficiaryRegistrationContext(projectId: string): Promise<BeneficiaryRegistrationContext>
+  // cr-pathways-default-registration-form: provision the system default registration form.
+  ensureDefaultRegistrationForm(projectId: string): Promise<BeneficiaryRegistrationContext>
   getDigitalForms(projectId: string): Promise<DigitalFormDefinition[]>
   getDigitalForm(projectId: string, formId: string): Promise<DigitalFormDefinition>
   createDigitalForm(projectId: string, input: SaveDigitalFormInput): Promise<DigitalFormDefinition>
@@ -516,6 +530,20 @@ export interface PathwaysClient {
   authorizeExistingUser(input: AuthorizeExistingUserInput): Promise<UserRecord>
   updateAuthorizedUser(id: string, input: UpdateAuthorizedUserInput): Promise<UserRecord>
   getDashboard(role: PathwaysRole): Promise<RoleDashboardViewModel>
+
+  // --- Direct-upload activity proof (cr-pathways-activity-progress-media). New section: do not
+  // reorder or reformat the rest of this interface when editing these members. ---
+  getActivityProofUploadLimits(projectId: string): Promise<ActivityProofUploadLimits>
+  reserveActivityProofUpload(
+    input: ReserveActivityProofUploadInput,
+  ): Promise<ActivityProofReservation>
+  uploadActivityProofFile(uploadUrl: string, file: File): Promise<void>
+  finalizeActivityProofFile(
+    projectId: string,
+    activityId: string,
+    updateId: string,
+    evidenceId: string,
+  ): Promise<ActivityProofFinalizeResult>
 }
 
 const backendNotConfigured = (operation: string) =>
@@ -650,6 +678,20 @@ class BackendReadyPathwaysClient implements PathwaysClient {
     )
   }
 
+  // Assignable Project Officers (feature/project-rbac-ui-and-partners). Replaces GET /users
+  // in the activity editor; the response is exactly userId and displayName, at most 50 rows.
+  async getAssignableProjectOfficers(
+    projectId: string,
+    signal?: AbortSignal,
+  ): Promise<AssignableProjectOfficer[]> {
+    return parseAssignableProjectOfficers(
+      await requestFoundation(
+        `/projects/${encodeURIComponent(projectId)}/activities/assignable-officers`,
+        { signal },
+      ),
+    )
+  }
+
   // Project Overview metrics (feature/project-data-loading).
   async getProjectOverviewMetrics(
     projectId: string,
@@ -774,6 +816,64 @@ class BackendReadyPathwaysClient implements PathwaysClient {
         files: input.files,
       },
     )
+  }
+
+  // --- Direct-upload activity proof (cr-pathways-activity-progress-media). New section: kept
+  // separate from the retired multipart path above; do not reformat surrounding code. ---
+
+  async getActivityProofUploadLimits(projectId: string): Promise<ActivityProofUploadLimits> {
+    return requestFoundation(
+      `/projects/${encodeURIComponent(projectId)}/activities/proof-upload-limits`,
+    ).then(parseActivityProofUploadLimits)
+  }
+
+  async reserveActivityProofUpload(
+    input: ReserveActivityProofUploadInput,
+  ): Promise<ActivityProofReservation> {
+    const path = `/projects/${encodeURIComponent(input.projectId)}/activities/${encodeURIComponent(input.activityId)}/updates/reservations`
+    return requestFoundation(path, {
+      method: 'POST',
+      body: JSON.stringify({
+        clientUpdateId: input.clientUpdateId,
+        progressPercent: input.progressPercent,
+        note: input.note,
+        files: input.files,
+      }),
+    }).then(parseActivityProofReservation)
+  }
+
+  // A raw PUT to the server-issued signed upload URL. This never carries the caller's own API
+  // bearer token or workspace headers: the signed URL's embedded token is the only credential,
+  // scoped to one server-derived object key, and it authorizes a write only, never a read.
+  async uploadActivityProofFile(uploadUrl: string, file: File): Promise<void> {
+    const body = new FormData()
+    body.append('cacheControl', '3600')
+    body.append('', file)
+    const response = await fetch(uploadUrl, {
+      method: 'PUT',
+      body,
+      cache: 'no-store',
+      credentials: 'omit',
+      redirect: 'error',
+      referrerPolicy: 'no-referrer',
+    })
+    if (!response.ok)
+      throw new PathwaysClientError(
+        'The file could not be uploaded. Retry this file.',
+        'network',
+        [],
+        response.status,
+      )
+  }
+
+  async finalizeActivityProofFile(
+    projectId: string,
+    activityId: string,
+    updateId: string,
+    evidenceId: string,
+  ): Promise<ActivityProofFinalizeResult> {
+    const path = `/projects/${encodeURIComponent(projectId)}/activities/${encodeURIComponent(activityId)}/updates/${encodeURIComponent(updateId)}/files/${encodeURIComponent(evidenceId)}/finalize`
+    return requestFoundation(path, { method: 'POST' }).then(parseActivityProofFinalizeResult)
   }
 
   async reviewActivityUpdate(
@@ -1273,6 +1373,21 @@ class BackendReadyPathwaysClient implements PathwaysClient {
     if (!projectId) throw new PathwaysClientError('Project scope is required.', 'invalid')
     const value = await requestFoundation(
       `/beneficiaries/projects/${encodeURIComponent(projectId)}/registration-context`,
+    )
+    try {
+      return parseRegistrationContext(value, projectId)
+    } catch {
+      throw new PathwaysClientError('Invalid registration context response.', 'network')
+    }
+  }
+
+  // cr-pathways-default-registration-form: provisions only the fixed system template for a
+  // project the registrar can already register into, and returns the same blank context shape.
+  async ensureDefaultRegistrationForm(projectId: string): Promise<BeneficiaryRegistrationContext> {
+    if (!projectId) throw new PathwaysClientError('Project scope is required.', 'invalid')
+    const value = await requestFoundation(
+      `/beneficiaries/projects/${encodeURIComponent(projectId)}/registration-context/default-form`,
+      { method: 'POST' },
     )
     try {
       return parseRegistrationContext(value, projectId)
@@ -1897,7 +2012,12 @@ export async function requestFoundationResponse(
   if (!response.ok) {
     let fieldErrors: FormValidationError[] = []
     let serverMessage: string | undefined
-    if (response.status === 400 || response.status === 403 || response.status === 409) {
+    if (
+      response.status === 400 ||
+      response.status === 403 ||
+      response.status === 409 ||
+      response.status === 422
+    ) {
       const body = (await response.json().catch(() => null)) as {
         message?: { errors?: unknown; message?: unknown } | string | unknown[]
         errors?: unknown
@@ -1959,7 +2079,7 @@ export async function requestFoundationResponse(
           ? 'forbidden'
           : response.status === 404
             ? 'not_found'
-            : response.status === 400 || response.status === 409
+            : response.status === 400 || response.status === 409 || response.status === 422
               ? 'invalid'
               : 'network'
     const failure = new PathwaysClientError(
@@ -2170,7 +2290,191 @@ const activityResponseKeys = [
   'submittedProof',
   'updateNotes',
   'updatedAt',
+  'capabilities',
 ] as const satisfies readonly (keyof Activity)[]
+
+// Activity capability flags (feature/project-rbac-ui-and-partners). Advisory only: a response
+// without them shows no Edit, Record progress or Submit proof control.
+const noActivityCapabilities: ActivityCapabilities = {
+  canEdit: false,
+  canRecordProgress: false,
+  canSubmitProof: false,
+}
+
+function parseActivityCapabilities(value: unknown): ActivityCapabilities {
+  if (value === undefined) return noActivityCapabilities
+  const row = value as Partial<Record<keyof ActivityCapabilities, unknown>> | null
+  if (
+    !row ||
+    typeof row !== 'object' ||
+    Object.keys(row).length !== 3 ||
+    typeof row.canEdit !== 'boolean' ||
+    typeof row.canRecordProgress !== 'boolean' ||
+    typeof row.canSubmitProof !== 'boolean'
+  )
+    throw new PathwaysClientError('Invalid activity response.', 'network')
+  return {
+    canEdit: row.canEdit,
+    canRecordProgress: row.canRecordProgress,
+    canSubmitProof: row.canSubmitProof,
+  }
+}
+
+function parseAssignableProjectOfficers(value: unknown): AssignableProjectOfficer[] {
+  if (!Array.isArray(value) || value.length > 50)
+    throw new PathwaysClientError('Invalid officer response.', 'network')
+  return value.map((item) => {
+    const row = item as Partial<Record<keyof AssignableProjectOfficer, unknown>> | null
+    if (
+      !row ||
+      typeof row !== 'object' ||
+      Object.keys(row).length !== 2 ||
+      typeof row.userId !== 'string' ||
+      typeof row.displayName !== 'string'
+    )
+      throw new PathwaysClientError('Invalid officer response.', 'network')
+    return { userId: row.userId, displayName: row.displayName }
+  })
+}
+
+const MAX_ACTIVITY_PROOF_FILES = 10
+
+const isFiniteNonNegative = (value: unknown): value is number =>
+  typeof value === 'number' && Number.isFinite(value) && value >= 0
+
+// The signed upload URL must point at the configured Supabase storage origin. Anything else
+// (a mismatched host, a non-https scheme, an unexpected origin) is treated as a network error
+// rather than followed.
+const isAllowedActivityProofUploadUrl = (value: unknown): value is string | null => {
+  if (value === null) return true
+  if (typeof value !== 'string') return false
+  const configuredSupabaseUrl = (webEnv.NEXT_PUBLIC_SUPABASE_URL ?? '').replace(/\/$/, '')
+  if (!configuredSupabaseUrl) return false
+  let parsed: URL
+  let allowed: URL
+  try {
+    parsed = new URL(value)
+    allowed = new URL(configuredSupabaseUrl)
+  } catch {
+    return false
+  }
+  return parsed.protocol === 'https:' && parsed.origin === allowed.origin
+}
+
+function parseActivityProofUploadLimits(value: unknown): ActivityProofUploadLimits {
+  const row = value as Partial<Record<keyof ActivityProofUploadLimits, unknown>> | null
+  if (
+    !row ||
+    typeof row !== 'object' ||
+    Object.keys(row).length !== 4 ||
+    !isFiniteNonNegative(row.maxFiles) ||
+    !isFiniteNonNegative(row.maxFileBytes) ||
+    !isFiniteNonNegative(row.maxTotalBytes) ||
+    !Array.isArray(row.contentTypes) ||
+    row.contentTypes.length > MAX_ACTIVITY_PROOF_FILES ||
+    row.contentTypes.some((entry) => typeof entry !== 'string')
+  )
+    throw new PathwaysClientError('Invalid activity proof upload limits response.', 'network')
+  return {
+    maxFiles: row.maxFiles,
+    maxFileBytes: row.maxFileBytes,
+    maxTotalBytes: row.maxTotalBytes,
+    contentTypes: row.contentTypes as string[],
+  }
+}
+
+function parseActivityProofReservedFile(value: unknown): ActivityProofReservedFile {
+  const row = value as Partial<Record<keyof ActivityProofReservedFile, unknown>> | null
+  if (
+    !row ||
+    typeof row !== 'object' ||
+    Object.keys(row).length !== 7 ||
+    typeof row.evidenceId !== 'string' ||
+    typeof row.fileName !== 'string' ||
+    typeof row.contentType !== 'string' ||
+    !isFiniteNonNegative(row.byteSize) ||
+    typeof row.sha256 !== 'string' ||
+    typeof row.storageReady !== 'boolean' ||
+    !isAllowedActivityProofUploadUrl(row.uploadUrl)
+  )
+    throw new PathwaysClientError('Invalid activity proof reservation response.', 'network')
+  return {
+    evidenceId: row.evidenceId,
+    fileName: row.fileName,
+    contentType: row.contentType,
+    byteSize: row.byteSize,
+    sha256: row.sha256,
+    storageReady: row.storageReady,
+    uploadUrl: row.uploadUrl,
+  }
+}
+
+function parseActivityProofReservation(value: unknown): ActivityProofReservation {
+  const row = value as Partial<Record<string, unknown>> | null
+  if (!row || typeof row !== 'object' || typeof row.clientUpdateId !== 'string')
+    throw new PathwaysClientError('Invalid activity proof reservation response.', 'network')
+  if (row.status === 'COMMITTED') {
+    if (Object.keys(row).length !== 3 || !('acknowledgement' in row))
+      throw new PathwaysClientError('Invalid activity proof reservation response.', 'network')
+    return {
+      clientUpdateId: row.clientUpdateId,
+      status: 'COMMITTED',
+      acknowledgement: row.acknowledgement,
+    }
+  }
+  if (row.status === 'UPLOADING' || row.status === 'READY_TO_COMMIT') {
+    if (
+      Object.keys(row).length !== 4 ||
+      typeof row.updateId !== 'string' ||
+      !Array.isArray(row.files) ||
+      row.files.length > MAX_ACTIVITY_PROOF_FILES
+    )
+      throw new PathwaysClientError('Invalid activity proof reservation response.', 'network')
+    return {
+      clientUpdateId: row.clientUpdateId,
+      updateId: row.updateId,
+      status: row.status,
+      files: row.files.map(parseActivityProofReservedFile),
+    }
+  }
+  throw new PathwaysClientError('Invalid activity proof reservation response.', 'network')
+}
+
+function parseActivityProofFinalizeResult(value: unknown): ActivityProofFinalizeResult {
+  const row = value as Partial<Record<string, unknown>> | null
+  if (!row || typeof row !== 'object')
+    throw new PathwaysClientError('Invalid activity proof finalize response.', 'network')
+  if (row.status === 'COMMITTED') {
+    if (Object.keys(row).length !== 2)
+      throw new PathwaysClientError('Invalid activity proof finalize response.', 'network')
+    if ('acknowledgement' in row) {
+      return { status: 'COMMITTED', acknowledgement: row.acknowledgement }
+    }
+    if ('activity' in row) {
+      const activityRow = row.activity as Partial<Record<string, unknown>> | null
+      if (
+        !activityRow ||
+        typeof activityRow !== 'object' ||
+        !('sourceAcknowledgement' in activityRow)
+      )
+        throw new PathwaysClientError('Invalid activity proof finalize response.', 'network')
+      const { sourceAcknowledgement, ...activityFields } = activityRow
+      const activity = parseActivity(activityFields)
+      return { status: 'COMMITTED', activity: { ...activity, sourceAcknowledgement } }
+    }
+    throw new PathwaysClientError('Invalid activity proof finalize response.', 'network')
+  }
+  if (row.status === 'UPLOADING') {
+    if (
+      Object.keys(row).length !== 3 ||
+      typeof row.updateId !== 'string' ||
+      !isFiniteNonNegative(row.remaining)
+    )
+      throw new PathwaysClientError('Invalid activity proof finalize response.', 'network')
+    return { status: 'UPLOADING', updateId: row.updateId, remaining: row.remaining }
+  }
+  throw new PathwaysClientError('Invalid activity proof finalize response.', 'network')
+}
 
 function parseActivity(value: unknown): Activity {
   const row = value as Partial<Activity> & {
@@ -2224,6 +2528,7 @@ function parseActivity(value: unknown): Activity {
     budgetAllocation,
     budgetLogged,
     budgetLoggedEntries,
+    capabilities: parseActivityCapabilities(row.capabilities),
   }
 }
 
@@ -2248,6 +2553,7 @@ const activitySummaryKeys = [
   'targetBeneficiaries',
   'progress',
   'updatedAt',
+  'capabilities',
 ] as const satisfies readonly (keyof ActivitySummary)[]
 
 const presentedActivityStatuses = new Set<string>([
@@ -2292,9 +2598,12 @@ function parseActivitySummary(value: unknown): ActivitySummary {
   ) {
     throw new PathwaysClientError('Invalid activity response.', 'network')
   }
-  return Object.fromEntries(
-    activitySummaryKeys.map((key) => [key, row[key]]),
-  ) as unknown as ActivitySummary
+  return {
+    ...(Object.fromEntries(
+      activitySummaryKeys.map((key) => [key, row[key]]),
+    ) as unknown as ActivitySummary),
+    capabilities: parseActivityCapabilities(row.capabilities),
+  }
 }
 
 function parseActivitySummaries(value: unknown): ActivitySummary[] {

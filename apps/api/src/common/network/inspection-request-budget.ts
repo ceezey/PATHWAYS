@@ -40,8 +40,11 @@ export function inspectionBudgetMiddleware(prefix: string) {
       ((route.length === 7 && route[6] === 'inspection-context') ||
         (route.length === 9 && route[6] === 'proof' && route[8] === 'inspection'))
     if (!matched) return next()
+    // Context stays at 30 s. A proof transfer verifies, audits and then streams an object of up
+    // to EVIDENCE_MAX_FILE_BYTES, so it gets the 90 s ceiling (cr-pathways-activity-progress-media).
+    const ceiling = route.length === 9 ? 90_000 : 30_000
     const controller = new AbortController()
-    const deadline = performance.now() + 30_000
+    const deadline = performance.now() + ceiling
     const budget: InspectionRequestBudget = Object.freeze({
       signal: controller.signal,
       deadline,
@@ -59,7 +62,7 @@ export function inspectionBudgetMiddleware(prefix: string) {
       if (!response.writableFinished) stop()
       cleanup()
     }
-    const timer = setTimeout(stop, 30_000)
+    const timer = setTimeout(stop, ceiling)
     timer.unref()
     const cleanup = () => {
       clearTimeout(timer)
