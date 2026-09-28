@@ -1,10 +1,11 @@
 'use client'
 
-import { ShieldCheck } from 'lucide-react'
+import { PanelLeftClose, PanelLeftOpen, ShieldCheck } from 'lucide-react'
 import { usePathname } from 'next/navigation'
 
 import { SidebarNavItem } from '@/components/layout/sidebar-nav-item'
 import { BrandMark } from '@/components/pathways'
+import { Button } from '@/components/ui/button'
 import { createDashboardNavGroups } from '@/constants/navigation'
 import { useCurrentRole } from '@/hooks/use-current-role'
 import { useSession } from '@/hooks/use-session'
@@ -16,9 +17,11 @@ import { getPathwaysRoleDisplayName } from '@/types/pathways-role'
 export const Sidebar = ({
   compact = false,
   onNavigate,
+  onToggle,
 }: {
   compact?: boolean
   onNavigate?: () => void
+  onToggle?: () => void
 }) => {
   const pathname = usePathname()
   const { email } = useSession()
@@ -45,18 +48,38 @@ export const Sidebar = ({
       )}
     >
       <div className={cn('border-b border-white/10 p-5', compact && 'px-3')}>
-        <div className={cn('flex items-center gap-3', compact && 'justify-center')}>
-          <BrandMark className="h-11 w-11 brightness-0 invert" priority />
+        <div className={cn('flex items-center justify-between gap-3', compact && 'justify-center')}>
           {!compact ? (
-            <div className="min-w-0">
-              <p className="truncate font-heading text-xl font-normal tracking-normal">PATHWAYS</p>
-              <p className="mt-1 text-[13px] leading-5 text-navy-muted">
-                Project Information Management
-              </p>
+            <div className="flex min-w-0 items-center gap-3">
+              <BrandMark className="h-11 w-11 brightness-0 invert" priority />
+              <div className="min-w-0">
+                <p className="truncate font-heading text-xl font-normal tracking-normal">
+                  PATHWAYS
+                </p>
+                <p className="mt-1 text-[13px] leading-5 text-navy-muted">
+                  Project Information Management
+                </p>
+              </div>
             </div>
           ) : (
             <span className="sr-only">PATHWAYS Project Information Management</span>
           )}
+          {onToggle ? (
+            <Button
+              aria-label={compact ? 'Expand sidebar' : 'Collapse sidebar'}
+              className="shrink-0 text-navy-foreground hover:bg-white/10 hover:text-navy-foreground focus-visible:ring-white focus-visible:ring-offset-navy"
+              onClick={onToggle}
+              size="icon"
+              title={compact ? 'Expand sidebar' : 'Collapse sidebar'}
+              variant="ghost"
+            >
+              {compact ? (
+                <PanelLeftOpen className="h-4 w-4" aria-hidden="true" />
+              ) : (
+                <PanelLeftClose className="h-4 w-4" aria-hidden="true" />
+              )}
+            </Button>
+          ) : null}
         </div>
       </div>
       <nav className={cn('flex-1 space-y-5 p-4', compact && 'px-3')} aria-label="Dashboard">
