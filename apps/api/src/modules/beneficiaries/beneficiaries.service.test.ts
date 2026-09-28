@@ -393,6 +393,123 @@ describe('P04 beneficiary registration service', () => {
     expect(tx.beneficiary.createMany).not.toHaveBeenCalled()
   })
 
+  describe('minimum age and future birth date (cr-pathways-default-registration-form)', () => {
+    // A calendar date safely after the business date in any time zone.
+    const future = new Date(Date.now() + 3 * 86_400_000).toISOString().slice(0, 10)
+    const minor = (patch: Record<string, unknown>) =>
+      values({ is_minor: true, guardian_consent_recorded: true, ...patch })
+
+    it.each([
+      [
+        'birth date one day short of age 5',
+        minor({ birth_date: '2021-01-02', age_at_registration: null }),
+      ],
+      ['supplied age 4 without a birth date', minor({ birth_date: null, age_at_registration: 4 })],
+      ['supplied age 0 without a birth date', minor({ birth_date: null, age_at_registration: 0 })],
+    ])('rejects %s with the exact message and no writes', async (_label, input) => {
+      await expect(promote(input)).rejects.toMatchObject({
+        status: 400,
+        message: 'Beneficiary must be at least 5 years old.',
+      })
+      expect(tx.beneficiary.createMany).not.toHaveBeenCalled()
+      expect(tx.formSubmission.create).not.toHaveBeenCalled()
+    })
+
+    it.each([
+      [
+        'birth date exactly 5 years before enrollment',
+        { birth_date: '2021-01-01', age_at_registration: 5 },
+      ],
+      ['supplied age 5 without a birth date', { birth_date: null, age_at_registration: 5 }],
+    ])('accepts %s', async (_label, patch) => {
+      await expect(promote(minor(patch))).resolves.toMatchObject({ kind: 'PROCESSED' })
+      expect(tx.beneficiary.createMany).toHaveBeenCalledWith({
+        data: expect.objectContaining({ ageAtRegistration: 5 }),
+      })
+    })
+
+    it('rejects a future birth date with the exact message before the enrollment comparison', async () => {
+      await expect(
+        promote(values({ birth_date: future, age_at_registration: null })),
+      ).rejects.toMatchObject({ status: 400, message: 'Date of birth cannot be in the future.' })
+      expect(tx.beneficiary.createMany).not.toHaveBeenCalled()
+    })
+
+    it('rejects an under-age imported row through the same parser, preloaded form included', async () => {
+      const preloaded = {
+        form: { id: formId, version: 1, status: 'PUBLISHED' as const, formField_form: fields },
+      }
+      await expect(
+        service.promoteRegistration(
+          tx as never,
+          actor,
+          {
+            projectId,
+            formId,
+            clientRegistrationId: registrationId,
+            values: minor({ birth_date: '2022-06-01', age_at_registration: null }),
+            source: 'IMPORTED_DATASET',
+            validatedById: actorId,
+            importBatchId: 'a0000000-0000-4000-8000-000000000001',
+            importRowId: registrationId,
+          },
+          preloaded as never,
+        ),
+      ).rejects.toMatchObject({ status: 400, message: 'Beneficiary must be at least 5 years old.' })
+      await expect(
+        promote(values({ birth_date: future, age_at_registration: null }), 'IMPORTED_DATASET'),
+      ).rejects.toMatchObject({ status: 400, message: 'Date of birth cannot be in the future.' })
+      expect(tx.beneficiary.createMany).not.toHaveBeenCalled()
+      expect(tx.formSubmission.create).not.toHaveBeenCalled()
+    })
+
+    describe('profile edits', () => {
+      type SubjectProfileCheck = (input: Record<string, unknown>, current: unknown) => void
+      const check = (input: Record<string, unknown>) =>
+        (service as unknown as { assertSubjectProfile: SubjectProfileCheck }).assertSubjectProfile(
+          {
+            subjectType: 'INDIVIDUAL',
+            firstName: 'Synthetic',
+            lastName: 'Legacy',
+            sex: 'NOT_SPECIFIED',
+            disabilityStatus: 'NOT_SPECIFIED',
+            expectedUpdatedAt: '2026-02-01T00:00:00.000Z',
+            ...input,
+          },
+          {
+            birthDate: new Date('2023-01-01T00:00:00.000Z'),
+            ageAtRegistration: 3,
+            isMinor: true,
+            beneficiaryProjectEnrollment_beneficiary: [
+              { enrollmentDate: new Date('2026-01-01T00:00:00.000Z') },
+            ],
+          },
+        )
+
+      it('keeps a legacy under-5 record editable when birth date and age are unchanged', () => {
+        expect(() => check({ birthDate: '2023-01-01', ageAtRegistration: 3 })).not.toThrow()
+        expect(() => check({ birthDate: '2023-01-01' })).not.toThrow()
+      })
+
+      it('applies the minimum age when the birth date or age changes', () => {
+        expect(() => check({ birthDate: '2022-01-01', ageAtRegistration: 4 })).toThrow(
+          'Beneficiary must be at least 5 years old.',
+        )
+        expect(() => check({ birthDate: '2022-01-01' })).toThrow(
+          'Beneficiary must be at least 5 years old.',
+        )
+        expect(() => check({ birthDate: undefined, ageAtRegistration: 4 })).toThrow(
+          'Beneficiary must be at least 5 years old.',
+        )
+        expect(() => check({ birthDate: '2021-01-01', ageAtRegistration: 5 })).not.toThrow()
+      })
+
+      it('rejects a changed future birth date with the exact message', () => {
+        expect(() => check({ birthDate: future })).toThrow('Date of birth cannot be in the future.')
+      })
+    })
+  })
+
   it('returns review without disclosing a record for ambiguous exact identifiers', async () => {
     tx.beneficiary.findUnique.mockResolvedValue({ id: beneficiaryId })
     tx.beneficiaryIdentifier.findUnique.mockResolvedValue({

@@ -1,7 +1,14 @@
 'use client'
 
 import { FormDefinitionEntryField } from '@/features/collection/form-definition-entry-field'
-import { beneficiaryRegistrationFieldRules, validateAndNormalizeFormData } from '@pathways/shared'
+import {
+  beneficiaryAgeRuleMessages,
+  beneficiaryRegistrationFieldRules,
+  businessCalendarDate,
+  completedYearsAt,
+  minimumBeneficiaryAge,
+  validateAndNormalizeFormData,
+} from '@pathways/shared'
 import { ArrowLeft, Save } from 'lucide-react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
@@ -43,31 +50,44 @@ import type {
   ProjectSummary,
 } from '@/types/pathways'
 
+const calendarDay = (value: string | null) => {
+  if (!value) return null
+  const day = new Date(`${value}T00:00:00.000Z`)
+  return Number.isFinite(day.valueOf()) && day.toISOString().slice(0, 10) === value ? day : null
+}
+
+export type RegistrationAge = { age: number | null; error: string | null }
+
+/**
+ * Age in completed years at the reference date (the enrollment date; for a new registration the
+ * server business date). A birth date after maxBirthDate (the business date) is reported as an
+ * error instead of a silent null, as is an age below the minimum.
+ */
 export function registrationAgeAtDate(
   birthDate: string,
   age: string,
-  businessDate: string | null,
-): number | null {
-  if (birthDate && businessDate) {
-    const born = new Date(`${birthDate}T00:00:00.000Z`)
-    const today = new Date(`${businessDate}T00:00:00.000Z`)
-    if (
-      !Number.isFinite(born.valueOf()) ||
-      !Number.isFinite(today.valueOf()) ||
-      born.toISOString().slice(0, 10) !== birthDate ||
-      today.toISOString().slice(0, 10) !== businessDate ||
-      born > today
-    )
-      return null
-    const birthdayPending =
-      today.getUTCMonth() < born.getUTCMonth() ||
-      (today.getUTCMonth() === born.getUTCMonth() && today.getUTCDate() < born.getUTCDate())
-    const result = today.getUTCFullYear() - born.getUTCFullYear() - Number(birthdayPending)
-    return result >= 0 && result <= 130 ? result : null
+  referenceDate: string | null,
+  maxBirthDate: string | null = referenceDate,
+): RegistrationAge {
+  const belowMinimum = (value: number): RegistrationAge => ({
+    age: value,
+    error: value < minimumBeneficiaryAge ? beneficiaryAgeRuleMessages.belowMinimumAge : null,
+  })
+  if (birthDate) {
+    const born = calendarDay(birthDate)
+    const latest = calendarDay(maxBirthDate)
+    if (born && latest && born > latest)
+      return { age: null, error: beneficiaryAgeRuleMessages.futureBirthDate }
+    const reference = calendarDay(referenceDate)
+    if (!born || !reference || born > reference) return { age: null, error: null }
+    const result = completedYearsAt(born, reference)
+    return result <= 130 ? belowMinimum(result) : { age: null, error: null }
   }
-  if (!age.trim()) return null
+  if (!age.trim()) return { age: null, error: null }
   const result = Number(age)
-  return Number.isInteger(result) && result >= 0 && result <= 130 ? result : null
+  return Number.isInteger(result) && result >= 0 && result <= 130
+    ? belowMinimum(result)
+    : { age: null, error: null }
 }
 
 export function projectRegistrationValues(
@@ -296,6 +316,13 @@ const ScopedBeneficiaryForm = ({
     setContextState('loading')
     void pathwaysClient
       .getBeneficiaryRegistrationContext(selectedProjectId)
+      // Without an eligible published form, provision the fixed system default form once; the
+      // server rechecks registration scope and returns the refreshed blank context.
+      .then((context) =>
+        context.definitions.length === 0 && active && scope.isCurrent()
+          ? pathwaysClient.ensureDefaultRegistrationForm(selectedProjectId)
+          : context,
+      )
       .then((context) => {
         if (!active || !scope.isCurrent()) return
         setRegistrationContext(context)
@@ -405,11 +432,34 @@ const ScopedBeneficiaryForm = ({
   )
   const acceptedBirthDate = beneficiary || acceptsBirthDate ? draft.birthDate : ''
   const acceptedAge = beneficiary || acceptsAge ? draft.age : ''
-  const registrationAge = registrationAgeAtDate(
+  // A new registration is enrolled on the server business date; an edit keeps its enrollment date.
+  const maxBirthDate = beneficiary
+    ? businessCalendarDate(new Date(), 'Asia/Manila')
+    : (registrationContext?.businessDate ?? null)
+  const ageReferenceDate = beneficiary
+    ? (beneficiary.enrollments.find((enrollment) => enrollment.projectId === draft.projectId)
+        ?.enrolledAt ?? null)
+    : (registrationContext?.businessDate ?? null)
+  const ageAssessment = registrationAgeAtDate(
     acceptedBirthDate,
     acceptedAge,
-    registrationContext?.businessDate ?? null,
+    ageReferenceDate,
+    maxBirthDate,
   )
+  const registrationAge = ageAssessment.age
+  const ageFromBirthDate = Boolean(acceptedBirthDate)
+  const submittedAge = ageFromBirthDate
+    ? registrationAge
+    : acceptedAge.trim()
+      ? Number(acceptedAge)
+      : null
+  // Edits of existing records apply the age rules only when the birth date or age changes.
+  const ageRuleApplies =
+    !beneficiary ||
+    draft.birthDate !== (beneficiary.birthDate ?? '') ||
+    submittedAge !== (beneficiary.age ?? null)
+  const ageRuleMessage = ageRuleApplies ? ageAssessment.error : null
+  const ageRuleField: BeneficiaryFieldKey = ageFromBirthDate ? 'birthDate' : 'age'
   const registrationIsMinor = registrationAge === null ? null : registrationAge < 18
   const validationIssues = useMemo(() => {
     const issues: ValidationIssue[] = []
@@ -435,6 +485,7 @@ const ScopedBeneficiaryForm = ({
         message: 'Enter the birth date or age accepted by the selected form.',
       })
     }
+    if (ageRuleMessage) issues.push({ field: ageRuleField, message: ageRuleMessage })
     if (
       !['With disability', 'Without disability', 'Not specified'].includes(draft.disabilityStatus)
     ) {
@@ -469,7 +520,16 @@ const ScopedBeneficiaryForm = ({
     }
 
     return issues
-  }, [beneficiary, draft, acceptedBirthDate, acceptedAge, acceptsBirthDate, registrationIsMinor])
+  }, [
+    beneficiary,
+    draft,
+    acceptedBirthDate,
+    acceptedAge,
+    acceptsBirthDate,
+    registrationIsMinor,
+    ageRuleMessage,
+    ageRuleField,
+  ])
 
   const fieldErrors = useMemo(
     () =>
@@ -487,9 +547,14 @@ const ScopedBeneficiaryForm = ({
     setDraft((current) => ({ ...current, [key]: value }))
   }
 
+  // Required-field errors appear after a save attempt; an age-rule error appears as soon as the
+  // entered birth date or age breaks the rule.
+  const visibleError = (field: BeneficiaryFieldKey) =>
+    submitted || (ageRuleMessage && ageRuleField === field) ? fieldErrors[field] : undefined
+
   const controlA11y = (field: BeneficiaryFieldKey) => ({
-    'aria-describedby': submitted && fieldErrors[field] ? `${fieldIds[field]}-error` : undefined,
-    'aria-invalid': submitted && Boolean(fieldErrors[field]),
+    'aria-describedby': visibleError(field) ? `${fieldIds[field]}-error` : undefined,
+    'aria-invalid': Boolean(visibleError(field)),
     id: fieldIds[field],
   })
 
@@ -511,7 +576,7 @@ const ScopedBeneficiaryForm = ({
       last_name: draft.lastName.trim(),
       sex: supportsCode('sex') ? beneficiarySexValue(draft.sex) : null,
       birth_date: draft.birthDate || null,
-      age_at_registration: draft.age ? Number(draft.age) : null,
+      age_at_registration: submittedAge,
       disability_status: supportsCode('disability_status')
         ? beneficiaryDisabilityValue(draft.disabilityStatus)
         : null,
@@ -611,7 +676,7 @@ const ScopedBeneficiaryForm = ({
           lastName: draft.lastName.trim(),
           sex: beneficiarySexValue(draft.sex),
           birthDate: draft.birthDate || undefined,
-          ageAtRegistration: draft.age ? Number(draft.age) : undefined,
+          ageAtRegistration: submittedAge ?? undefined,
           disabilityStatus: beneficiaryDisabilityValue(draft.disabilityStatus),
           locationBarangay: draft.barangay.trim(),
           locationCityMunicipality: draft.city.trim(),
@@ -718,7 +783,10 @@ const ScopedBeneficiaryForm = ({
                 </div>
               ) : null}
               {contextState === 'ready' && registrationContext?.definitions.length === 0 ? (
-                <output>No published registration form is available for this project.</output>
+                <p role="alert">
+                  Registration is unavailable for this project because its registration form was
+                  archived. Ask a form manager to publish a registration form.
+                </p>
               ) : null}
               {contextState === 'ready' &&
               registrationContext &&
@@ -893,20 +961,21 @@ const ScopedBeneficiaryForm = ({
               </Select>
             </Field>
             <Field
-              error={submitted ? fieldErrors.birthDate : undefined}
+              error={visibleError('birthDate')}
               hidden={!supportsProfileField('birthDate')}
               htmlFor={fieldIds.birthDate}
               label="Birth date"
             >
               <Input
                 {...controlA11y('birthDate')}
+                max={maxBirthDate ?? undefined}
                 type="date"
                 value={draft.birthDate}
                 onChange={(event) => updateDraft('birthDate', event.target.value)}
               />
             </Field>
             <Field
-              error={submitted ? fieldErrors.age : undefined}
+              error={visibleError('age')}
               errorId={`${fieldIds.age}-error`}
               hidden={!supportsProfileField('age')}
               htmlFor={fieldIds.age}
@@ -914,16 +983,31 @@ const ScopedBeneficiaryForm = ({
             >
               <Input
                 aria-describedby={
-                  submitted && fieldErrors.age ? `${fieldIds.age}-error` : undefined
+                  [
+                    ageFromBirthDate ? `${fieldIds.age}-hint` : '',
+                    visibleError('age') ? `${fieldIds.age}-error` : '',
+                  ]
+                    .filter(Boolean)
+                    .join(' ') || undefined
                 }
-                aria-invalid={submitted && Boolean(fieldErrors.age)}
+                aria-invalid={Boolean(visibleError('age'))}
                 id={fieldIds.age}
-                min="0"
+                max="130"
+                min={minimumBeneficiaryAge}
+                readOnly={ageFromBirthDate}
                 type="number"
-                value={draft.age}
+                value={ageFromBirthDate ? (registrationAge?.toString() ?? '') : draft.age}
                 onChange={(event) => updateDraft('age', event.target.value)}
               />
+              {ageFromBirthDate ? (
+                <p className="text-xs text-muted-foreground" id={`${fieldIds.age}-hint`}>
+                  Calculated from the birth date.
+                </p>
+              ) : null}
             </Field>
+            <p aria-atomic="true" aria-live="polite" className="sr-only">
+              {ageRuleMessage ?? ''}
+            </p>
             <Field
               error={submitted ? fieldErrors.disabilityStatus : undefined}
               hidden={!supportsProfileField('disabilityStatus')}

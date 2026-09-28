@@ -214,6 +214,23 @@ Coverage for the [import throughput and PDF](cr-pathways-import-throughput-and-p
 | QAD-IMP-12 | Abuse | a PDF carrying scripts, attachments, forms or links is read for text only; formula-like cells are rejected |
 | QAD-IMP-13 | Abuse | Project Officer, Project Manager, Program Manager and Grant Manager cannot export form definitions |
 
+## Default registration form and minimum age (PRD-F3)
+
+Covers the [default registration form Change Record](cr-pathways-default-registration-form.md). SQL checks run in `default-registration-form-runtime.sql` with the prisma owner-role memberships revoked, and `default-registration-form-concurrency.mjs`.
+
+| ID | Kind | Scenario |
+|---|---|---|
+| QAD-DRF-01 | Happy | a Project Officer, M&E Officer or Project Manager on a project with no published registration form provisions one system form with exactly the canonical field set; a second call returns the same form |
+| QAD-DRF-02 | Happy | registration through the system form writes the same profile, enrollment, submission, response and consent rows as a project form |
+| QAD-DRF-03 | Happy | a project with its own published registration form is offered that form, not the system form |
+| QAD-DRF-04 | Happy | age 5 at the enrollment date is accepted; the web derives a read-only age from the birth date and caps the birth date at the business date |
+| QAD-DRF-05 | Sad | age 4, a supplied age below 5 and a future birth date are rejected on create, import and changed-profile edit with "Beneficiary must be at least 5 years old." or "Date of birth cannot be in the future." |
+| QAD-DRF-06 | Sad | an edit of an existing under-5 record that keeps its birth date and age is accepted |
+| QAD-DRF-07 | Sad | an archived system form is not recreated and the web shows an unavailable state without retrying |
+| QAD-DRF-08 | Abuse | parallel first calls create exactly one system form, one field set and one audit row |
+| QAD-DRF-09 | Abuse | System Administrator, Program Manager, Grant Manager, an unassigned registrar, a foreign-organization caller and a forged or mismatched context are denied before any write |
+| QAD-DRF-10 | Abuse | the runtime role and a superuser cannot tag a form; a normal form with the same author and publisher, or with no author, is still rejected even for the owner; the published system form, its tag and its fields are immutable |
+
 ## 10. Project data loading and read cache
 
 Covers step 2 of the [performance and scaling Change Record](cr-pathways-performance-scaling.md) and the project workspace reads in the SDD.

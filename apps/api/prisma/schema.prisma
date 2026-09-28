@@ -982,6 +982,9 @@ model DigitalForm {
   archivedAt                  DateTime?                 @map("archived_at") @db.Timestamptz(3)
   createdAt                   DateTime                  @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt                   DateTime                  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
+  /// Set only by pathways.ensure_default_registration_form (0040); one tagged form per project
+  /// through the partial unique index digital_forms_system_template_key.
+  systemTemplateKey           String?                   @map("system_template_key")
   organization                Organization              @relation("DigitalForm_organization", fields: [organizationId], references: [id], onDelete: Restrict, onUpdate: Restrict, map: "digital_forms_organization_fk")
   project                     Project                   @relation("DigitalForm_project", fields: [organizationId, projectId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict, map: "digital_forms_project_fk")
   createdBy                   SystemUser?               @relation("DigitalForm_createdBy", fields: [organizationId, createdById], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict, map: "digital_forms_created_by_fk")

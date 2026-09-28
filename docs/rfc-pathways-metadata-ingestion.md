@@ -58,6 +58,10 @@ Preview suggestions use stable parser source-column keys rather than display lab
 
 A source is suggested only when it has exactly one candidate and no other source claims that candidate, including an ambiguous source whose candidate set contains it. Unknown, blank, ambiguous or competing sources remain unresolved. Missing required mappings block validation/normalization. Suggestions confer no manual review or processing authority; existing explicit reviewer confirmation and canonical server validation remain required. This matching definition does not install a server automatic-mapping endpoint or its supporting SQL.
 
+### Registration age rule
+
+Imported registration rows are promoted through the same registration parser as direct entry, so the [default registration form contract](cr-pathways-default-registration-form.md) age rules apply to them: a birth date after the business date or an age below 5 fails promotion on the existing row-error path, and the row is released for review. No import staging or mapping behavior changes.
+
 ## Provenance
 
 Preserve uploader, org/project, storage object, batch, row index, mapping version, validation result, normalized references, timestamps.

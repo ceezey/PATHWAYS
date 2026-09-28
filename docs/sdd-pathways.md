@@ -161,3 +161,13 @@ All roles view scoped projects, with separate tab guards and selections. Admin a
 ## Core P1 supporting interfaces
 
 The [core P1 supporting operations](cr-pathways-core-p1-supporting-operations.md) contract defines GET /beneficiaries/projects/:projectId/registration-context under beneficiaries.records.register and POST /imports/projects/:projectId/batches/:batchId/automatic-mapping under imports.upload for the current scoped uploader. Exact output allowlists, bounded definition discovery, revision-bound retries, locked definitions and millisecond transaction attribution are specified there. Supporting SQL remains an uninstalled forward proposal; preserved broad policies are not claimed to become universally narrow. Applied/archive migration history and the single Prisma ledger remain intact.
+
+### Default registration form and minimum age
+
+The [default registration form Change Record](cr-pathways-default-registration-form.md) adds `POST /beneficiaries/projects/:projectId/registration-context/default-form` under `beneficiaries.records.register` with the full protected request path and no Beneficiary step-up. It returns the registration context shape and no Beneficiary data.
+
+- Migration 0040 adds `digital_forms.system_template_key` (only `SYSTEM_DEFAULT_REGISTRATION_V1`, pinned by a check to code `system_default_registration`, version 1, type `BENEFICIARY_REGISTRATION` and a null author), a partial unique index for one tagged form per organization and project, and `pathways.ensure_default_registration_form(uuid)`.
+- The function is SECURITY DEFINER, owned by `prisma` with an empty `search_path`, and executable only by `pathways_runtime`. It derives organization and actor from the verified transaction context, checks `beneficiaries.records.register` with project scope through `p05_has_project_permission` before and after a per-project advisory lock, and returns `PROVISIONED`, `EXISTING` (including an archived template, which is never recreated) or `CODE_IN_USE`. It writes the fixed canonical field set, publishes with the registrar as `published_by_id`, and audits `DEFAULT_REGISTRATION_FORM_PROVISIONED`.
+- `p2_guard_form` keeps the maker-checker rule for every other form. The only exemption is a tagged row published with a null author while running as `prisma`. The runtime role cannot set, change or clear the tag.
+- Registration context offers the template only when no project-authored registration form is eligible. The web calls the endpoint once when context is empty.
+- `parseRegistration` rejects a birth date after the business date and an age below 5 at the enrollment date, for direct and imported rows. Profile edits apply both rules only when the birth date or age changes.

@@ -409,6 +409,8 @@ export interface PathwaysClient {
   getReports(projectId?: string): Promise<ReportRecord[]>
   getSurveyForms(projectId?: string): Promise<SurveyFormDefinition[]>
   getBeneficiaryRegistrationContext(projectId: string): Promise<BeneficiaryRegistrationContext>
+  // cr-pathways-default-registration-form: provision the system default registration form.
+  ensureDefaultRegistrationForm(projectId: string): Promise<BeneficiaryRegistrationContext>
   getDigitalForms(projectId: string): Promise<DigitalFormDefinition[]>
   getDigitalForm(projectId: string, formId: string): Promise<DigitalFormDefinition>
   createDigitalForm(projectId: string, input: SaveDigitalFormInput): Promise<DigitalFormDefinition>
@@ -1273,6 +1275,21 @@ class BackendReadyPathwaysClient implements PathwaysClient {
     if (!projectId) throw new PathwaysClientError('Project scope is required.', 'invalid')
     const value = await requestFoundation(
       `/beneficiaries/projects/${encodeURIComponent(projectId)}/registration-context`,
+    )
+    try {
+      return parseRegistrationContext(value, projectId)
+    } catch {
+      throw new PathwaysClientError('Invalid registration context response.', 'network')
+    }
+  }
+
+  // cr-pathways-default-registration-form: provisions only the fixed system template for a
+  // project the registrar can already register into, and returns the same blank context shape.
+  async ensureDefaultRegistrationForm(projectId: string): Promise<BeneficiaryRegistrationContext> {
+    if (!projectId) throw new PathwaysClientError('Project scope is required.', 'invalid')
+    const value = await requestFoundation(
+      `/beneficiaries/projects/${encodeURIComponent(projectId)}/registration-context/default-form`,
+      { method: 'POST' },
     )
     try {
       return parseRegistrationContext(value, projectId)
