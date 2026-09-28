@@ -4,8 +4,9 @@ import { PrismaClient } from '@prisma/client'
 // cr-pathways-beneficiary-step-up-pin (0037): parallel wrong PINs cannot exceed the lockout
 // bound, and verification waits on the PIN row lock. Loopback disposable database only; load
 // step-up-pin-concurrency-fixture.sql first. Never point this at a hosted or shared database.
+// The Phase 6 replay (Verify-Forward.ps1) runs this against its trust-auth cluster on 55448.
 const database = process.env.PHASE2_RACE_DATABASE
-assert.match(database ?? '', /^pathways_phase2_[a-z0-9_]+$/)
+assert.match(database ?? '', /^pathways_phase[24]_[a-z0-9_]+$/)
 const runtimePassword = process.env.PHASE2_RUNTIME_PASSWORD
 const ownerPassword = process.env.PHASE2_OWNER_PASSWORD
 assert.ok(runtimePassword && ownerPassword, 'Local role passwords are required.')

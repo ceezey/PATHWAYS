@@ -119,7 +119,7 @@ export class BeneficiaryStepUpService {
                   factorVerifiedAt,
                   ...(grantExpiry ? { grantExpiresAt: grantExpiry } : {}),
                   windowSeconds: STEP_UP_WINDOW_SECONDS,
-                  ...(method ? {} : { reason: state.fresh ? 'MISSING' : state.reason }),
+                  ...(method || state.fresh ? {} : { reason: state.reason }),
                 },
               },
             }),

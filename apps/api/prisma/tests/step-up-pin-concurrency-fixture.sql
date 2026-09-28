@@ -3,7 +3,7 @@
 \set ON_ERROR_STOP on
 BEGIN;
 DO $$ BEGIN
- IF current_database() !~ '^pathways_phase2_[a-z0-9_]+$' OR NOT (SELECT rolsuper FROM pg_roles WHERE rolname=current_user)
+ IF current_database() !~ '^pathways_phase(2|4)_[a-z0-9_]+$' OR NOT (SELECT rolsuper FROM pg_roles WHERE rolname=current_user)
  OR to_regclass('pathways.user_step_up_pins') IS NULL THEN
   RAISE EXCEPTION 'Concurrency fixture requires a disposable database with 0037 applied'; END IF;
 END $$;

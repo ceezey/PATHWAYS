@@ -3,26 +3,40 @@
 -- Additive only: two RLS tables without API-role grants, owner-only helpers and SECURITY DEFINER
 -- functions for pathways_runtime. No existing table, policy, grant or ledger row changes.
 -- The PIN and its bcrypt hash never enter audit rows or error messages.
+-- The definers run as prisma after the 0031/0034 cleanups revoke its owner-role memberships, so
+-- they call only pgcrypto and their own helpers, read only prisma-owned tables, and never call
+-- postgres-owned runtime helpers (runtime_context_organization is not executable by prisma).
 BEGIN;
 SET LOCAL lock_timeout = '5s';
 SET LOCAL statement_timeout = '60s';
 DO $$ BEGIN
  IF current_user <> 'prisma' OR NOT EXISTS(SELECT FROM public._prisma_migrations WHERE migration_name='0035_admin_read_access' AND finished_at IS NOT NULL AND rolled_back_at IS NULL)
  OR to_regclass('pathways.user_step_up_pins') IS NOT NULL OR to_regclass('pathways.beneficiary_step_up_grants') IS NOT NULL
- OR to_regprocedure('pathways.runtime_context_organization()') IS NULL
  THEN RAISE EXCEPTION '0037 requires the verified 0035 state and migration identity'; END IF;
- -- Fail closed unless pgcrypto is installed in schema extensions (Supabase layout) and the
- -- migration owner can call it (DBA prerequisite: hosted-step-up-pin-preprovision.sql).
+ -- Fail closed unless pgcrypto is installed in schema extensions (Supabase layout).
  IF to_regnamespace('extensions') IS NULL
  OR NOT EXISTS(SELECT FROM pg_catalog.pg_extension e JOIN pg_catalog.pg_namespace n ON n.oid=e.extnamespace
-  WHERE e.extname='pgcrypto' AND n.nspname='extensions') THEN
+  WHERE e.extname='pgcrypto' AND n.nspname='extensions')
+ OR to_regprocedure('extensions.crypt(text,text)') IS NULL OR to_regprocedure('extensions.gen_salt(text,integer)') IS NULL THEN
    RAISE EXCEPTION '0037 requires pgcrypto installed in schema extensions'; END IF;
- IF NOT has_schema_privilege('extensions','USAGE') THEN
-   RAISE EXCEPTION '0037 requires USAGE on schema extensions for prisma (run hosted-step-up-pin-preprovision.sql)'; END IF;
- IF to_regprocedure('extensions.crypt(text,text)') IS NULL OR to_regprocedure('extensions.gen_salt(text,integer)') IS NULL
- OR NOT has_function_privilege('extensions.crypt(text,text)','EXECUTE')
- OR NOT has_function_privilege('extensions.gen_salt(text,integer)','EXECUTE') THEN
-   RAISE EXCEPTION '0037 requires executable extensions.crypt and extensions.gen_salt'; END IF;
+ -- Privileges the definers need, held by prisma directly or through PUBLIC (never through a
+ -- role membership that a cleanup revokes). DBA prerequisite: hosted-step-up-pin-preprovision.sql.
+ IF NOT EXISTS(SELECT FROM pg_catalog.pg_namespace n
+  CROSS JOIN LATERAL pg_catalog.aclexplode(coalesce(n.nspacl,pg_catalog.acldefault('n',n.nspowner))) a
+  WHERE n.nspname='extensions' AND a.privilege_type='USAGE'
+  AND a.grantee IN (0,(SELECT oid FROM pg_catalog.pg_roles WHERE rolname='prisma'))) THEN
+   RAISE EXCEPTION '0037 requires USAGE on schema extensions granted to prisma (run hosted-step-up-pin-preprovision.sql)'; END IF;
+ IF EXISTS(SELECT FROM unnest(ARRAY['extensions.crypt(text,text)','extensions.gen_salt(text,integer)']) f(sig)
+  WHERE NOT EXISTS(SELECT FROM pg_catalog.pg_proc p
+   CROSS JOIN LATERAL pg_catalog.aclexplode(coalesce(p.proacl,pg_catalog.acldefault('f',p.proowner))) a
+   WHERE p.oid=pg_catalog.to_regprocedure(f.sig) AND a.privilege_type='EXECUTE'
+   AND a.grantee IN (0,(SELECT oid FROM pg_catalog.pg_roles WHERE rolname='prisma'))))
+ OR EXISTS(SELECT FROM pg_catalog.pg_class c JOIN pg_catalog.pg_namespace n ON n.oid=c.relnamespace
+  WHERE n.nspname='pathways' AND c.relname IN('system_users','organizations','roles','audit_logs')
+  AND (pg_catalog.pg_get_userbyid(c.relowner)<>'prisma' OR c.relforcerowsecurity))
+ OR (SELECT count(*) FROM pg_catalog.pg_class c JOIN pg_catalog.pg_namespace n ON n.oid=c.relnamespace
+  WHERE n.nspname='pathways' AND c.relname IN('system_users','organizations','roles','audit_logs'))<>4 THEN
+   RAISE EXCEPTION '0037 requires direct prisma EXECUTE on pgcrypto and ownership of the identity tables'; END IF;
 END $$;
 SELECT pg_advisory_xact_lock(505005,1);
 
@@ -76,17 +90,24 @@ BEGIN
  RETURN NOT(ascending OR descending OR repeated);
 END $$;
 
--- Actor and organization come only from the verified transaction context.
+-- Actor and organization come only from the verified transaction context. Same predicate as
+-- runtime_context_organization and p09_can (active user, organization and role, verified
+-- subject), inlined over prisma-owned tables because the definers cannot call that helper.
 CREATE FUNCTION pathways.step_up_pin_actor(OUT org uuid,OUT actor uuid)
 LANGUAGE plpgsql STABLE SECURITY INVOKER SET search_path TO '' AS $$
 BEGIN
- org:=nullif(current_setting('app.organization_id',true),'')::uuid;
- actor:=nullif(current_setting('app.user_id',true),'')::uuid;
- IF org IS NULL OR actor IS NULL OR pathways.runtime_context_organization() IS DISTINCT FROM org
- OR NOT EXISTS(SELECT FROM pathways.system_users u WHERE u.organization_id=org AND u.id=actor
-  AND u.auth_user_id=nullif(current_setting('request.jwt.claim.sub',true),'')::uuid
-  AND u.account_status='ACTIVE' AND u.archived_at IS NULL)
- THEN RAISE EXCEPTION 'Step-up PIN unavailable' USING ERRCODE='42501'; END IF;
+ BEGIN
+  org:=nullif(current_setting('app.organization_id',true),'')::uuid;
+  actor:=nullif(current_setting('app.user_id',true),'')::uuid;
+  IF org IS NOT NULL AND actor IS NOT NULL AND EXISTS(SELECT FROM pathways.system_users u
+   JOIN pathways.organizations o ON o.id=u.organization_id AND o.status='ACTIVE' AND o.archived_at IS NULL
+   JOIN pathways.roles r ON r.id=u.role_id AND r.is_active
+   WHERE u.organization_id=org AND u.id=actor
+   AND u.auth_user_id=nullif(current_setting('request.jwt.claim.sub',true),'')::uuid
+   AND u.account_status='ACTIVE' AND u.archived_at IS NULL) THEN RETURN; END IF;
+ EXCEPTION WHEN invalid_text_representation THEN NULL;
+ END;
+ RAISE EXCEPTION 'Step-up PIN unavailable' USING ERRCODE='42501';
 END $$;
 
 -- The database cannot verify a TOTP claim. The API asserts it from verified signed claims;
@@ -296,5 +317,25 @@ DO $$ BEGIN
  OR (SELECT count(*) FROM pg_catalog.pg_proc p JOIN pg_catalog.pg_namespace n ON n.oid=p.pronamespace
   WHERE n.nspname='pathways' AND p.proname LIKE 'step\_up\_pin\_%')<>9
  THEN RAISE EXCEPTION '0037 step-up PIN security postconditions failed'; END IF;
+ -- Call graph: inside pathways the definers call only their own step_up_pin_* helpers (the
+ -- excluded names are INSERT column lists, not calls).
+ IF EXISTS(SELECT FROM pg_catalog.pg_proc p JOIN pg_catalog.pg_namespace n ON n.oid=p.pronamespace
+  WHERE n.nspname='pathways' AND p.proname LIKE 'step\_up\_pin\_%'
+  AND (p.prosrc ~ 'pathways\.(?!step_up_pin_|audit_logs\(|user_step_up_pins\(|beneficiary_step_up_grants\()[a-z0-9_]+\s*\(' OR p.prosrc ~ 'runtime_context|auth\.'))
+ THEN RAISE EXCEPTION '0037 step-up PIN definers call a helper outside their reviewed set'; END IF;
+END $$;
+-- Behavioral postcondition as prisma: pgcrypto executes, and the identity predicate reads its
+-- tables and denies an unknown actor with the fixed message, not a privilege error.
+DO $$ DECLARE denial text; BEGIN
+ IF extensions.crypt('0',extensions.gen_salt('bf',4)) !~ '^\$2a\$04\$' THEN
+  RAISE EXCEPTION '0037 pgcrypto postcondition failed'; END IF;
+ PERFORM set_config('request.jwt.claim.sub',gen_random_uuid()::text,true),
+  set_config('app.organization_id',gen_random_uuid()::text,true),set_config('app.user_id',gen_random_uuid()::text,true);
+ BEGIN
+  PERFORM pathways.step_up_pin_status(gen_random_uuid());
+ EXCEPTION WHEN insufficient_privilege THEN denial:=SQLERRM; END;
+ PERFORM set_config('request.jwt.claim.sub','',true),set_config('app.organization_id','',true),set_config('app.user_id','',true);
+ IF denial IS DISTINCT FROM 'Step-up PIN unavailable' THEN
+  RAISE EXCEPTION '0037 identity predicate postcondition failed'; END IF;
 END $$;
 COMMIT;
