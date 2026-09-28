@@ -25,6 +25,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import { metricUnavailableLabel } from '@/features/projects/project-utils'
 import { useCurrentRole } from '@/hooks/use-current-role'
 import { useDisplayLabels } from '@/hooks/use-display-labels'
 import { can } from '@/lib/rbac/can'
@@ -412,6 +413,16 @@ export const AnalyticsDashboard = () => {
   // "None yet" only when the role can read the source and the read succeeded empty.
   const periodsReadable = canReadIndicators && !projectDataLoading && !projectDataError
   const monitoringReadable = canReadIndicators && monitoring !== null && !monitoringError
+  // The participation chart title reflects the source cell instead of assuming "None
+  // yet": SUPPRESSED gets the suppression wording and other withheld reasons fall
+  // through to the panel's "Data unavailable" default, matching overviewMetricLabel.
+  const participationEmptyTitle = (() => {
+    if (!monitoring) return undefined
+    const label = metricUnavailableLabel(monitoring.participationRecords)
+    return label === 'None yet' || monitoring.participationRecords.state === 'SUPPRESSED'
+      ? label
+      : undefined
+  })()
   const completedActivities = activities.filter(
     (activity) => activity.status === 'Completed',
   ).length
@@ -637,7 +648,9 @@ export const AnalyticsDashboard = () => {
                 title={
                   analysisView === 'survey' || analysisView === 'timeline' || !monitoringReadable
                     ? undefined
-                    : 'None yet'
+                    : analysisView === 'participation'
+                      ? participationEmptyTitle
+                      : 'None yet'
                 }
               />
             ) : visualizationType === 'table' ? (
