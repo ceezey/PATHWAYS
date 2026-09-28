@@ -111,6 +111,36 @@ const activitySelection = {
 
 type ActivityRow = Prisma.ProjectActivityGetPayload<{ select: typeof activitySelection }>
 
+/**
+ * List projection: only what the activity list, board, search and pickers render.
+ * Update history, proof metadata, assignee emails and read metrics come only from `get`.
+ */
+const activityListSelection = {
+  id: true,
+  projectId: true,
+  code: true,
+  title: true,
+  description: true,
+  targetBeneficiaries: true,
+  plannedStartDate: true,
+  plannedEndDate: true,
+  status: true,
+  progressPercent: true,
+  updatedAt: true,
+  projectActivityAssignment_activity: {
+    where: activitySelection.projectActivityAssignment_activity.where,
+    select: {
+      projectAssignment: { select: { userId: true, user: { select: { fullName: true } } } },
+    },
+    orderBy: activitySelection.projectActivityAssignment_activity.orderBy,
+    take: activitySelection.projectActivityAssignment_activity.take,
+  },
+  activityJourneyStageMapping_activity: activitySelection.activityJourneyStageMapping_activity,
+  activityIndicatorLink_activity: activitySelection.activityIndicatorLink_activity,
+} satisfies Prisma.ProjectActivitySelect
+
+type ActivityListRow = Prisma.ProjectActivityGetPayload<{ select: typeof activityListSelection }>
+
 const storedStatus = {
   NOT_STARTED: 'Planned',
   IN_PROGRESS: 'In Progress',
@@ -154,11 +184,14 @@ export function activityTransitionAllowed(
 type ActivityReadMetrics = {
   budgets: ReadonlyMap<string, string>
   reached: ReadonlyMap<string, number>
+  /** Present only for viewers holding expenses.read; absent means not readable. */
+  logged: ReadonlyMap<string, { total: string; entries: number }>
 }
 
 const emptyActivityReadMetrics: ActivityReadMetrics = {
   budgets: new Map(),
   reached: new Map(),
+  logged: new Map(),
 }
 
 function updateKind(update: {
@@ -238,8 +271,38 @@ function mapActivity(
       updatedAt: update.updatedAt.toISOString(),
     })),
     updatedAt: row.updatedAt.toISOString(),
-    // Approved expense aggregation remains outside this workstream.
-    budgetLogged: 0,
+    // Approved expenses only; null when the viewer cannot read expenses, never a fabricated 0.
+    budgetLogged: metrics.logged.get(row.id)?.total ?? null,
+    budgetLoggedEntries: metrics.logged.get(row.id)?.entries ?? null,
+  }
+}
+
+/** A plain object, so server-computed per-item fields can be added without a detail read. */
+export function mapActivityListItem(row: ActivityListRow, businessDate: string) {
+  const presentation = activityPresentationStatus(row.status, row.plannedEndDate, businessDate)
+  return {
+    id: row.id,
+    projectId: row.projectId,
+    code: row.code,
+    title: row.title,
+    description: row.description ?? '',
+    storedStatus: row.status,
+    status: presentation.status,
+    overdue: presentation.overdue,
+    startDate: calendarDate(row.plannedStartDate),
+    dueDate: calendarDate(row.plannedEndDate),
+    assignedUserIds: row.projectActivityAssignment_activity.map(
+      (assignment) => assignment.projectAssignment.userId,
+    ),
+    assignedTo: row.projectActivityAssignment_activity.map(
+      (assignment) => assignment.projectAssignment.user.fullName,
+    ),
+    journeyStageIds: row.activityJourneyStageMapping_activity.map((mapping) => mapping.stageId),
+    journeyStageId: row.activityJourneyStageMapping_activity[0]?.stageId ?? '',
+    indicatorIds: row.activityIndicatorLink_activity.map((link) => link.indicatorId),
+    targetBeneficiaries: row.targetBeneficiaries ?? 0,
+    progress: row.progressPercent,
+    updatedAt: row.updatedAt.toISOString(),
   }
 }
 
@@ -320,26 +383,49 @@ export class ActivitiesService {
     return project
   }
 
-  private async requireActivity(
+  /**
+   * Reads one activity of a project already verified by `requireProject` in this same
+   * transaction. Post-write read-backs use it so project scope is not resolved twice.
+   */
+  private async readScopedActivity(
     tx: Tx,
     actor: ApplicationIdentity,
-    projectId: string,
+    verifiedProjectId: string,
     activityId: string,
   ) {
-    const project = await this.requireProject(tx, actor, projectId)
     if (!UUID_PATTERN.test(activityId)) throw new NotFoundException('Activity unavailable.')
     const activity = await tx.projectActivity.findFirst({
       relationLoadStrategy: 'join',
       where: {
         id: activityId.toLowerCase(),
         organizationId: actor.organizationId,
-        projectId: project.id,
+        projectId: verifiedProjectId,
         archivedAt: null,
       },
       select: activitySelection,
     })
     if (!activity) throw new NotFoundException('Activity unavailable.')
     return activity
+  }
+
+  private async requireProjectActivity(
+    tx: Tx,
+    actor: ApplicationIdentity,
+    projectId: string,
+    activityId: string,
+  ) {
+    const project = await this.requireProject(tx, actor, projectId)
+    const activity = await this.readScopedActivity(tx, actor, project.id, activityId)
+    return { project, activity }
+  }
+
+  private async requireActivity(
+    tx: Tx,
+    actor: ApplicationIdentity,
+    projectId: string,
+    activityId: string,
+  ) {
+    return (await this.requireProjectActivity(tx, actor, projectId, activityId)).activity
   }
 
   private validateDates(
@@ -550,7 +636,8 @@ export class ActivitiesService {
   ): Promise<ActivityReadMetrics> {
     const budgets = new Map<string, string>()
     const reached = new Map<string, number>()
-    if (activityIds.length === 0) return { budgets, reached }
+    const logged = new Map<string, { total: string; entries: number }>()
+    if (activityIds.length === 0) return { budgets, reached, logged }
     if (hasAtomicPermission(actor.roles[0], actor.permissions, 'budgets.read')) {
       const rows = await tx.projectBudgetRecord.findMany({
         where: {
@@ -581,7 +668,29 @@ export class ActivitiesService {
       `)
       for (const row of rows) reached.set(row.activityId, Number(row.beneficiariesReached))
     }
-    return { budgets, reached }
+    // Same grant as GET /expenses; the expense SELECT policy also requires it per project.
+    // Logged means APPROVED, as in the finance ledger and the overview budget metric.
+    // Expenses on an archived (replaced) activity budget record still count. Only the
+    // single-activity read calls this, so the loop is one aggregate query.
+    if (hasAtomicPermission(actor.roles[0], actor.permissions, 'expenses.read')) {
+      for (const activityId of activityIds) {
+        const row = await tx.budgetExpenseEntry.aggregate({
+          where: {
+            organizationId: actor.organizationId,
+            projectId,
+            status: 'APPROVED',
+            budgetRecord: { organizationId: actor.organizationId, projectId, activityId },
+          },
+          _sum: { amount: true },
+          _count: { _all: true },
+        })
+        logged.set(activityId, {
+          total: (row._sum.amount ?? new Prisma.Decimal(0)).toFixed(2),
+          entries: row._count._all,
+        })
+      }
+    }
+    return { budgets, reached, logged }
   }
 
   private async mapWithMetrics(tx: Tx, actor: ApplicationIdentity, row: ActivityRow) {
@@ -627,6 +736,7 @@ export class ActivitiesService {
     )
   }
 
+  /** Lean list projection; update history, proof, assignee emails and metrics are `get`-only. */
   list(identity: ApplicationIdentity, projectId: string) {
     return withAuthorizedOperation(this.prisma, identity, 'activities.read', async (tx, actor) => {
       if (!UUID_PATTERN.test(projectId)) throw new NotFoundException('Project unavailable.')
@@ -636,7 +746,7 @@ export class ActivitiesService {
         select: {
           projectActivity_project: {
             where: { organizationId: actor.organizationId, archivedAt: null },
-            select: activitySelection,
+            select: activityListSelection,
             orderBy: [{ plannedEndDate: 'asc' }, { id: 'asc' }],
             take: 100,
           },
@@ -644,13 +754,7 @@ export class ActivitiesService {
       })
       if (!project) throw new NotFoundException('Project unavailable.')
       const today = this.businessDate()
-      const metrics = await this.readMetrics(
-        tx,
-        actor,
-        projectId.toLowerCase(),
-        project.projectActivity_project.map((row) => row.id),
-      )
-      return project.projectActivity_project.map((row) => mapActivity(row, today, metrics))
+      return project.projectActivity_project.map((row) => mapActivityListItem(row, today))
     })
   }
 
@@ -884,7 +988,7 @@ export class ActivitiesService {
         const result = await this.mapWithMetrics(
           tx,
           actor,
-          await this.requireActivity(tx, actor, project.id, activityId),
+          await this.readScopedActivity(tx, actor, project.id, activityId),
         )
         return { ...result, sourceAcknowledgement }
       },
@@ -911,11 +1015,15 @@ export class ActivitiesService {
           sourceMutationBody(input),
         )
         if (source.kind === 'REPLAY') return source.acknowledgement
-        const current = await this.requireActivity(tx, actor, projectId, activityId)
+        const { project, activity: current } = await this.requireProjectActivity(
+          tx,
+          actor,
+          projectId,
+          activityId,
+        )
         if (['COMPLETED', 'CANCELLED'].includes(current.status)) {
           throw new ConflictException('Terminal activity history cannot be edited.')
         }
-        const project = await this.requireProject(tx, actor, projectId)
         const timelineOverrideJustification = this.validateDates(
           input.plannedStartDate,
           input.plannedEndDate,
@@ -1019,7 +1127,7 @@ export class ActivitiesService {
         const result = await this.mapWithMetrics(
           tx,
           actor,
-          await this.requireActivity(tx, actor, project.id, current.id),
+          await this.readScopedActivity(tx, actor, project.id, current.id),
         )
         return { ...result, sourceAcknowledgement }
       },
@@ -1095,7 +1203,7 @@ export class ActivitiesService {
         const result = await this.mapWithMetrics(
           tx,
           actor,
-          await this.requireActivity(tx, actor, current.projectId, current.id),
+          await this.readScopedActivity(tx, actor, current.projectId, current.id),
         )
         return { ...result, sourceAcknowledgement }
       },
@@ -1194,7 +1302,7 @@ export class ActivitiesService {
         return this.mapWithMetrics(
           tx,
           actor,
-          await this.requireActivity(tx, actor, activity.projectId, activity.id),
+          await this.readScopedActivity(tx, actor, activity.projectId, activity.id),
         )
       },
     )

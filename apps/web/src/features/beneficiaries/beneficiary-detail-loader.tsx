@@ -11,7 +11,7 @@ import { principalHasAtomicPermission } from '@/lib/rbac/route-access'
 import { pathwaysClient } from '@/lib/services/pathways-client'
 import { PathwaysClientError } from '@/lib/services/pathways-client'
 import type {
-  Activity,
+  ActivitySummary,
   BeneficiaryRecord,
   DigitalFormDefinition,
   JourneyStageConfig,
@@ -24,7 +24,7 @@ import { mapBeneficiaryJourneyHistory } from './beneficiary-journey-adapter'
 type DetailData = {
   beneficiary: BeneficiaryRecord
   projects: ProjectSummary[]
-  activities: Activity[]
+  activities: ActivitySummary[]
   stages: JourneyStageConfig[]
   participationForms: DigitalFormDefinition[]
   projectId: string

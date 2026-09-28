@@ -41,7 +41,7 @@ Do not use confidential live Beneficiary data.
 | QAD-T06 | PRD-F6 | mapped import validates and normalizes |
 | QAD-T07 | PRD-F7 | indicator shows correct trusted metric/target/source |
 | QAD-T08 | PRD-F8 | dashboard/SADDD uses trusted data and suppression |
-| QAD-T12 | PRD-F9 | descriptive summary uses trusted persisted metrics; missing data shown as unavailable |
+| QAD-T12 | PRD-F9 | descriptive summary uses trusted persisted metrics; a readable but empty set shows "None yet"; missing, withheld or unauthorized data keeps the existing unavailable or restricted wording; no value is ever fabricated as 0 |
 | QAD-T09 | PRD-F10 | rule triggers once with versioned evidence |
 | QAD-T10 | PRD-F11 | authorized human reviews predefined recommendation |
 | QAD-T13 | PRD-F12 | report/visualization output respects role scope and SADDD suppression |
@@ -211,3 +211,19 @@ Coverage for the [import throughput and PDF](cr-pathways-import-throughput-and-p
 | QAD-IMP-11 | Abuse | cross-organization and cross-project process and export requests are denied before rows or forms are read |
 | QAD-IMP-12 | Abuse | a PDF carrying scripts, attachments, forms or links is read for text only; formula-like cells are rejected |
 | QAD-IMP-13 | Abuse | Project Officer, Project Manager, Program Manager and Grant Manager cannot export form definitions |
+
+## 10. Project data loading and read cache
+
+Covers step 2 of the [performance and scaling Change Record](cr-pathways-performance-scaling.md) and the project workspace reads in the SDD.
+
+| ID | Type | Required check |
+|---|---|---|
+| QAD-P01 | Happy | List and summary reads are reused for at most 30 seconds under the same organization, user, role, permissions, assignments and project; the Activities tab reuses the Overview project read |
+| QAD-P02 | Happy | Activity list returns the lean projection; the detail route reads `GET /activities/:id`; indicators and journey stages load once per workspace and indicator search works without opening a panel |
+| QAD-P03 | Happy | Overview metrics derive KPI achievement, budget utilization, suppressed reach and timeline deterministically with documented rounding |
+| QAD-P04 | Sad | Readable but empty sources show "None yet" or their specific reason, never 0; an activity logged budget shows "None yet" only for an expense reader with no approved expenses and "Unavailable" when withheld; load failures and permission states keep error wording; an unknown activity id shows a not-found state without redirecting |
+| QAD-P05 | Sad | A replayed indicator save or recovery displays its confirming authorized read without a second reload |
+| QAD-P06 | Abuse | Beneficiary, step-up and import batch-status reads are never cached, even when a caller requests the summary window |
+| QAD-P07 | Abuse | Sign-out, workspace change or any 401/403 clears or hides cached reads; each mounted reader re-verifies at most once per denial and ends in data, pending or an error with retry; a persistent 401/403 does not loop, including when its reader remounts under a re-verifying parent; an explicit retry requests exactly once; one denial raises the epoch once; pre-denial data never reaches `replaceData`; a committed write re-reads active reads and removes inactive ones so pre-write data never reappears |
+| QAD-P08 | Abuse | Overview metrics deny cross-organization, unassigned and malformed project ids before any metric read; budget is `null` without budget read; reach counts 1-4 are suppressed and no Beneficiary rows are read |
+| QAD-P09 | Abuse | Activity update, transition and progress still deny an out-of-scope project or activity before any write after the duplicate reads are removed |

@@ -25,7 +25,7 @@ import { canAccessProjectForRole } from '@/lib/rbac/data-scope'
 import { principalHasAtomicPermission } from '@/lib/rbac/route-access'
 import { pathwaysClient } from '@/lib/services/pathways-client'
 import type {
-  Activity,
+  ActivitySummary,
   EvidenceActivitySummary,
   EvidenceList,
   EvidenceRecord,
@@ -141,7 +141,7 @@ const LegacyProjectWorkspace = ({
   const { labels } = useDisplayLabels()
   const { role, profile } = useCurrentRole()
   const [project, setProject] = useState<ProjectDetail | null>(null)
-  const [activities, setActivities] = useState<Activity[]>([])
+  const [activities, setActivities] = useState<ActivitySummary[]>([])
   const [evidence, setEvidence] = useState<EvidenceRecord[]>([])
   const [evidenceSummary, setEvidenceSummary] = useState<EvidenceActivitySummary[] | null>(null)
   const [indicators, setIndicators] = useState<ProjectIndicator[]>([])
@@ -643,7 +643,7 @@ const IndicatorsView = ({
   indicators,
   onAdd,
 }: {
-  activities: Activity[]
+  activities: ActivitySummary[]
   canAddIndicator: boolean
   indicators: ProjectIndicator[]
   onAdd: () => void

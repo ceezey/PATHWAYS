@@ -2,67 +2,38 @@
 
 import { ArrowLeft, CalendarDays, FolderKanban, Pencil } from 'lucide-react'
 import Link from 'next/link'
-import { useEffect, useState } from 'react'
 
 import { PageHeader } from '@/components/layout/page-header'
 import { AsyncState, SectionCard, StatusBadge, StatusMessage } from '@/components/pathways'
 import { Button } from '@/components/ui/button'
 import { useCurrentRole } from '@/hooks/use-current-role'
 import { isUiActionAvailable } from '@/lib/rbac/ui-action-availability'
-import { pathwaysClient } from '@/lib/services/pathways-client'
 import { PathwaysClientError } from '@/lib/services/pathways-client'
-import type { ProjectDetail } from '@/types/pathways'
 
+import { ProjectOverviewMetrics } from './project-overview-metrics'
 import { ProjectTeamEditorDialog } from './project-team-editor-dialog'
-import {
-  formatNumber,
-  projectHealthSignal,
-  projectHealthTone,
-  projectStatusTone,
-} from './project-utils'
+import { formatNumber, projectStatusTone } from './project-utils'
 import { ProjectWorkspaceHeader } from './project-workspace-header'
+import { useProjectRead } from './use-project-reads'
 
 export const ProjectDetailView = ({ projectId }: { projectId: string }) => {
-  const { role, profile } = useCurrentRole()
+  const { role, profile, access } = useCurrentRole()
   const canManageProjectProfile = isUiActionAvailable(role, 'projects.profile.manage', profile)
   // Team changes are saved through PATCH /projects/:id, which also requires projects.update.
   const canManageProjectTeam =
     isUiActionAvailable(role, 'projects.team.manage', profile) && canManageProjectProfile
-  const [project, setProject] = useState<ProjectDetail | null>(null)
-  const [status, setStatus] = useState<'loading' | 'success' | 'not-found' | 'error'>('loading')
-  const [loadAttempt, setLoadAttempt] = useState(0)
-
-  useEffect(() => {
-    void loadAttempt
-    let mounted = true
-    setStatus('loading')
-
-    pathwaysClient
-      .getProject(projectId)
-      .then((record) => {
-        if (!mounted) {
-          return
-        }
-
-        setProject(record)
-        setStatus('success')
-      })
-      .catch((error) => {
-        if (!mounted) {
-          return
-        }
-
-        setStatus(
-          error instanceof PathwaysClientError && error.code === 'not_found'
-            ? 'not-found'
-            : 'error',
-        )
-      })
-
-    return () => {
-      mounted = false
-    }
-  }, [loadAttempt, projectId])
+  // Shared with the Activities tab through the same stable query key.
+  const read = useProjectRead(projectId)
+  const project = read.data ?? null
+  const status = read.isError
+    ? read.error instanceof PathwaysClientError && read.error.code === 'not_found'
+      ? 'not-found'
+      : 'error'
+    : project
+      ? 'success'
+      : !read.eligible && access === 'ready'
+        ? 'not-found'
+        : 'loading'
 
   if (status === 'loading') {
     return (
@@ -91,7 +62,7 @@ export const ProjectDetailView = ({ projectId }: { projectId: string }) => {
         <AsyncState
           description="Check your connection and try loading this project again."
           icon={FolderKanban}
-          onRetry={() => setLoadAttempt((attempt) => attempt + 1)}
+          onRetry={() => void read.refetch()}
           status="error"
           title="Project data unavailable"
         />
@@ -166,47 +137,17 @@ export const ProjectDetailView = ({ projectId }: { projectId: string }) => {
           actions={
             <div className="flex flex-wrap gap-2">
               <StatusBadge tone={projectStatusTone(project.status)}>{project.status}</StatusBadge>
-              <StatusBadge
-                tone={project.metricsAvailable ? projectHealthTone(project.health) : 'neutral'}
-              >
-                {project.metricsAvailable ? project.health : 'Not assessed'}
-              </StatusBadge>
+              <StatusBadge tone="neutral">Not assessed</StatusBadge>
             </div>
           }
         >
           <div className="space-y-5">
-            <div className="grid gap-px overflow-hidden rounded-sm border border-border bg-border sm:grid-cols-2">
-              <div className="bg-surface-subtle p-4">
-                <p className="text-sm text-muted-foreground">KPI achievement</p>
-                <p className="mt-2 text-2xl font-semibold tabular-nums text-foreground">
-                  {project.metricsAvailable ? `${project.kpiAchievement}%` : 'Unavailable'}
-                </p>
-              </div>
-              <div className="bg-surface-subtle p-4">
-                <p className="text-sm text-muted-foreground">Budget utilization</p>
-                <p className="mt-2 text-2xl font-semibold tabular-nums text-foreground">
-                  {project.metricsAvailable ? `${project.budgetUtilization}%` : 'Unavailable'}
-                </p>
-              </div>
-              <div className="bg-surface-subtle p-4">
-                <p className="text-sm text-muted-foreground">Beneficiaries reached / target</p>
-                <p className="mt-2 text-2xl font-semibold tabular-nums text-foreground">
-                  {project.metricsAvailable
-                    ? `${formatNumber(project.beneficiariesReached)} / ${project.targetBeneficiaries === undefined ? 'Not recorded' : formatNumber(project.targetBeneficiaries)}`
-                    : `Unavailable / ${project.targetBeneficiaries === undefined ? 'Not recorded' : formatNumber(project.targetBeneficiaries)}`}
-                </p>
-              </div>
-              <div className="bg-surface-subtle p-4">
-                <p className="text-sm text-muted-foreground">Timeline</p>
-                <p className="mt-2 text-2xl font-semibold tabular-nums text-foreground">
-                  {project.metricsAvailable ? `${project.timelineProgress}%` : 'Unavailable'}
-                </p>
-              </div>
-            </div>
+            <ProjectOverviewMetrics
+              projectId={project.id}
+              targetBeneficiaries={project.targetBeneficiaries}
+            />
             <div className="rounded-sm border border-border bg-surface-subtle p-4 text-sm leading-6 text-muted-foreground">
-              {project.metricsAvailable
-                ? projectHealthSignal(project)
-                : 'Project health cannot be assessed from the current API response.'}
+              Project health cannot be assessed from the current API response.
             </div>
             <dl className="grid gap-4 text-sm sm:grid-cols-2">
               <div>
@@ -250,7 +191,10 @@ export const ProjectDetailView = ({ projectId }: { projectId: string }) => {
           title="Project team"
           actions={
             canManageProjectTeam ? (
-              <ProjectTeamEditorDialog onUpdated={setProject} project={project} />
+              <ProjectTeamEditorDialog
+                onUpdated={(updated) => read.replaceData(() => updated)}
+                project={project}
+              />
             ) : null
           }
         >

@@ -1,5 +1,5 @@
 import type {
-  Activity,
+  ActivitySummary,
   BeneficiaryParticipationRecord,
   BeneficiaryRecord,
   JourneyStageConfig,
@@ -68,7 +68,7 @@ export const stageTypeTone = (type: JourneyStageConfig['type']) => {
 export const stageForActivity = (
   activityId: string,
   stages: JourneyStageConfig[],
-  activities: Activity[],
+  activities: ActivitySummary[],
 ) => {
   const configuredStage = stages.find((stage) => stage.mappedActivityIds.includes(activityId))
 
@@ -83,7 +83,7 @@ export const stageForActivity = (
 export const deriveCurrentStage = (
   participation: BeneficiaryParticipationRecord[],
   stages: JourneyStageConfig[],
-  activities: Activity[],
+  activities: ActivitySummary[],
 ) => {
   // TODO(BACKEND): Calculate current journey stage and progression rate.
   const orderedParticipation = [...participation].sort((first, second) =>
@@ -101,7 +101,7 @@ export const deriveCurrentStage = (
 export const progressionRate = (
   participation: BeneficiaryParticipationRecord[],
   stages: JourneyStageConfig[],
-  activities: Activity[],
+  activities: ActivitySummary[],
 ) => {
   const reachedStageIds = new Set(
     participation

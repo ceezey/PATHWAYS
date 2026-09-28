@@ -6,13 +6,13 @@ import { Input } from '@/components/ui/input'
 import { useCurrentRole } from '@/hooks/use-current-role'
 import { isUiActionAvailable } from '@/lib/rbac/ui-action-availability'
 import { pathwaysClient } from '@/lib/services/pathways-client'
-import type { Activity, ProjectMilestone } from '@/types/pathways'
+import type { ActivitySummary, ProjectMilestone } from '@/types/pathways'
 import { useEffect, useState } from 'react'
 
 export function MilestoneProgressPanel({ projectId }: { projectId: string }) {
   const { role, profile, assignedProjectIds } = useCurrentRole()
   const [milestones, setMilestones] = useState<ProjectMilestone[]>([])
-  const [activities, setActivities] = useState<Activity[]>([])
+  const [activities, setActivities] = useState<ActivitySummary[]>([])
   const [title, setTitle] = useState('')
   const [date, setDate] = useState('')
   const [actualDate, setActualDate] = useState('')

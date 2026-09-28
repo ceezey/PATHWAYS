@@ -445,20 +445,29 @@ describe('PATHWAYS frontend data boundary', () => {
     )
     vi.stubGlobal('fetch', fetcher)
 
-    await expect(pathwaysClient.getProjects()).resolves.toMatchObject([
+    const projects = await pathwaysClient.getProjects()
+    // Metrics come only from the overview endpoint; the profile never fabricates zeros.
+    for (const project of projects)
+      for (const key of [
+        'metricsAvailable',
+        'kpiAchievement',
+        'budgetUtilization',
+        'timelineProgress',
+        'beneficiariesReached',
+      ])
+        expect(project).not.toHaveProperty(key)
+    expect(projects).toMatchObject([
       {
         title: 'Persisted project',
         area: 'Quezon City',
 
         startDate: '2026-01-01',
         endDate: null,
-        metricsAvailable: false,
       },
       {
         title: 'Scoped project context',
 
         description: '',
-        metricsAvailable: false,
       },
     ])
     expect(fetcher).toHaveBeenCalledExactlyOnceWith(
@@ -961,14 +970,20 @@ describe('Beneficiary step-up denial', () => {
     const error = await requestFoundationResponse('/beneficiaries/projects/p').catch((e) => e)
     expect(error).toBeInstanceOf(PathwaysClientError)
     expect(error).toMatchObject({ code: 'forbidden', status: 403, stepUpRequired: true })
-    expect(dispatchEvent).toHaveBeenCalledOnce()
-    expect(dispatchEvent.mock.calls[0][0].type).toBe('pathways:beneficiary-step-up-required')
+    const events = dispatchEvent.mock.calls.map(([event]) => event.type)
+    // Any 403 also tells the authorized-read cache to stop reusing cached reads.
+    expect(events).toEqual([
+      'pathways:authorization-denied',
+      'pathways:beneficiary-step-up-required',
+    ])
   })
 
   it('keeps an ordinary 403 as a plain denial with no prompt', async () => {
     const dispatchEvent = setup({ statusCode: 403, message: 'Missing permission.' })
     const error = await requestFoundationResponse('/beneficiaries/projects/p').catch((e) => e)
     expect(error).toMatchObject({ code: 'forbidden', status: 403, stepUpRequired: false })
-    expect(dispatchEvent).not.toHaveBeenCalled()
+    expect(dispatchEvent.mock.calls.map(([event]) => event.type)).toEqual([
+      'pathways:authorization-denied',
+    ])
   })
 })

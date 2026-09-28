@@ -26,8 +26,12 @@ vi.mock('@/features/analytics/use-monitoring-read', () => ({
     loading: false,
     error: null,
     reload: () => undefined,
+    replaceData: () => undefined,
     authorityKey: 'synthetic',
   }),
+}))
+vi.mock('@/providers/authorized-query-provider', () => ({
+  useAuthorizedRead: () => ({ data: undefined, isError: false }),
 }))
 vi.mock('@/lib/services/pathways-client', () => ({
   PathwaysClientError: class extends Error {},

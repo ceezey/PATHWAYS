@@ -121,7 +121,7 @@ const activity = {
 const tx = {
   $queryRaw: vi.fn(),
   project: { findFirst: vi.fn() },
-  projectActivity: { findFirst: vi.fn(), create: vi.fn() },
+  projectActivity: { findFirst: vi.fn(), create: vi.fn(), updateMany: vi.fn() },
   userProjectAssignment: { findMany: vi.fn() },
   projectActivityAssignment: { createMany: vi.fn(), updateMany: vi.fn() },
   projectIndicator: { findMany: vi.fn() },
@@ -135,6 +135,7 @@ const tx = {
     update: vi.fn(),
   },
   evidenceMedia: { findFirst: vi.fn(), updateMany: vi.fn() },
+  budgetExpenseEntry: { aggregate: vi.fn() },
   activityUpdate: { findFirst: vi.fn(), update: vi.fn() },
   auditLog: { create: vi.fn() },
 }
@@ -217,6 +218,155 @@ describe('P05 activity proof authorization', () => {
           AND: [{ organizationId, archivedAt: null, id: { in: [projectId] } }, { id: projectId }],
         },
       }),
+    )
+  })
+
+  it('returns a lean list shape without update history, proof, emails or read metrics', async () => {
+    state.actor = {
+      ...actor,
+      roles: ['PROJECT_MANAGER'],
+      permissions: ['activities.read', 'budgets.read', 'beneficiaries.aggregates.read'],
+    }
+    tx.project.findFirst.mockResolvedValueOnce({
+      projectActivity_project: [
+        {
+          ...activity,
+          projectActivityAssignment_activity: [
+            {
+              projectAssignment: {
+                userId: '70000000-0000-4000-8000-000000000007',
+                user: { fullName: 'Officer' },
+              },
+            },
+          ],
+        },
+      ],
+    })
+
+    const [item] = await service.list(state.actor, projectId)
+    expect(Object.keys(item ?? {}).sort()).toEqual(
+      [
+        'assignedTo',
+        'assignedUserIds',
+        'code',
+        'description',
+        'dueDate',
+        'id',
+        'indicatorIds',
+        'journeyStageId',
+        'journeyStageIds',
+        'overdue',
+        'progress',
+        'projectId',
+        'startDate',
+        'status',
+        'storedStatus',
+        'targetBeneficiaries',
+        'title',
+        'updatedAt',
+      ].sort(),
+    )
+    expect(item?.assignedTo).toEqual(['Officer'])
+    const select = tx.project.findFirst.mock.calls[0][0].select.projectActivity_project.select
+    expect(select).not.toHaveProperty('activityUpdate_activity')
+    expect(select.projectActivityAssignment_activity.select.projectAssignment.select.user).toEqual({
+      select: { fullName: true },
+    })
+    // Budget and reach metrics are detail-only reads.
+    expect(tx.$queryRaw).not.toHaveBeenCalled()
+    expect(tx.projectBudgetRecord.findMany).not.toHaveBeenCalled()
+    expect(tx.budgetExpenseEntry.aggregate).not.toHaveBeenCalled()
+    expect(item).not.toHaveProperty('budgetLogged')
+  })
+
+  it('returns the approved logged total for an expense reader, scoped to the activity', async () => {
+    const reader = {
+      ...actor,
+      roles: ['PROJECT_MANAGER'],
+      permissions: ['activities.read', 'expenses.read'],
+    }
+    state.actor = reader as ApplicationIdentity
+    tx.project.findFirst.mockResolvedValueOnce({ projectActivity_project: [activity] })
+    tx.budgetExpenseEntry.aggregate.mockResolvedValueOnce({
+      _sum: { amount: new Prisma.Decimal('1500.5') },
+      _count: { _all: 2 },
+    })
+    const detail = await service.get(reader, projectId, activityId)
+    expect(detail).toMatchObject({ budgetLogged: '1500.50', budgetLoggedEntries: 2 })
+    expect(tx.budgetExpenseEntry.aggregate).toHaveBeenCalledWith({
+      where: {
+        organizationId,
+        projectId,
+        status: 'APPROVED',
+        budgetRecord: { organizationId, projectId, activityId },
+      },
+      _sum: { amount: true },
+      _count: { _all: true },
+    })
+  })
+
+  it('reports an empty approved expense set as zero entries, not as a missing value', async () => {
+    const reader = {
+      ...actor,
+      roles: ['PROJECT_MANAGER'],
+      permissions: ['activities.read', 'expenses.read'],
+    }
+    state.actor = reader as ApplicationIdentity
+    tx.project.findFirst.mockResolvedValueOnce({ projectActivity_project: [activity] })
+    tx.budgetExpenseEntry.aggregate.mockResolvedValueOnce({
+      _sum: { amount: null },
+      _count: { _all: 0 },
+    })
+    await expect(service.get(reader, projectId, activityId)).resolves.toMatchObject({
+      budgetLogged: '0.00',
+      budgetLoggedEntries: 0,
+    })
+  })
+
+  it('withholds the logged total (null, never 0) without expenses.read', async () => {
+    const officer = {
+      ...actor,
+      roles: ['PROJECT_OFFICER'],
+      permissions: ['activities.read', 'budgets.read'],
+    }
+    state.actor = officer as ApplicationIdentity
+    tx.project.findFirst.mockResolvedValueOnce({ projectActivity_project: [activity] })
+    const detail = await service.get(officer, projectId, activityId)
+    expect(detail).toMatchObject({ budgetLogged: null, budgetLoggedEntries: null })
+    expect(tx.budgetExpenseEntry.aggregate).not.toHaveBeenCalled()
+  })
+
+  it('reads no expenses for an out-of-scope activity', async () => {
+    const reader = { ...actor, permissions: ['activities.read', 'expenses.read'] }
+    state.actor = reader
+    tx.project.findFirst.mockResolvedValueOnce(null)
+    await expect(service.get(reader, projectId, activityId)).rejects.toBeInstanceOf(
+      NotFoundException,
+    )
+    expect(tx.budgetExpenseEntry.aggregate).not.toHaveBeenCalled()
+  })
+
+  it('keeps full nested updates, proof and metrics on the single-activity read', async () => {
+    tx.project.findFirst.mockResolvedValueOnce({ projectActivity_project: [activity] })
+    const detail = await service.get(actor, projectId, activityId)
+    expect(detail).toHaveProperty('updateNotes')
+    expect(detail).toHaveProperty('submittedProof')
+    expect(detail).toHaveProperty('assignedEmails')
+    const select = tx.project.findFirst.mock.calls[0][0].select.projectActivity_project.select
+    expect(select).toHaveProperty('activityUpdate_activity')
+  })
+
+  it('reports a guessed or cross-project activity id as not found on the detail read', async () => {
+    tx.project.findFirst.mockResolvedValueOnce({ projectActivity_project: [] })
+    await expect(service.get(actor, projectId, activityId)).rejects.toBeInstanceOf(
+      NotFoundException,
+    )
+    tx.project.findFirst.mockResolvedValueOnce(null)
+    await expect(service.get(actor, projectId, activityId)).rejects.toBeInstanceOf(
+      NotFoundException,
+    )
+    await expect(service.get(actor, projectId, 'not-a-uuid')).rejects.toBeInstanceOf(
+      NotFoundException,
     )
   })
 
@@ -328,7 +478,15 @@ describe('Activity creation contract authorization', () => {
     if (!('sourceAcknowledgement' in created)) throw new Error('Expected fresh source projection')
     const { sourceAcknowledgement, ...savedActivity } = created
     expect(sourceAcknowledgement).toMatchObject({ committed: true, replayed: false })
-    await expect(service.list(projectManager, projectId)).resolves.toEqual([savedActivity])
+    const [listed] = await service.list(projectManager, projectId)
+    expect(listed).toEqual(
+      Object.fromEntries(
+        Object.keys(listed ?? {}).map((key) => [
+          key,
+          (savedActivity as Record<string, unknown>)[key],
+        ]),
+      ),
+    )
     expect(tx.projectActivity.create).toHaveBeenCalledWith(
       expect.objectContaining({
         data: expect.objectContaining({
@@ -388,6 +546,61 @@ describe('Activity creation contract authorization', () => {
       BadRequestException,
     )
     expect(tx.userProjectAssignment.findMany).not.toHaveBeenCalled()
+  })
+
+  const updateInput = () => {
+    const { budgetAllocation: _budget, ...rest } = input()
+    return { ...rest, expectedUpdatedAt: repairedActivity.updatedAt.toISOString() }
+  }
+
+  it('updates with one project-scope query and one scoped activity read-back', async () => {
+    tx.projectActivity.updateMany.mockResolvedValue({ count: 1 })
+    await expect(
+      service.update(projectManager, projectId, activityId, updateInput()),
+    ).resolves.toMatchObject({ id: activityId })
+    expect(tx.project.findFirst).toHaveBeenCalledOnce()
+    expect(tx.projectActivity.findFirst).toHaveBeenCalledTimes(2)
+    for (const [request] of tx.projectActivity.findFirst.mock.calls)
+      expect(request.where).toMatchObject({ organizationId, projectId, archivedAt: null })
+  })
+
+  it('denies an update outside project scope before reading or writing the activity', async () => {
+    tx.project.findFirst.mockResolvedValueOnce(null)
+    await expect(
+      service.update(projectManager, projectId, activityId, updateInput()),
+    ).rejects.toBeInstanceOf(NotFoundException)
+    expect(tx.projectActivity.findFirst).not.toHaveBeenCalled()
+    expect(tx.projectActivity.updateMany).not.toHaveBeenCalled()
+  })
+
+  it('transitions with one project-scope query and one scoped activity read-back', async () => {
+    tx.projectActivity.updateMany.mockResolvedValue({ count: 1 })
+    await service.transition(projectManager, projectId, activityId, {
+      status: 'IN_PROGRESS',
+      clientMutationId: 'e0000000-0000-4000-8000-000000000002',
+      expectedUpdatedAt: repairedActivity.updatedAt.toISOString(),
+    })
+    expect(tx.project.findFirst).toHaveBeenCalledOnce()
+    expect(tx.projectActivity.findFirst).toHaveBeenCalledTimes(2)
+    expect(tx.projectActivity.findFirst.mock.calls[1][0].where).toEqual({
+      id: activityId,
+      organizationId,
+      projectId,
+      archivedAt: null,
+    })
+  })
+
+  it('denies a transition for a cross-project activity id', async () => {
+    tx.projectActivity.findFirst.mockResolvedValueOnce(null)
+    await expect(
+      service.transition(projectManager, projectId, activityId, {
+        status: 'CANCELLED',
+        reason: 'Synthetic',
+        clientMutationId: 'e0000000-0000-4000-8000-000000000003',
+        expectedUpdatedAt: repairedActivity.updatedAt.toISOString(),
+      }),
+    ).rejects.toBeInstanceOf(NotFoundException)
+    expect(tx.projectActivity.updateMany).not.toHaveBeenCalled()
   })
 
   it('hides an unauthorized or cross-organization Project before Activity creation', async () => {
