@@ -168,4 +168,4 @@ Developer reply on 2026-09-28: "Approve all CRs, Evidence: change constraint, Si
 
 ## 9. Disposition
 
-Not applied.
+Implemented on `integration/audit-wave-a` (Wave A release, 2026-09-28). Per-branch SAD sign-off complete; merged-release review and requirements QA in progress. Hosted migration application and the production release are pending developer authorization.

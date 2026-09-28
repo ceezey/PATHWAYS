@@ -176,6 +176,14 @@ describe('project overview metrics', () => {
       expect(value).not.toMatch(/^0%?( \/|$)/)
   })
 
+  it('says "None yet" for a planned budget with no approved expenses, never a fabricated 0%', async () => {
+    api.getProjectOverviewMetrics.mockResolvedValue(
+      metrics({ budgetUtilization: { metric: missing('NO_APPROVED_EXPENSES') } }),
+    )
+    renderView()
+    await waitFor(async () => expect(await tile('Budget utilization')).toBe('None yet'))
+  })
+
   it('keeps error wording and a retry when the metrics read fails', async () => {
     api.getProjectOverviewMetrics.mockRejectedValue(new PathwaysClientError('Down', 'network'))
     renderView()

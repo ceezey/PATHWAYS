@@ -83,7 +83,7 @@ Other rules:
   - `verified_at` and `expires_at`, with a check that `expires_at = verified_at + 15 minutes`;
   - unique per user and session.
 - Both tables have row-level security enabled. There are no direct table grants to `pathways_runtime`, and access is revoked from PUBLIC, anon, authenticated and service_role.
-- **Functions:** set, change, verify, unlock and grant lookup are SECURITY DEFINER functions with owner `prisma`, an empty `search_path` and qualified names. `EXECUTE` is granted only to `pathways_runtime`. User and organization come from the runtime context. The session ID is passed by the API from the verified token and rechecked with `pathways.runtime_auth_session_live`.
+- **Functions:** set, change, verify, unlock and grant lookup are SECURITY DEFINER functions with owner `prisma`, an empty `search_path` and qualified names. `EXECUTE` is granted only to `pathways_runtime`. User and organization come from the runtime context, re-verified inside the definers against prisma-owned identity tables; the definers call no postgres-owned helper, because the hosted 0031/0034 cleanups revoke that access. The session ID is passed by the API from the verified token, and the API's verified context rechecks liveness with `pathways.runtime_auth_session_live` before any definer runs.
 - **Trust boundary.** The database cannot verify a TOTP claim. The API asserts TOTP freshness from verified signed claims before it calls setup, TOTP-based change or unlock.
 - The migration asserts that `extensions.crypt` and `extensions.gen_salt` exist, and fails closed otherwise.
 - **DBA prerequisite.** In the Supabase role layout the migration owner `prisma` has no `USAGE` on schema `extensions`, so its SECURITY DEFINER functions cannot call pgcrypto. `infra/supabase/phase6/hosted-step-up-pin-preprovision.sql` grants only that `USAGE`, run by `postgres` before 0037 in the post-0031/0034-cleanup role state. The 0037 guard fails closed without it.
@@ -132,7 +132,7 @@ The developer accepts this trade-off by approving this record.
 Users can refresh Beneficiary access with a PIN instead of opening their authenticator every 15 minutes. This delivers the manuscript's PIN wording alongside TOTP.
 
 ### Data / Migration
-0037 adds two tables, their policies, functions and postconditions. No existing table changes.
+0037 adds two tables (RLS enabled, no policies, no API-role grants), functions and postconditions. No existing table changes.
 
 ### Authorization / Privacy
 - No permission or scope change.
@@ -193,4 +193,4 @@ Developer reply on 2026-09-28: "Approve all CRs, Evidence: change constraint, Si
 
 ## 9. Disposition
 
-Not applied.
+Implemented on `integration/audit-wave-a` (Wave A release, 2026-09-28). Per-branch SAD sign-off complete; merged-release review and requirements QA in progress. Hosted migration application and the production release are pending developer authorization. The hosted `postgres` prerequisite (`infra/supabase/phase6/hosted-step-up-pin-preprovision.sql`) must run before 0037.

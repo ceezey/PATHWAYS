@@ -87,6 +87,15 @@ describe('import workspace automatic processing', () => {
   })
   afterEach(cleanup)
 
+  it('keeps focus inside the processing panel when "Process all valid rows" starts a run', async () => {
+    fireEvent.click(await openBatch())
+
+    const panel = await screen.findByRole('region', { name: 'Import processing' })
+    // The panel mounts outside the disabled fieldset that held the focused button,
+    // so it needs focusOnMount to keep focus from falling to the document body.
+    expect(panel.contains(document.activeElement)).toBe(true)
+  })
+
   it('keeps processing until the batch is done and announces progress', async () => {
     fireEvent.click(await openBatch())
 

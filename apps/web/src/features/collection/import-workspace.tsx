@@ -576,6 +576,7 @@ function OwnedImportWorkspace({ scope }: { scope: SensitiveDraftOwner }) {
         // Outside the disabled fieldset so Stop stays available while processing runs.
         <ImportProcessingPanel
           canResume={canProcess && !pending}
+          focusOnMount
           note={visibleProcessing.note}
           onResume={() => void process()}
           onStop={stopProcessing}
