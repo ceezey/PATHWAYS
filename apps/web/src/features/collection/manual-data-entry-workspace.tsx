@@ -362,9 +362,15 @@ export function ManualDataEntryWorkspace() {
                   Participant
                   <select
                     aria-describedby="manual-entry-participant-hint"
+                    aria-disabled="true"
                     className="block w-full rounded border p-2"
-                    disabled
                     onChange={(e) => setDraft({ ...draft, beneficiaryId: e.target.value })}
+                    onKeyDown={(event) => {
+                      event.preventDefault()
+                    }}
+                    onMouseDown={(event) => {
+                      event.preventDefault()
+                    }}
                     title="Not available yet"
                     value={draft.beneficiaryId}
                   >

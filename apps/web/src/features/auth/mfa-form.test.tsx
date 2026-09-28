@@ -202,4 +202,65 @@ describe('MfaForm code entry', () => {
     fillCode('123456')
     expect(submit.disabled).toBe(false)
   })
+
+  it('does not shift later digits when a middle box is deleted', async () => {
+    render(<MfaForm />)
+    fireEvent.click(await screen.findByRole('button', { name: 'Set up authenticator' }))
+    await screen.findByAltText('Private authenticator setup QR code')
+
+    const boxes = fillCode('123456')
+    fireEvent.change(boxes[2], { target: { value: '' } })
+
+    expect(boxes.map((box) => (box as HTMLInputElement).value)).toEqual([
+      '1',
+      '2',
+      '',
+      '4',
+      '5',
+      '6',
+    ])
+  })
+
+  it('fills the first gap instead of the clicked box when typing past a gap', async () => {
+    render(<MfaForm />)
+    fireEvent.click(await screen.findByRole('button', { name: 'Set up authenticator' }))
+    await screen.findByAltText('Private authenticator setup QR code')
+
+    const boxes = screen.getAllByLabelText(/Digit \d of 6/)
+    fireEvent.change(boxes[0], { target: { value: '1' } })
+    fireEvent.change(boxes[1], { target: { value: '2' } })
+    // Box index 2 is still empty; typing into box 4 (index 4) should land in
+    // box 3 (index 2), the first empty box, not jump ahead.
+    fireEvent.change(boxes[4], { target: { value: '9' } })
+
+    expect(boxes.map((box) => (box as HTMLInputElement).value)).toEqual([
+      '1',
+      '2',
+      '9',
+      '',
+      '',
+      '',
+    ])
+  })
+
+  it('resets all boxes when the value prop is externally cleared', async () => {
+    render(<MfaForm />)
+    fireEvent.click(await screen.findByRole('button', { name: 'Set up authenticator' }))
+    await screen.findByAltText('Private authenticator setup QR code')
+
+    const boxes = fillCode('123456')
+    // Submitting a wrong code resets the controlled `value` prop back to ''.
+    fireEvent.click(screen.getByRole('button', { name: 'Verify authenticator code' }))
+
+    await waitFor(() =>
+      expect(boxes.map((box) => (box as HTMLInputElement).value)).toEqual([
+        '',
+        '',
+        '',
+        '',
+        '',
+        '',
+      ]),
+    )
+  })
 })

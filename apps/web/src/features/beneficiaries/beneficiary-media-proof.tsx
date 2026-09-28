@@ -522,9 +522,8 @@ export const BeneficiaryMediaProof = ({
                 Close
               </Button>
               <Button
-                onClick={saveReview}
                 type="button"
-                {...unavailableControlProps('beneficiary-media-save-review-hint')}
+                {...Object.assign({ onClick: saveReview }, unavailableControlProps('beneficiary-media-save-review-hint'))}
               >
                 Save review
               </Button>

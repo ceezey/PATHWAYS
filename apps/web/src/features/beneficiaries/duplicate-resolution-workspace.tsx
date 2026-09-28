@@ -166,8 +166,10 @@ export const DuplicateResolutionWorkspace = () => {
                 <Button
                   type="button"
                   variant="outline"
-                  onClick={() => setDecision('distinct')}
-                  {...unavailableControlProps('duplicate-keep-distinct-hint')}
+                  {...Object.assign(
+                    { onClick: () => setDecision('distinct') },
+                    unavailableControlProps('duplicate-keep-distinct-hint'),
+                  )}
                 >
                   <SearchCheck className="mr-2 h-4 w-4" aria-hidden="true" />
                   Keep as distinct people
@@ -175,8 +177,10 @@ export const DuplicateResolutionWorkspace = () => {
                 <UnavailableHint id="duplicate-keep-distinct-hint" />
                 <Button
                   type="button"
-                  onClick={() => setDecision('link')}
-                  {...unavailableControlProps('duplicate-merge-linked-hint')}
+                  {...Object.assign(
+                    { onClick: () => setDecision('link') },
+                    unavailableControlProps('duplicate-merge-linked-hint'),
+                  )}
                 >
                   <Link2 className="mr-2 h-4 w-4" aria-hidden="true" />
                   Merge linked profiles

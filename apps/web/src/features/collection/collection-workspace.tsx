@@ -1552,7 +1552,7 @@ const OwnedCollectionWorkspace = ({
                       title="Not available yet"
                       type="checkbox"
                     />
-                    {i.label}
+                    {i.label} <span className="text-muted-foreground">(not available yet)</span>
                   </label>
                 ))}
               <UnavailableHint id="linked-indicators-hint" />

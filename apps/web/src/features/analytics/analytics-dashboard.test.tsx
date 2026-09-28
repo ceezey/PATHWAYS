@@ -622,7 +622,9 @@ describe('Analytics dashboard request dependencies', () => {
     await waitFor(() => expect(api.getMonitoringDashboard).toHaveBeenCalled())
 
     const addToDashboard = screen.getByRole('button', { name: 'Add to Dashboard' })
-    expect(addToDashboard.hasAttribute('disabled')).toBe(true)
+    // aria-disabled (not native disabled) so the control stays keyboard/AT reachable.
+    expect(addToDashboard.hasAttribute('disabled')).toBe(false)
+    expect(addToDashboard.getAttribute('aria-disabled')).toBe('true')
     const describedBy = addToDashboard.getAttribute('aria-describedby')
     expect(describedBy).toBeTruthy()
     expect(document.getElementById(describedBy as string)?.textContent).toBe('Not available yet')

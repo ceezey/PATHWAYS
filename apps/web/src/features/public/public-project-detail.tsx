@@ -312,10 +312,12 @@ export const PublicProjectDetail = ({
               </Button>
               <Button
                 className="gap-2"
-                onClick={openEditor}
                 size="sm"
                 type="button"
-                {...unavailableControlProps('public-project-edit-staff-preview-hint')}
+                {...Object.assign(
+                  { onClick: openEditor },
+                  unavailableControlProps('public-project-edit-staff-preview-hint'),
+                )}
               >
                 <SlidersHorizontal className="h-4 w-4" aria-hidden="true" />
                 Edit staff preview

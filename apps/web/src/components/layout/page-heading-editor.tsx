@@ -21,8 +21,18 @@ export const PageHeadingEditor = ({
     <>
       <Button
         aria-describedby={hintId}
+        aria-disabled="true"
         aria-label={`Edit ${title} page heading`}
-        disabled
+        onClick={(event) => {
+          event.preventDefault()
+          event.stopPropagation()
+        }}
+        onKeyDown={(event) => {
+          if (event.key === 'Enter' || event.key === ' ') {
+            event.preventDefault()
+            event.stopPropagation()
+          }
+        }}
         size="icon"
         title="Not available yet"
         type="button"

@@ -88,7 +88,9 @@ describe('ActivityDetailContent server read model', () => {
       />,
     )
     const button = screen.getByRole('button', { name: 'Request an extension' })
-    expect(button.hasAttribute('disabled')).toBe(true)
+    // aria-disabled (not native disabled) so the control stays keyboard/AT reachable.
+    expect(button.hasAttribute('disabled')).toBe(false)
+    expect(button.getAttribute('aria-disabled')).toBe('true')
     const describedBy = button.getAttribute('aria-describedby')
     expect(describedBy).toBeTruthy()
     expect(document.getElementById(describedBy as string)?.textContent).toBe('Not available yet')
