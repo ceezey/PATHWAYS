@@ -220,6 +220,8 @@ model SystemUser {
   projectPublication_publishedBy              ProjectPublication[]               @relation("ProjectPublication_publishedBy")
   publicationRequest_actor                    PublicationRequest[]               @relation("PublicationRequest_actor")
   expenseSignoff_signedOffBy                  ExpenseSignoff[]                   @relation("ExpenseSignoff_signedOffBy")
+  stepUpPin                                   UserStepUpPin?                     @relation("UserStepUpPin_user")
+  beneficiaryStepUpGrants                     BeneficiaryStepUpGrant[]           @relation("BeneficiaryStepUpGrant_user")
 
   @@unique([organizationId, id], map: "system_users_organization_id_id_key")
   @@index([organizationId, accountStatus], map: "system_users_organization_id_account_status_idx")
@@ -2352,5 +2354,37 @@ model SensitiveAggregateRelease {
   @@unique([organizationId, projectId], map: "p06_sensitive_release_project_key")
   @@index([organizationId, status, projectId], map: "p06_sensitive_release_status_idx")
   @@map("sensitive_aggregate_releases")
+  @@schema("pathways")
+}
+
+/// cr-pathways-beneficiary-step-up-pin (0037). RLS on, no API-role grants: runtime access only
+/// through the step_up_pin_* SECURITY DEFINER functions. Never select pinHash in application code.
+model UserStepUpPin {
+  organizationId String     @map("organization_id") @db.Uuid
+  userId         String     @map("user_id") @db.Uuid
+  pinHash        String     @map("pin_hash")
+  failedAttempts Int        @default(0) @map("failed_attempts") @db.SmallInt
+  lockedAt       DateTime?  @map("locked_at") @db.Timestamptz(3)
+  createdAt      DateTime   @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt      DateTime   @default(now()) @map("updated_at") @db.Timestamptz(3)
+  user           SystemUser @relation("UserStepUpPin_user", fields: [organizationId, userId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict, map: "user_step_up_pins_user_fkey")
+
+  @@id([organizationId, userId], map: "user_step_up_pins_pkey")
+  @@map("user_step_up_pins")
+  @@schema("pathways")
+}
+
+/// Session-bound PIN step-up grant; expires 15 minutes after verification (0037).
+model BeneficiaryStepUpGrant {
+  organizationId String     @map("organization_id") @db.Uuid
+  userId         String     @map("user_id") @db.Uuid
+  sessionId      String     @map("session_id") @db.Uuid
+  method         String
+  verifiedAt     DateTime   @map("verified_at") @db.Timestamptz(3)
+  expiresAt      DateTime   @map("expires_at") @db.Timestamptz(3)
+  user           SystemUser @relation("BeneficiaryStepUpGrant_user", fields: [organizationId, userId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict, map: "beneficiary_step_up_grants_user_fkey")
+
+  @@id([organizationId, userId, sessionId], map: "beneficiary_step_up_grants_pkey")
+  @@map("beneficiary_step_up_grants")
   @@schema("pathways")
 }

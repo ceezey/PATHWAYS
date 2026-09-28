@@ -5,6 +5,7 @@ import { AuthController } from './auth.controller'
 import { AuthService } from './auth.service'
 import { AuthorizedDataController } from './authorized-data.controller'
 import { AuthorizedDataService } from './authorized-data.service'
+import { BeneficiaryStepUpPinService } from './beneficiary-step-up-pin.service'
 import { BeneficiaryStepUpService } from './beneficiary-step-up.service'
 import { RouteAccessController } from './route-access.controller'
 import { RouteAccessService } from './route-access.service'
@@ -23,6 +24,7 @@ import { WorkspaceResolutionService } from './workspace-resolution.service'
     WorkspaceResolutionService,
     RouteAccessService,
     BeneficiaryStepUpService,
+    BeneficiaryStepUpPinService,
   ],
   exports: [
     AuthService,

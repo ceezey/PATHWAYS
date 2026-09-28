@@ -83,6 +83,8 @@ No database change. Deploy the API enforcement and web prompt together in one re
 
 Developer reply on 2026-09-28: "Approve A, 15 min". Manuscript Objective 2.2 step-up is a required engineering contract for Beneficiary identifying detail, delivered as Option A with a 15-minute freshness window. Options B and C are not adopted.
 
+**Amended 2026-09-28** by the approved [Beneficiary step-up PIN fallback](cr-pathways-beneficiary-step-up-pin.md): a bounded form of Option B (user-set PIN, session-bound 15-minute grant, lockout at 5 and TOTP-only unlock) is adopted alongside Option A. TOTP stays primary and Option A is otherwise unchanged. Option C remains not adopted.
+
 ## 9. Disposition
 
 **Implemented locally (2026-09-28).**

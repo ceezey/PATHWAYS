@@ -22,6 +22,10 @@ const cases: ControllerCase[] = [
     ],
   },
   {
+    file: 'src/modules/auth/auth.controller.ts',
+    dtoNames: ['ChangeStepUpPinDto', 'VerifyStepUpPinDto'],
+  },
+  {
     file: 'src/modules/beneficiaries/beneficiaries.controller.ts',
     dtoNames: [
       'ArchiveBeneficiaryDto',

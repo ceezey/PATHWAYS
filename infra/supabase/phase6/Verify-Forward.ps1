@@ -1,7 +1,7 @@
 # Called inside the guarded synthetic Replay-Local cluster, after 0028 parity.
 if (-not $MigrationBaseline -or -not $phase6Started -or $phase6Port -ne 55448 -or
     $phase6Database -cne 'pathways_phase4_phase6_replay') { throw 'Forward verification requires owned baseline replay.' }
-$forwardDatabases = @($phase6Database, 'pathways_phase4_baseline', 'pathways_phase4_forward_fault', 'pathways_phase4_forward_restore', 'pathways_phase4_core_fault', 'pathways_phase4_core_retry', 'pathways_phase4_pdf_fault', 'pathways_phase4_pdf_retry')
+$forwardDatabases = @($phase6Database, 'pathways_phase4_baseline', 'pathways_phase4_forward_fault', 'pathways_phase4_forward_restore', 'pathways_phase4_core_fault', 'pathways_phase4_core_retry', 'pathways_phase4_pdf_fault', 'pathways_phase4_pdf_retry', 'pathways_phase4_pin_fault', 'pathways_phase4_pin_retry')
 $forwardStage = Join-Path $phase6Parent 'forward-migrations'
 New-Item -ItemType Directory -Path $forwardStage | Out-Null
 foreach ($name in @($baselineName,'0027_revised_csv_rbac','0028_revised_aggregate_permission_guards')) {
@@ -21,6 +21,7 @@ $forwardInventory = @(
   '0034_core_feature_completion'
   '0035_admin_read_access'
   '0036_import_pdf_file_type'
+  '0037_step_up_pin'
 )
 if (($forwardMigrations.Name -join ',') -cne ($forwardInventory -join ',')) { throw 'Forward migration inventory requires renewed review.' }
 
@@ -69,7 +70,7 @@ BEGIN;
 DO $acl$
 DECLARE source_db record;target_db record;entry record;principal text;
 BEGIN
- IF current_user<>'postgres' OR session_user<>'postgres' OR inet_server_addr() IS DISTINCT FROM '127.0.0.1'::inet OR inet_server_port()<>55448 OR current_database() NOT IN ('pathways_phase4_forward_fault','pathways_phase4_forward_restore','pathways_phase4_core_fault','pathways_phase4_core_retry','pathways_phase4_pdf_fault','pathways_phase4_pdf_retry') THEN RAISE EXCEPTION 'Only owned restored database ACLs may be reconstructed'; END IF;
+ IF current_user<>'postgres' OR session_user<>'postgres' OR inet_server_addr() IS DISTINCT FROM '127.0.0.1'::inet OR inet_server_port()<>55448 OR current_database() NOT IN ('pathways_phase4_forward_fault','pathways_phase4_forward_restore','pathways_phase4_core_fault','pathways_phase4_core_retry','pathways_phase4_pdf_fault','pathways_phase4_pdf_retry','pathways_phase4_pin_fault','pathways_phase4_pin_retry') THEN RAISE EXCEPTION 'Only owned restored database ACLs may be reconstructed'; END IF;
  SELECT * INTO STRICT source_db FROM pg_catalog.pg_database WHERE datname='pathways_phase4_baseline';
  SELECT * INTO STRICT target_db FROM pg_catalog.pg_database WHERE datname=current_database();
  IF source_db.datdba<>target_db.datdba OR source_db.datdba<>(SELECT oid FROM pg_catalog.pg_roles WHERE rolname='postgres') THEN RAISE EXCEPTION 'Unexpected source/restore database owner'; END IF;
@@ -89,7 +90,7 @@ COMMIT;
   if ((Read-ForwardDatabaseAcl $Database) -cne (Read-ForwardDatabaseAcl 'pathways_phase4_baseline')) { throw 'Restored database ACL differs from source, including default PUBLIC rights.' }
 }
 
-function Invoke-ForwardDeploy([string]$Database, [bool]$Provision = $false, [bool]$ExpectFailure = $false, [bool]$ProvisionCore = $false) {
+function Invoke-ForwardDeploy([string]$Database, [bool]$Provision = $false, [bool]$ExpectFailure = $false, [bool]$ProvisionCore = $false, [bool]$ProvisionPin = $false) {
   Assert-ForwardTarget $Database
   $beforeDeployLog = Read-ForwardPostgresLog
   $env:PATHWAYS_PHASE6_REPLAY_MIGRATIONS = $forwardStage
@@ -102,6 +103,10 @@ function Invoke-ForwardDeploy([string]$Database, [bool]$Provision = $false, [boo
     }
     if ($ProvisionCore) {
       Invoke-LocalSql ([IO.File]::ReadAllText((Join-Path $PSScriptRoot 'forward-core-preprovision.sql'))) $Database
+    }
+    if ($ProvisionPin) {
+      # Idempotent DBA prerequisite for 0037; runs in the post-0031/0034-cleanup role state.
+      Invoke-LocalSql ([IO.File]::ReadAllText((Join-Path $PSScriptRoot 'forward-step-up-pin-preprovision.sql'))) $Database
     }
     # Native failure is expected only for the isolated copied fault migration.
     $savedPreference = $ErrorActionPreference
@@ -321,10 +326,70 @@ try {
       if ($script:forwardFaultLog -notmatch '(?m)^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\.\d{3} \S+ \[\d+\] ERROR:\s+PATHWAYS_EXPECTED_PDF_FORWARD_FAULT\s*$') { throw 'Exact 0036 ERROR marker absent from this invocation interval.' }
       Write-Output 'PDF_FORWARD_INJECTED_TRANSACTION_ROLLBACK=PASS'
     }
-    foreach ($db in $forwardDatabases[0..1]) { Invoke-ForwardDeploy $db ($migration.Name -ceq '0031_f10_f11_rules_runtime') $false ($migration.Name -ceq '0034_core_feature_completion') }
-    if ([int]$migration.Name.Substring(0,4) -ge 31) { Invoke-ForwardDeploy 'pathways_phase4_forward_restore' ($migration.Name -ceq '0031_f10_f11_rules_runtime') $false ($migration.Name -ceq '0034_core_feature_completion') }
-    if ([int]$migration.Name.Substring(0,4) -ge 34) { Invoke-ForwardDeploy 'pathways_phase4_core_retry' $false $false ($migration.Name -ceq '0034_core_feature_completion') }
-    if ([int]$migration.Name.Substring(0,4) -ge 36) { Invoke-ForwardDeploy 'pathways_phase4_pdf_retry' }
+    if ($migration.Name -ceq '0037_step_up_pin') {
+      # cr-pathways-beneficiary-step-up-pin: independent pre-0037 fault/retry clones.
+      $pinSnapshot = Join-Path $phase6Parent 'forward-pre0037.dump'
+      Assert-ForwardTarget 'pathways_phase4_baseline'
+      & $phase6Tools['pg_dump'] -w -h 127.0.0.1 -p 55448 -U postgres -d pathways_phase4_baseline --format=custom --file=$pinSnapshot
+      if ($LASTEXITCODE -ne 0) { throw 'Step-up PIN recovery backup failed.' }
+      foreach ($db in @('pathways_phase4_pin_fault', 'pathways_phase4_pin_retry')) {
+        Invoke-LocalSql "CREATE DATABASE $db;" 'postgres'
+        Assert-ForwardTarget $db
+        & $phase6Tools['pg_restore'] -w -h 127.0.0.1 -p 55448 -U postgres -d $db --exit-on-error $pinSnapshot
+        if ($LASTEXITCODE -ne 0) { throw 'Step-up PIN recovery restore failed.' }
+        Restore-ForwardDatabaseAcl $db
+        if ((Read-ForwardLedger $db) -cne (Read-ForwardLedger 'pathways_phase4_baseline')) { throw 'Step-up PIN recovery changed original ledger.' }
+        Assert-ForwardParity 'pathways_phase4_baseline' $db
+        if ((Read-ForwardData $db) -cne (Read-ForwardData 'pathways_phase4_baseline')) { throw 'Step-up PIN recovery changed table data.' }
+      }
+      # The 0037 definers must work without the owner-role memberships the cleanups revoke.
+      $pinRoleState = Read-ForwardSql 'pathways_phase4_pin_retry' @"
+SELECT NOT EXISTS(SELECT FROM pg_catalog.pg_auth_members m JOIN pg_catalog.pg_roles r ON r.oid=m.roleid
+ WHERE m.member=(SELECT oid FROM pg_catalog.pg_roles WHERE rolname='prisma')
+ AND (r.rolname LIKE 'rules\_%\_owner' OR r.rolname IN('public_projection_owner','report_projection_owner','finance_operation_owner')))
+ AND NOT has_function_privilege('prisma','pathways.runtime_context_organization()','EXECUTE');
+"@
+      if ($pinRoleState.Trim() -cne 't') { throw '0037 replay is not in the post-cleanup role state.' }
+      # Fail closed without the DBA prerequisite: run the canonical SQL directly (no ledger row).
+      Assert-ForwardTarget 'pathways_phase4_pin_retry'
+      $savedPreference = $ErrorActionPreference
+      try {
+        $ErrorActionPreference = 'Continue'
+        $pinGuardOutput = (& $phase6Tools['psql'] -X -q -w -h 127.0.0.1 -p 55448 -U prisma -d pathways_phase4_pin_retry -v ON_ERROR_STOP=1 -f (Join-Path $migration.FullName 'migration.sql') 2>&1) -join "`n"
+        $pinGuardExit = $LASTEXITCODE
+      } finally { $ErrorActionPreference = $savedPreference }
+      if ($pinGuardExit -eq 0 -or $pinGuardOutput -notmatch '0037 requires pgcrypto installed in schema extensions') { throw '0037 did not fail closed without its DBA prerequisite.' }
+      if ((Read-ForwardLedger 'pathways_phase4_pin_retry') -cne (Read-ForwardLedger 'pathways_phase4_baseline')) { throw '0037 guard failure changed the ledger.' }
+      Assert-ForwardParity 'pathways_phase4_baseline' 'pathways_phase4_pin_retry'
+      Write-Output 'PIN_FORWARD_PREREQUISITE_FAIL_CLOSED=PASS'
+      $pinFaultDb = 'pathways_phase4_pin_fault'
+      # The DBA prerequisite precedes the rollback snapshots, as it precedes 0037 when hosted.
+      Invoke-LocalSql ([IO.File]::ReadAllText((Join-Path $PSScriptRoot 'forward-step-up-pin-preprovision.sql'))) $pinFaultDb
+      $pinBeforeLedger = Read-ForwardLedger $pinFaultDb
+      $pinBeforeCatalog = Read-ForwardCatalog $pinFaultDb
+      $pinBeforeData = Read-ForwardData $pinFaultDb
+      $pinFaultPath = Join-Path $forwardStage ($migration.Name + '/migration.sql')
+      $pinCanonicalSql = [IO.File]::ReadAllText($pinFaultPath)
+      if ($pinCanonicalSql -notmatch '(?s)COMMIT;\s*$') { throw 'Unexpected step-up PIN fault injection boundary.' }
+      try {
+        $pinFaultSql = [regex]::Replace($pinCanonicalSql, 'COMMIT;\s*$', "DO `$fault`$ BEGIN RAISE EXCEPTION 'PATHWAYS_EXPECTED_PIN_FORWARD_FAULT'; END `$fault`$;`nCOMMIT;`n")
+        [IO.File]::WriteAllText($pinFaultPath, $pinFaultSql)
+        Invoke-ForwardDeploy $pinFaultDb $false $true $false $true
+      } finally { Copy-Item -LiteralPath (Join-Path $migration.FullName 'migration.sql') -Destination $pinFaultPath -Force }
+      if ((Read-ForwardLedger $pinFaultDb "migration_name<>'0037_step_up_pin'") -cne $pinBeforeLedger -or
+          (Read-ForwardCatalog $pinFaultDb) -cne $pinBeforeCatalog -or (Read-ForwardData $pinFaultDb) -cne $pinBeforeData -or
+          (Read-ForwardSql $pinFaultDb "SELECT to_regclass('pathways.user_step_up_pins') IS NULL AND to_regclass('pathways.beneficiary_step_up_grants') IS NULL;").Trim() -cne 't') {
+        throw 'Injected step-up PIN failure changed pre0037 ledger, catalog, data or database ACL.'
+      }
+      if ($script:forwardFaultLog -notmatch '(?m)^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\.\d{3} \S+ \[\d+\] ERROR:\s+PATHWAYS_EXPECTED_PIN_FORWARD_FAULT\s*$') { throw 'Exact step-up PIN ERROR marker absent from this invocation interval.' }
+      Write-Output 'PIN_FORWARD_INJECTED_TRANSACTION_ROLLBACK=PASS'
+    }
+    $forwardPin = $migration.Name -ceq '0037_step_up_pin'
+    foreach ($db in $forwardDatabases[0..1]) { Invoke-ForwardDeploy $db ($migration.Name -ceq '0031_f10_f11_rules_runtime') $false ($migration.Name -ceq '0034_core_feature_completion') $forwardPin }
+    if ([int]$migration.Name.Substring(0,4) -ge 31) { Invoke-ForwardDeploy 'pathways_phase4_forward_restore' ($migration.Name -ceq '0031_f10_f11_rules_runtime') $false ($migration.Name -ceq '0034_core_feature_completion') $forwardPin }
+    if ([int]$migration.Name.Substring(0,4) -ge 34) { Invoke-ForwardDeploy 'pathways_phase4_core_retry' $false $false ($migration.Name -ceq '0034_core_feature_completion') $forwardPin }
+    if ([int]$migration.Name.Substring(0,4) -ge 36) { Invoke-ForwardDeploy 'pathways_phase4_pdf_retry' $false $false $false $forwardPin }
+    if ([int]$migration.Name.Substring(0,4) -ge 37) { Invoke-ForwardDeploy 'pathways_phase4_pin_retry' $false $false $false $forwardPin }
   }
   foreach ($db in $forwardDatabases[0..1]) {
     if ((Read-ForwardLedger $db ("migration_name NOT IN ('" + ($forwardInventory -join "','") + "')")) -cne $originalForwardLedgers[$db]) { throw 'Historical ledger rows changed during forward upgrade.' }
@@ -340,6 +405,13 @@ try {
   Assert-ForwardParity 'pathways_phase4_baseline' 'pathways_phase4_core_retry'
   Write-Output 'CORE_FORWARD_BACKUP_RESTORE_RECOVERY=PASS'
   Write-Output 'CORE_FORWARD_IDEMPOTENT_DEPLOY=PASS'
+  Assert-ForwardChecksums 'pathways_phase4_pin_retry'
+  $pinRepeatLedger = Read-ForwardLedger 'pathways_phase4_pin_retry'
+  Invoke-ForwardDeploy 'pathways_phase4_pin_retry' $false $false $false $true
+  if ((Read-ForwardLedger 'pathways_phase4_pin_retry') -cne $pinRepeatLedger) { throw 'Repeated step-up PIN recovery deployment changed ledger.' }
+  Assert-ForwardParity 'pathways_phase4_baseline' 'pathways_phase4_pin_retry'
+  Write-Output 'PIN_FORWARD_BACKUP_RESTORE_RECOVERY=PASS'
+  Write-Output 'PIN_FORWARD_IDEMPOTENT_DEPLOY=PASS'
   Assert-ForwardChecksums 'pathways_phase4_forward_restore'
   Assert-ForwardParity $phase6Database 'pathways_phase4_baseline'
   Assert-ForwardParity 'pathways_phase4_baseline' 'pathways_phase4_forward_restore'
@@ -399,6 +471,27 @@ FROM pg_catalog.pg_enum e JOIN pg_catalog.pg_type t ON t.oid=e.enumtypid WHERE t
     if ($pdfRuntimeLogin -ceq 'false') { Invoke-LocalSql 'ALTER ROLE pathways_runtime NOLOGIN;' 'pathways_phase4_pdf_retry' }
   }
   Write-Output 'PDF_FORWARD_IMPORT_FILE_TYPE_RUNTIME=PASS'
+  # cr-pathways-beneficiary-step-up-pin: behavioral suite (rolled back) in the post-cleanup role
+  # state on the fresh and recovered paths, then the row-lock race on the recovered clone.
+  foreach ($db in @('pathways_phase4_baseline', 'pathways_phase4_pin_retry')) {
+    $pinSuite = Read-ForwardSql $db ([IO.File]::ReadAllText((Join-Path $phase6Root 'apps/api/prisma/tests/step-up-pin-runtime.sql')))
+    if ($pinSuite -notmatch '(?m)^STEP_UP_PIN_ASSERTIONS_PASSED=11\s*$') { throw "Step-up PIN runtime suite failed in $db." }
+  }
+  Write-Output 'FORWARD_0037_STEP_UP_PIN_RUNTIME=PASS'
+  Assert-ForwardTarget 'pathways_phase4_pin_retry'
+  Invoke-LocalSql ([IO.File]::ReadAllText((Join-Path $phase6Root 'apps/api/prisma/tests/step-up-pin-concurrency-fixture.sql'))) 'pathways_phase4_pin_retry'
+  $pinRuntimeLogin = (Read-ForwardSql 'pathways_phase4_pin_retry' "SELECT rolcanlogin FROM pg_catalog.pg_roles WHERE rolname='pathways_runtime';").Trim()
+  $pinRaceEnvironment = @{ PHASE2_RACE_DATABASE = 'pathways_phase4_pin_retry'; PHASE2_LOCAL_PORT = '55448'; PHASE2_RUNTIME_PASSWORD = 'trust-local'; PHASE2_OWNER_PASSWORD = 'trust-local' }
+  try {
+    Invoke-LocalSql 'ALTER ROLE pathways_runtime LOGIN;' 'pathways_phase4_pin_retry'
+    foreach ($key in $pinRaceEnvironment.Keys) { Set-Item -LiteralPath "Env:$key" -Value $pinRaceEnvironment[$key] }
+    node (Join-Path $phase6Root 'apps/api/prisma/tests/step-up-pin-concurrency.mjs')
+    if ($LASTEXITCODE -ne 0) { throw 'Step-up PIN concurrency test failed.' }
+  } finally {
+    foreach ($key in $pinRaceEnvironment.Keys) { Remove-Item -LiteralPath "Env:$key" -ErrorAction SilentlyContinue }
+    if ($pinRuntimeLogin -cne 't') { Invoke-LocalSql 'ALTER ROLE pathways_runtime NOLOGIN;' 'pathways_phase4_pin_retry' }
+  }
+  Write-Output 'FORWARD_0037_STEP_UP_PIN_CONCURRENCY=PASS'
 } finally {
   foreach ($key in $forwardPriorEnvironment.Keys) { Set-Item -LiteralPath "Env:$key" -Value $forwardPriorEnvironment[$key] }
 }

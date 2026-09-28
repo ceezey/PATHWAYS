@@ -87,6 +87,7 @@ export class SupabaseAuthGuard implements CanActivate {
     const request = context.switchToHttp().getRequest<AuthenticatedRequest>()
     request.user = undefined
     request.auth = undefined
+    request.authSessionId = undefined
     const handlers = [context.getHandler(), context.getClass()]
     if (this.reflector.getAllAndOverride<boolean>(IS_PUBLIC_KEY, handlers)) return true
     // Set before validation so denials/outages are private too, not just 200s.
@@ -167,17 +168,19 @@ export class SupabaseAuthGuard implements CanActivate {
     }
     budget?.check()
     request.auth = identity
+    request.authSessionId = verified.sessionId
     if (
       permission &&
       (request.user.roles.length !== 1 ||
         !hasAtomicPermission(request.user.roles[0], request.user.permissions, permission))
     ) {
       request.user = undefined
+      request.authSessionId = undefined
       throw new ForbiddenException('Required application permission is missing.')
     }
     // Server-derived step-up after identity/account/org/role/permission and the
-    // route project assignment, before any Beneficiary query. The freshness check
-    // itself does not depend on the target record.
+    // route project assignment, before any Beneficiary query. Freshness (a signed TOTP
+    // or a live session-bound PIN grant) does not depend on the target record.
     if (this.reflector.getAllAndOverride<boolean>(BENEFICIARY_STEP_UP_KEY, handlers)) {
       try {
         await this.stepUp.enforce(
@@ -185,9 +188,11 @@ export class SupabaseAuthGuard implements CanActivate {
           request.user,
           `${context.getClass().name}.${context.getHandler().name}`,
           (request as { params?: Record<string, unknown> }).params?.projectId,
+          verified.sessionId,
         )
       } catch (error) {
         request.user = undefined
+        request.authSessionId = undefined
         throw error
       }
     }

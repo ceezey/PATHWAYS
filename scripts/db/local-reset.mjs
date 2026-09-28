@@ -19,6 +19,18 @@ const baseline = '0000_pathways_baseline_through_0026'
 const preprovision = {
   '0031_f10_f11_rules_runtime': 'hosted-rules-preprovision.sql',
   '0034_core_feature_completion': 'hosted-core-preprovision.sql',
+  '0037_step_up_pin': 'hosted-step-up-pin-preprovision.sql',
+}
+// Hosted DBAs revoke the temporary owner-role memberships right after 0031 and 0034.
+// Local runs the same reviewed cleanups at the same points, so later migrations (0037's
+// definers in particular) see the hosted role state instead of a stronger prisma.
+// The local prerequisite database CREATE grant to prisma is preserved.
+const cleanup = {
+  '0031_f10_f11_rules_runtime': [
+    'hosted-rules-cleanup.sql',
+    ['-v', 'original_prisma_database_create=true'],
+  ],
+  '0034_core_feature_completion': ['hosted-core-cleanup.sql', []],
 }
 
 function run(command, args, { input, env, label } = {}) {
@@ -70,12 +82,13 @@ function assertLocalContainer() {
 // The reviewed hosted preprovision scripts pin two hosted project refs. The local
 // Supabase container has the same ordinary-postgres/supabase_admin role profile,
 // so the body is reused unchanged except for that pin.
-function runPreprovision(file) {
+function runPreprovision(file, vars = []) {
   const sql = readFileSync(path.join(phase6Dir, file), 'utf8')
   const pin = ":'target_project_ref' IN ('pdqwsknbzkdtiwjjibqt','klbtoqdalmcsfjqophty')"
   if (!sql.includes(pin))
     throw new Error(`${file} target pin changed; review before reusing it locally`)
   psql(sql.replace(pin, ":'target_project_ref'='local'"), file, [
+    ...vars,
     '-v',
     'target_project_ref=local',
     '-v',
@@ -173,6 +186,11 @@ REVOKE TEMPORARY ON DATABASE postgres FROM PUBLIC;`,
       runPreprovision(preprovision[name])
     }
     batch.push(name)
+    if (cleanup[name]) {
+      deployStaged(batch)
+      batch = []
+      runPreprovision(...cleanup[name])
+    }
   }
   if (batch.length) deployStaged(batch)
 
