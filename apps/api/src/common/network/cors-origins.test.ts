@@ -23,7 +23,7 @@ describe('API browser origin allowlist', () => {
 })
 
 describe('API CORS options', () => {
-  it('caches CORS preflight responses for the browser-max duration', () => {
+  it('sends the highest preflight max-age any browser honors', () => {
     const options = corsOptions('https://pathways-web.vercel.app')
     expect(options.maxAge).toBe(CORS_PREFLIGHT_MAX_AGE_SECONDS)
     expect(options.maxAge).toBe(86400)
