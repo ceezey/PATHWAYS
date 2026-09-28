@@ -486,13 +486,13 @@ describe('BeneficiaryForm', () => {
     expect(client.ensureDefaultRegistrationForm).not.toHaveBeenCalled()
   })
 
-  it('keeps an archived default form unavailable without retrying or submitting', async () => {
+  it('keeps a project with no published form unavailable without retrying or submitting', async () => {
     window.sessionStorage.setItem(draftKey(validDraft.projectId), JSON.stringify(validDraft))
     client.getBeneficiaryRegistrationContext.mockResolvedValue(context([]))
     client.ensureDefaultRegistrationForm.mockResolvedValue(context([]))
     render(<BeneficiaryForm projects={mockProjects} />)
     await completeSelects()
-    const unavailable = await screen.findByText(/Registration is unavailable for this project/)
+    const unavailable = await screen.findByText(/No registration form is available/)
     expect(unavailable.getAttribute('role')).toBe('alert')
     fireEvent.click(screen.getByRole('button', { name: 'Save beneficiary' }))
     expect(screen.queryByRole('dialog')).toBeNull()
@@ -506,7 +506,7 @@ describe('BeneficiaryForm', () => {
     render(<BeneficiaryForm projects={mockProjects} />)
     await completeSelects()
     await screen.findByText('Registration forms could not be loaded.')
-    expect(screen.queryByText(/Registration is unavailable/)).toBeNull()
+    expect(screen.queryByText(/No registration form is available/)).toBeNull()
     expect(client.ensureDefaultRegistrationForm).toHaveBeenCalledOnce()
     fireEvent.click(screen.getByRole('button', { name: 'Retry registration forms' }))
     await waitFor(() => expect(client.ensureDefaultRegistrationForm).toHaveBeenCalledTimes(2))

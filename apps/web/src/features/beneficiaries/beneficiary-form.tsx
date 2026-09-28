@@ -784,8 +784,8 @@ const ScopedBeneficiaryForm = ({
               ) : null}
               {contextState === 'ready' && registrationContext?.definitions.length === 0 ? (
                 <p role="alert">
-                  Registration is unavailable for this project because its registration form was
-                  archived. Ask a form manager to publish a registration form.
+                  No registration form is available for this project. Ask a form manager to publish
+                  one.
                 </p>
               ) : null}
               {contextState === 'ready' &&

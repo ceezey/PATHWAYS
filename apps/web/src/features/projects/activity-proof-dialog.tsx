@@ -14,7 +14,11 @@ import { useCurrentRole } from '@/hooks/use-current-role'
 import { type SensitiveDraftOwner, useSensitiveDraftOwner } from '@/lib/auth/sensitive-drafts'
 import { sha256Hex } from '@/lib/files/proof-file-hash'
 import { PathwaysClientError, pathwaysClient } from '@/lib/services/pathways-client'
-import type { Activity, ActivityProofUploadLimits } from '@/types/pathways'
+import type {
+  Activity,
+  ActivityProofFileDeclaration,
+  ActivityProofUploadLimits,
+} from '@/types/pathways'
 
 // Advisory-only defaults shown before the server's own limits load
 // (cr-pathways-activity-progress-media 3.2). The server is authoritative either way.
@@ -95,7 +99,11 @@ const ScopedActivityProofDialog = ({
   const [limits, setLimits] = useState<ActivityProofUploadLimits>(fallbackLimits)
   const fileInputRef = useRef<HTMLInputElement | null>(null)
   const reservation = useRef<{ updateId: string; clientUpdateId: string } | null>(null)
-  const finished = useRef(false)
+  // committed marks the update as durably committed server-side (retries after this point must
+  // only retry the post-commit reload, never reserve a second update). finishing guards against
+  // overlapping finish() calls without blocking a later retry after a failed reload.
+  const committed = useRef(false)
+  const finishing = useRef(false)
   const noteError = error === 'Enter an update note before submitting proof.'
   const fileError = error.startsWith('Attach') || error.startsWith('Select up to')
 
@@ -106,7 +114,8 @@ const ScopedActivityProofDialog = ({
     setFiles([])
     setError('')
     reservation.current = null
-    finished.current = false
+    committed.current = false
+    finishing.current = false
     let cancelled = false
     pathwaysClient
       .getActivityProofUploadLimits(activity.projectId)
@@ -174,9 +183,10 @@ const ScopedActivityProofDialog = ({
     setFiles((current) => current.map((item) => (item.key === key ? { ...item, ...patch } : item)))
   }
 
-  const finish = async (acknowledgement: unknown) => {
-    if (finished.current || !activity) return
-    finished.current = true
+  const finish = async () => {
+    if (!activity || finishing.current) return
+    finishing.current = true
+    committed.current = true
     try {
       const record = await pathwaysClient.getActivity(activity.projectId, activity.id)
       if (!scope.isCurrent()) return
@@ -188,29 +198,46 @@ const ScopedActivityProofDialog = ({
     } catch {
       if (scope.isCurrent())
         setError(
-          'The proof is committed. Reloading its current record failed; retry to reload without resubmitting.',
+          'The proof is committed. Reloading its current record failed; submit again to retry the reload only.',
         )
     } finally {
+      finishing.current = false
       if (scope.isCurrent()) setSubmitting(false)
     }
-    void acknowledgement
   }
 
+  // Uploads (when the reservation issued a signed URL) and always finalizes: a file that the
+  // reservation already reported storageReady still needs its finalize call to trigger the
+  // update's commit, so this never skips straight to a local 'uploaded' status.
   const processFile = async (item: ProofFileItem) => {
-    if (!activity || !reservation.current || !item.uploadUrl) return
-    setFileState(item.key, { status: 'uploading', error: undefined })
+    if (!activity || !reservation.current || !item.evidenceId) return
+    if (item.uploadUrl) {
+      setFileState(item.key, { status: 'uploading', error: undefined })
+      try {
+        await pathwaysClient.uploadActivityProofFile(item.uploadUrl, item.file)
+      } catch (caught) {
+        if (!scope.isCurrent()) return
+        setFileState(item.key, {
+          status: 'failed',
+          error:
+            caught instanceof PathwaysClientError
+              ? caught.message
+              : 'This file could not be uploaded. Retry it.',
+        })
+        return
+      }
+    }
+    if (!scope.isCurrent()) return
     try {
-      await pathwaysClient.uploadActivityProofFile(item.uploadUrl, item.file)
-      if (!scope.isCurrent()) return
       const result = await pathwaysClient.finalizeActivityProofFile(
         activity.projectId,
         activity.id,
         reservation.current.updateId,
-        item.evidenceId ?? '',
+        item.evidenceId,
       )
       if (!scope.isCurrent()) return
       setFileState(item.key, { status: 'uploaded' })
-      if (result.status === 'COMMITTED') await finish(result.acknowledgement)
+      if (result.status === 'COMMITTED') await finish()
     } catch (caught) {
       if (!scope.isCurrent()) return
       setFileState(item.key, {
@@ -218,7 +245,7 @@ const ScopedActivityProofDialog = ({
         error:
           caught instanceof PathwaysClientError
             ? caught.message
-            : 'This file could not be uploaded. Retry it.',
+            : 'This file could not be finalized. Retry it.',
       })
     }
   }
@@ -241,50 +268,71 @@ const ScopedActivityProofDialog = ({
     }
     setSubmitting(true)
     setError('')
-    finished.current = false
     try {
-      const clientUpdateId = crypto.randomUUID()
-      const declarations = await Promise.all(
-        files.map(async (item) => ({
-          fileName: item.file.name,
-          contentType: item.file.type,
-          byteSize: item.file.size,
-          sha256: item.sha256 ?? (await sha256Hex(item.file)),
-        })),
-      )
-      if (!scope.isCurrent()) return
-      files.forEach((item, index) => {
-        setFileState(item.key, { sha256: declarations[index].sha256 })
-      })
-      const reserved = await pathwaysClient.reserveActivityProofUpload({
-        projectId: activity.projectId,
-        activityId: activity.id,
-        clientUpdateId,
-        progressPercent: activity.progress,
-        note: note.trim(),
-        files: declarations,
-      })
-      if (!scope.isCurrent()) return
-      if (reserved.status === 'COMMITTED') {
-        await finish(reserved.acknowledgement)
+      // The update already committed on a prior attempt; only the post-commit reload needs a
+      // retry here, never a second reservation.
+      if (committed.current) {
+        await finish()
         return
       }
-      reservation.current = { updateId: reserved.updateId, clientUpdateId }
-      const byName = new Map(reserved.files.map((row) => [`${row.fileName}:${row.byteSize}`, row]))
-      const started = files.map((item) => {
-        const row = byName.get(`${item.file.name}:${item.file.size}`)
-        if (!row) return item
-        setFileState(item.key, {
-          evidenceId: row.evidenceId,
-          uploadUrl: row.uploadUrl,
-          status: row.storageReady ? 'uploaded' : 'waiting',
+      let workingFiles = files
+      if (!reservation.current) {
+        // First attempt for this note/file set: mint the reservation's clientUpdateId once and
+        // reuse it for every later retry so a resubmit is idempotent on the server.
+        const clientUpdateId = crypto.randomUUID()
+        // Hash sequentially: files can total up to 250 MB, and hashing them all in parallel would
+        // hold every buffer in memory at once.
+        const declarations: ActivityProofFileDeclaration[] = []
+        for (const item of files) {
+          declarations.push({
+            fileName: item.file.name,
+            contentType: item.file.type,
+            byteSize: item.file.size,
+            sha256: item.sha256 ?? (await sha256Hex(item.file)),
+          })
+        }
+        if (!scope.isCurrent()) return
+        files.forEach((item, index) => {
+          setFileState(item.key, { sha256: declarations[index].sha256 })
         })
-        return { ...item, evidenceId: row.evidenceId, uploadUrl: row.uploadUrl }
-      })
-      await Promise.all(
-        started.filter((item) => item.uploadUrl).map((item) => processFile(item as ProofFileItem)),
-      )
-      if (scope.isCurrent() && !finished.current) setSubmitting(false)
+        const reserved = await pathwaysClient.reserveActivityProofUpload({
+          projectId: activity.projectId,
+          activityId: activity.id,
+          clientUpdateId,
+          progressPercent: activity.progress,
+          note: note.trim(),
+          files: declarations,
+        })
+        if (!scope.isCurrent()) return
+        if (reserved.status === 'COMMITTED') {
+          await finish()
+          return
+        }
+        reservation.current = { updateId: reserved.updateId, clientUpdateId }
+        const byName = new Map(
+          reserved.files.map((row) => [`${row.fileName}:${row.byteSize}`, row]),
+        )
+        workingFiles = files.map((item) => {
+          const row = byName.get(`${item.file.name}:${item.file.size}`)
+          if (!row) return item
+          setFileState(item.key, {
+            evidenceId: row.evidenceId,
+            uploadUrl: row.uploadUrl,
+            status: 'waiting',
+          })
+          return {
+            ...item,
+            evidenceId: row.evidenceId,
+            uploadUrl: row.uploadUrl,
+            status: 'waiting' as FileStatus,
+          }
+        })
+      }
+      // Every reserved file needs processing, including one the reservation already reported as
+      // storageReady (a READY_TO_COMMIT reply): it still needs its finalize call to commit.
+      const targets = workingFiles.filter((item) => item.status !== 'uploaded' && item.evidenceId)
+      await Promise.all(targets.map((item) => processFile(item)))
+      if (scope.isCurrent() && !committed.current) setSubmitting(false)
     } catch (caught) {
       if (!scope.isCurrent()) return
       setError(
