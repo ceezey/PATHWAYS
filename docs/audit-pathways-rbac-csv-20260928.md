@@ -54,7 +54,11 @@ Each material finding must be:
 
 A-01 and A-02 are material. A-03 to A-05 can be closed by deferral notes or small follow-up changes. A-06 needs developer confirmation only.
 
-## 5. Summary
+## 5. Disposition
+
+On 2026-09-28 the developer dispositioned every finding in the [RBAC audit closure Change Record](cr-pathways-rbac-audit-closure.md). A-01, A-02 (except the deferred escalation and dashboard-customization actions), A-03 and A-05 are scheduled for implementation. A-04 and A-06 are closed by auth RFC documentation.
+
+## 6. Summary
 
 - Grants match the CSV in every layer, apart from the approved rows 39 and 40 amendment.
 - 2 Medium findings: evidence listing for aggregate-only roles (A-01), and nine granted actions with no implementation (A-02).

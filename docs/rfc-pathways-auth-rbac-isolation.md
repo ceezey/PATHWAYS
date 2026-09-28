@@ -2,7 +2,7 @@
 
 **Status:** Locked
 **Last reconciled:** 2026-09-28
-**Decision:** [Revised RBAC Change Record](cr-pathways-revised-rbac-baseline.md); amended by [Admin read access](cr-pathways-admin-read-access.md)
+**Decision:** [Revised RBAC Change Record](cr-pathways-revised-rbac-baseline.md); amended by [Admin read access](cr-pathways-admin-read-access.md) and [RBAC audit closure](cr-pathways-rbac-audit-closure.md)
 
 ## 1. Authority and Source
 
@@ -38,6 +38,8 @@ Only the exact POST machine drain/sweep handlers, under verified existing API-pr
 | Project Officer / PROJECT_OFFICER | Explicit active assignments | Permitted detail only within those assignments |
 
 Admin manages all six roles in its own organization. Program Manager manages PM and M&E within managed-program or assigned scope. PM manages PO and M&E within assigned scope. Only Admin can assign Grant Managers. Existing Grant Manager accounts without assignments gain no implicit organization portfolio. Historical assignments are preserved. A PM creating a project receives the existing automatic self-assignment in the creation transaction; it is not authority to assign another PM or transfer their scope.
+
+This hierarchy applies to CSV rows 23-27 (Manage Users and Roles, Create User, Assign Role and related), which mark Program Manager and Project Manager without naming target roles. The developer confirmed it on 2026-09-28 ([RBAC audit closure](cr-pathways-rbac-audit-closure.md) A-06): Program Manager authorizes Project Manager and M&E Officer; Project Manager authorizes Project Officer and M&E Officer; only System Administrator assigns Grant Manager.
 
 ## 3. Effective Atomic Permissions
 
@@ -162,7 +164,9 @@ Admin = System Administrator; Program = Program Manager; Grant = Grant Manager; 
 
 Financial evidence retains M&E verification, PM approval, then Program/Grant final sign-off with actor separation. Removed overview grants for evaluation submission, approval, archival, and program sign-off remain denied. Evaluation-weight configuration is separately granted to Admin/M&E and may change only weights and timestamps, with lifecycle locks preserved.
 
-Missing escalation handlers, generic activity-progress handlers, finance completion/final-sign-off, evaluation-weight UI/API, reporting/generation/export, alert/recommendation actions, publishing, blank-form generation/export or dedicated template-import handlers, audit viewing, backup/recovery, and own-profile writes remain deferred wherever absent. Existing handlers are aligned but not certified as usable core features. Identity reconciliation, standalone form/indicator archival, program creation, label editing, and milestone administration remain denied. Existing UI design and target-beneficiary fields remain. The [approved project target-goal retirement](cr-pathways-retire-project-target-goal.md) withdraws live benchmark inputs, outputs and comparisons while retaining historical storage; implementation/verification remain pending. It changes no human permission or scope boundary.
+Missing escalation handlers, generic activity-progress handlers, finance completion/final-sign-off, evaluation-weight UI/API, reporting/generation/export, alert/recommendation actions, publishing, blank-form generation/export or dedicated template-import handlers, audit viewing, backup/recovery, and own-profile writes remain deferred wherever absent.
+
+**Reserved supporting permissions.** `evaluations.submit`, `evaluations.approve`, `evaluations.signoff`, `evaluations.archive`, `settings.read` and `settings.labels.manage` stay defined but back no API endpoint. They are reserved for future supporting operations and grant nothing on their own ([RBAC audit closure](cr-pathways-rbac-audit-closure.md) A-04). Existing handlers are aligned but not certified as usable core features. Identity reconciliation, standalone form/indicator archival, program creation, label editing, and milestone administration remain denied. Existing UI design and target-beneficiary fields remain. The [approved project target-goal retirement](cr-pathways-retire-project-target-goal.md) withdraws live benchmark inputs, outputs and comparisons while retaining historical storage; implementation/verification remain pending. It changes no human permission or scope boundary.
 
 ## 6. Migration and Verification Contract
 
