@@ -2,7 +2,7 @@
 
 **ID:** `cr-pathways-performance-scaling`  
 **Date:** 2026-09-28  
-**Status:** Proposed
+**Status:** Approved; implementation pending
 
 ## 1. Trigger
 
@@ -91,7 +91,7 @@ Each step is an independent code change behind existing configuration. Rollback 
 
 ## 8. Approval
 
-Pending developer decision.
+Developer decision on 2026-09-28, during audit-remediation planning: "Fold it in", and later "Approve all CRs". The steps are adopted in the order in section 3, each gated by its measurement. Step 5 (same-origin proxy) stays deferred.
 
 ## 9. Disposition
 
