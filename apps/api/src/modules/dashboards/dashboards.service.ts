@@ -86,7 +86,19 @@ export class DashboardsService {
   ) {
     const query = parseDashboardQuery(input)
     const period = this.period(query)
-    return withAuthorizedOperation(this.prisma, identity, permission, async (tx, actor) => {
+    return withAuthorizedOperation(this.prisma, identity, permission, (tx, actor) =>
+      this.monitoringInTransaction(tx, actor, query, period, operation),
+    )
+  }
+  /** Reads the aggregate monitoring contract inside an already-authorized transaction. */
+  async monitoringInTransaction(
+    tx: Prisma.TransactionClient,
+    actor: ApplicationIdentity,
+    query: DashboardQuery,
+    period: { periodStart: string; periodEnd: string; businessTimeZone: string },
+    operation: 'home' | 'monitoring' = 'monitoring',
+  ) {
+    {
       const projects = await this.scope(tx, actor, query)
       await tx.$queryRaw`SELECT set_config('statement_timeout','3000',true)`
       let result: Array<{ data: unknown }>
@@ -133,50 +145,61 @@ export class DashboardsService {
       if (!parsed.success)
         throw new ServiceUnavailableException('Monitoring response contract is unavailable.')
       return parsed.data
-    })
+    }
+  }
+  /** Resolves the bounded monitoring period used by descriptive analytics. */
+  monitoringPeriod(query: DashboardQuery) {
+    return this.period(query)
   }
   async saddd(identity: ApplicationIdentity, input: unknown) {
     const query = parseSadddQuery(input)
 
-    return withAuthorizedOperation(
-      this.prisma,
-      identity,
-      'analytics.saddd.read',
-      async (tx, actor) => {
-        if (
-          !hasAtomicPermission(actor.roles[0], actor.permissions, 'beneficiaries.aggregates.read')
-        ) {
-          throw new ForbiddenException('SADDD aggregate permission is required.')
-        }
+    return withAuthorizedOperation(this.prisma, identity, 'analytics.saddd.read', (tx, actor) =>
+      this.sadddInTransaction(tx, actor, query.projectId),
+    )
+  }
+  /** Reads the suppressed SADDD release inside an already-authorized transaction. */
+  async sadddInTransaction(
+    tx: Prisma.TransactionClient,
+    actor: ApplicationIdentity,
+    projectId: string,
+  ) {
+    const query = { projectId }
+    {
+      if (
+        !hasAtomicPermission(actor.roles[0], actor.permissions, 'beneficiaries.aggregates.read')
+      ) {
+        throw new ForbiddenException('SADDD aggregate permission is required.')
+      }
 
-        const project = await tx.project.findFirst({
-          where: {
-            AND: [
-              projectScope(actor),
-              {
-                id: query.projectId,
-              },
-            ],
-          },
-          select: {
-            id: true,
-            code: true,
-            title: true,
-            startDate: true,
-            endDate: true,
-          },
-        })
+      const project = await tx.project.findFirst({
+        where: {
+          AND: [
+            projectScope(actor),
+            {
+              id: query.projectId,
+            },
+          ],
+        },
+        select: {
+          id: true,
+          code: true,
+          title: true,
+          startDate: true,
+          endDate: true,
+        },
+      })
 
-        if (!project) {
-          throw new NotFoundException('Monitoring scope unavailable.')
-        }
+      if (!project) {
+        throw new NotFoundException('Monitoring scope unavailable.')
+      }
 
-        const zone = readApiEnv(process.env).BUSINESS_TIME_ZONE
+      const zone = readApiEnv(process.env).BUSINESS_TIME_ZONE
 
-        const periodStart = project.startDate?.toISOString().slice(0, 10) ?? null
-        const periodEnd = project.endDate?.toISOString().slice(0, 10) ?? null
+      const periodStart = project.startDate?.toISOString().slice(0, 10) ?? null
+      const periodEnd = project.endDate?.toISOString().slice(0, 10) ?? null
 
-        await tx.$queryRaw`
+      await tx.$queryRaw`
           SELECT set_config(
             'statement_timeout',
             '3000',
@@ -184,17 +207,17 @@ export class DashboardsService {
           )
         `
 
-        let result: Array<{
-          data: unknown
-        }>
+      let result: Array<{
+        data: unknown
+      }>
 
-        try {
-          result = await tx.$queryRaw<
-            Array<{
-              data: unknown
-            }>
-          >(
-            Prisma.sql`
+      try {
+        result = await tx.$queryRaw<
+          Array<{
+            data: unknown
+          }>
+        >(
+          Prisma.sql`
                 SELECT pathways.p06_saddd(
                   ${actor.organizationId}::uuid,
                   ARRAY[
@@ -205,45 +228,44 @@ export class DashboardsService {
                   ${zone}
                 ) AS data
               `,
-          )
-        } catch (error) {
-          monitoringSqlError(error)
-        }
+        )
+      } catch (error) {
+        monitoringSqlError(error)
+      }
 
-        const raw = result[0]?.data
+      const raw = result[0]?.data
 
-        const parsed = sadddDashboardSchema.safeParse({
-          ...(raw && typeof raw === 'object' ? raw : {}),
+      const parsed = sadddDashboardSchema.safeParse({
+        ...(raw && typeof raw === 'object' ? raw : {}),
 
-          periodStart,
-          periodEnd,
+        periodStart,
+        periodEnd,
 
-          businessTimeZone: zone,
+        businessTimeZone: zone,
 
-          generatedAt: new Date().toISOString(),
+        generatedAt: new Date().toISOString(),
 
-          contractVersion: P06_CONTRACT_VERSION,
+        contractVersion: P06_CONTRACT_VERSION,
 
-          refresh: 'READ_TIME_NO_CACHE',
+        refresh: 'READ_TIME_NO_CACHE',
 
-          population: 'DISTINCT_INDIVIDUALS_WITH_OVERLAPPING_ENROLLMENT',
+        population: 'DISTINCT_INDIVIDUALS_WITH_OVERLAPPING_ENROLLMENT',
 
-          demographicBasis: 'CURRENT_PROFILE_NOT_HISTORICAL_SNAPSHOT',
+        demographicBasis: 'CURRENT_PROFILE_NOT_HISTORICAL_SNAPSHOT',
 
-          privacy: {
-            threshold: 5,
-            complementarySuppression: true,
-            policy: 'FIXED_CLOSED_PROJECT_PERIOD_V1',
-            crossFilters: 'PROJECT_ONLY_NO_CROSS_FILTERS',
-          },
-        })
+        privacy: {
+          threshold: 5,
+          complementarySuppression: true,
+          policy: 'FIXED_CLOSED_PROJECT_PERIOD_V1',
+          crossFilters: 'PROJECT_ONLY_NO_CROSS_FILTERS',
+        },
+      })
 
-        if (!parsed.success) {
-          throw new ServiceUnavailableException('SADDD response contract is unavailable.')
-        }
+      if (!parsed.success) {
+        throw new ServiceUnavailableException('SADDD response contract is unavailable.')
+      }
 
-        return parsed.data
-      },
-    )
+      return parsed.data
+    }
   }
 }
