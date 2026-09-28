@@ -74,7 +74,10 @@ describe('project data loading client contract', () => {
     { assignedTo: undefined },
     { code: 7 },
     { status: null },
+    { status: 'Unknown' },
     { storedStatus: 3 },
+    { storedStatus: 'ARCHIVED' },
+    { overdue: 'yes' },
     { dueDate: null },
     { description: undefined },
   ])('rejects a malformed list item %j', async (malformed) => {
@@ -212,6 +215,14 @@ describe('project data loading client contract', () => {
     const write = setup({})
     await requestFoundationResponse('/synthetic', { method: 'PATCH', body: '{}' })
     expect(eventTypes(write.dispatchEvent)).toEqual(['pathways:write-committed'])
+  })
+
+  it('carries the thrown error as the denial token, so one denial is counted once', async () => {
+    const { dispatchEvent } = setup({ message: 'Denied' }, 403)
+    const thrown = await requestFoundationResponse('/synthetic').catch((error: unknown) => error)
+    const [event] = dispatchEvent.mock.calls.map(([value]) => value as CustomEvent<unknown>)
+    expect(event?.type).toBe('pathways:authorization-denied')
+    expect(event?.detail).toBe(thrown)
   })
 
   it('signals authorization denial for 401 and 403 responses', async () => {

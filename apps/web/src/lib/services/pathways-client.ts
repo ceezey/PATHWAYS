@@ -1892,8 +1892,7 @@ export async function requestFoundationResponse(
     redirect: 'error',
     referrerPolicy: 'no-referrer',
   })
-  if (response.status === 401 || response.status === 403) announceAuthorizationDenied()
-  else if (response.ok && !['GET', 'HEAD'].includes((init.method ?? 'GET').toUpperCase()))
+  if (response.ok && !['GET', 'HEAD'].includes((init.method ?? 'GET').toUpperCase()))
     announceWriteCommitted()
   if (!response.ok) {
     let fieldErrors: FormValidationError[] = []
@@ -1901,14 +1900,17 @@ export async function requestFoundationResponse(
     if (response.status === 403) {
       const body = (await response.json().catch(() => null)) as { code?: unknown } | null
       if (body?.code === STEP_UP_REQUIRED_CODE) {
-        announceStepUpRequired()
-        throw new PathwaysClientError(
+        const stepUp = new PathwaysClientError(
           'Recent MFA verification is required for Beneficiary detail.',
           'forbidden',
           [],
           403,
           true,
         )
+        // The error is the denial token, so a reader's own deny() for it is not counted twice.
+        announceAuthorizationDenied(stepUp)
+        announceStepUpRequired()
+        throw stepUp
       }
     }
     if (response.status === 400 || response.status === 409) {
@@ -1956,7 +1958,7 @@ export async function requestFoundationResponse(
             : response.status === 400 || response.status === 409
               ? 'invalid'
               : 'network'
-    throw new PathwaysClientError(
+    const failure = new PathwaysClientError(
       fieldErrors.length
         ? 'Review the highlighted form fields.'
         : (serverMessage ?? 'The requested operation could not be completed.'),
@@ -1964,6 +1966,8 @@ export async function requestFoundationResponse(
       fieldErrors,
       response.status,
     )
+    if (response.status === 401 || response.status === 403) announceAuthorizationDenied(failure)
+    throw failure
   }
   return response
 }
@@ -2242,6 +2246,22 @@ const activitySummaryKeys = [
   'updatedAt',
 ] as const satisfies readonly (keyof ActivitySummary)[]
 
+const presentedActivityStatuses = new Set<string>([
+  'Planned',
+  'In Progress',
+  'For Review',
+  'Overdue',
+  'Completed',
+  'Cancelled',
+] satisfies Activity['status'][])
+const storedActivityStatuses = new Set<string>([
+  'NOT_STARTED',
+  'IN_PROGRESS',
+  'FOR_REVIEW',
+  'COMPLETED',
+  'CANCELLED',
+] satisfies Activity['storedStatus'][])
+
 function parseActivitySummary(value: unknown): ActivitySummary {
   const row = value as Partial<ActivitySummary>
   if (
@@ -2254,8 +2274,9 @@ function parseActivitySummary(value: unknown): ActivitySummary {
     typeof row.progress !== 'number' ||
     (row.code !== null && row.code !== undefined && typeof row.code !== 'string') ||
     typeof row.description !== 'string' ||
-    typeof row.status !== 'string' ||
-    typeof row.storedStatus !== 'string' ||
+    !presentedActivityStatuses.has(row.status as string) ||
+    !storedActivityStatuses.has(row.storedStatus as string) ||
+    (row.overdue !== undefined && typeof row.overdue !== 'boolean') ||
     typeof row.startDate !== 'string' ||
     typeof row.dueDate !== 'string' ||
     typeof row.journeyStageId !== 'string' ||
