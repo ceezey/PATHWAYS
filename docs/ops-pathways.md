@@ -34,7 +34,7 @@ Prisma client generation includes the native development engine and `rhel-openss
 
 No `vercel.json` is committed; these settings live in the Vercel dashboard.
 
-- Node: `.nvmrc`, Dockerfiles, and CI use Node 22. Set the Vercel projects to Node 22.x (root `package.json` `engines` is still `>=20.11.0`).
+- Node: `.nvmrc`, Dockerfiles, CI and the root `package.json` `engines` (`>=22`) require Node 22. Set the Vercel projects to Node 22.x. The API's PDF import parser (`unpdf`) requires Node 22 or later.
 - API build (`apps/api/package.json`): `pnpm --filter "@pathways/api^..." run build && prisma generate --config prisma.generate.config.ts && nest build`, so the install step must include the pnpm workspace.
 - API start: `node dist/apps/api/src/main.js`.
 
@@ -47,7 +47,6 @@ These are repository facts that block or qualify a release claim. They are recor
 | API listener policy | `apps/api/src/main.ts` calls `listenOnIpv4Loopback` (`apps/api/src/common/network/local-listener.ts`), which binds `127.0.0.1` and notes a non-local deployment needs a reviewed listener policy | Development preview health and unauthenticated denial verified 2026-09-26; production listener/release verification remains separate |
 | Swagger in production | `packages/config/src/env.ts` defaults `ENABLE_SWAGGER` to `true`, serving `/api/docs` | set `ENABLE_SWAGGER=false` in Vercel or change the default |
 | API env schema drift | `token-auth.service.ts` reads `SUPABASE_PUBLISHABLE_KEY`, absent from `apiEnvSchema` and `.env.example` files; the templates still list `SUPABASE_JWT_SECRET`, which runtime does not need | align schema and templates with the list above |
-| Engines range | root `package.json` `engines.node` is `>=20.11.0` | pin `22.x` to match `.nvmrc` |
 
 ## 1. Current Development Evidence to Track
 

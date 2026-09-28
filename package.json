@@ -3,7 +3,7 @@
   "private": true,
   "packageManager": "pnpm@11.20.0",
   "engines": {
-    "node": ">=20.11.0"
+    "node": ">=22"
   },
   "scripts": {
     "dev": "pnpm --parallel --filter @pathways/web --filter @pathways/api dev",

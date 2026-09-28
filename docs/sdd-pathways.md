@@ -109,6 +109,8 @@ PATHWAYS-dev 0020 retains the explicitly approved historical checksum exception;
 ### Import
 private object -> batch -> raw rows -> mapping -> validation -> normalization -> audit
 
+Per the [import throughput and PDF](cr-pathways-import-throughput-and-pdf.md) contract, normalization runs in chunks: a claim of at most 100 rows loads its batch and form context once, then promotes chunks of at most 25 rows, each one verified transaction bounded to 30 seconds with re-verified identity and assignment. A failed chunk reruns row by row on the single-row path. Staged rows insert in 1,000-row batches. Approved import types are CSV, XLSX, XLS and text-layer PDF, all parsed in the sandbox worker. `GET /metadata/projects/:projectId/forms/:formId/export?format=CSV|XLSX|XLS|PDF` exports a blank form definition under `forms.export` with project scope applied before the form query, renders through the shared report artifact helper outside the transaction, writes one `FORM_DEFINITION_EXPORTED` audit row and returns a `no-store`, `nosniff` attachment.
+
 ### Rule
 trusted metrics -> structured rule -> snapshot -> alert -> predefined recommendation -> human outcome
 

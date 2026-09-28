@@ -46,6 +46,7 @@ describe('Deferred legacy-table retirement contract', () => {
       '0033_core_canonical_activity_review_guard',
       '0034_core_feature_completion',
       '0035_admin_read_access',
+      '0036_import_pdf_file_type',
     ])
     expect(migration).toContain('DEFERRED REVIEW ARTIFACT -- NOT AN ACTIVE PRISMA MIGRATION')
   })

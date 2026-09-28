@@ -24,4 +24,25 @@ describe('parseWorkbook', () => {
       sheetNames: ['Questionnaire'],
     })
   })
+
+  it('derives trimmed headers and keyed rows from one grid read, skipping blank rows', () => {
+    const workbook = XLSX.utils.book_new()
+    const worksheet = XLSX.utils.aoa_to_sheet([
+      [' code ', 'score', 'score', ''],
+      ['BEN-001', 12, 'x', 'extra'],
+      [],
+      ['BEN-002', '', '', ''],
+    ])
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'Data')
+    const buffer = XLSX.write(workbook, { bookType: 'xlsx', type: 'array' })
+
+    expect(parseWorkbook(buffer)).toEqual({
+      headers: ['code', 'score', 'score_1', '__EMPTY'],
+      rows: [
+        { code: 'BEN-001', score: 12, score_1: 'x', __EMPTY: 'extra' },
+        { code: 'BEN-002', score: '', score_1: '', __EMPTY: '' },
+      ],
+      sheetNames: ['Data'],
+    })
+  })
 })

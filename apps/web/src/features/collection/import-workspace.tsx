@@ -30,6 +30,14 @@ import type {
   ProjectSummary,
 } from '@/types/pathways'
 
+import {
+  type ImportProcessingProgress,
+  importProcessingComplete,
+  importProcessingProgress,
+  runImportProcessing,
+} from './import-auto-continue'
+import { ImportProcessingPanel, type ImportProcessingState } from './import-processing-panel'
+
 const mappingLockedStatuses = new Set(['PROCESSING', 'PARTIALLY_PROCESSED', 'PROCESSED', 'FAILED'])
 
 function batchTone(status: ImportBatchDefinition['status']) {
@@ -72,6 +80,13 @@ function OwnedImportWorkspace({ scope }: { scope: SensitiveDraftOwner }) {
   const [mapping, setMapping] = useState<Record<string, string>>({})
   const [pending, setPending] = useState(false)
   const [loadState, setLoadState] = useState<'loading' | 'ready' | 'error'>('loading')
+  const [processing, setProcessing] = useState<{
+    batchId: string
+    state: ImportProcessingState
+    progress: ImportProcessingProgress
+    note?: string
+  } | null>(null)
+  const stopRequested = useRef(false)
   const mounted = useRef(true)
   const mutation = useRef<object | null>(null)
   const latest = useRef({ projectId, formId, file, batch, profile })
@@ -360,22 +375,69 @@ function OwnedImportWorkspace({ scope }: { scope: SensitiveDraftOwner }) {
     }
   }
 
+  // Keeps calling the server until the batch is done, a call fails, or Stop is pressed.
   const process = async () => {
     if (!batch) return
     const ticket = begin('imports.process')
     if (!ticket) return
+    const target = batch
+    let latest = importProcessingProgress(target)
+    stopRequested.current = false
+    setProcessing({ batchId: target.id, state: 'running', progress: latest })
     try {
-      await pathwaysClient.processImport(projectId, batch.id, batch.validationRevision)
-      if (!ticket.valid('imports.read')) return
-      await loadBatch(batch.id, ticket)
+      const outcome = await runImportProcessing({
+        process: () =>
+          pathwaysClient.processImport(projectId, target.id, target.validationRevision),
+        onProgress: (next) => {
+          latest = importProcessingProgress(next)
+          if (ticket.valid('imports.read'))
+            setProcessing((current) =>
+              current?.batchId === target.id ? { ...current, progress: latest } : current,
+            )
+        },
+        shouldStop: () => stopRequested.current || !ticket.valid('imports.process'),
+      })
+      if (!ticket.valid('imports.read')) {
+        // Access or ownership changed; the server keeps its state and nothing stale is shown.
+        setProcessing(null)
+        return
+      }
+      const note =
+        outcome.kind === 'failed'
+          ? outcome.error instanceof Error
+            ? outcome.error.message
+            : 'Processing could not be completed.'
+          : outcome.kind === 'stalled'
+            ? 'The remaining rows could not be processed. Review failed rows before retrying.'
+            : undefined
+      setProcessing({
+        batchId: target.id,
+        state:
+          outcome.kind === 'complete'
+            ? 'complete'
+            : outcome.kind === 'stopped'
+              ? 'stopped'
+              : 'failed',
+        progress: latest,
+        note,
+      })
+      await loadBatch(target.id, ticket)
       if (!ticket.valid()) return
-      toast.success('A bounded processing checkpoint completed.')
+      if (outcome.kind === 'complete') toast.success('Import processing finished.')
+      else if (note) toast.error(note)
     } catch (error) {
       if (!ticket.valid()) return
       toast.error(error instanceof Error ? error.message : 'Processing could not be completed.')
     } finally {
       ticket.finish()
     }
+  }
+
+  const stopProcessing = () => {
+    stopRequested.current = true
+    setProcessing((current) =>
+      current?.state === 'running' ? { ...current, state: 'stopping' } : current,
+    )
   }
 
   const resume = async () => {
@@ -408,360 +470,389 @@ function OwnedImportWorkspace({ scope }: { scope: SensitiveDraftOwner }) {
     [rows],
   )
 
+  const visibleProcessing = processing && processing.batchId === batch?.id ? processing : null
+  const processingInterrupted =
+    visibleProcessing?.state === 'failed' || visibleProcessing?.state === 'stopped'
+
   return (
-    <fieldset disabled={pending} className="space-y-6">
+    <div className="space-y-6">
       <PageHeader
         eyebrow="Data workspace"
         title="Metadata-Driven Data Integration"
-        description="Upload a private CSV or workbook, review field mappings, validate every row, and promote only valid generic submissions."
+        description="Upload a private CSV, workbook or text-based PDF, review field mappings, validate every row, and promote only valid generic submissions."
       />
 
-      {loadState !== 'ready' ? (
-        <div className="rounded-lg border bg-card p-4 text-sm text-muted-foreground">
-          {loadState === 'loading'
-            ? 'Loading authorized projects...'
-            : 'Authorized projects could not be loaded.'}
-        </div>
+      {visibleProcessing ? (
+        // Outside the disabled fieldset so Stop stays available while processing runs.
+        <ImportProcessingPanel
+          canResume={canProcess && !pending}
+          note={visibleProcessing.note}
+          onResume={() => void process()}
+          onStop={stopProcessing}
+          progress={visibleProcessing.progress}
+          state={visibleProcessing.state}
+        />
       ) : null}
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Private source upload</CardTitle>
-          <CardDescription>
-            Files are sent to the backend, checked within finite limits, and stored under a
-            server-generated private object key. CSV, XLSX and XLS are supported.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="grid gap-4 md:grid-cols-3">
-          <div className="space-y-2">
-            <Label>Project</Label>
-            <Select
-              value={projectId}
-              onValueChange={(value) => {
-                if (mutation.current || !scope.isCurrent()) return
-                setProjectId(value)
-                setFile(null)
-                setFormId('')
-                setForms([])
-                setBatches([])
-                setBatch(null)
-                setRows([])
-              }}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="Choose project" />
-              </SelectTrigger>
-              <SelectContent>
-                {projects.map((project) => (
-                  <SelectItem key={project.id} value={project.id}>
-                    {project.title}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+      <fieldset disabled={pending} className="space-y-6">
+        {loadState !== 'ready' ? (
+          <div className="rounded-lg border bg-card p-4 text-sm text-muted-foreground">
+            {loadState === 'loading'
+              ? 'Loading authorized projects...'
+              : 'Authorized projects could not be loaded.'}
           </div>
-          <div className="space-y-2">
-            <Label>Published form version</Label>
-            <Select
-              value={formId}
-              onValueChange={(value) => {
-                if (!mutation.current && scope.isCurrent()) {
-                  setFormId(value)
-                  setFile(null)
-                }
-              }}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="Choose form" />
-              </SelectTrigger>
-              <SelectContent>
-                {forms.map((form) => (
-                  <SelectItem key={form.id} value={form.id}>
-                    {form.name} - v{form.version}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="import-file">Source file</Label>
-            <Input
-              id="import-file"
-              key={projectId}
-              accept=".csv,.xlsx,.xls"
-              disabled={!canUpload || pending}
-              type="file"
-              onChange={(event) => {
-                if (!mutation.current && scope.isCurrent()) setFile(event.target.files?.[0] ?? null)
-              }}
-            />
-          </div>
-          <div className="md:col-span-3">
-            <Button
-              disabled={!canUpload || pending || !file || !formId}
-              onClick={() => void upload()}
-            >
-              <Upload className="mr-2 h-4 w-4" aria-hidden="true" />
-              {pending ? 'Working...' : 'Upload privately'}
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
+        ) : null}
 
-      <div className="grid gap-4 lg:grid-cols-[320px_1fr]">
         <Card>
           <CardHeader>
-            <CardTitle>Server import batches</CardTitle>
-            <CardDescription>Reload-safe progress and truthful processing totals.</CardDescription>
+            <CardTitle>Private source upload</CardTitle>
+            <CardDescription>
+              Files are sent to the backend, checked within finite limits, and stored under a
+              server-generated private object key. CSV, XLSX, XLS and text-based PDF are supported.
+              Scanned PDFs have no text to read; export those as CSV or XLSX.
+            </CardDescription>
           </CardHeader>
-          <CardContent className="space-y-2">
-            {batches.length === 0 ? (
-              <p className="text-sm text-muted-foreground">No imports found.</p>
-            ) : null}
-            {batches.map((item) => (
-              <button
-                key={item.id}
-                className="w-full rounded-md border p-3 text-left hover:border-primary/50"
-                type="button"
-                onClick={() => void loadBatch(item.id)}
+          <CardContent className="grid gap-4 md:grid-cols-3">
+            <div className="space-y-2">
+              <Label>Project</Label>
+              <Select
+                value={projectId}
+                onValueChange={(value) => {
+                  if (mutation.current || !scope.isCurrent()) return
+                  setProjectId(value)
+                  setFile(null)
+                  setFormId('')
+                  setForms([])
+                  setBatches([])
+                  setBatch(null)
+                  setRows([])
+                }}
               >
-                <div className="flex items-start justify-between gap-2">
-                  <span className="text-sm font-medium">{item.originalFileName}</span>
-                  <StatusBadge tone={batchTone(item.status)}>
-                    {item.status.replaceAll('_', ' ')}
-                  </StatusBadge>
-                </div>
-                <p className="mt-1 text-xs text-muted-foreground">
-                  {item.formName} - v{item.formVersion}
-                </p>
-              </button>
-            ))}
+                <SelectTrigger>
+                  <SelectValue placeholder="Choose project" />
+                </SelectTrigger>
+                <SelectContent>
+                  {projects.map((project) => (
+                    <SelectItem key={project.id} value={project.id}>
+                      {project.title}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>Published form version</Label>
+              <Select
+                value={formId}
+                onValueChange={(value) => {
+                  if (!mutation.current && scope.isCurrent()) {
+                    setFormId(value)
+                    setFile(null)
+                  }
+                }}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Choose form" />
+                </SelectTrigger>
+                <SelectContent>
+                  {forms.map((form) => (
+                    <SelectItem key={form.id} value={form.id}>
+                      {form.name} - v{form.version}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="import-file">Source file</Label>
+              <Input
+                id="import-file"
+                key={projectId}
+                accept=".csv,.xlsx,.xls,.pdf"
+                disabled={!canUpload || pending}
+                type="file"
+                onChange={(event) => {
+                  if (!mutation.current && scope.isCurrent())
+                    setFile(event.target.files?.[0] ?? null)
+                }}
+              />
+            </div>
+            <div className="md:col-span-3">
+              <Button
+                disabled={!canUpload || pending || !file || !formId}
+                onClick={() => void upload()}
+              >
+                <Upload className="mr-2 h-4 w-4" aria-hidden="true" />
+                {pending ? 'Working...' : 'Upload privately'}
+              </Button>
+            </div>
           </CardContent>
         </Card>
 
-        <div className="space-y-4">
-          {!batch ? (
-            <Card>
-              <CardContent className="p-6 text-sm text-muted-foreground">
-                Select a persisted import batch to map, validate, review, or resume.
-              </CardContent>
-            </Card>
-          ) : (
-            <>
-              <Card>
-                <CardHeader>
-                  <div className="flex flex-wrap items-start justify-between gap-3">
-                    <div>
-                      <CardTitle>{batch.originalFileName}</CardTitle>
-                      <CardDescription>
-                        {batch.formName} - version {batch.formVersion}
-                      </CardDescription>
-                    </div>
-                    <StatusBadge tone={batchTone(batch.status)}>
-                      {batch.status.replaceAll('_', ' ')}
+        <div className="grid gap-4 lg:grid-cols-[320px_1fr]">
+          <Card>
+            <CardHeader>
+              <CardTitle>Server import batches</CardTitle>
+              <CardDescription>
+                Reload-safe progress and truthful processing totals.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-2">
+              {batches.length === 0 ? (
+                <p className="text-sm text-muted-foreground">No imports found.</p>
+              ) : null}
+              {batches.map((item) => (
+                <button
+                  key={item.id}
+                  className="w-full rounded-md border p-3 text-left hover:border-primary/50"
+                  type="button"
+                  onClick={() => void loadBatch(item.id)}
+                >
+                  <div className="flex items-start justify-between gap-2">
+                    <span className="text-sm font-medium">{item.originalFileName}</span>
+                    <StatusBadge tone={batchTone(item.status)}>
+                      {item.status.replaceAll('_', ' ')}
                     </StatusBadge>
                   </div>
-                </CardHeader>
-                <CardContent>
-                  <div className="grid gap-3 sm:grid-cols-3 lg:grid-cols-6">
-                    {Object.entries(batch.totals).map(([label, value]) => (
-                      <div key={label} className="rounded-md bg-muted/40 p-3">
-                        <p className="text-xs uppercase text-muted-foreground">{label}</p>
-                        <p className="text-lg font-semibold">{value}</p>
-                      </div>
-                    ))}
-                  </div>
-                  {batch.failureCode ? (
-                    <p className="mt-4 rounded-md border border-warning/30 bg-warning/10 p-3 text-sm text-warning">
-                      Import notice: {batch.failureCode.replaceAll('_', ' ')}
-                    </p>
-                  ) : null}
-                  <div className="mt-4 flex flex-wrap gap-2">
-                    {batch.status === 'RECOVERY_REQUIRED' ? (
-                      <Button onClick={() => void resume()}>Resume stored upload</Button>
-                    ) : null}
-                    <Button variant="outline" onClick={() => void loadBatch(batch.id)}>
-                      <RefreshCw className="mr-2 h-4 w-4" />
-                      Reload server state
-                    </Button>
-                  </div>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    {item.formName} - v{item.formVersion}
+                  </p>
+                </button>
+              ))}
+            </CardContent>
+          </Card>
+
+          <div className="space-y-4">
+            {!batch ? (
+              <Card>
+                <CardContent className="p-6 text-sm text-muted-foreground">
+                  Select a persisted import batch to map, validate, review, or resume.
                 </CardContent>
               </Card>
-
-              {sourceColumns.length > 0 ? (
+            ) : (
+              <>
                 <Card>
                   <CardHeader>
-                    <CardTitle>Reviewed mapping revision {batch.mappingRevision}</CardTitle>
-                    <CardDescription>
-                      Every source column must target one field or be explicitly ignored.
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent className="space-y-3">
-                    {sourceColumns.map((column) => (
-                      <div
-                        key={column.key}
-                        className="grid items-center gap-3 rounded-md border p-3 sm:grid-cols-2"
-                      >
-                        <span className="break-all text-sm font-medium">
-                          Column {column.columnIndex}: {column.header}
-                        </span>
-                        <Select
-                          disabled={
-                            !canReview || pending || mappingLockedStatuses.has(batch.status)
-                          }
-                          value={mapping[column.key] ?? '__pending__'}
-                          onValueChange={(value) =>
-                            !mutation.current &&
-                            scope.isCurrent() &&
-                            setMapping((current) => ({ ...current, [column.key]: value }))
-                          }
-                        >
-                          <SelectTrigger>
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="__pending__">
-                              Pending: select a target or explicit ignore
-                            </SelectItem>
-                            <SelectItem value="__ignore__">Ignore this source column</SelectItem>
-                            {selectedForm?.fields.map((field) => (
-                              <SelectItem key={field.code} value={field.code}>
-                                {field.label} ({field.code})
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
+                    <div className="flex flex-wrap items-start justify-between gap-3">
+                      <div>
+                        <CardTitle>{batch.originalFileName}</CardTitle>
+                        <CardDescription>
+                          {batch.formName} - version {batch.formVersion}
+                        </CardDescription>
                       </div>
-                    ))}
-                    <div className="flex flex-wrap gap-2">
-                      <Button
-                        disabled={!canReview || pending || mappingLockedStatuses.has(batch.status)}
-                        onClick={() => void saveMapping()}
-                      >
-                        Save new mapping revision
-                      </Button>
-                      <Button
-                        disabled={
-                          !canValidate ||
-                          pending ||
-                          batch.mappingRevision < 1 ||
-                          mappingLockedStatuses.has(batch.status)
-                        }
-                        variant="outline"
-                        onClick={() => void validate()}
-                      >
-                        Validate all rows
-                      </Button>
-                      <Button
-                        disabled={
-                          !canProcess ||
-                          pending ||
-                          batch.validationRevision < 1 ||
-                          !['VALIDATED', 'PROCESSING', 'PARTIALLY_PROCESSED'].includes(batch.status)
-                        }
-                        variant="outline"
-                        onClick={() => void process()}
-                      >
-                        {batch.status === 'PROCESSING'
-                          ? 'Resume processing checkpoint'
-                          : 'Process next checkpoint'}
+                      <StatusBadge tone={batchTone(batch.status)}>
+                        {batch.status.replaceAll('_', ' ')}
+                      </StatusBadge>
+                    </div>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="grid gap-3 sm:grid-cols-3 lg:grid-cols-6">
+                      {Object.entries(batch.totals).map(([label, value]) => (
+                        <div key={label} className="rounded-md bg-muted/40 p-3">
+                          <p className="text-xs uppercase text-muted-foreground">{label}</p>
+                          <p className="text-lg font-semibold">{value}</p>
+                        </div>
+                      ))}
+                    </div>
+                    {batch.failureCode ? (
+                      <p className="mt-4 rounded-md border border-warning/30 bg-warning/10 p-3 text-sm text-warning">
+                        Import notice: {batch.failureCode.replaceAll('_', ' ')}
+                      </p>
+                    ) : null}
+                    <div className="mt-4 flex flex-wrap gap-2">
+                      {batch.status === 'RECOVERY_REQUIRED' ? (
+                        <Button onClick={() => void resume()}>Resume stored upload</Button>
+                      ) : null}
+                      <Button variant="outline" onClick={() => void loadBatch(batch.id)}>
+                        <RefreshCw className="mr-2 h-4 w-4" />
+                        Reload server state
                       </Button>
                     </div>
                   </CardContent>
                 </Card>
-              ) : null}
 
-              <Card>
-                <CardHeader>
-                  <CardTitle>Authorized row review</CardTitle>
-                  <CardDescription>
-                    {rows.length} rows loaded; {validationErrors} bounded validation errors. Raw
-                    previews are never shown to aggregate-only roles.
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="overflow-x-auto">
-                  {rows.length === 0 ? (
-                    <p className="text-sm text-muted-foreground">No staged rows are available.</p>
-                  ) : (
-                    <table className="w-full min-w-[720px] text-left text-sm">
-                      <thead>
-                        <tr className="border-b">
-                          <th className="p-2">Source row</th>
-                          <th className="p-2">Status</th>
-                          <th className="p-2">Original values</th>
-                          <th className="p-2">Validation</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {rows.map((row) => (
-                          <tr key={row.id} className="border-b align-top">
-                            <td className="p-2">{row.rowNumber}</td>
-                            <td className="p-2">
-                              <StatusBadge
-                                tone={
-                                  row.status === 'PROCESSED'
-                                    ? 'success'
-                                    : row.status === 'INVALID' || row.status === 'FAILED'
-                                      ? 'danger'
-                                      : row.status === 'UNPROCESSED'
-                                        ? 'warning'
-                                        : 'info'
-                                }
-                              >
-                                {row.status}
-                              </StatusBadge>
-                            </td>
-                            <td className="p-2">
-                              <dl className="space-y-1">
-                                {Object.entries(row.rawData).map(([key, value]) => (
-                                  <div key={key}>
-                                    <dt className="inline font-medium">
-                                      {sourceColumnByKey.has(key)
-                                        ? `Column ${sourceColumnByKey.get(key)?.columnIndex}: ${sourceColumnByKey.get(key)?.header}`
-                                        : key}
-                                      :{' '}
-                                    </dt>
-                                    <dd className="inline text-muted-foreground">
-                                      {displayValue(value)}
-                                    </dd>
-                                  </div>
-                                ))}
-                              </dl>
-                            </td>
-                            <td className="p-2">
-                              {row.validationErrors.length ? (
-                                <ul className="space-y-1 text-danger">
-                                  {row.validationErrors.map((error) => (
-                                    <li key={`${error.fieldCode}-${error.code}`}>
-                                      {error.fieldCode}: {error.message}
-                                    </li>
-                                  ))}
-                                </ul>
-                              ) : row.processingErrorCode ? (
-                                <span className="text-warning">
-                                  {row.processingErrorCode.replaceAll('_', ' ')}
-                                </span>
-                              ) : (
-                                <span className="text-muted-foreground">No errors</span>
-                              )}
-                            </td>
+                {sourceColumns.length > 0 ? (
+                  <Card>
+                    <CardHeader>
+                      <CardTitle>Reviewed mapping revision {batch.mappingRevision}</CardTitle>
+                      <CardDescription>
+                        Every source column must target one field or be explicitly ignored.
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-3">
+                      {sourceColumns.map((column) => (
+                        <div
+                          key={column.key}
+                          className="grid items-center gap-3 rounded-md border p-3 sm:grid-cols-2"
+                        >
+                          <span className="break-all text-sm font-medium">
+                            Column {column.columnIndex}: {column.header}
+                          </span>
+                          <Select
+                            disabled={
+                              !canReview || pending || mappingLockedStatuses.has(batch.status)
+                            }
+                            value={mapping[column.key] ?? '__pending__'}
+                            onValueChange={(value) =>
+                              !mutation.current &&
+                              scope.isCurrent() &&
+                              setMapping((current) => ({ ...current, [column.key]: value }))
+                            }
+                          >
+                            <SelectTrigger>
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="__pending__">
+                                Pending: select a target or explicit ignore
+                              </SelectItem>
+                              <SelectItem value="__ignore__">Ignore this source column</SelectItem>
+                              {selectedForm?.fields.map((field) => (
+                                <SelectItem key={field.code} value={field.code}>
+                                  {field.label} ({field.code})
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      ))}
+                      <div className="flex flex-wrap gap-2">
+                        <Button
+                          disabled={
+                            !canReview || pending || mappingLockedStatuses.has(batch.status)
+                          }
+                          onClick={() => void saveMapping()}
+                        >
+                          Save new mapping revision
+                        </Button>
+                        <Button
+                          disabled={
+                            !canValidate ||
+                            pending ||
+                            batch.mappingRevision < 1 ||
+                            mappingLockedStatuses.has(batch.status)
+                          }
+                          variant="outline"
+                          onClick={() => void validate()}
+                        >
+                          Validate all rows
+                        </Button>
+                        <Button
+                          disabled={
+                            !canProcess ||
+                            pending ||
+                            batch.validationRevision < 1 ||
+                            !['VALIDATED', 'PROCESSING', 'PARTIALLY_PROCESSED'].includes(
+                              batch.status,
+                            )
+                          }
+                          variant="outline"
+                          onClick={() => void process()}
+                        >
+                          {processingInterrupted ||
+                          batch.status === 'PROCESSING' ||
+                          (batch.status === 'PARTIALLY_PROCESSED' &&
+                            !importProcessingComplete(batch))
+                            ? 'Resume processing'
+                            : 'Process all valid rows'}
+                        </Button>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ) : null}
+
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Authorized row review</CardTitle>
+                    <CardDescription>
+                      {rows.length} rows loaded; {validationErrors} bounded validation errors. Raw
+                      previews are never shown to aggregate-only roles.
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="overflow-x-auto">
+                    {rows.length === 0 ? (
+                      <p className="text-sm text-muted-foreground">No staged rows are available.</p>
+                    ) : (
+                      <table className="w-full min-w-[720px] text-left text-sm">
+                        <thead>
+                          <tr className="border-b">
+                            <th className="p-2">Source row</th>
+                            <th className="p-2">Status</th>
+                            <th className="p-2">Original values</th>
+                            <th className="p-2">Validation</th>
                           </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  )}
-                </CardContent>
-              </Card>
-            </>
-          )}
+                        </thead>
+                        <tbody>
+                          {rows.map((row) => (
+                            <tr key={row.id} className="border-b align-top">
+                              <td className="p-2">{row.rowNumber}</td>
+                              <td className="p-2">
+                                <StatusBadge
+                                  tone={
+                                    row.status === 'PROCESSED'
+                                      ? 'success'
+                                      : row.status === 'INVALID' || row.status === 'FAILED'
+                                        ? 'danger'
+                                        : row.status === 'UNPROCESSED'
+                                          ? 'warning'
+                                          : 'info'
+                                  }
+                                >
+                                  {row.status}
+                                </StatusBadge>
+                              </td>
+                              <td className="p-2">
+                                <dl className="space-y-1">
+                                  {Object.entries(row.rawData).map(([key, value]) => (
+                                    <div key={key}>
+                                      <dt className="inline font-medium">
+                                        {sourceColumnByKey.has(key)
+                                          ? `Column ${sourceColumnByKey.get(key)?.columnIndex}: ${sourceColumnByKey.get(key)?.header}`
+                                          : key}
+                                        :{' '}
+                                      </dt>
+                                      <dd className="inline text-muted-foreground">
+                                        {displayValue(value)}
+                                      </dd>
+                                    </div>
+                                  ))}
+                                </dl>
+                              </td>
+                              <td className="p-2">
+                                {row.validationErrors.length ? (
+                                  <ul className="space-y-1 text-danger">
+                                    {row.validationErrors.map((error) => (
+                                      <li key={`${error.fieldCode}-${error.code}`}>
+                                        {error.fieldCode}: {error.message}
+                                      </li>
+                                    ))}
+                                  </ul>
+                                ) : row.processingErrorCode ? (
+                                  <span className="text-warning">
+                                    {row.processingErrorCode.replaceAll('_', ' ')}
+                                  </span>
+                                ) : (
+                                  <span className="text-muted-foreground">No errors</span>
+                                )}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    )}
+                  </CardContent>
+                </Card>
+              </>
+            )}
+          </div>
         </div>
-      </div>
 
-      <div className="rounded-lg border border-info/20 bg-info/10 p-4 text-sm text-info">
-        <FileSpreadsheet className="mr-2 inline h-4 w-4" aria-hidden="true" />
-        Beneficiary registration rows remain marked unprocessed until P04 supplies the domain
-        handler; generic valid rows alone become versioned submissions.
-      </div>
-    </fieldset>
+        <div className="rounded-lg border border-info/20 bg-info/10 p-4 text-sm text-info">
+          <FileSpreadsheet className="mr-2 inline h-4 w-4" aria-hidden="true" />
+          Beneficiary registration rows remain marked unprocessed until P04 supplies the domain
+          handler; generic valid rows alone become versioned submissions.
+        </div>
+      </fieldset>
+    </div>
   )
 }
