@@ -86,11 +86,13 @@ token validation
 → org
 → role/permissions
 → assignments
-→ Beneficiary step-up on marked detail routes (signed TOTP `amr` within 15 minutes)
+→ Beneficiary step-up on marked detail routes (signed TOTP `amr` within 15 minutes, or a live session-bound PIN grant)
 → scoped Prisma query
 ```
 
-Beneficiary step-up follows the [Beneficiary step-up Change Record](cr-pathways-beneficiary-step-up.md): `RequireBeneficiaryStepUp` handlers return 403 `STEP_UP_REQUIRED` when the factor is stale. `GET /auth/step-up/status` reports freshness from signed claims and returns no business data.
+Beneficiary step-up follows the [Beneficiary step-up Change Record](cr-pathways-beneficiary-step-up.md) as amended by the [PIN fallback Change Record](cr-pathways-beneficiary-step-up-pin.md). `RequireBeneficiaryStepUp` handlers return 403 `STEP_UP_REQUIRED` when the TOTP factor is stale and no live PIN grant exists. The grant is read only after scope authorization, only for the server-derived user, organization and verified session, in a transaction that rechecks session liveness. `GET /auth/step-up/status` reports freshness, method and `pinState` (`NONE`, `SET`, `LOCKED`). It returns no business data or attempt counts.
+
+PIN verify, setup, change and unlock (`POST /auth/step-up/pin`, `/pin/setup`, `/pin/change`, `/pin/unlock`) take the PIN only in the JSON body. They call the migration 0037 SECURITY DEFINER functions; the PIN tables have RLS on and no API-role grants. Setup and unlock need a fresh TOTP from verified signed claims. Change needs the current PIN or a fresh TOTP. Failures are counted under a row lock, 5 failures lock the PIN, a locked PIN is not compared, and only a TOTP newer than the lock unlocks it. Audit rows and logs never contain the PIN or its hash.
 
 Never:
 - authorize via email;

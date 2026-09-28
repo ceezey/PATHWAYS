@@ -71,7 +71,7 @@ Other rules:
   - only a fresh TOTP step-up unlocks it, which also clears the counter.
 - **No recovery by others.** No administrator can view, set or reset a user's PIN. A forgotten or locked PIN is always recoverable with TOTP, because every session already requires `aal2`.
 
-### 3.3 Storage (migration `0038_step_up_pin`)
+### 3.3 Storage (migration `0037_step_up_pin`)
 
 - **`pathways.user_step_up_pins`:**
   - `organization_id` and `user_id`, the primary key, with a composite foreign key to `system_users`;
@@ -86,6 +86,7 @@ Other rules:
 - **Functions:** set, change, verify, unlock and grant lookup are SECURITY DEFINER functions with owner `prisma`, an empty `search_path` and qualified names. `EXECUTE` is granted only to `pathways_runtime`. User and organization come from the runtime context. The session ID is passed by the API from the verified token and rechecked with `pathways.runtime_auth_session_live`.
 - **Trust boundary.** The database cannot verify a TOTP claim. The API asserts TOTP freshness from verified signed claims before it calls setup, TOTP-based change or unlock.
 - The migration asserts that `extensions.crypt` and `extensions.gen_salt` exist, and fails closed otherwise.
+- **DBA prerequisite.** In the Supabase role layout the migration owner `prisma` has no `USAGE` on schema `extensions`, so its SECURITY DEFINER functions cannot call pgcrypto. `infra/supabase/phase6/hosted-step-up-pin-preprovision.sql` grants only that `USAGE`, run by `postgres` before 0037. The 0037 guard fails closed without it.
 
 ### 3.4 Secrecy of the PIN
 
@@ -130,7 +131,7 @@ The developer accepts this trade-off by approving this record.
 Users can refresh Beneficiary access with a PIN instead of opening their authenticator every 15 minutes. This delivers the manuscript's PIN wording alongside TOTP.
 
 ### Data / Migration
-0038 adds two tables, their policies, functions and postconditions. No existing table changes.
+0037 adds two tables, their policies, functions and postconditions. No existing table changes.
 
 ### Authorization / Privacy
 - No permission or scope change.
@@ -154,7 +155,7 @@ The gate offers two methods. My Profile gains "Change PIN".
   - cross-project denial still precedes step-up;
   - TOTP-only behaviour is unchanged;
   - client-supplied grant values are ignored (extends QAD-A12).
-- **SQL (0038):** ACL, owner and `search_path` postconditions.
+- **SQL (0037):** ACL, owner and `search_path` postconditions.
 
 ### Documentation
 - Step-up record: note the adopted PIN fallback.
@@ -173,7 +174,7 @@ The gate offers two methods. My Profile gains "Change PIN".
 
 ## 6. Migration / Rollback
 
-- 0038 is forward-only with the 0030-style migration identity and ledger precondition. Numbers follow merge order.
+- 0037 is forward-only with the 0030-style migration identity and ledger precondition. Numbers follow merge order: its guard asserts 0035 because 0036 lands in the same wave.
 - Rollback disables the PIN endpoints and returns `enforce` to TOTP only, which needs no migration. The tables stay. Deleting stored hashes and grants is destructive and needs separate authorization.
 - Hosted application needs separate developer authorization.
 

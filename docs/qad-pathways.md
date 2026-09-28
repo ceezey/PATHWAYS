@@ -75,8 +75,10 @@ PRD-F6 mapping suggestions additionally cover stable source keys, ASCII whitespa
 | QAD-A08 | rule attempts raw SQL/code -> rejected |
 | QAD-A09 | public route requests private media -> denied |
 | QAD-A10 | SADDD suppressed cells cannot be trivially reconstructed |
-| QAD-A11 | Beneficiary detail request with stale, missing or future-dated TOTP `amr` -> 403 `STEP_UP_REQUIRED`, handler not run, denial audited |
-| QAD-A12 | client-supplied step-up flag/header/storage or a client-only MFA success does not open Beneficiary detail; the server status must report fresh |
+| QAD-A11 | Beneficiary detail request with stale, missing or future-dated TOTP `amr` and no live PIN grant for the same user, organization and verified session -> 403 `STEP_UP_REQUIRED`, handler not run, denial audited; a grant from another session, user or organization, an expired grant or an ended session is rejected |
+| QAD-A12 | client-supplied step-up flag/header/storage, grant or session value, or a client-only MFA success does not open Beneficiary detail; the server status must report fresh |
+| QAD-A13 | PIN brute force: 5 failures lock the PIN, parallel wrong attempts cannot exceed the bound, a locked PIN is not compared, only a TOTP newer than the lock unlocks it, and PIN requests are throttled |
+| QAD-A14 | PIN setup without a fresh signed TOTP or when a PIN exists, and change without the current PIN or a fresh TOTP -> denied; the PIN never appears in URLs, logs, audit rows or error bodies |
 
 ## 4. Rule-Engine Matrix
 
