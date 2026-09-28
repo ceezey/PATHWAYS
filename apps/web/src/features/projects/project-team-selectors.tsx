@@ -110,7 +110,10 @@ const optionPlaceholder = (
   return `Select ${roleLabels[role]}`
 }
 
+const noneOptionValue = '__none__'
+
 const SingleTeamSelector = ({
+  allowClear = true,
   control,
   disabled,
   fieldName,
@@ -120,6 +123,7 @@ const SingleTeamSelector = ({
   unavailableMessage,
   users,
 }: {
+  allowClear?: boolean
   control: Control<ProjectSetupSchema>
   disabled: boolean
   fieldName: Exclude<TeamFieldName, 'projectOfficers'>
@@ -145,6 +149,10 @@ const SingleTeamSelector = ({
             <Select
               disabled={disabled || Boolean(unavailableMessage) || options.length === 0}
               onValueChange={(userId) => {
+                if (userId === noneOptionValue) {
+                  field.onChange('')
+                  return
+                }
                 const user = options.find((option) => option.id === userId)
                 field.onChange(user?.name ?? '')
               }}
@@ -172,6 +180,11 @@ const SingleTeamSelector = ({
                 </SelectTrigger>
               </FormControl>
               <SelectContent className="max-w-[calc(100vw-2rem)] sm:min-w-[var(--radix-select-trigger-width)]">
+                {allowClear ? (
+                  <SelectItem value={noneOptionValue}>
+                    <span className="text-muted-foreground">None</span>
+                  </SelectItem>
+                ) : null}
                 {options.map((user) => (
                   <SelectItem key={user.id} value={user.id}>
                     <span className="flex min-w-0 max-w-full flex-col overflow-hidden">
@@ -206,6 +219,7 @@ const SingleTeamSelector = ({
 
 export const ProjectTeamSelectors = ({
   control,
+  disallowClearRoles,
   loadError,
   loading,
   onRetry,
@@ -213,6 +227,7 @@ export const ProjectTeamSelectors = ({
   users,
 }: {
   control: Control<ProjectSetupSchema>
+  disallowClearRoles?: Exclude<TeamFieldName, 'projectOfficers'>[]
   loadError: string | null
   loading: boolean
   onRetry: () => void
@@ -221,6 +236,8 @@ export const ProjectTeamSelectors = ({
 }) => {
   const officerOptions = getEligibleTeamUsers(users, 'Project Officer')
   const disabled = loading || Boolean(loadError)
+  const canClear = (fieldName: Exclude<TeamFieldName, 'projectOfficers'>) =>
+    !disallowClearRoles?.includes(fieldName)
 
   return (
     <div className="space-y-5">
@@ -244,6 +261,7 @@ export const ProjectTeamSelectors = ({
       ) : null}
       <div className="grid gap-5 lg:grid-cols-2">
         <SingleTeamSelector
+          allowClear={canClear('programManager')}
           control={control}
           disabled={disabled}
           fieldName="programManager"
@@ -254,6 +272,7 @@ export const ProjectTeamSelectors = ({
           users={users}
         />
         <SingleTeamSelector
+          allowClear={canClear('projectManager')}
           control={control}
           disabled={disabled}
           fieldName="projectManager"
@@ -264,6 +283,7 @@ export const ProjectTeamSelectors = ({
           users={users}
         />
         <SingleTeamSelector
+          allowClear={canClear('monitoringOfficer')}
           control={control}
           disabled={disabled}
           fieldName="monitoringOfficer"

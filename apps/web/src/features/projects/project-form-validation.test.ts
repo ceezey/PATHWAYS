@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 
 import {
   projectSetupSchema,
+  projectTeamEditSchema,
   toCreateProjectInput,
   toProjectTeamInput,
   toUpdateProjectInput,
@@ -200,5 +201,81 @@ describe('project setup validation', () => {
       expectedUpdatedAt: '2026-09-23T00:00:00.000Z',
     })
     expect(input).not.toHaveProperty('targetGoal')
+  })
+
+  it('accepts the team-only edit schema without dates, sector, or area', () => {
+    const result = projectTeamEditSchema.safeParse({
+      ...validValues,
+      sector: '',
+      area: '',
+      startDate: '',
+      endDate: '',
+    })
+
+    expect(result.success).toBe(true)
+  })
+
+  it('omits blank start/end dates from the update payload instead of sending empty strings', () => {
+    const input = toUpdateProjectInput(
+      { ...validValues, startDate: '', endDate: '' },
+      {
+        id: 'project-id',
+        code: 'PRJ-EXISTING',
+        title: 'Existing project',
+        description: 'Existing description',
+        objectives: 'Existing objectives',
+        area: 'Navotas',
+        sector: 'Sector not recorded',
+        status: 'Planned',
+        storedStatus: 'PLANNED',
+        health: 'On Track',
+        period: 'Dates not recorded',
+        projectManager: 'Not assigned',
+        programManager: 'Not assigned',
+        monitoringOfficer: 'Not assigned',
+        projectOfficers: [],
+        targetBeneficiaries: 0,
+
+        budgetCode: 'Not recorded',
+        updatedAt: '2026-09-23T00:00:00.000Z',
+        programId: undefined,
+      },
+    )
+
+    expect(input.startDate).toBeUndefined()
+    expect(input.endDate).toBeUndefined()
+    expect(input).not.toHaveProperty('startDate', '')
+    expect(input).not.toHaveProperty('endDate', '')
+  })
+
+  it('sends an explicit null to clear an optional team role that was set to None', () => {
+    expect(
+      toProjectTeamInput(
+        {
+          ...validValues,
+          programManager: '',
+          projectManager: '',
+          monitoringOfficer: '',
+          projectOfficers: '',
+        },
+        [],
+      ),
+    ).toEqual({
+      programManagerId: null,
+      projectManagerId: null,
+      monitoringOfficerId: null,
+    })
+  })
+
+  it('leaves a role untouched when its selected name cannot be resolved defensively', () => {
+    // validateProjectTeamSelections rejects this before submission in the UI;
+    // toProjectTeamInput must still fail closed and never clear or corrupt an
+    // assignment it could not resolve.
+    expect(
+      toProjectTeamInput(
+        { ...validValues, programManager: 'Someone Unlisted' },
+        [],
+      ),
+    ).not.toHaveProperty('programManagerId')
   })
 })

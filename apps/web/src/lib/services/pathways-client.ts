@@ -1897,9 +1897,13 @@ export async function requestFoundationResponse(
   if (!response.ok) {
     let fieldErrors: FormValidationError[] = []
     let serverMessage: string | undefined
-    if (response.status === 403) {
-      const body = (await response.json().catch(() => null)) as { code?: unknown } | null
-      if (body?.code === STEP_UP_REQUIRED_CODE) {
+    if (response.status === 400 || response.status === 403 || response.status === 409) {
+      const body = (await response.json().catch(() => null)) as {
+        message?: { errors?: unknown; message?: unknown } | string | unknown[]
+        errors?: unknown
+        code?: unknown
+      } | null
+      if (response.status === 403 && body?.code === STEP_UP_REQUIRED_CODE) {
         const stepUp = new PathwaysClientError(
           'Recent MFA verification is required for Beneficiary detail.',
           'forbidden',
@@ -1912,12 +1916,6 @@ export async function requestFoundationResponse(
         announceStepUpRequired()
         throw stepUp
       }
-    }
-    if (response.status === 400 || response.status === 409) {
-      const body = (await response.json().catch(() => null)) as {
-        message?: { errors?: unknown; message?: unknown } | string | unknown[]
-        errors?: unknown
-      } | null
       const candidate =
         body?.message && !Array.isArray(body.message) && typeof body.message === 'object'
           ? body.message.errors
@@ -1927,7 +1925,13 @@ export async function requestFoundationResponse(
           ? body.message
           : body?.message && !Array.isArray(body.message) && typeof body.message === 'object'
             ? body.message.message
-            : undefined
+            : Array.isArray(body?.message) &&
+                body.message.length > 0 &&
+                body.message.every((item) => typeof item === 'string')
+              ? // Nest's default ValidationPipe response shape, e.g. from
+                // class-validator: { message: string[], error, statusCode }.
+                body.message.join(' ')
+              : undefined
       if (typeof candidateMessage === 'string' && candidateMessage.length <= 300) {
         serverMessage = candidateMessage
       }
