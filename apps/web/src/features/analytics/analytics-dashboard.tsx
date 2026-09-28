@@ -31,7 +31,7 @@ import { can } from '@/lib/rbac/can'
 import { principalHasAtomicPermission } from '@/lib/rbac/route-access'
 import { downloadCoreArtifact } from '@/lib/services/core-feature-client'
 import { descriptiveAnalyticsSearch, pathwaysClient } from '@/lib/services/pathways-client'
-import type { Activity, ProjectIndicator, ProjectSummary } from '@/types/pathways'
+import type { ActivitySummary, ProjectIndicator, ProjectSummary } from '@/types/pathways'
 import {
   type DescriptiveAnalytics,
   type MonitoringDashboard,
@@ -103,7 +103,7 @@ export const AnalyticsDashboard = () => {
   const [indicatorDefinitions, setIndicatorDefinitions] = useState<ProjectIndicator[]>([])
   const [monitoring, setMonitoring] = useState<MonitoringDashboard | null>(null)
   const [saddd, setSaddd] = useState<SadddDashboard | null>(null)
-  const [activities, setActivities] = useState<Activity[]>([])
+  const [activities, setActivities] = useState<ActivitySummary[]>([])
   const [projectsLoading, setProjectsLoading] = useState(true)
   const [projectDataLoading, setProjectDataLoading] = useState(false)
   const [monitoringLoading, setMonitoringLoading] = useState(false)
@@ -192,7 +192,9 @@ export const AnalyticsDashboard = () => {
     setMonitoring(null)
     setMonitoringError('')
     Promise.all([
-      canReadActivities ? pathwaysClient.getActivities(projectId) : Promise.resolve<Activity[]>([]),
+      canReadActivities
+        ? pathwaysClient.getActivities(projectId)
+        : Promise.resolve<ActivitySummary[]>([]),
       canReadIndicators
         ? pathwaysClient.getProjectIndicators(projectId)
         : Promise.resolve<ProjectIndicator[]>([]),
@@ -614,13 +616,19 @@ export const AnalyticsDashboard = () => {
                 ) : null}
               </>
             ) : !selectedPeriod ? (
-              <UnavailableChart description="No active Indicator reporting period is available for this project." />
+              <UnavailableChart
+                description="No active Indicator reporting period is available for this project."
+                title="None yet"
+              />
             ) : analysisRows.length === 0 ? (
               <UnavailableChart
                 description={
                   analysisView === 'survey' || analysisView === 'timeline'
                     ? 'This analysis view is unavailable in the current API.'
                     : 'No released values are available for this selection.'
+                }
+                title={
+                  analysisView === 'survey' || analysisView === 'timeline' ? undefined : 'None yet'
                 }
               />
             ) : visualizationType === 'table' ? (
@@ -658,7 +666,7 @@ export const AnalyticsDashboard = () => {
               icon={Target}
               label="KPI achievement"
               tone={averageKpi === null ? 'info' : averageKpi >= 70 ? 'success' : 'warning'}
-              value={averageKpi === null ? 'Unavailable' : `${averageKpi}%`}
+              value={averageKpi === null ? 'None yet' : `${averageKpi}%`}
             />
             <MetricCard
               description="Budget utilization is unavailable in the current API."
@@ -777,7 +785,10 @@ export const AnalyticsDashboard = () => {
                 ) : descriptive ? (
                   <DescriptiveStatisticsTable data={descriptive} />
                 ) : (
-                  <UnavailableChart description="No active Indicator reporting period is available for this project." />
+                  <UnavailableChart
+                    description="No active Indicator reporting period is available for this project."
+                    title="None yet"
+                  />
                 )}
               </ChartPanel>
             ) : null}
@@ -889,9 +900,9 @@ const DescriptiveStatisticsTable = ({ data }: { data: DescriptiveAnalytics }) =>
               <td className="p-2 tabular-nums">
                 {row.reportedCount}/{row.indicatorCount}
               </td>
-              <td className="p-2 tabular-nums">{row.mean ?? 'Unavailable'}</td>
-              <td className="p-2 tabular-nums">{row.minimum ?? 'Unavailable'}</td>
-              <td className="p-2 tabular-nums">{row.maximum ?? 'Unavailable'}</td>
+              <td className="p-2 tabular-nums">{row.mean ?? 'None yet'}</td>
+              <td className="p-2 tabular-nums">{row.minimum ?? 'None yet'}</td>
+              <td className="p-2 tabular-nums">{row.maximum ?? 'None yet'}</td>
             </tr>
           ))}
         </tbody>
@@ -900,6 +911,11 @@ const DescriptiveStatisticsTable = ({ data }: { data: DescriptiveAnalytics }) =>
   </div>
 )
 
-const UnavailableChart = ({ description }: { description: string }) => (
-  <EmptyState description={description} icon={BarChart3} title="Data unavailable" />
-)
+/** Capability gaps keep "Data unavailable"; genuinely empty selections pass "None yet". */
+const UnavailableChart = ({
+  description,
+  title = 'Data unavailable',
+}: {
+  description: string
+  title?: string
+}) => <EmptyState description={description} icon={BarChart3} title={title} />

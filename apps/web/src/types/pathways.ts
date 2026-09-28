@@ -20,8 +20,8 @@ export type BeneficiaryEnrollmentStatus =
 export type DashboardSeverity = 'neutral' | 'info' | 'success' | 'warning' | 'danger'
 export type DashboardActionKind = 'dialog' | 'navigate' | 'toast'
 
+/** Project profile only. Overview metrics come from `GET /projects/:id/overview-metrics`. */
 export interface ProjectSummary {
-  metricsAvailable?: boolean
   targetBeneficiaries?: number
 
   startDate?: string | null
@@ -36,11 +36,6 @@ export interface ProjectSummary {
   health: HealthStatus
   period: string
   projectManager: string
-  kpiAchievement: number
-  beneficiariesReached: number
-  beneficiaryReachPercentage?: number
-  budgetUtilization: number
-  timelineProgress: number
   updatedAt?: string
   programId?: string | null
 }
@@ -150,6 +145,32 @@ export interface Activity {
   updateNotes: ActivityUpdateNote[]
   updatedAt: string
 }
+
+/**
+ * Lean list item from `GET /projects/:id/activities`. Update history, proof, assignee
+ * emails and read metrics are detail-only: read them with `getActivity`.
+ */
+export type ActivitySummary = Pick<
+  Activity,
+  | 'id'
+  | 'projectId'
+  | 'code'
+  | 'title'
+  | 'description'
+  | 'storedStatus'
+  | 'status'
+  | 'overdue'
+  | 'startDate'
+  | 'dueDate'
+  | 'assignedUserIds'
+  | 'assignedTo'
+  | 'indicatorIds'
+  | 'journeyStageIds'
+  | 'journeyStageId'
+  | 'targetBeneficiaries'
+  | 'progress'
+  | 'updatedAt'
+>
 
 export interface ActivityProof {
   id: string

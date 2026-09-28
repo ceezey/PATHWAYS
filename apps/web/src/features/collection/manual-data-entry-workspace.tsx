@@ -6,7 +6,7 @@ import { Input } from '@/components/ui/input'
 import { useCurrentRole } from '@/hooks/use-current-role'
 import { pathwaysClient } from '@/lib/services/pathways-client'
 import type {
-  Activity,
+  ActivitySummary,
   DigitalFormDefinition,
   DirectFormSubmission,
   DirectFormSubmissionPage,
@@ -39,7 +39,7 @@ export function ManualDataEntryWorkspace() {
   const { role } = useCurrentRole()
   const [projects, setProjects] = useState<ProjectSummary[]>([])
   const [forms, setForms] = useState<DigitalFormDefinition[]>([])
-  const [activities, setActivities] = useState<Activity[]>([])
+  const [activities, setActivities] = useState<ActivitySummary[]>([])
   const [draft, setDraft] = useState(blank)
   const [submission, setSubmission] = useState<DirectFormSubmission | null>(null)
   const [clientSubmissionId, setClientSubmissionId] = useState(() => crypto.randomUUID())

@@ -3,7 +3,7 @@
 import { type SadddDashboard, formatMetricCell } from '@pathways/shared'
 import ReactECharts from 'echarts-for-react'
 
-import type { Activity, AlertRecord, BudgetRecord, ProjectDetail } from '@/types/pathways'
+import type { ActivitySummary, AlertRecord, BudgetRecord, ProjectDetail } from '@/types/pathways'
 
 import { type AggregateChartBucket, aggregateChartOption } from './aggregate-chart-options'
 import { buildLegendAriaDescription, createAdaptiveLegendLayout } from './analytics-legend-options'
@@ -11,7 +11,7 @@ import { buildLegendAriaDescription, createAdaptiveLegendLayout } from './analyt
 type ChartProps = {
   projects: ProjectDetail[]
   budgets: BudgetRecord[]
-  activities: Activity[]
+  activities: ActivitySummary[]
   alerts: AlertRecord[]
 }
 

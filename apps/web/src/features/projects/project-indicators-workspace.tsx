@@ -15,6 +15,7 @@ import {
   isSourceReplay,
   sourceMutationTickets,
 } from '@/lib/services/source-mutation'
+import { useAuthorizedRead } from '@/providers/authorized-query-provider'
 import type { Activity, DigitalFormDefinition } from '@/types/pathways'
 import {
   type CreateIndicatorDraftInput as CreateIndicatorInput,
@@ -460,44 +461,47 @@ export function ProjectIndicatorsWorkspace({ projectId }: { projectId: string })
   const canCreate = profile?.permissions.includes('indicators.create') === true
   const canUpdate = profile?.permissions.includes('indicators.update') === true
   const load = useCallback(() => pathwaysClient.getProjectIndicators(projectId), [projectId])
-  const { data, error, loading, reload, authorityKey } = useMonitoringRead(projectId, load)
+  const { data, error, loading, reload, replaceData, authorityKey } = useMonitoringRead(
+    projectId,
+    load,
+  )
   const [busy, setBusy] = useState(false)
   const [message, setMessage] = useState<string | null>(null)
   const [recoveryGeneration, setRecoveryGeneration] = useState(0)
-  const [bindings, setBindings] = useState<{
-    key: string
-    forms: DigitalFormDefinition[]
-    activities: Pick<Activity, 'id' | 'title' | 'journeyStageId'>[]
-  } | null>(null)
   const activeKey = `${authorityKey}:${projectId}`
   const currentKey = useRef(activeKey)
   currentKey.current = activeKey
   const canReadForms = principalHasAtomicPermission(profile, 'forms.read')
   const canReadActivityContext = principalHasAtomicPermission(profile, 'activities.context.read')
   const canReadActivities = principalHasAtomicPermission(profile, 'activities.read')
-  useEffect(() => {
-    let active = true
-    if (canCreate)
-      void Promise.all([
+  // Binding choices need only id, title and stage: the context projection or the lean list.
+  const bindingRead = useAuthorizedRead(
+    'indicator-binding-choices',
+    projectId,
+    'indicators.create',
+    async (signal) => {
+      const [forms, activities] = await Promise.all([
         canReadForms
           ? pathwaysClient.getDigitalForms(projectId)
           : Promise.resolve<DigitalFormDefinition[]>([]),
         canReadActivityContext
           ? pathwaysClient.getActivityContext(projectId)
           : canReadActivities
-            ? pathwaysClient.getActivities(projectId)
+            ? pathwaysClient.getActivities(projectId, signal)
             : Promise.resolve([]),
       ])
-        .then(([forms, activities]) => {
-          if (active) setBindings({ key: activeKey, forms, activities })
-        })
-        .catch(() => {
-          if (active) setBindings(null)
-        })
-    return () => {
-      active = false
-    }
-  }, [activeKey, canCreate, projectId, canReadForms, canReadActivityContext, canReadActivities])
+      return {
+        forms,
+        activities: activities.map(({ id, title, journeyStageId }) => ({
+          id,
+          title,
+          journeyStageId,
+        })),
+      }
+    },
+    canCreate,
+    { freshness: 'summary' },
+  )
   const mutate = async (action: () => Promise<SourceMutationResult<ProjectIndicator>>) => {
     if (busy) return false
     const startedKey = activeKey
@@ -508,9 +512,15 @@ export function ProjectIndicatorsWorkspace({ projectId }: { projectId: string })
       const owner = updateContext ?? createContext ?? archiveContext
       if (!owner?.isCurrent()) return false
       if (isSourceReplay(result)) {
-        await pathwaysClient.getProjectIndicators(projectId)
+        // The authorized reload that confirms the replay is also the displayed state.
+        const persisted = await pathwaysClient.getProjectIndicators(projectId)
         if (!owner.isCurrent()) return false
         sourceMutationTickets.finishAcknowledgement(owner, result.requestId)
+        if (currentKey.current === startedKey) {
+          replaceData(persisted)
+          setMessage('Saved. The persisted indicator is shown.')
+        }
+        return true
       }
       if (currentKey.current === startedKey) {
         reload()
@@ -542,18 +552,18 @@ export function ProjectIndicatorsWorkspace({ projectId }: { projectId: string })
     setMessage(null)
   }, [activeKey])
 
-  const availableBindings = bindings?.key === activeKey ? bindings : null
+  const availableBindings = bindingRead.data ?? null
   return (
     <section className="space-y-5">
       <SourceMutationRecovery
         context={updateContext ?? createContext ?? archiveContext}
         prefix={`/projects/${projectId}/indicators`}
         onRecovered={async () => {
-          await pathwaysClient.getProjectIndicators(projectId)
+          const persisted = await pathwaysClient.getProjectIndicators(projectId)
           return () => {
             setRecoveryGeneration((value) => value + 1)
-            reload()
-            setMessage('The earlier outcome is confirmed. Current indicators are reloading.')
+            replaceData(persisted)
+            setMessage('The earlier outcome is confirmed. Current indicators are shown.')
           }
         }}
       />

@@ -49,6 +49,7 @@ export const ActivityDetailContent = ({
   canDecideProof,
   canEdit,
   canLogExpense,
+  canReadBudgets = false,
   canRecordProgress = false,
   canSubmitProof,
   canRequestExtension,
@@ -66,6 +67,7 @@ export const ActivityDetailContent = ({
   canDecideProof: boolean
   canEdit: boolean
   canLogExpense: boolean
+  canReadBudgets?: boolean
   canRecordProgress?: boolean
   canSubmitProof: boolean
   canRequestExtension: boolean
@@ -134,7 +136,7 @@ export const ActivityDetailContent = ({
         <div>
           <dt className="text-muted-foreground">Allocated budget</dt>
           <dd className="mt-1 font-medium text-foreground">
-            {formatCurrency(activity.budgetAllocation)}
+            {formatCurrency(activity.budgetAllocation, canReadBudgets ? 'None yet' : 'Unavailable')}
           </dd>
         </div>
         <div>
@@ -446,6 +448,8 @@ export const ActivityDetailPanel = ({
   canDecideProof,
   canEdit,
   canLogExpense,
+  canReadBudgets = false,
+  loading = false,
   canRecordProgress = false,
   canSubmitProof,
   canRequestExtension,
@@ -465,6 +469,8 @@ export const ActivityDetailPanel = ({
   canDecideProof: boolean
   canEdit: boolean
   canLogExpense: boolean
+  canReadBudgets?: boolean
+  loading?: boolean
   canRecordProgress?: boolean
   canSubmitProof: boolean
   canRequestExtension: boolean
@@ -481,16 +487,17 @@ export const ActivityDetailPanel = ({
   requestedProofId?: string
 }) => {
   const scrollRef = useRef<HTMLDivElement>(null)
+  const loadedActivityId = activity?.id
 
   useEffect(() => {
-    if (!open || !requestedProofId) return
+    if (!open || !requestedProofId || !loadedActivityId) return
     const frame = window.requestAnimationFrame(() => {
       document
         .getElementById(`activity-proof-${requestedProofId}`)
         ?.scrollIntoView({ block: 'center' })
     })
     return () => window.cancelAnimationFrame(frame)
-  }, [open, requestedProofId])
+  }, [open, requestedProofId, loadedActivityId])
 
   return (
     <Sheet onOpenChange={onOpenChange} open={open}>
@@ -512,6 +519,7 @@ export const ActivityDetailPanel = ({
             canDecideProof={canDecideProof}
             canEdit={canEdit}
             canLogExpense={canLogExpense}
+            canReadBudgets={canReadBudgets}
             canRecordProgress={canRecordProgress}
             canSubmitProof={canSubmitProof}
             canRequestExtension={canRequestExtension}
@@ -525,6 +533,12 @@ export const ActivityDetailPanel = ({
             requestedExpenseId={requestedExpenseId}
             requestedProofId={requestedProofId}
           />
+        </SidePanel>
+      ) : loading ? (
+        <SidePanel description="Loading the current activity record." title="Activity detail">
+          <output aria-live="polite" className="block text-sm text-muted-foreground">
+            Loading activity...
+          </output>
         </SidePanel>
       ) : null}
     </Sheet>

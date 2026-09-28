@@ -53,7 +53,7 @@ import { getVerifiedRouteAccess, principalHasAtomicPermission } from '@/lib/rbac
 import { pathwaysClient } from '@/lib/services/pathways-client'
 import { cn } from '@/lib/utils'
 import type {
-  Activity,
+  ActivitySummary,
   DigitalFormDefinition,
   DigitalFormType,
   Indicator,
@@ -348,7 +348,7 @@ const OwnedCollectionWorkspace = ({
   )
   const [mode, setMode] = useState<CollectionMode>(initialMode)
   const [projects, setProjects] = useState<ProjectSummary[]>([])
-  const [activities, setActivities] = useState<Activity[]>([])
+  const [activities, setActivities] = useState<ActivitySummary[]>([])
   const [forms, setForms] = useState<DigitalFormDefinition[]>([])
   const [indicators, setIndicators] = useState<Indicator[]>([])
   const [editingFormId, setEditingFormId] = useState<string | undefined>(initialFormId)
@@ -1831,7 +1831,7 @@ const BuilderView = ({
   mode: CollectionMode
   moveField: (fieldId: string, direction: 'up' | 'down') => void
   onPublish: () => void
-  projectActivities: Activity[]
+  projectActivities: ActivitySummary[]
   projects: ProjectSummary[]
   projectId: string
   sadddCount: number
@@ -2024,7 +2024,7 @@ const FormInfoPanel = ({
   formType: string
   journeyStage: string
   linkedActivityId: string
-  projectActivities: Activity[]
+  projectActivities: ActivitySummary[]
   projects: ProjectSummary[]
   projectId: string
   setFormTitle: (value: string) => void
@@ -2486,7 +2486,7 @@ const ImportView = ({
   parsedImport: ParsedImport | null
   parseSelectedFile: (file: File) => Promise<void>
   sourceFileEnabled: boolean
-  projectActivities: Activity[]
+  projectActivities: ActivitySummary[]
   projects: ProjectSummary[]
   projectId: string
   selectedProject: string

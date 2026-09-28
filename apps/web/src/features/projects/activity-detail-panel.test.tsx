@@ -69,6 +69,36 @@ describe('ActivityDetailContent server read model', () => {
     expect(document.body.textContent).not.toContain('Project target comparison')
   })
 
+  it.each([
+    [true, 'None yet'],
+    [false, 'Unavailable'],
+  ])(
+    'labels a missing allocation for budget readers=%s as %s, never as zero',
+    (canReadBudgets, label) => {
+      render(
+        <ActivityDetailContent
+          activity={{ ...activity, budgetAllocation: null, budgetLogged: 12 }}
+          canDecideProof={false}
+          canEdit={false}
+          canLogExpense={false}
+          canReadBudgets={canReadBudgets}
+          canRequestExtension={false}
+          canSubmitProof={false}
+          canValidateExpense={false}
+          canValidateProof={false}
+          indicators={[]}
+          journeyStages={[]}
+          onActivityChanged={vi.fn()}
+          onEdit={vi.fn()}
+          onSubmitProof={vi.fn()}
+        />,
+      )
+      const allocation = screen.getByText('Allocated budget').parentElement
+      expect(allocation?.querySelector('dd')?.textContent).toBe(label)
+      expect(allocation?.textContent).not.toContain('₱0')
+    },
+  )
+
   it('shows a pending progress note as a progress review, not as submitted proof', () => {
     const noteActivity: Activity = {
       ...activity,

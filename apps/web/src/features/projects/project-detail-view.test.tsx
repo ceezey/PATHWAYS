@@ -1,17 +1,26 @@
 /* @vitest-environment jsdom */
 
-import { cleanup, render, screen } from '@testing-library/react'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { AuthorizedQueryProvider } from '@/providers/authorized-query-provider'
 import type { ProjectDetail } from '@/types/pathways'
+import type { MetricCell, ProjectOverviewMetrics } from '@pathways/shared'
 
-const api = vi.hoisted(() => ({ getProject: vi.fn() }))
+const projectId = '73500000-0000-4000-8000-000000000004'
+const api = vi.hoisted(() => ({ getProject: vi.fn(), getProjectOverviewMetrics: vi.fn() }))
 const access = vi.hoisted(() => ({
+  access: 'ready',
   role: 'System Administrator',
+  assignedProjectIds: ['73500000-0000-4000-8000-000000000004'],
   profile: {
+    id: 'synthetic-subject',
+    userId: 'synthetic-user',
+    organizationId: 'synthetic-org',
     roles: ['SYSTEM_ADMINISTRATOR'],
     permissions: ['projects.read', 'projects.detail.read', 'assignments.manage'],
-    assignedProjectIds: [] as string[],
+    assignedProjectIds: ['73500000-0000-4000-8000-000000000004'],
   },
 }))
 
@@ -28,10 +37,11 @@ vi.mock('./project-team-editor-dialog', () => ({
   ProjectTeamEditorDialog: () => <button type="button">Edit team</button>,
 }))
 
+import { PathwaysClientError } from '@/lib/services/pathways-client'
 import { ProjectDetailView } from './project-detail-view'
 
 const project: ProjectDetail = {
-  id: '73500000-0000-4000-8000-000000000004',
+  id: projectId,
   code: 'SSG-ES-2026',
   title: 'Safe Schools for Girls',
   description: 'Synthetic project description.',
@@ -43,10 +53,6 @@ const project: ProjectDetail = {
   health: 'On Track',
   period: '2026-03-01 - 2027-08-31',
   projectManager: 'Ana Dela Cruz',
-  kpiAchievement: 0,
-  beneficiariesReached: 0,
-  budgetUtilization: 0,
-  timelineProgress: 0,
   programManager: 'Maria Santos',
   monitoringOfficer: 'Carlo Mendoza',
   projectOfficers: ['Liza Bautista'],
@@ -58,9 +64,39 @@ const project: ProjectDetail = {
   programId: null,
 }
 
+const available = (value: string): MetricCell => ({ state: 'AVAILABLE', value, reason: null })
+const missing = (reason: string): MetricCell => ({ state: 'MISSING', value: null, reason })
+const metrics = (overrides: Partial<ProjectOverviewMetrics> = {}): ProjectOverviewMetrics => ({
+  contractVersion: 'project.overview-metrics.v1',
+  projectId,
+  businessDate: '2026-09-28',
+  generatedAt: '2026-09-28T00:00:00.000Z',
+  kpiAchievement: { metric: available('60.3'), indicatorCount: 2, reportedCount: 2 },
+  budgetUtilization: null,
+  beneficiariesReached: {
+    metric: { state: 'SUPPRESSED', value: null, reason: 'SMALL_CELL' },
+    target: 1200,
+  },
+  timeline: { metric: available('50'), startDate: '2026-03-01', endDate: '2027-08-31' },
+  ...overrides,
+})
+
+const renderView = () =>
+  render(
+    <QueryClientProvider client={new QueryClient()}>
+      <AuthorizedQueryProvider>
+        <ProjectDetailView projectId={projectId} />
+      </AuthorizedQueryProvider>
+    </QueryClientProvider>,
+  )
+
+const tile = async (label: string) =>
+  (await screen.findByText(label)).parentElement?.querySelector('dd')?.textContent
+
 describe('project team editing authority', () => {
   beforeEach(() => {
     api.getProject.mockReset().mockResolvedValue(project)
+    api.getProjectOverviewMetrics.mockReset().mockResolvedValue(metrics())
   })
   afterEach(cleanup)
 
@@ -68,7 +104,7 @@ describe('project team editing authority', () => {
     access.role = 'System Administrator'
     access.profile.roles = ['SYSTEM_ADMINISTRATOR']
     access.profile.permissions = ['projects.read', 'projects.detail.read', 'assignments.manage']
-    render(<ProjectDetailView projectId={project.id} />)
+    renderView()
     expect(await screen.findByText('Project team')).toBeTruthy()
     expect(screen.queryByRole('button', { name: 'Edit team' })).toBeNull()
   })
@@ -82,7 +118,7 @@ describe('project team editing authority', () => {
       'projects.update',
       'assignments.manage',
     ]
-    render(<ProjectDetailView projectId={project.id} />)
+    renderView()
     expect(await screen.findByRole('button', { name: 'Edit team' })).toBeTruthy()
   })
 
@@ -90,8 +126,76 @@ describe('project team editing authority', () => {
     access.role = 'Project Manager'
     access.profile.roles = ['PROJECT_MANAGER']
     access.profile.permissions = ['projects.read', 'projects.detail.read', 'projects.update']
-    render(<ProjectDetailView projectId={project.id} />)
+    renderView()
     expect(await screen.findByText('Project team')).toBeTruthy()
     expect(screen.queryByRole('button', { name: 'Archive project' })).toBeNull()
+  })
+})
+
+describe('project overview metrics', () => {
+  beforeEach(() => {
+    access.role = 'Project Manager'
+    access.profile.roles = ['PROJECT_MANAGER']
+    access.profile.permissions = ['projects.read', 'projects.detail.read']
+    api.getProject.mockReset().mockResolvedValue(project)
+    api.getProjectOverviewMetrics.mockReset().mockResolvedValue(metrics())
+  })
+  afterEach(cleanup)
+
+  it('reads the project through the shared authorized query instead of an effect', async () => {
+    renderView()
+    expect(await screen.findByText('Project overview')).toBeTruthy()
+    expect(api.getProject).toHaveBeenCalledOnce()
+    expect(api.getProject).toHaveBeenCalledWith(projectId, expect.any(AbortSignal))
+    expect(api.getProjectOverviewMetrics).toHaveBeenCalledWith(projectId, expect.any(AbortSignal))
+  })
+
+  it('shows endpoint values, suppression and a permission-null section without zeros', async () => {
+    renderView()
+    await waitFor(async () => expect(await tile('KPI achievement')).toBe('60.3%'))
+    expect(await tile('Budget utilization')).toBe('Unavailable')
+    expect(await tile('Beneficiaries reached / target')).toBe('Suppressed (fewer than 5) / 1,200')
+    expect(await tile('Timeline')).toBe('50%')
+  })
+
+  it('says "None yet" for sources without data and never shows them as 0', async () => {
+    api.getProjectOverviewMetrics.mockResolvedValue(
+      metrics({
+        kpiAchievement: { metric: missing('NO_MEASUREMENT'), indicatorCount: 1, reportedCount: 0 },
+        budgetUtilization: { metric: missing('NO_PLANNED_BUDGET') },
+        beneficiariesReached: { metric: missing('RELEASED_AFTER_PROJECT_CLOSE'), target: null },
+        timeline: { metric: missing('PROJECT_DATES_REQUIRED'), startDate: null, endDate: null },
+      }),
+    )
+    renderView()
+    await waitFor(async () => expect(await tile('KPI achievement')).toBe('None yet'))
+    expect(await tile('Budget utilization')).toBe('Budget not recorded')
+    expect(await tile('Beneficiaries reached / target')).toBe('After project close / 1,200')
+    expect(await tile('Timeline')).toBe('Dates not recorded')
+    for (const value of screen.getAllByRole('definition').map((node) => node.textContent))
+      expect(value).not.toMatch(/^0%?( \/|$)/)
+  })
+
+  it('keeps error wording and a retry when the metrics read fails', async () => {
+    api.getProjectOverviewMetrics.mockRejectedValue(new PathwaysClientError('Down', 'network'))
+    renderView()
+    expect(await screen.findByText('Project metrics could not be loaded.')).toBeTruthy()
+    expect(await tile('KPI achievement')).toBe('Unavailable')
+    api.getProjectOverviewMetrics.mockResolvedValue(metrics())
+    fireEvent.click(screen.getByRole('button', { name: 'Retry metrics' }))
+    await waitFor(async () => expect(await tile('KPI achievement')).toBe('60.3%'))
+  })
+
+  it('keeps error wording when the project itself cannot be loaded', async () => {
+    api.getProject.mockRejectedValue(new PathwaysClientError('Down', 'network'))
+    renderView()
+    expect(await screen.findByText('Project unavailable')).toBeTruthy()
+    expect(screen.getByText('Project data unavailable')).toBeTruthy()
+  })
+
+  it('shows a not-found state for a project outside scope', async () => {
+    api.getProject.mockRejectedValue(new PathwaysClientError('Missing', 'not_found'))
+    renderView()
+    expect(await screen.findByText('Project not found')).toBeTruthy()
   })
 })

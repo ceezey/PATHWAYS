@@ -7,7 +7,7 @@ import { AsyncState } from '@/components/pathways'
 import { useCurrentRole } from '@/hooks/use-current-role'
 import { pathwaysClient } from '@/lib/services/pathways-client'
 import type {
-  Activity,
+  ActivitySummary,
   BeneficiaryRecord,
   JourneyStageConfig,
   ProjectSummary,
@@ -18,7 +18,7 @@ import { BeneficiaryDirectory } from './beneficiary-directory'
 type DirectoryData = {
   beneficiaries: BeneficiaryRecord[]
   projects: ProjectSummary[]
-  activities: Activity[]
+  activities: ActivitySummary[]
   stages: JourneyStageConfig[]
 }
 

@@ -118,10 +118,6 @@ const project = (id: string, title: string, startDate: string | null, endDate: s
   health: 'On Track',
   period: 'Persisted dates',
   projectManager: 'Manager',
-  kpiAchievement: 0,
-  beneficiariesReached: 0,
-  budgetUtilization: 0,
-  timelineProgress: 0,
 })
 
 const indicator = (projectId: string, id: string, periodStart: string, periodEnd: string) => ({
