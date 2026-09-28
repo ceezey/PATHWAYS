@@ -156,6 +156,34 @@ describe('import workspace automatic processing', () => {
     )
   })
 
+  it('stops calling process once imports.process is revoked mid-run', async () => {
+    let release!: () => void
+    api.processImport.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          release = () => {
+            processed = 100
+            resolve(batchWith(processed))
+          }
+        }),
+    )
+    const view = render(<ImportWorkspace />)
+    await screen.findByText('notes.xlsx')
+    fireEvent.click(screen.getByText('notes.xlsx'))
+    fireEvent.click(await screen.findByRole('button', { name: 'Process all valid rows' }))
+    await waitFor(() => expect(api.processImport).toHaveBeenCalledTimes(1))
+
+    state.profile = { ...state.profile, permissions: ['imports.read', 'forms.read'] }
+    view.rerender(<ImportWorkspace />)
+    await act(async () => release())
+
+    expect(api.processImport).toHaveBeenCalledTimes(1)
+    state.profile = {
+      ...state.profile,
+      permissions: ['imports.read', 'imports.process', 'forms.read'],
+    }
+  })
+
   it('does not offer processing without imports.process', async () => {
     state.profile = { ...state.profile, permissions: ['imports.read', 'forms.read'] }
     const button = await openBatch()

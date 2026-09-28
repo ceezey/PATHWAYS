@@ -397,7 +397,11 @@ function OwnedImportWorkspace({ scope }: { scope: SensitiveDraftOwner }) {
         },
         shouldStop: () => stopRequested.current || !ticket.valid('imports.process'),
       })
-      if (!ticket.valid('imports.read')) return
+      if (!ticket.valid('imports.read')) {
+        // Access or ownership changed; the server keeps its state and nothing stale is shown.
+        setProcessing(null)
+        return
+      }
       const note =
         outcome.kind === 'failed'
           ? outcome.error instanceof Error

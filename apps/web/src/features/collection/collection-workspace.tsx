@@ -1049,7 +1049,11 @@ const OwnedCollectionWorkspace = ({
       },
       shouldStop: () => processingStopRequested.current || !ticket.valid('imports.process'),
     })
-    if (!ticket.valid('imports.process')) return
+    if (!ticket.valid('imports.process')) {
+      // Access or ownership changed; the server keeps its state and nothing stale is shown.
+      setProcessingRun(null)
+      return
+    }
     if (outcome.kind === 'complete') {
       setProcessingRun(null)
       setSavedNotice(
