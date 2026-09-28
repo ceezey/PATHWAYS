@@ -420,7 +420,7 @@ export class ProjectsService {
 
   create(identity: ApplicationIdentity, input: CreateProjectDto) {
     return withAuthorizedOperation(this.prisma, identity, 'projects.create', async (tx, actor) => {
-      if (!['SYSTEM_ADMINISTRATOR', 'PROJECT_MANAGER'].includes(actor.roles[0])) {
+      if (actor.roles[0] !== 'PROJECT_MANAGER') {
         throw new ForbiddenException('Project creation is outside your authority.')
       }
       const id = randomUUID()
