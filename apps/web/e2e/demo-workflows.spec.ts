@@ -29,7 +29,7 @@ async function resetAndSwitch(page: Page, accountId: string) {
     .toBe(accountId)
 }
 
-test('I03-I05: expenses propagate, draft entry resumes, and beneficiary PIN is deterministic', async ({
+test('I03-I05: expenses propagate, draft entry resumes, and beneficiary step-up gates detail', async ({
   page,
 }, info) => {
   test.setTimeout(120000)

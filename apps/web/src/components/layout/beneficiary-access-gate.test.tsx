@@ -9,6 +9,9 @@ const mocks = vi.hoisted(() => ({
   routerPush: vi.fn(),
   getStatus: vi.fn(),
   verify: vi.fn(),
+  verifyPin: vi.fn(),
+  setPin: vi.fn(),
+  unlock: vi.fn(),
 }))
 
 vi.mock('next/navigation', () => ({ useRouter: () => ({ push: mocks.routerPush }) }))
@@ -23,19 +26,17 @@ vi.mock('@/components/pathways/dialog-shell', () => ({
 vi.mock('@/components/ui/dialog', () => ({
   Dialog: ({ children }: { children: ReactNode }) => <div>{children}</div>,
 }))
-vi.mock('@/lib/auth/beneficiary-step-up', () => {
-  class BeneficiaryStepUpError extends Error {
-    constructor(
-      message: string,
-      readonly failure: 'rejected' | 'unavailable',
-    ) {
-      super(message)
-    }
-  }
+vi.mock('@/lib/auth/beneficiary-step-up', async () => {
+  const actual = await vi.importActual<typeof import('@/lib/auth/beneficiary-step-up')>(
+    '@/lib/auth/beneficiary-step-up',
+  )
   return {
-    BeneficiaryStepUpError,
+    ...actual,
     getBeneficiaryStepUpStatus: mocks.getStatus,
     verifyBeneficiaryStepUp: mocks.verify,
+    verifyStepUpPin: mocks.verifyPin,
+    setStepUpPin: mocks.setPin,
+    unlockStepUpPin: mocks.unlock,
   }
 })
 
@@ -47,9 +48,25 @@ const content = <p>Scoped beneficiary content</p>
 const codeInput = () => screen.getByRole('textbox', { name: 'Authenticator code' })
 const verifyButton = () => screen.getByRole('button', { name: 'Verify and enter' })
 
+const stale = (pinState: 'NONE' | 'SET' | 'LOCKED' = 'SET') => ({
+  fresh: false,
+  expiresAt: null,
+  method: null,
+  pinState,
+})
+const totpFresh = (pinState: 'NONE' | 'SET' | 'LOCKED' = 'SET') => ({
+  fresh: true,
+  expiresAt: '2026-09-28T00:15:00.000Z',
+  method: 'TOTP',
+  pinState,
+})
+
 beforeEach(() => {
-  mocks.getStatus.mockResolvedValue({ fresh: false, expiresAt: null })
-  mocks.verify.mockResolvedValue(undefined)
+  mocks.getStatus.mockResolvedValue(stale())
+  mocks.verify.mockResolvedValue(totpFresh())
+  mocks.verifyPin.mockResolvedValue({ ...totpFresh(), method: 'PIN' })
+  mocks.setPin.mockResolvedValue(undefined)
+  mocks.unlock.mockResolvedValue(undefined)
 })
 afterEach(() => {
   cleanup()
@@ -60,7 +77,7 @@ afterEach(() => {
 
 describe('BeneficiaryAccessGate (server-verified step-up)', () => {
   it('renders Beneficiary content directly when the server reports a fresh step-up', async () => {
-    mocks.getStatus.mockResolvedValue({ fresh: true, expiresAt: '2026-09-28T00:15:00.000Z' })
+    mocks.getStatus.mockResolvedValue(totpFresh())
     render(<BeneficiaryAccessGate preflight>{content}</BeneficiaryAccessGate>)
     expect(await screen.findByText('Scoped beneficiary content')).toBeTruthy()
     expect(screen.queryByText('Verify beneficiary module access')).toBeNull()
@@ -107,7 +124,7 @@ describe('BeneficiaryAccessGate (server-verified step-up)', () => {
     render(<BeneficiaryAccessGate preflight>{content}</BeneficiaryAccessGate>)
     expect(await screen.findByText('Beneficiary verification unavailable')).toBeTruthy()
     expect(screen.queryByText('Scoped beneficiary content')).toBeNull()
-    mocks.getStatus.mockResolvedValueOnce({ fresh: true, expiresAt: '2026-09-28T00:15:00.000Z' })
+    mocks.getStatus.mockResolvedValueOnce(totpFresh())
     fireEvent.click(screen.getByRole('button', { name: 'Retry verification check' }))
     expect(await screen.findByText('Scoped beneficiary content')).toBeTruthy()
   })
@@ -139,5 +156,131 @@ describe('BeneficiaryAccessGate (server-verified step-up)', () => {
     fireEvent.click(verifyButton())
     await waitFor(() => expect(screen.queryByText('Verify beneficiary module access')).toBeNull())
     expect(screen.getByText('Scoped beneficiary content')).toBeTruthy()
+  })
+})
+
+describe('BeneficiaryAccessGate PIN fallback (cr-pathways-beneficiary-step-up-pin)', () => {
+  const pinInput = () => screen.getByLabelText('Beneficiary access PIN') as HTMLInputElement
+  const usePin = () => screen.queryByRole('button', { name: 'Use PIN' })
+
+  it.each([
+    ['NONE', false],
+    ['LOCKED', false],
+    ['SET', true],
+  ] as const)('offers "Use PIN" for pinState %s: %s', async (pinState, offered) => {
+    mocks.getStatus.mockResolvedValue(stale(pinState))
+    render(<BeneficiaryAccessGate preflight>{content}</BeneficiaryAccessGate>)
+    expect(await screen.findByText('Verify beneficiary module access')).toBeTruthy()
+    expect(usePin() !== null).toBe(offered)
+    if (pinState === 'LOCKED')
+      expect(screen.getByText('PIN locked. Use your authenticator to unlock it.')).toBeTruthy()
+  })
+
+  it('verifies a PIN, clears it after each attempt and never stores it', async () => {
+    mocks.verifyPin.mockRejectedValueOnce(new BeneficiaryStepUpError('Incorrect PIN', 'rejected'))
+    render(<BeneficiaryAccessGate preflight>{content}</BeneficiaryAccessGate>)
+    fireEvent.click(await screen.findByRole('button', { name: 'Use PIN' }))
+    expect(screen.getByRole('button', { name: 'Use PIN' }).getAttribute('aria-pressed')).toBe(
+      'true',
+    )
+    const input = pinInput()
+    expect(input.type).toBe('password')
+    expect(input.getAttribute('inputmode')).toBe('numeric')
+    expect(input.getAttribute('autocomplete')).toBe('off')
+    expect(document.activeElement).toBe(input)
+
+    fireEvent.change(input, { target: { value: '73a6150' } })
+    expect(pinInput().value).toBe('736150')
+    fireEvent.click(screen.getByRole('button', { name: 'Verify PIN' }))
+    expect(await screen.findByText('Incorrect PIN. Personal details remain hidden.')).toBeTruthy()
+    expect(pinInput().value).toBe('')
+    expect(document.activeElement).toBe(pinInput())
+    expect(screen.queryByText('Scoped beneficiary content')).toBeNull()
+
+    fireEvent.change(pinInput(), { target: { value: '482915' } })
+    fireEvent.keyDown(pinInput(), { key: 'Enter' })
+    expect(await screen.findByText('Scoped beneficiary content')).toBeTruthy()
+    expect(mocks.verifyPin).toHaveBeenLastCalledWith('482915')
+    expect(window.sessionStorage.length).toBe(0)
+    expect(window.localStorage.length).toBe(0)
+  })
+
+  it('directs a locked PIN to the authenticator', async () => {
+    mocks.verifyPin.mockRejectedValueOnce(
+      new BeneficiaryStepUpError('PIN locked. Use your authenticator to unlock it.', 'locked'),
+    )
+    render(<BeneficiaryAccessGate preflight>{content}</BeneficiaryAccessGate>)
+    fireEvent.click(await screen.findByRole('button', { name: 'Use PIN' }))
+    fireEvent.change(pinInput(), { target: { value: '736150' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Verify PIN' }))
+    await waitFor(() => expect(codeInput()).toBeTruthy())
+    expect(
+      screen.getAllByText('PIN locked. Use your authenticator to unlock it.').length,
+    ).toBeGreaterThan(0)
+    expect(usePin()).toBeNull()
+    expect(document.activeElement).toBe(codeInput())
+  })
+
+  it('unlocks a locked PIN after a successful authenticator step-up', async () => {
+    mocks.getStatus.mockResolvedValue(stale('LOCKED'))
+    mocks.verify.mockResolvedValue(totpFresh('LOCKED'))
+    render(<BeneficiaryAccessGate preflight>{content}</BeneficiaryAccessGate>)
+    fireEvent.change(await screen.findByRole('textbox', { name: 'Authenticator code' }), {
+      target: { value: '123456' },
+    })
+    fireEvent.click(verifyButton())
+    expect(await screen.findByText('Scoped beneficiary content')).toBeTruthy()
+    expect(mocks.unlock).toHaveBeenCalledOnce()
+  })
+
+  it('offers a skippable "Set a PIN" after a TOTP step-up when no PIN exists', async () => {
+    mocks.getStatus.mockResolvedValue(stale('NONE'))
+    mocks.verify.mockResolvedValue(totpFresh('NONE'))
+    render(<BeneficiaryAccessGate preflight>{content}</BeneficiaryAccessGate>)
+    fireEvent.change(await screen.findByRole('textbox', { name: 'Authenticator code' }), {
+      target: { value: '123456' },
+    })
+    fireEvent.click(verifyButton())
+    expect(await screen.findByText('Set a beneficiary access PIN')).toBeTruthy()
+    expect(screen.queryByText('Scoped beneficiary content')).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: 'Skip for now' }))
+    expect(await screen.findByText('Scoped beneficiary content')).toBeTruthy()
+    expect(mocks.setPin).not.toHaveBeenCalled()
+  })
+
+  it('validates and saves a new PIN from the offer, clearing both fields', async () => {
+    mocks.getStatus.mockResolvedValue(stale('NONE'))
+    mocks.verify.mockResolvedValue(totpFresh('NONE'))
+    render(<BeneficiaryAccessGate preflight>{content}</BeneficiaryAccessGate>)
+    fireEvent.change(await screen.findByRole('textbox', { name: 'Authenticator code' }), {
+      target: { value: '123456' },
+    })
+    fireEvent.click(verifyButton())
+    const newPin = (await screen.findByLabelText('New PIN')) as HTMLInputElement
+    const confirm = screen.getByLabelText('Confirm new PIN') as HTMLInputElement
+    expect(newPin.type).toBe('password')
+    expect(confirm.getAttribute('autocomplete')).toBe('off')
+
+    fireEvent.change(newPin, { target: { value: '123456' } })
+    fireEvent.change(confirm, { target: { value: '123456' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Save PIN' }))
+    await waitFor(() =>
+      expect(screen.getByRole('status').textContent).toMatch(/simple ascending or descending/),
+    )
+    expect((screen.getByLabelText('New PIN') as HTMLInputElement).value).toBe('')
+    expect(mocks.setPin).not.toHaveBeenCalled()
+
+    fireEvent.change(screen.getByLabelText('New PIN'), { target: { value: '482915' } })
+    fireEvent.change(screen.getByLabelText('Confirm new PIN'), { target: { value: '482916' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Save PIN' }))
+    expect(await screen.findByText('The PINs do not match. Enter them again.')).toBeTruthy()
+
+    fireEvent.change(screen.getByLabelText('New PIN'), { target: { value: '482915' } })
+    fireEvent.change(screen.getByLabelText('Confirm new PIN'), { target: { value: '482915' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Save PIN' }))
+    expect(await screen.findByText('Scoped beneficiary content')).toBeTruthy()
+    expect(mocks.setPin).toHaveBeenCalledExactlyOnceWith('482915')
+    expect(window.sessionStorage.length).toBe(0)
+    expect(window.localStorage.length).toBe(0)
   })
 })
