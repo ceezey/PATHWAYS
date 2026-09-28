@@ -43,6 +43,21 @@ describe('Inspection-only server budget proposal', () => {
       expect(inspectionRequestBudget(req)).toBeUndefined()
     }
   })
+  it('gives the streamed proof transfer a 90 s ceiling and keeps context at 30 s', () => {
+    const remaining = (url: string) => {
+      const { req, res } = request(url)
+      inspectionBudgetMiddleware('api')(req, res, () => {})
+      const value = inspectionRequestBudget(req)?.remaining() ?? 0
+      res.emit('finish')
+      return value
+    }
+    const transfer = remaining('/api/projects/p/activities/a/updates/u/proof/e/inspection')
+    const context = remaining('/api/projects/p/activities/a/updates/u/inspection-context')
+    expect(transfer).toBeGreaterThan(89_000)
+    expect(transfer).toBeLessThanOrEqual(90_000)
+    expect(context).toBeGreaterThan(29_000)
+    expect(context).toBeLessThanOrEqual(30_000)
+  })
   it('disconnect aborts before future checks and cannot be supplied by request properties', () => {
     const { req, res } = request('/api/projects/p/activities/a/updates/u/inspection-context')
     Object.assign(req, { inspectionBudget: { remaining: () => 99999 } })

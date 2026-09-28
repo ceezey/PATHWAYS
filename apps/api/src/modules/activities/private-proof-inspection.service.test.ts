@@ -1,3 +1,4 @@
+import { Readable } from 'node:stream'
 import { ForbiddenException } from '@nestjs/common'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { bindInspectionIdentity } from '../../common/network/inspection-request-budget'
@@ -8,6 +9,8 @@ const state = vi.hoisted(() => ({
   actor: null as unknown as ApplicationIdentity,
   tx: null as unknown as Record<string, unknown>,
   read: vi.fn(),
+  release: vi.fn(),
+  order: [] as string[],
 }))
 vi.mock('../auth/application-profile.service', () => ({
   readApplicationProfile: vi.fn(async () => state.actor),
@@ -17,14 +20,16 @@ vi.mock('../auth/authorized-operation', () => ({
     work(state.tx, state.actor),
   ),
 }))
+// `read` is the verification pass; `release` is the streamed pass after final audit.
 vi.mock('../storage/private-inspection-reader', () => ({
-  createPrivateInspectionReader: () => state.read,
+  createPrivateObjectStreamer: () => ({ verify: state.read, release: state.release }),
 }))
 vi.mock('@pathways/config', () => ({
   readApiEnv: () => ({
     SUPABASE_URL: 'https://synthetic.invalid',
     SUPABASE_SERVICE_ROLE_KEY: 'synthetic',
     EVIDENCE_BUCKET: 'private',
+    EVIDENCE_MAX_FILE_BYTES: 52_428_800,
   }),
 }))
 import {
@@ -105,8 +110,18 @@ beforeEach(() => {
     updatedAt,
   })
   tx.evidenceMedia.findMany.mockImplementation(async () => [proof()])
-  tx.auditLog.create.mockResolvedValue({})
-  state.read.mockResolvedValue(Buffer.from('abc'))
+  tx.auditLog.create.mockImplementation(async () => {
+    state.order.push('audit')
+    return {}
+  })
+  state.order = []
+  state.read.mockImplementation(async () => {
+    state.order.push('verify')
+  })
+  state.release.mockImplementation(async () => {
+    state.order.push('release')
+    return Readable.from([Buffer.from('abc')])
+  })
   const controller = new AbortController()
   bindInspectionIdentity(actor, ids.authId, {
     signal: controller.signal,
@@ -167,7 +182,7 @@ describe('purpose-limited activity proof inspection', () => {
           activityId: ids.activityId,
           activityUpdateId: ids.updateId,
         },
-        take: 6,
+        take: 11,
         orderBy: { id: 'asc' },
       }),
     )
@@ -180,20 +195,34 @@ describe('purpose-limited activity proof inspection', () => {
     { storageReady: false },
     { status: 'VERIFIED' },
     { publicVisibilityStatus: 'PUBLIC' },
-    { type: 'DOCUMENT' },
+    { type: 'OTHER' },
     { submittedById: ids.userId },
     { submittedById: ids.authId },
     { byteSize: 0n },
-    { byteSize: 10485761n },
+    { byteSize: 52428801n },
     { sha256: '' },
   ])('denies unsupported or incomplete lineage %o without storage', async (delta) => {
     tx.evidenceMedia.findMany.mockResolvedValue([{ ...proof(), ...delta }])
     await expect(inspect()).rejects.toThrow()
     expect(state.read).not.toHaveBeenCalled()
   })
-  it('rejects sixth sibling and incomplete sibling without storage', async () => {
-    tx.evidenceMedia.findMany.mockResolvedValue(Array.from({ length: 6 }, proof))
+  it('rejects an eleventh sibling without storage', async () => {
+    tx.evidenceMedia.findMany.mockResolvedValue(Array.from({ length: 11 }, proof))
     await expect(inspect()).rejects.toThrow()
+    expect(state.read).not.toHaveBeenCalled()
+  })
+  it('lists ten proofs of every activity-update evidence type within the configured bound', async () => {
+    const types = ['PROGRESS_PROOF', 'COMPLETION_PROOF', 'PHOTO', 'VIDEO', 'DOCUMENT']
+    tx.evidenceMedia.findMany.mockResolvedValue(
+      Array.from({ length: 10 }, (_, index) => ({
+        ...proof(),
+        id: `5000000${index}-0000-4000-8000-000000000005`,
+        type: types[index % types.length],
+        byteSize: 52_428_800n,
+      })),
+    )
+    const result = await context()
+    expect(result.proofs).toHaveLength(10)
     expect(state.read).not.toHaveBeenCalled()
   })
   it('checks revisions before storage and denies self review', async () => {
@@ -234,6 +263,7 @@ describe('purpose-limited activity proof inspection', () => {
       })
       await expect(inspect()).rejects.toThrow()
       expect(state.read).toHaveBeenCalledTimes(1)
+      expect(state.release).not.toHaveBeenCalled()
     },
   )
   it('withholds transfer when verified Auth session is revoked during storage', async () => {
@@ -243,6 +273,7 @@ describe('purpose-limited activity proof inspection', () => {
     })
     await expect(inspect()).rejects.toThrow()
     expect(tx.auditLog.create).not.toHaveBeenCalled()
+    expect(state.release).not.toHaveBeenCalled()
   })
   it('rechecks current grant after final row lock waits', async () => {
     tx.$queryRaw.mockImplementation(async () => {
@@ -252,9 +283,20 @@ describe('purpose-limited activity proof inspection', () => {
     await expect(inspect()).rejects.toThrow()
     expect(tx.auditLog.create).not.toHaveBeenCalled()
   })
-  it('requires final audit commit before returning verified bytes; audit omits private object metadata', async () => {
+  it('verification failure withholds audit and release', async () => {
+    state.read.mockRejectedValue(new Error('synthetic digest mismatch'))
+    await expect(inspect()).rejects.toThrow('temporarily unavailable')
+    expect(tx.auditLog.create).not.toHaveBeenCalled()
+    expect(state.release).not.toHaveBeenCalled()
+  })
+  it('requires final audit commit before releasing the verified stream; audit omits private object metadata', async () => {
     const result = await inspect()
-    expect(result).toEqual(Buffer.from('abc'))
+    expect(result.byteSize).toBe(3)
+    const chunks: Buffer[] = []
+    for await (const chunk of result.body) chunks.push(chunk as Buffer)
+    expect(Buffer.concat(chunks)).toEqual(Buffer.from('abc'))
+    expect(state.order).toEqual(['verify', 'audit', 'release'])
+    expect(state.release.mock.calls[0][0]).toEqual(state.read.mock.calls[0][0])
     expect(tx.project.findFirst).toHaveBeenCalledTimes(2)
     expect(tx.auditLog.create).toHaveBeenCalledWith({
       data: {

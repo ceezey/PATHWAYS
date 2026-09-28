@@ -12,10 +12,7 @@ import {
   Req,
   Res,
   StreamableFile,
-  UploadedFiles,
-  UseInterceptors,
 } from '@nestjs/common'
-import { FilesInterceptor } from '@nestjs/platform-express'
 
 import { RequirePermission } from '../../common/decorators/permission.decorator'
 import { inspectionRequestBudget } from '../../common/network/inspection-request-budget'
@@ -24,14 +21,13 @@ import type { AuthenticatedRequest } from '../auth/developer-access'
 import {
   CreateActivityDto,
   RecordActivityProgressDto,
+  ReserveActivityProofDto,
   ReviewActivityUpdateDto,
   SaveMilestoneDto,
-  SubmitActivityUpdateDto,
   TransitionActivityDto,
   UpdateActivityDto,
   UpdateMilestoneDto,
 } from './activities.dto'
-import type { UploadedProofFile } from './activities.dto'
 import { ActivitiesService } from './activities.service'
 import {
   PrivateProofInspectionService,
@@ -57,10 +53,30 @@ export class ActivitiesController {
     return this.activities.list(profile(request), projectId)
   }
 
+  // Declared before ':activityId' so the fixed segment is not captured as an identifier.
+  @Get('proof-upload-limits')
+  @RequirePermission('activities.proof.submit')
+  proofUploadLimits(@Param('projectId') projectId: string) {
+    return this.activities.proofUploadLimits(projectId)
+  }
+
   @Get('context')
   @RequirePermission('activities.context.read')
   context(@Req() request: AuthenticatedRequest, @Param('projectId') projectId: string) {
     return this.activities.context(profile(request), projectId)
+  }
+
+  // The guard admits activity readers; the service then requires activities.create or
+  // activities.update in project scope before any user row is read.
+  @Get('assignable-officers')
+  @RequirePermission('activities.read')
+  assignableOfficers(
+    @Req() request: AuthenticatedRequest,
+    @Param('projectId') projectId: string,
+    @Query() query: Record<string, unknown>,
+  ) {
+    if (Object.keys(query).length) throw new BadRequestException('Invalid officer query.')
+    return this.activities.assignableOfficers(profile(request), projectId)
   }
 
   @Post()
@@ -116,21 +132,35 @@ export class ActivitiesController {
     return this.activities.recordProgress(profile(request), projectId, activityId, body)
   }
 
-  @Post(':activityId/updates')
+  // The multipart proof route (POST :activityId/updates) is retired: evidence is reserved
+  // here, uploaded directly to private storage and verified per file below.
+  @Post(':activityId/updates/reservations')
   @RequirePermission('activities.proof.submit')
-  @UseInterceptors(
-    FilesInterceptor('files', 5, {
-      limits: { fileSize: 10 * 1024 * 1024, files: 5, fields: 3, fieldSize: 5000, parts: 8 },
-    }),
-  )
-  submitUpdate(
+  reserveProof(
     @Req() request: AuthenticatedRequest,
     @Param('projectId') projectId: string,
     @Param('activityId') activityId: string,
-    @Body() body: SubmitActivityUpdateDto,
-    @UploadedFiles() files?: UploadedProofFile[],
+    @Body() body: ReserveActivityProofDto,
   ) {
-    return this.activities.submitUpdate(profile(request), projectId, activityId, body, files)
+    return this.activities.reserveProof(profile(request), projectId, activityId, body)
+  }
+
+  @Post(':activityId/updates/:updateId/files/:evidenceId/finalize')
+  @RequirePermission('activities.proof.submit')
+  finalizeProofFile(
+    @Req() request: AuthenticatedRequest,
+    @Param('projectId') projectId: string,
+    @Param('activityId') activityId: string,
+    @Param('updateId') updateId: string,
+    @Param('evidenceId') evidenceId: string,
+  ) {
+    return this.activities.finalizeProofFile(
+      profile(request),
+      projectId,
+      activityId,
+      updateId,
+      evidenceId,
+    )
   }
 
   @Post(':activityId/updates/:updateId/review')
@@ -172,7 +202,7 @@ export class ActivitiesController {
   ) {
     if (request.headers.range !== undefined)
       throw new BadRequestException('Partial inspection is unavailable.')
-    const body = await this.inspection.inspect(
+    const released = await this.inspection.inspect(
       profile(request),
       projectId,
       activityId,
@@ -180,12 +210,23 @@ export class ActivitiesController {
       evidenceId,
       inspectionRevisions(query),
     )
-    inspectionRequestBudget(request)?.check()
+    try {
+      inspectionRequestBudget(request)?.check()
+    } catch (error) {
+      released.body.destroy()
+      throw error
+    }
     response.setHeader('Cache-Control', 'private, no-store')
     response.setHeader('X-Content-Type-Options', 'nosniff')
-    return new StreamableFile(body, {
+    // Streamed after final authorization and audit. A failed integrity check destroys the
+    // connection, so the client never receives a complete unverified attachment.
+    return new StreamableFile(released.body, {
       type: 'application/octet-stream',
       disposition: 'attachment; filename="activity-proof.bin"',
+      length: released.byteSize,
+    }).setErrorHandler((_error, destination) => {
+      // The Express response is a destroyable socket-backed stream.
+      ;(destination as unknown as { destroy(): void }).destroy()
     })
   }
 

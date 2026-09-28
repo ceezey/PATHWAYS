@@ -543,6 +543,33 @@ describe('chunked import promotion', () => {
     expect(countStatus('PROCESSED')).toBe(30)
   })
 
+  it('releases an under-age registration row on the existing row-error path', async () => {
+    // cr-pathways-default-registration-form: imports inherit the minimum age because
+    // promoteRegistration parses every imported registration row.
+    state.store = createStore(10, 'BENEFICIARY_REGISTRATION')
+    const form = { id: formId, version: 1, status: 'PUBLISHED', formField_form: [] }
+    beneficiaries.readRegistrationForm.mockResolvedValue(form)
+    beneficiaries.promoteRegistration.mockImplementation(async (_tx, _actor, input) => {
+      if (input.importRowId === rowIdFor(3))
+        throw new BadRequestException('Beneficiary must be at least 5 years old.')
+      return {
+        kind: 'PROCESSED',
+        beneficiaryId: `b-${input.importRowId}`,
+        enrollmentId: `e-${input.importRowId}`,
+        submissionId: `s-${input.importRowId}`,
+      }
+    })
+    const result = await processOnce(service())
+
+    expect(countStatus('PROCESSED')).toBe(9)
+    expect(state.store.rows.find((row) => row.id === rowIdFor(3))).toMatchObject({
+      status: 'VALID',
+      processingClaimId: null,
+      processingErrorCode: 'RETRY_PENDING',
+    })
+    expect(result).toMatchObject({ status: 'PARTIALLY_PROCESSED' })
+  })
+
   it('stages parsed rows in 1,000-row inserts within one bounded transaction', async () => {
     state.store = createStore(0)
     Object.assign(state.store.batch, { status: 'UPLOADING', totalRows: 0 })

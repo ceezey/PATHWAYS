@@ -13,7 +13,7 @@ import { useForm } from 'react-hook-form'
 import { toast } from 'sonner'
 
 import { PageHeader } from '@/components/layout/page-header'
-import { SectionCard } from '@/components/pathways'
+import { LockedField, SectionCard } from '@/components/pathways'
 import { Button } from '@/components/ui/button'
 import {
   Form,
@@ -39,6 +39,7 @@ import {
   useSensitiveDraftOwner,
   writeSensitiveDraft,
 } from '@/lib/auth/sensitive-drafts'
+import { principalHasAtomicPermission } from '@/lib/rbac/route-access'
 import { PathwaysClientError, pathwaysClient } from '@/lib/services/pathways-client'
 import type { ProjectDetail, ProjectStatus, UserRecord } from '@/types/pathways'
 
@@ -55,7 +56,6 @@ import { ProjectTeamSelectors } from './project-team-selectors'
 const projectStatuses: ProjectStatus[] = ['Active', 'Needs Attention', 'Planned', 'Completed']
 const projectDraftFields = [
   'objectives',
-  'partners',
   'partnerOrganizations',
   'projectBudget',
   'targetBeneficiaries',
@@ -73,7 +73,6 @@ const projectDraftFields = [
 ] as const
 const projectDefaultValues: ProjectSetupSchema = {
   objectives: '',
-  partners: '',
   partnerOrganizations: '',
   projectBudget: '',
   targetBeneficiaries: '',
@@ -115,6 +114,12 @@ const ScopedProjectSetupForm = ({
     projectId ?? null,
   )
   const projectDraftStorageKey = scope.key
+  // Mirrors saveProjectBudget in projects.service: a locked budget is shown only when
+  // readable and is never sent.
+  const canEditBudget =
+    principalHasAtomicPermission(profile, 'budgets.create') &&
+    (!projectId || principalHasAtomicPermission(profile, 'budgets.update'))
+  const canReadBudget = !projectId || principalHasAtomicPermission(profile, 'budgets.read')
   const router = useRouter()
   const [draftHydrated, setDraftHydrated] = useState(false)
   const [draftRecovered, setDraftRecovered] = useState(false)
@@ -140,7 +145,6 @@ const ScopedProjectSetupForm = ({
             ...projectDefaultValues,
             title: project.title,
             objectives: project.objectives ?? '',
-            partners: project.implementingPartners ?? '',
             partnerOrganizations:
               project.implementingPartnerRecords?.map((partner) => partner.name).join('\n') ?? '',
             projectBudget: project.projectBudget ?? '',
@@ -250,18 +254,21 @@ const ScopedProjectSetupForm = ({
     }
 
     try {
+      const budget = canEditBudget ? {} : { projectBudget: undefined }
       const project = existingProject
         ? await pathwaysClient.updateProject(
             projectId ?? existingProject.id,
             {
               ...toUpdateProjectInput(values, existingProject),
               ...toProjectTeamInput(values, users),
+              ...budget,
             },
             mutationContext ?? undefined,
           )
         : await pathwaysClient.createProject({
             ...toCreateProjectInput(values),
             ...toProjectTeamInput(values, users),
+            ...budget,
           })
       if (!scope.isCurrent()) return
       if (!projectId) removeSensitiveDraft(projectDraftStorageKey)
@@ -357,53 +364,50 @@ const ScopedProjectSetupForm = ({
                 name="partnerOrganizations"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Implementing partner organizations</FormLabel>
+                    <FormLabel>Implementing partners</FormLabel>
                     <FormControl>
                       <Textarea {...field} placeholder="One organization per line" />
                     </FormControl>
                     <p className="text-sm text-muted-foreground">
-                      Each organization receives a stable identifier when saved. Existing partner
-                      notes are preserved below.
+                      Each organization receives a stable identifier when saved.
                     </p>
                     <FormMessage />
                   </FormItem>
                 )}
               />
-              {(['partners', 'projectBudget', 'targetBeneficiaries'] as const).map((name) => (
+              {canEditBudget ? (
                 <FormField
-                  key={name}
                   control={form.control}
-                  name={name}
+                  name="projectBudget"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>
-                        {name === 'projectBudget'
-                          ? 'Project budget (PHP)'
-                          : name === 'targetBeneficiaries'
-                            ? 'Target beneficiaries'
-                            : 'Implementing partners'}
-                      </FormLabel>
+                      <FormLabel>Project budget (PHP)</FormLabel>
                       <FormControl>
-                        <Input
-                          min={
-                            name === 'projectBudget' || name === 'targetBeneficiaries'
-                              ? '0'
-                              : undefined
-                          }
-                          type={
-                            name === 'projectBudget' || name === 'targetBeneficiaries'
-                              ? 'number'
-                              : 'text'
-                          }
-                          step={name === 'projectBudget' ? '0.01' : undefined}
-                          {...field}
-                        />
+                        <Input min="0" step="0.01" type="number" {...field} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
                   )}
                 />
-              ))}
+              ) : canReadBudget ? (
+                <LockedField
+                  label="Project budget (PHP)"
+                  value={existingProject?.projectBudget ?? ''}
+                />
+              ) : null}
+              <FormField
+                control={form.control}
+                name="targetBeneficiaries"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Target beneficiaries</FormLabel>
+                    <FormControl>
+                      <Input min="0" type="number" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
               <FormField
                 control={form.control}
                 name="title"

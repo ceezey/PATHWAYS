@@ -15,12 +15,16 @@ import { Prisma } from '@prisma/client'
 
 import { readApiEnv } from '@pathways/config'
 import {
+  AUTO_SMART_V2,
+  AUTO_SMART_V2_LIMITS,
   IMPORT_ENGINEERING_LIMITS,
   ImportParseError,
   type ImportSourceColumn,
+  type SmartMatchDecision,
   type SupportedImportFileType,
   normalizeImportedRow,
   parseSecureImport,
+  smartMatchColumns,
 } from '@pathways/imports/server'
 import type { FormFieldValidationContract } from '@pathways/shared'
 import { PrismaService } from '../../prisma/prisma.service'
@@ -344,6 +348,9 @@ export class ImportsService {
           revision: true,
           targetField: { select: { code: true, label: true } },
           validationMessage: true,
+          suggestedField: { select: { code: true, label: true } },
+          matchScore: true,
+          matchReason: true,
         },
         orderBy: { sourceFieldName: 'asc' },
         take: IMPORT_ENGINEERING_LIMITS.maxSourceColumns,
@@ -382,10 +389,18 @@ export class ImportsService {
       const batch = await this.requireBatch(tx, actor, projectId, batchId)
       if (batch.uploadedById !== actor.userId)
         throw new ForbiddenException('Automatic mapping is unavailable.')
+      // Lock before reading the matcher inputs so the recorder re-checks the same batch state.
+      await this.lockBatch(tx, actor, batch.projectId, batch.id)
+      const decisions = await this.smartMappingDecisions(tx, actor, batch)
       let receipt: unknown
       try {
         const rows = await tx.$queryRaw<Array<{ receipt: unknown }>>(Prisma.sql`
-          SELECT pathways.p29_auto_map_import(${batch.id}::uuid, ${input.expectedMappingRevision}::integer) AS receipt
+          SELECT pathways.p38_record_smart_mapping(
+            ${batch.id}::uuid,
+            ${input.expectedMappingRevision}::integer,
+            ${AUTO_SMART_V2}::text,
+            ${JSON.stringify(decisions)}::jsonb
+          ) AS receipt
         `)
         if (rows.length !== 1)
           throw new ServiceUnavailableException('Automatic mapping is unavailable.')
@@ -405,6 +420,90 @@ export class ImportsService {
         throw new ServiceUnavailableException('Automatic mapping is unavailable.')
       }
     })
+  }
+
+  /**
+   * AUTO_SMART_V2 inputs, all scoped to the locked batch: stored headers, the pinned form's
+   * fields and a bounded prefix of staged raw values. Sampled values stay in this function;
+   * only the matcher's fixed-shape decisions leave it.
+   */
+  private async smartMappingDecisions(
+    tx: Tx,
+    actor: ApplicationIdentity,
+    batch: BatchRow,
+  ): Promise<SmartMatchDecision[]> {
+    if (
+      batch.storageStatus !== 'STORED' ||
+      !['UPLOADED', 'MAPPED'].includes(batch.status) ||
+      batch.mappingRevision > 1 ||
+      batch.totalRows < 1
+    ) {
+      throw new ConflictException('The import changed. Reload before retrying.')
+    }
+    const stored = await tx.dataImportBatch.findFirst({
+      where: { id: batch.id, organizationId: actor.organizationId, projectId: batch.projectId },
+      select: { sourceHeaders: true },
+    })
+    if (!stored) throw new NotFoundException('Import batch unavailable.')
+    const sourceColumns = safeSourceColumns(stored.sourceHeaders)
+    const fields = await tx.formField.findMany({
+      where: {
+        organizationId: actor.organizationId,
+        projectId: batch.projectId,
+        formId: batch.formId,
+      },
+      select: {
+        id: true,
+        code: true,
+        label: true,
+        dataType: true,
+        allowedValues: true,
+        minimumLength: true,
+        maximumLength: true,
+      },
+      orderBy: { sequenceNo: 'asc' },
+      take: AUTO_SMART_V2_LIMITS.maxFields + 1,
+    })
+    if (
+      sourceColumns.length < 1 ||
+      fields.length < 1 ||
+      fields.length > AUTO_SMART_V2_LIMITS.maxFields
+    ) {
+      throw new BadRequestException('Invalid automatic mapping request.')
+    }
+    const rows = await tx.dataImportRow.findMany({
+      where: {
+        organizationId: actor.organizationId,
+        projectId: batch.projectId,
+        formId: batch.formId,
+        importBatchId: batch.id,
+      },
+      select: { rawData: true },
+      orderBy: { rowNumber: 'asc' },
+      take: AUTO_SMART_V2_LIMITS.sampleRows,
+    })
+    const raw = rows.map((row) => safeRawData(row.rawData))
+    try {
+      return smartMatchColumns(
+        sourceColumns.map((column) => ({
+          key: column.key,
+          columnIndex: column.columnIndex,
+          header: column.header,
+          samples: raw.map((values) => values[column.key]),
+        })),
+        fields.map((field) => ({
+          id: field.id,
+          code: field.code,
+          label: field.label,
+          dataType: field.dataType,
+          allowedValues: jsonStrings(field.allowedValues),
+          minimumLength: field.minimumLength,
+          maximumLength: field.maximumLength,
+        })),
+      )
+    } catch {
+      throw new BadRequestException('Invalid automatic mapping request.')
+    }
   }
 
   listRows(

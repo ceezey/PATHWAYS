@@ -54,7 +54,7 @@ The developer decided on 2026-09-28:
    - owner `prisma`, empty `search_path`, qualified names, `EXECUTE` only for `pathways_runtime`, revoked from PUBLIC, anon, authenticated and service_role;
    - it derives organization and actor from the runtime context, and requires `beneficiaries.records.register` with project scope, rechecked after its locks;
    - it returns the existing tagged form if one exists, including an archived one;
-   - otherwise it creates the form as DRAFT with code `SYSTEM_DEFAULT_REGISTRATION`, version 1 and type `BENEFICIARY_REGISTRATION`, inserts the fixed field set, and publishes it.
+   - otherwise it creates the form as DRAFT with code `SYSTEM_DEFAULT_REGISTRATION`, version 1 and type `BENEFICIARY_REGISTRATION`, inserts the fixed field set, and publishes it. The code is stored as `system_default_registration`, because registration context accepts only lowercase definition codes.
 3. **Fixed field set.** Exactly the canonical fields in `beneficiaryRegistrationFieldRules`, with their data types, required flags and allowed values, and no custom fields. The form therefore passes `beneficiaryRegistrationDefinitionErrors`. Labels and SADDD flags follow the existing registration convention and are fixed at pre-implementation review. Any change to the set requires a new template key.
 4. **Attribution.** `created_by_id` is null, because the system authored the form. `published_by_id` is the registrar whose action caused provisioning, with `published_at` at that time. The audit row `DEFAULT_REGISTRATION_FORM_PROVISIONED` records both.
 5. **Narrow maker-checker exemption.** `p2_guard_form` is replaced with `CREATE OR REPLACE`. The only new allowance is that a row tagged `SYSTEM_DEFAULT_REGISTRATION_V1` may be published with a null `created_by_id`, and only when the change is made inside the definer function (`current_user` is the function owner, not `pathways_runtime`). Also:
@@ -186,4 +186,4 @@ Developer reply on 2026-09-28: "Approve all CRs, Evidence: change constraint, Si
 
 ## 9. Disposition
 
-Not applied.
+Implemented on feature branch; hosted pending.

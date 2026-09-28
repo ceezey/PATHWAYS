@@ -7,7 +7,10 @@ const mutationContext = { principalKey: 'synthetic-owner', isCurrent: () => true
 const browser = vi.hoisted(() => ({ getSession: vi.fn() }))
 
 vi.mock('@/lib/env', () => ({
-  webEnv: { NEXT_PUBLIC_API_BASE_URL: 'http://localhost:4000/api' },
+  webEnv: {
+    NEXT_PUBLIC_API_BASE_URL: 'http://localhost:4000/api',
+    NEXT_PUBLIC_SUPABASE_URL: 'https://synthetic-project.supabase.co',
+  },
 }))
 vi.mock('@/lib/supabase/client', () => ({
   getBrowserSupabaseClient: () => ({ auth: { getSession: browser.getSession } }),
@@ -555,7 +558,6 @@ describe('PATHWAYS frontend data boundary', () => {
         description: project.description,
         objectives: project.objectives,
         implementationArea: project.implementationArea,
-        implementingPartners: project.implementingPartners,
         sector: project.sector,
         targetBeneficiaries: project.targetBeneficiaries,
         projectBudget: project.projectBudget,
@@ -595,7 +597,6 @@ describe('PATHWAYS frontend data boundary', () => {
       description: project.description,
       objectives: project.objectives,
       implementationArea: project.implementationArea,
-      implementingPartners: project.implementingPartners,
       sector: project.sector,
       targetBeneficiaries: project.targetBeneficiaries,
       projectBudget: project.projectBudget,
@@ -985,5 +986,264 @@ describe('Beneficiary step-up denial', () => {
     expect(dispatchEvent.mock.calls.map(([event]) => event.type)).toEqual([
       'pathways:authorization-denied',
     ])
+  })
+})
+
+describe('Activity proof response parsing', () => {
+  const authUserId = '73a00000-0000-4000-8000-000000000001'
+  const organizationId = '73a00000-0000-4000-8000-000000000002'
+  const userId = '73a00000-0000-4000-8000-000000000003'
+  const projectId = '73a00000-0000-4000-8000-000000000004'
+  const activityId = '73a00000-0000-4000-8000-000000000005'
+
+  const stubResponse = (body: unknown) => {
+    vi.stubGlobal('window', {})
+    vi.stubGlobal('document', {
+      cookie: `pathways-context=${encodeURIComponent(JSON.stringify({ authUserId, organizationId, userId }))}`,
+    })
+    browser.getSession.mockResolvedValue({
+      data: { session: { access_token: 'synthetic-token', user: { id: authUserId } } },
+      error: null,
+    })
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(JSON.stringify(body))))
+  }
+
+  afterEach(() => {
+    vi.unstubAllGlobals()
+    browser.getSession.mockReset()
+  })
+
+  it('accepts a well-formed upload limits response and rejects an unknown key', async () => {
+    const limits = {
+      maxFiles: 10,
+      maxFileBytes: 50 * 1024 * 1024,
+      maxTotalBytes: 250 * 1024 * 1024,
+      contentTypes: ['application/pdf'],
+    }
+    stubResponse(limits)
+    await expect(pathwaysClient.getActivityProofUploadLimits(projectId)).resolves.toEqual(limits)
+    stubResponse({ ...limits, extra: true })
+    await expect(pathwaysClient.getActivityProofUploadLimits(projectId)).rejects.toMatchObject({
+      code: 'network',
+    })
+  })
+
+  it('rejects an upload limits contentTypes array over 10 entries', async () => {
+    stubResponse({
+      maxFiles: 10,
+      maxFileBytes: 1,
+      maxTotalBytes: 1,
+      contentTypes: Array.from({ length: 11 }, (_, index) => `type/${index}`),
+    })
+    await expect(pathwaysClient.getActivityProofUploadLimits(projectId)).rejects.toMatchObject({
+      code: 'network',
+    })
+  })
+
+  it('accepts a reservation whose uploadUrl is an https URL on the configured Supabase origin', async () => {
+    const reservation = {
+      clientUpdateId: 'client-1',
+      updateId: 'update-1',
+      status: 'UPLOADING',
+      files: [
+        {
+          evidenceId: 'evidence-1',
+          fileName: 'a.pdf',
+          contentType: 'application/pdf',
+          byteSize: 1024,
+          sha256: 'x'.repeat(64),
+          storageReady: false,
+          uploadUrl: 'https://synthetic-project.supabase.co/storage/v1/object/upload/evidence-1',
+        },
+      ],
+    }
+    stubResponse(reservation)
+    await expect(
+      pathwaysClient.reserveActivityProofUpload({
+        projectId,
+        activityId,
+        clientUpdateId: 'client-1',
+        progressPercent: 10,
+        note: 'note',
+        files: [],
+      }),
+    ).resolves.toEqual(reservation)
+  })
+
+  it('rejects a reservation uploadUrl pointing at an unexpected origin', async () => {
+    stubResponse({
+      clientUpdateId: 'client-1',
+      updateId: 'update-1',
+      status: 'UPLOADING',
+      files: [
+        {
+          evidenceId: 'evidence-1',
+          fileName: 'a.pdf',
+          contentType: 'application/pdf',
+          byteSize: 1024,
+          sha256: 'x'.repeat(64),
+          storageReady: false,
+          uploadUrl: 'https://attacker.example/evidence-1',
+        },
+      ],
+    })
+    await expect(
+      pathwaysClient.reserveActivityProofUpload({
+        projectId,
+        activityId,
+        clientUpdateId: 'client-1',
+        progressPercent: 10,
+        note: 'note',
+        files: [],
+      }),
+    ).rejects.toMatchObject({ code: 'network' })
+  })
+
+  it('rejects a reservation uploadUrl using a non-https scheme', async () => {
+    stubResponse({
+      clientUpdateId: 'client-1',
+      updateId: 'update-1',
+      status: 'UPLOADING',
+      files: [
+        {
+          evidenceId: 'evidence-1',
+          fileName: 'a.pdf',
+          contentType: 'application/pdf',
+          byteSize: 1024,
+          sha256: 'x'.repeat(64),
+          storageReady: false,
+          uploadUrl: 'http://synthetic-project.supabase.co/evidence-1',
+        },
+      ],
+    })
+    await expect(
+      pathwaysClient.reserveActivityProofUpload({
+        projectId,
+        activityId,
+        clientUpdateId: 'client-1',
+        progressPercent: 10,
+        note: 'note',
+        files: [],
+      }),
+    ).rejects.toMatchObject({ code: 'network' })
+  })
+
+  it('rejects a reservation files array over 10 entries', async () => {
+    stubResponse({
+      clientUpdateId: 'client-1',
+      updateId: 'update-1',
+      status: 'UPLOADING',
+      files: Array.from({ length: 11 }, (_, index) => ({
+        evidenceId: `evidence-${index}`,
+        fileName: `f${index}.pdf`,
+        contentType: 'application/pdf',
+        byteSize: 1,
+        sha256: 'x'.repeat(64),
+        storageReady: false,
+        uploadUrl: null,
+      })),
+    })
+    await expect(
+      pathwaysClient.reserveActivityProofUpload({
+        projectId,
+        activityId,
+        clientUpdateId: 'client-1',
+        progressPercent: 10,
+        note: 'note',
+        files: [],
+      }),
+    ).rejects.toMatchObject({ code: 'network' })
+  })
+
+  it('accepts a COMMITTED reservation and a COMMITTED finalize result', async () => {
+    stubResponse({ clientUpdateId: 'client-1', status: 'COMMITTED', acknowledgement: { ok: true } })
+    await expect(
+      pathwaysClient.reserveActivityProofUpload({
+        projectId,
+        activityId,
+        clientUpdateId: 'client-1',
+        progressPercent: 10,
+        note: 'note',
+        files: [],
+      }),
+    ).resolves.toEqual({
+      clientUpdateId: 'client-1',
+      status: 'COMMITTED',
+      acknowledgement: { ok: true },
+    })
+    stubResponse({ status: 'COMMITTED', acknowledgement: { ok: true } })
+    await expect(
+      pathwaysClient.finalizeActivityProofFile(projectId, activityId, 'update-1', 'evidence-1'),
+    ).resolves.toEqual({ status: 'COMMITTED', acknowledgement: { ok: true } })
+  })
+
+  it('accepts a first-commit finalize result carrying the activity, and rejects extra keys', async () => {
+    const officerId = '73a00000-0000-4000-8000-000000000006'
+    const committedActivity = {
+      id: '73a00000-0000-4000-8000-000000000007',
+      projectId,
+      title: 'Community workshop',
+      description: 'Synthetic activity',
+      storedStatus: 'FOR_REVIEW',
+      status: 'For Review',
+      overdue: false,
+      startDate: '2026-10-01',
+      dueDate: '2026-10-02',
+      assignedUserIds: [officerId],
+      assignedTo: ['Project Officer Test'],
+      assignedEmails: ['p07.po.01@example.test'],
+      indicatorIds: [],
+      journeyStageIds: [],
+      journeyStageId: '',
+      targetBeneficiaries: 0,
+      beneficiariesReached: 0,
+      budgetAllocation: 0,
+      budgetLogged: 0,
+      progress: 40,
+      submittedProof: [],
+      updateNotes: [],
+      updatedAt: '2026-09-20T00:00:00.000Z',
+      sourceAcknowledgement: { requestId: 'req-1', committed: true, replayed: false },
+    }
+    stubResponse({ status: 'COMMITTED', activity: committedActivity })
+    await expect(
+      pathwaysClient.finalizeActivityProofFile(projectId, activityId, 'update-1', 'evidence-1'),
+    ).resolves.toEqual({
+      status: 'COMMITTED',
+      activity: {
+        ...committedActivity,
+        // No budgetLoggedEntries in the payload means the logged total predates it and is
+        // treated as withheld, and capabilities default when absent from the response.
+        budgetLogged: null,
+        budgetLoggedEntries: null,
+        capabilities: { canEdit: false, canRecordProgress: false, canSubmitProof: false },
+      },
+    })
+    // Extra top-level keys alongside `activity` are rejected.
+    stubResponse({
+      status: 'COMMITTED',
+      activity: committedActivity,
+      acknowledgement: { ok: true },
+    })
+    await expect(
+      pathwaysClient.finalizeActivityProofFile(projectId, activityId, 'update-1', 'evidence-1'),
+    ).rejects.toMatchObject({ code: 'network' })
+    // An `activity` payload missing sourceAcknowledgement is rejected.
+    const { sourceAcknowledgement: _drop, ...withoutAcknowledgement } = committedActivity
+    stubResponse({ status: 'COMMITTED', activity: withoutAcknowledgement })
+    await expect(
+      pathwaysClient.finalizeActivityProofFile(projectId, activityId, 'update-1', 'evidence-1'),
+    ).rejects.toMatchObject({ code: 'network' })
+  })
+
+  it('rejects a finalize response with an out-of-range remaining count and a wrong-typed field', async () => {
+    stubResponse({ status: 'UPLOADING', updateId: 'update-1', remaining: -1 })
+    await expect(
+      pathwaysClient.finalizeActivityProofFile(projectId, activityId, 'update-1', 'evidence-1'),
+    ).rejects.toMatchObject({ code: 'network' })
+    stubResponse({ status: 'UPLOADING', updateId: 42, remaining: 1 })
+    await expect(
+      pathwaysClient.finalizeActivityProofFile(projectId, activityId, 'update-1', 'evidence-1'),
+    ).rejects.toMatchObject({ code: 'network' })
   })
 })

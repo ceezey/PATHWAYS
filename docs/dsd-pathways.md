@@ -305,6 +305,9 @@ Horizontal overflow container, tabular numerals, ~44px rows/headers, subtle head
 ### Dialogs
 Navy 45% overlay, centered bounded surface, scroll containment, visible 44px close control, stacked small-screen footer actions.
 
+### LockedField
+A shared component for a control the caller may read but not change. It renders the field's visible label and current value inside a disabled control, with the tooltip "You are not authorized to change this field". The tooltip opens on hover and on keyboard focus of a focusable wrapper, and is linked through `aria-describedby` so it is announced with the control. A request never sends a locked field's value. `LockedField` shows only values the caller may already read; a value the caller cannot read stays omitted, never shown locked. Used for the activity budget (missing `budgets.create`/`budgets.update`), activity indicator links (missing `indicators.update`), and project profile fields (missing `projects.update`).
+
 ### Async / empty / error
 Use truthful loading, empty, unavailable, error, and retry states. Do not inject fake records just to avoid an empty state.
 

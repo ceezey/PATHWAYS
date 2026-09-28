@@ -17,7 +17,6 @@ const targetBeneficiariesSchema = z
 export const projectSetupSchema = z
   .object({
     objectives: z.string().trim().min(3, 'Enter project objectives.'),
-    partners: z.string().trim().max(1000, 'Use at most 1,000 characters.'),
     partnerOrganizations: z
       .string()
       .trim()
@@ -60,7 +59,6 @@ const projectCoreInput = (values: ProjectSetupSchema) => ({
   description: values.description,
   objectives: values.objectives,
   implementationArea: values.area,
-  implementingPartners: values.partners || undefined,
   implementingPartnerNames: [
     ...new Set(
       (values.partnerOrganizations ?? '')

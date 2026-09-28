@@ -16,7 +16,13 @@ import { hasAtomicPermission } from '../auth/authorization-policy'
 import { projectScope } from '../auth/authorized-data.service'
 import { withAuthorizedOperation } from '../auth/authorized-operation'
 import { type ApplicationIdentity, UUID_PATTERN } from '../auth/developer-access'
-import { createPrivateInspectionReader } from '../storage/private-inspection-reader'
+import { createPrivateObjectStreamer } from '../storage/private-inspection-reader'
+import { PROOF_STORAGE_DEADLINE_MS } from './activities.dto'
+
+// cr-pathways-activity-progress-media 3.5: at most ten proofs per update, discovery bounded to
+// eleven, every activity-update evidence type, and the configured per-file byte bound.
+const MAX_PROOFS = 10
+const activityProofTypes = ['PROGRESS_PROOF', 'COMPLETION_PROOF', 'PHOTO', 'VIDEO', 'DOCUMENT']
 
 const unavailable = () => new NotFoundException('Activity proof unavailable.')
 const stale = () => new ConflictException('Activity proof changed. Reload before inspecting.')
@@ -79,6 +85,8 @@ type Admission = Scope & {
 
 @Injectable()
 export class PrivateProofInspectionService {
+  private readonly env = readApiEnv(process.env)
+
   constructor(@Inject(PrismaService) private readonly prisma: PrismaService) {}
 
   private validateScope(scope: Scope, evidenceId?: string) {
@@ -137,9 +145,9 @@ export class PrivateProofInspectionService {
       },
       select: proofSelection,
       orderBy: { id: 'asc' },
-      take: 6,
+      take: MAX_PROOFS + 1,
     })
-    if (proofs.length > 5) throw stale()
+    if (proofs.length > MAX_PROOFS) throw stale()
     if (
       proofs.some(
         (proof) =>
@@ -148,12 +156,12 @@ export class PrivateProofInspectionService {
           proof.publicVisibilityStatus !== 'PRIVATE' ||
           proof.submittedById !== update.submittedById ||
           proof.submittedById === actor.userId ||
-          !['PROGRESS_PROOF', 'COMPLETION_PROOF'].includes(proof.type) ||
+          !activityProofTypes.includes(proof.type) ||
           proof.enrollmentId !== null ||
           proof.expenseId !== null ||
           proof.sourceSubmissionId !== null ||
           proof.byteSize < 1n ||
-          proof.byteSize > 10485760n ||
+          proof.byteSize > BigInt(this.env.EVIDENCE_MAX_FILE_BYTES) ||
           !/^[a-f0-9]{64}$/i.test(proof.sha256),
       )
     )
@@ -230,25 +238,28 @@ export class PrivateProofInspectionService {
         return { admission, proof: find(admission) }
       },
     )
-    let body: Buffer
+    let storage: ReturnType<typeof createPrivateObjectStreamer>
+    const object = {
+      organizationId: initial.admission.organizationId,
+      ...scope,
+      evidenceId,
+      bucket: initial.proof.bucket,
+      objectKey: initial.proof.objectKey,
+      expectedBytes: Number(initial.proof.byteSize),
+      expectedSha256: initial.proof.sha256,
+      signal: budget.signal,
+      deadlineMonotonicMs: budget.deadline,
+    }
+    // First pass: counted size and digest over the whole object; nothing is retained.
     try {
-      const env = readApiEnv(process.env)
-      const read = createPrivateInspectionReader({
-        serviceOrigin: env.SUPABASE_URL ?? '',
-        serviceRoleKey: env.SUPABASE_SERVICE_ROLE_KEY ?? '',
-        evidenceBucket: env.EVIDENCE_BUCKET,
+      storage = createPrivateObjectStreamer({
+        serviceOrigin: this.env.SUPABASE_URL ?? '',
+        serviceRoleKey: this.env.SUPABASE_SERVICE_ROLE_KEY ?? '',
+        evidenceBucket: this.env.EVIDENCE_BUCKET,
+        maxBytes: this.env.EVIDENCE_MAX_FILE_BYTES,
+        storageDeadlineMs: PROOF_STORAGE_DEADLINE_MS,
       })
-      body = await read({
-        organizationId: initial.admission.organizationId,
-        ...scope,
-        evidenceId,
-        bucket: initial.proof.bucket,
-        objectKey: initial.proof.objectKey,
-        expectedBytes: Number(initial.proof.byteSize),
-        expectedSha256: initial.proof.sha256,
-        signal: budget.signal,
-        deadlineMonotonicMs: budget.deadline,
-      })
+      await storage.verify(object)
     } catch {
       throw new ServiceUnavailableException('Private inspection is temporarily unavailable.')
     }
@@ -265,7 +276,7 @@ export class PrivateProofInspectionService {
       await tx.$queryRaw`SELECT id FROM pathways.evidence_media
         WHERE organization_id=${actor.organizationId}::uuid AND project_id=${scope.projectId}::uuid
           AND activity_id=${scope.activityId}::uuid AND activity_update_id=${scope.updateId}::uuid
-        ORDER BY id LIMIT 6 FOR SHARE`
+        ORDER BY id LIMIT 11 FOR SHARE`
       const live = await tx.$queryRaw<
         Array<{ live: boolean }>
       >`SELECT pathways.runtime_auth_session_live(
@@ -308,6 +319,12 @@ export class PrivateProofInspectionService {
       budget.check()
     })
     budget.check()
-    return body
+    // Second pass, only after final authorization and audit: the counted, digest-checked
+    // stream that is released. It withholds its final bytes unless the object still verifies.
+    try {
+      return { body: await storage.release(object), byteSize: object.expectedBytes }
+    } catch {
+      throw new ServiceUnavailableException('Private inspection is temporarily unavailable.')
+    }
   }
 }
