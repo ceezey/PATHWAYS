@@ -39,7 +39,6 @@ const teamFields = [
 ] as const
 
 const formDefaults = (project: ProjectDetail): ProjectSetupSchema => ({
-  objectives: project.objectives ?? project.description,
   partners: project.implementingPartners ?? '',
   partnerOrganizations:
     project.implementingPartnerRecords?.map((partner) => partner.name).join('\n') ?? '',
