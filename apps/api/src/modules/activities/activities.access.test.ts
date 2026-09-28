@@ -135,6 +135,7 @@ const tx = {
     update: vi.fn(),
   },
   evidenceMedia: { findFirst: vi.fn(), updateMany: vi.fn() },
+  budgetExpenseEntry: { aggregate: vi.fn() },
   activityUpdate: { findFirst: vi.fn(), update: vi.fn() },
   auditLog: { create: vi.fn() },
 }
@@ -274,6 +275,75 @@ describe('P05 activity proof authorization', () => {
     // Budget and reach metrics are detail-only reads.
     expect(tx.$queryRaw).not.toHaveBeenCalled()
     expect(tx.projectBudgetRecord.findMany).not.toHaveBeenCalled()
+    expect(tx.budgetExpenseEntry.aggregate).not.toHaveBeenCalled()
+    expect(item).not.toHaveProperty('budgetLogged')
+  })
+
+  it('returns the approved logged total for an expense reader, scoped to the activity', async () => {
+    const reader = {
+      ...actor,
+      roles: ['PROJECT_MANAGER'],
+      permissions: ['activities.read', 'expenses.read'],
+    }
+    state.actor = reader as ApplicationIdentity
+    tx.project.findFirst.mockResolvedValueOnce({ projectActivity_project: [activity] })
+    tx.budgetExpenseEntry.aggregate.mockResolvedValueOnce({
+      _sum: { amount: new Prisma.Decimal('1500.5') },
+      _count: { _all: 2 },
+    })
+    const detail = await service.get(reader, projectId, activityId)
+    expect(detail).toMatchObject({ budgetLogged: '1500.50', budgetLoggedEntries: 2 })
+    expect(tx.budgetExpenseEntry.aggregate).toHaveBeenCalledWith({
+      where: {
+        organizationId,
+        projectId,
+        status: 'APPROVED',
+        budgetRecord: { organizationId, projectId, activityId },
+      },
+      _sum: { amount: true },
+      _count: { _all: true },
+    })
+  })
+
+  it('reports an empty approved expense set as zero entries, not as a missing value', async () => {
+    const reader = {
+      ...actor,
+      roles: ['PROJECT_MANAGER'],
+      permissions: ['activities.read', 'expenses.read'],
+    }
+    state.actor = reader as ApplicationIdentity
+    tx.project.findFirst.mockResolvedValueOnce({ projectActivity_project: [activity] })
+    tx.budgetExpenseEntry.aggregate.mockResolvedValueOnce({
+      _sum: { amount: null },
+      _count: { _all: 0 },
+    })
+    await expect(service.get(reader, projectId, activityId)).resolves.toMatchObject({
+      budgetLogged: '0.00',
+      budgetLoggedEntries: 0,
+    })
+  })
+
+  it('withholds the logged total (null, never 0) without expenses.read', async () => {
+    const officer = {
+      ...actor,
+      roles: ['PROJECT_OFFICER'],
+      permissions: ['activities.read', 'budgets.read'],
+    }
+    state.actor = officer as ApplicationIdentity
+    tx.project.findFirst.mockResolvedValueOnce({ projectActivity_project: [activity] })
+    const detail = await service.get(officer, projectId, activityId)
+    expect(detail).toMatchObject({ budgetLogged: null, budgetLoggedEntries: null })
+    expect(tx.budgetExpenseEntry.aggregate).not.toHaveBeenCalled()
+  })
+
+  it('reads no expenses for an out-of-scope activity', async () => {
+    const reader = { ...actor, permissions: ['activities.read', 'expenses.read'] }
+    state.actor = reader
+    tx.project.findFirst.mockResolvedValueOnce(null)
+    await expect(service.get(reader, projectId, activityId)).rejects.toBeInstanceOf(
+      NotFoundException,
+    )
+    expect(tx.budgetExpenseEntry.aggregate).not.toHaveBeenCalled()
   })
 
   it('keeps full nested updates, proof and metrics on the single-activity read', async () => {

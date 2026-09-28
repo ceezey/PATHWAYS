@@ -136,6 +136,8 @@ export interface Activity {
   beneficiariesReached: number
   budgetAllocation: number | null
   budgetLogged: number | null
+  /** Approved expense entries behind `budgetLogged`; null when expenses are not readable. */
+  budgetLoggedEntries?: number | null
   progress: number
 
   reviewedById?: string | null

@@ -2190,11 +2190,21 @@ function parseActivity(value: unknown): Activity {
     row.budgetAllocation === null || row.budgetAllocation === undefined
       ? null
       : Number(row.budgetAllocation)
+  // A response without the entry count predates the real logged total (it sent a fixed 0),
+  // so its value is treated as withheld rather than shown.
+  const legacyLogged = row.budgetLoggedEntries === undefined
   const budgetLogged =
-    row.budgetLogged === null || row.budgetLogged === undefined ? null : Number(row.budgetLogged)
+    legacyLogged || row.budgetLogged === null || row.budgetLogged === undefined
+      ? null
+      : Number(row.budgetLogged)
+  const budgetLoggedEntries = legacyLogged ? null : (row.budgetLoggedEntries ?? null)
   if (
     (budgetAllocation !== null && !Number.isFinite(budgetAllocation)) ||
     (budgetLogged !== null && !Number.isFinite(budgetLogged)) ||
+    // A logged total and its entry count are both present or both withheld.
+    (budgetLoggedEntries === null) !== (budgetLogged === null) ||
+    (budgetLoggedEntries !== null &&
+      (!Number.isInteger(budgetLoggedEntries) || budgetLoggedEntries < 0)) ||
     typeof row.beneficiariesReached !== 'number'
   ) {
     throw new PathwaysClientError('Invalid activity response.', 'network')
@@ -2205,6 +2215,7 @@ function parseActivity(value: unknown): Activity {
     ) as unknown as Activity),
     budgetAllocation,
     budgetLogged,
+    budgetLoggedEntries,
   }
 }
 

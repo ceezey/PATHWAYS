@@ -184,11 +184,14 @@ export function activityTransitionAllowed(
 type ActivityReadMetrics = {
   budgets: ReadonlyMap<string, string>
   reached: ReadonlyMap<string, number>
+  /** Present only for viewers holding expenses.read; absent means not readable. */
+  logged: ReadonlyMap<string, { total: string; entries: number }>
 }
 
 const emptyActivityReadMetrics: ActivityReadMetrics = {
   budgets: new Map(),
   reached: new Map(),
+  logged: new Map(),
 }
 
 function updateKind(update: {
@@ -268,8 +271,9 @@ function mapActivity(
       updatedAt: update.updatedAt.toISOString(),
     })),
     updatedAt: row.updatedAt.toISOString(),
-    // Approved expense aggregation remains outside this workstream.
-    budgetLogged: 0,
+    // Approved expenses only; null when the viewer cannot read expenses, never a fabricated 0.
+    budgetLogged: metrics.logged.get(row.id)?.total ?? null,
+    budgetLoggedEntries: metrics.logged.get(row.id)?.entries ?? null,
   }
 }
 
@@ -632,7 +636,8 @@ export class ActivitiesService {
   ): Promise<ActivityReadMetrics> {
     const budgets = new Map<string, string>()
     const reached = new Map<string, number>()
-    if (activityIds.length === 0) return { budgets, reached }
+    const logged = new Map<string, { total: string; entries: number }>()
+    if (activityIds.length === 0) return { budgets, reached, logged }
     if (hasAtomicPermission(actor.roles[0], actor.permissions, 'budgets.read')) {
       const rows = await tx.projectBudgetRecord.findMany({
         where: {
@@ -663,7 +668,29 @@ export class ActivitiesService {
       `)
       for (const row of rows) reached.set(row.activityId, Number(row.beneficiariesReached))
     }
-    return { budgets, reached }
+    // Same grant as GET /expenses; the expense SELECT policy also requires it per project.
+    // Logged means APPROVED, as in the finance ledger and the overview budget metric.
+    // Expenses on an archived (replaced) activity budget record still count. Only the
+    // single-activity read calls this, so the loop is one aggregate query.
+    if (hasAtomicPermission(actor.roles[0], actor.permissions, 'expenses.read')) {
+      for (const activityId of activityIds) {
+        const row = await tx.budgetExpenseEntry.aggregate({
+          where: {
+            organizationId: actor.organizationId,
+            projectId,
+            status: 'APPROVED',
+            budgetRecord: { organizationId: actor.organizationId, projectId, activityId },
+          },
+          _sum: { amount: true },
+          _count: { _all: true },
+        })
+        logged.set(activityId, {
+          total: (row._sum.amount ?? new Prisma.Decimal(0)).toFixed(2),
+          entries: row._count._all,
+        })
+      }
+    }
+    return { budgets, reached, logged }
   }
 
   private async mapWithMetrics(tx: Tx, actor: ApplicationIdentity, row: ActivityRow) {

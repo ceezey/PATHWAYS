@@ -142,7 +142,9 @@ export const ActivityDetailContent = ({
         <div>
           <dt className="text-muted-foreground">Logged budget</dt>
           <dd className="mt-1 font-medium text-foreground">
-            {formatCurrency(activity.budgetLogged)}
+            {activity.budgetLoggedEntries === 0
+              ? 'None yet'
+              : formatCurrency(activity.budgetLogged, 'Unavailable')}
           </dd>
         </div>
         <div className="sm:col-span-2">

@@ -97,6 +97,67 @@ describe('project data loading client contract', () => {
     )
   })
 
+  it.each([
+    [
+      { budgetLogged: '1500.50', budgetLoggedEntries: 2 },
+      { budgetLogged: 1500.5, budgetLoggedEntries: 2 },
+    ],
+    [
+      { budgetLogged: '0.00', budgetLoggedEntries: 0 },
+      { budgetLogged: 0, budgetLoggedEntries: 0 },
+    ],
+    [
+      { budgetLogged: null, budgetLoggedEntries: null },
+      { budgetLogged: null, budgetLoggedEntries: null },
+    ],
+  ])('parses the logged expense total %j', async (logged, parsed) => {
+    setup({
+      ...listItem,
+      assignedEmails: [],
+      beneficiariesReached: 0,
+      budgetAllocation: null,
+      submittedProof: [],
+      updateNotes: [],
+      ...logged,
+    })
+    await expect(pathwaysClient.getActivity(projectId, listItem.id)).resolves.toMatchObject(parsed)
+  })
+
+  it('treats a legacy fixed 0 without an entry count as withheld, never as ₱0', async () => {
+    setup({
+      ...listItem,
+      assignedEmails: [],
+      beneficiariesReached: 0,
+      budgetAllocation: null,
+      budgetLogged: 0,
+      submittedProof: [],
+      updateNotes: [],
+    })
+    await expect(pathwaysClient.getActivity(projectId, listItem.id)).resolves.toMatchObject({
+      budgetLogged: null,
+      budgetLoggedEntries: null,
+    })
+  })
+
+  it.each([
+    { budgetLogged: '10.00', budgetLoggedEntries: null },
+    { budgetLogged: null, budgetLoggedEntries: 0 },
+    { budgetLogged: '10.00', budgetLoggedEntries: -1 },
+  ])('rejects an incoherent logged expense total %j', async (logged) => {
+    setup({
+      ...listItem,
+      assignedEmails: [],
+      beneficiariesReached: 0,
+      budgetAllocation: null,
+      submittedProof: [],
+      updateNotes: [],
+      ...logged,
+    })
+    await expect(pathwaysClient.getActivity(projectId, listItem.id)).rejects.toBeInstanceOf(
+      PathwaysClientError,
+    )
+  })
+
   it('validates the overview metrics contract and rejects a value on a suppressed cell', async () => {
     const metrics = {
       contractVersion: 'project.overview-metrics.v1',
