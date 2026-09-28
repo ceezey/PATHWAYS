@@ -20,9 +20,11 @@ import { webEnv } from '@/lib/env'
 import { getBrowserSupabaseClient } from '@/lib/supabase/client'
 import type {
   Activity,
+  ActivityCapabilities,
   ActivitySummary,
   AlertRecord,
   AnalyticsLocationRecord,
+  AssignableProjectOfficer,
   AuthorizeExistingUserInput,
   BeneficiaryFilters,
   BeneficiaryJourneyHistory,
@@ -265,6 +267,11 @@ export interface PathwaysClient {
   ): Promise<Pick<Activity, 'id' | 'title' | 'journeyStageId'>[]>
   getActivities(projectId: string, signal?: AbortSignal): Promise<ActivitySummary[]>
   getActivity(projectId: string, activityId: string, signal?: AbortSignal): Promise<Activity>
+  // Assignable Project Officers (feature/project-rbac-ui-and-partners).
+  getAssignableProjectOfficers(
+    projectId: string,
+    signal?: AbortSignal,
+  ): Promise<AssignableProjectOfficer[]>
   getProjectOverviewMetrics(
     projectId: string,
     signal?: AbortSignal,
@@ -645,6 +652,20 @@ class BackendReadyPathwaysClient implements PathwaysClient {
     return parseActivity(
       await requestFoundation(
         `/projects/${encodeURIComponent(projectId)}/activities/${encodeURIComponent(activityId)}`,
+        { signal },
+      ),
+    )
+  }
+
+  // Assignable Project Officers (feature/project-rbac-ui-and-partners). Replaces GET /users
+  // in the activity editor; the response is exactly userId and displayName, at most 50 rows.
+  async getAssignableProjectOfficers(
+    projectId: string,
+    signal?: AbortSignal,
+  ): Promise<AssignableProjectOfficer[]> {
+    return parseAssignableProjectOfficers(
+      await requestFoundation(
+        `/projects/${encodeURIComponent(projectId)}/activities/assignable-officers`,
         { signal },
       ),
     )
@@ -2166,7 +2187,52 @@ const activityResponseKeys = [
   'submittedProof',
   'updateNotes',
   'updatedAt',
+  'capabilities',
 ] as const satisfies readonly (keyof Activity)[]
+
+// Activity capability flags (feature/project-rbac-ui-and-partners). Advisory only: a response
+// without them shows no Edit, Record progress or Submit proof control.
+const noActivityCapabilities: ActivityCapabilities = {
+  canEdit: false,
+  canRecordProgress: false,
+  canSubmitProof: false,
+}
+
+function parseActivityCapabilities(value: unknown): ActivityCapabilities {
+  if (value === undefined) return noActivityCapabilities
+  const row = value as Partial<Record<keyof ActivityCapabilities, unknown>> | null
+  if (
+    !row ||
+    typeof row !== 'object' ||
+    Object.keys(row).length !== 3 ||
+    typeof row.canEdit !== 'boolean' ||
+    typeof row.canRecordProgress !== 'boolean' ||
+    typeof row.canSubmitProof !== 'boolean'
+  )
+    throw new PathwaysClientError('Invalid activity response.', 'network')
+  return {
+    canEdit: row.canEdit,
+    canRecordProgress: row.canRecordProgress,
+    canSubmitProof: row.canSubmitProof,
+  }
+}
+
+function parseAssignableProjectOfficers(value: unknown): AssignableProjectOfficer[] {
+  if (!Array.isArray(value) || value.length > 50)
+    throw new PathwaysClientError('Invalid officer response.', 'network')
+  return value.map((item) => {
+    const row = item as Partial<Record<keyof AssignableProjectOfficer, unknown>> | null
+    if (
+      !row ||
+      typeof row !== 'object' ||
+      Object.keys(row).length !== 2 ||
+      typeof row.userId !== 'string' ||
+      typeof row.displayName !== 'string'
+    )
+      throw new PathwaysClientError('Invalid officer response.', 'network')
+    return { userId: row.userId, displayName: row.displayName }
+  })
+}
 
 function parseActivity(value: unknown): Activity {
   const row = value as Partial<Activity> & {
@@ -2220,6 +2286,7 @@ function parseActivity(value: unknown): Activity {
     budgetAllocation,
     budgetLogged,
     budgetLoggedEntries,
+    capabilities: parseActivityCapabilities(row.capabilities),
   }
 }
 
@@ -2244,6 +2311,7 @@ const activitySummaryKeys = [
   'targetBeneficiaries',
   'progress',
   'updatedAt',
+  'capabilities',
 ] as const satisfies readonly (keyof ActivitySummary)[]
 
 const presentedActivityStatuses = new Set<string>([
@@ -2288,9 +2356,12 @@ function parseActivitySummary(value: unknown): ActivitySummary {
   ) {
     throw new PathwaysClientError('Invalid activity response.', 'network')
   }
-  return Object.fromEntries(
-    activitySummaryKeys.map((key) => [key, row[key]]),
-  ) as unknown as ActivitySummary
+  return {
+    ...(Object.fromEntries(
+      activitySummaryKeys.map((key) => [key, row[key]]),
+    ) as unknown as ActivitySummary),
+    capabilities: parseActivityCapabilities(row.capabilities),
+  }
 }
 
 function parseActivitySummaries(value: unknown): ActivitySummary[] {

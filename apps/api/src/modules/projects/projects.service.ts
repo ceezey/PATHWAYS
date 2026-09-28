@@ -129,9 +129,7 @@ function projectData(input: CreateProjectDto | UpdateProjectDto, code: string) {
     description: input.description?.trim() || null,
     objectives: input.objectives?.trim() || null,
     implementationArea: input.implementationArea?.trim() || null,
-    ...(input.implementingPartners === undefined
-      ? {}
-      : { implementingPartners: input.implementingPartners?.trim() || null }),
+    // projects.implementing_partners is deprecated read-only legacy text (migration 0039).
     ...(input.sector === undefined ? {} : { sector: input.sector?.trim() || null }),
     ...(input.targetBeneficiaries === undefined
       ? {}

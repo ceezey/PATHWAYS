@@ -122,6 +122,41 @@ describe('project team editing authority', () => {
     expect(await screen.findByRole('button', { name: 'Edit team' })).toBeTruthy()
   })
 
+  it('hides, rather than disables, profile editing without projects.update', async () => {
+    access.role = 'System Administrator'
+    access.profile.roles = ['SYSTEM_ADMINISTRATOR']
+    access.profile.permissions = ['projects.read', 'projects.detail.read', 'assignments.manage']
+    renderView()
+    expect(await screen.findByText('Project team')).toBeTruthy()
+    expect(screen.queryByRole('link', { name: 'Edit project profile' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Edit project profile' })).toBeNull()
+  })
+
+  it('shows profile editing to a projects.update holder', async () => {
+    access.role = 'Project Manager'
+    access.profile.roles = ['PROJECT_MANAGER']
+    access.profile.permissions = ['projects.read', 'projects.detail.read', 'projects.update']
+    renderView()
+    const link = await screen.findByRole('link', { name: 'Edit project profile' })
+    expect(link.getAttribute('href')).toBe(`/projects/${projectId}/edit`)
+  })
+
+  it('shows structured partners only, never the deprecated free text', async () => {
+    api.getProject.mockResolvedValue({
+      ...project,
+      implementingPartners: 'Legacy text partner',
+      implementingPartnerRecords: [{ id: 'p1', name: 'Structured Partner' }],
+    })
+    renderView()
+    expect(await screen.findByText('Structured Partner')).toBeTruthy()
+    expect(screen.queryByText(/Legacy text partner/)).toBeNull()
+    cleanup()
+    api.getProject.mockResolvedValue({ ...project, implementingPartners: 'Legacy text partner' })
+    renderView()
+    const partners = (await screen.findByText('Implementing partners')).parentElement
+    expect(partners?.querySelector('dd')?.textContent).toBe('Not recorded')
+  })
+
   it('omits the project archive control because no archive endpoint exists', async () => {
     access.role = 'Project Manager'
     access.profile.roles = ['PROJECT_MANAGER']

@@ -63,6 +63,19 @@ export class ActivitiesController {
     return this.activities.context(profile(request), projectId)
   }
 
+  // The guard admits activity readers; the service then requires activities.create or
+  // activities.update in project scope before any user row is read.
+  @Get('assignable-officers')
+  @RequirePermission('activities.read')
+  assignableOfficers(
+    @Req() request: AuthenticatedRequest,
+    @Param('projectId') projectId: string,
+    @Query() query: Record<string, unknown>,
+  ) {
+    if (Object.keys(query).length) throw new BadRequestException('Invalid officer query.')
+    return this.activities.assignableOfficers(profile(request), projectId)
+  }
+
   @Post()
   @RequirePermission('activities.create')
   create(

@@ -6,7 +6,6 @@ import {
   rolePermissions,
 } from '../../../../api/src/modules/auth/authorization-policy'
 import { approvedApiBaseUrl } from '../api-base-url'
-import type { PermissionCode } from './permissions'
 // Route decisions are a UI ceiling; the API remains identity authority.
 export type RoutePrincipal = {
   roles: readonly string[]
@@ -495,40 +494,11 @@ export function filterDashboardNavGroups<T extends { items: { href: string }[] }
     }))
     .filter((group) => group.items.length > 0)
 }
+/** A project workspace tab opens a route, so it carries that route's permissions. */
 export interface WorkspaceTabAccess {
   label: string
   path: string
-  permission?: PermissionCode
-  anyPermissions?: PermissionCode[]
-}
-const legacyPermissions: Partial<Record<PermissionCode, readonly AtomicPermission[]>> = {
-  'projects.view': ['projects.detail.read'],
-  'projects.create': ['projects.create'],
-  'activities.view': ['activities.read'],
-  'activities.create_edit': ['activities.create', 'activities.update'],
-  'activities.submit_update_proof': ['activities.proof.submit'],
-  'evidence.review': ['evidence.review'],
-  'indicators.manage': ['indicators.create', 'indicators.update'],
-  'monitor_evaluate.view': ['monitoring.read'],
-  'monitor_evaluate.full': ['monitoring.review'],
-  'budget.full': ['budgets.read'],
-  'budget.portfolio_view': ['budgets.read'],
-  'budget.expense.view': ['expenses.read'],
-  'budget.expense.log': ['expenses.submit'],
-  'transparency.preview': ['public.preview'],
-  'transparency.publish': ['public.publish'],
-  'rules.view': ['rules.read'],
-  'alerts.view': ['alerts.read'],
-  'alerts.review': ['alerts.review'],
-  'alerts.outcome.record': ['alerts.outcome.record'],
-  'recommendations.view': ['recommendations.read'],
-  'recommendations.review': ['recommendations.review'],
-  'recommendations.outcome.record': ['recommendations.outcome.record'],
-  'alerts.outcome.log': ['recommendations.outcome.record'],
-  'reports.view': ['reports.read'],
-  'reports.project_summary.view': ['reports.project.read'],
-  'reports.indicator_summary.view': ['reports.indicator.read'],
-  'reports.beneficiary_summary.view': ['reports.beneficiary.read'],
+  route?: RouteKey
 }
 export const filterWorkspaceTabs = <T extends WorkspaceTabAccess>(
   tabs: T[],
@@ -546,9 +516,9 @@ export const filterWorkspaceTabs = <T extends WorkspaceTabAccess>(
   return tabs.filter(
     (tab) =>
       !!key &&
-      ((!tab.permission && !tab.anyPermissions) ||
-        (tab.anyPermissions ?? (tab.permission ? [tab.permission] : [])).some((p) =>
-          legacyPermissions[p]?.some((a) => hasAtomicPermission(key, rolePermissions[key], a)),
+      (!tab.route ||
+        routePolicy[tab.route].permissions.some((permission) =>
+          hasAtomicPermission(key, rolePermissions[key], permission),
         )),
   )
 }

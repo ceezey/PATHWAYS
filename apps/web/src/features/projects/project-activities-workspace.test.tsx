@@ -16,6 +16,7 @@ const indicatorId = 'b0908103-0597-4cbb-874f-61ad0d5e3f84'
 const api = vi.hoisted(() => ({
   getActivities: vi.fn(),
   getActivity: vi.fn(),
+  getAssignableProjectOfficers: vi.fn(),
   getIndicators: vi.fn(),
   getJourneyStages: vi.fn(),
   getProject: vi.fn(),
@@ -176,6 +177,7 @@ describe('project activities permission-aware loading', () => {
     api.getJourneyStages.mockResolvedValue([])
     api.getProjectOverviewMetrics.mockResolvedValue(null)
     api.getUsers.mockResolvedValue([])
+    api.getAssignableProjectOfficers.mockResolvedValue([])
   })
 
   afterEach(() => {
@@ -195,19 +197,33 @@ describe('project activities permission-aware loading', () => {
     expect(api.getUsers).not.toHaveBeenCalled()
   })
 
-  it('loads users only after opening the activity editor', async () => {
+  it('loads assignable officers only after opening the activity editor, never GET /users', async () => {
     asProjectManager()
     renderWorkspace()
 
     await screen.findByRole('heading', { name: 'Activities' })
     await waitFor(() => expect(api.getIndicators).toHaveBeenCalledOnce())
     expect(api.getJourneyStages).toHaveBeenCalledOnce()
-    expect(api.getUsers).not.toHaveBeenCalled()
+    expect(api.getAssignableProjectOfficers).not.toHaveBeenCalled()
     fireEvent.click(screen.getByRole('button', { name: 'New Activity' }))
 
-    await waitFor(() => expect(api.getUsers).toHaveBeenCalledOnce())
+    await waitFor(() => expect(api.getAssignableProjectOfficers).toHaveBeenCalledOnce())
+    expect(api.getAssignableProjectOfficers).toHaveBeenCalledWith(
+      projectId,
+      expect.any(AbortSignal),
+    )
+    expect(api.getUsers).not.toHaveBeenCalled()
     expect(api.getIndicators).toHaveBeenCalledOnce()
     expect(api.getJourneyStages).toHaveBeenCalledOnce()
+  })
+
+  it('lets a Project Officer open New Activity with the scoped officer read', async () => {
+    access.profile.permissions = [...access.profile.permissions, 'activities.create']
+    renderWorkspace()
+    await screen.findByRole('heading', { name: 'Activities' })
+    fireEvent.click(screen.getByRole('button', { name: 'New Activity' }))
+    await waitFor(() => expect(api.getAssignableProjectOfficers).toHaveBeenCalledOnce())
+    expect(api.getUsers).not.toHaveBeenCalled()
   })
 
   it('searches by indicator code without opening a panel', async () => {

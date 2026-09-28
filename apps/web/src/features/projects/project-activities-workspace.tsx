@@ -28,7 +28,6 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { useCurrentRole } from '@/hooks/use-current-role'
 import { useDisplayLabels } from '@/hooks/use-display-labels'
-import { can } from '@/lib/rbac/can'
 import { canAccessProjectForRole } from '@/lib/rbac/data-scope'
 import { principalHasAtomicPermission } from '@/lib/rbac/route-access'
 import { isUiActionAvailable } from '@/lib/rbac/ui-action-availability'
@@ -245,13 +244,16 @@ export const ProjectActivitiesWorkspace = ({
   const { labels } = useDisplayLabels()
   const { role, assignedProjectIds, profile } = useCurrentRole()
   const inProjectScope = role ? canAccessProjectForRole(role, projectId, assignedProjectIds) : false
-  const canCreateEdit = role ? can(role, 'activities.create_edit') && inProjectScope : false
+  // Create and edit are separate authorities (a Project Officer creates but never edits).
+  // Per-activity Edit, Record progress and Submit proof also need the server-computed
+  // activity capabilities, which the detail panel applies.
+  const canCreate = inProjectScope && principalHasAtomicPermission(profile, 'activities.create')
+  const canUpdate = inProjectScope && principalHasAtomicPermission(profile, 'activities.update')
   const canReadIndicators = principalHasAtomicPermission(profile, 'indicators.read')
   const canReadJourneyStages = principalHasAtomicPermission(profile, 'journeys.read')
-  const canReadUsers = canCreateEdit && principalHasAtomicPermission(profile, 'users.authorize')
-  const canSubmitProof = role
-    ? can(role, 'activities.submit_update_proof') && inProjectScope
-    : false
+  const canReadOfficers = canCreate || canUpdate
+  const canSubmitProof =
+    inProjectScope && principalHasAtomicPermission(profile, 'activities.proof.submit')
   const canRecordProgress =
     inProjectScope && isUiActionAvailable(role, 'activities.progress.record', profile)
   const canLogExpense = role === 'Project Officer' && inProjectScope
@@ -295,20 +297,21 @@ export const ProjectActivitiesWorkspace = ({
   // Loaded once per workspace with stable keys, so search works without opening a panel.
   const indicatorRead = useProjectIndicatorsRead(projectId, canReadIndicators)
   const journeyStageRead = useProjectJourneyStagesRead(projectId, canReadJourneyStages)
-  const userRead = useAuthorizedRead(
-    'activity-editor-users',
+  // Project-scoped assignable officers (userId and displayName only), not GET /users.
+  const officerRead = useAuthorizedRead(
+    'activity-assignable-officers',
     projectId,
-    'activities.read',
-    (signal) => pathwaysClient.getUsers(signal),
-    canReadUsers && formOpen,
+    canCreate ? 'activities.create' : 'activities.update',
+    (signal) => pathwaysClient.getAssignableProjectOfficers(projectId, signal),
+    canReadOfficers && formOpen,
   )
   const indicators = indicatorRead.data ?? []
   const journeyStages = journeyStageRead.data ?? []
-  const users = userRead.data ?? []
+  const officers = officerRead.data ?? []
   const editorReads = [
     canReadIndicators ? indicatorRead : null,
     canReadJourneyStages ? journeyStageRead : null,
-    canReadUsers ? userRead : null,
+    canReadOfficers ? officerRead : null,
   ].filter((read) => read !== null)
   const editorReady = editorReads.every((read) => read.data !== undefined)
   const editorFailed = editorReads.some((read) => read.isError)
@@ -409,7 +412,7 @@ export const ProjectActivitiesWorkspace = ({
   }
 
   const openCreate = () => {
-    if (!canCreateEdit) {
+    if (!canCreate) {
       return
     }
 
@@ -418,7 +421,7 @@ export const ProjectActivitiesWorkspace = ({
   }
 
   const openEdit = (activity: Activity) => {
-    if (!canCreateEdit) {
+    if (!canUpdate || !activity.capabilities?.canEdit) {
       return
     }
 
@@ -427,7 +430,7 @@ export const ProjectActivitiesWorkspace = ({
   }
 
   const openProof = (activity: Activity) => {
-    if (!canSubmitProof) {
+    if (!canSubmitProof || !activity.capabilities?.canSubmitProof) {
       return
     }
 
@@ -508,7 +511,7 @@ export const ProjectActivitiesWorkspace = ({
         }
       />
       <ProjectWorkspaceHeader project={project} />
-      {canCreateEdit ? (
+      {canCreate ? (
         <div className="flex justify-end">
           <Button className="gap-2 whitespace-nowrap" onClick={openCreate} type="button">
             <Plus className="h-4 w-4" aria-hidden="true" />
@@ -631,7 +634,7 @@ export const ProjectActivitiesWorkspace = ({
         activity={selectedActivity}
         loading={Boolean(selectedActivityId) && detail.isPending}
         canDecideProof={canDecideProof}
-        canEdit={canCreateEdit}
+        canEdit={canUpdate}
         canLogExpense={canLogExpense}
         canReadBudgets={principalHasAtomicPermission(profile, 'budgets.read')}
         canRecordProgress={canRecordProgress}
@@ -675,7 +678,7 @@ export const ProjectActivitiesWorkspace = ({
         onOpenChange={setFormOpen}
         open={formOpen && editorReady}
         projectId={projectId}
-        users={users}
+        officers={officers}
       />
       <ActivityProofDialog
         activity={proofActivity}

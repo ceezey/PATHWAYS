@@ -248,6 +248,7 @@ describe('P05 activity proof authorization', () => {
       [
         'assignedTo',
         'assignedUserIds',
+        'capabilities',
         'code',
         'description',
         'dueDate',

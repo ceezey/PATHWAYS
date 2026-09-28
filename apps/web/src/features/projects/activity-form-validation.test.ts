@@ -47,7 +47,7 @@ describe('activity form validation', () => {
       dueDate: '2026-09-01',
       targetBeneficiaries: 30,
       budgetAllocation: 10000,
-      assignedOfficers: ['Project Officer A'],
+      assignedOfficers: ['officer-a'],
       connectedIndicators: ['ind-fm-01'],
       journeyStageId: 'stage-entry',
     })
@@ -80,7 +80,7 @@ describe('activity form validation', () => {
     const schema = createActivityFormSchema({
       indicatorIds: ['ind-fm-01'],
       journeyStageIds: ['stage-entry'],
-      officerNames: ['Project Officer A'],
+      officerIds: ['officer-a'],
     })
     const validInput = {
       title: 'Prototype activity',
@@ -89,7 +89,7 @@ describe('activity form validation', () => {
       dueDate: '2026-09-10',
       targetBeneficiaries: 30,
       budgetAllocation: 10000,
-      assignedOfficers: ['Project Officer A'],
+      assignedOfficers: ['officer-a'],
       connectedIndicators: ['ind-fm-01'],
       journeyStageId: 'stage-entry',
     }
@@ -98,10 +98,25 @@ describe('activity form validation', () => {
     expect(
       schema.safeParse({
         ...validInput,
-        assignedOfficers: ['Project Officer Outside Scope'],
+        assignedOfficers: ['officer-outside-scope'],
         connectedIndicators: ['ind-outside-scope'],
         journeyStageId: 'stage-outside-scope',
       }).success,
     ).toBe(false)
+  })
+
+  it('keeps an unreadable logged budget null instead of coercing it to 0', () => {
+    const result = activityFormSchema.safeParse({
+      title: 'Community workshop',
+      description: 'A valid activity description for the selected project.',
+      startDate: '2026-09-01',
+      dueDate: '2026-09-10',
+      targetBeneficiaries: 30,
+      budgetAllocation: '',
+      assignedOfficers: ['officer-a'],
+      budgetLogged: null,
+    })
+    expect(result.success).toBe(true)
+    if (result.success) expect(result.data.budgetLogged).toBeNull()
   })
 })
