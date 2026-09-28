@@ -191,3 +191,19 @@ CI publishes automated diagnostics without claiming full SAD approval. The Linux
 ## Core P1 acceptance coverage
 
 For [core P1 supporting operations](cr-pathways-core-p1-supporting-operations.md), verify all-role and individual-grant denial, cross-organization/project scope, revocation on retry, bounded latest published-definition reads, strict allowlists, empty-versus-failed context, sparse individual definitions, age-only error focus, minor/guardian consistency and custom required fields. Verify all candidate collisions, stable source keys, incomplete mappings, immutable revision/audit parity, changed/stale retries and unchanged reviewer/processor authority. Corrected supporting SQL also requires all submission kinds, raw-policy compatibility, definition/archive lock waits, concurrency, fresh/upgrade/recovery and preserved ledger/catalog checks. A mapping-only run or static/unit PASS does not establish complete migration or feature acceptance. Authenticated UI, physical cancellation and preview checks remain separate executable requirements.
+
+## 10. Project data loading and read cache
+
+Covers step 2 of the [performance and scaling Change Record](cr-pathways-performance-scaling.md) and the project workspace reads in the SDD.
+
+| ID | Type | Required check |
+|---|---|---|
+| QAD-P01 | Happy | List and summary reads are reused for at most 30 seconds under the same organization, user, role, permissions, assignments and project; the Activities tab reuses the Overview project read |
+| QAD-P02 | Happy | Activity list returns the lean projection; the detail route reads `GET /activities/:id`; indicators and journey stages load once per workspace and indicator search works without opening a panel |
+| QAD-P03 | Happy | Overview metrics derive KPI achievement, budget utilization, suppressed reach and timeline deterministically with documented rounding |
+| QAD-P04 | Sad | Missing sources show "None yet" or their specific reason, never 0; load failures and permission states keep error wording; an unknown activity id shows a not-found state without redirecting |
+| QAD-P05 | Sad | A replayed indicator save or recovery displays its confirming authorized read without a second reload |
+| QAD-P06 | Abuse | Beneficiary, step-up and import batch-status reads are never cached, even when a caller requests the summary window |
+| QAD-P07 | Abuse | Sign-out, workspace change or any 401/403 clears cached reads; 401/403 is not retried; a committed write marks cached reads stale |
+| QAD-P08 | Abuse | Overview metrics deny cross-organization, unassigned and malformed project ids before any metric read; budget is `null` without budget read; reach counts 1-4 are suppressed and no Beneficiary rows are read |
+| QAD-P09 | Abuse | Activity update, transition and progress still deny an out-of-scope project or activity before any write after the duplicate reads are removed |

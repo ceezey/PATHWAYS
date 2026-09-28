@@ -180,6 +180,10 @@ Navy 45% overlay, centered bounded surface, scroll containment, visible 44px clo
 ### Async / empty / error
 Use truthful loading, empty, unavailable, error, and retry states. Do not inject fake records just to avoid an empty state.
 
+A genuinely empty value or list reads "None yet". Load failures and permission states keep their error wording, such as "Unavailable" or "could not be loaded", with a retry where one helps. Missing data is never shown as 0; a real zero from the server is shown as 0.
+
+**Data fetching.** Protected reads go through `useAuthorizedRead` (TanStack Query). Reads are live by default. Lists and summaries may opt in to the 30-second summary window. Beneficiary, step-up and import batch-status reads are never cached. Workspace tabs share stable resource keys, such as one project read for the Overview and Activities tabs.
+
 ### Domain composition patterns
 
 **Project directory**
