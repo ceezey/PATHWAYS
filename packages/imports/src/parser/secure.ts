@@ -1,11 +1,13 @@
 import { Worker } from 'node:worker_threads'
 
 import { IMPORT_ENGINEERING_LIMITS, type SupportedImportFileType } from '../limits'
+import { PdfTableError, type PdfTextItem, reconstructPdfTable } from './pdf-table'
 
 type CellValue = string | number | boolean | null
 
 interface WorkerResult {
   matrix?: unknown[][]
+  pdfItems?: PdfTextItem[]
   sheetNames?: string[]
   formulas?: boolean
   links?: boolean
@@ -58,6 +60,57 @@ try {
     } else {
       parentPort.postMessage({ matrix: parsed.data, sheetNames: [] });
     }
+  } else if (workerData.fileType === 'PDF') {
+    // unpdf is loaded here only. getDocument never runs embedded scripts, XFA,
+    // forms, annotations, links or attachments; only the text layer is read.
+    (async () => {
+      const { getDocumentProxy } = require(workerData.unpdfPath);
+      let document;
+      try {
+        document = await getDocumentProxy(new Uint8Array(input), {
+          isEvalSupported: false,
+          useSystemFonts: false,
+          disableFontFace: true,
+          enableXfa: false,
+          verbosity: 0,
+        });
+      } catch (error) {
+        parentPort.postMessage({
+          error: error && error.name === 'PasswordException' ? 'PDF_ENCRYPTED' : 'PDF_PARSE_FAILED',
+        });
+        return;
+      }
+      try {
+        if ((await document.getPermissions()) !== null) {
+          parentPort.postMessage({ error: 'PDF_ENCRYPTED' });
+          return;
+        }
+        if (document.numPages > workerData.maxPdfPages) {
+          parentPort.postMessage({ error: 'PDF_PAGE_LIMIT' });
+          return;
+        }
+        const items = [];
+        for (let pageNumber = 1; pageNumber <= document.numPages; pageNumber += 1) {
+          const page = await document.getPage(pageNumber);
+          const content = await page.getTextContent({ includeMarkedContent: false });
+          for (const item of content.items) {
+            if (typeof item.str !== 'string' || !Array.isArray(item.transform)) continue;
+            const [a, b, c, d, x, y] = item.transform;
+            // Horizontal text only; rotated or skewed text is not table content.
+            if (Math.abs(b) > 1e-6 || Math.abs(c) > 1e-6 || a <= 0 || d <= 0) continue;
+            if (items.length >= workerData.maxPdfTextItems) {
+              parentPort.postMessage({ error: 'PDF_TEXT_LIMIT' });
+              return;
+            }
+            items.push([pageNumber, x, y, Number(item.width) || 0, Math.abs(d), item.str]);
+          }
+          page.cleanup();
+        }
+        parentPort.postMessage({ pdfItems: items, sheetNames: [] });
+      } finally {
+        await document.destroy();
+      }
+    })().catch(() => parentPort.postMessage({ error: 'PDF_PARSE_FAILED' }));
   } else {
     const XLSX = require(workerData.xlsxPath);
     const workbook = XLSX.read(input, {
@@ -195,6 +248,12 @@ function inspectCsv(input: Buffer) {
   if (input.includes(0)) reject('CSV_BINARY_CONTENT', 'The CSV contains binary content.')
 }
 
+function inspectPdfSignature(input: Buffer) {
+  if (input.length < 5 || input.subarray(0, 5).toString('latin1') !== '%PDF-') {
+    reject('FILE_SIGNATURE_INVALID', 'The PDF file signature is invalid.')
+  }
+}
+
 function runParserWorker(input: Buffer, fileType: SupportedImportFileType) {
   return new Promise<WorkerResult>((resolve, rejectPromise) => {
     const worker = new Worker(WORKER_SOURCE, {
@@ -204,6 +263,9 @@ function runParserWorker(input: Buffer, fileType: SupportedImportFileType) {
         fileType,
         papaPath: require.resolve('papaparse'),
         xlsxPath: require.resolve('xlsx'),
+        unpdfPath: fileType === 'PDF' ? require.resolve('unpdf') : null,
+        maxPdfPages: IMPORT_ENGINEERING_LIMITS.maxPdfPages,
+        maxPdfTextItems: IMPORT_ENGINEERING_LIMITS.maxPdfTextItems,
       },
     })
     const timeout = setTimeout(() => {
@@ -222,6 +284,29 @@ function runParserWorker(input: Buffer, fileType: SupportedImportFileType) {
       rejectPromise(new ImportParseError('PARSER_FAILED', 'The parser could not read the file.'))
     })
   })
+}
+
+const genericParserMessage = 'The file could not be parsed safely.'
+
+const parserErrorMessages: Record<string, string> = {
+  PDF_NO_TEXT_LAYER:
+    'This PDF has no text layer. Scanned PDFs are not supported; export the data as CSV or XLSX.',
+  PDF_ENCRYPTED: 'Password-protected PDFs are not supported. Upload an unprotected copy.',
+  PDF_TABLE_UNRECOGNIZED:
+    'No table was recognized in this PDF. It needs one header line and consistent columns.',
+  PDF_PAGE_LIMIT: `The PDF has more than ${IMPORT_ENGINEERING_LIMITS.maxPdfPages} pages.`,
+  PDF_TEXT_LIMIT: 'The PDF contains too much text to import safely.',
+  PDF_PARSE_FAILED: 'The PDF could not be read safely.',
+}
+
+function pdfMatrix(parsed: WorkerResult) {
+  if (!Array.isArray(parsed.pdfItems)) reject('PDF_PARSE_FAILED', genericParserMessage)
+  try {
+    return reconstructPdfTable(parsed.pdfItems)
+  } catch (error) {
+    if (error instanceof PdfTableError) reject(error.code, parserErrorMessages[error.code])
+    reject('PDF_PARSE_FAILED', parserErrorMessages.PDF_PARSE_FAILED)
+  }
 }
 
 function sourceColumnKey(columnIndex: number) {
@@ -305,8 +390,9 @@ export async function parseSecureImport(
   if (fileType === 'CSV') inspectCsv(input)
   if (fileType === 'XLSX') inspectXlsxContainer(input)
   if (fileType === 'XLS') inspectXlsSignature(input)
+  if (fileType === 'PDF') inspectPdfSignature(input)
   const parsed = await runParserWorker(input, fileType)
-  if (parsed.error) reject(parsed.error, 'The file could not be parsed safely.')
+  if (parsed.error) reject(parsed.error, parserErrorMessages[parsed.error] ?? genericParserMessage)
   if (parsed.formulas) {
     reject(
       'WORKBOOK_FORMULA_REQUIRES_VALUES_ONLY',
@@ -319,13 +405,13 @@ export async function parseSecureImport(
   if ((parsed.sheetNames?.length ?? 0) > IMPORT_ENGINEERING_LIMITS.maxWorkbookSheets) {
     reject('WORKBOOK_SHEET_LIMIT', 'The workbook has too many worksheets.')
   }
-  if (fileType !== 'CSV' && parsed.sheetNames?.length !== 1) {
+  if ((fileType === 'XLSX' || fileType === 'XLS') && parsed.sheetNames?.length !== 1) {
     reject(
       'WORKBOOK_SHEET_AMBIGUOUS',
       'Workbooks must contain exactly one worksheet so no source rows are silently omitted.',
     )
   }
-  const normalized = normalizeMatrix(parsed.matrix ?? [])
+  const normalized = normalizeMatrix(fileType === 'PDF' ? pdfMatrix(parsed) : (parsed.matrix ?? []))
   return {
     sourceColumns: normalized.sourceColumns,
     rows: normalized.rows,
