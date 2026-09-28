@@ -445,11 +445,7 @@ const ScopedActivityProofDialog = ({
             </p>
           </div>
           {locked ? (
-            <p
-              className="text-sm font-medium text-foreground"
-              ref={lockedNoticeRef}
-              tabIndex={-1}
-            >
+            <p className="text-sm font-medium text-foreground" ref={lockedNoticeRef} tabIndex={-1}>
               Files are locked while this submission is in progress. Retry failed files to finish.
             </p>
           ) : null}

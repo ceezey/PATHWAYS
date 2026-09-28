@@ -39,8 +39,8 @@ vi.mock('@/lib/services/pathways-client', async (importOriginal) => ({
   pathwaysClient: api,
 }))
 
-import { toast } from 'sonner'
 import { PathwaysClientError } from '@/lib/services/pathways-client'
+import { toast } from 'sonner'
 import { ActivityProofDialog } from './activity-proof-dialog'
 
 const activity = { id: 'activity-a', projectId: 'project-a', progress: 40 } as Activity
@@ -383,7 +383,9 @@ describe('ActivityProofDialog direct upload', () => {
         : undefined,
     )
     api.finalizeActivityProofFile.mockImplementation(async (_p, _a, _u, evidenceId: string) =>
-      evidenceId === 'evidence-2' ? { status: 'UPLOADING', updateId: 'update-1', remaining: 1 } : undefined,
+      evidenceId === 'evidence-2'
+        ? { status: 'UPLOADING', updateId: 'update-1', remaining: 1 }
+        : undefined,
     )
     renderDialog()
     await waitFor(() => expect(api.getActivityProofUploadLimits).toHaveBeenCalledOnce())
