@@ -27,4 +27,6 @@ export interface AuthenticatedRequest {
   headers: Record<string, string | string[] | undefined>
   auth?: VerifiedAuthIdentity
   user?: ApplicationIdentity
+  /** Verified Supabase session claim; set by the guard with `user`, never from client input. */
+  authSessionId?: string
 }

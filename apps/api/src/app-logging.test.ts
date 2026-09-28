@@ -24,6 +24,9 @@ const canaries = {
   body: 'stage3-request-body-canary',
   query: 'stage3-query-canary',
   callerRequestId: 'stage3-caller-request-id-canary',
+  pin: '739251',
+  currentPin: '862047',
+  newPin: '5190386',
 }
 
 type RequestLogger = {
@@ -58,6 +61,11 @@ class LoggingTestController {
         userId: canaries.userId,
         authUserId: canaries.authUserId,
         authSubject: canaries.authSubject,
+        // Step-up PIN fields are redacted wherever they appear (cr-pathways-beneficiary-step-up-pin).
+        pin: canaries.pin,
+        currentPin: canaries.currentPin,
+        newPin: canaries.newPin,
+        stepUp: { pin: canaries.pin, currentPin: canaries.currentPin, newPin: canaries.newPin },
         context: {
           organizationId: canaries.organizationId,
           workspaceId: canaries.workspaceId,
@@ -92,7 +100,12 @@ let app: INestApplication
 let port: number
 
 function postWithSensitiveRequestData(route = 'logging-test') {
-  const body = JSON.stringify({ secret: canaries.body, workspaceId: canaries.workspaceId })
+  const body = JSON.stringify({
+    secret: canaries.body,
+    workspaceId: canaries.workspaceId,
+    pin: canaries.pin,
+    newPin: canaries.newPin,
+  })
 
   return new Promise<{
     status: number
