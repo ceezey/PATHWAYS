@@ -70,7 +70,9 @@ vi.mock('@/components/ui/select', async () => {
   type PartProps = {
     children?: React.ReactNode
     'aria-label'?: string
+    disabled?: boolean
     placeholder?: string
+    title?: string
     value?: string
   }
   type SelectProps = {
@@ -81,7 +83,11 @@ vi.mock('@/components/ui/select', async () => {
   }
   const SelectTrigger = (_props: PartProps) => null
   const SelectContent = ({ children }: PartProps) => <>{children}</>
-  const SelectItem = ({ children, value }: PartProps) => <option value={value}>{children}</option>
+  const SelectItem = ({ children, disabled, title, value }: PartProps) => (
+    <option disabled={disabled} title={title} value={value}>
+      {children}
+    </option>
+  )
   const SelectValue = (_props: PartProps) => null
   const Select = ({ children, disabled, value, onValueChange }: SelectProps) => {
     const parts = React.Children.toArray(children)
@@ -531,5 +537,25 @@ describe('Analytics dashboard request dependencies', () => {
     await waitFor(() => expect(api.getDescriptiveAnalytics).toHaveBeenCalled())
     expect(screen.queryByRole('button', { name: 'Export aggregates (CSV)' })).toBeNull()
     expect(download).not.toHaveBeenCalled()
+  })
+
+  it('keeps Add to Dashboard disabled with a Not available yet hint and disables unbuilt analysis views', async () => {
+    render(<AnalyticsDashboard />)
+    await waitFor(() => expect(api.getMonitoringDashboard).toHaveBeenCalled())
+
+    const addToDashboard = screen.getByRole('button', { name: 'Add to Dashboard' })
+    expect(addToDashboard.hasAttribute('disabled')).toBe(true)
+    const describedBy = addToDashboard.getAttribute('aria-describedby')
+    expect(describedBy).toBeTruthy()
+    expect(document.getElementById(describedBy as string)?.textContent).toBe('Not available yet')
+
+    const surveyOption = screen.getByText('Survey improvement', {
+      selector: 'option',
+    }) as HTMLOptionElement
+    const timelineOption = screen.getByText('Project / activity timeline adherence', {
+      selector: 'option',
+    }) as HTMLOptionElement
+    expect(surveyOption.disabled).toBe(true)
+    expect(timelineOption.disabled).toBe(true)
   })
 })

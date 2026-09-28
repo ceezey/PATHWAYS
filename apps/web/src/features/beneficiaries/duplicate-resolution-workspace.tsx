@@ -5,7 +5,13 @@ import Link from 'next/link'
 import { useMemo, useState } from 'react'
 
 import { PageHeader } from '@/components/layout/page-header'
-import { EmptyState, SectionCard, StatusBadge } from '@/components/pathways'
+import {
+  EmptyState,
+  SectionCard,
+  StatusBadge,
+  UnavailableHint,
+  unavailableControlProps,
+} from '@/components/pathways'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -160,16 +166,22 @@ export const DuplicateResolutionWorkspace = () => {
                 <Button
                   type="button"
                   variant="outline"
-                  disabled
                   onClick={() => setDecision('distinct')}
+                  {...unavailableControlProps('duplicate-keep-distinct-hint')}
                 >
                   <SearchCheck className="mr-2 h-4 w-4" aria-hidden="true" />
                   Keep as distinct people
                 </Button>
-                <Button type="button" disabled onClick={() => setDecision('link')}>
+                <UnavailableHint id="duplicate-keep-distinct-hint" />
+                <Button
+                  type="button"
+                  onClick={() => setDecision('link')}
+                  {...unavailableControlProps('duplicate-merge-linked-hint')}
+                >
                   <Link2 className="mr-2 h-4 w-4" aria-hidden="true" />
                   Merge linked profiles
                 </Button>
+                <UnavailableHint id="duplicate-merge-linked-hint" />
               </div>
             </div>
           ) : null}

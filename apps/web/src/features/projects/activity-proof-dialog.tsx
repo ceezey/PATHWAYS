@@ -254,19 +254,10 @@ const ScopedActivityProofDialog = ({
           }}
         >
           <div className="space-y-2">
-            <Label htmlFor="activity-beneficiaries-reached">
-              Beneficiaries reached this session
-              <span aria-hidden="true" className="ml-1 text-danger">
-                *
-              </span>
-              <span className="sr-only"> (required)</span>
-            </Label>
+            <Label htmlFor="activity-beneficiaries-reached">Beneficiaries reached this session</Label>
             <Input
-              aria-describedby={
-                beneficiariesError ? 'activity-beneficiaries-reached-error' : undefined
-              }
+              aria-describedby="activity-beneficiaries-reached-hint"
               aria-invalid={beneficiariesError}
-              aria-required="false"
               disabled
               id="activity-beneficiaries-reached"
               min={0}
@@ -274,11 +265,12 @@ const ScopedActivityProofDialog = ({
                 setBeneficiariesReachedThisSession(Number(event.target.value))
                 if (beneficiariesError) setError('')
               }}
+              title="Not available yet"
               type="number"
               step={1}
               value={beneficiariesReachedThisSession}
             />
-            <p className="text-sm text-muted-foreground">
+            <p className="text-sm text-muted-foreground" id="activity-beneficiaries-reached-hint">
               Session beneficiary counts are unavailable until backend support is added. The
               submitted proof retains the current {activity?.progress ?? 0}% progress for M&E
               review.

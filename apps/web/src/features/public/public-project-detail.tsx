@@ -23,6 +23,7 @@ import { useEffect, useState } from 'react'
 import { ConfirmationDialog } from '@/components/pathways/confirmation-dialog'
 import { ProgressBar } from '@/components/pathways/progress-bar'
 import { StatusBadge } from '@/components/pathways/status-badge'
+import { UnavailableHint, unavailableControlProps } from '@/components/pathways/unavailable-hint'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import {
@@ -107,7 +108,7 @@ export const PublicProjectDetail = ({
   const [donationOpen, setDonationOpen] = useState(false)
   const [editorError, setEditorError] = useState('')
   const [draftRecovered, setDraftRecovered] = useState(false)
-  const [hydrated, setHydrated] = useState(!editable)
+  const [, setHydrated] = useState(!editable)
   const draftStorageKey = `pathways.publicDashboardDraft.${project.id}`
 
   useEffect(() => {
@@ -311,14 +312,15 @@ export const PublicProjectDetail = ({
               </Button>
               <Button
                 className="gap-2"
-                disabled={!hydrated}
                 onClick={openEditor}
                 size="sm"
                 type="button"
+                {...unavailableControlProps('public-project-edit-staff-preview-hint')}
               >
                 <SlidersHorizontal className="h-4 w-4" aria-hidden="true" />
                 Edit staff preview
               </Button>
+              <UnavailableHint id="public-project-edit-staff-preview-hint" />
             </div>
           </div>
         </section>

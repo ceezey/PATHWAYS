@@ -14,3 +14,8 @@ export { SectionCard } from './section-card'
 export { SidePanel } from './side-panel'
 export { StatusBadge } from './status-badge'
 export { StatusMessage } from './status-message'
+export {
+  UNAVAILABLE_HINT_MESSAGE,
+  UnavailableHint,
+  unavailableControlProps,
+} from './unavailable-hint'
