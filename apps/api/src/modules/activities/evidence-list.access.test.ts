@@ -72,13 +72,16 @@ const detailRow = {
 const aggregateRow = {
   id: activityId,
   title: 'Synthetic activity',
-  activityUpdate_activity: [
-    { evidenceMedia_update: [{ status: 'PENDING' }, { status: 'APPROVED' }] },
-    { evidenceMedia_update: [{ status: 'REJECTED' }, { status: 'VERIFIED' }] },
-  ],
 }
 
-const tx = { project: { findFirst: vi.fn() } }
+const groups = (pending: number, approved: number, rejected: number, verified: number) => [
+  { activityId, status: 'PENDING', _count: { _all: pending } },
+  { activityId, status: 'APPROVED', _count: { _all: approved } },
+  { activityId, status: 'REJECTED', _count: { _all: rejected } },
+  { activityId, status: 'VERIFIED', _count: { _all: verified } },
+]
+
+const tx = { project: { findFirst: vi.fn() }, evidenceMedia: { groupBy: vi.fn() } }
 const service = new ActivitiesService({} as PrismaService, {} as StorageService)
 
 function collectKeys(value: unknown, keys = new Set<string>()) {
@@ -138,6 +141,7 @@ describe('A-01 evidence list under evidence.read', () => {
     async (role) => {
       state.actor = identity(role, ['evidence.read'])
       tx.project.findFirst.mockResolvedValue({ projectActivity_project: [aggregateRow] })
+      tx.evidenceMedia.groupBy.mockResolvedValue(groups(1, 1, 1, 1))
       await expect(service.listEvidence(state.actor, projectId)).resolves.toEqual({
         scope: 'aggregate',
         activities: [
@@ -154,12 +158,63 @@ describe('A-01 evidence list under evidence.read', () => {
     },
   )
 
+  it('aggregates with one scoped count query', async () => {
+    state.actor = identity('PROGRAM_MANAGER', ['evidence.read'])
+    tx.project.findFirst.mockResolvedValue({ projectActivity_project: [aggregateRow] })
+    tx.evidenceMedia.groupBy.mockResolvedValue(groups(1, 1, 1, 1))
+    await service.listEvidence(state.actor, projectId)
+    expect(tx.evidenceMedia.groupBy).toHaveBeenCalledWith({
+      by: ['activityId', 'status'],
+      where: {
+        organizationId,
+        projectId,
+        activityId: { in: [activityId] },
+        activityUpdateId: { not: null },
+        storageReady: true,
+      },
+      _count: { _all: true },
+    })
+  })
+
+  it('reports exact counts above the former 10-per-update and 100-update caps', async () => {
+    state.actor = identity('PROGRAM_MANAGER', ['evidence.read'])
+    tx.project.findFirst.mockResolvedValue({ projectActivity_project: [aggregateRow] })
+    tx.evidenceMedia.groupBy.mockResolvedValue(groups(640, 900, 25, 100))
+    const result = await service.listEvidence(state.actor, projectId)
+    expect(result).toEqual({
+      scope: 'aggregate',
+      activities: [
+        {
+          activityId,
+          activityTitle: 'Synthetic activity',
+          total: 1665,
+          submitted: 640,
+          approved: 1000,
+          returned: 25,
+        },
+      ],
+    })
+    const select = tx.project.findFirst.mock.calls[0][0].select.projectActivity_project.select
+    expect(select).toEqual({ id: true, title: true })
+  })
+
+  it('skips the count query when the project has no activities', async () => {
+    state.actor = identity('GRANT_MANAGER', ['evidence.read'])
+    tx.project.findFirst.mockResolvedValue({ projectActivity_project: [] })
+    await expect(service.listEvidence(state.actor, projectId)).resolves.toEqual({
+      scope: 'aggregate',
+      activities: [],
+    })
+    expect(tx.evidenceMedia.groupBy).not.toHaveBeenCalled()
+  })
+
   it('denies an actor without evidence.read before any query', async () => {
     state.actor = identity('PROJECT_OFFICER', ['activities.read'])
     await expect(service.listEvidence(state.actor, projectId)).rejects.toBeInstanceOf(
       ForbiddenException,
     )
     expect(tx.project.findFirst).not.toHaveBeenCalled()
+    expect(tx.evidenceMedia.groupBy).not.toHaveBeenCalled()
   })
 
   it('returns not found for a cross-organization or unassigned project', async () => {
@@ -168,6 +223,7 @@ describe('A-01 evidence list under evidence.read', () => {
     await expect(service.listEvidence(state.actor, otherProjectId)).rejects.toBeInstanceOf(
       NotFoundException,
     )
+    expect(tx.evidenceMedia.groupBy).not.toHaveBeenCalled()
     const request = tx.project.findFirst.mock.calls[0][0]
     expect(request.where.AND[0].organizationId).toBe(organizationId)
     await expect(service.listEvidence(state.actor, 'not-a-uuid')).rejects.toBeInstanceOf(
