@@ -36,12 +36,11 @@ export const projectHealthTone = (health: HealthStatus) => {
 export const formatNumber = (value: number) => new Intl.NumberFormat('en-US').format(value)
 
 /**
- * Overview tile copy. A visible value (including a real zero) is shown as is; a source
- * without data yet reads "None yet"; suppression and failures are never shown as zero.
+ * Maps an unavailable metric cell's state/reason to shared display copy. A visible
+ * value (including a real zero) is handled by the caller; this only covers the
+ * suppressed/missing/not-applicable copy so Analytics and Overview cannot diverge.
  */
-export const overviewMetricLabel = (cell: MetricCell, kind: 'percent' | 'count') => {
-  if (cell.value !== null)
-    return kind === 'percent' ? `${cell.value}%` : formatNumber(Number(cell.value))
+export const metricUnavailableLabel = (cell: MetricCell) => {
   if (cell.state === 'SUPPRESSED') return 'Suppressed (fewer than 5)'
   if (cell.state === 'NOT_APPLICABLE') return 'Not applicable'
   switch (cell.reason) {
@@ -62,4 +61,14 @@ export const overviewMetricLabel = (cell: MetricCell, kind: 'percent' | 'count')
     default:
       return 'Unavailable'
   }
+}
+
+/**
+ * Overview tile copy. A visible value (including a real zero) is shown as is; a source
+ * without data yet reads "None yet"; suppression and failures are never shown as zero.
+ */
+export const overviewMetricLabel = (cell: MetricCell, kind: 'percent' | 'count') => {
+  if (cell.value !== null)
+    return kind === 'percent' ? `${cell.value}%` : formatNumber(Number(cell.value))
+  return metricUnavailableLabel(cell)
 }
