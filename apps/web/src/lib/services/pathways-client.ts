@@ -38,6 +38,7 @@ import type {
   DirectFormSubmissionPage,
   EnrollmentJourneyEventInput,
   EvaluationRecord,
+  EvidenceList,
   EvidenceRecord,
   ExpenseRecord,
   FormValidationError,
@@ -98,6 +99,60 @@ import {
   announceStepUpRequired,
 } from '@/lib/auth/beneficiary-step-up-events'
 import { parseRegistrationContext } from './registration-context'
+
+const evidenceStatuses = new Set(['Submitted', 'Validated', 'Flagged', 'Approved', 'Returned'])
+
+function evidenceText(value: unknown) {
+  if (typeof value !== 'string') throw new Error('invalid_evidence_response')
+  return value
+}
+
+function evidenceCount(value: unknown) {
+  if (typeof value !== 'number' || !Number.isInteger(value) || value < 0)
+    throw new Error('invalid_evidence_response')
+  return value
+}
+
+/** Copies only the fields each scope permits, so unexpected detail is never rendered. */
+export function parseEvidenceList(value: unknown): EvidenceList {
+  const body = value as { scope?: unknown; records?: unknown; activities?: unknown } | null
+  if (body?.scope === 'aggregate' && Array.isArray(body.activities)) {
+    return {
+      scope: 'aggregate',
+      activities: body.activities.map((row: Record<string, unknown>) => ({
+        activityId: evidenceText(row.activityId),
+        activityTitle: evidenceText(row.activityTitle),
+        total: evidenceCount(row.total),
+        submitted: evidenceCount(row.submitted),
+        approved: evidenceCount(row.approved),
+        returned: evidenceCount(row.returned),
+      })),
+    }
+  }
+  if (body?.scope === 'detail' && Array.isArray(body.records)) {
+    return {
+      scope: 'detail',
+      records: body.records.map((row: Record<string, unknown>) => {
+        const status = evidenceText(row.status)
+        if (!evidenceStatuses.has(status)) throw new Error('invalid_evidence_response')
+        return {
+          id: evidenceText(row.id),
+          projectId: evidenceText(row.projectId),
+          activityId: evidenceText(row.activityId),
+          updateId: evidenceText(row.updateId),
+          updateUpdatedAt: evidenceText(row.updateUpdatedAt),
+          fileName: evidenceText(row.fileName),
+          reportTitle: evidenceText(row.reportTitle),
+          status: status as EvidenceRecord['status'],
+          submitter: evidenceText(row.submitter),
+          submittedDate: evidenceText(row.submittedDate),
+          previewSummary: evidenceText(row.previewSummary),
+        }
+      }),
+    }
+  }
+  throw new Error('invalid_evidence_response')
+}
 
 export class PathwaysClientError extends Error {
   constructor(
@@ -176,7 +231,7 @@ export interface PathwaysClient {
     milestoneId: string,
     input: UpdateMilestoneInput,
   ): Promise<ProjectMilestone>
-  getEvidence(projectId: string): Promise<EvidenceRecord[]>
+  getEvidence(projectId: string): Promise<EvidenceList>
   getProjectIndicators(projectId: string, signal?: AbortSignal): Promise<ProjectIndicator[]>
   getProjectIndicator(projectId: string, indicatorId: string): Promise<ProjectIndicator>
   createProjectIndicator(
@@ -645,27 +700,9 @@ class BackendReadyPathwaysClient implements PathwaysClient {
     )
   }
 
-  async getEvidence(projectId: string): Promise<EvidenceRecord[]> {
-    const activities = await this.getActivities(projectId)
-    return activities.flatMap((activity) =>
-      activity.submittedProof.map((proof) => ({
-        id: proof.id,
-        projectId: activity.projectId,
-        activityId: activity.id,
-        updateId: proof.updateId,
-        updateUpdatedAt: proof.updateUpdatedAt,
-        fileName: proof.fileName,
-        reportTitle: activity.title,
-        status:
-          proof.status === 'Accepted'
-            ? 'Approved'
-            : proof.status === 'Flagged'
-              ? 'Returned'
-              : 'Submitted',
-        submitter: proof.submittedBy,
-        submittedDate: proof.submittedAt,
-        previewSummary: proof.note ?? 'Activity evidence submission',
-      })),
+  async getEvidence(projectId: string): Promise<EvidenceList> {
+    return parseEvidenceList(
+      await requestFoundation(`/projects/${encodeURIComponent(projectId)}/evidence`),
     )
   }
 

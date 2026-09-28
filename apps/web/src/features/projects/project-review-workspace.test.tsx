@@ -117,7 +117,7 @@ describe('shared project workspace optional loading', () => {
     'does not block existing authorized evidence content for metric availability %s',
     async (metricsAvailable) => {
       api.getProject.mockResolvedValue({ id: projectId, title: 'Project Alpha', metricsAvailable })
-      api.getEvidence.mockResolvedValue([])
+      api.getEvidence.mockResolvedValue({ scope: 'detail', records: [] })
       render(<ProjectPhaseFiveWorkspace projectId={projectId} view="evidence" />)
       expect(await screen.findByRole('heading', { name: 'Evidence' })).toBeTruthy()
       expect(
@@ -134,7 +134,7 @@ describe('shared project workspace optional loading', () => {
       title: 'Project Alpha',
       metricsAvailable: false,
     })
-    api.getEvidence.mockResolvedValue([])
+    api.getEvidence.mockResolvedValue({ scope: 'detail', records: [] })
     render(<ProjectPhaseFiveWorkspace projectId={projectId} view="evidence" />)
     expect(await screen.findByRole('heading', { name: 'Evidence' })).toBeTruthy()
     expect(coreApi.reports).not.toHaveBeenCalled()
@@ -186,7 +186,7 @@ describe('shared project workspace optional loading', () => {
   ]
   it('routes the eligible assigned reviewer to the real activity proof workflow instead of dead status controls', async () => {
     access.profile.permissions = reviewerPermissions
-    api.getEvidence.mockResolvedValue([proof])
+    api.getEvidence.mockResolvedValue({ scope: 'detail', records: [proof] })
     render(<ProjectPhaseFiveWorkspace projectId={projectId} view="evidence" />)
     const link = await screen.findByRole('link', { name: 'Review proof' })
     expect(link.getAttribute('href')).toBe(
@@ -202,7 +202,7 @@ describe('shared project workspace optional loading', () => {
       access.role = role
       access.profile.roles = [role === 'Project Officer' ? 'PROJECT_OFFICER' : 'PROJECT_MANAGER']
       access.profile.permissions = reviewerPermissions
-      api.getEvidence.mockResolvedValue([proof])
+      api.getEvidence.mockResolvedValue({ scope: 'detail', records: [proof] })
       render(<ProjectPhaseFiveWorkspace projectId={projectId} view="evidence" />)
       expect(await screen.findByRole('button', { name: 'Preview' })).toBeTruthy()
       expect(screen.queryByRole('link', { name: 'Review proof' })).toBeNull()
@@ -211,22 +211,49 @@ describe('shared project workspace optional loading', () => {
   )
   it('does not advertise a review workflow after current evidence.review revocation', async () => {
     access.profile.permissions = reviewerPermissions.filter((value) => value !== 'evidence.review')
-    api.getEvidence.mockResolvedValue([proof])
+    api.getEvidence.mockResolvedValue({ scope: 'detail', records: [proof] })
     render(<ProjectPhaseFiveWorkspace projectId={projectId} view="evidence" />)
     expect(await screen.findByRole('button', { name: 'Preview' })).toBeTruthy()
     expect(screen.queryByRole('link', { name: 'Review proof' })).toBeNull()
   })
-  it('does not fetch evidence without activities.read, which the evidence list is read from', async () => {
+  it('fetches evidence with evidence.read alone', async () => {
     access.profile.permissions = reviewerPermissions.filter((value) => value !== 'activities.read')
-    api.getEvidence.mockResolvedValue([proof])
+    api.getEvidence.mockResolvedValue({ scope: 'detail', records: [proof] })
     render(<ProjectPhaseFiveWorkspace projectId={projectId} view="evidence" />)
-    expect(await screen.findByRole('heading', { name: 'Evidence' })).toBeTruthy()
-    expect(api.getEvidence).not.toHaveBeenCalled()
+    expect(await screen.findByRole('button', { name: 'Preview' })).toBeTruthy()
+    expect(api.getEvidence).toHaveBeenCalledWith(projectId)
+  })
+  it.each([
+    ['Program Manager', 'PROGRAM_MANAGER'],
+    ['Grant Manager', 'GRANT_MANAGER'],
+  ])('renders only aggregate evidence counts for %s', async (role, code) => {
+    access.role = role
+    access.profile.roles = [code]
+    access.profile.permissions = ['projects.read', 'evidence.read']
+    api.getEvidence.mockResolvedValue({
+      scope: 'aggregate',
+      activities: [
+        {
+          activityId,
+          activityTitle: 'Synthetic activity',
+          total: 3,
+          submitted: 1,
+          approved: 1,
+          returned: 1,
+        },
+      ],
+    })
+    render(<ProjectPhaseFiveWorkspace projectId={projectId} view="evidence" />)
+    expect(await screen.findByText('Activity evidence summary')).toBeTruthy()
+    expect(screen.getByRole('rowheader', { name: 'Synthetic activity' })).toBeTruthy()
+    expect(screen.queryByText('Activity evidence list')).toBeNull()
     expect(screen.queryByRole('button', { name: 'Preview' })).toBeNull()
+    expect(screen.queryByRole('link', { name: 'Review proof' })).toBeNull()
+    expect(screen.queryByText('Submitter')).toBeNull()
   })
   it('does not fetch or preview evidence after current evidence.read revocation', async () => {
     access.profile.permissions = reviewerPermissions.filter((value) => value !== 'evidence.read')
-    api.getEvidence.mockResolvedValue([proof])
+    api.getEvidence.mockResolvedValue({ scope: 'detail', records: [proof] })
     render(<ProjectPhaseFiveWorkspace projectId={projectId} view="evidence" />)
     expect(await screen.findByRole('heading', { name: 'Evidence' })).toBeTruthy()
     expect(api.getEvidence).not.toHaveBeenCalled()
@@ -238,15 +265,18 @@ describe('shared project workspace optional loading', () => {
     async (condition) => {
       access.profile.permissions = reviewerPermissions
       if (condition === 'unassigned') access.profile.assignedProjectIds = []
-      api.getEvidence.mockResolvedValue([
-        {
-          ...proof,
-          ...(condition === 'foreign-record'
-            ? { projectId: '72000000-0000-4000-8000-000000000099' }
-            : {}),
-          ...(condition === 'already-reviewed' ? { status: 'Approved' } : {}),
-        },
-      ])
+      api.getEvidence.mockResolvedValue({
+        scope: 'detail',
+        records: [
+          {
+            ...proof,
+            ...(condition === 'foreign-record'
+              ? { projectId: '72000000-0000-4000-8000-000000000099' }
+              : {}),
+            ...(condition === 'already-reviewed' ? { status: 'Approved' } : {}),
+          },
+        ],
+      })
       render(<ProjectPhaseFiveWorkspace projectId={projectId} view="evidence" />)
       expect(await screen.findByRole('button', { name: 'Preview' })).toBeTruthy()
       expect(screen.queryByRole('link', { name: 'Review proof' })).toBeNull()

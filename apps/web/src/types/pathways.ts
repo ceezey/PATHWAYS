@@ -458,6 +458,20 @@ export interface EvidenceRecord {
   previewSummary: string
 }
 
+/** Aggregate-only roles receive per-activity counts, never file or submitter detail. */
+export interface EvidenceActivitySummary {
+  activityId: string
+  activityTitle: string
+  total: number
+  submitted: number
+  approved: number
+  returned: number
+}
+
+export type EvidenceList =
+  | { scope: 'detail'; records: EvidenceRecord[] }
+  | { scope: 'aggregate'; activities: EvidenceActivitySummary[] }
+
 export type IndicatorStatus = SharedProjectIndicator['status']
 export type ProjectIndicator = SharedProjectIndicator
 

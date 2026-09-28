@@ -24,7 +24,14 @@ import { useDisplayLabels } from '@/hooks/use-display-labels'
 import { canAccessProjectForRole } from '@/lib/rbac/data-scope'
 import { principalHasAtomicPermission } from '@/lib/rbac/route-access'
 import { pathwaysClient } from '@/lib/services/pathways-client'
-import type { Activity, EvidenceRecord, ProjectDetail, ProjectIndicator } from '@/types/pathways'
+import type {
+  Activity,
+  EvidenceActivitySummary,
+  EvidenceList,
+  EvidenceRecord,
+  ProjectDetail,
+  ProjectIndicator,
+} from '@/types/pathways'
 
 import { formatDate } from './activity-utils'
 import { addIndicatorSchema } from './project-review-utils'
@@ -136,6 +143,7 @@ const LegacyProjectWorkspace = ({
   const [project, setProject] = useState<ProjectDetail | null>(null)
   const [activities, setActivities] = useState<Activity[]>([])
   const [evidence, setEvidence] = useState<EvidenceRecord[]>([])
+  const [evidenceSummary, setEvidenceSummary] = useState<EvidenceActivitySummary[] | null>(null)
   const [indicators, setIndicators] = useState<ProjectIndicator[]>([])
   const [reports, setReports] = useState<ScopedReport[]>([])
   const [loading, setLoading] = useState(true)
@@ -152,6 +160,7 @@ const LegacyProjectWorkspace = ({
     setUnavailableSections([])
     setActivities([])
     setEvidence([])
+    setEvidenceSummary(null)
     setIndicators([])
     setReports([])
 
@@ -183,10 +192,11 @@ const LegacyProjectWorkspace = ({
         setProject(projectRecord)
         const requests: Promise<void>[] = []
         if (view === 'evidence') {
-          // Evidence is assembled from the activity list, so both reads are required.
-          if (canReadEvidence && canReadActivities) {
+          if (canReadEvidence) {
             requests.push(
-              optional('Evidence records', pathwaysClient.getEvidence(projectId), setEvidence),
+              optional('Evidence records', pathwaysClient.getEvidence(projectId), (list) =>
+                applyEvidence(list, setEvidence, setEvidenceSummary),
+              ),
             )
           } else {
             unavailable.push('Evidence records are not available for this role')
@@ -327,6 +337,7 @@ const LegacyProjectWorkspace = ({
           projectId={projectId}
           canReviewEvidence={canReviewEvidence}
           evidence={evidence}
+          evidenceSummary={evidenceSummary}
           reports={reports}
           onPreview={setPreviewEvidence}
         />
@@ -449,84 +460,156 @@ const LabeledInput = ({
   </div>
 )
 
+function applyEvidence(
+  list: EvidenceList,
+  setRecords: (records: EvidenceRecord[]) => void,
+  setSummary: (activities: EvidenceActivitySummary[] | null) => void,
+) {
+  if (list.scope === 'aggregate') {
+    setRecords([])
+    setSummary(list.activities)
+  } else {
+    setSummary(null)
+    setRecords(list.records)
+  }
+}
+
+const EvidenceSummaryCard = ({ activities }: { activities: EvidenceActivitySummary[] }) => (
+  <SectionCard
+    title="Activity evidence summary"
+    description="Evidence counts by activity. Submission detail stays with assigned project roles."
+  >
+    {activities.length > 0 ? (
+      <div className="overflow-x-auto">
+        <table className="w-full text-left text-sm">
+          <thead className="text-muted-foreground">
+            <tr>
+              <th className="py-2 pr-3 font-medium" scope="col">
+                Activity
+              </th>
+              <th className="py-2 pr-3 text-right font-medium" scope="col">
+                Total
+              </th>
+              <th className="py-2 pr-3 text-right font-medium" scope="col">
+                Submitted
+              </th>
+              <th className="py-2 pr-3 text-right font-medium" scope="col">
+                Approved
+              </th>
+              <th className="py-2 text-right font-medium" scope="col">
+                Returned
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            {activities.map((row) => (
+              <tr key={row.activityId} className="border-t border-border">
+                <th className="break-words py-2 pr-3 font-medium text-foreground" scope="row">
+                  {row.activityTitle}
+                </th>
+                <td className="py-2 pr-3 text-right tabular-nums">{row.total}</td>
+                <td className="py-2 pr-3 text-right tabular-nums">{row.submitted}</td>
+                <td className="py-2 pr-3 text-right tabular-nums">{row.approved}</td>
+                <td className="py-2 text-right tabular-nums">{row.returned}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    ) : (
+      <p className="rounded-lg border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
+        No evidence records are available for this project.
+      </p>
+    )}
+  </SectionCard>
+)
+
 const EvidenceView = ({
   projectId,
   canReviewEvidence,
   evidence,
+  evidenceSummary,
   reports,
   onPreview,
 }: {
   projectId: string
   canReviewEvidence: boolean
   evidence: EvidenceRecord[]
+  evidenceSummary: EvidenceActivitySummary[] | null
   reports: ScopedReport[]
   onPreview: (record: EvidenceRecord) => void
 }) => (
   <section className="grid gap-4 xl:grid-cols-[1.4fr_0.6fr]">
-    <SectionCard
-      title="Activity evidence list"
-      description="Review submitted proof. Status changes require backend persistence."
-    >
-      <div className="space-y-3">
-        {evidence.length > 0 ? (
-          evidence.map((record) => (
-            <div key={record.id} className="rounded-lg border border-border bg-background p-4">
-              <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
-                <div className="min-w-0">
-                  <p className="break-words font-medium text-foreground">{record.reportTitle}</p>
-                  <p className="mt-1 break-all text-sm text-muted-foreground">{record.fileName}</p>
+    {evidenceSummary ? (
+      <EvidenceSummaryCard activities={evidenceSummary} />
+    ) : (
+      <SectionCard
+        title="Activity evidence list"
+        description="Review submitted proof. Status changes require backend persistence."
+      >
+        <div className="space-y-3">
+          {evidence.length > 0 ? (
+            evidence.map((record) => (
+              <div key={record.id} className="rounded-lg border border-border bg-background p-4">
+                <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                  <div className="min-w-0">
+                    <p className="break-words font-medium text-foreground">{record.reportTitle}</p>
+                    <p className="mt-1 break-all text-sm text-muted-foreground">
+                      {record.fileName}
+                    </p>
+                  </div>
+                  <StatusBadge tone={statusTone(record.status)}>{record.status}</StatusBadge>
                 </div>
-                <StatusBadge tone={statusTone(record.status)}>{record.status}</StatusBadge>
-              </div>
-              <dl className="mt-4 grid gap-3 text-sm sm:grid-cols-3">
-                <div>
-                  <dt className="text-muted-foreground">Submitter</dt>
-                  <dd className="mt-1 font-medium text-foreground">{record.submitter}</dd>
-                </div>
-                <div>
-                  <dt className="text-muted-foreground">Submitted date</dt>
-                  <dd className="mt-1 font-medium text-foreground">
-                    {formatDate(record.submittedDate)}
-                  </dd>
-                </div>
-                <div>
-                  <dt className="text-muted-foreground">Proof review</dt>
-                  <dd className="mt-1 font-medium text-foreground">{record.previewSummary}</dd>
-                </div>
-              </dl>
-              <div className="mt-4 flex flex-wrap justify-end gap-2">
-                <Button
-                  className="gap-2"
-                  onClick={() => onPreview(record)}
-                  size="sm"
-                  type="button"
-                  variant="outline"
-                >
-                  <Eye className="h-4 w-4" aria-hidden="true" />
-                  Preview
-                </Button>
-                {canReviewEvidence &&
-                record.projectId === projectId &&
-                record.status === 'Submitted' ? (
-                  <Button asChild size="sm" variant="outline">
-                    <Link
-                      prefetch={false}
-                      href={`/projects/${encodeURIComponent(projectId)}/activities/${encodeURIComponent(record.activityId)}?review=${encodeURIComponent(record.id)}`}
-                    >
-                      Review proof
-                    </Link>
+                <dl className="mt-4 grid gap-3 text-sm sm:grid-cols-3">
+                  <div>
+                    <dt className="text-muted-foreground">Submitter</dt>
+                    <dd className="mt-1 font-medium text-foreground">{record.submitter}</dd>
+                  </div>
+                  <div>
+                    <dt className="text-muted-foreground">Submitted date</dt>
+                    <dd className="mt-1 font-medium text-foreground">
+                      {formatDate(record.submittedDate)}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt className="text-muted-foreground">Proof review</dt>
+                    <dd className="mt-1 font-medium text-foreground">{record.previewSummary}</dd>
+                  </div>
+                </dl>
+                <div className="mt-4 flex flex-wrap justify-end gap-2">
+                  <Button
+                    className="gap-2"
+                    onClick={() => onPreview(record)}
+                    size="sm"
+                    type="button"
+                    variant="outline"
+                  >
+                    <Eye className="h-4 w-4" aria-hidden="true" />
+                    Preview
                   </Button>
-                ) : null}
+                  {canReviewEvidence &&
+                  record.projectId === projectId &&
+                  record.status === 'Submitted' ? (
+                    <Button asChild size="sm" variant="outline">
+                      <Link
+                        prefetch={false}
+                        href={`/projects/${encodeURIComponent(projectId)}/activities/${encodeURIComponent(record.activityId)}?review=${encodeURIComponent(record.id)}`}
+                      >
+                        Review proof
+                      </Link>
+                    </Button>
+                  ) : null}
+                </div>
               </div>
-            </div>
-          ))
-        ) : (
-          <p className="rounded-lg border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
-            No evidence records are available for this project.
-          </p>
-        )}
-      </div>
-    </SectionCard>
+            ))
+          ) : (
+            <p className="rounded-lg border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
+              No evidence records are available for this project.
+            </p>
+          )}
+        </div>
+      </SectionCard>
+    )}
     <SectionCard title="Report records">
       <div className="space-y-3">
         {reports.length > 0 ? (
