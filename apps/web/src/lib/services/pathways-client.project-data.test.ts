@@ -70,11 +70,23 @@ describe('project data loading client contract', () => {
       expect(item).not.toHaveProperty(key)
   })
 
-  it('rejects a malformed list item', async () => {
-    setup([{ ...listItem, assignedTo: undefined }])
+  it.each([
+    { assignedTo: undefined },
+    { code: 7 },
+    { status: null },
+    { storedStatus: 3 },
+    { dueDate: null },
+    { description: undefined },
+  ])('rejects a malformed list item %j', async (malformed) => {
+    setup([{ ...listItem, ...malformed }])
     await expect(pathwaysClient.getActivities(projectId)).rejects.toBeInstanceOf(
       PathwaysClientError,
     )
+  })
+
+  it('accepts a list item without a code', async () => {
+    setup([{ ...listItem, code: null }])
+    await expect(pathwaysClient.getActivities(projectId)).resolves.toHaveLength(1)
   })
 
   it('reads one activity by id and forwards cancellation', async () => {

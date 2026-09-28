@@ -54,7 +54,11 @@ describe('"None yet" empty states versus error and permission wording', () => {
     ['features/projects/connected-delivery-workspace.tsx', "indicator.unit || 'None yet'"],
     ['features/projects/connected-delivery-workspace.tsx', "indicator.dataSource || 'None yet'"],
     ['features/reports/reporting-workspace.tsx', "indicator.target ?? 'None yet'"],
-    ['features/analytics/analytics-dashboard.tsx', "averageKpi === null ? 'None yet'"],
+    [
+      'features/analytics/analytics-dashboard.tsx',
+      'const monitoringReadable = canReadIndicators && monitoring !== null && !monitoringError',
+    ],
+    ['features/analytics/analytics-dashboard.tsx', ': monitoringReadable'],
     ['features/analytics/analytics-dashboard.tsx', "row.mean ?? 'None yet'"],
     ['features/projects/activity-detail-panel.tsx', "canReadBudgets ? 'None yet' : 'Unavailable'"],
   ])('uses "None yet" for a genuinely empty value in %s', (file, copy) => {
@@ -76,8 +80,22 @@ describe('"None yet" empty states versus error and permission wording', () => {
       'features/projects/connected-delivery-workspace.tsx',
       "budget ? peso(budget.plannedAmount) : 'Unavailable'",
     ],
+    [
+      'features/projects/connected-delivery-workspace.tsx',
+      "{indicator.disaggregation || 'Unavailable'}",
+    ],
+    ['features/projects/project-utils.ts', '// Unknown reasons are not assumed to be empty.'],
   ])('keeps load-failure, permission and capability wording in %s', (file, copy) => {
     expect(source(file)).toContain(copy)
+  })
+
+  it('never shows "None yet" for indicator data the role cannot read or for unmapped fields', () => {
+    expect(source('features/analytics/analytics-dashboard.tsx')).not.toContain(
+      "averageKpi === null ? 'None yet'",
+    )
+    expect(source('features/projects/connected-delivery-workspace.tsx')).not.toContain(
+      "indicator.disaggregation || 'None yet'",
+    )
   })
 })
 

@@ -409,6 +409,9 @@ export const AnalyticsDashboard = () => {
   const averageKpi = progressValues.length
     ? Math.round(progressValues.reduce((sum, value) => sum + value, 0) / progressValues.length)
     : null
+  // "None yet" only when the role can read the source and the read succeeded empty.
+  const periodsReadable = canReadIndicators && !projectDataLoading && !projectDataError
+  const monitoringReadable = canReadIndicators && monitoring !== null && !monitoringError
   const completedActivities = activities.filter(
     (activity) => activity.status === 'Completed',
   ).length
@@ -617,8 +620,12 @@ export const AnalyticsDashboard = () => {
               </>
             ) : !selectedPeriod ? (
               <UnavailableChart
-                description="No active Indicator reporting period is available for this project."
-                title="None yet"
+                description={
+                  periodsReadable
+                    ? 'No active Indicator reporting period is available for this project.'
+                    : 'Indicator reporting periods are not available for this role.'
+                }
+                title={periodsReadable ? 'None yet' : undefined}
               />
             ) : analysisRows.length === 0 ? (
               <UnavailableChart
@@ -628,7 +635,9 @@ export const AnalyticsDashboard = () => {
                     : 'No released values are available for this selection.'
                 }
                 title={
-                  analysisView === 'survey' || analysisView === 'timeline' ? undefined : 'None yet'
+                  analysisView === 'survey' || analysisView === 'timeline' || !monitoringReadable
+                    ? undefined
+                    : 'None yet'
                 }
               />
             ) : visualizationType === 'table' ? (
@@ -666,7 +675,13 @@ export const AnalyticsDashboard = () => {
               icon={Target}
               label="KPI achievement"
               tone={averageKpi === null ? 'info' : averageKpi >= 70 ? 'success' : 'warning'}
-              value={averageKpi === null ? 'None yet' : `${averageKpi}%`}
+              value={
+                averageKpi !== null
+                  ? `${averageKpi}%`
+                  : monitoringReadable
+                    ? 'None yet'
+                    : 'Unavailable'
+              }
             />
             <MetricCard
               description="Budget utilization is unavailable in the current API."
@@ -786,8 +801,12 @@ export const AnalyticsDashboard = () => {
                   <DescriptiveStatisticsTable data={descriptive} />
                 ) : (
                   <UnavailableChart
-                    description="No active Indicator reporting period is available for this project."
-                    title="None yet"
+                    description={
+                      periodsReadable
+                        ? 'No active Indicator reporting period is available for this project.'
+                        : 'Indicator reporting periods are not available for this role.'
+                    }
+                    title={periodsReadable ? 'None yet' : undefined}
                   />
                 )}
               </ChartPanel>

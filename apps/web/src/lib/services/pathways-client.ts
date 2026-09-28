@@ -2252,6 +2252,14 @@ function parseActivitySummary(value: unknown): ActivitySummary {
     typeof row.title !== 'string' ||
     typeof row.updatedAt !== 'string' ||
     typeof row.progress !== 'number' ||
+    (row.code !== null && row.code !== undefined && typeof row.code !== 'string') ||
+    typeof row.description !== 'string' ||
+    typeof row.status !== 'string' ||
+    typeof row.storedStatus !== 'string' ||
+    typeof row.startDate !== 'string' ||
+    typeof row.dueDate !== 'string' ||
+    typeof row.journeyStageId !== 'string' ||
+    typeof row.targetBeneficiaries !== 'number' ||
     !Array.isArray(row.assignedUserIds) ||
     !Array.isArray(row.assignedTo) ||
     !Array.isArray(row.indicatorIds) ||

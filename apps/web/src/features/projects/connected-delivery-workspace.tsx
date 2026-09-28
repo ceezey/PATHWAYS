@@ -764,7 +764,8 @@ export function ConnectedIndicatorWorkspace({ projectId }: { projectId?: string 
                 </dl>
                 <p className="mt-3 text-xs text-muted-foreground">
                   Source: {indicator.dataSource || 'None yet'} · Disaggregation:{' '}
-                  {indicator.disaggregation || 'None yet'}
+                  {/* Not mapped from the API in this view: a capability gap, not an empty value. */}
+                  {indicator.disaggregation || 'Unavailable'}
                 </p>
               </article>
             ))}

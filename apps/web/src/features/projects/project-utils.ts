@@ -45,6 +45,10 @@ export const overviewMetricLabel = (cell: MetricCell, kind: 'percent' | 'count')
   if (cell.state === 'SUPPRESSED') return 'Suppressed (fewer than 5)'
   if (cell.state === 'NOT_APPLICABLE') return 'Not applicable'
   switch (cell.reason) {
+    // Known empty sources: readable, but nothing recorded yet.
+    case 'NO_INDICATORS':
+    case 'NO_MEASUREMENT':
+      return 'None yet'
     case 'PROJECT_DATES_REQUIRED':
     case 'PROJECT_DATES_INVALID':
       return 'Dates not recorded'
@@ -54,10 +58,8 @@ export const overviewMetricLabel = (cell: MetricCell, kind: 'percent' | 'count')
       return 'After project close'
     case 'RESTATEMENT_REVIEW_REQUIRED':
       return 'Under review'
-    case 'OUT_OF_RANGE':
-    case 'RELEASE_UNAVAILABLE':
-      return 'Unavailable'
+    // Unknown reasons are not assumed to be empty.
     default:
-      return 'None yet'
+      return 'Unavailable'
   }
 }
