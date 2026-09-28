@@ -1177,6 +1177,65 @@ describe('Activity proof response parsing', () => {
     ).resolves.toEqual({ status: 'COMMITTED', acknowledgement: { ok: true } })
   })
 
+  it('accepts a first-commit finalize result carrying the activity, and rejects extra keys', async () => {
+    const officerId = '73a00000-0000-4000-8000-000000000006'
+    const committedActivity = {
+      id: '73a00000-0000-4000-8000-000000000007',
+      projectId,
+      title: 'Community workshop',
+      description: 'Synthetic activity',
+      storedStatus: 'FOR_REVIEW',
+      status: 'For Review',
+      overdue: false,
+      startDate: '2026-10-01',
+      dueDate: '2026-10-02',
+      assignedUserIds: [officerId],
+      assignedTo: ['Project Officer Test'],
+      assignedEmails: ['p07.po.01@example.test'],
+      indicatorIds: [],
+      journeyStageIds: [],
+      journeyStageId: '',
+      targetBeneficiaries: 0,
+      beneficiariesReached: 0,
+      budgetAllocation: 0,
+      budgetLogged: 0,
+      progress: 40,
+      submittedProof: [],
+      updateNotes: [],
+      updatedAt: '2026-09-20T00:00:00.000Z',
+      sourceAcknowledgement: { requestId: 'req-1', committed: true, replayed: false },
+    }
+    stubResponse({ status: 'COMMITTED', activity: committedActivity })
+    await expect(
+      pathwaysClient.finalizeActivityProofFile(projectId, activityId, 'update-1', 'evidence-1'),
+    ).resolves.toEqual({
+      status: 'COMMITTED',
+      activity: {
+        ...committedActivity,
+        // No budgetLoggedEntries in the payload means the logged total predates it and is
+        // treated as withheld, and capabilities default when absent from the response.
+        budgetLogged: null,
+        budgetLoggedEntries: null,
+        capabilities: { canEdit: false, canRecordProgress: false, canSubmitProof: false },
+      },
+    })
+    // Extra top-level keys alongside `activity` are rejected.
+    stubResponse({
+      status: 'COMMITTED',
+      activity: committedActivity,
+      acknowledgement: { ok: true },
+    })
+    await expect(
+      pathwaysClient.finalizeActivityProofFile(projectId, activityId, 'update-1', 'evidence-1'),
+    ).rejects.toMatchObject({ code: 'network' })
+    // An `activity` payload missing sourceAcknowledgement is rejected.
+    const { sourceAcknowledgement: _drop, ...withoutAcknowledgement } = committedActivity
+    stubResponse({ status: 'COMMITTED', activity: withoutAcknowledgement })
+    await expect(
+      pathwaysClient.finalizeActivityProofFile(projectId, activityId, 'update-1', 'evidence-1'),
+    ).rejects.toMatchObject({ code: 'network' })
+  })
+
   it('rejects a finalize response with an out-of-range remaining count and a wrong-typed field', async () => {
     stubResponse({ status: 'UPLOADING', updateId: 'update-1', remaining: -1 })
     await expect(

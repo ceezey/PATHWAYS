@@ -97,7 +97,12 @@ const ScopedActivityProofDialog = ({
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState('')
   const [limits, setLimits] = useState<ActivityProofUploadLimits>(fallbackLimits)
+  // locked mirrors reservation.current once a reservation exists: the reserved file set and note
+  // must never diverge from what the server has recorded, so both stay locked (only per-file
+  // Retry remains available) until the update fully commits or the dialog is reopened.
+  const [locked, setLocked] = useState(false)
   const fileInputRef = useRef<HTMLInputElement | null>(null)
+  const lockedNoticeRef = useRef<HTMLParagraphElement | null>(null)
   const reservation = useRef<{ updateId: string; clientUpdateId: string } | null>(null)
   // committed marks the update as durably committed server-side (retries after this point must
   // only retry the post-commit reload, never reserve a second update). finishing guards against
@@ -113,6 +118,7 @@ const ScopedActivityProofDialog = ({
     setNote('')
     setFiles([])
     setError('')
+    setLocked(false)
     reservation.current = null
     committed.current = false
     finishing.current = false
@@ -130,7 +136,18 @@ const ScopedActivityProofDialog = ({
     }
   }, [activity, open])
 
+  // Once the file set locks, disabling the note, add-files and Remove controls can strand focus
+  // on an element that no longer accepts it; move focus to the visible explanation instead.
+  useEffect(() => {
+    if (!locked) return
+    const active = document.activeElement
+    if (active instanceof HTMLElement && active.hasAttribute('disabled')) {
+      lockedNoticeRef.current?.focus()
+    }
+  }, [locked])
+
   const addFiles = (selected: FileList | null) => {
+    if (locked) return
     if (!selected || !selected.length) return
     const rejected: string[] = []
     const additions: ProofFileItem[] = []
@@ -165,7 +182,7 @@ const ScopedActivityProofDialog = ({
   }
 
   const removeFile = (key: string) => {
-    if (submitting) return
+    if (submitting || locked) return
     const index = files.findIndex((item) => item.key === key)
     setFiles((current) => current.filter((item) => item.key !== key))
     // Focus moves to the next remaining remove control, or back to the add-files control.
@@ -183,12 +200,13 @@ const ScopedActivityProofDialog = ({
     setFiles((current) => current.map((item) => (item.key === key ? { ...item, ...patch } : item)))
   }
 
-  const finish = async () => {
+  const finish = async (committedActivity?: Activity) => {
     if (!activity || finishing.current) return
     finishing.current = true
     committed.current = true
     try {
-      const record = await pathwaysClient.getActivity(activity.projectId, activity.id)
+      const record =
+        committedActivity ?? (await pathwaysClient.getActivity(activity.projectId, activity.id))
       if (!scope.isCurrent()) return
       toast.success('Progress update submitted.', {
         description: `${files.length} proof file${files.length === 1 ? '' : 's'} submitted for review.`,
@@ -237,7 +255,9 @@ const ScopedActivityProofDialog = ({
       )
       if (!scope.isCurrent()) return
       setFileState(item.key, { status: 'uploaded' })
-      if (result.status === 'COMMITTED') await finish()
+      if (result.status === 'COMMITTED') {
+        await finish('activity' in result ? result.activity : undefined)
+      }
     } catch (caught) {
       if (!scope.isCurrent()) return
       setFileState(item.key, {
@@ -309,6 +329,7 @@ const ScopedActivityProofDialog = ({
           return
         }
         reservation.current = { updateId: reserved.updateId, clientUpdateId }
+        setLocked(true)
         const byName = new Map(
           reserved.files.map((row) => [`${row.fileName}:${row.byteSize}`, row]),
         )
@@ -384,13 +405,14 @@ const ScopedActivityProofDialog = ({
               <span className="sr-only"> (required)</span>
             </Label>
             <Textarea
-              disabled={submitting}
+              disabled={submitting || locked}
               aria-describedby={noteError ? 'activity-note-error' : undefined}
               aria-invalid={noteError}
               aria-required="true"
               className="min-h-28"
               id="activity-note"
               onChange={(event) => {
+                if (submitting || locked) return
                 setNote(event.target.value)
                 if (noteError) setError('')
               }}
@@ -408,7 +430,7 @@ const ScopedActivityProofDialog = ({
             </Label>
             <Input
               aria-describedby={fileError ? 'activity-proof-error' : 'activity-proof-help'}
-              disabled={submitting}
+              disabled={submitting || locked}
               aria-invalid={fileError}
               id="activity-proof"
               accept={limits.contentTypes.join(',')}
@@ -422,6 +444,15 @@ const ScopedActivityProofDialog = ({
               {megabytes(limits.maxFileBytes)} each. Selecting more files adds to the list.
             </p>
           </div>
+          {locked ? (
+            <p
+              className="text-sm font-medium text-foreground"
+              ref={lockedNoticeRef}
+              tabIndex={-1}
+            >
+              Files are locked while this submission is in progress. Retry failed files to finish.
+            </p>
+          ) : null}
           {files.length > 0 ? (
             <ul className="space-y-2" aria-label="Selected proof files">
               {files.map((item) => (
@@ -453,7 +484,7 @@ const ScopedActivityProofDialog = ({
                     <Button
                       className="h-11 w-11 shrink-0"
                       data-proof-remove-button="true"
-                      disabled={submitting}
+                      disabled={submitting || locked}
                       onClick={() => removeFile(item.key)}
                       size="icon"
                       type="button"

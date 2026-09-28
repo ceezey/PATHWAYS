@@ -314,6 +314,7 @@ export type ActivityProofReservation =
 
 export type ActivityProofFinalizeResult =
   | { status: 'COMMITTED'; acknowledgement: unknown }
+  | { status: 'COMMITTED'; activity: Activity & { sourceAcknowledgement: unknown } }
   | { status: 'UPLOADING'; updateId: string; remaining: number }
 
 export interface ProjectMilestone {

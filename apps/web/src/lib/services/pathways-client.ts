@@ -2436,9 +2436,24 @@ function parseActivityProofFinalizeResult(value: unknown): ActivityProofFinalize
   if (!row || typeof row !== 'object')
     throw new PathwaysClientError('Invalid activity proof finalize response.', 'network')
   if (row.status === 'COMMITTED') {
-    if (Object.keys(row).length !== 2 || !('acknowledgement' in row))
+    if (Object.keys(row).length !== 2)
       throw new PathwaysClientError('Invalid activity proof finalize response.', 'network')
-    return { status: 'COMMITTED', acknowledgement: row.acknowledgement }
+    if ('acknowledgement' in row) {
+      return { status: 'COMMITTED', acknowledgement: row.acknowledgement }
+    }
+    if ('activity' in row) {
+      const activityRow = row.activity as Partial<Record<string, unknown>> | null
+      if (
+        !activityRow ||
+        typeof activityRow !== 'object' ||
+        !('sourceAcknowledgement' in activityRow)
+      )
+        throw new PathwaysClientError('Invalid activity proof finalize response.', 'network')
+      const { sourceAcknowledgement, ...activityFields } = activityRow
+      const activity = parseActivity(activityFields)
+      return { status: 'COMMITTED', activity: { ...activity, sourceAcknowledgement } }
+    }
+    throw new PathwaysClientError('Invalid activity proof finalize response.', 'network')
   }
   if (row.status === 'UPLOADING') {
     if (
