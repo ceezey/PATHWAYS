@@ -9,7 +9,6 @@ import {
 
 const validValues = {
   objectives: 'Develop youth skills',
-  partners: '',
   projectBudget: '',
   targetBeneficiaries: '',
 
@@ -30,7 +29,6 @@ describe('project setup validation', () => {
   it('requires project setup fields', () => {
     const result = projectSetupSchema.safeParse({
       objectives: '',
-      partners: '',
       projectBudget: '',
       targetBeneficiaries: '',
 
@@ -80,7 +78,7 @@ describe('project setup validation', () => {
   it('adapts all implemented profile fields and keeps team IDs explicit', () => {
     const input = toCreateProjectInput({
       ...validValues,
-      partners: 'Fictional Partner',
+      partnerOrganizations: 'Fictional Partner',
       projectBudget: '100000',
       targetBeneficiaries: '450',
       sector: 'Education',
@@ -94,13 +92,15 @@ describe('project setup validation', () => {
       title: validValues.title,
       objectives: validValues.objectives,
       implementationArea: validValues.area,
-      implementingPartners: 'Fictional Partner',
+      implementingPartnerNames: ['Fictional Partner'],
       projectBudget: '100000',
       targetBeneficiaries: 450,
       sector: 'Education',
       status: 'Planned',
     })
     expect(input).not.toHaveProperty('partners')
+    // The deprecated free-text column is never sent (migration 0039).
+    expect(input).not.toHaveProperty('implementingPartners')
     expect(input).not.toHaveProperty('projectManager')
     expect(
       toProjectTeamInput(

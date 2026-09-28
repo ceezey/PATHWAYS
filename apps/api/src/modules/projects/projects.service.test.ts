@@ -187,7 +187,6 @@ describe('Project creation contract', () => {
       description: project.description,
       objectives: project.objectives,
       implementationArea: project.implementationArea,
-      implementingPartners: project.implementingPartners,
       sector: project.sector,
       targetBeneficiaries: 250,
       projectBudget: '125000.50',
@@ -214,13 +213,14 @@ describe('Project creation contract', () => {
     })
     expect(created).not.toHaveProperty('targetGoal')
     expect(tx.project.create.mock.calls[0]?.[0].data).not.toHaveProperty('targetGoal')
+    // The deprecated legacy column is never written (migration 0039).
+    expect(tx.project.create.mock.calls[0]?.[0].data).not.toHaveProperty('implementingPartners')
     expect(tx.auditLog.create.mock.calls[0]?.[0].data.changes).not.toHaveProperty('targetGoal')
     await expect(service.get(manager, projectId)).resolves.toEqual(created)
     expect(tx.project.create).toHaveBeenCalledWith(
       expect.objectContaining({
         data: expect.objectContaining({
           organizationId,
-          implementingPartners: 'Partner',
           sector: 'Livelihood',
           targetBeneficiaries: 250,
         }),

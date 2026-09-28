@@ -18,7 +18,7 @@ import Link from 'next/link'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { toast } from 'sonner'
 
-import { compareHeaders, createFileSummary } from '@pathways/imports'
+import { createFileSummary } from '@pathways/imports'
 
 import { PageHeader } from '@/components/layout/page-header'
 import { ConfirmationDialog, ProgressBar, StatusBadge } from '@/components/pathways'
@@ -66,14 +66,14 @@ import {
   type MappingReadiness,
   type MappingRow,
   type MappingStatus,
-  createDefinitionMappingRows,
-  createMappingRows,
+  createQuestionnaireMappingRows,
+  createSmartMappingRows,
   getMappingReadiness,
-  normalizeImportHeader,
 } from './collection-import-state'
 import {
   type BuilderFieldType,
   type BuilderFormField,
+  fieldCodeFromText,
   formTypeLabels,
   fromDigitalForm,
   toDigitalFormInput,
@@ -127,14 +127,6 @@ interface SavedForm {
 }
 
 const toApiFormType = (type: string): DigitalFormType => type as DigitalFormType
-
-const expectedImportHeaders = [
-  'beneficiary_id',
-  'attendance_status',
-  'pre_test_score',
-  'post_test_score',
-  'activity_date',
-]
 
 const metadataConnections = [
   'Youth trained - vocational skills',
@@ -201,7 +193,7 @@ const modeDetails: Array<{
   {
     id: 'import',
     title: 'Import existing file',
-    description: 'Upload XLS, XLSX, or CSV and review detected mappings.',
+    description: 'Upload CSV, XLSX, XLS, or a text-based PDF and review detected mappings.',
     href: '/collection/import',
   },
   {
@@ -254,7 +246,7 @@ const importedFieldLabels: Record<string, string> = {
 }
 
 const fieldFromHeader = (header: string, index: number): FormField => {
-  const code = normalizeImportHeader(header)
+  const code = fieldCodeFromText(header)
 
   return {
     id: `imported-${index}-${code}`,
@@ -278,7 +270,8 @@ const fieldFromHeader = (header: string, index: number): FormField => {
     maximumValue: '',
     minimumLength: '',
     maximumLength: '',
-    mappingStatus: expectedImportHeaders.includes(code) ? 'mapped' : 'unmapped',
+    // Each detected column defines this field, so it starts mapped to its own column.
+    mappingStatus: code ? 'mapped' : 'invalid',
   }
 }
 
@@ -732,9 +725,8 @@ const OwnedCollectionWorkspace = ({
       return null
     }
 
-    const comparison = compareHeaders(
-      expectedImportHeaders,
-      parsedImport.headers.map(normalizeImportHeader),
+    const needsReview = mappingRows.some(
+      (row) => row.status === 'unmapped' || row.status === 'invalid',
     )
 
     return createFileSummary(
@@ -744,10 +736,10 @@ const OwnedCollectionWorkspace = ({
       parsedImport.rows,
       [
         ...parsedImport.errors,
-        ...(comparison.matches ? [] : ['Validation found headers that need review.']),
+        ...(needsReview ? ['Validation found headers that need review.'] : []),
       ],
     )
-  }, [parsedImport])
+  }, [parsedImport, mappingRows])
 
   const mappingReadiness = useMemo(() => getMappingReadiness(mappingRows), [mappingRows])
   const importCanProceed =
@@ -891,10 +883,18 @@ const OwnedCollectionWorkspace = ({
         (form) =>
           form.id === editingFormId && form.projectId === projectId && form.status === 'PUBLISHED',
       )
+      // Advisory AUTO_SMART_V2 preview against the published form, or against the draft
+      // builder fields; a header-only questionnaire defines new fields instead.
       setMappingRows(
         selectedForm
-          ? createDefinitionMappingRows(parsed.headers, selectedForm.fields)
-          : createMappingRows(parsed.headers, expectedImportHeaders),
+          ? createSmartMappingRows(parsed.headers, parsed.rows, selectedForm.fields)
+          : parsed.rows.length === 0
+            ? createQuestionnaireMappingRows(parsed.headers)
+            : createSmartMappingRows(
+                parsed.headers,
+                parsed.rows,
+                toDigitalFormInput({ code: '', name: '', formType: 'OTHER', fields }).fields,
+              ),
       )
       setUploadProgress(100)
       setImportStatus('ready')
@@ -2259,9 +2259,7 @@ const FieldEditor = ({
       <Input
         id={`${field.id}-code`}
         value={field.code}
-        onChange={(event) =>
-          updateField(field.id, { code: normalizeImportHeader(event.target.value) })
-        }
+        onChange={(event) => updateField(field.id, { code: fieldCodeFromText(event.target.value) })}
       />
     </div>
     <div className="space-y-2">
@@ -2758,124 +2756,145 @@ const MappingTable = ({
   setMappingRows: React.Dispatch<React.SetStateAction<MappingRow[]>>
   setProceedDialogOpen: (open: boolean) => void
   setView: (view: CollectionView) => void
-}) => (
-  <div className="rounded-lg border bg-card p-4">
-    <div className="flex flex-col gap-3 border-b pb-3 md:flex-row md:items-center md:justify-between">
-      <div>
-        <h2 className="text-lg font-semibold text-foreground">Metadata mapping</h2>
-        <p className="text-sm text-muted-foreground">
-          Review source columns, target fields, and validation states.
-        </p>
-      </div>
-      <div className="flex gap-2">
-        {mode === 'extend' ? (
-          <Button size="sm" variant="outline" onClick={() => setView('builder')}>
-            Extend in builder
+}) => {
+  const labelFor = (code: string) => fields.find((field) => field.code === code)?.label ?? code
+  // Header-only questionnaires target new field codes that are not builder fields yet.
+  const targetOptions = [
+    ...fields.map((field) => ({ code: field.code, label: field.label })),
+    ...mappingRows
+      .filter((row) => row.targetField && !fields.some((field) => field.code === row.targetField))
+      .map((row) => ({ code: row.targetField, label: row.sourceColumn })),
+  ].filter((option, index, all) => all.findIndex((other) => other.code === option.code) === index)
+  return (
+    <div className="rounded-lg border bg-card p-4">
+      <div className="flex flex-col gap-3 border-b pb-3 md:flex-row md:items-center md:justify-between">
+        <div>
+          <h2 className="text-lg font-semibold text-foreground">Metadata mapping</h2>
+          <p className="text-sm text-muted-foreground">
+            Review source columns, target fields, and validation states.
+          </p>
+        </div>
+        <div className="flex gap-2">
+          {mode === 'extend' ? (
+            <Button size="sm" variant="outline" onClick={() => setView('builder')}>
+              Extend in builder
+            </Button>
+          ) : null}
+          <Button
+            aria-describedby="mapping-readiness-message"
+            disabled={!canProceed}
+            size="sm"
+            onClick={() => setProceedDialogOpen(true)}
+          >
+            {createsDraft ? 'Create Draft' : 'Proceed'}
           </Button>
-        ) : null}
-        <Button
-          aria-describedby="mapping-readiness-message"
-          disabled={!canProceed}
-          size="sm"
-          onClick={() => setProceedDialogOpen(true)}
-        >
-          {createsDraft ? 'Create Draft' : 'Proceed'}
-        </Button>
+        </div>
+      </div>
+      <p
+        className={cn(
+          'mt-3 rounded-md px-3 py-2 text-sm',
+          canProceed && mappingReadiness.canProceed
+            ? 'bg-success-subtle text-success'
+            : 'bg-warning-subtle text-warning',
+        )}
+        id="mapping-readiness-message"
+      >
+        {canProceed && !mappingReadiness.canProceed && !createsDraft
+          ? 'This file can be uploaded to staging. An authorized reviewer must resolve unmatched columns before validation and processing.'
+          : canProceed
+            ? mappingReadiness.message
+            : mappingReadiness.canProceed
+              ? 'The current file must finish successfully before proceeding.'
+              : mappingReadiness.message}
+      </p>
+      <div className="mt-4 overflow-x-auto">
+        <table className="w-full min-w-[720px] text-left text-sm">
+          <thead className="text-xs uppercase text-muted-foreground">
+            <tr>
+              <th className="px-3 py-2">Source columns</th>
+              <th className="px-3 py-2">Target fields</th>
+              <th className="px-3 py-2">Mapping status</th>
+            </tr>
+          </thead>
+          <tbody>
+            {mappingRows.map((row) => (
+              <tr key={row.id} className="border-t">
+                <td className="px-3 py-3 font-medium text-foreground">
+                  <span className="block">{row.sourceColumn}</span>
+                  {row.autoMatched && row.status === 'mapped' ? (
+                    <StatusBadge tone="success">Auto-matched</StatusBadge>
+                  ) : null}
+                  {row.suggestedField && row.status !== 'mapped' ? (
+                    <span className="mt-1 block text-xs text-muted-foreground">
+                      Suggested: {labelFor(row.suggestedField)}
+                    </span>
+                  ) : null}
+                </td>
+                <td className="px-3 py-3">
+                  <Select
+                    value={row.targetField || 'none'}
+                    onValueChange={(value) =>
+                      setMappingRows((currentRows) =>
+                        currentRows.map((currentRow) =>
+                          currentRow.id === row.id
+                            ? {
+                                ...currentRow,
+                                targetField: value === 'none' ? '' : value,
+                                status: value === 'none' ? 'unmapped' : 'mapped',
+                                autoMatched: false,
+                              }
+                            : currentRow,
+                        ),
+                      )
+                    }
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">No target field</SelectItem>
+                      {targetOptions.map((option) => (
+                        <SelectItem key={option.code} value={option.code}>
+                          {option.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </td>
+                <td className="px-3 py-3">
+                  <Select
+                    value={row.status}
+                    onValueChange={(value) =>
+                      setMappingRows((currentRows) =>
+                        currentRows.map((currentRow) =>
+                          currentRow.id === row.id
+                            ? { ...currentRow, status: value as MappingStatus }
+                            : currentRow,
+                        ),
+                      )
+                    }
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem disabled={!row.targetField} value="mapped">
+                        Mapped
+                      </SelectItem>
+                      <SelectItem value="unmapped">Unmapped</SelectItem>
+                      <SelectItem value="ignored">Ignored</SelectItem>
+                      <SelectItem value="invalid">Invalid</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
       </div>
     </div>
-    <p
-      className={cn(
-        'mt-3 rounded-md px-3 py-2 text-sm',
-        canProceed && mappingReadiness.canProceed
-          ? 'bg-success-subtle text-success'
-          : 'bg-warning-subtle text-warning',
-      )}
-      id="mapping-readiness-message"
-    >
-      {canProceed && !mappingReadiness.canProceed && !createsDraft
-        ? 'This file can be uploaded to staging. An authorized reviewer must resolve unmatched columns before validation and processing.'
-        : canProceed
-          ? mappingReadiness.message
-          : mappingReadiness.canProceed
-            ? 'The current file must finish successfully before proceeding.'
-            : mappingReadiness.message}
-    </p>
-    <div className="mt-4 overflow-x-auto">
-      <table className="w-full min-w-[720px] text-left text-sm">
-        <thead className="text-xs uppercase text-muted-foreground">
-          <tr>
-            <th className="px-3 py-2">Source columns</th>
-            <th className="px-3 py-2">Target fields</th>
-            <th className="px-3 py-2">Mapping status</th>
-          </tr>
-        </thead>
-        <tbody>
-          {mappingRows.map((row) => (
-            <tr key={row.id} className="border-t">
-              <td className="px-3 py-3 font-medium text-foreground">{row.sourceColumn}</td>
-              <td className="px-3 py-3">
-                <Select
-                  value={row.targetField || 'none'}
-                  onValueChange={(value) =>
-                    setMappingRows((currentRows) =>
-                      currentRows.map((currentRow) =>
-                        currentRow.id === row.id
-                          ? {
-                              ...currentRow,
-                              targetField: value === 'none' ? '' : value,
-                              status: value === 'none' ? 'unmapped' : 'mapped',
-                            }
-                          : currentRow,
-                      ),
-                    )
-                  }
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="none">No target field</SelectItem>
-                    {fields.map((field) => (
-                      <SelectItem key={field.id} value={field.code}>
-                        {field.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </td>
-              <td className="px-3 py-3">
-                <Select
-                  value={row.status}
-                  onValueChange={(value) =>
-                    setMappingRows((currentRows) =>
-                      currentRows.map((currentRow) =>
-                        currentRow.id === row.id
-                          ? { ...currentRow, status: value as MappingStatus }
-                          : currentRow,
-                      ),
-                    )
-                  }
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem disabled={!row.targetField} value="mapped">
-                      Mapped
-                    </SelectItem>
-                    <SelectItem value="unmapped">Unmapped</SelectItem>
-                    <SelectItem value="ignored">Ignored</SelectItem>
-                    <SelectItem value="invalid">Invalid</SelectItem>
-                  </SelectContent>
-                </Select>
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
-  </div>
-)
+  )
+}
 
 const DataPreview = ({ parsedImport }: { parsedImport: ParsedImport }) => (
   <div className="rounded-lg border bg-card p-4">

@@ -151,6 +151,51 @@ const activityListSelection = {
 
 type ActivityListRow = Prisma.ProjectActivityGetPayload<{ select: typeof activityListSelection }>
 
+/**
+ * Capability input read in the same scoped activity query: the caller's own active
+ * assignment on the activity, matching the recordProgress and submitUpdate checks.
+ */
+function personalAssignmentCount(actor: ApplicationIdentity) {
+  return {
+    _count: {
+      select: {
+        projectActivityAssignment_activity: {
+          where: {
+            organizationId: actor.organizationId,
+            status: 'ACTIVE' as const,
+            endedAt: null,
+            projectAssignment: { userId: actor.userId, status: 'ACTIVE' as const, endedAt: null },
+          },
+        },
+      },
+    },
+  } satisfies Prisma.ProjectActivitySelect
+}
+
+/**
+ * Advisory per-activity flags for the calling user. Every mutation re-checks its own
+ * authority, so a forged or stale flag changes nothing. Scope is already applied: only
+ * activities of projects inside `projectScope(actor)` reach this function.
+ */
+export function activityCapabilities(
+  actor: ApplicationIdentity,
+  status: keyof typeof storedStatus,
+  personalAssignments: number | undefined,
+) {
+  const can = (
+    permission: 'activities.update' | 'activities.progress.update' | 'activities.proof.submit',
+  ) => hasAtomicPermission(actor.roles[0], actor.permissions, permission)
+  const assigned = (personalAssignments ?? 0) > 0
+  return {
+    canEdit: can('activities.update') && !['COMPLETED', 'CANCELLED'].includes(status),
+    canRecordProgress: can('activities.progress.update') && assigned,
+    canSubmitProof: can('activities.proof.submit') && assigned,
+  }
+}
+
+/** Exactly the users `resolveAssignments` accepts; the assignee bound is 50. */
+const assignableOfficerLimit = 50
+
 const storedStatus = {
   NOT_STARTED: 'Planned',
   IN_PROGRESS: 'In Progress',
@@ -443,7 +488,7 @@ export class ActivitiesService {
         projectId: verifiedProjectId,
         archivedAt: null,
       },
-      select: activitySelection,
+      select: { ...activitySelection, ...personalAssignmentCount(actor) },
     })
     if (!activity) throw new NotFoundException('Activity unavailable.')
     return activity
@@ -734,9 +779,20 @@ export class ActivitiesService {
     return { budgets, reached, logged }
   }
 
-  private async mapWithMetrics(tx: Tx, actor: ApplicationIdentity, row: ActivityRow) {
+  private async mapWithMetrics(
+    tx: Tx,
+    actor: ApplicationIdentity,
+    row: ActivityRow & { _count?: { projectActivityAssignment_activity: number } },
+  ) {
     const metrics = await this.readMetrics(tx, actor, row.projectId, [row.id])
-    return mapActivity(row, this.businessDate(), metrics)
+    return {
+      ...mapActivity(row, this.businessDate(), metrics),
+      capabilities: activityCapabilities(
+        actor,
+        row.status,
+        row._count?.projectActivityAssignment_activity,
+      ),
+    }
   }
 
   context(identity: ApplicationIdentity, projectId: string) {
@@ -777,6 +833,47 @@ export class ActivitiesService {
     )
   }
 
+  /**
+   * Supporting read for the activity editor (cr-pathways-project-rbac-ui-and-partners 3.3):
+   * exactly the users `resolveAssignments` accepts, for a caller holding activities.create
+   * or activities.update inside project scope. Only userId and displayName leave the
+   * query, at most 50 rows; an inaccessible project is the uniform 404.
+   */
+  assignableOfficers(identity: ApplicationIdentity, projectId: string) {
+    const permission = hasAtomicPermission(
+      identity.roles[0],
+      identity.permissions,
+      'activities.create',
+    )
+      ? 'activities.create'
+      : 'activities.update'
+    return withAuthorizedOperation(this.prisma, identity, permission, async (tx, actor) => {
+      if (
+        !hasAtomicPermission(actor.roles[0], actor.permissions, 'activities.create') &&
+        !hasAtomicPermission(actor.roles[0], actor.permissions, 'activities.update')
+      )
+        throw new ForbiddenException('Required application permission is missing.')
+      const project = await this.requireProject(tx, actor, projectId)
+      const rows = await tx.userProjectAssignment.findMany({
+        where: {
+          organizationId: actor.organizationId,
+          projectId: project.id,
+          status: 'ACTIVE',
+          endedAt: null,
+          user: {
+            accountStatus: 'ACTIVE',
+            archivedAt: null,
+            role: { code: 'PROJECT_OFFICER', isActive: true },
+          },
+        },
+        select: { user: { select: { id: true, fullName: true } } },
+        orderBy: [{ user: { fullName: 'asc' } }, { userId: 'asc' }],
+        take: assignableOfficerLimit,
+      })
+      return rows.map((row) => ({ userId: row.user.id, displayName: row.user.fullName }))
+    })
+  }
+
   /** Lean list projection; update history, proof, assignee emails and metrics are `get`-only. */
   list(identity: ApplicationIdentity, projectId: string) {
     return withAuthorizedOperation(this.prisma, identity, 'activities.read', async (tx, actor) => {
@@ -787,7 +884,7 @@ export class ActivitiesService {
         select: {
           projectActivity_project: {
             where: { organizationId: actor.organizationId, archivedAt: null },
-            select: activityListSelection,
+            select: { ...activityListSelection, ...personalAssignmentCount(actor) },
             orderBy: [{ plannedEndDate: 'asc' }, { id: 'asc' }],
             take: 100,
           },
@@ -795,7 +892,14 @@ export class ActivitiesService {
       })
       if (!project) throw new NotFoundException('Project unavailable.')
       const today = this.businessDate()
-      return project.projectActivity_project.map((row) => mapActivityListItem(row, today))
+      return project.projectActivity_project.map((row) => ({
+        ...mapActivityListItem(row, today),
+        capabilities: activityCapabilities(
+          actor,
+          row.status,
+          row._count?.projectActivityAssignment_activity,
+        ),
+      }))
     })
   }
 
@@ -916,7 +1020,7 @@ export class ActivitiesService {
               organizationId: actor.organizationId,
               archivedAt: null,
             },
-            select: activitySelection,
+            select: { ...activitySelection, ...personalAssignmentCount(actor) },
             take: 1,
           },
         },

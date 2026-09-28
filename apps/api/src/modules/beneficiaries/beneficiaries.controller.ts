@@ -61,6 +61,17 @@ export class BeneficiariesController {
     return this.beneficiaries.registrationContext(profile(request), projectId)
   }
 
+  // Provisions only the fixed system template and returns blank definitions, no Beneficiary data,
+  // so it follows registration context (no step-up) rather than the registration POST.
+  @Post('registration-context/default-form')
+  @RequirePermission('beneficiaries.records.register')
+  ensureDefaultRegistrationForm(
+    @Req() request: AuthenticatedRequest,
+    @Param('projectId') projectId: string,
+  ) {
+    return this.beneficiaries.ensureDefaultRegistrationForm(profile(request), projectId)
+  }
+
   @Get(':beneficiaryId')
   @RequirePermission('beneficiaries.records.read')
   @RequireBeneficiaryStepUp()

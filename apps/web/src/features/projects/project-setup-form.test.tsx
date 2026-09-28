@@ -30,7 +30,13 @@ const profileState = {
   userId: 'actor-a',
   organizationId: 'org-a',
   roles: ['PROJECT_MANAGER'],
-  permissions: ['projects.create', 'projects.update'],
+  permissions: [
+    'projects.create',
+    'projects.update',
+    'budgets.create',
+    'budgets.update',
+    'budgets.read',
+  ],
   assignedProjectIds: ['73500000-0000-4000-8000-000000000004'],
 }
 vi.mock('@/hooks/use-current-role', () => ({ useCurrentRole: () => ({ profile: profileState }) }))
@@ -79,9 +85,12 @@ describe('ProjectSetupForm', () => {
     render(<ProjectSetupForm />)
     expect(screen.queryByLabelText(/Project target goal/)).toBeNull()
 
-    expect((screen.getByLabelText('Implementing partners') as HTMLInputElement).disabled).toBe(
+    // One structured partner field; the legacy free-text input is gone.
+    expect((screen.getByLabelText('Implementing partners') as HTMLTextAreaElement).disabled).toBe(
       false,
     )
+    expect(screen.getAllByLabelText(/Implementing partner/)).toHaveLength(1)
+    expect(screen.queryByLabelText('Implementing partner organizations')).toBeNull()
     expect((screen.getByLabelText('Project budget (PHP)') as HTMLInputElement).disabled).toBe(false)
     expect((screen.getByLabelText('Target beneficiaries') as HTMLInputElement).disabled).toBe(false)
     expect((screen.getByLabelText('Sector') as HTMLInputElement).disabled).toBe(false)
@@ -91,9 +100,6 @@ describe('ProjectSetupForm', () => {
     })
     fireEvent.change(screen.getByLabelText(/Project title/), {
       target: { value: 'Core project profile' },
-    })
-    fireEvent.change(screen.getByLabelText('Implementing partners'), {
-      target: { value: 'Community Partner' },
     })
     fireEvent.change(screen.getByLabelText('Project budget (PHP)'), {
       target: { value: '125000.50' },
@@ -116,7 +122,7 @@ describe('ProjectSetupForm', () => {
     fireEvent.change(screen.getByLabelText(/Description/), {
       target: { value: 'A supported core project profile.' },
     })
-    fireEvent.change(screen.getByLabelText('Implementing partner organizations'), {
+    fireEvent.change(screen.getByLabelText('Implementing partners'), {
       target: { value: 'Synthetic Partner A\nSynthetic Partner B' },
     })
     fireEvent.click(screen.getByRole('button', { name: 'Create Project' }))
@@ -126,7 +132,6 @@ describe('ProjectSetupForm', () => {
       title: 'Core project profile',
       description: 'A supported core project profile.',
       objectives: 'Deliver core project outcomes',
-      implementingPartners: 'Community Partner',
       implementingPartnerNames: ['Synthetic Partner A', 'Synthetic Partner B'],
       projectBudget: '125000.50',
       targetBeneficiaries: 450,
@@ -164,6 +169,42 @@ describe('ProjectSetupForm', () => {
     )
     expect(testState.updateProject.mock.calls[0][2].isCurrent()).toBe(true)
     expect(testState.routerPush).toHaveBeenCalledWith(`/projects/${project.id}`)
+  })
+})
+
+describe('locked project budget', () => {
+  afterEach(() => {
+    profileState.permissions = [
+      'projects.create',
+      'projects.update',
+      'budgets.create',
+      'budgets.update',
+      'budgets.read',
+    ]
+  })
+
+  it('locks the budget for an editor without budgets.update and never sends it', async () => {
+    profileState.permissions = ['projects.create', 'projects.update', 'budgets.read']
+    testState.getProject.mockResolvedValue({ ...project, projectBudget: '5000.00' })
+    render(<ProjectSetupForm projectId={project.id} />)
+    const title = await screen.findByDisplayValue(project.title)
+    const budget = screen.getByRole('textbox', { name: 'Project budget (PHP)' }) as HTMLInputElement
+    expect(budget.value).toBe('5000.00')
+    expect(budget.getAttribute('aria-disabled')).toBe('true')
+    expect(
+      document.getElementById(budget.getAttribute('aria-describedby') ?? '')?.textContent,
+    ).toBe('You are not authorized to change this field')
+    fireEvent.change(title, { target: { value: 'Updated project' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Save Project' }))
+    await waitFor(() => expect(testState.updateProject).toHaveBeenCalledOnce())
+    expect(testState.updateProject.mock.calls[0][1].projectBudget).toBeUndefined()
+  })
+
+  it('omits an unreadable budget instead of showing it locked', async () => {
+    profileState.permissions = ['projects.create', 'projects.update']
+    render(<ProjectSetupForm projectId={project.id} />)
+    await screen.findByDisplayValue(project.title)
+    expect(screen.queryByLabelText('Project budget (PHP)')).toBeNull()
   })
 })
 

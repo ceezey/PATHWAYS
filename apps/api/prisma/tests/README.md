@@ -134,3 +134,17 @@ cancelled data. It also verifies Program Manager portfolio access without
 `beneficiaries.records.read`, guessed/cross-project/cross-organization rejection,
 function owner/search path/grants, forced RLS on the new link table, and runtime
 `NOBYPASSRLS`. Success prints `PROJECT_ACTIVITY_CREATION_CONTRACT_RUNTIME=PASS`.
+
+## Default registration form (migration 0040)
+
+`default-registration-form-runtime.sql` covers `cr-pathways-default-registration-form`. Run it
+as a local superuser against a disposable `pathways_phase2_*` database that already has 0040
+applied. It first revokes every prisma role membership inside its own transaction, so all checks
+run in the hosted post-0031/0034-cleanup role state, and it rolls everything back. It must print
+`DEFAULT_REGISTRATION_FORM_ASSERTIONS_PASSED=12`.
+
+`default-registration-form-concurrency.mjs` needs committed fixtures: load
+`default-registration-form-concurrency-fixture.sql` into a fresh disposable database, then run
+the script from `apps/api` with `PHASE2_RACE_DATABASE`, `PHASE2_OWNER_PASSWORD` and
+`PHASE2_RUNTIME_PASSWORD` set to local-only values. It must print
+`DEFAULT_REGISTRATION_FORM_CONCURRENCY=PASS`.

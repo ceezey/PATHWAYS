@@ -56,6 +56,11 @@ The F2 pending activity-review workflow additionally follows the [approved priva
 ### F3/F4
 Sensitive Beneficiary profiles, normalized enrollment, participation/journey history, project scope, consent/provenance as required.
 
+The [approved default registration form contract](cr-pathways-default-registration-form.md) adds these acceptance criteria:
+
+- Add Beneficiary is available in every existing project. When a project has no published registration form of its own, the first registrar use provisions one fixed, versioned system registration form, and every registration still goes through the same promotion path, consent records and audit.
+- A new registration, and a profile edit that changes the birth date or age, rejects a Beneficiary younger than 5 ("Beneficiary must be at least 5 years old.") and a birth date after the business date ("Date of birth cannot be in the future."). Imported registration rows inherit both rules. Existing records under 5 stay valid, and no database constraint is added.
+
 ### F5/F6
 Typed forms/direct entry plus safe dataset staging/mapping/validation/normalization. Admin/M&E create, edit, export, and import/extend structures. PO imports collected data and encodes without form-management rights. Blank definitions and responses have separate authorization.
 

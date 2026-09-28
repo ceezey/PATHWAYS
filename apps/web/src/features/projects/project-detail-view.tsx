@@ -105,26 +105,13 @@ export const ProjectDetailView = ({ projectId }: { projectId: string }) => {
                 Back to Projects
               </Link>
             </Button>
-            {role ? (
-              <>
-                {canManageProjectProfile ? (
-                  <Button asChild size="icon" variant="outline">
-                    <Link aria-label="Edit project profile" href={`/projects/${project.id}/edit`}>
-                      <Pencil className="h-4 w-4" aria-hidden="true" />
-                    </Link>
-                  </Button>
-                ) : (
-                  <Button
-                    disabled
-                    size="icon"
-                    variant="outline"
-                    aria-label="Edit project profile"
-                    title="Project editing unavailable"
-                  >
-                    <Pencil className="h-4 w-4" aria-hidden="true" />
-                  </Button>
-                )}
-              </>
+            {/* Hidden, not disabled, when PATCH /projects/:id would be rejected. */}
+            {role && canManageProjectProfile ? (
+              <Button asChild size="icon" variant="outline">
+                <Link aria-label="Edit project profile" href={`/projects/${project.id}/edit`}>
+                  <Pencil className="h-4 w-4" aria-hidden="true" />
+                </Link>
+              </Button>
             ) : null}
           </div>
         }
@@ -161,7 +148,7 @@ export const ProjectDetailView = ({ projectId }: { projectId: string }) => {
                 <dd className="mt-1 font-medium text-foreground">
                   {project.implementingPartnerRecords?.length
                     ? project.implementingPartnerRecords.map((partner) => partner.name).join(', ')
-                    : project.implementingPartners || 'Not recorded'}
+                    : 'Not recorded'}
                 </dd>
               </div>
               <div>

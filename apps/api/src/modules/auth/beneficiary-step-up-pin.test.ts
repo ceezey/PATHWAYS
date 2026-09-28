@@ -66,19 +66,71 @@ describe('step-up PIN request bodies', () => {
 })
 
 describe('Sentry request redaction', () => {
-  it('drops request bodies, cookies, headers and query strings', () => {
+  it('drops request bodies, cookies, headers, env and query strings', () => {
     const event = redactSentryRequest({
       type: undefined,
       request: {
-        url: '/api/auth/step-up/pin',
+        url: 'https://api.example/api/auth/step-up/pin?pin=482915',
         method: 'POST',
         data: { pin: '482915' },
         cookies: { session: 'cookie' },
         headers: { authorization: 'Bearer token' },
         query_string: 'pin=482915',
+        env: { SECRET_KEY: 'abc123' },
       },
     })
-    expect(event.request).toEqual({ url: '/api/auth/step-up/pin', method: 'POST' })
-    expect(JSON.stringify(event)).not.toMatch(/482915|Bearer|cookie/)
+    expect(event.request).toEqual({
+      url: 'https://api.example/api/auth/step-up/pin',
+      method: 'POST',
+    })
+    expect(JSON.stringify(event)).not.toMatch(/482915|Bearer|cookie|abc123/)
+  })
+
+  it('truncates a Beneficiary search query string from the request url', () => {
+    const event = redactSentryRequest({
+      type: undefined,
+      request: {
+        url: 'https://api.example/api/beneficiaries/projects/x?search=Jane%20Doe',
+        method: 'GET',
+      },
+    })
+    expect(event.request).toEqual({
+      url: 'https://api.example/api/beneficiaries/projects/x',
+      method: 'GET',
+    })
+    expect(JSON.stringify(event)).not.toMatch(/Jane/)
+  })
+
+  it('strips query strings and fragments from breadcrumb url/to/from fields', () => {
+    const event = redactSentryRequest({
+      type: undefined,
+      breadcrumbs: [
+        {
+          category: 'fetch',
+          type: 'http',
+          data: {
+            method: 'GET',
+            url: 'https://api.example/api/auth/step-up/pin?pin=482915',
+          },
+        },
+        {
+          category: 'navigation',
+          type: 'navigation',
+          data: {
+            to: 'https://app.example/beneficiaries?search=Jane%20Doe',
+            from: 'https://app.example/dashboard#Jane',
+          },
+        },
+      ],
+    })
+    expect(event.breadcrumbs?.[0]?.data).toEqual({
+      method: 'GET',
+      url: 'https://api.example/api/auth/step-up/pin',
+    })
+    expect(event.breadcrumbs?.[1]?.data).toEqual({
+      to: 'https://app.example/beneficiaries',
+      from: 'https://app.example/dashboard',
+    })
+    expect(JSON.stringify(event)).not.toMatch(/482915|Jane/)
   })
 })
