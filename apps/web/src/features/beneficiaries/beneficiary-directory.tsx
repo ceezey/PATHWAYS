@@ -41,7 +41,7 @@ import { getAccessProfile } from '@/lib/rbac/can'
 import { scopeBeneficiariesForRole, scopeProjectsForRole } from '@/lib/rbac/data-scope'
 import { isUiActionAvailable } from '@/lib/rbac/ui-action-availability'
 import type {
-  Activity,
+  ActivitySummary,
   BeneficiaryRecord,
   JourneyStageConfig,
   ProjectSummary,
@@ -63,7 +63,7 @@ const safeFilterValue = (value: string | null, allowed: string[]) =>
 type BeneficiaryDirectoryProps = {
   beneficiaries: BeneficiaryRecord[]
   projects: ProjectSummary[]
-  activities: Activity[]
+  activities: ActivitySummary[]
   stages: JourneyStageConfig[]
 }
 

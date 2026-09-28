@@ -25,6 +25,7 @@ const api = vi.hoisted(() => ({
   getIndicators: vi.fn(),
   getProjectsForRole: vi.fn(),
 }))
+const core = vi.hoisted(() => ({ downloadCoreArtifact: vi.fn() }))
 const currentAccess = vi.hoisted(() => ({
   role: 'Monitoring and Evaluation Officer',
   assignedProjectIds: ['futuremakers-ncr'],
@@ -55,6 +56,11 @@ const currentAccess = vi.hoisted(() => ({
 
 vi.mock('@/providers/current-role-provider', () => ({
   useCurrentRole: () => currentAccess,
+}))
+
+vi.mock('@/lib/services/core-feature-client', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/lib/services/core-feature-client')>()),
+  downloadCoreArtifact: core.downloadCoreArtifact,
 }))
 
 vi.mock('@/lib/services/pathways-client', () => ({
@@ -105,12 +111,26 @@ beforeEach(() => {
   api.getDigitalForms.mockResolvedValue([])
   api.getActivities.mockResolvedValue([])
   api.getIndicators.mockResolvedValue([])
+  // Mirrors the real helper: bytes are saved only while the caller still owns the request.
+  core.downloadCoreArtifact.mockImplementation(
+    async (_url: string, _fileName: string, isOwnerCurrent: () => boolean) => {
+      if (!isOwnerCurrent()) throw new Error('Artifact ownership changed.')
+      URL.createObjectURL(new Blob(['artifact']))
+      document.createElement('a').click()
+    },
+  )
 })
 
 afterEach(() => {
   cleanup()
   vi.restoreAllMocks()
   vi.clearAllMocks()
+})
+
+const processedBatch = (id: string) => ({
+  id,
+  status: 'PROCESSED',
+  totals: { rows: 1, valid: 1, invalid: 0, processed: 1, unprocessed: 0, failed: 0 },
 })
 
 const renderImportWorkspace = () =>
@@ -210,7 +230,7 @@ describe('collection import workspace', () => {
       validationRevision: 1,
       totals: { invalid: 0 },
     })
-    api.processImport.mockResolvedValue({ id: 'batch-1', totals: { processed: 1, failed: 0 } })
+    api.processImport.mockResolvedValue(processedBatch('batch-1'))
     render(
       <DisplayLabelsProvider>
         <CollectionWorkspace
@@ -693,39 +713,36 @@ describe('collection field selection', () => {
 })
 
 describe('collection form definition export', () => {
-  it('downloads an exact persisted CSV and creates no file for unsupported formats', async () => {
-    const form = {
-      id: 'form-1',
-      projectId: 'futuremakers-ncr',
-      code: 'activity_entry',
-      version: 2,
-      name: 'Activity Entry',
-      description: null,
-      formType: 'OTHER',
-      status: 'PUBLISHED',
-      activityId: null,
-      journeyStageId: null,
-      updatedAt: '2026-09-23T00:00:00.000Z',
-      createdByCurrentUser: true,
-      fields: [
-        {
-          code: 'score',
-          label: 'Score',
-          dataType: 'DECIMAL',
-          required: true,
-          metadataKey: false,
-          sadddField: false,
-          sequence: 0,
-        },
-      ],
-    }
-    api.getDigitalForms.mockResolvedValue([form])
-    api.getDigitalForm.mockResolvedValue(form)
-    const createObjectURL = vi.fn(() => 'blob:form-export')
-    const revokeObjectURL = vi.fn()
-    Object.defineProperty(URL, 'createObjectURL', { configurable: true, value: createObjectURL })
-    Object.defineProperty(URL, 'revokeObjectURL', { configurable: true, value: revokeObjectURL })
-    const click = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => undefined)
+  const exportForm = {
+    id: 'form-1',
+    projectId: 'futuremakers-ncr',
+    code: 'activity_entry',
+    version: 2,
+    name: 'Activity Entry',
+    description: null,
+    formType: 'OTHER',
+    status: 'PUBLISHED',
+    activityId: null,
+    journeyStageId: null,
+    updatedAt: '2026-09-23T00:00:00.000Z',
+    createdByCurrentUser: true,
+    fields: [
+      {
+        code: 'score',
+        label: 'Score',
+        dataType: 'DECIMAL',
+        required: true,
+        metadataKey: false,
+        sadddField: false,
+        sequence: 0,
+      },
+    ],
+  }
+
+  it('downloads every approved format through the audited server export', async () => {
+    api.getDigitalForms.mockResolvedValue([exportForm])
+    Object.defineProperty(URL, 'createObjectURL', { configurable: true, value: vi.fn() })
+    vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => undefined)
 
     render(
       <DisplayLabelsProvider>
@@ -734,19 +751,41 @@ describe('collection form definition export', () => {
     )
 
     await waitFor(() => expect(screen.getByText('Activity Entry')).toBeTruthy())
-    fireEvent.click(screen.getByRole('button', { name: 'Export form' }))
-    await waitFor(() =>
-      expect(api.getDigitalForm).toHaveBeenCalledWith('futuremakers-ncr', 'form-1'),
-    )
-    expect(createObjectURL).toHaveBeenCalledTimes(1)
-    expect(click).toHaveBeenCalledTimes(1)
-    expect(revokeObjectURL).toHaveBeenCalledWith('blob:form-export')
+    const select = screen.getByLabelText('Download format')
+    expect(
+      within(select)
+        .getAllByRole('option')
+        .map((option) => option.textContent),
+    ).toEqual(['CSV', 'XLSX', 'XLS', 'PDF'])
+    for (const format of ['csv', 'xlsx', 'xls', 'pdf']) {
+      fireEvent.change(select, { target: { value: format } })
+      fireEvent.click(screen.getByRole('button', { name: 'Export form' }))
+      await waitFor(() =>
+        expect(core.downloadCoreArtifact).toHaveBeenLastCalledWith(
+          `/metadata/projects/futuremakers-ncr/forms/form-1/export?format=${format.toUpperCase()}`,
+          `activity-entry-v2.${format}`,
+          expect.any(Function),
+        ),
+      )
+    }
+    expect(core.downloadCoreArtifact).toHaveBeenCalledTimes(4)
+    expect(api.getDigitalForm).not.toHaveBeenCalled()
+  })
 
-    fireEvent.change(screen.getByLabelText('Download format'), { target: { value: 'xlsx' } })
-    fireEvent.click(screen.getByRole('button', { name: 'Export form' }))
-    expect(api.getDigitalForm).toHaveBeenCalledTimes(1)
-    expect(createObjectURL).toHaveBeenCalledTimes(1)
-    expect(click).toHaveBeenCalledTimes(1)
+  it('does not request an export without forms.export', async () => {
+    currentAccess.profile.permissions = currentAccess.profile.permissions.filter(
+      (permission) => permission !== 'forms.export',
+    )
+    api.getDigitalForms.mockResolvedValue([exportForm])
+    render(
+      <DisplayLabelsProvider>
+        <CollectionWorkspace initialView="forms" />
+      </DisplayLabelsProvider>,
+    )
+    await waitFor(() => expect(screen.getByText('Activity Entry')).toBeTruthy())
+    const button = screen.queryByRole('button', { name: 'Export form' })
+    if (button) fireEvent.click(button)
+    expect(core.downloadCoreArtifact).not.toHaveBeenCalled()
   })
 })
 
@@ -852,7 +891,7 @@ const ownedDataset = async () => {
     validationRevision: 1,
     totals: { invalid: 0 },
   })
-  api.processImport.mockResolvedValue({ id: 'batch-owned', totals: { processed: 1, failed: 0 } })
+  api.processImport.mockResolvedValue(processedBatch('batch-owned'))
   const element = () => (
     <DisplayLabelsProvider>
       <CollectionWorkspace
@@ -954,6 +993,49 @@ describe('collection operation ownership', () => {
       expect(api.processImport).not.toHaveBeenCalled()
     },
   )
+  it('continues one-shot processing until the server reports the batch done', async () => {
+    api.uploadImport.mockResolvedValue({ id: 'batch-owned', mappingRevision: 0 })
+    const partial = (processed: number) => ({
+      id: 'batch-owned',
+      status: processed >= 250 ? 'PROCESSED' : 'PARTIALLY_PROCESSED',
+      totals: { rows: 250, valid: 250, invalid: 0, processed, unprocessed: 0, failed: 0 },
+    })
+    api.processImport
+      .mockResolvedValueOnce(partial(100))
+      .mockResolvedValueOnce(partial(200))
+      .mockResolvedValueOnce(partial(250))
+    const { submit } = await ownedDataset()
+    fireEvent.click(submit)
+
+    await screen.findByText('Server import batch-owned: 250 processed, 0 failed.')
+    expect(api.processImport).toHaveBeenCalledTimes(3)
+    expect(api.processImport).toHaveBeenCalledWith('futuremakers-ncr', 'batch-owned', 1)
+  })
+  it('keeps the dialog open with Resume processing after a failed processing call', async () => {
+    api.uploadImport.mockResolvedValue({ id: 'batch-owned', mappingRevision: 0 })
+    api.processImport
+      .mockResolvedValueOnce({
+        id: 'batch-owned',
+        status: 'PARTIALLY_PROCESSED',
+        totals: { rows: 250, valid: 250, invalid: 0, processed: 100, unprocessed: 0, failed: 0 },
+      })
+      .mockRejectedValueOnce(new Error('Another worker currently owns this import claim.'))
+    const { submit } = await ownedDataset()
+    fireEvent.click(submit)
+
+    const dialog = screen.getByRole('dialog')
+    await waitFor(() =>
+      expect(within(dialog).getByRole('status').textContent).toContain(
+        'Processing paused: 100 of 250 rows handled',
+      ),
+    )
+    // Proceed unmounted; focus moved into the processing panel (heading, then Resume).
+    expect(
+      within(dialog).getByTestId('import-processing-panel').contains(document.activeElement),
+    ).toBe(true)
+    expect(within(dialog).getByRole('button', { name: 'Resume processing' })).toBeTruthy()
+    expect(within(dialog).queryByRole('button', { name: 'Proceed' })).toBeNull()
+  })
   it('keeps one upload ticket and immutable inputs across duplicate clicks and a same-scope refresh', async () => {
     const pending = deferred<{ id: string; mappingRevision: number }>()
     api.uploadImport.mockReturnValue(pending.promise)
@@ -1060,11 +1142,20 @@ describe('persisted collection completion ownership', () => {
       const pending = deferred<unknown>()
       const apiCall =
         operation === 'export'
-          ? api.getDigitalForm
+          ? core.downloadCoreArtifact
           : operation === 'publish'
             ? api.publishDigitalForm
             : api.createDigitalFormVersion
-      apiCall.mockReturnValue(pending.promise)
+      if (operation === 'export')
+        core.downloadCoreArtifact.mockImplementation(
+          async (_url: string, _fileName: string, isOwnerCurrent: () => boolean) => {
+            await pending.promise
+            if (!isOwnerCurrent()) throw new Error('Artifact ownership changed.')
+            URL.createObjectURL(new Blob(['artifact']))
+            document.createElement('a').click()
+          },
+        )
+      else apiCall.mockReturnValue(pending.promise)
       const create = vi.fn(() => 'blob:should-not-exist')
       Object.defineProperty(URL, 'createObjectURL', { configurable: true, value: create })
       Object.defineProperty(URL, 'revokeObjectURL', { configurable: true, value: vi.fn() })

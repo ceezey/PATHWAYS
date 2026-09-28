@@ -9,3 +9,4 @@ export * from './validation/form-data'
 
 export * from './monitoring/metric-contract'
 export * from './monitoring/descriptive-analytics'
+export * from './monitoring/overview-metrics'

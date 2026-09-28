@@ -46,6 +46,8 @@ describe('Deferred legacy-table retirement contract', () => {
       '0033_core_canonical_activity_review_guard',
       '0034_core_feature_completion',
       '0035_admin_read_access',
+      '0036_import_pdf_file_type',
+      '0037_step_up_pin',
     ])
     expect(migration).toContain('DEFERRED REVIEW ARTIFACT -- NOT AN ACTIVE PRISMA MIGRATION')
   })
@@ -72,7 +74,9 @@ describe('Deferred legacy-table retirement contract', () => {
 
   it('keeps the datamodel and verifier aligned with the reviewed migration', () => {
     expect(schema).not.toMatch(/^model Legacy/m)
-    expect(schema.match(/^model /gm)).toHaveLength(52)
+    expect(schema.match(/^model /gm)).toHaveLength(54)
+    expect(schema).toMatch(/^model UserStepUpPin\s*\{/m)
+    expect(schema).toMatch(/^model BeneficiaryStepUpGrant\s*\{/m)
     expect(schema).toMatch(/^model ExpenseSignoff\s*\{/m)
     expect(schema).toMatch(/^model ProjectPublication\s*\{/m)
     expect(schema).toMatch(/^model PublicationRequest\s*\{/m)

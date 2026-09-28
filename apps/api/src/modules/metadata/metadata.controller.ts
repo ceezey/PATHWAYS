@@ -3,16 +3,20 @@ import {
   Controller,
   ForbiddenException,
   Get,
+  Header,
   Inject,
   Param,
   Patch,
   Post,
   Query,
   Req,
+  Res,
+  StreamableFile,
 } from '@nestjs/common'
 
 import { RequirePermission } from '../../common/decorators/permission.decorator'
 import type { AuthenticatedRequest } from '../auth/developer-access'
+import { FormDefinitionExportService } from './form-definition-export.service'
 // biome-ignore lint/style/useImportType: Nest validation needs the DTO constructors at runtime.
 import {
   CreateFormDto,
@@ -34,7 +38,10 @@ function profile(request: AuthenticatedRequest) {
 
 @Controller('metadata/projects/:projectId/forms')
 export class MetadataController {
-  constructor(@Inject(MetadataService) private readonly metadata: MetadataService) {}
+  constructor(
+    @Inject(MetadataService) private readonly metadata: MetadataService,
+    @Inject(FormDefinitionExportService) private readonly formExport: FormDefinitionExportService,
+  ) {}
 
   @Get()
   @RequirePermission('forms.read')
@@ -70,6 +77,23 @@ export class MetadataController {
     @Param('formId') formId: string,
   ) {
     return this.metadata.getForm(profile(request), projectId, formId)
+  }
+
+  @Get(':formId/export')
+  @Header('Cache-Control', 'private, no-store')
+  @RequirePermission('forms.export')
+  async exportDefinition(
+    @Req() request: AuthenticatedRequest,
+    @Param('projectId') projectId: string,
+    @Param('formId') formId: string,
+    @Query('format') format: unknown,
+    @Res({ passthrough: true }) res: { setHeader: (name: string, value: string) => void },
+  ) {
+    const result = await this.formExport.export(profile(request), projectId, formId, format)
+    res.setHeader('Content-Type', result.contentType)
+    res.setHeader('Content-Disposition', `attachment; filename="${result.fileName}"`)
+    res.setHeader('X-Content-Type-Options', 'nosniff')
+    return new StreamableFile(result.bytes)
   }
 
   @Patch(':formId')

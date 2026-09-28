@@ -9,7 +9,7 @@ import { Logger } from 'nestjs-pino'
 import { readApiEnv } from '@pathways/config'
 
 import { AppModule } from './app.module'
-import { allowedWebOrigins } from './common/network/cors-origins'
+import { corsOptions } from './common/network/cors-origins'
 import { inspectionBudgetMiddleware } from './common/network/inspection-request-budget'
 import { listenOnIpv4Loopback } from './common/network/local-listener'
 import { machineBudgetMiddleware } from './common/network/machine-request-budget'
@@ -39,19 +39,7 @@ async function bootstrap() {
     }),
   )
   app.setGlobalPrefix(env.API_PREFIX)
-  app.enableCors({
-    origin: allowedWebOrigins(env.WEB_ORIGIN),
-    credentials: false,
-    maxAge: 300,
-    exposedHeaders: ['Content-Disposition', 'X-Content-Type-Options'],
-    methods: ['GET', 'POST', 'PUT', 'PATCH', 'OPTIONS'],
-    allowedHeaders: [
-      'Authorization',
-      'Content-Type',
-      'X-Pathways-Organization-Id',
-      'X-Pathways-User-Id',
-    ],
-  })
+  app.enableCors(corsOptions(env.WEB_ORIGIN))
   app.enableShutdownHooks()
 
   if (env.ENABLE_SWAGGER) {

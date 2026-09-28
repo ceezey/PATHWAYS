@@ -37,7 +37,7 @@ import {
 } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
 import type {
-  Activity,
+  ActivitySummary,
   BeneficiaryMediaProofRecord,
   BeneficiaryMediaReviewStatus,
   BeneficiaryMediaType,
@@ -72,7 +72,7 @@ export const BeneficiaryMediaProof = ({
   projects,
   unavailableReason,
 }: {
-  activities: Activity[]
+  activities: ActivitySummary[]
   beneficiaryId: string
   canManage?: boolean
   mediaProof: BeneficiaryMediaProofRecord[]
@@ -507,7 +507,7 @@ const MediaProofCard = ({
   onReview,
   projects,
 }: {
-  activities: Activity[]
+  activities: ActivitySummary[]
   canManage: boolean
   item: MediaProofWithPreview
   onReview: () => void

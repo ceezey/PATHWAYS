@@ -37,6 +37,9 @@ vi.mock('@/lib/services/own-profile-client', () => ({
 vi.mock('./own-password-form', () => ({
   OwnPasswordForm: () => <button type="button">Verify password</button>,
 }))
+vi.mock('./own-step-up-pin-form', () => ({
+  OwnStepUpPinForm: () => <p>Beneficiary PIN form</p>,
+}))
 vi.mock('@/components/layout/page-header', () => ({
   PageHeader: ({ title }: { title: string }) => <h1>{title}</h1>,
 }))
@@ -60,6 +63,17 @@ beforeEach(() => {
 })
 
 describe('own profile editing', () => {
+  it('shows the Beneficiary access PIN section only to Beneficiary detail roles', async () => {
+    render(<OwnProfileWorkspace />)
+    await screen.findByLabelText('Name')
+    expect(screen.queryByText('Beneficiary PIN form')).toBeNull()
+    cleanup()
+    state.permissions = ['profile.manage', 'beneficiaries.records.read']
+    render(<OwnProfileWorkspace />)
+    expect(await screen.findByText('Beneficiary PIN form')).toBeTruthy()
+    expect(screen.getByText('Beneficiary access PIN')).toBeTruthy()
+  })
+
   it('updates only approved editable fields with the loaded revision', async () => {
     render(<OwnProfileWorkspace />)
     const input = await screen.findByLabelText('Name')

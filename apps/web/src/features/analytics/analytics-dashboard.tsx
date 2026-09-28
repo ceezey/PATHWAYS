@@ -25,13 +25,14 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import { metricUnavailableLabel } from '@/features/projects/project-utils'
 import { useCurrentRole } from '@/hooks/use-current-role'
 import { useDisplayLabels } from '@/hooks/use-display-labels'
 import { can } from '@/lib/rbac/can'
 import { principalHasAtomicPermission } from '@/lib/rbac/route-access'
 import { downloadCoreArtifact } from '@/lib/services/core-feature-client'
 import { descriptiveAnalyticsSearch, pathwaysClient } from '@/lib/services/pathways-client'
-import type { Activity, ProjectIndicator, ProjectSummary } from '@/types/pathways'
+import type { ActivitySummary, ProjectIndicator, ProjectSummary } from '@/types/pathways'
 import {
   type DescriptiveAnalytics,
   type MonitoringDashboard,
@@ -103,7 +104,7 @@ export const AnalyticsDashboard = () => {
   const [indicatorDefinitions, setIndicatorDefinitions] = useState<ProjectIndicator[]>([])
   const [monitoring, setMonitoring] = useState<MonitoringDashboard | null>(null)
   const [saddd, setSaddd] = useState<SadddDashboard | null>(null)
-  const [activities, setActivities] = useState<Activity[]>([])
+  const [activities, setActivities] = useState<ActivitySummary[]>([])
   const [projectsLoading, setProjectsLoading] = useState(true)
   const [projectDataLoading, setProjectDataLoading] = useState(false)
   const [monitoringLoading, setMonitoringLoading] = useState(false)
@@ -192,7 +193,9 @@ export const AnalyticsDashboard = () => {
     setMonitoring(null)
     setMonitoringError('')
     Promise.all([
-      canReadActivities ? pathwaysClient.getActivities(projectId) : Promise.resolve<Activity[]>([]),
+      canReadActivities
+        ? pathwaysClient.getActivities(projectId)
+        : Promise.resolve<ActivitySummary[]>([]),
       canReadIndicators
         ? pathwaysClient.getProjectIndicators(projectId)
         : Promise.resolve<ProjectIndicator[]>([]),
@@ -407,6 +410,19 @@ export const AnalyticsDashboard = () => {
   const averageKpi = progressValues.length
     ? Math.round(progressValues.reduce((sum, value) => sum + value, 0) / progressValues.length)
     : null
+  // "None yet" only when the role can read the source and the read succeeded empty.
+  const periodsReadable = canReadIndicators && !projectDataLoading && !projectDataError
+  const monitoringReadable = canReadIndicators && monitoring !== null && !monitoringError
+  // The participation chart title reflects the source cell instead of assuming "None
+  // yet": SUPPRESSED gets the suppression wording and other withheld reasons fall
+  // through to the panel's "Data unavailable" default, matching overviewMetricLabel.
+  const participationEmptyTitle = (() => {
+    if (!monitoring) return undefined
+    const label = metricUnavailableLabel(monitoring.participationRecords)
+    return label === 'None yet' || monitoring.participationRecords.state === 'SUPPRESSED'
+      ? label
+      : undefined
+  })()
   const completedActivities = activities.filter(
     (activity) => activity.status === 'Completed',
   ).length
@@ -614,13 +630,27 @@ export const AnalyticsDashboard = () => {
                 ) : null}
               </>
             ) : !selectedPeriod ? (
-              <UnavailableChart description="No active Indicator reporting period is available for this project." />
+              <UnavailableChart
+                description={
+                  periodsReadable
+                    ? 'No active Indicator reporting period is available for this project.'
+                    : 'Indicator reporting periods are not available for this role.'
+                }
+                title={periodsReadable ? 'None yet' : undefined}
+              />
             ) : analysisRows.length === 0 ? (
               <UnavailableChart
                 description={
                   analysisView === 'survey' || analysisView === 'timeline'
                     ? 'This analysis view is unavailable in the current API.'
                     : 'No released values are available for this selection.'
+                }
+                title={
+                  analysisView === 'survey' || analysisView === 'timeline' || !monitoringReadable
+                    ? undefined
+                    : analysisView === 'participation'
+                      ? participationEmptyTitle
+                      : 'None yet'
                 }
               />
             ) : visualizationType === 'table' ? (
@@ -658,7 +688,13 @@ export const AnalyticsDashboard = () => {
               icon={Target}
               label="KPI achievement"
               tone={averageKpi === null ? 'info' : averageKpi >= 70 ? 'success' : 'warning'}
-              value={averageKpi === null ? 'Unavailable' : `${averageKpi}%`}
+              value={
+                averageKpi !== null
+                  ? `${averageKpi}%`
+                  : monitoringReadable
+                    ? 'None yet'
+                    : 'Unavailable'
+              }
             />
             <MetricCard
               description="Budget utilization is unavailable in the current API."
@@ -777,7 +813,14 @@ export const AnalyticsDashboard = () => {
                 ) : descriptive ? (
                   <DescriptiveStatisticsTable data={descriptive} />
                 ) : (
-                  <UnavailableChart description="No active Indicator reporting period is available for this project." />
+                  <UnavailableChart
+                    description={
+                      periodsReadable
+                        ? 'No active Indicator reporting period is available for this project.'
+                        : 'Indicator reporting periods are not available for this role.'
+                    }
+                    title={periodsReadable ? 'None yet' : undefined}
+                  />
                 )}
               </ChartPanel>
             ) : null}
@@ -889,9 +932,9 @@ const DescriptiveStatisticsTable = ({ data }: { data: DescriptiveAnalytics }) =>
               <td className="p-2 tabular-nums">
                 {row.reportedCount}/{row.indicatorCount}
               </td>
-              <td className="p-2 tabular-nums">{row.mean ?? 'Unavailable'}</td>
-              <td className="p-2 tabular-nums">{row.minimum ?? 'Unavailable'}</td>
-              <td className="p-2 tabular-nums">{row.maximum ?? 'Unavailable'}</td>
+              <td className="p-2 tabular-nums">{row.mean ?? 'None yet'}</td>
+              <td className="p-2 tabular-nums">{row.minimum ?? 'None yet'}</td>
+              <td className="p-2 tabular-nums">{row.maximum ?? 'None yet'}</td>
             </tr>
           ))}
         </tbody>
@@ -900,6 +943,11 @@ const DescriptiveStatisticsTable = ({ data }: { data: DescriptiveAnalytics }) =>
   </div>
 )
 
-const UnavailableChart = ({ description }: { description: string }) => (
-  <EmptyState description={description} icon={BarChart3} title="Data unavailable" />
-)
+/** Capability gaps keep "Data unavailable"; genuinely empty selections pass "None yet". */
+const UnavailableChart = ({
+  description,
+  title = 'Data unavailable',
+}: {
+  description: string
+  title?: string
+}) => <EmptyState description={description} icon={BarChart3} title={title} />

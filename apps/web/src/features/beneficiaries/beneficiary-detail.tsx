@@ -38,7 +38,7 @@ import { useCurrentRole } from '@/hooks/use-current-role'
 import { isUiActionAvailable } from '@/lib/rbac/ui-action-availability'
 import { type AssessmentDetail, pathwaysClient } from '@/lib/services/pathways-client'
 import type {
-  Activity,
+  ActivitySummary,
   BeneficiaryAssessmentRecord,
   BeneficiaryNoteRecord,
   BeneficiaryParticipationRecord,
@@ -72,7 +72,7 @@ const assessmentTypeLabel: Record<AssessmentDetail['type'], string> = {
 type BeneficiaryDetailProps = {
   beneficiary: BeneficiaryRecord
   projects: ProjectSummary[]
-  activities: Activity[]
+  activities: ActivitySummary[]
   stages: JourneyStageConfig[]
   participationForms: DigitalFormDefinition[]
   projectId: string
@@ -733,7 +733,7 @@ const RecordList = ({
   stages,
   title,
 }: {
-  activities: Activity[]
+  activities: ActivitySummary[]
   participation: BeneficiaryParticipationRecord[]
   stages: JourneyStageConfig[]
   title: string
@@ -784,7 +784,7 @@ const StageActivityList = ({
   activities,
   participation,
 }: {
-  activities: Activity[]
+  activities: ActivitySummary[]
   participation: BeneficiaryParticipationRecord[]
 }) => (
   <section className="rounded-sm border border-border bg-card p-4">

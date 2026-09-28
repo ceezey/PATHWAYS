@@ -19,10 +19,6 @@ const makeProject = (id: string, title: string): ProjectSummary => ({
   health: 'On Track',
   period: '2026',
   projectManager: 'Test manager',
-  kpiAchievement: 0,
-  beneficiariesReached: 0,
-  budgetUtilization: 0,
-  timelineProgress: 0,
 })
 
 const testProjects = [

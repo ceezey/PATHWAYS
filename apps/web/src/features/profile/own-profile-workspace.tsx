@@ -11,6 +11,7 @@ import { ownProfileClient } from '@/lib/services/own-profile-client'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { OwnPasswordForm } from './own-password-form'
 import { type OwnProfileRecord, ownProfileSchema } from './own-profile-contract'
+import { OwnStepUpPinForm } from './own-step-up-pin-form'
 
 export const OwnProfileWorkspace = () => {
   const { session } = useSession()
@@ -32,7 +33,10 @@ export const OwnProfileWorkspace = () => {
 
 const OwnedProfileWorkspace = ({ owner: draftOwner }: { owner: SensitiveDraftOwner }) => {
   const { email } = useSession()
-  const { refreshAccess } = useCurrentRole()
+  const { profile, refreshAccess } = useCurrentRole()
+  // UI only: the PIN is a Beneficiary step-up fallback, so aggregate-only roles skip it.
+  // The API enforces permissions and step-up independently of this section.
+  const beneficiaryDetail = Boolean(profile?.permissions.includes('beneficiaries.records.read'))
   const owner = `${draftOwner.generation}:${draftOwner.key}`
   const mounted = useRef(true)
   useEffect(() => {
@@ -169,6 +173,14 @@ const OwnedProfileWorkspace = ({ owner: draftOwner }: { owner: SensitiveDraftOwn
         <SectionCard title="Change password" description="Requires a fresh account verification.">
           <OwnPasswordForm />
         </SectionCard>
+        {beneficiaryDetail && (
+          <SectionCard
+            title="Beneficiary access PIN"
+            description="A fallback for reopening Beneficiary details in this session."
+          >
+            <OwnStepUpPinForm />
+          </SectionCard>
+        )}
       </div>
     </div>
   )

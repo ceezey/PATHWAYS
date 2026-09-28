@@ -1,6 +1,6 @@
 /* @vitest-environment jsdom */
 
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { AnalyticsDashboard } from './analytics-dashboard'
@@ -118,10 +118,6 @@ const project = (id: string, title: string, startDate: string | null, endDate: s
   health: 'On Track',
   period: 'Persisted dates',
   projectManager: 'Manager',
-  kpiAchievement: 0,
-  beneficiariesReached: 0,
-  budgetUtilization: 0,
-  timelineProgress: 0,
 })
 
 const indicator = (projectId: string, id: string, periodStart: string, periodEnd: string) => ({
@@ -150,6 +146,12 @@ const indicator = (projectId: string, id: string, periodStart: string, periodEnd
   status: 'ACTIVE',
   contractVersion: 'p06.v1',
 })
+
+const kpiCard = () =>
+  screen
+    .getAllByText('KPI achievement')
+    .map((node) => node.parentElement?.parentElement?.textContent ?? '')
+    .join(' | ')
 
 const monitoring = {
   indicators: [],
@@ -361,6 +363,84 @@ describe('Analytics dashboard request dependencies', () => {
     await waitFor(() => expect(api.getMonitoringDashboard).toHaveBeenCalledTimes(2))
     expect(api.getSadddDashboard).toHaveBeenCalledTimes(1)
     expect(api.getActivities).toHaveBeenCalledTimes(1)
+  })
+
+  it('shows "Unavailable", never "None yet", for indicator data a Project Officer cannot read', async () => {
+    currentAccess.role = 'Project Officer'
+    currentAccess.profile.roles = ['PROJECT_OFFICER']
+    currentAccess.profile.permissions = [
+      'projects.read',
+      'activities.read',
+      'analytics.read',
+      'analytics.saddd.read',
+      'beneficiaries.aggregates.read',
+    ]
+
+    render(<AnalyticsDashboard />)
+
+    await waitFor(() => expect(api.getActivities).toHaveBeenCalled())
+    await screen.findAllByText('KPI achievement')
+    await waitFor(() => expect(kpiCard()).toContain('Unavailable'))
+    expect(api.getProjectIndicators).not.toHaveBeenCalled()
+    expect(api.getMonitoringDashboard).not.toHaveBeenCalled()
+    expect(screen.queryByText('None yet')).toBeNull()
+    expect(
+      screen.getAllByText('Indicator reporting periods are not available for this role.').length,
+    ).toBeGreaterThan(0)
+  })
+
+  it('shows "None yet" for an empty KPI set only after a successful monitoring read', async () => {
+    render(<AnalyticsDashboard />)
+
+    await waitFor(() => expect(api.getMonitoringDashboard).toHaveBeenCalled())
+    await screen.findAllByText('KPI achievement')
+    await waitFor(() => expect(kpiCard()).toContain('None yet'))
+  })
+
+  it('shows the suppression wording, never "None yet", for a SUPPRESSED (SMALL_COHORT) participation cell', async () => {
+    api.getMonitoringDashboard.mockResolvedValue({
+      indicators: [],
+      participationRecords: { value: null, state: 'SUPPRESSED', reason: 'SMALL_COHORT' },
+    })
+
+    render(<AnalyticsDashboard />)
+
+    await waitFor(() => expect(api.getMonitoringDashboard).toHaveBeenCalled())
+    fireEvent.change(screen.getByLabelText('Analysis view'), {
+      target: { value: 'participation' },
+    })
+
+    const heading = await screen.findByRole('heading', {
+      name: 'Participation patterns · Bar chart',
+    })
+    const panel = within(heading.closest('section') as HTMLElement)
+    expect(panel.getByText('Suppressed (fewer than 5)')).toBeTruthy()
+    expect(panel.queryByText('None yet')).toBeNull()
+  })
+
+  it('shows "Data unavailable", never "None yet", for a withheld-release MISSING participation cell', async () => {
+    api.getMonitoringDashboard.mockResolvedValue({
+      indicators: [],
+      participationRecords: {
+        value: null,
+        state: 'MISSING',
+        reason: 'SENSITIVE_RELEASE_NOT_ENABLED_V1',
+      },
+    })
+
+    render(<AnalyticsDashboard />)
+
+    await waitFor(() => expect(api.getMonitoringDashboard).toHaveBeenCalled())
+    fireEvent.change(screen.getByLabelText('Analysis view'), {
+      target: { value: 'participation' },
+    })
+
+    const heading = await screen.findByRole('heading', {
+      name: 'Participation patterns · Bar chart',
+    })
+    const panel = within(heading.closest('section') as HTMLElement)
+    expect(panel.getByText('Data unavailable')).toBeTruthy()
+    expect(panel.queryByText('None yet')).toBeNull()
   })
 
   it('does not issue permission-incompatible Activity or Indicator reads for Grant Manager', async () => {

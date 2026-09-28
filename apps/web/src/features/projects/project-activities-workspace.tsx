@@ -12,8 +12,7 @@ import {
   UsersRound,
 } from 'lucide-react'
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 
 import { PageHeader } from '@/components/layout/page-header'
 import {
@@ -36,7 +35,7 @@ import { isUiActionAvailable } from '@/lib/rbac/ui-action-availability'
 import { pathwaysClient } from '@/lib/services/pathways-client'
 import { PathwaysClientError } from '@/lib/services/pathways-client'
 import { useAuthorizedRead } from '@/providers/authorized-query-provider'
-import type { Activity, ActivityStatus, Indicator } from '@/types/pathways'
+import type { Activity, ActivityStatus, ActivitySummary, Indicator } from '@/types/pathways'
 
 import { ActivityDetailPanel } from './activity-detail-panel'
 import { ActivityFormDialog } from './activity-form-dialog'
@@ -47,10 +46,18 @@ import {
   activityProgressTone,
   activityStatusTone,
   activityStatuses,
+  activitySummary,
 } from './activity-utils'
 import { ProjectWorkspaceHeader } from './project-workspace-header'
+import {
+  useActivityDetailRead,
+  useProjectActivitiesRead,
+  useProjectIndicatorsRead,
+  useProjectJourneyStagesRead,
+  useProjectRead,
+} from './use-project-reads'
 
-const indicatorSummary = (activity: Activity, indicators: Indicator[]) =>
+const indicatorSummary = (activity: ActivitySummary, indicators: Indicator[]) =>
   activity.indicatorIds
     .map(
       (indicatorId) =>
@@ -62,8 +69,8 @@ const ActivityCard = ({
   activity,
   onOpen,
 }: {
-  activity: Activity
-  onOpen: (activity: Activity) => void
+  activity: ActivitySummary
+  onOpen: (activity: ActivitySummary) => void
 }) => (
   <article
     aria-label={`Activity: ${activity.title}`}
@@ -128,8 +135,8 @@ const ActivityListRow = ({
   activity,
   onOpen,
 }: {
-  activity: Activity
-  onOpen: (activity: Activity) => void
+  activity: ActivitySummary
+  onOpen: (activity: ActivitySummary) => void
 }) => (
   <article
     aria-label={`Activity: ${activity.title}`}
@@ -235,7 +242,6 @@ export const ProjectActivitiesWorkspace = ({
   initialProofId?: string
   projectId: string
 }) => {
-  const router = useRouter()
   const { labels } = useDisplayLabels()
   const { role, assignedProjectIds, profile } = useCurrentRole()
   const inProjectScope = role ? canAccessProjectForRole(role, projectId, assignedProjectIds) : false
@@ -258,59 +264,60 @@ export const ProjectActivitiesWorkspace = ({
   const [query, setQuery] = useState('')
   const [statusFilter, setStatusFilter] = useState<ActivityStatus | null>(null)
   const [viewMode, setViewMode] = useState<'board' | 'list'>('list')
-  const [selectedActivity, setSelectedActivity] = useState<Activity | null>(null)
+  // The detail route opens by id through GET /activities/:id; the list is never searched.
+  const [selectedActivityId, setSelectedActivityId] = useState<string | null>(
+    initialActivityId ?? null,
+  )
   const activityDetailTrigger = useRef<HTMLElement | null>(null)
   const [editingActivity, setEditingActivity] = useState<Activity | null>(null)
   const [proofActivity, setProofActivity] = useState<Activity | null>(null)
   const [formOpen, setFormOpen] = useState(false)
   const [proofOpen, setProofOpen] = useState(false)
-  const workspace = useAuthorizedRead(
-    'activity-workspace',
-    projectId,
-    'activities.read',
-    async (signal) => {
-      const [project, activities] = await Promise.all([
-        pathwaysClient.getProject(projectId, signal),
-        pathwaysClient.getActivities(projectId, signal),
-      ])
-      return { project, activities }
-    },
-    principalHasAtomicPermission(profile, 'projects.detail.read'),
-  )
-  const project = workspace.data?.project ?? null
-  const activities = workspace.data?.activities ?? []
-  const loading = !workspace.eligible || workspace.isPending
-  const loadError = workspace.isError
-    ? workspace.error instanceof PathwaysClientError && workspace.error.code === 'not_found'
+  // Shared with the Overview tab: one project read per workspace visit.
+  const projectRead = useProjectRead(projectId)
+  const activityList = useProjectActivitiesRead(projectId)
+  const project = projectRead.data ?? null
+  const activities = activityList.data ?? []
+  const loadFailure = projectRead.isError ? projectRead.error : activityList.error
+  // Only a real not-found error reaches the not-found view; data that is hidden while
+  // access is re-verified stays in the loading state.
+  const loading =
+    !projectRead.eligible ||
+    !activityList.eligible ||
+    projectRead.isPending ||
+    activityList.isPending ||
+    (!loadFailure && (!project || !activityList.data))
+  const loadError = loadFailure
+    ? loadFailure instanceof PathwaysClientError && loadFailure.code === 'not_found'
       ? 'not-found'
       : 'error'
     : 'none'
-  const supporting = useAuthorizedRead(
-    formOpen ? 'activity-editor-context' : 'activity-detail-context',
+  // Loaded once per workspace with stable keys, so search works without opening a panel.
+  const indicatorRead = useProjectIndicatorsRead(projectId, canReadIndicators)
+  const journeyStageRead = useProjectJourneyStagesRead(projectId, canReadJourneyStages)
+  const userRead = useAuthorizedRead(
+    'activity-editor-users',
     projectId,
     'activities.read',
-    async (signal) => {
-      const [indicators, journeyStages, users] = await Promise.all([
-        canReadIndicators ? pathwaysClient.getIndicators(projectId, signal) : Promise.resolve([]),
-        canReadJourneyStages
-          ? pathwaysClient.getJourneyStages(projectId, signal)
-          : Promise.resolve([]),
-        canReadUsers && formOpen ? pathwaysClient.getUsers(signal) : Promise.resolve([]),
-      ])
-      return { indicators, journeyStages, users }
-    },
-    Boolean(selectedActivity || formOpen),
+    (signal) => pathwaysClient.getUsers(signal),
+    canReadUsers && formOpen,
   )
-  const indicators = supporting.data?.indicators ?? []
-  const journeyStages = supporting.data?.journeyStages ?? []
-  const users = supporting.data?.users ?? []
-  useEffect(() => {
-    if (!initialActivityId || !workspace.data) return
-    const initial =
-      workspace.data.activities.find((activity) => activity.id === initialActivityId) ?? null
-    setSelectedActivity(initial)
-    if (!initial) router.replace(`/projects/${projectId}/activities`)
-  }, [initialActivityId, workspace.data, projectId, router])
+  const indicators = indicatorRead.data ?? []
+  const journeyStages = journeyStageRead.data ?? []
+  const users = userRead.data ?? []
+  const editorReads = [
+    canReadIndicators ? indicatorRead : null,
+    canReadJourneyStages ? journeyStageRead : null,
+    canReadUsers ? userRead : null,
+  ].filter((read) => read !== null)
+  const editorReady = editorReads.every((read) => read.data !== undefined)
+  const editorFailed = editorReads.some((read) => read.isError)
+  const detail = useActivityDetailRead(projectId, selectedActivityId)
+  const selectedActivity = detail.data ?? null
+  const detailNotFound =
+    detail.isError &&
+    detail.error instanceof PathwaysClientError &&
+    ['not_found', 'forbidden'].includes(detail.error.code)
 
   const filteredActivities = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase()
@@ -374,21 +381,20 @@ export const ProjectActivitiesWorkspace = ({
 
   const upsertActivity = (activity: Activity, selectActivity = true) => {
     if (!project) return
-    workspace.replaceData((previous) => ({
-      project: previous?.project ?? project,
-      activities: [
-        ...(previous?.activities ?? []).filter((item) => item.id !== activity.id),
-        activity,
-      ],
-    }))
-    setSelectedActivity((currentActivity) =>
-      currentActivity?.id === activity.id || selectActivity ? activity : currentActivity,
-    )
+    const item = activitySummary(activity)
+    activityList.replaceData((previous) => [
+      ...(previous ?? []).filter((current) => current.id !== activity.id),
+      item,
+    ])
+    if (selectActivity || selectedActivityId === activity.id) {
+      setSelectedActivityId(activity.id)
+      if (selectedActivityId === activity.id) detail.replaceData(() => activity)
+    }
   }
 
-  const openDetail = (activity: Activity) => {
+  const openDetail = (activity: ActivitySummary) => {
     activityDetailTrigger.current = document.activeElement as HTMLElement | null
-    setSelectedActivity(activity)
+    setSelectedActivityId(activity.id)
     window.history.pushState(null, '', `/projects/${projectId}/activities/${activity.id}`)
   }
 
@@ -397,7 +403,7 @@ export const ProjectActivitiesWorkspace = ({
       return
     }
 
-    setSelectedActivity(null)
+    setSelectedActivityId(null)
     window.history.replaceState(null, '', `/projects/${projectId}/activities`)
     window.requestAnimationFrame(() => activityDetailTrigger.current?.focus())
   }
@@ -455,7 +461,10 @@ export const ProjectActivitiesWorkspace = ({
         <AsyncState
           description="The project could not be loaded. Check your connection and try again."
           icon={LayoutGrid}
-          onRetry={() => void workspace.refetch()}
+          onRetry={() => {
+            if (projectRead.isError) void projectRead.refetch()
+            if (activityList.isError) void activityList.refetch()
+          }}
           status="error"
           title="Activities unavailable"
         />
@@ -600,11 +609,31 @@ export const ProjectActivitiesWorkspace = ({
           </div>
         </SectionCard>
       ) : null}
+      {selectedActivityId && detail.isError ? (
+        <div className="space-y-3">
+          <AsyncState
+            description={
+              detailNotFound
+                ? 'This activity is not available in this project for the current account.'
+                : 'The activity could not be loaded. Check your connection and try again.'
+            }
+            icon={LayoutGrid}
+            onRetry={detailNotFound ? undefined : () => void detail.refetch()}
+            status={detailNotFound ? 'empty' : 'error'}
+            title={detailNotFound ? 'Activity not found' : 'Activity unavailable'}
+          />
+          <Button onClick={() => closeDetail(false)} type="button" variant="outline">
+            Back to all activities
+          </Button>
+        </div>
+      ) : null}
       <ActivityDetailPanel
         activity={selectedActivity}
+        loading={Boolean(selectedActivityId) && detail.isPending}
         canDecideProof={canDecideProof}
         canEdit={canCreateEdit}
         canLogExpense={canLogExpense}
+        canReadBudgets={principalHasAtomicPermission(profile, 'budgets.read')}
         canRecordProgress={canRecordProgress}
         canRequestExtension={role === 'Project Officer' && inProjectScope}
         canSubmitProof={canSubmitProof}
@@ -616,29 +645,35 @@ export const ProjectActivitiesWorkspace = ({
         onEdit={openEdit}
         onOpenChange={closeDetail}
         onSubmitProof={openProof}
-        open={Boolean(selectedActivity)}
+        open={Boolean(selectedActivityId) && !detail.isError}
         requestedProofId={initialProofId}
       />
-      {formOpen && !supporting.data ? (
+      {formOpen && !editorReady ? (
         <AsyncState
-          status={supporting.isError ? 'error' : 'loading'}
+          status={editorFailed ? 'error' : 'loading'}
           title="Activity editor"
           description={
-            supporting.isError
+            editorFailed
               ? 'Editor information could not be loaded. Try again.'
               : 'Loading editor information.'
           }
-          onRetry={supporting.isError ? () => void supporting.refetch() : undefined}
+          onRetry={
+            editorFailed
+              ? () => {
+                  for (const read of editorReads) if (read.isError) void read.refetch()
+                }
+              : undefined
+          }
         />
       ) : null}
       <ActivityFormDialog
-        onAcknowledged={() => workspace.refetch()}
+        onAcknowledged={() => activityList.refetch()}
         activity={editingActivity}
         indicators={indicators}
         journeyStages={journeyStages}
         onCreatedOrUpdated={upsertActivity}
         onOpenChange={setFormOpen}
-        open={formOpen && Boolean(supporting.data)}
+        open={formOpen && editorReady}
         projectId={projectId}
         users={users}
       />
