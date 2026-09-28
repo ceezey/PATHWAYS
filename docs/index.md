@@ -121,6 +121,7 @@ Core P1 supporting contract reconciliation is approved for local implementation 
 
 | CR ID | Date | Summary | Status |
 |---|---|---|---|
+| [cr-pathways-performance-scaling](cr-pathways-performance-scaling.md) | 2026-09-28 | Measured performance path: short scoped client cache, server prefetch, targeted backend cache; same-origin proxy deferred; one-day CORS preflight cache shipped | Proposed |
 | [cr-pathways-admin-read-access](cr-pathways-admin-read-access.md) | 2026-09-28 | System Administrator read-only `activities.read` and `budgets.read` (migration 0035); web reads gated on the permission each call needs | Approved; local implementation verified; hosted application and release pending |
 | [cr-pathways-beneficiary-step-up](cr-pathways-beneficiary-step-up.md) | 2026-09-28 | Replace client-only hardcoded Beneficiary PIN gate with server-enforced fresh-MFA step-up (manuscript Objective 2.2); alternatives: server-hashed PIN or documented removal | Approved (Option A, 15 min); implemented locally; SAD sign-off and hosted MFA refresh verification pending |
 | [cr-pathways-sad-orchestration](cr-pathways-sad-orchestration.md) | 2026-09-28 | Staged SAD review pipeline with typed handoff packets, `.claude/agents` coordinator and specialist definitions, multi-branch release sequence with gated autonomous master push and roster drift check | Applied |
