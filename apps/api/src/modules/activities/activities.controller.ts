@@ -220,3 +220,14 @@ export class MilestonesController {
     return this.activities.updateMilestone(profile(request), projectId, milestoneId, body)
   }
 }
+
+@Controller('projects/:projectId/evidence')
+export class EvidenceController {
+  constructor(@Inject(ActivitiesService) private readonly activities: ActivitiesService) {}
+
+  @Get()
+  @RequirePermission('evidence.read')
+  list(@Req() request: AuthenticatedRequest, @Param('projectId') projectId: string) {
+    return this.activities.listEvidence(profile(request), projectId)
+  }
+}

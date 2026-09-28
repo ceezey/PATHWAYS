@@ -22,7 +22,7 @@ import { Prisma } from '@prisma/client'
 import { readApiEnv } from '@pathways/config'
 import { PrismaService } from '../../prisma/prisma.service'
 import { readApplicationProfile } from '../auth/application-profile.service'
-import { hasAtomicPermission } from '../auth/authorization-policy'
+import { aggregateOnlyRoles, hasAtomicPermission } from '../auth/authorization-policy'
 import { projectScope } from '../auth/authorized-data.service'
 import { withAuthorizedOperation } from '../auth/authorized-operation'
 import { type ApplicationIdentity, UUID_PATTERN } from '../auth/developer-access'
@@ -637,6 +637,104 @@ export class ActivitiesService {
         project.projectActivity_project.map((row) => row.id),
       )
       return project.projectActivity_project.map((row) => mapActivity(row, today, metrics))
+    })
+  }
+
+  /** Evidence list under `evidence.read`. Aggregate-only roles receive per-activity
+   * counts selected without file names, submitters, notes, or storage references. */
+  listEvidence(identity: ApplicationIdentity, projectId: string) {
+    return withAuthorizedOperation(this.prisma, identity, 'evidence.read', async (tx, actor) => {
+      if (!UUID_PATTERN.test(projectId)) throw new NotFoundException('Project unavailable.')
+      const where = { AND: [projectScope(actor), { id: projectId.toLowerCase() }] }
+      const activityWhere = { organizationId: actor.organizationId, archivedAt: null }
+      if (aggregateOnlyRoles.includes(actor.roles[0])) {
+        const project = await tx.project.findFirst({
+          where,
+          select: {
+            projectActivity_project: {
+              where: activityWhere,
+              select: {
+                id: true,
+                title: true,
+                activityUpdate_activity: {
+                  select: {
+                    evidenceMedia_update: {
+                      where: { storageReady: true },
+                      select: { status: true },
+                      take: 10,
+                    },
+                  },
+                  take: 100,
+                },
+              },
+              orderBy: [{ plannedEndDate: 'asc' }, { id: 'asc' }],
+              take: 100,
+            },
+          },
+        })
+        if (!project) throw new NotFoundException('Project unavailable.')
+        return {
+          scope: 'aggregate' as const,
+          activities: project.projectActivity_project.map((row) => {
+            const counts = { total: 0, submitted: 0, approved: 0, returned: 0 }
+            for (const update of row.activityUpdate_activity) {
+              for (const proof of update.evidenceMedia_update) {
+                counts.total += 1
+                const status = reviewStatus[proof.status]
+                if (status === 'Accepted') counts.approved += 1
+                else if (status === 'Flagged') counts.returned += 1
+                else counts.submitted += 1
+              }
+            }
+            return { activityId: row.id, activityTitle: row.title, ...counts }
+          }),
+        }
+      }
+      const project = await tx.project.findFirst({
+        where,
+        select: {
+          projectActivity_project: {
+            where: activityWhere,
+            select: {
+              id: true,
+              projectId: true,
+              title: true,
+              activityUpdate_activity: activitySelection.activityUpdate_activity,
+            },
+            orderBy: [{ plannedEndDate: 'asc' }, { id: 'asc' }],
+            take: 100,
+          },
+        },
+      })
+      if (!project) throw new NotFoundException('Project unavailable.')
+      return {
+        scope: 'detail' as const,
+        records: project.projectActivity_project.flatMap((row) =>
+          row.activityUpdate_activity.flatMap((update) =>
+            update.evidenceMedia_update.map((proof) => {
+              const status = reviewStatus[proof.status]
+              return {
+                id: proof.id,
+                projectId: row.projectId,
+                activityId: row.id,
+                updateId: update.id,
+                updateUpdatedAt: update.updatedAt.toISOString(),
+                fileName: proof.fileName,
+                reportTitle: row.title,
+                status:
+                  status === 'Accepted'
+                    ? ('Approved' as const)
+                    : status === 'Flagged'
+                      ? ('Returned' as const)
+                      : ('Submitted' as const),
+                submitter: update.submittedBy.fullName,
+                submittedDate: proof.submittedAt.toISOString(),
+                previewSummary: update.note ?? 'Activity evidence submission',
+              }
+            }),
+          ),
+        ),
+      }
     })
   }
 
