@@ -2,7 +2,7 @@
 
 **ID:** `cr-pathways-rbac-audit-closure`
 **Date:** 2026-09-28
-**Status:** Approved; implementation pending (becomes Applied after implementation and verification)
+**Status:** Applied locally (2026-09-28); integration verified on `dev`. Descriptive analytics also suppress person-derived counts 1-4 and omit the duplicate enrolled total when SADDD is released.
 
 ## 1. Trigger
 
