@@ -186,4 +186,4 @@ Developer reply on 2026-09-28: "Approve all CRs, Evidence: change constraint, Si
 
 ## 9. Disposition
 
-Not applied.
+Implemented on feature branch; hosted pending.
