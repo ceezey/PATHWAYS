@@ -54,6 +54,17 @@ const fieldSelection = {
 
 type FieldRow = Prisma.FormFieldGetPayload<{ select: typeof fieldSelection }>
 
+const registrationFormSelection = {
+  id: true,
+  version: true,
+  status: true,
+  formField_form: { select: fieldSelection, orderBy: { sequenceNo: 'asc' } },
+} satisfies Prisma.DigitalFormSelect
+
+export type RegistrationImportForm = Prisma.DigitalFormGetPayload<{
+  select: typeof registrationFormSelection
+}>
+
 const writableProfileFields = new Set([
   'display_name',
   'first_name',
@@ -630,6 +641,26 @@ export class BeneficiariesService {
     )
   }
 
+  /** Scoped registration definition read; imports may pin an archived version. */
+  readRegistrationForm(
+    tx: Tx,
+    actor: ApplicationIdentity,
+    projectId: string,
+    formId: string,
+    source: 'DIRECT_ENTRY' | 'IMPORTED_DATASET',
+  ) {
+    return tx.digitalForm.findFirst({
+      where: {
+        id: formId,
+        organizationId: actor.organizationId,
+        projectId,
+        formType: 'BENEFICIARY_REGISTRATION',
+        status: source === 'DIRECT_ENTRY' ? 'PUBLISHED' : { in: ['PUBLISHED', 'ARCHIVED'] },
+      },
+      select: registrationFormSelection,
+    })
+  }
+
   async promoteRegistration(
     tx: Tx,
     actor: ApplicationIdentity,
@@ -643,25 +674,17 @@ export class BeneficiariesService {
       importBatchId?: string
       importRowId?: string
     },
+    preloaded?: { form: RegistrationImportForm },
   ): Promise<
     | { kind: 'PROCESSED'; beneficiaryId: string; enrollmentId: string; submissionId: string }
     | { kind: 'REVIEW'; code: string }
   > {
-    const form = await tx.digitalForm.findFirst({
-      where: {
-        id: input.formId,
-        organizationId: actor.organizationId,
-        projectId: input.projectId,
-        formType: 'BENEFICIARY_REGISTRATION',
-        status: input.source === 'DIRECT_ENTRY' ? 'PUBLISHED' : { in: ['PUBLISHED', 'ARCHIVED'] },
-      },
-      select: {
-        id: true,
-        version: true,
-        status: true,
-        formField_form: { select: fieldSelection, orderBy: { sequenceNo: 'asc' } },
-      },
-    })
+    // A chunked import shares one scoped form read across its rows. Direct entry
+    // always reads and locks the published definition itself.
+    const form =
+      input.source === 'IMPORTED_DATASET' && preloaded?.form.id === input.formId
+        ? preloaded.form
+        : await this.readRegistrationForm(tx, actor, input.projectId, input.formId, input.source)
     if (!form) throw new NotFoundException('Published registration form unavailable.')
     if (input.source === 'DIRECT_ENTRY') {
       const [definitionLock] = await tx.$queryRaw<Array<{ locked: boolean }>>`

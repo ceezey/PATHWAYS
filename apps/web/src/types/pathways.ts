@@ -789,7 +789,7 @@ export interface ImportBatchDefinition {
   formName: string
   formType: DigitalFormType
   originalFileName: string
-  fileType: 'CSV' | 'XLSX' | 'XLS'
+  fileType: 'CSV' | 'XLSX' | 'XLS' | 'PDF'
   clientImportId: string
   storageStatus: 'RESERVED' | 'STORED' | 'RECOVERY_REQUIRED' | 'FAILED'
   status: ImportBatchStatus
