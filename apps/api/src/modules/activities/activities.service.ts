@@ -29,6 +29,7 @@ import { type ApplicationIdentity, UUID_PATTERN } from '../auth/developer-access
 import { StorageService } from '../storage/storage.service'
 import type {
   CreateActivityDto,
+  RecordActivityProgressDto,
   ReviewActivityUpdateDto,
   SaveMilestoneDto,
   SubmitActivityUpdateDto,
@@ -982,6 +983,91 @@ export class ActivitiesService {
           await this.requireActivity(tx, actor, current.projectId, current.id),
         )
         return { ...result, sourceAcknowledgement }
+      },
+    )
+  }
+
+  /**
+   * Records a progress-only update (no proof files) for review. Scope is resolved
+   * through projectScope before any activity read; the caller must hold an active
+   * assignment on the activity. Replays with the same clientUpdateId are idempotent.
+   */
+  recordProgress(
+    identity: ApplicationIdentity,
+    projectId: string,
+    activityId: string,
+    input: RecordActivityProgressDto,
+  ) {
+    return withAuthorizedOperation(
+      this.prisma,
+      identity,
+      'activities.progress.update',
+      async (tx, actor) => {
+        const activity = await this.requireActivity(tx, actor, projectId, activityId)
+        const assigned = await tx.projectActivityAssignment.findFirst({
+          where: {
+            organizationId: actor.organizationId,
+            projectId: activity.projectId,
+            activityId: activity.id,
+            status: 'ACTIVE',
+            endedAt: null,
+            projectAssignment: { userId: actor.userId, status: 'ACTIVE', endedAt: null },
+          },
+          select: { id: true },
+        })
+        if (!assigned) throw new ForbiddenException('An active activity assignment is required.')
+        const clientUpdateId = input.clientUpdateId.toLowerCase()
+        const note = input.note.trim()
+        if (!note) throw new BadRequestException('A progress note is required.')
+        const existing = await tx.activityUpdate.findFirst({
+          where: {
+            organizationId: actor.organizationId,
+            submittedById: actor.userId,
+            clientUpdateId,
+          },
+          select: { projectId: true, activityId: true, progressPercent: true, note: true },
+        })
+        if (existing) {
+          if (
+            existing.projectId !== activity.projectId ||
+            existing.activityId !== activity.id ||
+            existing.progressPercent !== input.progressPercent ||
+            existing.note !== note
+          )
+            throw new ConflictException('The activity update id was reused with different input.')
+          return this.mapWithMetrics(tx, actor, activity)
+        }
+        if (activity.status !== 'IN_PROGRESS')
+          throw new ConflictException('Progress can be recorded only for an in-progress activity.')
+        const updateId = randomUUID()
+        await tx.activityUpdate.create({
+          data: {
+            id: updateId,
+            organizationId: actor.organizationId,
+            projectId: activity.projectId,
+            activityId: activity.id,
+            clientUpdateId,
+            progressPercent: input.progressPercent,
+            note,
+            submittedById: actor.userId,
+          },
+        })
+        await tx.auditLog.create({
+          data: {
+            organizationId: actor.organizationId,
+            actorUserId: actor.userId,
+            projectId: activity.projectId,
+            action: 'ACTIVITY_PROGRESS_RECORDED',
+            entityType: 'ActivityUpdate',
+            entityId: updateId,
+            changes: { activityId: activity.id, progressPercent: input.progressPercent },
+          },
+        })
+        return this.mapWithMetrics(
+          tx,
+          actor,
+          await this.requireActivity(tx, actor, activity.projectId, activity.id),
+        )
       },
     )
   }

@@ -23,6 +23,18 @@ describe('UI actions against the accepted backend policy', () => {
     expect(isUiActionAvailable('Program Manager', 'indicators.manage')).toBe(false)
   })
 
+  it('offers progress recording only to roles holding activities.progress.update', () => {
+    expect(isUiActionAvailable('Project Officer', 'activities.progress.record')).toBe(true)
+    expect(isUiActionAvailable('Program Manager', 'activities.progress.record')).toBe(false)
+    expect(isUiActionAvailable('Grant Manager', 'activities.progress.record')).toBe(false)
+    expect(
+      isUiActionAvailable('Project Officer', 'activities.progress.record', {
+        roles: ['PROJECT_OFFICER'],
+        permissions: [],
+      }),
+    ).toBe(false)
+  })
+
   it('keeps actions without a usable backend endpoint unavailable', () => {
     expect(isUiActionAvailable('System Administrator', 'dashboard.configure')).toBe(false)
     expect(isUiActionAvailable('Project Manager', 'projects.team.manage')).toBe(true)

@@ -55,6 +55,7 @@ import type {
   PublicProjectRecord,
   RecommendationOutcomeRecord,
   RecommendationRecord,
+  RecordActivityProgressInput,
   RegisterBeneficiaryInput,
   ReportRecord,
   RoleDashboardViewModel,
@@ -159,6 +160,7 @@ export interface PathwaysClient {
     input: SubmitActivityProofInput,
     context?: SourceMutationContext,
   ): Promise<SourceMutationResult<Activity>>
+  recordActivityProgress(input: RecordActivityProgressInput): Promise<Activity>
   reviewActivityUpdate(
     projectId: string,
     activityId: string,
@@ -560,6 +562,22 @@ class BackendReadyPathwaysClient implements PathwaysClient {
       { status, expectedUpdatedAt, reason },
       context,
       parseActivity,
+    )
+  }
+
+  async recordActivityProgress(input: RecordActivityProgressInput): Promise<Activity> {
+    return parseActivity(
+      await requestFoundation(
+        `/projects/${encodeURIComponent(input.projectId)}/activities/${encodeURIComponent(input.activityId)}/progress`,
+        {
+          method: 'POST',
+          body: JSON.stringify({
+            clientUpdateId: input.clientUpdateId,
+            progressPercent: input.progress,
+            note: input.note,
+          }),
+        },
+      ),
     )
   }
 

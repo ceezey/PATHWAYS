@@ -204,6 +204,14 @@ export interface UpdateActivityInput extends CreateActivityInput {
   expectedUpdatedAt: string
 }
 
+export interface RecordActivityProgressInput {
+  projectId: string
+  activityId: string
+  clientUpdateId: string
+  progress: number
+  note: string
+}
+
 export interface SubmitActivityProofInput {
   projectId: string
   activityId: string

@@ -1,6 +1,14 @@
 'use client'
 
-import { BellRing, ClipboardCheck, FileText, Pencil, ReceiptText, UploadCloud } from 'lucide-react'
+import {
+  BellRing,
+  ClipboardCheck,
+  FileText,
+  Pencil,
+  ReceiptText,
+  TrendingUp,
+  UploadCloud,
+} from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 
 import { ProgressBar, SidePanel, StatusBadge } from '@/components/pathways'
@@ -10,6 +18,7 @@ import type { Activity, ActivityProof, Indicator, JourneyStageConfig } from '@/t
 
 import { ActivityExpenseDialog } from './activity-expense-dialog'
 import { ActivityExpenseReviewDialog, type PendingExpense } from './activity-expense-review-dialog'
+import { ActivityProgressDialog } from './activity-progress-dialog'
 import { ActivityProofFiles } from './activity-proof-files'
 import { ActivityProofReviewDialog } from './activity-proof-review-dialog'
 import { activityStatusTone, formatCurrency, formatDate } from './activity-utils'
@@ -40,6 +49,7 @@ export const ActivityDetailContent = ({
   canDecideProof,
   canEdit,
   canLogExpense,
+  canRecordProgress = false,
   canSubmitProof,
   canRequestExtension,
   canValidateExpense,
@@ -56,6 +66,7 @@ export const ActivityDetailContent = ({
   canDecideProof: boolean
   canEdit: boolean
   canLogExpense: boolean
+  canRecordProgress?: boolean
   canSubmitProof: boolean
   canRequestExtension: boolean
   canValidateExpense: boolean
@@ -68,6 +79,7 @@ export const ActivityDetailContent = ({
   requestedExpenseId?: string
   requestedProofId?: string
 }) => {
+  const [progressOpen, setProgressOpen] = useState(false)
   const [expenseOpen, setExpenseOpen] = useState(false)
   const [expenseReviewTarget, setExpenseReviewTarget] = useState<PendingExpense | null>(null)
   const [reviewTarget, setReviewTarget] = useState<{
@@ -334,6 +346,17 @@ export const ActivityDetailContent = ({
             Submit Update & Proof
           </Button>
         ) : null}
+        {canRecordProgress && activity.status === 'In Progress' ? (
+          <Button
+            className="gap-2"
+            onClick={() => setProgressOpen(true)}
+            type="button"
+            variant="outline"
+          >
+            <TrendingUp className="h-4 w-4" aria-hidden="true" />
+            Record progress
+          </Button>
+        ) : null}
         {canLogExpense ? (
           <Button
             className="gap-2"
@@ -353,6 +376,14 @@ export const ActivityDetailContent = ({
         ) : null}
       </div>
 
+      {progressOpen ? (
+        <ActivityProgressDialog
+          activity={activity}
+          onOpenChange={setProgressOpen}
+          onRecorded={onActivityChanged}
+          open={progressOpen}
+        />
+      ) : null}
       <ActivityExpenseDialog activity={activity} onOpenChange={setExpenseOpen} open={expenseOpen} />
       <ActivityExpenseReviewDialog
         expense={expenseReviewTarget}
@@ -379,6 +410,7 @@ export const ActivityDetailPanel = ({
   canDecideProof,
   canEdit,
   canLogExpense,
+  canRecordProgress = false,
   canSubmitProof,
   canRequestExtension,
   canValidateExpense,
@@ -397,6 +429,7 @@ export const ActivityDetailPanel = ({
   canDecideProof: boolean
   canEdit: boolean
   canLogExpense: boolean
+  canRecordProgress?: boolean
   canSubmitProof: boolean
   canRequestExtension: boolean
   canValidateExpense: boolean
@@ -443,6 +476,7 @@ export const ActivityDetailPanel = ({
             canDecideProof={canDecideProof}
             canEdit={canEdit}
             canLogExpense={canLogExpense}
+            canRecordProgress={canRecordProgress}
             canSubmitProof={canSubmitProof}
             canRequestExtension={canRequestExtension}
             canValidateExpense={canValidateExpense}
