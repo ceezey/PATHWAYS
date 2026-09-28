@@ -278,12 +278,15 @@ export const ProjectActivitiesWorkspace = ({
   const activityList = useProjectActivitiesRead(projectId)
   const project = projectRead.data ?? null
   const activities = activityList.data ?? []
+  const loadFailure = projectRead.isError ? projectRead.error : activityList.error
+  // Only a real not-found error reaches the not-found view; data that is hidden while
+  // access is re-verified stays in the loading state.
   const loading =
     !projectRead.eligible ||
     !activityList.eligible ||
     projectRead.isPending ||
-    activityList.isPending
-  const loadFailure = projectRead.isError ? projectRead.error : activityList.error
+    activityList.isPending ||
+    (!loadFailure && (!project || !activityList.data))
   const loadError = loadFailure
     ? loadFailure instanceof PathwaysClientError && loadFailure.code === 'not_found'
       ? 'not-found'

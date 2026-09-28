@@ -261,6 +261,21 @@ describe('project activities permission-aware loading', () => {
     await waitFor(() => expect(screen.queryByText('Activity not found')).toBeNull())
   })
 
+  it('keeps the list usable after a forbidden (403) detail read, with at most one re-verification', async () => {
+    api.getActivity.mockRejectedValue(new PathwaysClientError('Forbidden', 'forbidden'))
+    renderWorkspace(activityId)
+    expect(await screen.findByText('Activity not found')).toBeTruthy()
+    await waitFor(() =>
+      expect(screen.getByRole('article', { name: 'Activity: Synthetic outreach' })).toBeTruthy(),
+    )
+    await act(async () => new Promise((resolve) => setTimeout(resolve, 30)))
+    expect(screen.queryByText('Project not found')).toBeNull()
+    expect(screen.getByText('Activity not found')).toBeTruthy()
+    expect(api.getProject.mock.calls.length).toBeLessThanOrEqual(2)
+    expect(api.getActivities.mock.calls.length).toBeLessThanOrEqual(2)
+    expect(api.getActivity).toHaveBeenCalledOnce()
+  })
+
   it('keeps error wording when the activity read fails for another reason', async () => {
     api.getActivity.mockRejectedValue(new PathwaysClientError('Down', 'network'))
     renderWorkspace(activityId)

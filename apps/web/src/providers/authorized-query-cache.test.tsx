@@ -259,3 +259,146 @@ describe('summary cache policy (performance CR step 2)', () => {
     expect(client.getQueryData(oldKey)).toBeUndefined()
   })
 })
+
+type Handle = { replaceData: (update: (previous: string | undefined) => string) => void }
+const Probe = ({
+  resource,
+  read,
+  handle,
+}: {
+  resource: string
+  read: Read
+  handle?: { current: Handle | null }
+}) => {
+  const value = useAuthorizedRead(resource, 'project-a', 'projects.read', read, true, {
+    freshness: 'summary',
+  })
+  if (handle) handle.current = value
+  return (
+    <output aria-label={resource}>
+      {value.isError
+        ? `Error:${(value.error as { code?: string } | null)?.code ?? 'unknown'}`
+        : value.isPending
+          ? 'Pending'
+          : (value.data ?? 'Empty')}
+    </output>
+  )
+}
+const probeTree = (client: QueryClient, children: React.ReactNode) => (
+  <QueryClientProvider client={client}>
+    <AuthorizedQueryProvider>{children}</AuthorizedQueryProvider>
+  </QueryClientProvider>
+)
+const settle = () => act(async () => new Promise((resolve) => setTimeout(resolve, 30)))
+const text = (name: string) => screen.getByRole('status', { name }).textContent
+
+describe('authorization denial keeps every reader in a defined state (G1)', () => {
+  it('re-verifies a mounted reader once after an external 401/403 and hides the old value', async () => {
+    const client = new QueryClient()
+    const read = vi.fn<Read>().mockResolvedValueOnce('Before').mockResolvedValue('After')
+    render(probeTree(client, <Probe read={read} resource="projects" />))
+    expect(await screen.findByText('Before')).toBeTruthy()
+    act(() => {
+      window.dispatchEvent(new Event(AUTHORIZATION_DENIED_EVENT))
+    })
+    expect(screen.queryByText('Before')).toBeNull()
+    expect(await screen.findByText('After')).toBeTruthy()
+    await settle()
+    expect(read).toHaveBeenCalledTimes(2)
+  })
+
+  it('ends in an error with a forbidden code when the re-verification is denied, without looping', async () => {
+    const client = new QueryClient()
+    const read = vi
+      .fn<Read>()
+      .mockResolvedValueOnce('Before')
+      .mockRejectedValue(new PathwaysClientError('Denied', 'forbidden', [], 403))
+    render(probeTree(client, <Probe read={read} resource="projects" />))
+    expect(await screen.findByText('Before')).toBeTruthy()
+    act(() => {
+      window.dispatchEvent(new Event(AUTHORIZATION_DENIED_EVENT))
+    })
+    expect(await screen.findByText('Error:forbidden')).toBeTruthy()
+    await settle()
+    expect(read).toHaveBeenCalledTimes(2)
+    expect(screen.queryByText('Before')).toBeNull()
+  })
+
+  it('does not loop on a persistent 403; a sibling reader re-reads at most once', async () => {
+    const client = new QueryClient()
+    const denied = vi
+      .fn<Read>()
+      .mockRejectedValue(new PathwaysClientError('No', 'forbidden', [], 403))
+    const sibling = vi.fn<Read>().mockResolvedValue('Sibling')
+    render(
+      probeTree(
+        client,
+        <>
+          <Probe read={sibling} resource="projects" />
+          <Probe read={denied} resource="project-activities" />
+        </>,
+      ),
+    )
+    expect(await screen.findByText('Error:forbidden')).toBeTruthy()
+    await waitFor(() => expect(text('projects')).toBe('Sibling'))
+    await settle()
+    await settle()
+    expect(denied).toHaveBeenCalledOnce()
+    expect(sibling.mock.calls.length).toBeLessThanOrEqual(2)
+  })
+
+  it('never hands masked pre-denial data to replaceData', async () => {
+    const client = new QueryClient()
+    const handle: { current: Handle | null } = { current: null }
+    const read = vi
+      .fn<Read>()
+      .mockResolvedValueOnce('Pre-denial secret')
+      .mockImplementation(() => new Promise<string>(() => undefined))
+    render(probeTree(client, <Probe handle={handle} read={read} resource="projects" />))
+    expect(await screen.findByText('Pre-denial secret')).toBeTruthy()
+    act(() => {
+      window.dispatchEvent(new Event(AUTHORIZATION_DENIED_EVENT))
+    })
+    expect(await screen.findByText('Pending')).toBeTruthy()
+    const seen: Array<string | undefined> = []
+    act(() =>
+      handle.current?.replaceData((previous) => {
+        seen.push(previous)
+        return 'Saved record'
+      }),
+    )
+    expect(seen).toEqual([undefined])
+    expect(await screen.findByText('Saved record')).toBeTruthy()
+    expect(screen.queryByText('Pre-denial secret')).toBeNull()
+  })
+})
+
+describe('committed writes (G1)', () => {
+  it('re-reads a mounted reader and never shows the pre-write value on a later remount', async () => {
+    const client = new QueryClient()
+    const read = vi.fn<Read>().mockResolvedValueOnce('Pre-write').mockResolvedValue('Post-write')
+    const Page = ({ show }: { show: boolean }) =>
+      probeTree(client, show ? <Probe read={read} resource="projects" /> : <p>Away</p>)
+    const view = render(<Page show />)
+    expect(await screen.findByText('Pre-write')).toBeTruthy()
+    act(() => {
+      window.dispatchEvent(new Event(WRITE_COMMITTED_EVENT))
+    })
+    expect(await screen.findByText('Post-write')).toBeTruthy()
+    expect(read).toHaveBeenCalledTimes(2)
+
+    const later = vi.fn<Read>().mockResolvedValueOnce('Old').mockResolvedValue('New')
+    const Later = ({ show }: { show: boolean }) =>
+      probeTree(client, show ? <Probe read={later} resource="project-overview" /> : <p>Away</p>)
+    view.rerender(<Later show />)
+    expect(await screen.findByText('Old')).toBeTruthy()
+    view.rerender(<Later show={false} />)
+    act(() => {
+      window.dispatchEvent(new Event(WRITE_COMMITTED_EVENT))
+    })
+    await settle()
+    view.rerender(<Later show />)
+    expect(screen.queryByText('Old')).toBeNull()
+    expect(await screen.findByText('New')).toBeTruthy()
+  })
+})
