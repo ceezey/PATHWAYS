@@ -841,6 +841,17 @@ export interface ImportBatchDefinition {
     revision: number
     targetField: { code: string; label: string } | null
     validationMessage: string | null
+    /** AUTO_SMART_V2: a field suggested for a PENDING column; confirmation needs imports.review. */
+    suggestedField?: { code: string; label: string } | null
+    matchScore?: number | null
+    matchReason?:
+      | 'EXACT'
+      | 'SYNONYM'
+      | 'SYNONYM_REVIEW'
+      | 'TOKEN_SET'
+      | 'TOKEN_OVERLAP'
+      | 'EDIT_DISTANCE'
+      | null
   }>
 }
 

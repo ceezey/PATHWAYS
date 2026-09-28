@@ -63,15 +63,15 @@ The developer decided on 2026-09-28: a deterministic smart match. High-confidenc
 ### 3.2 Server flow and SQL
 
 1. `POST /imports/projects/:projectId/batches/:batchId/automatic-mapping` keeps its request contract: `expectedMappingRevision` 0 or 1 and nothing else. The client still cannot choose targets, ignores, algorithm or actor.
-2. Inside the existing authorized transaction, the API reads the stored headers, samples and pinned fields, runs the matcher, and calls `pathways.p37_record_smart_mapping(batch, expected_revision, algorithm, decisions)`.
-3. `p37_record_smart_mapping`:
+2. Inside the existing authorized transaction, the API reads the stored headers, samples and pinned fields, runs the matcher, and calls `pathways.p38_record_smart_mapping(batch, expected_revision, algorithm, decisions)`.
+3. `p38_record_smart_mapping`:
    - repeats every 0029 structural check: batch lock, live `imports.upload` authority rechecked after each lock wait, uploader identity, frozen and stale states, pinned published form lock, and source, row, cell and field bounds;
    - accepts only allow-listed algorithm IDs (`AUTO_SMART_V2`);
    - validates the decisions: exactly one per stored source key; every target and suggestion belongs to the pinned form in the same scope; MAPPED targets are unique; scores are integers 0-100; reason codes come from a fixed set;
    - computes completeness from required fields itself, writes immutable revision 1 and one `IMPORT_AUTOMATIC_MAPPING_CREATED` audit row (`algorithmVersion`, `synonymVersion`, decisions with scores) atomically, and keeps the 0029 retry and conflict semantics.
 4. **Trust shift, stated plainly.** In 0029 the database derives the choices itself. Under V2 the database verifies their structure and scope, but the choices come from application code running as `pathways_runtime`. This still records MAPPED choices for an uploader without `imports.review`, as 0029 already does. The safeguards are unchanged: MAPPED grants no review or processing authority, and explicit authorized reviewer confirmation and canonical server validation stay required before normalization.
 
-### 3.3 Storage (migration `0037_import_smart_mapping`)
+### 3.3 Storage (migration `0038_import_smart_mapping`)
 
 - Add nullable columns to `pathways.metadata_mappings`:
   - `suggested_field_id`, with a composite foreign key to `form_fields` in the same organization, project and form;
@@ -96,7 +96,7 @@ The developer decided on 2026-09-28: a deterministic smart match. High-confidenc
 Messy headers map without manual work when the evidence is strong. Weaker matches need one click from a reviewer.
 
 ### Data / Migration
-- 0037 adds three nullable columns, one function and a postcondition block.
+- 0038 adds three nullable columns, one function and a postcondition block.
 - Existing mappings, revisions and audit rows are unchanged.
 
 ### Authorization / Privacy
@@ -113,7 +113,7 @@ Adds the badge, Confirm and "Confirm all suggestions". Removes the hardcoded hea
 ### Tests
 - **Golden cases:** exact, synonym, token, edit distance, tie, margin and value-gate outcomes.
 - **Parity:** the same outputs from API and web.
-- **SQL (0037):** rejects unknown algorithm IDs, foreign or cross-form targets, duplicate MAPPED targets, out-of-range scores and wrong source keys.
+- **SQL (0038):** rejects unknown algorithm IDs, foreign or cross-form targets, duplicate MAPPED targets, out-of-range scores and wrong source keys.
 - **Denials:** stale or frozen batch conflicts; revoked `imports.upload` denied; cross-project and cross-organization denied.
 - **Privacy:** no sample value appears in the database or audit.
 - **Authority:** PO cannot confirm; M&E confirms with attribution.
@@ -132,7 +132,7 @@ Adds the badge, Confirm and "Confirm all suggestions". Removes the hardcoded hea
 
 ## 6. Migration / Rollback
 
-- 0037 is forward-only and additive, with the 0030-style migration identity and ledger precondition. Numbers follow merge order.
+- 0038 is forward-only and additive, with the 0030-style migration identity and ledger precondition. Numbers follow merge order.
 - Rollback points the API back to `p29_auto_map_import`, which needs no migration. The new columns stay nullable and unused. Mappings already written under V2 remain valid immutable history.
 - Hosted application needs separate developer authorization.
 

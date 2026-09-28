@@ -47,6 +47,28 @@ function batchTone(status: ImportBatchDefinition['status']) {
   return 'info' as const
 }
 
+type StoredMapping = NonNullable<ImportBatchDefinition['mappings']>[number]
+
+const matchReasonLabels: Record<string, string> = {
+  EXACT: 'exact name',
+  SYNONYM: 'known synonym',
+  SYNONYM_REVIEW: 'related term',
+  TOKEN_SET: 'same words',
+  TOKEN_OVERLAP: 'shared words',
+  EDIT_DISTANCE: 'close spelling',
+}
+
+/** Why the server auto-mapped a column, or null for manual and pending choices. */
+function automaticMatchReason(stored: StoredMapping | undefined) {
+  if (stored?.status !== 'MAPPED' || !stored.validationMessage) return null
+  if (stored.validationMessage.startsWith('AUTO_SMART_V2:')) {
+    return matchReasonLabels[stored.matchReason ?? ''] ?? 'automatic match'
+  }
+  return stored.validationMessage.startsWith('AUTO_CODE_LABEL_V1:') ? 'exact name' : null
+}
+
+const plural = (count: number, word: string) => `${count} ${word}${count === 1 ? '' : 's'}`
+
 function displayValue(value: unknown) {
   const text = Array.isArray(value) ? JSON.stringify(value) : String(value ?? '')
   return text.length > 80 ? `${text.slice(0, 77)}...` : text
@@ -78,6 +100,8 @@ function OwnedImportWorkspace({ scope }: { scope: SensitiveDraftOwner }) {
   const [batch, setBatch] = useState<ImportBatchDefinition | null>(null)
   const [rows, setRows] = useState<ImportRowDefinition[]>([])
   const [mapping, setMapping] = useState<Record<string, string>>({})
+  const [mappingNotice, setMappingNotice] = useState('')
+  const mappingHeading = useRef<HTMLSpanElement>(null)
   const [pending, setPending] = useState(false)
   const [loadState, setLoadState] = useState<'loading' | 'ready' | 'error'>('loading')
   const [processing, setProcessing] = useState<{
@@ -198,6 +222,22 @@ function OwnedImportWorkspace({ scope }: { scope: SensitiveDraftOwner }) {
       columnIndex: index + 1,
     }))
   const sourceColumnByKey = new Map(sourceColumns.map((column) => [column.key, column]))
+  const storedMappingByKey = new Map(
+    (batch?.mappings ?? []).map((stored) => [stored.sourceFieldName, stored]),
+  )
+  const mappingEditable = Boolean(
+    batch && canReview && !pending && !mappingLockedStatuses.has(batch.status),
+  )
+  // Server suggestions still open in the reviewer's draft, for fields of the pinned form.
+  const openSuggestions = sourceColumns.flatMap((column) => {
+    const stored = storedMappingByKey.get(column.key)
+    const suggestion = stored?.status === 'PENDING' ? stored.suggestedField : null
+    return suggestion &&
+      (mapping[column.key] ?? '__pending__') === '__pending__' &&
+      selectedForm?.fields.some((field) => field.code === suggestion.code)
+      ? [{ column, code: suggestion.code, label: suggestion.label }]
+      : []
+  })
 
   const loadBatch = async (batchId: string, parentTicket?: Ticket) => {
     const ticket = parentTicket ?? begin('imports.read')
@@ -215,6 +255,7 @@ function OwnedImportWorkspace({ scope }: { scope: SensitiveDraftOwner }) {
       setForms((current) =>
         current.some((item) => item.id === definition.id) ? current : [...current, definition],
       )
+      if (latest.current.batch?.id !== detail.id) setMappingNotice('')
       setBatch(detail)
       setRows(page.rows)
       setMapping(
@@ -328,18 +369,18 @@ function OwnedImportWorkspace({ scope }: { scope: SensitiveDraftOwner }) {
     }
   }
 
-  const saveMapping = async () => {
+  const saveMapping = async (draft = mapping) => {
     if (
       !batch ||
-      sourceColumns.some((column) => !mapping[column.key] || mapping[column.key] === '__pending__')
+      sourceColumns.some((column) => !draft[column.key] || draft[column.key] === '__pending__')
     ) {
       toast.error('Resolve every pending source column before saving.')
       return
     }
     const mappings: ImportMappingInput[] = sourceColumns.map((column) => ({
       sourceFieldName: column.key,
-      ignored: mapping[column.key] === '__ignore__',
-      targetFieldCode: mapping[column.key] === '__ignore__' ? undefined : mapping[column.key],
+      ignored: draft[column.key] === '__ignore__',
+      targetFieldCode: draft[column.key] === '__ignore__' ? undefined : draft[column.key],
     }))
     const ticket = begin('imports.review')
     if (!ticket) return
@@ -348,6 +389,7 @@ function OwnedImportWorkspace({ scope }: { scope: SensitiveDraftOwner }) {
       if (!ticket.valid('imports.read')) return
       await loadBatch(batch.id, ticket)
       if (!ticket.valid()) return
+      setMappingNotice('Mapping revision saved. Validation results were reset.')
       toast.success('Mapping revision saved. Validation results were reset.')
     } catch (error) {
       if (!ticket.valid()) return
@@ -355,6 +397,54 @@ function OwnedImportWorkspace({ scope }: { scope: SensitiveDraftOwner }) {
     } finally {
       ticket.finish()
     }
+  }
+
+  // Confirming accepts server suggestions into this reviewer's draft. When that resolves every
+  // column, the new manual revision is saved at once under imports.review.
+  const confirmSuggestions = (items: typeof openSuggestions, focusKey?: string) => {
+    if (!batch || !mappingEditable || mutation.current || !scope.isCurrent() || !items.length)
+      return
+    const next = { ...mapping }
+    const chosen = new Set(
+      Object.values(next).filter((value) => value !== '__pending__' && value !== '__ignore__'),
+    )
+    let applied = 0
+    let skipped = 0
+    for (const item of items) {
+      if (chosen.has(item.code)) {
+        skipped++
+        continue
+      }
+      next[item.column.key] = item.code
+      chosen.add(item.code)
+      applied++
+    }
+    setMapping(next)
+    const remaining = sourceColumns.filter(
+      (column) => !next[column.key] || next[column.key] === '__pending__',
+    ).length
+    const skippedNote = skipped
+      ? ` ${plural(skipped, 'suggestion')} skipped because the field is already chosen for another column.`
+      : ''
+    if (applied > 0 && remaining === 0) {
+      setMappingNotice(`${plural(applied, 'suggestion')} confirmed. Saving the mapping revision.`)
+      void saveMapping(next)
+    } else {
+      setMappingNotice(
+        `${plural(applied, 'suggestion')} confirmed.${skippedNote}${
+          remaining
+            ? ` ${plural(remaining, 'column')} ${remaining === 1 ? 'needs' : 'need'} a target or an explicit ignore before the revision can be saved.`
+            : ''
+        }`,
+      )
+    }
+    window.setTimeout(() => {
+      if (!mounted.current) return
+      const target = focusKey
+        ? document.getElementById(`import-mapping-target-${focusKey}`)
+        : mappingHeading.current
+      target?.focus()
+    }, 0)
   }
 
   const validate = async () => {
@@ -674,55 +764,106 @@ function OwnedImportWorkspace({ scope }: { scope: SensitiveDraftOwner }) {
                 {sourceColumns.length > 0 ? (
                   <Card>
                     <CardHeader>
-                      <CardTitle>Reviewed mapping revision {batch.mappingRevision}</CardTitle>
-                      <CardDescription>
-                        Every source column must target one field or be explicitly ignored.
-                      </CardDescription>
+                      <div className="flex flex-wrap items-start justify-between gap-3">
+                        <div>
+                          <CardTitle>
+                            <span ref={mappingHeading} tabIndex={-1}>
+                              Reviewed mapping revision {batch.mappingRevision}
+                            </span>
+                          </CardTitle>
+                          <CardDescription>
+                            Every source column must target one field or be explicitly ignored.
+                          </CardDescription>
+                        </div>
+                        {canReview ? (
+                          <Button
+                            disabled={!mappingEditable || openSuggestions.length === 0}
+                            variant="outline"
+                            onClick={() => confirmSuggestions(openSuggestions)}
+                          >
+                            Confirm all suggestions
+                          </Button>
+                        ) : null}
+                      </div>
                     </CardHeader>
                     <CardContent className="space-y-3">
-                      {sourceColumns.map((column) => (
-                        <div
-                          key={column.key}
-                          className="grid items-center gap-3 rounded-md border p-3 sm:grid-cols-2"
-                        >
-                          <span className="break-all text-sm font-medium">
-                            Column {column.columnIndex}: {column.header}
-                          </span>
-                          <Select
-                            disabled={
-                              !canReview || pending || mappingLockedStatuses.has(batch.status)
-                            }
-                            value={mapping[column.key] ?? '__pending__'}
-                            onValueChange={(value) =>
-                              !mutation.current &&
-                              scope.isCurrent() &&
-                              setMapping((current) => ({ ...current, [column.key]: value }))
-                            }
+                      <output aria-live="polite" className="block text-sm text-muted-foreground">
+                        {mappingNotice}
+                      </output>
+                      {sourceColumns.map((column) => {
+                        const stored = storedMappingByKey.get(column.key)
+                        const automatic = automaticMatchReason(stored)
+                        const suggestion = openSuggestions.find(
+                          (item) => item.column.key === column.key,
+                        )
+                        return (
+                          <div
+                            key={column.key}
+                            className="grid items-center gap-3 rounded-md border p-3 sm:grid-cols-2"
                           >
-                            <SelectTrigger>
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="__pending__">
-                                Pending: select a target or explicit ignore
-                              </SelectItem>
-                              <SelectItem value="__ignore__">Ignore this source column</SelectItem>
-                              {selectedForm?.fields.map((field) => (
-                                <SelectItem key={field.code} value={field.code}>
-                                  {field.label} ({field.code})
+                            <div className="space-y-1">
+                              <span className="block break-all text-sm font-medium">
+                                Column {column.columnIndex}: {column.header}
+                              </span>
+                              {automatic ? (
+                                <StatusBadge tone="success">Auto-matched: {automatic}</StatusBadge>
+                              ) : null}
+                              {suggestion ? (
+                                <div className="flex flex-wrap items-center gap-2 text-sm">
+                                  <span>Suggested: {suggestion.label}</span>
+                                  {canReview ? (
+                                    <Button
+                                      aria-label={`Confirm suggestion ${suggestion.label} for column ${column.columnIndex}`}
+                                      disabled={!mappingEditable}
+                                      size="sm"
+                                      className="min-h-11"
+                                      variant="outline"
+                                      onClick={() => confirmSuggestions([suggestion], column.key)}
+                                    >
+                                      Confirm
+                                    </Button>
+                                  ) : (
+                                    <span className="text-muted-foreground">
+                                      An authorized reviewer can confirm it.
+                                    </span>
+                                  )}
+                                </div>
+                              ) : null}
+                            </div>
+                            <Select
+                              disabled={!mappingEditable}
+                              value={mapping[column.key] ?? '__pending__'}
+                              onValueChange={(value) =>
+                                !mutation.current &&
+                                scope.isCurrent() &&
+                                setMapping((current) => ({ ...current, [column.key]: value }))
+                              }
+                            >
+                              <SelectTrigger
+                                aria-label={`Target for column ${column.columnIndex}: ${column.header}`}
+                                id={`import-mapping-target-${column.key}`}
+                              >
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="__pending__">
+                                  Pending: select a target or explicit ignore
                                 </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        </div>
-                      ))}
+                                <SelectItem value="__ignore__">
+                                  Ignore this source column
+                                </SelectItem>
+                                {selectedForm?.fields.map((field) => (
+                                  <SelectItem key={field.code} value={field.code}>
+                                    {field.label} ({field.code})
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                        )
+                      })}
                       <div className="flex flex-wrap gap-2">
-                        <Button
-                          disabled={
-                            !canReview || pending || mappingLockedStatuses.has(batch.status)
-                          }
-                          onClick={() => void saveMapping()}
-                        >
+                        <Button disabled={!mappingEditable} onClick={() => void saveMapping()}>
                           Save new mapping revision
                         </Button>
                         <Button

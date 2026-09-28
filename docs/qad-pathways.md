@@ -214,6 +214,24 @@ Coverage for the [import throughput and PDF](cr-pathways-import-throughput-and-p
 | QAD-IMP-12 | Abuse | a PDF carrying scripts, attachments, forms or links is read for text only; formula-like cells are rejected |
 | QAD-IMP-13 | Abuse | Project Officer, Project Manager, Program Manager and Grant Manager cannot export form definitions |
 
+### Smart import mapping (PRD-F6)
+
+Coverage for the [smart import mapping](cr-pathways-smart-import-mapping.md) contract.
+
+| ID | Kind | Scenario |
+|---|---|---|
+| QAD-SM-01 | Happy | exact, synonym, token-set, token-overlap and edit-distance names score their tiers; the same input always gives the same decisions, in any input order |
+| QAD-SM-02 | Happy | a high-confidence column with compatible sampled values is auto-mapped and shows "Auto-matched" with its reason |
+| QAD-SM-03 | Happy | an M&E Officer confirms one suggestion or all suggestions; the confirmation is a new manual revision attributed to the reviewer |
+| QAD-SM-04 | Happy | the web preview and the API produce the same decisions from the shared matcher |
+| QAD-SM-05 | Sad | "Gender" is never auto-mapped to `sex`; it stays PENDING with a suggestion |
+| QAD-SM-06 | Sad | a tie, a small margin, a failed value gate or no samples leaves the column PENDING with at most one suggestion; no field is mapped twice |
+| QAD-SM-07 | Sad | an identical retry returns the same receipt; a changed recomputation, a V1 revision or a stale or frozen batch conflicts |
+| QAD-SM-08 | Abuse | the recorder rejects unknown algorithm IDs, extra keys, out-of-range or fractional scores, unknown reasons, duplicate targets, and foreign-form, cross-project or cross-organization fields |
+| QAD-SM-09 | Abuse | sampled cell values never appear in mapping rows, audit rows, logs or the receipt |
+| QAD-SM-10 | Abuse | cross-organization, cross-project, other-uploader, forged-subject and revoked-upload calls are denied before any write |
+| QAD-SM-11 | Abuse | a Project Officer sees suggestions read-only and cannot confirm them; the mapping route denies without `imports.review` |
+
 ## 10. Project data loading and read cache
 
 Covers step 2 of the [performance and scaling Change Record](cr-pathways-performance-scaling.md) and the project workspace reads in the SDD.
