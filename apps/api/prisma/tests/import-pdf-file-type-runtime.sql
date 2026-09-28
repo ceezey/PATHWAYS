@@ -41,7 +41,7 @@ BEGIN
 END
 $$;
 
--- Guard rerun: the predecessor assertion and ADD VALUE IF NOT EXISTS stay idempotent.
+-- The label is unique; ADD VALUE IF NOT EXISTS cannot duplicate it on a rerun.
 DO $$
 BEGIN
   IF (SELECT count(*) FROM pg_catalog.pg_enum e JOIN pg_catalog.pg_type t ON t.oid=e.enumtypid
