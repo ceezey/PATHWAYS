@@ -227,7 +227,7 @@ describe('reserve (activities.proof.submit)', () => {
       rows.map((row) => row.objectKey),
     )
     expect(result).toMatchObject({ clientUpdateId, status: 'UPLOADING' })
-    if (!('files' in result)) throw new Error('Expected a reservation')
+    if (!('files' in result) || !result.files) throw new Error('Expected a reservation')
     expect(result.files.every((file) => file.uploadUrl?.includes(file.evidenceId))).toBe(true)
     expect(tx.auditLog.create).not.toHaveBeenCalled()
   })
@@ -241,7 +241,9 @@ describe('reserve (activities.proof.submit)', () => {
       ...files[0],
       sha256: sha(index + 20),
     }))
-    const errors = await validate(plainToInstance(ReserveActivityProofDto, reserveInput({ files: eleven })))
+    const errors = await validate(
+      plainToInstance(ReserveActivityProofDto, reserveInput({ files: eleven })),
+    )
     expect(errors.map((error) => error.property)).toContain('files')
     await expect(
       service.reserveProof(officer, projectId, activityId, reserveInput({ files: eleven })),
@@ -250,18 +252,22 @@ describe('reserve (activities.proof.submit)', () => {
   })
 
   it('rejects a file over the configured limit, a total over five files and duplicates', async () => {
-    expect(() =>
-      proofDeclarations([{ ...files[4], byteSize: 52_428_801 }], 52_428_800),
-    ).toThrow(BadRequestException)
+    expect(() => proofDeclarations([{ ...files[4], byteSize: 52_428_801 }], 52_428_800)).toThrow(
+      BadRequestException,
+    )
     expect(() =>
       proofDeclarations(
-        Array.from({ length: 6 }, (_, index) => ({ ...files[4], byteSize: 50 * MiB, sha256: sha(index + 40) })),
+        Array.from({ length: 6 }, (_, index) => ({
+          ...files[4],
+          byteSize: 50 * MiB,
+          sha256: sha(index + 40),
+        })),
         50 * MiB,
       ),
     ).toThrow(/total/)
-    expect(() => proofDeclarations([files[0], { ...files[1], sha256: files[0].sha256 }], 50 * MiB)).toThrow(
-      /twice/,
-    )
+    expect(() =>
+      proofDeclarations([files[0], { ...files[1], sha256: files[0].sha256 }], 50 * MiB),
+    ).toThrow(/twice/)
     await expect(
       service.reserveProof(
         officer,
@@ -331,7 +337,7 @@ describe('reserve (activities.proof.submit)', () => {
     expect(storage.createPrivateUploadUrls).toHaveBeenCalledWith('pathways-private', [
       pending.objectKey,
     ])
-    if (!('files' in result)) throw new Error('Expected a reservation')
+    if (!('files' in result) || !result.files) throw new Error('Expected a reservation')
     expect(result.files.map((file) => [file.storageReady, Boolean(file.uploadUrl)])).toEqual([
       [true, false],
       [false, true],
@@ -385,7 +391,12 @@ describe('reserve (activities.proof.submit)', () => {
   it('hides a cross-project or cross-organization activity before activity retrieval', async () => {
     tx.project.findFirst.mockResolvedValue(null)
     await expect(
-      service.reserveProof(officer, '20000000-0000-4000-8000-00000000000f', activityId, reserveInput()),
+      service.reserveProof(
+        officer,
+        '20000000-0000-4000-8000-00000000000f',
+        activityId,
+        reserveInput(),
+      ),
     ).rejects.toBeInstanceOf(NotFoundException)
     expect(tx.project.findFirst.mock.calls[0][0].where.AND[0]).toMatchObject({ organizationId })
     expect(tx.projectActivity.findFirst).not.toHaveBeenCalled()
@@ -501,7 +512,10 @@ describe('per-file finalize', () => {
     expect(error.getResponse()).toMatchObject({ statusCode: 422, code })
     expect(storage.deleteFile).toHaveBeenCalledTimes(deletes ? 1 : 0)
     if (deletes)
-      expect(storage.deleteFile).toHaveBeenCalledWith('pathways-private', keyFor(evidenceId, '.mp4'))
+      expect(storage.deleteFile).toHaveBeenCalledWith(
+        'pathways-private',
+        keyFor(evidenceId, '.mp4'),
+      )
     expect(tx.evidenceMedia.updateMany).not.toHaveBeenCalled()
     expect(state.begin).not.toHaveBeenCalled()
   })

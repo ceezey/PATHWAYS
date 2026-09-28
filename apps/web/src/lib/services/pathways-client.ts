@@ -20,6 +20,9 @@ import { webEnv } from '@/lib/env'
 import { getBrowserSupabaseClient } from '@/lib/supabase/client'
 import type {
   Activity,
+  ActivityProofFinalizeResult,
+  ActivityProofReservation,
+  ActivityProofUploadLimits,
   ActivitySummary,
   AlertRecord,
   AnalyticsLocationRecord,
@@ -60,6 +63,7 @@ import type {
   RecordActivityProgressInput,
   RegisterBeneficiaryInput,
   ReportRecord,
+  ReserveActivityProofUploadInput,
   RoleDashboardViewModel,
   RuleDefinition,
   SaveDigitalFormInput,
@@ -516,6 +520,20 @@ export interface PathwaysClient {
   authorizeExistingUser(input: AuthorizeExistingUserInput): Promise<UserRecord>
   updateAuthorizedUser(id: string, input: UpdateAuthorizedUserInput): Promise<UserRecord>
   getDashboard(role: PathwaysRole): Promise<RoleDashboardViewModel>
+
+  // --- Direct-upload activity proof (cr-pathways-activity-progress-media). New section: do not
+  // reorder or reformat the rest of this interface when editing these members. ---
+  getActivityProofUploadLimits(projectId: string): Promise<ActivityProofUploadLimits>
+  reserveActivityProofUpload(
+    input: ReserveActivityProofUploadInput,
+  ): Promise<ActivityProofReservation>
+  uploadActivityProofFile(uploadUrl: string, file: File): Promise<void>
+  finalizeActivityProofFile(
+    projectId: string,
+    activityId: string,
+    updateId: string,
+    evidenceId: string,
+  ): Promise<ActivityProofFinalizeResult>
 }
 
 const backendNotConfigured = (operation: string) =>
@@ -774,6 +792,64 @@ class BackendReadyPathwaysClient implements PathwaysClient {
         files: input.files,
       },
     )
+  }
+
+  // --- Direct-upload activity proof (cr-pathways-activity-progress-media). New section: kept
+  // separate from the retired multipart path above; do not reformat surrounding code. ---
+
+  async getActivityProofUploadLimits(projectId: string): Promise<ActivityProofUploadLimits> {
+    return requestFoundation(
+      `/projects/${encodeURIComponent(projectId)}/activities/proof-upload-limits`,
+    ) as Promise<ActivityProofUploadLimits>
+  }
+
+  async reserveActivityProofUpload(
+    input: ReserveActivityProofUploadInput,
+  ): Promise<ActivityProofReservation> {
+    const path = `/projects/${encodeURIComponent(input.projectId)}/activities/${encodeURIComponent(input.activityId)}/updates/reservations`
+    return requestFoundation(path, {
+      method: 'POST',
+      body: JSON.stringify({
+        clientUpdateId: input.clientUpdateId,
+        progressPercent: input.progressPercent,
+        note: input.note,
+        files: input.files,
+      }),
+    }) as Promise<ActivityProofReservation>
+  }
+
+  // A raw PUT to the server-issued signed upload URL. This never carries the caller's own API
+  // bearer token or workspace headers: the signed URL's embedded token is the only credential,
+  // scoped to one server-derived object key, and it authorizes a write only, never a read.
+  async uploadActivityProofFile(uploadUrl: string, file: File): Promise<void> {
+    const body = new FormData()
+    body.append('cacheControl', '3600')
+    body.append('', file)
+    const response = await fetch(uploadUrl, {
+      method: 'PUT',
+      body,
+      cache: 'no-store',
+      credentials: 'omit',
+      redirect: 'error',
+      referrerPolicy: 'no-referrer',
+    })
+    if (!response.ok)
+      throw new PathwaysClientError(
+        'The file could not be uploaded. Retry this file.',
+        'network',
+        [],
+        response.status,
+      )
+  }
+
+  async finalizeActivityProofFile(
+    projectId: string,
+    activityId: string,
+    updateId: string,
+    evidenceId: string,
+  ): Promise<ActivityProofFinalizeResult> {
+    const path = `/projects/${encodeURIComponent(projectId)}/activities/${encodeURIComponent(activityId)}/updates/${encodeURIComponent(updateId)}/files/${encodeURIComponent(evidenceId)}/finalize`
+    return requestFoundation(path, { method: 'POST' }) as Promise<ActivityProofFinalizeResult>
   }
 
   async reviewActivityUpdate(
@@ -1913,7 +1989,7 @@ export async function requestFoundationResponse(
         throw stepUp
       }
     }
-    if (response.status === 400 || response.status === 409) {
+    if (response.status === 400 || response.status === 409 || response.status === 422) {
       const body = (await response.json().catch(() => null)) as {
         message?: { errors?: unknown; message?: unknown } | string | unknown[]
         errors?: unknown
@@ -1955,7 +2031,7 @@ export async function requestFoundationResponse(
           ? 'forbidden'
           : response.status === 404
             ? 'not_found'
-            : response.status === 400 || response.status === 409
+            : response.status === 400 || response.status === 409 || response.status === 422
               ? 'invalid'
               : 'network'
     const failure = new PathwaysClientError(

@@ -241,4 +241,13 @@ Developer reply on 2026-09-28: "Approve all CRs, Evidence: change constraint, Si
 
 ## 9. Disposition
 
-Not applied.
+Implemented on feature branch; hosted pending.
+
+### 9.1 Developer-authorized scope reduction (2026-09-29)
+
+The developer reduced the implementation scope on the `feature/activity-progress-media` branch. This subsection records the reduction; sections 1-8 above remain the approved contract and are not otherwise edited.
+
+- Only the existing Submit proof flow changes. It carries multiple file attachments, up to 10 files, images, PDF and MP4/MOV/WebM video, each going directly to private storage through the reserve/upload/finalize API in section 3.1, at `EVIDENCE_MAX_FILE_BYTES` (default 50 MB).
+- Selecting more files adds to the list. Each file has its own remove control and a status text of Waiting, Uploading, Uploaded, or Failed with a Retry control. There are no progress bars.
+- **Deferred, not built on this branch:** files on Record progress, the combined "Update progress" dialog described in section 3.6, and per-file upload progress bars. Record progress is unchanged.
+- The backend reservation, per-file finalize, evidence typing (3.3) and migration 0041 (3.4) are implemented as approved. The inspection amendment (3.5) is implemented at its streamed-response primary path; the section 3.5 fallback (chunked range retrieval and `chunk_digests`) is not needed locally and was not built, and is not required for this reduced scope. No combined-dialog or record-progress-file backend path exists, so nothing was left inert or removed.

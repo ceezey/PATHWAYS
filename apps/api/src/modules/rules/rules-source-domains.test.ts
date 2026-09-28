@@ -275,7 +275,9 @@ describe('current source handler immutable receipts precede mutable state and so
         clientUpdateId: request,
         progressPercent: 100,
         note: 'Synthetic proof',
-        files: [{ fileName: 'synthetic.png', contentType: 'image/png', byteSize: 15, sha256: hash }],
+        files: [
+          { fileName: 'synthetic.png', contentType: 'image/png', byteSize: 15, sha256: hash },
+        ],
       }),
     ).toEqual({ clientUpdateId: request, status: 'COMMITTED', acknowledgement })
     expect(boundary.ack).toHaveBeenCalled()
@@ -340,8 +342,9 @@ describe('current source handler immutable receipts precede mutable state and so
         (file) => file.fileName,
       ),
     ).toEqual(['a.png', 'b.png'])
-    expect((boundary.tx.evidenceMedia as { updateMany: ReturnType<typeof vi.fn> }).updateMany)
-      .not.toHaveBeenCalled()
+    expect(
+      (boundary.tx.evidenceMedia as { updateMany: ReturnType<typeof vi.fn> }).updateMany,
+    ).not.toHaveBeenCalled()
     expect(storage.deleteFile).not.toHaveBeenCalled()
   })
   it('rejects altered retry proof MIME/size before any receipt lookup or external storage', async () => {
@@ -382,7 +385,9 @@ describe('current source handler immutable receipts precede mutable state and so
         clientUpdateId: request,
         progressPercent: 50,
         note: 'Synthetic proof',
-        files: [{ fileName: 'synthetic.png', contentType: 'image/png', byteSize: 15, sha256: hash }],
+        files: [
+          { fileName: 'synthetic.png', contentType: 'image/png', byteSize: 15, sha256: hash },
+        ],
       }),
     ).rejects.toThrow('different input')
     expect(boundary.ack).not.toHaveBeenCalled()

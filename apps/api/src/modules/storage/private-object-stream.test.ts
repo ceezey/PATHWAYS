@@ -56,9 +56,9 @@ function objectTransport(object: Buffer, overrides: { headLength?: string; statu
     const range = (init?.headers as Record<string, string>).Range
     if (range) {
       const end = Number(/^bytes=0-(\d+)$/.exec(range)?.[1])
-      return new Response(object.subarray(0, end + 1), { status: 206 })
+      return new Response(new Uint8Array(object.subarray(0, end + 1)), { status: 206 })
     }
-    return new Response(object)
+    return new Response(new Uint8Array(object))
   })
 }
 const verification = (object: Buffer, contentType: string, extension: string, extra = {}) => ({
@@ -79,21 +79,25 @@ afterEach(() => {
 })
 
 describe('finalize verification of a directly uploaded private object', () => {
-  it.each(samples)('verifies %s by size, leading bytes and streamed digest', async (type, ext, bytes) => {
-    const transport = objectTransport(bytes)
-    vi.stubGlobal('fetch', transport)
-    await expect(createPrivateUploadVerifier(config)(verification(bytes, type, ext))).resolves.toBe(
-      'VERIFIED',
-    )
-    const calls = transport.mock.calls as unknown as Call[]
-    expect(calls.map(([, init]) => init.method)).toEqual(['GET', 'HEAD', 'GET', 'GET', 'GET'])
-    const objectUrl = `https://service.invalid/storage/v1/object/pathways-private/${key(ext)}`
-    expect(calls.slice(1, 4).every(([url]) => url === objectUrl)).toBe(true)
-    expect((calls[2][1].headers as Record<string, string>).Range).toBe(
-      `bytes=0-${Math.min(64, bytes.length) - 1}`,
-    )
-    for (const [, init] of calls) expect(init).toMatchObject({ redirect: 'error', cache: 'no-store' })
-  })
+  it.each(samples)(
+    'verifies %s by size, leading bytes and streamed digest',
+    async (type, ext, bytes) => {
+      const transport = objectTransport(bytes)
+      vi.stubGlobal('fetch', transport)
+      await expect(
+        createPrivateUploadVerifier(config)(verification(bytes, type, ext)),
+      ).resolves.toBe('VERIFIED')
+      const calls = transport.mock.calls as unknown as Call[]
+      expect(calls.map(([, init]) => init.method)).toEqual(['GET', 'HEAD', 'GET', 'GET', 'GET'])
+      const objectUrl = `https://service.invalid/storage/v1/object/pathways-private/${key(ext)}`
+      expect(calls.slice(1, 4).every(([url]) => url === objectUrl)).toBe(true)
+      expect((calls[2][1].headers as Record<string, string>).Range).toBe(
+        `bytes=0-${Math.min(64, bytes.length) - 1}`,
+      )
+      for (const [, init] of calls)
+        expect(init).toMatchObject({ redirect: 'error', cache: 'no-store' })
+    },
+  )
 
   it('rejects a spoofed type (declared MP4, actually HTML) before hashing the object', async () => {
     const html = ascii('<!DOCTYPE html><html><body>synthetic</body></html>')
@@ -118,7 +122,11 @@ describe('finalize verification of a directly uploaded private object', () => {
   it('reports a body longer than declared as a size mismatch, counted independently of HEAD', async () => {
     const bytes = samples[3][2]
     const transport = vi.fn(async (url: string, init?: RequestInit) => {
-      if (init?.method !== 'HEAD' && !url.includes('/bucket/') && !(init?.headers as Record<string, string>).Range)
+      if (
+        init?.method !== 'HEAD' &&
+        !url.includes('/bucket/') &&
+        !(init?.headers as Record<string, string>).Range
+      )
         return new Response(Buffer.concat([bytes, ascii('extra')]))
       return objectTransport(bytes)(url, init)
     })
@@ -181,8 +189,15 @@ describe('finalize verification of a directly uploaded private object', () => {
   })
 
   it('matches only allow-listed signatures', () => {
-    expect(matchesEvidenceSignature('video/mp4', Buffer.concat([ftyp('XXXX'), Buffer.alloc(8)]))).toBe(false)
-    expect(matchesEvidenceSignature('video/webm', Buffer.from([0x1a, 0x45, 0xdf, 0xa3, 0x42, 0x82, 0x88]))).toBe(false)
+    expect(
+      matchesEvidenceSignature('video/mp4', Buffer.concat([ftyp('XXXX'), Buffer.alloc(8)])),
+    ).toBe(false)
+    expect(
+      matchesEvidenceSignature(
+        'video/webm',
+        Buffer.from([0x1a, 0x45, 0xdf, 0xa3, 0x42, 0x82, 0x88]),
+      ),
+    ).toBe(false)
     expect(matchesEvidenceSignature('image/gif', ascii('GIF89a'))).toBe(false)
     expect(matchesEvidenceSignature('image/png', ascii('%PDF-1.7'))).toBe(false)
   })
@@ -260,9 +275,7 @@ describe('streamed inspection of a large private object', () => {
     expect(chunks).toBeGreaterThan(100)
     // Never more than a few chunks between storage and the client: no whole-object buffer.
     expect(maxInFlight).toBeLessThanOrEqual(1024 * 1024)
-    expect(Math.max(0, ...allocations.filter((size) => size > chunkSize))).toBeLessThan(
-      1024 * 1024,
-    )
+    expect(Math.max(0, ...allocations.filter((size) => size > chunkSize))).toBeLessThan(1024 * 1024)
   }, 30_000)
 
   it('withholds the final chunk and errors when the released object no longer verifies', async () => {

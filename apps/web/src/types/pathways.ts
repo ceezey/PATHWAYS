@@ -246,6 +246,58 @@ export interface SubmitActivityProofInput {
   files: File[]
 }
 
+// --- Direct-upload activity proof (cr-pathways-activity-progress-media) ---
+
+export interface ActivityProofUploadLimits {
+  maxFiles: number
+  maxFileBytes: number
+  maxTotalBytes: number
+  contentTypes: string[]
+}
+
+export interface ActivityProofFileDeclaration {
+  fileName: string
+  contentType: string
+  byteSize: number
+  sha256: string
+}
+
+export interface ReserveActivityProofUploadInput {
+  projectId: string
+  activityId: string
+  clientUpdateId: string
+  progressPercent: number
+  note: string
+  files: ActivityProofFileDeclaration[]
+}
+
+export interface ActivityProofReservedFile {
+  evidenceId: string
+  fileName: string
+  contentType: string
+  byteSize: number
+  sha256: string
+  storageReady: boolean
+  uploadUrl: string | null
+}
+
+export type ActivityProofReservation =
+  | {
+      clientUpdateId: string
+      status: 'COMMITTED'
+      acknowledgement: unknown
+    }
+  | {
+      clientUpdateId: string
+      updateId: string
+      status: 'UPLOADING' | 'READY_TO_COMMIT'
+      files: ActivityProofReservedFile[]
+    }
+
+export type ActivityProofFinalizeResult =
+  | { status: 'COMMITTED'; acknowledgement: unknown }
+  | { status: 'UPLOADING'; updateId: string; remaining: number }
+
 export interface ProjectMilestone {
   id: string
   projectId: string
