@@ -1,5 +1,7 @@
 'use client'
 
+import { useEffect, useId, useRef } from 'react'
+
 import { ProgressBar } from '@/components/pathways'
 import { Button } from '@/components/ui/button'
 
@@ -33,6 +35,9 @@ function statusText(
 /**
  * Accessible progress for automatic import processing. The live region announces
  * each server checkpoint; Stop takes effect after the in-flight request returns.
+ * When Stop (or a failure) removes the focused Stop button, focus moves to Resume
+ * once it is enabled. `focusOnMount` moves focus to the panel heading when it first
+ * appears, for flows where the control that started processing goes away.
  */
 export function ImportProcessingPanel({
   state,
@@ -41,6 +46,7 @@ export function ImportProcessingPanel({
   onStop,
   onResume,
   canResume = true,
+  focusOnMount = false,
 }: {
   state: ImportProcessingState
   progress: ImportProcessingProgress
@@ -48,7 +54,29 @@ export function ImportProcessingPanel({
   onStop: () => void
   onResume?: () => void
   canResume?: boolean
+  focusOnMount?: boolean
 }) {
+  const headingId = useId()
+  const headingRef = useRef<HTMLHeadingElement>(null)
+  const resumeRef = useRef<HTMLButtonElement>(null)
+  const previousState = useRef(state)
+  const focusResume = useRef(false)
+
+  // biome-ignore lint/correctness/useExhaustiveDependencies: runs once, on mount only.
+  useEffect(() => {
+    if (focusOnMount) headingRef.current?.focus()
+  }, [])
+
+  useEffect(() => {
+    const wasRunning = previousState.current === 'running' || previousState.current === 'stopping'
+    if (wasRunning && (state === 'stopped' || state === 'failed')) focusResume.current = true
+    previousState.current = state
+    if (focusResume.current && canResume && resumeRef.current) {
+      focusResume.current = false
+      resumeRef.current.focus()
+    }
+  }, [state, canResume])
+
   const tone =
     state === 'failed'
       ? 'danger'
@@ -59,15 +87,19 @@ export function ImportProcessingPanel({
           : 'warning'
   return (
     <section
-      aria-label="Import processing"
+      aria-labelledby={headingId}
       className="space-y-3 rounded-lg border bg-card p-4"
       data-testid="import-processing-panel"
     >
-      <ProgressBar
-        label="Import processing"
-        tone={tone}
-        value={importProcessingPercent(progress)}
-      />
+      <h3
+        className="text-sm font-semibold text-foreground focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        id={headingId}
+        ref={headingRef}
+        tabIndex={-1}
+      >
+        Import processing
+      </h3>
+      <ProgressBar label="Rows handled" tone={tone} value={importProcessingPercent(progress)} />
       <output aria-live="polite" className="block text-sm text-foreground">
         {statusText(state, progress, note)}
       </output>
@@ -76,7 +108,7 @@ export function ImportProcessingPanel({
           {state === 'stopping' ? 'Stopping...' : 'Stop processing'}
         </Button>
       ) : (state === 'stopped' || state === 'failed') && onResume ? (
-        <Button disabled={!canResume} onClick={onResume} type="button">
+        <Button disabled={!canResume} onClick={onResume} ref={resumeRef} type="button">
           Resume processing
         </Button>
       ) : null}

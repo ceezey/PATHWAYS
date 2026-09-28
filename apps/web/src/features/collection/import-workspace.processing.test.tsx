@@ -127,6 +127,12 @@ describe('import workspace automatic processing', () => {
     )
     expect(api.processImport).toHaveBeenCalledTimes(1)
     expect(screen.getAllByRole('button', { name: 'Resume processing' }).length).toBeGreaterThan(0)
+    // Stop unmounted the focused control; focus lands on the enabled Resume button.
+    await waitFor(() =>
+      expect(document.activeElement).toBe(
+        within(panel).getByRole('button', { name: 'Resume processing' }),
+      ),
+    )
 
     fireEvent.click(within(panel).getByRole('button', { name: 'Resume processing' }))
     await waitFor(() =>

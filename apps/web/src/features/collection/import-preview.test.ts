@@ -93,6 +93,39 @@ describe('import preview parsing', () => {
     await expect(parseImportPreview(workbookFile())).rejects.toThrow('Unreadable workbook.')
   })
 
+  it('falls back to the main thread when the worker constructor throws', async () => {
+    class ThrowingWorker {
+      constructor() {
+        throw new Error('Workers are blocked.')
+      }
+    }
+    vi.stubGlobal('Worker', ThrowingWorker)
+    vi.stubGlobal('window', globalThis)
+    await expect(parseImportPreview(workbookFile())).resolves.toMatchObject({
+      fileType: 'xlsx',
+      headers: ['code', 'score'],
+    })
+  })
+
+  it('falls back to the main thread when the worker script fails to load', async () => {
+    class UnloadableWorker {
+      onmessage: ((event: MessageEvent) => void) | null = null
+      onerror: (() => void) | null = null
+      postMessage(_message: unknown, transfer?: Transferable[]) {
+        // Mimic a real transfer: the posted buffer becomes detached.
+        if (transfer?.[0] instanceof ArrayBuffer) structuredClone(transfer[0], { transfer })
+        queueMicrotask(() => this.onerror?.())
+      }
+      terminate() {}
+    }
+    vi.stubGlobal('Worker', UnloadableWorker)
+    vi.stubGlobal('window', globalThis)
+    await expect(parseImportPreview(workbookFile())).resolves.toMatchObject({
+      fileType: 'xlsx',
+      rows: [{ code: 'BEN-1', score: '4' }],
+    })
+  })
+
   it('parses on the main thread where Worker is unavailable', async () => {
     const result = await parseImportPreview(new File(['code\nBEN-1\n'], 'codes.csv'))
     expect(result).toMatchObject({ fileType: 'csv', headers: ['code'] })

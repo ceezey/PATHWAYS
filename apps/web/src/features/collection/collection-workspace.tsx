@@ -1736,6 +1736,7 @@ const OwnedCollectionWorkspace = ({
           {processingRun ? (
             <ImportProcessingPanel
               canResume={!operationPending}
+              focusOnMount
               note={processingRun.note}
               onResume={() => void resumeServerProcessing()}
               onStop={stopServerProcessing}
