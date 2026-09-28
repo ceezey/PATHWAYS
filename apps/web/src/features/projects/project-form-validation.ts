@@ -104,27 +104,45 @@ const selectedUserId = (users: UserRecord[], name: string, role: UserRecord['rol
     ?.id
 
 // Resolves a single-assignment team field to the id to send: `null` clears
-// the assignment explicitly (the field was left/set blank, i.e. "None"),
+// the assignment explicitly when clearBlank is set (team editor "None"),
+// a blank is omitted otherwise so project creation keeps server defaults,
 // a string sets it, and `undefined` means the selection could not be
 // resolved and should be left out of the payload rather than risk clearing
 // or corrupting an assignment (validateProjectTeamSelections rejects any
 // non-blank, non-eligible name before submission, so this path is only hit
 // defensively).
-const resolvedRoleId = (users: UserRecord[], name: string, role: UserRecord['role']) => {
-  if (name === '') return null
+const resolvedRoleId = (
+  users: UserRecord[],
+  name: string,
+  role: UserRecord['role'],
+  clearBlank: boolean,
+) => {
+  if (name === '') return clearBlank ? null : undefined
   return selectedUserId(users, name, role) ?? undefined
 }
 
 export const toProjectTeamInput = (
   values: ProjectSetupSchema,
   users: UserRecord[],
+  { clearBlank = false }: { clearBlank?: boolean } = {},
 ): Partial<CreateProjectInput> => {
-  const programManagerId = resolvedRoleId(users, values.programManager, 'Program Manager')
-  const projectManagerId = resolvedRoleId(users, values.projectManager, 'Project Manager')
+  const programManagerId = resolvedRoleId(
+    users,
+    values.programManager,
+    'Program Manager',
+    clearBlank,
+  )
+  const projectManagerId = resolvedRoleId(
+    users,
+    values.projectManager,
+    'Project Manager',
+    clearBlank,
+  )
   const monitoringOfficerId = resolvedRoleId(
     users,
     values.monitoringOfficer,
     'Monitoring and Evaluation Officer',
+    clearBlank,
   )
   const selectedOfficerNames = values.projectOfficers
     .split(',')

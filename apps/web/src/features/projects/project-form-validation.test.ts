@@ -256,6 +256,7 @@ describe('project setup validation', () => {
           projectOfficers: '',
         },
         [],
+        { clearBlank: true },
       ),
     ).toEqual({
       programManagerId: null,
@@ -264,15 +265,27 @@ describe('project setup validation', () => {
     })
   })
 
+  it('omits blank roles on project creation so server defaults such as creator assignment apply', () => {
+    expect(
+      toProjectTeamInput(
+        {
+          ...validValues,
+          programManager: '',
+          projectManager: '',
+          monitoringOfficer: '',
+          projectOfficers: '',
+        },
+        [],
+      ),
+    ).toEqual({})
+  })
+
   it('leaves a role untouched when its selected name cannot be resolved defensively', () => {
     // validateProjectTeamSelections rejects this before submission in the UI;
     // toProjectTeamInput must still fail closed and never clear or corrupt an
     // assignment it could not resolve.
     expect(
-      toProjectTeamInput(
-        { ...validValues, programManager: 'Someone Unlisted' },
-        [],
-      ),
+      toProjectTeamInput({ ...validValues, programManager: 'Someone Unlisted' }, []),
     ).not.toHaveProperty('programManagerId')
   })
 })

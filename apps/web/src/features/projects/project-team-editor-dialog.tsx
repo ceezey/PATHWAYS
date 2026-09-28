@@ -141,7 +141,7 @@ export const ProjectTeamEditorDialog = ({
         project.id,
         {
           ...toUpdateProjectInput(values, project),
-          ...toProjectTeamInput(values, users),
+          ...toProjectTeamInput(values, users, { clearBlank: true }),
         },
         mutationContext,
       )
