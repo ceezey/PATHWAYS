@@ -31,7 +31,7 @@ Malformed input returns 400, missing grants/role 403, inaccessible or unsupporte
 
 ## 3. Bounded Transfer and Audit
 
-Read one object outside database transactions from the configured server-only service origin. Permit configured HTTPS only; loopback HTTP belongs solely to separately injected synthetic tests. Use fixed encoded bucket/object paths derived from authorized context, require its authorized organization/project/evidence prefix, reject unsafe key segments and redirects, and verify the bucket is private before and after the body.
+Read one object outside database transactions from the configured server-only service origin. Permit configured HTTPS only. The sole exception is plain HTTP to a loopback host (127.0.0.1, localhost or [::1]) outside production, for the local Supabase stack approved in [admin read access](cr-pathways-admin-read-access.md) section 2.1; separately injected synthetic tests keep their own loopback transport. Use fixed encoded bucket/object paths derived from authorized context, require its authorized organization/project/evidence prefix, reject unsafe key segments and redirects, and verify the bucket is private before and after the body.
 
 One ten-second storage deadline covers both bounded bucket metadata reads, connections and counted object chunks. Metadata bodies are at most 16 KiB. Proof size must be a recorded positive integer at most 10 MiB with a recorded 64-hex SHA-256 digest. Count streamed bytes independently of Content-Length, abort on overflow/disconnect/deadline and require exact final size/digest. An unbounded SDK Blob read followed by a length check is insufficient.
 

@@ -35,7 +35,7 @@ Separate:
 Use this for synthetic manual testing. It never touches PATHWAYS-dev or production. Docker must be running.
 
 1. `pnpm db:local:start` starts the local Supabase containers (`supabase/config.toml`).
-2. `pnpm db:local:reset` recreates the local database, replays the Prisma ledger (baseline as administrator, later migrations as `prisma`, reusing the phase 6 preprovision SQL) and runs the synthetic seed. It refuses any container not published on loopback port 54322.
+2. `pnpm db:local:reset` recreates the local database, replays the Prisma ledger (baseline as administrator, later migrations as `prisma`, reusing the phase 6 preprovision SQL) and runs the synthetic seed. It acts only on the fixed local container `supabase_db_pathways`, which must publish port 54322, and connects only through 127.0.0.1. Supabase publishes that port on all interfaces with well-known local passwords, so keep only synthetic data in it and leave the host firewall enabled.
 3. `pnpm dev:local` builds and runs the API and web against the local stack. Local values are passed only to the child processes, so ignored `.env` files are neither used nor changed. Stop any other server on ports 3000 and 4000 first. `--api-only` with `PATHWAYS_LOCAL_API_PORT` runs only the API on another port.
 4. Sign in at `http://127.0.0.1:3000/staff/login` in a private window. New passwords are written only to the ignored `.tmp/local-seed/`. Each account enrolls TOTP on first sign-in. Local email appears in Mailpit at `http://127.0.0.1:54324`.
 5. `pnpm db:local:stop` stops the containers.
