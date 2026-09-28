@@ -1,0 +1,148 @@
+import { Inject, Injectable, NotFoundException, ServiceUnavailableException } from '@nestjs/common'
+import { readApiEnv } from '@pathways/config'
+import {
+  type MetricCell,
+  PROJECT_OVERVIEW_METRICS_CONTRACT_VERSION,
+  budgetUtilization,
+  businessCalendarDate,
+  kpiAchievement,
+  missingMetric,
+  projectOverviewMetricsSchema,
+  timelineProgress,
+} from '@pathways/shared'
+import type { Prisma } from '@prisma/client'
+
+import { PrismaService } from '../../prisma/prisma.service'
+import { type AtomicPermission, hasAtomicPermission } from '../auth/authorization-policy'
+import { projectScope } from '../auth/authorized-data.service'
+import { withAuthorizedOperation } from '../auth/authorized-operation'
+import { type ApplicationIdentity, UUID_PATTERN } from '../auth/developer-access'
+import { DashboardsService } from '../dashboards/dashboards.service'
+import { suppressSmallCount } from '../dashboards/descriptive-analytics'
+import { IndicatorsService } from '../indicators/indicators.service'
+
+type Tx = Prisma.TransactionClient
+const projectBudgetCategory = 'PROJECT_PROFILE_TOTAL'
+/** The p06_saddd V1 release accepts only this business calendar. */
+const sadddReleaseTimeZone = 'Asia/Manila'
+
+/**
+ * Overview tiles for one scoped project. Each section is computed only when the viewer
+ * holds the permission of its source; otherwise it is `null`, never a zero.
+ */
+@Injectable()
+export class ProjectOverviewMetricsService {
+  constructor(
+    @Inject(PrismaService) private readonly prisma: PrismaService,
+    @Inject(IndicatorsService) private readonly indicators: IndicatorsService,
+    @Inject(DashboardsService) private readonly dashboards: DashboardsService,
+  ) {}
+
+  private async kpi(tx: Tx, actor: ApplicationIdentity, projectId: string) {
+    const rows = await this.indicators.readInTransaction(tx, actor, [projectId])
+    return kpiAchievement(rows.map((row) => row.progress))
+  }
+
+  private async budget(tx: Tx, actor: ApplicationIdentity, projectId: string) {
+    const planned = await tx.projectBudgetRecord.findFirst({
+      where: {
+        organizationId: actor.organizationId,
+        projectId,
+        activityId: null,
+        category: projectBudgetCategory,
+        archivedAt: null,
+      },
+      select: { plannedBudget: true },
+    })
+    const spent = await tx.budgetExpenseEntry.aggregate({
+      where: { organizationId: actor.organizationId, projectId, status: 'APPROVED' },
+      _sum: { amount: true },
+    })
+    try {
+      return budgetUtilization(
+        planned ? planned.plannedBudget.toFixed(2) : null,
+        (spent._sum.amount ?? 0).toFixed(2),
+      )
+    } catch {
+      return missingMetric('OUT_OF_RANGE')
+    }
+  }
+
+  /**
+   * Distinct individuals from the Locked SADDD release (fixed, closed project period),
+   * with the RFC small-cell rule applied: counts 1-4 are suppressed, 0 and 5+ stay visible.
+   * Preconditions mirror p06_saddd so an open project reports "not released" instead of
+   * aborting the transaction; the database release function remains the authority.
+   */
+  private async reached(
+    tx: Tx,
+    actor: ApplicationIdentity,
+    project: { id: string; startDate: string | null; endDate: string | null },
+    businessDate: string,
+    zone: string,
+  ): Promise<MetricCell> {
+    if (!project.startDate || !project.endDate || project.endDate < project.startDate)
+      return missingMetric('PROJECT_DATES_REQUIRED')
+    if (project.endDate >= businessDate) return missingMetric('RELEASED_AFTER_PROJECT_CLOSE')
+    if (zone !== sadddReleaseTimeZone) return missingMetric('RELEASE_UNAVAILABLE')
+    const saddd = await this.dashboards.sadddInTransaction(tx, actor, project.id)
+    return suppressSmallCount(saddd.total)
+  }
+
+  read(identity: ApplicationIdentity, projectId: string) {
+    return withAuthorizedOperation(this.prisma, identity, 'projects.read', async (tx, actor) => {
+      if (!UUID_PATTERN.test(projectId)) throw new NotFoundException('Project unavailable.')
+      const row = await tx.project.findFirst({
+        where: { AND: [projectScope(actor), { id: projectId.toLowerCase() }] },
+        select: { id: true, startDate: true, endDate: true, targetBeneficiaries: true },
+      })
+      if (!row) throw new NotFoundException('Project unavailable.')
+      const can = (permission: AtomicPermission) =>
+        hasAtomicPermission(actor.roles[0], actor.permissions, permission)
+      const zone = readApiEnv(process.env).BUSINESS_TIME_ZONE
+      let businessDate: string
+      try {
+        businessDate = businessCalendarDate(new Date(), zone)
+      } catch {
+        throw new ServiceUnavailableException('The configured business time zone is invalid.')
+      }
+      const project = {
+        id: row.id,
+        startDate: row.startDate?.toISOString().slice(0, 10) ?? null,
+        endDate: row.endDate?.toISOString().slice(0, 10) ?? null,
+      }
+      // p06_indicator_value requires monitoring.read in the database as well.
+      const kpi =
+        can('indicators.read') && can('monitoring.read') ? await this.kpi(tx, actor, row.id) : null
+      // Spending totals are expense data, so both finance reads are required.
+      const budget =
+        can('budgets.read') && can('expenses.read')
+          ? { metric: await this.budget(tx, actor, row.id) }
+          : null
+      const reached =
+        can('beneficiaries.aggregates.read') && can('analytics.saddd.read')
+          ? {
+              metric: await this.reached(tx, actor, project, businessDate, zone),
+              target: row.targetBeneficiaries ?? null,
+            }
+          : null
+      const parsed = projectOverviewMetricsSchema.safeParse({
+        contractVersion: PROJECT_OVERVIEW_METRICS_CONTRACT_VERSION,
+        projectId: row.id,
+        businessDate,
+        generatedAt: new Date().toISOString(),
+        kpiAchievement: kpi,
+        budgetUtilization: budget,
+        beneficiariesReached: reached,
+        timeline: {
+          metric: timelineProgress(project.startDate, project.endDate, businessDate),
+          startDate: project.startDate,
+          endDate: project.endDate,
+        },
+      })
+      if (!parsed.success)
+        throw new ServiceUnavailableException('Project overview contract is unavailable.')
+      return parsed.data
+    })
+  }
+}
