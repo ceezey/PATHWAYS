@@ -12,6 +12,17 @@ type Distribution = DescriptiveAnalytics['distributions'][number]
 
 const visible = (cell: MetricCell) => cell.state === 'AVAILABLE' || cell.state === 'ZERO'
 
+/** Locked SADDD RFC G4 threshold: 1-4 is suppressed; 0 and 5 or more stay visible. */
+export const SMALL_CELL_THRESHOLD = 5
+
+export function suppressSmallCount(metric: MetricCell): MetricCell {
+  if (metric.state !== 'AVAILABLE' || metric.value === null) return metric
+  const value = Number(metric.value)
+  return value > 0 && value < SMALL_CELL_THRESHOLD
+    ? { state: 'SUPPRESSED', value: null, reason: 'SMALL_CELL' }
+    : metric
+}
+
 /** Four-decimal fixed output without trailing zeros; inputs are already bounded decimals. */
 export function formatDescriptiveDecimal(value: number): string {
   const fixed = (Math.round(value * 10_000) / 10_000).toFixed(4)
@@ -78,27 +89,40 @@ export function buildDescriptiveAnalytics(input: {
   generatedAt: string
 }): DescriptiveAnalytics {
   const { monitoring, saddd } = input
+  // Complementary suppression: a suppressed SADDD total also suppresses every
+  // person-derived monitoring count so it cannot be reconstructed by subtraction.
+  const sadddTotalHidden = saddd !== null && !visible(saddd.total)
+  const person = (metric: MetricCell): MetricCell =>
+    sadddTotalHidden && visible(metric) && metric.state !== 'ZERO'
+      ? { state: 'SUPPRESSED', value: null, reason: 'COMPLEMENTARY_SUPPRESSION' }
+      : suppressSmallCount(metric)
   const counts: DescriptiveAnalytics['counts'] = [
     {
       key: 'participationRecords',
       label: 'Participation records',
-      metric: monitoring.participationRecords,
+      metric: person(monitoring.participationRecords),
     },
     {
       key: 'attendingIndividuals',
       label: 'Attending individuals',
-      metric: monitoring.attendingIndividuals,
+      metric: person(monitoring.attendingIndividuals),
     },
     {
       key: 'enrolledBeneficiaryRecords',
       label: 'Enrolled Beneficiary records',
-      metric: monitoring.enrolledBeneficiaryRecords,
+      metric: person(monitoring.enrolledBeneficiaryRecords),
     },
-    {
-      key: 'enrolledIndividuals',
-      label: 'Enrolled individuals',
-      metric: monitoring.enrolledIndividuals,
-    },
+    // The monitoring individual total duplicates the SADDD total, so it is
+    // omitted whenever a SADDD release is present.
+    ...(saddd
+      ? []
+      : [
+          {
+            key: 'enrolledIndividuals',
+            label: 'Enrolled individuals',
+            metric: person(monitoring.enrolledIndividuals),
+          },
+        ]),
     {
       key: 'indicatorDefinitions',
       label: 'Indicator definitions',
@@ -109,7 +133,12 @@ export function buildDescriptiveAnalytics(input: {
       },
     },
   ]
-  if (saddd) counts.push({ key: 'sadddTotal', label: 'SADDD individuals', metric: saddd.total })
+  if (saddd)
+    counts.push({
+      key: 'sadddTotal',
+      label: 'SADDD individuals',
+      metric: suppressSmallCount(saddd.total),
+    })
   return {
     contractVersion: DESCRIPTIVE_ANALYTICS_CONTRACT_VERSION,
     projectId: input.projectId,

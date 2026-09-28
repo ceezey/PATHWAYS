@@ -11,7 +11,11 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { AnalyticsController } from './analytics.controller'
 import { AnalyticsService } from './analytics.service'
 import { DashboardsService } from './dashboards.service'
-import { descriptiveAnalyticsCsv } from './descriptive-analytics'
+import {
+  buildDescriptiveAnalytics,
+  descriptiveAnalyticsCsv,
+  suppressSmallCount,
+} from './descriptive-analytics'
 
 vi.mock('@pathways/config', () => ({
   readApiEnv: () => ({ BUSINESS_TIME_ZONE: 'Asia/Manila' }),
@@ -368,5 +372,105 @@ describe('analytics descriptive read and export', () => {
       indicatorSummaries: [],
     })
     expect(csv).toContain(`"'=HYPERLINK(""x"")"`)
+  })
+})
+
+describe('descriptive analytics small-cell and complementary suppression', () => {
+  const monitoringWith = (value: number) =>
+    ({
+      contractVersion: 'p06.v1',
+      periodStart: '2026-09-01',
+      periodEnd: '2026-09-28',
+      businessTimeZone: 'Asia/Manila',
+      generatedAt: '2026-09-28T00:00:00.000Z',
+      refresh: 'READ_TIME_NO_CACHE',
+      projects: [],
+      scopeProjectCount: 1,
+      activities: [],
+      milestones: [],
+      participationRecords: cell(value),
+      attendingIndividuals: cell(value),
+      enrolledBeneficiaryRecords: cell(value),
+      enrolledIndividuals: cell(value),
+      indicators: [],
+      indicatorNote: 'n',
+    }) as never
+  const sadddWith = (total: MetricCell) =>
+    ({
+      ...releasedSaddd,
+      contractVersion: 'p06.v1',
+      periodStart: '2026-01-01',
+      periodEnd: '2026-06-30',
+      businessTimeZone: 'Asia/Manila',
+      generatedAt: '2026-09-28T00:00:00.000Z',
+      refresh: 'READ_TIME_NO_CACHE',
+      total,
+    }) as never
+  const personKeys = [
+    'participationRecords',
+    'attendingIndividuals',
+    'enrolledBeneficiaryRecords',
+    'enrolledIndividuals',
+  ]
+  const build = (value: number, saddd: unknown = null) =>
+    buildDescriptiveAnalytics({
+      projectId: projectA,
+      monitoring: monitoringWith(value),
+      saddd: saddd as never,
+      generatedAt: '2026-09-28T00:00:00.000Z',
+    })
+
+  it.each([
+    [0, 'ZERO', '0'],
+    [1, 'SUPPRESSED', null],
+    [4, 'SUPPRESSED', null],
+    [5, 'AVAILABLE', '5'],
+  ])(
+    'count %i is %s in the read and the CSV for every person-derived count',
+    (value, state, shown) => {
+      const result = build(value)
+      const csv = descriptiveAnalyticsCsv(result)
+      for (const key of personKeys) {
+        const row = result.counts.find((candidate) => candidate.key === key)
+        expect(row?.metric.state).toBe(state)
+        expect(row?.metric.value).toBe(shown)
+        expect(csv).toContain(`"COUNT","${key}",`)
+        const line = csv.split('\r\n').find((l) => l.startsWith(`"COUNT","${key}",`))
+        expect(line).toContain(`"${state}","${shown ?? ''}"`)
+      }
+      expect(suppressSmallCount(cell(value)).state).toBe(state)
+    },
+  )
+
+  it('reconstruction: a suppressed SADDD total suppresses every paired monitoring count', () => {
+    const result = build(37, sadddWith(suppressed))
+    const csv = descriptiveAnalyticsCsv(result)
+    expect(result.counts.find((row) => row.key === 'enrolledIndividuals')).toBeUndefined()
+    for (const key of [
+      'participationRecords',
+      'attendingIndividuals',
+      'enrolledBeneficiaryRecords',
+    ]) {
+      const row = result.counts.find((candidate) => candidate.key === key)
+      expect(row?.metric).toEqual({
+        state: 'SUPPRESSED',
+        value: null,
+        reason: 'COMPLEMENTARY_SUPPRESSION',
+      })
+    }
+    expect(result.counts.find((row) => row.key === 'sadddTotal')?.metric).toEqual(suppressed)
+    const visibleCounts = result.counts.filter(
+      (row) => row.key !== 'indicatorDefinitions' && row.metric.value !== null,
+    )
+    expect(visibleCounts).toEqual([])
+    expect(csv).not.toContain('"37"')
+    expect(csv).not.toContain('"enrolledIndividuals"')
+  })
+
+  it('omits the duplicate monitoring individual total when SADDD is released', () => {
+    const result = build(37, sadddWith(cell(30)))
+    expect(result.counts.map((row) => row.key)).not.toContain('enrolledIndividuals')
+    expect(result.counts.find((row) => row.key === 'sadddTotal')?.metric.value).toBe('30')
+    expect(result.counts.find((row) => row.key === 'attendingIndividuals')?.metric.value).toBe('37')
   })
 })
