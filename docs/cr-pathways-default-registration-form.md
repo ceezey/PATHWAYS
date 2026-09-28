@@ -4,7 +4,7 @@
 
 **Date:** 2026-09-28
 
-**Status:** Proposed
+**Status:** Approved; implementation pending
 
 ## 1. Trigger
 
@@ -178,11 +178,11 @@ Add Beneficiary works in every project. Registration enforces a minimum age of 5
   - ages under 5 and future birth dates are rejected with the stated messages.
 - **Dependencies.**
   - This record's branch follows [import throughput and PDF](cr-pathways-import-throughput-and-pdf.md), which changes how `promoteRegistration` receives preloaded context.
-  - The Proposed `cr-pathways-performance-scaling` (unmerged branch `feature/perf-optimizations`) keeps Beneficiary reads uncached. Registration context must stay uncached as well.
+  - The approved `cr-pathways-performance-scaling` (branch `feature/perf-optimizations`, merged in Wave A) keeps Beneficiary reads uncached. Registration context must stay uncached as well.
 
 ## 8. Approval
 
-Pending developer approval.
+Developer reply on 2026-09-28: "Approve all CRs, Evidence: change constraint, Signed links: no".
 
 ## 9. Disposition
 

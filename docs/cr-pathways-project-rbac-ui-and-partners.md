@@ -4,7 +4,7 @@
 
 **Date:** 2026-09-28
 
-**Status:** Proposed
+**Status:** Approved; implementation pending
 
 ## 1. Trigger
 
@@ -174,12 +174,12 @@ Adds the assignable-officer read and capability flags. Rejects `implementingPart
 - Digest-bound `pnpm sad:signoff` with reviews from organization-isolation-checker, migration-integrity-guardian, beneficiary-privacy-guardian and design-qa-agent.
 - In the local app, each role sees only allowed buttons, and locked fields show the tooltip.
 - **Dependencies.**
-  - The Proposed `cr-pathways-performance-scaling` (unmerged branch `feature/perf-optimizations`) and its lean activity list projection must carry the capability flags. This record's branch follows that work.
+  - The approved `cr-pathways-performance-scaling` (branch `feature/perf-optimizations`, merged in Wave A) and its lean activity list projection must carry the capability flags. This record's branch follows that work.
   - [Activity progress media](cr-pathways-activity-progress-media.md) consumes `canSubmitProof`.
 
 ## 8. Approval
 
-Pending developer approval.
+Developer reply on 2026-09-28: "Approve all CRs, Evidence: change constraint, Signed links: no".
 
 ## 9. Disposition
 

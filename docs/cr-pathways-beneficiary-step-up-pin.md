@@ -4,7 +4,7 @@
 
 **Date:** 2026-09-28
 
-**Status:** Proposed
+**Status:** Approved; implementation pending
 
 ## 1. Trigger
 
@@ -183,11 +183,11 @@ The gate offers two methods. My Profile gains "Change PIN".
 - Digest-bound `pnpm sad:signoff` with reviews from organization-isolation-checker, migration-integrity-guardian, beneficiary-privacy-guardian and design-qa-agent.
 - In the local app, PIN setup, lockout, TOTP unlock and change work.
 - On the development project, the hosted TOTP `amr` refresh verification still pending from the step-up record also covers PIN setup and unlock.
-- **Dependency.** The Proposed `cr-pathways-performance-scaling` (unmerged branch `feature/perf-optimizations`) keeps Beneficiary and step-up reads uncached. That rule must hold for PIN state and grant checks.
+- **Dependency.** The approved `cr-pathways-performance-scaling` (branch `feature/perf-optimizations`, merged in Wave A) keeps Beneficiary and step-up reads uncached. That rule must hold for PIN state and grant checks.
 
 ## 8. Approval
 
-Pending developer approval.
+Developer reply on 2026-09-28: "Approve all CRs, Evidence: change constraint, Signed links: no".
 
 ## 9. Disposition
 

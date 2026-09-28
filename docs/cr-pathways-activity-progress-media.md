@@ -4,7 +4,7 @@
 
 **Date:** 2026-09-28
 
-**Status:** Proposed
+**Status:** Approved; implementation pending
 
 ## 1. Trigger
 
@@ -96,14 +96,23 @@ The developer decided on 2026-09-28:
   - local: through the seed;
   - hosted: as a documented developer step.
 
-### 3.3 Evidence type (decision needed)
+### 3.3 Evidence type (developer decision: change the constraint)
 
-The plan proposed setting the type to PHOTO or VIDEO. The repository blocks that:
+Two things currently limit activity-update evidence to `PROGRESS_PROOF` or `COMPLETION_PROOF`:
 
-- `evidence_media_activity_update_check` rejects any type other than `PROGRESS_PROOF` or `COMPLETION_PROOF` on activity-update evidence;
-- the approved inspection lineage check requires the same two types (`private-proof-inspection.service.ts:151`).
+- `evidence_media_activity_update_check` (`0000_pathways_baseline_through_0026/migration.sql:4613`);
+- the approved inspection lineage check (`private-proof-inspection.service.ts:151`).
 
-**Recommended:** keep `PROGRESS_PROOF` and `COMPLETION_PROOF`, and derive the media kind (image, video, document) for display from the verified content type. This needs no constraint or lineage change. The alternative is in section 5.
+The developer chose to change both.
+
+- New activity-update evidence is typed from the finalize-verified content type:
+  - `PHOTO` for JPEG, PNG and WebP;
+  - `VIDEO` for MP4, MOV and WebM;
+  - `DOCUMENT` for PDF.
+- The type is set at reservation from the declared type and confirmed at finalize. A declared/sniffed mismatch fails finalize, as in section 3.1.
+- Progress versus completion comes from the owning `activity_updates.progress_percent` (100 means completion). This is the value `activities.service.ts:1353` already uses to choose between the two proof types.
+- `PROGRESS_PROOF` and `COMPLETION_PROOF` stay valid, so existing rows remain legal history. New writes no longer use them.
+- The inspection lineage check accepts all five types for evidence linked to an activity update. The other admission and lineage rules are unchanged.
 
 ### 3.4 Migration `0041_activity_media_evidence`
 
@@ -114,7 +123,8 @@ The plan proposed setting the type to PHOTO or VIDEO. The repository blocks that
   - the total bound matches section 3.2 at the 104857600 ceiling.
 - The rest of the body is byte-identical to 0031. A SQL test compares the installed definition with the 0031 text outside the `files` branch.
 - The replacement runs as the owner `rules_enqueue_owner`, and postconditions assert the unchanged owner, ACL, `SECURITY` mode and `search_path`.
-- No table or constraint changes. The `byte_size` column is already `bigint`, and `p3_evidence_file` already accepts `video/quicktime` and `video/webm` as content types.
+- Drop and re-add `evidence_media_activity_update_check` with the allowed set `PROGRESS_PROOF`, `COMPLETION_PROOF`, `PHOTO`, `VIDEO`, `DOCUMENT`. The `activity_id IS NOT NULL` requirement is unchanged. It is added `NOT VALID` and then validated in the same migration; every existing row already satisfies the wider set.
+- There are no other table changes. The `byte_size` column is already `bigint`, and `p3_evidence_file` already accepts `video/quicktime` and `video/webm` as content types.
 
 ### 3.5 Inspection bounds (amends the private-proof inspection record)
 
@@ -127,8 +137,17 @@ The plan proposed setting the type to PHOTO or VIDEO. The repository blocks that
   - counted streamed read with digest check;
   - final authorization and audit before release;
   - attachment-only `application/octet-stream`;
-  - no signed or public URL;
+  - no signed or public URL (developer decision: signed download links are rejected, including for large videos);
   - no inline preview.
+- **Large objects without signed links.** The hosted API may not be able to return a whole large video in one response.
+  - **Primary:** a streamed response. The server streams the object through the counted digest check, and releases the attachment only after the final authorization and audit.
+  - **Fallback:** if the development preview shows that streamed responses are also capped, use bounded range retrieval through the API.
+    - At finalize, the server records a manifest of 4 MiB chunk SHA-256 digests.
+    - The inspection context returns the chunk count.
+    - Each chunk request re-runs the full authorization chain, reads only that byte range from storage, and verifies it against the manifest before returning it.
+    - The browser assembles the chunks into one attachment.
+    - The audit is written once per inspection, on the first chunk; later chunks are authorized but not re-audited.
+    - The fallback adds a nullable `chunk_digests` column to `evidence_media` in 0041.
 
 ### 3.6 UI
 
@@ -154,7 +173,7 @@ The plan proposed setting the type to PHOTO or VIDEO. The repository blocks that
 Progress updates can carry up to 10 photos, videos or documents, including large videos, and file selection is additive.
 
 ### Data / Migration
-0041 replaces one function body. No table change.
+0041 replaces one function body and widens `evidence_media_activity_update_check`. If the range fallback is needed, it also adds the nullable `chunk_digests` column. Existing rows are unchanged.
 
 ### Authorization / Privacy
 - No permission change.
@@ -193,8 +212,8 @@ The dialogs are merged, with additive multi-file selection and per-file progress
 ## 5. Alternatives Considered
 
 - **Restraint: keep multipart and only raise limits.** This does not work on the hosted API, because the plan records a request-body cap of about 4.5 MB on Vercel functions. Rejected.
-- **PHOTO and VIDEO evidence types.** Needs a new migration that alters `evidence_media_activity_update_check`, plus an amendment to the approved inspection lineage. That is more surface for a display-only distinction. Not recommended, but available by developer decision.
-- **Signed download URLs for inspection.** Would avoid API response-size limits for large videos, but it reverses the approved "no signed or public URL" rule. Held as the fallback if section 7 shows the hosted API cannot return a verified object of the configured size.
+- **Keep `PROGRESS_PROOF` and `COMPLETION_PROOF` and derive the media kind only for display.** No constraint change. Rejected by the developer in favor of real `PHOTO`, `VIDEO` and `DOCUMENT` types.
+- **Signed download URLs for inspection.** Would avoid API response-size limits for large videos, but it reverses the approved "no signed or public URL" rule. Rejected by the developer; section 3.5 uses a streamed response or bounded range retrieval instead.
 - **Client-side video compression.** Adds a heavy dependency and changes evidence bytes. Rejected.
 
 ## 6. Migration / Rollback
@@ -211,14 +230,14 @@ The dialogs are merged, with additive multi-file selection and per-file progress
 - In the local app, a multi-file update with a 40 MB MP4 succeeds.
 - On the development preview:
   - confirm the request-body limit that motivated this change;
-  - confirm that inspection can return a verified object of the configured maximum size within the response and duration limits. If it cannot, the section 5 signed-download fallback needs a developer decision before large videos can be inspected.
+  - confirm that a streamed inspection response can return a verified object of the configured maximum size within the response and duration limits. If it cannot, implement the section 3.5 range fallback and verify it with a 40 MB MP4.
 - **Dependencies.**
   - Follows [project RBAC UI and partners](cr-pathways-project-rbac-ui-and-partners.md), which provides `canSubmitProof` and owns `activity-form-dialog.tsx`.
-  - Follows the Proposed `cr-pathways-performance-scaling` (unmerged branch `feature/perf-optimizations`), which covers the activity list projection.
+  - Follows the approved `cr-pathways-performance-scaling` (branch `feature/perf-optimizations`, merged in Wave A), which covers the activity list projection.
 
 ## 8. Approval
 
-Pending developer approval.
+Developer reply on 2026-09-28: "Approve all CRs, Evidence: change constraint, Signed links: no".
 
 ## 9. Disposition
 

@@ -4,7 +4,7 @@
 
 **Date:** 2026-09-28
 
-**Status:** Proposed
+**Status:** Approved; implementation pending
 
 ## 1. Trigger
 
@@ -143,11 +143,11 @@ Adds the badge, Confirm and "Confirm all suggestions". Removes the hardcoded hea
 - In the local app, messy headers auto-map and suggestions confirm with one click.
 - **Dependencies.**
   - This record's branch follows [import throughput and PDF](cr-pathways-import-throughput-and-pdf.md), which it shares `imports.service.ts` and the parse-once source envelope with.
-  - The Proposed `cr-pathways-performance-scaling` (unmerged branch `feature/perf-optimizations`) must keep batch mapping reads uncached while a batch is being mapped.
+  - The approved `cr-pathways-performance-scaling` (branch `feature/perf-optimizations`, merged in Wave A) must keep batch mapping reads uncached while a batch is being mapped.
 
 ## 8. Approval
 
-Pending developer approval.
+Developer reply on 2026-09-28: "Approve all CRs, Evidence: change constraint, Signed links: no".
 
 ## 9. Disposition
 

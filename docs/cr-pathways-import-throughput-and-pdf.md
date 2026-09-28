@@ -4,7 +4,7 @@
 
 **Date:** 2026-09-28
 
-**Status:** Proposed
+**Status:** Approved; implementation pending
 
 ## 1. Trigger
 
@@ -160,11 +160,11 @@ Migration 0036 adds one enum value. No table, column, policy or staged-row shape
   - a 5,000-row XLSX completes without clicks;
   - a text PDF imports, and a scanned PDF shows the clear error;
   - each export format downloads and writes an audit row.
-- **Dependency.** The Proposed `cr-pathways-performance-scaling` (unmerged branch `feature/perf-optimizations`) proposes a 30-second client cache. Batch status reads used for import progress must stay uncached. This record's branch lands in the same wave, after that record's decision.
+- **Dependency.** The approved `cr-pathways-performance-scaling` (branch `feature/perf-optimizations`, merged in Wave A) proposes a 30-second client cache. Batch status reads used for import progress must stay uncached. This record's branch lands in the same wave, after that record's decision.
 
 ## 8. Approval
 
-Pending developer approval.
+Developer reply on 2026-09-28: "Approve all CRs, Evidence: change constraint, Signed links: no".
 
 ## 9. Disposition
 
