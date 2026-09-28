@@ -109,8 +109,10 @@ const ScopedActivityProofDialog = ({
   // overlapping finish() calls without blocking a later retry after a failed reload.
   const committed = useRef(false)
   const finishing = useRef(false)
+  const [beneficiariesReachedThisSession, setBeneficiariesReachedThisSession] = useState(0)
   const noteError = error === 'Enter an update note before submitting proof.'
   const fileError = error.startsWith('Attach') || error.startsWith('Select up to')
+  const beneficiariesError = error.startsWith('Beneficiaries reached this session')
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: scope is stable per instance key.
   useEffect(() => {
@@ -119,6 +121,7 @@ const ScopedActivityProofDialog = ({
     setFiles([])
     setError('')
     setLocked(false)
+    setBeneficiariesReachedThisSession(0)
     reservation.current = null
     committed.current = false
     finishing.current = false
