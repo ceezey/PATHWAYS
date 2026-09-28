@@ -79,6 +79,12 @@
 | Audit | audit-template.md |
 | Postmortem | postmortem-template.md |
 
+### Audits
+
+| Audit | Date | Scope | Status |
+|---|---|---|---|
+| [audit-pathways-rbac-csv-20260928](audit-pathways-rbac-csv-20260928.md) | 2026-09-28 | Revised RBAC CSV against contract, API, SQL and web enforcement | Open: 2 Medium, 3 Low, 1 Info |
+
 ### Workflow rule
 
 - Audit = finding/evidence.
