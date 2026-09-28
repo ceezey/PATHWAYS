@@ -5,6 +5,7 @@ import { useCurrentRole } from '@/hooks/use-current-role'
 import { useSourceMutationContext } from '@/hooks/use-source-mutation-context'
 import { isSourceReplay, sourceMutationTickets } from '@/lib/services/source-mutation'
 
+import { zodResolver } from '@hookform/resolvers/zod'
 import { Pencil, Save } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { useForm } from 'react-hook-form'
@@ -26,6 +27,7 @@ import type { ProjectDetail, UserRecord } from '@/types/pathways'
 
 import {
   type ProjectSetupSchema,
+  projectTeamEditSchema,
   toProjectTeamInput,
   toUpdateProjectInput,
 } from './project-form-validation'
@@ -47,15 +49,18 @@ const formDefaults = (project: ProjectDetail): ProjectSetupSchema => ({
     project.targetBeneficiaries === undefined ? '' : String(project.targetBeneficiaries),
 
   title: project.title,
-  sector: project.sector,
-  area: project.area,
+  // The dialog does not expose sector/area/date fields for editing, but the
+  // display placeholders below must never be re-submitted as literal values.
+  sector: project.sector === 'Sector not recorded' ? '' : project.sector,
+  area: project.area === 'Area not recorded' ? '' : project.area,
   startDate: project.startDate ?? '',
   endDate: project.endDate ?? '',
   status: project.status,
   description: project.description,
-  programManager: project.programManager,
-  projectManager: project.projectManager,
-  monitoringOfficer: project.monitoringOfficer,
+  programManager: project.programManager === 'Not assigned' ? '' : project.programManager,
+  projectManager: project.projectManager === 'Not assigned' ? '' : project.projectManager,
+  monitoringOfficer:
+    project.monitoringOfficer === 'Not assigned' ? '' : project.monitoringOfficer,
   projectOfficers: project.projectOfficers.join(', '),
 })
 
@@ -78,7 +83,14 @@ export const ProjectTeamEditorDialog = ({
   const [loadError, setLoadError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
   const [loadAttempt, setLoadAttempt] = useState(0)
-  const form = useForm<ProjectSetupSchema>({ defaultValues: formDefaults(project) })
+  const form = useForm<ProjectSetupSchema>({
+    resolver: zodResolver(projectTeamEditSchema),
+    defaultValues: formDefaults(project),
+  })
+  // A Project Manager must never be able to remove their own project
+  // authority from this dialog (the API also enforces this server-side).
+  const preventProjectManagerSelfRemoval =
+    Boolean(profile?.userId) && profile?.userId === project.projectManagerId
 
   useEffect(() => {
     if (open) form.reset(formDefaults(project))
@@ -180,6 +192,9 @@ export const ProjectTeamEditorDialog = ({
             />
             <ProjectTeamSelectors
               control={form.control}
+              disallowClearRoles={
+                preventProjectManagerSelfRemoval ? ['projectManager'] : undefined
+              }
               loadError={loadError}
               loading={loading}
               onRetry={() => setLoadAttempt((attempt) => attempt + 1)}
