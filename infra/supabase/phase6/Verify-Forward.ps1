@@ -239,8 +239,8 @@ function Invoke-ForwardBoundedNode {
   $stderrTask = $proc.StandardError.ReadToEndAsync()
   $exited = $proc.WaitForExit($TimeoutMilliseconds)
   if (-not $exited) {
-    try { $proc.Kill($true) } catch {}
-    $proc.WaitForExit()
+    try { $proc.Kill($true) } catch { try { $proc.Kill() } catch {} }
+    $null = $proc.WaitForExit(10000)
     throw "Timed out after ${TimeoutMilliseconds}ms waiting for $ScriptPath."
   }
   $stdout = $stdoutTask.GetAwaiter().GetResult()
