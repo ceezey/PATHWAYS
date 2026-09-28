@@ -36,6 +36,10 @@ import { Public } from '../decorators/public.decorator'
 import { SupabaseAuthGuard } from './supabase-auth.guard'
 
 const beneficiaryHandler = vi.fn()
+const assignedProjectId = '60000000-0000-4000-8000-000000000006'
+const unassignedProjectId = '60000000-0000-4000-8000-000000000007'
+const detailPath = `/boundary-test/projects/${assignedProjectId}/beneficiary-detail`
+const unpermittedPath = `/boundary-test/projects/${assignedProjectId}/beneficiary-detail-unpermitted`
 
 // Actual local HTTP routing, reflection and guard execution; only the Auth
 // provider and database-facing profile service are mocked. No app startup,
@@ -62,7 +66,7 @@ class BoundaryTestController {
     return { allowed: true }
   }
 
-  @Get('beneficiary-detail')
+  @Get('projects/:projectId/beneficiary-detail')
   @RequirePermission('projects.read')
   @RequireBeneficiaryStepUp()
   beneficiaryDetail() {
@@ -70,7 +74,7 @@ class BoundaryTestController {
     return { detail: true }
   }
 
-  @Get('beneficiary-detail-unpermitted')
+  @Get('projects/:projectId/beneficiary-detail-unpermitted')
   @RequirePermission('beneficiaries.records.read')
   @RequireBeneficiaryStepUp()
   beneficiaryDetailUnpermitted() {
@@ -124,10 +128,11 @@ const tokens = {
 }
 const profiles = { resolve: vi.fn(), resolveWithSession: vi.fn() }
 const auditCreate = vi.fn()
+const projectFindFirst = vi.fn()
 const prisma = {
   discoverWorkspace: vi.fn(),
   withVerifiedContext: vi.fn(async (_context: unknown, work: (tx: unknown) => Promise<unknown>) =>
-    work({ auditLog: { create: auditCreate } }),
+    work({ auditLog: { create: auditCreate }, project: { findFirst: projectFindFirst } }),
   ),
 }
 const routeChecks = { check: vi.fn() }
@@ -225,6 +230,11 @@ beforeEach(() => {
     )
   prisma.discoverWorkspace.mockReset().mockResolvedValue([{ organizationId, userId }])
   auditCreate.mockReset().mockResolvedValue({})
+  projectFindFirst
+    .mockReset()
+    .mockResolvedValue({ id: assignedProjectId })
+  // Per-instance audit dedupe must not carry between tests, or "no audit" is vacuous.
+  ;(app?.get(BeneficiaryStepUpService) as unknown as { recorded?: Set<string> })?.recorded?.clear()
   beneficiaryHandler.mockReset()
   routeChecks.check.mockReset().mockResolvedValue({
     route: 'dashboard',
@@ -586,10 +596,10 @@ describe('Beneficiary step-up (cr-pathways-beneficiary-step-up)', () => {
   it('admits a fresh signed TOTP factor once audited, without re-auditing the same factor', async () => {
     const verifiedAt = now() - 60
     tokens.verifyCurrent.mockResolvedValue(stepUpSession(verifiedAt))
-    const first = await get('/boundary-test/beneficiary-detail', headers)
+    const first = await get(detailPath, headers)
     expect(first.status).toBe(200)
     expect(first.body).toEqual({ detail: true })
-    expect(await get('/boundary-test/beneficiary-detail', headers)).toMatchObject({ status: 200 })
+    expect(await get(detailPath, headers)).toMatchObject({ status: 200 })
     expect(auditActions()).toEqual(['BENEFICIARY_STEP_UP_ACCEPTED'])
     const audit = auditCreate.mock.calls[0]?.[0] as { data: Record<string, unknown> }
     expect(audit.data).toMatchObject({
@@ -616,7 +626,7 @@ describe('Beneficiary step-up (cr-pathways-beneficiary-step-up)', () => {
       tokens.verifyCurrent.mockResolvedValue(
         stepUpSession(offset === undefined ? undefined : now() + offset),
       )
-      const denied = await get('/boundary-test/beneficiary-detail', headers)
+      const denied = await get(detailPath, headers)
       expect(denied.status).toBe(403)
       expect(denied.body).toMatchObject({ statusCode: 403, code: 'STEP_UP_REQUIRED' })
       expect(Object.keys(denied.body).sort()).toEqual(['code', 'error', 'message', 'statusCode'])
@@ -633,9 +643,50 @@ describe('Beneficiary step-up (cr-pathways-beneficiary-step-up)', () => {
     },
   )
 
+  it('checks project assignment before step-up: an unassigned project with a stale factor gets the scope denial', async () => {
+    tokens.verifyCurrent.mockResolvedValue(stepUpSession(now() - 901))
+    projectFindFirst.mockResolvedValue(null)
+    const denied = await get(
+      `/boundary-test/projects/${unassignedProjectId}/beneficiary-detail`,
+      headers,
+    )
+    expect(denied.status).toBe(404)
+    expect(denied.body.code).toBeUndefined()
+    expect(denied.body.message).toBe('Project unavailable.')
+    expect(projectFindFirst).toHaveBeenCalledOnce()
+    const where = JSON.stringify(projectFindFirst.mock.calls[0]?.[0])
+    expect(where).toContain(unassignedProjectId)
+    expect(where).toContain(organizationId)
+    expect(beneficiaryHandler).not.toHaveBeenCalled()
+    expect(auditCreate).not.toHaveBeenCalled()
+  })
+
+  it.each(['not-a-uuid', 'undefined'])(
+    'denies a malformed route project %s as unavailable without querying or auditing',
+    async (projectId) => {
+      tokens.verifyCurrent.mockResolvedValue(stepUpSession(now() - 60))
+      const denied = await get(`/boundary-test/projects/${projectId}/beneficiary-detail`, headers)
+      expect(denied.status).toBe(404)
+      expect(denied.body.code).toBeUndefined()
+      expect(projectFindFirst).not.toHaveBeenCalled()
+      expect(auditCreate).not.toHaveBeenCalled()
+      expect(beneficiaryHandler).not.toHaveBeenCalled()
+    },
+  )
+
+  it('fails closed with 503 when project scope cannot be verified', async () => {
+    tokens.verifyCurrent.mockResolvedValue(stepUpSession(now() - 60))
+    projectFindFirst.mockRejectedValue(new Error('synthetic scope outage'))
+    const unavailable = await get(detailPath, headers)
+    expect(unavailable.status).toBe(503)
+    expect(JSON.stringify(unavailable.body)).not.toContain('synthetic scope outage')
+    expect(auditCreate).not.toHaveBeenCalled()
+    expect(beneficiaryHandler).not.toHaveBeenCalled()
+  })
+
   it('checks permission before step-up so an unpermitted role never reaches the prompt', async () => {
     tokens.verifyCurrent.mockResolvedValue(stepUpSession(now() - 901))
-    const denied = await get('/boundary-test/beneficiary-detail-unpermitted', headers)
+    const denied = await get(unpermittedPath, headers)
     expect(denied.status).toBe(403)
     expect(denied.body.code).toBeUndefined()
     expect(denied.body.message).toBe('Required application permission is missing.')
@@ -657,7 +708,7 @@ describe('Beneficiary step-up (cr-pathways-beneficiary-step-up)', () => {
         const aggregate = await get('/boundary-test/beneficiary-aggregate', headers)
         expect(aggregate.status).toBe(200)
         expect(aggregate.body).toEqual({ aggregate: true })
-        const detail = await get('/boundary-test/beneficiary-detail-unpermitted', headers)
+        const detail = await get(unpermittedPath, headers)
         expect(detail.status).toBe(403)
         expect(detail.body.code).toBeUndefined()
         expect(detail.body.message).toBe('Required application permission is missing.')
@@ -670,12 +721,12 @@ describe('Beneficiary step-up (cr-pathways-beneficiary-step-up)', () => {
   it('still denies when the denial audit fails, and withholds access when acceptance cannot be audited', async () => {
     auditCreate.mockRejectedValue(new Error('synthetic audit outage'))
     tokens.verifyCurrent.mockResolvedValue(stepUpSession(now() - 1_000))
-    expect(await get('/boundary-test/beneficiary-detail', headers)).toMatchObject({
+    expect(await get(detailPath, headers)).toMatchObject({
       status: 403,
       body: { code: 'STEP_UP_REQUIRED' },
     })
     tokens.verifyCurrent.mockResolvedValue(stepUpSession(now() - 5))
-    const withheld = await get('/boundary-test/beneficiary-detail', headers)
+    const withheld = await get(detailPath, headers)
     expect(withheld.status).toBe(503)
     expect(JSON.stringify(withheld.body)).not.toContain('synthetic audit outage')
     expect(beneficiaryHandler).not.toHaveBeenCalled()

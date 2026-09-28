@@ -175,14 +175,16 @@ export class SupabaseAuthGuard implements CanActivate {
       request.user = undefined
       throw new ForbiddenException('Required application permission is missing.')
     }
-    // Server-derived step-up after identity/account/org/role/permission and
-    // before any Beneficiary query; independent of the target, so no existence signal.
+    // Server-derived step-up after identity/account/org/role/permission and the
+    // route project assignment, before any Beneficiary query. The freshness check
+    // itself does not depend on the target record.
     if (this.reflector.getAllAndOverride<boolean>(BENEFICIARY_STEP_UP_KEY, handlers)) {
       try {
         await this.stepUp.enforce(
           identity,
           request.user,
           `${context.getClass().name}.${context.getHandler().name}`,
+          (request as { params?: Record<string, unknown> }).params?.projectId,
         )
       } catch (error) {
         request.user = undefined

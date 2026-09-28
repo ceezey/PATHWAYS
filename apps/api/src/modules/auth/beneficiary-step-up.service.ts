@@ -1,12 +1,23 @@
-import { ForbiddenException, Inject, Injectable, ServiceUnavailableException } from '@nestjs/common'
+import {
+  ForbiddenException,
+  Inject,
+  Injectable,
+  NotFoundException,
+  ServiceUnavailableException,
+} from '@nestjs/common'
 
 import { PrismaService } from '../../prisma/prisma.service'
+import { projectScope } from './authorized-data.service'
 import {
   STEP_UP_REQUIRED_CODE,
   STEP_UP_WINDOW_SECONDS,
   evaluateBeneficiaryStepUp,
 } from './beneficiary-step-up'
-import type { ApplicationIdentity, VerifiedAuthIdentity } from './developer-access'
+import {
+  type ApplicationIdentity,
+  UUID_PATTERN,
+  type VerifiedAuthIdentity,
+} from './developer-access'
 
 // Best-effort per-instance dedupe so one verified factor or denial reason is
 // audited once rather than on every request. Duplicates across instances are
@@ -23,7 +34,32 @@ export class BeneficiaryStepUpService {
     identity: VerifiedAuthIdentity,
     profile: ApplicationIdentity,
     operation: string,
+    projectId: unknown,
   ): Promise<void> {
+    // Contract order (CR section 3, SDD section 6): project assignment before step-up.
+    // Same scope predicate and uniform denial as the Beneficiary services.
+    if (typeof projectId !== 'string' || !UUID_PATTERN.test(projectId)) {
+      throw new NotFoundException('Project unavailable.')
+    }
+    let inScope: boolean
+    try {
+      inScope = await this.prisma.withVerifiedContext(
+        {
+          authSubject: identity.id,
+          organizationId: profile.organizationId,
+          userId: profile.userId,
+        },
+        async (tx) =>
+          (await tx.project.findFirst({
+            where: { AND: [projectScope(profile), { id: projectId.toLowerCase() }] },
+            select: { id: true },
+          })) !== null,
+      )
+    } catch {
+      throw new ServiceUnavailableException('Project scope could not be verified.')
+    }
+    if (!inScope) throw new NotFoundException('Project unavailable.')
+
     const state = evaluateBeneficiaryStepUp(identity.mfaVerifiedAt)
     const factorVerifiedAt =
       identity.mfaVerifiedAt === undefined || !Number.isFinite(identity.mfaVerifiedAt)
