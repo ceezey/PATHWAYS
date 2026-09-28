@@ -169,4 +169,61 @@ describe('ActivityDetailContent server read model', () => {
     rerender(<ActivityDetailContent activity={noteActivity} canValidateProof={false} {...props} />)
     expect(screen.queryByRole('button', { name: /Review progress/ })).toBeNull()
   })
+
+  it('shows pending expenses linked to this activity only when a validator can review them', () => {
+    const pendingExpenses = [
+      {
+        id: 'e0000000-0000-4000-8000-00000000000e',
+        activityId: activity.id,
+        projectId: activity.projectId,
+        amount: 1500.5,
+        category: 'Training supplies',
+        date: '2026-09-28',
+        description: 'Printed handouts.',
+        status: 'For Verification' as const,
+        updatedAt: '2026-09-28T00:00:00.000Z',
+        receiptEvidenceId: 'r0000000-0000-4000-8000-00000000000r',
+      },
+    ]
+    const { rerender } = render(
+      <ActivityDetailContent
+        activity={activity}
+        canDecideProof={false}
+        canEdit={false}
+        canLogExpense={false}
+        canRequestExtension={false}
+        canSubmitProof={false}
+        canValidateExpense
+        canValidateProof={false}
+        indicators={[]}
+        journeyStages={[]}
+        onActivityChanged={vi.fn()}
+        onEdit={vi.fn()}
+        onSubmitProof={vi.fn()}
+        pendingExpenses={pendingExpenses}
+      />,
+    )
+    expect(screen.getByText('Submitted expenses for validation')).toBeTruthy()
+    expect(screen.getByText('Training supplies')).toBeTruthy()
+
+    rerender(
+      <ActivityDetailContent
+        activity={activity}
+        canDecideProof={false}
+        canEdit={false}
+        canLogExpense={false}
+        canRequestExtension={false}
+        canSubmitProof={false}
+        canValidateExpense={false}
+        canValidateProof={false}
+        indicators={[]}
+        journeyStages={[]}
+        onActivityChanged={vi.fn()}
+        onEdit={vi.fn()}
+        onSubmitProof={vi.fn()}
+        pendingExpenses={pendingExpenses}
+      />,
+    )
+    expect(screen.queryByText('Submitted expenses for validation')).toBeNull()
+  })
 })

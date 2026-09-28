@@ -16,7 +16,7 @@ import { Button } from '@/components/ui/button'
 import { Sheet } from '@/components/ui/sheet'
 import type { Activity, ActivityProof, Indicator, JourneyStageConfig } from '@/types/pathways'
 
-import { ActivityExpenseDialog } from './activity-expense-dialog'
+import { ActivityExpenseDialog, type ExpenseBudgetReference } from './activity-expense-dialog'
 import { ActivityExpenseReviewDialog, type PendingExpense } from './activity-expense-review-dialog'
 import { ActivityProgressDialog } from './activity-progress-dialog'
 import { ActivityProofFiles } from './activity-proof-files'
@@ -46,6 +46,7 @@ const formatProofDate = (value: string) => {
 
 export const ActivityDetailContent = ({
   activity,
+  budgetReferences = [],
   canDecideProof,
   canEdit,
   canLogExpense,
@@ -59,11 +60,14 @@ export const ActivityDetailContent = ({
   journeyStages,
   onActivityChanged,
   onEdit,
+  onExpensesChanged = () => {},
   onSubmitProof,
+  pendingExpenses = [],
   requestedExpenseId,
   requestedProofId,
 }: {
   activity: Activity
+  budgetReferences?: ExpenseBudgetReference[]
   canDecideProof: boolean
   canEdit: boolean
   canLogExpense: boolean
@@ -77,7 +81,9 @@ export const ActivityDetailContent = ({
   journeyStages: JourneyStageConfig[]
   onActivityChanged: (activity: Activity) => void
   onEdit: (activity: Activity) => void
+  onExpensesChanged?: () => void
   onSubmitProof: (activity: Activity) => void
+  pendingExpenses?: PendingExpense[]
   requestedExpenseId?: string
   requestedProofId?: string
 }) => {
@@ -90,7 +96,6 @@ export const ActivityDetailContent = ({
   } | null>(null)
   const latestProof = activity.submittedProof.at(-1)
   const correctionRequired = latestProof?.status === 'Flagged'
-  const pendingExpenses: PendingExpense[] = []
 
   const connectedIndicators = activity.indicatorIds.map((indicatorId) => {
     const indicator = indicators.find((item) => item.id === indicatorId)
@@ -424,12 +429,19 @@ export const ActivityDetailContent = ({
           open={progressOpen}
         />
       ) : null}
-      <ActivityExpenseDialog activity={activity} onOpenChange={setExpenseOpen} open={expenseOpen} />
+      <ActivityExpenseDialog
+        activity={activity}
+        budgetReferences={budgetReferences}
+        onOpenChange={setExpenseOpen}
+        onSubmitted={onExpensesChanged}
+        open={expenseOpen}
+      />
       <ActivityExpenseReviewDialog
         expense={expenseReviewTarget}
         onOpenChange={(nextOpen) => {
           if (!nextOpen) setExpenseReviewTarget(null)
         }}
+        onReviewed={onExpensesChanged}
       />
       <ActivityProofReviewDialog
         activity={activity}
@@ -447,6 +459,7 @@ export const ActivityDetailContent = ({
 
 export const ActivityDetailPanel = ({
   activity,
+  budgetReferences = [],
   canDecideProof,
   canEdit,
   canLogExpense,
@@ -461,13 +474,16 @@ export const ActivityDetailPanel = ({
   journeyStages,
   onActivityChanged,
   onEdit,
+  onExpensesChanged = () => {},
   onOpenChange,
   onSubmitProof,
   open,
+  pendingExpenses = [],
   requestedExpenseId,
   requestedProofId,
 }: {
   activity: Activity | null
+  budgetReferences?: ExpenseBudgetReference[]
   canDecideProof: boolean
   canEdit: boolean
   canLogExpense: boolean
@@ -482,9 +498,11 @@ export const ActivityDetailPanel = ({
   journeyStages: JourneyStageConfig[]
   onActivityChanged: (activity: Activity) => void
   onEdit: (activity: Activity) => void
+  onExpensesChanged?: () => void
   onOpenChange: (open: boolean) => void
   onSubmitProof: (activity: Activity) => void
   open: boolean
+  pendingExpenses?: PendingExpense[]
   requestedExpenseId?: string
   requestedProofId?: string
 }) => {
@@ -518,6 +536,7 @@ export const ActivityDetailPanel = ({
         >
           <ActivityDetailContent
             activity={activity}
+            budgetReferences={budgetReferences}
             canDecideProof={canDecideProof}
             canEdit={canEdit}
             canLogExpense={canLogExpense}
@@ -531,7 +550,9 @@ export const ActivityDetailPanel = ({
             journeyStages={journeyStages}
             onActivityChanged={onActivityChanged}
             onEdit={onEdit}
+            onExpensesChanged={onExpensesChanged}
             onSubmitProof={onSubmitProof}
+            pendingExpenses={pendingExpenses}
             requestedExpenseId={requestedExpenseId}
             requestedProofId={requestedProofId}
           />

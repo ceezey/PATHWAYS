@@ -611,7 +611,9 @@ const ScopedActivityFormDialog = ({
                             />
                           </FormControl>
                           <FormDescription>
-                            Expense totals are unavailable in the current API.
+                            {activity?.budgetLoggedEntries === 0
+                              ? 'None yet. No approved expense entries are recorded against this activity.'
+                              : 'Sum of approved expenses recorded against this activity.'}
                           </FormDescription>
                           <FormMessage />
                         </FormItem>
