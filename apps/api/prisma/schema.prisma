@@ -411,6 +411,7 @@ enum ImportFileType {
   XLS
   JSON
   OTHER
+  PDF
 
   @@map("import_file_type")
   @@schema("pathways")

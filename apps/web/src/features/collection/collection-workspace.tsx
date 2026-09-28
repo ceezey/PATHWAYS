@@ -18,7 +18,7 @@ import Link from 'next/link'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { toast } from 'sonner'
 
-import { compareHeaders, createFileSummary, parseCsv, parseWorkbook } from '@pathways/imports'
+import { compareHeaders, createFileSummary } from '@pathways/imports'
 
 import { PageHeader } from '@/components/layout/page-header'
 import { ConfirmationDialog, ProgressBar, StatusBadge } from '@/components/pathways'
@@ -50,10 +50,11 @@ import { useCurrentRole } from '@/hooks/use-current-role'
 import { useDisplayLabels } from '@/hooks/use-display-labels'
 import { sensitiveDraftGeneration } from '@/lib/auth/sensitive-drafts'
 import { getVerifiedRouteAccess, principalHasAtomicPermission } from '@/lib/rbac/route-access'
+import { downloadCoreArtifact } from '@/lib/services/core-feature-client'
 import { pathwaysClient } from '@/lib/services/pathways-client'
 import { cn } from '@/lib/utils'
 import type {
-  Activity,
+  ActivitySummary,
   DigitalFormDefinition,
   DigitalFormType,
   Indicator,
@@ -79,8 +80,17 @@ import {
 } from './digital-form-contract'
 import {
   type FormDefinitionExportFormat,
-  createFormDefinitionExport,
+  formDefinitionExportFormats,
+  formDefinitionExportRequest,
 } from './form-definition-export'
+import {
+  type ImportProcessingOutcome,
+  type ImportProcessingProgress,
+  importProcessingProgress,
+  runImportProcessing,
+} from './import-auto-continue'
+import { parseImportPreview } from './import-preview'
+import { ImportProcessingPanel, type ImportProcessingState } from './import-processing-panel'
 
 type ExportFormat = FormDefinitionExportFormat
 
@@ -348,7 +358,7 @@ const OwnedCollectionWorkspace = ({
   )
   const [mode, setMode] = useState<CollectionMode>(initialMode)
   const [projects, setProjects] = useState<ProjectSummary[]>([])
-  const [activities, setActivities] = useState<Activity[]>([])
+  const [activities, setActivities] = useState<ActivitySummary[]>([])
   const [forms, setForms] = useState<DigitalFormDefinition[]>([])
   const [indicators, setIndicators] = useState<Indicator[]>([])
   const [editingFormId, setEditingFormId] = useState<string | undefined>(initialFormId)
@@ -383,6 +393,15 @@ const OwnedCollectionWorkspace = ({
   const parsing = useRef(0)
   const mutation = useRef<object | null>(null)
   const [operationPending, setOperationPending] = useState(false)
+  const [processingRun, setProcessingRun] = useState<{
+    projectId: string
+    batchId: string
+    validationRevision: number
+    state: ImportProcessingState
+    progress: ImportProcessingProgress
+    note?: string
+  } | null>(null)
+  const processingStopRequested = useRef(false)
   const current = useRef({
     profile,
     projectId,
@@ -858,36 +877,13 @@ const OwnedCollectionWorkspace = ({
     setImportStatus('reading')
     setImportMessage('Reading the selected file.')
 
-    const extension = file.name.split('.').pop()?.toLowerCase()
     let parsed: ParsedImport
 
     try {
-      if (extension === 'csv') {
-        const text = await file.text()
-        if (!validParse()) return
-        const result = parseCsv<Record<string, string>>(text)
-        parsed = {
-          fileName: file.name,
-          fileType: 'csv',
-          headers: result.headers,
-          rows: result.data,
-          errors: result.errors,
-        }
-      } else if (extension === 'xlsx' || extension === 'xls') {
-        const buffer = await file.arrayBuffer()
-        if (!validParse()) return
-        const result = parseWorkbook(buffer)
-        parsed = {
-          fileName: file.name,
-          fileType: 'xlsx',
-          headers: result.headers,
-          rows: result.rows,
-          errors: [],
-          sheetNames: result.sheetNames,
-        }
-      } else {
-        throw new Error('Choose a CSV, XLS, or XLSX file.')
-      }
+      // Advisory preview, parsed off the main thread; the server parse stays authoritative.
+      const result = await parseImportPreview(file)
+      if (!validParse()) return
+      parsed = { fileName: file.name, ...result }
 
       if (!validParse()) return
       setParsedImport(parsed)
@@ -1025,6 +1021,94 @@ const OwnedCollectionWorkspace = ({
       ticket.finish()
     }
   }
+  type OperationTicket = NonNullable<ReturnType<typeof beginOperation>>
+
+  // Calls process until the batch is done, a call fails, or Stop is pressed. Each call
+  // is a separate authorized request; progress comes from each server response.
+  const continueServerProcessing = async (
+    ticket: OperationTicket,
+    target: {
+      projectId: string
+      batchId: string
+      validationRevision: number
+      progress: ImportProcessingProgress
+    },
+  ) => {
+    let latest = target.progress
+    processingStopRequested.current = false
+    setProcessingRun({ ...target, state: 'running' })
+    const outcome: ImportProcessingOutcome = await runImportProcessing({
+      process: () =>
+        pathwaysClient.processImport(target.projectId, target.batchId, target.validationRevision),
+      onProgress: (next) => {
+        latest = importProcessingProgress(next)
+        if (ticket.valid('imports.process'))
+          setProcessingRun((run) =>
+            run?.batchId === target.batchId ? { ...run, progress: latest } : run,
+          )
+      },
+      shouldStop: () => processingStopRequested.current || !ticket.valid('imports.process'),
+    })
+    if (!ticket.valid('imports.process')) {
+      // Access or ownership changed; the server keeps its state and nothing stale is shown.
+      setProcessingRun(null)
+      return
+    }
+    if (outcome.kind === 'complete') {
+      setProcessingRun(null)
+      setSavedNotice(
+        `Server import ${outcome.batch.id}: ${outcome.batch.totals.processed} processed, ${outcome.batch.totals.failed} failed.`,
+      )
+      setProceedDialogOpen(false)
+      return
+    }
+    setProcessingRun({
+      ...target,
+      progress: latest,
+      state: outcome.kind === 'stopped' ? 'stopped' : 'failed',
+      note:
+        outcome.kind === 'failed'
+          ? outcome.error instanceof Error
+            ? outcome.error.message
+            : 'Processing could not be completed.'
+          : outcome.kind === 'stalled'
+            ? 'The remaining rows could not be processed. Review failed rows in the Import workspace.'
+            : undefined,
+    })
+  }
+
+  const resumeServerProcessing = async () => {
+    const run = processingRun
+    if (!run || (run.state !== 'stopped' && run.state !== 'failed')) return
+    if (run.projectId !== projectId) return
+    const ticket = beginOperation('imports.process')
+    if (!ticket) return
+    try {
+      await continueServerProcessing(ticket, run)
+    } catch (error) {
+      if (ticket.valid('imports.process'))
+        setImportMessage(error instanceof Error ? error.message : 'Import failed.')
+    } finally {
+      ticket.finish()
+    }
+  }
+
+  const stopServerProcessing = () => {
+    processingStopRequested.current = true
+    setProcessingRun((run) => (run?.state === 'running' ? { ...run, state: 'stopping' } : run))
+  }
+
+  const closeProceedDialog = () => {
+    if (mutation.current) return
+    if (processingRun) {
+      setImportMessage(
+        `Import ${processingRun.batchId} paused after ${processingRun.progress.handled} of ${processingRun.progress.total} rows. Resume it from the Import workspace.`,
+      )
+      setProcessingRun(null)
+    }
+    setProceedDialogOpen(false)
+  }
+
   const confirmImportProceed = async () => {
     if (!parsedImport || !importCanProceed || !projectId) return
     if (parsedImport.rows.length === 0 && !canUseExtend) {
@@ -1183,16 +1267,12 @@ const OwnedCollectionWorkspace = ({
         setProceedDialogOpen(false)
         return
       }
-      const processed = await pathwaysClient.processImport(
+      await continueServerProcessing(ticket, {
         projectId,
-        validated.id,
-        validated.validationRevision,
-      )
-      if (!ticket.valid()) return
-      setSavedNotice(
-        `Server import ${processed.id}: ${processed.totals.processed} processed, ${processed.totals.failed} failed.`,
-      )
-      setProceedDialogOpen(false)
+        batchId: validated.id,
+        validationRevision: validated.validationRevision,
+        progress: importProcessingProgress(validated),
+      })
     } catch (error) {
       if (!ticket.valid()) return
       setImportMessage(error instanceof Error ? error.message : 'Import failed.')
@@ -1202,10 +1282,6 @@ const OwnedCollectionWorkspace = ({
     }
   }
   const downloadSavedForm = async (summary: SavedForm) => {
-    if (exportFormat !== 'csv') {
-      toast.error(`${exportFormat.toUpperCase()} form export is unavailable. Choose CSV.`)
-      return
-    }
     const listed = forms.find((form) => form.id === summary.id)
     if (!listed) {
       toast.error('The selected persisted form could not be found.')
@@ -1216,24 +1292,18 @@ const OwnedCollectionWorkspace = ({
       ticket?.finish()
       return
     }
-    let url: string | null = null
     try {
-      const persisted = await pathwaysClient.getDigitalForm(listed.projectId, listed.id)
+      // The server applies forms.export, project scope, artifact bounds and the audit row.
+      const request = formDefinitionExportRequest(listed, exportFormat)
+      await downloadCoreArtifact(request.url, request.fileName, () => ticket.valid())
       if (!ticket.valid()) return
-      const exported = createFormDefinitionExport(persisted, exportFormat)
-      url = URL.createObjectURL(new Blob([exported.content], { type: exported.mimeType }))
-      const link = document.createElement('a')
-      link.href = url
-      link.download = exported.fileName
-      document.body.appendChild(link)
-      link.click()
-      link.remove()
-      toast.success(`Exported ${persisted.code} version ${persisted.version} as CSV.`)
+      toast.success(
+        `Exported ${listed.code} version ${listed.version} as ${exportFormat.toUpperCase()}.`,
+      )
     } catch (error) {
       if (ticket.valid())
         toast.error(error instanceof Error ? error.message : 'The form could not be exported.')
     } finally {
-      if (url) URL.revokeObjectURL(url)
       ticket.finish()
     }
   }
@@ -1328,10 +1398,9 @@ const OwnedCollectionWorkspace = ({
           value={exportFormat}
           onChange={(e) => setExportFormat(e.target.value as ExportFormat)}
         >
-          {(['csv', 'xlsx', 'xls', 'pdf'] as const).map((f) => (
+          {formDefinitionExportFormats.map((f) => (
             <option key={f} value={f}>
               {f.toUpperCase()}
-              {f === 'csv' ? '' : ' (unavailable)'}
             </option>
           ))}
         </select>
@@ -1648,7 +1717,9 @@ const OwnedCollectionWorkspace = ({
       <Dialog
         open={proceedDialogOpen}
         onOpenChange={(open) => {
-          if (!mutation.current) setProceedDialogOpen(open)
+          if (mutation.current) return
+          if (open) setProceedDialogOpen(true)
+          else closeProceedDialog()
         }}
       >
         <DialogContent>
@@ -1662,17 +1733,26 @@ const OwnedCollectionWorkspace = ({
                 : 'Valid rows will be imported; invalid rows remain isolated for correction and reprocessing.'}
             </DialogDescription>
           </DialogHeader>
+          {processingRun ? (
+            <ImportProcessingPanel
+              canResume={!operationPending}
+              focusOnMount
+              note={processingRun.note}
+              onResume={() => void resumeServerProcessing()}
+              onStop={stopServerProcessing}
+              progress={processingRun.progress}
+              state={processingRun.state}
+            />
+          ) : null}
           <DialogFooter>
-            <Button
-              disabled={operationPending}
-              variant="outline"
-              onClick={() => setProceedDialogOpen(false)}
-            >
-              Cancel
+            <Button disabled={operationPending} variant="outline" onClick={closeProceedDialog}>
+              {processingRun ? 'Close' : 'Cancel'}
             </Button>
-            <Button disabled={operationPending} onClick={confirmImportProceed}>
-              {parsedImport?.rows.length === 0 ? 'Create Draft' : 'Proceed'}
-            </Button>
+            {processingRun ? null : (
+              <Button disabled={operationPending} onClick={confirmImportProceed}>
+                {parsedImport?.rows.length === 0 ? 'Create Draft' : 'Proceed'}
+              </Button>
+            )}
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -1831,7 +1911,7 @@ const BuilderView = ({
   mode: CollectionMode
   moveField: (fieldId: string, direction: 'up' | 'down') => void
   onPublish: () => void
-  projectActivities: Activity[]
+  projectActivities: ActivitySummary[]
   projects: ProjectSummary[]
   projectId: string
   sadddCount: number
@@ -2024,7 +2104,7 @@ const FormInfoPanel = ({
   formType: string
   journeyStage: string
   linkedActivityId: string
-  projectActivities: Activity[]
+  projectActivities: ActivitySummary[]
   projects: ProjectSummary[]
   projectId: string
   setFormTitle: (value: string) => void
@@ -2486,7 +2566,7 @@ const ImportView = ({
   parsedImport: ParsedImport | null
   parseSelectedFile: (file: File) => Promise<void>
   sourceFileEnabled: boolean
-  projectActivities: Activity[]
+  projectActivities: ActivitySummary[]
   projects: ProjectSummary[]
   projectId: string
   selectedProject: string

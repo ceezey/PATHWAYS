@@ -266,6 +266,47 @@ describe('P04 beneficiary registration service', () => {
     expect(queries.some((query) => query.includes("date_trunc('milliseconds'"))).toBe(false)
     expect(queries.some((query) => query.includes('SELECT CURRENT_TIMESTAMP'))).toBe(true)
   })
+  it('uses a preloaded import form only for the same imported form and never for direct entry', async () => {
+    const preloaded = {
+      form: { id: formId, version: 1, status: 'PUBLISHED' as const, formField_form: fields },
+    }
+    const input = (source: 'DIRECT_ENTRY' | 'IMPORTED_DATASET', wantedForm = formId) => ({
+      projectId,
+      formId: wantedForm,
+      clientRegistrationId: registrationId,
+      values: values(),
+      source,
+      validatedById: actorId,
+      ...(source === 'IMPORTED_DATASET'
+        ? { importBatchId: 'a0000000-0000-4000-8000-000000000001', importRowId: registrationId }
+        : {}),
+    })
+
+    await service.promoteRegistration(
+      tx as never,
+      actor,
+      input('IMPORTED_DATASET'),
+      preloaded as never,
+    )
+    expect(tx.digitalForm.findFirst).not.toHaveBeenCalled()
+    expect(tx.beneficiary.createMany).toHaveBeenCalledOnce()
+
+    vi.clearAllMocks()
+    tx.digitalForm.findFirst.mockResolvedValue(null)
+    await expect(
+      service.promoteRegistration(tx as never, actor, input('DIRECT_ENTRY'), preloaded as never),
+    ).rejects.toMatchObject({ status: 404 })
+    await expect(
+      service.promoteRegistration(
+        tx as never,
+        actor,
+        input('IMPORTED_DATASET', 'b0000000-0000-4000-8000-000000000001'),
+        preloaded as never,
+      ),
+    ).rejects.toMatchObject({ status: 404 })
+    expect(tx.digitalForm.findFirst).toHaveBeenCalledTimes(2)
+    expect(tx.beneficiary.createMany).not.toHaveBeenCalled()
+  })
   it('atomically creates an individual, enrollment, versioned submission, consent provenance and audit', async () => {
     await expect(promote()).resolves.toEqual({
       kind: 'PROCESSED',

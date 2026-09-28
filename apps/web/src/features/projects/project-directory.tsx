@@ -20,19 +20,21 @@ import { Input } from '@/components/ui/input'
 import { useCurrentRole } from '@/hooks/use-current-role'
 import { useDisplayLabels } from '@/hooks/use-display-labels'
 import { principalHasAtomicPermission } from '@/lib/rbac/route-access'
-import { PathwaysClientError, pathwaysClient } from '@/lib/services/pathways-client'
+import { pathwaysClient } from '@/lib/services/pathways-client'
 import { cn } from '@/lib/utils'
 import { useAuthorizedRead } from '@/providers/authorized-query-provider'
 import type { ProjectStatus, ProjectSummary } from '@/types/pathways'
+import { type MetricCell, businessCalendarDate, timelineProgress } from '@pathways/shared'
 
 import { ProjectPreviewDialog } from './project-preview-dialog'
 import {
   type ProjectStatusFilter,
   formatNumber,
-  projectHealthTone,
+  overviewMetricLabel,
   projectStatusFilters,
   projectStatusTone,
 } from './project-utils'
+import { useProjectRead } from './use-project-reads'
 
 const directoryDescription = {
   'Program Manager': 'Projects across the assigned portfolio.',
@@ -47,8 +49,13 @@ export const ProjectDirectory = () => {
   const { labels } = useDisplayLabels()
   const { role, profile } = useCurrentRole()
   const canReadDetail = principalHasAtomicPermission(profile, 'projects.detail.read')
-  const directory = useAuthorizedRead('projects', null, 'projects.read', (signal) =>
-    pathwaysClient.getProjects(signal),
+  const directory = useAuthorizedRead(
+    'projects',
+    null,
+    'projects.read',
+    (signal) => pathwaysClient.getProjects(signal),
+    true,
+    { freshness: 'summary' },
   )
   const projects: ProjectSummary[] = directory.data ?? []
   const status =
@@ -56,17 +63,10 @@ export const ProjectDirectory = () => {
   const [query, setQuery] = useState('')
   const [statusFilter, setStatusFilter] = useState<ProjectStatusFilter>('All')
   const [previewId, setPreviewId] = useState<string | null>(null)
-  const preview = useAuthorizedRead(
-    'project-preview',
-    previewId,
-    'projects.detail.read',
-    (signal) => {
-      if (!previewId) throw new PathwaysClientError('Select a project preview.', 'invalid')
-      return pathwaysClient.getProject(previewId, signal)
-    },
-    Boolean(previewId && canReadDetail),
-  )
-  const previewProject = preview.data ?? null
+  // The same project read as the Overview, so "Open Project" reuses it.
+  const preview = useProjectRead(previewId ?? '', Boolean(previewId && canReadDetail))
+  const previewProject = previewId && preview.data?.id === previewId ? preview.data : null
+  const businessDate = businessCalendarDate(new Date(), 'Asia/Manila')
   const filteredProjects = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase()
 
@@ -189,24 +189,14 @@ export const ProjectDirectory = () => {
                     <StatusBadge tone={projectStatusTone(project.status)}>
                       {project.status}
                     </StatusBadge>
-                    {project.metricsAvailable ? (
-                      <StatusBadge tone={projectHealthTone(project.health)}>
-                        {project.health}
-                      </StatusBadge>
-                    ) : (
-                      <StatusBadge tone="neutral">Not assessed</StatusBadge>
-                    )}
+                    <StatusBadge tone="neutral">Not assessed</StatusBadge>
                   </div>
                   <p className="text-sm tabular-nums text-muted-foreground">{project.period}</p>
                 </div>
               </CardHeader>
               <CardContent className="flex-1 px-6 pb-6 pt-0">
                 <div className="space-y-3 border-t border-border pt-5">
-                  <ProjectMeasure
-                    label="KPI achievement"
-                    tone={projectHealthTone(project.health)}
-                    value={project.metricsAvailable ? `${project.kpiAchievement}%` : 'Unavailable'}
-                  />
+                  <ProjectMeasure label="KPI achievement" value="See overview" />
                   <ProjectMeasure
                     label="Target beneficiaries"
                     value={
@@ -215,27 +205,14 @@ export const ProjectDirectory = () => {
                         : 'Not recorded'
                     }
                   />
-                  <ProjectMeasure
-                    label="Budget utilization"
-                    tone={project.budgetUtilization >= 80 ? 'danger' : 'warning'}
-                    value={
-                      project.metricsAvailable ? `${project.budgetUtilization}%` : 'Unavailable'
-                    }
-                  />
-                  <div className="grid grid-cols-[auto_minmax(5rem,1fr)_auto] items-center gap-3 text-sm">
-                    <span className="text-muted-foreground">Timeline</span>
-                    {project.metricsAvailable ? (
-                      <ProgressBar
-                        tone={projectHealthTone(project.health)}
-                        value={project.timelineProgress}
-                      />
-                    ) : (
-                      <span className="text-muted-foreground">Unavailable</span>
+                  <ProjectMeasure label="Budget utilization" value="See overview" />
+                  <ProjectTimeline
+                    timeline={timelineProgress(
+                      project.startDate ?? null,
+                      project.endDate ?? null,
+                      businessDate,
                     )}
-                    <span className="font-semibold tabular-nums text-foreground">
-                      {project.metricsAvailable ? `${project.timelineProgress}%` : '—'}
-                    </span>
-                  </div>
+                  />
                 </div>
               </CardContent>
               <CardFooter className="mt-auto flex flex-col items-stretch gap-4 border-t border-border bg-primary-subtle/40 p-5 2xl:flex-row 2xl:items-center 2xl:justify-between">
@@ -309,6 +286,21 @@ const managerInitials = (name: string) =>
     .join('')
     .slice(0, 2)
     .toUpperCase()
+
+/** Same deterministic date-derived timeline as the Overview endpoint. */
+const ProjectTimeline = ({ timeline }: { timeline: MetricCell }) => (
+  <div className="grid grid-cols-[auto_minmax(5rem,1fr)_auto] items-center gap-3 text-sm">
+    <span className="text-muted-foreground">Timeline</span>
+    {timeline.value !== null ? (
+      <ProgressBar tone="info" value={Number(timeline.value)} />
+    ) : (
+      <span className="text-muted-foreground">{overviewMetricLabel(timeline, 'percent')}</span>
+    )}
+    <span className="font-semibold tabular-nums text-foreground">
+      {timeline.value !== null ? `${timeline.value}%` : '—'}
+    </span>
+  </div>
+)
 
 const ProjectMeasure = ({
   label,

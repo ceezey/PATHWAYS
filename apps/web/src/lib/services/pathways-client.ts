@@ -20,6 +20,7 @@ import { webEnv } from '@/lib/env'
 import { getBrowserSupabaseClient } from '@/lib/supabase/client'
 import type {
   Activity,
+  ActivitySummary,
   AlertRecord,
   AnalyticsLocationRecord,
   AuthorizeExistingUserInput,
@@ -96,6 +97,7 @@ import {
   sadddDashboardSchema,
   sadddQuerySchema,
 } from '@pathways/shared'
+import { type ProjectOverviewMetrics, projectOverviewMetricsSchema } from '@pathways/shared'
 import { readPublicProjects } from './public-projects'
 type CreateIndicatorInput = Omit<ApiCreateIndicatorInput, 'clientMutationId'>
 type UpdateIndicatorInput = Omit<ApiUpdateIndicatorInput, 'clientMutationId'>
@@ -103,6 +105,7 @@ import {
   STEP_UP_REQUIRED_CODE,
   announceStepUpRequired,
 } from '@/lib/auth/beneficiary-step-up-events'
+import { announceAuthorizationDenied, announceWriteCommitted } from './authorized-read-events'
 import { parseRegistrationContext } from './registration-context'
 
 const evidenceStatuses = new Set(['Submitted', 'Validated', 'Flagged', 'Approved', 'Returned'])
@@ -260,8 +263,12 @@ export interface PathwaysClient {
   getActivityContext(
     projectId: string,
   ): Promise<Pick<Activity, 'id' | 'title' | 'journeyStageId'>[]>
-  getActivities(projectId: string, signal?: AbortSignal): Promise<Activity[]>
-  getActivity(projectId: string, activityId: string): Promise<Activity>
+  getActivities(projectId: string, signal?: AbortSignal): Promise<ActivitySummary[]>
+  getActivity(projectId: string, activityId: string, signal?: AbortSignal): Promise<Activity>
+  getProjectOverviewMetrics(
+    projectId: string,
+    signal?: AbortSignal,
+  ): Promise<ProjectOverviewMetrics>
   createActivity(
     input: CreateActivityInput,
     context?: SourceMutationContext,
@@ -624,18 +631,38 @@ class BackendReadyPathwaysClient implements PathwaysClient {
     return rows.map((row) => ({ id: row.id, title: row.title, journeyStageId: row.journeyStageId }))
   }
 
-  async getActivities(projectId: string, signal?: AbortSignal): Promise<Activity[]> {
+  async getActivities(projectId: string, signal?: AbortSignal): Promise<ActivitySummary[]> {
     return requestFoundation(`/projects/${encodeURIComponent(projectId)}/activities`, {
       signal,
-    }).then(parseActivities)
+    }).then(parseActivitySummaries)
   }
 
-  async getActivity(projectId: string, activityId: string): Promise<Activity> {
+  async getActivity(
+    projectId: string,
+    activityId: string,
+    signal?: AbortSignal,
+  ): Promise<Activity> {
     return parseActivity(
       await requestFoundation(
         `/projects/${encodeURIComponent(projectId)}/activities/${encodeURIComponent(activityId)}`,
+        { signal },
       ),
     )
+  }
+
+  // Project Overview metrics (feature/project-data-loading).
+  async getProjectOverviewMetrics(
+    projectId: string,
+    signal?: AbortSignal,
+  ): Promise<ProjectOverviewMetrics> {
+    const parsed = projectOverviewMetricsSchema.safeParse(
+      await requestFoundation(`/projects/${encodeURIComponent(projectId)}/overview-metrics`, {
+        signal,
+      }),
+    )
+    if (!parsed.success)
+      throw new PathwaysClientError('Invalid project overview response.', 'network')
+    return parsed.data
   }
 
   async createActivity(
@@ -1865,6 +1892,9 @@ export async function requestFoundationResponse(
     redirect: 'error',
     referrerPolicy: 'no-referrer',
   })
+  if (response.status === 401 || response.status === 403) announceAuthorizationDenied()
+  else if (response.ok && !['GET', 'HEAD'].includes((init.method ?? 'GET').toUpperCase()))
+    announceWriteCommitted()
   if (!response.ok) {
     let fieldErrors: FormValidationError[] = []
     let serverMessage: string | undefined
@@ -1959,7 +1989,6 @@ function mapProject(project: ApiProject): ProjectDetail {
   const period =
     [project.startDate, project.endDate].filter(Boolean).join(' to ') || 'Dates not recorded'
   return {
-    metricsAvailable: false,
     id: project.id,
     code: project.code,
     title: project.title,
@@ -1979,10 +2008,6 @@ function mapProject(project: ApiProject): ProjectDetail {
     health: status === 'Needs Attention' ? 'At Risk' : 'On Track',
     period,
     projectManager: project.projectManager ?? 'Not assigned',
-    kpiAchievement: 0,
-    beneficiariesReached: 0,
-    budgetUtilization: 0,
-    timelineProgress: 0,
     programManager: project.programManager ?? 'Not assigned',
     programManagerId: project.programManagerId,
     projectManagerId: project.projectManagerId,
@@ -2165,11 +2190,21 @@ function parseActivity(value: unknown): Activity {
     row.budgetAllocation === null || row.budgetAllocation === undefined
       ? null
       : Number(row.budgetAllocation)
+  // A response without the entry count predates the real logged total (it sent a fixed 0),
+  // so its value is treated as withheld rather than shown.
+  const legacyLogged = row.budgetLoggedEntries === undefined
   const budgetLogged =
-    row.budgetLogged === null || row.budgetLogged === undefined ? null : Number(row.budgetLogged)
+    legacyLogged || row.budgetLogged === null || row.budgetLogged === undefined
+      ? null
+      : Number(row.budgetLogged)
+  const budgetLoggedEntries = legacyLogged ? null : (row.budgetLoggedEntries ?? null)
   if (
     (budgetAllocation !== null && !Number.isFinite(budgetAllocation)) ||
     (budgetLogged !== null && !Number.isFinite(budgetLogged)) ||
+    // A logged total and its entry count are both present or both withheld.
+    (budgetLoggedEntries === null) !== (budgetLogged === null) ||
+    (budgetLoggedEntries !== null &&
+      (!Number.isInteger(budgetLoggedEntries) || budgetLoggedEntries < 0)) ||
     typeof row.beneficiariesReached !== 'number'
   ) {
     throw new PathwaysClientError('Invalid activity response.', 'network')
@@ -2180,14 +2215,68 @@ function parseActivity(value: unknown): Activity {
     ) as unknown as Activity),
     budgetAllocation,
     budgetLogged,
+    budgetLoggedEntries,
   }
 }
 
-function parseActivities(value: unknown): Activity[] {
+// Lean activity list projection (feature/project-data-loading). Detail-only fields are
+// never defaulted here: a list item simply does not carry them.
+const activitySummaryKeys = [
+  'id',
+  'projectId',
+  'code',
+  'title',
+  'description',
+  'storedStatus',
+  'status',
+  'overdue',
+  'startDate',
+  'dueDate',
+  'assignedUserIds',
+  'assignedTo',
+  'indicatorIds',
+  'journeyStageIds',
+  'journeyStageId',
+  'targetBeneficiaries',
+  'progress',
+  'updatedAt',
+] as const satisfies readonly (keyof ActivitySummary)[]
+
+function parseActivitySummary(value: unknown): ActivitySummary {
+  const row = value as Partial<ActivitySummary>
+  if (
+    !row ||
+    typeof row !== 'object' ||
+    typeof row.id !== 'string' ||
+    typeof row.projectId !== 'string' ||
+    typeof row.title !== 'string' ||
+    typeof row.updatedAt !== 'string' ||
+    typeof row.progress !== 'number' ||
+    (row.code !== null && row.code !== undefined && typeof row.code !== 'string') ||
+    typeof row.description !== 'string' ||
+    typeof row.status !== 'string' ||
+    typeof row.storedStatus !== 'string' ||
+    typeof row.startDate !== 'string' ||
+    typeof row.dueDate !== 'string' ||
+    typeof row.journeyStageId !== 'string' ||
+    typeof row.targetBeneficiaries !== 'number' ||
+    !Array.isArray(row.assignedUserIds) ||
+    !Array.isArray(row.assignedTo) ||
+    !Array.isArray(row.indicatorIds) ||
+    !Array.isArray(row.journeyStageIds)
+  ) {
+    throw new PathwaysClientError('Invalid activity response.', 'network')
+  }
+  return Object.fromEntries(
+    activitySummaryKeys.map((key) => [key, row[key]]),
+  ) as unknown as ActivitySummary
+}
+
+function parseActivitySummaries(value: unknown): ActivitySummary[] {
   if (!Array.isArray(value) || value.length > 100) {
     throw new PathwaysClientError('Invalid activity response.', 'network')
   }
-  return value.map(parseActivity)
+  return value.map(parseActivitySummary)
 }
 
 function dateOnly(value: unknown): string {

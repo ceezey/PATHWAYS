@@ -137,6 +137,28 @@ describe('Activity progress update (activities.progress.update)', () => {
     })
   })
 
+  it('resolves project scope once and reads the activity back without a second scope query', async () => {
+    await service.recordProgress(actor, projectId, activityId, input)
+    expect(tx.project.findFirst).toHaveBeenCalledOnce()
+    expect(tx.projectActivity.findFirst).toHaveBeenCalledTimes(2)
+    const readBack = tx.projectActivity.findFirst.mock.calls[1][0]
+    expect(readBack.where).toEqual({
+      id: activityId,
+      organizationId,
+      projectId,
+      archivedAt: null,
+    })
+  })
+
+  it('still denies a project outside scope before any activity read or write', async () => {
+    tx.project.findFirst.mockResolvedValueOnce(null)
+    await expect(
+      service.recordProgress(actor, projectId, activityId, input),
+    ).rejects.toBeInstanceOf(NotFoundException)
+    expect(tx.projectActivity.findFirst).not.toHaveBeenCalled()
+    expect(tx.activityUpdate.create).not.toHaveBeenCalled()
+  })
+
   it('replays the same client update id without a second write', async () => {
     tx.activityUpdate.findFirst.mockResolvedValue({
       projectId,

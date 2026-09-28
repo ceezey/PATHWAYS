@@ -439,7 +439,7 @@ export const ReportingWorkspace = ({
           (indicator): ReportRow => ({
             id: indicator.code,
             indicator: indicator.name,
-            target: indicator.target ?? 'Unavailable',
+            target: indicator.target ?? 'None yet',
             actualProgress: formatMetricCell(indicator.progress),
             status: indicator.status,
             project: projectTitle(indicator.projectId),

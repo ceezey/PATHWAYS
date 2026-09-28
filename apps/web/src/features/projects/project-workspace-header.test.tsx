@@ -38,7 +38,6 @@ const project = {
   description: 'Project description',
   status: 'Active',
   health: 'On Track',
-  metricsAvailable: true,
 } as ProjectDetail
 
 describe('project workspace tab access', () => {

@@ -48,6 +48,7 @@ import type {
   RecommendationRecord,
   UserRecord,
 } from '@/types/pathways'
+import { formatMetricCell } from '@pathways/shared'
 
 import { ProjectWorkspaceHeader } from './project-workspace-header'
 
@@ -496,8 +497,10 @@ const displayIndicator = (indicator: ProjectIndicator): IndicatorDisplay => ({
   unit: indicator.unitLabel ?? '',
   disaggregation: '',
   dataSource: indicator.dataSource ?? '',
-  target: indicator.target ?? 'Unavailable',
-  actual: indicator.current.value ?? 'Unavailable',
+  target: indicator.target ?? 'None yet',
+  actual:
+    indicator.current.value ??
+    (indicator.current.state === 'MISSING' ? 'None yet' : formatMetricCell(indicator.current)),
   revision: indicator.revision,
 })
 
@@ -756,13 +759,12 @@ export function ConnectedIndicatorWorkspace({ projectId }: { projectId?: string 
                   </div>
                   <div>
                     <dt className="text-muted-foreground">Unit</dt>
-                    <dd className="font-medium text-foreground">
-                      {indicator.unit || 'Unavailable'}
-                    </dd>
+                    <dd className="font-medium text-foreground">{indicator.unit || 'None yet'}</dd>
                   </div>
                 </dl>
                 <p className="mt-3 text-xs text-muted-foreground">
-                  Source: {indicator.dataSource || 'Unavailable'} · Disaggregation:{' '}
+                  Source: {indicator.dataSource || 'None yet'} · Disaggregation:{' '}
+                  {/* Not mapped from the API in this view: a capability gap, not an empty value. */}
                   {indicator.disaggregation || 'Unavailable'}
                 </p>
               </article>

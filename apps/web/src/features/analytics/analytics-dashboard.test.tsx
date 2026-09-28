@@ -118,10 +118,6 @@ const project = (id: string, title: string, startDate: string | null, endDate: s
   health: 'On Track',
   period: 'Persisted dates',
   projectManager: 'Manager',
-  kpiAchievement: 0,
-  beneficiariesReached: 0,
-  budgetUtilization: 0,
-  timelineProgress: 0,
 })
 
 const indicator = (projectId: string, id: string, periodStart: string, periodEnd: string) => ({
@@ -150,6 +146,12 @@ const indicator = (projectId: string, id: string, periodStart: string, periodEnd
   status: 'ACTIVE',
   contractVersion: 'p06.v1',
 })
+
+const kpiCard = () =>
+  screen
+    .getAllByText('KPI achievement')
+    .map((node) => node.parentElement?.parentElement?.textContent ?? '')
+    .join(' | ')
 
 const monitoring = {
   indicators: [],
@@ -361,6 +363,38 @@ describe('Analytics dashboard request dependencies', () => {
     await waitFor(() => expect(api.getMonitoringDashboard).toHaveBeenCalledTimes(2))
     expect(api.getSadddDashboard).toHaveBeenCalledTimes(1)
     expect(api.getActivities).toHaveBeenCalledTimes(1)
+  })
+
+  it('shows "Unavailable", never "None yet", for indicator data a Project Officer cannot read', async () => {
+    currentAccess.role = 'Project Officer'
+    currentAccess.profile.roles = ['PROJECT_OFFICER']
+    currentAccess.profile.permissions = [
+      'projects.read',
+      'activities.read',
+      'analytics.read',
+      'analytics.saddd.read',
+      'beneficiaries.aggregates.read',
+    ]
+
+    render(<AnalyticsDashboard />)
+
+    await waitFor(() => expect(api.getActivities).toHaveBeenCalled())
+    await screen.findAllByText('KPI achievement')
+    await waitFor(() => expect(kpiCard()).toContain('Unavailable'))
+    expect(api.getProjectIndicators).not.toHaveBeenCalled()
+    expect(api.getMonitoringDashboard).not.toHaveBeenCalled()
+    expect(screen.queryByText('None yet')).toBeNull()
+    expect(
+      screen.getAllByText('Indicator reporting periods are not available for this role.').length,
+    ).toBeGreaterThan(0)
+  })
+
+  it('shows "None yet" for an empty KPI set only after a successful monitoring read', async () => {
+    render(<AnalyticsDashboard />)
+
+    await waitFor(() => expect(api.getMonitoringDashboard).toHaveBeenCalled())
+    await screen.findAllByText('KPI achievement')
+    await waitFor(() => expect(kpiCard()).toContain('None yet'))
   })
 
   it('does not issue permission-incompatible Activity or Indicator reads for Grant Manager', async () => {
