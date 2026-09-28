@@ -1012,32 +1012,33 @@ model DigitalForm {
 }
 
 model FormField {
-  indicatorBindings           ProjectIndicatorBinding[] @relation("P06BindingField")
-  id                          String                    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  organizationId              String                    @map("organization_id") @db.Uuid
-  projectId                   String                    @map("project_id") @db.Uuid
-  formId                      String                    @map("form_id") @db.Uuid
-  code                        String
-  label                       String
-  dataType                    FieldDataType             @map("data_type")
-  isRequired                  Boolean                   @default(false) @map("is_required")
-  isMetadataKey               Boolean                   @default(false) @map("is_metadata_key")
-  isSadddField                Boolean                   @default(false) @map("is_saddd_field")
-  allowedValues               Json?                     @map("allowed_values")
-  minimumValue                Decimal?                  @map("minimum_value") @db.Decimal(18, 4)
-  maximumValue                Decimal?                  @map("maximum_value") @db.Decimal(18, 4)
-  minimumDate                 DateTime?                 @map("minimum_date") @db.Date
-  maximumDate                 DateTime?                 @map("maximum_date") @db.Date
-  minimumLength               Int?                      @map("minimum_length")
-  maximumLength               Int?                      @map("maximum_length")
-  sequenceNo                  Int                       @map("sequence_no")
-  createdAt                   DateTime                  @default(now()) @map("created_at") @db.Timestamptz(3)
-  updatedAt                   DateTime                  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
-  organization                Organization              @relation("FormField_organization", fields: [organizationId], references: [id], onDelete: Restrict, onUpdate: Restrict, map: "form_fields_organization_fk")
-  project                     Project                   @relation("FormField_project", fields: [organizationId, projectId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict, map: "form_fields_project_fk")
-  form                        DigitalForm               @relation("FormField_form", fields: [organizationId, projectId, formId], references: [organizationId, projectId, id], onDelete: Restrict, onUpdate: Restrict, map: "form_fields_form_fk")
-  metadataMapping_targetField MetadataMapping[]         @relation("MetadataMapping_targetField")
-  formResponseValue_field     FormResponseValue[]       @relation("FormResponseValue_field")
+  indicatorBindings              ProjectIndicatorBinding[] @relation("P06BindingField")
+  id                             String                    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId                 String                    @map("organization_id") @db.Uuid
+  projectId                      String                    @map("project_id") @db.Uuid
+  formId                         String                    @map("form_id") @db.Uuid
+  code                           String
+  label                          String
+  dataType                       FieldDataType             @map("data_type")
+  isRequired                     Boolean                   @default(false) @map("is_required")
+  isMetadataKey                  Boolean                   @default(false) @map("is_metadata_key")
+  isSadddField                   Boolean                   @default(false) @map("is_saddd_field")
+  allowedValues                  Json?                     @map("allowed_values")
+  minimumValue                   Decimal?                  @map("minimum_value") @db.Decimal(18, 4)
+  maximumValue                   Decimal?                  @map("maximum_value") @db.Decimal(18, 4)
+  minimumDate                    DateTime?                 @map("minimum_date") @db.Date
+  maximumDate                    DateTime?                 @map("maximum_date") @db.Date
+  minimumLength                  Int?                      @map("minimum_length")
+  maximumLength                  Int?                      @map("maximum_length")
+  sequenceNo                     Int                       @map("sequence_no")
+  createdAt                      DateTime                  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt                      DateTime                  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
+  organization                   Organization              @relation("FormField_organization", fields: [organizationId], references: [id], onDelete: Restrict, onUpdate: Restrict, map: "form_fields_organization_fk")
+  project                        Project                   @relation("FormField_project", fields: [organizationId, projectId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict, map: "form_fields_project_fk")
+  form                           DigitalForm               @relation("FormField_form", fields: [organizationId, projectId, formId], references: [organizationId, projectId, id], onDelete: Restrict, onUpdate: Restrict, map: "form_fields_form_fk")
+  metadataMapping_targetField    MetadataMapping[]         @relation("MetadataMapping_targetField")
+  metadataMapping_suggestedField MetadataMapping[]         @relation("MetadataMapping_suggestedField")
+  formResponseValue_field        FormResponseValue[]       @relation("FormResponseValue_field")
 
   @@unique([organizationId, projectId, id], map: "form_fields_scope_key")
   @@unique([organizationId, projectId, formId, id], map: "form_fields_form_scope_key")
@@ -1158,6 +1159,9 @@ model MetadataMapping {
   targetSystemField String?         @map("target_system_field")
   status            MappingStatus   @default(PENDING)
   validationMessage String?         @map("validation_message")
+  suggestedFieldId  String?         @map("suggested_field_id") @db.Uuid
+  matchScore        Int?            @map("match_score") @db.SmallInt
+  matchReason       String?         @map("match_reason")
   createdAt         DateTime        @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt         DateTime        @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
   organization      Organization    @relation("MetadataMapping_organization", fields: [organizationId], references: [id], onDelete: Restrict, onUpdate: Restrict, map: "metadata_mappings_organization_fk")
@@ -1165,12 +1169,14 @@ model MetadataMapping {
   form              DigitalForm     @relation("MetadataMapping_form", fields: [organizationId, projectId, formId], references: [organizationId, projectId, id], onDelete: Restrict, onUpdate: Restrict, map: "metadata_mappings_form_fk")
   importBatch       DataImportBatch @relation("MetadataMapping_importBatch", fields: [organizationId, projectId, formId, importBatchId], references: [organizationId, projectId, formId, id], onDelete: Restrict, onUpdate: Restrict, map: "metadata_mappings_import_batch_fk")
   targetField       FormField?      @relation("MetadataMapping_targetField", fields: [organizationId, projectId, formId, targetFieldId], references: [organizationId, projectId, formId, id], onDelete: Restrict, onUpdate: Restrict, map: "metadata_mappings_target_field_fk")
+  suggestedField    FormField?      @relation("MetadataMapping_suggestedField", fields: [organizationId, projectId, formId, suggestedFieldId], references: [organizationId, projectId, formId, id], onDelete: Restrict, onUpdate: Restrict, map: "metadata_mappings_suggested_field_fk")
 
   @@unique([organizationId, projectId, id], map: "metadata_mappings_scope_key")
   @@unique([importBatchId, revision, sourceFieldName], map: "metadata_mappings_batch_revision_source_key")
   @@index([organizationId, projectId, formId], map: "metadata_mappings_form_idx")
   @@index([organizationId, projectId, formId, importBatchId], map: "metadata_mappings_import_batch_idx")
   @@index([organizationId, projectId, formId, targetFieldId], map: "metadata_mappings_target_field_idx")
+  @@index([organizationId, projectId, formId, suggestedFieldId], map: "metadata_mappings_suggested_field_idx")
   @@map("metadata_mappings")
   @@schema("pathways")
 }

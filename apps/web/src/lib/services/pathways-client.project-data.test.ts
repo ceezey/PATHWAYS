@@ -57,6 +57,7 @@ const listItem = {
   targetBeneficiaries: 0,
   progress: 0,
   updatedAt: '2026-09-28T00:00:00.000Z',
+  capabilities: { canEdit: false, canRecordProgress: true, canSubmitProof: true },
 }
 
 afterEach(() => vi.unstubAllGlobals())

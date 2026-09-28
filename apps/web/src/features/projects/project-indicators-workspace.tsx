@@ -458,8 +458,9 @@ export function ProjectIndicatorsWorkspace({ projectId }: { projectId: string })
   const createContext = useSourceMutationContext(profile, 'indicators.create', projectId, null)
   const updateContext = useSourceMutationContext(profile, 'indicators.update', projectId, null)
   const archiveContext = useSourceMutationContext(profile, 'indicators.archive', projectId, null)
-  const canCreate = profile?.permissions.includes('indicators.create') === true
-  const canUpdate = profile?.permissions.includes('indicators.update') === true
+  // Atomic checks under the role ceiling, never the raw grant list.
+  const canCreate = principalHasAtomicPermission(profile, 'indicators.create')
+  const canUpdate = principalHasAtomicPermission(profile, 'indicators.update')
   const load = useCallback(() => pathwaysClient.getProjectIndicators(projectId), [projectId])
   const { data, error, loading, reload, replaceData, authorityKey } = useMonitoringRead(
     projectId,

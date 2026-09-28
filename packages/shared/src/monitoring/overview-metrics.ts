@@ -120,7 +120,10 @@ export function moneyCents(value: string): bigint {
 /** Approved spending over the planned project budget. */
 export function budgetUtilization(plannedBudget: string | null, approvedSpending: string) {
   if (plannedBudget === null) return missingMetric('NO_PLANNED_BUDGET')
-  return overviewPercent(moneyCents(approvedSpending), moneyCents(plannedBudget))
+  const plannedCents = moneyCents(plannedBudget)
+  const approvedCents = moneyCents(approvedSpending)
+  if (plannedCents > 0n && approvedCents === 0n) return missingMetric('NO_APPROVED_EXPENSES')
+  return overviewPercent(approvedCents, plannedCents)
 }
 
 const day = 86_400_000

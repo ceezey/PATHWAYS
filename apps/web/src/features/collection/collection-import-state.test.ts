@@ -1,41 +1,120 @@
+import { smartMatchColumns } from '@pathways/imports'
 import { describe, expect, it } from 'vitest'
 
 import {
-  createDefinitionMappingRows,
-  createMappingRows,
+  type PreviewMappingField,
+  createQuestionnaireMappingRows,
+  createSmartMappingRows,
   getMappingReadiness,
-  normalizeMappingNameV1,
 } from './collection-import-state'
 
-const expectedHeaders = ['beneficiary_id', 'attendance_status']
+const fields: PreviewMappingField[] = [
+  { code: 'beneficiary_id', label: 'Beneficiary ID', dataType: 'TEXT' },
+  {
+    code: 'attendance_status',
+    label: 'Attendance status',
+    dataType: 'SELECT',
+    allowedValues: ['Present', 'Absent'],
+  },
+  { code: 'birth_date', label: 'Birth date', dataType: 'DATE' },
+  { code: 'sex', label: 'Sex', dataType: 'SELECT', allowedValues: ['MALE', 'FEMALE'] },
+]
+
+describe('advisory AUTO_SMART_V2 preview mapping', () => {
+  it('pre-selects only high-confidence matches and offers weaker ones as suggestions', () => {
+    const rows = createSmartMappingRows(
+      ['Beneficiary ID', 'Attendance', 'DOB', 'Gender', 'Notes'],
+      [
+        { 'Beneficiary ID': 'BEN-1', Attendance: 'Present', DOB: '2012-04-01', Gender: 'MALE' },
+        { 'Beneficiary ID': 'BEN-2', Attendance: 'Absent', DOB: '2011-01-09', Gender: 'FEMALE' },
+      ],
+      fields,
+    )
+    expect(rows.map((row) => [row.targetField, row.status, row.suggestedField])).toEqual([
+      ['beneficiary_id', 'mapped', undefined],
+      ['attendance_status', 'mapped', undefined],
+      ['birth_date', 'mapped', undefined],
+      ['', 'unmapped', 'sex'],
+      ['', 'unmapped', undefined],
+    ])
+    expect(rows.filter((row) => row.autoMatched).length).toBe(3)
+    expect(getMappingReadiness(rows)).toMatchObject({ canProceed: false, mapped: 3, unmapped: 2 })
+  })
+
+  it('never auto-selects gender for sex, even when the values fit', () => {
+    const [row] = createSmartMappingRows(['Gender'], [{ Gender: 'FEMALE' }], fields)
+    expect(row).toMatchObject({ targetField: '', status: 'unmapped', suggestedField: 'sex' })
+  })
+
+  it('holds a name match whose sampled values do not fit the field type', () => {
+    const [row] = createSmartMappingRows(['Birth date'], [{ 'Birth date': 'unknown' }], fields)
+    expect(row).toMatchObject({ targetField: '', status: 'unmapped', suggestedField: 'birth_date' })
+  })
+
+  it('matches the shared matcher exactly (API parity) and is deterministic', () => {
+    const headers = ['Beneficiary ID', 'Attendance', 'DOB', 'Gender']
+    const data = [
+      { 'Beneficiary ID': 'BEN-1', Attendance: 'Present', DOB: '2012-04-01', Gender: 'x' },
+    ]
+    const preview = createSmartMappingRows(headers, data, fields)
+    const server = smartMatchColumns(
+      headers.map((header, index) => ({
+        key: `column_${String(index + 1).padStart(4, '0')}`,
+        columnIndex: index + 1,
+        header,
+        samples: data.map((row) => row[header as keyof (typeof data)[number]]),
+      })),
+      fields.map((field) => ({ ...field, id: field.code })),
+    )
+    expect(preview.map((row) => row.targetField || null)).toEqual(
+      server.map((decision) => decision.targetFieldId),
+    )
+    expect(preview.map((row) => row.suggestedField ?? null)).toEqual(
+      server.map((decision) => decision.suggestedFieldId),
+    )
+    expect(createSmartMappingRows(headers, data, fields)).toEqual(preview)
+  })
+
+  it('keeps positional identities and never maps two columns to one field', () => {
+    const headers = ['Beneficiary ID', 'beneficiary_id', '', 'Beneficiary ID']
+    const rows = createSmartMappingRows(headers, [], fields)
+    expect(rows.map((row) => row.id)).toEqual(headers.map((_, index) => `mapping-${index}`))
+    expect(rows.map((row) => row.sourceColumn)).toEqual(headers)
+    const targets = rows.map((row) => row.targetField).filter(Boolean)
+    expect(new Set(targets).size).toBe(targets.length)
+    // No samples: nothing is pre-selected; one suggestion per field at most.
+    expect(rows.every((row) => row.status === 'unmapped')).toBe(true)
+  })
+
+  it('falls back to unmatched rows beyond the import bounds', () => {
+    const rows = createSmartMappingRows(['x'.repeat(200)], [], fields)
+    expect(rows).toEqual([
+      { id: 'mapping-0', sourceColumn: 'x'.repeat(200), targetField: '', status: 'unmapped' },
+    ])
+  })
+})
+
+describe('header-only questionnaire mapping', () => {
+  it('turns each named column into its own draft field code', () => {
+    const rows = createQuestionnaireMappingRows([
+      'beneficiary_id',
+      'Pre-test score',
+      '',
+      'pre test score',
+    ])
+    expect(rows.map((row) => [row.targetField, row.status])).toEqual([
+      ['beneficiary_id', 'mapped'],
+      ['pre_test_score', 'mapped'],
+      ['', 'invalid'],
+      ['', 'unmapped'],
+    ])
+  })
+})
 
 describe('collection import mapping readiness', () => {
-  it('matches unique definition codes and labels without fuzzy punctuation matching', () => {
-    expect(
-      createDefinitionMappingRows(
-        ['Age at registration', 'birth-date', 'birth.date'],
-        [
-          { code: 'age_at_registration', label: 'Age' },
-          { code: 'birth_date', label: 'Birth date' },
-        ],
-      ).map((row) => row.status),
-    ).toEqual(['mapped', 'mapped', 'unmapped'])
-  })
-
-  it('leaves ambiguous labels and competing source columns unresolved', () => {
-    const fields = [
-      { code: 'first', label: 'Shared label' },
-      { code: 'second', label: 'Shared label' },
-    ]
-    expect(createDefinitionMappingRows(['Shared label'], fields)[0].status).toBe('unmapped')
-    expect(
-      createDefinitionMappingRows(['first', 'first'], fields).map((row) => row.status),
-    ).toEqual(['unmapped', 'unmapped'])
-  })
-
   it('permits only a non-empty set of fully resolved mappings', () => {
     const valid = getMappingReadiness(
-      createMappingRows(['beneficiary_id', 'attendance_status'], expectedHeaders),
+      createQuestionnaireMappingRows(['beneficiary_id', 'attendance_status']),
     )
 
     expect(valid).toMatchObject({
@@ -46,13 +125,18 @@ describe('collection import mapping readiness', () => {
       unmapped: 0,
     })
     expect(valid.message).toBe('All 2 source columns are resolved. You can proceed.')
+    expect(getMappingReadiness([]).canProceed).toBe(false)
   })
 
   it('blocks unmapped, invalid, and mapped-without-target rows with exact remaining counts', () => {
     const unmapped = getMappingReadiness(
-      createMappingRows(['beneficiary_id', 'unknown_column'], expectedHeaders),
+      createSmartMappingRows(
+        ['Beneficiary ID', 'unknown_column'],
+        [{ 'Beneficiary ID': 'BEN-1', unknown_column: 'x' }],
+        fields,
+      ),
     )
-    const invalid = getMappingReadiness(createMappingRows([''], expectedHeaders))
+    const invalid = getMappingReadiness(createQuestionnaireMappingRows(['']))
     const missingTarget = getMappingReadiness([
       {
         id: 'missing-target',
@@ -85,79 +169,5 @@ describe('collection import mapping readiness', () => {
     ])
 
     expect(readiness).toMatchObject({ canProceed: true, ignored: 1, resolved: 1, total: 1 })
-  })
-})
-
-describe('conservative approved-definition mapping V1 preview', () => {
-  it.each([
-    [' \tAGE\nAT\rREGISTRATION\f\v ', 'age_at_registration'],
-    ['Birth---Date', 'birth_date'],
-    ['ＡＧＥ　ＡＴ　ＲＥＧＩＳＴＲＡＴＩＯＮ', 'age_at_registration'],
-    ['É', 'É'],
-    ['é', 'é'],
-    ['Å', 'Å'],
-    ['å', 'å'],
-    ['\u0085Age\u0085', '\u0085age\u0085'],
-    ['\u2028Age\u2028', '\u2028age\u2028'],
-    ['Birth.Date', 'birth.date'],
-    ['', ''],
-    [' \t\n\r\f\v', ''],
-  ])('normalizes %j conservatively to %j', (source, expected) => {
-    expect(normalizeMappingNameV1(source)).toBe(expected)
-  })
-
-  it('preserves non-ASCII letter case and whitespace when matching approved names', () => {
-    const rows = createDefinitionMappingRows(
-      ['É', 'Å', '\u0085age', '\u2028age', 'é', 'å', 'age'],
-      [
-        { code: 'accent_e', label: 'é' },
-        { code: 'accent_a', label: 'å' },
-        { code: 'age', label: 'Age' },
-      ],
-    )
-    expect(rows.map((row) => row.targetField)).toEqual([
-      '',
-      '',
-      '',
-      '',
-      'accent_e',
-      'accent_a',
-      'age',
-    ])
-  })
-
-  it('keeps every ambiguous candidate claim in competing-source detection', () => {
-    const rows = createDefinitionMappingRows(
-      ['first', 'Shared label'],
-      [
-        { code: 'first', label: 'Shared label' },
-        { code: 'second', label: 'Shared label' },
-      ],
-    )
-    expect(rows.map((row) => row.status)).toEqual(['unmapped', 'unmapped'])
-    expect(rows.map((row) => row.targetField)).toEqual(['', ''])
-    expect(getMappingReadiness(rows).canProceed).toBe(false)
-  })
-
-  it('never lets an exact code override another approved field label', () => {
-    const rows = createDefinitionMappingRows(
-      ['first'],
-      [
-        { code: 'first', label: 'First field' },
-        { code: 'other', label: 'first' },
-      ],
-    )
-    expect(rows[0]).toMatchObject({ sourceColumn: 'first', targetField: '', status: 'unmapped' })
-  })
-
-  it('preserves original headers and distinct positional identities for unresolved sources', () => {
-    const headers = ['Age', 'Ａｇｅ', '', '', 'unknown_alias', 'birth.date']
-    const rows = createDefinitionMappingRows(headers, [{ code: 'age', label: 'Age' }])
-    expect(rows.map((row) => row.id)).toEqual(headers.map((_, index) => `mapping-${index}`))
-    expect(rows.map((row) => row.sourceColumn)).toEqual(headers)
-    expect(rows.map((row) => row.status)).toEqual(headers.map(() => 'unmapped'))
-    expect(rows.every((row) => row.targetField === '')).toBe(true)
-    expect(new Set(rows.map((row) => row.id)).size).toBe(headers.length)
-    expect(getMappingReadiness(rows)).toMatchObject({ canProceed: false, ignored: 0, unmapped: 6 })
   })
 })

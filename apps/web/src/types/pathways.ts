@@ -43,6 +43,7 @@ export interface ProjectSummary {
 export interface ProjectDetail extends ProjectSummary {
   description: string
   objectives?: string
+  /** Deprecated read-only legacy text (migration 0039); never displayed or sent. */
   implementingPartners?: string | null
   implementingPartnerRecords?: { id: string; name: string }[]
   projectBudget?: string | null
@@ -85,7 +86,6 @@ export interface CreateProjectInput {
   endDate?: string
   status: ProjectStatus
   description?: string
-  implementingPartners?: string
   implementingPartnerNames?: string[]
   sector?: string
   targetBeneficiaries?: number | null
@@ -110,6 +110,22 @@ export type StoredActivityStatus =
   | 'FOR_REVIEW'
   | 'COMPLETED'
   | 'CANCELLED'
+
+/**
+ * Server-computed, advisory flags for the calling user. The API re-checks every mutation,
+ * so these only decide which controls are shown. A missing flag set means none are shown.
+ */
+export interface ActivityCapabilities {
+  canEdit: boolean
+  canRecordProgress: boolean
+  canSubmitProof: boolean
+}
+
+/** Minimal projection from `GET /projects/:id/activities/assignable-officers`. */
+export interface AssignableProjectOfficer {
+  userId: string
+  displayName: string
+}
 
 export interface Activity {
   id: string
@@ -146,6 +162,7 @@ export interface Activity {
   submittedProof: ActivityProof[]
   updateNotes: ActivityUpdateNote[]
   updatedAt: string
+  capabilities?: ActivityCapabilities
 }
 
 /**
@@ -172,6 +189,7 @@ export type ActivitySummary = Pick<
   | 'targetBeneficiaries'
   | 'progress'
   | 'updatedAt'
+  | 'capabilities'
 >
 
 export interface ActivityProof {
@@ -841,6 +859,17 @@ export interface ImportBatchDefinition {
     revision: number
     targetField: { code: string; label: string } | null
     validationMessage: string | null
+    /** AUTO_SMART_V2: a field suggested for a PENDING column; confirmation needs imports.review. */
+    suggestedField?: { code: string; label: string } | null
+    matchScore?: number | null
+    matchReason?:
+      | 'EXACT'
+      | 'SYNONYM'
+      | 'SYNONYM_REVIEW'
+      | 'TOKEN_SET'
+      | 'TOKEN_OVERLAP'
+      | 'EDIT_DISTANCE'
+      | null
   }>
 }
 

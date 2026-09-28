@@ -57,6 +57,14 @@ export const formTypeLabels: Record<DigitalFormType, string> = {
   OTHER: 'Other',
 }
 
+/** Snake-case field code derived from free text, as the builder has always generated it. */
+export const fieldCodeFromText = (value: string) =>
+  value
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '_')
+    .replace(/^_+|_+$/g, '')
+
 const optionalNumber = (value: string) => (value.trim() === '' ? undefined : Number(value))
 const optionalString = (value: string) => (value.trim() === '' ? undefined : value.trim())
 
