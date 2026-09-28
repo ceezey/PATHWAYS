@@ -30,7 +30,7 @@ import { useCurrentRole } from '@/hooks/use-current-role'
 import { useDisplayLabels } from '@/hooks/use-display-labels'
 import { can } from '@/lib/rbac/can'
 import { principalHasAtomicPermission } from '@/lib/rbac/route-access'
-import { downloadCoreArtifact } from '@/lib/services/core-feature-client'
+import { coreDataClient, downloadCoreArtifact } from '@/lib/services/core-feature-client'
 import { descriptiveAnalyticsSearch, pathwaysClient } from '@/lib/services/pathways-client'
 import type { ActivitySummary, ProjectIndicator, ProjectSummary } from '@/types/pathways'
 import {
@@ -90,6 +90,9 @@ export const AnalyticsDashboard = () => {
   const canReadDescriptive = principalHasAtomicPermission(profile, 'analytics.descriptive.read')
   const canExportAnalytics =
     canReadDescriptive && principalHasAtomicPermission(profile, 'analytics.export')
+  const canReadBudgetUtilization =
+    principalHasAtomicPermission(profile, 'budgets.read') &&
+    principalHasAtomicPermission(profile, 'expenses.read')
   const [descriptive, setDescriptive] = useState<DescriptiveAnalytics | null>(null)
   const [descriptiveLoading, setDescriptiveLoading] = useState(false)
   const [descriptiveError, setDescriptiveError] = useState('')
@@ -105,6 +108,14 @@ export const AnalyticsDashboard = () => {
   const [monitoring, setMonitoring] = useState<MonitoringDashboard | null>(null)
   const [saddd, setSaddd] = useState<SadddDashboard | null>(null)
   const [activities, setActivities] = useState<ActivitySummary[]>([])
+  const [budgetTotals, setBudgetTotals] = useState<{
+    planned: number
+    approved: number
+    categories: number
+  } | null>(null)
+  const [budgetLoading, setBudgetLoading] = useState(false)
+  const [budgetError, setBudgetError] = useState('')
+  const [budgetLoadAttempt, setBudgetLoadAttempt] = useState(0)
   const [projectsLoading, setProjectsLoading] = useState(true)
   const [projectDataLoading, setProjectDataLoading] = useState(false)
   const [monitoringLoading, setMonitoringLoading] = useState(false)
@@ -226,6 +237,40 @@ export const AnalyticsDashboard = () => {
         : (reportingPeriods[0]?.value ?? ''),
     )
   }, [reportingPeriods])
+
+  useEffect(() => {
+    if (!projectId || !selectedProject || !canReadBudgetUtilization) {
+      setBudgetLoading(false)
+      setBudgetTotals(null)
+      setBudgetError('')
+      return
+    }
+    void budgetLoadAttempt
+    let active = true
+    setBudgetLoading(true)
+    setBudgetError('')
+    Promise.all([coreDataClient.budgets(projectId), coreDataClient.expenses(projectId)])
+      .then(([budgets, expenses]) => {
+        if (!active) return
+        const planned = budgets.reduce((sum, row) => sum + Number(row.plannedBudget), 0)
+        const approved = expenses
+          .filter((row) => row.status === 'APPROVED')
+          .reduce((sum, row) => sum + Number(row.amount), 0)
+        setBudgetTotals({ planned, approved, categories: budgets.length })
+      })
+      .catch((caught: unknown) => {
+        if (active)
+          setBudgetError(
+            caught instanceof Error ? caught.message : 'Budget utilization is unavailable.',
+          )
+      })
+      .finally(() => {
+        if (active) setBudgetLoading(false)
+      })
+    return () => {
+      active = false
+    }
+  }, [budgetLoadAttempt, canReadBudgetUtilization, projectId, selectedProject])
 
   useEffect(() => {
     if (!projectId || !selectedProject) {
@@ -361,6 +406,8 @@ export const AnalyticsDashboard = () => {
     setSaddd(null)
     setDescriptive(null)
     setDescriptiveError('')
+    setBudgetTotals(null)
+    setBudgetError('')
     setProjectDataLoading(true)
     setMonitoringLoading(false)
     setSadddLoading(false)
@@ -369,6 +416,10 @@ export const AnalyticsDashboard = () => {
     setSadddError('')
   }
 
+  const budgetUtilizationPercent =
+    budgetTotals && budgetTotals.planned > 0
+      ? Math.round((budgetTotals.approved / budgetTotals.planned) * 1000) / 10
+      : null
   const mapSelected = visualizationType === 'map'
   const mapDataLoading = projectDataLoading || monitoringLoading
   const mapDataError = projectDataError || monitoringError
@@ -697,11 +748,35 @@ export const AnalyticsDashboard = () => {
               }
             />
             <MetricCard
-              description="Budget utilization is unavailable in the current API."
+              description={
+                !canReadBudgetUtilization
+                  ? 'Budget and expense permissions are required for this metric.'
+                  : budgetError
+                    ? budgetError
+                    : budgetTotals && budgetTotals.categories === 0
+                      ? 'No budget allocations are recorded for this project.'
+                      : 'Approved expenses against planned budget allocations for this project.'
+              }
               icon={CircleDollarSign}
               label="Budget utilization"
-              tone="info"
-              value="Unavailable"
+              tone={
+                budgetUtilizationPercent === null
+                  ? 'info'
+                  : budgetUtilizationPercent > 100
+                    ? 'warning'
+                    : 'success'
+              }
+              value={
+                !canReadBudgetUtilization
+                  ? 'Unavailable'
+                  : budgetLoading
+                    ? 'Loading...'
+                    : budgetError
+                      ? 'Unavailable'
+                      : budgetUtilizationPercent !== null
+                        ? `${budgetUtilizationPercent}%`
+                        : 'None yet'
+              }
             />
             <MetricCard
               description="Beneficiary reach is unavailable as a distinct server metric for this view."
@@ -833,7 +908,50 @@ export const AnalyticsDashboard = () => {
             </ChartPanel>
             <div className="grid gap-6 xl:grid-cols-2">
               <ChartPanel title="Budget utilization">
-                <UnavailableChart description="Budget utilization is unavailable in the current API." />
+                {!canReadBudgetUtilization ? (
+                  <UnavailableChart description="Budget and expense read permissions are required for this chart." />
+                ) : budgetLoading ? (
+                  <AsyncState
+                    status="loading"
+                    title="Loading budget utilization"
+                    description="Verifying current budget and expense access."
+                    icon={CircleDollarSign}
+                  />
+                ) : budgetError ? (
+                  <AsyncState
+                    status="error"
+                    title="Budget utilization unavailable"
+                    description={budgetError}
+                    icon={AlertTriangle}
+                    onRetry={() => setBudgetLoadAttempt((value) => value + 1)}
+                  />
+                ) : budgetTotals && budgetTotals.categories > 0 ? (
+                  <dl className="grid gap-3 text-sm sm:grid-cols-3">
+                    <div>
+                      <dt className="text-muted-foreground">Planned budget</dt>
+                      <dd className="mt-1 font-medium text-foreground tabular-nums">
+                        PHP {budgetTotals.planned.toLocaleString()}
+                      </dd>
+                    </div>
+                    <div>
+                      <dt className="text-muted-foreground">Approved expenses</dt>
+                      <dd className="mt-1 font-medium text-foreground tabular-nums">
+                        PHP {budgetTotals.approved.toLocaleString()}
+                      </dd>
+                    </div>
+                    <div>
+                      <dt className="text-muted-foreground">Utilization</dt>
+                      <dd className="mt-1 font-medium text-foreground tabular-nums">
+                        {budgetUtilizationPercent !== null ? `${budgetUtilizationPercent}%` : 'None yet'}
+                      </dd>
+                    </div>
+                  </dl>
+                ) : (
+                  <UnavailableChart
+                    description="Record a budget allocation before utilization can be shown."
+                    title="None yet"
+                  />
+                )}
               </ChartPanel>
               <ChartPanel title="Rule-Based Alerts">
                 <UnavailableChart description="Rule-Based Alerts are unavailable in the current API." />

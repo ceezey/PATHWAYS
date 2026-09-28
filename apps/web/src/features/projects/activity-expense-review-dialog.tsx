@@ -8,6 +8,10 @@ import { Button } from '@/components/ui/button'
 import { Dialog, DialogFooter } from '@/components/ui/dialog'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
+import { useCurrentRole } from '@/hooks/use-current-role'
+import { principalHasAtomicPermission } from '@/lib/rbac/route-access'
+import { coreDataClient } from '@/lib/services/core-feature-client'
+
 export type PendingExpense = {
   id: string
   activityId: string
@@ -17,6 +21,8 @@ export type PendingExpense = {
   date: string
   description: string
   status: 'For Verification'
+  updatedAt: string
+  receiptEvidenceId: string | null
 }
 
 const peso = (amount: number) =>
@@ -25,10 +31,14 @@ const peso = (amount: number) =>
 export function ActivityExpenseReviewDialog({
   expense,
   onOpenChange,
+  onReviewed,
 }: {
   expense: PendingExpense | null
   onOpenChange: (open: boolean) => void
+  onReviewed: () => void
 }) {
+  const { profile } = useCurrentRole()
+  const canVerify = principalHasAtomicPermission(profile, 'expenses.verify')
   const [reason, setReason] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState('')
@@ -41,12 +51,34 @@ export function ActivityExpenseReviewDialog({
 
   if (!expense) return null
 
-  const submit = (verified: boolean) => {
-    if (submitting) return
+  const submit = async (verified: boolean) => {
+    if (submitting || !canVerify) return
+    if (!verified && !reason.trim()) {
+      setError('A correction reason is required to return this expense.')
+      return
+    }
+    if (!expense.receiptEvidenceId) {
+      setError('A private receipt must be attached before this expense can be reviewed.')
+      return
+    }
     setSubmitting(true)
     setError('')
-    setError('Expense review is unavailable until a server-backed expense service is available.')
-    setSubmitting(false)
+    try {
+      await coreDataClient.reviewExpense(expense.projectId, expense.id, {
+        expectedUpdatedAt: expense.updatedAt,
+        stage: 'VERIFY',
+        decision: verified ? 'VERIFY' : 'REJECT',
+        ...(verified ? {} : { reason: reason.trim() }),
+      })
+      onReviewed()
+      onOpenChange(false)
+    } catch (submitError) {
+      setError(
+        submitError instanceof Error ? submitError.message : 'Expense review is unavailable.',
+      )
+    } finally {
+      setSubmitting(false)
+    }
   }
 
   return (
@@ -77,6 +109,11 @@ export function ActivityExpenseReviewDialog({
               </div>
             </dl>
           </div>
+          {!canVerify ? (
+            <p className="text-sm font-medium text-destructive" role="alert">
+              Expense verification is outside your current permissions.
+            </p>
+          ) : null}
           <div className="space-y-2">
             <Label htmlFor="expense-return-reason">Correction reason</Label>
             <Textarea
@@ -100,8 +137,8 @@ export function ActivityExpenseReviewDialog({
             </Button>
             <Button
               className="gap-2"
-              disabled={submitting || !reason.trim()}
-              onClick={() => submit(false)}
+              disabled={submitting || !canVerify || !reason.trim()}
+              onClick={() => void submit(false)}
               type="button"
               variant="outline"
             >
@@ -110,8 +147,8 @@ export function ActivityExpenseReviewDialog({
             </Button>
             <Button
               className="gap-2"
-              disabled={submitting}
-              onClick={() => submit(true)}
+              disabled={submitting || !canVerify}
+              onClick={() => void submit(true)}
               type="button"
             >
               {submitting ? (

@@ -14,6 +14,10 @@ const api = vi.hoisted(() => ({
   getDescriptiveAnalytics: vi.fn(),
 }))
 const download = vi.hoisted(() => vi.fn())
+const finance = vi.hoisted(() => ({
+  budgets: vi.fn(),
+  expenses: vi.fn(),
+}))
 const coverageMap = vi.hoisted(() => ({
   instanceCount: 0,
   featureCollections: [] as unknown[],
@@ -32,7 +36,13 @@ vi.mock('@/lib/services/pathways-client', () => ({
   descriptiveAnalyticsSearch: (query: Record<string, string>) =>
     `?${new URLSearchParams(query).toString()}`,
 }))
-vi.mock('@/lib/services/core-feature-client', () => ({ downloadCoreArtifact: download }))
+vi.mock('@/lib/services/core-feature-client', () => ({
+  downloadCoreArtifact: download,
+  coreDataClient: {
+    budgets: (...args: unknown[]) => finance.budgets(...args),
+    expenses: (...args: unknown[]) => finance.expenses(...args),
+  },
+}))
 vi.mock('@/hooks/use-current-role', () => ({
   useCurrentRole: () => currentAccess,
 }))
@@ -153,6 +163,17 @@ const kpiCard = () =>
     .map((node) => node.parentElement?.parentElement?.textContent ?? '')
     .join(' | ')
 
+// The MetricCard description only renders inside its info tooltip on hover/focus, so
+// permission-gating assertions read the always-visible label + value text instead.
+// "Budget utilization" also labels the ChartPanel further down; only the MetricCard
+// label sits two ancestors above its value, matching kpiCard's structure.
+const budgetUtilizationCard = () =>
+  screen
+    .getAllByText('Budget utilization')
+    .map((node) => node.parentElement?.parentElement?.textContent ?? '')
+    .filter((text) => text.includes('PHP') || text.includes('%') || text.includes('Unavailable'))
+    .join(' | ')
+
 const monitoring = {
   indicators: [],
   participationRecords: { value: null, state: 'MISSING', reason: 'MISSING' },
@@ -198,6 +219,8 @@ describe('Analytics dashboard request dependencies', () => {
       age: [],
       disability: [],
     })
+    finance.budgets.mockReset().mockResolvedValue([])
+    finance.expenses.mockReset().mockResolvedValue([])
   })
 
   afterEach(() => {
@@ -269,6 +292,61 @@ describe('Analytics dashboard request dependencies', () => {
     ).toBe(false)
     expect(screen.getByTestId('coverage-map').getAttribute('data-instance')).toBe(mapInstance)
     expect(coverageMap.featureCollections.at(-1)).not.toBe(firstFeatureCollection)
+  })
+
+  it('computes budget utilization from planned budgets and approved expenses', async () => {
+    // Monitoring and Evaluation Officer never holds budgets.read in the authorization policy;
+    // Program Manager holds both budgets.read and expenses.read.
+    currentAccess.role = 'Program Manager'
+    currentAccess.profile.roles = ['PROGRAM_MANAGER']
+    currentAccess.profile.permissions = [
+      ...currentAccess.profile.permissions,
+      'budgets.read',
+      'expenses.read',
+    ]
+    finance.budgets.mockResolvedValue([
+      { id: 'budget-1', plannedBudget: '1000.00' },
+      { id: 'budget-2', plannedBudget: '500.00' },
+    ])
+    finance.expenses.mockResolvedValue([
+      { id: 'expense-1', budgetRecordId: 'budget-1', amount: '450.00', status: 'APPROVED' },
+      { id: 'expense-2', budgetRecordId: 'budget-1', amount: '900.00', status: 'PENDING' },
+    ])
+
+    render(<AnalyticsDashboard />)
+
+    await waitFor(() => expect(finance.budgets).toHaveBeenCalledWith('project-a'))
+    expect(finance.expenses).toHaveBeenCalledWith('project-a')
+    await waitFor(() => expect(screen.getAllByText('30%').length).toBeGreaterThan(0))
+    expect(screen.getByText('PHP 1,500')).toBeTruthy()
+    expect(screen.getByText('PHP 450')).toBeTruthy()
+  })
+
+  it('hides budget utilization when the budgets or expenses read permission is absent', async () => {
+    render(<AnalyticsDashboard />)
+
+    await screen.findAllByText('KPI achievement')
+    await waitFor(() => expect(budgetUtilizationCard()).toContain('Unavailable'))
+    expect(finance.budgets).not.toHaveBeenCalled()
+    expect(finance.expenses).not.toHaveBeenCalled()
+  })
+
+  it('surfaces a budget utilization server error instead of a false result', async () => {
+    currentAccess.role = 'Program Manager'
+    currentAccess.profile.roles = ['PROGRAM_MANAGER']
+    currentAccess.profile.permissions = [
+      ...currentAccess.profile.permissions,
+      'budgets.read',
+      'expenses.read',
+    ]
+    finance.budgets.mockRejectedValue(new Error('Budget utilization is unavailable.'))
+
+    render(<AnalyticsDashboard />)
+
+    await waitFor(() =>
+      expect(screen.getByText('Budget utilization unavailable')).toBeTruthy(),
+    )
+    expect(screen.getAllByText('Budget utilization is unavailable.').length).toBeGreaterThan(0)
   })
 
   it('renders the Project-scoped empty map without requiring a reporting period', async () => {
