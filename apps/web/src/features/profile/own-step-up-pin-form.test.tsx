@@ -142,4 +142,46 @@ describe('Beneficiary access PIN in My Profile', () => {
     expect(screen.getByLabelText('Authenticator code')).toBeTruthy()
     expect(screen.queryByLabelText('Current PIN')).toBeNull()
   })
+
+  it('keeps one live region and marks, describes and focuses the invalid field', async () => {
+    state.status.mockResolvedValue(status('SET'))
+    render(<OwnStepUpPinForm />)
+    const live = screen.getByRole('status')
+    expect(live.getAttribute('aria-live')).toBe('polite')
+    await screen.findByLabelText('Current PIN')
+    expect(screen.getByRole('status')).toBe(live)
+
+    fill('Current PIN', '482915')
+    fill('New PIN', '529317')
+    fill('Confirm new PIN', '529318')
+    fireEvent.click(screen.getByRole('button', { name: 'Change PIN' }))
+    const confirm = screen.getByLabelText('Confirm new PIN') as HTMLInputElement
+    await waitFor(() => expect(document.activeElement).toBe(confirm))
+    expect(confirm.getAttribute('aria-invalid')).toBe('true')
+    expect(confirm.getAttribute('aria-describedby')).toBe('own-pin-notice')
+    expect(confirm.value).toBe('')
+    expect((screen.getByLabelText('New PIN') as HTMLInputElement).value).toBe('529317')
+    expect(screen.getByRole('status')).toBe(live)
+    expect(live.textContent).toBe('The new PINs do not match.')
+
+    fill('Confirm new PIN', '529317')
+    state.change.mockRejectedValueOnce(new BeneficiaryStepUpError('Incorrect PIN', 'rejected'))
+    fireEvent.click(screen.getByRole('button', { name: 'Change PIN' }))
+    const current = screen.getByLabelText('Current PIN') as HTMLInputElement
+    await waitFor(() => expect(document.activeElement).toBe(current))
+    expect(current.getAttribute('aria-invalid')).toBe('true')
+    expect(live.textContent).toBe('Incorrect PIN')
+    // A submitted request clears every secret field.
+    expect(values().every((value) => value === '')).toBe(true)
+    expect(confirm.getAttribute('aria-invalid')).toBeNull()
+  })
+
+  it('gives the proof choices a 44px hit area', async () => {
+    state.status.mockResolvedValue(status('SET'))
+    render(<OwnStepUpPinForm />)
+    for (const name of ['Use current PIN', 'Use authenticator code']) {
+      const radio = await screen.findByRole('radio', { name })
+      expect(radio.closest('label')?.className).toContain('min-h-11')
+    }
+  })
 })

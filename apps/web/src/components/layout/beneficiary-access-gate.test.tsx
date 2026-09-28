@@ -24,7 +24,18 @@ vi.mock('@/components/pathways/dialog-shell', () => ({
   ),
 }))
 vi.mock('@/components/ui/dialog', () => ({
-  Dialog: ({ children }: { children: ReactNode }) => <div>{children}</div>,
+  // Exposes the Radix dismissal path (Escape, overlay or close control) as a button.
+  Dialog: ({
+    children,
+    onOpenChange,
+  }: { children: ReactNode; onOpenChange?: (open: boolean) => void }) => (
+    <div>
+      <button type="button" onClick={() => onOpenChange?.(false)}>
+        Dismiss dialog
+      </button>
+      {children}
+    </div>
+  ),
 }))
 vi.mock('@/lib/auth/beneficiary-step-up', async () => {
   const actual = await vi.importActual<typeof import('@/lib/auth/beneficiary-step-up')>(
@@ -282,5 +293,70 @@ describe('BeneficiaryAccessGate PIN fallback (cr-pathways-beneficiary-step-up-pi
     expect(mocks.setPin).toHaveBeenCalledExactlyOnceWith('482915')
     expect(window.sessionStorage.length).toBe(0)
     expect(window.localStorage.length).toBe(0)
+  })
+
+  it('treats dismissing the "Set a PIN" offer as skip: content opens, no navigation', async () => {
+    mocks.getStatus.mockResolvedValue(stale('NONE'))
+    mocks.verify.mockResolvedValue(totpFresh('NONE'))
+    render(<BeneficiaryAccessGate preflight>{content}</BeneficiaryAccessGate>)
+    fireEvent.change(await screen.findByRole('textbox', { name: 'Authenticator code' }), {
+      target: { value: '123456' },
+    })
+    fireEvent.click(verifyButton())
+    expect(await screen.findByText('Set a beneficiary access PIN')).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: 'Dismiss dialog' }))
+    expect(await screen.findByText('Scoped beneficiary content')).toBeTruthy()
+    expect(mocks.routerPush).not.toHaveBeenCalled()
+    expect(mocks.setPin).not.toHaveBeenCalled()
+  })
+
+  it('still leaves to the dashboard when the blocking verification prompt is dismissed', async () => {
+    render(<BeneficiaryAccessGate preflight>{content}</BeneficiaryAccessGate>)
+    await screen.findByText('Verify beneficiary module access')
+    fireEvent.click(screen.getByRole('button', { name: 'Dismiss dialog' }))
+    expect(mocks.routerPush).toHaveBeenCalledWith('/dashboard')
+  })
+
+  it('moves Enter in New PIN to the empty confirmation instead of submitting', async () => {
+    mocks.getStatus.mockResolvedValue(stale('NONE'))
+    mocks.verify.mockResolvedValue(totpFresh('NONE'))
+    render(<BeneficiaryAccessGate preflight>{content}</BeneficiaryAccessGate>)
+    fireEvent.change(await screen.findByRole('textbox', { name: 'Authenticator code' }), {
+      target: { value: '123456' },
+    })
+    fireEvent.click(verifyButton())
+    const newPin = (await screen.findByLabelText('New PIN')) as HTMLInputElement
+    fireEvent.change(newPin, { target: { value: '482915' } })
+    fireEvent.keyDown(newPin, { key: 'Enter' })
+    expect(document.activeElement).toBe(screen.getByLabelText('Confirm new PIN'))
+    expect((screen.getByLabelText('New PIN') as HTMLInputElement).value).toBe('482915')
+    expect(screen.queryByText('The PINs do not match. Enter them again.')).toBeNull()
+    fireEvent.change(screen.getByLabelText('Confirm new PIN'), { target: { value: '482915' } })
+    fireEvent.keyDown(screen.getByLabelText('Confirm new PIN'), { key: 'Enter' })
+    expect(await screen.findByText('Scoped beneficiary content')).toBeTruthy()
+    expect(mocks.setPin).toHaveBeenCalledExactlyOnceWith('482915')
+  })
+
+  it('returns to the authenticator when the PIN status cannot be refreshed', async () => {
+    render(<BeneficiaryAccessGate preflight={false}>{content}</BeneficiaryAccessGate>)
+    act(() => {
+      window.dispatchEvent(new Event(STEP_UP_REQUIRED_EVENT))
+    })
+    fireEvent.click(await screen.findByRole('button', { name: 'Use PIN' }))
+    let fail!: (error: Error) => void
+    mocks.getStatus.mockReturnValueOnce(
+      new Promise((_resolve, reject) => {
+        fail = reject
+      }),
+    )
+    act(() => {
+      window.dispatchEvent(new Event(STEP_UP_REQUIRED_EVENT))
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Use PIN' }))
+    expect(screen.getByLabelText('Beneficiary access PIN')).toBeTruthy()
+    await act(async () => fail(new Error('outage')))
+    expect(screen.queryByRole('button', { name: 'Use PIN' })).toBeNull()
+    expect(codeInput()).toBeTruthy()
+    expect(screen.queryByLabelText('Beneficiary access PIN')).toBeNull()
   })
 })

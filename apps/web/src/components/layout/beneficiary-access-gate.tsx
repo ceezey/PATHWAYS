@@ -63,6 +63,7 @@ export const BeneficiaryAccessGate = ({
   const verifyButtonRef = useRef<HTMLButtonElement>(null)
   const codeInputRef = useRef<HTMLInputElement>(null)
   const pinInputRef = useRef<HTMLInputElement>(null)
+  const pinConfirmRef = useRef<HTMLInputElement>(null)
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: statusRetry re-runs the server check on demand.
   useEffect(() => {
@@ -96,7 +97,13 @@ export const BeneficiaryAccessGate = ({
       // PIN availability is advisory UI only; the authenticator is always offered.
       getBeneficiaryStepUpStatus()
         .then((result) => setPinState(result.pinState))
-        .catch(() => setPinState('NONE'))
+        .catch(() => {
+          // Without a confirmed PIN state, fall back to the always-available authenticator.
+          setPinState('NONE')
+          setPin('')
+          setMethod('totp')
+          setMessage(PROMPT)
+        })
     }
     window.addEventListener(STEP_UP_REQUIRED_EVENT, onRequired)
     return () => window.removeEventListener(STEP_UP_REQUIRED_EVENT, onRequired)
@@ -275,7 +282,7 @@ export const BeneficiaryAccessGate = ({
       <Label htmlFor={id}>{label}</Label>
       <Input
         id={id}
-        ref={id === 'beneficiary-step-up-pin-confirm' ? undefined : pinInputRef}
+        ref={id === 'beneficiary-step-up-pin-confirm' ? pinConfirmRef : pinInputRef}
         autoComplete="off"
         autoFocus={id !== 'beneficiary-step-up-pin-confirm'}
         inputMode="numeric"
@@ -286,7 +293,10 @@ export const BeneficiaryAccessGate = ({
         onKeyDown={(event) => {
           if (event.key === 'Enter') {
             event.preventDefault()
-            void (method === 'offer' ? savePin() : verifyPin())
+            // In the offer, Enter in New PIN moves to the confirmation until it is filled.
+            if (method === 'offer' && id !== 'beneficiary-step-up-pin-confirm' && !pinConfirm) {
+              pinConfirmRef.current?.focus()
+            } else void (method === 'offer' ? savePin() : verifyPin())
           }
         }}
       />
@@ -294,7 +304,7 @@ export const BeneficiaryAccessGate = ({
   )
 
   const prompt = (
-    <Dialog open onOpenChange={(open) => !open && leave()}>
+    <Dialog open onOpenChange={(open) => !open && (method === 'offer' ? enter() : leave())}>
       <DialogShell
         title={
           method === 'offer' ? 'Set a beneficiary access PIN' : 'Verify beneficiary module access'
