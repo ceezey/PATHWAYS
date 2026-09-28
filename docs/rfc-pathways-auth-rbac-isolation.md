@@ -1,8 +1,8 @@
 # RFC: Authentication, RBAC, Organization and Project Isolation
 
 **Status:** Locked
-**Last reconciled:** 2026-09-26
-**Decision:** [Revised RBAC Change Record](cr-pathways-revised-rbac-baseline.md)
+**Last reconciled:** 2026-09-28
+**Decision:** [Revised RBAC Change Record](cr-pathways-revised-rbac-baseline.md); amended by [Admin read access](cr-pathways-admin-read-access.md)
 
 ## 1. Authority and Source
 
@@ -43,14 +43,14 @@ Admin = System Administrator; Program = Program Manager; Grant = Grant Manager; 
 |---|---|
 | `projects.read` | Admin, PO, M&E, PM, Program, Grant |
 | `projects.create` | PM |
-| `activities.read` | PO, M&E, PM |
+| `activities.read` | Admin, PO, M&E, PM |
 | `activities.create` | PO, PM |
 | `activities.update` | PM |
 | `activities.proof.submit` | PO, PM |
 | `journeys.read` | Admin, PO, M&E, PM |
 | `journeys.manage` | Admin, M&E, PM |
 | `participation.record` | PO, M&E, PM |
-| `budgets.read` | PM, Program, Grant |
+| `budgets.read` | Admin, PM, Program, Grant |
 | `budgets.create` | PM, Program, Grant |
 | `budgets.update` | PM, Program, Grant |
 | `expenses.read` | M&E, PM, Program, Grant |
@@ -143,7 +143,7 @@ Admin = System Administrator; Program = Program Manager; Grant = Grant Manager; 
 ## 4. Supporting Operations and Automatic Audit
 
 - All six roles have scoped project viewing. Shared responses omit beneficiary, assessment, financial, and other separately restricted tab data before retrieval.
-- `activities.context.read` gives Admin scoped activity identifiers, titles, status, and stage identifiers for journey/indicator configuration. It does not grant activity screens, proof notes, assignment identities, or budgets. Detail roles retain `activities.read`.
+- `activities.context.read` gives Admin scoped activity identifiers, titles, status, and stage identifiers for journey/indicator configuration. On its own it does not grant activity screens, proof notes, assignment identities, or budgets. Detail roles, and Admin under the [admin read access amendment](cr-pathways-admin-read-access.md), hold `activities.read`.
 - Admin/M&E manage blank forms, create/edit/export forms, and import/extend templates. PO reads definitions to generate or encode/import collected data. `forms.templates.import` is distinct from collected-data import and dataset ingestion. Blank-form grants never authorize raw responses.
 - Admin/M&E/PM configure journeys. Admin receives a scoped event-existence boolean to preserve freeze guards without retrieving beneficiary history. Journey events and participation detail additionally require beneficiary-record access.
 - Admin normalization may read only its own imported submissions/values needed by processing, not arbitrary assessment records. Encoding and assessment-detail roles retain separately granted response access.
@@ -174,7 +174,7 @@ The approved 0015 CRLF checksum explanation and 0020 exception remain unchanged.
 
 A revised CSV or explicit developer RBAC decision triggers the registered Change Record workflow. Record the new source filename and SHA-256 when applicable, compare each changed action and scope with this matrix, and identify affected supporting reads and privacy boundaries. Reconcile the canonical matrix, reference data, API checks, database policies/functions, frontend navigation/action visibility, dependent documents, and relevant tests together. Preserve exact archived/applied bytes and ledger checksums; corrections use forward migrations. Consolidation requires an explicit approved Change Record. Re-lock the revised contract and mark its Change Record Applied only after required enforcement and verification match the approved revision. Missing handlers remain deferred unless separately authorized.
 
-The Budget tab requires `budgets.read` (PM/Program/Grant). Assigned PO/M&E expense logging/review permissions authorize their respective operations without granting that tab or budget data; separate missing financial UI work remains deferred.
+The Budget tab requires `budgets.read` (Admin/PM/Program/Grant; Admin read-only). Assigned PO/M&E expense logging/review permissions authorize their respective operations without granting that tab or budget data; separate missing financial UI work remains deferred.
 
 ## Core P1 supporting authority
 
