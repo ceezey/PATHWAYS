@@ -56,7 +56,7 @@ A-01 and A-02 are material. A-03 to A-05 can be closed by deferral notes or smal
 
 ## 5. Disposition
 
-On 2026-09-28 the developer dispositioned every finding in the [RBAC audit closure Change Record](cr-pathways-rbac-audit-closure.md). A-01, A-02 (except the deferred escalation and dashboard-customization actions), A-03 and A-05 are scheduled for implementation. A-04 and A-06 are closed by auth RFC documentation.
+On 2026-09-28 the developer dispositioned every finding in the [RBAC audit closure Change Record](cr-pathways-rbac-audit-closure.md). A-01, A-02 (except the deferred escalation, dashboard-customization and `forms.import` actions), A-03 and A-05 are scheduled for implementation. A-04 and A-06 are closed by auth RFC documentation.
 
 ## 6. Summary
 

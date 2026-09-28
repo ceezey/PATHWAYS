@@ -82,8 +82,8 @@ Admin = System Administrator; Program = Program Manager; Grant = Grant Manager; 
 | `beneficiaries.records.archive` | Denied |
 | `beneficiaries.aggregates.read` | Admin, PO, M&E, PM, Program, Grant |
 | `recommendations.outcome.record` | Admin, PO, M&E, PM, Program, Grant |
-| `evaluations.submit` | Denied |
-| `evaluations.approve` | Denied |
+| `evaluations.submit` | Reserved; granted to no role |
+| `evaluations.approve` | Reserved; granted to no role |
 | `public.preview` | Admin, PM, Program, Grant |
 | `public.publish` | Admin, PM, Program, Grant |
 | `evidence.review` | M&E |
@@ -112,8 +112,8 @@ Admin = System Administrator; Program = Program Manager; Grant = Grant Manager; 
 | `activities.complete` | PO, M&E, PM |
 | `expenses.evidence.submit` | PO, M&E, PM |
 | `indicators.read` | Admin, M&E, PM |
-| `evaluations.archive` | Denied |
-| `evaluations.signoff` | Denied |
+| `evaluations.archive` | Reserved; granted to no role |
+| `evaluations.signoff` | Reserved; granted to no role |
 | `assessments.read` | Admin, PO, M&E, PM, Program, Grant |
 | `public.approve` | Admin, PM, Program, Grant |
 | `forms.generate` | Admin, PO, M&E |
@@ -130,7 +130,7 @@ Admin = System Administrator; Program = Program Manager; Grant = Grant Manager; 
 | `profile.manage` | Admin, PO, M&E, PM, Program, Grant |
 | `expenses.signoff` | Program, Grant |
 | `programs.create` | Denied |
-| `settings.labels.manage` | Denied |
+| `settings.labels.manage` | Reserved; granted to no role |
 | `assessments.detail.read` | PO, M&E, PM |
 | `forms.archive` | Denied |
 | `indicators.archive` | Denied |
@@ -166,7 +166,9 @@ Financial evidence retains M&E verification, PM approval, then Program/Grant fin
 
 Missing escalation handlers, generic activity-progress handlers, finance completion/final-sign-off, evaluation-weight UI/API, reporting/generation/export, alert/recommendation actions, publishing, blank-form generation/export or dedicated template-import handlers, audit viewing, backup/recovery, and own-profile writes remain deferred wherever absent.
 
-**Reserved supporting permissions.** `evaluations.submit`, `evaluations.approve`, `evaluations.signoff`, `evaluations.archive`, `settings.read` and `settings.labels.manage` stay defined but back no API endpoint. They are reserved for future supporting operations and grant nothing on their own ([RBAC audit closure](cr-pathways-rbac-audit-closure.md) A-04). Existing handlers are aligned but not certified as usable core features. Identity reconciliation, standalone form/indicator archival, program creation, label editing, and milestone administration remain denied. Existing UI design and target-beneficiary fields remain. The [approved project target-goal retirement](cr-pathways-retire-project-target-goal.md) withdraws live benchmark inputs, outputs and comparisons while retaining historical storage; implementation/verification remain pending. It changes no human permission or scope boundary.
+**Reserved supporting permissions.** `evaluations.submit`, `evaluations.approve`, `evaluations.signoff`, `evaluations.archive`, `settings.read` and `settings.labels.manage` stay defined but back no API endpoint. They are reserved for future supporting operations. `evaluations.submit`, `.approve`, `.signoff`, `.archive` and `settings.labels.manage` are currently granted to no role; `settings.read` keeps its listed grants but gates no endpoint ([RBAC audit closure](cr-pathways-rbac-audit-closure.md) A-04).
+
+Existing handlers are aligned but not certified as usable core features. Identity reconciliation, standalone form/indicator archival, program creation, label editing, and milestone administration remain denied. Existing UI design and target-beneficiary fields remain. The [approved project target-goal retirement](cr-pathways-retire-project-target-goal.md) withdraws live benchmark inputs, outputs and comparisons while retaining historical storage; implementation/verification remain pending. It changes no human permission or scope boundary.
 
 ## 6. Migration and Verification Contract
 
