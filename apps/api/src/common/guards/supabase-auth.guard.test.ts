@@ -78,6 +78,12 @@ class BoundaryTestController {
     return { detail: true }
   }
 
+  @Get('beneficiary-aggregate')
+  @RequirePermission('beneficiaries.aggregates.read')
+  beneficiaryAggregate() {
+    return { aggregate: true }
+  }
+
   @Get('business')
   business() {
     return { forbiddenBusinessData: true }
@@ -624,6 +630,40 @@ describe('Beneficiary step-up (cr-pathways-beneficiary-step-up)', () => {
       ).data
       expect(data.action).toBe('BENEFICIARY_STEP_UP_REQUIRED')
       expect(data.changes.reason).toBe(reason)
+    },
+  )
+
+  it('checks permission before step-up so an unpermitted role never reaches the prompt', async () => {
+    tokens.verifyCurrent.mockResolvedValue(stepUpSession(now() - 901))
+    const denied = await get('/boundary-test/beneficiary-detail-unpermitted', headers)
+    expect(denied.status).toBe(403)
+    expect(denied.body.code).toBeUndefined()
+    expect(denied.body.message).toBe('Required application permission is missing.')
+    expect(beneficiaryHandler).not.toHaveBeenCalled()
+    expect(auditCreate).not.toHaveBeenCalled()
+  })
+
+  it.each(['PROGRAM_MANAGER', 'GRANT_MANAGER'] as const)(
+    'keeps aggregate-only %s outside step-up: aggregate admitted, detail denied on permission',
+    async (role) => {
+      const aggregateOnly: ApplicationIdentity = {
+        ...profile,
+        roles: [role],
+        permissions: ['projects.read', 'beneficiaries.aggregates.read'],
+      }
+      profiles.resolveWithSession.mockImplementation(async () => aggregateOnly)
+      for (const mfaVerifiedAt of [now() - 901, undefined]) {
+        tokens.verifyCurrent.mockResolvedValue(stepUpSession(mfaVerifiedAt))
+        const aggregate = await get('/boundary-test/beneficiary-aggregate', headers)
+        expect(aggregate.status).toBe(200)
+        expect(aggregate.body).toEqual({ aggregate: true })
+        const detail = await get('/boundary-test/beneficiary-detail-unpermitted', headers)
+        expect(detail.status).toBe(403)
+        expect(detail.body.code).toBeUndefined()
+        expect(detail.body.message).toBe('Required application permission is missing.')
+      }
+      expect(beneficiaryHandler).not.toHaveBeenCalled()
+      expect(auditCreate).not.toHaveBeenCalled()
     },
   )
 
