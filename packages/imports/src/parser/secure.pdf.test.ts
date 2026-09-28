@@ -398,14 +398,10 @@ describe('reconstructPdfTable', () => {
   })
 
   it('is self-contained so the sandbox worker can embed its source', () => {
-    const embedded = new Function(
-      `return ${reconstructPdfTable.toString()}`,
-    )() as typeof reconstructPdfTable
-    expect(
-      embedded([item(1, 50, 700, 'a'), item(1, 200, 700, 'b'), item(1, 50, 682, '1')], limits),
-    ).toEqual([
-      ['a', 'b'],
-      ['1', null],
-    ])
+    // The in-worker PDF tests above execute the embedded copy. This guards the
+    // contract lexically: no module references survive in the serialized source.
+    const source = reconstructPdfTable.toString()
+    expect(source).toMatch(/^function reconstructPdfTable\(/)
+    expect(source).not.toMatch(/\brequire\(|\bimport\b|\bexports\b|IMPORT_ENGINEERING_LIMITS/)
   })
 })
