@@ -1,4 +1,12 @@
-import { parseCsv, parseWorkbook } from '@pathways/imports'
+import {
+  type ImportPreviewRequest,
+  type ImportPreviewResponse,
+  type ImportPreviewResult,
+  parseImportPreviewRequest,
+} from './import-preview-parse'
+
+export type { ImportPreviewResult } from './import-preview-parse'
+export { parseImportPreviewRequest } from './import-preview-parse'
 
 /**
  * Advisory client preview of a selected source file. The server sandbox parse stays
@@ -6,38 +14,7 @@ import { parseCsv, parseWorkbook } from '@pathways/imports'
  * page; environments without Worker support parse on the main thread.
  */
 
-export type ImportPreviewRequest =
-  | { kind: 'csv'; text: string }
-  | { kind: 'workbook'; buffer: ArrayBuffer }
-
-export interface ImportPreviewResult {
-  fileType: 'csv' | 'xlsx'
-  headers: string[]
-  rows: Record<string, unknown>[]
-  errors: string[]
-  sheetNames?: string[]
-}
-
-export type ImportPreviewResponse =
-  | { ok: true; result: ImportPreviewResult }
-  | { ok: false; message: string }
-
 const PREVIEW_TIMEOUT_MILLISECONDS = 30_000
-
-export function parseImportPreviewRequest(request: ImportPreviewRequest): ImportPreviewResult {
-  if (request.kind === 'csv') {
-    const result = parseCsv<Record<string, string>>(request.text)
-    return { fileType: 'csv', headers: result.headers, rows: result.data, errors: result.errors }
-  }
-  const result = parseWorkbook(request.buffer)
-  return {
-    fileType: 'xlsx',
-    headers: result.headers,
-    rows: result.rows,
-    errors: [],
-    sheetNames: result.sheetNames,
-  }
-}
 
 function parseInWorker(request: ImportPreviewRequest) {
   return new Promise<ImportPreviewResult>((resolve, reject) => {

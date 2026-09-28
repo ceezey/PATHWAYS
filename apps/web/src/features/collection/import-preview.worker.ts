@@ -2,7 +2,7 @@ import {
   type ImportPreviewRequest,
   type ImportPreviewResponse,
   parseImportPreviewRequest,
-} from './import-preview'
+} from './import-preview-parse'
 
 // Dedicated worker scope, typed locally so the DOM library stays the project default.
 const scope = self as unknown as {
