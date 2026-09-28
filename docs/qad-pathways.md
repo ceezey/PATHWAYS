@@ -191,3 +191,23 @@ CI publishes automated diagnostics without claiming full SAD approval. The Linux
 ## Core P1 acceptance coverage
 
 For [core P1 supporting operations](cr-pathways-core-p1-supporting-operations.md), verify all-role and individual-grant denial, cross-organization/project scope, revocation on retry, bounded latest published-definition reads, strict allowlists, empty-versus-failed context, sparse individual definitions, age-only error focus, minor/guardian consistency and custom required fields. Verify all candidate collisions, stable source keys, incomplete mappings, immutable revision/audit parity, changed/stale retries and unchanged reviewer/processor authority. Corrected supporting SQL also requires all submission kinds, raw-policy compatibility, definition/archive lock waits, concurrency, fresh/upgrade/recovery and preserved ledger/catalog checks. A mapping-only run or static/unit PASS does not establish complete migration or feature acceptance. Authenticated UI, physical cancellation and preview checks remain separate executable requirements.
+
+## Import throughput, PDF and form export (PRD-F5/F6)
+
+Coverage for the [import throughput and PDF](cr-pathways-import-throughput-and-pdf.md) contract.
+
+| ID | Kind | Scenario |
+|---|---|---|
+| QAD-IMP-01 | Happy | a claim promotes in chunks of at most 25 rows, reads its form context once and audits every row |
+| QAD-IMP-02 | Happy | a 5,000-row batch finishes through repeated process calls with visible progress and no clicks |
+| QAD-IMP-03 | Happy | a text-layer PDF table imports as `column_NNNN` rows identical in shape to a spreadsheet |
+| QAD-IMP-04 | Happy | each form-definition export format downloads and writes one audit row without field content |
+| QAD-IMP-05 | Sad | a failed chunk rolls back and reruns row by row; only the failing row is released and retried to the attempt limit |
+| QAD-IMP-06 | Sad | a retry after a partial chunk reuses the existing submission instead of creating a second one |
+| QAD-IMP-07 | Sad | a scanned, encrypted, table-less, over-page or oversized PDF fails with its stable code and message |
+| QAD-IMP-08 | Sad | a failed or stopped processing run keeps server state and offers Resume processing |
+| QAD-IMP-09 | Sad | a form definition beyond the artifact bounds fails whole and is never truncated |
+| QAD-IMP-10 | Abuse | revoked permission or removed project assignment stops promotion at the next chunk |
+| QAD-IMP-11 | Abuse | cross-organization and cross-project process and export requests are denied before rows or forms are read |
+| QAD-IMP-12 | Abuse | a PDF carrying scripts, attachments, forms or links is read for text only; formula-like cells are rejected |
+| QAD-IMP-13 | Abuse | Project Officer, Project Manager, Program Manager and Grant Manager cannot export form definitions |
