@@ -233,6 +233,20 @@ describe('reserve (activities.proof.submit)', () => {
     expect(tx.auditLog.create).not.toHaveBeenCalled()
   })
 
+  it('reserves without a URL for an already stored object instead of failing (resume)', async () => {
+    storage.createPrivateUploadUrls.mockImplementation(async (_bucket, keys: string[]) =>
+      keys.map((path, index) => ({
+        path,
+        uploadUrl: index === 0 ? null : `https://storage.invalid/upload/${path}?token=t`,
+      })),
+    )
+    const result = await service.reserveProof(officer, projectId, activityId, reserveInput())
+    if (!('files' in result) || !result.files) throw new Error('Expected a reservation')
+    expect(result.status).toBe('UPLOADING')
+    expect(result.files[0].uploadUrl).toBeNull()
+    expect(result.files.slice(1).every((file) => typeof file.uploadUrl === 'string')).toBe(true)
+  })
+
   it.each(types)('types %s evidence as its media kind', (contentType, _name, type) => {
     expect(activityEvidenceType(contentType)).toBe(type)
   })
@@ -531,6 +545,8 @@ describe('per-file finalize', () => {
     const calls = tx.$queryRaw.mock.calls.map((call) => (call[0] as string[]).join('?'))
     const lock = calls.findIndex((sql) => sql.includes('pg_advisory_xact_lock'))
     expect(lock).toBeGreaterThanOrEqual(0)
+    // Prisma cannot deserialize a void column, so the lock must select a typed value.
+    expect(calls[lock]).toContain('SELECT 1::integer AS locked FROM')
     expect(tx.$queryRaw.mock.calls[lock].slice(1).join()).toContain(updateId)
     expect(tx.activityUpdate.findFirst.mock.invocationCallOrder[0]).toBeGreaterThan(
       tx.$queryRaw.mock.invocationCallOrder[lock],

@@ -110,4 +110,24 @@ describe('private Storage adapter', () => {
     })
     await expect(service.createPrivateUploadUrls('pathways-private', ['a/1.pdf'])).rejects.toThrow()
   })
+
+  it('returns no URL for an object that already exists, and still fails on other errors', async () => {
+    provider.getBucket.mockResolvedValue({ data: { public: false }, error: null })
+    provider.createSignedUploadUrl.mockImplementation(async (path: string) =>
+      path === 'a/1.pdf'
+        ? { data: null, error: { statusCode: '409', message: 'The resource already exists' } }
+        : { data: { path, token: 't', signedUrl: `https://storage.invalid/${path}` }, error: null },
+    )
+    const service = new StorageService()
+    const signed = await service.createPrivateUploadUrls('pathways-private', ['a/1.pdf', 'a/2.pdf'])
+    expect(signed).toEqual([
+      { path: 'a/1.pdf', uploadUrl: null },
+      { path: 'a/2.pdf', uploadUrl: 'https://storage.invalid/a/2.pdf' },
+    ])
+    provider.createSignedUploadUrl.mockResolvedValue({
+      data: null,
+      error: { statusCode: '500', message: 'Internal' },
+    })
+    await expect(service.createPrivateUploadUrls('pathways-private', ['a/3.pdf'])).rejects.toThrow()
+  })
 })

@@ -1825,7 +1825,9 @@ export class ActivitiesService {
         )
         unverified.forEach((row, index) => {
           if (signed[index]?.path !== row.objectKey) throw new Error('Unexpected upload URL')
-          urls.set(row.id, signed[index].uploadUrl)
+          // An already stored object gets no URL; finalize verifies its exact bytes.
+          const uploadUrl = signed[index].uploadUrl
+          if (uploadUrl) urls.set(row.id, uploadUrl)
         })
       } catch {
         throw new ServiceUnavailableException(
@@ -1960,7 +1962,7 @@ export class ActivitiesService {
         // Serialize finalizes of one update so exactly one of them observes the last ready file.
         // The submitter has no UPDATE row policy on activity_updates, so the row lock below locks
         // nothing for them; the advisory transaction lock keyed to the update is policy-free.
-        await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`proof-finalize:${scope.updateId}`}, 0))`
+        await tx.$queryRaw`SELECT 1::integer AS locked FROM pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended(${`proof-finalize:${scope.updateId}`},0))`
         await tx.$queryRaw`SELECT id FROM pathways.activity_updates WHERE organization_id=${actor.organizationId}::uuid
           AND project_id=${activity.projectId}::uuid AND activity_id=${activity.id}::uuid
           AND id=${scope.updateId}::uuid FOR UPDATE`
