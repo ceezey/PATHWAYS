@@ -175,6 +175,14 @@ export class ReserveActivityProofDto {
   @ValidateNested({ each: true })
   @Type(() => ActivityEvidenceFileDto)
   files!: ActivityEvidenceFileDto[]
+
+  // cr-pathways-proof-session-beneficiary-count: optional, recorded on this submission only.
+  // Never changes the activity's computed beneficiariesReached and never feeds SADDD.
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  @Max(100000)
+  beneficiariesReachedThisSession?: number
 }
 
 export class RecordActivityProgressDto {

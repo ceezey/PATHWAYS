@@ -344,6 +344,84 @@ describe('reserve (activities.proof.submit)', () => {
     ])
   })
 
+  it('persists an optional beneficiariesReachedThisSession and returns it unchanged', async () => {
+    await service.reserveProof(
+      officer,
+      projectId,
+      activityId,
+      reserveInput({ beneficiariesReachedThisSession: 42 }),
+    )
+    expect(tx.activityUpdate.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ beneficiariesReachedThisSession: 42 }),
+      }),
+    )
+  })
+
+  it('defaults beneficiariesReachedThisSession to null when omitted', async () => {
+    await service.reserveProof(officer, projectId, activityId, reserveInput())
+    expect(tx.activityUpdate.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ beneficiariesReachedThisSession: null }),
+      }),
+    )
+  })
+
+  it.each([-1, 1.5, 100001])(
+    'rejects an invalid beneficiariesReachedThisSession value %s at the DTO boundary',
+    async (value) => {
+      const errors = await validate(
+        plainToInstance(ReserveActivityProofDto, reserveInput({ beneficiariesReachedThisSession: value })),
+      )
+      expect(errors.map((error) => error.property)).toContain('beneficiariesReachedThisSession')
+    },
+  )
+
+  it('a retry with a changed beneficiariesReachedThisSession conflicts before any storage call', async () => {
+    tx.activityUpdate.findFirst.mockResolvedValue({
+      id: updateId,
+      projectId,
+      activityId,
+      progressPercent: 60,
+      note: 'Sessions held with evidence.',
+      status: 'PENDING',
+      beneficiariesReachedThisSession: 10,
+      evidenceMedia_update: files.map((file, index) =>
+        storedRow({
+          id: `5000000${index}-0000-4000-8000-00000000000${index}`,
+          fileName: file.fileName,
+          contentType: file.contentType,
+          sha256: file.sha256,
+          byteSize: BigInt(file.byteSize),
+          objectKey: keyFor(`5000000${index}-0000-4000-8000-00000000000${index}`, ''),
+          storageReady: true,
+        }),
+      ),
+    })
+    await expect(
+      service.reserveProof(
+        officer,
+        projectId,
+        activityId,
+        reserveInput({ beneficiariesReachedThisSession: 20 }),
+      ),
+    ).rejects.toBeInstanceOf(ConflictException)
+    expect(storage.createPrivateUploadUrls).not.toHaveBeenCalled()
+  })
+
+  it('hides a cross-project reservation attempt carrying a session count before any read', async () => {
+    tx.project.findFirst.mockResolvedValue(null)
+    await expect(
+      service.reserveProof(
+        officer,
+        '20000000-0000-4000-8000-00000000000f',
+        activityId,
+        reserveInput({ beneficiariesReachedThisSession: 15 }),
+      ),
+    ).rejects.toBeInstanceOf(NotFoundException)
+    expect(tx.activityUpdate.create).not.toHaveBeenCalled()
+  })
+
   it('a retry with changed declarations conflicts before any storage call', async () => {
     tx.activityUpdate.findFirst.mockResolvedValue({
       id: updateId,

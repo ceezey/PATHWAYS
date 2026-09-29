@@ -88,6 +88,7 @@ const activitySelection = {
       progressPercent: true,
       note: true,
       status: true,
+      beneficiariesReachedThisSession: true,
       submittedAt: true,
       reviewedAt: true,
       reviewReason: true,
@@ -317,6 +318,7 @@ function mapActivity(
       kind: updateKind(update),
       note: update.note,
       progress: update.progressPercent,
+      beneficiariesReachedThisSession: update.beneficiariesReachedThisSession ?? null,
       status: reviewStatus[update.status],
       submittedBy: update.submittedBy.fullName,
       submittedAt: update.submittedAt.toISOString(),
@@ -1539,6 +1541,7 @@ export class ActivitiesService {
             progressPercent: true,
             note: true,
             status: true,
+            beneficiariesReachedThisSession: true,
             evidenceMedia_update: {
               select: {
                 id: true,
@@ -1563,6 +1566,8 @@ export class ActivitiesService {
             existing.activityId !== activity.id ||
             existing.progressPercent !== input.progressPercent ||
             existing.note !== note ||
+            (existing.beneficiariesReachedThisSession ?? null) !==
+              (input.beneficiariesReachedThisSession ?? null) ||
             JSON.stringify(stored) !== JSON.stringify(requested)
           )
             throw new ConflictException('The activity update id was reused with different input.')
@@ -1609,6 +1614,7 @@ export class ActivitiesService {
             clientUpdateId,
             progressPercent: input.progressPercent,
             note,
+            beneficiariesReachedThisSession: input.beneficiariesReachedThisSession ?? null,
             submittedById: actor.userId,
           },
         })
