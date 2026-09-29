@@ -69,6 +69,7 @@
 | Local development | runbook-local-dev.md | Draft; pending repo command reconciliation |
 | Backup/restore | runbook-backup-restore.md | Working |
 | Migration baseline | runbook-migration-baseline.md | Working |
+| Role-staging build | runbook-role-staging-build.md | Working |
 | Documentation reconciliation | runbook-doc-reconciliation.md | Working |
 
 ## 5. Governance Templates
