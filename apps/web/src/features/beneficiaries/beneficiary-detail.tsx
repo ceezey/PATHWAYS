@@ -43,7 +43,9 @@ import type {
   BeneficiaryNoteRecord,
   BeneficiaryParticipationRecord,
   BeneficiaryRecord,
+  CorrectJourneyEventInput,
   DigitalFormDefinition,
+  EnrollmentJourneyEventInput,
   JourneyStageConfig,
   ProjectSummary,
 } from '@/types/pathways'
@@ -68,6 +70,15 @@ const assessmentTypeLabel: Record<AssessmentDetail['type'], string> = {
   FEEDBACK_SURVEY: 'Feedback survey',
   OTHER: 'Other',
 }
+
+const journeyEventTypeLabel: Record<EnrollmentJourneyEventInput['eventType'], string> = {
+  COMPLETION: 'Complete enrollment',
+  FOLLOW_UP: 'Record follow-up',
+  DROPOUT: 'Mark as dropped out',
+  TRANSFER: 'Transfer to another project',
+}
+
+const todayIso = () => new Date().toISOString().slice(0, 10)
 
 type BeneficiaryDetailProps = {
   beneficiary: BeneficiaryRecord
@@ -105,8 +116,37 @@ export const BeneficiaryDetail = ({
     attendanceStatus: 'Present',
     note: '',
   })
+  const [journeyOpen, setJourneyOpen] = useState(false)
+  const [savingJourney, setSavingJourney] = useState(false)
+  const [journeyDraft, setJourneyDraft] = useState<{
+    eventType: EnrollmentJourneyEventInput['eventType']
+    eventDate: string
+    description: string
+    stageId: string
+    destinationProjectId: string
+  }>({
+    eventType: 'FOLLOW_UP',
+    eventDate: todayIso(),
+    description: '',
+    stageId: '',
+    destinationProjectId: '',
+  })
+  const [noteOpen, setNoteOpen] = useState(false)
+  const [savingNote, setSavingNote] = useState(false)
+  const [noteDraft, setNoteDraft] = useState({
+    eventId: '',
+    eventDate: todayIso(),
+    description: '',
+    reason: '',
+  })
   const canEditBeneficiary = isUiActionAvailable(role, 'beneficiaries.edit', profile)
   const canViewAssessmentDetail = isUiActionAvailable(role, 'assessments.detail.view', profile)
+  const canTransitionJourney = isUiActionAvailable(
+    role,
+    'beneficiaries.journey.transition',
+    profile,
+  )
+  const canCorrectJourney = isUiActionAvailable(role, 'beneficiaries.journey.correct', profile)
   const [assessmentDetail, setAssessmentDetail] = useState<
     { state: 'idle' | 'loading' | 'error' } | { state: 'ready'; detail: AssessmentDetail }
   >({ state: 'idle' })
@@ -166,6 +206,10 @@ export const BeneficiaryDetail = ({
     ? notes.filter((note) => note.stageId === selectedStage.id)
     : []
   const unlinkedNotes = notes.filter((note) => !stages.some((stage) => stage.id === note.stageId))
+  const transferDestinationOptions = beneficiary.enrollments.filter(
+    (enrollment) => enrollment.projectId !== projectId && enrollment.status === 'Active',
+  )
+  const correctableNote = selectedStageNotes[selectedStageNotes.length - 1] ?? null
   const requestedReturnTo = searchParams?.get('returnTo')
   const directoryHref =
     requestedReturnTo &&
@@ -196,6 +240,29 @@ export const BeneficiaryDetail = ({
     if (!assessment) return
     setSelectedAssessment(assessment)
     setAssessmentOpen(true)
+  }
+
+  const openJourneyTransition = () => {
+    if (!canTransitionJourney || enrollmentStatus !== 'Active') return
+    setJourneyDraft({
+      eventType: 'FOLLOW_UP',
+      eventDate: todayIso(),
+      description: '',
+      stageId: selectedStage?.id ?? '',
+      destinationProjectId: transferDestinationOptions[0]?.projectId ?? '',
+    })
+    setJourneyOpen(true)
+  }
+
+  const openNoteForSelectedStage = () => {
+    if (!canCorrectJourney || !correctableNote) return
+    setNoteDraft({
+      eventId: correctableNote.id,
+      eventDate: todayIso(),
+      description: correctableNote.note,
+      reason: '',
+    })
+    setNoteOpen(true)
   }
 
   const recordParticipation = async () => {
@@ -253,6 +320,79 @@ export const BeneficiaryDetail = ({
     }
   }
 
+  const refreshJourneyHistory = async () => {
+    const history = await pathwaysClient.getBeneficiaryJourneyHistory(projectId, beneficiary.id)
+    const nextJourney = mapBeneficiaryJourneyHistory(history)
+    setParticipation(nextJourney.participation)
+    setNotes(nextJourney.notes)
+  }
+
+  const transitionJourney = async () => {
+    if (!journeyDraft.description.trim() || !journeyDraft.eventDate) {
+      toast.error('Enter a date and description.')
+      return
+    }
+    if (journeyDraft.eventType === 'TRANSFER' && !journeyDraft.destinationProjectId) {
+      toast.error('Select a destination project with an active enrollment.')
+      return
+    }
+    setSavingJourney(true)
+    try {
+      const input: EnrollmentJourneyEventInput = {
+        eventType: journeyDraft.eventType,
+        eventDate: journeyDraft.eventDate,
+        description: journeyDraft.description.trim(),
+        ...(journeyDraft.stageId ? { stageId: journeyDraft.stageId } : {}),
+        ...(journeyDraft.eventType === 'TRANSFER'
+          ? { destinationProjectId: journeyDraft.destinationProjectId }
+          : {}),
+      }
+      await pathwaysClient.transitionBeneficiaryJourney(projectId, beneficiary.id, input)
+      await refreshJourneyHistory()
+      setJourneyOpen(false)
+      toast.success('Enrollment status updated and reloaded from the project history.')
+    } catch (error) {
+      toast.error(
+        error instanceof Error ? error.message : 'Enrollment status could not be updated.',
+      )
+    } finally {
+      setSavingJourney(false)
+    }
+  }
+
+  const correctJourneyNote = async () => {
+    if (!noteDraft.eventId) {
+      toast.error('Select a note to correct.')
+      return
+    }
+    if (!noteDraft.description.trim() || !noteDraft.reason.trim() || !noteDraft.eventDate) {
+      toast.error('Enter a note and a reason for the correction.')
+      return
+    }
+    setSavingNote(true)
+    try {
+      const input: CorrectJourneyEventInput = {
+        eventDate: noteDraft.eventDate,
+        description: noteDraft.description.trim(),
+        reason: noteDraft.reason.trim(),
+        ...(selectedStage ? { stageId: selectedStage.id } : {}),
+      }
+      await pathwaysClient.correctBeneficiaryJourneyEvent(
+        projectId,
+        beneficiary.id,
+        noteDraft.eventId,
+        input,
+      )
+      await refreshJourneyHistory()
+      setNoteOpen(false)
+      toast.success('Journey note added and reloaded from the project history.')
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'The note could not be added.')
+    } finally {
+      setSavingNote(false)
+    }
+  }
+
   return (
     <div className="space-y-6">
       <section className="flex flex-col gap-4 rounded-lg border border-border bg-card p-5 lg:flex-row lg:items-start lg:justify-between">
@@ -277,12 +417,17 @@ export const BeneficiaryDetail = ({
               <ArrowLeft className="h-4 w-4" aria-hidden="true" />
             </Link>
           </Button>
-          {canEditBeneficiary ? (
+          {canTransitionJourney ? (
             <Button
               aria-label="Update enrollment status"
-              disabled
+              disabled={enrollmentStatus !== 'Active'}
+              onClick={openJourneyTransition}
               size="icon"
-              title="Enrollment status changes are unavailable until transition semantics are approved."
+              title={
+                enrollmentStatus === 'Active'
+                  ? 'Update enrollment status'
+                  : 'Enrollment status changes require an active enrollment.'
+              }
               type="button"
               variant="outline"
             >
@@ -504,12 +649,17 @@ export const BeneficiaryDetail = ({
                               <FileText className="h-4 w-4" aria-hidden="true" />
                             </Button>
                           ) : null}
-                          {canEditBeneficiary ? (
+                          {canCorrectJourney ? (
                             <Button
                               aria-label="Add note"
-                              disabled
+                              disabled={!correctableNote}
+                              onClick={openNoteForSelectedStage}
                               size="icon"
-                              title="Journey notes remain unavailable until provenance semantics are approved."
+                              title={
+                                correctableNote
+                                  ? 'Add a provenance-tracked note to the most recent journey record'
+                                  : 'A recorded journey event is required before a note can be added.'
+                              }
                               type="button"
                               variant="outline"
                             >
@@ -712,6 +862,153 @@ export const BeneficiaryDetail = ({
               type="button"
             >
               {savingParticipation ? 'Saving...' : 'Save participation'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={journeyOpen} onOpenChange={setJourneyOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Update enrollment status</DialogTitle>
+            <DialogDescription>
+              Record an enrollment journey event for {beneficiary.displayName}.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <Select
+              value={journeyDraft.eventType}
+              onValueChange={(value) =>
+                setJourneyDraft((current) => ({
+                  ...current,
+                  eventType: value as EnrollmentJourneyEventInput['eventType'],
+                }))
+              }
+            >
+              <SelectTrigger aria-label="Enrollment status">
+                <SelectValue placeholder="Select an outcome" />
+              </SelectTrigger>
+              <SelectContent>
+                {(
+                  Object.keys(journeyEventTypeLabel) as EnrollmentJourneyEventInput['eventType'][]
+                ).map((eventType) => (
+                  <SelectItem key={eventType} value={eventType}>
+                    {journeyEventTypeLabel[eventType]}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {journeyDraft.eventType === 'TRANSFER' ? (
+              transferDestinationOptions.length > 0 ? (
+                <Select
+                  value={journeyDraft.destinationProjectId}
+                  onValueChange={(value) =>
+                    setJourneyDraft((current) => ({ ...current, destinationProjectId: value }))
+                  }
+                >
+                  <SelectTrigger aria-label="Destination project">
+                    <SelectValue placeholder="Select destination project" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {transferDestinationOptions.map((enrollment) => (
+                      <SelectItem key={enrollment.projectId} value={enrollment.projectId}>
+                        {projectTitle(enrollment.projectId, projects)}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              ) : (
+                <p className="text-sm text-muted-foreground">
+                  No other active project enrollment is available for transfer.
+                </p>
+              )
+            ) : null}
+            <Label className="space-y-2">
+              <span>Date</span>
+              <Input
+                aria-label="Enrollment status date"
+                type="date"
+                value={journeyDraft.eventDate}
+                onChange={(event) =>
+                  setJourneyDraft((current) => ({ ...current, eventDate: event.target.value }))
+                }
+              />
+            </Label>
+            <Textarea
+              aria-label="Enrollment status description"
+              placeholder="Describe the enrollment status change"
+              value={journeyDraft.description}
+              onChange={(event) =>
+                setJourneyDraft((current) => ({ ...current, description: event.target.value }))
+              }
+            />
+          </div>
+          <DialogFooter>
+            <Button
+              disabled={savingJourney}
+              type="button"
+              variant="outline"
+              onClick={() => setJourneyOpen(false)}
+            >
+              Cancel
+            </Button>
+            <Button disabled={savingJourney} onClick={() => void transitionJourney()} type="button">
+              {savingJourney ? 'Saving...' : 'Save enrollment status'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={noteOpen} onOpenChange={setNoteOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Add note</DialogTitle>
+            <DialogDescription>
+              Add a provenance-tracked correction to the most recent journey record for{' '}
+              {selectedStage ? stageDisplayCode(selectedStage) : 'the selected'}
+              {' journey stage'}.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <Label className="space-y-2">
+              <span>Date</span>
+              <Input
+                aria-label="Note date"
+                type="date"
+                value={noteDraft.eventDate}
+                onChange={(event) =>
+                  setNoteDraft((current) => ({ ...current, eventDate: event.target.value }))
+                }
+              />
+            </Label>
+            <Textarea
+              aria-label="Note text"
+              placeholder="Journey note"
+              value={noteDraft.description}
+              onChange={(event) =>
+                setNoteDraft((current) => ({ ...current, description: event.target.value }))
+              }
+            />
+            <Textarea
+              aria-label="Correction reason"
+              placeholder="Reason for this correction"
+              value={noteDraft.reason}
+              onChange={(event) =>
+                setNoteDraft((current) => ({ ...current, reason: event.target.value }))
+              }
+            />
+          </div>
+          <DialogFooter>
+            <Button
+              disabled={savingNote}
+              type="button"
+              variant="outline"
+              onClick={() => setNoteOpen(false)}
+            >
+              Cancel
+            </Button>
+            <Button disabled={savingNote} onClick={() => void correctJourneyNote()} type="button">
+              {savingNote ? 'Saving...' : 'Save note'}
             </Button>
           </DialogFooter>
         </DialogContent>

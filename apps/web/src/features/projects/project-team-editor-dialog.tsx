@@ -5,6 +5,7 @@ import { useCurrentRole } from '@/hooks/use-current-role'
 import { useSourceMutationContext } from '@/hooks/use-source-mutation-context'
 import { isSourceReplay, sourceMutationTickets } from '@/lib/services/source-mutation'
 
+import { zodResolver } from '@hookform/resolvers/zod'
 import { Pencil, Save } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { useForm } from 'react-hook-form'
@@ -24,12 +25,35 @@ import { Form } from '@/components/ui/form'
 import { pathwaysClient } from '@/lib/services/pathways-client'
 import type { ProjectDetail, UserRecord } from '@/types/pathways'
 
+// Mirrors the server-side gate (apps/api/src/modules/auth/authorization-policy.ts,
+// canAssignRole/canAuthorizeRole) so the dialog disables fields the actor
+// cannot save, instead of letting a rejected PATCH be the only feedback.
+import {
+  type CanonicalRole,
+  canAssignRole,
+} from '../../../../api/src/modules/auth/authorization-policy'
+
 import {
   type ProjectSetupSchema,
+  projectTeamEditSchema,
   toProjectTeamInput,
   toUpdateProjectInput,
 } from './project-form-validation'
-import { ProjectTeamSelectors, validateProjectTeamSelections } from './project-team-selectors'
+import {
+  ProjectTeamSelectors,
+  type TeamFieldName,
+  validateProjectTeamSelections,
+} from './project-team-selectors'
+
+// Which project-role field a given assignment field maps to, for the
+// canAssignRole check. Program Manager is deliberately excluded: no actor
+// (including System Administrator) may assign it through this dialog —
+// canAssignRole's own target list never includes PROGRAM_MANAGER.
+const assignTargetRoles: Partial<Record<TeamFieldName, CanonicalRole>> = {
+  projectManager: 'PROJECT_MANAGER',
+  monitoringOfficer: 'MONITORING_AND_EVALUATION_OFFICER',
+  projectOfficers: 'PROJECT_OFFICER',
+}
 
 const teamFields = [
   'programManager',
@@ -39,7 +63,6 @@ const teamFields = [
 ] as const
 
 const formDefaults = (project: ProjectDetail): ProjectSetupSchema => ({
-  objectives: project.objectives ?? project.description,
   partnerOrganizations:
     project.implementingPartnerRecords?.map((partner) => partner.name).join('\n') ?? '',
   projectBudget: project.projectBudget ?? '',
@@ -47,15 +70,17 @@ const formDefaults = (project: ProjectDetail): ProjectSetupSchema => ({
     project.targetBeneficiaries === undefined ? '' : String(project.targetBeneficiaries),
 
   title: project.title,
-  sector: project.sector,
-  area: project.area,
+  // The dialog does not expose sector/area/date fields for editing, but the
+  // display placeholders below must never be re-submitted as literal values.
+  sector: project.sector === 'Sector not recorded' ? '' : project.sector,
+  area: project.area === 'Area not recorded' ? '' : project.area,
   startDate: project.startDate ?? '',
   endDate: project.endDate ?? '',
   status: project.status,
   description: project.description,
-  programManager: project.programManager,
-  projectManager: project.projectManager,
-  monitoringOfficer: project.monitoringOfficer,
+  programManager: project.programManager === 'Not assigned' ? '' : project.programManager,
+  projectManager: project.projectManager === 'Not assigned' ? '' : project.projectManager,
+  monitoringOfficer: project.monitoringOfficer === 'Not assigned' ? '' : project.monitoringOfficer,
   projectOfficers: project.projectOfficers.join(', '),
 })
 
@@ -78,7 +103,22 @@ export const ProjectTeamEditorDialog = ({
   const [loadError, setLoadError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
   const [loadAttempt, setLoadAttempt] = useState(0)
-  const form = useForm<ProjectSetupSchema>({ defaultValues: formDefaults(project) })
+  const form = useForm<ProjectSetupSchema>({
+    resolver: zodResolver(projectTeamEditSchema),
+    defaultValues: formDefaults(project),
+  })
+  // A Project Manager must never be able to remove their own project
+  // authority from this dialog (the API also enforces this server-side).
+  const preventProjectManagerSelfRemoval =
+    Boolean(profile?.userId) && profile?.userId === project.projectManagerId
+
+  const actorRole = profile?.roles[0] as CanonicalRole | undefined
+  const disallowAssignRoles = (Object.keys(assignTargetRoles) as TeamFieldName[]).filter(
+    (field) => {
+      const target = assignTargetRoles[field]
+      return !target || !actorRole || !canAssignRole(actorRole, target)
+    },
+  )
 
   useEffect(() => {
     if (open) form.reset(formDefaults(project))
@@ -129,7 +169,19 @@ export const ProjectTeamEditorDialog = ({
         project.id,
         {
           ...toUpdateProjectInput(values, project),
-          ...toProjectTeamInput(values, users),
+          ...toProjectTeamInput(values, users, {
+            clearBlank: true,
+            // Only a field the actor actually touched (chose "None" on) may
+            // be sent as an explicit null. An untouched field stays blank in
+            // form state whenever its stored assignment could not be
+            // resolved back to an eligible option (e.g. the directory is
+            // still loading), and must never be submitted as a clear.
+            dirtyFields: {
+              programManager: Boolean(form.formState.dirtyFields.programManager),
+              projectManager: Boolean(form.formState.dirtyFields.projectManager),
+              monitoringOfficer: Boolean(form.formState.dirtyFields.monitoringOfficer),
+            },
+          }),
         },
         mutationContext,
       )
@@ -180,6 +232,8 @@ export const ProjectTeamEditorDialog = ({
             />
             <ProjectTeamSelectors
               control={form.control}
+              disallowAssignRoles={disallowAssignRoles}
+              disallowClearRoles={preventProjectManagerSelfRemoval ? ['projectManager'] : undefined}
               loadError={loadError}
               loading={loading}
               onRetry={() => setLoadAttempt((attempt) => attempt + 1)}

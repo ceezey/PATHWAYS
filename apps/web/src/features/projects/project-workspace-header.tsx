@@ -12,7 +12,7 @@ import { type WorkspaceTabAccess, filterWorkspaceTabs } from '@/lib/rbac/route-a
 import { cn } from '@/lib/utils'
 import type { ProjectDetail } from '@/types/pathways'
 
-import { projectStatusTone } from './project-utils'
+import { projectHealthTone, projectStatusTone } from './project-utils'
 
 // Each tab carries the route it opens, so tab visibility equals route access.
 const createWorkspaceTabs = (labels: DisplayLabels): WorkspaceTabAccess[] => [
@@ -43,7 +43,7 @@ export const ProjectWorkspaceHeader = ({ project }: { project: ProjectDetail }) 
       <div className="min-w-0 space-y-3">
         <div className="flex flex-wrap gap-2">
           <StatusBadge tone={projectStatusTone(project.status)}>{project.status}</StatusBadge>
-          <StatusBadge tone="neutral">Not assessed</StatusBadge>
+          <StatusBadge tone={projectHealthTone(project.health)}>{project.health}</StatusBadge>
         </div>
         <div>
           <h2 className="text-2xl font-semibold tracking-tight text-foreground sm:text-3xl">

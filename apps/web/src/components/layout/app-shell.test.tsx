@@ -1,6 +1,6 @@
 /* @vitest-environment jsdom */
 
-import { cleanup, render, screen } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -22,7 +22,19 @@ vi.mock('@/hooks/use-current-role', () => ({
 vi.mock('@/hooks/use-session', () => ({
   useSession: () => ({ email: 'actor@example.test', signOut: vi.fn() }),
 }))
-vi.mock('@/components/layout/sidebar', () => ({ Sidebar: () => <nav>Sidebar</nav> }))
+vi.mock('@/components/layout/sidebar', () => ({
+  Sidebar: ({ compact, onToggle }: { compact?: boolean; onToggle?: () => void }) => (
+    <nav>
+      Sidebar
+      <span data-testid="sidebar-compact">{String(Boolean(compact))}</span>
+      {onToggle ? (
+        <button onClick={onToggle} type="button">
+          {compact ? 'Expand sidebar' : 'Collapse sidebar'}
+        </button>
+      ) : null}
+    </nav>
+  ),
+}))
 vi.mock('@/components/ui/dropdown-menu', () => ({
   DropdownMenu: ({ children }: { children: ReactNode }) => <>{children}</>,
   DropdownMenuContent: ({ children }: { children: ReactNode }) => <div>{children}</div>,
@@ -51,5 +63,29 @@ describe('account menu profile access', () => {
     rerender(<AppShell>Workspace</AppShell>)
 
     expect(screen.queryByRole('link', { name: 'My Profile' })).toBeNull()
+  })
+})
+
+describe('desktop collapse toggle moved into the sidebar', () => {
+  afterEach(() => cleanup())
+
+  it('does not render a collapse/expand toggle in the header', () => {
+    render(<AppShell>Workspace</AppShell>)
+
+    const header = screen.getByRole('banner')
+    expect(
+      header.querySelector('[aria-label="Collapse sidebar"], [aria-label="Expand sidebar"]'),
+    ).toBeNull()
+  })
+
+  it('passes compact state and a toggle handler through to the sidebar', () => {
+    render(<AppShell>Workspace</AppShell>)
+
+    expect(screen.getByTestId('sidebar-compact').textContent).toBe('false')
+
+    fireEvent.click(screen.getByRole('button', { name: 'Collapse sidebar' }))
+
+    expect(screen.getByTestId('sidebar-compact').textContent).toBe('true')
+    expect(screen.getByRole('button', { name: 'Expand sidebar' })).toBeTruthy()
   })
 })

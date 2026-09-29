@@ -33,7 +33,7 @@ interface CurrentRoleContextValue {
   mfaStatus: MfaStatus | null
   access: WorkspaceAccess
   accessError: string | null
-  refreshAccess: () => void
+  refreshAccess: () => Promise<void>
   accessRefreshing: boolean
   verificationRevision: number
   claimWorkspaceHandoff: () => boolean
@@ -65,11 +65,26 @@ export const CurrentRoleProvider = ({ children }: { children: React.ReactNode })
   const resetWorkspaceHandoff = useCallback(() => {
     handoffSubject.current = null
   }, [])
+  const pendingRefreshes = useRef<Array<() => void>>([])
+  // A refresh requested while one is already in flight must not resolve
+  // against the in-flight verification's (possibly stale) result: it is
+  // queued separately and only resolved once a verification that started
+  // after this call completes.
+  const nextPendingRefreshes = useRef<Array<() => void>>([])
+  const trailingRefresh = useRef(false)
   const refreshAccess = useCallback(() => {
     const identity = identityRef.current
-    if (!identity.internal || identity.sessionStatus !== 'authenticated' || inFlight.current) return
-    inFlight.current = true
-    setRefresh((value) => value + 1)
+    if (!identity.internal || identity.sessionStatus !== 'authenticated') return Promise.resolve()
+    return new Promise<void>((resolve) => {
+      if (inFlight.current) {
+        trailingRefresh.current = true
+        nextPendingRefreshes.current.push(resolve)
+        return
+      }
+      pendingRefreshes.current.push(resolve)
+      inFlight.current = true
+      setRefresh((value) => value + 1)
+    })
   }, [])
 
   useEffect(() => {
@@ -79,6 +94,11 @@ export const CurrentRoleProvider = ({ children }: { children: React.ReactNode })
     if (!internal || sessionStatus !== 'authenticated' || !token || !subject) {
       flight.current.cancel()
       inFlight.current = false
+      trailingRefresh.current = false
+      const resolvers = pendingRefreshes.current.concat(nextPendingRefreshes.current)
+      pendingRefreshes.current = []
+      nextPendingRefreshes.current = []
+      for (const resolve of resolvers) resolve()
       setResult(null)
       // Public navigation and temporary token refresh are not sign-out.
       if (sessionStatus === 'unauthenticated') {
@@ -140,12 +160,37 @@ export const CurrentRoleProvider = ({ children }: { children: React.ReactNode })
         if (active()) commit(verificationFailure(error))
       })
       .finally(() => {
+        // Resolve everyone who asked for *this* verification before it
+        // started, regardless of what happens next.
+        const resolvers = pendingRefreshes.current
+        pendingRefreshes.current = []
+        for (const resolve of resolvers) resolve()
+
+        if (active() && trailingRefresh.current) {
+          // A refresh was requested mid-flight: start exactly one more run
+          // and hand its callers' resolvers over, instead of resolving them
+          // against the run that just finished.
+          trailingRefresh.current = false
+          pendingRefreshes.current = nextPendingRefreshes.current
+          nextPendingRefreshes.current = []
+          setRefresh((value) => value + 1)
+          return
+        }
         if (active()) inFlight.current = false
       })
     return () => {
       ++operation.current
       owner.cancel()
       inFlight.current = false
+      // A trailing refresh requested under this run's identity (token/
+      // subject) is moot once that identity changes; resolve it now rather
+      // than leaving its promise pending forever.
+      if (trailingRefresh.current) {
+        trailingRefresh.current = false
+        const resolvers = nextPendingRefreshes.current
+        nextPendingRefreshes.current = []
+        for (const resolve of resolvers) resolve()
+      }
     }
   }, [token, subject, sessionStatus, internal, refresh, resetWorkspaceHandoff])
 

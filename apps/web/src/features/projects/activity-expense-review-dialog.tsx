@@ -8,6 +8,10 @@ import { Button } from '@/components/ui/button'
 import { Dialog, DialogFooter } from '@/components/ui/dialog'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
+import { useCurrentRole } from '@/hooks/use-current-role'
+import { principalHasAtomicPermission } from '@/lib/rbac/route-access'
+import { coreDataClient } from '@/lib/services/core-feature-client'
+
 export type PendingExpense = {
   id: string
   activityId: string
@@ -17,6 +21,8 @@ export type PendingExpense = {
   date: string
   description: string
   status: 'For Verification'
+  updatedAt: string
+  receiptEvidenceId: string | null
 }
 
 const peso = (amount: number) =>
@@ -25,13 +31,30 @@ const peso = (amount: number) =>
 export function ActivityExpenseReviewDialog({
   expense,
   onOpenChange,
+  onReviewed,
 }: {
   expense: PendingExpense | null
   onOpenChange: (open: boolean) => void
+  onReviewed: () => void
 }) {
+  const { profile } = useCurrentRole()
+  const canVerify = principalHasAtomicPermission(profile, 'expenses.verify')
   const [reason, setReason] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState('')
+  const missingReceipt = !expense?.receiptEvidenceId
+  const receiptHintId = 'expense-review-receipt-hint'
+  // aria-disabled (not native disabled) so Validate/Return stay reachable by
+  // keyboard and screen readers, which then hear the persistent hint below
+  // via aria-describedby instead of losing the control from the tab order.
+  const blockMissingReceipt = (event: {
+    preventDefault: () => void
+    stopPropagation: () => void
+  }) => {
+    if (!missingReceipt) return
+    event.preventDefault()
+    event.stopPropagation()
+  }
 
   useEffect(() => {
     if (!expense) return
@@ -41,12 +64,34 @@ export function ActivityExpenseReviewDialog({
 
   if (!expense) return null
 
-  const submit = (verified: boolean) => {
-    if (submitting) return
+  const submit = async (verified: boolean) => {
+    if (submitting || !canVerify) return
+    if (!verified && !reason.trim()) {
+      setError('A correction reason is required to return this expense.')
+      return
+    }
+    if (!expense.receiptEvidenceId) {
+      setError('A private receipt must be attached before this expense can be reviewed.')
+      return
+    }
     setSubmitting(true)
     setError('')
-    setError('Expense review is unavailable until a server-backed expense service is available.')
-    setSubmitting(false)
+    try {
+      await coreDataClient.reviewExpense(expense.projectId, expense.id, {
+        expectedUpdatedAt: expense.updatedAt,
+        stage: 'VERIFY',
+        decision: verified ? 'VERIFY' : 'REJECT',
+        ...(verified ? {} : { reason: reason.trim() }),
+      })
+      onReviewed()
+      onOpenChange(false)
+    } catch (submitError) {
+      setError(
+        submitError instanceof Error ? submitError.message : 'Expense review is unavailable.',
+      )
+    } finally {
+      setSubmitting(false)
+    }
   }
 
   return (
@@ -77,6 +122,11 @@ export function ActivityExpenseReviewDialog({
               </div>
             </dl>
           </div>
+          {!canVerify ? (
+            <p className="text-sm font-medium text-destructive" role="alert">
+              Expense verification is outside your current permissions.
+            </p>
+          ) : null}
           <div className="space-y-2">
             <Label htmlFor="expense-return-reason">Correction reason</Label>
             <Textarea
@@ -89,6 +139,11 @@ export function ActivityExpenseReviewDialog({
               value={reason}
             />
           </div>
+          {missingReceipt ? (
+            <p className="text-sm font-medium text-muted-foreground" id={receiptHintId}>
+              Attach a private receipt before review.
+            </p>
+          ) : null}
           {error ? (
             <p className="text-sm font-medium text-destructive" role="alert">
               {error}
@@ -99,9 +154,18 @@ export function ActivityExpenseReviewDialog({
               Cancel
             </Button>
             <Button
+              aria-describedby={missingReceipt ? receiptHintId : undefined}
+              aria-disabled={missingReceipt || undefined}
               className="gap-2"
-              disabled={submitting || !reason.trim()}
-              onClick={() => submit(false)}
+              disabled={submitting || !canVerify || !reason.trim()}
+              onClick={(event) => {
+                blockMissingReceipt(event)
+                if (missingReceipt) return
+                void submit(false)
+              }}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter' || event.key === ' ') blockMissingReceipt(event)
+              }}
               type="button"
               variant="outline"
             >
@@ -109,9 +173,18 @@ export function ActivityExpenseReviewDialog({
               Return for correction
             </Button>
             <Button
+              aria-describedby={missingReceipt ? receiptHintId : undefined}
+              aria-disabled={missingReceipt || undefined}
               className="gap-2"
-              disabled={submitting}
-              onClick={() => submit(true)}
+              disabled={submitting || !canVerify}
+              onClick={(event) => {
+                blockMissingReceipt(event)
+                if (missingReceipt) return
+                void submit(true)
+              }}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter' || event.key === ' ') blockMissingReceipt(event)
+              }}
               type="button"
             >
               {submitting ? (

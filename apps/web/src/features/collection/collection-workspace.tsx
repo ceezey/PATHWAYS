@@ -21,7 +21,12 @@ import { toast } from 'sonner'
 import { createFileSummary } from '@pathways/imports'
 
 import { PageHeader } from '@/components/layout/page-header'
-import { ConfirmationDialog, ProgressBar, StatusBadge } from '@/components/pathways'
+import {
+  ConfirmationDialog,
+  ProgressBar,
+  StatusBadge,
+  UnavailableHint,
+} from '@/components/pathways'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -1528,14 +1533,15 @@ const OwnedCollectionWorkspace = ({
               </div>
             </div>
             <div>
-              <p>Linked indicators</p>
+              <p id="linked-indicators-label">Linked indicators</p>
               {indicators
                 .filter((i) => i.projectId === projectId)
                 .map((i) => (
                   <label className="mr-4 inline-flex gap-2" key={i.id}>
                     <input
-                      type="checkbox"
+                      aria-describedby="linked-indicators-hint"
                       checked={indicatorIds.includes(i.id)}
+                      disabled
                       onChange={(e) =>
                         changeInput(setIndicatorIds)(
                           e.target.checked
@@ -1543,10 +1549,13 @@ const OwnedCollectionWorkspace = ({
                             : indicatorIds.filter((id) => id !== i.id),
                         )
                       }
+                      title="Not available yet"
+                      type="checkbox"
                     />
-                    {i.label}
+                    {i.label} <span className="text-muted-foreground">(not available yet)</span>
                   </label>
                 ))}
+              <UnavailableHint id="linked-indicators-hint" />
             </div>
             <BuilderView
               addField={addField}
@@ -1602,8 +1611,12 @@ const OwnedCollectionWorkspace = ({
               }}
             >
               <option value="pending">Decide when duplicates are flagged</option>
-              <option value="skip">Skip duplicates</option>
-              <option value="keep">Keep confirmed duplicates</option>
+              <option disabled title="Not available yet" value="skip">
+                Skip duplicates (not available yet)
+              </option>
+              <option disabled title="Not available yet" value="keep">
+                Keep confirmed duplicates (not available yet)
+              </option>
             </select>
           </label>
           {parsedImport?.rows.length ? (

@@ -682,6 +682,107 @@ describe('PATHWAYS frontend data boundary', () => {
     })
   })
 
+  it('surfaces the server reason for a 403 instead of a generic message', async () => {
+    const authUserId = '74050000-0000-4000-8000-000000000001'
+    const organizationId = '74050000-0000-4000-8000-000000000002'
+    const userId = '74050000-0000-4000-8000-000000000003'
+    const projectId = '74050000-0000-4000-8000-000000000004'
+    vi.stubGlobal('window', {})
+    vi.stubGlobal('document', {
+      cookie: `pathways-context=${encodeURIComponent(
+        JSON.stringify({ authUserId, organizationId, userId }),
+      )}`,
+    })
+    browser.getSession.mockResolvedValue({
+      data: { session: { access_token: 'synthetic-access-token', user: { id: authUserId } } },
+      error: null,
+    })
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(
+        new Response(
+          JSON.stringify({
+            message: 'A Project Manager cannot remove their own project authority.',
+            error: 'Forbidden',
+            statusCode: 403,
+          }),
+          { status: 403, headers: { 'Content-Type': 'application/json' } },
+        ),
+      ),
+    )
+
+    await expect(pathwaysClient.getProject(projectId)).rejects.toMatchObject({
+      code: 'forbidden',
+      message: 'A Project Manager cannot remove their own project authority.',
+    })
+  })
+
+  it('joins a class-validator string-array message instead of falling back to a generic message', async () => {
+    const authUserId = '74060000-0000-4000-8000-000000000001'
+    const organizationId = '74060000-0000-4000-8000-000000000002'
+    const userId = '74060000-0000-4000-8000-000000000003'
+    const projectId = '74060000-0000-4000-8000-000000000004'
+    vi.stubGlobal('window', {})
+    vi.stubGlobal('document', {
+      cookie: `pathways-context=${encodeURIComponent(
+        JSON.stringify({ authUserId, organizationId, userId }),
+      )}`,
+    })
+    browser.getSession.mockResolvedValue({
+      data: { session: { access_token: 'synthetic-access-token', user: { id: authUserId } } },
+      error: null,
+    })
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(
+        new Response(
+          JSON.stringify({
+            message: ['startDate must be a valid ISO 8601 date string'],
+            error: 'Bad Request',
+            statusCode: 400,
+          }),
+          { status: 400, headers: { 'Content-Type': 'application/json' } },
+        ),
+      ),
+    )
+
+    await expect(pathwaysClient.getProject(projectId)).rejects.toMatchObject({
+      code: 'invalid',
+      message: 'startDate must be a valid ISO 8601 date string',
+    })
+  })
+
+  it('falls back to a generic message for a 5xx server error', async () => {
+    const authUserId = '74070000-0000-4000-8000-000000000001'
+    const organizationId = '74070000-0000-4000-8000-000000000002'
+    const userId = '74070000-0000-4000-8000-000000000003'
+    const projectId = '74070000-0000-4000-8000-000000000004'
+    vi.stubGlobal('window', {})
+    vi.stubGlobal('document', {
+      cookie: `pathways-context=${encodeURIComponent(
+        JSON.stringify({ authUserId, organizationId, userId }),
+      )}`,
+    })
+    browser.getSession.mockResolvedValue({
+      data: { session: { access_token: 'synthetic-access-token', user: { id: authUserId } } },
+      error: null,
+    })
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(
+        new Response(JSON.stringify({ message: 'Internal error stack trace details.' }), {
+          status: 500,
+          headers: { 'Content-Type': 'application/json' },
+        }),
+      ),
+    )
+
+    await expect(pathwaysClient.getProject(projectId)).rejects.toMatchObject({
+      code: 'network',
+      message: 'The requested operation could not be completed.',
+    })
+  })
+
   it('uses the scoped paginated draft-list and persisted-submission routes', async () => {
     const authUserId = '74100000-0000-4000-8000-000000000001'
     const organizationId = '74100000-0000-4000-8000-000000000002'

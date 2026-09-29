@@ -7,9 +7,9 @@ import { LiveEvaluationWorkspace } from './live-evaluation-workspace'
 import { LiveFinanceWorkspace } from './live-finance-workspace'
 import { ProjectRulesPanel } from './project-rules-panel'
 
-import { ArrowLeft, Eye, FileText, Loader2, Plus, Save } from 'lucide-react'
+import { ArrowLeft, Download, FileText, Loader2, Plus, Save } from 'lucide-react'
 import Link from 'next/link'
-import { type ReactNode, useEffect, useState } from 'react'
+import { type ReactNode, useEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
 
 import { PageHeader } from '@/components/layout/page-header'
@@ -21,9 +21,11 @@ import { Label } from '@/components/ui/label'
 import type { DisplayLabelKey } from '@/constants/display-labels'
 import { useCurrentRole } from '@/hooks/use-current-role'
 import { useDisplayLabels } from '@/hooks/use-display-labels'
+import { useSensitiveDraftOwner } from '@/lib/auth/sensitive-drafts'
 import { canAccessProjectForRole } from '@/lib/rbac/data-scope'
 import { principalHasAtomicPermission } from '@/lib/rbac/route-access'
-import { pathwaysClient } from '@/lib/services/pathways-client'
+import { PathwaysClientError, pathwaysClient } from '@/lib/services/pathways-client'
+import { privateProofClient } from '@/lib/services/private-proof-client'
 import type {
   ActivitySummary,
   EvidenceActivitySummary,
@@ -149,7 +151,6 @@ const LegacyProjectWorkspace = ({
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(false)
   const [unavailableSections, setUnavailableSections] = useState<string[]>([])
-  const [previewEvidence, setPreviewEvidence] = useState<EvidenceRecord | null>(null)
   const [addIndicatorOpen, setAddIndicatorOpen] = useState(false)
   const [formState, setFormState] = useState<Record<string, string>>({})
 
@@ -339,7 +340,6 @@ const LegacyProjectWorkspace = ({
           evidence={evidence}
           evidenceSummary={evidenceSummary}
           reports={reports}
-          onPreview={setPreviewEvidence}
         />
       ) : null}
       {view === 'indicators' ? (
@@ -353,31 +353,6 @@ const LegacyProjectWorkspace = ({
           }}
         />
       ) : null}
-
-      <SimpleDialog
-        description="File content is unavailable until approved storage retrieval is configured."
-        onOpenChange={(open) => {
-          if (!open) {
-            setPreviewEvidence(null)
-          }
-        }}
-        open={Boolean(previewEvidence)}
-        title={previewEvidence?.reportTitle ?? 'Evidence preview'}
-      >
-        {previewEvidence ? (
-          <div className="space-y-4">
-            <StatusBadge tone={statusTone(previewEvidence.status)}>
-              {previewEvidence.status}
-            </StatusBadge>
-            <p className="text-sm leading-6 text-muted-foreground">
-              {previewEvidence.previewSummary}
-            </p>
-            <div className="rounded-lg border border-dashed border-border bg-muted/40 p-4 text-sm text-muted-foreground">
-              File preview is unavailable for {previewEvidence.fileName}
-            </div>
-          </div>
-        ) : null}
-      </SimpleDialog>
 
       <SimpleDialog
         description="Define an indicator for this project. Saving requires backend configuration."
@@ -524,20 +499,129 @@ const EvidenceSummaryCard = ({ activities }: { activities: EvidenceActivitySumma
   </SectionCard>
 )
 
+/**
+ * Server-authorized download only. Per the approved private inspection Change Record
+ * (docs/cr-pathways-private-activity-proof-inspection.md), no inline preview or blob cache is
+ * permitted: the object URL exists only long enough to trigger the attachment download and is
+ * revoked immediately after.
+ */
+const EvidenceDownloadControl = ({
+  activityId,
+  eligible,
+  evidenceId,
+  projectId,
+  updateId,
+}: {
+  activityId: string
+  eligible: boolean
+  evidenceId: string
+  projectId: string
+  updateId: string
+}) => {
+  const { profile } = useCurrentRole()
+  const owner = useSensitiveDraftOwner(
+    profile,
+    'evidence-download-control',
+    'evidence.review',
+    projectId,
+    JSON.stringify([activityId, updateId, evidenceId]),
+    eligible &&
+      profile?.roles[0] === 'MONITORING_AND_EVALUATION_OFFICER' &&
+      principalHasAtomicPermission(profile, 'evidence.read'),
+  )
+  const [busy, setBusy] = useState(false)
+  const [notice, setNotice] = useState('')
+  const mounted = useRef(true)
+  useEffect(() => {
+    mounted.current = true
+    return () => {
+      mounted.current = false
+    }
+  }, [])
+
+  if (!owner) {
+    return (
+      <Button disabled size="sm" type="button" variant="outline">
+        Not available yet
+      </Button>
+    )
+  }
+
+  const download = async () => {
+    if (busy || !owner.isCurrent()) return
+    setBusy(true)
+    setNotice('')
+    const controller = new AbortController()
+    try {
+      const context = await privateProofClient.context(projectId, activityId, updateId)
+      if (!owner.isCurrent()) return
+      const blob = await privateProofClient.inspect(
+        projectId,
+        context,
+        evidenceId,
+        controller.signal,
+      )
+      if (!owner.isCurrent()) return
+      // One explicit user-requested attachment; never render inline or retain the URL.
+      const url = URL.createObjectURL(blob)
+      try {
+        const anchor = document.createElement('a')
+        anchor.href = url
+        anchor.download = 'activity-proof.bin'
+        anchor.click()
+      } finally {
+        URL.revokeObjectURL(url)
+      }
+    } catch (error) {
+      if (!owner.isCurrent()) return
+      setNotice(
+        error instanceof PathwaysClientError
+          ? error.message
+          : 'Private inspection is unavailable. Reload after checking your access.',
+      )
+    } finally {
+      if (mounted.current && owner.isCurrent()) setBusy(false)
+    }
+  }
+
+  return (
+    <div className="flex flex-col items-end gap-1">
+      <Button
+        className="gap-2"
+        disabled={busy}
+        onClick={() => void download()}
+        size="sm"
+        type="button"
+        variant="outline"
+      >
+        {busy ? (
+          <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+        ) : (
+          <Download className="h-4 w-4" aria-hidden="true" />
+        )}
+        Download for review
+      </Button>
+      {notice ? (
+        <output aria-live="polite" className="max-w-xs text-right text-xs text-destructive">
+          {notice}
+        </output>
+      ) : null}
+    </div>
+  )
+}
+
 const EvidenceView = ({
   projectId,
   canReviewEvidence,
   evidence,
   evidenceSummary,
   reports,
-  onPreview,
 }: {
   projectId: string
   canReviewEvidence: boolean
   evidence: EvidenceRecord[]
   evidenceSummary: EvidenceActivitySummary[] | null
   reports: ScopedReport[]
-  onPreview: (record: EvidenceRecord) => void
 }) => (
   <section className="grid gap-4 xl:grid-cols-[1.4fr_0.6fr]">
     {evidenceSummary ? (
@@ -576,17 +660,18 @@ const EvidenceView = ({
                     <dd className="mt-1 font-medium text-foreground">{record.previewSummary}</dd>
                   </div>
                 </dl>
-                <div className="mt-4 flex flex-wrap justify-end gap-2">
-                  <Button
-                    className="gap-2"
-                    onClick={() => onPreview(record)}
-                    size="sm"
-                    type="button"
-                    variant="outline"
-                  >
-                    <Eye className="h-4 w-4" aria-hidden="true" />
-                    Preview
-                  </Button>
+                <div className="mt-4 flex flex-wrap items-start justify-end gap-2">
+                  <EvidenceDownloadControl
+                    activityId={record.activityId}
+                    eligible={
+                      canReviewEvidence &&
+                      record.projectId === projectId &&
+                      record.status === 'Submitted'
+                    }
+                    evidenceId={record.id}
+                    projectId={projectId}
+                    updateId={record.updateId}
+                  />
                   {canReviewEvidence &&
                   record.projectId === projectId &&
                   record.status === 'Submitted' ? (

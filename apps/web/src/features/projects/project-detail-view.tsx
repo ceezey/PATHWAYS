@@ -12,7 +12,7 @@ import { PathwaysClientError } from '@/lib/services/pathways-client'
 
 import { ProjectOverviewMetrics } from './project-overview-metrics'
 import { ProjectTeamEditorDialog } from './project-team-editor-dialog'
-import { formatNumber, projectStatusTone } from './project-utils'
+import { formatNumber, projectHealthTone, projectStatusTone } from './project-utils'
 import { ProjectWorkspaceHeader } from './project-workspace-header'
 import { useProjectRead } from './use-project-reads'
 
@@ -124,7 +124,7 @@ export const ProjectDetailView = ({ projectId }: { projectId: string }) => {
           actions={
             <div className="flex flex-wrap gap-2">
               <StatusBadge tone={projectStatusTone(project.status)}>{project.status}</StatusBadge>
-              <StatusBadge tone="neutral">Not assessed</StatusBadge>
+              <StatusBadge tone={projectHealthTone(project.health)}>{project.health}</StatusBadge>
             </div>
           }
         >
@@ -133,16 +133,7 @@ export const ProjectDetailView = ({ projectId }: { projectId: string }) => {
               projectId={project.id}
               targetBeneficiaries={project.targetBeneficiaries}
             />
-            <div className="rounded-sm border border-border bg-surface-subtle p-4 text-sm leading-6 text-muted-foreground">
-              Project health cannot be assessed from the current API response.
-            </div>
             <dl className="grid gap-4 text-sm sm:grid-cols-2">
-              <div>
-                <dt className="text-muted-foreground">Objectives</dt>
-                <dd className="mt-1 font-medium text-foreground">
-                  {project.objectives || 'Not recorded'}
-                </dd>
-              </div>
               <div>
                 <dt className="text-muted-foreground">Implementing partners</dt>
                 <dd className="mt-1 font-medium text-foreground">
