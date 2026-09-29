@@ -53,4 +53,22 @@ describe('Project Team selector rules', () => {
       projectOfficers: 'Select at least one active Project Officer from the list.',
     })
   })
+
+  it('never flags a blank single-assignment field as an invalid legacy value', () => {
+    // Regression: a blank programManager/projectManager/monitoringOfficer
+    // means "None" and must always validate cleanly, even when the role has
+    // eligible active users, since blank previously (incorrectly) counted
+    // as a selected name that failed the eligibility check.
+    expect(
+      validateProjectTeamSelections(
+        {
+          monitoringOfficer: '',
+          programManager: '',
+          projectManager: '',
+          projectOfficers: '',
+        },
+        mockUsers,
+      ),
+    ).toEqual({})
+  })
 })

@@ -16,6 +16,8 @@ export type UiAction =
   | 'beneficiaries.merge'
   | 'beneficiaries.create'
   | 'beneficiaries.participation.record'
+  | 'beneficiaries.journey.transition'
+  | 'beneficiaries.journey.correct'
   | 'dashboard.configure'
   | 'outcomes.log'
   | 'indicators.manage'
@@ -35,6 +37,8 @@ const supportedActionPermission: Partial<Record<UiAction, AtomicPermission>> = {
   'beneficiaries.create': 'beneficiaries.records.register',
   'beneficiaries.edit': 'beneficiaries.profiles.update',
   'beneficiaries.participation.record': 'participation.record',
+  'beneficiaries.journey.transition': 'beneficiaries.enrollments.manage',
+  'beneficiaries.journey.correct': 'participation.record',
   'indicators.manage': 'indicators.create',
   'journeys.manage': 'journeys.manage',
   'milestones.manage': 'milestones.manage',

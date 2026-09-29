@@ -10,7 +10,7 @@ import { Dialog, DialogClose } from '@/components/ui/dialog'
 import type { ProjectDetail } from '@/types/pathways'
 
 import { ProjectOverviewMetrics } from './project-overview-metrics'
-import { projectStatusTone } from './project-utils'
+import { projectHealthTone, projectStatusTone } from './project-utils'
 
 export const ProjectPreviewDialog = ({
   project,
@@ -30,7 +30,7 @@ export const ProjectPreviewDialog = ({
         <div className="space-y-5">
           <div className="flex flex-wrap gap-2">
             <StatusBadge tone={projectStatusTone(project.status)}>{project.status}</StatusBadge>
-            <StatusBadge tone="neutral">Not assessed</StatusBadge>
+            <StatusBadge tone={projectHealthTone(project.health)}>{project.health}</StatusBadge>
           </div>
           <dl className="grid gap-3 text-sm sm:grid-cols-2">
             <div>
@@ -47,10 +47,6 @@ export const ProjectPreviewDialog = ({
             projectId={project.id}
             targetBeneficiaries={project.targetBeneficiaries}
           />
-          <div className="rounded-lg border border-border bg-muted/40 p-4 text-sm leading-6 text-muted-foreground">
-            <p className="font-semibold text-foreground">Health Signal Basis</p>
-            <p className="mt-1">Project health cannot be assessed from the current API response.</p>
-          </div>
           <dl className="text-sm">
             <dt className="text-muted-foreground">Project Manager</dt>
             <dd className="mt-1 font-medium text-foreground">{project.projectManager}</dd>

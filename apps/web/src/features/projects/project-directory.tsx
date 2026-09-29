@@ -31,6 +31,7 @@ import {
   type ProjectStatusFilter,
   formatNumber,
   overviewMetricLabel,
+  projectHealthTone,
   projectStatusFilters,
   projectStatusTone,
 } from './project-utils'
@@ -189,7 +190,9 @@ export const ProjectDirectory = () => {
                     <StatusBadge tone={projectStatusTone(project.status)}>
                       {project.status}
                     </StatusBadge>
-                    <StatusBadge tone="neutral">Not assessed</StatusBadge>
+                    <StatusBadge tone={projectHealthTone(project.health)}>
+                      {project.health}
+                    </StatusBadge>
                   </div>
                   <p className="text-sm tabular-nums text-muted-foreground">{project.period}</p>
                 </div>

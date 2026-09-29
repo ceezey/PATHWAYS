@@ -30,7 +30,11 @@ import type { PathwaysRole } from '@/types/pathways-role'
 
 import type { ProjectSetupSchema } from './project-form-validation'
 
-type TeamFieldName = 'programManager' | 'projectManager' | 'monitoringOfficer' | 'projectOfficers'
+export type TeamFieldName =
+  | 'programManager'
+  | 'projectManager'
+  | 'monitoringOfficer'
+  | 'projectOfficers'
 
 const teamRoles: Record<TeamFieldName, PathwaysRole> = {
   programManager: 'Program Manager',
@@ -62,10 +66,15 @@ export const validateProjectTeamSelections = (
   users: UserRecord[],
 ) => {
   const errors: Partial<Record<TeamFieldName, string>> = {}
+  // A blank single-assignment field means "None" (an intentional, always
+  // allowed clear) rather than an unresolved selection, so it must never be
+  // treated as a name to validate against the eligible set. Filtering it
+  // out here keeps a blank field from being flagged as an invalid legacy
+  // value whenever the role happens to have at least one eligible user.
   const selectedByField: Record<TeamFieldName, string[]> = {
-    programManager: [values.programManager],
-    projectManager: [values.projectManager],
-    monitoringOfficer: [values.monitoringOfficer],
+    programManager: values.programManager ? [values.programManager] : [],
+    projectManager: values.projectManager ? [values.projectManager] : [],
+    monitoringOfficer: values.monitoringOfficer ? [values.monitoringOfficer] : [],
     projectOfficers: parseProjectOfficerNames(values.projectOfficers),
   }
 
@@ -110,7 +119,10 @@ const optionPlaceholder = (
   return `Select ${roleLabels[role]}`
 }
 
+const noneOptionValue = '__none__'
+
 const SingleTeamSelector = ({
+  allowClear = true,
   control,
   disabled,
   fieldName,
@@ -120,6 +132,7 @@ const SingleTeamSelector = ({
   unavailableMessage,
   users,
 }: {
+  allowClear?: boolean
   control: Control<ProjectSetupSchema>
   disabled: boolean
   fieldName: Exclude<TeamFieldName, 'projectOfficers'>
@@ -145,6 +158,28 @@ const SingleTeamSelector = ({
             <Select
               disabled={disabled || Boolean(unavailableMessage) || options.length === 0}
               onValueChange={(userId) => {
+                // Radix Select mirrors its controlled value onto a visually
+                // hidden native <select> for form participation. When that
+                // native element's options change (e.g. this component's
+                // eligible-user list populates asynchronously after
+                // getUsers() resolves) while the dropdown has never been
+                // opened, the browser cannot yet find a matching <option>
+                // for the id we set, silently resets the native element's
+                // value to "", and Radix bubbles that back through
+                // onValueChange(''). No real SelectItem ever carries the
+                // value "" (Radix throws on an empty item value, and the
+                // "None" item uses noneOptionValue instead), so an
+                // onValueChange('') call is never a genuine user choice.
+                // Ignoring it here is what keeps an already-assigned,
+                // still-eligible user from being wiped out purely because
+                // the option list loaded after mount.
+                if (userId === '') {
+                  return
+                }
+                if (userId === noneOptionValue) {
+                  field.onChange('')
+                  return
+                }
                 const user = options.find((option) => option.id === userId)
                 field.onChange(user?.name ?? '')
               }}
@@ -172,6 +207,11 @@ const SingleTeamSelector = ({
                 </SelectTrigger>
               </FormControl>
               <SelectContent className="max-w-[calc(100vw-2rem)] sm:min-w-[var(--radix-select-trigger-width)]">
+                {allowClear ? (
+                  <SelectItem value={noneOptionValue}>
+                    <span className="text-muted-foreground">None</span>
+                  </SelectItem>
+                ) : null}
                 {options.map((user) => (
                   <SelectItem key={user.id} value={user.id}>
                     <span className="flex min-w-0 max-w-full flex-col overflow-hidden">
@@ -206,6 +246,8 @@ const SingleTeamSelector = ({
 
 export const ProjectTeamSelectors = ({
   control,
+  disallowAssignRoles,
+  disallowClearRoles,
   loadError,
   loading,
   onRetry,
@@ -213,6 +255,11 @@ export const ProjectTeamSelectors = ({
   users,
 }: {
   control: Control<ProjectSetupSchema>
+  // Fields the signed-in actor is not authorized to assign (mirrors
+  // canAssignRole server-side): the selector and its None option are
+  // disabled rather than hidden, so the current assignment stays visible.
+  disallowAssignRoles?: TeamFieldName[]
+  disallowClearRoles?: Exclude<TeamFieldName, 'projectOfficers'>[]
   loadError: string | null
   loading: boolean
   onRetry: () => void
@@ -221,6 +268,9 @@ export const ProjectTeamSelectors = ({
 }) => {
   const officerOptions = getEligibleTeamUsers(users, 'Project Officer')
   const disabled = loading || Boolean(loadError)
+  const canClear = (fieldName: Exclude<TeamFieldName, 'projectOfficers'>) =>
+    !disallowClearRoles?.includes(fieldName)
+  const canAssignField = (fieldName: TeamFieldName) => !disallowAssignRoles?.includes(fieldName)
 
   return (
     <div className="space-y-5">
@@ -244,8 +294,9 @@ export const ProjectTeamSelectors = ({
       ) : null}
       <div className="grid gap-5 lg:grid-cols-2">
         <SingleTeamSelector
+          allowClear={canClear('programManager')}
           control={control}
-          disabled={disabled}
+          disabled={disabled || !canAssignField('programManager')}
           fieldName="programManager"
           label="Program Manager"
           loadError={loadError}
@@ -254,8 +305,9 @@ export const ProjectTeamSelectors = ({
           users={users}
         />
         <SingleTeamSelector
+          allowClear={canClear('projectManager')}
           control={control}
-          disabled={disabled}
+          disabled={disabled || !canAssignField('projectManager')}
           fieldName="projectManager"
           label="Project Manager"
           loadError={loadError}
@@ -264,8 +316,9 @@ export const ProjectTeamSelectors = ({
           users={users}
         />
         <SingleTeamSelector
+          allowClear={canClear('monitoringOfficer')}
           control={control}
-          disabled={disabled}
+          disabled={disabled || !canAssignField('monitoringOfficer')}
           fieldName="monitoringOfficer"
           label="Monitoring and Evaluation Officer"
           loadError={loadError}
@@ -297,7 +350,10 @@ export const ProjectTeamSelectors = ({
                       <Button
                         className="w-full justify-between gap-3 font-normal"
                         disabled={
-                          disabled || Boolean(unavailableMessage) || officerOptions.length === 0
+                          disabled ||
+                          Boolean(unavailableMessage) ||
+                          officerOptions.length === 0 ||
+                          !canAssignField('projectOfficers')
                         }
                         onBlur={field.onBlur}
                         ref={field.ref}

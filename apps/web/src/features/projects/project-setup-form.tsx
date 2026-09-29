@@ -15,6 +15,7 @@ import { toast } from 'sonner'
 import { PageHeader } from '@/components/layout/page-header'
 import { LockedField, SectionCard } from '@/components/pathways'
 import { Button } from '@/components/ui/button'
+import { useCurrentRole } from '@/hooks/use-current-role'
 import {
   Form,
   FormControl,
@@ -43,7 +44,6 @@ import { principalHasAtomicPermission } from '@/lib/rbac/route-access'
 import { PathwaysClientError, pathwaysClient } from '@/lib/services/pathways-client'
 import type { ProjectDetail, ProjectStatus, UserRecord } from '@/types/pathways'
 
-import { useCurrentRole } from '@/hooks/use-current-role'
 import {
   type ProjectSetupSchema,
   projectSetupSchema,
@@ -55,7 +55,6 @@ import { ProjectTeamSelectors } from './project-team-selectors'
 
 const projectStatuses: ProjectStatus[] = ['Active', 'Needs Attention', 'Planned', 'Completed']
 const projectDraftFields = [
-  'objectives',
   'partnerOrganizations',
   'projectBudget',
   'targetBeneficiaries',
@@ -72,7 +71,6 @@ const projectDraftFields = [
   'projectOfficers',
 ] as const
 const projectDefaultValues: ProjectSetupSchema = {
-  objectives: '',
   partnerOrganizations: '',
   projectBudget: '',
   targetBeneficiaries: '',
@@ -106,7 +104,7 @@ const ScopedProjectSetupForm = ({
   projectId,
   scope,
 }: { projectId?: string; scope: SensitiveDraftOwner }) => {
-  const { profile } = useCurrentRole()
+  const { profile, refreshAccess } = useCurrentRole()
   const mutationContext = useSourceMutationContext(
     profile,
     'projects.update',
@@ -144,7 +142,6 @@ const ScopedProjectSetupForm = ({
           form.reset({
             ...projectDefaultValues,
             title: project.title,
-            objectives: project.objectives ?? '',
             partnerOrganizations:
               project.implementingPartnerRecords?.map((partner) => partner.name).join('\n') ?? '',
             projectBudget: project.projectBudget ?? '',
@@ -279,6 +276,12 @@ const ScopedProjectSetupForm = ({
         if (!scope.isCurrent() || !mutationContext.isCurrent()) return
         sourceMutationTickets.finishAcknowledgement(mutationContext, project.requestId)
       }
+      if (!existingProject) {
+        // A newly created project may add this account to assignedProjectIds.
+        // Refresh the cached profile before navigating so the route guard does
+        // not evaluate the redirect against a stale assignment list.
+        await refreshAccess()
+      }
       router.push(
         `/projects/${isSourceReplay(project) ? (existingProject?.id ?? projectId) : project.id}`,
       )
@@ -347,12 +350,12 @@ const ScopedProjectSetupForm = ({
             <div className="grid gap-5 lg:grid-cols-2">
               <FormField
                 control={form.control}
-                name="objectives"
+                name="title"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel required>Objectives</FormLabel>
+                    <FormLabel required>Project title</FormLabel>
                     <FormControl aria-required="true">
-                      <Input {...field} />
+                      <Input placeholder="Community Resilience Project" {...field} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -403,19 +406,6 @@ const ScopedProjectSetupForm = ({
                     <FormLabel>Target beneficiaries</FormLabel>
                     <FormControl>
                       <Input min="0" type="number" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="title"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel required>Project title</FormLabel>
-                    <FormControl aria-required="true">
-                      <Input placeholder="Community Resilience Project" {...field} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>

@@ -639,7 +639,9 @@ const ScopedActivityFormDialog = ({
                             />
                           </FormControl>
                           <FormDescription>
-                            Approved expenses logged against this activity.
+                            {activity?.budgetLoggedEntries === 0
+                              ? 'None yet. No approved expense entries are recorded against this activity.'
+                              : 'Sum of approved expenses recorded against this activity.'}
                           </FormDescription>
                           <FormMessage />
                         </FormItem>

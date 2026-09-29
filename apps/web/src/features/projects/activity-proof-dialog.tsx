@@ -109,8 +109,10 @@ const ScopedActivityProofDialog = ({
   // overlapping finish() calls without blocking a later retry after a failed reload.
   const committed = useRef(false)
   const finishing = useRef(false)
+  const [beneficiariesReachedThisSession, setBeneficiariesReachedThisSession] = useState(0)
   const noteError = error === 'Enter an update note before submitting proof.'
   const fileError = error.startsWith('Attach') || error.startsWith('Select up to')
+  const beneficiariesError = error.startsWith('Beneficiaries reached this session')
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: scope is stable per instance key.
   useEffect(() => {
@@ -119,6 +121,7 @@ const ScopedActivityProofDialog = ({
     setFiles([])
     setError('')
     setLocked(false)
+    setBeneficiariesReachedThisSession(0)
     reservation.current = null
     committed.current = false
     finishing.current = false
@@ -396,6 +399,29 @@ const ScopedActivityProofDialog = ({
           <output aria-atomic="true" aria-live="polite" className="sr-only block">
             {liveStatus}
           </output>
+          <div className="space-y-2">
+            <Label htmlFor="activity-beneficiaries-reached">Beneficiaries reached this session</Label>
+            <Input
+              aria-describedby="activity-beneficiaries-reached-hint"
+              aria-invalid={beneficiariesError}
+              disabled
+              id="activity-beneficiaries-reached"
+              min={0}
+              onChange={(event) => {
+                setBeneficiariesReachedThisSession(Number(event.target.value))
+                if (beneficiariesError) setError('')
+              }}
+              title="Not available yet"
+              type="number"
+              step={1}
+              value={beneficiariesReachedThisSession}
+            />
+            <p className="text-sm text-muted-foreground" id="activity-beneficiaries-reached-hint">
+              Session beneficiary counts are unavailable until backend support is added. The
+              submitted proof retains the current {activity?.progress ?? 0}% progress for M&E
+              review.
+            </p>
+          </div>
           <div className="space-y-2">
             <Label htmlFor="activity-note">
               Narrative Notes
