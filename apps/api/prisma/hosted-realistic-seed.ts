@@ -14,7 +14,6 @@ import type { ApplicationIdentity } from '../src/modules/auth/developer-access'
 import type { RegisterBeneficiaryDto } from '../src/modules/beneficiaries/beneficiaries.dto'
 import { BeneficiariesService } from '../src/modules/beneficiaries/beneficiaries.service'
 import { IndicatorsService } from '../src/modules/indicators/indicators.service'
-import { ProgramsService } from '../src/modules/programs/programs.service'
 import type { CreateProjectDto } from '../src/modules/projects/projects.dto'
 import { ProjectsService } from '../src/modules/projects/projects.service'
 import { StorageService } from '../src/modules/storage/storage.service'
@@ -428,7 +427,6 @@ async function main() {
   const runtime = new PrismaService({ datasources: { db: { url: runtimeUrl } } })
   const storage = new StorageService()
   const projectsService = new ProjectsService(runtime)
-  const programsService = new ProgramsService(runtime)
   const activitiesService = new ActivitiesService(runtime, storage)
   const indicatorsService = new IndicatorsService(runtime)
   const beneficiariesService = new BeneficiariesService(runtime)
@@ -577,16 +575,21 @@ async function main() {
       }
     })
 
-    // --- Programs: created through ProgramsService.create (authorized path) -------------
-    // Reference data, the organization and the first profiles above stay on the owner
-    // (superuser) connection because prisma owns those tables without FORCE RLS and this
-    // is the same one-time authorization-bootstrap path local-synthetic-seed already uses:
-    // there is no signed-in identity yet for RLS to check against until a System
-    // Administrator profile exists. Programs are ordinary domain data with an authorized
-    // service (ProgramsService.create, requiring SYSTEM_ADMINISTRATOR), so they are created
-    // the same way the seed drives projects/activities/indicators/beneficiaries below:
-    // through withAuthorizedOperation under a server-derived identity, on the runtime
-    // (RLS-enforced) connection, never on the owner connection.
+    // --- Programs: still created on the owner connection -----------------------------
+    // ProgramsService.create() is gated behind the 'programs.create' permission (see its
+    // @RequirePermission('programs.create') controller and its own internal
+    // SYSTEM_ADMINISTRATOR-only check), but no canonical role is ever granted that
+    // permission: it is absent from SYSTEM_ADMINISTRATOR's grant list in
+    // authorization-policy.ts, and rbac-contract.json lists zero roles for it too. Calling
+    // programsService.create() here throws ForbiddenException('Required application
+    // permission is missing.') for every identity, including a real System Administrator —
+    // this is a pre-existing RBAC gap in the product, not something this seed can safely
+    // paper over. Fixing it needs a new migration (the 0027/0035 grant matrices are an
+    // immutable, migration-verified ceiling per csv-rbac.test.ts) plus an RBAC contract
+    // update and SAD review, which is out of scope for this seed. Filed as a follow-up;
+    // until then, program creation stays on the owner connection like the rest of this
+    // bootstrap subset, with the same rationale (prisma owns these tables without FORCE
+    // RLS, and there is no signed-in identity this early for RLS to check against anyway).
     const programPlans: Array<{
       code: string
       name: string
@@ -613,11 +616,6 @@ async function main() {
         status: 'ONGOING',
       },
     ]
-    const bootstrapAdministratorIdentity = identityFor(
-      adminAuthId,
-      workspace.organizationId,
-      workspace.adminUserId,
-    )
     const programManagerId = workspace.staffByRole.get('PROGRAM_MANAGER')?.[0]
     const programIds = new Map<string, string>()
     for (const plan of programPlans) {
@@ -628,23 +626,18 @@ async function main() {
         programIds.set(plan.code, existing.id)
         continue
       }
-      const created = await programsService.create(bootstrapAdministratorIdentity, {
-        code: plan.code,
-        name: plan.name,
-        description: plan.description,
-        startDate: plan.startDate,
-        endDate: plan.endDate,
-        status: plan.status,
+      const created = await prisma.program.create({
+        data: {
+          organizationId: workspace.organizationId,
+          code: plan.code,
+          name: plan.name,
+          description: plan.description,
+          managerUserId: programManagerId,
+          startDate: new Date(`${plan.startDate}T00:00:00.000Z`),
+          endDate: new Date(`${plan.endDate}T00:00:00.000Z`),
+          status: plan.status,
+        },
       })
-      // CreateProgramDto has no managerUserId field (no authorized endpoint assigns a
-      // program manager yet); set it with a targeted owner-connection update rather than
-      // widening the public API surface for this seed alone.
-      if (programManagerId) {
-        await prisma.program.update({
-          where: { id: created.id },
-          data: { managerUserId: programManagerId },
-        })
-      }
       programIds.set(plan.code, created.id)
     }
 
@@ -1021,7 +1014,7 @@ function planBeneficiaryRegistration(
 
 if (require.main === module) {
   void main().catch((error: unknown) => {
-    console.error(error instanceof Error ? error.message : 'Hosted realistic seed failed.')
+    console.error(error instanceof Error ? error.stack : 'Hosted realistic seed failed.')
     process.exitCode = 1
   })
 }
