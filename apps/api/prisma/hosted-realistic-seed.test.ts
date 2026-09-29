@@ -6,6 +6,7 @@ import {
   dummyStaff,
   planBeneficiaryRegistration,
   projectPlans,
+  reconcileStorageBuckets,
   stableUuid,
   staffEmail,
 } from './hosted-realistic-seed'
@@ -175,6 +176,100 @@ describe('assertGuardedTarget (defense in depth, mirrors scripts/db/hosted-seed-
   })
 })
 
+describe('reconcileStorageBuckets', () => {
+  const plans = [
+    {
+      id: 'pathways-private',
+      fileSizeLimit: 52_428_800,
+      allowedMimeTypes: ['image/png', 'application/pdf'],
+    },
+    { id: 'uploads', fileSizeLimit: 52_428_800 },
+  ]
+
+  function fakeStorage(
+    existing: Array<{
+      id: string
+      public: boolean
+      file_size_limit?: number | null
+      allowed_mime_types?: string[] | null
+    }>,
+  ) {
+    const created: unknown[] = []
+    const updated: unknown[] = []
+    return {
+      created,
+      updated,
+      async listBuckets() {
+        return { data: existing, error: null }
+      },
+      async createBucket(id: string, options: unknown) {
+        created.push({ id, options })
+        return { error: null }
+      },
+      async updateBucket(id: string, options: unknown) {
+        updated.push({ id, options })
+        return { error: null }
+      },
+    }
+  }
+
+  it('creates every bucket that does not exist yet', async () => {
+    const storage = fakeStorage([])
+    const outcomes = await reconcileStorageBuckets(storage, plans)
+    expect(outcomes).toEqual({ 'pathways-private': 'CREATED', uploads: 'CREATED' })
+    expect(storage.created).toHaveLength(2)
+    expect(storage.updated).toHaveLength(0)
+  })
+
+  it('leaves an existing bucket alone when it already matches the required settings', async () => {
+    const storage = fakeStorage([
+      {
+        id: 'pathways-private',
+        public: false,
+        file_size_limit: 52_428_800,
+        allowed_mime_types: ['application/pdf', 'image/png'], // order must not matter
+      },
+      { id: 'uploads', public: false, file_size_limit: 52_428_800, allowed_mime_types: null },
+    ])
+    const outcomes = await reconcileStorageBuckets(storage, plans)
+    expect(outcomes).toEqual({ 'pathways-private': 'UNCHANGED', uploads: 'UNCHANGED' })
+    expect(storage.created).toHaveLength(0)
+    expect(storage.updated).toHaveLength(0)
+  })
+
+  it('updates an existing bucket whose settings drifted from the required ones', async () => {
+    const storage = fakeStorage([
+      // A stale bucket left with no limit and no MIME restriction, as if created before
+      // these requirements existed, or manually.
+      { id: 'pathways-private', public: false, file_size_limit: null, allowed_mime_types: null },
+      { id: 'uploads', public: true, file_size_limit: 52_428_800, allowed_mime_types: null },
+    ])
+    const outcomes = await reconcileStorageBuckets(storage, plans)
+    expect(outcomes).toEqual({ 'pathways-private': 'UPDATED', uploads: 'UPDATED' })
+    expect(storage.updated).toHaveLength(2)
+    const privateUpdate = storage.updated.find(
+      (call): call is { id: string; options: Record<string, unknown> } =>
+        (call as { id: string }).id === 'pathways-private',
+    )
+    expect(privateUpdate?.options).toMatchObject({
+      public: false,
+      fileSizeLimit: 52_428_800,
+      allowedMimeTypes: ['image/png', 'application/pdf'],
+    })
+  })
+
+  it('propagates a listBuckets error without creating or updating anything', async () => {
+    const storage = {
+      async listBuckets() {
+        return { data: null, error: new Error('storage unavailable') }
+      },
+      createBucket: async () => ({ error: null }),
+      updateBucket: async () => ({ error: null }),
+    }
+    await expect(reconcileStorageBuckets(storage, plans)).rejects.toThrow('storage unavailable')
+  })
+})
+
 describe('staff and admin identity', () => {
   it('never treats the System Administrator email as a dummy staff account', () => {
     expect(SYSTEM_ADMIN_EMAIL).toBe('cianjake.francisco@gmail.com')
@@ -259,15 +354,15 @@ describe('beneficiary data validity', () => {
 
 describe('idempotency', () => {
   it('stableUuid is deterministic and produces a structurally valid UUID', () => {
-    const a = stableUuid('beneficiary-register:SSG-ES-2026:BEN-SSG-ES-2026-001')
-    const b = stableUuid('beneficiary-register:SSG-ES-2026:BEN-SSG-ES-2026-001')
+    const a = stableUuid('beneficiary-register:SGE-ES-2026:BEN-SGE-ES-2026-001')
+    const b = stableUuid('beneficiary-register:SGE-ES-2026:BEN-SGE-ES-2026-001')
     expect(a).toBe(b)
     expect(a).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/)
   })
 
   it('different natural keys produce different ids', () => {
-    const a = stableUuid('beneficiary-register:SSG-ES-2026:BEN-SSG-ES-2026-001')
-    const b = stableUuid('beneficiary-register:SSG-ES-2026:BEN-SSG-ES-2026-002')
+    const a = stableUuid('beneficiary-register:SGE-ES-2026:BEN-SGE-ES-2026-001')
+    const b = stableUuid('beneficiary-register:SGE-ES-2026:BEN-SGE-ES-2026-002')
     expect(a).not.toBe(b)
   })
 

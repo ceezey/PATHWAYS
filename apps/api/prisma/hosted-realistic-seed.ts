@@ -235,6 +235,73 @@ const privateBuckets: Array<{
   { id: 'assets', fileSizeLimit: 52_428_800 },
 ]
 
+type BucketPlan = { id: string; fileSizeLimit: number; allowedMimeTypes?: string[] }
+type ExistingBucketRow = {
+  id: string
+  public: boolean
+  file_size_limit?: number | null
+  allowed_mime_types?: string[] | null
+}
+/** Minimal shape of the supabase-js storage admin client this reconciler needs, so it can be
+ * unit tested with a fake client instead of a real Supabase Storage service. */
+type StorageBucketAdmin = {
+  listBuckets(): Promise<{ data: ExistingBucketRow[] | null; error: unknown }>
+  createBucket(
+    id: string,
+    options: { public: boolean; fileSizeLimit?: number; allowedMimeTypes?: string[] },
+  ): Promise<{ error: unknown }>
+  updateBucket(
+    id: string,
+    options: { public: boolean; fileSizeLimit?: number; allowedMimeTypes?: string[] },
+  ): Promise<{ error: unknown }>
+}
+
+function sameMimeList(a: string[] | null | undefined, b: string[] | undefined) {
+  const normalize = (list?: string[] | null) => [...(list ?? [])].sort()
+  const x = normalize(a)
+  const y = normalize(b)
+  return x.length === y.length && x.every((value, index) => value === y[index])
+}
+
+/** Creates any missing bucket, and brings an already-existing bucket's settings (visibility,
+ * file size limit, allowed MIME types) up to the required configuration instead of leaving it
+ * however it happened to be left by earlier runs or manual changes. Returns one outcome per
+ * bucket id: 'CREATED', 'UPDATED', or 'UNCHANGED' when it already matched. */
+export async function reconcileStorageBuckets(
+  storage: StorageBucketAdmin,
+  buckets: readonly BucketPlan[] = privateBuckets,
+): Promise<Record<string, 'CREATED' | 'UPDATED' | 'UNCHANGED'>> {
+  const { data: existingBuckets, error: listError } = await storage.listBuckets()
+  if (listError) throw listError
+  const outcomes: Record<string, 'CREATED' | 'UPDATED' | 'UNCHANGED'> = {}
+  for (const bucket of buckets) {
+    const existing = existingBuckets?.find((row) => row.id === bucket.id)
+    const desired = {
+      public: false,
+      fileSizeLimit: bucket.fileSizeLimit,
+      allowedMimeTypes: bucket.allowedMimeTypes,
+    }
+    if (!existing) {
+      const { error } = await storage.createBucket(bucket.id, desired)
+      if (error) throw error
+      outcomes[bucket.id] = 'CREATED'
+      continue
+    }
+    const matches =
+      existing.public === false &&
+      existing.file_size_limit === bucket.fileSizeLimit &&
+      sameMimeList(existing.allowed_mime_types, bucket.allowedMimeTypes)
+    if (matches) {
+      outcomes[bucket.id] = 'UNCHANGED'
+      continue
+    }
+    const { error } = await storage.updateBucket(bucket.id, desired)
+    if (error) throw error
+    outcomes[bucket.id] = 'UPDATED'
+  }
+  return outcomes
+}
+
 type ProjectPlan = {
   code: string
   title: string
@@ -256,8 +323,12 @@ type ProjectPlan = {
 
 const projectPlans: ProjectPlan[] = [
   {
-    code: 'SSG-ES-2026',
-    title: 'Safe Schools for Girls - Eastern Samar',
+    // Deliberately distinct from local-synthetic-seed.ts's own 'SSG-ES-2026' fixture
+    // (same organization, PLAN_PH): two independent seed scripts must never collide on
+    // a project code, or one silently treats the other's project as "already exists"
+    // and skips its own team-assignment/activity setup for it.
+    code: 'SGE-ES-2026',
+    title: 'School Girls Education Continuity Initiative - Eastern Samar',
     description:
       'Strengthens school-based protection and learning continuity for adolescent girls in typhoon-affected municipalities of Eastern Samar.',
     objectives:
@@ -433,23 +504,7 @@ async function main() {
 
   try {
     // --- Storage buckets -------------------------------------------------
-    const { data: buckets, error: bucketListError } = await supabase.storage.listBuckets()
-    if (bucketListError) throw bucketListError
-    const bucketOutcomes: Record<string, 'EXISTING' | 'CREATED'> = {}
-    for (const bucket of privateBuckets) {
-      const existing = buckets?.find((row) => row.id === bucket.id)
-      if (existing) {
-        bucketOutcomes[bucket.id] = 'EXISTING'
-        continue
-      }
-      const { error } = await supabase.storage.createBucket(bucket.id, {
-        public: false,
-        fileSizeLimit: bucket.fileSizeLimit,
-        allowedMimeTypes: bucket.allowedMimeTypes,
-      })
-      if (error) throw error
-      bucketOutcomes[bucket.id] = 'CREATED'
-    }
+    const bucketOutcomes = await reconcileStorageBuckets(supabase.storage)
 
     // --- System Administrator lookup (never created here) ----------------
     let adminAuthId: string | null = null
