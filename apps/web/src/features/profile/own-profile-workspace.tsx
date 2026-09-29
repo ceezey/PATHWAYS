@@ -4,6 +4,7 @@ import { PageHeader } from '@/components/layout/page-header'
 import { SectionCard } from '@/components/pathways/section-card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { STEP_UP_PIN_UI_ENABLED } from '@/constants/feature-flags'
 import { useCurrentRole } from '@/hooks/use-current-role'
 import { useSession } from '@/hooks/use-session'
 import { type SensitiveDraftOwner, useSensitiveDraftOwner } from '@/lib/auth/sensitive-drafts'
@@ -35,8 +36,10 @@ const OwnedProfileWorkspace = ({ owner: draftOwner }: { owner: SensitiveDraftOwn
   const { email } = useSession()
   const { profile, refreshAccess } = useCurrentRole()
   // UI only: the PIN is a Beneficiary step-up fallback, so aggregate-only roles skip it.
-  // The API enforces permissions and step-up independently of this section.
-  const beneficiaryDetail = Boolean(profile?.permissions.includes('beneficiaries.records.read'))
+  // The API enforces permissions and step-up independently of this section. The PIN UI
+  // itself is hidden while STEP_UP_PIN_UI_ENABLED is false (see docs/deferred-features.md).
+  const beneficiaryDetail =
+    STEP_UP_PIN_UI_ENABLED && Boolean(profile?.permissions.includes('beneficiaries.records.read'))
   const owner = `${draftOwner.generation}:${draftOwner.key}`
   const mounted = useRef(true)
   useEffect(() => {
