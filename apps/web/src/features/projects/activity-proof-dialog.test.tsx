@@ -1211,13 +1211,12 @@ describe('ActivityProofDialog progress suggestion', () => {
     expect(progressInput().value).toBe('99')
   })
 
-  it('stops overwriting after a manual edit and Use suggestion re-applies it', () => {
+  it('stops overwriting after a manual edit and offers no suggestion button', () => {
     show(withTarget())
     fireEvent.change(progressInput(), { target: { value: '60' } })
     session('30')
     expect(progressInput().value).toBe('60')
-    fireEvent.click(screen.getByRole('button', { name: 'Use suggestion (50%)' }))
-    expect(progressInput().value).toBe('50')
+    expect(screen.queryByRole('button', { name: /Use suggestion/ })).toBeNull()
   })
 
   it('never suggests below the current progress', () => {
@@ -1306,12 +1305,10 @@ describe('ActivityProofDialog progress suggestion', () => {
     )
   })
 
-  it('shows a linked completion warning at 100', () => {
+  it('shows no completion warning at 100', () => {
     show(withTarget())
     fireEvent.change(progressInput(), { target: { value: '100' } })
-    const notice = screen.getByText(/100% marks this activity Completed when M&E approves/)
-    expect(notice.id).toBe('activity-proof-progress-complete')
-    expect(progressInput().getAttribute('aria-describedby')).toContain(notice.id)
+    expect(screen.queryByText(/marks this activity Completed/)).toBeNull()
   })
 
   it('shows a non-blocking note below current progress', () => {

@@ -168,7 +168,6 @@ const ScopedActivityProofDialog = ({
       : String(suggestion?.percent ?? activity?.progress ?? 0)
 
   const numericProgress = progressValue.trim() === '' ? Number.NaN : Number(progressValue)
-  const completionNotice = numericProgress === 100
   const lowerNotice =
     !resume &&
     progressEdited &&
@@ -568,7 +567,6 @@ const ScopedActivityProofDialog = ({
               aria-describedby={
                 [
                   suggestion ? 'activity-proof-progress-hint' : '',
-                  completionNotice ? 'activity-proof-progress-complete' : '',
                   lowerNotice ? 'activity-proof-progress-lower' : '',
                   progressError ? 'activity-proof-progress-error' : '',
                 ]
@@ -590,28 +588,8 @@ const ScopedActivityProofDialog = ({
               value={progressValue}
             />
             {suggestion ? (
-              <div className="flex flex-wrap items-center gap-2">
-                <p className="text-sm text-muted-foreground" id="activity-proof-progress-hint">
-                  {`Suggested from beneficiaries: ${suggestion.total} of ${suggestion.target} reached ${suggestion.includesSession ? '(including this session) ' : ''}= ${suggestion.percent}%.`}
-                </p>
-                <Button
-                  disabled={submitting || locked}
-                  onClick={() => setProgressEdited(false)}
-                  size="sm"
-                  type="button"
-                  variant="outline"
-                >
-                  Use suggestion ({suggestion.percent}%)
-                </Button>
-              </div>
-            ) : null}
-            {completionNotice ? (
-              <p
-                className="text-sm font-medium text-foreground"
-                id="activity-proof-progress-complete"
-              >
-                100% marks this activity Completed when M&E approves this proof. It can no longer be
-                edited after that.
+              <p className="text-sm text-muted-foreground" id="activity-proof-progress-hint">
+                {`Suggested from beneficiaries: ${suggestion.total} of ${suggestion.target} reached ${suggestion.includesSession ? '(including this session) ' : ''}= ${suggestion.percent}%.`}
               </p>
             ) : null}
             {lowerNotice && activity ? (
