@@ -825,6 +825,7 @@ model ActivityUpdate {
   reviewedById         String?         @map("reviewed_by_id") @db.Uuid
   reviewedAt           DateTime?       @map("reviewed_at") @db.Timestamptz(3)
   reviewReason         String?         @map("review_reason")
+  beneficiariesReachedThisSession Int? @map("beneficiaries_reached_this_session")
   createdAt            DateTime        @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt            DateTime        @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
   organization         Organization    @relation("ActivityUpdate_organization", fields: [organizationId], references: [id], onDelete: Restrict, onUpdate: Restrict, map: "activity_updates_organization_fk")
