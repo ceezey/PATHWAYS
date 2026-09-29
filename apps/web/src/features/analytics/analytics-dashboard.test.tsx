@@ -553,6 +553,7 @@ describe('Analytics dashboard request dependencies', () => {
     vi.resetModules()
     vi.doMock('@/constants/feature-flags', () => ({
       ANALYTICS_AGGREGATE_EXPORT_UI_ENABLED: true,
+      UNFINISHED_CONTROLS_UI_ENABLED: false,
     }))
     const { AnalyticsDashboard: ExportEnabledDashboard } = await import('./analytics-dashboard')
     currentAccess.profile.permissions = [
@@ -641,17 +642,12 @@ describe('Analytics dashboard request dependencies', () => {
     expect(download).not.toHaveBeenCalled()
   })
 
-  it('keeps Add to Dashboard disabled with a Not available yet hint and enables the survey/timeline views', async () => {
+  it('hides Add to Dashboard while unfinished controls are hidden and restricts the survey/timeline views', async () => {
     render(<AnalyticsDashboard />)
     await waitFor(() => expect(api.getMonitoringDashboard).toHaveBeenCalled())
 
-    const addToDashboard = screen.getByRole('button', { name: 'Add to Dashboard' })
-    // aria-disabled (not native disabled) so the control stays keyboard/AT reachable.
-    expect(addToDashboard.hasAttribute('disabled')).toBe(false)
-    expect(addToDashboard.getAttribute('aria-disabled')).toBe('true')
-    const describedBy = addToDashboard.getAttribute('aria-describedby')
-    expect(describedBy).toBeTruthy()
-    expect(document.getElementById(describedBy as string)?.textContent).toBe('Not available yet')
+    expect(screen.queryByRole('button', { name: 'Add to Dashboard' })).toBeNull()
+    expect(screen.queryByText('Not available yet')).toBeNull()
 
     const surveyOption = screen.getByText('Survey improvement', {
       selector: 'option',

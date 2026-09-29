@@ -20,6 +20,7 @@ import {
 } from '@/components/pathways'
 import { Button } from '@/components/ui/button'
 import { Sheet } from '@/components/ui/sheet'
+import { UNFINISHED_CONTROLS_UI_ENABLED } from '@/constants/feature-flags'
 import type { Activity, ActivityProof, Indicator, JourneyStageConfig } from '@/types/pathways'
 
 import { ActivityExpenseDialog, type ExpenseBudgetReference } from './activity-expense-dialog'
@@ -520,7 +521,9 @@ export const ActivityDetailContent = ({
             Log expense
           </Button>
         ) : null}
-        {canRequestExtension && activity.status !== 'Completed' ? (
+        {UNFINISHED_CONTROLS_UI_ENABLED &&
+        canRequestExtension &&
+        activity.status !== 'Completed' ? (
           <>
             <Button
               className="gap-2"

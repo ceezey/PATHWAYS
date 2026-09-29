@@ -34,6 +34,7 @@ import {
 } from '@/components/ui/select'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Textarea } from '@/components/ui/textarea'
+import { UNFINISHED_CONTROLS_UI_ENABLED } from '@/constants/feature-flags'
 import { useCurrentRole } from '@/hooks/use-current-role'
 import { isUiActionAvailable } from '@/lib/rbac/ui-action-availability'
 import { type AssessmentDetail, pathwaysClient } from '@/lib/services/pathways-client'
@@ -524,7 +525,9 @@ export const BeneficiaryDetail = ({
                 aria-label="Beneficiary information"
               >
                 <TabsTrigger value="journey">Journey tracking</TabsTrigger>
-                <TabsTrigger value="media">Media proof</TabsTrigger>
+                {UNFINISHED_CONTROLS_UI_ENABLED ? (
+                  <TabsTrigger value="media">Media proof</TabsTrigger>
+                ) : null}
                 <TabsTrigger value="participation">Participation history</TabsTrigger>
               </TabsList>
 
@@ -704,17 +707,19 @@ export const BeneficiaryDetail = ({
                 ) : null}
               </TabsContent>
 
-              <TabsContent value="media">
-                <BeneficiaryMediaProof
-                  activities={activities}
-                  beneficiaryId={beneficiary.id}
-                  canManage={canEditBeneficiary}
-                  mediaProof={[]}
-                  projectIds={beneficiary.projectIds}
-                  projects={projects}
-                  unavailableReason="Beneficiary media remains unavailable until a server-backed upload and review lifecycle is approved."
-                />
-              </TabsContent>
+              {UNFINISHED_CONTROLS_UI_ENABLED ? (
+                <TabsContent value="media">
+                  <BeneficiaryMediaProof
+                    activities={activities}
+                    beneficiaryId={beneficiary.id}
+                    canManage={canEditBeneficiary}
+                    mediaProof={[]}
+                    projectIds={beneficiary.projectIds}
+                    projects={projects}
+                    unavailableReason="Beneficiary media remains unavailable until a server-backed upload and review lifecycle is approved."
+                  />
+                </TabsContent>
+              ) : null}
 
               <TabsContent value="participation">
                 <RecordList

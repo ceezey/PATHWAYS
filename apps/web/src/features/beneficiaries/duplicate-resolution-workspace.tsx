@@ -23,6 +23,7 @@ import {
 } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { UNFINISHED_CONTROLS_UI_ENABLED } from '@/constants/feature-flags'
 
 type DuplicateCandidate = {
   id: string
@@ -162,31 +163,33 @@ export const DuplicateResolutionWorkspace = () => {
                 <PersonCard label="Existing profile" person={selected.left} />
                 <PersonCard label="Potential match" person={selected.right} />
               </div>
-              <div className="flex flex-wrap justify-end gap-3">
-                <Button
-                  type="button"
-                  variant="outline"
-                  {...Object.assign(
-                    { onClick: () => setDecision('distinct') },
-                    unavailableControlProps('duplicate-keep-distinct-hint'),
-                  )}
-                >
-                  <SearchCheck className="mr-2 h-4 w-4" aria-hidden="true" />
-                  Keep as distinct people
-                </Button>
-                <UnavailableHint id="duplicate-keep-distinct-hint" />
-                <Button
-                  type="button"
-                  {...Object.assign(
-                    { onClick: () => setDecision('link') },
-                    unavailableControlProps('duplicate-merge-linked-hint'),
-                  )}
-                >
-                  <Link2 className="mr-2 h-4 w-4" aria-hidden="true" />
-                  Merge linked profiles
-                </Button>
-                <UnavailableHint id="duplicate-merge-linked-hint" />
-              </div>
+              {UNFINISHED_CONTROLS_UI_ENABLED ? (
+                <div className="flex flex-wrap justify-end gap-3">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    {...Object.assign(
+                      { onClick: () => setDecision('distinct') },
+                      unavailableControlProps('duplicate-keep-distinct-hint'),
+                    )}
+                  >
+                    <SearchCheck className="mr-2 h-4 w-4" aria-hidden="true" />
+                    Keep as distinct people
+                  </Button>
+                  <UnavailableHint id="duplicate-keep-distinct-hint" />
+                  <Button
+                    type="button"
+                    {...Object.assign(
+                      { onClick: () => setDecision('link') },
+                      unavailableControlProps('duplicate-merge-linked-hint'),
+                    )}
+                  >
+                    <Link2 className="mr-2 h-4 w-4" aria-hidden="true" />
+                    Merge linked profiles
+                  </Button>
+                  <UnavailableHint id="duplicate-merge-linked-hint" />
+                </div>
+              ) : null}
             </div>
           ) : null}
         </SectionCard>

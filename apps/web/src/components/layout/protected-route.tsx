@@ -20,8 +20,8 @@ export function FeatureDirectory() {
         Available workspace features
       </h2>
       <p className="text-sm text-muted-foreground">
-        Features without persisted backend support remain unavailable. Project-specific tools
-        require an authorized project selection; no identifiers need to be entered.
+        Project-specific tools require an authorized project selection; no identifiers need to be
+        entered.
       </p>
       <ul className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
         {visibleFeatures(profile).map((feature) => (
