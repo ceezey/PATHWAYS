@@ -4,6 +4,7 @@ import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/re
 import { StrictMode } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { clearSensitiveDraftStorage } from '@/lib/auth/sensitive-drafts'
 import { DisplayLabelsProvider } from '@/providers/display-labels-provider'
 
 import { CollectionWorkspace } from './collection-workspace'
@@ -112,5 +113,55 @@ describe('extend import project dropdown', () => {
     fireEvent.change(projectSelect(), { target: { value: 'project-b' } })
     await waitFor(() => expect(projectSelect().value).toBe('project-b'))
     await waitFor(() => expect(api.getDigitalForms).toHaveBeenLastCalledWith('project-b'))
+  })
+
+  it('retries a project response dropped by a generation bump instead of leaving the list empty', async () => {
+    let calls = 0
+    api.getProjectsForRole.mockImplementation(async () => {
+      calls++
+      const rows = [
+        { id: 'project-a', code: 'A', title: 'Alpha Project', status: 'ONGOING' },
+        { id: 'project-b', code: 'B', title: 'Beta Project', status: 'PLANNED' },
+      ]
+      // The first response lands after an auth refresh moved the sensitive-draft generation.
+      if (calls === 1) clearSensitiveDraftStorage()
+      return rows
+    })
+    render(
+      <DisplayLabelsProvider>
+        <CollectionWorkspace initialView="import" initialMode="extend" />
+      </DisplayLabelsProvider>,
+    )
+    await waitFor(() =>
+      expect(Array.from(projectSelect().options).map((option) => option.textContent)).toEqual(
+        expect.arrayContaining(['Alpha Project', 'Beta Project']),
+      ),
+    )
+    expect(calls).toBe(2)
+    await waitFor(() => expect(projectSelect().value).toBe('project-a'))
+  })
+
+  it('keeps the list after a later profile refetch and generation bump', async () => {
+    const view = render(
+      <DisplayLabelsProvider>
+        <CollectionWorkspace initialView="import" initialMode="extend" />
+      </DisplayLabelsProvider>,
+    )
+    await waitFor(() => expect(projectSelect().value).toBe('project-a'))
+    // Background `me` refetch: a fresh profile object for the same identity, plus a bump.
+    access.profile = { ...access.profile, permissions: [...access.profile.permissions].reverse() }
+    clearSensitiveDraftStorage()
+    view.rerender(
+      <DisplayLabelsProvider>
+        <CollectionWorkspace initialView="import" initialMode="extend" />
+      </DisplayLabelsProvider>,
+    )
+    await waitFor(() =>
+      expect(Array.from(projectSelect().options).map((option) => option.textContent)).toEqual(
+        expect.arrayContaining(['Alpha Project', 'Beta Project']),
+      ),
+    )
+    fireEvent.change(projectSelect(), { target: { value: 'project-b' } })
+    await waitFor(() => expect(projectSelect().value).toBe('project-b'))
   })
 })
