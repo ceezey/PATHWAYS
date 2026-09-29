@@ -262,6 +262,8 @@ describe('PATHWAYS frontend data boundary', () => {
   })
 
   it('does not fabricate collection records while remaining domain endpoints are unavailable', async () => {
+    // Published projects are read over the network; keep a locally running API out of this test.
+    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(Error('network unavailable')))
     const collections = await Promise.allSettled([
       pathwaysClient.getExpenses('project-id'),
       pathwaysClient.getRecommendationOutcomes('project-id'),
