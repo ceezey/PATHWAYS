@@ -156,6 +156,25 @@ isolation in both directions, and that the function's owner, ACL, `SECURITY DEFI
 search path, and `(activity_id, beneficiaries_reached)` signature are unchanged from the 0000
 baseline. Success prints `PROOF_SESSION_BENEFICIARY_COUNT_RUNTIME=PASS`.
 
+## Activity progress review (migration 0044)
+
+`activity-progress-review-runtime.sql` covers the progress-only review path. Run it as a local
+superuser against a disposable `pathways_phase2_*` or `pathways_phase4_*` database that already
+has 0044 applied and its cleanup run. It rolls back all fixtures.
+
+The suite runs each review exactly as the API does: as a `pathways_runtime` session with the
+`app.*` context, through `f10_begin_source_operation`, the two DML statements and
+`f10_finish_source_operation`. It verifies that an assigned M&E officer approves and returns a
+pending progress-only update (no evidence, below 100 percent) while the activity is
+`IN_PROGRESS`, that approve applies only the progress percent and return leaves it unchanged, and
+that an unassigned M&E officer, a cross-organization M&E officer, an assigned Project Manager
+(no `evidence.review`) and the submitter are all rejected. It also confirms the unchanged rules:
+a proof update with evidence is still not reviewable while `IN_PROGRESS`, a completing 100 percent
+progress-only update and a stale `expectedUpdatedAt` are still refused, and `FOR_REVIEW` proof
+approve and return still succeed. Last, it checks both replaced functions' owner, `SECURITY
+DEFINER` mode, empty search path, ACL and body digest, and that the temporary owner chain and lent
+schema CREATE rights are gone. Success prints `ACTIVITY_PROGRESS_REVIEW_RUNTIME=PASS`.
+
 ## Default registration form (migration 0040)
 
 `default-registration-form-runtime.sql` covers `cr-pathways-default-registration-form`. Run it
