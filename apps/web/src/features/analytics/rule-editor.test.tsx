@@ -14,6 +14,9 @@ const state = vi.hoisted(() => ({
     'activities.read',
     'indicators.read',
   ],
+  roles: ['SYSTEM_ADMINISTRATOR'],
+  assignedProjectIds: [] as string[],
+  forceScopeOwnerNull: false,
   projects: vi.fn(),
   activities: vi.fn(),
   activityContext: vi.fn(),
@@ -27,12 +30,12 @@ vi.mock('@/hooks/use-current-role', () => ({
       id: '10000000-0000-4000-8000-000000000001',
       userId: '10000000-0000-4000-8000-000000000001',
       organizationId: '20000000-0000-4000-8000-000000000001',
-      roles: ['SYSTEM_ADMINISTRATOR'],
-      assignedProjectIds: [],
+      roles: state.roles,
+      assignedProjectIds: state.assignedProjectIds,
       permissions: state.permissions,
     },
     role: 'System Administrator',
-    assignedProjectIds: [],
+    assignedProjectIds: state.assignedProjectIds,
     access: 'ready',
   }),
 }))
@@ -54,6 +57,19 @@ vi.mock('@/lib/services/pathways-client', () => ({
 vi.mock('@/lib/services/rules-human-client', () => ({
   rulesHumanClient: { createRule: state.createRule, draftRule: state.draftRule },
 }))
+vi.mock('@/lib/auth/sensitive-drafts', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/lib/auth/sensitive-drafts')>()
+  return {
+    ...actual,
+    useSensitiveDraftOwner: (...args: Parameters<typeof actual.useSensitiveDraftOwner>) => {
+      const owner = actual.useSensitiveDraftOwner(...args)
+      // Lets a test simulate the scope becoming ineligible between mount and submit,
+      // independent of the real RBAC matrix used for the mount-time owner.
+      if (state.forceScopeOwnerNull && args[1] === 'rule-editor-scope') return null
+      return owner
+    },
+  }
+})
 
 const projectId = '40000000-0000-4000-8000-000000000001'
 const otherProjectId = '40000000-0000-4000-8000-000000000002'
@@ -102,6 +118,9 @@ beforeEach(() => {
     'activities.read',
     'indicators.read',
   ]
+  state.roles = ['SYSTEM_ADMINISTRATOR']
+  state.assignedProjectIds = []
+  state.forceScopeOwnerNull = false
   state.projects.mockResolvedValue([
     { id: projectId, title: 'Project A' },
     { id: otherProjectId, title: 'Project B' },
@@ -318,14 +337,95 @@ describe('organization scope with a record-bound condition', () => {
 })
 
 describe('copying a template into a project', () => {
-  it('hides the template picker and locks Applies to during a copy', async () => {
-    renderEditor({ projectId, template: templateRule })
+  it('hides the template picker and offers a single, enabled scope control with no organization option', async () => {
+    renderEditor({ projectId: null, template: templateRule })
     await screen.findByLabelText('Applies to')
     expect(screen.queryByText('Start from template')).toBeNull()
     const scope = screen.getByLabelText('Applies to') as HTMLSelectElement
-    expect(scope.disabled).toBe(true)
+    expect(scope.disabled).toBe(false)
+    expect(scope.value).toBe('')
+    expect(screen.queryAllByLabelText('Applies to')).toHaveLength(1)
+    // The only value-less option is the "Choose a project" placeholder, not an org option.
+    expect(screen.getByText('Choose a project')).toBeTruthy()
+    expect(screen.queryByText('Organization template (no project)')).toBeNull()
+  })
+
+  it('keeps entered edits when changing the copy target project', async () => {
+    renderEditor({ projectId: null, template: templateRule })
+    const scope = (await screen.findByLabelText('Applies to')) as HTMLSelectElement
+    fireEvent.change(screen.getByLabelText('Rule name'), { target: { value: 'Copied rule name' } })
+    fireEvent.change(scope, { target: { value: projectId } })
     expect(scope.value).toBe(projectId)
-    expect(screen.getByText('Scope is fixed to the copy target project.')).toBeTruthy()
+    expect((screen.getByLabelText('Rule name') as HTMLInputElement).value).toBe('Copied rule name')
+    fireEvent.change(scope, { target: { value: otherProjectId } })
+    expect(scope.value).toBe(otherProjectId)
+    expect((screen.getByLabelText('Rule name') as HTMLInputElement).value).toBe('Copied rule name')
+  })
+
+  it('rejects submitting a copy with no project chosen', async () => {
+    renderEditor({ projectId: null, template: templateRule })
+    await screen.findByLabelText('Applies to')
+    fillStepOne()
+    fireEvent.click(screen.getByRole('button', { name: 'Next: Recommendations' }))
+    expect(
+      await screen.findByText(
+        'Copied rules must apply to a project. Choose a project for Applies to before continuing.',
+      ),
+    ).toBeTruthy()
+    expect(screen.queryAllByText('Step 2 of 2: Recommendations')).toHaveLength(0)
+  })
+})
+
+describe('scope permission required on submit', () => {
+  it('shows a visible, step 1 error when the selected scope becomes ineligible before submit', async () => {
+    renderEditor({ projectId })
+    await screen.findByLabelText('Applies to')
+    fillStepOne()
+    fireEvent.click(screen.getByRole('button', { name: 'Next: Recommendations' }))
+    await waitFor(() =>
+      expect(screen.getAllByText('Step 2 of 2: Recommendations').length).toBeGreaterThan(0),
+    )
+    state.forceScopeOwnerNull = true
+    // Force a re-render so the mocked hook re-evaluates with the flag now set; setting the
+    // module-level flag alone does not by itself trigger React to re-render this component.
+    // Both required recommendation fields are filled so HTML5 constraint validation does not
+    // itself block the submit event before the handler runs.
+    fireEvent.change(screen.getByLabelText('Recommendation 1 title'), {
+      target: { value: 'Title one' },
+    })
+    fireEvent.change(screen.getByLabelText('Recommendation text'), {
+      target: { value: 'Text one' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Create draft' }))
+    expect(
+      await screen.findByText('Current permission for the selected Applies to scope is required.'),
+    ).toBeTruthy()
+    expect(screen.queryAllByText('Step 2 of 2: Recommendations')).toHaveLength(0)
+    const scope = screen.getByLabelText('Applies to') as HTMLSelectElement
+    expect(scope.getAttribute('aria-invalid')).toBe('true')
+    expect(state.createRule).not.toHaveBeenCalled()
+  })
+})
+
+describe('project choices truthful scope labelling', () => {
+  it('shows a settled-without-project label when the current project is not in the loaded list', async () => {
+    state.projects.mockResolvedValue([{ id: otherProjectId, title: 'Project B' }])
+    renderEditor({ projectId })
+    const scope = (await screen.findByLabelText('Applies to')) as HTMLSelectElement
+    await waitFor(() =>
+      expect(within(scope).getByText('Current project (not in your project list)')).toBeTruthy(),
+    )
+    expect(scope.disabled).toBe(false)
+  })
+
+  it('shows an unavailable label when the viewer cannot read the project list at all', async () => {
+    state.permissions = ['rules.create', 'rules.update']
+    renderEditor({ projectId })
+    const scope = (await screen.findByLabelText('Applies to')) as HTMLSelectElement
+    await waitFor(() =>
+      expect(within(scope).getByText('Current project (not in your project list)')).toBeTruthy(),
+    )
+    expect(scope.disabled).toBe(false)
   })
 })
 

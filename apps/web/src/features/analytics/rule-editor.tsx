@@ -237,6 +237,16 @@ function OwnedRuleEditor({
       ? (activitiesContext.data ?? [])
       : []
   const availableMetrics = scopeProjectId ? ruleMetrics : projectFreeMetrics
+  const scopeProjectMissing = Boolean(
+    scopeProjectId && !projects.data?.some((project) => project.id === scopeProjectId),
+  )
+  const scopeProjectMissingLabel = !scopeProjectMissing
+    ? null
+    : projects.isLoading
+      ? 'Current project (loading project choices...)'
+      : projects.isError
+        ? 'Current project (project choices unavailable)'
+        : 'Current project (not in your project list)'
   const applyTemplate = (spec: RuleTemplateSpec) => {
     if (!spec.available || !spec.build) return
     const built = spec.build()
@@ -312,7 +322,8 @@ function OwnedRuleEditor({
       return
     }
     if (!scopeOwner) {
-      setNotice('Current permission for the selected Applies to scope is required.')
+      setStepError('Current permission for the selected Applies to scope is required.')
+      setStepErrorField('rule-applies-to')
       stepFocusPending.current = true
       setStep(1)
       return
@@ -402,29 +413,29 @@ function OwnedRuleEditor({
                 busy ||
                 locked ||
                 Boolean(original) ||
-                Boolean(template) ||
                 (Boolean(scopeProjectId) && (projects.isLoading || projects.isError))
               }
               aria-invalid={stepErrorField === 'rule-applies-to' || undefined}
               aria-describedby={
                 [
                   stepErrorField === 'rule-applies-to' ? stepErrorId : null,
-                  original || template ? appliesToHelpId : null,
+                  original ? appliesToHelpId : null,
                 ]
                   .filter(Boolean)
                   .join(' ') || undefined
               }
               onChange={(event) => onScopeProjectChange(event.target.value)}
             >
-              {scopeProjectId &&
-              !projects.data?.some((project) => project.id === scopeProjectId) ? (
-                <option value={scopeProjectId} disabled>
-                  {projects.isError
-                    ? 'Current project (project choices unavailable)'
-                    : 'Current project (loading project choices...)'}
+              {scopeProjectMissingLabel ? (
+                <option value={scopeProjectId ?? ''} disabled>
+                  {scopeProjectMissingLabel}
                 </option>
               ) : null}
-              <option value="">Organization template (no project)</option>
+              {template ? (
+                <option value="">Choose a project</option>
+              ) : (
+                <option value="">Organization template (no project)</option>
+              )}
               {projects.data?.map((project) => (
                 <option key={project.id} value={project.id}>
                   {project.title}
@@ -435,17 +446,17 @@ function OwnedRuleEditor({
               <p id={appliesToHelpId} className="text-sm text-muted-foreground">
                 Scope is fixed for existing rules.
               </p>
-            ) : template ? (
-              <p id={appliesToHelpId} className="text-sm text-muted-foreground">
-                Scope is fixed to the copy target project.
-              </p>
             ) : null}
             {projects.isError ? (
               <Button type="button" variant="outline" onClick={() => void projects.refetch()}>
                 Retry project choices
               </Button>
             ) : null}
-            {!scopeProjectId ? (
+            {!scopeProjectId && template ? (
+              <p className="text-sm text-muted-foreground">
+                Choose the project this copy will apply to.
+              </p>
+            ) : !scopeProjectId ? (
               <p className="text-sm text-muted-foreground">
                 Organization templates cannot bind to a specific indicator or activity record. Copy
                 this template into a project to use record-bound metrics.

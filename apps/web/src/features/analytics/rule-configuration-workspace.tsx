@@ -36,7 +36,6 @@ export function RuleConfigurationWorkspace() {
   const [selection, setSelection] = useState<string | null>(null)
   const [action, setAction] = useState<DialogAction | null>(null)
   const [showTest, setShowTest] = useState(false)
-  const [copyProject, setCopyProject] = useState<string | null>(null)
   const [savedScopeNotice, setSavedScopeNotice] = useState('')
   const projects = useAuthorizedRead('rules-project-choices', null, 'projects.read', (signal) =>
     pathwaysClient.getProjects(signal),
@@ -83,7 +82,6 @@ export function RuleConfigurationWorkspace() {
     void detail.refetch()
   }
   const open = (next: DialogAction) => {
-    setCopyProject(null)
     setAction(next)
   }
   if (!has('rules.read'))
@@ -311,24 +309,6 @@ export function RuleConfigurationWorkspace() {
               version.
             </DialogDescription>
           </DialogHeader>
-          {action?.kind === 'copy' ? (
-            <div className="space-y-2">
-              <Label htmlFor="rule-copy-project">Project</Label>
-              <select
-                id="rule-copy-project"
-                className="h-11 w-full rounded-sm border border-input bg-background px-3"
-                value={copyProject ?? ''}
-                onChange={(event) => setCopyProject(event.target.value || null)}
-              >
-                <option value="">Choose a project</option>
-                {projects.data?.map((project) => (
-                  <option key={project.id} value={project.id}>
-                    {project.title}
-                  </option>
-                ))}
-              </select>
-            </div>
-          ) : null}
           {action?.kind === 'create' ? (
             <RuleEditor projectId={projectId} onSaved={refresh} />
           ) : action?.kind === 'draft' ? (
@@ -337,8 +317,8 @@ export function RuleConfigurationWorkspace() {
               original={action.rule}
               onSaved={refresh}
             />
-          ) : action?.kind === 'copy' && copyProject ? (
-            <RuleEditor projectId={copyProject} template={action.rule} onSaved={refresh} />
+          ) : action?.kind === 'copy' ? (
+            <RuleEditor projectId={null} template={action.rule} onSaved={refresh} />
           ) : action?.kind === 'activate' || action?.kind === 'archive' ? (
             <RuleLifecycle rule={action.rule} action={action.kind} onSaved={refresh} />
           ) : null}
