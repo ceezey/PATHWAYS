@@ -1,0 +1,145 @@
+import assert from 'node:assert/strict'
+import { readdirSync } from 'node:fs'
+import path from 'node:path'
+import test from 'node:test'
+import { fileURLToPath } from 'node:url'
+
+import {
+  BASELINE,
+  MIGRATIONS_IN_ORDER,
+  assertResumablePrefix,
+  buildPlan,
+  planIndexForAppliedCount,
+  planMigrationOrder,
+} from './hosted-plan.mjs'
+
+const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..')
+const migrationsDir = path.join(root, 'apps', 'api', 'prisma', 'migrations')
+
+test('MIGRATIONS_IN_ORDER matches the real migrations directory exactly, in order', () => {
+  const onDisk = readdirSync(migrationsDir, { withFileTypes: true })
+    .filter((entry) => entry.isDirectory())
+    .map((entry) => entry.name)
+    .sort()
+  assert.deepEqual([...MIGRATIONS_IN_ORDER].sort(), onDisk)
+  // The migrations directory holds one folder per Prisma migration. 0000
+  // squashes the original 0001-0026 into a single reviewed baseline, so the
+  // ledger has 16 rows even though the numbering runs 0000 through 0041.
+  assert.equal(MIGRATIONS_IN_ORDER.length, 16)
+  assert.equal(MIGRATIONS_IN_ORDER[0], BASELINE)
+})
+
+test('the dry-run plan order exactly matches the documented stop points', () => {
+  const plan = buildPlan()
+  const shape = plan.map((step) =>
+    step.type === 'deploy'
+      ? `deploy:${step.migrations.join(',')}`
+      : step.type === 'preprovision' || step.type === 'cleanup'
+        ? `${step.type}:${step.name}`
+        : step.type,
+  )
+  assert.deepEqual(shape, [
+    'create-role',
+    'apply-baseline',
+    'resolve-baseline',
+    'deploy:0027_revised_csv_rbac,0028_revised_aggregate_permission_guards,0029_core_registration_and_import_support,0030_core_profile_partners',
+    'preprovision:rules',
+    'deploy:0031_f10_f11_rules_runtime',
+    'cleanup:rules',
+    'deploy:0032_core_workflow_actor_locks,0033_core_canonical_activity_review_guard',
+    'preprovision:core',
+    'deploy:0034_core_feature_completion',
+    'cleanup:core',
+    'deploy:0035_admin_read_access,0036_import_pdf_file_type',
+    'preprovision:step-up-pin',
+    'deploy:0037_step_up_pin,0038_import_smart_mapping,0039_project_partner_backfill,0040_default_registration_form',
+    'preprovision:activity-media',
+    'deploy:0041_activity_media_evidence',
+    'cleanup:activity-media',
+    'alter-runtime-role',
+    'postconditions',
+  ])
+})
+
+test('planMigrationOrder covers every migration exactly once, in order', () => {
+  assert.deepEqual(planMigrationOrder(), MIGRATIONS_IN_ORDER)
+})
+
+test('the rules cleanup step is flagged as needing the captured original_prisma_database_create value', () => {
+  const plan = buildPlan()
+  const rulesCleanup = plan.find((step) => step.type === 'cleanup' && step.name === 'rules')
+  assert.ok(rulesCleanup.needsOriginalPrismaDatabaseCreate)
+  const coreCleanup = plan.find((step) => step.type === 'cleanup' && step.name === 'core')
+  assert.ok(!coreCleanup.needsOriginalPrismaDatabaseCreate)
+})
+
+test('assertResumablePrefix accepts an empty ledger', () => {
+  assert.equal(assertResumablePrefix([]), 0)
+})
+
+test('assertResumablePrefix accepts an exact finished prefix', () => {
+  const ledger = MIGRATIONS_IN_ORDER.slice(0, 5).map((migration_name) => ({
+    migration_name,
+    finished_at: '2026-01-01T00:00:00Z',
+    rolled_back_at: null,
+  }))
+  assert.equal(assertResumablePrefix(ledger), 5)
+})
+
+test('assertResumablePrefix refuses an unfinished row', () => {
+  const ledger = [{ migration_name: BASELINE, finished_at: null, rolled_back_at: null }]
+  assert.throws(() => assertResumablePrefix(ledger), /unfinished or rolled back/)
+})
+
+test('assertResumablePrefix refuses a rolled-back row', () => {
+  const ledger = [
+    { migration_name: BASELINE, finished_at: '2026-01-01', rolled_back_at: '2026-01-02' },
+  ]
+  assert.throws(() => assertResumablePrefix(ledger), /unfinished or rolled back/)
+})
+
+test('assertResumablePrefix refuses a ledger with a gap (not an exact prefix)', () => {
+  const ledger = [
+    { migration_name: BASELINE, finished_at: '2026-01-01', rolled_back_at: null },
+    {
+      migration_name: '0028_revised_aggregate_permission_guards',
+      finished_at: '2026-01-01',
+      rolled_back_at: null,
+    },
+  ]
+  assert.throws(() => assertResumablePrefix(ledger), /not an exact finished prefix/)
+})
+
+test('assertResumablePrefix refuses duplicate rows', () => {
+  const ledger = [
+    { migration_name: BASELINE, finished_at: '2026-01-01', rolled_back_at: null },
+    { migration_name: BASELINE, finished_at: '2026-01-01', rolled_back_at: null },
+  ]
+  assert.throws(() => assertResumablePrefix(ledger), /duplicate/)
+})
+
+test('assertResumablePrefix refuses an unknown migration name', () => {
+  const ledger = [
+    { migration_name: 'not_a_real_migration', finished_at: '2026-01-01', rolled_back_at: null },
+  ]
+  assert.throws(() => assertResumablePrefix(ledger), /not an exact finished prefix/)
+})
+
+test('planIndexForAppliedCount(0) resumes at the very first step', () => {
+  assert.equal(planIndexForAppliedCount(0), 0)
+})
+
+test('planIndexForAppliedCount resumes right after the deploy step for the last applied migration', () => {
+  const plan = buildPlan()
+  // 5 applied: baseline + 0027..0030, i.e. right after the first deploy batch.
+  const index = planIndexForAppliedCount(5)
+  assert.equal(plan[index].type, 'preprovision')
+  assert.equal(plan[index].name, 'rules')
+})
+
+test('planIndexForAppliedCount resumes correctly for the last migration (0041)', () => {
+  const plan = buildPlan()
+  const index = planIndexForAppliedCount(MIGRATIONS_IN_ORDER.length)
+  assert.equal(plan[index].type, 'cleanup')
+  assert.equal(plan[index].name, 'activity-media')
+})
