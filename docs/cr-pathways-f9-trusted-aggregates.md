@@ -4,6 +4,8 @@
 **Date:** 2026-09-29
 **Status:** Approved (implementation pending; amended 2026-09-29 and 2026-09-30, see sections 9 and 10)
 
+**Reading note:** section 10 supersedes every earlier statement in this record that Program Manager or Grant Manager receive survey aggregates (sections 1, 3, 6 and 9). Those roles receive timeline aggregates only; the survey view is restricted for them until the deferred closed-period release freeze is built. Section 8 disposition happens when the change reaches `dev`.
+
 ## 1. Decision and Authority
 
 The developer decided on 2026-09-29 that Program Manager and Grant Manager receive real F9 survey improvement and timeline adherence aggregates, not a restricted state. The developer approved this record as written on 2026-09-29. Migration `0045` needs separate authorization before it is applied to any hosted database.

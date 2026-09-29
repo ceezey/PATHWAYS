@@ -1241,17 +1241,35 @@ describe('analytics descriptive views: survey and timeline', () => {
     const csv = result.bytes.toString('utf8')
     expect(csv).toContain('"SURVEY"')
     expect(csv).toMatch(/"SUPPRESSED","","",?"SMALL_CELL"/)
-    expect(tx.auditLog.create).toHaveBeenCalledWith(
-      expect.objectContaining({
-        data: expect.objectContaining({
-          action: 'ANALYTICS_DESCRIPTIVE_EXPORTED',
-          changes: expect.objectContaining({ view: 'survey' }),
-        }),
-      }),
-    )
+    // One export audit row per export, carrying contract version, view and row count
+    // (overall plus one per byActivity group for survey; six metrics for timeline).
+    const survey = await service.descriptive(identity, {
+      projectId: projectA,
+      periodStart: '2026-01-01',
+      periodEnd: '2026-12-31',
+      view: 'survey',
+    })
+    const exported = () =>
+      tx.auditLog.create.mock.calls
+        .map((call: unknown[]) => (call[0] as { data: { action: string; changes: unknown } }).data)
+        .filter((data: { action: string }) => data.action === 'ANALYTICS_DESCRIPTIVE_EXPORTED')
+    expect(exported()).toHaveLength(1)
+    expect(exported()[0].changes).toMatchObject({
+      contractVersion: 'analytics.descriptive.survey.v1',
+      format: 'CSV',
+      view: 'survey',
+      rowCount: (survey as { byActivity: unknown[] }).byActivity.length + 1,
+    })
     const timelineResult = await service.export(identity, { projectId: projectA, view: 'timeline' })
     const timelineCsv = timelineResult.bytes.toString('utf8')
     expect(timelineCsv).toContain('"TIMELINE"')
+    expect(exported()).toHaveLength(2)
+    expect(exported()[1].changes).toMatchObject({
+      contractVersion: 'analytics.descriptive.timeline.v1',
+      format: 'CSV',
+      view: 'timeline',
+      rowCount: 6,
+    })
   })
 
   it('abuse: CSV export withholds a whole byActivity breakdown when a group would leak a sub-count by subtraction', async () => {
