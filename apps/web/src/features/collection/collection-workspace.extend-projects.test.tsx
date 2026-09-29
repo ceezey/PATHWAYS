@@ -53,19 +53,30 @@ vi.mock('@/lib/services/pathways-client', () => ({ pathwaysClient: api }))
 // options are rendered as a native select. The option list is what the test asserts.
 vi.mock('@/components/ui/select', async () => {
   const React = await import('react')
-  type Part = { children?: React.ReactNode; value?: string }
+  type Part = { children?: React.ReactNode; value?: string; id?: string; placeholder?: string }
   type SelectProps = Part & { onValueChange?: (value: string) => void }
   const SelectTrigger = (_props: Part) => null
   const SelectValue = (_props: Part) => null
   const SelectContent = ({ children }: Part) => <>{children}</>
   const SelectItem = ({ children, value }: Part) => <option value={value}>{children}</option>
   const Select = ({ children, value, onValueChange }: SelectProps) => {
-    const content = React.Children.toArray(children).find(
+    const parts = React.Children.toArray(children)
+    const content = parts.find(
       (part) => React.isValidElement(part) && part.type === SelectContent,
     ) as React.ReactElement<Part> | undefined
+    const trigger = parts.find(
+      (part) => React.isValidElement(part) && part.type === SelectTrigger,
+    ) as React.ReactElement<Part> | undefined
+    const valueNode = React.Children.toArray(trigger?.props.children).find(
+      (part) => React.isValidElement(part) && part.type === SelectValue,
+    ) as React.ReactElement<Part> | undefined
     return (
-      <select value={value} onChange={(event) => onValueChange?.(event.target.value)}>
-        <option value="">Choose</option>
+      <select
+        id={trigger?.props.id}
+        value={value}
+        onChange={(event) => onValueChange?.(event.target.value)}
+      >
+        <option value="">{valueNode?.props.placeholder ?? 'Choose'}</option>
         {content?.props.children}
       </select>
     )
@@ -88,8 +99,7 @@ afterEach(() => {
   vi.clearAllMocks()
 })
 
-const projectSelect = () =>
-  screen.getByText('Project selection').closest('div')?.querySelector('select') as HTMLSelectElement
+const projectSelect = () => screen.getByLabelText('Project selection') as HTMLSelectElement
 
 describe('extend import project dropdown', () => {
   it.each([
@@ -163,5 +173,71 @@ describe('extend import project dropdown', () => {
     )
     fireEvent.change(projectSelect(), { target: { value: 'project-b' } })
     await waitFor(() => expect(projectSelect().value).toBe('project-b'))
+  })
+
+  it('stops retrying after three attempts and shows a notice instead of loading forever', async () => {
+    api.getProjectsForRole.mockImplementation(async () => {
+      clearSensitiveDraftStorage()
+      return [{ id: 'project-a', code: 'A', title: 'Alpha Project', status: 'ONGOING' }]
+    })
+    render(
+      <DisplayLabelsProvider>
+        <CollectionWorkspace initialView="import" initialMode="extend" />
+      </DisplayLabelsProvider>,
+    )
+    await screen.findByText('Projects could not be loaded. Retry.')
+    expect(api.getProjectsForRole).toHaveBeenCalledTimes(3)
+    expect(screen.queryByText('Loading projects...')).toBeNull()
+    expect(Array.from(projectSelect().options).map((option) => option.textContent)).toEqual([
+      'No projects available',
+    ])
+  })
+
+  it('shows the empty placeholder for an empty result', async () => {
+    api.getProjectsForRole.mockResolvedValue([])
+    render(
+      <DisplayLabelsProvider>
+        <CollectionWorkspace initialView="import" initialMode="extend" />
+      </DisplayLabelsProvider>,
+    )
+    await waitFor(() =>
+      expect(projectSelect().options[0].textContent).toBe('No projects available'),
+    )
+  })
+
+  it('never renders rows from an in-flight request after the assignments change', async () => {
+    let releaseOld: (rows: unknown[]) => void = () => undefined
+    api.getProjectsForRole.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          releaseOld = resolve
+        }),
+    )
+    const ui = () => (
+      <DisplayLabelsProvider>
+        <CollectionWorkspace initialView="import" initialMode="extend" />
+      </DisplayLabelsProvider>
+    )
+    const view = render(ui())
+    await waitFor(() => expect(api.getProjectsForRole).toHaveBeenCalledTimes(1))
+    // Assignments change (project-b removed) while the first request is still in flight.
+    api.getProjectsForRole.mockResolvedValue([
+      { id: 'project-a', code: 'A', title: 'Alpha Project', status: 'ONGOING' },
+    ])
+    access.profile = { ...access.profile, assignedProjectIds: ['project-a'] }
+    view.rerender(ui())
+    await waitFor(() =>
+      expect(Array.from(projectSelect().options).map((option) => option.textContent)).toContain(
+        'Alpha Project',
+      ),
+    )
+    releaseOld([
+      { id: 'project-b', code: 'B', title: 'Beta Project', status: 'PLANNED' },
+      { id: 'project-a', code: 'A', title: 'Alpha Project', status: 'ONGOING' },
+    ])
+    await new Promise((resolve) => setTimeout(resolve, 20))
+    const labels = Array.from(projectSelect().options).map((option) => option.textContent)
+    expect(labels).not.toContain('Beta Project')
+    expect(labels).toContain('Alpha Project')
   })
 })

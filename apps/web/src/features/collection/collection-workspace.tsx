@@ -608,7 +608,10 @@ const OwnedCollectionWorkspace = ({
         const records = await pathwaysClient.getProjectsForRole(role)
         if (!active || !isCurrentOwner()) return
         if (generation !== sensitiveDraftGeneration()) {
-          if (retry()) await load(attempt + 1)
+          if (retry()) return load(attempt + 1)
+          // Retries exhausted: never render the dropped rows, but never stay on "Loading".
+          setProjectsLoaded(true)
+          setSavedNotice('Projects could not be loaded. Retry.')
           return
         }
         setProjects(records)
