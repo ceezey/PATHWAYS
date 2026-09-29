@@ -462,6 +462,14 @@ describe('ActivityProofDialog direct upload', () => {
           'Beneficiaries reached this session must be a whole number from 0 to 100000.',
         ),
       )
+      const field = screen.getByLabelText(/Beneficiaries reached this session/)
+      expect(field.getAttribute('aria-invalid')).toBe('true')
+      expect(field.getAttribute('aria-describedby')).toContain(
+        'activity-beneficiaries-reached-error',
+      )
+      expect(
+        document.getElementById('activity-beneficiaries-reached-error')?.textContent,
+      ).toContain('must be a whole number from 0 to 100000')
       expect(api.reserveActivityProofUpload).not.toHaveBeenCalled()
     },
   )

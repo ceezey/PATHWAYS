@@ -422,7 +422,11 @@ const ScopedActivityProofDialog = ({
               Beneficiaries reached this session
             </Label>
             <Input
-              aria-describedby="activity-beneficiaries-reached-hint"
+              aria-describedby={
+                beneficiariesError
+                  ? 'activity-beneficiaries-reached-hint activity-beneficiaries-reached-error'
+                  : 'activity-beneficiaries-reached-hint'
+              }
               aria-invalid={beneficiariesError}
               disabled={submitting || locked}
               id="activity-beneficiaries-reached"
@@ -542,7 +546,13 @@ const ScopedActivityProofDialog = ({
             <p
               className="text-sm font-medium text-destructive"
               id={
-                noteError ? 'activity-note-error' : fileError ? 'activity-proof-error' : undefined
+                noteError
+                  ? 'activity-note-error'
+                  : fileError
+                    ? 'activity-proof-error'
+                    : beneficiariesError
+                      ? 'activity-beneficiaries-reached-error'
+                      : undefined
               }
               role="alert"
             >
