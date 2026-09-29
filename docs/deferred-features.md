@@ -16,6 +16,18 @@ each item in one place so it does not have to be reconstructed from individual C
 | Program creation in the app | Gap | Found 2026-09-29 | No role in the RBAC contract holds `programs.create` (`apps/api/src/modules/auth/rbac-contract.json`), so `POST /programs` is unreachable from any client. Programs come from the seed. | `apps/api/src/modules/programs/programs.controller.ts`; `apps/api/src/modules/auth/rbac-contract.json`; `docs/rfc-pathways-auth-rbac-isolation.md`. | Grant `programs.create` to an appropriate role via an approved Change Record, or keep programs seed-only by developer decision. |
 | Performance scaling CR steps 3-5 | Deferred | Steps 3-4 not started; step 5 deferred 2026-09-28 | The developer deferred same-origin proxy work (step 5); steps 3-4 (further backend caching) were not started. | See [cr-pathways-performance-scaling](cr-pathways-performance-scaling.md) section 9. | Resume steps 3-4 and revisit step 5 with developer authorization. |
 | Activities reaching COMPLETED in seeded data | Informational (not a deferral) | 2026-09-29 | The seed cannot complete activities without a real proof flow; this is a seed-data limitation, not a withheld feature. | Seed data / `apps/api/prisma`. | No action needed; complete an activity through the real Submit proof and inspection flow. |
+| Analytics aggregate export (CSV) | Hidden | 2026-09-29 | Developer request. The GET `analytics/descriptive/export` endpoint, its permission and its download behavior stay in place; only the UI entry point (the button and its "Exporting aggregates" busy state) is hidden. | `apps/web/src/constants/feature-flags.ts` (`ANALYTICS_AGGREGATE_EXPORT_UI_ENABLED`); `apps/web/src/features/analytics/analytics-dashboard.tsx`. | Flip `ANALYTICS_AGGREGATE_EXPORT_UI_ENABLED` to `true`. |
+| Analytics "Add to Dashboard" | On hold | 2026-09-29 | The storage decision is pending. The button stays visible but disabled with a "Not available yet" hint, next to the project, period and analysis-view filters. Two open questions need a developer decision before this is built. | `apps/web/src/features/analytics/analytics-dashboard.tsx`. | Decide storage and pin content below, then implement and remove the disabled state. |
+
+Analytics "Add to Dashboard" storage options (neither chosen yet):
+
+- **(a) Server, per user.** A small migration adds a per-user, org-scoped pins table, plus API endpoints and a home dashboard section. Pins follow the user across devices. Roughly half a day of work, including review and replay.
+- **(b) This browser only.** Pins are stored in local storage and shown on the home dashboard on that device only. No migration, but a pin is lost on another device or when the browser's storage is cleared.
+
+Analytics "Add to Dashboard" pin-content options (neither chosen yet):
+
+- **Live chart.** Store the view settings (project, period, analysis view, indicator) and re-query when the dashboard loads, so the pinned chart's data is always current.
+- **Snapshot.** Store the computed numbers at pin time. Simpler to render, but the pinned data goes stale as the underlying figures change.
 
 ## Maintenance
 
