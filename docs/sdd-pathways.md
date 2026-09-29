@@ -122,6 +122,18 @@ The [approved inspection contract](cr-pathways-private-activity-proof-inspection
 ### Activity proof direct upload (reduced scope)
 The [approved change record](cr-pathways-activity-progress-media.md) is implemented on its feature branch with a developer-authorized scope reduction, section 9. Only Submit proof changes: reserve (JSON, one activity update plus one to ten evidence rows, `storage_ready = false`) -> direct signed upload to `pathways-private` per file, outside the API request body -> per-file finalize (stored size, leading-byte signature and streamed SHA-256 against the declaration, `EVIDENCE_MAX_FILE_BYTES`) -> the existing `ACTIVITY_PROOF_FINALIZE` commit once every file is verified. Accepted types are PDF, JPEG, PNG, WebP, MP4, MOV and WebM. Activity-update evidence is typed `PHOTO`, `VIDEO` or `DOCUMENT` from the verified content type (migration `0041_activity_media_evidence`, widening `evidence_media_activity_update_check`); `PROGRESS_PROOF` and `COMPLETION_PROOF` stay valid on existing rows. The inspection bounds in the section above scale to ten proofs and `EVIDENCE_MAX_FILE_BYTES` for this path. Deferred, not built on this branch: files on Record progress, a combined Update-progress dialog, and upload progress bars. Record progress is unchanged.
 
+### Proof session beneficiary count
+The [approved change record](cr-pathways-proof-session-beneficiary-count.md) adds an optional whole-number
+`beneficiariesReachedThisSession` (0-100000) to the Submit proof reservation, stored on
+`pathways.activity_updates.beneficiaries_reached_this_session` (migration
+`0042_proof_session_beneficiary_count`, a nullable bounds-checked column; the table is owned by
+`prisma` since baseline, so no preprovision is needed). The value is part of the existing
+`clientUpdateId` idempotent retry comparison and is surfaced on the activity's `updateNotes` history.
+It never enters `finalizeBody`/`canonical_source_request` (the `ACTIVITY_PROOF_FINALIZE` field
+enumeration is unchanged), never changes the activity's computed `beneficiariesReached` (still derived
+only from participation records through `pathways.p08_activity_beneficiaries_reached`), and is not
+read by SADDD.
+
 ## 8. Infrastructure
 
 Current feature work does not implement:
