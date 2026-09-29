@@ -160,6 +160,13 @@ const activityListSelection = {
   },
   activityJourneyStageMapping_activity: activitySelection.activityJourneyStageMapping_activity,
   activityIndicatorLink_activity: activitySelection.activityIndicatorLink_activity,
+  // Lean projection for overdueExplanationNeeded only: no category/explanation/actor text,
+  // those are detail-only (see activitySelection.activityOverdueExplanation_activity).
+  activityOverdueExplanation_activity: {
+    select: { recordedAt: true },
+    orderBy: { recordedAt: 'desc' as const },
+    take: 100,
+  },
 } satisfies Prisma.ProjectActivitySelect
 
 type ActivityListRow = Prisma.ProjectActivityGetPayload<{ select: typeof activityListSelection }>
@@ -393,6 +400,11 @@ export function mapActivityListItem(row: ActivityListRow, businessDate: string) 
     targetBeneficiaries: row.targetBeneficiaries ?? 0,
     progress: row.progressPercent,
     updatedAt: row.updatedAt.toISOString(),
+    overdueExplanationNeeded:
+      presentation.overdue &&
+      !row.activityOverdueExplanation_activity.some(
+        (explanation) => calendarDate(explanation.recordedAt) >= calendarDate(row.plannedEndDate),
+      ),
   }
 }
 

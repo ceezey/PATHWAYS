@@ -258,6 +258,7 @@ describe('P05 activity proof authorization', () => {
         'journeyStageId',
         'journeyStageIds',
         'overdue',
+        'overdueExplanationNeeded',
         'progress',
         'projectId',
         'startDate',
