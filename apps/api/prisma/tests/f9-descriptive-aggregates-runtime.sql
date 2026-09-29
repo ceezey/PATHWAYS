@@ -75,13 +75,35 @@ ON CONFLICT DO NOTHING;
 INSERT INTO pathways.projects(id,organization_id,code,title,start_date,end_date,created_by_id) VALUES
   (pg_temp.u(301),pg_temp.u(1),'F9A-A1','F9 Project A1','2026-01-01','2026-12-31',pg_temp.u(101)),
   (pg_temp.u(302),pg_temp.u(1),'F9A-A2','F9 Project A2','2026-01-01','2026-12-31',pg_temp.u(101)),
-  (pg_temp.u(303),pg_temp.u(2),'F9A-B1','F9 Project B1','2026-01-01','2026-12-31',pg_temp.u(105));
+  (pg_temp.u(303),pg_temp.u(2),'F9A-B1','F9 Project B1','2026-01-01','2026-12-31',pg_temp.u(105)),
+  (pg_temp.u(304),pg_temp.u(1),'F9A-A4','F9 Project A4 adjacent defined periods','2026-01-01','2026-12-31',pg_temp.u(101)),
+  (pg_temp.u(305),pg_temp.u(1),'F9A-A5','F9 Project A5 overlapping defined periods','2026-01-01','2026-12-31',pg_temp.u(101));
 INSERT INTO pathways.user_project_assignments(id,organization_id,project_id,user_id,assigned_by_id) VALUES
   (pg_temp.u(401),pg_temp.u(1),pg_temp.u(301),pg_temp.u(101),pg_temp.u(101)),
   (pg_temp.u(402),pg_temp.u(1),pg_temp.u(301),pg_temp.u(102),pg_temp.u(101)),
   (pg_temp.u(403),pg_temp.u(1),pg_temp.u(302),pg_temp.u(102),pg_temp.u(101)),
   (pg_temp.u(404),pg_temp.u(1),pg_temp.u(301),pg_temp.u(103),pg_temp.u(101)),
-  (pg_temp.u(405),pg_temp.u(2),pg_temp.u(303),pg_temp.u(105),pg_temp.u(105));
+  (pg_temp.u(405),pg_temp.u(2),pg_temp.u(303),pg_temp.u(105),pg_temp.u(105)),
+  (pg_temp.u(406),pg_temp.u(1),pg_temp.u(304),pg_temp.u(102),pg_temp.u(101)),
+  (pg_temp.u(407),pg_temp.u(1),pg_temp.u(305),pg_temp.u(102),pg_temp.u(101));
+
+-- Defined reporting periods (cr-pathways-f9-trusted-aggregates amendment 2026-09-29): the distinct
+-- (period_start, period_end) pairs of non-archived, reviewed Indicator definitions.
+--   A1, A2, B1: one full-year period.  A4: adjacent, non-overlapping halves H1 and H2.
+--   A5: two overlapping periods (Jan-Jun and Jun-Dec), so neither may be released.
+--   A1 also holds an ARCHIVED definition for 2026-03-01..2026-03-01, which is not a defined period.
+INSERT INTO pathways.project_indicators(id,organization_id,project_id,code,name,unit,unit_label,data_source,measurement_mode,numeric_kind,direction,display_precision,period_start,period_end,baseline_value,target_value,created_by_id,archived_at)
+SELECT pg_temp.u(v.n),v.org_id,v.project_id,'F9P-'||v.n,'F9 period '||v.n,'OTHER','points','Synthetic manual','MANUAL','SIGNED_CHANGE','HIGHER_IS_BETTER',4,v.s::date,v.e::date,-5,5,v.by_id,v.archived::timestamptz
+FROM (VALUES
+  (2101,pg_temp.u(1),pg_temp.u(301),'2026-01-01','2026-12-31',pg_temp.u(101),NULL),
+  (2102,pg_temp.u(1),pg_temp.u(301),'2026-03-01','2026-03-01',pg_temp.u(101),'2026-06-01T00:00:00Z'),
+  (2103,pg_temp.u(1),pg_temp.u(302),'2026-01-01','2026-12-31',pg_temp.u(101),NULL),
+  (2104,pg_temp.u(2),pg_temp.u(303),'2026-01-01','2026-12-31',pg_temp.u(105),NULL),
+  (2105,pg_temp.u(1),pg_temp.u(304),'2026-01-01','2026-06-30',pg_temp.u(101),NULL),
+  (2106,pg_temp.u(1),pg_temp.u(304),'2026-07-01','2026-12-31',pg_temp.u(101),NULL),
+  (2107,pg_temp.u(1),pg_temp.u(305),'2026-01-01','2026-06-30',pg_temp.u(101),NULL),
+  (2108,pg_temp.u(1),pg_temp.u(305),'2026-06-01','2026-12-31',pg_temp.u(101),NULL)
+) v(n,org_id,project_id,s,e,by_id,archived);
 
 -- Timeline activities, reporting date 2026-06-15. Project A1 population:
 --   501 COMPLETED planned end long past      -> eligible, completed, never overdue
@@ -206,6 +228,9 @@ SELECT pg_temp.ok((SELECT count(*)=0 FROM pathways.assessment_results),
   'Program Manager sees zero assessment rows directly (assessments.detail.read is absent)');
 SELECT pg_temp.ok((SELECT count(*)=0 FROM pathways.project_activities),
   'Program Manager sees zero activity rows directly (activities.read is absent)');
+SELECT pg_temp.reject(
+  format($i$SELECT pathways.p10_f9_survey_aggregate(%L,%L,DATE '2026-02-01',DATE '2026-03-31')$i$,pg_temp.u(1),pg_temp.u(301)),
+  '22023','Program Manager is refused a custom survey range (defined-period rule applies to every role)');
 -- Out-of-scope project for the Program Manager (assigned to A1 only).
 SELECT pg_temp.reject(
   format($i$SELECT pathways.p10_f9_survey_aggregate(%L,%L,DATE '2026-01-01',DATE '2026-12-31')$i$,pg_temp.u(1),pg_temp.u(302)),
@@ -238,7 +263,28 @@ INSERT INTO f9_out VALUES
   ('timeline_gm',pathways.p10_f9_timeline_aggregate(pg_temp.u(1),pg_temp.u(301),DATE '2026-06-15')),
   ('timeline_gm_a2',pathways.p10_f9_timeline_aggregate(pg_temp.u(1),pg_temp.u(302),DATE '2026-06-15')),
   ('survey_gm_empty',pathways.p10_f9_survey_aggregate(pg_temp.u(1),pg_temp.u(302),DATE '2026-01-01',DATE '2026-12-31')),
-  ('survey_gm_narrow',pathways.p10_f9_survey_aggregate(pg_temp.u(1),pg_temp.u(301),DATE '2026-03-01',DATE '2026-03-01'));
+  ('survey_gm_h1',pathways.p10_f9_survey_aggregate(pg_temp.u(1),pg_temp.u(304),DATE '2026-01-01',DATE '2026-06-30')),
+  ('survey_gm_h2',pathways.p10_f9_survey_aggregate(pg_temp.u(1),pg_temp.u(304),DATE '2026-07-01',DATE '2026-12-31'));
+-- Defined-period rule: only an exact, non-overlapping defined reporting period is released, so
+-- adjacent or arbitrary custom ranges cannot be differenced to isolate one person.
+SELECT pg_temp.reject(
+  format($i$SELECT pathways.p10_f9_survey_aggregate(%L,%L,DATE '2026-03-01',DATE '2026-03-01')$i$,pg_temp.u(1),pg_temp.u(301)),
+  '22023','A custom one-day range (only an archived definition matches) is refused');
+SELECT pg_temp.reject(
+  format($i$SELECT pathways.p10_f9_survey_aggregate(%L,%L,DATE '2026-01-02',DATE '2026-12-31')$i$,pg_temp.u(1),pg_temp.u(301)),
+  '22023','A range one day shorter at the start (adjacent-day differencing) is refused');
+SELECT pg_temp.reject(
+  format($i$SELECT pathways.p10_f9_survey_aggregate(%L,%L,DATE '2026-01-01',DATE '2026-12-30')$i$,pg_temp.u(1),pg_temp.u(301)),
+  '22023','A range one day shorter at the end (adjacent-day differencing) is refused');
+SELECT pg_temp.reject(
+  format($i$SELECT pathways.p10_f9_survey_aggregate(%L,%L,DATE '2026-01-01',DATE '2026-06-30')$i$,pg_temp.u(1),pg_temp.u(305)),
+  '22023','A defined period overlapping another defined period is refused');
+SELECT pg_temp.reject(
+  format($i$SELECT pathways.p10_f9_survey_aggregate(%L,%L,DATE '2026-06-01',DATE '2026-12-31')$i$,pg_temp.u(1),pg_temp.u(305)),
+  '22023','The other overlapping defined period is refused as well');
+SELECT pg_temp.reject(
+  format($i$SELECT pathways.p10_f9_survey_aggregate(%L,%L,NULL,NULL)$i$,pg_temp.u(1),pg_temp.u(301)),
+  '22023','A missing period is refused');
 RESET ROLE;
 
 -- Both permissions are required: removing monitoring.read from Grant Manager denies the call.
@@ -309,8 +355,10 @@ SELECT pg_temp.ok((SELECT (doc->'groups'->2->>'pairs')::int=1 AND (doc->'groups'
   'the no-activity group normalizes by each maximum score (10/20 -> 15/20)');
 SELECT pg_temp.ok((SELECT doc->>'excludedRecords'='0' AND doc->'groups'='[]'::jsonb FROM f9_out WHERE name='survey_gm_empty'),
   'a project with no assessments returns an empty aggregate, not an error');
-SELECT pg_temp.ok((SELECT doc->'groups'='[]'::jsonb AND doc->>'excludedRecords'='1' FROM f9_out WHERE name='survey_gm_narrow'),
-  'a one-day period holding only POST rows yields no pairs and counts only its own invalid row');
+SELECT pg_temp.ok((SELECT doc->'groups'='[]'::jsonb AND doc->>'excludedRecords'='0' FROM f9_out WHERE name='survey_gm_h1'),
+  'an exact defined period (A4 first half) is released even when it holds no data');
+SELECT pg_temp.ok((SELECT doc->'groups'='[]'::jsonb AND doc->>'excludedRecords'='0' FROM f9_out WHERE name='survey_gm_h2'),
+  'the adjacent non-overlapping defined period (A4 second half) is released as well');
 SELECT pg_temp.ok((SELECT jsonb_array_length(doc->'groups')=1 AND (doc->'groups'->0->>'pairs')::int=1
     AND pg_temp.near((doc->'groups'->0->>'sumPre')::float8,10) AND pg_temp.near((doc->'groups'->0->>'sumPost')::float8,90)
     AND doc->>'excludedRecords'='0' FROM f9_out WHERE name='survey_b'),
@@ -369,7 +417,7 @@ SELECT pg_temp.ok((SELECT NOT EXISTS(
 
 DO $$ DECLARE total integer; BEGIN
  SELECT count(*) INTO total FROM f9_results;
- IF total<>36 THEN RAISE EXCEPTION '0044 f9-descriptive-aggregates checks expected 36 assertions, recorded %',total; END IF;
+ IF total<>44 THEN RAISE EXCEPTION '0044 f9-descriptive-aggregates checks expected 44 assertions, recorded %',total; END IF;
  RAISE NOTICE 'F9_DESCRIPTIVE_AGGREGATES_RUNTIME=PASS (% assertions)',total;
 END $$;
 ROLLBACK;

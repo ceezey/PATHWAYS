@@ -29,7 +29,7 @@ DO $$ BEGIN
   OR (SELECT pg_catalog.pg_get_userbyid(relowner) FROM pg_catalog.pg_class WHERE oid='pathways.project_milestones'::pg_catalog.regclass)<>'prisma'
  THEN RAISE EXCEPTION '0044 requires prisma ownership of p06_can and the source tables'; END IF;
 END $$;
-SELECT pg_advisory_xact_lock(505005,2);
+SELECT pg_advisory_xact_lock(505005,1);
 
 -- Paired pre/post survey improvement, one group per activity plus one no-activity group
 -- (activityId null). Each enrollment's latest valid PRE_TEST (assessment_date DESC, id DESC) is
@@ -53,6 +53,41 @@ BEGIN
      OR NOT pathways.p06_can('monitoring.read', wanted_project)
   THEN
     RAISE EXCEPTION 'Analytics scope unavailable' USING ERRCODE='42501';
+  END IF;
+
+  IF start_on IS NULL OR end_on IS NULL THEN
+    RAISE EXCEPTION 'A complete reporting period is required' USING ERRCODE='22023';
+  END IF;
+  -- Defined-period rule (cr-pathways-f9-trusted-aggregates, amendment 2026-09-29): results are
+  -- released only for exactly one of the project's defined reporting periods, so adjacent or
+  -- arbitrary custom ranges cannot be differenced to recover one person's scores. Defined periods
+  -- are the distinct (period_start, period_end) pairs of the project's non-archived, reviewed
+  -- (measurement_mode set) Indicator definitions that overlap the project dates, the same set the
+  -- dashboard period picker offers. The requested range must match one exactly and must not
+  -- overlap any other defined period of the project.
+  IF NOT EXISTS (
+       SELECT FROM pathways.project_indicators i
+       JOIN pathways.projects pr ON pr.organization_id = i.organization_id AND pr.id = i.project_id
+       WHERE i.organization_id = wanted_org AND i.project_id = wanted_project
+         AND i.archived_at IS NULL AND i.measurement_mode IS NOT NULL
+         AND i.period_start = start_on AND i.period_end = end_on AND i.period_start <= i.period_end
+         AND (pr.start_date IS NULL OR pr.end_date IS NULL
+              OR (i.period_end >= pr.start_date AND i.period_start <= pr.end_date)))
+  THEN
+    RAISE EXCEPTION 'Survey results require a defined reporting period' USING ERRCODE='22023';
+  END IF;
+  IF EXISTS (
+       SELECT FROM pathways.project_indicators i
+       JOIN pathways.projects pr ON pr.organization_id = i.organization_id AND pr.id = i.project_id
+       WHERE i.organization_id = wanted_org AND i.project_id = wanted_project
+         AND i.archived_at IS NULL AND i.measurement_mode IS NOT NULL
+         AND i.period_start IS NOT NULL AND i.period_end IS NOT NULL AND i.period_start <= i.period_end
+         AND (i.period_start, i.period_end) <> (start_on, end_on)
+         AND i.period_start <= end_on AND i.period_end >= start_on
+         AND (pr.start_date IS NULL OR pr.end_date IS NULL
+              OR (i.period_end >= pr.start_date AND i.period_start <= pr.end_date)))
+  THEN
+    RAISE EXCEPTION 'Survey results are unavailable for overlapping reporting periods' USING ERRCODE='22023';
   END IF;
 
   WITH scoped AS (

@@ -2,7 +2,7 @@
 
 **ID:** `cr-pathways-f9-trusted-aggregates`
 **Date:** 2026-09-29
-**Status:** Approved (implementation pending)
+**Status:** Approved (implementation pending; amended 2026-09-29, see section 9)
 
 ## 1. Decision and Authority
 
@@ -70,3 +70,15 @@ This release now contains a migration. Release stage R6 stops for human authoriz
 ## 8. Disposition
 
 When this record is approved and verified, update the F9 section of `docs/sdd-pathways.md`, the QAD rows, and `docs/index.md`, then mark this record Applied.
+
+## 9. Approved amendment 2026-09-29: defined-period rule
+
+**Approved by the developer on 2026-09-29.** The R1 privacy review found that survey results for arbitrary custom periods let an aggregate-only role (Program Manager, Grant Manager) request two adjacent or nested ranges and subtract the results. With small groups near the suppression threshold, the difference can isolate one person's pre and post scores. Threshold and complementary suppression protect a single response, but they cannot protect against two separately releasable responses that differ by one person.
+
+**Rule.** Survey results (JSON and CSV export) are released only for exactly one of the project's defined reporting periods, for every role, on one path. A defined reporting period is a distinct `(period_start, period_end)` pair of the project's non-archived, reviewed (`measurement_mode` set) Indicator definitions that overlaps the project dates. This is the same set the dashboard period picker offers (`deriveAnalyticsReportingPeriods`). A request whose start and end do not match one defined period exactly is refused with a typed 400. A matched period that overlaps another defined period of the same project is also refused, because two overlapping releasable periods can be differenced. The timeline view takes no period and is unaffected.
+
+**Enforcement.** The authority is `pathways.p10_f9_survey_aggregate` in migration `0044`: it raises `22023` unless the range matches one defined period of `wanted_project` in `wanted_org` and no other defined period overlaps it. It reads `project_indicators` under the definer, so roles holding `monitoring.read` without `indicators.read` are judged by the same rule. The API maps `22023` from the survey function to `BadRequestException` (400) on read and export. A 400 rolls back the request transaction, so no `ANALYTICS_DESCRIPTIVE_VIEWED` or export audit row is written, which matches every other validation failure on these routes. The web period picker already offers only defined periods; adjacent defined periods that do not overlap remain individually releasable.
+
+**Migration.** `0044` is not applied to any database, so the function body is amended in place. The advisory lock key is also corrected to `(505005,1)` to match the migration convention.
+
+**Verification.** `f9-descriptive-aggregates-runtime.sql` asserts a refused custom range, refused adjacent-day ranges (start and end), refused overlapping defined periods, a refused missing period, a refused custom range for Program Manager, and accepted exact defined periods including two adjacent non-overlapping ones. API tests cover the 400 for Program Manager and Grant Manager on read and export with no audit row. QAD-T33 and QAD-A20 record the rows.

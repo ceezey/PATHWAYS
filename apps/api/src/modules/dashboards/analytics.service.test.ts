@@ -876,6 +876,48 @@ describe('analytics descriptive views: survey and timeline', () => {
     expect(tx.auditLog.create).not.toHaveBeenCalled()
   })
 
+  describe('defined-period rule (adjacent-period differencing abuse)', () => {
+    it.each(['PROGRAM_MANAGER', 'GRANT_MANAGER', 'MONITORING_AND_EVALUATION_OFFICER'] as const)(
+      'abuse: %s custom or adjacent survey ranges refused by the aggregate function are a 400 on read and export, with no audit row',
+      async (role) => {
+        const { service, tx } = harness(releasedSaddd, '2026-06-30', {
+          aggregateError: { code: 'P2010', meta: { code: '22023' } },
+        })
+        const identity = actor(role)
+        for (const range of [
+          { periodStart: '2026-03-01', periodEnd: '2026-03-31' },
+          { periodStart: '2026-03-02', periodEnd: '2026-03-31' },
+        ]) {
+          await expect(
+            service.descriptive(identity, { projectId: projectA, ...range, view: 'survey' }),
+          ).rejects.toMatchObject({ status: 400 })
+          await expect(
+            service.export(identity, { projectId: projectA, ...range, view: 'survey' }),
+          ).rejects.toMatchObject({ status: 400 })
+        }
+        expect(tx.auditLog.create).not.toHaveBeenCalled()
+        expect(tx.assessmentResult.findMany).not.toHaveBeenCalled()
+      },
+    )
+
+    it('sad: a survey request without a complete period is a 400 before the aggregate is called', async () => {
+      const { service, sqlCalls } = harness()
+      await expect(
+        service.descriptive(actor('GRANT_MANAGER'), { projectId: projectA, view: 'survey' }),
+      ).rejects.toMatchObject({ status: 400 })
+      expect(sqlCalls.filter((sql) => sql.includes('p10_f9_survey_aggregate'))).toHaveLength(0)
+    })
+
+    it('sad: a 22023 from the timeline aggregate is not a client error (timeline takes no period)', async () => {
+      const { service } = harness(releasedSaddd, '2026-06-30', {
+        aggregateError: { code: 'P2010', meta: { code: '22023' } },
+      })
+      await expect(
+        service.descriptive(actor('GRANT_MANAGER'), { projectId: projectA, view: 'timeline' }),
+      ).rejects.toMatchObject({ status: 503 })
+    })
+  })
+
   describe('trusted aggregates for aggregate-only roles', () => {
     const fivePairs = () => ['e1', 'e2', 'e3', 'e4', 'e5'].flatMap((id) => pairedRows(id, 40, 60))
     const period = { periodStart: '2026-01-01', periodEnd: '2026-12-31' }

@@ -75,11 +75,6 @@ export class AnalyticsService {
   }
 
   /**
-   * Reuses the dashboard aggregate contracts inside the caller's authorized
-   * transaction. Project scope is resolved by the dashboard scope query before
-   * any aggregate is read; SADDD comes only from the suppressed p06_saddd release.
-   */
-  /**
    * Every view (combined/kpi/participation/survey/timeline; read and export) reads
    * person-derived aggregates, so every one of them requires monitoring.read on top
    * of the route-level analytics permission. Centralized so a new view cannot ship
@@ -90,6 +85,11 @@ export class AnalyticsService {
       throw new ForbiddenException('Monitoring aggregate permission is required.')
   }
 
+  /**
+   * Reuses the dashboard aggregate contracts inside the caller's authorized
+   * transaction. Project scope is resolved by the dashboard scope query before
+   * any aggregate is read; SADDD comes only from the suppressed p06_saddd release.
+   */
   private async compute(
     tx: Prisma.TransactionClient,
     actor: ApplicationIdentity,
@@ -133,7 +133,13 @@ export class AnalyticsService {
   ) {
     const project = await tx.project.findFirst({
       where: { AND: [projectScope(actor), { id: projectId }] },
-      select: { id: true, status: true, archivedAt: true, startDate: true, endDate: true },
+      select: {
+        id: true,
+        status: true,
+        archivedAt: true,
+        startDate: true,
+        endDate: true,
+      },
     })
     if (!project) throw new NotFoundException('Project unavailable.')
     return project
@@ -145,18 +151,35 @@ export class AnalyticsService {
    * returns group aggregates only. A bounded statement timeout guards the aggregation;
    * a timeout or other database fault maps to the existing 503 path.
    */
-  private async callAggregate(tx: Prisma.TransactionClient, query: Prisma.Sql): Promise<unknown> {
+  private async callAggregate(
+    tx: Prisma.TransactionClient,
+    query: Prisma.Sql,
+    invalidRequestMessage?: string,
+  ): Promise<unknown> {
     await tx.$queryRaw`SELECT set_config('statement_timeout','3000',true)`
     try {
       const result = await tx.$queryRaw<Array<{ data: unknown }>>(query)
       return result[0]?.data
     } catch (error) {
+      // 22023 is the function's typed rejection of a request that breaks its input contract
+      // (for survey: not exactly one non-overlapping defined reporting period). It is a
+      // client error, not an availability fault.
+      const meta = error && typeof error === 'object' && 'meta' in error ? error.meta : null
+      const sqlCode = meta && typeof meta === 'object' && 'code' in meta ? meta.code : null
+      if (invalidRequestMessage && sqlCode === '22023')
+        throw new BadRequestException(invalidRequestMessage)
       monitoringSqlError(error)
     }
   }
 
   /**
-   * Paired pre/post survey improvement (analytics.descriptive.survey.v1). The
+   * Paired pre/post survey improvement (analytics.descriptive.survey.v1). Results are released
+   * only for exactly one of the project's defined, non-overlapping reporting periods (the
+   * Indicator reporting periods the dashboard period picker offers), for every role, so
+   * adjacent or custom ranges cannot be differenced to recover one person's scores. The
+   * database function is the enforcing authority (22023 -> 400, no audit row, same as any
+   * other validation failure); the API deliberately does not re-read Indicator rows because
+   * roles that hold monitoring.read need not hold indicators.read. The
    * unsuppressed group aggregate comes from pathways.p10_f9_survey_aggregate, which
    * every role with analytics.descriptive.read and monitoring.read may call without
    * holding assessment detail access. Assessment rows are never read here; threshold,
@@ -175,6 +198,7 @@ export class AnalyticsService {
     const raw = await this.callAggregate(
       tx,
       Prisma.sql`SELECT pathways.p10_f9_survey_aggregate(${actor.organizationId}::uuid,${project.id}::uuid,${query.periodStart}::date,${query.periodEnd}::date) AS data`,
+      'Survey analytics requires exactly one defined, non-overlapping reporting period of this project.',
     )
     const aggregate = surveyAggregateSchema.safeParse(raw)
     if (!aggregate.success)
@@ -274,7 +298,13 @@ export class AnalyticsService {
     } catch (error) {
       if (error instanceof ForbiddenException || error instanceof NotFoundException) throw error
       if (error instanceof BadRequestException) throw error
-      logger.error({ event: 'PATHWAYS_ANALYTICS_DESCRIPTIVE_RETRIEVAL_FAILED' })
+      logger.error({
+        event: 'PATHWAYS_ANALYTICS_DESCRIPTIVE_RETRIEVAL_FAILED',
+        reason:
+          error instanceof ServiceUnavailableException
+            ? 'CONTRACT_OR_DATABASE_UNAVAILABLE'
+            : 'UNEXPECTED_FAULT',
+      })
       throw new ServiceUnavailableException('Descriptive analytics could not be retrieved.')
     }
   }

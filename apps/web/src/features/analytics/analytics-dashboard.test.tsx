@@ -659,8 +659,9 @@ describe('Analytics dashboard request dependencies', () => {
     const timelineOption = screen.getByText('Project / activity timeline adherence', {
       selector: 'option',
     }) as HTMLOptionElement
-    expect(surveyOption.disabled).toBe(false)
-    expect(timelineOption.disabled).toBe(false)
+    // Default profile holds monitoring.read but not analytics.descriptive.read: restricted.
+    expect(surveyOption.disabled).toBe(true)
+    expect(timelineOption.disabled).toBe(true)
   })
 
   describe('F9 survey and timeline analytics views', () => {
@@ -742,17 +743,21 @@ describe('Analytics dashboard request dependencies', () => {
         target: { value: 'survey' },
       })
 
-      await waitFor(() => expect(api.getSurveyAnalytics).toHaveBeenCalledWith({
-        projectId: 'project-a',
-        periodStart: '2026-09-01',
-        periodEnd: '2026-09-30',
-      }))
+      await waitFor(() =>
+        expect(api.getSurveyAnalytics).toHaveBeenCalledWith({
+          projectId: 'project-a',
+          periodStart: '2026-09-01',
+          periodEnd: '2026-09-30',
+        }),
+      )
       const panel = await screen.findByTestId('survey-analytics')
       expect(within(panel).getByText('Paired assessments')).toBeTruthy()
       expect(within(panel).getByText('Survey chart')).toBeTruthy()
       expect(within(panel).getByText('Community Training')).toBeTruthy()
       expect(within(panel).getByText('Activity (name unavailable)')).toBeTruthy()
-      expect(panel.textContent).not.toMatch(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i)
+      expect(panel.textContent).not.toMatch(
+        /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i,
+      )
     })
 
     it('shows the suppression label, never a raw count, when survey pairs are suppressed', async () => {
@@ -842,6 +847,121 @@ describe('Analytics dashboard request dependencies', () => {
       fireEvent.click(retry)
       await waitFor(() => expect(api.getSurveyAnalytics).toHaveBeenCalledTimes(2))
       expect(await screen.findByTestId('survey-analytics')).toBeTruthy()
+    })
+
+    const restrictedProfiles = {
+      'a Project Officer without analytics.descriptive.read': [
+        'projects.read',
+        'activities.read',
+        'monitoring.read',
+        'analytics.read',
+      ],
+      'a role with analytics.descriptive.read but without monitoring.read': [
+        'projects.read',
+        'activities.read',
+        'analytics.read',
+        'analytics.descriptive.read',
+      ],
+    } as const
+
+    describe.each(Object.entries(restrictedProfiles))('for %s', (_label, permissions) => {
+      beforeEach(() => {
+        currentAccess.profile.permissions = [...permissions]
+      })
+
+      it('disables the survey and timeline options and never fetches them', async () => {
+        render(<AnalyticsDashboard />)
+        await waitFor(() => expect(api.getProjectsForRole).toHaveBeenCalled())
+        for (const name of ['Survey improvement', 'Project / activity timeline adherence']) {
+          const option = (await screen.findByText(name, {
+            selector: 'option',
+          })) as HTMLOptionElement
+          expect(option.disabled).toBe(true)
+        }
+        expect(api.getSurveyAnalytics).not.toHaveBeenCalled()
+        expect(api.getTimelineAnalytics).not.toHaveBeenCalled()
+      })
+
+      it.each([
+        ['survey', 'Survey improvement is not available for this role.'],
+        ['timeline', 'Timeline adherence is not available for this role.'],
+      ])(
+        'shows restricted wording, never empty-data wording, for the %s view',
+        async (view, wording) => {
+          render(<AnalyticsDashboard />)
+          await waitFor(() => expect(api.getProjectsForRole).toHaveBeenCalled())
+          // A profile can lose a permission while a view is selected; the panel must stay restricted.
+          fireEvent.change(await screen.findByLabelText('Analysis view'), {
+            target: { value: view },
+          })
+          const restricted = await screen.findByText(wording)
+          // Other panels on the page may legitimately say "None yet"; this panel must not.
+          expect(within(restricted.parentElement as HTMLElement).queryByText('None yet')).toBeNull()
+          expect(screen.queryByText('No paired pre/post assessments yet')).toBeNull()
+          expect(screen.queryByText('No activities recorded yet')).toBeNull()
+          expect(screen.queryByText(/No active reporting period/)).toBeNull()
+          expect(screen.queryByText(/No project is available for this filter/)).toBeNull()
+          expect(screen.queryByTestId('survey-analytics')).toBeNull()
+          expect(screen.queryByTestId('timeline-analytics')).toBeNull()
+          expect(api.getSurveyAnalytics).not.toHaveBeenCalled()
+          expect(api.getTimelineAnalytics).not.toHaveBeenCalled()
+        },
+      )
+    })
+
+    it('enables survey and timeline for a role holding both analytics.descriptive.read and monitoring.read', async () => {
+      render(<AnalyticsDashboard />)
+      await waitFor(() => expect(api.getMonitoringDashboard).toHaveBeenCalled())
+      const survey = screen.getByText('Survey improvement', {
+        selector: 'option',
+      }) as HTMLOptionElement
+      const timeline = screen.getByText('Project / activity timeline adherence', {
+        selector: 'option',
+      }) as HTMLOptionElement
+      expect(survey.disabled).toBe(false)
+      expect(timeline.disabled).toBe(false)
+    })
+
+    it('offers only the project defined reporting periods to the survey view', async () => {
+      api.getSurveyAnalytics.mockResolvedValue({
+        contractVersion: 'analytics.descriptive.survey.v1',
+        projectId: 'project-a',
+        generatedAt: '2026-09-27T04:00:00.000Z',
+        period: { periodStart: '2026-09-01', periodEnd: '2026-09-30' },
+        excludedRecords: 0,
+        overall: surveyGroup(),
+        byActivity: [],
+      })
+      render(<AnalyticsDashboard />)
+      await waitFor(() => expect(api.getMonitoringDashboard).toHaveBeenCalled())
+      fireEvent.change(screen.getByLabelText('Analysis view'), { target: { value: 'survey' } })
+      await waitFor(() => expect(api.getSurveyAnalytics).toHaveBeenCalled())
+      const period = screen.getByLabelText('Reporting period') as HTMLSelectElement
+      const values = [...period.options].map((option) => option.value).filter(Boolean)
+      expect(values).toEqual(['2026-09-01::2026-09-30', '2026-08-01::2026-08-31'])
+      for (const call of api.getSurveyAnalytics.mock.calls) {
+        expect(['2026-09-01', '2026-08-01']).toContain(call[0].periodStart)
+      }
+    })
+
+    it('does not add a chart-type suffix to the timeline panel title', async () => {
+      api.getTimelineAnalytics.mockResolvedValue({
+        contractVersion: 'analytics.descriptive.timeline.v1',
+        projectId: 'project-a',
+        generatedAt: '2026-09-27T04:00:00.000Z',
+        reportingDate: '2026-09-27',
+        elapsedPercent: available('50'),
+        remainingDays: available('30'),
+        overdueDays: zero,
+        activityCompletionPercent: available('75'),
+        activityOverdueCount: zero,
+        milestoneOnTimePercent: available('100'),
+      })
+      render(<AnalyticsDashboard />)
+      await waitFor(() => expect(api.getMonitoringDashboard).toHaveBeenCalled())
+      fireEvent.change(screen.getByLabelText('Analysis view'), { target: { value: 'timeline' } })
+      await screen.findByTestId('timeline-analytics')
+      expect(screen.queryByText(/timeline adherence · /i)).toBeNull()
     })
 
     it('renders timeline metric cards without requiring a reporting period', async () => {

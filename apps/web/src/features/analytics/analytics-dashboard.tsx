@@ -98,6 +98,9 @@ export const AnalyticsDashboard = () => {
   const canReadActivities = principalHasAtomicPermission(profile, 'activities.read')
   const canReadIndicators = principalHasAtomicPermission(profile, 'monitoring.read')
   const canReadDescriptive = principalHasAtomicPermission(profile, 'analytics.descriptive.read')
+  // Survey and timeline read person-derived aggregates, so the API requires both permissions
+  // (analytics.descriptive.read and monitoring.read). Anything less is restricted, never "None yet".
+  const canReadSurveyTimeline = canReadDescriptive && canReadIndicators
   const canExportAnalytics =
     canReadDescriptive && principalHasAtomicPermission(profile, 'analytics.export')
   const canReadBudgetUtilization =
@@ -397,7 +400,7 @@ export const AnalyticsDashboard = () => {
 
   // Paired pre/post survey improvement. Requires a complete period, same as the API contract.
   useEffect(() => {
-    if (!projectId || !selectedPeriod || !canReadDescriptive || analysisView !== 'survey') {
+    if (!projectId || !selectedPeriod || !canReadSurveyTimeline || analysisView !== 'survey') {
       setSurveyLoading(false)
       setSurvey(null)
       setSurveyError('')
@@ -429,11 +432,11 @@ export const AnalyticsDashboard = () => {
     return () => {
       active = false
     }
-  }, [analysisView, canReadDescriptive, projectId, selectedPeriod, surveyLoadAttempt])
+  }, [analysisView, canReadSurveyTimeline, projectId, selectedPeriod, surveyLoadAttempt])
 
   // Timeline adherence uses the business reporting date server-side; no period selection needed.
   useEffect(() => {
-    if (!projectId || !canReadDescriptive || analysisView !== 'timeline') {
+    if (!projectId || !canReadSurveyTimeline || analysisView !== 'timeline') {
       setTimelineLoading(false)
       setTimeline(null)
       setTimelineError('')
@@ -461,7 +464,7 @@ export const AnalyticsDashboard = () => {
     return () => {
       active = false
     }
-  }, [analysisView, canReadDescriptive, projectId, timelineLoadAttempt])
+  }, [analysisView, canReadSurveyTimeline, projectId, timelineLoadAttempt])
 
   const exportDescriptive = async () => {
     const view = analysisView === 'survey' || analysisView === 'timeline' ? analysisView : undefined
@@ -645,7 +648,18 @@ export const AnalyticsDashboard = () => {
             </SelectTrigger>
             <SelectContent>
               {analysisViews.map((view) => (
-                <SelectItem key={view.value} value={view.value}>
+                <SelectItem
+                  disabled={
+                    (view.value === 'survey' || view.value === 'timeline') && !canReadSurveyTimeline
+                  }
+                  key={view.value}
+                  title={
+                    (view.value === 'survey' || view.value === 'timeline') && !canReadSurveyTimeline
+                      ? 'Not available for this role'
+                      : undefined
+                  }
+                  value={view.value}
+                >
                   {view.label}
                 </SelectItem>
               ))}
@@ -706,9 +720,7 @@ export const AnalyticsDashboard = () => {
             <Button
               className="shrink-0"
               disabled={
-                !selectedProject ||
-                exporting ||
-                (analysisView !== 'timeline' && !selectedPeriod)
+                !selectedProject || exporting || (analysisView !== 'timeline' && !selectedPeriod)
               }
               onClick={() => void exportDescriptive()}
               type="button"
@@ -753,7 +765,10 @@ export const AnalyticsDashboard = () => {
             title={
               mapSelected
                 ? 'Project Coverage Map'
-                : `${analysisMeta.title} · ${visualizationTypes.find((type) => type.value === visualizationType)?.label}`
+                : analysisView === 'timeline' ||
+                    (analysisView === 'survey' && !['bar', 'table'].includes(visualizationType))
+                  ? analysisMeta.title
+                  : `${analysisMeta.title} · ${visualizationTypes.find((type) => type.value === visualizationType)?.label}`
             }
           >
             {mapSelected ? (
@@ -784,6 +799,10 @@ export const AnalyticsDashboard = () => {
                   </div>
                 ) : null}
               </>
+            ) : analysisView === 'survey' && !canReadSurveyTimeline ? (
+              <UnavailableChart description="Survey improvement is not available for this role." />
+            ) : analysisView === 'timeline' && !canReadSurveyTimeline ? (
+              <UnavailableChart description="Timeline adherence is not available for this role." />
             ) : analysisView === 'survey' ? (
               <SurveyAnalyticsPanel
                 activities={activities}
@@ -791,6 +810,7 @@ export const AnalyticsDashboard = () => {
                 error={surveyError}
                 loading={surveyLoading}
                 onRetry={() => setSurveyLoadAttempt((value) => value + 1)}
+                periodsReadable={periodsReadable}
                 showChart={visualizationType !== 'table'}
               />
             ) : analysisView === 'timeline' ? (
@@ -1134,6 +1154,7 @@ const SurveyAnalyticsPanel = ({
   loading,
   error,
   onRetry,
+  periodsReadable,
   showChart,
   activities,
 }: {
@@ -1141,6 +1162,7 @@ const SurveyAnalyticsPanel = ({
   loading: boolean
   error: string
   onRetry: () => void
+  periodsReadable: boolean
   showChart: boolean
   activities: readonly ActivitySummary[]
 }) => {
@@ -1165,7 +1187,14 @@ const SurveyAnalyticsPanel = ({
     )
   if (!data)
     return (
-      <UnavailableChart description="No active reporting period is available for this project." />
+      <UnavailableChart
+        description={
+          periodsReadable
+            ? 'No active Indicator reporting period is available for this project.'
+            : 'Indicator reporting periods are not available for this role.'
+        }
+        title={periodsReadable ? 'None yet' : undefined}
+      />
     )
   const { overall } = data
   const isSuppressed = overall.pairs.state === 'SUPPRESSED'
@@ -1279,7 +1308,10 @@ const TimelineAnalyticsPanel = ({
         onRetry={onRetry}
       />
     )
-  if (!data) return <UnavailableChart description="No project is available for this filter." />
+  if (!data)
+    return (
+      <UnavailableChart description="Timeline adherence is not available for this selection." />
+    )
   return (
     <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3" data-testid="timeline-analytics">
       <MetricCard
@@ -1300,7 +1332,9 @@ const TimelineAnalyticsPanel = ({
         description="Calendar days past the project's recorded end date."
         icon={AlertTriangle}
         label="Overdue days"
-        tone={data.overdueDays.value !== null && Number(data.overdueDays.value) > 0 ? 'warning' : 'info'}
+        tone={
+          data.overdueDays.value !== null && Number(data.overdueDays.value) > 0 ? 'warning' : 'info'
+        }
         value={analyticsCellValue(data.overdueDays)}
       />
       <MetricCard
