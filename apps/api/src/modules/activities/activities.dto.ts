@@ -202,6 +202,28 @@ export class RecordActivityProgressDto {
   note!: string
 }
 
+export const overdueExplanationCategories = [
+  'WEATHER',
+  'SECURITY',
+  'FUNDING',
+  'COMMUNITY',
+  'LOGISTICS',
+  'OTHER',
+] as const
+export type OverdueExplanationCategory = (typeof overdueExplanationCategories)[number]
+
+export class RecordOverdueExplanationDto {
+  @IsUUID()
+  clientMutationId!: string
+
+  @IsIn(overdueExplanationCategories)
+  category!: OverdueExplanationCategory
+
+  @IsString()
+  @Length(10, 2000)
+  explanation!: string
+}
+
 export class ReviewActivityUpdateDto {
   @IsUUID()
   clientMutationId!: string
