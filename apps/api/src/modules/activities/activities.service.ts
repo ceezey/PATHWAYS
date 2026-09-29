@@ -347,9 +347,14 @@ function mapActivity(
     updateNotes: updates.map((update) => {
       // A PENDING proof whose files are not all verified in storage yet (the read above lists
       // only verified files). Only its submitter receives the id needed to resume it.
+      // It is also incomplete when every file is verified but the update never committed (the
+      // activity is not FOR_REVIEW): the submitter must be able to resume it to send the finalize.
+      const evidenceCount =
+        update._count?.evidenceMedia_update ?? update.evidenceMedia_update.length
       const proofIncomplete =
         update.status === 'PENDING' &&
-        (update._count?.evidenceMedia_update ?? 0) > update.evidenceMedia_update.length
+        (evidenceCount > update.evidenceMedia_update.length ||
+          (evidenceCount > 0 && row.status !== 'FOR_REVIEW'))
       return {
         id: update.id,
         proofIncomplete,
@@ -1953,6 +1958,9 @@ export class ActivitiesService {
       async (tx, actor) => {
         const { activity, row } = await readTarget(tx, actor)
         // Serialize finalizes of one update so exactly one of them observes the last ready file.
+        // The submitter has no UPDATE row policy on activity_updates, so the row lock below locks
+        // nothing for them; the advisory transaction lock keyed to the update is policy-free.
+        await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`proof-finalize:${scope.updateId}`}, 0))`
         await tx.$queryRaw`SELECT id FROM pathways.activity_updates WHERE organization_id=${actor.organizationId}::uuid
           AND project_id=${activity.projectId}::uuid AND activity_id=${activity.id}::uuid
           AND id=${scope.updateId}::uuid FOR UPDATE`
