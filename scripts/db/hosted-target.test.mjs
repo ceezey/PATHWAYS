@@ -19,7 +19,7 @@ const ref = 'klbtoqdalmcsfjqophty'
 const goodEnv = () => ({
   HOSTED_TARGET_REF: ref,
   HOSTED_ADMIN_URL: `postgresql://postgres.${ref}:secret-admin-pw@aws-0-region.pooler.supabase.com:5432/postgres`,
-  HOSTED_DIRECT_URL: `postgresql://prisma.${ref}:secret-direct-pw@db.${ref}.supabase.co:5432/postgres`,
+  HOSTED_DIRECT_URL: `postgresql://prisma.${ref}:secret-direct-pw@aws-0-region.pooler.supabase.com:5432/postgres`,
   PRISMA_ROLE_PASSWORD: 'a'.repeat(24),
   RUNTIME_ROLE_PASSWORD: 'b'.repeat(24),
 })
@@ -156,4 +156,50 @@ test('redactUrl removes the password but keeps the rest of the URL', () => {
 
 test('redactUrl never throws on unparseable input', () => {
   assert.equal(redactUrl('not a url'), '[unparseable URL, redacted]')
+})
+
+test('validateHostedEnv accepts the Supabase session pooler form for both URLs', () => {
+  const env = {
+    ...goodEnv(),
+    HOSTED_ADMIN_URL: `postgresql://postgres.${ref}:pw@aws-0-ap-southeast-1.pooler.supabase.com:5432/postgres`,
+    HOSTED_DIRECT_URL: `postgresql://prisma.${ref}:pw@aws-0-ap-southeast-1.pooler.supabase.com:5432/postgres`,
+  }
+  assert.equal(validateHostedEnv(env).ref, ref)
+})
+
+test('validateHostedEnv accepts the direct host with bare role names', () => {
+  const env = {
+    ...goodEnv(),
+    HOSTED_ADMIN_URL: `postgresql://postgres:pw@db.${ref}.supabase.co:5432/postgres`,
+    HOSTED_DIRECT_URL: `postgresql://prisma:pw@db.${ref}.supabase.co:5432/postgres`,
+  }
+  assert.equal(validateHostedEnv(env).ref, ref)
+})
+
+for (const [label, url] of [
+  [
+    'a misspelled pooler role',
+    `postgresql://postgress.${ref}:pw@aws-0-region.pooler.supabase.com:5432/postgres`,
+  ],
+  ['the ref only in the password', `postgresql://postgres:${ref}@other-db.example:5432/postgres`],
+  [
+    'a pooler user bound to another project',
+    'postgresql://postgres.someotherref0000000:pw@aws-0-region.pooler.supabase.com:5432/postgres',
+  ],
+  [
+    'a foreign host containing the ref',
+    `postgresql://postgres.${ref}:pw@${ref}.evil.example:5432/postgres`,
+  ],
+]) {
+  test(`validateHostedEnv rejects an admin URL with ${label}`, () => {
+    assert.throws(() => validateHostedEnv({ ...goodEnv(), HOSTED_ADMIN_URL: url }), HostedEnvError)
+  })
+}
+
+test('validateHostedEnv rejects a prefixed prisma user on the direct host', () => {
+  const env = {
+    ...goodEnv(),
+    HOSTED_DIRECT_URL: `postgresql://prisma.${ref}:pw@db.${ref}.supabase.co:5432/postgres`,
+  }
+  assert.throws(() => validateHostedEnv(env), HostedEnvError)
 })

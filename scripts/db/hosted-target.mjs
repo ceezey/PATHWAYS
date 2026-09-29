@@ -110,22 +110,28 @@ export function validateHostedEnv(env, { allowLoopback = false } = {}) {
     problems.push('HOSTED_DIRECT_URL is missing or not a valid URL')
   }
 
-  if (adminUrl && !allowLoopback) {
-    const user = safeUser(adminUrl)
-    const host = adminUrl.hostname || ''
-    if (ref && !user.includes(ref) && !host.includes(ref)) {
-      problems.push('HOSTED_ADMIN_URL user or host must contain the target project ref')
+  // A hosted URL is accepted only on the project's own direct host with the bare
+  // role name, or on a Supabase pooler host with the role name bound to the ref.
+  const hostedUrlProblem = (name, url, role) => {
+    const user = safeUser(url)
+    const host = (url.hostname || '').toLowerCase()
+    if (host === `db.${ref}.supabase.co`) {
+      return user === role ? null : `${name} user must be "${role}" on the direct host`
     }
+    if (host.endsWith('.pooler.supabase.com')) {
+      return user === `${role}.${ref}`
+        ? null
+        : `${name} user must be "${role}.${ref}" on the pooler`
+    }
+    return `${name} host must be db.${ref}.supabase.co or a *.pooler.supabase.com host`
   }
-  if (directUrl && !allowLoopback) {
-    const user = safeUser(directUrl)
-    const host = directUrl.hostname || ''
-    if (ref && user !== `prisma.${ref}` && user !== 'prisma') {
-      problems.push('HOSTED_DIRECT_URL user must be "prisma.<ref>" or "prisma"')
-    }
-    if (ref && !host.includes(ref)) {
-      problems.push('HOSTED_DIRECT_URL host must match the target project ref')
-    }
+  if (ref && adminUrl && !allowLoopback) {
+    const problem = hostedUrlProblem('HOSTED_ADMIN_URL', adminUrl, 'postgres')
+    if (problem) problems.push(problem)
+  }
+  if (ref && directUrl && !allowLoopback) {
+    const problem = hostedUrlProblem('HOSTED_DIRECT_URL', directUrl, 'prisma')
+    if (problem) problems.push(problem)
   }
   // Loopback mode is test-only, but it must never be usable to point this
   // script at a real network target. Both URLs are always required to
