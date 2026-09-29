@@ -15,7 +15,7 @@ import {
   Trash2,
 } from 'lucide-react'
 import Link from 'next/link'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { toast } from 'sonner'
 
 import { createFileSummary } from '@pathways/imports'
@@ -85,7 +85,6 @@ import {
 } from './digital-form-contract'
 import {
   type FormDefinitionExportFormat,
-  formDefinitionExportFormats,
   formDefinitionExportRequest,
 } from './form-definition-export'
 import {
@@ -319,7 +318,10 @@ export const CollectionWorkspace = (props: CollectionWorkspaceProps) => {
   const latestOwner = useRef(identity)
   latestOwner.current = identity
   const alive = useRef(true)
-  useEffect(() => {
+  // A layout effect, so React's development StrictMode remount re-arms this flag before the
+  // owned child's passive effects re-run. As a passive effect it ran after them, so the child's
+  // mount-time ownership check saw a dead owner and skipped loading the project list.
+  useLayoutEffect(() => {
     alive.current = true
     return () => {
       alive.current = false
@@ -361,6 +363,7 @@ const OwnedCollectionWorkspace = ({
   )
   const [mode, setMode] = useState<CollectionMode>(initialMode)
   const [projects, setProjects] = useState<ProjectSummary[]>([])
+  const [projectsLoaded, setProjectsLoaded] = useState(false)
   const [activities, setActivities] = useState<ActivitySummary[]>([])
   const [forms, setForms] = useState<DigitalFormDefinition[]>([])
   const [indicators, setIndicators] = useState<Indicator[]>([])
@@ -368,7 +371,8 @@ const OwnedCollectionWorkspace = ({
   const [hydratedFormId, setHydratedFormId] = useState<string | undefined>()
   const [editingBaseUpdatedAt, setEditingBaseUpdatedAt] = useState<string | null>(null)
   const [indicatorIds, setIndicatorIds] = useState<string[]>([])
-  const [exportFormat, setExportFormat] = useState<ExportFormat>('csv')
+  // Format selection is hidden (docs/deferred-features.md); exports use the default.
+  const exportFormat: ExportFormat = 'csv'
   const [duplicateDecision, setDuplicateDecision] = useState<'pending' | 'skip' | 'keep'>('pending')
   const [correctionPage, setCorrectionPage] = useState(0)
   const [view, setView] = useState<CollectionView>(initialView)
@@ -585,25 +589,46 @@ const OwnedCollectionWorkspace = ({
     !editingFormId ||
     (hydratedFormId === editingFormId &&
       forms.some((form) => form.id === editingFormId && form.projectId === projectId))
+  // Keyed on primitives, not the profile object: a background `me` refetch hands back a new
+  // object for the same identity and must not cancel an in-flight load. A response dropped
+  // because the sensitive-draft generation moved (or the request lost ownership mid-flight)
+  // is retried against the new generation instead of leaving the list empty.
+  const hasProfile = Boolean(profile)
+  const profileUserId = profile?.userId
+  const profileOrganizationId = profile?.organizationId
+  // biome-ignore lint/correctness/useExhaustiveDependencies: identity primitives stand in for the profile object
   useEffect(() => {
-    if (!role || !profile || !eligible('projects.read', '')) return
+    if (!role || !hasProfile || !eligible('projects.read', '')) return
     let active = true
-    const generation = sensitiveDraftGeneration()
-    pathwaysClient
-      .getProjectsForRole(role)
-      .then((records) => {
-        if (!active || !isCurrentOwner() || generation !== sensitiveDraftGeneration()) return
+    const maxAttempts = 3
+    const load = async (attempt: number): Promise<void> => {
+      const generation = sensitiveDraftGeneration()
+      const retry = () => active && isCurrentOwner() && attempt < maxAttempts
+      try {
+        const records = await pathwaysClient.getProjectsForRole(role)
+        if (!active || !isCurrentOwner()) return
+        if (generation !== sensitiveDraftGeneration()) {
+          if (retry()) return load(attempt + 1)
+          // Retries exhausted: never render the dropped rows, but never stay on "Loading".
+          setProjectsLoaded(true)
+          setSavedNotice('Projects could not be loaded. Retry.')
+          return
+        }
         setProjects(records)
         setProjectId((current) => current || records[0]?.id || '')
-      })
-      .catch((error: unknown) => {
-        if (active && isCurrentOwner() && generation === sensitiveDraftGeneration())
-          setSavedNotice(error instanceof Error ? error.message : 'Projects could not be loaded.')
-      })
+        setProjectsLoaded(true)
+      } catch (error: unknown) {
+        if (!active || !isCurrentOwner()) return
+        if (generation !== sensitiveDraftGeneration() && retry()) return load(attempt + 1)
+        setProjectsLoaded(true)
+        setSavedNotice(error instanceof Error ? error.message : 'Projects could not be loaded.')
+      }
+    }
+    void load(1)
     return () => {
       active = false
     }
-  }, [profile, role, eligible, isCurrentOwner])
+  }, [hasProfile, profileUserId, profileOrganizationId, role, eligible, isCurrentOwner])
 
   useEffect(() => {
     if (!projectId) {
@@ -1416,22 +1441,6 @@ const OwnedCollectionWorkspace = ({
         />
       ) : null}
 
-      {!(view === 'import' && mode === 'extend') ? (
-        <label className="block text-sm">
-          Download format{' '}
-          <select
-            className="ml-2 rounded border p-2"
-            value={exportFormat}
-            onChange={(e) => setExportFormat(e.target.value as ExportFormat)}
-          >
-            {formDefinitionExportFormats.map((f) => (
-              <option key={f} value={f}>
-                {f.toUpperCase()}
-              </option>
-            ))}
-          </select>
-        </label>
-      ) : null}
       {view === 'builder' &&
         canManageForms &&
         forms.find((form) => form.id === editingFormId)?.status === 'PUBLISHED' && (
@@ -1601,6 +1610,7 @@ const OwnedCollectionWorkspace = ({
               onPublish={() => void publishFormToApi()}
               projectActivities={projectActivities}
               projects={projects}
+              projectsLoaded={projectsLoaded}
               projectId={projectId}
               sadddCount={sadddCount}
               selectedField={selectedField}
@@ -1748,6 +1758,7 @@ const OwnedCollectionWorkspace = ({
             )}
             projectActivities={projectActivities}
             projects={projects}
+            projectsLoaded={projectsLoaded}
             projectId={projectId}
             selectedProject={selectedProject?.title ?? 'No project selected'}
             setFormTitle={changeInput(setFormTitle)}
@@ -1972,6 +1983,7 @@ const BuilderView = ({
   onPublish,
   projectActivities,
   projects,
+  projectsLoaded,
   projectId,
   sadddCount,
   selectedField,
@@ -2003,6 +2015,7 @@ const BuilderView = ({
   onPublish: () => void
   projectActivities: ActivitySummary[]
   projects: ProjectSummary[]
+  projectsLoaded: boolean
   projectId: string
   sadddCount: number
   selectedField?: FormField
@@ -2026,6 +2039,7 @@ const BuilderView = ({
         linkedActivityId={linkedActivityId}
         projectActivities={projectActivities}
         projects={projects}
+        projectsLoaded={projectsLoaded}
         projectId={projectId}
         setFormTitle={setFormTitle}
         setFormType={setFormType}
@@ -2183,6 +2197,7 @@ const FormInfoPanel = ({
   linkedActivityId,
   projectActivities,
   projects,
+  projectsLoaded,
   projectId,
   setFormTitle,
   setFormType,
@@ -2196,6 +2211,7 @@ const FormInfoPanel = ({
   linkedActivityId: string
   projectActivities: ActivitySummary[]
   projects: ProjectSummary[]
+  projectsLoaded: boolean
   projectId: string
   setFormTitle: (value: string) => void
   setFormType: (value: string) => void
@@ -2229,10 +2245,12 @@ const FormInfoPanel = ({
         </Select>
       </div>
       <div className="space-y-2">
-        <Label>Project selection</Label>
+        <Label htmlFor="collection-project-select">Project selection</Label>
         <Select value={projectId} onValueChange={setProjectId}>
-          <SelectTrigger>
-            <SelectValue />
+          <SelectTrigger id="collection-project-select">
+            <SelectValue
+              placeholder={projectsLoaded ? 'No projects available' : 'Loading projects...'}
+            />
           </SelectTrigger>
           <SelectContent>
             {projects.map((project) => (
@@ -2625,6 +2643,7 @@ const ImportView = ({
   sourceFileEnabled,
   projectActivities,
   projects,
+  projectsLoaded,
   projectId,
   selectedProject,
   setFormTitle,
@@ -2656,6 +2675,7 @@ const ImportView = ({
   sourceFileEnabled: boolean
   projectActivities: ActivitySummary[]
   projects: ProjectSummary[]
+  projectsLoaded: boolean
   projectId: string
   selectedProject: string
   setFormTitle: (value: string) => void
@@ -2679,6 +2699,7 @@ const ImportView = ({
         linkedActivityId={linkedActivityId}
         projectActivities={projectActivities}
         projects={projects}
+        projectsLoaded={projectsLoaded}
         projectId={projectId}
         setFormTitle={setFormTitle}
         setFormType={setFormType}

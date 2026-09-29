@@ -157,9 +157,6 @@ export function HumanReviewWorkspace({
         eyebrow="Human review required"
         description="Review recorded evidence and predefined recommendations. Decisions remain with your project team."
       />
-      <section className="rounded-sm border border-info/25 bg-info-subtle p-4 text-sm text-info">
-        Recommendations follow predefined rules and require human review.
-      </section>
       <div className="flex flex-wrap items-end gap-3">
         <div className="min-w-64 space-y-2">
           <Label htmlFor={`${kind}-project`}>Project</Label>

@@ -176,7 +176,7 @@ test('project entry lands on Overview with compact source-aligned cards and keyb
   await expect(futureMakersCard.getByText('National Capital Region', { exact: true })).toBeVisible()
   await expect(futureMakersCard.getByText('Jan 2026 - Dec 2026', { exact: true })).toBeVisible()
   await expect(futureMakersCard.getByText('Project Manager A', { exact: true })).toBeVisible()
-  await expect(futureMakersCard.getByRole('button', { name: 'Quick Preview' })).toBeVisible()
+  await expect(futureMakersCard.getByRole('button', { name: 'Quick Preview' })).toHaveCount(0)
   await expect(futureMakersCard.getByRole('link', { name: 'Open Project' })).toBeVisible()
   await page.screenshot({
     fullPage: true,
@@ -185,11 +185,6 @@ test('project entry lands on Overview with compact source-aligned cards and keyb
   await futureMakersCard.screenshot({
     path: evidencePath('12-project-card-reference-layout.png'),
   })
-  const quickPreview = futureMakersCard.getByRole('button', { name: 'Quick Preview' })
-  await quickPreview.click()
-  await expect(page.getByRole('dialog', { name: 'FutureMakers NCR' })).toBeVisible()
-  await expect(page).toHaveURL(/\/projects$/)
-  await page.getByRole('button', { name: 'Close', exact: true }).first().click()
   await resetAndSwitch(page, 'program-manager')
   await page.goto('/projects')
   const criticalProjectCard = page.getByTestId('project-card-safe-spaces-northern-samar')
@@ -309,14 +304,9 @@ test('shared project selectors stay concrete and Analytics keeps the rearranged 
   const visualizationTypeBox = await analyticsControls
     .getByLabel('Visualization type')
     .boundingBox()
-  const reviewNoticeBox = await analyticsControls
-    .getByText('Recommendations are generated from predefined rules and require human review.')
-    .boundingBox()
   expect(analysisViewBox).not.toBeNull()
   expect(visualizationTypeBox).not.toBeNull()
-  expect(reviewNoticeBox).not.toBeNull()
   expect(visualizationTypeBox?.y).toBeGreaterThan(analysisViewBox?.y ?? 0)
-  expect(Math.abs((reviewNoticeBox?.y ?? 0) - (analysisViewBox?.y ?? 0))).toBeLessThan(12)
 
   const generatedAnalysis = page.getByRole('heading', {
     name: 'KPI / indicator performance · Bar chart',
