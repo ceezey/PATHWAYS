@@ -368,10 +368,18 @@ function mapActivity(
     })),
     overdueExplanationNeeded:
       presentation.overdue &&
-      !row.activityOverdueExplanation_activity.some(
-        (explanation) => calendarDate(explanation.recordedAt) >= calendarDate(row.plannedEndDate),
-      ),
+      !hasExplanationSinceDue(row.activityOverdueExplanation_activity, row.plannedEndDate),
   }
+}
+
+/** True when an overdue explanation was recorded on or after the planned end date. */
+function hasExplanationSinceDue(
+  explanations: { recordedAt: Date }[],
+  plannedEndDate: Date | null,
+) {
+  return explanations.some(
+    (explanation) => calendarDate(explanation.recordedAt) >= calendarDate(plannedEndDate),
+  )
 }
 
 /** A plain object, so server-computed per-item fields can be added without a detail read. */
@@ -402,9 +410,7 @@ export function mapActivityListItem(row: ActivityListRow, businessDate: string) 
     updatedAt: row.updatedAt.toISOString(),
     overdueExplanationNeeded:
       presentation.overdue &&
-      !row.activityOverdueExplanation_activity.some(
-        (explanation) => calendarDate(explanation.recordedAt) >= calendarDate(row.plannedEndDate),
-      ),
+      !hasExplanationSinceDue(row.activityOverdueExplanation_activity, row.plannedEndDate),
   }
 }
 

@@ -118,10 +118,6 @@ export const ActivityExplainDelayDialog = ({
         <form
           className="space-y-5"
           noValidate
-          onKeyDown={(event) => {
-            // Enter inside the textarea must never submit the form; only the Save button does.
-            if (event.key === 'Enter' && event.target instanceof HTMLTextAreaElement) return
-          }}
           onSubmit={(event) => {
             event.preventDefault()
             void submit()
