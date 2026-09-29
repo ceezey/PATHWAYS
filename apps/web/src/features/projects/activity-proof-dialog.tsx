@@ -122,6 +122,9 @@ const ScopedActivityProofDialog = ({
   // overlapping finish() calls without blocking a later retry after a failed reload.
   const committed = useRef(false)
   const finishing = useRef(false)
+  // Keys of files whose signed-URL upload succeeded: the URL is single-use, so a retry of any
+  // later step (finalize, Submit) must never upload the file again.
+  const uploadedKeys = useRef(new Set<string>())
   const [beneficiariesReachedThisSession, setBeneficiariesReachedThisSession] = useState('')
   const noteError = error === 'Enter an update note before submitting proof.'
   const fileError = error.startsWith('Attach') || error.startsWith('Select up to')
@@ -153,6 +156,7 @@ const ScopedActivityProofDialog = ({
     reservation.current = null
     committed.current = false
     finishing.current = false
+    uploadedKeys.current = new Set()
     let cancelled = false
     pathwaysClient
       .getActivityProofUploadLimits(activity.projectId)
@@ -260,10 +264,11 @@ const ScopedActivityProofDialog = ({
   // update's commit, so this never skips straight to a local 'uploaded' status.
   const processFile = async (item: ProofFileItem): Promise<boolean> => {
     if (!activity || !reservation.current || !item.evidenceId) return false
-    if (item.uploadUrl) {
+    if (item.uploadUrl && !uploadedKeys.current.has(item.key)) {
       setFileState(item.key, { status: 'uploading', error: undefined })
       try {
         await pathwaysClient.uploadActivityProofFile(item.uploadUrl, item.file)
+        uploadedKeys.current.add(item.key)
       } catch (caught) {
         if (!scope.isCurrent()) return false
         setFileState(item.key, {
@@ -307,7 +312,17 @@ const ScopedActivityProofDialog = ({
     const item = files.find((entry) => entry.key === key)
     if (!item || item.status === 'uploading') return
     setError('')
-    await processFile(item)
+    const ok = await processFile(item)
+    // Once this was the last file to land, an UPLOADING reply can still mean the update is ready:
+    // one more idempotent finalize commits it, and a miss is reported rather than left silent.
+    const allUploaded = files.every((entry) => entry.key === key || entry.status === 'uploaded')
+    if (ok && allUploaded && scope.isCurrent() && !committed.current) {
+      await processFile(item)
+      if (scope.isCurrent() && !committed.current)
+        setError(
+          'The proof files are uploaded, but the update was not submitted for review. Select Submit proof to retry.',
+        )
+    }
   }
 
   const submitUpdate = async () => {
@@ -391,15 +406,32 @@ const ScopedActivityProofDialog = ({
       }
       // Every reserved file needs processing, including one the reservation already reported as
       // storageReady (a READY_TO_COMMIT reply): it still needs its finalize call to commit.
-      const targets = workingFiles.filter((item) => item.status !== 'uploaded' && item.evidenceId)
+      const pendingTargets = workingFiles.filter(
+        (item) => item.status !== 'uploaded' && item.evidenceId,
+      )
+      // Every file already finalized but the update never committed: the retry is one finalize of
+      // a reserved file, which is idempotent and commits an update whose files are all ready.
+      const lastReserved = workingFiles.filter((item) => item.evidenceId).at(-1)
+      const targets = pendingTargets.length ? pendingTargets : lastReserved ? [lastReserved] : []
       const outcomes = await Promise.all(targets.map((item) => processFile(item)))
+      // Finalizes that ran together can each report UPLOADING while the update is in fact ready.
+      // One more finalize, after all of them settled, is idempotent and commits it.
+      if (
+        scope.isCurrent() &&
+        !committed.current &&
+        outcomes.every(Boolean) &&
+        pendingTargets.length
+      ) {
+        await processFile(targets[targets.length - 1])
+      }
       if (scope.isCurrent() && !committed.current) {
         setSubmitting(false)
-        // Never leave a failed upload silent: the update stays reserved until every file lands.
-        if (outcomes.some((ok) => !ok))
-          setError(
-            'Not every proof file was uploaded, so this update is not submitted for review yet. Retry the failed files below.',
-          )
+        // Never leave an unfinished submission silent: the update stays reserved until it commits.
+        setError(
+          outcomes.some((ok) => !ok)
+            ? 'Not every proof file was uploaded, so this update is not submitted for review yet. Retry the failed files below.'
+            : 'The proof files are uploaded, but the update was not submitted for review. Select Submit proof to retry.',
+        )
       }
     } catch (caught) {
       if (!scope.isCurrent()) return
