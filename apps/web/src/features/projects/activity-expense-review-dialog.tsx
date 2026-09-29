@@ -47,7 +47,10 @@ export function ActivityExpenseReviewDialog({
   // aria-disabled (not native disabled) so Validate/Return stay reachable by
   // keyboard and screen readers, which then hear the persistent hint below
   // via aria-describedby instead of losing the control from the tab order.
-  const blockMissingReceipt = (event: { preventDefault: () => void; stopPropagation: () => void }) => {
+  const blockMissingReceipt = (event: {
+    preventDefault: () => void
+    stopPropagation: () => void
+  }) => {
     if (!missingReceipt) return
     event.preventDefault()
     event.stopPropagation()

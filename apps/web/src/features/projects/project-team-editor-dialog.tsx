@@ -40,8 +40,8 @@ import {
   toUpdateProjectInput,
 } from './project-form-validation'
 import {
-  type TeamFieldName,
   ProjectTeamSelectors,
+  type TeamFieldName,
   validateProjectTeamSelections,
 } from './project-team-selectors'
 
@@ -80,8 +80,7 @@ const formDefaults = (project: ProjectDetail): ProjectSetupSchema => ({
   description: project.description,
   programManager: project.programManager === 'Not assigned' ? '' : project.programManager,
   projectManager: project.projectManager === 'Not assigned' ? '' : project.projectManager,
-  monitoringOfficer:
-    project.monitoringOfficer === 'Not assigned' ? '' : project.monitoringOfficer,
+  monitoringOfficer: project.monitoringOfficer === 'Not assigned' ? '' : project.monitoringOfficer,
   projectOfficers: project.projectOfficers.join(', '),
 })
 
@@ -234,9 +233,7 @@ export const ProjectTeamEditorDialog = ({
             <ProjectTeamSelectors
               control={form.control}
               disallowAssignRoles={disallowAssignRoles}
-              disallowClearRoles={
-                preventProjectManagerSelfRemoval ? ['projectManager'] : undefined
-              }
+              disallowClearRoles={preventProjectManagerSelfRemoval ? ['projectManager'] : undefined}
               loadError={loadError}
               loading={loading}
               onRetry={() => setLoadAttempt((attempt) => attempt + 1)}

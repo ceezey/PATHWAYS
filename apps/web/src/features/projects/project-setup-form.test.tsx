@@ -161,7 +161,9 @@ describe('ProjectSetupForm', () => {
       endDate: '2026-12-31',
       status: 'Planned',
     })
-    await waitFor(() => expect(testState.routerPush).toHaveBeenCalledWith(`/projects/${project.id}`))
+    await waitFor(() =>
+      expect(testState.routerPush).toHaveBeenCalledWith(`/projects/${project.id}`),
+    )
     expect(testState.refreshAccess).toHaveBeenCalledTimes(1)
     expect(testState.callOrder).toEqual(['refreshAccess', 'routerPush'])
   })

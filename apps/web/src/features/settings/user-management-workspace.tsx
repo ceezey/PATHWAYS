@@ -91,8 +91,7 @@ const emptyEditor = (role: PathwaysRole): UserEditorState => ({
   projectIds: [],
 })
 
-const AUTH_USER_ID_PATTERN =
-  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+const AUTH_USER_ID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
 const formatAccountDate = (value?: string) => {
   if (!value) return 'Not yet active'

@@ -953,7 +953,9 @@ export const AnalyticsDashboard = () => {
                     <div>
                       <dt className="text-muted-foreground">Utilization</dt>
                       <dd className="mt-1 font-medium text-foreground tabular-nums">
-                        {budgetUtilizationPercent !== null ? `${budgetUtilizationPercent}%` : 'None yet'}
+                        {budgetUtilizationPercent !== null
+                          ? `${budgetUtilizationPercent}%`
+                          : 'None yet'}
                       </dd>
                     </div>
                   </dl>

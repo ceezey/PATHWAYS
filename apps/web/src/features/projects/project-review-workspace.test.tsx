@@ -387,9 +387,7 @@ describe('shared project workspace optional loading', () => {
         render(<ProjectPhaseFiveWorkspace projectId={projectId} view="evidence" />)
         const button = await screen.findByRole('button', { name: 'Download for review' })
         fireEvent.click(button)
-        expect(
-          await screen.findByText('Private inspection is not authorized.'),
-        ).toBeTruthy()
+        expect(await screen.findByText('Private inspection is not authorized.')).toBeTruthy()
         expect(createObjectURL).not.toHaveBeenCalled()
       } finally {
         URL.createObjectURL = originalCreate

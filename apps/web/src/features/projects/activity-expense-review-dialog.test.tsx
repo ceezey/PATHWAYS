@@ -67,7 +67,11 @@ describe('ActivityExpenseReviewDialog', () => {
     })
     const onReviewed = vi.fn()
     render(
-      <ActivityExpenseReviewDialog expense={expense} onOpenChange={vi.fn()} onReviewed={onReviewed} />,
+      <ActivityExpenseReviewDialog
+        expense={expense}
+        onOpenChange={vi.fn()}
+        onReviewed={onReviewed}
+      />,
     )
     fireEvent.click(screen.getByRole('button', { name: /Validate expense/ }))
     await waitFor(() => expect(state.reviewExpense).toHaveBeenCalledTimes(1))
@@ -91,7 +95,9 @@ describe('ActivityExpenseReviewDialog', () => {
       updatedAt: '2026-01-16T00:00:00.000Z',
       receiptEvidenceId: expense.receiptEvidenceId,
     })
-    render(<ActivityExpenseReviewDialog expense={expense} onOpenChange={vi.fn()} onReviewed={vi.fn()} />)
+    render(
+      <ActivityExpenseReviewDialog expense={expense} onOpenChange={vi.fn()} onReviewed={vi.fn()} />,
+    )
     fireEvent.change(screen.getByLabelText('Correction reason'), {
       target: { value: 'Missing itemized receipt detail.' },
     })
@@ -108,7 +114,9 @@ describe('ActivityExpenseReviewDialog', () => {
 
   it('hides review controls when expenses.verify is absent', () => {
     state.profile.permissions = []
-    render(<ActivityExpenseReviewDialog expense={expense} onOpenChange={vi.fn()} onReviewed={vi.fn()} />)
+    render(
+      <ActivityExpenseReviewDialog expense={expense} onOpenChange={vi.fn()} onReviewed={vi.fn()} />,
+    )
     expect(screen.getByRole('alert').textContent).toContain('outside your current permissions')
     expect(
       (screen.getByRole('button', { name: /Validate expense/ }) as HTMLButtonElement).disabled,
@@ -159,7 +167,11 @@ describe('ActivityExpenseReviewDialog', () => {
     state.reviewExpense.mockRejectedValueOnce(new Error('Expense review rejected.'))
     const onOpenChange = vi.fn()
     render(
-      <ActivityExpenseReviewDialog expense={expense} onOpenChange={onOpenChange} onReviewed={vi.fn()} />,
+      <ActivityExpenseReviewDialog
+        expense={expense}
+        onOpenChange={onOpenChange}
+        onReviewed={vi.fn()}
+      />,
     )
     fireEvent.click(screen.getByRole('button', { name: /Validate expense/ }))
     await waitFor(() =>
