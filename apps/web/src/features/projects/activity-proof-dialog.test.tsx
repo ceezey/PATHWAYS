@@ -1176,3 +1176,99 @@ describe('ActivityProofDialog direct upload', () => {
     digestSpy.mockRestore()
   })
 })
+
+describe('ActivityProofDialog progress suggestion', () => {
+  const withTarget = (extra: Record<string, unknown> = {}) =>
+    ({
+      ...activity,
+      targetBeneficiaries: 100,
+      beneficiariesReached: 20,
+      progress: 10,
+      ...extra,
+    }) as unknown as Activity
+  const show = (a: Activity) =>
+    render(<ActivityProofDialog activity={a} onOpenChange={vi.fn()} onSubmitted={vi.fn()} open />)
+  const progressInput = () => screen.getByLabelText('Progress (%)') as HTMLInputElement
+  const session = (value: string) =>
+    fireEvent.change(screen.getByLabelText(/Beneficiaries reached this session/), {
+      target: { value },
+    })
+
+  it('suggests from approved plus session beneficiaries and updates live', () => {
+    show(withTarget())
+    expect(progressInput().value).toBe('20')
+    session('5')
+    expect(progressInput().value).toBe('25')
+    expect(screen.getByText(/25 of 100 reached \(including this session\) = 25%/)).toBeTruthy()
+    expect(progressInput().getAttribute('aria-describedby')).toContain(
+      'activity-proof-progress-hint',
+    )
+  })
+
+  it('caps the suggestion at 100', () => {
+    show(withTarget())
+    session('500')
+    expect(progressInput().value).toBe('100')
+  })
+
+  it('stops overwriting after a manual edit and Use suggestion re-applies it', () => {
+    show(withTarget())
+    fireEvent.change(progressInput(), { target: { value: '60' } })
+    session('30')
+    expect(progressInput().value).toBe('60')
+    fireEvent.click(screen.getByRole('button', { name: 'Use suggestion (50%)' }))
+    expect(progressInput().value).toBe('50')
+  })
+
+  it('never suggests below the current progress', () => {
+    show(withTarget({ progress: 70 }))
+    expect(progressInput().value).toBe('70')
+    session('5')
+    expect(progressInput().value).toBe('70')
+  })
+
+  it('offers no suggestion when the target is 0 or missing', () => {
+    show(withTarget({ targetBeneficiaries: 0 }))
+    expect(progressInput().value).toBe('10')
+    expect(screen.queryByRole('button', { name: /Use suggestion/ })).toBeNull()
+    cleanup()
+    show(withTarget({ targetBeneficiaries: null }))
+    expect(screen.queryByRole('button', { name: /Use suggestion/ })).toBeNull()
+  })
+
+  it('does not suggest in resume mode and locks the stored progress', () => {
+    show(
+      withTarget({
+        updateNotes: [
+          {
+            id: 'u1',
+            note: 'n',
+            progress: 7,
+            beneficiariesReachedThisSession: null,
+            status: 'Submitted',
+            proofIncomplete: true,
+            resumeClientUpdateId: 'rc',
+          },
+        ],
+      }),
+    )
+    expect(progressInput().value).toBe('7')
+    expect(progressInput().disabled).toBe(true)
+    expect(screen.queryByRole('button', { name: /Use suggestion/ })).toBeNull()
+  })
+
+  it('sends the suggested progress as progressPercent on reserve', async () => {
+    api.reserveActivityProofUpload.mockRejectedValue(new Error('stop'))
+    show(withTarget())
+    session('5')
+    fireEvent.change(screen.getByLabelText(/Narrative Notes/), { target: { value: 'done' } })
+    selectFiles([makeFile('a.pdf', 'application/pdf')])
+    await screen.findByText('a.pdf')
+    fireEvent.click(screen.getByRole('button', { name: /Submit proof/ }))
+    await waitFor(() =>
+      expect(api.reserveActivityProofUpload).toHaveBeenCalledWith(
+        expect.objectContaining({ progressPercent: 25, beneficiariesReachedThisSession: 5 }),
+      ),
+    )
+  })
+})
