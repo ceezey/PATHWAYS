@@ -364,6 +364,17 @@ describe('proof submit, reviewer visibility and review', () => {
     },
   )
 
+  it('flags a pending proof whose files are all ready but never committed, for its submitter only', async () => {
+    const clientUpdateId = 'a0000000-0000-4000-8000-00000000000c'
+    await reserve(clientUpdateId)
+    for (const row of store.evidence) row.storageReady = true
+    const seen = await detail()
+    expect(seen.storedStatus).toBe('IN_PROGRESS')
+    expect(seen.updateNotes[0]).toMatchObject({ proofIncomplete: true })
+    expect(seen.updateNotes[0].resumeClientUpdateId).toBeNull()
+    expect((await officerDetail()).updateNotes[0].resumeClientUpdateId).toBe(clientUpdateId)
+  })
+
   it('a pending progress note blocks proof submission until M&E reviews it, then the proof goes through', async () => {
     await as(officer, () =>
       service.recordProgress(officer, projectId, activityId, {

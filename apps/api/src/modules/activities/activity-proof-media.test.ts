@@ -526,6 +526,17 @@ describe('per-file finalize', () => {
     })
   })
 
+  it('serializes finalizes of one update with a policy-free advisory lock before reading the file set', async () => {
+    await finalize()
+    const calls = tx.$queryRaw.mock.calls.map((call) => (call[0] as string[]).join('?'))
+    const lock = calls.findIndex((sql) => sql.includes('pg_advisory_xact_lock'))
+    expect(lock).toBeGreaterThanOrEqual(0)
+    expect(tx.$queryRaw.mock.calls[lock].slice(1).join()).toContain(updateId)
+    expect(tx.activityUpdate.findFirst.mock.invocationCallOrder[0]).toBeGreaterThan(
+      tx.$queryRaw.mock.invocationCallOrder[lock],
+    )
+  })
+
   it('verifies the exact server-derived object, marks it ready and commits the last file for review', async () => {
     const result = await finalize()
     expect(state.verify).toHaveBeenCalledWith(
