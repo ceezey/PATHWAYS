@@ -31,6 +31,7 @@ type AuditEvent = {
   id: string
   at: string
   actor: string
+  actorId: string | null
   action: string
   module: string
   target: string
@@ -83,7 +84,8 @@ const AuditContent = ({ authorized }: { authorized: boolean }) => {
   const events: AuditEvent[] = (currentData?.rows ?? []).map((row) => ({
     id: row.id,
     at: row.occurredAt,
-    actor: row.actorUserId ?? 'System',
+    actor: row.actorName ?? (row.actorUserId ? 'Unknown user' : 'System'),
+    actorId: row.actorUserId,
     action: row.action,
     module: row.entityType,
     target: row.entityId ?? 'No record ID',
@@ -105,9 +107,9 @@ const AuditContent = ({ authorized }: { authorized: boolean }) => {
     return events.filter((event) => {
       const matchesQuery =
         !normalizedQuery ||
-        [event.actor, event.action, event.target, event.id].some((value) =>
-          value.toLocaleLowerCase().includes(normalizedQuery),
-        )
+        [event.actor, event.actorId, event.action, event.target, event.id]
+          .filter((value): value is string => Boolean(value))
+          .some((value) => value.toLocaleLowerCase().includes(normalizedQuery))
       return (
         matchesQuery &&
         (!from || businessDate(event.at) >= from) &&
@@ -266,7 +268,14 @@ const AuditContent = ({ authorized }: { authorized: boolean }) => {
                     <td className="whitespace-nowrap px-4 py-3 text-muted-foreground">
                       {dateFormatter.format(new Date(event.at))}
                     </td>
-                    <td className="px-4 py-3 font-medium">{event.actor}</td>
+                    <td className="px-4 py-3 font-medium" title={event.actorId ?? undefined}>
+                      {event.actor}
+                      {event.actor === 'Unknown user' ? (
+                        <p className="mt-1 text-xs font-normal text-muted-foreground">
+                          {event.actorId}
+                        </p>
+                      ) : null}
+                    </td>
                     <td className="px-4 py-3">
                       <p>{event.action}</p>
                       <p className="mt-1 text-xs text-muted-foreground">{event.target}</p>
@@ -363,7 +372,14 @@ const AuditContent = ({ authorized }: { authorized: boolean }) => {
               </div>
               <div>
                 <dt className="text-muted-foreground">Actor</dt>
-                <dd className="mt-1 font-medium">{selected.actor}</dd>
+                <dd className="mt-1 font-medium" title={selected.actorId ?? undefined}>
+                  {selected.actor}
+                  {selected.actor === 'Unknown user' ? (
+                    <p className="mt-1 text-xs font-normal text-muted-foreground">
+                      {selected.actorId}
+                    </p>
+                  ) : null}
+                </dd>
               </div>
               <div>
                 <dt className="text-muted-foreground">Module</dt>
