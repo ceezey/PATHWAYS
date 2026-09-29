@@ -264,9 +264,11 @@ export const ActivityDetailContent = ({
             {[...activity.submittedProof].reverse().map((proof, reverseIndex) => {
               const isLatest = reverseIndex === 0
               const highlighted = proof.id === requestedProofId
-              const progress =
-                activity.updateNotes.find((update) => update.id === proof.updateId)?.progress ??
-                activity.progress
+              const proofUpdate = activity.updateNotes.find(
+                (update) => update.id === proof.updateId,
+              )
+              const returnedUpdate = proof.status === 'Flagged' ? proofUpdate : undefined
+              const progress = proofUpdate?.progress ?? activity.progress
               return (
                 <article
                   className={`rounded-sm border bg-background p-4 ${
@@ -293,9 +295,28 @@ export const ActivityDetailContent = ({
                     <ActivityProofFiles proof={proof} />
                   </div>
                   {proof.status === 'Flagged' ? (
-                    <p className="mt-3 rounded-sm border border-danger/25 bg-danger-subtle p-3 text-sm text-danger">
-                      This proof was returned for correction.
-                    </p>
+                    <div className="mt-3 rounded-sm border border-danger/25 bg-danger-subtle p-3 text-sm text-danger">
+                      <p>This proof was returned for correction.</p>
+                      {returnedUpdate?.reviewReason ? (
+                        <p className="mt-1">
+                          {returnedUpdate.reviewedBy
+                            ? `Returned by ${returnedUpdate.reviewedBy}: `
+                            : 'Return reason: '}
+                          {returnedUpdate.reviewReason}
+                        </p>
+                      ) : null}
+                      {isLatest && showSubmitProof && activity.status !== 'Completed' ? (
+                        <Button
+                          className="mt-3 gap-2"
+                          onClick={() => onSubmitProof(activity)}
+                          size="sm"
+                          type="button"
+                        >
+                          <UploadCloud className="h-4 w-4" aria-hidden="true" />
+                          Submit correction
+                        </Button>
+                      ) : null}
+                    </div>
                   ) : null}
                   {isLatest &&
                   canValidateProof &&
