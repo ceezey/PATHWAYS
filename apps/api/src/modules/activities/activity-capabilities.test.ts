@@ -175,7 +175,10 @@ describe('server-computed activity capabilities', () => {
       canEdit: true,
       canRecordProgress: false,
       canSubmitProof: false,
-      canExplainOverdue: false,
+      // PROJECT_MANAGER holds monitoring.review and this row was already resolved through
+      // projectScope(actor), so canExplainOverdue no longer needs a personal activity
+      // assignment (see activities.service.ts activityCapabilities).
+      canExplainOverdue: true,
     })
     expect(detail).not.toHaveProperty('_count')
     const select = tx.project.findFirst.mock.calls[0][0].select.projectActivity_project.select

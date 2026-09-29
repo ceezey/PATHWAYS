@@ -198,12 +198,51 @@ describe('Activity overdue explanation (monitoring.review)', () => {
     expect(tx.activityOverdueExplanation.create).not.toHaveBeenCalled()
   })
 
-  it('denies an actor without an active assignment on the activity (403, abuse)', async () => {
+  it('succeeds for a project-assigned M&E officer with no personal activity assignment', async () => {
+    // The endpoint is project-scoped, not personal-activity-scoped: an M&E officer assigned
+    // to the project (actor.assignedProjectIds includes projectId) but never individually
+    // assigned to this specific activity (no ProjectActivityAssignment row) still succeeds.
     tx.projectActivityAssignment.findFirst.mockResolvedValue(null)
+    const result = await service.recordOverdueExplanation(actor, projectId, activityId, input)
+    expect(result.id).toBe(activityId)
+    expect(tx.activityOverdueExplanation.create).toHaveBeenCalled()
+  })
+
+  it('denies an unassigned M&E officer via uniform project-scope 404 (abuse)', async () => {
+    // Matches the existing "hides a cross-organization or unassigned project" convention:
+    // an M&E officer with no project assignment fails projectScope(actor) inside
+    // requireProject the same way a cross-org project does, so this is 404, not 403 -
+    // the endpoint never leaks whether the project/activity exists to a caller outside scope.
+    tx.project.findFirst.mockResolvedValue(null)
+    const unassignedActor = { ...actor, assignedProjectIds: [] }
     await expect(
-      service.recordOverdueExplanation(actor, projectId, activityId, input),
-    ).rejects.toBeInstanceOf(ForbiddenException)
+      service.recordOverdueExplanation(unassignedActor, projectId, activityId, input),
+    ).rejects.toBeInstanceOf(NotFoundException)
     expect(tx.activityOverdueExplanation.create).not.toHaveBeenCalled()
+  })
+
+  it('per-role scope: SYSTEM_ADMINISTRATOR is org-wide, PROGRAM_MANAGER/GRANT_MANAGER need project scope', async () => {
+    // The application layer never re-derives this per role: it relies entirely on
+    // projectScope(actor) (via requireActivity -> requireProject), which already branches
+    // SYSTEM_ADMINISTRATOR org-wide, PROGRAM_MANAGER by assignedProjectIds or managed
+    // program, and every other role (GRANT_MANAGER, MONITORING_AND_EVALUATION_OFFICER,
+    // PROJECT_MANAGER) by assignedProjectIds only - matching the RBAC contract's
+    // monitoring.review role list and migration 0043's p05_has_project_permission check.
+    for (const roles of [
+      ['SYSTEM_ADMINISTRATOR'] as const,
+      ['PROGRAM_MANAGER'] as const,
+      ['GRANT_MANAGER'] as const,
+    ]) {
+      tx.project.findFirst.mockResolvedValue({ id: projectId, startDate: null, endDate: null })
+      const roleActor = { ...actor, roles: [...roles], assignedProjectIds: [] }
+      const result = await service.recordOverdueExplanation(
+        roleActor,
+        projectId,
+        activityId,
+        input,
+      )
+      expect(result.id).toBe(activityId)
+    }
   })
 
   it('hides a cross-organization or unassigned project before activity retrieval (abuse)', async () => {

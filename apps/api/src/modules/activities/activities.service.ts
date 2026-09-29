@@ -207,7 +207,11 @@ export function activityCapabilities(
     canEdit: can('activities.update') && !['COMPLETED', 'CANCELLED'].includes(status),
     canRecordProgress: can('activities.progress.update') && assigned,
     canSubmitProof: can('activities.proof.submit') && assigned,
-    canExplainOverdue: can('monitoring.review') && assigned,
+    // Project-scoped, not the personal activity assignment `assigned` reflects: any row
+    // reaching this function was already resolved through projectScope(actor) (see
+    // requireProject), which is the same project-assignment-or-org-wide rule
+    // pathways.p05_has_project_permission('monitoring.review', ...) applies at the RLS layer.
+    canExplainOverdue: can('monitoring.review'),
   }
 }
 
@@ -1526,8 +1530,14 @@ export class ActivitiesService {
       identity,
       'monitoring.review',
       async (tx, actor) => {
+        // M&E officers are assigned to the PROJECT, not to individual activities, so this
+        // uses the project-scope rule requireActivity already applies (projectScope(actor)
+        // inside requireProject), not the personal-activity requireActiveAssignment used by
+        // recordProgress/reserveProof. This mirrors pathways.p05_has_project_permission
+        // ('monitoring.review', project_id) in migration 0043's RLS INSERT policy:
+        // SYSTEM_ADMINISTRATOR is org-wide, PROGRAM_MANAGER also via a managed program, and
+        // every other role (including GRANT_MANAGER) needs an active project assignment.
         const activity = await this.requireActivity(tx, actor, projectId, activityId)
-        await this.requireActiveAssignment(tx, actor, activity)
         const clientMutationId = input.clientMutationId.toLowerCase()
         const explanation = input.explanation.trim()
         if (explanation.length < 10 || explanation.length > 2000)
