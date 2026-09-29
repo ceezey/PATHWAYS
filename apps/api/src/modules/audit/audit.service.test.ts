@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
 import { BadRequestException, ForbiddenException } from '@nestjs/common'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { PrismaService } from '../../prisma/prisma.service'
@@ -41,6 +43,7 @@ const row = (suffix: string) => ({
   entityId: projectId,
   projectId,
   actorUserId: userId,
+  actor: { fullName: 'Fictional audit reviewer' },
 })
 const tx = { project: { findMany: vi.fn() }, auditLog: { findMany: vi.fn() } }
 const service = new AuditService({} as PrismaService)
@@ -80,8 +83,53 @@ describe('audit projection and cursor boundary', () => {
     const query = tx.auditLog.findMany.mock.calls[0][0]
     expect(query.where).toEqual({ organizationId: org, projectId: { in: [projectId] } })
     expect(Object.keys(query.select).sort()).toEqual(
-      ['id', 'occurredAt', 'action', 'entityType', 'entityId', 'projectId', 'actorUserId'].sort(),
+      [
+        'id',
+        'occurredAt',
+        'action',
+        'entityType',
+        'entityId',
+        'projectId',
+        'actorUserId',
+        'actor',
+      ].sort(),
     )
+    expect(query.select.actor).toEqual({ select: { fullName: true } })
+  })
+  it('resolves the actor name from the same organization-scoped relation', async () => {
+    tx.auditLog.findMany.mockResolvedValue([row('1')])
+    const result = await service.list(identity, {})
+    expect(result.rows[0].actorName).toBe('Fictional audit reviewer')
+    expect(result.rows[0].actorUserId).toBe(userId)
+    expect(result.rows[0]).not.toHaveProperty('actor')
+  })
+  it('returns a null actor name for a system-originated event', async () => {
+    tx.auditLog.findMany.mockResolvedValue([{ ...row('1'), actorUserId: null, actor: null }])
+    const result = await service.list(identity, {})
+    expect(result.rows[0].actorName).toBeNull()
+    expect(result.rows[0].actorUserId).toBeNull()
+  })
+  it('an actor lookup that cannot resolve in scope (e.g. deleted user) yields no name', async () => {
+    tx.auditLog.findMany.mockResolvedValue([{ ...row('1'), actor: null }])
+    const result = await service.list(identity, {})
+    expect(result.rows[0].actorName).toBeNull()
+  })
+  it('the actor relation is composite-keyed on organizationId so a cross-org actor can never join', () => {
+    const schema = readFileSync(
+      join(__dirname, '..', '..', '..', 'prisma', 'schema.prisma'),
+      'utf8',
+    )
+    expect(schema).toMatch(
+      /actor\s+SystemUser\?\s+@relation\("AuditActor",\s*fields:\s*\[organizationId,\s*actorUserId\],\s*references:\s*\[organizationId,\s*id\]/,
+    )
+  })
+  it('bounds the audit page to the requested limit regardless of actor name resolution', async () => {
+    tx.auditLog.findMany.mockResolvedValue(
+      Array.from({ length: 3 }, (_, index) => row(String(index + 1))),
+    )
+    const result = await service.list(identity, { limit: 2 })
+    expect(result.rows).toHaveLength(2)
+    expect(tx.auditLog.findMany.mock.calls[0][0].take).toBe(3)
   })
   it('an inaccessible project produces an empty database predicate instead of broad retrieval', async () => {
     state.actor = { ...identity, roles: ['PROJECT_MANAGER'] }

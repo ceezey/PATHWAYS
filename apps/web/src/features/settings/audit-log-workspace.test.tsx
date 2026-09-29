@@ -11,6 +11,8 @@ const state = vi.hoisted(() => ({
   pending: false,
   empty: false,
   many: false,
+  actorName: 'Fictional Reviewer' as string | null,
+  actorUserId: '20000000-0000-4000-8000-000000000002' as string | null,
   reads: vi.fn(),
   refetch: vi.fn(),
 }))
@@ -33,7 +35,8 @@ vi.mock('@/providers/authorized-query-provider', () => ({
               : Array.from({ length: state.many ? 12 : 1 }, (_, index) => ({
                   id: `10000000-0000-4000-8000-${String(index + 1).padStart(12, '0')}`,
                   occurredAt: '2026-09-27T16:30:00.123Z',
-                  actorUserId: '20000000-0000-4000-8000-000000000002',
+                  actorUserId: state.actorUserId,
+                  actorName: state.actorName,
                   action: index === 11 ? 'UNIQUE_EVENT' : 'PROJECT_UPDATED',
                   entityType: 'Project',
                   entityId: '30000000-0000-4000-8000-000000000003',
@@ -59,6 +62,8 @@ describe('audit screen current access and business date', () => {
     state.pending = false
     state.empty = false
     state.many = false
+    state.actorName = 'Fictional Reviewer'
+    state.actorUserId = '20000000-0000-4000-8000-000000000002'
   })
   afterEach(cleanup)
   it('filters the next Manila business date rather than the UTC calendar date', () => {
@@ -138,5 +143,29 @@ describe('audit screen current access and business date', () => {
     })
     expect(screen.getByText('Page 1 of 1')).toBeTruthy()
     expect(screen.getByRole('button', { name: /View UNIQUE_EVENT for/ })).toBeTruthy()
+  })
+  it('shows the resolved actor name', () => {
+    render(<AuditLogWorkspace />)
+    expect(screen.getByText('Fictional Reviewer')).toBeTruthy()
+  })
+  it('shows "Unknown user" with the id when the actor cannot be resolved in scope', () => {
+    state.actorName = null
+    render(<AuditLogWorkspace />)
+    expect(screen.getByText('Unknown user')).toBeTruthy()
+    expect(screen.getByText(state.actorUserId as string)).toBeTruthy()
+  })
+  it('shows "System" when there is no actor at all', () => {
+    state.actorName = null
+    state.actorUserId = null
+    render(<AuditLogWorkspace />)
+    expect(screen.getByText('System')).toBeTruthy()
+  })
+  it('matches search against the actor id as well as the resolved name', () => {
+    state.actorName = null
+    render(<AuditLogWorkspace />)
+    fireEvent.change(screen.getByLabelText('Actor, action, target, or event ID'), {
+      target: { value: state.actorUserId as string },
+    })
+    expect(screen.getByText('PROJECT_UPDATED')).toBeTruthy()
   })
 })

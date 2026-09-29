@@ -26,6 +26,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import { ANALYTICS_AGGREGATE_EXPORT_UI_ENABLED } from '@/constants/feature-flags'
 import { metricUnavailableLabel } from '@/features/projects/project-utils'
 import { useCurrentRole } from '@/hooks/use-current-role'
 import { useDisplayLabels } from '@/hooks/use-display-labels'
@@ -378,7 +379,14 @@ export const AnalyticsDashboard = () => {
   }, [canReadDescriptive, descriptiveLoadAttempt, projectId, selectedPeriod])
 
   const exportDescriptive = async () => {
-    if (!canExportAnalytics || !projectId || !selectedPeriod || exporting) return
+    if (
+      !ANALYTICS_AGGREGATE_EXPORT_UI_ENABLED ||
+      !canExportAnalytics ||
+      !projectId ||
+      !selectedPeriod ||
+      exporting
+    )
+      return
     const capturedProject = projectId
     setExporting(true)
     try {
@@ -603,19 +611,7 @@ export const AnalyticsDashboard = () => {
         <div className="rounded-sm border border-info/25 bg-info-subtle p-3 text-sm leading-6 text-info sm:col-span-2 xl:col-span-3 xl:col-start-10 xl:row-start-2">
           {humanReviewDisclaimer}
         </div>
-        <div className="flex flex-wrap justify-end gap-2 border-t border-border pt-4 sm:col-span-2 xl:col-span-12 xl:row-start-4">
-          {canExportAnalytics ? (
-            <Button
-              className="shrink-0"
-              disabled={!selectedProject || !selectedPeriod || exporting}
-              onClick={() => void exportDescriptive()}
-              type="button"
-              variant="outline"
-            >
-              <Download className="mr-2 h-4 w-4" aria-hidden="true" />
-              {exporting ? 'Exporting aggregates' : 'Export aggregates (CSV)'}
-            </Button>
-          ) : null}
+        <div className="flex items-end sm:col-span-2 xl:col-span-3 xl:col-start-10 xl:row-start-3">
           <Button
             className="shrink-0"
             type="button"
@@ -626,6 +622,20 @@ export const AnalyticsDashboard = () => {
           </Button>
           <UnavailableHint id="analytics-add-to-dashboard-hint" />
         </div>
+        {ANALYTICS_AGGREGATE_EXPORT_UI_ENABLED && canExportAnalytics ? (
+          <div className="flex flex-wrap justify-end gap-2 border-t border-border pt-4 sm:col-span-2 xl:col-span-12 xl:row-start-4">
+            <Button
+              className="shrink-0"
+              disabled={!selectedProject || !selectedPeriod || exporting}
+              onClick={() => void exportDescriptive()}
+              type="button"
+              variant="outline"
+            >
+              <Download className="mr-2 h-4 w-4" aria-hidden="true" />
+              {exporting ? 'Exporting aggregates' : 'Export aggregates (CSV)'}
+            </Button>
+          </div>
+        ) : null}
       </section>
 
       {loading ? (
