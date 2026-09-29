@@ -1521,66 +1521,71 @@ export class ActivitiesService {
     activityId: string,
     input: RecordOverdueExplanationDto,
   ) {
-    return withAuthorizedOperation(this.prisma, identity, 'monitoring.review', async (tx, actor) => {
-      const activity = await this.requireActivity(tx, actor, projectId, activityId)
-      await this.requireActiveAssignment(tx, actor, activity)
-      const clientMutationId = input.clientMutationId.toLowerCase()
-      const explanation = input.explanation.trim()
-      if (explanation.length < 10 || explanation.length > 2000)
-        throw new BadRequestException('The explanation must be 10 to 2000 characters.')
-      const existing = await tx.activityOverdueExplanation.findFirst({
-        where: { organizationId: actor.organizationId, clientMutationId },
-        select: { projectId: true, activityId: true, category: true, explanation: true },
-      })
-      if (existing) {
-        if (
-          existing.projectId !== activity.projectId ||
-          existing.activityId !== activity.id ||
-          existing.category !== input.category ||
-          existing.explanation !== explanation
-        )
-          throw new ConflictException(
-            'The overdue explanation id was reused with different input.',
+    return withAuthorizedOperation(
+      this.prisma,
+      identity,
+      'monitoring.review',
+      async (tx, actor) => {
+        const activity = await this.requireActivity(tx, actor, projectId, activityId)
+        await this.requireActiveAssignment(tx, actor, activity)
+        const clientMutationId = input.clientMutationId.toLowerCase()
+        const explanation = input.explanation.trim()
+        if (explanation.length < 10 || explanation.length > 2000)
+          throw new BadRequestException('The explanation must be 10 to 2000 characters.')
+        const existing = await tx.activityOverdueExplanation.findFirst({
+          where: { organizationId: actor.organizationId, clientMutationId },
+          select: { projectId: true, activityId: true, category: true, explanation: true },
+        })
+        if (existing) {
+          if (
+            existing.projectId !== activity.projectId ||
+            existing.activityId !== activity.id ||
+            existing.category !== input.category ||
+            existing.explanation !== explanation
           )
-        return this.mapWithMetrics(tx, actor, activity)
-      }
-      const presentation = activityPresentationStatus(
-        activity.status,
-        activity.plannedEndDate,
-        this.businessDate(),
-      )
-      if (!presentation.overdue)
-        throw new ConflictException('An overdue explanation can be recorded only while overdue.')
-      const explanationId = randomUUID()
-      await tx.activityOverdueExplanation.create({
-        data: {
-          id: explanationId,
-          organizationId: actor.organizationId,
-          projectId: activity.projectId,
-          activityId: activity.id,
-          category: input.category,
-          explanation,
-          recordedById: actor.userId,
-          clientMutationId,
-        },
-      })
-      await tx.auditLog.create({
-        data: {
-          organizationId: actor.organizationId,
-          actorUserId: actor.userId,
-          projectId: activity.projectId,
-          action: 'ACTIVITY_OVERDUE_EXPLANATION_RECORDED',
-          entityType: 'ActivityOverdueExplanation',
-          entityId: explanationId,
-          changes: { activityId: activity.id, category: input.category },
-        },
-      })
-      return this.mapWithMetrics(
-        tx,
-        actor,
-        await this.readScopedActivity(tx, actor, activity.projectId, activity.id),
-      )
-    })
+            throw new ConflictException(
+              'The overdue explanation id was reused with different input.',
+            )
+          return this.mapWithMetrics(tx, actor, activity)
+        }
+        const presentation = activityPresentationStatus(
+          activity.status,
+          activity.plannedEndDate,
+          this.businessDate(),
+        )
+        if (!presentation.overdue)
+          throw new ConflictException('An overdue explanation can be recorded only while overdue.')
+        const explanationId = randomUUID()
+        await tx.activityOverdueExplanation.create({
+          data: {
+            id: explanationId,
+            organizationId: actor.organizationId,
+            projectId: activity.projectId,
+            activityId: activity.id,
+            category: input.category,
+            explanation,
+            recordedById: actor.userId,
+            clientMutationId,
+          },
+        })
+        await tx.auditLog.create({
+          data: {
+            organizationId: actor.organizationId,
+            actorUserId: actor.userId,
+            projectId: activity.projectId,
+            action: 'ACTIVITY_OVERDUE_EXPLANATION_RECORDED',
+            entityType: 'ActivityOverdueExplanation',
+            entityId: explanationId,
+            changes: { activityId: activity.id, category: input.category },
+          },
+        })
+        return this.mapWithMetrics(
+          tx,
+          actor,
+          await this.readScopedActivity(tx, actor, activity.projectId, activity.id),
+        )
+      },
+    )
   }
 
   /** Effective upload limits for the web client; the same values bound every reservation. */

@@ -116,6 +116,7 @@ const activity = {
   activityUpdate_activity: [],
   activityJourneyStageMapping_activity: [],
   activityIndicatorLink_activity: [],
+  activityOverdueExplanation_activity: [],
 }
 
 const tx = {
@@ -429,6 +430,7 @@ describe('Activity creation contract authorization', () => {
       },
     ],
     activityIndicatorLink_activity: [{ indicatorId }],
+    activityOverdueExplanation_activity: [],
     activityJourneyStageMapping_activity: [{ stageId }],
   }
   const service = new ActivitiesService({} as PrismaService, storage as unknown as StorageService)

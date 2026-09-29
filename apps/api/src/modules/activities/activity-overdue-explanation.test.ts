@@ -92,7 +92,11 @@ const tx = {
   auditLog: { create: vi.fn() },
 }
 
-const input = { clientMutationId, category: 'WEATHER' as const, explanation: 'Typhoon delayed travel to the site for two weeks.' }
+const input = {
+  clientMutationId,
+  category: 'WEATHER' as const,
+  explanation: 'Typhoon delayed travel to the site for two weeks.',
+}
 
 describe('Activity overdue explanation (monitoring.review)', () => {
   const service = new ActivitiesService({} as PrismaService, {} as StorageService)

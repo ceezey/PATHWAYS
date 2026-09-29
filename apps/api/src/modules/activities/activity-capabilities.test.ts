@@ -95,6 +95,7 @@ const activityRow = (status: string, personalAssignments: number) => ({
   activityUpdate_activity: [],
   activityJourneyStageMapping_activity: [],
   activityIndicatorLink_activity: [],
+  activityOverdueExplanation_activity: [],
   _count: { projectActivityAssignment_activity: personalAssignments },
 })
 
@@ -151,11 +152,13 @@ describe('server-computed activity capabilities', () => {
       canEdit: false,
       canRecordProgress: true,
       canSubmitProof: true,
+      canExplainOverdue: false,
     })
     expect(unassigned?.capabilities).toEqual({
       canEdit: false,
       canRecordProgress: false,
       canSubmitProof: false,
+      canExplainOverdue: false,
     })
     // The flags are the only list addition: no count or internal key leaks.
     expect(assigned).not.toHaveProperty('_count')
@@ -172,6 +175,7 @@ describe('server-computed activity capabilities', () => {
       canEdit: true,
       canRecordProgress: false,
       canSubmitProof: false,
+      canExplainOverdue: false,
     })
     expect(detail).not.toHaveProperty('_count')
     const select = tx.project.findFirst.mock.calls[0][0].select.projectActivity_project.select
@@ -193,6 +197,7 @@ describe('server-computed activity capabilities', () => {
       canEdit: false,
       canRecordProgress: false,
       canSubmitProof: false,
+      canExplainOverdue: false,
     })
   })
 

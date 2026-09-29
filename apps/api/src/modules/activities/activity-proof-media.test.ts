@@ -96,6 +96,7 @@ const activity = {
   activityUpdate_activity: [],
   activityJourneyStageMapping_activity: [],
   activityIndicatorLink_activity: [],
+  activityOverdueExplanation_activity: [],
 }
 
 const sha = (seed: number) => seed.toString(16).padStart(2, '0').repeat(32)
