@@ -112,9 +112,9 @@ describe('ActivityExpenseDialog', () => {
     renderDialog([])
     expect(screen.queryByLabelText('Budget allocation')).toBeNull()
     expect(screen.getByRole('alert').textContent).toContain('outside your current permissions')
-    expect((screen.getByRole('button', { name: /Save expense/ }) as HTMLButtonElement).disabled).toBe(
-      true,
-    )
+    expect(
+      (screen.getByRole('button', { name: /Save expense/ }) as HTMLButtonElement).disabled,
+    ).toBe(true)
   })
 
   it('shows the server error and does not close the dialog', async () => {

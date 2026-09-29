@@ -239,11 +239,7 @@ export const BeneficiaryMediaProof = ({
           </div>
           {canManage ? (
             writesAvailable ? (
-              <Button
-                className="w-full gap-2 sm:w-auto"
-                onClick={openAddDialog}
-                type="button"
-              >
+              <Button className="w-full gap-2 sm:w-auto" onClick={openAddDialog} type="button">
                 <UploadCloud className="h-4 w-4" aria-hidden="true" />
                 Add media
               </Button>
@@ -523,7 +519,10 @@ export const BeneficiaryMediaProof = ({
               </Button>
               <Button
                 type="button"
-                {...Object.assign({ onClick: saveReview }, unavailableControlProps('beneficiary-media-save-review-hint'))}
+                {...Object.assign(
+                  { onClick: saveReview },
+                  unavailableControlProps('beneficiary-media-save-review-hint'),
+                )}
               >
                 Save review
               </Button>

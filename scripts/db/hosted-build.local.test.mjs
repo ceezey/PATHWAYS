@@ -1,0 +1,391 @@
+// Runs the real hosted-build sequence (scripts/db/hosted-build.mjs, unmodified
+// production code path) against a disposable, owned local PostgreSQL cluster
+// instead of a hosted target. This is the closest thing to an end-to-end
+// rehearsal that does not touch a network.
+//
+// Gated behind RUN_HOSTED_BUILD_LOCAL_INTEGRATION=1 because it is slow
+// (initdb + a real staged prisma migrate deploy sequence) and depends on a
+// local PostgreSQL install; `node --test` runs of the fast unit suites should
+// not require it.
+//
+// Safety: this test uses `allowLoopback: true` when validating env, which
+// hosted-target.mjs structurally refuses to combine with any non-loopback
+// HOSTED_ADMIN_URL/HOSTED_DIRECT_URL (see validateHostedEnv). There is no
+// code path here, or in hosted-build.mjs's CLI, that exposes allowLoopback
+// to a real invocation; it is only reachable by importing the module
+// functions directly, as this test does.
+import assert from 'node:assert/strict'
+import { spawnSync } from 'node:child_process'
+import fs from 'node:fs'
+import net from 'node:net'
+import os from 'node:os'
+import path from 'node:path'
+import test from 'node:test'
+import { fileURLToPath } from 'node:url'
+
+import { createLiveIO, runHostedBuild } from './hosted-build.mjs'
+import { MIGRATIONS_IN_ORDER } from './hosted-plan.mjs'
+import { validateHostedEnv } from './hosted-target.mjs'
+
+const shouldRun = process.env.RUN_HOSTED_BUILD_LOCAL_INTEGRATION === '1'
+const directory = path.dirname(fileURLToPath(import.meta.url))
+const root = path.resolve(directory, '..', '..')
+const ref = 'klbtoqdalmcsfjqophty' // the reviewed hosted SQL pins only this ref (and one other); never rewritten
+const port = 55461 // distinct from the local Supabase container (54322) and its shadow port (55448)
+const pgBin = 'C:/Program Files/PostgreSQL/18/bin'
+
+function findPgBin() {
+  if (fs.existsSync(path.join(pgBin, 'initdb.exe'))) return pgBin
+  return null
+}
+
+async function assertPortFree() {
+  const server = net.createServer()
+  await new Promise((resolve, reject) => {
+    server.once('error', reject)
+    server.listen(port, '127.0.0.1', resolve)
+  })
+  await new Promise((resolve, reject) =>
+    server.close((error) => (error ? reject(error) : resolve())),
+  )
+}
+
+function run(command, args, opts = {}) {
+  const result = spawnSync(command, args, { encoding: 'utf8', windowsHide: true, ...opts })
+  if (result.status !== 0) {
+    throw new Error(`${command} ${args.join(' ')} failed (${result.status}): ${result.stderr}`)
+  }
+  return result.stdout
+}
+
+// Shared setup for a disposable, owned local PostgreSQL cluster standing in for a fresh
+// hosted Supabase project. Returns the env/tool helpers the real hosted-build sequence
+// needs, and a `cleanup()` the caller must always invoke.
+async function startDisposableCluster(bin) {
+  await assertPortFree()
+  const owned = fs.mkdtempSync(path.join(os.tmpdir(), 'hosted-build-integration-'))
+  const data = path.join(owned, 'data')
+  const tool = (name) => path.join(bin, `${name}.exe`)
+  let started = false
+  run(tool('initdb'), [
+    '-D',
+    data,
+    '-U',
+    'supabase_admin',
+    '--auth=trust',
+    '--encoding=UTF8',
+    '--no-locale',
+  ])
+  fs.appendFileSync(
+    path.join(data, 'postgresql.conf'),
+    `\nlisten_addresses='127.0.0.1'\nport=${port}\nunix_socket_directories=''\n`,
+  )
+  const pgCtl = spawnSync(
+    tool('pg_ctl'),
+    ['-D', data, '-l', path.join(owned, 'postgres.log'), '-w', '-t', '30', 'start'],
+    { stdio: 'ignore', windowsHide: true, timeout: 60_000 },
+  )
+  if (pgCtl.status !== 0) throw new Error(`pg_ctl start failed (${pgCtl.status})`)
+  started = true
+
+  run(
+    tool('psql'),
+    [
+      '-v',
+      'ON_ERROR_STOP=1',
+      '-h',
+      '127.0.0.1',
+      '-p',
+      String(port),
+      '-U',
+      'supabase_admin',
+      '-d',
+      'postgres',
+      '-f',
+      '-',
+    ],
+    {
+      input: `
+CREATE ROLE postgres LOGIN INHERIT NOSUPERUSER CREATEDB CREATEROLE NOREPLICATION BYPASSRLS;
+CREATE ROLE anon NOLOGIN; CREATE ROLE authenticated NOLOGIN; CREATE ROLE service_role NOLOGIN;
+CREATE ROLE authenticator NOLOGIN; CREATE ROLE supabase_auth_admin NOLOGIN;
+CREATE ROLE supabase_storage_admin NOLOGIN; CREATE ROLE supabase_etl_admin NOLOGIN;
+CREATE ROLE supabase_read_only_user NOLOGIN; CREATE ROLE supabase_realtime_admin NOLOGIN;
+CREATE ROLE supabase_replication_admin NOLOGIN; CREATE ROLE supabase_privileged_role NOLOGIN;
+ALTER DATABASE postgres OWNER TO postgres;
+GRANT ALL ON SCHEMA public TO postgres;
+CREATE SCHEMA extensions AUTHORIZATION postgres;
+CREATE EXTENSION IF NOT EXISTS pgcrypto WITH SCHEMA extensions;
+CREATE SCHEMA auth AUTHORIZATION postgres;
+CREATE TABLE auth.users(id uuid PRIMARY KEY DEFAULT extensions.gen_random_uuid());
+CREATE TABLE auth.sessions(id uuid PRIMARY KEY DEFAULT extensions.gen_random_uuid(),
+  user_id uuid REFERENCES auth.users(id), not_after timestamptz);
+CREATE FUNCTION auth.uid() RETURNS uuid LANGUAGE sql STABLE AS 'SELECT NULL::uuid';
+GRANT ALL ON ALL TABLES IN SCHEMA auth TO postgres;
+`,
+    },
+  )
+
+  return {
+    tool,
+    data,
+    owned,
+    cleanup: async () => {
+      if (process.env.HOSTED_BUILD_KEEP_CLUSTER === '1') return
+      if (started) {
+        run(tool('pg_ctl'), ['-D', data, '-m', 'fast', '-w', '-t', '30', 'stop'])
+        await assertPortFree()
+      }
+      fs.rmSync(owned, { recursive: true, force: true })
+    },
+  }
+}
+
+test(
+  'hosted-build runs the real sequence end to end against a disposable local PostgreSQL cluster',
+  { skip: !shouldRun },
+  async (t) => {
+    const bin = findPgBin()
+    if (!bin) {
+      t.skip('PostgreSQL binaries not found; cannot run the local integration rehearsal')
+      return
+    }
+    await assertPortFree()
+    const owned = fs.mkdtempSync(path.join(os.tmpdir(), 'hosted-build-integration-'))
+    const data = path.join(owned, 'data')
+    const tool = (name) => path.join(bin, `${name}.exe`)
+    let started = false
+    try {
+      run(tool('initdb'), [
+        '-D',
+        data,
+        '-U',
+        'supabase_admin',
+        '--auth=trust',
+        '--encoding=UTF8',
+        '--no-locale',
+      ])
+      fs.appendFileSync(
+        path.join(data, 'postgresql.conf'),
+        `\nlisten_addresses='127.0.0.1'\nport=${port}\nunix_socket_directories=''\n`,
+      )
+      // On Windows the server inherits pg_ctl's stdio; piped output would keep spawnSync
+      // waiting forever, so pg_ctl gets no pipes and the server logs to its own file.
+      const pgCtl = spawnSync(
+        tool('pg_ctl'),
+        ['-D', data, '-l', path.join(owned, 'postgres.log'), '-w', '-t', '30', 'start'],
+        { stdio: 'ignore', windowsHide: true, timeout: 60_000 },
+      )
+      if (pgCtl.status !== 0) throw new Error(`pg_ctl start failed (${pgCtl.status})`)
+      started = true
+
+      const adminUrl = `postgresql://postgres@127.0.0.1:${port}/postgres`
+      const directUrl = `postgresql://prisma@127.0.0.1:${port}/postgres`
+
+      // Minimal stand-ins for what a real hosted Supabase project already
+      // provides: the ordinary (non-superuser) "postgres" role the reviewed
+      // phase6 scripts expect, the machine roles GRANT TEMPORARY references,
+      // and the slice of the auth/extensions schemas the migrations touch.
+      run(
+        tool('psql'),
+        [
+          '-v',
+          'ON_ERROR_STOP=1',
+          '-h',
+          '127.0.0.1',
+          '-p',
+          String(port),
+          '-U',
+          'supabase_admin',
+          '-d',
+          'postgres',
+          '-f',
+          '-',
+        ],
+        {
+          input: `
+CREATE ROLE postgres LOGIN INHERIT NOSUPERUSER CREATEDB CREATEROLE NOREPLICATION BYPASSRLS;
+CREATE ROLE anon NOLOGIN; CREATE ROLE authenticated NOLOGIN; CREATE ROLE service_role NOLOGIN;
+CREATE ROLE authenticator NOLOGIN; CREATE ROLE supabase_auth_admin NOLOGIN;
+CREATE ROLE supabase_storage_admin NOLOGIN; CREATE ROLE supabase_etl_admin NOLOGIN;
+CREATE ROLE supabase_read_only_user NOLOGIN; CREATE ROLE supabase_realtime_admin NOLOGIN;
+CREATE ROLE supabase_replication_admin NOLOGIN; CREATE ROLE supabase_privileged_role NOLOGIN;
+ALTER DATABASE postgres OWNER TO postgres;
+GRANT ALL ON SCHEMA public TO postgres;
+CREATE SCHEMA extensions AUTHORIZATION postgres;
+CREATE EXTENSION IF NOT EXISTS pgcrypto WITH SCHEMA extensions;
+CREATE SCHEMA auth AUTHORIZATION postgres;
+CREATE TABLE auth.users(id uuid PRIMARY KEY DEFAULT extensions.gen_random_uuid());
+CREATE TABLE auth.sessions(id uuid PRIMARY KEY DEFAULT extensions.gen_random_uuid(),
+  user_id uuid REFERENCES auth.users(id), not_after timestamptz);
+CREATE FUNCTION auth.uid() RETURNS uuid LANGUAGE sql STABLE AS 'SELECT NULL::uuid';
+GRANT ALL ON ALL TABLES IN SCHEMA auth TO postgres;
+`,
+        },
+      )
+
+      const env = {
+        HOSTED_TARGET_REF: ref,
+        HOSTED_ADMIN_URL: adminUrl,
+        HOSTED_DIRECT_URL: directUrl,
+        PRISMA_ROLE_PASSWORD: 'integration-test-prisma-password!!',
+        RUNTIME_ROLE_PASSWORD: 'integration-test-runtime-password!!',
+      }
+      const config = validateHostedEnv(env, { allowLoopback: true })
+      const io = createLiveIO({ ref: config.ref })
+
+      await runHostedBuild({
+        io,
+        config: {
+          ref: config.ref,
+          adminUrl,
+          directUrl,
+          prismaPassword: config.prismaPassword,
+          runtimePassword: config.runtimePassword,
+        },
+      })
+
+      const ledgerOut = run(tool('psql'), [
+        '-X',
+        '-q',
+        '-A',
+        '-t',
+        '-h',
+        '127.0.0.1',
+        '-p',
+        String(port),
+        '-U',
+        'postgres',
+        '-d',
+        'postgres',
+        '-c',
+        'SELECT migration_name FROM public._prisma_migrations WHERE finished_at IS NOT NULL AND rolled_back_at IS NULL ORDER BY started_at;',
+      ])
+      const finished = ledgerOut.trim().split(/\r?\n/).filter(Boolean)
+      assert.deepEqual(finished, [...MIGRATIONS_IN_ORDER])
+      t.diagnostic(
+        `PASS: local integration run finished all ${finished.length} migrations 0000-0041`,
+      )
+    } finally {
+      if (process.env.HOSTED_BUILD_KEEP_CLUSTER === '1') {
+        t.diagnostic(`kept disposable cluster for inspection: ${data}`)
+      } else if (started) {
+        run(tool('pg_ctl'), ['-D', data, '-m', 'fast', '-w', '-t', '30', 'stop'])
+        await assertPortFree()
+      }
+      if (process.env.HOSTED_BUILD_KEEP_CLUSTER !== '1')
+        fs.rmSync(owned, { recursive: true, force: true })
+    }
+  },
+)
+
+test(
+  'hosted-build --resume recovers after a real deploy failure, cleans up, and finishes at 16 ledger rows',
+  { skip: !shouldRun },
+  async (t) => {
+    const bin = findPgBin()
+    if (!bin) {
+      t.skip('PostgreSQL binaries not found; cannot run the local integration rehearsal')
+      return
+    }
+    const cluster = await startDisposableCluster(bin)
+    const { tool } = cluster
+    try {
+      const adminUrl = `postgresql://postgres@127.0.0.1:${port}/postgres`
+      const directUrl = `postgresql://prisma@127.0.0.1:${port}/postgres`
+      const env = {
+        HOSTED_TARGET_REF: ref,
+        HOSTED_ADMIN_URL: adminUrl,
+        HOSTED_DIRECT_URL: directUrl,
+        PRISMA_ROLE_PASSWORD: 'integration-test-prisma-password!!',
+        RUNTIME_ROLE_PASSWORD: 'integration-test-runtime-password!!',
+      }
+      const config = validateHostedEnv(env, { allowLoopback: true })
+      const buildConfig = {
+        ref: config.ref,
+        adminUrl,
+        directUrl,
+        prismaPassword: config.prismaPassword,
+        runtimePassword: config.runtimePassword,
+      }
+
+      // Wrap the real IO so the deploy that applies 0034 (the one immediately following the
+      // core preprovision step) fails exactly once, simulating a crash mid-run.
+      const realIo = createLiveIO({ ref: config.ref })
+      let deployCalls = 0
+      let failed034Once = false
+      const failingIo = {
+        ...realIo,
+        prismaMigrateDeploy(directUrlArg, stagedMigrationsDir) {
+          deployCalls += 1
+          if (deployCalls === 4 && !failed034Once) {
+            failed034Once = true
+            throw new Error('injected test-only failure: simulated 0034 deploy failure')
+          }
+          return realIo.prismaMigrateDeploy(directUrlArg, stagedMigrationsDir)
+        },
+      }
+
+      await assert.rejects(
+        () => runHostedBuild({ io: failingIo, config: buildConfig }),
+        /injected test-only failure: simulated 0034 deploy failure/,
+      )
+
+      // The core cleanup must have run: no residual temporary prisma ownership of the core
+      // projection/finance roles, and prisma must have lost the CREATE grant those owners
+      // gave it during core preprovision.
+      const residualOut = run(tool('psql'), [
+        '-X',
+        '-q',
+        '-A',
+        '-t',
+        '-h',
+        '127.0.0.1',
+        '-p',
+        String(port),
+        '-U',
+        'postgres',
+        '-d',
+        'postgres',
+        '-c',
+        `SELECT count(*) FROM pg_catalog.pg_auth_members m JOIN pg_catalog.pg_roles r ON r.oid=m.roleid
+         JOIN pg_catalog.pg_roles p ON p.oid=m.member WHERE p.rolname='prisma'
+         AND r.rolname IN ('public_projection_owner','report_projection_owner','finance_operation_owner');`,
+      ])
+      assert.equal(residualOut.trim(), '0', 'core cleanup must leave no residual prisma membership')
+
+      // Resume: a fresh process (fresh createLiveIO) must recover cleanly and reach the
+      // full 16-row finished ledger.
+      const resumeIo = createLiveIO({ ref: config.ref })
+      await runHostedBuild({ io: resumeIo, config: buildConfig, resume: true })
+
+      const ledgerOut = run(tool('psql'), [
+        '-X',
+        '-q',
+        '-A',
+        '-t',
+        '-h',
+        '127.0.0.1',
+        '-p',
+        String(port),
+        '-U',
+        'postgres',
+        '-d',
+        'postgres',
+        '-c',
+        'SELECT migration_name FROM public._prisma_migrations WHERE finished_at IS NOT NULL AND rolled_back_at IS NULL ORDER BY started_at;',
+      ])
+      const finished = ledgerOut.trim().split(/\r?\n/).filter(Boolean)
+      assert.deepEqual(finished, [...MIGRATIONS_IN_ORDER])
+      t.diagnostic(
+        `PASS: --resume after an injected 0034 deploy failure reached all ${finished.length} migrations 0000-0041`,
+      )
+    } finally {
+      if (process.env.HOSTED_BUILD_KEEP_CLUSTER === '1') {
+        t.diagnostic(`kept disposable cluster for inspection: ${cluster.data}`)
+      } else {
+        await cluster.cleanup()
+      }
+    }
+  },
+)

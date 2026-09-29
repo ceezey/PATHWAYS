@@ -15,7 +15,6 @@ import { toast } from 'sonner'
 import { PageHeader } from '@/components/layout/page-header'
 import { LockedField, SectionCard } from '@/components/pathways'
 import { Button } from '@/components/ui/button'
-import { useCurrentRole } from '@/hooks/use-current-role'
 import {
   Form,
   FormControl,
@@ -33,6 +32,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
+import { useCurrentRole } from '@/hooks/use-current-role'
 import {
   type SensitiveDraftOwner,
   readSensitiveDraft,

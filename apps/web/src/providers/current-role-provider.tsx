@@ -98,7 +98,7 @@ export const CurrentRoleProvider = ({ children }: { children: React.ReactNode })
       const resolvers = pendingRefreshes.current.concat(nextPendingRefreshes.current)
       pendingRefreshes.current = []
       nextPendingRefreshes.current = []
-      resolvers.forEach((resolve) => resolve())
+      for (const resolve of resolvers) resolve()
       setResult(null)
       // Public navigation and temporary token refresh are not sign-out.
       if (sessionStatus === 'unauthenticated') {
@@ -164,7 +164,7 @@ export const CurrentRoleProvider = ({ children }: { children: React.ReactNode })
         // started, regardless of what happens next.
         const resolvers = pendingRefreshes.current
         pendingRefreshes.current = []
-        resolvers.forEach((resolve) => resolve())
+        for (const resolve of resolvers) resolve()
 
         if (active() && trailingRefresh.current) {
           // A refresh was requested mid-flight: start exactly one more run
@@ -189,7 +189,7 @@ export const CurrentRoleProvider = ({ children }: { children: React.ReactNode })
         trailingRefresh.current = false
         const resolvers = nextPendingRefreshes.current
         nextPendingRefreshes.current = []
-        resolvers.forEach((resolve) => resolve())
+        for (const resolve of resolvers) resolve()
       }
     }
   }, [token, subject, sessionStatus, internal, refresh, resetWorkspaceHandoff])

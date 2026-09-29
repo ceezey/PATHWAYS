@@ -349,9 +349,7 @@ describe('Analytics dashboard request dependencies', () => {
 
     render(<AnalyticsDashboard />)
 
-    await waitFor(() =>
-      expect(screen.getByText('Budget utilization unavailable')).toBeTruthy(),
-    )
+    await waitFor(() => expect(screen.getByText('Budget utilization unavailable')).toBeTruthy())
     expect(screen.getAllByText('Budget utilization is unavailable.').length).toBeGreaterThan(0)
   })
 
