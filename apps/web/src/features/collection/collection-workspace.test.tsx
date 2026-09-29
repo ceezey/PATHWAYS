@@ -992,6 +992,23 @@ describe('collection form definition export', () => {
     expect(screen.queryByText('Download format')).toBeNull()
   })
 
+  it('still shows the Download Format control on the plain import page', async () => {
+    api.getProjectsForRole.mockResolvedValue([
+      { id: 'futuremakers-ncr', title: 'Futuremakers NCR' },
+    ])
+    render(
+      <DisplayLabelsProvider>
+        <CollectionWorkspace
+          initialView="import"
+          initialMode="import"
+          initialProjectId="futuremakers-ncr"
+        />
+      </DisplayLabelsProvider>,
+    )
+    await waitFor(() => expect(api.getDigitalForms).toHaveBeenCalled())
+    expect(screen.getByText('Download format')).toBeTruthy()
+  })
+
   it('still shows the Download Format control on the Forms page', async () => {
     api.getDigitalForms.mockResolvedValue([exportForm])
     render(

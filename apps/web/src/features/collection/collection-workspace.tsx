@@ -1416,7 +1416,7 @@ const OwnedCollectionWorkspace = ({
         />
       ) : null}
 
-      {view !== 'import' ? (
+      {!(view === 'import' && mode === 'extend') ? (
         <label className="block text-sm">
           Download format{' '}
           <select
