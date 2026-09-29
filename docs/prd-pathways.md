@@ -70,6 +70,9 @@ Project-owned indicators with explicit metric semantics and traceable source/evi
 ### F8
 Trusted aggregates plus SADDD with small-cell/complementary suppression. PO analytics/SADDD access does not grant monitoring dashboards or descriptive analytics.
 
+### F9
+Descriptive analytics adds paired survey improvement and timeline adherence views (`analytics.descriptive.survey.v1`, `analytics.descriptive.timeline.v1`) to the existing combined KPI/participation payload, under `analytics.descriptive.read` and `monitoring.read`, project scope resolved before any query. Survey pairs the latest pre/post assessment per enrollment within the requested period and suppresses any group under 5 pairs; timeline reuses the rule engine's project/activity math plus a milestone on-time calculation. Every view is audited on read and on CSV export; a retrieval fault returns unavailable, never a fabricated result.
+
 ### F10/F11
 Typed metrics, structured deterministic rules, explainable evidence, predefined human-reviewed recommendations, project/org isolation.
 

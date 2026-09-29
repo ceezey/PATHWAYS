@@ -42,6 +42,11 @@ Do not use confidential live Beneficiary data.
 | QAD-T07 | PRD-F7 | indicator shows correct trusted metric/target/source |
 | QAD-T08 | PRD-F8 | dashboard/SADDD uses trusted data and suppression |
 | QAD-T12 | PRD-F9 | descriptive summary uses trusted persisted metrics; a readable but empty set shows "None yet"; missing, withheld or unauthorized data keeps the existing unavailable or restricted wording; no value is ever fabricated as 0 |
+| QAD-T14 | PRD-F9 | survey view pairs the latest PRE_TEST/POST_TEST per enrollment and reports the correct mean pre/post/change and improved/same/declined split for a group of 5 or more pairs |
+| QAD-T15 | PRD-F9 | timeline view's elapsed/remaining/overdue/activity metrics match the reused rule-metric population math, and milestone on-time percent matches completed milestones rated on time |
+| QAD-T16 | PRD-F9 | each descriptive view request writes one `ANALYTICS_DESCRIPTIVE_VIEWED` audit row, and each export writes one `ANALYTICS_DESCRIPTIVE_EXPORTED` row with contract version, view and row count |
+| QAD-T17 | PRD-F9 | survey pairing tie-break (assessment date, then row id) is deterministic across a same-date repeat and independent of the source array's order; `byActivity` is sorted by activity id; a non-finite score/maximum is excluded and counted, never treated as a valid measurement |
+| QAD-T18 | PRD-F9 | web survey table maps a `byActivity` group's activity id to its persisted activity title (never a raw UUID), with a neutral fallback when the activity cannot be found; percent-valued cells (survey mean pre/post/change, timeline elapsed/activity-completion/milestone-on-time) render with a `%` unit via the shared Overview label helper |
 | QAD-T09 | PRD-F10 | rule triggers once with versioned evidence |
 | QAD-T10 | PRD-F11 | authorized human reviews predefined recommendation |
 | QAD-T13 | PRD-F12 | report/visualization output respects role scope and SADDD suppression |
@@ -58,6 +63,15 @@ Do not use confidential live Beneficiary data.
 | QAD-T24 | unavailable rule metric -> explicit unavailable/not-evaluated |
 | QAD-T25 | disallowed upload rejected |
 | QAD-T26 | export/report failure leaves source data intact |
+| QAD-T27 | survey view with 0 paired assessments in a group reports `MISSING` (`NO_PAIRED_ASSESSMENTS`), never 0 |
+| QAD-T28 | survey view with 1, 4, or 5 paired assessments in a group: 1 and 4 are fully suppressed (`SMALL_CELL`), 5 is released; improved/same/declined never reveal a sub-count the pair total suppressed |
+| QAD-T29 | timeline view with no completed, rated milestones reports `MISSING` (`NO_COMPLETED_MILESTONES`), never 0 |
+| QAD-T30 | descriptive analytics retrieval fault (provider/database) returns 503, never a 500 or a silently empty payload, for both the read and the export path (one shared fault-mapping helper) |
+| QAD-T31 | roles holding `assessments.detail.read` (Project Manager, Monitoring and Evaluation Officer) receive real survey aggregates on read and export from `pathways.p10_f9_survey_aggregate`; Program Manager and Grant Manager (no `assessments.detail.read`) do not (see QAD-T34); Project Officer, cross-organization and out-of-scope projects are denied (`42501`/403); pairing, same-date tie-break, invalid scores and the no-activity group match the calculator; the output holds no enrollment or assessment identifier (`f9-descriptive-aggregates-runtime.sql`) |
+| QAD-T32 | Program Manager and Grant Manager (no `activities.read`) receive real timeline activity and milestone counts on read and export from `pathways.p10_f9_timeline_aggregate`, never `NO_ACTIVITIES` caused by a permission restriction; cancelled and archived activities are excluded, the reporting-date boundary is not overdue, and milestone counts match the on-time calculation; a statement timeout is 503, never an empty view |
+| QAD-T33 | survey results are released only for an exact, non-overlapping defined reporting period: a custom range, an adjacent-day range, a missing period and a defined period overlapping another defined period are refused (`22023` in `f9-descriptive-aggregates-runtime.sql` for a role holding `assessments.detail.read`, 400 with no audit row on read and export in the API tests for Project Manager and Monitoring and Evaluation Officer); an exact defined period, including two adjacent non-overlapping ones, is released |
+| QAD-T34 | survey improvement is restricted for Program Manager and Grant Manager (no `assessments.detail.read`): the survey function raises `42501` for them (`f9-descriptive-aggregates-runtime.sql`), the API answers read and export with 403 before any query and writes no audit row, the web disables the survey option, shows "Survey improvement is restricted for your role." (never "None yet", no Retry) and issues no survey fetch; the timeline view stays real for both roles; Project Manager and Monitoring and Evaluation Officer still receive the survey |
+| QAD-T35 | a 400 from the survey fetch (refused or overlapping period) shows "This reporting period cannot be used for survey results." with no Retry; a network or 5xx failure keeps Retry; the survey period picker hides periods that overlap another defined period |
 
 PRD-F6 mapping suggestions additionally cover stable source keys, ASCII whitespace/hyphen folding, fullwidth NFKC, preserved accented-case distinctions, non-ASCII whitespace, punctuation and blank names. Competing code/label candidates and an ambiguous source sharing another source's sole target must remain unresolved. Suggested mappings retain existing reviewer confirmation and server validation; no new authority is inferred.
 
@@ -79,6 +93,13 @@ PRD-F6 mapping suggestions additionally cover stable source keys, ASCII whitespa
 | QAD-A12 | client-supplied step-up flag/header/storage, grant or session value, or a client-only MFA success does not open Beneficiary detail; the server status must report fresh |
 | QAD-A13 | PIN brute force: 5 failures lock the PIN, parallel wrong attempts cannot exceed the bound, a locked PIN is not compared, only a TOTP newer than the lock unlocks it, and PIN requests are throttled |
 | QAD-A14 | PIN setup without a fresh signed TOTP or when a PIN exists, and change without the current PIN or a fresh TOTP -> denied; the PIN never appears in URLs, logs, audit rows or error bodies |
+| QAD-A15 | Project Officer requests the survey or timeline descriptive view -> denied (`analytics.descriptive.read` not granted) |
+| QAD-A16 | Org A guesses Org B project id, or an unassigned/out-of-scope project id, on the survey or timeline descriptive view -> denied before any query runs |
+| QAD-A17 | survey and timeline responses, and their CSV exports, carry no Beneficiary identity field; only enrollment and activity ids are used internally for pairing and are never returned |
+| QAD-A18 | a caller holding `analytics.descriptive.read`/`analytics.export` but not `monitoring.read` is denied (403) on the survey and timeline views, for both read and export, before any `findMany` or `auditLog.create` runs |
+| QAD-A19 | no suppressed pair count or improved/same/declined sub-count can be recovered by subtraction: the whole `byActivity` breakdown (JSON and CSV, from one computed result) is withheld as suppressed whenever any activity group's pairs or sub-counts are suppressed, the no-activity residual (overall minus the groups, at pair and sub-count level) has 1-4 in any cell, or the overall's own sub-counts are suppressed; the act-A/act-B example, residual with a 1-4 sub-count, and input-order permutation are tested |
+| QAD-A20 | adjacent-period differencing: a role that can read the survey (holds `assessments.detail.read`) requests two adjacent or nested custom survey ranges to subtract one person's scores -> each request is refused (400, `22023`); no survey aggregate is released for a range that is not exactly one non-overlapping defined reporting period |
+| QAD-A21 | open-period re-query differencing: an aggregate-only role (Program Manager, Grant Manager, or any role without `assessments.detail.read`) repeats survey reads or exports of an open period to subtract successive releases -> every attempt is refused (403 in the API before any query, `42501` from `pathways.p10_f9_survey_aggregate`) and no survey value, empty result or audit row is produced |
 
 ## 4. Rule-Engine Matrix
 

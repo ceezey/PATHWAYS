@@ -1,6 +1,6 @@
 'use client'
 
-import { type SadddDashboard, formatMetricCell } from '@pathways/shared'
+import { type SadddDashboard, type SurveyGroup, formatMetricCell } from '@pathways/shared'
 import ReactECharts from 'echarts-for-react'
 
 import type { ActivitySummary, AlertRecord, BudgetRecord, ProjectDetail } from '@/types/pathways'
@@ -120,34 +120,65 @@ export const BudgetUtilizationChart = ({
   )
 }
 
+/**
+ * Shared bucket-chart-or-fallback pattern: a chart when at least one bucket has a
+ * releasable value, otherwise a plain-language fallback, plus a screen-reader-only
+ * accessible table of every bucket (including suppressed/missing ones, which never
+ * plot as a fabricated 0). Used by SadddChart and SurveyImprovementChart so the two
+ * views cannot drift.
+ */
+const AggregateBucketChart = ({
+  buckets,
+  label,
+  height,
+}: {
+  buckets: AggregateChartBucket[]
+  label: string
+  height: string
+}) => (
+  <div>
+    {buckets.some((bucket) => bucket.metric.value !== null) ? (
+      <ReactECharts className={`${height} w-full`} option={aggregateChartOption(buckets, label)} />
+    ) : (
+      <p className="rounded-sm border border-border bg-surface-subtle p-4 text-sm text-muted-foreground">
+        No releasable values for this view.
+      </p>
+    )}
+    <table className="sr-only">
+      <caption>{label} values</caption>
+      <tbody>
+        {buckets.map((bucket) => (
+          <tr key={bucket.key}>
+            <th>{bucket.label}</th>
+            <td>{formatMetricCell(bucket.metric)}</td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  </div>
+)
+
 export const SadddChart = (
   props: { dashboard: SadddDashboard } | { label: string; buckets: AggregateChartBucket[] },
 ) => {
   const buckets = 'dashboard' in props ? props.dashboard.sex : props.buckets
   const label = 'dashboard' in props ? 'Sex' : props.label
-  return (
-    <div>
-      {buckets.some((bucket) => bucket.metric.value !== null) ? (
-        <ReactECharts className="h-[280px] w-full" option={aggregateChartOption(buckets, label)} />
-      ) : (
-        <p className="rounded-sm border border-border bg-surface-subtle p-4 text-sm text-muted-foreground">
-          No releasable values for this view.
-        </p>
-      )}
-      <table className="sr-only">
-        <caption>{label} values</caption>
-        <tbody>
-          {buckets.map((bucket) => (
-            <tr key={bucket.key}>
-              <th>{bucket.label}</th>
-              <td>{formatMetricCell(bucket.metric)}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
-  )
+  return <AggregateBucketChart buckets={buckets} label={label} height="h-[280px]" />
 }
+/**
+ * F9 survey improvement (analytics.descriptive.survey.v1): improved/same/declined
+ * counts for one cohort group, reusing the same aggregate chart option and
+ * accessible-table pattern as SadddChart so suppressed/missing cells never plot as 0.
+ */
+export const SurveyImprovementChart = ({ group, title }: { group: SurveyGroup; title: string }) => {
+  const buckets: AggregateChartBucket[] = [
+    { key: 'improved', label: 'Improved', metric: group.improved },
+    { key: 'same', label: 'Same', metric: group.same },
+    { key: 'declined', label: 'Declined', metric: group.declined },
+  ]
+  return <AggregateBucketChart buckets={buckets} label={title} height="h-[260px]" />
+}
+
 export const ActivityCompletionChart = ({ activities }: Pick<ChartProps, 'activities'>) => {
   const statuses = ['Planned', 'In Progress', 'For Review', 'Overdue', 'Completed']
 
