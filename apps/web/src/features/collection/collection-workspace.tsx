@@ -309,7 +309,7 @@ export const CollectionWorkspace = (props: CollectionWorkspaceProps) => {
       ? JSON.stringify([
           profile.userId,
           profile.organizationId,
-          profile.roles,
+          [...profile.roles].sort(),
           [...profile.permissions].sort(),
           [...profile.assignedProjectIds].sort(),
           props.initialProjectId,
@@ -1416,20 +1416,22 @@ const OwnedCollectionWorkspace = ({
         />
       ) : null}
 
-      <label className="block text-sm">
-        Download format{' '}
-        <select
-          className="ml-2 rounded border p-2"
-          value={exportFormat}
-          onChange={(e) => setExportFormat(e.target.value as ExportFormat)}
-        >
-          {formDefinitionExportFormats.map((f) => (
-            <option key={f} value={f}>
-              {f.toUpperCase()}
-            </option>
-          ))}
-        </select>
-      </label>
+      {view !== 'import' ? (
+        <label className="block text-sm">
+          Download format{' '}
+          <select
+            className="ml-2 rounded border p-2"
+            value={exportFormat}
+            onChange={(e) => setExportFormat(e.target.value as ExportFormat)}
+          >
+            {formDefinitionExportFormats.map((f) => (
+              <option key={f} value={f}>
+                {f.toUpperCase()}
+              </option>
+            ))}
+          </select>
+        </label>
+      ) : null}
       {view === 'builder' &&
         canManageForms &&
         forms.find((form) => form.id === editingFormId)?.status === 'PUBLISHED' && (

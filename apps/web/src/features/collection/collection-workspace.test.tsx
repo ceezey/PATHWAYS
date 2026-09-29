@@ -773,6 +773,99 @@ describe('collection import workspace', () => {
     expect(screen.getByText('BEN-002')).toBeTruthy()
     expect(screen.getByRole('button', { name: 'Proceed' }).hasAttribute('disabled')).toBe(false)
   })
+
+  it('shows the fetched project selection even when options arrive after the initial render', async () => {
+    let resolveProjects: ((value: Array<{ id: string; title: string }>) => void) | undefined
+    api.getProjectsForRole.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          resolveProjects = resolve
+        }),
+    )
+    render(
+      <DisplayLabelsProvider>
+        <CollectionWorkspace
+          initialView="import"
+          initialMode="extend"
+          initialProjectId="futuremakers-ncr"
+        />
+      </DisplayLabelsProvider>,
+    )
+    await act(async () => {
+      resolveProjects?.([{ id: 'futuremakers-ncr', title: 'Futuremakers NCR' }])
+    })
+    const projectField = () => screen.getByText('Project selection').closest('div') as HTMLElement
+    await waitFor(() =>
+      expect(within(projectField()).getByRole('combobox').textContent).toContain(
+        'Futuremakers NCR',
+      ),
+    )
+  })
+
+  it('shows the fetched projects again on a second mount (a cached list on remount)', async () => {
+    api.getProjectsForRole.mockResolvedValue([
+      { id: 'futuremakers-ncr', title: 'Futuremakers NCR' },
+    ])
+    const { unmount } = render(
+      <DisplayLabelsProvider>
+        <CollectionWorkspace
+          initialView="import"
+          initialMode="extend"
+          initialProjectId="futuremakers-ncr"
+        />
+      </DisplayLabelsProvider>,
+    )
+    await waitFor(() => expect(api.getDigitalForms).toHaveBeenCalled())
+    unmount()
+    api.getProjectsForRole.mockClear()
+
+    render(
+      <DisplayLabelsProvider>
+        <CollectionWorkspace
+          initialView="import"
+          initialMode="extend"
+          initialProjectId="futuremakers-ncr"
+        />
+      </DisplayLabelsProvider>,
+    )
+    await waitFor(() => expect(api.getProjectsForRole).toHaveBeenCalled())
+    const projectField = () => screen.getByText('Project selection').closest('div') as HTMLElement
+    await waitFor(() =>
+      expect(within(projectField()).getByRole('combobox').textContent).toContain(
+        'Futuremakers NCR',
+      ),
+    )
+  })
+
+  it('keeps the auto-selected project when the profile permission list is rebuilt in a different order', async () => {
+    api.getProjectsForRole.mockResolvedValue([
+      { id: 'futuremakers-ncr', title: 'Futuremakers NCR' },
+      { id: 'second-project', title: 'Second Project' },
+    ])
+    const { rerender } = render(
+      <DisplayLabelsProvider>
+        <CollectionWorkspace initialView="import" initialMode="extend" />
+      </DisplayLabelsProvider>,
+    )
+    await waitFor(() => expect(api.getDigitalForms).toHaveBeenCalled())
+
+    const projectField = () => screen.getByText('Project selection').closest('div') as HTMLElement
+    const trigger = () => within(projectField()).getByRole('combobox')
+    await waitFor(() => expect(trigger().textContent).toContain('Futuremakers NCR'))
+
+    // The auth layer rebuilds the permission list with the same permissions in a
+    // different order (e.g. after a token refresh merges grants from two sources).
+    // Because the permission set is unchanged, the workspace must not remount and
+    // drop the already-selected project.
+    currentAccess.profile.permissions = [...currentAccess.profile.permissions].reverse()
+    rerender(
+      <DisplayLabelsProvider>
+        <CollectionWorkspace initialView="import" initialMode="extend" />
+      </DisplayLabelsProvider>,
+    )
+
+    expect(trigger().textContent).toContain('Futuremakers NCR')
+  })
 })
 
 describe('collection field selection', () => {

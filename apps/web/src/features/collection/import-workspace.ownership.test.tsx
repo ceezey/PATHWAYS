@@ -1,6 +1,6 @@
 import { clearSensitiveDraftStorage } from '@/lib/auth/sensitive-drafts'
 /* @vitest-environment jsdom */
-import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { ImportWorkspace } from './import-workspace'
 const state = vi.hoisted(() => ({
@@ -96,6 +96,69 @@ describe('import uploader automation and ownership', () => {
     await screen.findByText('Pending: select a target or explicit ignore')
     expect(api.saveImportMapping).not.toHaveBeenCalled()
   })
+  it('shows the fetched project selection even when the list arrives after the initial render', async () => {
+    let resolveProjects: ((value: Array<{ id: string; title: string }>) => void) | undefined
+    api.getProjects.mockReturnValue(
+      new Promise((resolve) => {
+        resolveProjects = resolve
+      }),
+    )
+    render(<ImportWorkspace />)
+    await screen.findByText('Loading authorized projects...')
+    await act(async () => {
+      resolveProjects?.([
+        { id: 'project-1', title: 'Project' },
+        { id: 'project-2', title: 'Second Project' },
+      ])
+    })
+    await waitFor(() =>
+      expect(within(screen.getByText('Project', { selector: 'label' }).closest('div') as HTMLElement).getByRole('combobox').textContent).toContain('Project'),
+    )
+  })
+
+  it('shows the fetched projects again on a second mount (a cached list on remount)', async () => {
+    api.getProjects.mockResolvedValue([{ id: 'project-1', title: 'Project' }])
+    const first = render(<ImportWorkspace />)
+    await waitFor(() => expect(api.getDigitalForms).toHaveBeenCalled())
+    first.unmount()
+    api.getProjects.mockClear()
+
+    render(<ImportWorkspace />)
+    await waitFor(() => expect(api.getProjects).toHaveBeenCalled())
+    await waitFor(() =>
+      expect(within(screen.getByText('Project', { selector: 'label' }).closest('div') as HTMLElement).getByRole('combobox').textContent).toContain('Project'),
+    )
+  })
+
+  it('does not remount (and so does not lose the selection) when a permission grant is rebuilt in a different order', async () => {
+    api.getProjects.mockResolvedValue([
+      { id: 'project-1', title: 'Project' },
+      { id: 'project-2', title: 'Second Project' },
+    ])
+    const view = render(<ImportWorkspace />)
+    await waitFor(() => expect(api.getDigitalForms).toHaveBeenCalled())
+    expect(api.getProjects).toHaveBeenCalledTimes(1)
+
+    const combobox = () =>
+      within(
+        screen.getByText('Project', { selector: 'label' }).closest('div') as HTMLElement,
+      ).getByRole('combobox')
+    await waitFor(() => expect(combobox().textContent).toContain('Project'))
+
+    // The permission grant is rebuilt with the same permissions in a different order
+    // (e.g. after a token refresh merges grants from two sources). Before this fix, the
+    // access key used for the workspace's remount identity was built from the raw,
+    // unsorted permissions array, so this reorder alone would remount the workspace,
+    // re-run its project fetch and silently reset whichever project the user had picked.
+    state.profile = { ...state.profile, permissions: [...state.profile.permissions].reverse() }
+    view.rerender(<ImportWorkspace />)
+
+    // No remount: the effect that fetches and defaults the project selection never
+    // reruns, so the selection already on screen is provably untouched.
+    expect(api.getProjects).toHaveBeenCalledTimes(1)
+    expect(combobox().textContent).toContain('Project')
+  })
+
   it.each(['logout', 'actor', 'assignment', 'grant', 'unmount'])(
     'stops upload continuation after %s',
     async (reason) => {
