@@ -89,6 +89,8 @@ const activitySelection = {
       progressPercent: true,
       note: true,
       status: true,
+      clientUpdateId: true,
+      submittedById: true,
       beneficiariesReachedThisSession: true,
       submittedAt: true,
       reviewedAt: true,
@@ -291,6 +293,7 @@ function mapActivity(
   row: ActivityRow,
   businessDate: string,
   metrics: ActivityReadMetrics = emptyActivityReadMetrics,
+  viewerId?: string,
 ) {
   const presentation = activityPresentationStatus(row.status, row.plannedEndDate, businessDate)
   const updates = row.activityUpdate_activity
@@ -341,20 +344,32 @@ function mapActivity(
         note: update.note,
       })),
     ),
-    updateNotes: updates.map((update) => ({
-      id: update.id,
-      kind: updateKind(update),
-      note: update.note,
-      progress: update.progressPercent,
-      beneficiariesReachedThisSession: update.beneficiariesReachedThisSession ?? null,
-      status: reviewStatus[update.status],
-      submittedBy: update.submittedBy.fullName,
-      submittedAt: update.submittedAt.toISOString(),
-      reviewedBy: update.reviewedBy?.fullName ?? null,
-      reviewedAt: update.reviewedAt?.toISOString() ?? null,
-      reviewReason: update.reviewReason,
-      updatedAt: update.updatedAt.toISOString(),
-    })),
+    updateNotes: updates.map((update) => {
+      // A PENDING proof whose files are not all verified in storage yet (the read above lists
+      // only verified files). Only its submitter receives the id needed to resume it.
+      const proofIncomplete =
+        update.status === 'PENDING' &&
+        (update._count?.evidenceMedia_update ?? 0) > update.evidenceMedia_update.length
+      return {
+        id: update.id,
+        proofIncomplete,
+        resumeClientUpdateId:
+          proofIncomplete && viewerId && update.submittedById === viewerId
+            ? update.clientUpdateId
+            : null,
+        kind: updateKind(update),
+        note: update.note,
+        progress: update.progressPercent,
+        beneficiariesReachedThisSession: update.beneficiariesReachedThisSession ?? null,
+        status: reviewStatus[update.status],
+        submittedBy: update.submittedBy.fullName,
+        submittedAt: update.submittedAt.toISOString(),
+        reviewedBy: update.reviewedBy?.fullName ?? null,
+        reviewedAt: update.reviewedAt?.toISOString() ?? null,
+        reviewReason: update.reviewReason,
+        updatedAt: update.updatedAt.toISOString(),
+      }
+    }),
     updatedAt: row.updatedAt.toISOString(),
     // Approved expenses only; null when the viewer cannot read expenses, never a fabricated 0.
     budgetLogged: metrics.logged.get(row.id)?.total ?? null,
@@ -839,7 +854,7 @@ export class ActivitiesService {
   ) {
     const metrics = await this.readMetrics(tx, actor, row.projectId, [row.id])
     return {
-      ...mapActivity(row, this.businessDate(), metrics),
+      ...mapActivity(row, this.businessDate(), metrics, actor.userId),
       capabilities: activityCapabilities(
         actor,
         row.status,
