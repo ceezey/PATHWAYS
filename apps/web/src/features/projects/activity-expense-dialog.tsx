@@ -22,6 +22,9 @@ export type ExpenseBudgetReference = {
   activityId: string | null
 }
 
+const maxReceiptBytes = 10485760
+const receiptTypes = ['application/pdf', 'image/png', 'image/jpeg']
+
 const emptyDraft = { amount: '', budgetRecordId: '', date: '', description: '' }
 
 export const ActivityExpenseDialog = ({
@@ -43,11 +46,18 @@ export const ActivityExpenseDialog = ({
   const [draft, setDraft] = useState(emptyDraft)
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState('')
+  const [notice, setNotice] = useState('')
+  const [receiptFile, setReceiptFile] = useState<File | null>(null)
+  const [fileKey, setFileKey] = useState(0)
+  const canAttachReceipt = principalHasAtomicPermission(profile, 'expenses.evidence.submit')
 
   useEffect(() => {
     if (!open) return
     setDraft(emptyDraft)
     setError('')
+    setNotice('')
+    setReceiptFile(null)
+    setFileKey((key) => key + 1)
   }, [open])
 
   const activityReferences = budgetReferences.filter((row) => row.activityId === activity.id)
@@ -64,8 +74,16 @@ export const ActivityExpenseDialog = ({
       setError('Choose a linked budget allocation and complete every field.')
       return
     }
+    if (
+      receiptFile &&
+      (receiptFile.size > maxReceiptBytes || !receiptTypes.includes(receiptFile.type))
+    ) {
+      setError('Receipt must be a PDF, PNG or JPEG of at most 10 MiB.')
+      return
+    }
     setSubmitting(true)
     setError('')
+    setNotice('')
     const body = {
       budgetRecordId: draft.budgetRecordId,
       description: draft.description.trim(),
@@ -74,9 +92,24 @@ export const ActivityExpenseDialog = ({
     }
     const clientRequestId = requests.forBody(`activity-expense:${activity.id}`, body)
     try {
-      await coreDataClient.submitExpense(activity.projectId, { clientRequestId, ...body })
+      const ack = await coreDataClient.submitExpense(activity.projectId, {
+        clientRequestId,
+        ...body,
+      })
       requests.acknowledge(clientRequestId)
       setDraft(emptyDraft)
+      if (receiptFile && canAttachReceipt) {
+        try {
+          await coreDataClient.uploadReceipt(activity.projectId, ack.id, ack.updatedAt, receiptFile)
+        } catch {
+          // The expense is already saved; keep the dialog open so the message is read.
+          setReceiptFile(null)
+          setFileKey((key) => key + 1)
+          setNotice('Expense saved; receipt not attached. Attach it from the Budget tab.')
+          onSubmitted()
+          return
+        }
+      }
       onSubmitted()
       onOpenChange(false)
     } catch (submitError) {
@@ -181,8 +214,32 @@ export const ActivityExpenseDialog = ({
               </div>
             </div>
           )}
+          {canSubmit && activityReferences.length > 0 && canAttachReceipt ? (
+            <div className="space-y-2">
+              <Label htmlFor="activity-expense-receipt">
+                Private receipt (optional; PDF, PNG or JPEG; maximum 10 MiB)
+              </Label>
+              <Input
+                accept="application/pdf,image/png,image/jpeg"
+                aria-describedby={error ? 'activity-expense-error' : undefined}
+                aria-invalid={error ? true : undefined}
+                disabled={submitting}
+                id="activity-expense-receipt"
+                key={fileKey}
+                onChange={(event) => setReceiptFile(event.target.files?.[0] ?? null)}
+                type="file"
+              />
+            </div>
+          ) : null}
+          {notice ? (
+            <output className="block text-sm font-medium text-foreground">{notice}</output>
+          ) : null}
           {error ? (
-            <p className="text-sm font-medium text-destructive" role="alert">
+            <p
+              className="text-sm font-medium text-destructive"
+              id="activity-expense-error"
+              role="alert"
+            >
               {error}
             </p>
           ) : null}
@@ -193,7 +250,7 @@ export const ActivityExpenseDialog = ({
               type="button"
               variant="outline"
             >
-              Cancel
+              {notice ? 'Close' : 'Cancel'}
             </Button>
             <Button
               className="gap-2"
