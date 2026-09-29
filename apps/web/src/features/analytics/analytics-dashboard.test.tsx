@@ -761,6 +761,76 @@ describe('Analytics dashboard request dependencies', () => {
       )
     })
 
+    it('labels survey mean pre/post in % and mean change in pp, never %', async () => {
+      const activityId = '40000000-0000-4000-8000-000000000099'
+      api.getActivities.mockResolvedValue([
+        { id: activityId, projectId: 'project-a', code: 'A-1', title: 'Community Training' },
+      ])
+      api.getSurveyAnalytics.mockResolvedValue({
+        contractVersion: 'analytics.descriptive.survey.v1',
+        projectId: 'project-a',
+        generatedAt: '2026-09-27T04:00:00.000Z',
+        period: { periodStart: '2026-09-01', periodEnd: '2026-09-30' },
+        excludedRecords: 0,
+        overall: surveyGroup({ pairs: available('12') }),
+        byActivity: [
+          {
+            ...surveyGroup({ pairs: available('12') }),
+            key: activityId,
+            label: activityId,
+            meanPre: available('41.5'),
+            meanPost: available('63.5'),
+            meanChange: available('22.5'),
+          },
+        ],
+      })
+
+      render(<AnalyticsDashboard />)
+      await waitFor(() => expect(api.getMonitoringDashboard).toHaveBeenCalled())
+      fireEvent.change(screen.getByLabelText('Analysis view'), { target: { value: 'survey' } })
+      const panel = await screen.findByTestId('survey-analytics')
+
+      // Cards (overall) and the per-activity table.
+      expect(within(panel).getAllByText('40%').length).toBeGreaterThan(0)
+      expect(within(panel).getAllByText('62%').length).toBeGreaterThan(0)
+      expect(within(panel).getAllByText('22pp').length).toBeGreaterThan(0)
+      expect(within(panel).getByText('41.5%')).toBeTruthy()
+      expect(within(panel).getByText('63.5%')).toBeTruthy()
+      expect(within(panel).getByText('22.5pp')).toBeTruthy()
+      expect(within(panel).queryByText('22%')).toBeNull()
+      expect(within(panel).queryByText('22.5%')).toBeNull()
+    })
+
+    it('labels timeline percentages with % and leaves day and count cells unitless', async () => {
+      api.getTimelineAnalytics.mockResolvedValue({
+        contractVersion: 'analytics.descriptive.timeline.v1',
+        projectId: 'project-a',
+        generatedAt: '2026-09-27T04:00:00.000Z',
+        reportingDate: '2026-09-27',
+        elapsedPercent: available('51'),
+        remainingDays: available('33'),
+        overdueDays: available('4'),
+        activityCompletionPercent: available('76'),
+        activityOverdueCount: available('3'),
+        milestoneOnTimePercent: available('88'),
+      })
+
+      render(<AnalyticsDashboard />)
+      await waitFor(() => expect(api.getMonitoringDashboard).toHaveBeenCalled())
+      fireEvent.change(screen.getByLabelText('Analysis view'), { target: { value: 'timeline' } })
+      const panel = await screen.findByTestId('timeline-analytics')
+
+      expect(within(panel).getByText('51%')).toBeTruthy()
+      expect(within(panel).getByText('76%')).toBeTruthy()
+      expect(within(panel).getByText('88%')).toBeTruthy()
+      expect(within(panel).getByText('33')).toBeTruthy()
+      expect(within(panel).getByText('4')).toBeTruthy()
+      expect(within(panel).getByText('3')).toBeTruthy()
+      expect(within(panel).queryByText('33%')).toBeNull()
+      expect(within(panel).queryByText('4%')).toBeNull()
+      expect(within(panel).queryByText('3%')).toBeNull()
+    })
+
     it('shows the suppression label, never a raw count, when survey pairs are suppressed', async () => {
       api.getSurveyAnalytics.mockResolvedValue({
         contractVersion: 'analytics.descriptive.survey.v1',
