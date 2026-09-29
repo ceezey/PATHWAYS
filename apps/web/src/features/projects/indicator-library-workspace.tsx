@@ -85,11 +85,6 @@ const LegacyIndicatorLibraryWorkspace = () => {
         description="Review reusable indicator definitions separately from each project's measured values and targets."
       />
 
-      <div className="rounded-lg border border-info/25 bg-info-subtle px-4 py-3 text-sm leading-6 text-info">
-        Definitions and assignments are synthetic preview data. Editing and project assignment
-        require a connected indicator service and durable authorization.
-      </div>
-
       <div className="grid gap-6 xl:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
         <SectionCard
           title="Definitions"

@@ -678,11 +678,6 @@ export const BeneficiaryDetail = ({
                       </div>
                     </div>
                   ) : null}
-
-                  <p className="border-t border-info/20 bg-info-subtle p-4 text-sm leading-6 text-info sm:px-5">
-                    Follow-up stages are open-ended and reviewed by people; they are not strict
-                    timeline compliance gates.
-                  </p>
                 </section>
 
                 <section className="mt-4 rounded-lg border border-border bg-card p-5">

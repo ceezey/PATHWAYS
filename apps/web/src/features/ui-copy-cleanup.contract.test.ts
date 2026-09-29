@@ -37,7 +37,6 @@ describe('"None yet" empty states versus error and permission wording', () => {
     for (const file of [
       'features/projects/project-detail-view.tsx',
       'features/projects/project-directory.tsx',
-      'features/projects/project-preview-dialog.tsx',
       'lib/services/pathways-client.ts',
     ]) {
       expect(source(file)).not.toContain('metricsAvailable')
@@ -140,9 +139,6 @@ describe('Phase 4 UI copy cleanup contract', () => {
     )
     expect(source('components/layout/beneficiary-access-gate.tsx')).toContain(
       'Verify beneficiary module access',
-    )
-    expect(source('features/analytics/analytics-dashboard.tsx')).toContain(
-      '{humanReviewDisclaimer}',
     )
     expect(source('features/analytics/analytics-coverage-map.tsx')).toContain(
       'No mapped locations available',

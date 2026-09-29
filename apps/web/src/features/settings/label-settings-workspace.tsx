@@ -1,6 +1,6 @@
 'use client'
 
-import { RotateCcw, Save, Type } from 'lucide-react'
+import { RotateCcw, Save } from 'lucide-react'
 import Link from 'next/link'
 import { useEffect, useMemo, useState } from 'react'
 import { toast } from 'sonner'
@@ -146,17 +146,6 @@ export const LabelSettingsWorkspace = () => {
                 ))}
               </div>
             </SectionCard>
-
-            <div className="rounded-sm border border-info/25 bg-info-subtle p-4 text-sm leading-6 text-info">
-              <div className="flex items-start gap-3">
-                <Type className="mt-1 h-4 w-4 shrink-0" aria-hidden="true" />
-                <p>
-                  Page heading changes are unavailable until server saving is configured. Sidebar
-                  labels, URLs, project records, role access, and public publishing rules remain
-                  unchanged.
-                </p>
-              </div>
-            </div>
           </aside>
         </section>
 

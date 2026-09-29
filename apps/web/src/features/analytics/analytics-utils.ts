@@ -5,9 +5,6 @@ import type {
   RuleSeverity,
 } from '@/types/pathways'
 
-export const humanReviewDisclaimer =
-  'Recommendations are generated from predefined rules and require human review.'
-
 export const formatPercent = (value: number) => `${Math.round(value)}%`
 
 export const formatNumber = (value: number) => new Intl.NumberFormat('en-US').format(value)

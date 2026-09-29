@@ -56,7 +56,6 @@ import {
 import { AnalyticsCoverageMap } from './analytics-coverage-map'
 import { toProjectCoverageFeatureCollection } from './analytics-location-utils'
 import { deriveAnalyticsReportingPeriods } from './analytics-reporting-periods'
-import { humanReviewDisclaimer } from './analytics-utils'
 
 const analysisViews = [
   { value: 'kpi', label: 'KPI / indicator performance' },
@@ -690,9 +689,6 @@ export const AnalyticsDashboard = () => {
               ))}
             </SelectContent>
           </Select>
-        </div>
-        <div className="rounded-sm border border-info/25 bg-info-subtle p-3 text-sm leading-6 text-info sm:col-span-2 xl:col-span-3 xl:col-start-10 xl:row-start-2">
-          {humanReviewDisclaimer}
         </div>
         <div className="flex items-end sm:col-span-2 xl:col-span-3 xl:col-start-10 xl:row-start-3">
           <Button
