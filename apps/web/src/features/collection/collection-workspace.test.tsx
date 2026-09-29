@@ -975,6 +975,34 @@ describe('collection form definition export', () => {
     expect(api.getDigitalForm).not.toHaveBeenCalled()
   })
 
+  it('hides the Download Format control on the extend import page', async () => {
+    api.getProjectsForRole.mockResolvedValue([
+      { id: 'futuremakers-ncr', title: 'Futuremakers NCR' },
+    ])
+    render(
+      <DisplayLabelsProvider>
+        <CollectionWorkspace
+          initialView="import"
+          initialMode="extend"
+          initialProjectId="futuremakers-ncr"
+        />
+      </DisplayLabelsProvider>,
+    )
+    await waitFor(() => expect(api.getDigitalForms).toHaveBeenCalled())
+    expect(screen.queryByText('Download format')).toBeNull()
+  })
+
+  it('still shows the Download Format control on the Forms page', async () => {
+    api.getDigitalForms.mockResolvedValue([exportForm])
+    render(
+      <DisplayLabelsProvider>
+        <CollectionWorkspace initialView="forms" />
+      </DisplayLabelsProvider>,
+    )
+    await waitFor(() => expect(screen.getByText('Activity Entry')).toBeTruthy())
+    expect(screen.getByText('Download format')).toBeTruthy()
+  })
+
   it('does not request an export without forms.export', async () => {
     currentAccess.profile.permissions = currentAccess.profile.permissions.filter(
       (permission) => permission !== 'forms.export',

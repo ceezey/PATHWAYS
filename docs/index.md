@@ -50,6 +50,7 @@
 | AIA | aia-pathways.md | Working; not triggered |
 | GTM | gtm-pathways.md | Deferred |
 | OPS | ops-pathways.md | Working |
+| DEFERRED | deferred-features.md | Working; append-only log of hidden/deferred web controls |
 | LOG | log-pathways.md | Control; append-only |
 | STATE | state.md | Control; operating position |
 
