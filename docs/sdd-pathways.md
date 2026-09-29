@@ -149,6 +149,31 @@ date-gated, small-cell-suppressed SADDD release of distinct individuals), never 
 **SADDD caveat:** a typed per-session count has no sex/age breakdown, so SADDD sex/age breakdowns
 stay sourced from participation records; this change does not and cannot supply that breakdown.
 
+### Activity overdue explanation
+The [approved change record](cr-pathways-activity-overdue-explanation.md) adds
+`POST /projects/:projectId/activities/:activityId/overdue-explanations`, guarded by
+`monitoring.review` plus an active personal `ProjectActivityAssignment` on the activity (mirroring
+`activities.progress.update`'s `requireActiveAssignment` check). `monitoring.review` is held by
+`SYSTEM_ADMINISTRATOR`, `MONITORING_AND_EVALUATION_OFFICER`, `PROJECT_MANAGER`, `PROGRAM_MANAGER` and
+`GRANT_MANAGER`; this is its first enforced use (previously declared in the RBAC contract but not yet
+guarding any endpoint). The body is `category` (`WEATHER | SECURITY | FUNDING | COMMUNITY | LOGISTICS
+| OTHER`), `explanation` (10-2000 trimmed characters) and `clientMutationId`. The endpoint returns
+`409` when the activity is not currently overdue, using the existing `activityPresentationStatus`
+predicate already shared by the activity list and detail (`plannedEndDate` earlier than the business
+date and status not `COMPLETED`/`CANCELLED`), and is idempotent on `clientMutationId` (a replay with
+identical input returns the existing row; a changed replay is a `409` conflict), matching the
+`recordProgress`/`reserveProof` convention. Migration `0043_activity_overdue_explanation` creates the
+append-only `pathways.activity_overdue_explanations` table, scoped like the sibling `activity_updates`
+table with composite FKs on `(organization_id, project_id, activity_id)` and `(organization_id,
+project_id)`; RLS is enabled and forced, with `SELECT`/`INSERT` policies (no `UPDATE`/`DELETE` grant)
+built only from `current_setting('app.organization_id'/'app.user_id')` and the prisma-owned
+`pathways.p05_has_project_permission`, never the postgres-owned `runtime_context_organization`/
+`runtime_context_user` wrappers the baseline `activity_updates` policies use. Activity detail gains
+`overdueExplanations` (newest first, with `actorName` and `recordedAt`) and
+`overdueExplanationNeeded` (true when overdue and no explanation has been recorded on or after the
+activity's `plannedEndDate`); capabilities gain `canExplainOverdue`. The web UI is deferred to a
+separate phase.
+
 ## 8. Infrastructure
 
 Current feature work does not implement:

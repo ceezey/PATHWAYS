@@ -172,6 +172,8 @@ Missing escalation handlers, generic activity-progress handlers, finance complet
 
 **Reserved supporting permissions.** `evaluations.submit`, `evaluations.approve`, `evaluations.signoff`, `evaluations.archive`, `settings.read` and `settings.labels.manage` stay defined but back no API endpoint. They are reserved for future supporting operations. `evaluations.submit`, `.approve`, `.signoff`, `.archive` and `settings.labels.manage` are currently granted to no role; `settings.read` keeps its listed grants but gates no endpoint ([RBAC audit closure](cr-pathways-rbac-audit-closure.md) A-04).
 
+**`monitoring.review`'s first enforced endpoint.** `monitoring.review` was previously defined in the RBAC contract but backed no endpoint. The [approved overdue-explanation record](cr-pathways-activity-overdue-explanation.md) adds its first: `POST /projects/:projectId/activities/:activityId/overdue-explanations`, additionally requiring an active personal `ProjectActivityAssignment` on the activity, mirroring `activities.progress.update`'s own assignment check.
+
 Existing handlers are aligned but not certified as usable core features. Identity reconciliation, standalone form/indicator archival, program creation, label editing, and milestone administration remain denied. Existing UI design and target-beneficiary fields remain. The [approved project target-goal retirement](cr-pathways-retire-project-target-goal.md) withdraws live benchmark inputs, outputs and comparisons while retaining historical storage; implementation/verification remain pending. It changes no human permission or scope boundary.
 
 ## 6. Migration and Verification Contract
