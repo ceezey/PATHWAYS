@@ -78,10 +78,13 @@ export function ImportWorkspace() {
   const { profile } = useCurrentRole()
   const scope = useSensitiveDraftOwner(profile, 'import-workspace', 'imports.read', null, null)
   if (!scope) return <output>Current import access is required.</output>
+  // Sorted so a permission/assignment grant that is re-fetched with the same entries in a
+  // different order (e.g. after a token refresh) does not read as a changed key and force
+  // an unnecessary remount that would drop the workspace's in-progress project selection.
   const accessKey = JSON.stringify([
-    profile?.roles,
-    profile?.permissions,
-    profile?.assignedProjectIds,
+    [...(profile?.roles ?? [])].sort(),
+    [...(profile?.permissions ?? [])].sort(),
+    [...(profile?.assignedProjectIds ?? [])].sort(),
   ])
   return <OwnedImportWorkspace key={scope.key + scope.generation + accessKey} scope={scope} />
 }
@@ -172,7 +175,9 @@ function OwnedImportWorkspace({ scope }: { scope: SensitiveDraftOwner }) {
       .then((value) => {
         if (!mounted || !scope.isCurrent()) return
         setProjects(value)
-        setProjectId(value[0]?.id ?? '')
+        // Only default when nothing is chosen yet; a refetch (or a remount whose key was
+        // recomputed from the same access grants) must not discard the current pick.
+        setProjectId((current) => current || value[0]?.id || '')
         setLoadState('ready')
       })
       .catch(() => mounted && scope.isCurrent() && setLoadState('error'))
