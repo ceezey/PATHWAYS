@@ -320,6 +320,8 @@ describe('proof submit, reviewer visibility and review', () => {
       expect(seen.updateNotes).toHaveLength(1)
       expect(seen.updateNotes[0]).toMatchObject({ kind: 'proof', status: 'Submitted' })
       expect(seen.submittedProof).toHaveLength(0)
+      // The unfinished upload is flagged so the officer can resume it and M&E can be told.
+      expect(seen.updateNotes[0]).toMatchObject({ proofIncomplete: true })
 
       const [first, second] = reserved.files
       const partial = await finalize(reserved.updateId, first.evidenceId)
@@ -328,6 +330,7 @@ describe('proof submit, reviewer visibility and review', () => {
 
       const done = await finalize(reserved.updateId, second.evidenceId)
       expect(done.status).toBe('COMMITTED')
+      expect((await detail()).updateNotes[0]).toMatchObject({ proofIncomplete: false })
 
       // After the last file the activity is FOR_REVIEW and both files are listed as Submitted.
       seen = await detail()

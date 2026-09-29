@@ -257,6 +257,10 @@ export interface ActivityUpdateNote {
   reviewedAt: string | null
   reviewReason: string | null
   updatedAt: string
+  /** True while a PENDING proof update still has files whose bytes are not verified in storage. */
+  proofIncomplete?: boolean
+  /** Only sent to the submitting user of an incomplete proof, so they can resume it. */
+  resumeClientUpdateId?: string | null
 }
 
 export interface CreateActivityInput {

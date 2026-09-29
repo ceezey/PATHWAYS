@@ -111,6 +111,8 @@ export const ActivityDetailContent = ({
     activity.capabilities?.canExplainOverdue === true && activity.status === 'Overdue'
   const latestProof = activity.submittedProof.at(-1)
   const correctionRequired = latestProof?.status === 'Flagged'
+  const incompleteProof = activity.updateNotes.find((update) => update.proofIncomplete)
+  const ownIncompleteProof = Boolean(incompleteProof?.resumeClientUpdateId)
 
   const connectedIndicators = activity.indicatorIds.map((indicatorId) => {
     const indicator = indicators.find((item) => item.id === indicatorId)
@@ -429,6 +431,18 @@ export const ActivityDetailContent = ({
         </section>
       ) : null}
 
+      {incompleteProof && ownIncompleteProof && showSubmitProof ? (
+        <output className="block rounded-sm border border-warning/40 bg-warning-subtle p-3 text-sm text-foreground">
+          Your proof upload was not finished, so this update is not with M&E yet. Choose Resume
+          proof upload, then select the same files again.
+        </output>
+      ) : null}
+      {incompleteProof && !ownIncompleteProof && canValidateProof ? (
+        <output className="block rounded-sm border border-border bg-surface-subtle p-3 text-sm text-muted-foreground">
+          Proof upload not finished. {incompleteProof.submittedBy} has an update waiting for its
+          files to upload. It can be reviewed once every file is submitted.
+        </output>
+      ) : null}
       {correctionRequired && showSubmitProof ? (
         <p className="rounded-sm border border-danger/25 bg-danger-subtle p-3 text-sm text-danger">
           A correction is required. Review the return reason above, then submit a new proof version.
@@ -449,7 +463,7 @@ export const ActivityDetailContent = ({
         {showSubmitProof && activity.status !== 'Completed' ? (
           <Button className="gap-2" onClick={() => onSubmitProof(activity)} type="button">
             <UploadCloud className="h-4 w-4" aria-hidden="true" />
-            Submit Update & Proof
+            {ownIncompleteProof ? 'Resume proof upload' : 'Submit Update & Proof'}
           </Button>
         ) : null}
         {showRecordProgress && activity.storedStatus === 'IN_PROGRESS' ? (
