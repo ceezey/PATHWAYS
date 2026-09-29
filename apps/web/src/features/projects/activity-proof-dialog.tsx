@@ -393,13 +393,19 @@ const ScopedActivityProofDialog = ({
       // storageReady (a READY_TO_COMMIT reply): it still needs its finalize call to commit.
       const targets = workingFiles.filter((item) => item.status !== 'uploaded' && item.evidenceId)
       const outcomes = await Promise.all(targets.map((item) => processFile(item)))
+      // Finalizes that ran together can each report UPLOADING while the update is in fact ready.
+      // One more finalize, after all of them settled, is idempotent and commits it.
+      if (scope.isCurrent() && !committed.current && outcomes.every(Boolean) && targets.length) {
+        await processFile(targets[targets.length - 1])
+      }
       if (scope.isCurrent() && !committed.current) {
         setSubmitting(false)
-        // Never leave a failed upload silent: the update stays reserved until every file lands.
-        if (outcomes.some((ok) => !ok))
-          setError(
-            'Not every proof file was uploaded, so this update is not submitted for review yet. Retry the failed files below.',
-          )
+        // Never leave an unfinished submission silent: the update stays reserved until it commits.
+        setError(
+          outcomes.some((ok) => !ok)
+            ? 'Not every proof file was uploaded, so this update is not submitted for review yet. Retry the failed files below.'
+            : 'The proof files are uploaded, but the update was not submitted for review. Select Submit proof to retry.',
+        )
       }
     } catch (caught) {
       if (!scope.isCurrent()) return
