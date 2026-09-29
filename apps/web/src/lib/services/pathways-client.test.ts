@@ -1233,6 +1233,35 @@ describe('Activity proof response parsing', () => {
     ).rejects.toMatchObject({ code: 'network' })
   })
 
+  it('rejects a loopback http uploadUrl when the configured Supabase URL is https', async () => {
+    stubResponse({
+      clientUpdateId: 'client-1',
+      updateId: 'update-1',
+      status: 'UPLOADING',
+      files: [
+        {
+          evidenceId: 'evidence-1',
+          fileName: 'a.pdf',
+          contentType: 'application/pdf',
+          byteSize: 1024,
+          sha256: 'x'.repeat(64),
+          storageReady: false,
+          uploadUrl: 'http://127.0.0.1:54321/storage/v1/object/upload/evidence-1',
+        },
+      ],
+    })
+    await expect(
+      pathwaysClient.reserveActivityProofUpload({
+        projectId,
+        activityId,
+        clientUpdateId: 'client-1',
+        progressPercent: 10,
+        note: 'note',
+        files: [],
+      }),
+    ).rejects.toMatchObject({ code: 'network' })
+  })
+
   it('rejects a reservation files array over 10 entries', async () => {
     stubResponse({
       clientUpdateId: 'client-1',
