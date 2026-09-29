@@ -322,3 +322,65 @@ describe('financial receipt reads', () => {
     expect(tx.auditLog.create).not.toHaveBeenCalled()
   })
 })
+describe('sequential financial expense reviews', () => {
+  const reviewer: ApplicationIdentity = {
+    ...actor,
+    roles: ['MONITORING_AND_EVALUATION_OFFICER'],
+    permissions: ['expenses.verify'],
+  }
+  const second = '20000000-0000-4000-8000-000000000009'
+  beforeEach(() => {
+    vi.clearAllMocks()
+    state.actor = reviewer
+    state.tx = tx
+    state.operations = 0
+    state.lostCommit = false
+    tx.project.findFirst.mockResolvedValue({ id: projectId })
+    tx.$queryRaw.mockImplementation(async () => [{ value: { status: 'OK' } }])
+  })
+  it('lets the same reviewer verify one expense then verify or reject others in turn', async () => {
+    const at = '2026-09-27T00:00:00.000Z'
+    await service.review(reviewer, projectId, id, {
+      expectedUpdatedAt: at,
+      stage: 'VERIFY',
+      decision: 'VERIFY',
+    })
+    await service.review(reviewer, projectId, second, {
+      expectedUpdatedAt: at,
+      stage: 'VERIFY',
+      decision: 'VERIFY',
+    })
+    await service.review(reviewer, projectId, id, {
+      expectedUpdatedAt: at,
+      stage: 'VERIFY',
+      decision: 'REJECT',
+      reason: 'Receipt is unreadable.',
+    })
+    expect(state.operations).toBe(3)
+    expect(tx.$queryRaw).toHaveBeenCalledTimes(3)
+  })
+  it('accepts a return for correction without any receipt input and still requires a reason', async () => {
+    const body = { expectedUpdatedAt: '2026-09-27T00:00:00.000Z', stage: 'VERIFY' as const }
+    await expect(
+      service.review(reviewer, projectId, id, {
+        ...body,
+        decision: 'REJECT',
+        reason: 'Attach it.',
+      }),
+    ).resolves.toEqual({ status: 'OK' })
+    expect(() => service.review(reviewer, projectId, id, { ...body, decision: 'REJECT' })).toThrow(
+      BadRequestException,
+    )
+  })
+  it('keeps the reviewer permission check when the grant is absent', async () => {
+    state.actor = { ...reviewer, permissions: [] }
+    await expect(
+      service.review(state.actor as ApplicationIdentity, projectId, id, {
+        expectedUpdatedAt: '2026-09-27T00:00:00.000Z',
+        stage: 'VERIFY',
+        decision: 'REJECT',
+        reason: 'Attach it.',
+      }),
+    ).rejects.toThrow(ForbiddenException)
+  })
+})
