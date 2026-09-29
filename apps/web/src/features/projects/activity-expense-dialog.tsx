@@ -2,6 +2,7 @@
 
 import { Loader2, ReceiptText } from 'lucide-react'
 import { useEffect, useState } from 'react'
+import { toast } from 'sonner'
 
 import { DialogShell } from '@/components/pathways'
 import { Button } from '@/components/ui/button'
@@ -74,10 +75,15 @@ export const ActivityExpenseDialog = ({
       setError('Choose a linked budget allocation and complete every field.')
       return
     }
-    if (
-      receiptFile &&
-      (receiptFile.size > maxReceiptBytes || !receiptTypes.includes(receiptFile.type))
-    ) {
+    if (!canAttachReceipt) {
+      setError('A receipt is required, and this account cannot attach receipts.')
+      return
+    }
+    if (!receiptFile) {
+      setError('Attach the receipt (PDF, PNG or JPEG) before submitting.')
+      return
+    }
+    if (receiptFile.size > maxReceiptBytes || !receiptTypes.includes(receiptFile.type)) {
       setError('Receipt must be a PDF, PNG or JPEG of at most 10 MiB.')
       return
     }
@@ -98,18 +104,18 @@ export const ActivityExpenseDialog = ({
       })
       requests.acknowledge(clientRequestId)
       setDraft(emptyDraft)
-      if (receiptFile && canAttachReceipt) {
-        try {
-          await coreDataClient.uploadReceipt(activity.projectId, ack.id, ack.updatedAt, receiptFile)
-        } catch {
-          // The expense is already saved; keep the dialog open so the message is read.
-          setReceiptFile(null)
-          setFileKey((key) => key + 1)
-          setNotice('Expense saved; receipt not attached. Attach it from the Budget tab.')
-          onSubmitted()
-          return
-        }
+      try {
+        await coreDataClient.uploadReceipt(activity.projectId, ack.id, ack.updatedAt, receiptFile)
+      } catch {
+        // The expense is already saved; keep the dialog open so the message is read.
+        setReceiptFile(null)
+        setFileKey((key) => key + 1)
+        setNotice('Expense saved; receipt not attached. Attach it from the Budget tab.')
+        toast.warning('Expense saved without its receipt.')
+        onSubmitted()
+        return
       }
+      toast.success('Expense submitted for validation.')
       onSubmitted()
       onOpenChange(false)
     } catch (submitError) {
@@ -217,10 +223,11 @@ export const ActivityExpenseDialog = ({
           {canSubmit && activityReferences.length > 0 && canAttachReceipt ? (
             <div className="space-y-2">
               <Label htmlFor="activity-expense-receipt">
-                Private receipt (optional; PDF, PNG or JPEG; maximum 10 MiB)
+                Private receipt (required; PDF, PNG or JPEG; maximum 10 MiB)
               </Label>
               <Input
                 accept="application/pdf,image/png,image/jpeg"
+                aria-required="true"
                 aria-describedby={error ? 'activity-expense-error' : undefined}
                 aria-invalid={error ? true : undefined}
                 disabled={submitting}
