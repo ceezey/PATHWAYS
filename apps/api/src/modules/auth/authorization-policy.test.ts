@@ -52,8 +52,8 @@ describe('canonical least-privilege policy ceiling', () => {
     expect(rolePermissions.SYSTEM_ADMINISTRATOR).toEqual(
       expect.arrayContaining(['imports.read', 'imports.upload']),
     )
-    expect(rolePermissions.SYSTEM_ADMINISTRATOR).not.toContain('imports.review')
-    expect(rolePermissions.SYSTEM_ADMINISTRATOR).not.toContain('imports.process')
+    expect(rolePermissions.SYSTEM_ADMINISTRATOR).toContain('imports.review')
+    expect(rolePermissions.SYSTEM_ADMINISTRATOR).toContain('imports.process')
     for (const role of ['PROGRAM_MANAGER', 'GRANT_MANAGER'] as const) {
       expect(rolePermissions[role]).not.toContain('imports.read')
       expect(rolePermissions[role]).not.toContain('imports.review')
@@ -63,46 +63,20 @@ describe('canonical least-privilege policy ceiling', () => {
     for (const permission of ['indicators.create', 'indicators.update'] as const) {
       for (const role of Object.keys(roleNames) as CanonicalRole[]) {
         expect(rolePermissions[role].includes(permission)).toBe(
-          role === 'PROJECT_MANAGER' || role === 'MONITORING_AND_EVALUATION_OFFICER',
+          role === 'SYSTEM_ADMINISTRATOR' ||
+            role === 'PROJECT_MANAGER' ||
+            role === 'MONITORING_AND_EVALUATION_OFFICER',
         )
       }
     }
     expect(rolePermissions.PROJECT_MANAGER).toContain('monitoring.read')
   })
-  it('locks the exact rule-based access delta to M&E and Project Officer', () => {
-    const targetPermissions = [
-      'rules.read',
-      'alerts.read',
-      'alerts.review',
-      'alerts.outcome.record',
-      'recommendations.read',
-      'recommendations.review',
-      'recommendations.outcome.record',
-    ] as const
-    const newPermissions = targetPermissions.filter(
-      (permission) =>
-        permission !== 'rules.read' && permission !== 'recommendations.outcome.record',
-    )
-
-    for (const role of ['MONITORING_AND_EVALUATION_OFFICER', 'PROJECT_OFFICER'] as const) {
-      expect(rolePermissions[role]).toEqual(expect.arrayContaining([...targetPermissions]))
-      for (const permission of ['rules.create', 'rules.update', 'rules.activate'] as const) {
-        expect(rolePermissions[role]).not.toContain(permission)
-        expect(hasAtomicPermission(role, [permission], permission)).toBe(false)
-      }
+  it('limits alert review to the detailed CSV grants and repository configuration to Admin', () => {
+    for (const role of Object.keys(roleNames) as CanonicalRole[]) {
+      expect(rolePermissions[role].includes('alerts.review')).toBe(true)
+      expect(rolePermissions[role].includes('rules.read')).toBe(role === 'SYSTEM_ADMINISTRATOR')
+      expect(rolePermissions[role].includes('rules.update')).toBe(role === 'SYSTEM_ADMINISTRATOR')
     }
-
-    for (const role of [
-      'SYSTEM_ADMINISTRATOR',
-      'PROGRAM_MANAGER',
-      'GRANT_MANAGER',
-      'PROJECT_MANAGER',
-    ] as const) {
-      for (const permission of newPermissions) {
-        expect(rolePermissions[role]).not.toContain(permission)
-      }
-    }
-    expect(permissionCodes).not.toContain('rules.delete')
   })
   it('enforces the exact account-administration and assignment role matrix', () => {
     for (const actor of Object.keys(roleNames) as CanonicalRole[]) {
@@ -116,16 +90,22 @@ describe('canonical least-privilege policy ceiling', () => {
         expect(canAuthorizeRole(actor, target)).toBe(expected)
         expect(canAssignRole(actor, target)).toBe(
           expected &&
-            ['PROJECT_MANAGER', 'PROJECT_OFFICER', 'MONITORING_AND_EVALUATION_OFFICER'].includes(
-              target,
-            ),
+            [
+              'PROJECT_MANAGER',
+              'PROJECT_OFFICER',
+              'MONITORING_AND_EVALUATION_OFFICER',
+              'GRANT_MANAGER',
+            ].includes(target),
         )
       }
     }
   })
-  it('does not grant analytics to Project Officer even with an overbroad permission array', () => {
-    expect(hasAtomicPermission('PROJECT_OFFICER', ['analytics.read'], 'analytics.read')).toBe(false)
+  it('grants PO analytical access while denying unlisted monitoring detail', () => {
+    expect(hasAtomicPermission('PROJECT_OFFICER', ['analytics.read'], 'analytics.read')).toBe(true)
 
-    expect(rolePermissions.PROJECT_OFFICER).not.toContain('analytics.read')
+    expect(rolePermissions.PROJECT_OFFICER).toContain('analytics.read')
+    expect(hasAtomicPermission('PROJECT_OFFICER', ['monitoring.read'], 'monitoring.read')).toBe(
+      false,
+    )
   })
 })

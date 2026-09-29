@@ -439,7 +439,7 @@ export const ReportingWorkspace = ({
           (indicator): ReportRow => ({
             id: indicator.code,
             indicator: indicator.name,
-            target: indicator.target ?? 'Unavailable',
+            target: indicator.target ?? 'None yet',
             actualProgress: formatMetricCell(indicator.progress),
             status: indicator.status,
             project: projectTitle(indicator.projectId),
@@ -775,7 +775,7 @@ export const ReportingWorkspace = ({
           ) : null}
           {kind === 'beneficiary-summary' && beneficiaryLoadState === 'error' ? (
             <AsyncState
-              description="Beneficiary report records require server-side PIN verification and are unavailable in this workspace."
+              description="Beneficiary report records are not available in this workspace."
               icon={FileText}
               status="error"
               title="Beneficiary report records unavailable"

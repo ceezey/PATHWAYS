@@ -1,6 +1,6 @@
 'use client'
 
-import { CircleUserRound, Menu, PanelLeftClose, PanelLeftOpen, ShieldCheck } from 'lucide-react'
+import { CircleUserRound, Menu, ShieldCheck } from 'lucide-react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useState } from 'react'
@@ -60,7 +60,7 @@ export const AppShell = ({ children }: { children: React.ReactNode }) => {
     <div className="min-h-dvh bg-background lg:grid lg:grid-cols-[auto_1fr]">
       <SkipLink />
       <div className="hidden lg:sticky lg:top-0 lg:block lg:h-dvh lg:self-start">
-        <Sidebar compact={compact} />
+        <Sidebar compact={compact} onToggle={() => setCompact((value) => !value)} />
       </div>
       <div className="flex min-h-dvh min-w-0 flex-col">
         <header className="sticky top-0 z-30 border-b border-border bg-card">
@@ -84,20 +84,6 @@ export const AppShell = ({ children }: { children: React.ReactNode }) => {
                   <Sidebar onNavigate={() => setMobileOpen(false)} />
                 </SheetContent>
               </Sheet>
-              <Button
-                aria-label={compact ? 'Expand sidebar' : 'Collapse sidebar'}
-                className="hidden lg:inline-flex"
-                onClick={() => setCompact((value) => !value)}
-                size="icon"
-                title={compact ? 'Expand sidebar' : 'Collapse sidebar'}
-                variant="outline"
-              >
-                {compact ? (
-                  <PanelLeftOpen className="h-4 w-4" aria-hidden="true" />
-                ) : (
-                  <PanelLeftClose className="h-4 w-4" aria-hidden="true" />
-                )}
-              </Button>
               <div className="min-w-0">
                 <p className="truncate text-sm font-semibold text-foreground">{workspaceLabel}</p>
                 <p className="truncate text-[13px] leading-[18px] text-muted-foreground">

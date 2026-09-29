@@ -1,4 +1,4 @@
-# Audit — <scope>
+# Audit: <scope>
 
 **Date:** YYYY-MM-DD  
 **Scope:** <files/modules/contracts>  

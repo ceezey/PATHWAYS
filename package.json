@@ -3,7 +3,7 @@
   "private": true,
   "packageManager": "pnpm@11.20.0",
   "engines": {
-    "node": ">=20.11.0"
+    "node": ">=22"
   },
   "scripts": {
     "dev": "pnpm --parallel --filter @pathways/web --filter @pathways/api dev",
@@ -14,7 +14,19 @@
     "format": "pnpm exec biome format --write .",
     "test": "pnpm -r --if-present run test",
     "typecheck": "pnpm -r --if-present run typecheck",
-    "prepare": "node scripts/setup-husky.mjs"
+    "docs:check": "python scripts/docs/check.py docs",
+    "docs:materialize": "python scripts/docs/materialize.py docs",
+    "sad:check": "tsx scripts/sad/check.ts",
+    "sad:signoff": "tsx scripts/sad/check.ts --signoff",
+    "sad:test": "vitest run --config scripts/sad/vitest.config.ts",
+    "sad:typecheck": "tsc -p scripts/sad/tsconfig.json",
+    "prepare": "node scripts/setup-husky.mjs",
+    "rules:dispatch": "tsx apps/api/src/rules-dispatcher.ts",
+    "db:local:start": "supabase start",
+    "db:local:stop": "supabase stop",
+    "db:local:reset": "node scripts/db/local-reset.mjs",
+    "db:local:seed": "node scripts/db/local-seed.mjs",
+    "dev:local": "node scripts/db/local-dev.mjs"
   },
   "devDependencies": {
     "@biomejs/biome": "^1.9.4",
@@ -22,6 +34,7 @@
     "@types/node": "^24.0.15",
     "husky": "^9.1.7",
     "lint-staged": "^16.1.0",
+    "supabase": "2.118.0",
     "tsx": "^4.20.5",
     "typescript": "^5.9.3",
     "vitest": "^3.2.4"

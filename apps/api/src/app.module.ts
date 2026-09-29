@@ -4,6 +4,7 @@ import type { IncomingMessage, ServerResponse } from 'node:http'
 import { Module } from '@nestjs/common'
 import { ConfigModule } from '@nestjs/config'
 import { APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core'
+import { readApiEnv } from '@pathways/config'
 import { LoggerModule } from 'nestjs-pino'
 
 import { RolesGuard } from './common/guards/roles.guard'
@@ -14,14 +15,22 @@ import { AuditModule } from './modules/audit/audit.module'
 import { AuthModule } from './modules/auth/auth.module'
 import { BeneficiariesModule } from './modules/beneficiaries/beneficiaries.module'
 import { DashboardsModule } from './modules/dashboards/dashboards.module'
+import { EvaluationsModule } from './modules/evaluations/evaluations.module'
+import { FinanceModule } from './modules/finance/finance.module'
 import { HealthModule } from './modules/health/health.module'
 import { ImportsModule } from './modules/imports/imports.module'
 import { IndicatorsModule } from './modules/indicators/indicators.module'
 import { MetadataModule } from './modules/metadata/metadata.module'
 import { ParticipantsModule } from './modules/participants/participants.module'
+import { ProfileModule } from './modules/profile/profile.module'
 import { ProgramsModule } from './modules/programs/programs.module'
 import { ProjectsModule } from './modules/projects/projects.module'
+import { PublicModule } from './modules/public/public.module'
 import { ReportsModule } from './modules/reports/reports.module'
+import { RulesHumanModule } from './modules/rules/rules-human.module'
+import { rulesMachineOptions } from './modules/rules/rules-machine-options'
+import { RulesMachineModule } from './modules/rules/rules-machine.module'
+import { RulesSourceOperationsModule } from './modules/rules/rules-source-operations.module'
 import { StorageModule } from './modules/storage/storage.module'
 import { UsersModule } from './modules/users/users.module'
 import { PrismaModule } from './prisma/prisma.module'
@@ -107,6 +116,10 @@ export function createPathwaysPinoHttpOptions(environment = process.env.NODE_ENV
         'userId',
         'authUserId',
         'authSubject',
+        // Step-up PIN fields (cr-pathways-beneficiary-step-up-pin); bodies are already removed.
+        'pin',
+        'currentPin',
+        'newPin',
         '*.headers',
         '*.url',
         '*.query',
@@ -123,6 +136,9 @@ export function createPathwaysPinoHttpOptions(environment = process.env.NODE_ENV
         '*.userId',
         '*.authUserId',
         '*.authSubject',
+        '*.pin',
+        '*.currentPin',
+        '*.newPin',
       ],
       remove: true,
     },
@@ -148,9 +164,13 @@ export function createPathwaysPinoHttpOptions(environment = process.env.NODE_ENV
     LoggerModule.forRoot({
       pinoHttp: createPathwaysPinoHttpOptions(),
     }),
+    RulesMachineModule.register(rulesMachineOptions(readApiEnv(process.env))),
+    RulesHumanModule,
+    RulesSourceOperationsModule,
     PrismaModule,
     HealthModule,
     AuthModule,
+    ProfileModule,
     ActivitiesModule,
     BeneficiariesModule,
     UsersModule,
@@ -161,7 +181,10 @@ export function createPathwaysPinoHttpOptions(environment = process.env.NODE_ENV
     ImportsModule,
     IndicatorsModule,
     DashboardsModule,
+    EvaluationsModule,
+    FinanceModule,
     ReportsModule,
+    PublicModule,
     AuditModule,
     StorageModule,
   ],

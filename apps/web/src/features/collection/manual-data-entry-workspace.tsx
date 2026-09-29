@@ -1,12 +1,12 @@
 'use client'
 import { PageHeader } from '@/components/layout/page-header'
-import { SectionCard } from '@/components/pathways'
+import { SectionCard, UnavailableHint } from '@/components/pathways'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { useCurrentRole } from '@/hooks/use-current-role'
 import { pathwaysClient } from '@/lib/services/pathways-client'
 import type {
-  Activity,
+  ActivitySummary,
   DigitalFormDefinition,
   DirectFormSubmission,
   DirectFormSubmissionPage,
@@ -39,7 +39,7 @@ export function ManualDataEntryWorkspace() {
   const { role } = useCurrentRole()
   const [projects, setProjects] = useState<ProjectSummary[]>([])
   const [forms, setForms] = useState<DigitalFormDefinition[]>([])
-  const [activities, setActivities] = useState<Activity[]>([])
+  const [activities, setActivities] = useState<ActivitySummary[]>([])
   const [draft, setDraft] = useState(blank)
   const [submission, setSubmission] = useState<DirectFormSubmission | null>(null)
   const [clientSubmissionId, setClientSubmissionId] = useState(() => crypto.randomUUID())
@@ -361,15 +361,25 @@ export function ManualDataEntryWorkspace() {
                 <label className="block">
                   Participant
                   <select
+                    aria-describedby="manual-entry-participant-hint"
+                    aria-disabled="true"
                     className="block w-full rounded border p-2"
-                    value={draft.beneficiaryId}
                     onChange={(e) => setDraft({ ...draft, beneficiaryId: e.target.value })}
+                    onKeyDown={(event) => {
+                      event.preventDefault()
+                    }}
+                    onMouseDown={(event) => {
+                      event.preventDefault()
+                    }}
+                    title="Not available yet"
+                    value={draft.beneficiaryId}
                   >
                     <option value="">Select participant</option>
-                    <option value="" disabled>
-                      Server-side beneficiary selection requires PIN verification
-                    </option>
                   </select>
+                  <UnavailableHint
+                    id="manual-entry-participant-hint"
+                    message="Beneficiary selection is not available in this workspace"
+                  />
                 </label>
                 <label className="block">
                   Attendance

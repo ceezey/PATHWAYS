@@ -1,4 +1,8 @@
 'use client'
+import { SourceMutationRecovery } from './source-mutation-recovery'
+
+import { useSourceMutationContext } from '@/hooks/use-source-mutation-context'
+import { isSourceReplay, sourceMutationTickets } from '@/lib/services/source-mutation'
 
 import { zodResolver } from '@hookform/resolvers/zod'
 import { ArrowLeft, Loader2, Save } from 'lucide-react'
@@ -9,12 +13,11 @@ import { useForm } from 'react-hook-form'
 import { toast } from 'sonner'
 
 import { PageHeader } from '@/components/layout/page-header'
-import { SectionCard } from '@/components/pathways'
+import { LockedField, SectionCard } from '@/components/pathways'
 import { Button } from '@/components/ui/button'
 import {
   Form,
   FormControl,
-  FormDescription,
   FormField,
   FormItem,
   FormLabel,
@@ -28,6 +31,16 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import { Textarea } from '@/components/ui/textarea'
+import { useCurrentRole } from '@/hooks/use-current-role'
+import {
+  type SensitiveDraftOwner,
+  readSensitiveDraft,
+  removeSensitiveDraft,
+  useSensitiveDraftOwner,
+  writeSensitiveDraft,
+} from '@/lib/auth/sensitive-drafts'
+import { principalHasAtomicPermission } from '@/lib/rbac/route-access'
 import { PathwaysClientError, pathwaysClient } from '@/lib/services/pathways-client'
 import type { ProjectDetail, ProjectStatus, UserRecord } from '@/types/pathways'
 
@@ -41,13 +54,10 @@ import {
 import { ProjectTeamSelectors } from './project-team-selectors'
 
 const projectStatuses: ProjectStatus[] = ['Active', 'Needs Attention', 'Planned', 'Completed']
-const projectDraftStorageKey = 'pathways.projectSetupDraft'
 const projectDraftFields = [
-  'objectives',
-  'partners',
+  'partnerOrganizations',
   'projectBudget',
   'targetBeneficiaries',
-  'targetGoal',
   'title',
   'sector',
   'area',
@@ -61,11 +71,10 @@ const projectDraftFields = [
   'projectOfficers',
 ] as const
 const projectDefaultValues: ProjectSetupSchema = {
-  objectives: '',
-  partners: '',
+  partnerOrganizations: '',
   projectBudget: '',
   targetBeneficiaries: '',
-  targetGoal: '',
+
   title: '',
   sector: '',
   area: '',
@@ -79,7 +88,36 @@ const projectDefaultValues: ProjectSetupSchema = {
   projectOfficers: '',
 }
 
-export const ProjectSetupForm = ({ projectId }: { projectId?: string }) => {
+export const ProjectSetupForm = (props: { projectId?: string }) => {
+  const { profile } = useCurrentRole()
+  const scope = useSensitiveDraftOwner(
+    profile,
+    'project',
+    props.projectId ? 'projects.update' : 'projects.create',
+    props.projectId ?? null,
+    props.projectId ?? null,
+  )
+  if (!scope) return <output>Current project access is required.</output>
+  return <ScopedProjectSetupForm key={scope.key + scope.generation} {...props} scope={scope} />
+}
+const ScopedProjectSetupForm = ({
+  projectId,
+  scope,
+}: { projectId?: string; scope: SensitiveDraftOwner }) => {
+  const { profile, refreshAccess } = useCurrentRole()
+  const mutationContext = useSourceMutationContext(
+    profile,
+    'projects.update',
+    projectId ?? null,
+    projectId ?? null,
+  )
+  const projectDraftStorageKey = scope.key
+  // Mirrors saveProjectBudget in projects.service: a locked budget is shown only when
+  // readable and is never sent.
+  const canEditBudget =
+    principalHasAtomicPermission(profile, 'budgets.create') &&
+    (!projectId || principalHasAtomicPermission(profile, 'budgets.update'))
+  const canReadBudget = !projectId || principalHasAtomicPermission(profile, 'budgets.read')
   const router = useRouter()
   const [draftHydrated, setDraftHydrated] = useState(false)
   const [draftRecovered, setDraftRecovered] = useState(false)
@@ -99,15 +137,17 @@ export const ProjectSetupForm = ({ projectId }: { projectId?: string }) => {
       void pathwaysClient
         .getProject(projectId)
         .then((project) => {
+          if (!scope.isCurrent()) return
           setExistingProject(project)
           form.reset({
             ...projectDefaultValues,
             title: project.title,
-            objectives: project.objectives ?? '',
-            partners: project.implementingPartners ?? '',
+            partnerOrganizations:
+              project.implementingPartnerRecords?.map((partner) => partner.name).join('\n') ?? '',
             projectBudget: project.projectBudget ?? '',
-            targetBeneficiaries: String(project.targetBeneficiaries),
-            targetGoal: project.targetGoal ?? '',
+            targetBeneficiaries:
+              project.targetBeneficiaries === undefined ? '' : String(project.targetBeneficiaries),
+
             sector: project.sector === 'Sector not recorded' ? '' : project.sector,
             area: project.area === 'Area not recorded' ? '' : project.area,
             startDate: project.startDate ?? '',
@@ -122,20 +162,22 @@ export const ProjectSetupForm = ({ projectId }: { projectId?: string }) => {
           })
         })
         .catch(() => {
+          if (!scope.isCurrent()) return
           form.setError('title', { message: 'The project could not be loaded from the service.' })
         })
       setDraftHydrated(true)
       return
     }
     try {
-      const stored = window.sessionStorage.getItem(projectDraftStorageKey)
+      const stored = readSensitiveDraft(projectDraftStorageKey)
       if (stored) {
-        const parsed = JSON.parse(stored) as Partial<Record<keyof ProjectSetupSchema, unknown>>
+        const parsed = stored as Partial<Record<keyof ProjectSetupSchema, unknown>>
+        if (stored.projectId !== null) return
         const restored = { ...projectDefaultValues }
 
         for (const key of projectDraftFields) {
           const value = parsed[key]
-          if (typeof value === 'string') {
+          if (typeof value === 'string' && value.length <= 10_000) {
             Object.assign(restored, { [key]: value })
           }
         }
@@ -148,11 +190,11 @@ export const ProjectSetupForm = ({ projectId }: { projectId?: string }) => {
         setDraftRecovered(true)
       }
     } catch {
-      window.sessionStorage.removeItem(projectDraftStorageKey)
+      removeSensitiveDraft(projectDraftStorageKey)
     } finally {
       setDraftHydrated(true)
     }
-  }, [form, projectId])
+  }, [form, projectId, projectDraftStorageKey, scope.isCurrent])
 
   useEffect(() => {
     void usersLoadAttempt
@@ -162,21 +204,21 @@ export const ProjectSetupForm = ({ projectId }: { projectId?: string }) => {
     pathwaysClient
       .getUsers()
       .then((records) => {
-        if (mounted) setUsers(records)
+        if (mounted && scope.isCurrent()) setUsers(records)
       })
       .catch((error: unknown) => {
-        if (!mounted) return
+        if (!mounted || !scope.isCurrent()) return
         setUsersLoadError(
           error instanceof Error ? error.message : 'The team directory could not be loaded.',
         )
       })
       .finally(() => {
-        if (mounted) setUsersLoading(false)
+        if (mounted && scope.isCurrent()) setUsersLoading(false)
       })
     return () => {
       mounted = false
     }
-  }, [usersLoadAttempt])
+  }, [usersLoadAttempt, scope.isCurrent])
 
   useEffect(() => {
     if (!draftHydrated || projectId) {
@@ -184,48 +226,67 @@ export const ProjectSetupForm = ({ projectId }: { projectId?: string }) => {
     }
 
     const subscription = form.watch((values) => {
+      if (!scope.isCurrent()) return
       const nextValues = values as ProjectSetupSchema
       const draft = Object.fromEntries(projectDraftFields.map((key) => [key, nextValues[key]]))
       const emptyDraft = Object.fromEntries(
         projectDraftFields.map((key) => [key, projectDefaultValues[key]]),
       )
       if (JSON.stringify(draft) === JSON.stringify(emptyDraft)) {
-        window.sessionStorage.removeItem(projectDraftStorageKey)
+        removeSensitiveDraft(projectDraftStorageKey)
       } else {
-        window.sessionStorage.setItem(projectDraftStorageKey, JSON.stringify(draft))
+        writeSensitiveDraft(projectDraftStorageKey, { ...draft, projectId: null }, scope.generation)
       }
     })
 
     return () => subscription.unsubscribe()
-  }, [draftHydrated, form, projectId])
+  }, [draftHydrated, form, projectId, projectDraftStorageKey, scope.isCurrent, scope.generation])
 
   const onSubmit = async (values: ProjectSetupSchema) => {
+    if (!scope.isCurrent()) return
     setSaveError(null)
     if (projectId && !existingProject) {
       setSaveError('The current project must finish loading before it can be updated.')
       return
     }
-    if (values.targetGoal === '' && (!existingProject || existingProject.targetGoal !== null)) {
-      form.setError('targetGoal', {
-        message: 'Enter a percentage greater than 0 and at most 100.',
-      })
-      return
-    }
 
     try {
+      const budget = canEditBudget ? {} : { projectBudget: undefined }
       const project = existingProject
-        ? await pathwaysClient.updateProject(projectId ?? existingProject.id, {
-            ...toUpdateProjectInput(values, existingProject),
-            ...toProjectTeamInput(values, users),
-          })
+        ? await pathwaysClient.updateProject(
+            projectId ?? existingProject.id,
+            {
+              ...toUpdateProjectInput(values, existingProject),
+              ...toProjectTeamInput(values, users),
+              ...budget,
+            },
+            mutationContext ?? undefined,
+          )
         : await pathwaysClient.createProject({
             ...toCreateProjectInput(values),
             ...toProjectTeamInput(values, users),
+            ...budget,
           })
-      if (!projectId) window.sessionStorage.removeItem(projectDraftStorageKey)
+      if (!scope.isCurrent()) return
+      if (!projectId) removeSensitiveDraft(projectDraftStorageKey)
       toast.success(existingProject ? 'Project profile updated.' : 'Project profile created.')
-      router.push(`/projects/${project.id}`)
+      if (isSourceReplay(project)) {
+        if (!projectId || !mutationContext?.isCurrent()) return
+        await pathwaysClient.getProject(projectId)
+        if (!scope.isCurrent() || !mutationContext.isCurrent()) return
+        sourceMutationTickets.finishAcknowledgement(mutationContext, project.requestId)
+      }
+      if (!existingProject) {
+        // A newly created project may add this account to assignedProjectIds.
+        // Refresh the cached profile before navigating so the route guard does
+        // not evaluate the redirect against a stale assignment list.
+        await refreshAccess()
+      }
+      router.push(
+        `/projects/${isSourceReplay(project) ? (existingProject?.id ?? projectId) : project.id}`,
+      )
     } catch (error) {
+      if (!scope.isCurrent()) return
       const message =
         error instanceof PathwaysClientError || error instanceof Error
           ? error.message
@@ -264,6 +325,20 @@ export const ProjectSetupForm = ({ projectId }: { projectId?: string }) => {
       >
         <Form {...form}>
           <form className="space-y-6" onSubmit={form.handleSubmit(onSubmit)}>
+            {projectId ? (
+              <SourceMutationRecovery
+                context={mutationContext}
+                prefix={`/projects/${projectId}`}
+                onRecovered={async () => {
+                  await pathwaysClient.getProject(projectId)
+                  return () => {
+                    removeSensitiveDraft(projectDraftStorageKey)
+                    router.push(`/projects/${projectId}`)
+                    router.refresh()
+                  }
+                }}
+              />
+            ) : null}
             {saveError ? (
               <p
                 className="rounded-sm border border-danger/30 bg-danger/5 p-3 text-sm text-danger"
@@ -275,79 +350,62 @@ export const ProjectSetupForm = ({ projectId }: { projectId?: string }) => {
             <div className="grid gap-5 lg:grid-cols-2">
               <FormField
                 control={form.control}
-                name="objectives"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel required>Objectives</FormLabel>
-                    <FormControl aria-required="true">
-                      <Input {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="targetGoal"
-                render={({ field }) => {
-                  const required = !existingProject || existingProject.targetGoal !== null
-                  return (
-                    <FormItem>
-                      <FormLabel required={required}>Project target goal (%)</FormLabel>
-                      <FormControl aria-required={required}>
-                        <Input max="100" min="0.0001" step="0.0001" type="number" {...field} />
-                      </FormControl>
-                      <FormDescription>
-                        Percentage benchmark used to compare Activity and Indicator progress.
-                      </FormDescription>
-                      <FormMessage />
-                    </FormItem>
-                  )
-                }}
-              />
-              {(['partners', 'projectBudget', 'targetBeneficiaries'] as const).map((name) => (
-                <FormField
-                  key={name}
-                  control={form.control}
-                  name={name}
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>
-                        {name === 'projectBudget'
-                          ? 'Project budget (PHP)'
-                          : name === 'targetBeneficiaries'
-                            ? 'Target beneficiaries'
-                            : 'Implementing partners'}
-                      </FormLabel>
-                      <FormControl>
-                        <Input
-                          min={
-                            name === 'projectBudget' || name === 'targetBeneficiaries'
-                              ? '0'
-                              : undefined
-                          }
-                          type={
-                            name === 'projectBudget' || name === 'targetBeneficiaries'
-                              ? 'number'
-                              : 'text'
-                          }
-                          step={name === 'projectBudget' ? '0.01' : undefined}
-                          {...field}
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              ))}
-              <FormField
-                control={form.control}
                 name="title"
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel required>Project title</FormLabel>
                     <FormControl aria-required="true">
                       <Input placeholder="Community Resilience Project" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="partnerOrganizations"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Implementing partners</FormLabel>
+                    <FormControl>
+                      <Textarea {...field} placeholder="One organization per line" />
+                    </FormControl>
+                    <p className="text-sm text-muted-foreground">
+                      Each organization receives a stable identifier when saved.
+                    </p>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              {canEditBudget ? (
+                <FormField
+                  control={form.control}
+                  name="projectBudget"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Project budget (PHP)</FormLabel>
+                      <FormControl>
+                        <Input min="0" step="0.01" type="number" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              ) : canReadBudget ? (
+                <LockedField
+                  label="Project budget (PHP)"
+                  value={existingProject?.projectBudget ?? ''}
+                />
+              ) : null}
+              <FormField
+                control={form.control}
+                name="targetBeneficiaries"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Target beneficiaries</FormLabel>
+                    <FormControl>
+                      <Input min="0" type="number" {...field} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>

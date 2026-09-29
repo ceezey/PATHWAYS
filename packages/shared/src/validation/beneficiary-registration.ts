@@ -60,6 +60,26 @@ export const beneficiaryRegistrationFieldRules = {
   },
 } as const satisfies Record<string, RegistrationFieldRule>
 
+/** Developer decision 2026-09-28 (cr-pathways-default-registration-form section 3.2). */
+export const minimumBeneficiaryAge = 5
+
+export const beneficiaryAgeRuleMessages = {
+  futureBirthDate: 'Date of birth cannot be in the future.',
+  belowMinimumAge: `Beneficiary must be at least ${minimumBeneficiaryAge} years old.`,
+} as const
+
+/** Completed years on the reference calendar date; both dates are UTC-midnight calendar dates. */
+export function completedYearsAt(birthDate: Date, reference: Date) {
+  let years = reference.getUTCFullYear() - birthDate.getUTCFullYear()
+  if (
+    reference.getUTCMonth() < birthDate.getUTCMonth() ||
+    (reference.getUTCMonth() === birthDate.getUTCMonth() &&
+      reference.getUTCDate() < birthDate.getUTCDate())
+  )
+    years -= 1
+  return years
+}
+
 const sameValues = (actual: readonly string[] | null | undefined, expected: readonly string[]) => {
   if (!actual || actual.length !== expected.length) return false
   const actualValues = new Set(actual)

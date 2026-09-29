@@ -15,6 +15,8 @@ import {
   type VerifiedAuthIdentity,
 } from './developer-access'
 
+import type { InspectionRequestBudget } from '../../common/network/inspection-request-budget'
+
 const unavailable = () =>
   new ServiceUnavailableException('Workspace verification is temporarily unavailable.')
 
@@ -90,6 +92,7 @@ export class WorkspaceResolutionService {
     userSelector: unknown,
     sessionId: unknown,
     onTiming?: (timing: VerifiedTransactionTiming) => void,
+    budget?: InspectionRequestBudget,
   ) {
     if (
       identity.aal !== 'aal2' ||
@@ -111,15 +114,19 @@ export class WorkspaceResolutionService {
       // a separate discovery transaction. The profile read still revalidates the
       // active account, organization, role, permissions and assignments on every
       // request, so revocation remains effective on the next request.
-      const profile = onTiming
-        ? await this.profiles.resolveWithSession(
-            identity.id,
-            sessionId,
-            organizationId,
-            userId,
-            onTiming,
-          )
-        : await this.profiles.resolveWithSession(identity.id, sessionId, organizationId, userId)
+      budget?.check()
+      const profile =
+        onTiming || budget
+          ? await this.profiles.resolveWithSession(
+              identity.id,
+              sessionId,
+              organizationId,
+              userId,
+              onTiming,
+              budget,
+            )
+          : await this.profiles.resolveWithSession(identity.id, sessionId, organizationId, userId)
+      budget?.check()
       if (
         profile.id !== identity.id ||
         profile.aal !== 'aal2' ||

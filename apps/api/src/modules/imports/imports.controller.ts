@@ -19,6 +19,7 @@ import { RequirePermission } from '../../common/decorators/permission.decorator'
 import type { AuthenticatedRequest } from '../auth/developer-access'
 // biome-ignore lint/style/useImportType: Nest validation needs the DTO constructors at runtime.
 import {
+  AutomaticImportMappingDto,
   ImportRowsQueryDto,
   ProcessImportDto,
   SaveImportMappingDto,
@@ -96,6 +97,17 @@ export class ImportsController {
     return this.imports.listRows(profile(request), projectId, batchId, query)
   }
 
+  @Post(':batchId/automatic-mapping')
+  @RequirePermission('imports.upload')
+  automaticMapping(
+    @Req() request: AuthenticatedRequest,
+    @Param('projectId') projectId: string,
+    @Param('batchId') batchId: string,
+    @Body() body: AutomaticImportMappingDto,
+  ) {
+    return this.imports.automaticMapping(profile(request), projectId, batchId, body)
+  }
+
   @Patch(':batchId/mapping')
   @RequirePermission('imports.review')
   map(
@@ -108,7 +120,7 @@ export class ImportsController {
   }
 
   @Post(':batchId/validate')
-  @RequirePermission('imports.review')
+  @RequirePermission('imports.validate')
   validate(
     @Req() request: AuthenticatedRequest,
     @Param('projectId') projectId: string,

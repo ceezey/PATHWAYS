@@ -21,7 +21,13 @@ import type { ApplicationIdentity } from './developer-access'
 
 export interface AuthorizedOperationOptions {
   transactionTimeoutMs?: number
+  isolationLevel?: 'RepeatableRead'
 }
+
+import {
+  inspectionIdentityContext,
+  setInspectionTransactionBudget,
+} from '../../common/network/inspection-request-budget'
 
 const logger = new Logger('AuthorizedOperation')
 
@@ -128,6 +134,8 @@ export async function withAuthorizedOperation<T>(
   options?: AuthorizedOperationOptions,
 ) {
   if (!identity || identity.aal !== 'aal2') throw new ForbiddenException('Verified MFA required.')
+  const inspection = inspectionIdentityContext(identity)
+  inspection?.budget.check()
   const operationStartedAt = performance.now()
   let profileMs = 0
   let featureMs = 0
@@ -138,6 +146,7 @@ export async function withAuthorizedOperation<T>(
         authSubject: identity.id,
         organizationId: identity.organizationId,
         userId: identity.userId,
+        ...(inspection ? { sessionId: inspection.sessionId } : {}),
       },
       async (tx) => {
         const profileStartedAt = performance.now()
@@ -155,6 +164,7 @@ export async function withAuthorizedOperation<T>(
         if (!hasAtomicPermission(profile.roles[0], profile.permissions, permission)) {
           throw new ForbiddenException('Required application permission is missing.')
         }
+        if (inspection) await setInspectionTransactionBudget(tx, inspection.budget)
         const featureStartedAt = performance.now()
         try {
           return await work(tx, profile)
@@ -166,12 +176,17 @@ export async function withAuthorizedOperation<T>(
         ...(options?.transactionTimeoutMs === undefined
           ? {}
           : { timeoutMs: options.transactionTimeoutMs }),
+        ...(inspection ? { requestBudget: inspection.budget } : {}),
+        ...(options?.isolationLevel !== undefined
+          ? { isolationLevel: options.isolationLevel }
+          : {}),
         onTiming: (timing) => {
           databaseTiming = timing
         },
       },
     )
   } catch (error) {
+    inspection?.budget.check()
     if (error instanceof HttpException) throw error
     const code = prismaDiagnosticCode(error)
     if (code === 'P2002') {

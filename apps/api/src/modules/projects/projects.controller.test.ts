@@ -1,4 +1,4 @@
-import { ForbiddenException } from '@nestjs/common'
+import { ForbiddenException, ValidationPipe } from '@nestjs/common'
 import { plainToInstance } from 'class-transformer'
 import { validate } from 'class-validator'
 import { describe, expect, it, vi } from 'vitest'
@@ -20,7 +20,7 @@ const identity: ApplicationIdentity = {
   assignedProjectIds: [assignedProjectId],
 }
 
-describe('ProjectsController target goal contract', () => {
+describe('ProjectsController active project contract', () => {
   it('passes authenticated create and update payloads to the scoped project service', async () => {
     const service = {
       create: vi.fn().mockResolvedValue({ id: 'created' }),
@@ -31,12 +31,11 @@ describe('ProjectsController target goal contract', () => {
     const create = Object.assign(new CreateProjectDto(), {
       title: 'Synthetic project',
       status: 'PLANNED' as const,
-      targetGoal: '62.5',
     })
     const update = Object.assign(new UpdateProjectDto(), {
       title: 'Synthetic project',
       status: 'ONGOING' as const,
-      targetGoal: '75.25',
+
       expectedUpdatedAt: '2026-09-24T00:00:00.000Z',
     })
 
@@ -53,31 +52,95 @@ describe('ProjectsController target goal contract', () => {
     expect(() => controller.list({} as AuthenticatedRequest)).toThrow(ForbiddenException)
   })
 
-  it.each(['0', '-1', '100.0001', '50.00001', '1e2', 'NaN', 'Infinity'])(
-    'rejects invalid create target goal %s at the transport boundary',
+  it.each(['62.5', '0', '', null, 75])(
+    'rejects retired targetGoal %s through the configured ValidationPipe',
     async (targetGoal) => {
-      const dto = plainToInstance(CreateProjectDto, {
-        title: 'Synthetic project',
-        status: 'PLANNED',
-        targetGoal,
+      const pipe = new ValidationPipe({
+        whitelist: true,
+        forbidNonWhitelisted: true,
+        transform: true,
+        forbidUnknownValues: false,
       })
-      expect(await validate(dto)).not.toHaveLength(0)
+      for (const metatype of [CreateProjectDto, UpdateProjectDto]) {
+        await expect(
+          pipe.transform(
+            {
+              title: 'Synthetic project',
+              status: 'PLANNED',
+              ...(metatype === UpdateProjectDto
+                ? { expectedUpdatedAt: '2026-09-24T00:00:00.000Z' }
+                : {}),
+              targetGoal,
+            },
+            { type: 'body', metatype },
+          ),
+        ).rejects.toMatchObject({
+          status: 400,
+          response: { message: expect.arrayContaining(['property targetGoal should not exist']) },
+        })
+      }
     },
   )
 
-  it('accepts exact four-decimal target goals and optional update omission', async () => {
-    const create = plainToInstance(CreateProjectDto, {
-      title: 'Synthetic project',
-      status: 'PLANNED',
-      targetGoal: '62.5000',
+  it.each(['Partner A, Partner B', '', null])(
+    'rejects deprecated free-text implementingPartners %j through the configured ValidationPipe',
+    async (implementingPartners) => {
+      const pipe = new ValidationPipe({
+        whitelist: true,
+        forbidNonWhitelisted: true,
+        transform: true,
+        forbidUnknownValues: false,
+      })
+      for (const metatype of [CreateProjectDto, UpdateProjectDto]) {
+        await expect(
+          pipe.transform(
+            {
+              title: 'Synthetic project',
+              status: 'PLANNED',
+              ...(metatype === UpdateProjectDto
+                ? {
+                    expectedUpdatedAt: '2026-09-24T00:00:00.000Z',
+                    clientMutationId: '10000000-0000-4000-8000-000000000001',
+                  }
+                : {}),
+              implementingPartnerNames: ['Partner A'],
+              implementingPartners,
+            },
+            { type: 'body', metatype },
+          ),
+        ).rejects.toMatchObject({
+          status: 400,
+          response: {
+            message: expect.arrayContaining(['property implementingPartners should not exist']),
+          },
+        })
+      }
+    },
+  )
+
+  it('accepts goal-free creation and optimistic updates through the configured ValidationPipe', async () => {
+    const pipe = new ValidationPipe({
+      whitelist: true,
+      forbidNonWhitelisted: true,
+      transform: true,
+      forbidUnknownValues: false,
     })
-    const update = plainToInstance(UpdateProjectDto, {
-      title: 'Synthetic project',
-      status: 'ONGOING',
-      expectedUpdatedAt: '2026-09-24T00:00:00.000Z',
-    })
-    expect(await validate(create)).toHaveLength(0)
-    expect(await validate(update)).toHaveLength(0)
+    const create = await pipe.transform(
+      { title: 'Synthetic project', status: 'PLANNED', targetBeneficiaries: 250 },
+      { type: 'body', metatype: CreateProjectDto },
+    )
+    const update = await pipe.transform(
+      {
+        title: 'Synthetic project',
+        status: 'ONGOING',
+        expectedUpdatedAt: '2026-09-24T00:00:00.000Z',
+        clientMutationId: '10000000-0000-4000-8000-000000000001',
+      },
+      { type: 'body', metatype: UpdateProjectDto },
+    )
+    expect(create.targetBeneficiaries).toBe(250)
+    expect(create).not.toHaveProperty('targetGoal')
+    expect(update).not.toHaveProperty('targetGoal')
   })
 
   it.each([
@@ -91,7 +154,7 @@ describe('ProjectsController target goal contract', () => {
     const dto = plainToInstance(CreateProjectDto, {
       title: 'Synthetic project',
       status: 'PLANNED',
-      targetGoal: '75',
+
       ...invalid,
     })
     expect(await validate(dto)).not.toHaveLength(0)
@@ -103,11 +166,11 @@ describe('ProjectsController target goal contract', () => {
       description: 'Description',
       objectives: 'Objectives',
       implementationArea: 'Area',
-      implementingPartners: 'Partner',
+      implementingPartnerNames: ['Partner'],
       sector: 'Livelihood',
       targetBeneficiaries: '250',
       projectBudget: '125000.50',
-      targetGoal: '75.5000',
+
       startDate: '2026-01-01',
       endDate: '2026-12-31',
       status: 'PLANNED',

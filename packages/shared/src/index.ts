@@ -8,4 +8,5 @@ export * from './validation/activity-monitoring'
 export * from './validation/form-data'
 
 export * from './monitoring/metric-contract'
-export * from './monitoring/target-goal'
+export * from './monitoring/descriptive-analytics'
+export * from './monitoring/overview-metrics'

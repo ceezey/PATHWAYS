@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto'
 import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { historicalMigration } from '../../../scripts/migrations/history.mjs'
 
 export const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../..')
 export const pgBin = 'C:/Program Files/PostgreSQL/18/bin'
@@ -45,9 +46,7 @@ export function sha256(value) {
 
 export function verifySources() {
   for (const [name, expected] of migrations) {
-    const source = fs.readFileSync(
-      path.join(root, 'apps/api/prisma/migrations', name, 'migration.sql'),
-    )
+    const source = historicalMigration(name)
     requireCheck(sha256(source) === expected, 'SOURCE_CHECKSUM')
   }
 }

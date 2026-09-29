@@ -1,4 +1,5 @@
 import { type Page, expect, test } from '@playwright/test'
+import { stubBeneficiaryStepUp } from './fixtures/step-up'
 
 const evidencePath = (name: string) =>
   `docs/frontend-revision/systemrevision/evidence/phase2/${name}`
@@ -281,11 +282,8 @@ test('shared project selectors stay concrete and Analytics keeps the rearranged 
     ['program-manager', '/reports/project-summary', 'Project'],
   ] as const) {
     await resetAndSwitch(page, accountId)
+    if (route === '/beneficiaries') await stubBeneficiaryStepUp(page)
     await page.goto(route)
-    if (route === '/beneficiaries') {
-      await page.getByLabel('Beneficiary access PIN').fill('2468')
-      await page.getByRole('button', { name: 'Verify and enter' }).click()
-    }
     await expectConcreteProjectOptions(page, label)
   }
 

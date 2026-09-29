@@ -28,6 +28,7 @@ export const SidebarNavItem = ({
           : 'border-transparent text-navy-muted hover:border-white/10 hover:bg-white/[0.08] hover:text-white',
         compact && 'justify-center px-2',
       )}
+      prefetch={false}
       href={item.href}
       onClick={onNavigate}
       title={compact ? item.label : item.description}

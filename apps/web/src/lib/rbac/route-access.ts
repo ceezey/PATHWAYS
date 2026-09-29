@@ -6,7 +6,6 @@ import {
   rolePermissions,
 } from '../../../../api/src/modules/auth/authorization-policy'
 import { approvedApiBaseUrl } from '../api-base-url'
-import type { PermissionCode } from './permissions'
 // Route decisions are a UI ceiling; the API remains identity authority.
 export type RoutePrincipal = {
   roles: readonly string[]
@@ -26,8 +25,8 @@ export const routePolicy = {
   unauthorized: entry('/unauthorized', 'Unauthorized', ['projects.read']),
   projects: entry('/projects', 'Projects', ['projects.read']),
   projectCreate: entry('/projects/new', 'Project setup', ['projects.create']),
-  project: entry('/projects/:projectId', 'Projects', ['projects.read'], 'project'),
-  projectEdit: entry('/projects/:projectId/edit', 'Edit project', ['projects.create'], 'project'),
+  project: entry('/projects/:projectId', 'Projects', ['projects.detail.read'], 'project'),
+  projectEdit: entry('/projects/:projectId/edit', 'Edit project', ['projects.update'], 'project'),
   activities: entry(
     '/projects/:projectId/activities',
     'Activities',
@@ -40,16 +39,11 @@ export const routePolicy = {
     ['activities.read'],
     'activity',
   ),
-  evidence: entry(
-    '/projects/:projectId/evidence',
-    'Evidence review',
-    ['evidence.review'],
-    'project',
-  ),
+  evidence: entry('/projects/:projectId/evidence', 'Evidence review', ['evidence.read'], 'project'),
   indicators: entry(
     '/projects/:projectId/indicators',
     'Target indicators',
-    ['monitoring.read'],
+    ['indicators.read'],
     'project',
   ),
   monitoring: entry(
@@ -58,16 +52,11 @@ export const routePolicy = {
     ['monitoring.read'],
     'project',
   ),
-  budget: entry(
-    '/projects/:projectId/budget',
-    'Budget',
-    ['budgets.read', 'expenses.read', 'expenses.submit'],
-    'project',
-  ),
+  budget: entry('/projects/:projectId/budget', 'Budget', ['budgets.read'], 'project'),
   journey: entry(
     '/projects/:projectId/journey-stages',
     'Journey stages',
-    ['activities.create', 'monitoring.review'],
+    ['journeys.manage'],
     'project',
   ),
   transparency: entry(
@@ -101,7 +90,7 @@ export const routePolicy = {
   ),
   collection: entry('/collection', 'Collection', ['collection.read']),
   manualEntry: entry('/collection/entry', 'Encode project data', ['submissions.write']),
-  forms: entry('/collection/forms', 'Forms', ['forms.read']),
+  forms: entry('/collection/forms', 'Forms', ['forms.manage']),
   formCreate: entry('/collection/forms/new', 'Form setup', ['forms.manage']),
   form: entry(
     '/collection/projects/:projectId/forms/:formId',
@@ -129,31 +118,22 @@ export const routePolicy = {
   beneficiaryReport: entry('/reports/beneficiary-summary', 'Beneficiary Summary', [
     'reports.beneficiary.read',
   ]),
-  surveyReport: entry('/reports/survey-results', 'Survey/Form Results', ['reports.read']),
+  surveyReport: entry('/reports/survey-results', 'Survey/Form Results', ['reports.project.read']),
   reportPreview: entry('/reports/preview', 'Report preview', ['reports.read']),
   users: entry('/settings/users', 'User Management', ['users.authorize']),
-  labels: entry('/settings/labels', 'Edit Labels', ['settings.read']),
-  audit: entry('/settings/audit', 'Audit Log', ['settings.read']),
-  backups: entry('/settings/backups', 'Backup & Recovery', ['settings.read']),
-  profile: entry('/settings/profile', 'My Profile', ['settings.read']),
+  labels: entry('/settings/labels', 'Edit Labels', ['settings.labels.manage']),
+  audit: entry('/settings/audit', 'Audit Log', ['audit.read']),
+  backups: entry('/settings/backups', 'Backup & Recovery', ['backups.create', 'backups.restore']),
+  profile: entry('/settings/profile', 'My Profile', ['profile.manage']),
   settings: entry('/settings', 'Settings', ['settings.read']),
 } as const
 export type RouteKey = keyof typeof routePolicy
-const legacyDecisionSupportReadRoles = new Set([
-  'SYSTEM_ADMINISTRATOR',
-  'PROGRAM_MANAGER',
-  'PROJECT_MANAGER',
-])
 const hasRoutePermission = (
   role: string,
   granted: readonly string[],
-  route: RouteKey,
+  _route: RouteKey,
   permissions: readonly AtomicPermission[],
-) =>
-  permissions.some((permission) => hasAtomicPermission(role, granted, permission)) ||
-  ((route === 'alerts' || route === 'recommendations') &&
-    legacyDecisionSupportReadRoles.has(role) &&
-    hasAtomicPermission(role, granted, 'recommendations.outcome.record'))
+) => permissions.some((permission) => hasAtomicPermission(role, granted, permission))
 
 export type RouteSelection = {
   route: RouteKey
@@ -192,7 +172,11 @@ export function authorizationPathForUiPath(input: string): string | null {
     canonical = '/beneficiaries'
   else if (pathname === '/imports') canonical = '/collection/import'
   else if (pathname === '/indicators') canonical = '/projects'
-  else if (/^\/transparency\/[^/]+\/preview\/?$/.test(pathname))
+  else if (/^\/recommendations\/[^/]+\/?$/.test(pathname)) {
+    const id = pathname.split('/')[2]
+    if (!uuid.test(id)) return null
+    canonical = '/recommendations'
+  } else if (/^\/transparency\/[^/]+\/preview\/?$/.test(pathname))
     canonical = pathname
       .replace(/^\/transparency\//, '/projects/')
       .replace(/\/preview\/?$/, '/transparency/preview')
@@ -326,8 +310,8 @@ export function routeAllowed(
   if (
     selection.route === 'imports' &&
     selection.mode === 'extend' &&
-    !(['forms.manage', 'imports.upload', 'imports.review', 'imports.process'] as const).every(
-      (permission) => hasAtomicPermission(role, principal.permissions, permission),
+    !(['forms.manage', 'forms.templates.import', 'imports.upload'] as const).every((permission) =>
+      hasAtomicPermission(role, principal.permissions, permission),
     )
   )
     return false
@@ -510,40 +494,11 @@ export function filterDashboardNavGroups<T extends { items: { href: string }[] }
     }))
     .filter((group) => group.items.length > 0)
 }
+/** A project workspace tab opens a route, so it carries that route's permissions. */
 export interface WorkspaceTabAccess {
   label: string
   path: string
-  permission?: PermissionCode
-  anyPermissions?: PermissionCode[]
-}
-const legacyPermissions: Partial<Record<PermissionCode, readonly AtomicPermission[]>> = {
-  'projects.view': ['projects.read'],
-  'projects.create': ['projects.create'],
-  'activities.view': ['activities.read'],
-  'activities.create_edit': ['activities.create', 'activities.update'],
-  'activities.submit_update_proof': ['activities.proof.submit'],
-  'evidence.review': ['evidence.review'],
-  'indicators.manage': ['indicators.create', 'indicators.update'],
-  'monitor_evaluate.view': ['monitoring.read'],
-  'monitor_evaluate.full': ['monitoring.review'],
-  'budget.full': ['budgets.read'],
-  'budget.portfolio_view': ['budgets.read'],
-  'budget.expense.view': ['expenses.read'],
-  'budget.expense.log': ['expenses.submit'],
-  'transparency.preview': ['public.preview'],
-  'transparency.publish': ['public.publish'],
-  'rules.view': ['rules.read'],
-  'alerts.view': ['alerts.read'],
-  'alerts.review': ['alerts.review'],
-  'alerts.outcome.record': ['alerts.outcome.record'],
-  'recommendations.view': ['recommendations.read'],
-  'recommendations.review': ['recommendations.review'],
-  'recommendations.outcome.record': ['recommendations.outcome.record'],
-  'alerts.outcome.log': ['recommendations.outcome.record'],
-  'reports.view': ['reports.read'],
-  'reports.project_summary.view': ['reports.project.read'],
-  'reports.indicator_summary.view': ['reports.indicator.read'],
-  'reports.beneficiary_summary.view': ['reports.beneficiary.read'],
+  route?: RouteKey
 }
 export const filterWorkspaceTabs = <T extends WorkspaceTabAccess>(
   tabs: T[],
@@ -561,9 +516,9 @@ export const filterWorkspaceTabs = <T extends WorkspaceTabAccess>(
   return tabs.filter(
     (tab) =>
       !!key &&
-      ((!tab.permission && !tab.anyPermissions) ||
-        (tab.anyPermissions ?? (tab.permission ? [tab.permission] : [])).some((p) =>
-          legacyPermissions[p]?.some((a) => hasAtomicPermission(key, rolePermissions[key], a)),
+      (!tab.route ||
+        routePolicy[tab.route].permissions.some((permission) =>
+          hasAtomicPermission(key, rolePermissions[key], permission),
         )),
   )
 }

@@ -1,6 +1,7 @@
 'use client'
 
 import { Toaster } from '@/components/ui/sonner'
+import { AuthorizedQueryProvider } from '@/providers/authorized-query-provider'
 import { CurrentRoleProvider } from '@/providers/current-role-provider'
 import { DisplayLabelsProvider } from '@/providers/display-labels-provider'
 import { QueryProvider } from '@/providers/query-provider'
@@ -11,7 +12,7 @@ export const AppProviders = ({ children }: { children: React.ReactNode }) => (
     <SessionProvider>
       <DisplayLabelsProvider>
         <CurrentRoleProvider>
-          {children}
+          <AuthorizedQueryProvider>{children}</AuthorizedQueryProvider>
           <Toaster richColors position="top-right" />
         </CurrentRoleProvider>
       </DisplayLabelsProvider>

@@ -1,6 +1,7 @@
 import { readFile } from 'node:fs/promises'
 
 import { type Download, type Page, expect, test } from '@playwright/test'
+import { stubBeneficiaryStepUp } from './fixtures/step-up'
 
 test.describe.configure({ mode: 'serial' })
 
@@ -93,14 +94,8 @@ test('Phase 4: all UC entry points are reachable by their final-source actors', 
     '/projects/futuremakers-ncr/journey-stages',
     '/dashboard',
   ]) {
+    if (path.startsWith('/beneficiaries')) await stubBeneficiaryStepUp(page)
     await page.goto(path)
-    if (path === '/beneficiaries') {
-      await expect(
-        page.getByRole('dialog', { name: 'Verify beneficiary module access' }),
-      ).toBeVisible()
-      await page.getByLabel('Beneficiary access PIN').fill('2468')
-      await page.getByRole('button', { name: 'Verify and enter' }).click()
-    }
     await expect(page.getByText('Unauthorized access', { exact: true })).toHaveCount(0)
     await expect(page.locator('main')).toBeVisible()
   }

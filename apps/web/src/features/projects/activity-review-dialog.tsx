@@ -1,4 +1,9 @@
 'use client'
+import { SourceMutationRecovery } from './source-mutation-recovery'
+
+import { useCurrentRole } from '@/hooks/use-current-role'
+import { useSourceMutationContext } from '@/hooks/use-source-mutation-context'
+import { isSourceReplay, sourceMutationTickets } from '@/lib/services/source-mutation'
 
 import { CheckCircle2, Loader2, RotateCcw } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
@@ -24,6 +29,14 @@ export const ActivityReviewDialog = ({
   onOpenChange: (open: boolean) => void
   onReviewed: (activity: Activity) => void
 }) => {
+  const { profile } = useCurrentRole()
+  const mutationContext = useSourceMutationContext(
+    profile,
+    'evidence.review',
+    activity?.projectId ?? null,
+    JSON.stringify([activity?.id, activity?.updatedAt]),
+    open,
+  )
   const [reason, setReason] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState('')
@@ -43,6 +56,7 @@ export const ActivityReviewDialog = ({
   }, [open])
 
   const submit = async () => {
+    if (!mutationContext?.isCurrent()) return
     if (!activity || !pendingUpdate) {
       setError('No pending activity update is available for review.')
       return
@@ -61,24 +75,35 @@ export const ActivityReviewDialog = ({
         decision,
         reason.trim(),
         pendingUpdate.updatedAt,
+        mutationContext,
       )
+      if (!mutationContext.isCurrent()) return
+      const record = isSourceReplay(updated)
+        ? await pathwaysClient.getActivity(activity.projectId, activity.id)
+        : updated
+      if (!mutationContext.isCurrent()) return
+      if (isSourceReplay(updated))
+        sourceMutationTickets.finishAcknowledgement(mutationContext, updated.requestId)
       toast.success(
         decision === 'APPROVE' ? 'Activity update approved.' : 'Activity update returned.',
         {
           description:
             decision === 'APPROVE'
-              ? 'The activity is now completed and the submitted proof is verified.'
+              ? record.status === 'Completed'
+                ? 'The activity is now completed and the submitted proof is verified.'
+                : 'The submitted progress is approved and the proof is verified.'
               : 'The activity is back In Progress for revision and resubmission.',
         },
       )
-      onReviewed(updated)
+      onReviewed(record)
       onOpenChange(false)
     } catch (caught) {
+      if (!mutationContext?.isCurrent()) return
       setError(
         caught instanceof PathwaysClientError ? caught.message : 'The review could not be saved.',
       )
     } finally {
-      setSubmitting(false)
+      if (mutationContext?.isCurrent()) setSubmitting(false)
     }
   }
 
@@ -89,6 +114,19 @@ export const ActivityReviewDialog = ({
         description="Review decisions are persisted with the reviewer, reason, and timestamp."
       >
         <div className="space-y-4">
+          {activity && pendingUpdate ? (
+            <SourceMutationRecovery
+              context={mutationContext}
+              prefix={`/projects/${activity.projectId}/activities/${activity.id}/updates/${pendingUpdate.id}/review`}
+              onRecovered={async () => {
+                const record = await pathwaysClient.getActivity(activity.projectId, activity.id)
+                return () => {
+                  onReviewed(record)
+                  onOpenChange(false)
+                }
+              }}
+            />
+          ) : null}
           {pendingUpdate ? (
             <div className="rounded-lg border border-border bg-muted/40 p-4 text-sm">
               <p className="font-medium text-foreground">{pendingUpdate.progress}% progress</p>

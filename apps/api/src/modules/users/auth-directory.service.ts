@@ -1,14 +1,14 @@
 import { BadGatewayException, Injectable } from '@nestjs/common'
 import { createClient } from '@supabase/supabase-js'
 
-import { readApiEnv } from '@pathways/config'
+import { isApprovedServiceProtocol, readApiEnv } from '@pathways/config'
 import { UUID_PATTERN } from '../auth/developer-access'
 
 function verifiedAuthOrigin(value: string) {
   const normalized = value.replace(/\/$/, '')
   const url = new URL(normalized)
   if (
-    url.protocol !== 'https:' ||
+    !isApprovedServiceProtocol(url) ||
     url.origin !== normalized ||
     url.username ||
     url.password ||

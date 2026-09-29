@@ -1,4 +1,9 @@
-import type { Activity, ActivityStatus, UpdateActivityInput } from '@/types/pathways'
+import type {
+  Activity,
+  ActivityStatus,
+  ActivitySummary,
+  UpdateActivityInput,
+} from '@/types/pathways'
 
 export const activityStatuses: ActivityStatus[] = [
   'Planned',
@@ -69,9 +74,33 @@ export const activityNextStep = (status: ActivityStatus) => {
   return 'Confirm the completed activity record'
 }
 
-export const formatCurrency = (value: number | null | undefined) =>
+/** Projects a full activity (a save or detail response) onto the lean list item shape. */
+export const activitySummary = (activity: Activity): ActivitySummary => ({
+  id: activity.id,
+  projectId: activity.projectId,
+  code: activity.code,
+  title: activity.title,
+  description: activity.description,
+  storedStatus: activity.storedStatus,
+  status: activity.status,
+  overdue: activity.overdue,
+  startDate: activity.startDate,
+  dueDate: activity.dueDate,
+  assignedUserIds: activity.assignedUserIds,
+  assignedTo: activity.assignedTo,
+  indicatorIds: activity.indicatorIds,
+  journeyStageIds: activity.journeyStageIds,
+  journeyStageId: activity.journeyStageId,
+  targetBeneficiaries: activity.targetBeneficiaries,
+  progress: activity.progress,
+  updatedAt: activity.updatedAt,
+  capabilities: activity.capabilities,
+})
+
+/** `missing` names why no amount is shown: "None yet" only when the viewer could see one. */
+export const formatCurrency = (value: number | null | undefined, missing = 'Unavailable') =>
   value === null || value === undefined || !Number.isFinite(value)
-    ? 'Unavailable'
+    ? missing
     : new Intl.NumberFormat('en-US', {
         currency: 'PHP',
         maximumFractionDigits: 2,

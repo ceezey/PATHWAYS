@@ -1,4 +1,5 @@
 import { type Locator, type Page, expect, test } from '@playwright/test'
+import { stubBeneficiaryStepUp } from './fixtures/step-up'
 
 async function switchAccount(page: Page, accountId: string) {
   await page.goto('/review/demo-controls')
@@ -121,11 +122,9 @@ test('post-handoff UI corrections preserve actions while relocating the requeste
   })
 
   await switchAccount(page, 'project-officer')
+  await stubBeneficiaryStepUp(page)
   await page.goto('/beneficiaries/ben-001')
-  const gate = page.getByRole('dialog', { name: 'Verify beneficiary module access' })
-  await gate.getByLabel('Beneficiary access PIN').fill('2468')
-  await gate.getByRole('button', { name: 'Verify and enter' }).click()
-  await expect(gate).toBeHidden()
+  await expect(page.getByRole('dialog', { name: 'Verify beneficiary module access' })).toBeHidden()
   await expect(page.getByRole('button', { name: 'Relock beneficiary records' })).toHaveCount(0)
   await page.getByRole('button', { name: /J3.*Skills bootcamp branch/i }).click()
   for (const name of ['Record participation', 'View assessment', 'Add note']) {

@@ -14,26 +14,15 @@ import type { ProjectDetail } from '@/types/pathways'
 
 import { projectHealthTone, projectStatusTone } from './project-utils'
 
+// Each tab carries the route it opens, so tab visibility equals route access.
 const createWorkspaceTabs = (labels: DisplayLabels): WorkspaceTabAccess[] => [
-  { label: 'Overview', path: '' },
-  { label: labels.projectActivities, path: 'activities', permission: 'activities.view' },
-  { label: labels.projectIndicators, path: 'indicators', permission: 'indicators.manage' },
-  { label: labels.projectEvidence, path: 'evidence', permission: 'evidence.review' },
-  {
-    label: labels.projectMonitorEvaluate,
-    path: 'monitor-evaluate',
-    permission: 'monitor_evaluate.view',
-  },
-  {
-    label: labels.projectBudget,
-    path: 'budget',
-    anyPermissions: ['budget.expense.view', 'budget.full', 'budget.portfolio_view'],
-  },
-  {
-    label: labels.projectJourneyStages,
-    path: 'journey-stages',
-    anyPermissions: ['activities.create_edit', 'monitor_evaluate.full'],
-  },
+  { label: 'Overview', path: '', route: 'project' },
+  { label: labels.projectActivities, path: 'activities', route: 'activities' },
+  { label: labels.projectIndicators, path: 'indicators', route: 'indicators' },
+  { label: labels.projectEvidence, path: 'evidence', route: 'evidence' },
+  { label: labels.projectMonitorEvaluate, path: 'monitor-evaluate', route: 'monitoring' },
+  { label: labels.projectBudget, path: 'budget', route: 'budget' },
+  { label: labels.projectJourneyStages, path: 'journey-stages', route: 'journey' },
 ]
 
 export const ProjectWorkspaceHeader = ({ project }: { project: ProjectDetail }) => {
@@ -54,11 +43,7 @@ export const ProjectWorkspaceHeader = ({ project }: { project: ProjectDetail }) 
       <div className="min-w-0 space-y-3">
         <div className="flex flex-wrap gap-2">
           <StatusBadge tone={projectStatusTone(project.status)}>{project.status}</StatusBadge>
-          <StatusBadge
-            tone={project.metricsAvailable ? projectHealthTone(project.health) : 'neutral'}
-          >
-            {project.metricsAvailable ? project.health : 'Not assessed'}
-          </StatusBadge>
+          <StatusBadge tone={projectHealthTone(project.health)}>{project.health}</StatusBadge>
         </div>
         <div>
           <h2 className="text-2xl font-semibold tracking-tight text-foreground sm:text-3xl">

@@ -20,11 +20,6 @@ const makeProject = (id: string): ProjectSummary => ({
   health: 'On Track',
   period: '2026',
   projectManager: 'Test manager',
-  kpiAchievement: 0,
-  beneficiariesReached: 0,
-  budgetUtilization: 0,
-  timelineProgress: 0,
-  targetGoal: null,
 })
 
 const testProjects = [
@@ -124,7 +119,7 @@ describe('RBAC project assignments and data scope', () => {
       'project-beta',
     ])
     expect(projectIds('Program Manager')).toEqual(allProjectIds)
-    expect(projectIds('Grant Manager')).toEqual(allProjectIds)
+    expect(projectIds('Grant Manager')).toEqual([])
     expect(projectIds('System Administrator')).toEqual(allProjectIds)
   })
 
@@ -146,7 +141,7 @@ describe('RBAC project assignments and data scope', () => {
       ),
     ).toBe(true)
     expect(canAccessProjectForRole('Program Manager', 'project-gamma')).toBe(true)
-    expect(canAccessProjectForRole('Grant Manager', 'project-gamma')).toBe(true)
+    expect(canAccessProjectForRole('Grant Manager', 'project-gamma')).toBe(false)
     expect(canAccessProjectForRole('System Administrator', 'project-gamma')).toBe(true)
   })
 
@@ -183,9 +178,7 @@ describe('RBAC project assignments and data scope', () => {
       'beneficiary-beta',
       'beneficiary-shared',
     ])
-    expect(beneficiaryIds('System Administrator')).toEqual(
-      testBeneficiaries.map((beneficiary) => beneficiary.id),
-    )
+    expect(beneficiaryIds('System Administrator')).toEqual([])
   })
 
   it('uses the same assignment check for direct Beneficiary record access', () => {
@@ -193,7 +186,7 @@ describe('RBAC project assignments and data scope', () => {
     const beta = beneficiaryById('beneficiary-beta')
     const gamma = beneficiaryById('beneficiary-gamma')
 
-    expect(canAccessBeneficiaryForRole('System Administrator', gamma)).toBe(true)
+    expect(canAccessBeneficiaryForRole('System Administrator', gamma)).toBe(false)
     expect(canAccessBeneficiaryForRole('Program Manager', alpha)).toBe(false)
     expect(canAccessBeneficiaryForRole('Grant Manager', alpha)).toBe(false)
     expect(

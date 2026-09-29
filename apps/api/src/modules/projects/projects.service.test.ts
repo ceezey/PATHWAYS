@@ -1,3 +1,54 @@
+// These existing domain tests isolate receipt transport; dedicated source tests cover its boundary.
+vi.mock('../rules/rules-source-operation', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../rules/rules-source-operation')>()),
+  beginRuleSourceOperation: async (
+    _tx: unknown,
+    operation: string,
+    projectId: string,
+    sourceId: string | null,
+    _key: unknown,
+    body: Record<string, unknown>,
+  ) => ({
+    kind: 'NEW',
+    operationHandle: 'f0000000-0000-4000-8000-000000000001',
+    reservedRecordId: ['ACTIVITY_CREATE', 'INDICATOR_CREATE', 'INDICATOR_MEASUREMENT'].includes(
+      operation,
+    )
+      ? 'f0000000-0000-4000-8000-000000000002'
+      : null,
+    generatedValues: {
+      timestamp: '2026-09-27T00:00:00.001Z',
+      businessDate: '2026-09-27',
+      normalizedValue: operation === 'INDICATOR_MEASUREMENT' ? body.value : null,
+      requestHash:
+        operation === 'INDICATOR_MEASUREMENT'
+          ? (await import('node:crypto'))
+              .createHash('sha256')
+              .update(
+                JSON.stringify({
+                  projectId,
+                  indicatorId: sourceId,
+                  periodStart: body.periodStart,
+                  periodEnd: body.periodEnd,
+                  value: body.value,
+                  source: body.source,
+                  note: body.note ?? null,
+                  correctsMeasurementId: body.correctsMeasurementId ?? null,
+                  correctionReason: body.correctionReason ?? null,
+                }),
+              )
+              .digest('hex')
+          : null,
+    },
+  }),
+  finishRuleSourceOperation: async (_tx: unknown, _handle: string, requestId: string) => ({
+    requestId,
+    committed: true,
+    replayed: false,
+  }),
+  readRuleSourceAcknowledgement: async () => null,
+  bootstrapRuleSourceProject: async () => undefined,
+}))
 import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common'
 import { Prisma } from '@prisma/client'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -50,9 +101,12 @@ const project = {
   objectives: 'Objectives',
   implementationArea: 'Area',
   implementingPartners: 'Partner',
+  implementingPartnerLinks: [
+    { partner: { id: '77000000-0000-4000-8000-000000000007', name: 'Synthetic Partner' } },
+  ],
   sector: 'Livelihood',
   targetBeneficiaries: 250,
-  targetGoal: new Prisma.Decimal('75.5'),
+
   programManagerId: null,
   startDate: new Date('2026-01-01T00:00:00.000Z'),
   endDate: new Date('2026-12-31T00:00:00.000Z'),
@@ -85,6 +139,7 @@ const tx = {
   systemUser: { findFirst: vi.fn(), findMany: vi.fn() },
   project: {
     create: vi.fn(),
+    updateMany: vi.fn(),
     findFirst: vi.fn(),
     findUniqueOrThrow: vi.fn(),
   },
@@ -101,6 +156,7 @@ const tx = {
     update: vi.fn(),
   },
   auditLog: { create: vi.fn() },
+  $queryRaw: vi.fn().mockResolvedValue([]),
 }
 
 describe('Project creation contract', () => {
@@ -131,11 +187,10 @@ describe('Project creation contract', () => {
       description: project.description,
       objectives: project.objectives,
       implementationArea: project.implementationArea,
-      implementingPartners: project.implementingPartners,
       sector: project.sector,
       targetBeneficiaries: 250,
       projectBudget: '125000.50',
-      targetGoal: '75.5000',
+
       startDate: '2026-01-01',
       endDate: '2026-12-31',
       status: 'PLANNED' as const,
@@ -146,22 +201,28 @@ describe('Project creation contract', () => {
     expect(created).toMatchObject({
       id: projectId,
       implementingPartners: 'Partner',
+      implementingPartnerRecords: [
+        { id: '77000000-0000-4000-8000-000000000007', name: 'Synthetic Partner' },
+      ],
       sector: 'Livelihood',
       targetBeneficiaries: 250,
       projectBudget: '125000.50',
-      targetGoal: '75.5',
+
       projectManagerId: managerId,
       projectOfficerIds: [officerId],
     })
+    expect(created).not.toHaveProperty('targetGoal')
+    expect(tx.project.create.mock.calls[0]?.[0].data).not.toHaveProperty('targetGoal')
+    // The deprecated legacy column is never written (migration 0039).
+    expect(tx.project.create.mock.calls[0]?.[0].data).not.toHaveProperty('implementingPartners')
+    expect(tx.auditLog.create.mock.calls[0]?.[0].data.changes).not.toHaveProperty('targetGoal')
     await expect(service.get(manager, projectId)).resolves.toEqual(created)
     expect(tx.project.create).toHaveBeenCalledWith(
       expect.objectContaining({
         data: expect.objectContaining({
           organizationId,
-          implementingPartners: 'Partner',
           sector: 'Livelihood',
           targetBeneficiaries: 250,
-          targetGoal: expect.any(Prisma.Decimal),
         }),
       }),
     )
@@ -181,6 +242,34 @@ describe('Project creation contract', () => {
     })
   })
 
+  it.each([new Prisma.Decimal('75.1234'), null])(
+    'preserves stored historical target %s by omitting it from update data',
+    async (historical) => {
+      const stored = { ...project, targetGoal: historical }
+      tx.project.findFirst.mockImplementation(async () => stored)
+      tx.project.findUniqueOrThrow.mockImplementation(async () => stored)
+      tx.project.updateMany.mockImplementation(async ({ data }) => {
+        Object.assign(stored, data)
+        return { count: 1 }
+      })
+      const result = await service.update(manager, projectId, {
+        title: 'Updated scope',
+        status: 'ONGOING',
+        clientMutationId: 'e0000000-0000-4000-8000-000000000001',
+        expectedUpdatedAt: now.toISOString(),
+        targetBeneficiaries: 350,
+      })
+      const update = tx.project.updateMany.mock.calls[0]?.[0]
+      expect(update.where).toMatchObject({ organizationId, id: projectId, updatedAt: now })
+      expect(update.data).not.toHaveProperty('targetGoal')
+      expect(stored.targetGoal).toBe(historical)
+      if (stored.targetGoal !== null) expect(stored.targetGoal.toFixed(4)).toBe('75.1234')
+      expect(stored.targetBeneficiaries).toBe(350)
+      expect(result).not.toHaveProperty('targetGoal')
+      expect(tx.auditLog.create.mock.calls[0]?.[0].data.changes).not.toHaveProperty('targetGoal')
+    },
+  )
+
   it('rejects unavailable or cross-organization team selections', async () => {
     tx.systemUser.findMany.mockResolvedValueOnce([
       { id: managerId, role: { code: 'PROJECT_MANAGER' } },
@@ -188,7 +277,7 @@ describe('Project creation contract', () => {
     await expect(
       service.create(manager, {
         title: project.title,
-        targetGoal: '75',
+
         status: 'PLANNED',
         projectOfficerIds: [officerId],
       }),
@@ -205,9 +294,21 @@ describe('Project creation contract', () => {
     await expect(
       service.create(state.actor, {
         title: project.title,
-        targetGoal: '75',
+
         status: 'PLANNED',
       }),
+    ).rejects.toBeInstanceOf(ForbiddenException)
+    expect(tx.project.create).not.toHaveBeenCalled()
+  })
+
+  it('rejects Project creation for System Administrator even with a forged create grant', async () => {
+    state.actor = {
+      ...manager,
+      roles: ['SYSTEM_ADMINISTRATOR'],
+      permissions: ['projects.read', 'projects.create'],
+    }
+    await expect(
+      service.create(state.actor, { title: project.title, status: 'PLANNED' }),
     ).rejects.toBeInstanceOf(ForbiddenException)
     expect(tx.project.create).not.toHaveBeenCalled()
   })

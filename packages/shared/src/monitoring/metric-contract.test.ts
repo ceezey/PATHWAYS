@@ -1,19 +1,23 @@
 import { describe, expect, it } from 'vitest'
 import {
   businessCalendarDate,
+  createIndicatorDraftSchema,
   createIndicatorSchema,
   dashboardQuerySchema,
   indicatorProgress,
   isCalendarDate,
   manualMeasurementSchema,
   metricCellSchema,
+  monitoringIndicatorSchema,
   normalizeMetricDecimal,
   numericMetric,
+  projectIndicatorSchema,
   sadddAgeBands,
   validateMetricPeriod,
 } from './metric-contract'
 
 const definition = {
+  clientMutationId: '77000000-0000-4000-8000-000000000009',
   code: 'TRAINING_2026',
   name: 'Training participation',
   unitLabel: 'records',
@@ -29,6 +33,18 @@ const definition = {
 } as const
 
 describe('P06 exact numeric and missing-value contracts', () => {
+  it('validates a strict semantic draft without weakening API request UUID admission', () => {
+    const { clientMutationId, ...draft } = definition
+    expect(createIndicatorDraftSchema.safeParse(draft).success).toBe(true)
+    expect(createIndicatorSchema.safeParse(draft).success).toBe(false)
+    expect(createIndicatorSchema.safeParse({ ...draft, clientMutationId }).success).toBe(true)
+    expect(createIndicatorDraftSchema.safeParse({ ...draft, clientMutationId }).success).toBe(false)
+    expect(createIndicatorDraftSchema.safeParse({ ...draft, target: '-1' }).success).toBe(false)
+    expect(
+      createIndicatorSchema.safeParse({ ...draft, clientMutationId, target: '-1' }).success,
+    ).toBe(false)
+  })
+
   it.each([
     ['0', 'COUNT', '0'],
     ['12.0000', 'COUNT', '12'],
@@ -196,5 +212,59 @@ describe('P06 calendar bounds and confirmed G4 labels', () => {
     expect(() => validateMetricPeriod('2024-01-01', '2025-01-01')).toThrow()
     expect(() => validateMetricPeriod('2026-06-30', '2026-06-01')).toThrow()
     expect(sadddAgeBands).toEqual(['0-9', '10-14', '15-17', '18-24', '25+', 'Unknown'])
+  })
+})
+
+describe('retired project benchmark contract', () => {
+  const indicator = {
+    id: '77000000-0000-4000-8000-000000000001',
+    projectId: '77000000-0000-4000-8000-000000000002',
+    code: 'OWN_TARGET',
+    name: 'Own target',
+    description: null,
+    unitLabel: 'count',
+    dataSource: 'Reviewed source',
+    mode: 'MANUAL',
+    numericKind: 'COUNT',
+    direction: 'HIGHER_IS_BETTER',
+    displayPrecision: 0,
+    periodStart: '2026-06-01',
+    periodEnd: '2026-06-30',
+    baseline: '10',
+    target: '30',
+    current: numericMetric('20'),
+    progress: numericMetric('50'),
+    binding: null,
+    measurementId: null,
+    measuredAt: null,
+    measurementSource: null,
+    revision: 1,
+    status: 'ACTIVE',
+    contractVersion: 'p06.v1',
+  }
+  it('uses one strict active project/monitoring schema and rejects a retired comparison', () => {
+    expect(projectIndicatorSchema).toBe(monitoringIndicatorSchema)
+    expect(projectIndicatorSchema.safeParse(indicator).success).toBe(true)
+    expect(
+      projectIndicatorSchema.safeParse({
+        ...indicator,
+        projectGoalComparison: { state: 'AT_TARGET', reason: null },
+      }).success,
+    ).toBe(false)
+    expect(projectIndicatorSchema.safeParse({ ...indicator, targetGoal: '50' }).success).toBe(false)
+  })
+  it('keeps own baseline-target progress and unavailable denominators unchanged', () => {
+    expect(indicatorProgress(numericMetric('20'), '10', '30', 'HIGHER_IS_BETTER')).toMatchObject({
+      state: 'AVAILABLE',
+      value: '50',
+    })
+    expect(indicatorProgress(numericMetric('20'), '10', '10', 'HIGHER_IS_BETTER')).toMatchObject({
+      state: 'NOT_APPLICABLE',
+      value: null,
+    })
+    expect(indicatorProgress(numericMetric('20'), null, '30', 'HIGHER_IS_BETTER')).toMatchObject({
+      state: 'NOT_APPLICABLE',
+      value: null,
+    })
   })
 })

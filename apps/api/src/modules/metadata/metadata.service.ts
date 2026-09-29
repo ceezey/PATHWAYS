@@ -16,19 +16,23 @@ import {
   validateAndNormalizeFormData,
 } from '@pathways/shared'
 import { PrismaService } from '../../prisma/prisma.service'
+import { hasAtomicPermission } from '../auth/authorization-policy'
 import { projectScope } from '../auth/authorized-data.service'
 import { withAuthorizedOperation } from '../auth/authorized-operation'
 import { type ApplicationIdentity, UUID_PATTERN } from '../auth/developer-access'
 import { ParticipantsService } from '../participants/participants.service'
+import { type FormTemplateKey, formTemplates } from './form-templates'
 import type {
   CreateFormDto,
   ExpectedVersionDto,
+  GenerateFormDto,
   ListSubmissionsQueryDto,
   SaveSubmissionDto,
   SubmitSubmissionDto,
   UpdateFormDto,
   UpdateSubmissionDto,
 } from './metadata.dto'
+import { PublishedDefinitionCache } from './published-definition-cache'
 
 type Tx = Prisma.TransactionClient
 
@@ -128,6 +132,24 @@ function mapForm(form: FormRow, actor: ApplicationIdentity) {
   }
 }
 
+function fieldInput(field: FormRow['formField_form'][number]): CreateFormDto['fields'][number] {
+  return {
+    code: field.code,
+    label: field.label,
+    dataType: field.dataType,
+    required: field.isRequired,
+    metadataKey: field.isMetadataKey,
+    sadddField: field.isSadddField,
+    allowedValues: allowedValues(field.allowedValues) ?? undefined,
+    minimumValue: field.minimumValue?.toString(),
+    maximumValue: field.maximumValue?.toString(),
+    minimumDate: field.minimumDate?.toISOString().slice(0, 10),
+    maximumDate: field.maximumDate?.toISOString().slice(0, 10),
+    minimumLength: field.minimumLength ?? undefined,
+    maximumLength: field.maximumLength ?? undefined,
+  }
+}
+
 function assertDefinition(input: CreateFormDto) {
   const result = validateAndNormalizeFormData(
     input.fields.map((field) => ({ ...field, required: field.required })),
@@ -177,6 +199,10 @@ function sameValues(
 
 @Injectable()
 export class MetadataService {
+  private readonly publishedDefinitions = new PublishedDefinitionCache<{
+    fingerprint: string
+    value: ReturnType<typeof mapForm>
+  }>()
   constructor(
     @Inject(PrismaService) private readonly prisma: PrismaService,
     @Inject(ParticipantsService) private readonly participants: ParticipantsService,
@@ -197,8 +223,49 @@ export class MetadataService {
 
   getForm(identity: ApplicationIdentity, projectId: string, formId: string) {
     return withAuthorizedOperation(this.prisma, identity, 'forms.read', async (tx, actor) => {
-      const row = await this.requireForm(tx, actor, projectId, formId)
-      return mapForm(row, actor)
+      const scopedProjectId = await this.requireProject(tx, actor, projectId)
+      if (!UUID_PATTERN.test(formId)) throw new NotFoundException('Form unavailable.')
+      const id = formId.toLowerCase()
+      const key = JSON.stringify([
+        actor.id,
+        actor.organizationId,
+        actor.userId,
+        actor.aal,
+        [...actor.roles].sort(),
+        [...actor.permissions].sort(),
+        [...actor.assignedProjectIds].sort(),
+        scopedProjectId,
+        id,
+      ])
+      // Cached data is a candidate only. Current scoped SQL source/status must
+      // match before this payload can be returned; authority is never cached.
+      const candidate = this.publishedDefinitions.read(key)
+      const current = await this.currentDefinition(
+        tx,
+        actor,
+        scopedProjectId,
+        id,
+        candidate?.fingerprint ?? null,
+      )
+      if (!current) throw new NotFoundException('Form unavailable.')
+      if (!current.fingerprint) {
+        this.publishedDefinitions.evictForm(id)
+        return mapForm(await this.findForm(tx, actor, scopedProjectId, id), actor)
+      }
+      if (
+        current.status === 'PUBLISHED' &&
+        candidate?.fingerprint === current.fingerprint &&
+        current.payload === null
+      )
+        return candidate.value
+      if (!current.payload) throw new NotFoundException('Form unavailable.')
+      if (current.status === 'PUBLISHED')
+        this.publishedDefinitions.write(key, id, {
+          fingerprint: current.fingerprint,
+          value: current.payload,
+        })
+      else this.publishedDefinitions.evictForm(id)
+      return current.payload
     })
   }
 
@@ -206,47 +273,110 @@ export class MetadataService {
     assertDefinition(input)
     return withAuthorizedOperation(this.prisma, identity, 'forms.manage', async (tx, actor) => {
       const scopedProjectId = await this.requireProject(tx, actor, projectId)
-      await this.requireLinks(tx, actor, scopedProjectId, input.activityId, input.journeyStageId)
-      const exists = await tx.digitalForm.findFirst({
-        where: {
-          organizationId: actor.organizationId,
-          projectId: scopedProjectId,
-          code: input.code,
-        },
-        select: { id: true },
-      })
-      if (exists) throw new ConflictException('That form code already exists in this project.')
-      const created = await tx.digitalForm.create({
-        data: {
-          organizationId: actor.organizationId,
-          projectId: scopedProjectId,
-          code: input.code,
-          version: 1,
-          name: input.name,
-          description: input.description?.trim() || null,
-          formType: input.formType,
-          activityId: input.activityId?.toLowerCase(),
-          journeyStageId: input.journeyStageId?.toLowerCase(),
-          createdById: actor.userId,
-        },
-        select: { id: true },
-      })
-      await tx.formField.createMany({
-        data: fieldData(actor.organizationId, scopedProjectId, created.id, input.fields),
-      })
-      await tx.auditLog.create({
-        data: {
-          organizationId: actor.organizationId,
-          actorUserId: actor.userId,
-          projectId: scopedProjectId,
-          action: 'FORM_DRAFT_CREATED',
-          entityType: 'DigitalForm',
-          entityId: created.id,
-          changes: { code: input.code, version: 1, fieldCount: input.fields.length },
-        },
-      })
-      return mapForm(await this.findForm(tx, actor, scopedProjectId, created.id), actor)
+      return this.insertDraft(tx, actor, scopedProjectId, input, 'FORM_DRAFT_CREATED', {})
     })
+  }
+
+  /**
+   * `forms.generate`: new version-1 draft from a server-owned template or an
+   * existing form in the same scoped project. Exactly one source is allowed.
+   */
+  async generateForm(identity: ApplicationIdentity, projectId: string, input: GenerateFormDto) {
+    const hasTemplate = input.templateKey !== undefined
+    const hasSource = input.sourceFormId !== undefined
+    if (hasTemplate === hasSource)
+      throw new BadRequestException('Provide exactly one of templateKey or sourceFormId.')
+    if (hasTemplate && !Object.hasOwn(formTemplates, input.templateKey as string))
+      throw new BadRequestException('Unknown form template.')
+    return withAuthorizedOperation(this.prisma, identity, 'forms.generate', async (tx, actor) => {
+      const scopedProjectId = await this.requireProject(tx, actor, projectId)
+      let definition: CreateFormDto
+      let origin: Prisma.InputJsonObject
+      if (hasTemplate) {
+        const key = input.templateKey as FormTemplateKey
+        const template = formTemplates[key]
+        definition = {
+          code: input.code,
+          name: input.name,
+          description: template.description,
+          formType: template.formType,
+          fields: template.fields.map((item) => ({
+            ...item,
+            allowedValues: item.allowedValues ? [...item.allowedValues] : undefined,
+          })),
+        }
+        origin = { templateKey: key }
+      } else {
+        const source = await this.requireForm(
+          tx,
+          actor,
+          scopedProjectId,
+          input.sourceFormId as string,
+        )
+        definition = {
+          code: input.code,
+          name: input.name,
+          description: source.description ?? undefined,
+          formType: source.formType,
+          activityId: source.activityId ?? undefined,
+          journeyStageId: source.journeyStageId ?? undefined,
+          fields: source.formField_form.map(fieldInput),
+        }
+        origin = { sourceFormId: source.id, sourceVersion: source.version }
+      }
+      assertDefinition(definition)
+      return this.insertDraft(tx, actor, scopedProjectId, definition, 'FORM_GENERATED', origin)
+    })
+  }
+
+  private async insertDraft(
+    tx: Tx,
+    actor: ApplicationIdentity,
+    scopedProjectId: string,
+    input: CreateFormDto,
+    action: 'FORM_DRAFT_CREATED' | 'FORM_GENERATED',
+    origin: Prisma.InputJsonObject,
+  ) {
+    await this.requireLinks(tx, actor, scopedProjectId, input.activityId, input.journeyStageId)
+    const exists = await tx.digitalForm.findFirst({
+      where: {
+        organizationId: actor.organizationId,
+        projectId: scopedProjectId,
+        code: input.code,
+      },
+      select: { id: true },
+    })
+    if (exists) throw new ConflictException('That form code already exists in this project.')
+    const created = await tx.digitalForm.create({
+      data: {
+        organizationId: actor.organizationId,
+        projectId: scopedProjectId,
+        code: input.code,
+        version: 1,
+        name: input.name,
+        description: input.description?.trim() || null,
+        formType: input.formType,
+        activityId: input.activityId?.toLowerCase(),
+        journeyStageId: input.journeyStageId?.toLowerCase(),
+        createdById: actor.userId,
+      },
+      select: { id: true },
+    })
+    await tx.formField.createMany({
+      data: fieldData(actor.organizationId, scopedProjectId, created.id, input.fields),
+    })
+    await tx.auditLog.create({
+      data: {
+        organizationId: actor.organizationId,
+        actorUserId: actor.userId,
+        projectId: scopedProjectId,
+        action,
+        entityType: 'DigitalForm',
+        entityId: created.id,
+        changes: { code: input.code, version: 1, fieldCount: input.fields.length, ...origin },
+      },
+    })
+    return mapForm(await this.findForm(tx, actor, scopedProjectId, created.id), actor)
   }
 
   updateForm(
@@ -258,6 +388,7 @@ export class MetadataService {
     assertDefinition(input)
     return withAuthorizedOperation(this.prisma, identity, 'forms.manage', async (tx, actor) => {
       const current = await this.requireForm(tx, actor, projectId, formId)
+      this.publishedDefinitions.evictForm(current.id)
       if (current.status !== 'DRAFT') {
         return this.createVersion(tx, actor, current, input)
       }
@@ -313,10 +444,8 @@ export class MetadataService {
     input: ExpectedVersionDto,
   ) {
     return withAuthorizedOperation(this.prisma, identity, 'forms.publish', async (tx, actor) => {
-      if (actor.roles[0] !== 'MONITORING_AND_EVALUATION_OFFICER') {
-        throw new ForbiddenException('Only Monitoring and Evaluation Officers publish forms.')
-      }
       const current = await this.requireForm(tx, actor, projectId, formId)
+      this.publishedDefinitions.evictForm(current.id)
       if (current.status !== 'DRAFT') throw new ConflictException('Only a draft can be published.')
       if (current.createdById === actor.userId) {
         throw new ForbiddenException('A form author cannot approve and publish the same version.')
@@ -416,8 +545,9 @@ export class MetadataService {
     formId: string,
     input: ExpectedVersionDto,
   ) {
-    return withAuthorizedOperation(this.prisma, identity, 'forms.manage', async (tx, actor) => {
+    return withAuthorizedOperation(this.prisma, identity, 'forms.archive', async (tx, actor) => {
       const current = await this.requireForm(tx, actor, projectId, formId)
+      this.publishedDefinitions.evictForm(current.id)
       if (current.status === 'ARCHIVED') return mapForm(current, actor)
       const expected = this.expectedDate(input.expectedUpdatedAt)
       const changed = await tx.digitalForm.updateMany({
@@ -497,20 +627,32 @@ export class MetadataService {
           'draft',
         )
         this.assertValues(validation)
+        const beneficiaryId = await this.requireSurveySubject(tx, actor, form, input.beneficiaryId)
         const clientSubmissionId = input.clientSubmissionId.toLowerCase()
         const existing = await tx.formSubmission.findFirst({
           where: {
             organizationId: actor.organizationId,
             submittedById: actor.userId,
             clientSubmissionId,
+            ...(form.formType === 'TRAINING_SURVEY' &&
+            !hasAtomicPermission(actor.roles[0], actor.permissions, 'beneficiaries.records.read')
+              ? { beneficiaryId: null }
+              : {}),
           },
-          select: { id: true, projectId: true, formId: true, formVersion: true },
+          select: {
+            id: true,
+            projectId: true,
+            formId: true,
+            formVersion: true,
+            beneficiaryId: true,
+          },
         })
         if (existing) {
           if (
             existing.projectId !== form.projectId ||
             existing.formId !== form.id ||
-            existing.formVersion !== form.version
+            existing.formVersion !== form.version ||
+            existing.beneficiaryId !== beneficiaryId
           ) {
             throw new ConflictException('Submission identifier is already in use.')
           }
@@ -529,6 +671,7 @@ export class MetadataService {
               formId: form.id,
               formVersion: form.version,
               clientSubmissionId,
+              beneficiaryId,
               submittedById: actor.userId,
               source: 'DIRECT_ENCODING',
               status: 'DRAFT',
@@ -754,6 +897,8 @@ export class MetadataService {
       async (tx, actor) => {
         const form = await this.requireForm(tx, actor, projectId, formId)
         const submission = await this.findSubmission(tx, actor, form, submissionId)
+        if (form.formType === 'TRAINING_SURVEY')
+          await this.requireSurveySubject(tx, actor, form, submission.beneficiaryId ?? undefined)
         if (submission.status === 'VALIDATED') return submission
         if (submission.status !== 'DRAFT')
           throw new ConflictException('Submission is not editable.')
@@ -821,6 +966,74 @@ export class MetadataService {
         return this.findSubmission(tx, actor, form, submission.id)
       },
     )
+  }
+
+  private async currentDefinition(
+    tx: Tx,
+    actor: ApplicationIdentity,
+    projectId: string,
+    formId: string,
+    candidateFingerprint: string | null,
+  ) {
+    // Current header, exact source digest and conditional projection share one
+    // statement snapshot. Cache hits avoid returning/hydrating the field payload.
+    // Fixed JSON tuples bind every returned header/field value, without repeating
+    // property names or unrelated audit timestamps/scope columns. Native JSON
+    // escaping preserves boundaries; 1KiB per row conservatively bounds omitted
+    // fixed-name/scope serialization overhead inside the unchanged 256KiB cap.
+    const rows = await tx.$queryRaw<
+      Array<{
+        status: string
+        fingerprint: string | null
+        fieldCount: number
+        sourceBytes: bigint
+        payload: ReturnType<typeof mapForm> | null
+      }>
+    >`
+      WITH form AS (
+        SELECT f.*, json_build_array(f.id,f.project_id,f.code,f.version,f.name,f.description,f.form_type,f.status,
+          f.activity_id,f.journey_stage_id,f.created_by_id,f.published_at,f.archived_at,f.updated_at)::text AS source
+        FROM pathways.digital_forms f
+        WHERE organization_id=${actor.organizationId}::uuid AND project_id=${projectId}::uuid AND id=${formId}::uuid
+      ), fields AS (
+        SELECT f.*, json_build_array(f.id,f.code,f.label,f.data_type,f.is_required,f.is_metadata_key,f.is_saddd_field,
+          f.allowed_values,f.minimum_value,f.maximum_value,f.minimum_date,f.maximum_date,
+          f.minimum_length,f.maximum_length,f.sequence_no)::text AS source
+        FROM pathways.form_fields f
+        WHERE organization_id=${actor.organizationId}::uuid AND project_id=${projectId}::uuid AND form_id=${formId}::uuid
+        ORDER BY sequence_no,id LIMIT 101
+      ), stats AS (
+        SELECT count(*)::integer AS count,
+          coalesce(sum(octet_length(source)+1024),0)::bigint AS bytes FROM fields
+      ), snapshot AS (
+        SELECT form.*, stats.count AS field_count, stats.bytes + octet_length(form.source)+1024 AS source_bytes,
+          CASE WHEN stats.count<=100 AND stats.bytes+octet_length(form.source)+1024<=262144 THEN
+            encode(pg_catalog.sha256(convert_to('['||form.source||',['||
+              (SELECT coalesce(string_agg(source,',' ORDER BY id),'') FROM fields)||']]','UTF8')),'hex')
+            ELSE NULL END AS fingerprint FROM form CROSS JOIN stats
+      )
+      SELECT status::text, fingerprint, field_count AS "fieldCount", source_bytes AS "sourceBytes",
+        CASE WHEN fingerprint IS NULL OR (status='PUBLISHED' AND fingerprint=${candidateFingerprint}::text) THEN NULL ELSE
+          jsonb_build_object('id',id,'projectId',project_id,'code',code,'version',version,'name',name,
+            'description',description,'formType',form_type,'status',status,'activityId',activity_id,
+            'journeyStageId',journey_stage_id,'updatedAt',to_char(updated_at AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.MS"Z"'),
+            'createdByCurrentUser',coalesce(created_by_id=${actor.userId}::uuid,false),
+            'fields',(SELECT coalesce(jsonb_agg(jsonb_build_object(
+              'id',id,'code',code,'label',label,'dataType',data_type,'required',is_required,
+              'metadataKey',is_metadata_key,'sadddField',is_saddd_field,
+              'allowedValues',CASE WHEN jsonb_typeof(allowed_values)='array' THEN
+                CASE WHEN NOT EXISTS(SELECT FROM jsonb_array_elements(allowed_values) v WHERE jsonb_typeof(v)<>'string') THEN allowed_values ELSE NULL END ELSE NULL END,
+              'minimumLength',minimum_length,'maximumLength',maximum_length,'sequence',sequence_no
+            ) || jsonb_strip_nulls(jsonb_build_object(
+              'minimumValue',CASE WHEN minimum_value=trunc(minimum_value) THEN trunc(minimum_value)::text ELSE trim(trailing '.' from trim(trailing '0' from minimum_value::text)) END,
+              'maximumValue',CASE WHEN maximum_value=trunc(maximum_value) THEN trunc(maximum_value)::text ELSE trim(trailing '.' from trim(trailing '0' from maximum_value::text)) END,
+              'minimumDate',to_char(minimum_date,'YYYY-MM-DD'),'maximumDate',to_char(maximum_date,'YYYY-MM-DD')
+            )) ORDER BY sequence_no,id),'[]'::jsonb) FROM fields)
+          ) || jsonb_strip_nulls(jsonb_build_object(
+            'publishedAt',to_char(published_at AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.MS"Z"'),
+            'archivedAt',to_char(archived_at AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.MS"Z"')
+          )) END AS payload FROM snapshot`
+    return rows[0] ?? null
   }
 
   private async requireProject(tx: Tx, actor: ApplicationIdentity, projectId: string) {
@@ -957,23 +1170,7 @@ export class MetadataService {
       }
       throw caught
     }
-    const fields =
-      override?.fields ??
-      source.formField_form.map((field) => ({
-        code: field.code,
-        label: field.label,
-        dataType: field.dataType,
-        required: field.isRequired,
-        metadataKey: field.isMetadataKey,
-        sadddField: field.isSadddField,
-        allowedValues: allowedValues(field.allowedValues) ?? undefined,
-        minimumValue: field.minimumValue?.toString(),
-        maximumValue: field.maximumValue?.toString(),
-        minimumDate: field.minimumDate?.toISOString().slice(0, 10),
-        maximumDate: field.maximumDate?.toISOString().slice(0, 10),
-        minimumLength: field.minimumLength ?? undefined,
-        maximumLength: field.maximumLength ?? undefined,
-      }))
+    const fields = override?.fields ?? source.formField_form.map(fieldInput)
     await tx.formField.createMany({
       data: fieldData(actor.organizationId, source.projectId, created.id, fields),
     })
@@ -996,6 +1193,42 @@ export class MetadataService {
     return mapForm(await this.findForm(tx, actor, source.projectId, created.id), actor)
   }
 
+  private async requireSurveySubject(
+    tx: Tx,
+    actor: ApplicationIdentity,
+    form: FormRow,
+    beneficiaryId?: string,
+  ): Promise<string | null> {
+    if (beneficiaryId === undefined) return null
+    if (form.formType !== 'TRAINING_SURVEY' || !UUID_PATTERN.test(beneficiaryId))
+      throw new BadRequestException(
+        'An identified subject is supported only for a training survey.',
+      )
+    if (!hasAtomicPermission(actor.roles[0], actor.permissions, 'beneficiaries.records.read'))
+      throw new ForbiddenException('Current beneficiary detail access is required.')
+    const id = beneficiaryId.toLowerCase()
+    const enrollment = await tx.beneficiaryProjectEnrollment.findFirst({
+      where: {
+        organizationId: actor.organizationId,
+        projectId: form.projectId,
+        beneficiaryId: id,
+        status: 'ACTIVE',
+        endedDate: null,
+        beneficiary: {
+          organizationId: actor.organizationId,
+          subjectType: 'INDIVIDUAL',
+          isDummyRecord: false,
+          archivedAt: null,
+          consentRecorded: true,
+          dataProcessingConsentRecorded: true,
+        },
+      },
+      select: { id: true },
+    })
+    if (!enrollment) throw new NotFoundException('Eligible survey contributor unavailable.')
+    return id
+  }
+
   private async findSubmission(
     tx: Tx,
     actor: ApplicationIdentity,
@@ -1012,10 +1245,15 @@ export class MetadataService {
         formVersion: form.version,
         submittedById: actor.userId,
         source: 'DIRECT_ENCODING',
+        ...(form.formType === 'TRAINING_SURVEY' &&
+        !hasAtomicPermission(actor.roles[0], actor.permissions, 'beneficiaries.records.read')
+          ? { beneficiaryId: null }
+          : {}),
       },
       select: {
         id: true,
         clientSubmissionId: true,
+        beneficiaryId: true,
         status: true,
         formVersion: true,
         submittedAt: true,
@@ -1036,6 +1274,7 @@ export class MetadataService {
     return {
       id: row.id,
       clientSubmissionId: row.clientSubmissionId,
+      beneficiaryId: form.formType === 'TRAINING_SURVEY' ? row.beneficiaryId : null,
       status: row.status,
       formId: form.id,
       formVersion: row.formVersion,

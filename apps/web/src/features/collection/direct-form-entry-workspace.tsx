@@ -1,35 +1,95 @@
 'use client'
 
+import { FormDefinitionEntryField as EntryField } from './form-definition-entry-field'
+import { SurveySubjectPicker } from './survey-subject-picker'
+
 import { CheckCircle2, Save, Send } from 'lucide-react'
 import Link from 'next/link'
-import type { ReactNode } from 'react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 
 import { PageHeader } from '@/components/layout/page-header'
 import { StatusBadge } from '@/components/pathways'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
+import { useCurrentRole } from '@/hooks/use-current-role'
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
+  type SensitiveDraftOwner,
+  readSensitiveDraft,
+  removeSensitiveDraft,
+  useSensitiveDraftOwner,
+  writeSensitiveDraft,
+} from '@/lib/auth/sensitive-drafts'
 import { PathwaysClientError, pathwaysClient } from '@/lib/services/pathways-client'
 import type {
   DigitalFormDefinition,
-  DigitalFormFieldDefinition,
   DirectFormSubmission,
   FormValidationError,
 } from '@/types/pathways'
 
-export function DirectFormEntryWorkspace({
+function verifySurveySubject(
+  submission: DirectFormSubmission,
+  form: DigitalFormDefinition,
+  expected?: string | null,
+) {
+  if (submission.formId !== form.id || submission.formVersion !== form.version)
+    throw new Error('The submission version could not be verified.')
+  if (form.formType !== 'TRAINING_SURVEY') return
+  if (
+    submission.beneficiaryId !== null &&
+    (typeof submission.beneficiaryId !== 'string' ||
+      !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+        submission.beneficiaryId,
+      ))
+  )
+    throw new Error('The persisted contributor could not be verified.')
+  if (expected !== undefined && submission.beneficiaryId !== expected)
+    throw new Error('The saved contributor does not match this submission.')
+}
+
+type EntryProps = { initialSubmissionId?: string; projectId: string; formId: string }
+export function DirectFormEntryWorkspace(props: EntryProps) {
+  const { profile } = useCurrentRole()
+  const scope = useSensitiveDraftOwner(
+    profile,
+    'direct-entry-retry',
+    'submissions.write',
+    props.projectId,
+    JSON.stringify([props.formId, props.initialSubmissionId ?? null]),
+  )
+  if (!scope) return <output>Current direct entry access is required.</output>
+  return (
+    <OwnedDirectFormEntryWorkspace key={scope.key + scope.generation} {...props} scope={scope} />
+  )
+}
+function OwnedDirectFormEntryWorkspace({
   initialSubmissionId,
   projectId,
   formId,
-}: { initialSubmissionId?: string; projectId: string; formId: string }) {
+  scope,
+}: EntryProps & { scope: SensitiveDraftOwner }) {
+  const { profile } = useCurrentRole()
+  const subjectOwner = useSensitiveDraftOwner(
+    profile,
+    'survey-contributor',
+    'beneficiaries.records.read',
+    projectId,
+    formId,
+  )
+  const newResponseOwner = useSensitiveDraftOwner(
+    profile,
+    'direct-entry-retry',
+    'submissions.write',
+    projectId,
+    JSON.stringify([formId, null]),
+  )
+  const prepareSeparateResponse = (event: { preventDefault: () => void }) => {
+    if (operation.current || !scope.isCurrent() || !newResponseOwner?.isCurrent()) {
+      event.preventDefault()
+      return
+    }
+    removeSensitiveDraft(newResponseOwner.key)
+  }
+  const [beneficiaryId, setBeneficiaryId] = useState('')
+  const [subjectLocked, setSubjectLocked] = useState(false)
   const [form, setForm] = useState<DigitalFormDefinition | null>(null)
   const [submission, setSubmission] = useState<DirectFormSubmission | null>(null)
   const [values, setValues] = useState<Record<string, unknown>>({})
@@ -38,15 +98,59 @@ export function DirectFormEntryWorkspace({
   const [pending, setPending] = useState<'save' | 'validate' | 'submit' | null>(null)
   const [notice, setNotice] = useState('')
   const clientSubmissionId = useRef('')
-  const storageKey = `pathways:direct-entry:${projectId}:${formId}`
+  const loadEpoch = useRef(0)
+  const storageKey = scope.key
+  const operation = useRef<object | null>(null)
+  const currentFormVersion = useRef<number | null>(null)
+  currentFormVersion.current = form?.version ?? null
+  const begin = (kind: 'save' | 'validate' | 'submit') => {
+    if (
+      operation.current ||
+      (beneficiaryId && !subjectOwner?.isCurrent()) ||
+      !scope.isCurrent() ||
+      !form ||
+      form.status !== 'PUBLISHED' ||
+      loadStatus !== 'ready'
+    )
+      return null
+    const identifiedOwner = beneficiaryId ? subjectOwner : null
+    const marker = {}
+    const version = form.version
+    operation.current = marker
+    setPending(kind)
+    setNotice('')
+    return {
+      valid: () =>
+        scope.isCurrent() &&
+        (!identifiedOwner || identifiedOwner.isCurrent()) &&
+        operation.current === marker &&
+        currentFormVersion.current === version,
+      finish: () => {
+        if (operation.current === marker) {
+          operation.current = null
+          if (scope.isCurrent()) setPending(null)
+        }
+      },
+    }
+  }
 
   useEffect(() => {
     let active = true
+    const epoch = loadEpoch.current
     pathwaysClient
       .getDigitalForm(projectId, formId)
       .then(async (definition) => {
-        if (!active) return
+        if (!active || epoch !== loadEpoch.current || !scope.isCurrent()) return
+        if (definition.projectId !== projectId || definition.id !== formId)
+          throw new Error('The selected form could not be verified.')
         setForm(definition)
+        if (
+          definition.status !== 'PUBLISHED' ||
+          definition.formType === 'BENEFICIARY_REGISTRATION'
+        ) {
+          setLoadStatus('ready')
+          return
+        }
         try {
           let persisted: DirectFormSubmission
           if (initialSubmissionId) {
@@ -56,9 +160,21 @@ export function DirectFormEntryWorkspace({
               initialSubmissionId,
             )
           } else {
-            const stored = window.localStorage.getItem(storageKey)
-            const retryId = stored ?? crypto.randomUUID()
-            window.localStorage.setItem(storageKey, retryId)
+            const stored = readSensitiveDraft(storageKey)
+            const retryId =
+              stored?.formVersion === definition.version &&
+              typeof stored.clientSubmissionId === 'string' &&
+              /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+                stored.clientSubmissionId,
+              )
+                ? stored.clientSubmissionId
+                : crypto.randomUUID()
+            if (!active || epoch !== loadEpoch.current || !scope.isCurrent()) return
+            writeSensitiveDraft(
+              storageKey,
+              { formVersion: definition.version, clientSubmissionId: retryId },
+              scope.generation,
+            )
             clientSubmissionId.current = retryId
             persisted = await pathwaysClient.getDirectSubmissionByClientId(
               projectId,
@@ -66,7 +182,22 @@ export function DirectFormEntryWorkspace({
               retryId,
             )
           }
-          if (!active) return
+          if (!active || epoch !== loadEpoch.current || !scope.isCurrent()) return
+          verifySurveySubject(persisted, definition)
+          if (
+            persisted.formId !== formId ||
+            persisted.formVersion !== definition.version ||
+            (persisted.beneficiaryId !== null &&
+              persisted.beneficiaryId !== undefined &&
+              (definition.formType !== 'TRAINING_SURVEY' ||
+                !subjectOwner?.isCurrent() ||
+                !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+                  persisted.beneficiaryId,
+                )))
+          )
+            throw new Error('The persisted contributor could not be verified.')
+          setBeneficiaryId(persisted.beneficiaryId ?? '')
+          setSubjectLocked(true)
           setSubmission(persisted)
           setValues(persisted.values)
           setNotice(
@@ -75,21 +206,30 @@ export function DirectFormEntryWorkspace({
               : 'Your persisted draft was restored.',
           )
         } catch (error) {
+          if (!active || epoch !== loadEpoch.current || !scope.isCurrent()) return
           if (!(error instanceof PathwaysClientError) || error.code !== 'not_found') throw error
           if (initialSubmissionId) throw error
-          const retryId = window.localStorage.getItem(storageKey) ?? crypto.randomUUID()
-          window.localStorage.setItem(storageKey, retryId)
-          clientSubmissionId.current = retryId
+          // Preserve the exact allocated request identity when the server has no draft yet.
+          if (!clientSubmissionId.current)
+            throw new Error('A draft retry identity could not be allocated.')
         }
-        setLoadStatus('ready')
+        if (active && epoch === loadEpoch.current && scope.isCurrent()) setLoadStatus('ready')
       })
       .catch(() => {
-        if (active) setLoadStatus('error')
+        if (active && epoch === loadEpoch.current && scope.isCurrent()) setLoadStatus('error')
       })
     return () => {
       active = false
     }
-  }, [formId, initialSubmissionId, projectId, storageKey])
+  }, [
+    formId,
+    initialSubmissionId,
+    projectId,
+    storageKey,
+    scope.isCurrent,
+    scope.generation,
+    subjectOwner?.isCurrent,
+  ])
 
   const errorsByField = useMemo(
     () =>
@@ -100,10 +240,33 @@ export function DirectFormEntryWorkspace({
     [errors],
   )
 
+  const startSeparateResponse = () => {
+    if (operation.current || !scope.isCurrent() || !form || !newResponseOwner?.isCurrent()) return
+    loadEpoch.current++
+    const nextId = crypto.randomUUID()
+    clientSubmissionId.current = nextId
+    writeSensitiveDraft(
+      storageKey,
+      { formVersion: form.version, clientSubmissionId: nextId },
+      scope.generation,
+    )
+    setSubmission(null)
+    setValues({})
+    setBeneficiaryId('')
+    setSubjectLocked(false)
+    setErrors([])
+    setNotice(
+      'A separate response is ready. The previous attempt and its history remain unchanged.',
+    )
+    setLoadStatus('ready')
+  }
+
   const save = async () => {
-    setPending('save')
-    setNotice('')
+    if (!form) return
+    const ticket = begin('save')
+    if (!ticket) return
     try {
+      if (!submission) setSubjectLocked(true)
       const result = submission
         ? await pathwaysClient.updateDirectSubmission(
             projectId,
@@ -117,44 +280,50 @@ export function DirectFormEntryWorkspace({
             formId,
             clientSubmissionId.current,
             values,
+            form.formType === 'TRAINING_SURVEY' && beneficiaryId ? beneficiaryId : undefined,
           )
+      if (!ticket.valid()) return
+      verifySurveySubject(result, form, beneficiaryId || null)
       setSubmission(result)
       setValues(result.values)
       setErrors([])
       setNotice('Draft saved to PATHWAYS. You can safely reload before submitting.')
       return result
     } catch (error) {
+      if (!ticket.valid()) return
       if (error instanceof PathwaysClientError) setErrors(error.fieldErrors)
       setNotice(error instanceof Error ? error.message : 'The draft could not be saved.')
       return null
     } finally {
-      setPending(null)
+      ticket.finish()
     }
   }
 
   const validate = async () => {
-    setPending('validate')
-    setNotice('')
+    const ticket = begin('validate')
+    if (!ticket) return
     try {
-      const result = submission
-        ? await pathwaysClient.validateDirectSubmission(projectId, formId, submission.id)
-        : await pathwaysClient.validateDigitalFormValues(projectId, formId, values)
+      const result = await pathwaysClient.validateDigitalFormValues(projectId, formId, values)
+      if (!ticket.valid()) return
       setErrors(result.errors)
       setNotice(
         result.valid ? 'All fields passed server validation.' : 'Review the highlighted fields.',
       )
     } catch (error) {
+      if (!ticket.valid()) return
       if (error instanceof PathwaysClientError) setErrors(error.fieldErrors)
       setNotice(error instanceof Error ? error.message : 'Validation could not be completed.')
     } finally {
-      setPending(null)
+      ticket.finish()
     }
   }
 
   const submit = async () => {
-    setPending('submit')
-    setNotice('')
+    if (!form) return
+    const ticket = begin('submit')
+    if (!ticket) return
     try {
+      if (!submission) setSubjectLocked(true)
       const draft = submission
         ? await pathwaysClient.updateDirectSubmission(
             projectId,
@@ -168,25 +337,54 @@ export function DirectFormEntryWorkspace({
             formId,
             clientSubmissionId.current,
             values,
+            form.formType === 'TRAINING_SURVEY' && beneficiaryId ? beneficiaryId : undefined,
           )
+      if (!ticket.valid()) return
+      verifySurveySubject(draft, form, beneficiaryId || null)
       const result = await pathwaysClient.submitDirectSubmission(
         projectId,
         formId,
         draft.id,
         draft.updatedAt,
       )
+      if (!ticket.valid()) return
+      verifySurveySubject(result, form, beneficiaryId || null)
       setSubmission(result)
       setValues(result.values)
       setErrors([])
       setNotice(`Submission validated against form version ${result.formVersion} and finalized.`)
     } catch (error) {
+      if (!ticket.valid()) return
       if (error instanceof PathwaysClientError) setErrors(error.fieldErrors)
       setNotice(error instanceof Error ? error.message : 'The record could not be submitted.')
     } finally {
-      setPending(null)
+      ticket.finish()
     }
   }
 
+  if (form?.formType === 'TRAINING_SURVEY' && beneficiaryId && !subjectOwner?.isCurrent())
+    return (
+      <div className="space-y-3 rounded-lg border p-5">
+        <output>
+          Current identified survey access is unavailable. Existing values and contributor details
+          are hidden; the saved record is unchanged.
+        </output>
+        {initialSubmissionId ? (
+          <Button asChild variant="outline">
+            <Link
+              onClick={prepareSeparateResponse}
+              href={`/collection/projects/${encodeURIComponent(projectId)}/forms/${encodeURIComponent(formId)}/entries/new`}
+            >
+              Open a separate response
+            </Link>
+          </Button>
+        ) : (
+          <Button variant="outline" onClick={startSeparateResponse}>
+            Open a separate response
+          </Button>
+        )}
+      </div>
+    )
   if (loadStatus !== 'ready' || !form) {
     return (
       <div className="rounded-lg border bg-card p-6 text-sm text-muted-foreground">
@@ -242,14 +440,28 @@ export function DirectFormEntryWorkspace({
       ) : null}
 
       <div className="space-y-5 rounded-lg border bg-card p-5 shadow-sm">
+        {form.formType === 'TRAINING_SURVEY' ? (
+          <SurveySubjectPicker
+            projectId={projectId}
+            formId={formId}
+            value={beneficiaryId}
+            locked={subjectLocked || Boolean(submission) || Boolean(pending)}
+            onChange={(value) => {
+              if (!operation.current && !subjectLocked && scope.isCurrent()) setBeneficiaryId(value)
+            }}
+          />
+        ) : null}
         {form.fields.map((field) => (
           <EntryField
             key={field.id ?? field.code}
-            disabled={finalized}
+            disabled={finalized || Boolean(pending)}
             errors={errorsByField[field.code] ?? []}
             field={field}
             value={values[field.code]}
-            onChange={(value) => setValues((current) => ({ ...current, [field.code]: value }))}
+            onChange={(value) => {
+              if (!operation.current && scope.isCurrent())
+                setValues((current) => ({ ...current, [field.code]: value }))
+            }}
           />
         ))}
 
@@ -259,9 +471,34 @@ export function DirectFormEntryWorkspace({
           </p>
         ) : null}
 
+        {form.formType === 'TRAINING_SURVEY' && subjectLocked && !finalized ? (
+          <div className="space-y-2 rounded-md border p-3 text-sm">
+            <p>
+              The previous draft or uncertain save may already exist. Retry preserves its exact
+              contributor and submission identifier. Starting a separate response preserves that
+              prior record; review it in the project's entries.
+            </p>
+            {initialSubmissionId ? (
+              <Button asChild variant="outline">
+                <Link
+                  onClick={prepareSeparateResponse}
+                  href={`/collection/projects/${encodeURIComponent(projectId)}/forms/${encodeURIComponent(formId)}/entries/new`}
+                >
+                  Start a separate response
+                </Link>
+              </Button>
+            ) : (
+              <Button variant="outline" disabled={Boolean(pending)} onClick={startSeparateResponse}>
+                Start a separate response
+              </Button>
+            )}
+          </div>
+        ) : null}
         <div className="flex flex-wrap gap-2 border-t pt-4">
           <Button
-            disabled={Boolean(pending) || finalized}
+            disabled={
+              Boolean(pending) || finalized || Boolean(beneficiaryId && !subjectOwner?.isCurrent())
+            }
             variant="outline"
             onClick={() => void save()}
           >
@@ -269,13 +506,20 @@ export function DirectFormEntryWorkspace({
             {pending === 'save' ? 'Saving...' : 'Save draft'}
           </Button>
           <Button
-            disabled={Boolean(pending) || finalized}
+            disabled={
+              Boolean(pending) || finalized || Boolean(beneficiaryId && !subjectOwner?.isCurrent())
+            }
             variant="outline"
             onClick={() => void validate()}
           >
             {pending === 'validate' ? 'Validating...' : 'Validate'}
           </Button>
-          <Button disabled={Boolean(pending) || finalized} onClick={() => void submit()}>
+          <Button
+            disabled={
+              Boolean(pending) || finalized || Boolean(beneficiaryId && !subjectOwner?.isCurrent())
+            }
+            onClick={() => void submit()}
+          >
             <Send className="mr-2 h-4 w-4" aria-hidden="true" />
             {pending === 'submit' ? 'Submitting...' : 'Submit'}
           </Button>
@@ -283,6 +527,7 @@ export function DirectFormEntryWorkspace({
             initialSubmissionId ? (
               <Button asChild variant="outline">
                 <Link
+                  onClick={prepareSeparateResponse}
                   href={`/collection/projects/${encodeURIComponent(projectId)}/forms/${encodeURIComponent(formId)}/entries/new`}
                 >
                   Start another record
@@ -292,7 +537,8 @@ export function DirectFormEntryWorkspace({
               <Button
                 variant="outline"
                 onClick={() => {
-                  window.localStorage.removeItem(storageKey)
+                  if (operation.current || !scope.isCurrent()) return
+                  removeSensitiveDraft(storageKey)
                   window.location.reload()
                 }}
               >
@@ -302,141 +548,6 @@ export function DirectFormEntryWorkspace({
           ) : null}
         </div>
       </div>
-    </div>
-  )
-}
-
-function EntryField({
-  disabled,
-  errors,
-  field,
-  onChange,
-  value,
-}: {
-  disabled: boolean
-  errors: string[]
-  field: DigitalFormFieldDefinition
-  onChange: (value: unknown) => void
-  value: unknown
-}) {
-  const id = `entry-${field.code}`
-  const describedBy = errors.length ? `${id}-error` : undefined
-  const common = {
-    disabled,
-    id,
-    'aria-describedby': describedBy,
-    'aria-invalid': errors.length > 0,
-  }
-  let control: ReactNode
-
-  if (field.dataType === 'BOOLEAN') {
-    control = (
-      <Select
-        disabled={disabled}
-        value={value === true ? 'true' : value === false ? 'false' : 'unset'}
-        onValueChange={(next) => onChange(next === 'unset' ? null : next === 'true')}
-      >
-        <SelectTrigger id={id} aria-describedby={describedBy} aria-invalid={errors.length > 0}>
-          <SelectValue />
-        </SelectTrigger>
-        <SelectContent>
-          <SelectItem value="unset">Not answered</SelectItem>
-          <SelectItem value="true">Yes</SelectItem>
-          <SelectItem value="false">No</SelectItem>
-        </SelectContent>
-      </Select>
-    )
-  } else if (field.dataType === 'SELECT') {
-    control = (
-      <Select
-        disabled={disabled}
-        value={typeof value === 'string' ? value : 'unset'}
-        onValueChange={(next) => onChange(next === 'unset' ? null : next)}
-      >
-        <SelectTrigger id={id} aria-describedby={describedBy} aria-invalid={errors.length > 0}>
-          <SelectValue />
-        </SelectTrigger>
-        <SelectContent>
-          <SelectItem value="unset">Not answered</SelectItem>
-          {(field.allowedValues ?? []).map((option) => (
-            <SelectItem key={option} value={option}>
-              {option}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
-    )
-  } else if (field.dataType === 'MULTIPLE_SELECT') {
-    const selected = Array.isArray(value)
-      ? value.filter((item): item is string => typeof item === 'string')
-      : []
-    control = (
-      <div id={id} className="grid gap-2 sm:grid-cols-2">
-        {(field.allowedValues ?? []).map((option) => (
-          <label
-            key={option}
-            className="flex items-center gap-2 rounded-md border px-3 py-2 text-sm"
-          >
-            <input
-              disabled={disabled}
-              type="checkbox"
-              checked={selected.includes(option)}
-              onChange={(event) =>
-                onChange(
-                  event.target.checked
-                    ? [...selected, option]
-                    : selected.filter((item) => item !== option),
-                )
-              }
-            />
-            {option}
-          </label>
-        ))}
-      </div>
-    )
-  } else if (field.dataType === 'LONG_TEXT') {
-    control = (
-      <textarea
-        {...common}
-        className="min-h-24 w-full rounded-md border bg-background px-3 py-2 text-sm"
-        value={typeof value === 'string' ? value : ''}
-        onChange={(event) => onChange(event.target.value)}
-      />
-    )
-  } else {
-    const type =
-      field.dataType === 'DATE'
-        ? 'date'
-        : field.dataType === 'INTEGER' || field.dataType === 'DECIMAL'
-          ? 'number'
-          : 'text'
-    control = (
-      <Input
-        {...common}
-        step={
-          field.dataType === 'INTEGER' ? '1' : field.dataType === 'DECIMAL' ? '0.0001' : undefined
-        }
-        type={type}
-        value={typeof value === 'string' || typeof value === 'number' ? value : ''}
-        onChange={(event) => onChange(event.target.value)}
-      />
-    )
-  }
-
-  return (
-    <div className="space-y-2">
-      <Label htmlFor={id}>
-        {field.label}
-        {field.required ? ' *' : ''}
-      </Label>
-      {control}
-      {errors.length ? (
-        <ul id={`${id}-error`} className="space-y-1 text-xs text-danger">
-          {errors.map((error) => (
-            <li key={error}>{error}</li>
-          ))}
-        </ul>
-      ) : null}
     </div>
   )
 }

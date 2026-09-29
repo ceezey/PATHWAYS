@@ -67,8 +67,10 @@ export const PublicHomeDashboard = ({
               </div>
               <ShieldCheck className="h-5 w-5 text-primary" aria-hidden="true" />
             </div>
-            {projects.length > 0 ? (
-              <PublicPortfolioChart projects={projects} />
+            {projects.some((project) => project.selectedIndicators.length > 0) ? (
+              <PublicPortfolioChart
+                projects={projects.filter((project) => project.selectedIndicators.length > 0)}
+              />
             ) : (
               <div className="flex min-h-56 items-center justify-center rounded-sm bg-muted p-6 text-center">
                 <p className="max-w-xs text-base leading-6 text-muted-foreground">

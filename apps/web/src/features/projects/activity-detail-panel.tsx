@@ -1,19 +1,33 @@
 'use client'
 
-import { BellRing, ClipboardCheck, FileText, Pencil, ReceiptText, UploadCloud } from 'lucide-react'
+import {
+  BellRing,
+  ClipboardCheck,
+  FileText,
+  Pencil,
+  ReceiptText,
+  TrendingUp,
+  UploadCloud,
+} from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 
-import { ProgressBar, SidePanel, StatusBadge } from '@/components/pathways'
+import {
+  ProgressBar,
+  SidePanel,
+  StatusBadge,
+  UnavailableHint,
+  unavailableControlProps,
+} from '@/components/pathways'
 import { Button } from '@/components/ui/button'
 import { Sheet } from '@/components/ui/sheet'
 import type { Activity, ActivityProof, Indicator, JourneyStageConfig } from '@/types/pathways'
 
-import { ActivityExpenseDialog } from './activity-expense-dialog'
+import { ActivityExpenseDialog, type ExpenseBudgetReference } from './activity-expense-dialog'
 import { ActivityExpenseReviewDialog, type PendingExpense } from './activity-expense-review-dialog'
+import { ActivityProgressDialog } from './activity-progress-dialog'
 import { ActivityProofFiles } from './activity-proof-files'
 import { ActivityProofReviewDialog } from './activity-proof-review-dialog'
 import { activityStatusTone, formatCurrency, formatDate } from './activity-utils'
-import { describeTargetGoalComparison } from './target-goal-presentation'
 
 const proofVersion = (activity: Activity, proof: ActivityProof) =>
   activity.submittedProof.indexOf(proof) + 1
@@ -38,9 +52,12 @@ const formatProofDate = (value: string) => {
 
 export const ActivityDetailContent = ({
   activity,
+  budgetReferences = [],
   canDecideProof,
   canEdit,
   canLogExpense,
+  canReadBudgets = false,
+  canRecordProgress = false,
   canSubmitProof,
   canRequestExtension,
   canValidateExpense,
@@ -49,14 +66,19 @@ export const ActivityDetailContent = ({
   journeyStages,
   onActivityChanged,
   onEdit,
+  onExpensesChanged = () => {},
   onSubmitProof,
+  pendingExpenses = [],
   requestedExpenseId,
   requestedProofId,
 }: {
   activity: Activity
+  budgetReferences?: ExpenseBudgetReference[]
   canDecideProof: boolean
   canEdit: boolean
   canLogExpense: boolean
+  canReadBudgets?: boolean
+  canRecordProgress?: boolean
   canSubmitProof: boolean
   canRequestExtension: boolean
   canValidateExpense: boolean
@@ -65,19 +87,26 @@ export const ActivityDetailContent = ({
   journeyStages: JourneyStageConfig[]
   onActivityChanged: (activity: Activity) => void
   onEdit: (activity: Activity) => void
+  onExpensesChanged?: () => void
   onSubmitProof: (activity: Activity) => void
+  pendingExpenses?: PendingExpense[]
   requestedExpenseId?: string
   requestedProofId?: string
 }) => {
+  const [progressOpen, setProgressOpen] = useState(false)
   const [expenseOpen, setExpenseOpen] = useState(false)
   const [expenseReviewTarget, setExpenseReviewTarget] = useState<PendingExpense | null>(null)
   const [reviewTarget, setReviewTarget] = useState<{
     mode: 'validate' | 'decide'
     proof: ActivityProof
   } | null>(null)
+  // A role-level grant alone never shows a per-activity action: the server-computed
+  // capability (update authority, personal assignment, editable state) must agree too.
+  const showEdit = canEdit && activity.capabilities?.canEdit === true
+  const showSubmitProof = canSubmitProof && activity.capabilities?.canSubmitProof === true
+  const showRecordProgress = canRecordProgress && activity.capabilities?.canRecordProgress === true
   const latestProof = activity.submittedProof.at(-1)
   const correctionRequired = latestProof?.status === 'Flagged'
-  const pendingExpenses: PendingExpense[] = []
 
   const connectedIndicators = activity.indicatorIds.map((indicatorId) => {
     const indicator = indicators.find((item) => item.id === indicatorId)
@@ -121,21 +150,17 @@ export const ActivityDetailContent = ({
           </dd>
         </div>
         <div>
-          <dt className="text-muted-foreground">Project target comparison</dt>
-          <dd className="mt-1 font-medium text-foreground">
-            {describeTargetGoalComparison(activity.projectGoalComparison)}
-          </dd>
-        </div>
-        <div>
           <dt className="text-muted-foreground">Allocated budget</dt>
           <dd className="mt-1 font-medium text-foreground">
-            {formatCurrency(activity.budgetAllocation)}
+            {formatCurrency(activity.budgetAllocation, canReadBudgets ? 'None yet' : 'Unavailable')}
           </dd>
         </div>
         <div>
           <dt className="text-muted-foreground">Logged budget</dt>
           <dd className="mt-1 font-medium text-foreground">
-            {formatCurrency(activity.budgetLogged)}
+            {activity.budgetLoggedEntries === 0
+              ? 'None yet'
+              : formatCurrency(activity.budgetLogged, 'Unavailable')}
           </dd>
         </div>
         <div className="sm:col-span-2">
@@ -291,7 +316,9 @@ export const ActivityDetailContent = ({
           </div>
         ) : (
           <p className="mt-3 rounded-sm border border-dashed border-border p-4 text-sm text-muted-foreground">
-            No update or proof has been submitted.
+            {activity.updateNotes.length > 0
+              ? 'No proof has been submitted.'
+              : 'No update or proof has been submitted.'}
           </p>
         )}
       </section>
@@ -312,19 +339,53 @@ export const ActivityDetailContent = ({
               >
                 <span className="font-medium text-foreground">{update.progress}%</span> ·{' '}
                 {update.note}
+                {update.kind === 'progress' ? (
+                  <span className="ml-1 text-xs">
+                    (progress note{update.status === 'Submitted' ? ', awaiting review' : ''})
+                  </span>
+                ) : null}
+                {update.kind === 'progress' &&
+                canValidateProof &&
+                update.status === 'Submitted' &&
+                activity.storedStatus === 'IN_PROGRESS' ? (
+                  <Button
+                    className="mt-2 gap-2"
+                    onClick={() =>
+                      setReviewTarget({
+                        mode: 'validate',
+                        proof: {
+                          id: update.id,
+                          updateId: update.id,
+                          fileName: '',
+                          status: 'Submitted',
+                          submittedAt: update.submittedAt,
+                          submittedBy: update.submittedBy,
+                          updateUpdatedAt: update.updatedAt,
+                          note: update.note,
+                        },
+                      })
+                    }
+                    size="sm"
+                    type="button"
+                    variant="outline"
+                  >
+                    <ClipboardCheck className="h-4 w-4" aria-hidden="true" />
+                    Review progress
+                  </Button>
+                ) : null}
               </li>
             ))}
           </ul>
         </section>
       ) : null}
 
-      {correctionRequired && canSubmitProof ? (
+      {correctionRequired && showSubmitProof ? (
         <p className="rounded-sm border border-danger/25 bg-danger-subtle p-3 text-sm text-danger">
           A correction is required. Review the return reason above, then submit a new proof version.
         </p>
       ) : null}
       <div className="sticky bottom-0 -mx-1 grid grid-cols-1 gap-2 border-t border-border bg-card/95 px-1 pb-1 pt-4 backdrop-blur">
-        {canEdit ? (
+        {showEdit ? (
           <Button
             className="gap-2"
             onClick={() => onEdit(activity)}
@@ -335,10 +396,21 @@ export const ActivityDetailContent = ({
             Edit activity
           </Button>
         ) : null}
-        {canSubmitProof && activity.status !== 'Completed' ? (
+        {showSubmitProof && activity.status !== 'Completed' ? (
           <Button className="gap-2" onClick={() => onSubmitProof(activity)} type="button">
             <UploadCloud className="h-4 w-4" aria-hidden="true" />
             Submit Update & Proof
+          </Button>
+        ) : null}
+        {showRecordProgress && activity.storedStatus === 'IN_PROGRESS' ? (
+          <Button
+            className="gap-2"
+            onClick={() => setProgressOpen(true)}
+            type="button"
+            variant="outline"
+          >
+            <TrendingUp className="h-4 w-4" aria-hidden="true" />
+            Record progress
           </Button>
         ) : null}
         {canLogExpense ? (
@@ -353,19 +425,42 @@ export const ActivityDetailContent = ({
           </Button>
         ) : null}
         {canRequestExtension && activity.status !== 'Completed' ? (
-          <Button className="gap-2" disabled type="button" variant="outline">
-            <BellRing className="h-4 w-4" aria-hidden="true" />
-            Request an extension
-          </Button>
+          <>
+            <Button
+              className="gap-2"
+              type="button"
+              variant="outline"
+              {...unavailableControlProps('activity-request-extension-hint')}
+            >
+              <BellRing className="h-4 w-4" aria-hidden="true" />
+              Request an extension
+            </Button>
+            <UnavailableHint id="activity-request-extension-hint" />
+          </>
         ) : null}
       </div>
 
-      <ActivityExpenseDialog activity={activity} onOpenChange={setExpenseOpen} open={expenseOpen} />
+      {progressOpen ? (
+        <ActivityProgressDialog
+          activity={activity}
+          onOpenChange={setProgressOpen}
+          onRecorded={onActivityChanged}
+          open={progressOpen}
+        />
+      ) : null}
+      <ActivityExpenseDialog
+        activity={activity}
+        budgetReferences={budgetReferences}
+        onOpenChange={setExpenseOpen}
+        onSubmitted={onExpensesChanged}
+        open={expenseOpen}
+      />
       <ActivityExpenseReviewDialog
         expense={expenseReviewTarget}
         onOpenChange={(nextOpen) => {
           if (!nextOpen) setExpenseReviewTarget(null)
         }}
+        onReviewed={onExpensesChanged}
       />
       <ActivityProofReviewDialog
         activity={activity}
@@ -383,9 +478,13 @@ export const ActivityDetailContent = ({
 
 export const ActivityDetailPanel = ({
   activity,
+  budgetReferences = [],
   canDecideProof,
   canEdit,
   canLogExpense,
+  canReadBudgets = false,
+  loading = false,
+  canRecordProgress = false,
   canSubmitProof,
   canRequestExtension,
   canValidateExpense,
@@ -394,16 +493,22 @@ export const ActivityDetailPanel = ({
   journeyStages,
   onActivityChanged,
   onEdit,
+  onExpensesChanged = () => {},
   onOpenChange,
   onSubmitProof,
   open,
+  pendingExpenses = [],
   requestedExpenseId,
   requestedProofId,
 }: {
   activity: Activity | null
+  budgetReferences?: ExpenseBudgetReference[]
   canDecideProof: boolean
   canEdit: boolean
   canLogExpense: boolean
+  canReadBudgets?: boolean
+  loading?: boolean
+  canRecordProgress?: boolean
   canSubmitProof: boolean
   canRequestExtension: boolean
   canValidateExpense: boolean
@@ -412,23 +517,26 @@ export const ActivityDetailPanel = ({
   journeyStages: JourneyStageConfig[]
   onActivityChanged: (activity: Activity) => void
   onEdit: (activity: Activity) => void
+  onExpensesChanged?: () => void
   onOpenChange: (open: boolean) => void
   onSubmitProof: (activity: Activity) => void
   open: boolean
+  pendingExpenses?: PendingExpense[]
   requestedExpenseId?: string
   requestedProofId?: string
 }) => {
   const scrollRef = useRef<HTMLDivElement>(null)
+  const loadedActivityId = activity?.id
 
   useEffect(() => {
-    if (!open || !requestedProofId) return
+    if (!open || !requestedProofId || !loadedActivityId) return
     const frame = window.requestAnimationFrame(() => {
       document
         .getElementById(`activity-proof-${requestedProofId}`)
         ?.scrollIntoView({ block: 'center' })
     })
     return () => window.cancelAnimationFrame(frame)
-  }, [open, requestedProofId])
+  }, [open, requestedProofId, loadedActivityId])
 
   return (
     <Sheet onOpenChange={onOpenChange} open={open}>
@@ -447,9 +555,12 @@ export const ActivityDetailPanel = ({
         >
           <ActivityDetailContent
             activity={activity}
+            budgetReferences={budgetReferences}
             canDecideProof={canDecideProof}
             canEdit={canEdit}
             canLogExpense={canLogExpense}
+            canReadBudgets={canReadBudgets}
+            canRecordProgress={canRecordProgress}
             canSubmitProof={canSubmitProof}
             canRequestExtension={canRequestExtension}
             canValidateExpense={canValidateExpense}
@@ -458,10 +569,18 @@ export const ActivityDetailPanel = ({
             journeyStages={journeyStages}
             onActivityChanged={onActivityChanged}
             onEdit={onEdit}
+            onExpensesChanged={onExpensesChanged}
             onSubmitProof={onSubmitProof}
+            pendingExpenses={pendingExpenses}
             requestedExpenseId={requestedExpenseId}
             requestedProofId={requestedProofId}
           />
+        </SidePanel>
+      ) : loading ? (
+        <SidePanel description="Loading the current activity record." title="Activity detail">
+          <output aria-live="polite" className="block text-sm text-muted-foreground">
+            Loading activity...
+          </output>
         </SidePanel>
       ) : null}
     </Sheet>

@@ -10,6 +10,7 @@ import {
   Req,
 } from '@nestjs/common'
 
+import { RequireBeneficiaryStepUp } from '../../common/decorators/beneficiary-step-up.decorator'
 import { RequirePermission } from '../../common/decorators/permission.decorator'
 // biome-ignore lint/style/useImportType: Nest validation needs the DTO constructor at runtime.
 import { SaveJourneyConfigurationDto } from '../activities/activities.dto'
@@ -47,6 +48,7 @@ export class BeneficiaryJourneyController {
   constructor(@Inject(ParticipantsService) private readonly participants: ParticipantsService) {}
   @Get()
   @RequirePermission('journeys.read')
+  @RequireBeneficiaryStepUp()
   history(
     @Req() request: AuthenticatedRequest,
     @Param('projectId') projectId: string,
@@ -56,6 +58,7 @@ export class BeneficiaryJourneyController {
   }
   @Post('events')
   @RequirePermission('beneficiaries.enrollments.manage')
+  @RequireBeneficiaryStepUp()
   transition(
     @Req() request: AuthenticatedRequest,
     @Param('projectId') projectId: string,
@@ -66,6 +69,7 @@ export class BeneficiaryJourneyController {
   }
   @Post('events/:eventId/corrections')
   @RequirePermission('participation.record')
+  @RequireBeneficiaryStepUp()
   correct(
     @Req() request: AuthenticatedRequest,
     @Param('projectId') projectId: string,

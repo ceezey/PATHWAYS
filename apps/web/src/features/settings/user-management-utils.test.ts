@@ -19,11 +19,6 @@ const makeProject = (id: string, title: string): ProjectSummary => ({
   health: 'On Track',
   period: '2026',
   projectManager: 'Test manager',
-  kpiAchievement: 0,
-  beneficiariesReached: 0,
-  budgetUtilization: 0,
-  timelineProgress: 0,
-  targetGoal: null,
 })
 
 const testProjects = [
@@ -123,8 +118,8 @@ describe('user management utilities', () => {
       'Monitoring and Evaluation Officer',
     ])
     expect(getManageableUserRoles('Project Manager')).toEqual([
-      'Project Officer',
       'Monitoring and Evaluation Officer',
+      'Project Officer',
     ])
     expect(getManageableUserRoles('Project Officer')).toEqual([])
     expect(getManageableUserRoles('Monitoring and Evaluation Officer')).toEqual([])
@@ -184,7 +179,7 @@ describe('user management utilities', () => {
       ),
     ).toEqual(['Project Alpha', 'Project Beta'])
     expect(getProjectAccessLabels('Grant Manager', [], testProjects)).toEqual([
-      'Organization grant portfolio',
+      'No project assigned',
     ])
   })
 })

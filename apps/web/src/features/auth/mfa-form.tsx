@@ -4,10 +4,11 @@ import { LoaderCircle, ShieldCheck } from 'lucide-react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useEffect, useRef, useState } from 'react'
+import { toast } from 'sonner'
 
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { Input } from '@/components/ui/input'
+import { OtpInput } from '@/components/ui/otp-input'
 import { useCurrentRole } from '@/hooks/use-current-role'
 import { useSession } from '@/hooks/use-session'
 import { webEnv } from '@/lib/env'
@@ -52,6 +53,7 @@ export function MfaForm() {
     token: string
     factorId: string
     qr: string
+    secret: string
   } | null>(null)
   const [factorId, setFactorId] = useState('')
   const [code, setCode] = useState('')
@@ -261,6 +263,7 @@ export function MfaForm() {
         token,
         factorId: result.data.id,
         qr: getQrImageSource(result.data.totp.qr_code),
+        secret: result.data.totp.secret,
       })
       setFactorId(result.data.id)
     } catch {
@@ -449,6 +452,33 @@ export function MfaForm() {
                   height={240}
                   className="mx-auto bg-white p-3"
                 />
+                <details className="space-y-2 rounded-md border p-3">
+                  <summary className="cursor-pointer text-sm font-medium">
+                    Can&apos;t scan? Enter key manually
+                  </summary>
+                  <div className="space-y-2 pt-2">
+                    <p className="text-sm text-muted-foreground">
+                      Choose &quot;Enter a setup key&quot; in your authenticator app, select
+                      time-based, and type this key. Keep it private like the QR code.
+                    </p>
+                    <code className="block select-all break-all rounded border bg-muted p-3 text-center font-mono text-sm tracking-wider">
+                      {privateEnrollment.secret.replace(/(.{4})(?=.)/g, '$1 ')}
+                    </code>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        void navigator.clipboard
+                          .writeText(privateEnrollment.secret)
+                          .then(() => toast.success('Setup key copied.'))
+                          .catch(() => toast.error('Could not copy the setup key.'))
+                      }}
+                    >
+                      Copy key
+                    </Button>
+                  </div>
+                </details>
               </>
             ) : current.factors.length === 0 ? (
               <>
@@ -512,17 +542,13 @@ export function MfaForm() {
                 <label className="block text-sm" htmlFor="mfa-code">
                   Six-digit authenticator code
                 </label>
-                <Input
+                <OtpInput
                   id="mfa-code"
-                  type="password"
-                  inputMode="numeric"
-                  autoComplete="off"
-                  maxLength={6}
-                  pattern="[0-9]{6}"
+                  length={6}
+                  label="Authenticator code"
                   value={code}
-                  onChange={(event) => setCode(event.target.value.replace(/\D/g, '').slice(0, 6))}
+                  onChange={(next) => setCode(next.replace(/\D/g, '').slice(0, 6))}
                   disabled={busy}
-                  required
                 />
                 <Button type="submit" disabled={busy || !isTotpCode(code)}>
                   {busy ? 'Verifying...' : 'Verify authenticator code'}

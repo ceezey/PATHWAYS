@@ -23,6 +23,7 @@ import { useEffect, useState } from 'react'
 import { ConfirmationDialog } from '@/components/pathways/confirmation-dialog'
 import { ProgressBar } from '@/components/pathways/progress-bar'
 import { StatusBadge } from '@/components/pathways/status-badge'
+import { UnavailableHint, unavailableControlProps } from '@/components/pathways/unavailable-hint'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import {
@@ -107,7 +108,7 @@ export const PublicProjectDetail = ({
   const [donationOpen, setDonationOpen] = useState(false)
   const [editorError, setEditorError] = useState('')
   const [draftRecovered, setDraftRecovered] = useState(false)
-  const [hydrated, setHydrated] = useState(!editable)
+  const [, setHydrated] = useState(!editable)
   const draftStorageKey = `pathways.publicDashboardDraft.${project.id}`
 
   useEffect(() => {
@@ -311,14 +312,17 @@ export const PublicProjectDetail = ({
               </Button>
               <Button
                 className="gap-2"
-                disabled={!hydrated}
-                onClick={openEditor}
                 size="sm"
                 type="button"
+                {...Object.assign(
+                  { onClick: openEditor },
+                  unavailableControlProps('public-project-edit-staff-preview-hint'),
+                )}
               >
                 <SlidersHorizontal className="h-4 w-4" aria-hidden="true" />
                 Edit staff preview
               </Button>
+              <UnavailableHint id="public-project-edit-staff-preview-hint" />
             </div>
           </div>
         </section>
@@ -382,22 +386,29 @@ export const PublicProjectDetail = ({
               </div>
             </div>
 
-            <blockquote className="rounded-lg border border-white/20 bg-white/5 p-6">
-              <MessageSquareQuote className="h-8 w-8 text-primary-subtle" aria-hidden="true" />
-              <p className="mt-5 text-lg font-medium leading-8 text-white">
-                “{presentation.quote}”
-              </p>
-              <footer className="mt-5 border-t border-white/15 pt-4 text-sm text-navy-muted">
-                {presentation.quoteAttribution}
-              </footer>
-            </blockquote>
+            {presentation.quote && (
+              <blockquote className="rounded-lg border border-white/20 bg-white/5 p-6">
+                <MessageSquareQuote className="h-8 w-8 text-primary-subtle" aria-hidden="true" />
+                <p className="mt-5 text-lg font-medium leading-8 text-white">
+                  “{presentation.quote}”
+                </p>
+                <footer className="mt-5 border-t border-white/15 pt-4 text-sm text-navy-muted">
+                  {presentation.quoteAttribution}
+                </footer>
+              </blockquote>
+            )}
           </div>
 
           <div className="mt-9 grid overflow-hidden rounded-lg border border-white/20 bg-white/5 sm:grid-cols-3">
-            <HeroMetric label="Approved progress" value={`${project.progressTrend.at(-1) ?? 0}%`} />
+            <HeroMetric
+              label="Approved progress"
+              value={
+                project.progressTrend.length ? `${project.progressTrend.at(-1)}%` : 'Not available'
+              }
+            />
             <HeroMetric
               label="Beneficiaries reached"
-              value={project.beneficiariesReached.toLocaleString()}
+              value={project.beneficiariesReached?.toLocaleString() ?? 'Not available'}
             />
             <HeroMetric label="Project period" value={project.timeframe} />
           </div>
@@ -892,10 +903,13 @@ const PublicProgress = ({ project }: { project: PublicProjectRecord }) => (
       title="Progress at a glance"
     />
     <div className="grid gap-4 md:grid-cols-3">
-      <DetailMetric label="Approved progress" value={`${project.progressTrend.at(-1) ?? 0}%`} />
+      <DetailMetric
+        label="Approved progress"
+        value={project.progressTrend.length ? `${project.progressTrend.at(-1)}%` : 'Not available'}
+      />
       <DetailMetric
         label="Beneficiaries reached"
-        value={project.beneficiariesReached.toLocaleString()}
+        value={project.beneficiariesReached?.toLocaleString() ?? 'Not available'}
       />
       <DetailMetric label="Reviewed assessment" value={project.assessmentSummary} />
     </div>
@@ -905,7 +919,11 @@ const PublicProgress = ({ project }: { project: PublicProjectRecord }) => (
         <p className="text-sm leading-6 text-muted-foreground">{project.budgetSummary}</p>
       </CardHeader>
       <CardContent>
-        <PublicProgressTrendChart project={project} />
+        {project.progressTrend.length ? (
+          <PublicProgressTrendChart project={project} />
+        ) : (
+          <p className="text-sm text-muted-foreground">No approved progress is available.</p>
+        )}
       </CardContent>
     </Card>
   </section>
@@ -925,7 +943,11 @@ const PublicIndicators = ({ project }: { project: PublicProjectRecord }) => (
           <CardTitle>Indicator progress</CardTitle>
         </CardHeader>
         <CardContent>
-          <PublicIndicatorChart project={project} />
+          {project.selectedIndicators.length ? (
+            <PublicIndicatorChart project={project} />
+          ) : (
+            <p className="text-sm text-muted-foreground">No approved indicators are available.</p>
+          )}
         </CardContent>
       </Card>
       <Card className="border-border">

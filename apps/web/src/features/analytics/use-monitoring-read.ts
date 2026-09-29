@@ -81,6 +81,10 @@ export function useMonitoringRead<T>(selection: string, load: () => Promise<T>) 
     error: current?.error ?? null,
     loading: pending || (ready && !current),
     reload: () => setRevision((value) => value + 1),
+    /** Shows a result the caller just read under the same authority, without a second read. */
+    replaceData: (value: T) => {
+      if (ready) setState({ key, data: value, error: null })
+    },
     authorityKey: authority,
   }
 }

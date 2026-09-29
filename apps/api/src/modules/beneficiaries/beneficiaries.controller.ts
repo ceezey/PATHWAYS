@@ -11,6 +11,7 @@ import {
   Req,
 } from '@nestjs/common'
 
+import { RequireBeneficiaryStepUp } from '../../common/decorators/beneficiary-step-up.decorator'
 import { RequirePermission } from '../../common/decorators/permission.decorator'
 import type { AuthenticatedRequest } from '../auth/developer-access'
 // biome-ignore lint/style/useImportType: Nest validation needs the DTO constructors at runtime.
@@ -34,6 +35,7 @@ export class BeneficiariesController {
 
   @Get()
   @RequirePermission('beneficiaries.records.read')
+  @RequireBeneficiaryStepUp()
   list(
     @Req() request: AuthenticatedRequest,
     @Param('projectId') projectId: string,
@@ -44,6 +46,7 @@ export class BeneficiariesController {
 
   @Post('registrations')
   @RequirePermission('beneficiaries.records.register')
+  @RequireBeneficiaryStepUp()
   register(
     @Req() request: AuthenticatedRequest,
     @Param('projectId') projectId: string,
@@ -52,8 +55,26 @@ export class BeneficiariesController {
     return this.beneficiaries.register(profile(request), projectId, body)
   }
 
+  @Get('registration-context')
+  @RequirePermission('beneficiaries.records.register')
+  registrationContext(@Req() request: AuthenticatedRequest, @Param('projectId') projectId: string) {
+    return this.beneficiaries.registrationContext(profile(request), projectId)
+  }
+
+  // Provisions only the fixed system template and returns blank definitions, no Beneficiary data,
+  // so it follows registration context (no step-up) rather than the registration POST.
+  @Post('registration-context/default-form')
+  @RequirePermission('beneficiaries.records.register')
+  ensureDefaultRegistrationForm(
+    @Req() request: AuthenticatedRequest,
+    @Param('projectId') projectId: string,
+  ) {
+    return this.beneficiaries.ensureDefaultRegistrationForm(profile(request), projectId)
+  }
+
   @Get(':beneficiaryId')
   @RequirePermission('beneficiaries.records.read')
+  @RequireBeneficiaryStepUp()
   get(
     @Req() request: AuthenticatedRequest,
     @Param('projectId') projectId: string,
@@ -64,6 +85,7 @@ export class BeneficiariesController {
 
   @Patch(':beneficiaryId')
   @RequirePermission('beneficiaries.profiles.update')
+  @RequireBeneficiaryStepUp()
   update(
     @Req() request: AuthenticatedRequest,
     @Param('projectId') projectId: string,
@@ -75,6 +97,7 @@ export class BeneficiariesController {
 
   @Post(':beneficiaryId/archive')
   @RequirePermission('beneficiaries.records.archive')
+  @RequireBeneficiaryStepUp()
   archive(
     @Req() request: AuthenticatedRequest,
     @Param('projectId') projectId: string,
@@ -86,6 +109,7 @@ export class BeneficiariesController {
 
   @Post(':beneficiaryId/enrollments')
   @RequirePermission('beneficiaries.enrollments.manage')
+  @RequireBeneficiaryStepUp()
   enroll(
     @Req() request: AuthenticatedRequest,
     @Param('projectId') projectId: string,

@@ -3,7 +3,7 @@ name: CI
 on:
   push:
     branches:
-      - main
+      - dev
       - master
   pull_request:
 
@@ -21,23 +21,18 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
-      - name: Start loopback-only PostgreSQL 18
+      - name: Install PostgreSQL 18 for disposable local replay
         shell: bash
         run: |
-          docker run --detach --rm --name pathways-phase6-ci-postgres \
-            --network host \
-            --env POSTGRES_DB=pathways_phase4_phase6_replay \
-            --env POSTGRES_HOST_AUTH_METHOD=trust \
-            --env POSTGRES_USER=postgres \
-            postgres:18 -c listen_addresses=127.0.0.1
-          for attempt in {1..30}; do
-            if docker exec pathways-phase6-ci-postgres pg_isready -q -h 127.0.0.1 -U postgres -d pathways_phase4_phase6_replay; then
-              break
-            fi
-            sleep 1
-          done
-          docker exec pathways-phase6-ci-postgres pg_isready -q -h 127.0.0.1 -U postgres -d pathways_phase4_phase6_replay
+          sudo install -d /usr/share/postgresql-common/pgdg
+          curl --fail --silent --show-error https://www.postgresql.org/media/keys/ACCC4CF8.asc | sudo tee /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc > /dev/null
+          source /etc/os-release
+          echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt ${VERSION_CODENAME}-pgdg main" | sudo tee /etc/apt/sources.list.d/pgdg.list > /dev/null
+          sudo apt-get update
+          sudo apt-get install --no-install-recommends -y postgresql-18
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
@@ -58,47 +53,9 @@ jobs:
           pnpm --filter @pathways/api exec prisma validate --schema prisma/schema.prisma
           pnpm --filter @pathways/api exec prisma generate --schema prisma/schema.prisma
 
-      - name: Replay role-aware migrations and verify the preserved legacy boundary
-        shell: bash
-        run: |
-          docker exec -i pathways-phase6-ci-postgres psql -X -h 127.0.0.1 -U postgres -d pathways_phase4_phase6_replay -v ON_ERROR_STOP=1 < apps/api/prisma/tests/security-adapter-local-bootstrap.sql
-          stage="$GITHUB_WORKSPACE/.tmp/phase6-ci/migrations"
-          mkdir -p "$stage"
-          cp apps/api/prisma/migrations/migration_lock.toml "$stage/"
-          for migration in 0001_init 0002_pathways_foundation 0003_pathways_projects_collection 0004_pathways_finance_evaluation_decisions; do
-            cp -R "apps/api/prisma/migrations/$migration" "$stage/"
-          done
-          # 0001 was originally applied with CRLF bytes; retain its pinned ledger checksum.
-          python - <<'PY'
-          import hashlib
-          from pathlib import Path
-          import os
-
-          migration = Path(os.environ['GITHUB_WORKSPACE']) / '.tmp/phase6-ci/migrations/0001_init/migration.sql'
-          source = migration.read_bytes()
-          if b'\r' in source:
-              raise SystemExit('Expected the committed LF form of migration 0001')
-          original_bytes = source.replace(b'\n', b'\r\n')
-          if hashlib.sha256(original_bytes).hexdigest() != '8b4e25d97b493e6042287373bda015db8e1f1e6a1daf0e49b142484762e248ab':
-              raise SystemExit('Migration 0001 checksum does not match the reviewed applied history')
-          migration.write_bytes(original_bytes)
-          PY
-          export PATHWAYS_PHASE6_REPLAY_MIGRATIONS="$stage"
-          migration_url_variable='DIRECT_URL'
-          migration_url="postgresql://prisma@127.0.0.1:5432/pathways_phase4_phase6_replay?sslmode=disable&connection_limit=1"
-          export "$migration_url_variable=$migration_url"
-          pnpm --filter @pathways/api exec prisma migrate deploy --config "$GITHUB_WORKSPACE/infra/supabase/phase6/prisma.replay.config.ts"
-          cp -R apps/api/prisma/migrations/0005_supabase_security_adapter "$stage/"
-          migration_url="postgresql://postgres@127.0.0.1:5432/pathways_phase4_phase6_replay?sslmode=disable&connection_limit=1"
-          export "$migration_url_variable=$migration_url"
-          pnpm --filter @pathways/api exec prisma migrate deploy --config "$GITHUB_WORKSPACE/infra/supabase/phase6/prisma.replay.config.ts"
-          cp -R apps/api/prisma/migrations/0006_auth_session_liveness "$stage/"
-          migration_url="postgresql://postgres@127.0.0.1:5432/pathways_phase4_phase6_replay?sslmode=disable&connection_limit=1"
-          export "$migration_url_variable=$migration_url"
-          pnpm --filter @pathways/api exec prisma migrate deploy --config "$GITHUB_WORKSPACE/infra/supabase/phase6/prisma.replay.config.ts"
-          pnpm --filter @pathways/api exec prisma migrate status --config "$GITHUB_WORKSPACE/infra/supabase/phase6/prisma.replay.config.ts"
-          result="$(docker exec pathways-phase6-ci-postgres psql -X -q -A -t -h 127.0.0.1 -U postgres -d pathways_phase4_phase6_replay -v ON_ERROR_STOP=1 -c "SELECT (SELECT count(*) FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname='pathways' AND c.relkind='r')=39 AND (SELECT count(*) FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname='public' AND c.relkind='r' AND c.relname<>'_prisma_migrations')=15 AND (SELECT count(*) FROM public._prisma_migrations WHERE finished_at IS NOT NULL AND rolled_back_at IS NULL)=6 AND (SELECT count(*) FROM public._prisma_migrations)=6 AND to_regprocedure('pathways.runtime_auth_session_live(uuid,uuid)') IS NOT NULL AND has_function_privilege('pathways_runtime','pathways.runtime_auth_session_live(uuid,uuid)','EXECUTE') AND NOT has_table_privilege('pathways_runtime','auth.sessions','SELECT');")"
-          test "$result" = "t"
+      - name: Replay verified history, baseline and forward corrections
+        shell: pwsh
+        run: ./infra/supabase/phase6/Replay-Local.ps1 -MigrationBaseline -PostgresBin /usr/lib/postgresql/18/bin
 
       - name: Check committed files for secret assignments
         shell: bash
@@ -119,3 +76,64 @@ jobs:
 
       - name: Build
         run: pnpm build
+
+  sad:
+    name: Automated SAD checks (specialist sign-off remains separate)
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout full repository history
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 11.20.0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Test SAD checker
+        run: pnpm sad:test
+
+      - name: Typecheck SAD checker
+        run: pnpm sad:typecheck
+
+      - name: Review changed paths with automated SAD checks
+        shell: bash
+        env:
+          SAD_EVENT: ${{ github.event_name }}
+          SAD_PR_BASE: ${{ github.event.pull_request.base.sha }}
+          SAD_PR_HEAD: ${{ github.event.pull_request.head.sha }}
+          SAD_PUSH_BASE: ${{ github.event.before }}
+          SAD_PUSH_HEAD: ${{ github.sha }}
+        run: |
+          if [[ "$SAD_EVENT" == "pull_request" ]]; then
+            base="$SAD_PR_BASE"
+            head="$SAD_PR_HEAD"
+          else
+            base="$SAD_PUSH_BASE"
+            head="$SAD_PUSH_HEAD"
+            if [[ -z "$base" || "$base" =~ ^0+$ ]]; then
+              base="$(git hash-object -t tree -w /dev/null)"
+            fi
+          fi
+          mkdir -p "$RUNNER_TEMP/sad"
+          pnpm sad:check -- --base "$base" --head "$head" --output "$RUNNER_TEMP/sad/evaluations.json"
+
+      - name: Upload automated diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: sad-automated-diagnostics
+          path: ${{ runner.temp }}/sad/evaluations.json
+          if-no-files-found: warn

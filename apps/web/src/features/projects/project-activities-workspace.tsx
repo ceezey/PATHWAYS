@@ -12,8 +12,7 @@ import {
   UsersRound,
 } from 'lucide-react'
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 
 import { PageHeader } from '@/components/layout/page-header'
 import {
@@ -29,21 +28,18 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { useCurrentRole } from '@/hooks/use-current-role'
 import { useDisplayLabels } from '@/hooks/use-display-labels'
-import { can } from '@/lib/rbac/can'
 import { canAccessProjectForRole } from '@/lib/rbac/data-scope'
 import { principalHasAtomicPermission } from '@/lib/rbac/route-access'
+import { isUiActionAvailable } from '@/lib/rbac/ui-action-availability'
+import { coreDataClient } from '@/lib/services/core-feature-client'
 import { pathwaysClient } from '@/lib/services/pathways-client'
 import { PathwaysClientError } from '@/lib/services/pathways-client'
-import type {
-  Activity,
-  ActivityStatus,
-  Indicator,
-  JourneyStageConfig,
-  ProjectDetail,
-  UserRecord,
-} from '@/types/pathways'
+import { useAuthorizedRead } from '@/providers/authorized-query-provider'
+import type { Activity, ActivityStatus, ActivitySummary, Indicator } from '@/types/pathways'
 
 import { ActivityDetailPanel } from './activity-detail-panel'
+import type { ExpenseBudgetReference } from './activity-expense-dialog'
+import type { PendingExpense } from './activity-expense-review-dialog'
 import { ActivityFormDialog } from './activity-form-dialog'
 import { ActivityProofDialog } from './activity-proof-dialog'
 import {
@@ -52,10 +48,18 @@ import {
   activityProgressTone,
   activityStatusTone,
   activityStatuses,
+  activitySummary,
 } from './activity-utils'
 import { ProjectWorkspaceHeader } from './project-workspace-header'
+import {
+  useActivityDetailRead,
+  useProjectActivitiesRead,
+  useProjectIndicatorsRead,
+  useProjectJourneyStagesRead,
+  useProjectRead,
+} from './use-project-reads'
 
-const indicatorSummary = (activity: Activity, indicators: Indicator[]) =>
+const indicatorSummary = (activity: ActivitySummary, indicators: Indicator[]) =>
   activity.indicatorIds
     .map(
       (indicatorId) =>
@@ -67,8 +71,8 @@ const ActivityCard = ({
   activity,
   onOpen,
 }: {
-  activity: Activity
-  onOpen: (activity: Activity) => void
+  activity: ActivitySummary
+  onOpen: (activity: ActivitySummary) => void
 }) => (
   <article
     aria-label={`Activity: ${activity.title}`}
@@ -133,8 +137,8 @@ const ActivityListRow = ({
   activity,
   onOpen,
 }: {
-  activity: Activity
-  onOpen: (activity: Activity) => void
+  activity: ActivitySummary
+  onOpen: (activity: ActivitySummary) => void
 }) => (
   <article
     aria-label={`Activity: ${activity.title}`}
@@ -240,99 +244,140 @@ export const ProjectActivitiesWorkspace = ({
   initialProofId?: string
   projectId: string
 }) => {
-  const router = useRouter()
   const { labels } = useDisplayLabels()
   const { role, assignedProjectIds, profile } = useCurrentRole()
   const inProjectScope = role ? canAccessProjectForRole(role, projectId, assignedProjectIds) : false
-  const canCreateEdit = role ? can(role, 'activities.create_edit') && inProjectScope : false
-  const canReadIndicators = principalHasAtomicPermission(profile, 'monitoring.read')
+  // Create and edit are separate authorities (a Project Officer creates but never edits).
+  // Per-activity Edit, Record progress and Submit proof also need the server-computed
+  // activity capabilities, which the detail panel applies.
+  const canCreate = inProjectScope && principalHasAtomicPermission(profile, 'activities.create')
+  const canUpdate = inProjectScope && principalHasAtomicPermission(profile, 'activities.update')
+  const canReadIndicators = principalHasAtomicPermission(profile, 'indicators.read')
   const canReadJourneyStages = principalHasAtomicPermission(profile, 'journeys.read')
-  const canReadUsers = canCreateEdit && principalHasAtomicPermission(profile, 'users.authorize')
-  const canSubmitProof = role
-    ? can(role, 'activities.submit_update_proof') && inProjectScope
-    : false
+  const canReadOfficers = canCreate || canUpdate
+  const canSubmitProof =
+    inProjectScope && principalHasAtomicPermission(profile, 'activities.proof.submit')
+  const canRecordProgress =
+    inProjectScope && isUiActionAvailable(role, 'activities.progress.record', profile)
   const canLogExpense = role === 'Project Officer' && inProjectScope
-  const canValidateProof = role === 'Monitoring and Evaluation Officer' && inProjectScope
-  const canDecideProof = role === 'Project Manager' && inProjectScope
-  const [project, setProject] = useState<ProjectDetail | null>(null)
-  const [activities, setActivities] = useState<Activity[]>([])
-  const [indicators, setIndicators] = useState<Indicator[]>([])
-  const [journeyStages, setJourneyStages] = useState<JourneyStageConfig[]>([])
-  const [users, setUsers] = useState<UserRecord[]>([])
-  const [loading, setLoading] = useState(true)
-  const [loadError, setLoadError] = useState<'none' | 'not-found' | 'error'>('none')
+  const canValidateProof =
+    role === 'Monitoring and Evaluation Officer' &&
+    inProjectScope &&
+    principalHasAtomicPermission(profile, 'evidence.review')
+  const canDecideProof = false
+  const canValidateExpense = role === 'Monitoring and Evaluation Officer' && inProjectScope
+  // Expense-budget references never expose plan amounts; they are also the only project-scoped
+  // read that carries the activity linkage, so both the submit dialog and the pending-expense
+  // list for an activity reuse them instead of a broader budgets.read query.
+  const canReadExpenseReferences =
+    (canLogExpense || canValidateExpense) &&
+    principalHasAtomicPermission(profile, 'expenses.submit')
+  const canReadExpenses =
+    (canLogExpense || canValidateExpense) && principalHasAtomicPermission(profile, 'expenses.read')
+
   const [query, setQuery] = useState('')
   const [statusFilter, setStatusFilter] = useState<ActivityStatus | null>(null)
   const [viewMode, setViewMode] = useState<'board' | 'list'>('list')
-  const [selectedActivity, setSelectedActivity] = useState<Activity | null>(null)
+  // The detail route opens by id through GET /activities/:id; the list is never searched.
+  const [selectedActivityId, setSelectedActivityId] = useState<string | null>(
+    initialActivityId ?? null,
+  )
   const activityDetailTrigger = useRef<HTMLElement | null>(null)
   const [editingActivity, setEditingActivity] = useState<Activity | null>(null)
   const [proofActivity, setProofActivity] = useState<Activity | null>(null)
   const [formOpen, setFormOpen] = useState(false)
   const [proofOpen, setProofOpen] = useState(false)
-  const [loadAttempt, setLoadAttempt] = useState(0)
-
-  useEffect(() => {
-    void loadAttempt
-    let mounted = true
-    setLoading(true)
-    setLoadError('none')
-
-    Promise.all([
-      pathwaysClient.getProject(projectId),
-      pathwaysClient.getActivities(projectId),
-      canReadIndicators ? pathwaysClient.getIndicators(projectId) : Promise.resolve([]),
-      canReadJourneyStages ? pathwaysClient.getJourneyStages(projectId) : Promise.resolve([]),
-      canReadUsers ? pathwaysClient.getUsers() : Promise.resolve([]),
-    ])
-      .then(([projectRecord, activityRecords, indicatorRecords, stageRecords, userRecords]) => {
-        if (!mounted) {
-          return
-        }
-
-        setProject(projectRecord)
-        setActivities(activityRecords)
-        setIndicators(indicatorRecords)
-        setJourneyStages(stageRecords)
-        setUsers(userRecords)
-        const initialActivity = initialActivityId
-          ? (activityRecords.find((activity) => activity.id === initialActivityId) ?? null)
-          : null
-        setSelectedActivity(initialActivity)
-
-        if (initialActivityId && !initialActivity) {
-          router.replace(`/projects/${projectId}/activities`)
-        }
-      })
-      .catch((error) => {
-        if (!mounted) {
-          return
-        }
-
-        setLoadError(
-          error instanceof PathwaysClientError && error.code === 'not_found'
-            ? 'not-found'
-            : 'error',
-        )
-      })
-      .finally(() => {
-        if (mounted) {
-          setLoading(false)
-        }
-      })
-
-    return () => {
-      mounted = false
-    }
-  }, [
-    canReadIndicators,
-    canReadJourneyStages,
-    canReadUsers,
-    initialActivityId,
-    loadAttempt,
+  // Shared with the Overview tab: one project read per workspace visit.
+  const projectRead = useProjectRead(projectId)
+  const activityList = useProjectActivitiesRead(projectId)
+  const project = projectRead.data ?? null
+  const activities = activityList.data ?? []
+  const loadFailure = projectRead.isError ? projectRead.error : activityList.error
+  // Only a real not-found error reaches the not-found view; data that is hidden while
+  // access is re-verified stays in the loading state.
+  const loading =
+    !projectRead.eligible ||
+    !activityList.eligible ||
+    projectRead.isPending ||
+    activityList.isPending ||
+    (!loadFailure && (!project || !activityList.data))
+  const loadError = loadFailure
+    ? loadFailure instanceof PathwaysClientError && loadFailure.code === 'not_found'
+      ? 'not-found'
+      : 'error'
+    : 'none'
+  // Loaded once per workspace with stable keys, so search works without opening a panel.
+  const indicatorRead = useProjectIndicatorsRead(projectId, canReadIndicators)
+  const journeyStageRead = useProjectJourneyStagesRead(projectId, canReadJourneyStages)
+  // Project-scoped assignable officers (userId and displayName only), not GET /users.
+  const officerRead = useAuthorizedRead(
+    'activity-assignable-officers',
     projectId,
-    router,
-  ])
+    canCreate ? 'activities.create' : 'activities.update',
+    (signal) => pathwaysClient.getAssignableProjectOfficers(projectId, signal),
+    canReadOfficers && formOpen,
+  )
+  const indicators = indicatorRead.data ?? []
+  const journeyStages = journeyStageRead.data ?? []
+  const officers = officerRead.data ?? []
+  const editorReads = [
+    canReadIndicators ? indicatorRead : null,
+    canReadJourneyStages ? journeyStageRead : null,
+    canReadOfficers ? officerRead : null,
+  ].filter((read) => read !== null)
+  const editorReady = editorReads.every((read) => read.data !== undefined)
+  const editorFailed = editorReads.some((read) => read.isError)
+  const detail = useActivityDetailRead(projectId, selectedActivityId)
+  const selectedActivity = detail.data ?? null
+  // Fetched once per workspace visit rather than per activity: the panel filters the
+  // project-scoped rows down to the currently open activity.
+  const expenseReferencesRead = useAuthorizedRead(
+    'activity-expense-references',
+    projectId,
+    'expenses.submit',
+    (signal) => coreDataClient.budgetReferences(projectId, signal),
+    canReadExpenseReferences,
+  )
+  const expensesRead = useAuthorizedRead(
+    'activity-expenses',
+    projectId,
+    'expenses.read',
+    (signal) => coreDataClient.expenses(projectId, signal),
+    canReadExpenses,
+  )
+  const budgetReferences: ExpenseBudgetReference[] = expenseReferencesRead.data ?? []
+  const pendingExpenses: PendingExpense[] = useMemo(() => {
+    if (!selectedActivity) return []
+    const referenceMap = new Map(budgetReferences.map((row) => [row.id, row]))
+    return (expensesRead.data ?? [])
+      .filter((expense) => expense.status === 'PENDING')
+      .flatMap((expense) => {
+        const reference = referenceMap.get(expense.budgetRecordId)
+        if (!reference || reference.activityId !== selectedActivity.id) return []
+        return [
+          {
+            id: expense.id,
+            activityId: selectedActivity.id,
+            projectId,
+            amount: Number(expense.amount),
+            category: reference.category,
+            date: expense.expenseDate,
+            description: expense.description,
+            status: 'For Verification' as const,
+            updatedAt: expense.updatedAt,
+            receiptEvidenceId: expense.receiptEvidenceId,
+          },
+        ]
+      })
+  }, [expensesRead.data, budgetReferences, projectId, selectedActivity])
+  const refreshExpenses = () => {
+    void expensesRead.refetch()
+    void expenseReferencesRead.refetch()
+  }
+  const detailNotFound =
+    detail.isError &&
+    detail.error instanceof PathwaysClientError &&
+    ['not_found', 'forbidden'].includes(detail.error.code)
 
   const filteredActivities = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase()
@@ -395,18 +440,21 @@ export const ProjectActivitiesWorkspace = ({
   )
 
   const upsertActivity = (activity: Activity, selectActivity = true) => {
-    setActivities((currentActivities) => [
-      ...currentActivities.filter((item) => item.id !== activity.id),
-      activity,
+    if (!project) return
+    const item = activitySummary(activity)
+    activityList.replaceData((previous) => [
+      ...(previous ?? []).filter((current) => current.id !== activity.id),
+      item,
     ])
-    setSelectedActivity((currentActivity) =>
-      currentActivity?.id === activity.id || selectActivity ? activity : currentActivity,
-    )
+    if (selectActivity || selectedActivityId === activity.id) {
+      setSelectedActivityId(activity.id)
+      if (selectedActivityId === activity.id) detail.replaceData(() => activity)
+    }
   }
 
-  const openDetail = (activity: Activity) => {
+  const openDetail = (activity: ActivitySummary) => {
     activityDetailTrigger.current = document.activeElement as HTMLElement | null
-    setSelectedActivity(activity)
+    setSelectedActivityId(activity.id)
     window.history.pushState(null, '', `/projects/${projectId}/activities/${activity.id}`)
   }
 
@@ -415,13 +463,13 @@ export const ProjectActivitiesWorkspace = ({
       return
     }
 
-    setSelectedActivity(null)
+    setSelectedActivityId(null)
     window.history.replaceState(null, '', `/projects/${projectId}/activities`)
     window.requestAnimationFrame(() => activityDetailTrigger.current?.focus())
   }
 
   const openCreate = () => {
-    if (!canCreateEdit) {
+    if (!canCreate) {
       return
     }
 
@@ -430,7 +478,7 @@ export const ProjectActivitiesWorkspace = ({
   }
 
   const openEdit = (activity: Activity) => {
-    if (!canCreateEdit) {
+    if (!canUpdate || !activity.capabilities?.canEdit) {
       return
     }
 
@@ -439,7 +487,7 @@ export const ProjectActivitiesWorkspace = ({
   }
 
   const openProof = (activity: Activity) => {
-    if (!canSubmitProof) {
+    if (!canSubmitProof || !activity.capabilities?.canSubmitProof) {
       return
     }
 
@@ -473,7 +521,10 @@ export const ProjectActivitiesWorkspace = ({
         <AsyncState
           description="The project could not be loaded. Check your connection and try again."
           icon={LayoutGrid}
-          onRetry={() => setLoadAttempt((attempt) => attempt + 1)}
+          onRetry={() => {
+            if (projectRead.isError) void projectRead.refetch()
+            if (activityList.isError) void activityList.refetch()
+          }}
           status="error"
           title="Activities unavailable"
         />
@@ -517,7 +568,7 @@ export const ProjectActivitiesWorkspace = ({
         }
       />
       <ProjectWorkspaceHeader project={project} />
-      {canCreateEdit ? (
+      {canCreate ? (
         <div className="flex justify-end">
           <Button className="gap-2 whitespace-nowrap" onClick={openCreate} type="button">
             <Plus className="h-4 w-4" aria-hidden="true" />
@@ -618,33 +669,76 @@ export const ProjectActivitiesWorkspace = ({
           </div>
         </SectionCard>
       ) : null}
+      {selectedActivityId && detail.isError ? (
+        <div className="space-y-3">
+          <AsyncState
+            description={
+              detailNotFound
+                ? 'This activity is not available in this project for the current account.'
+                : 'The activity could not be loaded. Check your connection and try again.'
+            }
+            icon={LayoutGrid}
+            onRetry={detailNotFound ? undefined : () => void detail.refetch()}
+            status={detailNotFound ? 'empty' : 'error'}
+            title={detailNotFound ? 'Activity not found' : 'Activity unavailable'}
+          />
+          <Button onClick={() => closeDetail(false)} type="button" variant="outline">
+            Back to all activities
+          </Button>
+        </div>
+      ) : null}
       <ActivityDetailPanel
         activity={selectedActivity}
+        budgetReferences={budgetReferences}
+        loading={Boolean(selectedActivityId) && detail.isPending}
         canDecideProof={canDecideProof}
-        canEdit={canCreateEdit}
+        canEdit={canUpdate}
         canLogExpense={canLogExpense}
+        canReadBudgets={principalHasAtomicPermission(profile, 'budgets.read')}
+        canRecordProgress={canRecordProgress}
         canRequestExtension={role === 'Project Officer' && inProjectScope}
         canSubmitProof={canSubmitProof}
-        canValidateExpense={role === 'Monitoring and Evaluation Officer' && inProjectScope}
+        canValidateExpense={canValidateExpense}
         canValidateProof={canValidateProof}
         indicators={indicators}
         journeyStages={journeyStages}
         onActivityChanged={(activity) => upsertActivity(activity, false)}
         onEdit={openEdit}
+        onExpensesChanged={refreshExpenses}
         onOpenChange={closeDetail}
         onSubmitProof={openProof}
-        open={Boolean(selectedActivity)}
+        open={Boolean(selectedActivityId) && !detail.isError}
+        pendingExpenses={pendingExpenses}
         requestedProofId={initialProofId}
       />
+      {formOpen && !editorReady ? (
+        <AsyncState
+          status={editorFailed ? 'error' : 'loading'}
+          title="Activity editor"
+          description={
+            editorFailed
+              ? 'Editor information could not be loaded. Try again.'
+              : 'Loading editor information.'
+          }
+          onRetry={
+            editorFailed
+              ? () => {
+                  for (const read of editorReads) if (read.isError) void read.refetch()
+                }
+              : undefined
+          }
+        />
+      ) : null}
       <ActivityFormDialog
+        onAcknowledged={() => activityList.refetch()}
         activity={editingActivity}
         indicators={indicators}
         journeyStages={journeyStages}
         onCreatedOrUpdated={upsertActivity}
         onOpenChange={setFormOpen}
-        open={formOpen}
+        open={formOpen && editorReady}
         projectId={projectId}
-        users={users}
+        officers={officers}
       />
       <ActivityProofDialog
         activity={proofActivity}

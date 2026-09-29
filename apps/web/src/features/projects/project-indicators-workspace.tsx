@@ -1,4 +1,5 @@
 'use client'
+import { SourceMutationRecovery } from './source-mutation-recovery'
 
 import { EmptyState } from '@/components/pathways/empty-state'
 import { Button } from '@/components/ui/button'
@@ -6,13 +7,21 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { useMonitoringRead } from '@/features/analytics/use-monitoring-read'
 import { useCurrentRole } from '@/hooks/use-current-role'
+import { useSourceMutationContext } from '@/hooks/use-source-mutation-context'
+import { principalHasAtomicPermission } from '@/lib/rbac/route-access'
 import { PathwaysClientError, pathwaysClient } from '@/lib/services/pathways-client'
+import {
+  type SourceMutationResult,
+  isSourceReplay,
+  sourceMutationTickets,
+} from '@/lib/services/source-mutation'
+import { useAuthorizedRead } from '@/providers/authorized-query-provider'
 import type { Activity, DigitalFormDefinition } from '@/types/pathways'
 import {
-  type CreateIndicatorInput,
+  type CreateIndicatorDraftInput as CreateIndicatorInput,
   type ManualMeasurementInput,
   type ProjectIndicator,
-  createIndicatorSchema,
+  createIndicatorDraftSchema,
   formatMetricCell,
   manualMeasurementSchema,
   metricRecipes,
@@ -20,8 +29,6 @@ import {
 } from '@pathways/shared'
 import { Target } from 'lucide-react'
 import { type FormEvent, useCallback, useEffect, useRef, useState } from 'react'
-
-import { describeTargetGoalComparison } from './target-goal-presentation'
 
 const inputClass = 'w-full rounded-md border border-input bg-background px-3 py-2 text-sm'
 const recipeNames: Record<(typeof metricRecipes)[number], string> = {
@@ -45,7 +52,7 @@ export function indicatorInputFromForm(
   const recipe = text(form, 'recipe')
   const selectedForm = forms.find((item) => item.id === text(form, 'formId'))
   const formRecipe = recipe === 'FORM_NUMERIC_SUM' || recipe === 'FORM_NUMERIC_AVERAGE'
-  return createIndicatorSchema.parse({
+  return createIndicatorDraftSchema.parse({
     code: text(form, 'code'),
     name: text(form, 'name'),
     description: optional(form, 'description'),
@@ -83,7 +90,7 @@ function NewIndicator({
   onSave,
 }: {
   forms: DigitalFormDefinition[]
-  activities: Activity[]
+  activities: Pick<Activity, 'id' | 'title' | 'journeyStageId'>[]
   busy: boolean
   onSave: (input: CreateIndicatorInput) => Promise<boolean>
 }) {
@@ -110,7 +117,7 @@ function NewIndicator({
       }
     } catch {
       setValidation(
-        'Check the period, exact decimal values, numeric domain, direction and required binding. Counts use precision 0; percentages use 0–100; ratios may exceed 1.',
+        'Check the period, exact decimal values, numeric domain, direction and required binding. Counts use precision 0; percentages use 0â€“100; ratios may exceed 1.',
       )
     }
   }
@@ -244,7 +251,7 @@ function NewIndicator({
                         .filter((form) => form.status === 'PUBLISHED')
                         .map((form) => (
                           <option key={form.id} value={form.id}>
-                            {form.name} · v{form.version}
+                            {form.name} Â· v{form.version}
                           </option>
                         ))}
                     </select>
@@ -302,11 +309,13 @@ function IndicatorEditor({
   onSave,
   onUpdate,
   onArchive,
+  canArchive,
 }: {
   indicator: ProjectIndicator
   busy: boolean
   onSave: (input: ManualMeasurementInput) => Promise<boolean>
   onUpdate: (name: string, description: string) => Promise<boolean>
+  canArchive: boolean
   onArchive: () => Promise<boolean>
 }) {
   const [error, setError] = useState<string | null>(null)
@@ -328,12 +337,16 @@ function IndicatorEditor({
     }
     try {
       const signature = JSON.stringify(payload)
-      if (retry.current?.signature !== signature)
-        retry.current = { signature, id: crypto.randomUUID() }
+      if (retry.current && retry.current.signature !== signature)
+        throw new Error(
+          'The earlier measurement outcome is unresolved. Retry its unchanged values before changing them.',
+        )
+      const attempt = retry.current ?? { signature, id: crypto.randomUUID() }
       const parsed = manualMeasurementSchema.parse({
         ...payload,
-        clientMeasurementId: retry.current.id,
+        clientMeasurementId: attempt.id,
       })
+      retry.current = attempt
       setError(null)
       if (await onSave(parsed)) {
         retry.current = null
@@ -416,68 +429,100 @@ function IndicatorEditor({
           permitted.
         </p>
       )}
-      <div className="mt-5 flex flex-wrap items-center gap-3 border-t border-border pt-3">
-        <label className="flex items-center gap-2 text-sm">
-          <input
-            type="checkbox"
-            checked={archiveConfirmed}
-            onChange={(event) => setArchiveConfirmed(event.target.checked)}
-          />
-          Confirm archive (no deletion)
-        </label>
-        <Button
-          type="button"
-          variant="outline"
-          disabled={!archiveConfirmed || busy}
-          onClick={() => void onArchive()}
-        >
-          Archive indicator
-        </Button>
-      </div>
+      {canArchive ? (
+        <div className="mt-5 flex flex-wrap items-center gap-3 border-t border-border pt-3">
+          <label className="flex items-center gap-2 text-sm">
+            <input
+              type="checkbox"
+              checked={archiveConfirmed}
+              onChange={(event) => setArchiveConfirmed(event.target.checked)}
+            />
+            Confirm archive (no deletion)
+          </label>
+          <Button
+            type="button"
+            variant="outline"
+            disabled={!archiveConfirmed || busy}
+            onClick={() => void onArchive()}
+          >
+            Archive indicator
+          </Button>
+        </div>
+      ) : null}
     </details>
   )
 }
 
 export function ProjectIndicatorsWorkspace({ projectId }: { projectId: string }) {
   const { profile } = useCurrentRole()
-  const canCreate = profile?.permissions.includes('indicators.create') === true
-  const canUpdate = profile?.permissions.includes('indicators.update') === true
+  const createContext = useSourceMutationContext(profile, 'indicators.create', projectId, null)
+  const updateContext = useSourceMutationContext(profile, 'indicators.update', projectId, null)
+  const archiveContext = useSourceMutationContext(profile, 'indicators.archive', projectId, null)
+  // Atomic checks under the role ceiling, never the raw grant list.
+  const canCreate = principalHasAtomicPermission(profile, 'indicators.create')
+  const canUpdate = principalHasAtomicPermission(profile, 'indicators.update')
   const load = useCallback(() => pathwaysClient.getProjectIndicators(projectId), [projectId])
-  const { data, error, loading, reload, authorityKey } = useMonitoringRead(projectId, load)
+  const { data, error, loading, reload, replaceData, authorityKey } = useMonitoringRead(
+    projectId,
+    load,
+  )
   const [busy, setBusy] = useState(false)
   const [message, setMessage] = useState<string | null>(null)
-  const [bindings, setBindings] = useState<{
-    key: string
-    forms: DigitalFormDefinition[]
-    activities: Activity[]
-  } | null>(null)
+  const [recoveryGeneration, setRecoveryGeneration] = useState(0)
   const activeKey = `${authorityKey}:${projectId}`
   const currentKey = useRef(activeKey)
   currentKey.current = activeKey
-  useEffect(() => {
-    let active = true
-    if (canCreate)
-      void Promise.all([
-        pathwaysClient.getDigitalForms(projectId),
-        pathwaysClient.getActivities(projectId),
+  const canReadForms = principalHasAtomicPermission(profile, 'forms.read')
+  const canReadActivityContext = principalHasAtomicPermission(profile, 'activities.context.read')
+  const canReadActivities = principalHasAtomicPermission(profile, 'activities.read')
+  // Binding choices need only id, title and stage: the context projection or the lean list.
+  const bindingRead = useAuthorizedRead(
+    'indicator-binding-choices',
+    projectId,
+    'indicators.create',
+    async (signal) => {
+      const [forms, activities] = await Promise.all([
+        canReadForms
+          ? pathwaysClient.getDigitalForms(projectId)
+          : Promise.resolve<DigitalFormDefinition[]>([]),
+        canReadActivityContext
+          ? pathwaysClient.getActivityContext(projectId)
+          : canReadActivities
+            ? pathwaysClient.getActivities(projectId, signal)
+            : Promise.resolve([]),
       ])
-        .then(([forms, activities]) => {
-          if (active) setBindings({ key: activeKey, forms, activities })
-        })
-        .catch(() => {
-          if (active) setBindings(null)
-        })
-    return () => {
-      active = false
-    }
-  }, [activeKey, canCreate, projectId])
-  const mutate = async (action: () => Promise<ProjectIndicator>) => {
+      return {
+        forms,
+        activities: activities.map(({ id, title, journeyStageId }) => ({
+          id,
+          title,
+          journeyStageId,
+        })),
+      }
+    },
+    canCreate,
+    { freshness: 'summary' },
+  )
+  const mutate = async (action: () => Promise<SourceMutationResult<ProjectIndicator>>) => {
     if (busy) return false
     const startedKey = activeKey
     setBusy(true)
     setMessage(null)
     try {
-      await action()
+      const result = await action()
+      const owner = updateContext ?? createContext ?? archiveContext
+      if (!owner?.isCurrent()) return false
+      if (isSourceReplay(result)) {
+        // The authorized reload that confirms the replay is also the displayed state.
+        const persisted = await pathwaysClient.getProjectIndicators(projectId)
+        if (!owner.isCurrent()) return false
+        sourceMutationTickets.finishAcknowledgement(owner, result.requestId)
+        if (currentKey.current === startedKey) {
+          replaceData(persisted)
+          setMessage('Saved. The persisted indicator is shown.')
+        }
+        return true
+      }
       if (currentKey.current === startedKey) {
         reload()
         setMessage('Saved. The persisted indicator is being reloaded.')
@@ -508,9 +553,21 @@ export function ProjectIndicatorsWorkspace({ projectId }: { projectId: string })
     setMessage(null)
   }, [activeKey])
 
-  const availableBindings = bindings?.key === activeKey ? bindings : null
+  const availableBindings = bindingRead.data ?? null
   return (
     <section className="space-y-5">
+      <SourceMutationRecovery
+        context={updateContext ?? createContext ?? archiveContext}
+        prefix={`/projects/${projectId}/indicators`}
+        onRecovered={async () => {
+          const persisted = await pathwaysClient.getProjectIndicators(projectId)
+          return () => {
+            setRecoveryGeneration((value) => value + 1)
+            replaceData(persisted)
+            setMessage('The earlier outcome is confirmed. Current indicators are shown.')
+          }
+        }}
+      />
       <header className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h1 className="text-2xl font-semibold">Target indicators</h1>
@@ -520,7 +577,7 @@ export function ProjectIndicatorsWorkspace({ projectId }: { projectId: string })
           </p>
         </div>
         <Button type="button" variant="outline" onClick={reload} disabled={loading || busy}>
-          {loading ? 'Refreshing…' : 'Refresh indicators'}
+          {loading ? 'Refreshingâ€¦' : 'Refresh indicators'}
         </Button>
       </header>
       {message ? (
@@ -534,7 +591,11 @@ export function ProjectIndicatorsWorkspace({ projectId }: { projectId: string })
           forms={availableBindings?.forms ?? []}
           activities={availableBindings?.activities ?? []}
           busy={busy}
-          onSave={(input) => mutate(() => pathwaysClient.createProjectIndicator(projectId, input))}
+          onSave={(input) =>
+            mutate(() =>
+              pathwaysClient.createProjectIndicator(projectId, input, createContext ?? undefined),
+            )
+          }
         />
       ) : null}
       {canCreate && data && !availableBindings ? (
@@ -546,7 +607,7 @@ export function ProjectIndicatorsWorkspace({ projectId }: { projectId: string })
       {error ? (
         <p role="alert">{error}</p>
       ) : !data ? (
-        <output aria-live="polite">Loading verified indicators…</output>
+        <output aria-live="polite">Loading verified indicatorsâ€¦</output>
       ) : data.length === 0 ? (
         <EmptyState
           icon={Target}
@@ -560,14 +621,14 @@ export function ProjectIndicatorsWorkspace({ projectId }: { projectId: string })
               <CardHeader>
                 <CardTitle>{indicator.name}</CardTitle>
                 <p className="text-sm text-muted-foreground">
-                  {indicator.code} · {indicator.status.replaceAll('_', ' ')} ·{' '}
+                  {indicator.code} Â· {indicator.status.replaceAll('_', ' ')} Â·{' '}
                   {indicator.mode ?? 'Legacy authority not reviewed'}
                 </p>
               </CardHeader>
               <CardContent>
                 <p className="mb-3 text-sm">
                   {indicator.periodStart ?? 'Unspecified'} to {indicator.periodEnd ?? 'Unspecified'}{' '}
-                  · {indicator.unitLabel ?? 'Unit not configured'}
+                  Â· {indicator.unitLabel ?? 'Unit not configured'}
                 </p>
                 <dl className="grid gap-3 text-sm sm:grid-cols-3">
                   <div>
@@ -587,13 +648,9 @@ export function ProjectIndicatorsWorkspace({ projectId }: { projectId: string })
                   Progress toward configured change: {formatMetricCell(indicator.progress)}
                   {indicator.progress.value !== null ? '%' : ''}
                 </p>
-                <p className="mt-2 text-sm">
-                  Project target comparison:{' '}
-                  {describeTargetGoalComparison(indicator.projectGoalComparison)}
-                </p>
                 <p className="mt-2 text-sm text-muted-foreground">
                   Definition source: {indicator.dataSource ?? 'Not configured'}
-                  {indicator.binding ? ` · ${recipeNames[indicator.binding.recipe]}` : ''}
+                  {indicator.binding ? ` Â· ${recipeNames[indicator.binding.recipe]}` : ''}
                 </p>
                 {indicator.measurementSource ? (
                   <p className="mt-2 text-sm text-muted-foreground">
@@ -610,29 +667,41 @@ export function ProjectIndicatorsWorkspace({ projectId }: { projectId: string })
                 ) : null}
                 {canUpdate && indicator.status === 'ACTIVE' ? (
                   <IndicatorEditor
-                    key={`${indicator.id}:${indicator.revision}:${indicator.measurementId ?? 'first'}`}
+                    key={`${indicator.id}:${indicator.revision}:${indicator.measurementId ?? 'first'}:${recoveryGeneration}`}
                     indicator={indicator}
                     busy={busy}
                     onSave={(input) =>
                       mutate(() =>
-                        pathwaysClient.recordIndicatorMeasurement(projectId, indicator.id, input),
+                        pathwaysClient.recordIndicatorMeasurement(
+                          projectId,
+                          indicator.id,
+                          input,
+                          updateContext ?? undefined,
+                        ),
                       )
                     }
                     onUpdate={(name, description) =>
                       mutate(() =>
-                        pathwaysClient.updateProjectIndicator(projectId, indicator.id, {
-                          name,
-                          description,
-                          expectedRevision: indicator.revision,
-                        }),
+                        pathwaysClient.updateProjectIndicator(
+                          projectId,
+                          indicator.id,
+                          {
+                            name,
+                            description,
+                            expectedRevision: indicator.revision,
+                          },
+                          updateContext ?? undefined,
+                        ),
                       )
                     }
+                    canArchive={principalHasAtomicPermission(profile, 'indicators.archive')}
                     onArchive={() =>
                       mutate(() =>
                         pathwaysClient.archiveProjectIndicator(
                           projectId,
                           indicator.id,
                           indicator.revision,
+                          archiveContext ?? undefined,
                         ),
                       )
                     }

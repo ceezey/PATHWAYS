@@ -1,4 +1,5 @@
 import { type Page, expect, test } from '@playwright/test'
+import { stubBeneficiaryStepUp } from './fixtures/step-up'
 
 async function switchAccount(page: Page, accountId: string) {
   await page.goto('/review/demo-controls')
@@ -28,7 +29,7 @@ async function resetAndSwitch(page: Page, accountId: string) {
     .toBe(accountId)
 }
 
-test('I03-I05: expenses propagate, draft entry resumes, and beneficiary PIN is deterministic', async ({
+test('I03-I05: expenses propagate, draft entry resumes, and beneficiary step-up gates detail', async ({
   page,
 }, info) => {
   test.setTimeout(120000)
@@ -69,12 +70,12 @@ test('I03-I05: expenses propagate, draft entry resumes, and beneficiary PIN is d
   await expect(page.getByRole('button', { name: /Resume entry-/ })).toBeVisible()
 
   await switchAccount(page, 'project-manager')
+  await stubBeneficiaryStepUp(page, false)
   await page.goto('/beneficiaries/evaluation-center')
-  await page.getByLabel('Access PIN').fill('9999')
-  await page.getByRole('button', { name: /Verify|Continue/ }).click()
-  await expect(page.getByText(/PIN is incorrect/)).toBeVisible()
-  await page.getByLabel('Access PIN').fill('2468')
-  await page.getByRole('button', { name: /Verify|Continue/ }).click()
+  await expect(page.getByRole('dialog', { name: 'Verify beneficiary module access' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Beneficiary code lookup' })).toHaveCount(0)
+  await stubBeneficiaryStepUp(page)
+  await page.goto('/beneficiaries/evaluation-center')
   await expect(page.getByRole('heading', { name: 'Beneficiary code lookup' })).toBeVisible()
   await page.screenshot({ path: info.outputPath('evaluation-center-desktop.png'), fullPage: true })
 })

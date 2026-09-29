@@ -5,6 +5,8 @@ import { AuthController } from './auth.controller'
 import { AuthService } from './auth.service'
 import { AuthorizedDataController } from './authorized-data.controller'
 import { AuthorizedDataService } from './authorized-data.service'
+import { BeneficiaryStepUpPinService } from './beneficiary-step-up-pin.service'
+import { BeneficiaryStepUpService } from './beneficiary-step-up.service'
 import { RouteAccessController } from './route-access.controller'
 import { RouteAccessService } from './route-access.service'
 import { SessionLivenessService } from './session-liveness.service'
@@ -21,7 +23,15 @@ import { WorkspaceResolutionService } from './workspace-resolution.service'
     AuthorizedDataService,
     WorkspaceResolutionService,
     RouteAccessService,
+    BeneficiaryStepUpService,
+    BeneficiaryStepUpPinService,
   ],
-  exports: [AuthService, ApplicationProfileService, TokenAuthService, WorkspaceResolutionService],
+  exports: [
+    AuthService,
+    ApplicationProfileService,
+    TokenAuthService,
+    WorkspaceResolutionService,
+    BeneficiaryStepUpService,
+  ],
 })
 export class AuthModule {}

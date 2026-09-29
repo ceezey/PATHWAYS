@@ -2,7 +2,7 @@
 
 import { ArrowRight, Eye, FolderKanban, Plus, Search } from 'lucide-react'
 import Link from 'next/link'
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 
 import { PageHeader } from '@/components/layout/page-header'
 import {
@@ -19,18 +19,23 @@ import { Card, CardContent, CardFooter, CardHeader } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { useCurrentRole } from '@/hooks/use-current-role'
 import { useDisplayLabels } from '@/hooks/use-display-labels'
+import { principalHasAtomicPermission } from '@/lib/rbac/route-access'
 import { pathwaysClient } from '@/lib/services/pathways-client'
 import { cn } from '@/lib/utils'
-import type { ProjectDetail, ProjectStatus, ProjectSummary } from '@/types/pathways'
+import { useAuthorizedRead } from '@/providers/authorized-query-provider'
+import type { ProjectStatus, ProjectSummary } from '@/types/pathways'
+import { type MetricCell, businessCalendarDate, timelineProgress } from '@pathways/shared'
 
 import { ProjectPreviewDialog } from './project-preview-dialog'
 import {
   type ProjectStatusFilter,
   formatNumber,
+  overviewMetricLabel,
   projectHealthTone,
   projectStatusFilters,
   projectStatusTone,
 } from './project-utils'
+import { useProjectRead } from './use-project-reads'
 
 const directoryDescription = {
   'Program Manager': 'Projects across the assigned portfolio.',
@@ -44,41 +49,25 @@ const directoryDescription = {
 export const ProjectDirectory = () => {
   const { labels } = useDisplayLabels()
   const { role, profile } = useCurrentRole()
-  const [projects, setProjects] = useState<ProjectSummary[]>([])
-  const [status, setStatus] = useState<'loading' | 'success' | 'error'>('loading')
+  const canReadDetail = principalHasAtomicPermission(profile, 'projects.detail.read')
+  const directory = useAuthorizedRead(
+    'projects',
+    null,
+    'projects.read',
+    (signal) => pathwaysClient.getProjects(signal),
+    true,
+    { freshness: 'summary' },
+  )
+  const projects: ProjectSummary[] = directory.data ?? []
+  const status =
+    !directory.eligible || directory.isPending ? 'loading' : directory.isError ? 'error' : 'success'
   const [query, setQuery] = useState('')
   const [statusFilter, setStatusFilter] = useState<ProjectStatusFilter>('All')
-  const [previewProject, setPreviewProject] = useState<ProjectDetail | null>(null)
-  const [loadAttempt, setLoadAttempt] = useState(0)
-
-  useEffect(() => {
-    void loadAttempt
-    let mounted = true
-    setStatus('loading')
-
-    pathwaysClient
-      .getProjects()
-      .then((records) => {
-        if (!mounted) {
-          return
-        }
-
-        setProjects(records)
-        setStatus('success')
-      })
-      .catch(() => {
-        if (!mounted) {
-          return
-        }
-
-        setStatus('error')
-      })
-
-    return () => {
-      mounted = false
-    }
-  }, [loadAttempt])
-
+  const [previewId, setPreviewId] = useState<string | null>(null)
+  // The same project read as the Overview, so "Open Project" reuses it.
+  const preview = useProjectRead(previewId ?? '', Boolean(previewId && canReadDetail))
+  const previewProject = previewId && preview.data?.id === previewId ? preview.data : null
+  const businessDate = businessCalendarDate(new Date(), 'Asia/Manila')
   const filteredProjects = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase()
 
@@ -96,9 +85,8 @@ export const ProjectDirectory = () => {
     })
   }, [projects, query, statusFilter])
 
-  const openPreview = async (projectId: string) => {
-    const project = await pathwaysClient.getProject(projectId)
-    setPreviewProject(project)
+  const openPreview = (id: string) => {
+    if (canReadDetail) setPreviewId(id)
   }
 
   return (
@@ -108,7 +96,7 @@ export const ProjectDirectory = () => {
         title={labels.moduleProjects}
         description={role ? directoryDescription[role] : 'Loading your authorized projects.'}
         actions={
-          profile?.permissions.includes('projects.create') ? (
+          principalHasAtomicPermission(profile, 'projects.create') ? (
             <Button asChild className="gap-2">
               <Link href="/projects/new">
                 <Plus className="h-4 w-4" aria-hidden="true" />
@@ -162,7 +150,7 @@ export const ProjectDirectory = () => {
         <AsyncState
           description="The project directory could not be loaded. Check your connection and try again."
           icon={FolderKanban}
-          onRetry={() => setLoadAttempt((attempt) => attempt + 1)}
+          onRetry={() => void directory.refetch()}
           status="error"
           title="Project data unavailable"
         />
@@ -202,53 +190,32 @@ export const ProjectDirectory = () => {
                     <StatusBadge tone={projectStatusTone(project.status)}>
                       {project.status}
                     </StatusBadge>
-                    {project.metricsAvailable ? (
-                      <StatusBadge tone={projectHealthTone(project.health)}>
-                        {project.health}
-                      </StatusBadge>
-                    ) : (
-                      <StatusBadge tone="neutral">Not assessed</StatusBadge>
-                    )}
+                    <StatusBadge tone={projectHealthTone(project.health)}>
+                      {project.health}
+                    </StatusBadge>
                   </div>
                   <p className="text-sm tabular-nums text-muted-foreground">{project.period}</p>
                 </div>
               </CardHeader>
               <CardContent className="flex-1 px-6 pb-6 pt-0">
                 <div className="space-y-3 border-t border-border pt-5">
+                  <ProjectMeasure label="KPI achievement" value="See overview" />
                   <ProjectMeasure
-                    label="KPI achievement"
-                    tone={projectHealthTone(project.health)}
-                    value={project.metricsAvailable ? `${project.kpiAchievement}%` : 'Unavailable'}
-                  />
-                  <ProjectMeasure
-                    label="Beneficiaries"
+                    label="Target beneficiaries"
                     value={
-                      project.metricsAvailable && project.targetBeneficiaries !== undefined
-                        ? `${formatNumber(project.beneficiariesReached)} / ${formatNumber(project.targetBeneficiaries)}`
-                        : 'Unavailable'
+                      project.targetBeneficiaries !== undefined
+                        ? formatNumber(project.targetBeneficiaries)
+                        : 'Not recorded'
                     }
                   />
-                  <ProjectMeasure
-                    label="Budget utilization"
-                    tone={project.budgetUtilization >= 80 ? 'danger' : 'warning'}
-                    value={
-                      project.metricsAvailable ? `${project.budgetUtilization}%` : 'Unavailable'
-                    }
-                  />
-                  <div className="grid grid-cols-[auto_minmax(5rem,1fr)_auto] items-center gap-3 text-sm">
-                    <span className="text-muted-foreground">Timeline</span>
-                    {project.metricsAvailable ? (
-                      <ProgressBar
-                        tone={projectHealthTone(project.health)}
-                        value={project.timelineProgress}
-                      />
-                    ) : (
-                      <span className="text-muted-foreground">Unavailable</span>
+                  <ProjectMeasure label="Budget utilization" value="See overview" />
+                  <ProjectTimeline
+                    timeline={timelineProgress(
+                      project.startDate ?? null,
+                      project.endDate ?? null,
+                      businessDate,
                     )}
-                    <span className="font-semibold tabular-nums text-foreground">
-                      {project.metricsAvailable ? `${project.timelineProgress}%` : '—'}
-                    </span>
-                  </div>
+                  />
                 </div>
               </CardContent>
               <CardFooter className="mt-auto flex flex-col items-stretch gap-4 border-t border-border bg-primary-subtle/40 p-5 2xl:flex-row 2xl:items-center 2xl:justify-between">
@@ -260,32 +227,51 @@ export const ProjectDirectory = () => {
                     {project.projectManager}
                   </span>
                 </div>
-                <div className="grid w-full grid-cols-2 gap-2 2xl:flex 2xl:w-auto 2xl:justify-end">
-                  <Button
-                    className="gap-2 px-3"
-                    onClick={() => void openPreview(project.id)}
-                    type="button"
-                    variant="outline"
-                  >
-                    <Eye className="h-4 w-4" aria-hidden="true" />
-                    Quick Preview
-                  </Button>
-                  <Button asChild className="gap-2 px-3">
-                    <Link href={`/projects/${project.id}`}>
-                      Open Project
-                      <ArrowRight className="h-4 w-4" aria-hidden="true" />
-                    </Link>
-                  </Button>
-                </div>
+                {canReadDetail ? (
+                  <div className="grid w-full grid-cols-2 gap-2 2xl:flex 2xl:w-auto 2xl:justify-end">
+                    <Button
+                      className="gap-2 px-3"
+                      onClick={() => void openPreview(project.id)}
+                      type="button"
+                      variant="outline"
+                    >
+                      <Eye className="h-4 w-4" aria-hidden="true" />
+                      Quick Preview
+                    </Button>
+                    <Button asChild className="gap-2 px-3">
+                      <Link href={`/projects/${project.id}`}>
+                        Open Project
+                        <ArrowRight className="h-4 w-4" aria-hidden="true" />
+                      </Link>
+                    </Button>
+                  </div>
+                ) : null}
               </CardFooter>
             </Card>
           ))}
         </section>
       ) : null}
+      {previewId && !previewProject ? (
+        <div className="space-y-3">
+          <AsyncState
+            status={preview.isError ? 'error' : 'loading'}
+            title="Project preview"
+            description={
+              preview.isError
+                ? 'The preview could not be loaded. Try again.'
+                : 'Loading project details.'
+            }
+            onRetry={preview.isError ? () => void preview.refetch() : undefined}
+          />
+          <Button type="button" variant="outline" onClick={() => setPreviewId(null)}>
+            Cancel preview
+          </Button>
+        </div>
+      ) : null}
       <ProjectPreviewDialog
         onOpenChange={(open) => {
           if (!open) {
-            setPreviewProject(null)
+            setPreviewId(null)
           }
         }}
         open={Boolean(previewProject)}
@@ -303,6 +289,21 @@ const managerInitials = (name: string) =>
     .join('')
     .slice(0, 2)
     .toUpperCase()
+
+/** Same deterministic date-derived timeline as the Overview endpoint. */
+const ProjectTimeline = ({ timeline }: { timeline: MetricCell }) => (
+  <div className="grid grid-cols-[auto_minmax(5rem,1fr)_auto] items-center gap-3 text-sm">
+    <span className="text-muted-foreground">Timeline</span>
+    {timeline.value !== null ? (
+      <ProgressBar tone="info" value={Number(timeline.value)} />
+    ) : (
+      <span className="text-muted-foreground">{overviewMetricLabel(timeline, 'percent')}</span>
+    )}
+    <span className="font-semibold tabular-nums text-foreground">
+      {timeline.value !== null ? `${timeline.value}%` : '—'}
+    </span>
+  </div>
+)
 
 const ProjectMeasure = ({
   label,

@@ -1,6 +1,6 @@
 /* @vitest-environment jsdom */
 
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { AnalyticsDashboard } from './analytics-dashboard'
@@ -11,6 +11,12 @@ const api = vi.hoisted(() => ({
   getProjectIndicators: vi.fn(),
   getProjectsForRole: vi.fn(),
   getSadddDashboard: vi.fn(),
+  getDescriptiveAnalytics: vi.fn(),
+}))
+const download = vi.hoisted(() => vi.fn())
+const finance = vi.hoisted(() => ({
+  budgets: vi.fn(),
+  expenses: vi.fn(),
 }))
 const coverageMap = vi.hoisted(() => ({
   instanceCount: 0,
@@ -25,7 +31,18 @@ const currentAccess = vi.hoisted(() => ({
   },
 }))
 
-vi.mock('@/lib/services/pathways-client', () => ({ pathwaysClient: api }))
+vi.mock('@/lib/services/pathways-client', () => ({
+  pathwaysClient: api,
+  descriptiveAnalyticsSearch: (query: Record<string, string>) =>
+    `?${new URLSearchParams(query).toString()}`,
+}))
+vi.mock('@/lib/services/core-feature-client', () => ({
+  downloadCoreArtifact: download,
+  coreDataClient: {
+    budgets: (...args: unknown[]) => finance.budgets(...args),
+    expenses: (...args: unknown[]) => finance.expenses(...args),
+  },
+}))
 vi.mock('@/hooks/use-current-role', () => ({
   useCurrentRole: () => currentAccess,
 }))
@@ -63,7 +80,9 @@ vi.mock('@/components/ui/select', async () => {
   type PartProps = {
     children?: React.ReactNode
     'aria-label'?: string
+    disabled?: boolean
     placeholder?: string
+    title?: string
     value?: string
   }
   type SelectProps = {
@@ -74,7 +93,11 @@ vi.mock('@/components/ui/select', async () => {
   }
   const SelectTrigger = (_props: PartProps) => null
   const SelectContent = ({ children }: PartProps) => <>{children}</>
-  const SelectItem = ({ children, value }: PartProps) => <option value={value}>{children}</option>
+  const SelectItem = ({ children, disabled, title, value }: PartProps) => (
+    <option disabled={disabled} title={title} value={value}>
+      {children}
+    </option>
+  )
   const SelectValue = (_props: PartProps) => null
   const Select = ({ children, disabled, value, onValueChange }: SelectProps) => {
     const parts = React.Children.toArray(children)
@@ -104,17 +127,13 @@ const project = (id: string, title: string, startDate: string | null, endDate: s
   title,
   startDate,
   endDate,
-  targetGoal: null,
+
   area: 'Area',
   sector: 'Sector',
   status: 'Active',
   health: 'On Track',
   period: 'Persisted dates',
   projectManager: 'Manager',
-  kpiAchievement: 0,
-  beneficiariesReached: 0,
-  budgetUtilization: 0,
-  timelineProgress: 0,
 })
 
 const indicator = (projectId: string, id: string, periodStart: string, periodEnd: string) => ({
@@ -142,8 +161,24 @@ const indicator = (projectId: string, id: string, periodStart: string, periodEnd
   revision: 1,
   status: 'ACTIVE',
   contractVersion: 'p06.v1',
-  projectGoalComparison: { state: 'UNAVAILABLE', reason: 'TARGET_GOAL_UNSET' },
 })
+
+const kpiCard = () =>
+  screen
+    .getAllByText('KPI achievement')
+    .map((node) => node.parentElement?.parentElement?.textContent ?? '')
+    .join(' | ')
+
+// The MetricCard description only renders inside its info tooltip on hover/focus, so
+// permission-gating assertions read the always-visible label + value text instead.
+// "Budget utilization" also labels the ChartPanel further down; only the MetricCard
+// label sits two ancestors above its value, matching kpiCard's structure.
+const budgetUtilizationCard = () =>
+  screen
+    .getAllByText('Budget utilization')
+    .map((node) => node.parentElement?.parentElement?.textContent ?? '')
+    .filter((text) => text.includes('PHP') || text.includes('%') || text.includes('Unavailable'))
+    .join(' | ')
 
 const monitoring = {
   indicators: [],
@@ -152,6 +187,8 @@ const monitoring = {
 
 describe('Analytics dashboard request dependencies', () => {
   beforeEach(() => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(new Date('2026-09-27T04:00:00.000Z'))
     currentAccess.role = 'Monitoring and Evaluation Officer'
     currentAccess.profile.roles = ['MONITORING_AND_EVALUATION_OFFICER']
     currentAccess.profile.permissions = [
@@ -188,11 +225,14 @@ describe('Analytics dashboard request dependencies', () => {
       age: [],
       disability: [],
     })
+    finance.budgets.mockReset().mockResolvedValue([])
+    finance.expenses.mockReset().mockResolvedValue([])
   })
 
   afterEach(() => {
     cleanup()
     vi.clearAllMocks()
+    vi.useRealTimers()
   })
 
   it('derives exact periods and keeps period changes monitoring-only', async () => {
@@ -258,6 +298,59 @@ describe('Analytics dashboard request dependencies', () => {
     ).toBe(false)
     expect(screen.getByTestId('coverage-map').getAttribute('data-instance')).toBe(mapInstance)
     expect(coverageMap.featureCollections.at(-1)).not.toBe(firstFeatureCollection)
+  })
+
+  it('computes budget utilization from planned budgets and approved expenses', async () => {
+    // Monitoring and Evaluation Officer never holds budgets.read in the authorization policy;
+    // Program Manager holds both budgets.read and expenses.read.
+    currentAccess.role = 'Program Manager'
+    currentAccess.profile.roles = ['PROGRAM_MANAGER']
+    currentAccess.profile.permissions = [
+      ...currentAccess.profile.permissions,
+      'budgets.read',
+      'expenses.read',
+    ]
+    finance.budgets.mockResolvedValue([
+      { id: 'budget-1', plannedBudget: '1000.00' },
+      { id: 'budget-2', plannedBudget: '500.00' },
+    ])
+    finance.expenses.mockResolvedValue([
+      { id: 'expense-1', budgetRecordId: 'budget-1', amount: '450.00', status: 'APPROVED' },
+      { id: 'expense-2', budgetRecordId: 'budget-1', amount: '900.00', status: 'PENDING' },
+    ])
+
+    render(<AnalyticsDashboard />)
+
+    await waitFor(() => expect(finance.budgets).toHaveBeenCalledWith('project-a'))
+    expect(finance.expenses).toHaveBeenCalledWith('project-a')
+    await waitFor(() => expect(screen.getAllByText('30%').length).toBeGreaterThan(0))
+    expect(screen.getByText('PHP 1,500')).toBeTruthy()
+    expect(screen.getByText('PHP 450')).toBeTruthy()
+  })
+
+  it('hides budget utilization when the budgets or expenses read permission is absent', async () => {
+    render(<AnalyticsDashboard />)
+
+    await screen.findAllByText('KPI achievement')
+    await waitFor(() => expect(budgetUtilizationCard()).toContain('Unavailable'))
+    expect(finance.budgets).not.toHaveBeenCalled()
+    expect(finance.expenses).not.toHaveBeenCalled()
+  })
+
+  it('surfaces a budget utilization server error instead of a false result', async () => {
+    currentAccess.role = 'Program Manager'
+    currentAccess.profile.roles = ['PROGRAM_MANAGER']
+    currentAccess.profile.permissions = [
+      ...currentAccess.profile.permissions,
+      'budgets.read',
+      'expenses.read',
+    ]
+    finance.budgets.mockRejectedValue(new Error('Budget utilization is unavailable.'))
+
+    render(<AnalyticsDashboard />)
+
+    await waitFor(() => expect(screen.getByText('Budget utilization unavailable')).toBeTruthy())
+    expect(screen.getAllByText('Budget utilization is unavailable.').length).toBeGreaterThan(0)
   })
 
   it('renders the Project-scoped empty map without requiring a reporting period', async () => {
@@ -354,6 +447,84 @@ describe('Analytics dashboard request dependencies', () => {
     expect(api.getActivities).toHaveBeenCalledTimes(1)
   })
 
+  it('shows "Unavailable", never "None yet", for indicator data a Project Officer cannot read', async () => {
+    currentAccess.role = 'Project Officer'
+    currentAccess.profile.roles = ['PROJECT_OFFICER']
+    currentAccess.profile.permissions = [
+      'projects.read',
+      'activities.read',
+      'analytics.read',
+      'analytics.saddd.read',
+      'beneficiaries.aggregates.read',
+    ]
+
+    render(<AnalyticsDashboard />)
+
+    await waitFor(() => expect(api.getActivities).toHaveBeenCalled())
+    await screen.findAllByText('KPI achievement')
+    await waitFor(() => expect(kpiCard()).toContain('Unavailable'))
+    expect(api.getProjectIndicators).not.toHaveBeenCalled()
+    expect(api.getMonitoringDashboard).not.toHaveBeenCalled()
+    expect(screen.queryByText('None yet')).toBeNull()
+    expect(
+      screen.getAllByText('Indicator reporting periods are not available for this role.').length,
+    ).toBeGreaterThan(0)
+  })
+
+  it('shows "None yet" for an empty KPI set only after a successful monitoring read', async () => {
+    render(<AnalyticsDashboard />)
+
+    await waitFor(() => expect(api.getMonitoringDashboard).toHaveBeenCalled())
+    await screen.findAllByText('KPI achievement')
+    await waitFor(() => expect(kpiCard()).toContain('None yet'))
+  })
+
+  it('shows the suppression wording, never "None yet", for a SUPPRESSED (SMALL_COHORT) participation cell', async () => {
+    api.getMonitoringDashboard.mockResolvedValue({
+      indicators: [],
+      participationRecords: { value: null, state: 'SUPPRESSED', reason: 'SMALL_COHORT' },
+    })
+
+    render(<AnalyticsDashboard />)
+
+    await waitFor(() => expect(api.getMonitoringDashboard).toHaveBeenCalled())
+    fireEvent.change(screen.getByLabelText('Analysis view'), {
+      target: { value: 'participation' },
+    })
+
+    const heading = await screen.findByRole('heading', {
+      name: 'Participation patterns · Bar chart',
+    })
+    const panel = within(heading.closest('section') as HTMLElement)
+    expect(panel.getByText('Suppressed (fewer than 5)')).toBeTruthy()
+    expect(panel.queryByText('None yet')).toBeNull()
+  })
+
+  it('shows "Data unavailable", never "None yet", for a withheld-release MISSING participation cell', async () => {
+    api.getMonitoringDashboard.mockResolvedValue({
+      indicators: [],
+      participationRecords: {
+        value: null,
+        state: 'MISSING',
+        reason: 'SENSITIVE_RELEASE_NOT_ENABLED_V1',
+      },
+    })
+
+    render(<AnalyticsDashboard />)
+
+    await waitFor(() => expect(api.getMonitoringDashboard).toHaveBeenCalled())
+    fireEvent.change(screen.getByLabelText('Analysis view'), {
+      target: { value: 'participation' },
+    })
+
+    const heading = await screen.findByRole('heading', {
+      name: 'Participation patterns · Bar chart',
+    })
+    const panel = within(heading.closest('section') as HTMLElement)
+    expect(panel.getByText('Data unavailable')).toBeTruthy()
+    expect(panel.queryByText('None yet')).toBeNull()
+  })
+
   it('does not issue permission-incompatible Activity or Indicator reads for Grant Manager', async () => {
     currentAccess.role = 'Grant Manager'
     currentAccess.profile.roles = ['GRANT_MANAGER']
@@ -370,5 +541,99 @@ describe('Analytics dashboard request dependencies', () => {
     expect(api.getActivities).not.toHaveBeenCalled()
     expect(api.getProjectIndicators).not.toHaveBeenCalled()
     expect(api.getMonitoringDashboard).not.toHaveBeenCalled()
+  })
+  it('loads descriptive statistics and exports suppressed aggregates with the analytics permissions', async () => {
+    currentAccess.profile.permissions = [
+      ...currentAccess.profile.permissions,
+      'analytics.descriptive.read',
+      'analytics.export',
+    ]
+    const suppressed = { state: 'SUPPRESSED', value: null, reason: 'SMALL_CELL' }
+    api.getDescriptiveAnalytics.mockResolvedValue({
+      contractVersion: 'analytics.descriptive.v1',
+      projectId: 'project-a',
+      generatedAt: '2026-09-27T04:00:00.000Z',
+      monitoringPeriod: {
+        periodStart: '2026-09-01',
+        periodEnd: '2026-09-30',
+        businessTimeZone: 'Asia/Manila',
+      },
+      sadddPeriod: { periodStart: null, periodEnd: null },
+      sadddReleaseState: 'RELEASED',
+      privacy: {
+        threshold: 5,
+        complementarySuppression: true,
+        source: 'P06_SADDD_RELEASE',
+        beneficiaryRows: false,
+      },
+      counts: [{ key: 'sadddTotal', label: 'SADDD individuals', metric: suppressed }],
+      distributions: [
+        { section: 'SADDD_SEX', key: 'FEMALE', label: 'Female', metric: suppressed, share: null },
+      ],
+      indicatorSummaries: [],
+    })
+    download.mockResolvedValue(undefined)
+    render(<AnalyticsDashboard />)
+
+    await waitFor(() =>
+      expect(api.getDescriptiveAnalytics).toHaveBeenCalledWith({
+        projectId: 'project-a',
+        periodStart: '2026-09-01',
+        periodEnd: '2026-09-30',
+      }),
+    )
+    const table = await screen.findByTestId('descriptive-statistics')
+    expect(table.textContent).toContain('Withheld')
+    expect(table.textContent).toContain('Suppressed')
+
+    fireEvent.click(screen.getByRole('button', { name: 'Export aggregates (CSV)' }))
+    await waitFor(() =>
+      expect(download).toHaveBeenCalledWith(
+        '/analytics/descriptive/export?projectId=project-a&periodStart=2026-09-01&periodEnd=2026-09-30',
+        'descriptive-analytics-project-a.csv',
+      ),
+    )
+  })
+
+  it('hides descriptive statistics and export for roles without the analytics permissions', async () => {
+    render(<AnalyticsDashboard />)
+    await waitFor(() => expect(api.getMonitoringDashboard).toHaveBeenCalled())
+    expect(api.getDescriptiveAnalytics).not.toHaveBeenCalled()
+    expect(screen.queryByRole('button', { name: 'Export aggregates (CSV)' })).toBeNull()
+    expect(screen.queryByTestId('descriptive-statistics')).toBeNull()
+  })
+
+  it('does not offer export when only the descriptive read permission is held', async () => {
+    currentAccess.profile.permissions = [
+      ...currentAccess.profile.permissions,
+      'analytics.descriptive.read',
+    ]
+    api.getDescriptiveAnalytics.mockRejectedValue(new Error('Descriptive statistics unavailable.'))
+    render(<AnalyticsDashboard />)
+    await waitFor(() => expect(api.getDescriptiveAnalytics).toHaveBeenCalled())
+    expect(screen.queryByRole('button', { name: 'Export aggregates (CSV)' })).toBeNull()
+    expect(download).not.toHaveBeenCalled()
+  })
+
+  it('keeps Add to Dashboard disabled with a Not available yet hint and disables unbuilt analysis views', async () => {
+    render(<AnalyticsDashboard />)
+    await waitFor(() => expect(api.getMonitoringDashboard).toHaveBeenCalled())
+
+    const addToDashboard = screen.getByRole('button', { name: 'Add to Dashboard' })
+    // aria-disabled (not native disabled) so the control stays keyboard/AT reachable.
+    expect(addToDashboard.hasAttribute('disabled')).toBe(false)
+    expect(addToDashboard.getAttribute('aria-disabled')).toBe('true')
+    const describedBy = addToDashboard.getAttribute('aria-describedby')
+    expect(describedBy).toBeTruthy()
+    expect(document.getElementById(describedBy as string)?.textContent).toBe('Not available yet')
+
+    const surveyOption = screen.getByText('Survey improvement', {
+      selector: 'option',
+    }) as HTMLOptionElement
+    const timelineOption = screen.getByText('Project / activity timeline adherence', {
+      selector: 'option',
+    }) as HTMLOptionElement
+    expect(surveyOption.disabled).toBe(true)
+    expect(timelineOption.disabled).toBe(true)
   })
 })

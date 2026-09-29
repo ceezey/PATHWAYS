@@ -76,8 +76,10 @@ vi.mock('@/lib/rbac/route-access', () => {
   }
 })
 vi.mock('./beneficiary-access-gate', () => ({
-  BeneficiaryAccessGate: ({ children }: { children: ReactNode }) => (
-    <div data-testid="beneficiary-pin-gate">{children}</div>
+  BeneficiaryAccessGate: ({ children, preflight }: { children: ReactNode; preflight: boolean }) => (
+    <div data-testid="beneficiary-step-up-gate" data-preflight={String(preflight)}>
+      {children}
+    </div>
   ),
 }))
 vi.mock('./unauthorized-state', () => ({
@@ -116,11 +118,41 @@ describe('RouteAccessGuard beneficiary boundary', () => {
     await waitFor(() => expect(requestRouteCheck).toHaveBeenCalledTimes(1))
     expect(screen.getByLabelText('Loading content')).toBeTruthy()
     expect(screen.queryByText(/(?:verifying|rechecking) current (?:route )?access/i)).toBeNull()
-    expect(screen.queryByTestId('beneficiary-pin-gate')).toBeNull()
+    expect(screen.queryByTestId('beneficiary-step-up-gate')).toBeNull()
     expect(screen.queryByText('Protected beneficiary record')).toBeNull()
 
     resolveCheck(allowedDecision)
     expect(await screen.findByText('Protected beneficiary record')).toBeTruthy()
+  })
+
+  it('defers the route check for a hidden tab and runs it once the tab becomes visible', async () => {
+    let visibility: DocumentVisibilityState = 'hidden'
+    const visibilitySpy = vi
+      .spyOn(document, 'visibilityState', 'get')
+      .mockImplementation(() => visibility)
+    requestRouteCheck.mockResolvedValue(allowedDecision)
+    try {
+      render(
+        <RouteAccessGuard>
+          <p>Protected beneficiary record</p>
+        </RouteAccessGuard>,
+      )
+      await new Promise((resolve) => setTimeout(resolve, 20))
+      expect(requestRouteCheck).not.toHaveBeenCalled()
+      expect(screen.getByLabelText('Loading content')).toBeTruthy()
+      expect(screen.queryByText('Protected beneficiary record')).toBeNull()
+
+      visibility = 'visible'
+      document.dispatchEvent(new Event('visibilitychange'))
+      expect(await screen.findByText('Protected beneficiary record')).toBeTruthy()
+      expect(requestRouteCheck).toHaveBeenCalledTimes(1)
+
+      document.dispatchEvent(new Event('visibilitychange'))
+      await new Promise((resolve) => setTimeout(resolve, 20))
+      expect(requestRouteCheck).toHaveBeenCalledTimes(1)
+    } finally {
+      visibilitySpy.mockRestore()
+    }
   })
 
   it('keeps verified content mounted while provider and same-route checks refresh', async () => {
@@ -185,7 +217,7 @@ describe('RouteAccessGuard beneficiary boundary', () => {
     expect(screen.queryByText('Protected beneficiary record')).toBeNull()
   })
 
-  it('never renders the PIN gate or protected content after backend denial', async () => {
+  it('never renders the step-up gate or protected content after backend denial', async () => {
     requestRouteCheck.mockRejectedValueOnce(new RouteCheckErrorMock(403))
 
     render(
@@ -195,7 +227,18 @@ describe('RouteAccessGuard beneficiary boundary', () => {
     )
 
     expect(await screen.findByText('Server denied beneficiary access')).toBeTruthy()
-    expect(screen.queryByTestId('beneficiary-pin-gate')).toBeNull()
+    expect(screen.queryByTestId('beneficiary-step-up-gate')).toBeNull()
     expect(screen.queryByText('Protected beneficiary record')).toBeNull()
+  })
+
+  it('preflights server step-up on an allowed Beneficiary route', async () => {
+    requestRouteCheck.mockResolvedValueOnce(allowedDecision)
+    render(
+      <RouteAccessGuard>
+        <p>Protected beneficiary record</p>
+      </RouteAccessGuard>,
+    )
+    const gate = await screen.findByTestId('beneficiary-step-up-gate')
+    expect(gate.getAttribute('data-preflight')).toBe('true')
   })
 })

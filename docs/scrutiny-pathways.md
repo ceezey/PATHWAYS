@@ -14,9 +14,11 @@ Engineering claims require repository/test evidence or an explicit Planned/Defer
 
 ## 3. Gap Register
 
+Claims extracted: 10 gaps registered below; each carries a status and required treatment.
+
 | Gap | Status | Required treatment |
 |---|---|---|
-| Generated suite vs current repo | Open | reconcile SDD/DSD/QAD before locking |
+| Generated suite vs current repo | Partially reconciled 2026-09-26 | keep `pnpm docs:check` green; resolve OPS open items before locking |
 | Core feature completion | Active | verify feature by feature |
 | Server-side isolation | Invariant | keep abuse tests mandatory |
 | Beneficiary privacy | Invariant | verify aggregate-only/project rules |

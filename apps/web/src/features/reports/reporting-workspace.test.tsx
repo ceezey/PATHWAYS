@@ -38,11 +38,7 @@ const project = {
   health: 'On Track',
   period: '2026-01-01 - 2026-12-31',
   projectManager: 'Manager',
-  kpiAchievement: 0,
-  beneficiariesReached: 0,
-  budgetUtilization: 0,
-  timelineProgress: 0,
-  targetGoal: null,
+
   description: 'Description',
   programManager: 'Program Manager',
   monitoringOfficer: 'M&E Officer',

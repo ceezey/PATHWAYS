@@ -12,7 +12,7 @@ const access = vi.hoisted(() => ({
   role: 'System Administrator',
   profile: {
     roles: ['SYSTEM_ADMINISTRATOR'],
-    permissions: ['projects.read', 'monitoring.read', 'budgets.read'],
+    permissions: ['projects.read', 'indicators.read', 'budgets.read'],
     assignedProjectIds: [] as string[],
   },
 }))
@@ -38,14 +38,13 @@ const project = {
   description: 'Project description',
   status: 'Active',
   health: 'On Track',
-  metricsAvailable: true,
 } as ProjectDetail
 
 describe('project workspace tab access', () => {
   beforeEach(() => {
     access.role = 'System Administrator'
     access.profile.roles = ['SYSTEM_ADMINISTRATOR']
-    access.profile.permissions = ['projects.read', 'monitoring.read', 'budgets.read']
+    access.profile.permissions = ['projects.read', 'indicators.read', 'budgets.read']
     access.profile.assignedProjectIds = []
   })
 
@@ -57,7 +56,35 @@ describe('project workspace tab access', () => {
     expect(screen.getByRole('tab', { name: 'Indicators' })).toBeTruthy()
   })
 
-  it('shows Budget for Project Officer expense submission without exposing Indicators', () => {
+  it('matches each tab to the route it opens', () => {
+    // Readers, not managers: indicators.read opens Indicators, evidence.read opens Evidence.
+    access.role = 'Project Officer'
+    access.profile.roles = ['PROJECT_OFFICER']
+    access.profile.permissions = [
+      'projects.read',
+      'projects.detail.read',
+      'activities.read',
+      'activities.create',
+      'evidence.read',
+    ]
+    access.profile.assignedProjectIds = [projectId]
+    render(<ProjectWorkspaceHeader project={project} />)
+    expect(screen.getByRole('tab', { name: 'Evidence' })).toBeTruthy()
+    expect(screen.getByRole('tab', { name: 'Activities' })).toBeTruthy()
+    // activities.create no longer opens Journey Stages; its route needs journeys.manage.
+    expect(screen.queryByRole('tab', { name: 'Journey Stages' })).toBeNull()
+    cleanup()
+
+    access.role = 'Monitoring and Evaluation Officer'
+    access.profile.roles = ['MONITORING_AND_EVALUATION_OFFICER']
+    access.profile.permissions = ['projects.read', 'indicators.read', 'journeys.manage']
+    render(<ProjectWorkspaceHeader project={project} />)
+    expect(screen.getByRole('tab', { name: 'Indicators' })).toBeTruthy()
+    expect(screen.getByRole('tab', { name: 'Journey Stages' })).toBeTruthy()
+    expect(screen.queryByRole('tab', { name: 'Evidence' })).toBeNull()
+  })
+
+  it('denies Budget and Indicators for expense-only Project Officer access', () => {
     access.role = 'Project Officer'
     access.profile.roles = ['PROJECT_OFFICER']
     access.profile.permissions = ['projects.read', 'expenses.submit']
@@ -65,7 +92,14 @@ describe('project workspace tab access', () => {
 
     render(<ProjectWorkspaceHeader project={project} />)
 
-    expect(screen.getByRole('tab', { name: 'Budget' })).toBeTruthy()
+    expect(screen.queryByRole('tab', { name: 'Budget' })).toBeNull()
     expect(screen.queryByRole('tab', { name: 'Indicators' })).toBeNull()
+  })
+
+  it('shows the project health status rather than a fabricated "Not assessed" badge', () => {
+    render(<ProjectWorkspaceHeader project={project} />)
+
+    expect(screen.getByText('On Track')).toBeTruthy()
+    expect(screen.queryByText('Not assessed')).toBeNull()
   })
 })

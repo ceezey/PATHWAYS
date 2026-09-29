@@ -15,6 +15,9 @@ export const IMPORT_ENGINEERING_LIMITS = Object.freeze({
   processingCheckpointRows: 25,
   maxProcessingAttempts: 3,
   previewRows: 100,
+  maxPdfPages: 50,
+  maxPdfTextItems: 500_000,
+  maxStagedRowsPerInsert: 1_000,
 })
 
-export type SupportedImportFileType = 'CSV' | 'XLSX' | 'XLS'
+export type SupportedImportFileType = 'CSV' | 'XLSX' | 'XLS' | 'PDF'

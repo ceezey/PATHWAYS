@@ -28,7 +28,9 @@ describe('SessionLivenessService database boundary', () => {
     expect(transaction.$executeRaw.mock.calls[0][0].join('')).toBe('SET TRANSACTION READ ONLY')
     const [settings, ...settingsValues] = transaction.$queryRaw.mock.calls[0]
     expect(settings.join('')).toContain("set_config('request.jwt.claims', '', true)")
-    expect(settingsValues).toEqual([subject])
+    expect(settingsValues).toEqual([subject, '5000', '1000'])
+    expect(settings.join('')).toContain("set_config('statement_timeout'")
+    expect(settings.join('')).toContain("set_config('lock_timeout'")
     const [query, ...values] = transaction.$queryRaw.mock.calls[1]
     expect(query.join('')).not.toContain(subject)
     expect(query.join('')).not.toContain(sessionId)

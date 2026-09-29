@@ -32,7 +32,7 @@ const activity: Activity = {
   budgetAllocation: 55678.9,
   budgetLogged: null,
   progress: 0,
-  projectGoalComparison: { state: 'BELOW_TARGET', reason: null },
+
   submittedProof: [],
   updateNotes: [],
   updatedAt: '2026-09-25T00:00:00.000Z',
@@ -66,5 +66,191 @@ describe('ActivityDetailContent server read model', () => {
     expect(screen.getByText('No journey stage linked')).toBeTruthy()
     expect(screen.getByText('No indicators are connected to this activity.')).toBeTruthy()
     expect(document.body.textContent).not.toContain('NaN')
+    expect(document.body.textContent).not.toContain('Project target comparison')
+  })
+
+  it('shows Request an extension as disabled with a Not available yet hint', () => {
+    render(
+      <ActivityDetailContent
+        activity={activity}
+        canDecideProof={false}
+        canEdit={false}
+        canLogExpense={false}
+        canRequestExtension
+        canSubmitProof={false}
+        canValidateExpense={false}
+        canValidateProof={false}
+        indicators={[]}
+        journeyStages={[]}
+        onActivityChanged={vi.fn()}
+        onEdit={vi.fn()}
+        onSubmitProof={vi.fn()}
+      />,
+    )
+    const button = screen.getByRole('button', { name: 'Request an extension' })
+    // aria-disabled (not native disabled) so the control stays keyboard/AT reachable.
+    expect(button.hasAttribute('disabled')).toBe(false)
+    expect(button.getAttribute('aria-disabled')).toBe('true')
+    const describedBy = button.getAttribute('aria-describedby')
+    expect(describedBy).toBeTruthy()
+    expect(document.getElementById(describedBy as string)?.textContent).toBe('Not available yet')
+  })
+
+  it.each([
+    [true, 'None yet'],
+    [false, 'Unavailable'],
+  ])(
+    'labels a missing allocation for budget readers=%s as %s, never as zero',
+    (canReadBudgets, label) => {
+      render(
+        <ActivityDetailContent
+          activity={{ ...activity, budgetAllocation: null, budgetLogged: 12 }}
+          canDecideProof={false}
+          canEdit={false}
+          canLogExpense={false}
+          canReadBudgets={canReadBudgets}
+          canRequestExtension={false}
+          canSubmitProof={false}
+          canValidateExpense={false}
+          canValidateProof={false}
+          indicators={[]}
+          journeyStages={[]}
+          onActivityChanged={vi.fn()}
+          onEdit={vi.fn()}
+          onSubmitProof={vi.fn()}
+        />,
+      )
+      const allocation = screen.getByText('Allocated budget').parentElement
+      expect(allocation?.querySelector('dd')?.textContent).toBe(label)
+      expect(allocation?.textContent).not.toContain('₱0')
+    },
+  )
+
+  it.each([
+    [{ budgetLogged: 0, budgetLoggedEntries: 0 }, 'None yet'],
+    [{ budgetLogged: null, budgetLoggedEntries: null }, 'Unavailable'],
+    [{ budgetLogged: 1500.5, budgetLoggedEntries: 2 }, '₱1,500.50'],
+  ])('labels the logged budget %j as %s and never fabricates ₱0', (logged, label) => {
+    render(
+      <ActivityDetailContent
+        activity={{ ...activity, ...logged }}
+        canDecideProof={false}
+        canEdit={false}
+        canLogExpense={false}
+        canRequestExtension={false}
+        canSubmitProof={false}
+        canValidateExpense={false}
+        canValidateProof={false}
+        indicators={[]}
+        journeyStages={[]}
+        onActivityChanged={vi.fn()}
+        onEdit={vi.fn()}
+        onSubmitProof={vi.fn()}
+      />,
+    )
+    const cell = screen.getByText('Logged budget').parentElement?.querySelector('dd')
+    expect(cell?.textContent).toBe(label)
+    expect(cell?.textContent).not.toBe('₱0.00')
+  })
+
+  it('shows a pending progress note as a progress review, not as submitted proof', () => {
+    const noteActivity: Activity = {
+      ...activity,
+      storedStatus: 'IN_PROGRESS',
+      status: 'In Progress',
+      updateNotes: [
+        {
+          id: 'b0000000-0000-4000-8000-00000000000b',
+          kind: 'progress',
+          note: 'Halfway through sessions.',
+          progress: 50,
+          status: 'Submitted',
+          submittedBy: 'Synthetic officer',
+          submittedAt: '2026-09-27T00:00:00.000Z',
+          reviewedBy: null,
+          reviewedAt: null,
+          reviewReason: null,
+          updatedAt: '2026-09-27T00:00:00.000Z',
+        },
+      ],
+    }
+    const props = {
+      canDecideProof: false,
+      canEdit: false,
+      canLogExpense: false,
+      canRequestExtension: false,
+      canSubmitProof: false,
+      canValidateExpense: false,
+      indicators: [],
+      journeyStages: [],
+      onActivityChanged: vi.fn(),
+      onEdit: vi.fn(),
+      onSubmitProof: vi.fn(),
+    }
+    const { rerender } = render(
+      <ActivityDetailContent activity={noteActivity} canValidateProof {...props} />,
+    )
+    expect(screen.getByText('No proof has been submitted.')).toBeTruthy()
+    expect(screen.getByText(/progress note, awaiting review/)).toBeTruthy()
+    expect(screen.getByRole('button', { name: /Review progress/ })).toBeTruthy()
+    rerender(<ActivityDetailContent activity={noteActivity} canValidateProof={false} {...props} />)
+    expect(screen.queryByRole('button', { name: /Review progress/ })).toBeNull()
+  })
+
+  it('shows pending expenses linked to this activity only when a validator can review them', () => {
+    const pendingExpenses = [
+      {
+        id: 'e0000000-0000-4000-8000-00000000000e',
+        activityId: activity.id,
+        projectId: activity.projectId,
+        amount: 1500.5,
+        category: 'Training supplies',
+        date: '2026-09-28',
+        description: 'Printed handouts.',
+        status: 'For Verification' as const,
+        updatedAt: '2026-09-28T00:00:00.000Z',
+        receiptEvidenceId: 'r0000000-0000-4000-8000-00000000000r',
+      },
+    ]
+    const { rerender } = render(
+      <ActivityDetailContent
+        activity={activity}
+        canDecideProof={false}
+        canEdit={false}
+        canLogExpense={false}
+        canRequestExtension={false}
+        canSubmitProof={false}
+        canValidateExpense
+        canValidateProof={false}
+        indicators={[]}
+        journeyStages={[]}
+        onActivityChanged={vi.fn()}
+        onEdit={vi.fn()}
+        onSubmitProof={vi.fn()}
+        pendingExpenses={pendingExpenses}
+      />,
+    )
+    expect(screen.getByText('Submitted expenses for validation')).toBeTruthy()
+    expect(screen.getByText('Training supplies')).toBeTruthy()
+
+    rerender(
+      <ActivityDetailContent
+        activity={activity}
+        canDecideProof={false}
+        canEdit={false}
+        canLogExpense={false}
+        canRequestExtension={false}
+        canSubmitProof={false}
+        canValidateExpense={false}
+        canValidateProof={false}
+        indicators={[]}
+        journeyStages={[]}
+        onActivityChanged={vi.fn()}
+        onEdit={vi.fn()}
+        onSubmitProof={vi.fn()}
+        pendingExpenses={pendingExpenses}
+      />,
+    )
+    expect(screen.queryByText('Submitted expenses for validation')).toBeNull()
   })
 })

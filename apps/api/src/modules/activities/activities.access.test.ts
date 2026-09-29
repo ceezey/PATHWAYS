@@ -1,3 +1,54 @@
+// These existing domain tests isolate receipt transport; dedicated source tests cover its boundary.
+vi.mock('../rules/rules-source-operation', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../rules/rules-source-operation')>()),
+  beginRuleSourceOperation: async (
+    _tx: unknown,
+    operation: string,
+    projectId: string,
+    sourceId: string | null,
+    _key: unknown,
+    body: Record<string, unknown>,
+  ) => ({
+    kind: 'NEW',
+    operationHandle: 'f0000000-0000-4000-8000-000000000001',
+    reservedRecordId: ['ACTIVITY_CREATE', 'INDICATOR_CREATE', 'INDICATOR_MEASUREMENT'].includes(
+      operation,
+    )
+      ? 'f0000000-0000-4000-8000-000000000002'
+      : null,
+    generatedValues: {
+      timestamp: '2026-09-27T00:00:00.001Z',
+      businessDate: '2026-09-27',
+      normalizedValue: operation === 'INDICATOR_MEASUREMENT' ? body.value : null,
+      requestHash:
+        operation === 'INDICATOR_MEASUREMENT'
+          ? (await import('node:crypto'))
+              .createHash('sha256')
+              .update(
+                JSON.stringify({
+                  projectId,
+                  indicatorId: sourceId,
+                  periodStart: body.periodStart,
+                  periodEnd: body.periodEnd,
+                  value: body.value,
+                  source: body.source,
+                  note: body.note ?? null,
+                  correctsMeasurementId: body.correctsMeasurementId ?? null,
+                  correctionReason: body.correctionReason ?? null,
+                }),
+              )
+              .digest('hex')
+          : null,
+    },
+  }),
+  finishRuleSourceOperation: async (_tx: unknown, _handle: string, requestId: string) => ({
+    requestId,
+    committed: true,
+    replayed: false,
+  }),
+  readRuleSourceAcknowledgement: async () => null,
+  bootstrapRuleSourceProject: async () => undefined,
+}))
 import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common'
 import { Prisma } from '@prisma/client'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -11,6 +62,9 @@ const state = vi.hoisted(() => ({
   tx: undefined as Prisma.TransactionClient | undefined,
 }))
 
+vi.mock('@app/modules/auth/application-profile.service', () => ({
+  readApplicationProfile: vi.fn(async () => state.actor),
+}))
 vi.mock('@app/modules/auth/authorized-operation', () => ({
   withAuthorizedOperation: vi.fn(async (_prisma, _identity, _permission, work) =>
     work(state.tx, state.actor),
@@ -52,7 +106,7 @@ const activity = {
   actualEndDate: null,
   status: 'FOR_REVIEW',
   progressPercent: 80,
-  project: { targetGoal: '75' },
+  project: {},
   reviewedById: null,
   reviewedAt: null,
   cancelledAt: null,
@@ -65,8 +119,9 @@ const activity = {
 }
 
 const tx = {
+  $queryRaw: vi.fn(),
   project: { findFirst: vi.fn() },
-  projectActivity: { findFirst: vi.fn(), create: vi.fn() },
+  projectActivity: { findFirst: vi.fn(), create: vi.fn(), updateMany: vi.fn() },
   userProjectAssignment: { findMany: vi.fn() },
   projectActivityAssignment: { createMany: vi.fn(), updateMany: vi.fn() },
   projectIndicator: { findMany: vi.fn() },
@@ -80,6 +135,7 @@ const tx = {
     update: vi.fn(),
   },
   evidenceMedia: { findFirst: vi.fn(), updateMany: vi.fn() },
+  budgetExpenseEntry: { aggregate: vi.fn() },
   activityUpdate: { findFirst: vi.fn(), update: vi.fn() },
   auditLog: { create: vi.fn() },
 }
@@ -90,17 +146,55 @@ describe('P05 activity proof authorization', () => {
 
   beforeEach(() => {
     vi.clearAllMocks()
+    tx.$queryRaw.mockResolvedValue([])
     state.actor = actor
     state.tx = tx as unknown as Prisma.TransactionClient
     tx.project.findFirst.mockResolvedValue({ id: projectId, startDate: null, endDate: null })
     tx.projectActivity.findFirst.mockResolvedValue(activity)
   })
 
-  it('does not fetch private proof when project scope is unavailable', async () => {
-    tx.project.findFirst.mockResolvedValueOnce(null)
+  it('selects only scoped activity context for Admin configuration', async () => {
+    state.actor = {
+      ...actor,
+      roles: ['SYSTEM_ADMINISTRATOR'],
+      permissions: ['activities.context.read'],
+    }
+    tx.project.findFirst.mockResolvedValueOnce({
+      projectActivity_project: [
+        {
+          id: activityId,
+          title: 'Synthetic activity',
+          status: 'IN_PROGRESS',
+          activityJourneyStageMapping_activity: [{ stageId }],
+        },
+      ],
+    })
+    await expect(service.context(state.actor, projectId)).resolves.toEqual([
+      {
+        id: activityId,
+        title: 'Synthetic activity',
+        status: 'IN_PROGRESS',
+        journeyStageId: stageId,
+      },
+    ])
+    const request = tx.project.findFirst.mock.calls[0][0]
+    expect(request.where.AND).toContainEqual({ id: projectId })
+    expect(Object.keys(request.select.projectActivity_project.select).sort()).toEqual([
+      'activityJourneyStageMapping_activity',
+      'id',
+      'status',
+      'title',
+    ])
+    expect(tx.projectActivity.findFirst).not.toHaveBeenCalled()
+    expect(tx.evidenceMedia.findFirst).not.toHaveBeenCalled()
+  })
+
+  it('uniformly denies retired generic proof capability without metadata or storage reads', async () => {
+    tx.project.findFirst.mockResolvedValue(null)
     await expect(
       service.downloadProof(actor, projectId, activityId, updateId),
-    ).rejects.toBeInstanceOf(NotFoundException)
+    ).rejects.toBeInstanceOf(ForbiddenException)
+    expect(tx.project.findFirst).not.toHaveBeenCalled()
     expect(tx.evidenceMedia.findFirst).not.toHaveBeenCalled()
     expect(storage.downloadPrivateFile).not.toHaveBeenCalled()
   })
@@ -108,9 +202,9 @@ describe('P05 activity proof authorization', () => {
   it('loads bounded activity relations through one database join query', async () => {
     tx.project.findFirst.mockResolvedValueOnce({ projectActivity_project: [activity] })
 
-    await expect(service.list(actor, projectId)).resolves.toMatchObject([
-      { projectGoalComparison: { state: 'ABOVE_TARGET', reason: null } },
-    ])
+    const [result] = await service.list(actor, projectId)
+    expect(result).not.toHaveProperty('projectGoalComparison')
+    expect(result.progress).toBe(activity.progressPercent)
     expect(tx.project.findFirst).toHaveBeenCalledWith(
       expect.objectContaining({
         relationLoadStrategy: 'join',
@@ -127,11 +221,161 @@ describe('P05 activity proof authorization', () => {
     )
   })
 
+  it('returns a lean list shape without update history, proof, emails or read metrics', async () => {
+    state.actor = {
+      ...actor,
+      roles: ['PROJECT_MANAGER'],
+      permissions: ['activities.read', 'budgets.read', 'beneficiaries.aggregates.read'],
+    }
+    tx.project.findFirst.mockResolvedValueOnce({
+      projectActivity_project: [
+        {
+          ...activity,
+          projectActivityAssignment_activity: [
+            {
+              projectAssignment: {
+                userId: '70000000-0000-4000-8000-000000000007',
+                user: { fullName: 'Officer' },
+              },
+            },
+          ],
+        },
+      ],
+    })
+
+    const [item] = await service.list(state.actor, projectId)
+    expect(Object.keys(item ?? {}).sort()).toEqual(
+      [
+        'assignedTo',
+        'assignedUserIds',
+        'capabilities',
+        'code',
+        'description',
+        'dueDate',
+        'id',
+        'indicatorIds',
+        'journeyStageId',
+        'journeyStageIds',
+        'overdue',
+        'progress',
+        'projectId',
+        'startDate',
+        'status',
+        'storedStatus',
+        'targetBeneficiaries',
+        'title',
+        'updatedAt',
+      ].sort(),
+    )
+    expect(item?.assignedTo).toEqual(['Officer'])
+    const select = tx.project.findFirst.mock.calls[0][0].select.projectActivity_project.select
+    expect(select).not.toHaveProperty('activityUpdate_activity')
+    expect(select.projectActivityAssignment_activity.select.projectAssignment.select.user).toEqual({
+      select: { fullName: true },
+    })
+    // Budget and reach metrics are detail-only reads.
+    expect(tx.$queryRaw).not.toHaveBeenCalled()
+    expect(tx.projectBudgetRecord.findMany).not.toHaveBeenCalled()
+    expect(tx.budgetExpenseEntry.aggregate).not.toHaveBeenCalled()
+    expect(item).not.toHaveProperty('budgetLogged')
+  })
+
+  it('returns the approved logged total for an expense reader, scoped to the activity', async () => {
+    const reader = {
+      ...actor,
+      roles: ['PROJECT_MANAGER'],
+      permissions: ['activities.read', 'expenses.read'],
+    }
+    state.actor = reader as ApplicationIdentity
+    tx.project.findFirst.mockResolvedValueOnce({ projectActivity_project: [activity] })
+    tx.budgetExpenseEntry.aggregate.mockResolvedValueOnce({
+      _sum: { amount: new Prisma.Decimal('1500.5') },
+      _count: { _all: 2 },
+    })
+    const detail = await service.get(reader, projectId, activityId)
+    expect(detail).toMatchObject({ budgetLogged: '1500.50', budgetLoggedEntries: 2 })
+    expect(tx.budgetExpenseEntry.aggregate).toHaveBeenCalledWith({
+      where: {
+        organizationId,
+        projectId,
+        status: 'APPROVED',
+        budgetRecord: { organizationId, projectId, activityId },
+      },
+      _sum: { amount: true },
+      _count: { _all: true },
+    })
+  })
+
+  it('reports an empty approved expense set as zero entries, not as a missing value', async () => {
+    const reader = {
+      ...actor,
+      roles: ['PROJECT_MANAGER'],
+      permissions: ['activities.read', 'expenses.read'],
+    }
+    state.actor = reader as ApplicationIdentity
+    tx.project.findFirst.mockResolvedValueOnce({ projectActivity_project: [activity] })
+    tx.budgetExpenseEntry.aggregate.mockResolvedValueOnce({
+      _sum: { amount: null },
+      _count: { _all: 0 },
+    })
+    await expect(service.get(reader, projectId, activityId)).resolves.toMatchObject({
+      budgetLogged: '0.00',
+      budgetLoggedEntries: 0,
+    })
+  })
+
+  it('withholds the logged total (null, never 0) without expenses.read', async () => {
+    const officer = {
+      ...actor,
+      roles: ['PROJECT_OFFICER'],
+      permissions: ['activities.read', 'budgets.read'],
+    }
+    state.actor = officer as ApplicationIdentity
+    tx.project.findFirst.mockResolvedValueOnce({ projectActivity_project: [activity] })
+    const detail = await service.get(officer, projectId, activityId)
+    expect(detail).toMatchObject({ budgetLogged: null, budgetLoggedEntries: null })
+    expect(tx.budgetExpenseEntry.aggregate).not.toHaveBeenCalled()
+  })
+
+  it('reads no expenses for an out-of-scope activity', async () => {
+    const reader = { ...actor, permissions: ['activities.read', 'expenses.read'] }
+    state.actor = reader
+    tx.project.findFirst.mockResolvedValueOnce(null)
+    await expect(service.get(reader, projectId, activityId)).rejects.toBeInstanceOf(
+      NotFoundException,
+    )
+    expect(tx.budgetExpenseEntry.aggregate).not.toHaveBeenCalled()
+  })
+
+  it('keeps full nested updates, proof and metrics on the single-activity read', async () => {
+    tx.project.findFirst.mockResolvedValueOnce({ projectActivity_project: [activity] })
+    const detail = await service.get(actor, projectId, activityId)
+    expect(detail).toHaveProperty('updateNotes')
+    expect(detail).toHaveProperty('submittedProof')
+    expect(detail).toHaveProperty('assignedEmails')
+    const select = tx.project.findFirst.mock.calls[0][0].select.projectActivity_project.select
+    expect(select).toHaveProperty('activityUpdate_activity')
+  })
+
+  it('reports a guessed or cross-project activity id as not found on the detail read', async () => {
+    tx.project.findFirst.mockResolvedValueOnce({ projectActivity_project: [] })
+    await expect(service.get(actor, projectId, activityId)).rejects.toBeInstanceOf(
+      NotFoundException,
+    )
+    tx.project.findFirst.mockResolvedValueOnce(null)
+    await expect(service.get(actor, projectId, activityId)).rejects.toBeInstanceOf(
+      NotFoundException,
+    )
+    await expect(service.get(actor, projectId, 'not-a-uuid')).rejects.toBeInstanceOf(
+      NotFoundException,
+    )
+  })
+
   it('does not disclose a guessed proof identifier outside the scoped activity', async () => {
     tx.evidenceMedia.findFirst.mockResolvedValueOnce(null)
     await expect(
       service.downloadProof(actor, projectId, activityId, updateId),
-    ).rejects.toBeInstanceOf(NotFoundException)
+    ).rejects.toBeInstanceOf(ForbiddenException)
     expect(storage.downloadPrivateFile).not.toHaveBeenCalled()
   })
 
@@ -148,6 +392,7 @@ describe('P05 activity proof authorization', () => {
       service.reviewUpdate(actor, projectId, activityId, updateId, {
         decision: 'APPROVE',
         reason: 'Not allowed',
+        clientMutationId: 'e0000000-0000-4000-8000-000000000001',
         expectedUpdatedAt: '2026-09-13T00:00:00.000Z',
       }),
     ).rejects.toBeInstanceOf(ForbiddenException)
@@ -164,7 +409,7 @@ describe('Activity creation contract authorization', () => {
       'activities.create',
       'activities.update',
       'indicators.update',
-      'journeys.manage',
+      'journeys.read',
       'budgets.read',
       'budgets.create',
     ],
@@ -208,6 +453,7 @@ describe('Activity creation contract authorization', () => {
   })
 
   const input = () => ({
+    clientMutationId: 'e0000000-0000-4000-8000-000000000001',
     title: 'Synthetic repaired activity',
     plannedStartDate: '2025-12-15',
     plannedEndDate: '2026-06-30',
@@ -230,7 +476,18 @@ describe('Activity creation contract authorization', () => {
       timelineOverrideJustification: 'Approved early mobilization',
     })
     tx.project.findFirst.mockResolvedValueOnce({ projectActivity_project: [repairedActivity] })
-    await expect(service.list(projectManager, projectId)).resolves.toEqual([created])
+    if (!('sourceAcknowledgement' in created)) throw new Error('Expected fresh source projection')
+    const { sourceAcknowledgement, ...savedActivity } = created
+    expect(sourceAcknowledgement).toMatchObject({ committed: true, replayed: false })
+    const [listed] = await service.list(projectManager, projectId)
+    expect(listed).toEqual(
+      Object.fromEntries(
+        Object.keys(listed ?? {}).map((key) => [
+          key,
+          (savedActivity as Record<string, unknown>)[key],
+        ]),
+      ),
+    )
     expect(tx.projectActivity.create).toHaveBeenCalledWith(
       expect.objectContaining({
         data: expect.objectContaining({
@@ -290,6 +547,61 @@ describe('Activity creation contract authorization', () => {
       BadRequestException,
     )
     expect(tx.userProjectAssignment.findMany).not.toHaveBeenCalled()
+  })
+
+  const updateInput = () => {
+    const { budgetAllocation: _budget, ...rest } = input()
+    return { ...rest, expectedUpdatedAt: repairedActivity.updatedAt.toISOString() }
+  }
+
+  it('updates with one project-scope query and one scoped activity read-back', async () => {
+    tx.projectActivity.updateMany.mockResolvedValue({ count: 1 })
+    await expect(
+      service.update(projectManager, projectId, activityId, updateInput()),
+    ).resolves.toMatchObject({ id: activityId })
+    expect(tx.project.findFirst).toHaveBeenCalledOnce()
+    expect(tx.projectActivity.findFirst).toHaveBeenCalledTimes(2)
+    for (const [request] of tx.projectActivity.findFirst.mock.calls)
+      expect(request.where).toMatchObject({ organizationId, projectId, archivedAt: null })
+  })
+
+  it('denies an update outside project scope before reading or writing the activity', async () => {
+    tx.project.findFirst.mockResolvedValueOnce(null)
+    await expect(
+      service.update(projectManager, projectId, activityId, updateInput()),
+    ).rejects.toBeInstanceOf(NotFoundException)
+    expect(tx.projectActivity.findFirst).not.toHaveBeenCalled()
+    expect(tx.projectActivity.updateMany).not.toHaveBeenCalled()
+  })
+
+  it('transitions with one project-scope query and one scoped activity read-back', async () => {
+    tx.projectActivity.updateMany.mockResolvedValue({ count: 1 })
+    await service.transition(projectManager, projectId, activityId, {
+      status: 'IN_PROGRESS',
+      clientMutationId: 'e0000000-0000-4000-8000-000000000002',
+      expectedUpdatedAt: repairedActivity.updatedAt.toISOString(),
+    })
+    expect(tx.project.findFirst).toHaveBeenCalledOnce()
+    expect(tx.projectActivity.findFirst).toHaveBeenCalledTimes(2)
+    expect(tx.projectActivity.findFirst.mock.calls[1][0].where).toEqual({
+      id: activityId,
+      organizationId,
+      projectId,
+      archivedAt: null,
+    })
+  })
+
+  it('denies a transition for a cross-project activity id', async () => {
+    tx.projectActivity.findFirst.mockResolvedValueOnce(null)
+    await expect(
+      service.transition(projectManager, projectId, activityId, {
+        status: 'CANCELLED',
+        reason: 'Synthetic',
+        clientMutationId: 'e0000000-0000-4000-8000-000000000003',
+        expectedUpdatedAt: repairedActivity.updatedAt.toISOString(),
+      }),
+    ).rejects.toBeInstanceOf(NotFoundException)
+    expect(tx.projectActivity.updateMany).not.toHaveBeenCalled()
   })
 
   it('hides an unauthorized or cross-organization Project before Activity creation', async () => {

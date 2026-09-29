@@ -1,9 +1,5 @@
 import type { PathwaysRole } from '@/types/pathways-role'
-import type {
-  SadddDashboard,
-  ProjectIndicator as SharedProjectIndicator,
-  TargetGoalComparison,
-} from '@pathways/shared'
+import type { SadddDashboard, ProjectIndicator as SharedProjectIndicator } from '@pathways/shared'
 
 export type ProjectStatus = 'Active' | 'Needs Attention' | 'Planned' | 'Completed'
 export type StoredProjectStatus = 'PLANNED' | 'ONGOING' | 'COMPLETED' | 'ON_HOLD' | 'CANCELLED'
@@ -24,10 +20,10 @@ export type BeneficiaryEnrollmentStatus =
 export type DashboardSeverity = 'neutral' | 'info' | 'success' | 'warning' | 'danger'
 export type DashboardActionKind = 'dialog' | 'navigate' | 'toast'
 
+/** Project profile only. Overview metrics come from `GET /projects/:id/overview-metrics`. */
 export interface ProjectSummary {
-  metricsAvailable?: boolean
   targetBeneficiaries?: number
-  targetGoal: string | null
+
   startDate?: string | null
   endDate?: string | null
   id: string
@@ -40,11 +36,6 @@ export interface ProjectSummary {
   health: HealthStatus
   period: string
   projectManager: string
-  kpiAchievement: number
-  beneficiariesReached: number
-  beneficiaryReachPercentage?: number
-  budgetUtilization: number
-  timelineProgress: number
   updatedAt?: string
   programId?: string | null
 }
@@ -52,7 +43,9 @@ export interface ProjectSummary {
 export interface ProjectDetail extends ProjectSummary {
   description: string
   objectives?: string
+  /** Deprecated read-only legacy text (migration 0039); never displayed or sent. */
   implementingPartners?: string | null
+  implementingPartnerRecords?: { id: string; name: string }[]
   projectBudget?: string | null
   programManager: string
   programManagerId?: string | null
@@ -61,7 +54,6 @@ export interface ProjectDetail extends ProjectSummary {
   projectManagerId?: string | null
   projectOfficers: string[]
   projectOfficerIds?: string[]
-  targetBeneficiaries: number
   budgetCode: string
 }
 
@@ -94,7 +86,7 @@ export interface CreateProjectInput {
   endDate?: string
   status: ProjectStatus
   description?: string
-  implementingPartners?: string
+  implementingPartnerNames?: string[]
   sector?: string
   targetBeneficiaries?: number | null
   projectBudget?: string
@@ -103,14 +95,12 @@ export interface CreateProjectInput {
   monitoringOfficerId?: string | null
   projectOfficerIds?: string[]
   programId?: string
-  targetGoal: string
 }
 
-export interface UpdateProjectInput
-  extends Omit<CreateProjectInput, 'code' | 'status' | 'targetGoal'> {
+export interface UpdateProjectInput extends Omit<CreateProjectInput, 'code' | 'status'> {
   code?: string
   status: ProjectStatus | StoredProjectStatus
-  targetGoal?: string
+
   expectedUpdatedAt: string
 }
 
@@ -120,6 +110,22 @@ export type StoredActivityStatus =
   | 'FOR_REVIEW'
   | 'COMPLETED'
   | 'CANCELLED'
+
+/**
+ * Server-computed, advisory flags for the calling user. The API re-checks every mutation,
+ * so these only decide which controls are shown. A missing flag set means none are shown.
+ */
+export interface ActivityCapabilities {
+  canEdit: boolean
+  canRecordProgress: boolean
+  canSubmitProof: boolean
+}
+
+/** Minimal projection from `GET /projects/:id/activities/assignable-officers`. */
+export interface AssignableProjectOfficer {
+  userId: string
+  displayName: string
+}
 
 export interface Activity {
   id: string
@@ -146,15 +152,45 @@ export interface Activity {
   beneficiariesReached: number
   budgetAllocation: number | null
   budgetLogged: number | null
+  /** Approved expense entries behind `budgetLogged`; null when expenses are not readable. */
+  budgetLoggedEntries?: number | null
   progress: number
-  projectGoalComparison: TargetGoalComparison
+
   reviewedById?: string | null
   reviewedAt?: string | null
   cancellationReason?: string | null
   submittedProof: ActivityProof[]
   updateNotes: ActivityUpdateNote[]
   updatedAt: string
+  capabilities?: ActivityCapabilities
 }
+
+/**
+ * Lean list item from `GET /projects/:id/activities`. Update history, proof, assignee
+ * emails and read metrics are detail-only: read them with `getActivity`.
+ */
+export type ActivitySummary = Pick<
+  Activity,
+  | 'id'
+  | 'projectId'
+  | 'code'
+  | 'title'
+  | 'description'
+  | 'storedStatus'
+  | 'status'
+  | 'overdue'
+  | 'startDate'
+  | 'dueDate'
+  | 'assignedUserIds'
+  | 'assignedTo'
+  | 'indicatorIds'
+  | 'journeyStageIds'
+  | 'journeyStageId'
+  | 'targetBeneficiaries'
+  | 'progress'
+  | 'updatedAt'
+  | 'capabilities'
+>
 
 export interface ActivityProof {
   id: string
@@ -179,6 +215,8 @@ export interface ActivityProofFile {
 
 export interface ActivityUpdateNote {
   id: string
+  /** 'progress' marks a progress-only note without proof files. */
+  kind?: 'proof' | 'progress'
   note: string
   progress: number
   status: 'Submitted' | 'Flagged' | 'Accepted'
@@ -209,6 +247,14 @@ export interface UpdateActivityInput extends CreateActivityInput {
   expectedUpdatedAt: string
 }
 
+export interface RecordActivityProgressInput {
+  projectId: string
+  activityId: string
+  clientUpdateId: string
+  progress: number
+  note: string
+}
+
 export interface SubmitActivityProofInput {
   projectId: string
   activityId: string
@@ -217,6 +263,59 @@ export interface SubmitActivityProofInput {
   note: string
   files: File[]
 }
+
+// --- Direct-upload activity proof (cr-pathways-activity-progress-media) ---
+
+export interface ActivityProofUploadLimits {
+  maxFiles: number
+  maxFileBytes: number
+  maxTotalBytes: number
+  contentTypes: string[]
+}
+
+export interface ActivityProofFileDeclaration {
+  fileName: string
+  contentType: string
+  byteSize: number
+  sha256: string
+}
+
+export interface ReserveActivityProofUploadInput {
+  projectId: string
+  activityId: string
+  clientUpdateId: string
+  progressPercent: number
+  note: string
+  files: ActivityProofFileDeclaration[]
+}
+
+export interface ActivityProofReservedFile {
+  evidenceId: string
+  fileName: string
+  contentType: string
+  byteSize: number
+  sha256: string
+  storageReady: boolean
+  uploadUrl: string | null
+}
+
+export type ActivityProofReservation =
+  | {
+      clientUpdateId: string
+      status: 'COMMITTED'
+      acknowledgement: unknown
+    }
+  | {
+      clientUpdateId: string
+      updateId: string
+      status: 'UPLOADING' | 'READY_TO_COMMIT'
+      files: ActivityProofReservedFile[]
+    }
+
+export type ActivityProofFinalizeResult =
+  | { status: 'COMMITTED'; acknowledgement: unknown }
+  | { status: 'COMMITTED'; activity: Activity & { sourceAcknowledgement: unknown } }
+  | { status: 'UPLOADING'; updateId: string; remaining: number }
 
 export interface ProjectMilestone {
   id: string
@@ -462,6 +561,20 @@ export interface EvidenceRecord {
   submittedDate: string
   previewSummary: string
 }
+
+/** Aggregate-only roles receive per-activity counts, never file or submitter detail. */
+export interface EvidenceActivitySummary {
+  activityId: string
+  activityTitle: string
+  total: number
+  submitted: number
+  approved: number
+  returned: number
+}
+
+export type EvidenceList =
+  | { scope: 'detail'; records: EvidenceRecord[] }
+  | { scope: 'aggregate'; activities: EvidenceActivitySummary[] }
 
 export type IndicatorStatus = SharedProjectIndicator['status']
 export type ProjectIndicator = SharedProjectIndicator
@@ -717,6 +830,7 @@ export interface FormValidationResult {
 }
 
 export interface DirectFormSubmission {
+  beneficiaryId?: string | null
   id: string
   clientSubmissionId: string
   status: 'DRAFT' | 'VALIDATED'
@@ -769,7 +883,7 @@ export interface ImportBatchDefinition {
   formName: string
   formType: DigitalFormType
   originalFileName: string
-  fileType: 'CSV' | 'XLSX' | 'XLS'
+  fileType: 'CSV' | 'XLSX' | 'XLS' | 'PDF'
   clientImportId: string
   storageStatus: 'RESERVED' | 'STORED' | 'RECOVERY_REQUIRED' | 'FAILED'
   status: ImportBatchStatus
@@ -794,10 +908,21 @@ export interface ImportBatchDefinition {
   sourceColumns?: ImportSourceColumn[]
   mappings?: Array<{
     sourceFieldName: string
-    status: 'MAPPED' | 'IGNORED'
+    status: 'PENDING' | 'MAPPED' | 'IGNORED' | 'INVALID'
     revision: number
     targetField: { code: string; label: string } | null
     validationMessage: string | null
+    /** AUTO_SMART_V2: a field suggested for a PENDING column; confirmation needs imports.review. */
+    suggestedField?: { code: string; label: string } | null
+    matchScore?: number | null
+    matchReason?:
+      | 'EXACT'
+      | 'SYNONYM'
+      | 'SYNONYM_REVIEW'
+      | 'TOKEN_SET'
+      | 'TOKEN_OVERLAP'
+      | 'EDIT_DISTANCE'
+      | null
   }>
 }
 
@@ -958,7 +1083,7 @@ export interface PublicProjectRecord {
   milestones: PublicMilestone[]
   accomplishments: string[]
   progressTrend: number[]
-  beneficiariesReached: number
+  beneficiariesReached: number | null
   budgetSummary: string
   assessmentSummary: string
   publicationState: 'Approved for public preview'
@@ -1089,4 +1214,18 @@ export interface RoleDashboardViewModel {
   executive?: ExecutiveDashboardViewModel
   metrics: DashboardMetric[]
   sections: DashboardSection[]
+}
+
+export interface BeneficiaryRegistrationContext {
+  projectId: string
+  businessDate: string
+  definitions: {
+    id: string
+    code: string
+    version: number
+    name: string
+    formType: 'BENEFICIARY_REGISTRATION'
+    status: 'PUBLISHED'
+    fields: DigitalFormFieldDefinition[]
+  }[]
 }

@@ -18,6 +18,7 @@ export const canAccessProjectForRole = (
 ) => {
   const { projectAccess } = getAccessProfile(role)
 
+  // Presentation only: portfolio arrays must already be scoped by the API.
   if (projectAccess === 'organization' || projectAccess === 'portfolio') {
     return true
   }

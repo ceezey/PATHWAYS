@@ -1,8 +1,0 @@
--- PostgreSQL enum values must commit before the following P03 contract migration uses them.
-ALTER TYPE pathways.import_status ADD VALUE IF NOT EXISTS 'UPLOADING' BEFORE 'UPLOADED';
-ALTER TYPE pathways.import_status ADD VALUE IF NOT EXISTS 'PROCESSING' AFTER 'VALIDATED';
-ALTER TYPE pathways.import_status ADD VALUE IF NOT EXISTS 'PARTIALLY_PROCESSED' AFTER 'PROCESSING';
-ALTER TYPE pathways.import_status ADD VALUE IF NOT EXISTS 'RECOVERY_REQUIRED' BEFORE 'FAILED';
-ALTER TYPE pathways.import_row_status ADD VALUE IF NOT EXISTS 'PROCESSING' AFTER 'INVALID';
-ALTER TYPE pathways.import_row_status ADD VALUE IF NOT EXISTS 'UNPROCESSED' AFTER 'PROCESSING';
-ALTER TYPE pathways.import_row_status ADD VALUE IF NOT EXISTS 'FAILED' AFTER 'PROCESSED';

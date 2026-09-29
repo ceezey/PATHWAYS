@@ -2,11 +2,37 @@ import { describe, expect, it } from 'vitest'
 import { isUiActionAvailable } from './ui-action-availability'
 
 describe('UI actions against the accepted backend policy', () => {
+  it('hides a mounted action after revocation and rejects a forged role/profile pair', () => {
+    const principal = { roles: ['PROJECT_MANAGER'], permissions: ['projects.update'] }
+    expect(isUiActionAvailable('Project Manager', 'projects.profile.manage', principal)).toBe(true)
+    expect(
+      isUiActionAvailable('Project Manager', 'projects.profile.manage', {
+        ...principal,
+        permissions: [],
+      }),
+    ).toBe(false)
+    expect(isUiActionAvailable('System Administrator', 'projects.profile.manage', principal)).toBe(
+      false,
+    )
+    expect(isUiActionAvailable('Project Manager', 'projects.profile.manage', null)).toBe(false)
+  })
   it('allows Project Manager and M&E to manage project indicators', () => {
     expect(isUiActionAvailable('Project Manager', 'indicators.manage')).toBe(true)
     expect(isUiActionAvailable('Monitoring and Evaluation Officer', 'indicators.manage')).toBe(true)
     expect(isUiActionAvailable('Project Officer', 'indicators.manage')).toBe(false)
     expect(isUiActionAvailable('Program Manager', 'indicators.manage')).toBe(false)
+  })
+
+  it('offers progress recording only to roles holding activities.progress.update', () => {
+    expect(isUiActionAvailable('Project Officer', 'activities.progress.record')).toBe(true)
+    expect(isUiActionAvailable('Program Manager', 'activities.progress.record')).toBe(false)
+    expect(isUiActionAvailable('Grant Manager', 'activities.progress.record')).toBe(false)
+    expect(
+      isUiActionAvailable('Project Officer', 'activities.progress.record', {
+        roles: ['PROJECT_OFFICER'],
+        permissions: [],
+      }),
+    ).toBe(false)
   })
 
   it('keeps actions without a usable backend endpoint unavailable', () => {
@@ -19,7 +45,7 @@ describe('UI actions against the accepted backend policy', () => {
   it('matches beneficiary and journey controls to the accepted C3/C4 permissions', () => {
     expect(isUiActionAvailable('Project Officer', 'beneficiaries.create')).toBe(true)
     expect(isUiActionAvailable('Project Manager', 'beneficiaries.create')).toBe(true)
-    expect(isUiActionAvailable('Project Manager', 'beneficiaries.edit')).toBe(false)
+    expect(isUiActionAvailable('Project Manager', 'beneficiaries.edit')).toBe(true)
     expect(isUiActionAvailable('Monitoring and Evaluation Officer', 'beneficiaries.edit')).toBe(
       true,
     )
@@ -31,9 +57,20 @@ describe('UI actions against the accepted backend policy', () => {
   })
 
   it('enables project profile writes only for roles with the accepted project permission', () => {
-    expect(isUiActionAvailable('System Administrator', 'projects.profile.manage')).toBe(true)
+    expect(isUiActionAvailable('System Administrator', 'projects.profile.manage')).toBe(false)
     expect(isUiActionAvailable('Project Manager', 'projects.profile.manage')).toBe(true)
     expect(isUiActionAvailable('Program Manager', 'projects.profile.manage')).toBe(false)
     expect(isUiActionAvailable('Project Officer', 'projects.profile.manage')).toBe(false)
+  })
+
+  it('offers assessment detail only to the granted project roles', () => {
+    expect(isUiActionAvailable('Project Officer', 'assessments.detail.view')).toBe(true)
+    expect(
+      isUiActionAvailable('Monitoring and Evaluation Officer', 'assessments.detail.view'),
+    ).toBe(true)
+    expect(isUiActionAvailable('Project Manager', 'assessments.detail.view')).toBe(true)
+    expect(isUiActionAvailable('System Administrator', 'assessments.detail.view')).toBe(false)
+    expect(isUiActionAvailable('Program Manager', 'assessments.detail.view')).toBe(false)
+    expect(isUiActionAvailable('Grant Manager', 'assessments.detail.view')).toBe(false)
   })
 })

@@ -131,7 +131,7 @@ export const LoginForm = () => {
                         <Input
                           autoCapitalize="none"
                           autoComplete="username"
-                          className="border-0 border-b border-border bg-transparent px-0 shadow-none focus-visible:ring-0"
+                          className="border-0 border-b border-border bg-transparent px-0 shadow-none"
                           disabled={busy}
                           inputMode="email"
                           maxLength={254}
@@ -160,7 +160,7 @@ export const LoginForm = () => {
                           <Input
                             aria-label="Password"
                             autoComplete="current-password"
-                            className="border-0 border-b border-border bg-transparent px-0 pr-11 shadow-none focus-visible:ring-0"
+                            className="border-0 border-b border-border bg-transparent px-0 pr-11 shadow-none"
                             disabled={busy}
                             maxLength={1024}
                             placeholder="Enter your password"

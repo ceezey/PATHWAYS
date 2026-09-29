@@ -1,6 +1,6 @@
-# Runbook — PostgreSQL Backup and Restore Rehearsal
+# Runbook: PostgreSQL Backup and Restore Rehearsal
 
-**Status:** Development runbook based on the verified PATHWAYS-dev workflow used during database migration work.
+**Basis:** the verified PATHWAYS-dev workflow used during database migration work.
 
 ## Principles
 

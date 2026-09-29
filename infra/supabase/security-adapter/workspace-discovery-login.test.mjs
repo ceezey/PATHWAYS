@@ -5,6 +5,7 @@ import net from 'node:net'
 import path from 'node:path'
 import test from 'node:test'
 import { fileURLToPath } from 'node:url'
+import { historicalMigration } from '../../../scripts/migrations/history.mjs'
 import { buildLoginHelperSql, discoveryBody, ledgerNames } from './workspace-discovery-login.mjs'
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../..')
@@ -13,12 +14,10 @@ const apply = buildLoginHelperSql(ledger)
 const rollback = buildLoginHelperSql(ledger, { rollback: true })
 
 test('helper matches the reviewed migration body exactly', () => {
-  const source = fs
-    .readFileSync(
-      path.join(root, 'apps/api/prisma/migrations/0007_core_workspace_foundation/migration.sql'),
-      'utf8',
-    )
-    .replaceAll('\r\n', '\n')
+  const source = historicalMigration('0007_core_workspace_foundation', 'utf8').replaceAll(
+    '\r\n',
+    '\n',
+  )
   assert.equal(
     source.match(/p1_workspace_for_auth\(\)[\s\S]*?AS \$\$([\s\S]*?)\$\$;/)?.[1],
     discoveryBody,

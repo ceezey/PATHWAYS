@@ -23,6 +23,8 @@ import {
   SectionCard,
   SidePanel,
   StatusBadge,
+  UnavailableHint,
+  unavailableControlProps,
 } from '@/components/pathways'
 import { Button } from '@/components/ui/button'
 import {
@@ -35,6 +37,7 @@ import {
 import { Sheet } from '@/components/ui/sheet'
 import { useCurrentRole } from '@/hooks/use-current-role'
 import { can } from '@/lib/rbac/can'
+import { type RoutePrincipal, principalHasAtomicPermission } from '@/lib/rbac/route-access'
 import { pathwaysClient } from '@/lib/services/pathways-client'
 import type {
   Activity,
@@ -51,11 +54,20 @@ import { ActivityDetailPanel } from '../projects/activity-detail-panel'
 import { ActivityProofDialog } from '../projects/activity-proof-dialog'
 import { ExecutiveDashboard } from './executive-dashboard'
 
-export const canLoadDashboardMonitoring = (role: PathwaysRole | null) =>
-  role !== null && can(role, 'monitor_evaluate.view') && can(role, 'analytics.view')
+export const canLoadDashboardMonitoring = (
+  role: PathwaysRole | null,
+  profile: RoutePrincipal | null,
+) =>
+  Boolean(
+    role &&
+      can(role, 'monitor_evaluate.view') &&
+      can(role, 'analytics.view') &&
+      principalHasAtomicPermission(profile, 'monitoring.read') &&
+      principalHasAtomicPermission(profile, 'analytics.read'),
+  )
 
-export const canOpenDashboardMonitoring = (role: PathwaysRole | null) =>
-  role !== null && can(role, 'analytics.view')
+// The current overview action opens /analytics, whose current grant is required too.
+export const canOpenDashboardMonitoring = canLoadDashboardMonitoring
 
 const severityTone = (severity?: DashboardSeverity) => {
   if (severity === 'danger') {
@@ -236,9 +248,14 @@ const SavedMonitoringCharts = ({ projectId }: { projectId: string }) => (
       <h3 className="text-lg font-semibold" id="saved-charts-title">
         Monitoring charts
       </h3>
-      <Button asChild size="sm" variant="outline">
-        <Link href="/analytics">Add a chart</Link>
+      <Button
+        size="sm"
+        variant="outline"
+        {...unavailableControlProps('role-dashboard-add-chart-hint')}
+      >
+        Add a chart
       </Button>
+      <UnavailableHint id="role-dashboard-add-chart-hint" />
     </div>
     <EmptyState
       description={
@@ -468,7 +485,7 @@ const DashboardListItem = ({
 
 export const RoleDashboard = () => {
   const router = useRouter()
-  const { role } = useCurrentRole()
+  const { role, profile } = useCurrentRole()
   const roleLabel = role ? getPathwaysRoleDisplayName(role) : 'Staff'
   const [dashboard, setDashboard] = useState<RoleDashboardViewModel | null>(null)
   const [activityReviewTarget, setActivityReviewTarget] = useState<DashboardActivityTarget | null>(
@@ -565,7 +582,9 @@ export const RoleDashboard = () => {
     <>
       <PageHeader
         actions={
-          !dashboard.executive && dashboard.primaryAction && canOpenDashboardMonitoring(role) ? (
+          !dashboard.executive &&
+          dashboard.primaryAction &&
+          canOpenDashboardMonitoring(role, profile) ? (
             <ActionButton
               action={dashboard.primaryAction}
               onAction={handleAction}
@@ -575,7 +594,9 @@ export const RoleDashboard = () => {
         }
         title={`Welcome! ${roleLabel}`}
       />
-      {canLoadDashboardMonitoring(role) ? <ConnectedMonitoringSnapshot role={role} /> : null}
+      {canLoadDashboardMonitoring(role, profile) ? (
+        <ConnectedMonitoringSnapshot role={role} />
+      ) : null}
       {dashboard.executive ? (
         <ExecutiveDashboard model={dashboard.executive} summaryAction={dashboard.primaryAction} />
       ) : null}

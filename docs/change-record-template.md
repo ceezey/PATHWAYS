@@ -1,4 +1,4 @@
-# Change Record — <slug>
+# Change Record: <slug>
 
 **ID:** `cr-pathways-<slug>`  
 **Date:** YYYY-MM-DD  

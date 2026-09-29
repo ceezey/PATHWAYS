@@ -9,7 +9,7 @@ import {
 import type { Prisma } from '@prisma/client'
 
 import { PrismaService } from '../../prisma/prisma.service'
-import { aggregateOnlyRoles } from '../auth/authorization-policy'
+import { aggregateOnlyRoles, hasAtomicPermission } from '../auth/authorization-policy'
 import { projectScope } from '../auth/authorized-data.service'
 import { withAuthorizedOperation } from '../auth/authorized-operation'
 import { type ApplicationIdentity, UUID_PATTERN } from '../auth/developer-access'
@@ -127,9 +127,19 @@ export class ParticipantsService {
         orderBy: { id: 'asc' },
         take: 100,
       })
-      const inUse = await tx.beneficiaryJourneyEvent.count({
-        where: { organizationId: actor.organizationId, projectId: id },
-      })
+      const inUse = hasAtomicPermission(
+        actor.roles[0],
+        actor.permissions,
+        'beneficiaries.records.read',
+      )
+        ? await tx.beneficiaryJourneyEvent.count({
+            where: { organizationId: actor.organizationId, projectId: id },
+          })
+        : (
+            await tx.$queryRaw<Array<{ inUse: boolean }>>`
+            SELECT pathways.p10_journey_has_events(${id}::uuid) AS "inUse"
+          `
+          )[0].inUse
       const ids = input.stages.map((stage) => stage.id ?? randomUUID())
       if (
         new Set(ids).size !== ids.length ||

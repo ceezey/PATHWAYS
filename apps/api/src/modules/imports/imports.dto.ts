@@ -5,6 +5,7 @@ import {
   ArrayMinSize,
   IsArray,
   IsBoolean,
+  IsIn,
   IsInt,
   IsOptional,
   IsString,
@@ -80,4 +81,10 @@ export class ImportRowsQueryDto {
   @Min(1)
   @Max(100)
   take = 50
+}
+
+export class AutomaticImportMappingDto {
+  @IsInt()
+  @IsIn([0, 1])
+  expectedMappingRevision!: 0 | 1
 }

@@ -1,5 +1,14 @@
 'use client'
 
+import { FormDefinitionEntryField } from '@/features/collection/form-definition-entry-field'
+import {
+  beneficiaryAgeRuleMessages,
+  beneficiaryRegistrationFieldRules,
+  businessCalendarDate,
+  completedYearsAt,
+  minimumBeneficiaryAge,
+  validateAndNormalizeFormData,
+} from '@pathways/shared'
 import { ArrowLeft, Save } from 'lucide-react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
@@ -26,9 +35,82 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import { useCurrentRole } from '@/hooks/use-current-role'
+import {
+  type SensitiveDraftOwner,
+  readSensitiveDraft,
+  removeSensitiveDraft,
+  useSensitiveDraftOwner,
+  writeSensitiveDraft,
+} from '@/lib/auth/sensitive-drafts'
 import { pathwaysClient } from '@/lib/services/pathways-client'
-import type { BeneficiaryRecord, ProjectSummary } from '@/types/pathways'
+import type {
+  BeneficiaryRecord,
+  BeneficiaryRegistrationContext,
+  ProjectSummary,
+} from '@/types/pathways'
 
+const calendarDay = (value: string | null) => {
+  if (!value) return null
+  const day = new Date(`${value}T00:00:00.000Z`)
+  return Number.isFinite(day.valueOf()) && day.toISOString().slice(0, 10) === value ? day : null
+}
+
+export type RegistrationAge = { age: number | null; error: string | null }
+
+/**
+ * Age in completed years at the reference date (the enrollment date; for a new registration the
+ * server business date). A birth date after maxBirthDate (the business date) is reported as an
+ * error instead of a silent null, as is an age below the minimum.
+ */
+export function registrationAgeAtDate(
+  birthDate: string,
+  age: string,
+  referenceDate: string | null,
+  maxBirthDate: string | null = referenceDate,
+): RegistrationAge {
+  const belowMinimum = (value: number): RegistrationAge => ({
+    age: value,
+    error: value < minimumBeneficiaryAge ? beneficiaryAgeRuleMessages.belowMinimumAge : null,
+  })
+  if (birthDate) {
+    const born = calendarDay(birthDate)
+    const latest = calendarDay(maxBirthDate)
+    if (born && latest && born > latest)
+      return { age: null, error: beneficiaryAgeRuleMessages.futureBirthDate }
+    const reference = calendarDay(referenceDate)
+    if (!born || !reference || born > reference) return { age: null, error: null }
+    const result = completedYearsAt(born, reference)
+    return result <= 130 ? belowMinimum(result) : { age: null, error: null }
+  }
+  if (!age.trim()) return { age: null, error: null }
+  const result = Number(age)
+  return Number.isInteger(result) && result >= 0 && result <= 130
+    ? belowMinimum(result)
+    : { age: null, error: null }
+}
+
+export function projectRegistrationValues(
+  fields: readonly { code: string }[],
+  protectedValues: Readonly<Record<string, unknown>>,
+  customValues: Readonly<Record<string, unknown>>,
+) {
+  return Object.fromEntries(
+    fields
+      .filter(
+        (field) =>
+          Object.hasOwn(protectedValues, field.code) ||
+          (!Object.hasOwn(beneficiaryRegistrationFieldRules, field.code) &&
+            Object.hasOwn(customValues, field.code)),
+      )
+      .map((field) => [
+        field.code,
+        Object.hasOwn(protectedValues, field.code)
+          ? protectedValues[field.code]
+          : customValues[field.code],
+      ]),
+  )
+}
 type BeneficiaryDraft = {
   code: string
   firstName: string
@@ -66,7 +148,6 @@ const initialDraft: BeneficiaryDraft = {
   guardianConsent: false,
   projectId: '',
 }
-const beneficiaryDraftStorageKey = 'pathways.beneficiaryDraft'
 
 const beneficiarySexValue = (value: string) => {
   const values = {
@@ -159,21 +240,54 @@ const fieldIds: Record<BeneficiaryFieldKey, string> = {
   guardianConsent: 'beneficiary-guardian-consent',
 }
 
-export const BeneficiaryForm = ({
-  projects,
-  beneficiary,
-}: {
+export const BeneficiaryForm = (props: {
   projects: ProjectSummary[]
   beneficiary?: BeneficiaryRecord
 }) => {
+  const { profile } = useCurrentRole()
+  const [projectId, setProjectId] = useState(
+    props.beneficiary ? draftFromBeneficiary(props.beneficiary, props.projects).projectId : '',
+  )
+  const scope = useSensitiveDraftOwner(
+    profile,
+    'beneficiary',
+    props.beneficiary ? 'beneficiaries.profiles.update' : 'beneficiaries.records.register',
+    projectId || null,
+    props.beneficiary?.id ?? null,
+  )
+  if (!scope) return <output>Current beneficiary access is required.</output>
+  return (
+    <ScopedBeneficiaryForm
+      key={scope.key + scope.generation}
+      {...props}
+      scope={scope}
+      selectedProjectId={projectId}
+      onProjectChange={setProjectId}
+    />
+  )
+}
+const ScopedBeneficiaryForm = ({
+  projects,
+  beneficiary,
+  scope,
+  selectedProjectId,
+  onProjectChange,
+}: {
+  projects: ProjectSummary[]
+  beneficiary?: BeneficiaryRecord
+  scope: SensitiveDraftOwner
+  selectedProjectId: string
+  onProjectChange: (projectId: string) => void
+}) => {
   const router = useRouter()
   const startingDraft = useMemo(
-    () => (beneficiary ? draftFromBeneficiary(beneficiary, projects) : initialDraft),
-    [beneficiary, projects],
+    () =>
+      beneficiary
+        ? draftFromBeneficiary(beneficiary, projects)
+        : { ...initialDraft, projectId: selectedProjectId },
+    [beneficiary, projects, selectedProjectId],
   )
-  const draftStorageKey = beneficiary
-    ? `${beneficiaryDraftStorageKey}.${beneficiary.id}`
-    : beneficiaryDraftStorageKey
+  const draftStorageKey = scope.key
   const [draft, setDraft] = useState<BeneficiaryDraft>(startingDraft)
   const [draftHydrated, setDraftHydrated] = useState(false)
   const [draftRecovered, setDraftRecovered] = useState(false)
@@ -181,6 +295,54 @@ export const BeneficiaryForm = ({
   const [confirmOpen, setConfirmOpen] = useState(false)
   const [saving, setSaving] = useState(false)
   const clientRegistrationId = useRef<string | null>(null)
+  const [registrationContext, setRegistrationContext] =
+    useState<BeneficiaryRegistrationContext | null>(null)
+  const [contextState, setContextState] = useState<'loading' | 'ready' | 'error'>('loading')
+  const [contextAttempt, setContextAttempt] = useState(0)
+  const [selectedFormId, setSelectedFormId] = useState('')
+  const [customValues, setCustomValues] = useState<Record<string, unknown>>({})
+  const [definitionErrors, setDefinitionErrors] = useState<
+    ReturnType<typeof validateAndNormalizeFormData>['errors']
+  >([])
+  useEffect(() => {
+    if (beneficiary || !selectedProjectId || !scope.isCurrent()) return
+    let active = true
+    void contextAttempt
+    setRegistrationContext(null)
+    setSelectedFormId('')
+    setCustomValues({})
+    setDefinitionErrors([])
+    setConfirmOpen(false)
+    setContextState('loading')
+    void pathwaysClient
+      .getBeneficiaryRegistrationContext(selectedProjectId)
+      // Without an eligible published form, provision the fixed system default form once; the
+      // server rechecks registration scope and returns the refreshed blank context.
+      .then((context) =>
+        context.definitions.length === 0 && active && scope.isCurrent()
+          ? pathwaysClient.ensureDefaultRegistrationForm(selectedProjectId)
+          : context,
+      )
+      .then((context) => {
+        if (!active || !scope.isCurrent()) return
+        setRegistrationContext(context)
+        setSelectedFormId(context.definitions.length === 1 ? context.definitions[0].id : '')
+        setContextState('ready')
+      })
+      .catch(() => {
+        if (active && scope.isCurrent()) setContextState('error')
+      })
+    return () => {
+      active = false
+    }
+  }, [beneficiary, selectedProjectId, contextAttempt, scope.isCurrent])
+  const registrationForm = registrationContext?.definitions.find(
+    (definition) => definition.id === selectedFormId,
+  )
+  const customFields =
+    registrationForm?.fields.filter(
+      (field) => !Object.hasOwn(beneficiaryRegistrationFieldRules, field.code),
+    ) ?? []
 
   useEffect(() => {
     setDraft(startingDraft)
@@ -188,13 +350,29 @@ export const BeneficiaryForm = ({
     setSubmitted(false)
 
     try {
-      const stored = window.sessionStorage.getItem(draftStorageKey)
+      const stored = scope.isCurrent() ? readSensitiveDraft(draftStorageKey) : null
       if (stored) {
-        const parsed = JSON.parse(stored) as Partial<Record<keyof BeneficiaryDraft, unknown>>
+        const parsed = stored as Partial<Record<keyof BeneficiaryDraft, unknown>>
+        if (parsed.projectId !== selectedProjectId) return
         const restored = { ...startingDraft }
 
         for (const key of Object.keys(startingDraft) as Array<keyof BeneficiaryDraft>) {
-          if (typeof parsed[key] === typeof startingDraft[key]) {
+          if (
+            beneficiary &&
+            [
+              'code',
+              'projectId',
+              'consentToParticipate',
+              'consentToStoreData',
+              'isMinor',
+              'guardianConsent',
+            ].includes(key)
+          )
+            continue
+          if (
+            typeof parsed[key] === typeof startingDraft[key] &&
+            (typeof parsed[key] !== 'string' || (parsed[key] as string).length <= 10_000)
+          ) {
             Object.assign(restored, { [key]: parsed[key] })
           }
         }
@@ -203,24 +381,86 @@ export const BeneficiaryForm = ({
         setDraftRecovered(true)
       }
     } catch {
-      window.sessionStorage.removeItem(draftStorageKey)
+      removeSensitiveDraft(draftStorageKey)
     } finally {
       setDraftHydrated(true)
     }
-  }, [draftStorageKey, startingDraft])
+  }, [draftStorageKey, startingDraft, selectedProjectId, beneficiary, scope.isCurrent])
 
   useEffect(() => {
-    if (!draftHydrated) {
+    if (!draftHydrated || !scope.isCurrent()) {
       return
     }
 
     if (JSON.stringify(draft) === JSON.stringify(startingDraft)) {
-      window.sessionStorage.removeItem(draftStorageKey)
+      removeSensitiveDraft(draftStorageKey)
     } else {
-      window.sessionStorage.setItem(draftStorageKey, JSON.stringify(draft))
+      writeSensitiveDraft(draftStorageKey, draft, scope.generation)
     }
-  }, [draft, draftHydrated, draftStorageKey, startingDraft])
+  }, [draft, draftHydrated, draftStorageKey, startingDraft, scope.isCurrent, scope.generation])
 
+  const profileFieldCodes: Partial<Record<BeneficiaryFieldKey, string>> = {
+    code: 'beneficiary_code',
+    firstName: 'first_name',
+    lastName: 'last_name',
+    sex: 'sex',
+    birthDate: 'birth_date',
+    age: 'age_at_registration',
+    disabilityStatus: 'disability_status',
+    province: 'location_province',
+    city: 'location_city_municipality',
+    barangay: 'location_barangay',
+    consentToParticipate: 'consent_recorded',
+    consentToStoreData: 'data_processing_consent_recorded',
+    guardianConsent: 'guardian_consent_recorded',
+  }
+  const supportsCode = (code: string) =>
+    Boolean(
+      beneficiary ||
+        !registrationForm ||
+        registrationForm.fields.some((field) => field.code === code),
+    )
+  const supportsProfileField = (key: BeneficiaryFieldKey) =>
+    !profileFieldCodes[key] || supportsCode(profileFieldCodes[key])
+
+  const acceptsBirthDate = Boolean(
+    !registrationForm || registrationForm.fields.some((field) => field.code === 'birth_date'),
+  )
+  const acceptsAge = Boolean(
+    !registrationForm ||
+      registrationForm.fields.some((field) => field.code === 'age_at_registration'),
+  )
+  const acceptedBirthDate = beneficiary || acceptsBirthDate ? draft.birthDate : ''
+  const acceptedAge = beneficiary || acceptsAge ? draft.age : ''
+  // A new registration is enrolled on the server business date; an edit keeps its enrollment date.
+  const maxBirthDate = beneficiary
+    ? businessCalendarDate(new Date(), 'Asia/Manila')
+    : (registrationContext?.businessDate ?? null)
+  const ageReferenceDate = beneficiary
+    ? (beneficiary.enrollments.find((enrollment) => enrollment.projectId === draft.projectId)
+        ?.enrolledAt ?? null)
+    : (registrationContext?.businessDate ?? null)
+  const ageAssessment = registrationAgeAtDate(
+    acceptedBirthDate,
+    acceptedAge,
+    ageReferenceDate,
+    maxBirthDate,
+  )
+  const registrationAge = ageAssessment.age
+  const ageFromBirthDate = Boolean(acceptedBirthDate)
+  const submittedAge = ageFromBirthDate
+    ? registrationAge
+    : acceptedAge.trim()
+      ? Number(acceptedAge)
+      : null
+  // Edits of existing records apply the age rules only when the birth date or age changes.
+  const ageRuleApplies =
+    !beneficiary ||
+    draft.birthDate !== (beneficiary.birthDate ?? '') ||
+    submittedAge !== (beneficiary.age ?? null)
+  const ageRuleMessage = ageRuleApplies ? ageAssessment.error : null
+  const ageRuleField: BeneficiaryFieldKey = ageFromBirthDate ? 'birthDate' : 'age'
+  const registrationIsMinor = registrationAge === null ? null : registrationAge < 18
   const validationIssues = useMemo(() => {
     const issues: ValidationIssue[] = []
 
@@ -236,13 +476,19 @@ export const BeneficiaryForm = ({
     if (!draft.lastName.trim()) {
       issues.push({ field: 'lastName', message: 'Enter a last name.' })
     }
-    if (!draft.sex) {
+    if (!['Female', 'Male', 'Other', 'Prefer not to say', 'Not specified'].includes(draft.sex)) {
       issues.push({ field: 'sex', message: 'Select a sex value.' })
     }
-    if (!draft.birthDate && !draft.age) {
-      issues.push({ field: 'birthDate', message: 'Enter a birth date or an age.' })
+    if (!acceptedBirthDate && !acceptedAge) {
+      issues.push({
+        field: acceptsBirthDate ? 'birthDate' : 'age',
+        message: 'Enter the birth date or age accepted by the selected form.',
+      })
     }
-    if (!draft.disabilityStatus) {
+    if (ageRuleMessage) issues.push({ field: ageRuleField, message: ageRuleMessage })
+    if (
+      !['With disability', 'Without disability', 'Not specified'].includes(draft.disabilityStatus)
+    ) {
       issues.push({ field: 'disabilityStatus', message: 'Select a disability status.' })
     }
     if (!draft.province.trim()) {
@@ -266,7 +512,7 @@ export const BeneficiaryForm = ({
         message: 'Confirm consent to store beneficiary data.',
       })
     }
-    if (!beneficiary && draft.isMinor && !draft.guardianConsent) {
+    if (!beneficiary && registrationIsMinor === true && !draft.guardianConsent) {
       issues.push({
         field: 'guardianConsent',
         message: 'Confirm guardian consent for a beneficiary marked as a minor.',
@@ -274,7 +520,16 @@ export const BeneficiaryForm = ({
     }
 
     return issues
-  }, [beneficiary, draft])
+  }, [
+    beneficiary,
+    draft,
+    acceptedBirthDate,
+    acceptedAge,
+    acceptsBirthDate,
+    registrationIsMinor,
+    ageRuleMessage,
+    ageRuleField,
+  ])
 
   const fieldErrors = useMemo(
     () =>
@@ -287,31 +542,116 @@ export const BeneficiaryForm = ({
   const updateDraft = <Key extends keyof BeneficiaryDraft>(
     key: Key,
     value: BeneficiaryDraft[Key],
-  ) => setDraft((current) => ({ ...current, [key]: value }))
+  ) => {
+    setConfirmOpen(false)
+    setDraft((current) => ({ ...current, [key]: value }))
+  }
+
+  // Required-field errors appear after a save attempt; an age-rule error appears as soon as the
+  // entered birth date or age breaks the rule.
+  const visibleError = (field: BeneficiaryFieldKey) =>
+    submitted || (ageRuleMessage && ageRuleField === field) ? fieldErrors[field] : undefined
 
   const controlA11y = (field: BeneficiaryFieldKey) => ({
-    'aria-describedby': submitted && fieldErrors[field] ? `${fieldIds[field]}-error` : undefined,
-    'aria-invalid': submitted && Boolean(fieldErrors[field]),
+    'aria-describedby': visibleError(field) ? `${fieldIds[field]}-error` : undefined,
+    'aria-invalid': Boolean(visibleError(field)),
     id: fieldIds[field],
   })
 
+  const registrationValues = () => {
+    const values: Record<string, unknown> = {
+      registration_operation: 'CREATE',
+      beneficiary_code: draft.code.trim().toUpperCase(),
+      subject_type: 'INDIVIDUAL',
+      display_name: [
+        supportsCode('first_name') ? draft.firstName : '',
+        supportsCode('middle_name') ? draft.middleName : '',
+        supportsCode('last_name') ? draft.lastName : '',
+      ]
+        .map((part) => part.trim())
+        .filter(Boolean)
+        .join(' '),
+      first_name: draft.firstName.trim(),
+      middle_name: draft.middleName.trim() || null,
+      last_name: draft.lastName.trim(),
+      sex: supportsCode('sex') ? beneficiarySexValue(draft.sex) : null,
+      birth_date: draft.birthDate || null,
+      age_at_registration: submittedAge,
+      disability_status: supportsCode('disability_status')
+        ? beneficiaryDisabilityValue(draft.disabilityStatus)
+        : null,
+      location_barangay: draft.barangay.trim(),
+      location_city_municipality: draft.city.trim(),
+      location_province: draft.province.trim(),
+      consent_recorded: draft.consentToParticipate,
+      data_processing_consent_recorded: draft.consentToStoreData,
+      is_minor: registrationIsMinor ?? draft.isMinor,
+      guardian_consent_recorded: draft.guardianConsent,
+      enrollment_date: registrationContext?.businessDate ?? null,
+      external_identifier_type: null,
+      external_identifier_value: null,
+      profile_update_fields: null,
+    }
+    return projectRegistrationValues(registrationForm?.fields ?? [], values, customValues)
+  }
+
+  const individualSupportIssue =
+    registrationForm &&
+    (!supportsCode('first_name') ||
+      !supportsCode('last_name') ||
+      (!supportsCode('birth_date') && !supportsCode('age_at_registration')) ||
+      (registrationIsMinor === true &&
+        (!supportsCode('is_minor') || !supportsCode('guardian_consent_recorded'))))
+      ? 'This published definition does not support the current individual registration. Choose another form or request an authorized form update.'
+      : null
+  const displayedValidationIssues = beneficiary
+    ? validationIssues
+    : validationIssues.filter((issue) =>
+        issue.field === 'birthDate'
+          ? supportsCode('birth_date') || supportsCode('age_at_registration')
+          : supportsProfileField(issue.field),
+      )
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     setSubmitted(true)
 
-    if (validationIssues.length > 0) {
+    if (!beneficiary && individualSupportIssue) {
+      toast.error(individualSupportIssue)
+      return
+    }
+    const supportedIssues = displayedValidationIssues
+    if (supportedIssues.length > 0) {
       toast.error('Check beneficiary form fields.', {
-        description: `${validationIssues.length} ${validationIssues.length === 1 ? 'field needs' : 'fields need'} attention. Review the complete summary in the form.`,
+        description: `${supportedIssues.length} ${supportedIssues.length === 1 ? 'field needs' : 'fields need'} attention. Review the complete summary in the form.`,
       })
-      document.getElementById(fieldIds[validationIssues[0].field])?.focus()
+      document.getElementById(fieldIds[supportedIssues[0].field])?.focus()
       return
     }
 
+    if (!beneficiary) {
+      if (contextState !== 'ready' || !registrationForm || !scope.isCurrent()) {
+        toast.error('Choose an available published registration form before continuing.')
+        return
+      }
+      const values = registrationValues()
+      if (!values.birth_date && values.age_at_registration == null) {
+        toast.error('Enter the birth date or age accepted by the selected form.')
+        return
+      }
+      const result = validateAndNormalizeFormData(registrationForm.fields, values)
+      setDefinitionErrors(result.errors)
+      if (!result.valid) {
+        toast.error('Check registration form fields.')
+        const first = result.errors[0]
+        if (first) document.getElementById(`entry-${first.fieldCode}`)?.focus()
+        return
+      }
+    }
     setConfirmOpen(true)
   }
 
   const confirmSave = async () => {
-    if (saving) return
+    if (saving || !scope.isCurrent()) return
     setSaving(true)
 
     try {
@@ -323,7 +663,11 @@ export const BeneficiaryForm = ({
         }
         const saved = await pathwaysClient.updateBeneficiary(draft.projectId, beneficiary.id, {
           subjectType: beneficiary.subjectType,
-          displayName: [draft.firstName, draft.middleName, draft.lastName]
+          displayName: [
+            supportsCode('first_name') ? draft.firstName : '',
+            supportsCode('middle_name') ? draft.middleName : '',
+            supportsCode('last_name') ? draft.lastName : '',
+          ]
             .map((part) => part.trim())
             .filter(Boolean)
             .join(' '),
@@ -332,70 +676,49 @@ export const BeneficiaryForm = ({
           lastName: draft.lastName.trim(),
           sex: beneficiarySexValue(draft.sex),
           birthDate: draft.birthDate || undefined,
-          ageAtRegistration: draft.age ? Number(draft.age) : undefined,
+          ageAtRegistration: submittedAge ?? undefined,
           disabilityStatus: beneficiaryDisabilityValue(draft.disabilityStatus),
           locationBarangay: draft.barangay.trim(),
           locationCityMunicipality: draft.city.trim(),
           locationProvince: draft.province.trim(),
           expectedUpdatedAt: beneficiary.updatedAt,
         })
-        window.sessionStorage.removeItem(draftStorageKey)
+        if (!scope.isCurrent()) return
+        removeSensitiveDraft(draftStorageKey)
         setConfirmOpen(false)
         toast.success('Beneficiary profile updated.')
         router.push(`/beneficiaries/${saved.id}?projectId=${encodeURIComponent(draft.projectId)}`)
         return
       }
 
-      const forms = await pathwaysClient.getDigitalForms(draft.projectId)
-      const registrationForm = forms
-        .filter(
-          (form) => form.formType === 'BENEFICIARY_REGISTRATION' && form.status === 'PUBLISHED',
-        )
-        .sort((first, second) => second.version - first.version)[0]
-      if (!registrationForm) {
-        throw new Error('No published beneficiary registration form is available for this project.')
+      if (contextState !== 'ready' || !registrationForm || !registrationContext) {
+        throw new Error('Choose an available published registration form before continuing.')
       }
+      if (individualSupportIssue) throw new Error(individualSupportIssue)
+      const values = registrationValues()
+      if (!values.birth_date && values.age_at_registration == null)
+        throw new Error('Enter the birth date or age accepted by the selected form.')
+      const result = validateAndNormalizeFormData(registrationForm.fields, values)
+      setDefinitionErrors(result.errors)
+      if (!result.valid) throw new Error('Check registration form fields.')
       clientRegistrationId.current ??= crypto.randomUUID()
+      if (!scope.isCurrent()) return
       const saved = await pathwaysClient.registerBeneficiary(draft.projectId, {
         formId: registrationForm.id,
         clientRegistrationId: clientRegistrationId.current,
-        values: {
-          registration_operation: 'CREATE',
-          beneficiary_code: draft.code.trim().toUpperCase(),
-          subject_type: 'INDIVIDUAL',
-          display_name: [draft.firstName, draft.middleName, draft.lastName]
-            .map((part) => part.trim())
-            .filter(Boolean)
-            .join(' '),
-          first_name: draft.firstName.trim(),
-          middle_name: draft.middleName.trim() || null,
-          last_name: draft.lastName.trim(),
-          sex: beneficiarySexValue(draft.sex),
-          birth_date: draft.birthDate || null,
-          age_at_registration: draft.age ? Number(draft.age) : null,
-          disability_status: beneficiaryDisabilityValue(draft.disabilityStatus),
-          location_barangay: draft.barangay.trim(),
-          location_city_municipality: draft.city.trim(),
-          location_province: draft.province.trim(),
-          consent_recorded: draft.consentToParticipate,
-          data_processing_consent_recorded: draft.consentToStoreData,
-          is_minor: draft.isMinor,
-          guardian_consent_recorded: draft.guardianConsent,
-          enrollment_date: new Date().toISOString().slice(0, 10),
-          external_identifier_type: null,
-          external_identifier_value: null,
-          profile_update_fields: null,
-        },
+        values: result.values,
       })
-      window.sessionStorage.removeItem(draftStorageKey)
+      if (!scope.isCurrent()) return
+      removeSensitiveDraft(draftStorageKey)
       setConfirmOpen(false)
       clientRegistrationId.current = null
       toast.success('Beneficiary registered.')
       router.push(`/beneficiaries/${saved.id}?projectId=${encodeURIComponent(draft.projectId)}`)
     } catch (error) {
+      if (!scope.isCurrent()) return
       toast.error(error instanceof Error ? error.message : 'The beneficiary could not be saved.')
     } finally {
-      setSaving(false)
+      if (scope.isCurrent()) setSaving(false)
     }
   }
 
@@ -444,6 +767,94 @@ export const BeneficiaryForm = ({
           noValidate
           onSubmit={handleSubmit}
         >
+          {!beneficiary && selectedProjectId ? (
+            <section aria-label="Registration form" className="space-y-3">
+              {contextState === 'loading' ? <output>Loading registration forms.</output> : null}
+              {contextState === 'error' ? (
+                <div role="alert">
+                  Registration forms could not be loaded.
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => setContextAttempt((attempt) => attempt + 1)}
+                  >
+                    Retry registration forms
+                  </Button>
+                </div>
+              ) : null}
+              {contextState === 'ready' && registrationContext?.definitions.length === 0 ? (
+                <p role="alert">
+                  No registration form is available for this project. Ask a form manager to publish
+                  one.
+                </p>
+              ) : null}
+              {contextState === 'ready' &&
+              registrationContext &&
+              registrationContext.definitions.length > 1 ? (
+                <>
+                  <Label htmlFor="registration-definition">Published registration form</Label>
+                  <Select
+                    value={selectedFormId || 'unselected'}
+                    disabled={saving}
+                    onValueChange={(id) => {
+                      setSelectedFormId(id === 'unselected' ? '' : id)
+                      setCustomValues({})
+                      setDefinitionErrors([])
+                      setConfirmOpen(false)
+                    }}
+                  >
+                    <SelectTrigger id="registration-definition" aria-required="true">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="unselected">Choose a form</SelectItem>
+                      {registrationContext.definitions.map((definition) => (
+                        <SelectItem key={definition.id} value={definition.id}>
+                          {definition.name} ({definition.code}, version {definition.version})
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </>
+              ) : null}
+              {registrationForm ? (
+                <p>
+                  {registrationForm.name}, version {registrationForm.version}
+                </p>
+              ) : null}
+              {registrationForm ? (
+                <p className="text-sm text-muted-foreground">
+                  Only fields supported by this selected definition are submitted. Unsupported
+                  profile draft fields are not sent.
+                </p>
+              ) : null}
+              {individualSupportIssue ? <p role="alert">{individualSupportIssue}</p> : null}
+              {customFields.map((field) => (
+                <FormDefinitionEntryField
+                  key={field.id ?? field.code}
+                  field={field}
+                  disabled={saving}
+                  value={customValues[field.code]}
+                  errors={definitionErrors
+                    .filter((error) => error.fieldCode === field.code)
+                    .map((error) => error.message)}
+                  onChange={(value) => {
+                    setConfirmOpen(false)
+                    setCustomValues((current) => ({ ...current, [field.code]: value }))
+                  }}
+                />
+              ))}
+              {definitionErrors.length ? (
+                <ul role="alert" aria-label="Registration validation errors">
+                  {definitionErrors.map((error) => (
+                    <li key={[error.fieldCode, error.code, error.message].join(':')}>
+                      {error.message}
+                    </li>
+                  ))}
+                </ul>
+              ) : null}
+            </section>
+          ) : null}
           <div>
             <h2 className="text-lg font-semibold text-foreground">Profile information</h2>
             <p className="text-sm text-muted-foreground">
@@ -454,6 +865,7 @@ export const BeneficiaryForm = ({
           <div className="grid gap-4 md:grid-cols-2">
             <Field
               error={submitted ? fieldErrors.code : undefined}
+              hidden={!supportsProfileField('code')}
               htmlFor={fieldIds.code}
               label="Beneficiary code"
               required
@@ -475,7 +887,7 @@ export const BeneficiaryForm = ({
               <Select
                 value={draft.projectId}
                 disabled={Boolean(beneficiary)}
-                onValueChange={(value) => updateDraft('projectId', value)}
+                onValueChange={onProjectChange}
               >
                 <SelectTrigger aria-required="true" {...controlA11y('projectId')}>
                   <SelectValue placeholder="Select project" />
@@ -491,6 +903,7 @@ export const BeneficiaryForm = ({
             </Field>
             <Field
               error={submitted ? fieldErrors.firstName : undefined}
+              hidden={!supportsProfileField('firstName')}
               htmlFor={fieldIds.firstName}
               label="First name"
               required
@@ -502,7 +915,11 @@ export const BeneficiaryForm = ({
                 onChange={(event) => updateDraft('firstName', event.target.value)}
               />
             </Field>
-            <Field htmlFor="beneficiary-middle-name" label="Middle name">
+            <Field
+              hidden={!supportsCode('middle_name')}
+              htmlFor="beneficiary-middle-name"
+              label="Middle name"
+            >
               <Input
                 id="beneficiary-middle-name"
                 value={draft.middleName}
@@ -511,6 +928,7 @@ export const BeneficiaryForm = ({
             </Field>
             <Field
               error={submitted ? fieldErrors.lastName : undefined}
+              hidden={!supportsProfileField('lastName')}
               htmlFor={fieldIds.lastName}
               label="Last name"
               required
@@ -524,6 +942,7 @@ export const BeneficiaryForm = ({
             </Field>
             <Field
               error={submitted ? fieldErrors.sex : undefined}
+              hidden={!supportsProfileField('sex')}
               htmlFor={fieldIds.sex}
               label="Sex"
               required
@@ -542,37 +961,56 @@ export const BeneficiaryForm = ({
               </Select>
             </Field>
             <Field
-              error={submitted ? fieldErrors.birthDate : undefined}
+              error={visibleError('birthDate')}
+              hidden={!supportsProfileField('birthDate')}
               htmlFor={fieldIds.birthDate}
               label="Birth date"
             >
               <Input
                 {...controlA11y('birthDate')}
+                max={maxBirthDate ?? undefined}
                 type="date"
                 value={draft.birthDate}
                 onChange={(event) => updateDraft('birthDate', event.target.value)}
               />
             </Field>
             <Field
-              error={submitted ? fieldErrors.birthDate : undefined}
+              error={visibleError('age')}
               errorId={`${fieldIds.age}-error`}
+              hidden={!supportsProfileField('age')}
               htmlFor={fieldIds.age}
               label="Age"
             >
               <Input
                 aria-describedby={
-                  submitted && fieldErrors.birthDate ? `${fieldIds.age}-error` : undefined
+                  [
+                    ageFromBirthDate ? `${fieldIds.age}-hint` : '',
+                    visibleError('age') ? `${fieldIds.age}-error` : '',
+                  ]
+                    .filter(Boolean)
+                    .join(' ') || undefined
                 }
-                aria-invalid={submitted && Boolean(fieldErrors.birthDate)}
+                aria-invalid={Boolean(visibleError('age'))}
                 id={fieldIds.age}
-                min="0"
+                max="130"
+                min={minimumBeneficiaryAge}
+                readOnly={ageFromBirthDate}
                 type="number"
-                value={draft.age}
+                value={ageFromBirthDate ? (registrationAge?.toString() ?? '') : draft.age}
                 onChange={(event) => updateDraft('age', event.target.value)}
               />
+              {ageFromBirthDate ? (
+                <p className="text-xs text-muted-foreground" id={`${fieldIds.age}-hint`}>
+                  Calculated from the birth date.
+                </p>
+              ) : null}
             </Field>
+            <p aria-atomic="true" aria-live="polite" className="sr-only">
+              {ageRuleMessage ?? ''}
+            </p>
             <Field
               error={submitted ? fieldErrors.disabilityStatus : undefined}
+              hidden={!supportsProfileField('disabilityStatus')}
               htmlFor={fieldIds.disabilityStatus}
               label="Disability status"
               required
@@ -593,6 +1031,7 @@ export const BeneficiaryForm = ({
             </Field>
             <Field
               error={submitted ? fieldErrors.province : undefined}
+              hidden={!supportsProfileField('province')}
               htmlFor={fieldIds.province}
               label="Province"
               required
@@ -606,6 +1045,7 @@ export const BeneficiaryForm = ({
             </Field>
             <Field
               error={submitted ? fieldErrors.city : undefined}
+              hidden={!supportsProfileField('city')}
               htmlFor={fieldIds.city}
               label="City or municipality"
               required
@@ -619,6 +1059,7 @@ export const BeneficiaryForm = ({
             </Field>
             <Field
               error={submitted ? fieldErrors.barangay : undefined}
+              hidden={!supportsProfileField('barangay')}
               htmlFor={fieldIds.barangay}
               label="Barangay"
               required
@@ -637,6 +1078,7 @@ export const BeneficiaryForm = ({
               checked={draft.consentToParticipate}
               disabled={Boolean(beneficiary)}
               error={submitted ? fieldErrors.consentToParticipate : undefined}
+              hidden={!supportsProfileField('consentToParticipate')}
               id={fieldIds.consentToParticipate}
               label="Beneficiary consent confirmed"
               onChange={(checked) => updateDraft('consentToParticipate', checked)}
@@ -646,14 +1088,16 @@ export const BeneficiaryForm = ({
               checked={draft.consentToStoreData}
               disabled={Boolean(beneficiary)}
               error={submitted ? fieldErrors.consentToStoreData : undefined}
+              hidden={!supportsProfileField('consentToStoreData')}
               id={fieldIds.consentToStoreData}
               label="Data storage consent confirmed"
               onChange={(checked) => updateDraft('consentToStoreData', checked)}
               required
             />
             <ToggleField
-              checked={draft.isMinor}
-              disabled={Boolean(beneficiary)}
+              hidden={!supportsCode('is_minor')}
+              checked={beneficiary ? draft.isMinor : (registrationIsMinor ?? draft.isMinor)}
+              disabled={Boolean(beneficiary) || registrationIsMinor !== null}
               id="beneficiary-is-minor"
               label="Beneficiary is a minor"
               onChange={(checked) => updateDraft('isMinor', checked)}
@@ -662,10 +1106,11 @@ export const BeneficiaryForm = ({
               checked={draft.guardianConsent}
               disabled={Boolean(beneficiary)}
               error={submitted ? fieldErrors.guardianConsent : undefined}
+              hidden={!supportsProfileField('guardianConsent')}
               id={fieldIds.guardianConsent}
               label="Guardian consent confirmed"
               onChange={(checked) => updateDraft('guardianConsent', checked)}
-              required={draft.isMinor}
+              required={beneficiary ? draft.isMinor : registrationIsMinor === true}
             />
             {beneficiary ? (
               <p className="text-sm leading-6 text-muted-foreground md:col-span-2">
@@ -675,18 +1120,18 @@ export const BeneficiaryForm = ({
             ) : null}
           </div>
 
-          {submitted && validationIssues.length > 0 ? (
+          {submitted && displayedValidationIssues.length > 0 ? (
             <div
               className="rounded-sm border border-danger/25 bg-danger-subtle p-4 text-sm text-danger"
               aria-labelledby="beneficiary-error-summary-title"
               role="alert"
             >
               <p className="font-semibold" id="beneficiary-error-summary-title">
-                Check {validationIssues.length} {validationIssues.length === 1 ? 'field' : 'fields'}{' '}
-                before saving
+                Check {displayedValidationIssues.length}{' '}
+                {displayedValidationIssues.length === 1 ? 'field' : 'fields'} before saving
               </p>
               <ul className="mt-2 list-disc space-y-1 pl-5">
-                {validationIssues.map((issue) => (
+                {displayedValidationIssues.map((issue) => (
                   <li key={issue.field}>
                     <a
                       className="font-medium underline underline-offset-2"
@@ -718,7 +1163,13 @@ export const BeneficiaryForm = ({
             <PreviewRow label="Code" value={draft.code || 'Pending'} />
             <PreviewRow
               label="Name"
-              value={[draft.firstName, draft.middleName, draft.lastName].filter(Boolean).join(' ')}
+              value={[
+                supportsCode('first_name') ? draft.firstName : '',
+                supportsCode('middle_name') ? draft.middleName : '',
+                supportsCode('last_name') ? draft.lastName : '',
+              ]
+                .filter(Boolean)
+                .join(' ')}
             />
             <PreviewRow
               label="Project"
@@ -726,7 +1177,13 @@ export const BeneficiaryForm = ({
             />
             <PreviewRow
               label="Location"
-              value={[draft.barangay, draft.city, draft.province].filter(Boolean).join(', ')}
+              value={[
+                supportsCode('location_barangay') ? draft.barangay : '',
+                supportsCode('location_city_municipality') ? draft.city : '',
+                supportsCode('location_province') ? draft.province : '',
+              ]
+                .filter(Boolean)
+                .join(', ')}
             />
             <PreviewRow
               label="Consent"
@@ -753,7 +1210,13 @@ export const BeneficiaryForm = ({
           <div className="rounded-sm border border-border bg-surface-subtle p-4 text-sm">
             <p className="font-medium">{draft.code}</p>
             <p className="mt-1 text-muted-foreground">
-              {[draft.firstName, draft.middleName, draft.lastName].filter(Boolean).join(' ')}
+              {[
+                supportsCode('first_name') ? draft.firstName : '',
+                supportsCode('middle_name') ? draft.middleName : '',
+                supportsCode('last_name') ? draft.lastName : '',
+              ]
+                .filter(Boolean)
+                .join(' ')}
             </p>
           </div>
           <DialogFooter>
@@ -776,6 +1239,7 @@ export const BeneficiaryForm = ({
 }
 
 const Field = ({
+  hidden = false,
   htmlFor,
   label,
   error,
@@ -783,68 +1247,17 @@ const Field = ({
   required = false,
   children,
 }: {
+  hidden?: boolean
   htmlFor: string
   label: string
   error?: string
   errorId?: string
   required?: boolean
   children: React.ReactNode
-}) => (
-  <div className="space-y-2">
-    <Label htmlFor={htmlFor}>
-      {label}
-      {required ? (
-        <>
-          <span aria-hidden="true" className="ml-1 text-danger">
-            *
-          </span>
-          <span className="sr-only"> (required)</span>
-        </>
-      ) : null}
-    </Label>
-    {children}
-    {error ? (
-      <p className="text-xs font-medium text-danger" id={errorId ?? `${htmlFor}-error`}>
-        {error}
-      </p>
-    ) : null}
-  </div>
-)
-
-const ToggleField = ({
-  checked,
-  disabled = false,
-  error,
-  id,
-  label,
-  onChange,
-  required = false,
-}: {
-  checked: boolean
-  disabled?: boolean
-  error?: string
-  id: string
-  label: string
-  onChange: (checked: boolean) => void
-  required?: boolean
-}) => (
-  <div className="space-y-2">
-    <Label
-      className="flex items-center gap-3 rounded-md border border-border bg-card p-3 text-sm"
-      htmlFor={id}
-    >
-      <input
-        aria-describedby={error ? `${id}-error` : undefined}
-        aria-invalid={Boolean(error)}
-        aria-required={required}
-        checked={checked}
-        className="h-4 w-4 rounded border-border focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-        id={id}
-        disabled={disabled}
-        onChange={(event) => onChange(event.target.checked)}
-        type="checkbox"
-      />
-      <span>
+}) =>
+  hidden ? null : (
+    <div className="space-y-2">
+      <Label htmlFor={htmlFor}>
         {label}
         {required ? (
           <>
@@ -854,15 +1267,71 @@ const ToggleField = ({
             <span className="sr-only"> (required)</span>
           </>
         ) : null}
-      </span>
-    </Label>
-    {error ? (
-      <p className="text-xs font-medium text-danger" id={`${id}-error`}>
-        {error}
-      </p>
-    ) : null}
-  </div>
-)
+      </Label>
+      {children}
+      {error ? (
+        <p className="text-xs font-medium text-danger" id={errorId ?? `${htmlFor}-error`}>
+          {error}
+        </p>
+      ) : null}
+    </div>
+  )
+
+const ToggleField = ({
+  hidden = false,
+  checked,
+  disabled = false,
+  error,
+  id,
+  label,
+  onChange,
+  required = false,
+}: {
+  hidden?: boolean
+  checked: boolean
+  disabled?: boolean
+  error?: string
+  id: string
+  label: string
+  onChange: (checked: boolean) => void
+  required?: boolean
+}) =>
+  hidden ? null : (
+    <div className="space-y-2">
+      <Label
+        className="flex items-center gap-3 rounded-md border border-border bg-card p-3 text-sm"
+        htmlFor={id}
+      >
+        <input
+          aria-describedby={error ? `${id}-error` : undefined}
+          aria-invalid={Boolean(error)}
+          aria-required={required}
+          checked={checked}
+          className="h-4 w-4 rounded border-border focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          id={id}
+          disabled={disabled}
+          onChange={(event) => onChange(event.target.checked)}
+          type="checkbox"
+        />
+        <span>
+          {label}
+          {required ? (
+            <>
+              <span aria-hidden="true" className="ml-1 text-danger">
+                *
+              </span>
+              <span className="sr-only"> (required)</span>
+            </>
+          ) : null}
+        </span>
+      </Label>
+      {error ? (
+        <p className="text-xs font-medium text-danger" id={`${id}-error`}>
+          {error}
+        </p>
+      ) : null}
+    </div>
+  )
 
 const PreviewRow = ({ label, value }: { label: string; value?: string }) => (
   <div className="rounded-md border border-border bg-background p-3">

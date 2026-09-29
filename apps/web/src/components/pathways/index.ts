@@ -6,6 +6,7 @@ export { EmptyState } from './empty-state'
 export { FilterBar } from './filter-bar'
 export { FilterChoiceGroup } from './filter-choice-group'
 export { LoadingSkeleton } from './loading-skeleton'
+export { LockedField, lockedFieldMessage } from './locked-field'
 export { MetricCard } from './metric-card'
 export { MetricTooltip } from './metric-tooltip'
 export { ProgressBar } from './progress-bar'
@@ -14,3 +15,8 @@ export { SectionCard } from './section-card'
 export { SidePanel } from './side-panel'
 export { StatusBadge } from './status-badge'
 export { StatusMessage } from './status-message'
+export {
+  UNAVAILABLE_HINT_MESSAGE,
+  UnavailableHint,
+  unavailableControlProps,
+} from './unavailable-hint'

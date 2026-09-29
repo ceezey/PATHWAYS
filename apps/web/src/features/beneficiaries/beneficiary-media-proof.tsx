@@ -17,6 +17,7 @@ import { toast } from 'sonner'
 
 import { EmptyState } from '@/components/pathways/empty-state'
 import { StatusBadge } from '@/components/pathways/status-badge'
+import { UnavailableHint, unavailableControlProps } from '@/components/pathways/unavailable-hint'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -37,7 +38,7 @@ import {
 } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
 import type {
-  Activity,
+  ActivitySummary,
   BeneficiaryMediaProofRecord,
   BeneficiaryMediaReviewStatus,
   BeneficiaryMediaType,
@@ -72,7 +73,7 @@ export const BeneficiaryMediaProof = ({
   projects,
   unavailableReason,
 }: {
-  activities: Activity[]
+  activities: ActivitySummary[]
   beneficiaryId: string
   canManage?: boolean
   mediaProof: BeneficiaryMediaProofRecord[]
@@ -237,16 +238,30 @@ export const BeneficiaryMediaProof = ({
             </p>
           </div>
           {canManage ? (
-            <Button
-              className="w-full gap-2 sm:w-auto"
-              disabled={!writesAvailable}
-              onClick={openAddDialog}
-              title={unavailableReason}
-              type="button"
-            >
-              <UploadCloud className="h-4 w-4" aria-hidden="true" />
-              Add media
-            </Button>
+            writesAvailable ? (
+              <Button className="w-full gap-2 sm:w-auto" onClick={openAddDialog} type="button">
+                <UploadCloud className="h-4 w-4" aria-hidden="true" />
+                Add media
+              </Button>
+            ) : (
+              <>
+                <Button
+                  className="w-full gap-2 sm:w-auto"
+                  type="button"
+                  {...unavailableControlProps(
+                    'beneficiary-media-add-hint',
+                    unavailableReason ?? 'Not available yet',
+                  )}
+                >
+                  <UploadCloud className="h-4 w-4" aria-hidden="true" />
+                  Add media
+                </Button>
+                <UnavailableHint
+                  id="beneficiary-media-add-hint"
+                  message={unavailableReason ?? 'Not available yet'}
+                />
+              </>
+            )
           ) : null}
         </div>
         <div className="mt-4 flex items-start gap-3 rounded-sm border border-info/25 bg-info-subtle p-3 text-xs leading-5 text-info">
@@ -297,15 +312,28 @@ export const BeneficiaryMediaProof = ({
           <EmptyState
             action={
               canManage ? (
-                <Button
-                  disabled={!writesAvailable}
-                  onClick={openAddDialog}
-                  title={unavailableReason}
-                  type="button"
-                  variant="outline"
-                >
-                  Add media
-                </Button>
+                writesAvailable ? (
+                  <Button onClick={openAddDialog} type="button" variant="outline">
+                    Add media
+                  </Button>
+                ) : (
+                  <>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      {...unavailableControlProps(
+                        'beneficiary-media-add-empty-hint',
+                        unavailableReason ?? 'Not available yet',
+                      )}
+                    >
+                      Add media
+                    </Button>
+                    <UnavailableHint
+                      id="beneficiary-media-add-empty-hint"
+                      message={unavailableReason ?? 'Not available yet'}
+                    />
+                  </>
+                )
               ) : undefined
             }
             description={
@@ -489,9 +517,16 @@ export const BeneficiaryMediaProof = ({
               <Button onClick={() => setSelectedMediaId(null)} type="button" variant="outline">
                 Close
               </Button>
-              <Button onClick={saveReview} type="button">
+              <Button
+                type="button"
+                {...Object.assign(
+                  { onClick: saveReview },
+                  unavailableControlProps('beneficiary-media-save-review-hint'),
+                )}
+              >
                 Save review
               </Button>
+              <UnavailableHint id="beneficiary-media-save-review-hint" />
             </DialogFooter>
           </DialogContent>
         ) : null}
@@ -507,7 +542,7 @@ const MediaProofCard = ({
   onReview,
   projects,
 }: {
-  activities: Activity[]
+  activities: ActivitySummary[]
   canManage: boolean
   item: MediaProofWithPreview
   onReview: () => void

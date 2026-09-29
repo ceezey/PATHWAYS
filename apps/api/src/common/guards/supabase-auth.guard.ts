@@ -9,18 +9,26 @@ import {
 } from '@nestjs/common'
 import { Reflector } from '@nestjs/core'
 
+import { RulesMachineBoundary } from '../../modules/rules/rules-machine-boundary'
+
 import { hasAtomicPermission } from '../../modules/auth/authorization-policy'
 import {
   type AuthorizedOperationTiming,
   registerAuthorizedOperationTiming,
 } from '../../modules/auth/authorized-operation-timing'
+import { BeneficiaryStepUpService } from '../../modules/auth/beneficiary-step-up.service'
 import type { AuthenticatedRequest } from '../../modules/auth/developer-access'
 import { TokenAuthService, type VerifiedAuthSession } from '../../modules/auth/token-auth.service'
 import { WorkspaceResolutionService } from '../../modules/auth/workspace-resolution.service'
 import type { VerifiedTransactionTiming } from '../../prisma/prisma.service'
 import { AUTH_BOUNDARY_KEY } from '../decorators/auth-boundary.decorator'
+import { BENEFICIARY_STEP_UP_KEY } from '../decorators/beneficiary-step-up.decorator'
 import { PERMISSION_KEY } from '../decorators/permission.decorator'
 import { IS_PUBLIC_KEY } from '../decorators/public.decorator'
+import {
+  bindInspectionIdentity,
+  inspectionRequestBudget,
+} from '../network/inspection-request-budget'
 
 const MAX_REPORTED_STAGE_MS = 30_000
 const stageDuration = (startedAt: number) =>
@@ -68,12 +76,18 @@ export class SupabaseAuthGuard implements CanActivate {
     @Inject(Reflector) private readonly reflector: Reflector,
     @Inject(TokenAuthService) private readonly tokens: TokenAuthService,
     @Inject(WorkspaceResolutionService) private readonly workspaces: WorkspaceResolutionService,
+    @Inject(RulesMachineBoundary) private readonly machines: RulesMachineBoundary,
+    @Inject(BeneficiaryStepUpService) private readonly stepUp: BeneficiaryStepUpService,
   ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
+    // Exact registered machine handlers never enter Public or human auth paths.
+    const machine = this.machines.enter(context)
+    if (machine !== null) return machine
     const request = context.switchToHttp().getRequest<AuthenticatedRequest>()
     request.user = undefined
     request.auth = undefined
+    request.authSessionId = undefined
     const handlers = [context.getHandler(), context.getClass()]
     if (this.reflector.getAllAndOverride<boolean>(IS_PUBLIC_KEY, handlers)) return true
     // Set before validation so denials/outages are private too, not just 200s.
@@ -87,13 +101,16 @@ export class SupabaseAuthGuard implements CanActivate {
       throw new UnauthorizedException('A bearer token is required.')
     }
     const authStartedAt = performance.now()
-    const verified = await this.tokens.verifyCurrent(header.slice(7))
+    const budget = inspectionRequestBudget(request)
+    budget?.check()
+    const verified = await this.tokens.verifyCurrent(header.slice(7), budget)
+    budget?.check()
     const identity = verified.identity
     const boundary = this.reflector.getAllAndOverride<string>(AUTH_BOUNDARY_KEY, handlers)
     const assertSeparateSession = async () => {
       const sessionStartedAt = performance.now()
       try {
-        await this.tokens.assertSessionLive(verified)
+        await this.tokens.assertSessionLive(verified, budget)
       } finally {
         exposeDevelopmentAuthTiming(
           response,
@@ -137,6 +154,7 @@ export class SupabaseAuthGuard implements CanActivate {
         (timing) => {
           databaseTiming = timing
         },
+        budget,
       )
     } finally {
       authTiming = exposeDevelopmentAuthTiming(
@@ -148,15 +166,37 @@ export class SupabaseAuthGuard implements CanActivate {
         databaseTiming,
       )
     }
+    budget?.check()
     request.auth = identity
+    request.authSessionId = verified.sessionId
     if (
       permission &&
       (request.user.roles.length !== 1 ||
         !hasAtomicPermission(request.user.roles[0], request.user.permissions, permission))
     ) {
       request.user = undefined
+      request.authSessionId = undefined
       throw new ForbiddenException('Required application permission is missing.')
     }
+    // Server-derived step-up after identity/account/org/role/permission and the
+    // route project assignment, before any Beneficiary query. Freshness (a signed TOTP
+    // or a live session-bound PIN grant) does not depend on the target record.
+    if (this.reflector.getAllAndOverride<boolean>(BENEFICIARY_STEP_UP_KEY, handlers)) {
+      try {
+        await this.stepUp.enforce(
+          identity,
+          request.user,
+          `${context.getClass().name}.${context.getHandler().name}`,
+          (request as { params?: Record<string, unknown> }).params?.projectId,
+          verified.sessionId,
+        )
+      } catch (error) {
+        request.user = undefined
+        request.authSessionId = undefined
+        throw error
+      }
+    }
+    if (budget) bindInspectionIdentity(request.user, verified.sessionId, budget)
     if (authTiming) {
       registerAuthorizedOperationTiming(request.user, (timing) => {
         response.setHeader('Server-Timing', `${authTiming}, ${operationTimingValue(timing)}`)

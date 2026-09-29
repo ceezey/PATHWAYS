@@ -76,17 +76,29 @@ export class DashboardsService {
     return this.monitoringWithPermission(identity, input, 'projects.read', 'home')
   }
   async monitoring(identity: ApplicationIdentity, input: unknown) {
-    return this.monitoringWithPermission(identity, input, 'analytics.read', 'monitoring')
+    return this.monitoringWithPermission(identity, input, 'monitoring.read', 'monitoring')
   }
   private async monitoringWithPermission(
     identity: ApplicationIdentity,
     input: unknown,
-    permission: 'projects.read' | 'analytics.read',
+    permission: 'projects.read' | 'monitoring.read',
     operation: 'home' | 'monitoring',
   ) {
     const query = parseDashboardQuery(input)
     const period = this.period(query)
-    return withAuthorizedOperation(this.prisma, identity, permission, async (tx, actor) => {
+    return withAuthorizedOperation(this.prisma, identity, permission, (tx, actor) =>
+      this.monitoringInTransaction(tx, actor, query, period, operation),
+    )
+  }
+  /** Reads the aggregate monitoring contract inside an already-authorized transaction. */
+  async monitoringInTransaction(
+    tx: Prisma.TransactionClient,
+    actor: ApplicationIdentity,
+    query: DashboardQuery,
+    period: { periodStart: string; periodEnd: string; businessTimeZone: string },
+    operation: 'home' | 'monitoring' = 'monitoring',
+  ) {
+    {
       const projects = await this.scope(tx, actor, query)
       await tx.$queryRaw`SELECT set_config('statement_timeout','3000',true)`
       let result: Array<{ data: unknown }>
@@ -133,12 +145,27 @@ export class DashboardsService {
       if (!parsed.success)
         throw new ServiceUnavailableException('Monitoring response contract is unavailable.')
       return parsed.data
-    })
+    }
+  }
+  /** Resolves the bounded monitoring period used by descriptive analytics. */
+  monitoringPeriod(query: DashboardQuery) {
+    return this.period(query)
   }
   async saddd(identity: ApplicationIdentity, input: unknown) {
     const query = parseSadddQuery(input)
 
-    return withAuthorizedOperation(this.prisma, identity, 'analytics.read', async (tx, actor) => {
+    return withAuthorizedOperation(this.prisma, identity, 'analytics.saddd.read', (tx, actor) =>
+      this.sadddInTransaction(tx, actor, query.projectId),
+    )
+  }
+  /** Reads the suppressed SADDD release inside an already-authorized transaction. */
+  async sadddInTransaction(
+    tx: Prisma.TransactionClient,
+    actor: ApplicationIdentity,
+    projectId: string,
+  ) {
+    const query = { projectId }
+    {
       if (
         !hasAtomicPermission(actor.roles[0], actor.permissions, 'beneficiaries.aggregates.read')
       ) {
@@ -239,6 +266,6 @@ export class DashboardsService {
       }
 
       return parsed.data
-    })
+    }
   }
 }

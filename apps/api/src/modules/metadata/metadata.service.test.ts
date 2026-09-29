@@ -128,7 +128,7 @@ describe('P02 metadata service', () => {
   it('keeps Grant Manager and Program Manager outside raw direct-entry permission', () => {
     expect(rolePermissions.GRANT_MANAGER).not.toContain('forms.read')
     expect(rolePermissions.GRANT_MANAGER).not.toContain('submissions.write')
-    expect(rolePermissions.PROGRAM_MANAGER).toContain('forms.read')
+    expect(rolePermissions.PROGRAM_MANAGER).not.toContain('forms.read')
     expect(rolePermissions.PROGRAM_MANAGER).not.toContain('submissions.write')
   })
 
@@ -143,12 +143,17 @@ describe('P02 metadata service', () => {
     expect(tx.digitalForm.findFirst).not.toHaveBeenCalled()
   })
 
-  it('denies publication by a role name that lacks the locked M&E publishing authority', async () => {
+  it('allows an authorized Admin reviewer to publish through forms.publish', async () => {
     state.actor = actor('SYSTEM_ADMINISTRATOR')
-    await expect(
-      service.publishForm(state.actor, projectId, formId, { expectedUpdatedAt: now.toISOString() }),
-    ).rejects.toBeInstanceOf(ForbiddenException)
-    expect(tx.digitalForm.findFirst).not.toHaveBeenCalled()
+    await service.publishForm(state.actor, projectId, formId, {
+      expectedUpdatedAt: now.toISOString(),
+    })
+    expect(tx.digitalForm.updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ status: 'PUBLISHED', publishedById: reviewerId }),
+      }),
+    )
+    expect(tx.auditLog.create).toHaveBeenCalled()
   })
 
   it('denies self-approval before publication mutation or audit', async () => {
@@ -401,7 +406,13 @@ describe('P02 metadata service', () => {
   it('returns a repeat retry-safe submission when its form version and normalized values match', async () => {
     tx.digitalForm.findFirst.mockResolvedValue(form({ status: 'PUBLISHED' }))
     tx.formSubmission.findFirst
-      .mockResolvedValueOnce({ id: submissionId, projectId, formId, formVersion: 1 })
+      .mockResolvedValueOnce({
+        id: submissionId,
+        projectId,
+        formId,
+        formVersion: 1,
+        beneficiaryId: null,
+      })
       .mockResolvedValueOnce({
         id: submissionId,
         clientSubmissionId,
@@ -427,7 +438,13 @@ describe('P02 metadata service', () => {
   it('rejects reuse of a submission identifier with different normalized values', async () => {
     tx.digitalForm.findFirst.mockResolvedValue(form({ status: 'PUBLISHED' }))
     tx.formSubmission.findFirst
-      .mockResolvedValueOnce({ id: submissionId, projectId, formId, formVersion: 1 })
+      .mockResolvedValueOnce({
+        id: submissionId,
+        projectId,
+        formId,
+        formVersion: 1,
+        beneficiaryId: null,
+      })
       .mockResolvedValueOnce({
         id: submissionId,
         clientSubmissionId,

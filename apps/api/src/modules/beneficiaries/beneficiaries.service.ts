@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto'
 import {
   BadRequestException,
   ConflictException,
@@ -11,8 +12,11 @@ import { Prisma } from '@prisma/client'
 
 import {
   type FormFieldValidationContract,
+  beneficiaryAgeRuleMessages,
   beneficiaryRegistrationDefinitionErrors,
   businessCalendarDate,
+  completedYearsAt,
+  minimumBeneficiaryAge,
   validateAndNormalizeFormData,
 } from '@pathways/shared'
 import { PrismaService } from '../../prisma/prisma.service'
@@ -25,6 +29,7 @@ import {
   type BeneficiaryListQueryDto,
   type EnrollBeneficiaryDto,
   type RegisterBeneficiaryDto,
+  type RegistrationContextDto,
   type UpdateBeneficiaryDto,
   canonicalCode,
   canonicalIdentifierType,
@@ -32,6 +37,9 @@ import {
 } from './beneficiaries.dto'
 
 type Tx = Prisma.TransactionClient
+
+/** The one system template key the 0040 guard and check constraint admit. */
+const DEFAULT_REGISTRATION_TEMPLATE_KEY = 'SYSTEM_DEFAULT_REGISTRATION_V1'
 type NormalizedValue = string | number | boolean | string[] | null
 
 const fieldSelection = {
@@ -51,6 +59,17 @@ const fieldSelection = {
 } satisfies Prisma.FormFieldSelect
 
 type FieldRow = Prisma.FormFieldGetPayload<{ select: typeof fieldSelection }>
+
+const registrationFormSelection = {
+  id: true,
+  version: true,
+  status: true,
+  formField_form: { select: fieldSelection, orderBy: { sequenceNo: 'asc' } },
+} satisfies Prisma.DigitalFormSelect
+
+export type RegistrationImportForm = Prisma.DigitalFormGetPayload<{
+  select: typeof registrationFormSelection
+}>
 
 const writableProfileFields = new Set([
   'display_name',
@@ -115,14 +134,26 @@ function enumValue<T extends string>(
   return value as T
 }
 
-function yearsAt(birthDate: Date, reference: Date) {
-  let years = reference.getUTCFullYear() - birthDate.getUTCFullYear()
-  const beforeBirthday =
-    reference.getUTCMonth() < birthDate.getUTCMonth() ||
-    (reference.getUTCMonth() === birthDate.getUTCMonth() &&
-      reference.getUTCDate() < birthDate.getUTCDate())
-  if (beforeBirthday) years -= 1
-  return years
+const yearsAt = completedYearsAt
+
+/** The configured business calendar date as a UTC-midnight date, the same clock as registration context. */
+function businessToday() {
+  return new Date(
+    `${businessCalendarDate(new Date(), readApiEnv(process.env).BUSINESS_TIME_ZONE)}T00:00:00.000Z`,
+  )
+}
+
+/**
+ * Minimum-age and future-birth-date rule shared by registration (direct and imported) and
+ * profile edits. Existing under-age records stay valid; the caller decides when it applies.
+ */
+function assertRegistrationAge(birthDate: Date | null, age: number | null, today: Date) {
+  if (birthDate && birthDate > today) {
+    throw new BadRequestException(beneficiaryAgeRuleMessages.futureBirthDate)
+  }
+  if (age !== null && age < minimumBeneficiaryAge) {
+    throw new BadRequestException(beneficiaryAgeRuleMessages.belowMinimumAge)
+  }
 }
 
 function stableValues(value: Record<string, NormalizedValue>) {
@@ -159,7 +190,10 @@ type RegistrationProfile = {
   updateFields: string[]
 }
 
-function parseRegistration(values: Record<string, NormalizedValue>): RegistrationProfile {
+function parseRegistration(
+  values: Record<string, NormalizedValue>,
+  today: Date = businessToday(),
+): RegistrationProfile {
   const operation = enumValue(
     values.registration_operation,
     ['CREATE', 'LINK', 'UPDATE'] as const,
@@ -210,6 +244,9 @@ function parseRegistration(values: Record<string, NormalizedValue>): Registratio
         'Individual registrations require birth_date or age_at_registration.',
       )
     }
+    if (birthDate && birthDate > today) {
+      throw new BadRequestException(beneficiaryAgeRuleMessages.futureBirthDate)
+    }
     if (birthDate && birthDate > enrollmentDate) {
       throw new BadRequestException('birth_date cannot be after enrollment_date.')
     }
@@ -221,6 +258,7 @@ function parseRegistration(values: Record<string, NormalizedValue>): Registratio
       throw new BadRequestException('birth_date and age_at_registration are inconsistent.')
     }
     const derivedAge = birthDate ? yearsAt(birthDate, enrollmentDate) : ageAtRegistration
+    assertRegistrationAge(birthDate, derivedAge, today)
     if ((derivedAge !== null && derivedAge < 18) !== isMinor) {
       throw new BadRequestException('is_minor must agree with the supplied birth date or age.')
     }
@@ -343,9 +381,7 @@ function ageBandWhere(referenceDate: Date, band?: SadddAgeBand): Prisma.Benefici
   }
 
   if (band === '0-9') {
-    const today = new Date(
-      `${businessCalendarDate(new Date(), readApiEnv(process.env).BUSINESS_TIME_ZONE)}T00:00:00.000Z`,
-    )
+    const today = businessToday()
     return {
       subjectType: 'INDIVIDUAL',
       birthDate: {
@@ -465,6 +501,169 @@ export class BeneficiariesService {
     )
   }
 
+  registrationContext(
+    identity: ApplicationIdentity,
+    projectId: string,
+  ): Promise<RegistrationContextDto> {
+    if (!UUID_PATTERN.test(projectId))
+      throw new BadRequestException('Project identifier is invalid.')
+    return withAuthorizedOperation(
+      this.prisma,
+      identity,
+      'beneficiaries.records.register',
+      async (tx, actor) => {
+        const project = await this.requireProject(tx, actor, projectId)
+        return this.loadRegistrationContext(tx, actor, project.id)
+      },
+    )
+  }
+
+  /**
+   * Provisions the fixed system default registration form for a project the registrar can
+   * already register into, then returns the same blank definition shape as registration
+   * context. The database function derives organization and actor, rechecks
+   * beneficiaries.records.register with project scope, and is idempotent per project.
+   */
+  ensureDefaultRegistrationForm(
+    identity: ApplicationIdentity,
+    projectId: string,
+  ): Promise<RegistrationContextDto> {
+    if (!UUID_PATTERN.test(projectId))
+      throw new BadRequestException('Project identifier is invalid.')
+    return withAuthorizedOperation(
+      this.prisma,
+      identity,
+      'beneficiaries.records.register',
+      async (tx, actor) => {
+        const project = await this.requireProject(tx, actor, projectId)
+        const [provisioned] = await tx.$queryRaw<Array<{ outcome: unknown }>>`
+          SELECT outcome FROM pathways.ensure_default_registration_form(${project.id}::uuid)
+        `
+        if (provisioned?.outcome === 'CODE_IN_USE') {
+          throw new ConflictException(
+            'The default registration form code is already used by another form in this project.',
+          )
+        }
+        if (provisioned?.outcome !== 'PROVISIONED' && provisioned?.outcome !== 'EXISTING') {
+          throw new Error('Default registration form provisioning is unavailable.')
+        }
+        return this.loadRegistrationContext(tx, actor, project.id)
+      },
+    )
+  }
+
+  /** Caller has already scoped projectId through requireProject. */
+  private async loadRegistrationContext(
+    tx: Tx,
+    actor: ApplicationIdentity,
+    projectId: string,
+  ): Promise<RegistrationContextDto> {
+    const eligible = {
+      organizationId: actor.organizationId,
+      projectId,
+      formType: 'BENEFICIARY_REGISTRATION' as const,
+      status: 'PUBLISHED' as const,
+      archivedAt: null,
+    }
+    const businessDate = businessCalendarDate(
+      new Date(),
+      readApiEnv(process.env).BUSINESS_TIME_ZONE,
+    )
+    // Bound code discovery before loading any definitions, rather than broad reads filtered in memory.
+    // The system default template is offered only when no project-authored form is eligible.
+    const discover = (where: Prisma.DigitalFormWhereInput) =>
+      tx.digitalForm.groupBy({
+        by: ['code'],
+        where,
+        _max: { version: true },
+        orderBy: { code: 'asc' },
+        take: 101,
+      })
+    let where: Prisma.DigitalFormWhereInput = { ...eligible, systemTemplateKey: null }
+    let codes = await discover(where)
+    if (codes.length === 0) {
+      where = { ...eligible, systemTemplateKey: DEFAULT_REGISTRATION_TEMPLATE_KEY }
+      codes = await discover(where)
+    }
+    if (codes.length > 100)
+      throw new ConflictException('Registration definitions exceed supported bounds.')
+    if (codes.length === 0) return { projectId, businessDate, definitions: [] }
+    if (codes.some((item) => item._max.version === null))
+      throw new ConflictException('Registration definitions are invalid.')
+    const rows = await tx.digitalForm.findMany({
+      where: {
+        ...where,
+        OR: codes.map((item) => ({ code: item.code, version: item._max.version as number })),
+      },
+      orderBy: [{ code: 'asc' }, { id: 'asc' }],
+      take: 101,
+      select: {
+        id: true,
+        code: true,
+        version: true,
+        name: true,
+        formType: true,
+        status: true,
+        formField_form: {
+          where: { organizationId: actor.organizationId, projectId },
+          take: 101,
+          orderBy: [{ sequenceNo: 'asc' }, { id: 'asc' }],
+          select: { ...fieldSelection, isMetadataKey: true, isSadddField: true },
+        },
+      },
+    })
+    if (rows.length !== codes.length)
+      throw new ConflictException('Registration definitions changed. Reload before continuing.')
+    const definitions = rows.map((form) => {
+      if (
+        !/^[a-z][a-z0-9_]{1,63}$/.test(form.code) ||
+        form.name.trim().length < 3 ||
+        form.name.length > 160 ||
+        form.formField_form.length > 100 ||
+        form.formField_form.some(
+          (field) =>
+            field.code.length > 64 ||
+            field.label.length > 160 ||
+            !Number.isSafeInteger(field.sequenceNo) ||
+            field.sequenceNo < 1 ||
+            (field.allowedValues !== null &&
+              (!Array.isArray(field.allowedValues) ||
+                field.allowedValues.length > 100 ||
+                field.allowedValues.some(
+                  (value) => typeof value !== 'string' || value.length > 120,
+                ))),
+        )
+      ) {
+        throw new ConflictException('Registration definitions are invalid.')
+      }
+      const fields = form.formField_form.map((field) => ({
+        ...contract(field),
+        id: field.id,
+        metadataKey: field.isMetadataKey,
+        sadddField: field.isSadddField,
+        sequence: field.sequenceNo,
+      }))
+      if (
+        beneficiaryRegistrationDefinitionErrors(fields).length ||
+        validateAndNormalizeFormData(fields, {}, 'draft').errors.some(
+          (error) => error.code === 'invalid_definition',
+        )
+      ) {
+        throw new ConflictException('Registration definitions are invalid.')
+      }
+      return {
+        id: form.id,
+        code: form.code,
+        version: form.version,
+        name: form.name,
+        formType: 'BENEFICIARY_REGISTRATION' as const,
+        status: 'PUBLISHED' as const,
+        fields,
+      }
+    })
+    return { projectId, businessDate, definitions }
+  }
+
   get(identity: ApplicationIdentity, projectId: string, beneficiaryId: string) {
     return withAuthorizedOperation(
       this.prisma,
@@ -505,6 +704,26 @@ export class BeneficiariesService {
     )
   }
 
+  /** Scoped registration definition read; imports may pin an archived version. */
+  readRegistrationForm(
+    tx: Tx,
+    actor: ApplicationIdentity,
+    projectId: string,
+    formId: string,
+    source: 'DIRECT_ENTRY' | 'IMPORTED_DATASET',
+  ) {
+    return tx.digitalForm.findFirst({
+      where: {
+        id: formId,
+        organizationId: actor.organizationId,
+        projectId,
+        formType: 'BENEFICIARY_REGISTRATION',
+        status: source === 'DIRECT_ENTRY' ? 'PUBLISHED' : { in: ['PUBLISHED', 'ARCHIVED'] },
+      },
+      select: registrationFormSelection,
+    })
+  }
+
   async promoteRegistration(
     tx: Tx,
     actor: ApplicationIdentity,
@@ -518,26 +737,32 @@ export class BeneficiariesService {
       importBatchId?: string
       importRowId?: string
     },
+    preloaded?: { form: RegistrationImportForm },
   ): Promise<
     | { kind: 'PROCESSED'; beneficiaryId: string; enrollmentId: string; submissionId: string }
     | { kind: 'REVIEW'; code: string }
   > {
-    const form = await tx.digitalForm.findFirst({
-      where: {
-        id: input.formId,
-        organizationId: actor.organizationId,
-        projectId: input.projectId,
-        formType: 'BENEFICIARY_REGISTRATION',
-        status: input.source === 'DIRECT_ENTRY' ? 'PUBLISHED' : { in: ['PUBLISHED', 'ARCHIVED'] },
-      },
-      select: {
-        id: true,
-        version: true,
-        status: true,
-        formField_form: { select: fieldSelection, orderBy: { sequenceNo: 'asc' } },
-      },
-    })
+    // A chunked import shares one scoped form read across its rows. Direct entry
+    // always reads and locks the published definition itself.
+    const form =
+      input.source === 'IMPORTED_DATASET' && preloaded?.form.id === input.formId
+        ? preloaded.form
+        : await this.readRegistrationForm(tx, actor, input.projectId, input.formId, input.source)
     if (!form) throw new NotFoundException('Published registration form unavailable.')
+    if (input.source === 'DIRECT_ENTRY') {
+      const [definitionLock] = await tx.$queryRaw<Array<{ locked: boolean }>>`
+        SELECT pathways.p29_lock_registration_definition(
+          ${actor.organizationId}::uuid, ${input.projectId}::uuid,
+          ${form.id}::uuid, ${form.version}::integer
+        ) AS locked
+      `
+      if (typeof definitionLock?.locked !== 'boolean') {
+        throw new Error('Registration definition lock is unavailable.')
+      }
+      if (!definitionLock.locked) {
+        throw new NotFoundException('Published registration form unavailable.')
+      }
+    }
     const formContract = form.formField_form.map(contract)
     const definitionErrors = beneficiaryRegistrationDefinitionErrors(formContract)
     if (definitionErrors.length > 0) {
@@ -665,8 +890,11 @@ export class BeneficiariesService {
       ) {
         throw new ForbiddenException('Beneficiary registration permission is missing.')
       }
-      const created = await tx.beneficiary.create({
+      const createdId = randomUUID()
+      // The profile is readable only after enrollment; INSERT RETURNING would require SELECT now.
+      const created = await tx.beneficiary.createMany({
         data: {
+          id: createdId,
           organizationId: actor.organizationId,
           code: registration.code,
           subjectType: registration.subjectType,
@@ -687,9 +915,10 @@ export class BeneficiariesService {
           guardianConsentRecorded: registration.guardianConsentRecorded,
           createdById: actor.userId,
         },
-        select: { id: true },
       })
-      beneficiaryId = created.id
+      if (created.count !== 1)
+        throw new ConflictException('Beneficiary registration was not created.')
+      beneficiaryId = createdId
     } else if (registration.operation === 'UPDATE') {
       if (
         !hasAtomicPermission(actor.roles[0], actor.permissions, 'beneficiaries.profiles.update')
@@ -768,9 +997,14 @@ export class BeneficiariesService {
         })
       }
     }
-    const [databaseClock] = await tx.$queryRaw<Array<{ transactionTime: Date }>>`
-      SELECT CURRENT_TIMESTAMP AS "transactionTime"
-    `
+    const [databaseClock] =
+      input.source === 'DIRECT_ENTRY'
+        ? await tx.$queryRaw<Array<{ transactionTime: Date }>>`
+          SELECT date_trunc('milliseconds', CURRENT_TIMESTAMP) AS "transactionTime"
+        `
+        : await tx.$queryRaw<Array<{ transactionTime: Date }>>`
+          SELECT CURRENT_TIMESTAMP AS "transactionTime"
+        `
     if (!(databaseClock?.transactionTime instanceof Date)) {
       throw new Error('Database transaction time is unavailable.')
     }
@@ -972,48 +1206,19 @@ export class BeneficiariesService {
         const project = await this.requireProject(tx, actor, projectId)
         if (!UUID_PATTERN.test(beneficiaryId))
           throw new NotFoundException('Beneficiary unavailable.')
-        const beneficiary = await tx.beneficiary.findFirst({
-          where: {
-            id: beneficiaryId.toLowerCase(),
-            organizationId: actor.organizationId,
-            archivedAt: null,
-          },
-          select: {
-            id: true,
-            beneficiaryProjectEnrollment_beneficiary: {
-              where: { organizationId: actor.organizationId, projectId: project.id },
-              select: { id: true },
-              take: 1,
-            },
-          },
-        })
-        if (!beneficiary) throw new NotFoundException('Beneficiary unavailable.')
-        if (
-          beneficiary.beneficiaryProjectEnrollment_beneficiary.length === 0 &&
-          !hasAtomicPermission(actor.roles[0], actor.permissions, 'beneficiaries.identities.review')
-        ) {
-          throw new NotFoundException('Beneficiary unavailable.')
-        }
         const date = exactDate(input.enrollmentDate, 'enrollmentDate')
         if (!date || date > new Date()) throw new BadRequestException('Enrollment date is invalid.')
-        const enrollment = await tx.beneficiaryProjectEnrollment.upsert({
-          where: {
-            organizationId_projectId_beneficiaryId: {
-              organizationId: actor.organizationId,
-              projectId: project.id,
-              beneficiaryId: beneficiary.id,
-            },
-          },
-          create: {
-            organizationId: actor.organizationId,
-            projectId: project.id,
-            beneficiaryId: beneficiary.id,
-            enrollmentDate: date,
-            recordedById: actor.userId,
-          },
-          update: {},
-          select: { id: true, enrollmentDate: true, status: true },
-        })
+        const [result] = await tx.$queryRaw<
+          Array<{ id: string; enrollment_date: Date; status: string }>
+        >`
+          SELECT * FROM pathways.p09_enroll(${project.id}::uuid, ${beneficiaryId.toLowerCase()}::uuid, ${date}::date)
+        `
+        if (!result) throw new NotFoundException('Beneficiary unavailable.')
+        const enrollment = {
+          id: result.id,
+          enrollmentDate: result.enrollment_date,
+          status: result.status,
+        }
         await tx.auditLog.create({
           data: {
             organizationId: actor.organizationId,
@@ -1022,7 +1227,7 @@ export class BeneficiariesService {
             action: 'BENEFICIARY_ENROLLMENT_ENSURED',
             entityType: 'BeneficiaryProjectEnrollment',
             entityId: enrollment.id,
-            changes: { beneficiaryId: beneficiary.id },
+            changes: { beneficiaryId: beneficiaryId.toLowerCase() },
           },
         })
         return {
@@ -1082,6 +1287,17 @@ export class BeneficiariesService {
           'Individual profiles require a birth date or age at registration.',
         )
       }
+      // The minimum-age and future-date rules apply only when the birth date or the recorded
+      // age changes, so other edits of existing under-age records stay valid.
+      const birthDateChanged =
+        (input.birthDate ?? null) !== (current.birthDate?.toISOString().slice(0, 10) ?? null)
+      const ageChanged =
+        input.ageAtRegistration !== undefined &&
+        input.ageAtRegistration !== current.ageAtRegistration
+      const today = businessToday()
+      if (birthDateChanged && birthDate && birthDate > today) {
+        throw new BadRequestException(beneficiaryAgeRuleMessages.futureBirthDate)
+      }
       if (birthDate && enrollmentDate && birthDate > enrollmentDate) {
         throw new BadRequestException('Birth date cannot be after enrollment date.')
       }
@@ -1097,6 +1313,7 @@ export class BeneficiariesService {
         birthDate && enrollmentDate
           ? yearsAt(birthDate, enrollmentDate)
           : (input.ageAtRegistration ?? null)
+      if (birthDateChanged || ageChanged) assertRegistrationAge(birthDate, age, today)
       if (age !== null && age < 18 !== current.isMinor) {
         throw new BadRequestException(
           'Age changes cannot contradict recorded minor/guardian consent facts.',

@@ -39,7 +39,7 @@ This repository is being prepared to support development of the following core c
 - Platform: Supabase Postgres, Supabase Auth, Supabase Storage
 - Shared workspace packages: `@pathways/shared`, `@pathways/config`, `@pathways/imports`, `@pathways/ui`
 - Tooling: pnpm, Biome, Husky, lint-staged
-- Testing: Vitest, MSW, Playwright
+- Testing: Vitest, Playwright
 - Ops: Docker, GitHub Actions, Sentry placeholders
 
 ## What Is In This Repo?
@@ -152,7 +152,7 @@ pnpm --filter @pathways/api prisma:generate
 ```
 
 ### 8. Follow the controlled database workflow
-Do not run a migration as a generic setup shortcut. Read `docs/SOURCE_OF_TRUTH.md` and `docs/PHASE_TODO.md`, then execute only the single phase covered by an exact authorization phrase. Never use `prisma migrate reset` or `prisma db push` in this workflow.
+Do not run a migration as a generic setup shortcut. Follow the migration guardrails in `AGENTS.md` and `docs/runbook-backup-restore.md`, and execute only explicitly authorized database work. Never use `prisma migrate reset` or `prisma db push` in this workflow.
 
 ### 9. Do not bootstrap users through the legacy seed
 The legacy seed is intentionally disabled. Canonical roles and permissions are introduced only in DBAdmin Phase 5, and Supabase Auth credentials are never created by Prisma seed code.

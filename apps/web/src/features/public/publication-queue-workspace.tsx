@@ -1,73 +1,166 @@
 'use client'
 
-import { Eye, Save, Search, Send, ShieldCheck, Undo2 } from 'lucide-react'
-import Link from 'next/link'
-import { useState } from 'react'
-import { toast } from 'sonner'
-
 import { PageHeader } from '@/components/layout/page-header'
-import { EmptyState, SectionCard, StatusBadge } from '@/components/pathways'
+import { AsyncState, EmptyState, SectionCard, StatusBadge } from '@/components/pathways'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
-import type { ProjectSummary, PublicProjectRecord } from '@/types/pathways'
+import { useCurrentRole } from '@/hooks/use-current-role'
+import { useOperationRequestId } from '@/lib/auth/operation-request-id'
+import { useSensitiveDraftOwner } from '@/lib/auth/sensitive-drafts'
+import { principalHasAtomicPermission } from '@/lib/rbac/route-access'
+import { coreFeatureClient } from '@/lib/services/core-feature-client'
+import { pathwaysClient } from '@/lib/services/pathways-client'
+import { useAuthorizedRead } from '@/providers/authorized-query-provider'
+import { Eye, Save, Search, Send, ShieldCheck, Undo2 } from 'lucide-react'
+import Link from 'next/link'
+import { useEffect, useRef, useState } from 'react'
+import { toast } from 'sonner'
 
-type PublicationRow = {
-  projectId: string
-  draft: PublicProjectRecord
-  revision: number
-  approvedRevision: number | null
-  published: PublicProjectRecord | null
-}
-
-const unavailable =
-  'Public publication review is unavailable until a server-backed approval and publishing service is available.'
-
-export const PublicationQueueWorkspace = () => {
-  const data: { publications: PublicationRow[]; projects: ProjectSummary[] } = {
-    publications: [],
-    projects: [],
-  }
+export const PublicationQueueWorkspace = ({
+  initialProjectId,
+}: { initialProjectId?: string } = {}) => {
+  const { profile } = useCurrentRole()
   const [query, setQuery] = useState('')
-  const [selectedId, setSelectedId] = useState(data.publications[0]?.projectId ?? '')
+  const [selection, setSelection] = useState<string | null>(initialProjectId ?? null)
+  const [draft, setDraft] = useState<{
+    owner: string
+    generation: number
+    projectId: string
+    revision: number
+    summary: string
+  } | null>(null)
+  const [busy, setBusy] = useState(false)
+  const activeOperation = useRef<{ isCurrent: () => boolean } | null>(null)
+  const projects = useAuthorizedRead('publication-projects', null, 'public.preview', (signal) =>
+    pathwaysClient.getProjects(signal),
+  )
+  const currentProjects = !projects.isError && !projects.isPending ? projects.data : undefined
   const selected =
-    data.publications.find((row) => row.projectId === selectedId) ?? data.publications[0]
-  const [tagline, setTagline] = useState(selected?.draft.tagline ?? '')
-  const [summary, setSummary] = useState(selected?.draft.approvedSummary ?? '')
-  const visible = data.publications.filter((publication) => {
-    const project = data.projects.find((row) => row.id === publication.projectId)
-    return (
-      !query.trim() ||
-      [project?.title, project?.area, project?.sector].some((value) =>
-        value?.toLowerCase().includes(query.toLowerCase()),
-      )
-    )
-  })
-  const select = (id: string) => {
-    const row = data.publications.find((publication) => publication.projectId === id)
-    setSelectedId(id)
-    setTagline(row?.draft.tagline ?? '')
-    setSummary(row?.draft.approvedSummary ?? '')
+    currentProjects?.find((project) => project.id === selection) ??
+    (initialProjectId ? null : currentProjects?.[0])
+  const id = selected?.id ?? null
+  const publication = useAuthorizedRead(
+    'publication-detail',
+    id,
+    'public.preview',
+    (signal) => coreFeatureClient.publication(id ?? '', signal),
+    Boolean(id),
+  )
+  const ready = Boolean(id && !publication.isError && !publication.isPending)
+  const owner = useSensitiveDraftOwner(
+    profile,
+    'publication-summary',
+    'public.preview',
+    id,
+    id,
+    ready,
+  )
+  const approveOwner = useSensitiveDraftOwner(
+    profile,
+    'publication-approve',
+    'public.approve',
+    id,
+    id,
+    ready,
+  )
+  const publishOwner = useSensitiveDraftOwner(
+    profile,
+    'publication-publish',
+    'public.publish',
+    id,
+    id,
+    ready,
+  )
+  const current = ready ? publication.data : undefined
+  const requests = useOperationRequestId()
+  const revision = current?.revision ?? 0
+  const summary =
+    owner &&
+    draft?.owner === owner.key &&
+    draft.generation === owner.generation &&
+    draft.projectId === id &&
+    draft.revision === revision
+      ? draft.summary
+      : (current?.summary ?? '')
+  const permitted = (permission: 'public.preview' | 'public.approve' | 'public.publish') =>
+    principalHasAtomicPermission(profile, permission)
+  // biome-ignore lint/correctness/useExhaustiveDependencies: Clear transient state when its authorization ownership changes.
+  useEffect(() => {
+    setDraft(null)
+    setBusy(false)
+    activeOperation.current = null
+  }, [owner?.key, owner?.generation])
+  // biome-ignore lint/correctness/useExhaustiveDependencies: A revoked purpose owner must release the pending UI even while preview remains available.
+  useEffect(() => {
+    if (activeOperation.current && !activeOperation.current.isCurrent()) {
+      activeOperation.current = null
+      setBusy(false)
+    }
+  }, [approveOwner?.key, approveOwner?.generation, publishOwner?.key, publishOwner?.generation])
+  const act = async (operation: 'submit' | 'approve' | 'publish' | 'withdraw') => {
+    const captured =
+      operation === 'approve' ? approveOwner : operation === 'submit' ? owner : publishOwner
+    if (!owner?.isCurrent() || !captured?.isCurrent() || !id || !ready || busy) return
+    const capturedPreview = owner
+    const currentOwner = () => capturedPreview.isCurrent() && captured.isCurrent()
+    const operationOwner = { isCurrent: currentOwner }
+    activeOperation.current = operationOwner
+    const body = {
+      operation,
+      expectedRevision: revision,
+      ...(operation === 'submit' ? { summary: summary.trim() } : {}),
+    }
+    const clientRequestId = requests.forBody(`${captured.key}:${captured.generation}`, body)
+    setBusy(true)
+    try {
+      await coreFeatureClient.transitionPublication(id, operation, {
+        clientRequestId,
+        expectedRevision: revision,
+        ...(operation === 'submit' ? { summary: summary.trim() } : {}),
+      })
+      if (!currentOwner()) return
+      requests.acknowledge(clientRequestId)
+      setDraft(null)
+      await publication.refetch()
+      if (currentOwner())
+        toast.success(
+          operation === 'withdraw'
+            ? 'Public revision withdrawn.'
+            : operation === 'submit'
+              ? 'Summary submitted for independent approval.'
+              : operation === 'approve'
+                ? 'Exact revision approved.'
+                : 'Approved revision published.',
+        )
+    } catch (error) {
+      if (currentOwner())
+        toast.error(error instanceof Error ? error.message : 'Publication update unavailable.')
+    } finally {
+      if (activeOperation.current === operationOwner) {
+        activeOperation.current = null
+        setBusy(false)
+      }
+    }
   }
-  const act = () => toast.error(unavailable)
-  const stateLabel = selected?.published
-    ? selected.approvedRevision === selected.revision
-      ? 'Published'
-      : 'Published · draft needs re-approval'
-    : selected?.approvedRevision === selected?.revision
-      ? 'Approved, not public'
-      : 'Draft'
-
+  const visible =
+    currentProjects?.filter(
+      (project) =>
+        !query.trim() ||
+        [project.title, project.area, project.sector].some((value) =>
+          value?.toLowerCase().includes(query.trim().toLowerCase()),
+        ),
+    ) ?? []
   return (
     <div className="space-y-6">
       <PageHeader
         eyebrow="Public accountability"
         title="Public Tracker Review"
-        description="Edit an allowlisted public projection, approve the exact revision, and publish or withdraw it from the anonymous portal."
+        description="Submit an allowlisted summary, approve the exact revision, and publish or withdraw it from the anonymous portal."
         actions={
           <Button asChild variant="outline">
-            <Link href="/public/projects" target="_blank">
+            <Link href="/public/projects" target="_blank" rel="noreferrer">
               <Eye className="mr-2 h-4 w-4" />
               Open anonymous portal
             </Link>
@@ -75,7 +168,10 @@ export const PublicationQueueWorkspace = () => {
         }
       />
       <div className="grid gap-6 xl:grid-cols-[360px_minmax(0,1fr)]">
-        <SectionCard title="Review queue" description={unavailable}>
+        <SectionCard
+          title="Review queue"
+          description="Choose a project within your current publication access."
+        >
           <Label className="space-y-2">
             <span>Search projects</span>
             <span className="relative block">
@@ -87,105 +183,163 @@ export const PublicationQueueWorkspace = () => {
               />
             </span>
           </Label>
-          <div className="mt-4 space-y-2">
-            {visible.length ? (
-              visible.map((publication) => {
-                const project = data.projects.find((row) => row.id === publication.projectId)
-                const label = publication.published
-                  ? publication.approvedRevision === publication.revision
-                    ? 'Published'
-                    : 'Needs re-approval'
-                  : publication.approvedRevision === publication.revision
-                    ? 'Approved'
-                    : 'Draft'
-                return (
+          {projects.isPending ? (
+            <AsyncState
+              status="loading"
+              title="Loading projects"
+              description="Verifying current publication access."
+            />
+          ) : projects.isError ? (
+            <AsyncState
+              status="error"
+              title="Projects unavailable"
+              description="Current publication project access could not be verified."
+              onRetry={() => void projects.refetch()}
+            />
+          ) : (
+            <div className="mt-4 space-y-2">
+              {visible.length ? (
+                visible.map((project) => (
                   <button
                     type="button"
-                    className={`w-full rounded-md border p-4 text-left ${selected?.projectId === publication.projectId ? 'border-primary bg-primary-subtle' : ''}`}
-                    key={publication.projectId}
-                    onClick={() => select(publication.projectId)}
+                    aria-pressed={id === project.id}
+                    className={`w-full rounded-md border p-4 text-left ${id === project.id ? 'border-primary bg-primary-subtle' : ''}`}
+                    key={project.id}
+                    onClick={() => {
+                      setSelection(project.id)
+                      setDraft(null)
+                    }}
                   >
-                    <span className="font-semibold">
-                      {project?.title ?? publication.draft.title}
-                    </span>
-                    <span className="mt-2 flex items-center justify-between">
-                      <span className="text-xs text-muted-foreground">
-                        Revision {publication.revision}
-                      </span>
-                      <StatusBadge
-                        tone={
-                          label === 'Published'
-                            ? 'success'
-                            : label === 'Needs re-approval'
-                              ? 'warning'
-                              : 'neutral'
-                        }
-                      >
-                        {label}
-                      </StatusBadge>
-                    </span>
+                    <span className="font-semibold">{project.title}</span>
                   </button>
-                )
-              })
-            ) : (
-              <EmptyState title="Review queue unavailable" description={unavailable} />
-            )}
-          </div>
+                ))
+              ) : (
+                <EmptyState
+                  title="No projects found"
+                  description="No projects match your current access and search."
+                />
+              )}
+            </div>
+          )}
         </SectionCard>
         <SectionCard
-          title={selected?.draft.title ?? 'Public content'}
-          description="Only this curated projection can cross into the anonymous route; internal notes, people, expenses, and audit events are excluded."
+          title={selected?.title ?? 'Public content'}
+          description="Only the approved project summary, code, area, sector, and dates cross into the anonymous route. Internal people, expenses, assessment, and media remain private."
         >
-          {selected ? (
+          {id && publication.isPending ? (
+            <AsyncState
+              status="loading"
+              title="Loading publication"
+              description="Verifying the current revision."
+            />
+          ) : id && publication.isError ? (
+            <AsyncState
+              status="error"
+              title="Publication unavailable"
+              description="Current publication access could not be verified."
+              onRetry={() => void publication.refetch()}
+            />
+          ) : ready && id ? (
             <div className="space-y-5">
               <div className="flex flex-wrap items-center gap-2">
-                <StatusBadge tone={stateLabel.startsWith('Published') ? 'success' : 'warning'}>
-                  {stateLabel}
+                <StatusBadge tone={current?.state === 'PUBLISHED' ? 'success' : 'warning'}>
+                  {current?.state === 'PUBLISHED'
+                    ? 'Published'
+                    : current?.state === 'APPROVED'
+                      ? 'Approved, not public'
+                      : current
+                        ? 'For review'
+                        : 'Not submitted'}
                 </StatusBadge>
-                <span className="text-sm text-muted-foreground">
-                  Draft revision {selected.revision}; approved revision{' '}
-                  {selected.approvedRevision ?? 'none'}
-                </span>
+                <span className="text-sm text-muted-foreground">Revision {revision}</span>
               </div>
               <Label className="space-y-2">
-                <span>Public tagline</span>
-                <Input value={tagline} onChange={(event) => setTagline(event.target.value)} />
-              </Label>
-              <Label className="space-y-2">
-                <span>Approved public summary</span>
+                <span>Public summary</span>
                 <Textarea
                   rows={6}
+                  maxLength={4000}
+                  disabled={!owner || busy || current?.state === 'PUBLISHED'}
                   value={summary}
-                  onChange={(event) => setSummary(event.target.value)}
+                  onChange={(event) =>
+                    owner &&
+                    setDraft({
+                      owner: owner.key,
+                      generation: owner.generation,
+                      projectId: id,
+                      revision,
+                      summary: event.target.value,
+                    })
+                  }
                 />
               </Label>
               <div className="flex flex-wrap gap-2">
-                <Button variant="outline" disabled onClick={act}>
+                <Button
+                  variant="outline"
+                  disabled={
+                    !owner ||
+                    busy ||
+                    !summary.trim() ||
+                    current?.state === 'PUBLISHED' ||
+                    !permitted('public.preview')
+                  }
+                  onClick={() => void act('submit')}
+                >
                   <Save className="mr-2 h-4 w-4" />
-                  Save draft
+                  Submit summary
                 </Button>
-                <Button variant="outline" disabled onClick={act}>
+                <Button
+                  variant="outline"
+                  disabled={
+                    !owner ||
+                    busy ||
+                    current?.state !== 'FOR_REVIEW' ||
+                    current.submittedById === profile?.userId ||
+                    summary !== current.summary ||
+                    !permitted('public.approve')
+                  }
+                  onClick={() => void act('approve')}
+                >
                   <ShieldCheck className="mr-2 h-4 w-4" />
                   Approve revision
                 </Button>
-                <Button disabled onClick={act}>
+                <Button
+                  disabled={
+                    !owner ||
+                    busy ||
+                    current?.state !== 'APPROVED' ||
+                    summary !== current.summary ||
+                    !permitted('public.publish')
+                  }
+                  onClick={() => void act('publish')}
+                >
                   <Send className="mr-2 h-4 w-4" />
                   Publish
                 </Button>
-                {selected.published ? (
-                  <Button variant="destructive" disabled onClick={act}>
+                {current?.state === 'PUBLISHED' && (
+                  <Button
+                    variant="destructive"
+                    disabled={!owner || busy || !permitted('public.publish')}
+                    onClick={() => void act('withdraw')}
+                  >
                     <Undo2 className="mr-2 h-4 w-4" />
-                    Unpublish
+                    Withdraw
                   </Button>
-                ) : null}
+                )}
               </div>
-              <Button asChild variant="ghost">
-                <Link href={`/transparency/${selected.projectId}/preview`}>
-                  Open full staff preview
-                </Link>
-              </Button>
+              {current?.state === 'PUBLISHED' && (
+                <Button asChild variant="ghost">
+                  <Link href={`/public/projects/${id}`} target="_blank" rel="noreferrer">
+                    View published revision
+                  </Link>
+                </Button>
+              )}
             </div>
-          ) : null}
+          ) : (
+            <EmptyState
+              title="Choose a project"
+              description="Select a project to review its public summary."
+            />
+          )}
         </SectionCard>
       </div>
     </div>

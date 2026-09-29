@@ -21,3 +21,4 @@ apps/api/prisma/dev.db-journal
 .env.test.local
 .env.production.local
 .tmp
+__pycache__/

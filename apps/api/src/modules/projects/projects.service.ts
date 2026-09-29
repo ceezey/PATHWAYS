@@ -7,8 +7,12 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common'
-import { normalizeTargetGoal } from '@pathways/shared'
 import { Prisma } from '@prisma/client'
+import {
+  beginRuleSourceOperation,
+  finishRuleSourceOperation,
+  sourceMutationBody,
+} from '../rules/rules-source-operation'
 
 import { PrismaService } from '../../prisma/prisma.service'
 import {
@@ -30,9 +34,14 @@ const projectSelection = {
   objectives: true,
   implementationArea: true,
   implementingPartners: true,
+  implementingPartnerLinks: {
+    select: { partner: { select: { id: true, name: true } } },
+    orderBy: { partnerId: 'asc' as const },
+    take: 20,
+  },
   sector: true,
   targetBeneficiaries: true,
-  targetGoal: true,
+
   programManagerId: true,
   startDate: true,
   endDate: true,
@@ -80,11 +89,11 @@ function mapProject(
     objectives: project.objectives,
     implementationArea: project.implementationArea,
     implementingPartners: project.implementingPartners,
+    implementingPartnerRecords: project.implementingPartnerLinks.map((link) => link.partner),
     sector: project.sector,
     targetBeneficiaries: project.targetBeneficiaries,
     projectBudget,
-    targetGoal:
-      project.targetGoal === null ? null : normalizeTargetGoal(project.targetGoal.toString()),
+
     startDate: project.startDate?.toISOString().slice(0, 10),
     endDate: project.endDate?.toISOString().slice(0, 10),
     status: project.status,
@@ -113,28 +122,18 @@ function projectData(input: CreateProjectDto | UpdateProjectDto, code: string) {
   if (input.startDate && input.endDate && input.endDate < input.startDate) {
     throw new BadRequestException('End date must not precede start date.')
   }
-  let targetGoal: Prisma.Decimal | undefined
-  if (input.targetGoal !== undefined) {
-    try {
-      targetGoal = new Prisma.Decimal(normalizeTargetGoal(input.targetGoal))
-    } catch {
-      throw new BadRequestException('Project target goal must be greater than 0 and at most 100.')
-    }
-  }
+
   return {
     code,
     title: input.title,
     description: input.description?.trim() || null,
     objectives: input.objectives?.trim() || null,
     implementationArea: input.implementationArea?.trim() || null,
-    ...(input.implementingPartners === undefined
-      ? {}
-      : { implementingPartners: input.implementingPartners?.trim() || null }),
+    // projects.implementing_partners is deprecated read-only legacy text (migration 0039).
     ...(input.sector === undefined ? {} : { sector: input.sector?.trim() || null }),
     ...(input.targetBeneficiaries === undefined
       ? {}
       : { targetBeneficiaries: input.targetBeneficiaries }),
-    ...(targetGoal === undefined ? {} : { targetGoal }),
     startDate: input.startDate ? new Date(`${input.startDate}T00:00:00.000Z`) : null,
     endDate: input.endDate ? new Date(`${input.endDate}T00:00:00.000Z`) : null,
     status: input.status,
@@ -374,6 +373,14 @@ export class ProjectsService {
 
   list(identity: ApplicationIdentity) {
     return withAuthorizedOperation(this.prisma, identity, 'projects.read', async (tx, actor) => {
+      if (!hasAtomicPermission(actor.roles[0], actor.permissions, 'projects.detail.read')) {
+        return tx.project.findMany({
+          where: projectScope(actor),
+          select: { id: true, code: true, title: true, status: true },
+          orderBy: { id: 'asc' },
+          take: 100,
+        })
+      }
       const rows = await tx.project.findMany({
         relationLoadStrategy: 'join',
         where: projectScope(actor),
@@ -391,30 +398,33 @@ export class ProjectsService {
   }
 
   get(identity: ApplicationIdentity, projectId: string) {
-    return withAuthorizedOperation(this.prisma, identity, 'projects.read', async (tx, actor) => {
-      if (!UUID_PATTERN.test(projectId)) throw new NotFoundException('Project unavailable.')
-      const row = await tx.project.findFirst({
-        relationLoadStrategy: 'join',
-        where: { AND: [projectScope(actor), { id: projectId.toLowerCase() }] },
-        select: projectSelection,
-      })
-      if (!row) throw new NotFoundException('Project unavailable.')
-      const budgets = await this.readProjectBudgets(tx, actor, [row.id])
-      return mapProject(row, budgets.get(row.id) ?? null)
-    })
+    return withAuthorizedOperation(
+      this.prisma,
+      identity,
+      'projects.detail.read',
+      async (tx, actor) => {
+        if (!UUID_PATTERN.test(projectId)) throw new NotFoundException('Project unavailable.')
+        const row = await tx.project.findFirst({
+          relationLoadStrategy: 'join',
+          where: { AND: [projectScope(actor), { id: projectId.toLowerCase() }] },
+          select: projectSelection,
+        })
+        if (!row) throw new NotFoundException('Project unavailable.')
+        const budgets = await this.readProjectBudgets(tx, actor, [row.id])
+        return mapProject(row, budgets.get(row.id) ?? null)
+      },
+    )
   }
 
   create(identity: ApplicationIdentity, input: CreateProjectDto) {
     return withAuthorizedOperation(this.prisma, identity, 'projects.create', async (tx, actor) => {
-      if (!['SYSTEM_ADMINISTRATOR', 'PROJECT_MANAGER'].includes(actor.roles[0])) {
+      if (actor.roles[0] !== 'PROJECT_MANAGER') {
         throw new ForbiddenException('Project creation is outside your authority.')
       }
       const id = randomUUID()
       const code = input.code ?? `PRJ-${id.toUpperCase()}`
       const data = projectData(input, code)
-      if (data.targetGoal === undefined) {
-        throw new BadRequestException('Project target goal is required.')
-      }
+
       await this.requireProgram(tx, actor.organizationId, data.programId)
       const programManagerId = await this.requireProgramManager(
         tx,
@@ -433,6 +443,9 @@ export class ProjectsService {
       })
       await this.replaceTeamAssignments(tx, actor, created.id, input, true)
       await this.saveProjectBudget(tx, actor, created.id, input.projectBudget, 'create')
+      if (input.implementingPartnerNames !== undefined)
+        await tx.$queryRaw`
+        SELECT pathways.p10_replace_project_partners(${created.id}::uuid, ${input.implementingPartnerNames}::text[])::text`
       await tx.auditLog.create({
         data: {
           organizationId: actor.organizationId,
@@ -444,7 +457,6 @@ export class ProjectsService {
           changes: {
             code,
             status: input.status,
-            targetGoal: { old: null, new: normalizeTargetGoal(data.targetGoal.toString()) },
           },
         },
       })
@@ -459,11 +471,20 @@ export class ProjectsService {
   }
 
   update(identity: ApplicationIdentity, projectId: string, input: UpdateProjectDto) {
-    return withAuthorizedOperation(this.prisma, identity, 'projects.create', async (tx, actor) => {
+    return withAuthorizedOperation(this.prisma, identity, 'projects.update', async (tx, actor) => {
       if (!UUID_PATTERN.test(projectId)) throw new NotFoundException('Project unavailable.')
+      const source = await beginRuleSourceOperation(
+        tx,
+        'PROJECT_UPDATE',
+        projectId,
+        projectId,
+        { kind: 'CLIENT_MUTATION', id: input.clientMutationId },
+        sourceMutationBody(input),
+      )
+      if (source.kind === 'REPLAY') return source.acknowledgement
       const current = await tx.project.findFirst({
         where: { AND: [projectScope(actor), { id: projectId.toLowerCase() }] },
-        select: { id: true, code: true, targetGoal: true, updatedAt: true },
+        select: { id: true, code: true, updatedAt: true },
       })
       if (!current) throw new NotFoundException('Project unavailable.')
       const expected = new Date(input.expectedUpdatedAt)
@@ -481,12 +502,16 @@ export class ProjectsService {
         where: { id: current.id, organizationId: actor.organizationId, updatedAt: expected },
         data: {
           ...data,
+          updatedAt: new Date(source.generatedValues.timestamp),
           ...(programManagerId === undefined ? {} : { programManagerId }),
         },
       })
       if (changed.count !== 1) throw new ConflictException('Project changed; reload before saving.')
       await this.replaceTeamAssignments(tx, actor, current.id, input, false)
       await this.saveProjectBudget(tx, actor, current.id, input.projectBudget, 'update')
+      if (input.implementingPartnerNames !== undefined)
+        await tx.$queryRaw`
+        SELECT pathways.p10_replace_project_partners(${current.id}::uuid, ${input.implementingPartnerNames}::text[])::text`
       await tx.auditLog.create({
         data: {
           organizationId: actor.organizationId,
@@ -498,28 +523,21 @@ export class ProjectsService {
           changes: {
             code: data.code,
             status: input.status,
-            targetGoal: {
-              old:
-                current.targetGoal === null
-                  ? null
-                  : normalizeTargetGoal(current.targetGoal.toString()),
-              new:
-                data.targetGoal === undefined
-                  ? current.targetGoal === null
-                    ? null
-                    : normalizeTargetGoal(current.targetGoal.toString())
-                  : normalizeTargetGoal(data.targetGoal.toString()),
-            },
           },
         },
       })
+      const sourceAcknowledgement = await finishRuleSourceOperation(
+        tx,
+        source.operationHandle,
+        input.clientMutationId,
+      )
       const result = await tx.project.findUniqueOrThrow({
         relationLoadStrategy: 'join',
         where: { id: current.id },
         select: projectSelection,
       })
       const budgets = await this.readProjectBudgets(tx, actor, [current.id])
-      return mapProject(result, budgets.get(current.id) ?? null)
+      return { ...mapProject(result, budgets.get(current.id) ?? null), sourceAcknowledgement }
     })
   }
 }

@@ -6,13 +6,13 @@ import { Input } from '@/components/ui/input'
 import { useCurrentRole } from '@/hooks/use-current-role'
 import { isUiActionAvailable } from '@/lib/rbac/ui-action-availability'
 import { pathwaysClient } from '@/lib/services/pathways-client'
-import type { Activity, ProjectMilestone } from '@/types/pathways'
+import type { ActivitySummary, ProjectMilestone } from '@/types/pathways'
 import { useEffect, useState } from 'react'
 
 export function MilestoneProgressPanel({ projectId }: { projectId: string }) {
   const { role, profile, assignedProjectIds } = useCurrentRole()
   const [milestones, setMilestones] = useState<ProjectMilestone[]>([])
-  const [activities, setActivities] = useState<Activity[]>([])
+  const [activities, setActivities] = useState<ActivitySummary[]>([])
   const [title, setTitle] = useState('')
   const [date, setDate] = useState('')
   const [actualDate, setActualDate] = useState('')
@@ -61,7 +61,7 @@ export function MilestoneProgressPanel({ projectId }: { projectId: string }) {
   return (
     <div className="space-y-4">
       <SectionCard title="Milestones">
-        {isUiActionAvailable(role, 'activities.edit') ? (
+        {isUiActionAvailable(role, 'milestones.manage', profile) ? (
           <form
             className="grid gap-3 sm:grid-cols-3"
             onSubmit={(event) => {
@@ -129,7 +129,8 @@ export function MilestoneProgressPanel({ projectId }: { projectId: string }) {
                   Review milestone variance
                 </Button>
               ) : null}
-              {isUiActionAvailable(role, 'activities.edit') && milestone.status !== 'COMPLETED' ? (
+              {isUiActionAvailable(role, 'milestones.manage', profile) &&
+              milestone.status !== 'COMPLETED' ? (
                 <Button
                   variant="outline"
                   onClick={() => {

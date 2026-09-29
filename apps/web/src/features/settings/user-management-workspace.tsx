@@ -51,7 +51,6 @@ import {
 import { useCurrentRole } from '@/hooks/use-current-role'
 import { useDisplayLabels } from '@/hooks/use-display-labels'
 import type { ProjectAssignableRole } from '@/lib/rbac/access-matrix'
-import { can } from '@/lib/rbac/can'
 import { pathwaysClient } from '@/lib/services/pathways-client'
 import type { ProjectSummary, UserAccountStatus, UserRecord } from '@/types/pathways'
 import { type PathwaysRole, getPathwaysRoleDisplayName } from '@/types/pathways-role'
@@ -76,6 +75,7 @@ interface UserEditorState {
   userId?: string
   name: string
   email: string
+  authUserId: string
   role: PathwaysRole
   signInMethod: UserRecord['signInMethod']
   projectIds: string[]
@@ -85,10 +85,13 @@ const emptyEditor = (role: PathwaysRole): UserEditorState => ({
   mode: 'create',
   name: '',
   email: '',
+  authUserId: '',
   role,
   signInMethod: 'Supabase account',
   projectIds: [],
 })
+
+const AUTH_USER_ID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
 const formatAccountDate = (value?: string) => {
   if (!value) return 'Not yet active'
@@ -189,6 +192,7 @@ export const UserManagementWorkspace = ({
       userId: user.id,
       name: user.name,
       email: user.email,
+      authUserId: user.authUserId ?? '',
       role: user.role,
       signInMethod: user.signInMethod,
       projectIds: [...user.projectIds],
@@ -200,24 +204,11 @@ export const UserManagementWorkspace = ({
     if (!editor) return
 
     const name = editor.name.trim()
-    const email = editor.email.trim().toLocaleLowerCase()
     const selectedProjectIds = [...new Set(editor.projectIds)]
     const allowedProjectIds = new Set(assignableProjects.map((project) => project.id))
 
     if (!name) {
       setEditorError('Full name is required.')
-      return
-    }
-
-    if (!/^\S+@\S+\.\S+$/.test(email)) {
-      setEditorError('Enter a valid email address.')
-      return
-    }
-
-    if (
-      users.some((user) => user.email.toLocaleLowerCase() === email && user.id !== editor.userId)
-    ) {
-      setEditorError('That email already belongs to another user.')
       return
     }
 
@@ -242,12 +233,49 @@ export const UserManagementWorkspace = ({
     const projectIds = isProjectAssignableRole(editor.role)
       ? selectedProjectIds
       : (users.find((user) => user.id === editor.userId)?.projectIds ?? [])
-    if (editor.mode === 'create' || !editor.userId) {
-      setEditorError(
-        'Creating an Auth account from this form is unavailable. Authorize an existing Auth user through the approved workflow.',
-      )
+
+    if (editor.mode === 'create') {
+      const authUserId = editor.authUserId.trim()
+      if (!AUTH_USER_ID_PATTERN.test(authUserId)) {
+        setEditorError('Enter the existing Auth user ID (UUID) from Supabase Auth.')
+        return
+      }
+      try {
+        await pathwaysClient.authorizeExistingUser({
+          authUserId,
+          fullName: name,
+          role: editor.role,
+          projectIds,
+        })
+        setLoadAttempt((attempt) => attempt + 1)
+        toast.success('Account authorized. Sign-in access is active.')
+      } catch (error) {
+        setEditorError(error instanceof Error ? error.message : 'Account could not be authorized.')
+        return
+      }
+      setEditor(null)
+      setEditorError('')
       return
     }
+
+    const email = editor.email.trim().toLocaleLowerCase()
+    if (!/^\S+@\S+\.\S+$/.test(email)) {
+      setEditorError('Enter a valid email address.')
+      return
+    }
+
+    if (
+      users.some((user) => user.email.toLocaleLowerCase() === email && user.id !== editor.userId)
+    ) {
+      setEditorError('That email already belongs to another user.')
+      return
+    }
+
+    if (!editor.userId) {
+      setEditorError('The selected user is no longer available.')
+      return
+    }
+
     try {
       const current = users.find((user) => user.id === editor.userId)
       if (!current) throw new Error('The selected user is no longer available.')
@@ -463,11 +491,6 @@ export const UserManagementWorkspace = ({
 
           <SectionCard title="Administration links">
             <div className="grid gap-2">
-              {actorRole && can(actorRole, 'settings.view') ? (
-                <Button asChild className="justify-start" variant="outline">
-                  <Link href="/settings/labels">Edit Labels</Link>
-                </Button>
-              ) : null}
               <Button asChild className="justify-start" variant="outline">
                 <Link href="/alerts/repository">Alerts Repository</Link>
               </Button>
@@ -656,7 +679,7 @@ const UserEditorDialog = ({
           <DialogTitle>{editor.mode === 'create' ? 'Create user' : 'Edit user'}</DialogTitle>
           <DialogDescription>
             {editor.mode === 'create'
-              ? 'Add an invited account and assign its role and project access.'
+              ? 'Authorize someone who already has a Supabase Auth account. They must have signed up first; this does not create a new sign-in.'
               : 'Update this account record, role, and project access.'}
           </DialogDescription>
         </DialogHeader>
@@ -671,16 +694,33 @@ const UserEditorDialog = ({
               value={editor.name}
             />
           </div>
-          <div className="space-y-2">
-            <Label htmlFor="user-email">Email</Label>
-            <Input
-              id="user-email"
-              maxLength={160}
-              onChange={(event) => onChange({ ...editor, email: event.target.value })}
-              type="email"
-              value={editor.email}
-            />
-          </div>
+          {editor.mode === 'create' ? (
+            <div className="space-y-2">
+              <Label htmlFor="user-auth-id">Auth user ID</Label>
+              <Input
+                id="user-auth-id"
+                maxLength={64}
+                onChange={(event) => onChange({ ...editor, authUserId: event.target.value })}
+                placeholder="00000000-0000-0000-0000-000000000000"
+                value={editor.authUserId}
+              />
+              <p className="text-xs leading-5 text-muted-foreground">
+                The Supabase Auth user ID (UUID) for the person's existing account. Find it in the
+                Auth directory after they have signed up.
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              <Label htmlFor="user-email">Email</Label>
+              <Input
+                id="user-email"
+                maxLength={160}
+                onChange={(event) => onChange({ ...editor, email: event.target.value })}
+                type="email"
+                value={editor.email}
+              />
+            </div>
+          )}
           <div className="space-y-2">
             <Label htmlFor="user-role">Role</Label>
             <Select
@@ -788,7 +828,7 @@ const UserEditorDialog = ({
             Cancel
           </Button>
           <Button onClick={onSave} type="button">
-            {editor.mode === 'create' ? 'Create account' : 'Save changes'}
+            {editor.mode === 'create' ? 'Authorize account' : 'Save changes'}
           </Button>
         </DialogFooter>
       </DialogContent>

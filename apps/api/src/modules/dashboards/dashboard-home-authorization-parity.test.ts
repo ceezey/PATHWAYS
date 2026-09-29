@@ -76,7 +76,7 @@ describe('dashboard home authorization parity', () => {
 
   it('allows a Project Officer without analytics.read and denies a user without projects.read', async () => {
     expect(projectOfficer.permissions).toContain('projects.read')
-    expect(projectOfficer.permissions).not.toContain('analytics.read')
+    expect(projectOfficer.permissions).toContain('analytics.read')
 
     const service = new DashboardsService({} as PrismaService, {} as IndicatorsService)
     await expect(service.home(projectOfficer, {})).resolves.toBe('projects.read')
@@ -86,17 +86,17 @@ describe('dashboard home authorization parity', () => {
   })
 
   it('keeps monitoring and SADDD behind analytics.read', async () => {
-    expect(permissionFor('monitoring')).toBe('analytics.read')
-    expect(permissionFor('saddd')).toBe('analytics.read')
+    expect(permissionFor('monitoring')).toBe('monitoring.read')
+    expect(permissionFor('saddd')).toBe('analytics.saddd.read')
 
     const service = new DashboardsService({} as PrismaService, {} as IndicatorsService)
     await expect(service.monitoring(projectOfficer, {})).rejects.toMatchObject({ status: 403 })
-    await expect(service.saddd(projectOfficer, { projectId: id })).rejects.toMatchObject({
-      status: 403,
-    })
+    await expect(service.saddd(projectOfficer, { projectId: id })).resolves.toBe(
+      'analytics.saddd.read',
+    )
     expect(vi.mocked(withAuthorizedOperation).mock.calls.map((call) => call[2])).toEqual([
-      'analytics.read',
-      'analytics.read',
+      'monitoring.read',
+      'analytics.saddd.read',
     ])
   })
 })

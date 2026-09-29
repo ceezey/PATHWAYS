@@ -9,11 +9,19 @@ import { Button } from '@/components/ui/button'
 import { PathwaysClientError, pathwaysClient } from '@/lib/services/pathways-client'
 import type { Activity, JourneyStageConfig, ProjectDetail } from '@/types/pathways'
 
+import { useCurrentRole } from '@/hooks/use-current-role'
+import { principalHasAtomicPermission } from '@/lib/rbac/route-access'
+
 import { JourneyStagesWorkspace } from './journey-stages-workspace'
 
 export const JourneyStagesLoader = ({ projectId }: { projectId: string }) => {
+  const { profile } = useCurrentRole()
+  const contextOnly = principalHasAtomicPermission(profile, 'activities.context.read')
+  const canReadActivities = principalHasAtomicPermission(profile, 'activities.read')
   const [project, setProject] = useState<ProjectDetail | null>(null)
-  const [activities, setActivities] = useState<Activity[]>([])
+  const [activities, setActivities] = useState<Pick<Activity, 'id' | 'title' | 'journeyStageId'>[]>(
+    [],
+  )
   const [stages, setStages] = useState<JourneyStageConfig[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -24,7 +32,11 @@ export const JourneyStagesLoader = ({ projectId }: { projectId: string }) => {
     setError('')
     Promise.all([
       pathwaysClient.getProject(projectId),
-      pathwaysClient.getActivities(projectId),
+      contextOnly
+        ? pathwaysClient.getActivityContext(projectId)
+        : canReadActivities
+          ? pathwaysClient.getActivities(projectId)
+          : Promise.resolve([]),
       pathwaysClient.getJourneyStages(projectId),
     ])
       .then(([projectRecord, activityRecords, stageRecords]) => {
@@ -47,7 +59,7 @@ export const JourneyStagesLoader = ({ projectId }: { projectId: string }) => {
     return () => {
       active = false
     }
-  }, [projectId])
+  }, [projectId, contextOnly, canReadActivities])
 
   if (loading) {
     return (

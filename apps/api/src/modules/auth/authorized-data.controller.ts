@@ -1,4 +1,5 @@
 import { Controller, ForbiddenException, Get, Header, Inject, Param, Req } from '@nestjs/common'
+import { RequireBeneficiaryStepUp } from '../../common/decorators/beneficiary-step-up.decorator'
 import { RequirePermission } from '../../common/decorators/permission.decorator'
 import { AuthorizedDataService } from './authorized-data.service'
 import type { AuthenticatedRequest } from './developer-access'
@@ -22,6 +23,7 @@ export class AuthorizedDataController {
 
   @Get('projects/:projectId/beneficiaries')
   @RequirePermission('beneficiaries.records.read')
+  @RequireBeneficiaryStepUp()
   @Header('Cache-Control', 'no-store')
   beneficiaries(@Req() request: AuthenticatedRequest, @Param('projectId') projectId: string) {
     return this.data.beneficiaries(verifiedProfile(request), projectId)

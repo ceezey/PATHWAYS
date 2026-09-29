@@ -1,8 +1,11 @@
 import { describe, expect, it } from 'vitest'
 
 import {
+  beneficiaryAgeRuleMessages,
   beneficiaryRegistrationDefinitionErrors,
   beneficiaryRegistrationFieldRules,
+  completedYearsAt,
+  minimumBeneficiaryAge,
 } from './beneficiary-registration'
 import type { FormFieldValidationContract } from './form-data'
 
@@ -42,5 +45,24 @@ describe('beneficiary registration definition', () => {
         expect.objectContaining({ fieldCode: 'enrollment_date' }),
       ]),
     )
+  })
+})
+
+describe('beneficiary minimum age rule', () => {
+  const day = (value: string) => new Date(`${value}T00:00:00.000Z`)
+
+  it('fixes the developer-approved minimum and exact messages', () => {
+    expect(minimumBeneficiaryAge).toBe(5)
+    expect(beneficiaryAgeRuleMessages).toEqual({
+      futureBirthDate: 'Date of birth cannot be in the future.',
+      belowMinimumAge: 'Beneficiary must be at least 5 years old.',
+    })
+  })
+
+  it('counts completed years at the birthday boundary, including leap days', () => {
+    expect(completedYearsAt(day('2021-09-28'), day('2026-09-28'))).toBe(5)
+    expect(completedYearsAt(day('2021-09-29'), day('2026-09-28'))).toBe(4)
+    expect(completedYearsAt(day('2020-02-29'), day('2025-02-28'))).toBe(4)
+    expect(completedYearsAt(day('2020-02-29'), day('2025-03-01'))).toBe(5)
   })
 })

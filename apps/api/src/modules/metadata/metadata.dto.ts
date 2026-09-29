@@ -143,6 +143,10 @@ export class ExpectedVersionDto {
 }
 
 export class SaveSubmissionDto {
+  @IsOptional()
+  @IsUUID()
+  beneficiaryId?: string
+
   @IsUUID()
   clientSubmissionId!: string
 
@@ -177,6 +181,28 @@ export class UpdateSubmissionDto {
 
   @IsObject()
   values!: Record<string, unknown>
+}
+
+export class GenerateFormDto {
+  @IsOptional()
+  @IsString()
+  @MaxLength(64)
+  templateKey?: string
+
+  @IsOptional()
+  @IsUUID()
+  sourceFormId?: string
+
+  @IsString()
+  @Length(2, 64)
+  @Matches(/^[a-z][a-z0-9_]{1,63}$/)
+  @Transform(({ value }) => (typeof value === 'string' ? value.trim().toLowerCase() : value))
+  code!: string
+
+  @IsString()
+  @Length(3, 160)
+  @Transform(({ value }) => (typeof value === 'string' ? value.trim() : value))
+  name!: string
 }
 
 export class SubmitSubmissionDto {

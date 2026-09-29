@@ -8,15 +8,19 @@ import {
   type INestApplication,
   Req,
   UnauthorizedException,
+  ValidationPipe,
 } from '@nestjs/common'
-import { APP_GUARD } from '@nestjs/core'
+import { APP_GUARD, Reflector } from '@nestjs/core'
 import { Test } from '@nestjs/testing'
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import { RulesMachineBoundary } from '../../modules/rules/rules-machine-boundary'
 
 import { ApplicationProfileService } from '../../modules/auth/application-profile.service'
 import { AuthController } from '../../modules/auth/auth.controller'
 import { AuthService } from '../../modules/auth/auth.service'
 import { reportAuthorizedOperationTiming } from '../../modules/auth/authorized-operation-timing'
+import { BeneficiaryStepUpPinService } from '../../modules/auth/beneficiary-step-up-pin.service'
+import { BeneficiaryStepUpService } from '../../modules/auth/beneficiary-step-up.service'
 import {
   type ApplicationIdentity,
   type AuthenticatedRequest,
@@ -27,10 +31,22 @@ import { RouteAccessController } from '../../modules/auth/route-access.controlle
 import { RouteAccessService } from '../../modules/auth/route-access.service'
 import { TokenAuthService, type VerifiedAuthSession } from '../../modules/auth/token-auth.service'
 import { WorkspaceResolutionService } from '../../modules/auth/workspace-resolution.service'
-import { PrismaService, type VerifiedTransactionTiming } from '../../prisma/prisma.service'
+import {
+  InactiveVerifiedSessionError,
+  PrismaService,
+  type VerifiedDatabaseContext,
+  type VerifiedTransactionTiming,
+} from '../../prisma/prisma.service'
+import { RequireBeneficiaryStepUp } from '../decorators/beneficiary-step-up.decorator'
 import { RequirePermission } from '../decorators/permission.decorator'
 import { Public } from '../decorators/public.decorator'
 import { SupabaseAuthGuard } from './supabase-auth.guard'
+
+const beneficiaryHandler = vi.fn()
+const assignedProjectId = '60000000-0000-4000-8000-000000000006'
+const unassignedProjectId = '60000000-0000-4000-8000-000000000007'
+const detailPath = `/boundary-test/projects/${assignedProjectId}/beneficiary-detail`
+const unpermittedPath = `/boundary-test/projects/${assignedProjectId}/beneficiary-detail-unpermitted`
 
 // Actual local HTTP routing, reflection and guard execution; only the Auth
 // provider and database-facing profile service are mocked. No app startup,
@@ -55,6 +71,28 @@ class BoundaryTestController {
       totalMs: 11,
     })
     return { allowed: true }
+  }
+
+  @Get('projects/:projectId/beneficiary-detail')
+  @RequirePermission('projects.read')
+  @RequireBeneficiaryStepUp()
+  beneficiaryDetail() {
+    beneficiaryHandler()
+    return { detail: true }
+  }
+
+  @Get('projects/:projectId/beneficiary-detail-unpermitted')
+  @RequirePermission('beneficiaries.records.read')
+  @RequireBeneficiaryStepUp()
+  beneficiaryDetailUnpermitted() {
+    beneficiaryHandler()
+    return { detail: true }
+  }
+
+  @Get('beneficiary-aggregate')
+  @RequirePermission('beneficiaries.aggregates.read')
+  beneficiaryAggregate() {
+    return { aggregate: true }
   }
 
   @Get('business')
@@ -85,8 +123,9 @@ const profile: ApplicationIdentity = {
 const verifiedSession = (
   aal: 'aal1' | 'aal2' = 'aal2',
   id = DEVELOPER_AUTH_UUID,
+  mfaVerifiedAt?: number,
 ): VerifiedAuthSession => ({
-  identity: { id, aal },
+  identity: { id, aal, ...(mfaVerifiedAt === undefined ? {} : { mfaVerifiedAt }) },
   sessionId,
   stageTimings: { claimsMs: 2, currentUserMs: 3 },
 })
@@ -95,10 +134,65 @@ const tokens = {
   assertSessionLive: vi.fn<(verified: VerifiedAuthSession) => Promise<void>>(),
 }
 const profiles = { resolve: vi.fn(), resolveWithSession: vi.fn() }
-const prisma = { discoverWorkspace: vi.fn() }
+const auditCreate = vi.fn()
+const projectFindFirst = vi.fn()
+// Tagged-template $queryRaw: records the SQL text and bound values for the 0037 functions.
+const queryRaw = vi.fn(
+  async (_strings: TemplateStringsArray, ..._values: unknown[]): Promise<unknown[]> => [],
+)
+const sqlOf = (call: unknown[]) => (call[0] as TemplateStringsArray).join('?')
+const prisma = {
+  discoverWorkspace: vi.fn(),
+  withVerifiedContext: vi.fn(
+    async (_context: VerifiedDatabaseContext, work: (tx: unknown) => Promise<unknown>) =>
+      work({
+        auditLog: { create: auditCreate },
+        project: { findFirst: projectFindFirst },
+        $queryRaw: queryRaw,
+      }),
+  ),
+}
 const routeChecks = { check: vi.fn() }
 let app: INestApplication
 let port: number
+
+const send = (method: string, path: string, headers: Record<string, string> = {}, body?: unknown) =>
+  new Promise<{ status: number; body: Record<string, unknown>; raw: string }>((resolve, reject) => {
+    const payload = body === undefined ? undefined : JSON.stringify(body)
+    const request = httpRequest(
+      {
+        host: '127.0.0.1',
+        port,
+        path,
+        method,
+        headers: {
+          ...headers,
+          ...(payload === undefined
+            ? {}
+            : {
+                'content-type': 'application/json',
+                'content-length': String(Buffer.byteLength(payload)),
+              }),
+        },
+      },
+      (response) => {
+        let data = ''
+        response.setEncoding('utf8')
+        response.on('data', (chunk) => {
+          data += chunk
+        })
+        response.on('end', () => {
+          try {
+            resolve({ status: response.statusCode ?? 0, body: JSON.parse(data), raw: data })
+          } catch (error) {
+            reject(error)
+          }
+        })
+      },
+    )
+    request.on('error', reject)
+    request.end(payload)
+  })
 
 const get = (path: string, headers: Record<string, string> = {}) =>
   new Promise<{
@@ -138,16 +232,37 @@ beforeAll(async () => {
   const module = await Test.createTestingModule({
     controllers: [AuthController, BoundaryTestController, RouteAccessController],
     providers: [
+      {
+        provide: RulesMachineBoundary,
+        inject: [Reflector],
+        useFactory: (reflector: Reflector) =>
+          new RulesMachineBoundary(
+            reflector,
+            () => ({ enabled: false, drainToken: '', sweepToken: '' }),
+            [],
+          ),
+      },
       { provide: TokenAuthService, useValue: tokens },
       { provide: ApplicationProfileService, useValue: profiles },
       { provide: PrismaService, useValue: prisma },
       { provide: RouteAccessService, useValue: routeChecks },
       WorkspaceResolutionService,
+      BeneficiaryStepUpService,
+      BeneficiaryStepUpPinService,
       { provide: AuthService, useValue: { getStatus: () => ({ authenticated: true }) } },
       { provide: APP_GUARD, useClass: SupabaseAuthGuard },
     ],
   }).compile()
   app = module.createNestApplication({ logger: false })
+  // Same global validation as main.ts, so body-shape abuse is exercised end to end.
+  app.useGlobalPipes(
+    new ValidationPipe({
+      whitelist: true,
+      forbidNonWhitelisted: true,
+      transform: true,
+      forbidUnknownValues: false,
+    }),
+  )
   await app.listen(0, '127.0.0.1')
   port = (app.getHttpServer().address() as AddressInfo).port
 })
@@ -179,6 +294,24 @@ beforeEach(() => {
       },
     )
   prisma.discoverWorkspace.mockReset().mockResolvedValue([{ organizationId, userId }])
+  auditCreate.mockReset().mockResolvedValue({})
+  queryRaw
+    .mockReset()
+    .mockImplementation(async (strings: TemplateStringsArray) =>
+      strings.join('?').includes('step_up_pin_status')
+        ? [{ pinState: 'NONE', grantExpiresAt: null }]
+        : [],
+    )
+  prisma.withVerifiedContext.mockClear()
+  ;(
+    app?.get(BeneficiaryStepUpPinService) as unknown as { attempts?: Map<string, unknown> }
+  )?.attempts?.clear()
+  projectFindFirst
+    .mockReset()
+    .mockResolvedValue({ id: assignedProjectId })
+  // Per-instance audit dedupe must not carry between tests, or "no audit" is vacuous.
+  ;(app?.get(BeneficiaryStepUpService) as unknown as { recorded?: Set<string> })?.recorded?.clear()
+  beneficiaryHandler.mockReset()
   routeChecks.check.mockReset().mockResolvedValue({
     route: 'dashboard',
     authorization: 'database-verified',
@@ -212,6 +345,7 @@ describe('SupabaseAuthGuard local HTTP fail-closed boundary', () => {
       organizationId,
       userId,
       expect.any(Function),
+      undefined,
     )
     expect(prisma.discoverWorkspace).not.toHaveBeenCalled()
     profiles.resolveWithSession.mockRejectedValueOnce(new ForbiddenException())
@@ -294,6 +428,7 @@ describe('SupabaseAuthGuard local HTTP fail-closed boundary', () => {
       organizationId,
       userId,
       expect.any(Function),
+      undefined,
     )
   })
 
@@ -448,6 +583,7 @@ describe('SupabaseAuthGuard local HTTP fail-closed boundary', () => {
       organizationId,
       userId,
       expect.any(Function),
+      undefined,
     )
     expect(tokens.assertSessionLive).not.toHaveBeenCalled()
     expect(result.serverTiming).toMatch(
@@ -514,6 +650,486 @@ describe('SupabaseAuthGuard local HTTP fail-closed boundary', () => {
       organizationId,
       userId,
       expect.any(Function),
+      undefined,
     )
+  })
+})
+
+describe('Beneficiary step-up (cr-pathways-beneficiary-step-up)', () => {
+  const headers = {
+    authorization: 'Bearer local-test-token',
+    'x-pathways-user-id': userId,
+    'x-pathways-organization-id': organizationId,
+  }
+  const now = () => Math.floor(Date.now() / 1000)
+  const auditActions = () =>
+    auditCreate.mock.calls.map(([input]) => (input as { data: { action: string } }).data.action)
+  const stepUpSession = (mfaVerifiedAt?: number) =>
+    verifiedSession('aal2', DEVELOPER_AUTH_UUID, mfaVerifiedAt)
+
+  beforeEach(() => vi.stubEnv('PATHWAYS_DEVELOPER_ACCESS_ENABLED', 'true'))
+
+  it('admits a fresh signed TOTP factor once audited, without re-auditing the same factor', async () => {
+    const verifiedAt = now() - 60
+    tokens.verifyCurrent.mockResolvedValue(stepUpSession(verifiedAt))
+    const first = await get(detailPath, headers)
+    expect(first.status).toBe(200)
+    expect(first.body).toEqual({ detail: true })
+    expect(await get(detailPath, headers)).toMatchObject({ status: 200 })
+    expect(auditActions()).toEqual(['BENEFICIARY_STEP_UP_ACCEPTED'])
+    const audit = auditCreate.mock.calls[0]?.[0] as { data: Record<string, unknown> }
+    expect(audit.data).toMatchObject({
+      organizationId,
+      actorUserId: userId,
+      entityType: 'BeneficiaryStepUp',
+      changes: {
+        operation: 'BoundaryTestController.beneficiaryDetail',
+        factorVerifiedAt: new Date(verifiedAt * 1000).toISOString(),
+        windowSeconds: 900,
+      },
+    })
+    expect(JSON.stringify(audit)).not.toContain('local-test-token')
+    expect(beneficiaryHandler).toHaveBeenCalledTimes(2)
+  })
+
+  it.each([
+    ['STALE', -901],
+    ['MISSING', undefined],
+    ['MISSING', 600],
+  ] as const)(
+    'denies a %s factor with STEP_UP_REQUIRED before the handler runs',
+    async (reason, offset) => {
+      tokens.verifyCurrent.mockResolvedValue(
+        stepUpSession(offset === undefined ? undefined : now() + offset),
+      )
+      const denied = await get(detailPath, headers)
+      expect(denied.status).toBe(403)
+      expect(denied.body).toMatchObject({ statusCode: 403, code: 'STEP_UP_REQUIRED' })
+      expect(Object.keys(denied.body).sort()).toEqual(['code', 'error', 'message', 'statusCode'])
+      expect(beneficiaryHandler).not.toHaveBeenCalled()
+      // Each case has a distinct factor/reason dedupe key, so exactly one denial is audited.
+      expect(auditCreate).toHaveBeenCalledOnce()
+      const data = (
+        auditCreate.mock.calls[0]?.[0] as {
+          data: { action: string; changes: { reason: string } }
+        }
+      ).data
+      expect(data.action).toBe('BENEFICIARY_STEP_UP_REQUIRED')
+      expect(data.changes.reason).toBe(reason)
+    },
+  )
+
+  it('checks project assignment before step-up: an unassigned project with a stale factor gets the scope denial', async () => {
+    tokens.verifyCurrent.mockResolvedValue(stepUpSession(now() - 901))
+    projectFindFirst.mockResolvedValue(null)
+    const denied = await get(
+      `/boundary-test/projects/${unassignedProjectId}/beneficiary-detail`,
+      headers,
+    )
+    expect(denied.status).toBe(404)
+    expect(denied.body.code).toBeUndefined()
+    expect(denied.body.message).toBe('Project unavailable.')
+    expect(projectFindFirst).toHaveBeenCalledOnce()
+    const where = JSON.stringify(projectFindFirst.mock.calls[0]?.[0])
+    expect(where).toContain(unassignedProjectId)
+    expect(where).toContain(organizationId)
+    expect(beneficiaryHandler).not.toHaveBeenCalled()
+    expect(auditCreate).not.toHaveBeenCalled()
+  })
+
+  it.each(['not-a-uuid', 'undefined'])(
+    'denies a malformed route project %s as unavailable without querying or auditing',
+    async (projectId) => {
+      tokens.verifyCurrent.mockResolvedValue(stepUpSession(now() - 60))
+      const denied = await get(`/boundary-test/projects/${projectId}/beneficiary-detail`, headers)
+      expect(denied.status).toBe(404)
+      expect(denied.body.code).toBeUndefined()
+      expect(projectFindFirst).not.toHaveBeenCalled()
+      expect(auditCreate).not.toHaveBeenCalled()
+      expect(beneficiaryHandler).not.toHaveBeenCalled()
+    },
+  )
+
+  it('fails closed with 503 when project scope cannot be verified', async () => {
+    tokens.verifyCurrent.mockResolvedValue(stepUpSession(now() - 60))
+    projectFindFirst.mockRejectedValue(new Error('synthetic scope outage'))
+    const unavailable = await get(detailPath, headers)
+    expect(unavailable.status).toBe(503)
+    expect(JSON.stringify(unavailable.body)).not.toContain('synthetic scope outage')
+    expect(auditCreate).not.toHaveBeenCalled()
+    expect(beneficiaryHandler).not.toHaveBeenCalled()
+  })
+
+  it('checks permission before step-up so an unpermitted role never reaches the prompt', async () => {
+    tokens.verifyCurrent.mockResolvedValue(stepUpSession(now() - 901))
+    const denied = await get(unpermittedPath, headers)
+    expect(denied.status).toBe(403)
+    expect(denied.body.code).toBeUndefined()
+    expect(denied.body.message).toBe('Required application permission is missing.')
+    expect(beneficiaryHandler).not.toHaveBeenCalled()
+    expect(auditCreate).not.toHaveBeenCalled()
+  })
+
+  it.each(['PROGRAM_MANAGER', 'GRANT_MANAGER'] as const)(
+    'keeps aggregate-only %s outside step-up: aggregate admitted, detail denied on permission',
+    async (role) => {
+      const aggregateOnly: ApplicationIdentity = {
+        ...profile,
+        roles: [role],
+        permissions: ['projects.read', 'beneficiaries.aggregates.read'],
+      }
+      profiles.resolveWithSession.mockImplementation(async () => aggregateOnly)
+      for (const mfaVerifiedAt of [now() - 901, undefined]) {
+        tokens.verifyCurrent.mockResolvedValue(stepUpSession(mfaVerifiedAt))
+        const aggregate = await get('/boundary-test/beneficiary-aggregate', headers)
+        expect(aggregate.status).toBe(200)
+        expect(aggregate.body).toEqual({ aggregate: true })
+        const detail = await get(unpermittedPath, headers)
+        expect(detail.status).toBe(403)
+        expect(detail.body.code).toBeUndefined()
+        expect(detail.body.message).toBe('Required application permission is missing.')
+      }
+      expect(beneficiaryHandler).not.toHaveBeenCalled()
+      expect(auditCreate).not.toHaveBeenCalled()
+    },
+  )
+
+  it('still denies when the denial audit fails, and withholds access when acceptance cannot be audited', async () => {
+    auditCreate.mockRejectedValue(new Error('synthetic audit outage'))
+    tokens.verifyCurrent.mockResolvedValue(stepUpSession(now() - 1_000))
+    expect(await get(detailPath, headers)).toMatchObject({
+      status: 403,
+      body: { code: 'STEP_UP_REQUIRED' },
+    })
+    tokens.verifyCurrent.mockResolvedValue(stepUpSession(now() - 5))
+    const withheld = await get(detailPath, headers)
+    expect(withheld.status).toBe(503)
+    expect(JSON.stringify(withheld.body)).not.toContain('synthetic audit outage')
+    expect(beneficiaryHandler).not.toHaveBeenCalled()
+  })
+
+  it('reports step-up freshness from signed claims, PIN grant and PIN state, and requires verified MFA', async () => {
+    const verifiedAt = now() - 30
+    tokens.verifyCurrent.mockResolvedValue(stepUpSession(verifiedAt))
+    queryRaw.mockResolvedValue([{ pinState: 'NONE', grantExpiresAt: null }])
+    const fresh = await get('/auth/step-up/status', headers)
+    expect(fresh.status).toBe(200)
+    expect(fresh.cacheControl).toBe('private, no-store')
+    expect(fresh.body).toEqual({
+      fresh: true,
+      expiresAt: new Date((verifiedAt + 900) * 1000).toISOString(),
+      windowSeconds: 900,
+      method: 'TOTP',
+      pinState: 'NONE',
+    })
+    tokens.verifyCurrent.mockResolvedValue(stepUpSession(now() - 901))
+    queryRaw.mockResolvedValue([{ pinState: 'LOCKED', grantExpiresAt: null }])
+    expect((await get('/auth/step-up/status', headers)).body).toEqual({
+      fresh: false,
+      expiresAt: null,
+      windowSeconds: 900,
+      method: null,
+      pinState: 'LOCKED',
+    })
+    const grant = new Date(Date.now() + 600_000)
+    queryRaw.mockResolvedValue([{ pinState: 'SET', grantExpiresAt: grant }])
+    expect((await get('/auth/step-up/status', headers)).body).toMatchObject({
+      fresh: true,
+      expiresAt: grant.toISOString(),
+      method: 'PIN',
+      pinState: 'SET',
+    })
+    // The session is the verified claim, rechecked for liveness in the same transaction.
+    expect(prisma.withVerifiedContext.mock.calls.at(-1)?.[0]).toMatchObject({ sessionId })
+    expect(queryRaw.mock.calls.at(-1)?.slice(1)).toEqual([sessionId])
+    expect(Object.keys((await get('/auth/step-up/status', headers)).body)).not.toContain(
+      'failedAttempts',
+    )
+    tokens.verifyCurrent.mockResolvedValue(verifiedSession('aal1'))
+    expect((await get('/auth/step-up/status', headers)).status).toBe(403)
+    expect(auditCreate).not.toHaveBeenCalled()
+  })
+})
+
+describe('Beneficiary step-up PIN fallback (cr-pathways-beneficiary-step-up-pin)', () => {
+  const headers = {
+    authorization: 'Bearer local-test-token',
+    'x-pathways-user-id': userId,
+    'x-pathways-organization-id': organizationId,
+  }
+  const now = () => Math.floor(Date.now() / 1000)
+  const stepUpSession = (mfaVerifiedAt?: number) =>
+    verifiedSession('aal2', DEVELOPER_AUTH_UUID, mfaVerifiedAt)
+  const pinCalls = (name: string) =>
+    queryRaw.mock.calls.filter((call) => sqlOf(call).includes(name))
+  const liveGrant = () => [{ pinState: 'SET', grantExpiresAt: new Date(Date.now() + 600_000) }]
+
+  beforeEach(() => vi.stubEnv('PATHWAYS_DEVELOPER_ACCESS_ENABLED', 'true'))
+
+  it('accepts a live PIN grant for the same user, organization and verified session', async () => {
+    tokens.verifyCurrent.mockResolvedValue(stepUpSession(now() - 901))
+    queryRaw.mockResolvedValue(liveGrant())
+    const admitted = await get(detailPath, headers)
+    expect(admitted.status).toBe(200)
+    expect(beneficiaryHandler).toHaveBeenCalledOnce()
+    const [context] = prisma.withVerifiedContext.mock.calls[0] ?? []
+    expect(context).toEqual({
+      authSubject: DEVELOPER_AUTH_UUID,
+      organizationId,
+      userId,
+      sessionId,
+    })
+    expect(pinCalls('step_up_pin_status')).toHaveLength(1)
+    expect(pinCalls('step_up_pin_status')[0]?.slice(1)).toEqual([sessionId])
+    const audit = auditCreate.mock.calls[0]?.[0] as { data: Record<string, unknown> }
+    expect(audit.data).toMatchObject({
+      action: 'BENEFICIARY_STEP_UP_ACCEPTED',
+      changes: { method: 'PIN', windowSeconds: 900 },
+    })
+  })
+
+  it('keeps a fresh TOTP path unchanged: no grant lookup and method TOTP', async () => {
+    tokens.verifyCurrent.mockResolvedValue(stepUpSession(now() - 60))
+    expect((await get(detailPath, headers)).status).toBe(200)
+    expect(queryRaw).not.toHaveBeenCalled()
+    expect(prisma.withVerifiedContext.mock.calls[0]?.[0]).not.toHaveProperty('sessionId')
+    const audit = auditCreate.mock.calls[0]?.[0] as { data: { changes: Record<string, unknown> } }
+    expect(audit.data.changes.method).toBe('TOTP')
+  })
+
+  it.each([
+    [
+      'no grant for this session, user or organization',
+      [{ pinState: 'SET', grantExpiresAt: null }],
+      403,
+    ],
+    ['an expired or locked grant', [{ pinState: 'LOCKED', grantExpiresAt: null }], 403],
+    ['a malformed status', [{ pinState: 'SET', grantExpiresAt: 'tomorrow' }], 503],
+  ] as const)('denies %s', async (_label, rows, status) => {
+    tokens.verifyCurrent.mockResolvedValue(stepUpSession(now() - 901))
+    queryRaw.mockResolvedValue([...rows])
+    const denied = await get(detailPath, headers)
+    expect(denied.status).toBe(status)
+    if (status === 403) expect(denied.body.code).toBe('STEP_UP_REQUIRED')
+    expect(beneficiaryHandler).not.toHaveBeenCalled()
+  })
+
+  it('rejects a grant once the verified session has ended', async () => {
+    tokens.verifyCurrent.mockResolvedValue(stepUpSession(now() - 901))
+    prisma.withVerifiedContext.mockImplementationOnce(async () => {
+      throw new InactiveVerifiedSessionError()
+    })
+    expect((await get(detailPath, headers)).status).toBe(401)
+    expect(beneficiaryHandler).not.toHaveBeenCalled()
+  })
+
+  it('ignores client-supplied grant, session and step-up values', async () => {
+    tokens.verifyCurrent.mockResolvedValue(stepUpSession(now() - 901))
+    queryRaw.mockResolvedValue([{ pinState: 'SET', grantExpiresAt: null }])
+    const forgedSession = '99000000-0000-4000-8000-000000000099'
+    const denied = await get(`${detailPath}?sessionId=${forgedSession}&grant=PIN`, {
+      ...headers,
+      'x-pathways-session-id': forgedSession,
+      'x-pathways-step-up': 'PIN',
+    })
+    expect(denied.status).toBe(403)
+    expect(denied.body.code).toBe('STEP_UP_REQUIRED')
+    expect(pinCalls('step_up_pin_status')[0]?.slice(1)).toEqual([sessionId])
+    expect(JSON.stringify(prisma.withVerifiedContext.mock.calls)).not.toContain(forgedSession)
+  })
+
+  it('checks project scope before any grant lookup', async () => {
+    tokens.verifyCurrent.mockResolvedValue(stepUpSession(now() - 901))
+    projectFindFirst.mockResolvedValue(null)
+    queryRaw.mockResolvedValue(liveGrant())
+    const denied = await get(
+      `/boundary-test/projects/${unassignedProjectId}/beneficiary-detail`,
+      headers,
+    )
+    expect(denied.status).toBe(404)
+    expect(denied.body.code).toBeUndefined()
+    expect(queryRaw).not.toHaveBeenCalled()
+    expect(auditCreate).not.toHaveBeenCalled()
+  })
+
+  it.each(['PROGRAM_MANAGER', 'GRANT_MANAGER'] as const)(
+    'keeps aggregate-only %s denied detail regardless of a PIN grant',
+    async (role) => {
+      profiles.resolveWithSession.mockImplementation(async () => ({
+        ...profile,
+        roles: [role],
+        permissions: ['projects.read', 'beneficiaries.aggregates.read'],
+      }))
+      tokens.verifyCurrent.mockResolvedValue(stepUpSession(now() - 901))
+      queryRaw.mockResolvedValue(liveGrant())
+      const detail = await get(unpermittedPath, headers)
+      expect(detail.status).toBe(403)
+      expect(detail.body.message).toBe('Required application permission is missing.')
+      expect(queryRaw).not.toHaveBeenCalled()
+      expect(beneficiaryHandler).not.toHaveBeenCalled()
+    },
+  )
+
+  describe('PIN endpoints', () => {
+    const post = (path: string, body?: unknown, extra: Record<string, string> = {}) =>
+      send('POST', path, { ...headers, ...extra }, body)
+
+    it.each([
+      ['ACCEPTED', 200, undefined],
+      ['INCORRECT', 403, 'STEP_UP_PIN_INCORRECT'],
+      ['LOCKED', 409, 'STEP_UP_PIN_LOCKED'],
+      ['NOT_SET', 409, 'STEP_UP_PIN_NOT_SET'],
+    ] as const)('maps verify outcome %s to %i', async (outcome, status, code) => {
+      tokens.verifyCurrent.mockResolvedValue(stepUpSession(now() - 901))
+      const expiresAt = new Date(Date.now() + 900_000)
+      queryRaw.mockResolvedValue([
+        { outcome, expiresAt: outcome === 'ACCEPTED' ? expiresAt : null },
+      ])
+      const result = await post('/auth/step-up/pin', { pin: '482915' })
+      expect(result.status).toBe(status)
+      if (code) expect(result.body).toMatchObject({ code })
+      else
+        expect(result.body).toEqual({
+          verified: true,
+          method: 'PIN',
+          expiresAt: expiresAt.toISOString(),
+        })
+      if (outcome === 'INCORRECT') expect(result.body.message).toBe('Incorrect PIN')
+      if (outcome === 'LOCKED')
+        expect(result.body.message).toBe('PIN locked. Use your authenticator to unlock it.')
+      expect(result.raw).not.toContain('482915')
+      expect(pinCalls('step_up_pin_verify')[0]?.slice(1)).toEqual(['482915', sessionId])
+      expect(prisma.withVerifiedContext.mock.calls[0]?.[0]).toMatchObject({ sessionId })
+    })
+
+    it('accepts the PIN only in the JSON body and rejects extra or malformed fields', async () => {
+      tokens.verifyCurrent.mockResolvedValue(stepUpSession(now() - 901))
+      const cases: Array<[string, unknown, Record<string, string>]> = [
+        ['/auth/step-up/pin?pin=482915', undefined, {}],
+        ['/auth/step-up/pin', undefined, { 'x-pathways-pin': '482915' }],
+        ['/auth/step-up/pin', { pin: 482915 }, {}],
+        ['/auth/step-up/pin', { pin: '48291' }, {}],
+        ['/auth/step-up/pin', { pin: '４８２９１５' }, {}],
+      ]
+      for (const [path, body, extra] of cases) {
+        const result = await post(path, body, extra)
+        expect(result.status, JSON.stringify(body ?? path)).toBe(400)
+        expect(result.raw).not.toContain('482915')
+      }
+      expect(queryRaw).not.toHaveBeenCalled()
+      // A body session value never replaces the verified session claim.
+      queryRaw.mockResolvedValue([{ outcome: 'INCORRECT', expiresAt: null }])
+      const forged = '99000000-0000-4000-8000-000000000099'
+      await post('/auth/step-up/pin', { pin: '736150', sessionId: forged })
+      expect(pinCalls('step_up_pin_verify')[0]?.slice(1)).toEqual(['736150', sessionId])
+    })
+
+    it('requires a fresh TOTP from signed claims to set a PIN, and only once', async () => {
+      tokens.verifyCurrent.mockResolvedValue(stepUpSession(now() - 901))
+      const stale = await post('/auth/step-up/pin/setup', { pin: '482915' })
+      expect(stale).toMatchObject({ status: 403, body: { code: 'STEP_UP_TOTP_REQUIRED' } })
+      expect(queryRaw).not.toHaveBeenCalled()
+
+      const verifiedAt = now() - 120
+      tokens.verifyCurrent.mockResolvedValue(stepUpSession(verifiedAt))
+      for (const weak of ['111111', '123456', '987654', '1234567890123']) {
+        const rejected = await post('/auth/step-up/pin/setup', { pin: weak })
+        expect(rejected).toMatchObject({ status: 400, body: { code: 'STEP_UP_PIN_INVALID' } })
+        expect(rejected.raw).not.toContain(weak)
+      }
+      expect(queryRaw).not.toHaveBeenCalled()
+
+      queryRaw.mockResolvedValue([{ outcome: 'SET' }])
+      expect(await post('/auth/step-up/pin/setup', { pin: '482915' })).toMatchObject({
+        status: 200,
+        body: { pinState: 'SET' },
+      })
+      expect(pinCalls('step_up_pin_set')[0]?.slice(1)).toEqual([
+        '482915',
+        new Date(verifiedAt * 1000),
+      ])
+      queryRaw.mockResolvedValue([{ outcome: 'EXISTS' }])
+      expect(await post('/auth/step-up/pin/setup', { pin: '736150' })).toMatchObject({
+        status: 409,
+        body: { code: 'STEP_UP_PIN_EXISTS' },
+      })
+    })
+
+    it('changes with the current PIN or a fresh TOTP only', async () => {
+      tokens.verifyCurrent.mockResolvedValue(stepUpSession(now() - 901))
+      expect(await post('/auth/step-up/pin/change', { newPin: '529317' })).toMatchObject({
+        status: 403,
+        body: { code: 'STEP_UP_TOTP_REQUIRED' },
+      })
+      expect(queryRaw).not.toHaveBeenCalled()
+      queryRaw.mockResolvedValue([{ outcome: 'INCORRECT' }])
+      expect(
+        await post('/auth/step-up/pin/change', { newPin: '529317', currentPin: '736150' }),
+      ).toMatchObject({ status: 403, body: { code: 'STEP_UP_PIN_INCORRECT' } })
+      // A supplied current PIN is the proof; no TOTP time is asserted to the database.
+      expect(pinCalls('step_up_pin_change')[0]?.slice(1)).toEqual(['529317', '736150', null])
+
+      const verifiedAt = now() - 30
+      tokens.verifyCurrent.mockResolvedValue(stepUpSession(verifiedAt))
+      queryRaw.mockResolvedValue([{ outcome: 'CHANGED' }])
+      expect(await post('/auth/step-up/pin/change', { newPin: '529317' })).toMatchObject({
+        status: 200,
+        body: { pinState: 'SET' },
+      })
+      expect(pinCalls('step_up_pin_change')[1]?.slice(1)).toEqual([
+        '529317',
+        null,
+        new Date(verifiedAt * 1000),
+      ])
+      queryRaw.mockResolvedValue([{ outcome: 'TOTP_REQUIRED' }])
+      expect(await post('/auth/step-up/pin/change', { newPin: '529317' })).toMatchObject({
+        status: 403,
+        body: { code: 'STEP_UP_TOTP_REQUIRED' },
+      })
+    })
+
+    it('unlocks only with a fresh TOTP', async () => {
+      tokens.verifyCurrent.mockResolvedValue(stepUpSession(now() - 901))
+      expect(await post('/auth/step-up/pin/unlock')).toMatchObject({
+        status: 403,
+        body: { code: 'STEP_UP_TOTP_REQUIRED' },
+      })
+      expect(queryRaw).not.toHaveBeenCalled()
+      tokens.verifyCurrent.mockResolvedValue(stepUpSession(now() - 10))
+      queryRaw.mockResolvedValue([{ outcome: 'UNLOCKED' }])
+      expect(await post('/auth/step-up/pin/unlock')).toMatchObject({
+        status: 200,
+        body: { pinState: 'SET' },
+      })
+    })
+
+    it('throttles repeated PIN requests per user and sanitizes database failures', async () => {
+      tokens.verifyCurrent.mockResolvedValue(stepUpSession(now() - 901))
+      queryRaw.mockRejectedValue(new Error('synthetic failure with 482915 and $2a$10$hash'))
+      const failed = await post('/auth/step-up/pin', { pin: '482915' })
+      expect(failed.status).toBe(503)
+      expect(failed.raw).not.toMatch(/482915|\$2a\$|synthetic/)
+      queryRaw.mockResolvedValue([{ outcome: 'INCORRECT', expiresAt: null }])
+      for (let attempt = 2; attempt <= 10; attempt++) {
+        expect((await post('/auth/step-up/pin', { pin: '736150' })).status).toBe(403)
+      }
+      const throttled = await post('/auth/step-up/pin', { pin: '736150' })
+      expect(throttled).toMatchObject({ status: 429, body: { code: 'STEP_UP_PIN_THROTTLED' } })
+      expect(pinCalls('step_up_pin_verify')).toHaveLength(10)
+    })
+
+    it('requires verified MFA, a bearer token and a resolved profile for every PIN endpoint', async () => {
+      tokens.verifyCurrent.mockResolvedValue(verifiedSession('aal1'))
+      for (const path of [
+        '/auth/step-up/pin',
+        '/auth/step-up/pin/setup',
+        '/auth/step-up/pin/change',
+        '/auth/step-up/pin/unlock',
+      ]) {
+        expect((await post(path, { pin: '482915' })).status).toBe(403)
+      }
+      expect((await send('POST', '/auth/step-up/pin', {}, { pin: '482915' })).status).toBe(401)
+      expect(queryRaw).not.toHaveBeenCalled()
+    })
   })
 })

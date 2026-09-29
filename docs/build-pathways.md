@@ -2,7 +2,7 @@
 
 **Canonical:** `docs/build-pathways.md`
 
-Root `AGENTS.md` is a materialized copy. Edit this guide first, then synchronize `AGENTS.md`.
+Root `AGENTS.md` is a materialized copy. Edit this guide first, then run `pnpm docs:materialize` and `pnpm docs:check`.
 
 ## 1. Read Order
 
@@ -20,6 +20,8 @@ Before substantial implementation:
 10. `docs/aia-pathways.md`
 11. `docs/ops-pathways.md`
 12. this build guide
+
+Read `docs/sad-pathways.md` before proposing or implementing changed code; its specialist triggers and evidence gate apply alongside the relevant contracts.
 
 Read the manuscript/Master Context Pack when academic/domain context is needed.
 
@@ -54,15 +56,29 @@ Never silently resolve material contradictions.
 
 ### Frontend / visual work
 
-For frontend tasks, read the canonical `docs/dsd-pathways.md` and use root `BRAND.md` / `DESIGN.md` as quick materialized references. If they conflict with newer verified code, reconcile the canonical DSD first rather than silently choosing whichever file is convenient.
+For frontend tasks, read the canonical `docs/dsd-pathways.md` and use root `BRAND.md` / `DESIGN.md` as materialized references generated from it. If they conflict with newer verified code, reconcile the canonical DSD first rather than silently choosing whichever file is convenient.
 
 ### Branch and release workflow
 
 - `origin/master` is the deployment branch.
-- `Backend-DB` is the development branch; preserve this existing Git branch capitalization.
-- Prepare and verify changes on `Backend-DB`, then bring the approved release into `master` and push normally.
-- The Vercel `pathways-api` and `pathways-web` projects use `master` for production and `Backend-DB` for development previews.
+- `dev` is the development branch.
+- Prepare and verify changes on `dev`, then bring the approved release into `master` and push normally.
+- The Vercel `pathways-api` and `pathways-web` projects use `master` for production and `dev` for development previews.
+- Verify both development previews when shared web route policy affects API imports. If Vercel skips the API build, redeploy the reviewed development source explicitly and confirm both previews before database application.
 - Preserve branch history. Do not force-push a deployment branch or run database migrations as a deployment shortcut.
+
+### Release sequence
+
+Use `release-integrator` as the main-thread agent (`claude --agent release-integrator`) when integrating one or more feature branches for deployment. Stages run in order; any failure stops later stages and produces a report.
+
+1. **R1 Feature review:** each feature branch passes the SAD pipeline independently against `dev`.
+2. **R2 Integrate:** create `integration/<slug>` from current `dev` and merge each feature branch with `--no-ff`. Any conflict halts the run with a Human Intervention block; conflicts are never auto-resolved.
+3. **R3 Merged review:** run the SAD pipeline on the merged digest. Passing branches can still conflict semantically.
+4. **R4 Requirements QA:** `requirements-qa-gate` verifies each feature against its PRD acceptance criteria and QAD happy/sad/abuse rows. Every feature needs PASS.
+5. **R5 Development release:** merge into `dev`, push, and verify that both Vercel development previews build and respond.
+6. **R6 Deployment:** merge `dev` into `master` and push normally.
+
+The developer authorized R6 without per-release approval on 2026-09-28, only when all of these pass on the exact commit pushed: `pnpm -r typecheck`, test and build scripts, `pnpm docs:check`, `pnpm sad:signoff` with valid PASS evidence, R4 PASS for every feature, and healthy development previews. A release containing schema or migration changes stops before R6 for human authorization. Run logs and evidence go to `.tmp/release/<run>/`.
 
 ## 3. Traceability
 
@@ -143,13 +159,13 @@ Use the Locked SADDD RFC. Suppression is part of correctness.
 - derive identity/scope server-side;
 - scope sensitive queries before retrieval;
 - use migrations for schema changes;
-- preserve migration history;
+- preserve exact migration history and ledger checksums; approved consolidation archives original bytes and registers a verified baseline without executing it on populated databases;
 - separately authorize destructive work;
 - keep secrets out of code/docs/logs;
 - test happy/sad/abuse paths;
 - use synthetic/anonymized data;
 - preserve approved UI/UX unless redesign is authorized;
-- update TODO after phases;
+- keep phase/task tracking in external disposable context;
 - update registered durable docs only when an approved contract or verified repository fact changes;
 - keep disposable task/checklist/report context outside the repository;
 - report phase results in chat only.
@@ -198,10 +214,16 @@ explore
 
 Audits record findings. Change Records record decisions.
 
+### SAD review and sign-off
+
+Use the seven-role [SAD](sad-pathways.md) for changed-path matching and engineering rules. Review proposed changes with matching specialists and design QA concurrently in bounded batches before implementation; stop dependent work on a violation. After implementation, run `pnpm sad:check`, relevant tests, and renewed specialist reviews against the final change digest. Run `pnpm sad:signoff -- --reviews <external-json-path>` before engineering sign-off. Missing, stale, malformed, or BLOCKED evidence withholds sign-off; changed content invalidates previous evidence. Automated diagnostics do not certify semantic safety. Keep review reports outside tracked files, and omit unmatched roles rather than claiming PASS.
+
+Run reviews through `sad-orchestrator` as the main-thread agent (`claude --agent sad-orchestrator`), following the SAD section 3 stage order and section 3.1 handoff packet. Definitions live in `.claude/agents/` and defer to the SAD.
+
 ## 8. Human Intervention Contract
 
 ```text
-HUMAN INTERVENTION REQUIRED — <title>
+HUMAN INTERVENTION REQUIRED: <title>
 
 Why:
 <verified reason>
@@ -227,11 +249,12 @@ Do not bury a human gate inside a long phase report.
 
 ## 9. Definition of Done
 
-- [ ] authorized TODO scope implemented
+- [ ] authorized phase scope implemented
 - [ ] relevant PRD acceptance criteria satisfied
 - [ ] security/privacy invariants preserved
 - [ ] schema/API matches current SDD/RFC or approved CR
 - [ ] relevant QAD happy/sad/abuse tests pass
+- [ ] required SAD specialist/design reviews pass against final content and external evidence validates
 - [ ] no secrets committed
 - [ ] no unauthorized cross-org/project access
 - [ ] no user-facing prototype/mock/presentation-only labels introduced
@@ -246,10 +269,11 @@ Do not bury a human gate inside a long phase report.
 |---|---|---|
 | Canonical build guide | `docs/build-pathways.md` | edit first |
 | All agents | `AGENTS.md` | materialized copy |
-| Compatibility pointer | `AGENT.md` | points to AGENTS |
+| Brand reference | `BRAND.md` | materialized from DSD sections 0, 0.5, 1, 2, 8, 9 |
+| Design reference | `DESIGN.md` | materialized from DSD sections 2-8 |
 | Phase/task workflow | external/disposable prompt context | never committed as repository authority |
 
-No external FMD tooling is required or claimed.
+Regenerate materialized files with `pnpm docs:materialize` (`scripts/docs/materialize.py`). Validate the suite with `pnpm docs:check` (`scripts/docs/check.py`): em-dash/voice rules, index manifest coverage, PRD-F# traceability, and Locked-doc reconciliation dates. Never hand-edit materialized files.
 
 ## Self-Check
 

@@ -1,42 +1,9 @@
-import { FileWarning } from 'lucide-react'
-
-import { EmptyState } from '@/components/pathways/empty-state'
-import { ReportingWorkspace } from '@/features/reports/reporting-workspace'
-import { pathwaysClient } from '@/lib/services/pathways-client'
 import type { ReportKind } from '@/types/pathways'
+import { LiveReportingWorkspace } from './live-reporting-workspace'
 
-type ReportingPageProps = {
-  initialKind: ReportKind
-  previewOnly?: boolean
-}
-
-export const ReportingPage = async ({ initialKind, previewOnly = false }: ReportingPageProps) => {
-  try {
-    const projectSummaries = await pathwaysClient.getProjects()
-    const projects = await Promise.all(
-      projectSummaries.map((project) => pathwaysClient.getProject(project.id)),
-    )
-    return (
-      <ReportingWorkspace
-        activities={[]}
-        indicators={[]}
-        initialKind={initialKind}
-        journeyStages={[]}
-        previewOnly={previewOnly}
-        projects={projects}
-        reports={[]}
-        surveyForms={[]}
-        surveyResults={[]}
-      />
-    )
-  } catch {
-    return (
-      <EmptyState
-        className="min-h-80 rounded-lg border border-border bg-card"
-        description="Report data could not be loaded. The reporting backend may not be configured yet."
-        icon={FileWarning}
-        title="Reports unavailable"
-      />
-    )
-  }
-}
+export const ReportingPage = ({
+  initialKind,
+  previewOnly = false,
+}: { initialKind: ReportKind; previewOnly?: boolean }) => (
+  <LiveReportingWorkspace initialKind={initialKind} previewOnly={previewOnly} />
+)

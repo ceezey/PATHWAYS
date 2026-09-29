@@ -1,5 +1,7 @@
 # I01 frontend staff-shell design QA
 
+> **Historical record (2026-09-08).** The GUI prototype mode and development bypass described here have since been removed. Current design authority is `docs/dsd-pathways.md`.
+
 ## Comparison target
 
 - **Scope:** I01 frontend-only staff-shell chrome: PATHWAYS identity, desktop sidebar, current-location header, actor/role/scope context, session action, responsive navigation sheet, and visible focus. The dashboard body is not a fidelity target for this pass because the selected concept shows the later project-triage workflow while this narrowed I01 run did not authorize that workflow.
@@ -30,7 +32,7 @@ No actionable P0, P1, or P2 difference remains within the staff-shell comparison
 
 ## Comparison history
 
-1. **Initial comparison — blocked by one P2 accessibility issue.** The mobile sheet inherited `text-muted-foreground` for its close icon while rendering over the navy sidebar. The icon was visibly low contrast even though the control already had a 44 × 44px hit area.
+1. **Initial comparison: blocked by one P2 accessibility issue.** The mobile sheet inherited `text-muted-foreground` for its close icon while rendering over the navy sidebar. The icon was visibly low contrast even though the control already had a 44 × 44px hit area.
 2. **Fix applied.** `apps/web/src/components/layout/app-shell.tsx` now supplies white text, hover, and focus-ring treatment to the sheet's direct close button without changing the shared Sheet component or other surfaces.
 3. **Post-fix comparison.** `implementation-mobile-workspace-navigation.png` shows a visible white close icon and focus ring. The final Playwright run verified the target size and focus restoration; both scoped tests passed with no captured browser errors.
 

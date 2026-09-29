@@ -7,6 +7,8 @@ import {
 } from '@nestjs/common'
 import { createClient } from '@supabase/supabase-js'
 
+import { isApprovedServiceProtocol } from '@pathways/config'
+import type { InspectionRequestBudget } from '../../common/network/inspection-request-budget'
 import { UUID_PATTERN, type VerifiedAuthIdentity } from './developer-access'
 import { SessionLivenessService } from './session-liveness.service'
 
@@ -28,7 +30,11 @@ export interface VerifiedAuthSession {
 export class TokenAuthService {
   constructor(@Inject(SessionLivenessService) private readonly sessions: SessionLivenessService) {}
 
-  async verifyCurrent(token: string): Promise<VerifiedAuthSession> {
+  async verifyCurrent(
+    token: string,
+    budget?: InspectionRequestBudget,
+  ): Promise<VerifiedAuthSession> {
+    budget?.check()
     // Never parse the entire environment into errors that could contain secrets.
     const url = process.env.SUPABASE_URL
     const key =
@@ -39,7 +45,7 @@ export class TokenAuthService {
     let authOrigin: string
     try {
       const configured = new URL(url ?? '')
-      if (configured.protocol !== 'https:' || configured.username || configured.password)
+      if (!isApprovedServiceProtocol(configured) || configured.username || configured.password)
         throw new Error()
       authOrigin = configured.origin
     } catch {
@@ -56,11 +62,20 @@ export class TokenAuthService {
           // Bounded Auth reads only; never redirect bearer credentials.
           fetch: async (input, init) => {
             try {
-              return await fetch(input, {
+              budget?.check()
+              const response = await fetch(input, {
                 ...init,
                 redirect: 'error',
-                signal: AbortSignal.timeout(10_000),
+                signal: budget
+                  ? AbortSignal.any([
+                      AbortSignal.timeout(10_000),
+                      budget.signal,
+                      ...(init?.signal ? [init.signal] : []),
+                    ])
+                  : AbortSignal.timeout(10_000),
               })
+              budget?.check()
+              return response
             } catch {
               // Auth JS logs rejected fetch errors before our outer catch. Convert
               // transport failure to an empty denial, never a provider diagnostic.
@@ -71,6 +86,7 @@ export class TokenAuthService {
       })
       const claimsStartedAt = performance.now()
       const result = await supabase.auth.getClaims(token)
+      budget?.check()
       const claimsMs = boundedStageDuration(claimsStartedAt)
       if (result.error || !result.data) throw new Error('Invalid token')
       const claims = result.data.claims
@@ -88,6 +104,24 @@ export class TokenAuthService {
             Number.isFinite(method.timestamp) &&
             method.timestamp <= now + 30,
         )
+      // Latest signed TOTP verification, used only for Beneficiary step-up
+      // freshness. Future-dated entries beyond clock skew are ignored.
+      let mfaVerifiedAt: number | undefined
+      if (Array.isArray(claims.amr)) {
+        for (const method of claims.amr) {
+          if (
+            typeof method === 'object' &&
+            method !== null &&
+            method.method === 'totp' &&
+            typeof method.timestamp === 'number' &&
+            Number.isFinite(method.timestamp) &&
+            method.timestamp <= now + 30 &&
+            (mfaVerifiedAt === undefined || method.timestamp > mfaVerifiedAt)
+          ) {
+            mfaVerifiedAt = method.timestamp
+          }
+        }
+      }
       if (
         claims.iss !== `${authOrigin}/auth/v1` ||
         claims.aud !== 'authenticated' ||
@@ -111,8 +145,10 @@ export class TokenAuthService {
         throw new Error('Invalid claims')
       }
       // Current identity + verified signature. Neither metadata field grants authority.
+      budget?.check()
       const currentUserStartedAt = performance.now()
       const current = await supabase.auth.getUser(token)
+      budget?.check()
       const currentUserMs = boundedStageDuration(currentUserStartedAt)
       if (
         current.error ||
@@ -127,21 +163,29 @@ export class TokenAuthService {
         throw new Error('Invalid current identity')
       }
       verified = {
-        identity: { id: claims.sub, aal: claims.aal },
+        identity: {
+          id: claims.sub,
+          aal: claims.aal,
+          ...(claims.aal === 'aal2' && mfaVerifiedAt !== undefined ? { mfaVerifiedAt } : {}),
+        },
         sessionId: claims.session_id,
         stageTimings: { claimsMs, currentUserMs },
       }
     } catch {
+      budget?.check()
       // Discard provider errors; they can contain tokens or request details.
       throw new UnauthorizedException('Invalid or expired authentication. Sign in again.')
     }
     return verified
   }
 
-  async assertSessionLive(verified: VerifiedAuthSession): Promise<void> {
+  async assertSessionLive(
+    verified: VerifiedAuthSession,
+    budget?: InspectionRequestBudget,
+  ): Promise<void> {
     // Keep infrastructure failures as sanitized 503s. An unexpired signed JWT
     // must not bypass a committed session removal, missing helper or DB outage.
-    await this.sessions.assertLive(verified.identity.id, verified.sessionId)
+    await this.sessions.assertLive(verified.identity.id, verified.sessionId, budget)
   }
 
   async verify(token: string): Promise<VerifiedAuthIdentity> {

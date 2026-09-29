@@ -29,7 +29,8 @@ const activityFormBaseSchema = z
       .default('Planned'),
     progress: z.coerce.number().min(0).max(100).default(0),
     beneficiariesReached: z.coerce.number().int().min(0).default(0),
-    budgetLogged: z.coerce.number().min(0).default(0),
+    // Display-only. Null means the viewer cannot read expenses; it is never coerced to 0.
+    budgetLogged: z.coerce.number().min(0).nullable().default(null),
   })
   .refine((value) => new Date(value.dueDate) >= new Date(value.startDate), {
     message: 'Due date must be on or after the start date.',
@@ -41,14 +42,15 @@ export const activityFormSchema = activityFormBaseSchema
 export const createActivityFormSchema = ({
   indicatorIds,
   journeyStageIds,
-  officerNames,
+  officerIds,
 }: {
   indicatorIds: readonly string[]
   journeyStageIds: readonly string[]
-  officerNames: readonly string[]
+  /** Assignable officer user ids from the project-scoped officer read. */
+  officerIds: readonly string[]
 }) =>
   activityFormBaseSchema.superRefine((value, context) => {
-    if (value.assignedOfficers.some((officer) => !officerNames.includes(officer))) {
+    if (value.assignedOfficers.some((officer) => !officerIds.includes(officer))) {
       context.addIssue({
         code: z.ZodIssueCode.custom,
         message: 'Select officers assigned to this project.',

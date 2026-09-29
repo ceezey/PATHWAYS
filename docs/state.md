@@ -1,0 +1,23 @@
+# PATHWAYS Operating Position
+
+Updated: 2026-09-28. Registry and statuses live in `index.md`.
+
+## Milestone
+
+The [revised RBAC and migration baseline Change Record](cr-pathways-revised-rbac-baseline.md) is Applied. The auth RFC is Locked after local replay and PATHWAYS-dev/development-preview verification. The active baseline plus 0027/0028 retains all 26 original remote ledger entries and exact archived history. Subsequent core-feature repairs require separate authorization.
+
+## Open signals
+
+- PATHWAYS-dev migration 0020 has an unexplained checksum mismatch; the original applied SQL is unavailable, and the developer approved this historical checksum exception. Forward corrections 0027/0028 and the baseline registration are verified following preview and isolated backup restoration checks. Historical bytes remain in the approved immutable archive; ledger entries remain unchanged.
+- Migration 0015 checksum matches the unchanged SQL with CRLF line endings.
+- Finance sign-off, evaluation, reporting, alerts/recommendations and publishing are implemented through migrations 0029-0034 and verified on a synthetic local replay; PATHWAYS-dev remains at 0028 and hosted installation is pending. Indicator-based rules need an eligibility approval path that does not exist yet.
+- Beneficiary identity reconciliation and unlisted discretionary actions remain denied under the Locked CSV contract.
+- Target beneficiaries remain active. [Approved project target-goal retirement](cr-pathways-retire-project-target-goal.md) removes live inputs, outputs and comparisons while preserving its database column/history and independent indicator targets; implementation/verification remain pending.
+- Production runtime and deployment completion require independently verified evidence.
+
+## Boundaries
+
+- `master` deploys; `dev` develops.
+- No production release or subsequent core-feature repairs are authorized by this phase.
+- SSO and AWS hosting stay deferred.
+- No runtime AI/ML feature is approved.

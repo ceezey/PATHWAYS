@@ -10,7 +10,7 @@ describe('P06 indicator route viewing is separate from management', () => {
     (role) => {
       const principal = {
         roles: [role],
-        permissions: ['monitoring.read'],
+        permissions: ['indicators.read'],
         assignedProjectIds: [projectId],
       }
       expect(getVerifiedRouteAccess(principal, route).allowed).toBe(true)
@@ -22,7 +22,7 @@ describe('P06 indicator route viewing is separate from management', () => {
   it('requires the current assignment for project-scoped readers', () => {
     expect(
       getVerifiedRouteAccess(
-        { roles: ['PROJECT_MANAGER'], permissions: ['monitoring.read'], assignedProjectIds: [] },
+        { roles: ['PROJECT_MANAGER'], permissions: ['indicators.read'], assignedProjectIds: [] },
         route,
       ).allowed,
     ).toBe(false)
@@ -35,7 +35,7 @@ describe('P06 indicator route viewing is separate from management', () => {
         getVerifiedRouteAccess(
           {
             roles: [role],
-            permissions: ['monitoring.read', 'indicators.create', 'indicators.update'],
+            permissions: ['indicators.read', 'indicators.create', 'indicators.update'],
             assignedProjectIds: [projectId],
           },
           route,

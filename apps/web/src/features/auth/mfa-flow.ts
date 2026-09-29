@@ -12,7 +12,8 @@ export const getVerifiedTotpFactors = <T extends TotpFactor>(factors: readonly T
 export const isTotpCode = (code: string) => /^\d{6}$/.test(code)
 
 export const getQrImageSource = (qr: string): string => {
-  // No HTML injection, remote QR renderer, otpauth URI, or manual secret fallback.
+  // No HTML injection, remote QR renderer, or otpauth URI. The manual setup key is
+  // rendered as text by the enrollment form, from the same in-memory response.
   if (qr.startsWith('data:image/svg+xml;utf-8,')) return qr
   if (qr.trimStart().startsWith('<svg')) {
     return `data:image/svg+xml;utf-8,${encodeURIComponent(qr)}`

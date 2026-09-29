@@ -23,6 +23,7 @@ import { AuthDirectoryService } from './auth-directory.service'
 import type { AuthorizeExistingUserDto, UpdateAuthorizedUserDto } from './users.dto'
 
 const assignableRoles: readonly CanonicalRole[] = [
+  'GRANT_MANAGER',
   'PROJECT_MANAGER',
   'MONITORING_AND_EVALUATION_OFFICER',
   'PROJECT_OFFICER',

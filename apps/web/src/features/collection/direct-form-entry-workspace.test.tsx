@@ -3,6 +3,19 @@
 import { cleanup, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
+vi.mock('@/hooks/use-current-role', () => ({
+  useCurrentRole: () => ({
+    profile: {
+      id: 'auth-1',
+      userId: 'actor-1',
+      organizationId: 'org-1',
+      roles: ['PROJECT_OFFICER'],
+      permissions: ['submissions.write'],
+      assignedProjectIds: ['project-1'],
+    },
+  }),
+}))
+
 import { DirectFormEntryWorkspace } from './direct-form-entry-workspace'
 
 const api = vi.hoisted(() => ({
