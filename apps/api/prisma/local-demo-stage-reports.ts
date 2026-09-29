@@ -55,6 +55,13 @@ const reportPlans: ReportPlan[] = [
     format: 'XLSX',
     name: 'Alternative Learning System indicator results',
   },
+  {
+    project: 'ECD',
+    by: 'projectManager',
+    kind: 'PROJECT_SUMMARY',
+    format: 'CSV',
+    name: 'Masbate early childhood pilot progress summary',
+  },
 ]
 
 /** Generated report artifacts, each produced by a role that holds the matching report permission.

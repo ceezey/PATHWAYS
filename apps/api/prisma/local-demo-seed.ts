@@ -113,6 +113,23 @@ export function requireId(map: Map<ProjectKey, string>, key: ProjectKey) {
   return id
 }
 
+/** The report service uploads CSV reports as "text/csv; charset=utf-8", which the private bucket's
+ * allow list ("text/csv") rejects with a 503 on the local storage server. Only this local bucket
+ * is widened, so a CSV report can also be generated live during a demonstration. */
+async function allowCsvReportContentType(client: DemoContext['supabase']) {
+  const wanted = 'text/csv; charset=utf-8'
+  const { data, error } = await client.storage.listBuckets()
+  if (error) throw error
+  const bucket = data.find((row) => row.id === 'pathways-private')
+  if (!bucket || bucket.allowed_mime_types?.includes(wanted)) return
+  const { error: updateError } = await client.storage.updateBucket('pathways-private', {
+    public: false,
+    fileSizeLimit: bucket.file_size_limit ?? undefined,
+    allowedMimeTypes: [...(bucket.allowed_mime_types ?? []), wanted],
+  })
+  if (updateError) throw updateError
+}
+
 async function main() {
   assertLocalDemoTarget(process.env)
   const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
@@ -143,6 +160,7 @@ async function main() {
   const failures: string[] = []
   try {
     await reconcileStorageBuckets(supabase.storage)
+    await allowCsvReportContentType(supabase)
 
     const staff = {} as Record<StaffKey, Staff>
     let organizationId = ''

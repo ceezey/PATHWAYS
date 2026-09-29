@@ -73,6 +73,16 @@ export async function stageEnrollmentOutcomes(ctx: DemoContext) {
         select: { id: true },
       })
       if (!active) continue
+      // A follow-up keeps the enrollment active, so check the recorded event to stay idempotent.
+      const already = await ctx.owner.beneficiaryJourneyEvent.findFirst({
+        where: {
+          enrollmentId: active.id,
+          eventType: outcome.eventType,
+          description: outcome.description,
+        },
+        select: { id: true },
+      })
+      if (already) continue
       await step(`enrollment outcome ${person.code}`, () =>
         ctx.services.participants.transitionEnrollment(
           ctx.staff[project.officers[0]].identity,
