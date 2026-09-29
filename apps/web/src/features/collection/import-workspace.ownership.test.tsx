@@ -112,7 +112,11 @@ describe('import uploader automation and ownership', () => {
       ])
     })
     await waitFor(() =>
-      expect(within(screen.getByText('Project', { selector: 'label' }).closest('div') as HTMLElement).getByRole('combobox').textContent).toContain('Project'),
+      expect(
+        within(
+          screen.getByText('Project', { selector: 'label' }).closest('div') as HTMLElement,
+        ).getByRole('combobox').textContent,
+      ).toContain('Project'),
     )
   })
 
@@ -126,7 +130,11 @@ describe('import uploader automation and ownership', () => {
     render(<ImportWorkspace />)
     await waitFor(() => expect(api.getProjects).toHaveBeenCalled())
     await waitFor(() =>
-      expect(within(screen.getByText('Project', { selector: 'label' }).closest('div') as HTMLElement).getByRole('combobox').textContent).toContain('Project'),
+      expect(
+        within(
+          screen.getByText('Project', { selector: 'label' }).closest('div') as HTMLElement,
+        ).getByRole('combobox').textContent,
+      ).toContain('Project'),
     )
   })
 
