@@ -295,7 +295,19 @@ export const ActivityDetailContent = ({
                       This proof was returned for correction.
                     </p>
                   ) : null}
-                  {isLatest && canValidateProof && proof.status === 'Submitted' ? (
+                  {isLatest &&
+                  canValidateProof &&
+                  proof.status === 'Submitted' &&
+                  activity.storedStatus !== 'FOR_REVIEW' ? (
+                    <p className="mt-4 text-sm text-muted-foreground">
+                      Waiting for the officer to finish uploading this proof. It can be reviewed
+                      once every file is submitted.
+                    </p>
+                  ) : null}
+                  {isLatest &&
+                  canValidateProof &&
+                  proof.status === 'Submitted' &&
+                  activity.storedStatus === 'FOR_REVIEW' ? (
                     <Button
                       className="mt-4 gap-2"
                       onClick={() => setReviewTarget({ mode: 'validate', proof })}

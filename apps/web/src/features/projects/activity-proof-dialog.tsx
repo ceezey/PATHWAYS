@@ -39,6 +39,15 @@ const fallbackLimits: ActivityProofUploadLimits = {
 
 type FileStatus = 'waiting' | 'uploading' | 'uploaded' | 'failed'
 
+// A 409 on reservation means the activity cannot take this proof right now. The most common
+// case is an earlier progress note or proof that M&E has not reviewed yet: say so plainly and
+// say what unblocks it, instead of repeating the bare server sentence.
+function conflictMessage(serverMessage: string) {
+  if (/already awaiting review/i.test(serverMessage))
+    return 'Another update on this activity is still waiting for M&E review, so this proof cannot be submitted yet. Ask the M&E reviewer to approve or return that update, then submit again.'
+  return `${serverMessage} Reload the activity to see its current state, then try again.`
+}
+
 interface ProofFileItem {
   key: string
   file: File
@@ -377,9 +386,11 @@ const ScopedActivityProofDialog = ({
     } catch (caught) {
       if (!scope.isCurrent()) return
       setError(
-        caught instanceof Error
-          ? caught.message
-          : 'The activity update could not be completed. Review the details and try again.',
+        caught instanceof PathwaysClientError && caught.status === 409
+          ? conflictMessage(caught.message)
+          : caught instanceof Error
+            ? caught.message
+            : 'The activity update could not be completed. Review the details and try again.',
       )
       setSubmitting(false)
     }
