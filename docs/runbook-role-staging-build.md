@@ -46,7 +46,7 @@ Keep both files under the repository's ignored `.tmp/` directory or outside the 
 node scripts/db/hosted-build.mjs --dry-run
 ```
 
-Check the printed 24-step plan. It covers the prisma role, the 0000 baseline and its registration, then staged deploys with the preprovision and cleanup steps around 0031, 0034, 0037, 0041 and 0044, with the 0042 and 0043 deploys between 0041 and 0044, then the runtime login, then the postconditions.
+Check the printed 25-step plan. It covers the prisma role, the 0000 baseline and its registration, then staged deploys with the preprovision and cleanup steps around 0031, 0034, 0037, 0041 and 0044, with the 0042 and 0043 deploys between 0041 and 0044 and the 0045 deploy after 0044, then the runtime login, then the postconditions.
 
 ```bash
 node scripts/db/hosted-build.mjs --env-file .tmp/role-staging-build.env
@@ -54,13 +54,13 @@ node scripts/db/hosted-build.mjs --env-file .tmp/role-staging-build.env
 
 Every step prints `start` and `done` lines and has a time limit. A successful build ends with these PASS lines:
 
-- `PASS: ledger has exactly 19 migrations 0000-0044, all finished and none failed`
+- `PASS: ledger has exactly 20 migrations 0000-0045, all finished and none failed`
 - `PASS: no residual temporary owner memberships for prisma`
 - `PASS: role count matches the repo-derived expectation (21 roles ...)`
 - `PASS: schema-level permission grants observed (...)`
 - `PASS: pathways_runtime has LOGIN enabled`
 
-The ledger holds 19 rows because 0000 is the consolidated baseline for the historical 0001 to 0026.
+The ledger holds 20 rows because 0000 is the consolidated baseline for the historical 0001 to 0026.
 
 **If a step fails:** the tool runs the matching cleanup script whenever the failure happens anywhere between a preprovision step and its cleanup (the preprovision step itself, or the deploy that follows it), then rethrows the original error. Fix the reported cause, then rerun with `--resume`.
 
@@ -102,7 +102,7 @@ After the preview passes, update the Production environment with the same values
 
 Agents confirm each stage with read-only checks, covering the migration ledger, roles, buckets and row counts, and record the verified hosted facts in the rollout record. PATHWAYS-dev stays untouched until the developer retires it.
 
-## 7. Applying 0042, 0043 and 0044 to the already-built role-staging
+## 7. Applying 0042 through 0045 to the already-built role-staging
 
 The role-staging project described above was built through migration 0041. Migration 0042 (cr-pathways-proof-session-beneficiary-count) adds one nullable column to `pathways.activity_updates` and redefines `pathways.p08_activity_beneficiaries_reached`. Migration 0043 (cr-pathways-activity-overdue-explanation) creates the append-only `pathways.activity_overdue_explanations` table. Neither needs preprovision or cleanup, so both slot into the existing `--resume` path as two extra deploy steps. Migration 0044 (progress-only activity review) does need one: it replaces `pathways.f10_begin_source_operation` (owner `rules_enqueue_owner`) and `pathways_rules_internal.prove_source_root_dml` (owner `rules_source_proof_owner`) so that an M&E officer can approve or return a pending progress-only update while its activity is `IN_PROGRESS`, and it lends schema CREATE through the schema owners for those two statements only. `hosted-activity-review-preprovision.sql` grants `prisma` a temporary SET-only chain (no ADMIN, no INHERIT) to exactly `rules_store_owner`, `rules_enqueue_owner` and `rules_source_proof_owner` before the 0044 deploy, and `hosted-activity-review-cleanup.sql` revokes it right after, also after a failed attempt. Everything is applied by a single command.
 
@@ -137,10 +137,10 @@ The operator runs:
 node scripts/db/hosted-build.mjs --env-file .tmp/role-staging-build.env --resume
 ```
 
-Because the ledger is already the complete, cleanly finished 0000 to 0041 prefix, `--resume` first checks for residual activity-media owner memberships (see above), then continues with the 0042 deploy, then the 0043 deploy, then the activity-review preprovision, the 0044 deploy and its cleanup, then the postconditions. Unless a residual membership was found, it does not re-run the activity-media cleanup; the runtime-role alteration always runs again at the end regardless, since `ALTER ROLE ... WITH LOGIN` is idempotent. A successful run ends with these PASS lines:
+Because the ledger is already the complete, cleanly finished 0000 to 0041 prefix, `--resume` first checks for residual activity-media owner memberships (see above), then continues with the 0042 deploy, then the 0043 deploy, then the activity-review preprovision, the 0044 deploy and its cleanup, then the 0045 deploy, then the postconditions. Unless a residual membership was found, it does not re-run the activity-media cleanup; the runtime-role alteration always runs again at the end regardless, since `ALTER ROLE ... WITH LOGIN` is idempotent. A successful run ends with these PASS lines:
 
 - `PASS: resume preflight (pathways schema present, auth.users present, prisma role present, ledger is a clean finished prefix with 16 migrations applied, residual temporary owner memberships: false)`
-- `PASS: ledger has exactly 19 migrations 0000-0044, all finished and none failed`
+- `PASS: ledger has exactly 20 migrations 0000-0045, all finished and none failed`
 - `PASS: no residual temporary owner memberships for prisma`
 - `PASS: role count matches the repo-derived expectation (21 roles ...)`
 - `PASS: schema-level permission grants observed (...)`
@@ -154,7 +154,9 @@ The same ambiguity applies to the 0044 chain, so `--resume` reads the live owner
 
 - Ledger ending at 0043, no temporary membership: `--resume` runs the activity-review preprovision, then the 0044 deploy and its cleanup.
 - Ledger ending at 0043, memberships already present (a run died after the preprovision): the preprovision would refuse to grant twice, so `--resume` goes straight to the 0044 deploy and its cleanup.
-- Ledger ending at 0044, memberships still present (a run died before the cleanup): `--resume` re-runs `hosted-activity-review-cleanup.sql`, then the runtime-role alteration and the postconditions.
-- Ledger ending at 0044, no memberships: `--resume` continues directly at the runtime-role alteration.
+- Ledger ending at 0044, memberships still present (a run died before the cleanup): `--resume` re-runs `hosted-activity-review-cleanup.sql`, then the 0045 deploy, the runtime-role alteration and the postconditions.
+- Ledger ending at 0044, no memberships: `--resume` continues directly at the 0045 deploy, then the runtime-role alteration.
 
 After 0044, a progress-only note that is still `PENDING` on a role-staging activity can be approved or returned by the assigned M&E officer, and the activity keeps `IN_PROGRESS` until an approved proof update reaches 100 percent.
+
+Migration 0045 (cr-pathways-f9-trusted-aggregates) adds two prisma-owned SECURITY DEFINER functions, `pathways.p10_f9_survey_aggregate` and `pathways.p10_f9_timeline_aggregate`, and changes no table, column, policy or grant. It needs no preprovision or cleanup, so a ledger holding exactly 0000 to 0044 (cleanup already run) resumes directly at the 0045 deploy and then the postconditions. Applying 0045 to role-staging or any hosted database needs separate developer authorization.

@@ -135,7 +135,7 @@ test('runHostedBuild executes the full plan in order against a fake IO and reach
   const kinds = io.calls.map((c) => c.kind)
   assert.ok(kinds.includes('psqlSql'))
   assert.ok(kinds.includes('resolve'))
-  assert.equal(kinds.filter((k) => k === 'deploy').length, 10)
+  assert.equal(kinds.filter((k) => k === 'deploy').length, 11)
   assert.equal(kinds.filter((k) => k === 'psqlFile').length, 9) // 5 preprovision + 4 cleanup
 })
 
@@ -414,7 +414,9 @@ test('runHostedBuild --resume on a 0000-0044 ledger with residual owner membersh
   await assert.rejects(() => runHostedBuild({ io, config, resume: true }))
   const first = io.calls.find((c) => c.kind === 'psqlFile')
   assert.ok(first?.filePath.endsWith('hosted-activity-review-cleanup.sql'))
-  assert.ok(!io.calls.some((c) => c.kind === 'deploy'), 'no migration remains to deploy')
+  const firstDeploy = io.calls.findIndex((c) => c.kind === 'deploy')
+  const firstFile = io.calls.findIndex((c) => c.kind === 'psqlFile')
+  assert.ok(firstDeploy === -1 || firstFile < firstDeploy, 'cleanup precedes the 0045 deploy')
 })
 
 test('runHostedBuild runs the activity-review cleanup and rethrows when the 0044 deploy fails', async () => {
@@ -439,6 +441,29 @@ test('runHostedBuild runs the activity-review cleanup and rethrows when the 0044
     ),
     'the activity-review cleanup must run when the 0044 deploy fails',
   )
+})
+
+test('runHostedBuild --resume on a clean 19-row (0000-0044) ledger resumes directly at the 0045 deploy', async () => {
+  const io = makeFakeIO({ schemaPresent: true, rolePresent: true })
+  const appliedThrough0044 = MIGRATIONS_IN_ORDER.slice(
+    0,
+    MIGRATIONS_IN_ORDER.indexOf('0044_activity_progress_review') + 1,
+  )
+  io.setLedger(
+    appliedThrough0044.map((migration_name) => ({
+      migration_name,
+      finished_at: 'now',
+      rolled_back_at: null,
+    })),
+  )
+  await assert.rejects(() => runHostedBuild({ io, config, resume: true }))
+  const ranPsqlFile = io.calls.some((c) => c.kind === 'psqlFile')
+  assert.ok(
+    !ranPsqlFile,
+    'no preprovision/cleanup step remains after the 0044 cleanup and before 0045',
+  )
+  const ranDeploy = io.calls.some((c) => c.kind === 'deploy')
+  assert.ok(ranDeploy, 'resume must continue at the 0045 deploy')
 })
 
 test('runHostedBuild runs the rules cleanup and rethrows when the 0031 deploy fails', async () => {

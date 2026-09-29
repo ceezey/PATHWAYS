@@ -355,6 +355,56 @@ export function activityObservation(input: unknown): MetricObservation {
   })
 }
 
+const activityAggregateSchema = z
+  .object({
+    eligible: z.number().int().min(0),
+    completed: z.number().int().min(0),
+    overdue: z.number().int().min(0),
+    missingDates: z.number().int().min(0),
+  })
+  .strict()
+  .refine(
+    (counts) =>
+      counts.completed <= counts.eligible &&
+      counts.overdue + counts.missingDates <= counts.eligible - counts.completed,
+    { message: 'Activity aggregate counts are inconsistent.' },
+  )
+
+/**
+ * Aggregate form of activityObservation's two population metrics, for callers that hold
+ * counts from the trusted database function instead of activity rows. `eligible` is the
+ * non-archived, non-cancelled population; `overdue` counts non-completed members whose
+ * planned end date is before the reporting date; `missingDates` counts non-completed
+ * members with no valid planned end date. The rules mirror activityObservation exactly:
+ * an empty population is EMPTY_POPULATION, any missing date makes the overdue count
+ * MISSING_DATES, and completion is completed / eligible through indicatorProgress.
+ */
+export function activityAggregateCells(input: unknown): {
+  ACTIVITY_COMPLETION_PERCENT: Cell
+  ACTIVITY_OVERDUE_COUNT: Cell
+} {
+  const counts = activityAggregateSchema.parse(input)
+  if (counts.eligible === 0)
+    return {
+      ACTIVITY_COMPLETION_PERCENT: unavailable('EMPTY_POPULATION'),
+      ACTIVITY_OVERDUE_COUNT: unavailable('EMPTY_POPULATION'),
+    }
+  return {
+    ACTIVITY_COMPLETION_PERCENT: safeCell(
+      indicatorProgress(
+        numericMetric(String(counts.completed)),
+        '0',
+        String(counts.eligible),
+        'HIGHER_IS_BETTER',
+      ),
+    ),
+    ACTIVITY_OVERDUE_COUNT:
+      counts.missingDates > 0
+        ? unavailable('MISSING_DATES')
+        : numericMetric(String(counts.overdue)),
+  }
+}
+
 export const supportedInitialMetrics: readonly RuleMetricKey[] = [
   'INDICATOR_CURRENT_VALUE',
   'INDICATOR_PROGRESS_PERCENT',
