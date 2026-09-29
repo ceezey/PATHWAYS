@@ -391,11 +391,22 @@ const ScopedActivityProofDialog = ({
       }
       // Every reserved file needs processing, including one the reservation already reported as
       // storageReady (a READY_TO_COMMIT reply): it still needs its finalize call to commit.
-      const targets = workingFiles.filter((item) => item.status !== 'uploaded' && item.evidenceId)
+      const pendingTargets = workingFiles.filter(
+        (item) => item.status !== 'uploaded' && item.evidenceId,
+      )
+      // Every file already finalized but the update never committed: the retry is one finalize of
+      // a reserved file, which is idempotent and commits an update whose files are all ready.
+      const lastReserved = workingFiles.filter((item) => item.evidenceId).at(-1)
+      const targets = pendingTargets.length ? pendingTargets : lastReserved ? [lastReserved] : []
       const outcomes = await Promise.all(targets.map((item) => processFile(item)))
       // Finalizes that ran together can each report UPLOADING while the update is in fact ready.
       // One more finalize, after all of them settled, is idempotent and commits it.
-      if (scope.isCurrent() && !committed.current && outcomes.every(Boolean) && targets.length) {
+      if (
+        scope.isCurrent() &&
+        !committed.current &&
+        outcomes.every(Boolean) &&
+        pendingTargets.length
+      ) {
         await processFile(targets[targets.length - 1])
       }
       if (scope.isCurrent() && !committed.current) {

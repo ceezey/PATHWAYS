@@ -209,6 +209,47 @@ describe('ActivityProofDialog direct upload', () => {
     fireEvent.click(screen.getByRole('button', { name: /Submit proof/ }))
     await waitFor(() => expect(onSubmitted).toHaveBeenCalledWith(activity))
     expect(api.finalizeActivityProofFile).toHaveBeenCalledTimes(3)
+    expect(screen.queryByRole('alert')).toBeNull()
+  })
+
+  it('completes when the user retries Submit proof after every file is uploaded', async () => {
+    const onSubmitted = vi.fn()
+    api.reserveActivityProofUpload.mockResolvedValue({
+      clientUpdateId: 'client-1',
+      updateId: 'update-1',
+      status: 'READY_TO_COMMIT',
+      files: [
+        {
+          evidenceId: 'evidence-1',
+          fileName: 'a.pdf',
+          contentType: 'application/pdf',
+          byteSize: 1024,
+          sha256: 'x'.repeat(64),
+          storageReady: true,
+          uploadUrl: null,
+        },
+      ],
+    })
+    api.finalizeActivityProofFile
+      .mockResolvedValueOnce({ status: 'UPLOADING', updateId: 'update-1', remaining: 1 })
+      .mockResolvedValueOnce({ status: 'UPLOADING', updateId: 'update-1', remaining: 1 })
+      .mockResolvedValueOnce({ status: 'COMMITTED', acknowledgement: {} })
+    api.getActivity.mockResolvedValue(activity)
+    renderDialog(onSubmitted)
+    await waitFor(() => expect(api.getActivityProofUploadLimits).toHaveBeenCalledOnce())
+    selectFiles([makeFile('a.pdf', 'application/pdf')])
+    await screen.findByText('a.pdf')
+    fireEvent.change(screen.getByLabelText(/Narrative Notes/), {
+      target: { value: 'Synthetic proof note' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: /Submit proof/ }))
+    await waitFor(() =>
+      expect(screen.getByRole('alert').textContent).toContain('not submitted for review'),
+    )
+    expect(api.finalizeActivityProofFile).toHaveBeenCalledTimes(2)
+    fireEvent.click(screen.getByRole('button', { name: /Submit proof/ }))
+    await waitFor(() => expect(onSubmitted).toHaveBeenCalledWith(activity))
+    expect(api.finalizeActivityProofFile).toHaveBeenCalledTimes(3)
   })
 
   it('tells the user when every file is uploaded but the update did not commit', async () => {
