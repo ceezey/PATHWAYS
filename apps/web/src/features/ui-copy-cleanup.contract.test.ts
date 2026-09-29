@@ -101,11 +101,14 @@ describe('"None yet" empty states versus error and permission wording', () => {
   it('derives the participation empty-chart title from the shared metric-unavailable helper, not an unconditional "None yet"', () => {
     const analytics = source('features/analytics/analytics-dashboard.tsx')
     expect(analytics).toContain(
-      "import { metricUnavailableLabel } from '@/features/projects/project-utils'",
+      "import { metricUnavailableLabel, overviewMetricLabel } from '@/features/projects/project-utils'",
     )
     expect(analytics).toContain('participationEmptyTitle')
-    expect(analytics).toContain(
-      "analysisView === 'participation'\n                      ? participationEmptyTitle\n                      : 'None yet'",
+    // Whitespace-insensitive: only the ternary's structure matters, not its exact
+    // indentation, which is free to reflow with surrounding JSX.
+    const normalizedWhitespace = analytics.replace(/\s+/g, ' ')
+    expect(normalizedWhitespace).toContain(
+      "analysisView === 'participation' ? participationEmptyTitle : 'None yet'",
     )
     const projectUtils = source('features/projects/project-utils.ts')
     expect(projectUtils).toContain('export const metricUnavailableLabel')

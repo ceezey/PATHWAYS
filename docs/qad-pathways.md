@@ -42,6 +42,11 @@ Do not use confidential live Beneficiary data.
 | QAD-T07 | PRD-F7 | indicator shows correct trusted metric/target/source |
 | QAD-T08 | PRD-F8 | dashboard/SADDD uses trusted data and suppression |
 | QAD-T12 | PRD-F9 | descriptive summary uses trusted persisted metrics; a readable but empty set shows "None yet"; missing, withheld or unauthorized data keeps the existing unavailable or restricted wording; no value is ever fabricated as 0 |
+| QAD-T14 | PRD-F9 | survey view pairs the latest PRE_TEST/POST_TEST per enrollment and reports the correct mean pre/post/change and improved/same/declined split for a group of 5 or more pairs |
+| QAD-T15 | PRD-F9 | timeline view's elapsed/remaining/overdue/activity metrics match the reused rule-metric population math, and milestone on-time percent matches completed milestones rated on time |
+| QAD-T16 | PRD-F9 | each descriptive view request writes one `ANALYTICS_DESCRIPTIVE_VIEWED` audit row, and each export writes one `ANALYTICS_DESCRIPTIVE_EXPORTED` row with contract version, view and row count |
+| QAD-T17 | PRD-F9 | survey pairing tie-break (assessment date, then row id) is deterministic across a same-date repeat and independent of the source array's order; `byActivity` is sorted by activity id; a non-finite score/maximum is excluded and counted, never treated as a valid measurement |
+| QAD-T18 | PRD-F9 | web survey table maps a `byActivity` group's activity id to its persisted activity title (never a raw UUID), with a neutral fallback when the activity cannot be found; percent-valued cells (survey mean pre/post/change, timeline elapsed/activity-completion/milestone-on-time) render with a `%` unit via the shared Overview label helper |
 | QAD-T09 | PRD-F10 | rule triggers once with versioned evidence |
 | QAD-T10 | PRD-F11 | authorized human reviews predefined recommendation |
 | QAD-T13 | PRD-F12 | report/visualization output respects role scope and SADDD suppression |
@@ -58,6 +63,12 @@ Do not use confidential live Beneficiary data.
 | QAD-T24 | unavailable rule metric -> explicit unavailable/not-evaluated |
 | QAD-T25 | disallowed upload rejected |
 | QAD-T26 | export/report failure leaves source data intact |
+| QAD-T27 | survey view with 0 paired assessments in a group reports `MISSING` (`NO_PAIRED_ASSESSMENTS`), never 0 |
+| QAD-T28 | survey view with 1, 4, or 5 paired assessments in a group: 1 and 4 are fully suppressed (`SMALL_CELL`), 5 is released; improved/same/declined never reveal a sub-count the pair total suppressed |
+| QAD-T29 | timeline view with no completed, rated milestones reports `MISSING` (`NO_COMPLETED_MILESTONES`), never 0 |
+| QAD-T30 | descriptive analytics retrieval fault (provider/database) returns 503, never a 500 or a silently empty payload, for both the read and the export path (one shared fault-mapping helper) |
+| QAD-T31 | survey source query at exactly its row cap (5,000) computes normally; one row over the cap fails closed to `MISSING` (`POPULATION_LIMIT_EXCEEDED`) with an empty `byActivity`, never a silently truncated partial result |
+| QAD-T32 | timeline activity/milestone population at exactly its cap (1,000) computes normally; one row over the cap fails closed to `MISSING` (`POPULATION_LIMIT_EXCEEDED`) on the affected cells only |
 
 PRD-F6 mapping suggestions additionally cover stable source keys, ASCII whitespace/hyphen folding, fullwidth NFKC, preserved accented-case distinctions, non-ASCII whitespace, punctuation and blank names. Competing code/label candidates and an ambiguous source sharing another source's sole target must remain unresolved. Suggested mappings retain existing reviewer confirmation and server validation; no new authority is inferred.
 
@@ -79,6 +90,11 @@ PRD-F6 mapping suggestions additionally cover stable source keys, ASCII whitespa
 | QAD-A12 | client-supplied step-up flag/header/storage, grant or session value, or a client-only MFA success does not open Beneficiary detail; the server status must report fresh |
 | QAD-A13 | PIN brute force: 5 failures lock the PIN, parallel wrong attempts cannot exceed the bound, a locked PIN is not compared, only a TOTP newer than the lock unlocks it, and PIN requests are throttled |
 | QAD-A14 | PIN setup without a fresh signed TOTP or when a PIN exists, and change without the current PIN or a fresh TOTP -> denied; the PIN never appears in URLs, logs, audit rows or error bodies |
+| QAD-A15 | Project Officer requests the survey or timeline descriptive view -> denied (`analytics.descriptive.read` not granted) |
+| QAD-A16 | Org A guesses Org B project id, or an unassigned/out-of-scope project id, on the survey or timeline descriptive view -> denied before any query runs |
+| QAD-A17 | survey and timeline responses, and their CSV exports, carry no Beneficiary identity field; only enrollment and activity ids are used internally for pairing and are never returned |
+| QAD-A18 | a caller holding `analytics.descriptive.read`/`analytics.export` but not `monitoring.read` is denied (403) on the survey and timeline views, for both read and export, before any `findMany` or `auditLog.create` runs |
+| QAD-A19 | no suppressed pair count or improved/same/declined sub-count can be recovered by subtraction: the whole `byActivity` breakdown (JSON and CSV, from one computed result) is withheld as suppressed whenever any activity group's pairs or sub-counts are suppressed, the no-activity residual (overall minus the groups, at pair and sub-count level) has 1-4 in any cell, or the overall's own sub-counts are suppressed; the act-A/act-B example, residual with a 1-4 sub-count, and input-order permutation are tested |
 
 ## 4. Rule-Engine Matrix
 

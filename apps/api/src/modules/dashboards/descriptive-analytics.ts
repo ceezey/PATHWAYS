@@ -1,11 +1,18 @@
 import {
   DESCRIPTIVE_ANALYTICS_CONTRACT_VERSION,
+  TIMELINE_ANALYTICS_CONTRACT_VERSION,
   type DescriptiveAnalytics,
   type DescriptiveSection,
   type MetricCell,
   type MonitoringDashboard,
   type SadddDashboard,
+  type SurveyAnalytics,
+  type TimelineAnalytics,
+  type TimelineMilestoneRow,
+  milestoneOnTimeCell,
+  missingMetric,
 } from '@pathways/shared'
+import { activityObservation, timelineObservation } from '../rules/rule-metrics'
 
 type Bucket = { key: string; label: string; metric: MetricCell }
 type Distribution = DescriptiveAnalytics['distributions'][number]
@@ -57,7 +64,9 @@ function indicatorSummaries(indicators: MonitoringDashboard['indicators']) {
   for (const indicator of indicators) {
     // Different units are never averaged together.
     const key = JSON.stringify([indicator.unitLabel, indicator.numericKind])
-    groups.set(key, [...(groups.get(key) ?? []), indicator])
+    const group = groups.get(key)
+    if (group) group.push(indicator)
+    else groups.set(key, [indicator])
   }
   return [...groups.values()].map((group) => {
     const values = group
@@ -175,6 +184,113 @@ export function buildDescriptiveAnalytics(input: {
   }
 }
 
+function withReason(cell: MetricCell, from: string, to: string): MetricCell {
+  return cell.reason === from ? { ...cell, reason: to } : cell
+}
+
+export type TimelineActivityRow = {
+  id: string
+  organizationId: string
+  projectId: string
+  status: 'NOT_STARTED' | 'IN_PROGRESS' | 'FOR_REVIEW' | 'COMPLETED' | 'CANCELLED'
+  archived: boolean
+  plannedEndDate: string | null
+}
+
+/**
+ * Builds the timeline adherence view (analytics.descriptive.timeline.v1) by reusing
+ * the rule engine's pure timeline/activity math (rule-metrics.ts) so the two never
+ * drift, plus a milestone on-time calculation. Reasons are remapped to the
+ * descriptive-analytics vocabulary (NO_PROJECT_DATES/NO_ACTIVITIES) so callers see
+ * one consistent set of MISSING reasons for this view.
+ */
+export function buildTimelineAnalytics(input: {
+  projectId: string
+  organizationId: string
+  generatedAt: string
+  reportingDate: string
+  project: {
+    status: 'PLANNED' | 'ONGOING' | 'COMPLETED' | 'ON_HOLD' | 'CANCELLED'
+    archived: boolean
+    startDate: string | null
+    endDate: string | null
+  }
+  activities: readonly TimelineActivityRow[]
+  milestones: readonly TimelineMilestoneRow[]
+  /**
+   * Set by the caller when the activity/milestone query hit its population cap.
+   * Fail closed: the affected cells report MISSING (POPULATION_LIMIT_EXCEEDED)
+   * instead of a silently truncated, misleading computation.
+   */
+  activitiesTruncated?: boolean
+  milestonesTruncated?: boolean
+}): TimelineAnalytics {
+  const scope = { organizationId: input.organizationId, projectId: input.projectId }
+  const timelineInput = {
+    scope,
+    conditionId: 'analytics-timeline-view',
+    asOf: input.generatedAt,
+    reportingDate: input.reportingDate,
+    projectStatus: input.project.status,
+    projectArchived: input.project.archived,
+    revision: '1',
+    startDate: input.project.startDate,
+    endDate: input.project.endDate,
+  }
+  const activities = input.activities.map((activity) => ({ ...activity, revision: '1' }))
+  const activityInput = {
+    scope,
+    conditionId: 'analytics-timeline-view',
+    asOf: input.generatedAt,
+    reportingDate: input.reportingDate,
+    populationRevision: '1',
+    activities,
+  }
+  const elapsedPercent = withReason(
+    timelineObservation({ ...timelineInput, metric: 'PROJECT_TIMELINE_ELAPSED_PERCENT' }).cell,
+    'MISSING_DATES',
+    'NO_PROJECT_DATES',
+  )
+  const remainingDays = withReason(
+    timelineObservation({ ...timelineInput, metric: 'PROJECT_REMAINING_DAYS' }).cell,
+    'MISSING_DATES',
+    'NO_PROJECT_DATES',
+  )
+  const overdueDays = withReason(
+    timelineObservation({ ...timelineInput, metric: 'PROJECT_OVERDUE_DAYS' }).cell,
+    'MISSING_DATES',
+    'NO_PROJECT_DATES',
+  )
+  const activityCompletionPercent = input.activitiesTruncated
+    ? missingMetric('POPULATION_LIMIT_EXCEEDED')
+    : withReason(
+        activityObservation({ ...activityInput, metric: 'ACTIVITY_COMPLETION_PERCENT' }).cell,
+        'EMPTY_POPULATION',
+        'NO_ACTIVITIES',
+      )
+  const activityOverdueCount = input.activitiesTruncated
+    ? missingMetric('POPULATION_LIMIT_EXCEEDED')
+    : withReason(
+        activityObservation({ ...activityInput, metric: 'ACTIVITY_OVERDUE_COUNT' }).cell,
+        'EMPTY_POPULATION',
+        'NO_ACTIVITIES',
+      )
+  return {
+    contractVersion: TIMELINE_ANALYTICS_CONTRACT_VERSION,
+    projectId: input.projectId,
+    generatedAt: input.generatedAt,
+    reportingDate: input.reportingDate,
+    elapsedPercent,
+    remainingDays,
+    overdueDays,
+    activityCompletionPercent,
+    activityOverdueCount,
+    milestoneOnTimePercent: input.milestonesTruncated
+      ? missingMetric('POPULATION_LIMIT_EXCEEDED')
+      : milestoneOnTimeCell(input.milestones),
+  }
+}
+
 /** Neutralizes spreadsheet formula prefixes and quotes every field. */
 function csvField(value: string | number | null): string {
   const text = value === null ? '' : String(value)
@@ -239,5 +355,53 @@ export function descriptiveAnalyticsCsv(data: DescriptiveAnalytics): string {
       ]
     }),
   ]
+  return `${[header, ...rows].map((row) => row.map(csvField).join(',')).join('\r\n')}\r\n`
+}
+
+type SurveyMetricField = Exclude<keyof SurveyAnalytics['overall'], 'key' | 'label'>
+
+/** Same header/marker convention as the combined CSV; one row per survey group cell. */
+export function surveyAnalyticsCsv(data: SurveyAnalytics): string {
+  const header = ['section', 'key', 'label', 'state', 'value', 'share', 'reason']
+  const cells: Array<[SurveyMetricField, string]> = [
+    ['pairs', 'Paired assessments'],
+    ['meanPre', 'Mean PRE_TEST (%)'],
+    ['meanPost', 'Mean POST_TEST (%)'],
+    ['meanChange', 'Mean change (pp)'],
+    ['improved', 'Improved'],
+    ['same', 'Same'],
+    ['declined', 'Declined'],
+  ]
+  const rows: Array<Array<string | number | null>> = [
+    ...[data.overall, ...data.byActivity].flatMap((group) =>
+      cells.map(([field, label]) => {
+        const metric = group[field]
+        return ['SURVEY', group.key, `${group.label} - ${label}`, metric.state, metric.value, null, metric.reason]
+      }),
+    ),
+  ]
+  return `${[header, ...rows].map((row) => row.map(csvField).join(',')).join('\r\n')}\r\n`
+}
+
+type TimelineMetricField = Exclude<
+  keyof TimelineAnalytics,
+  'contractVersion' | 'projectId' | 'generatedAt' | 'reportingDate'
+>
+
+/** Same header/marker convention as the combined CSV; one row per timeline metric. */
+export function timelineAnalyticsCsv(data: TimelineAnalytics): string {
+  const header = ['section', 'key', 'label', 'state', 'value', 'share', 'reason']
+  const cells: Array<[TimelineMetricField, string]> = [
+    ['elapsedPercent', 'Timeline elapsed (%)'],
+    ['remainingDays', 'Remaining days'],
+    ['overdueDays', 'Overdue days'],
+    ['activityCompletionPercent', 'Activity completion (%)'],
+    ['activityOverdueCount', 'Overdue activities'],
+    ['milestoneOnTimePercent', 'Milestones on time (%)'],
+  ]
+  const rows: Array<Array<string | number | null>> = cells.map(([field, label]) => {
+    const metric = data[field]
+    return ['TIMELINE', field, label, metric.state, metric.value, null, metric.reason]
+  })
   return `${[header, ...rows].map((row) => row.map(csvField).join(',')).join('\r\n')}\r\n`
 }

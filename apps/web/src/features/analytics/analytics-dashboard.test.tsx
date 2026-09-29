@@ -12,6 +12,8 @@ const api = vi.hoisted(() => ({
   getProjectsForRole: vi.fn(),
   getSadddDashboard: vi.fn(),
   getDescriptiveAnalytics: vi.fn(),
+  getSurveyAnalytics: vi.fn(),
+  getTimelineAnalytics: vi.fn(),
 }))
 const download = vi.hoisted(() => vi.fn())
 const finance = vi.hoisted(() => ({
@@ -57,6 +59,7 @@ vi.mock('./analytics-charts', () => ({
   ActivityCompletionChart: () => <div>Activity chart</div>,
   DescriptiveAnalysisChart: () => <div>Analysis chart</div>,
   SadddChart: () => <div>SADDD chart</div>,
+  SurveyImprovementChart: () => <div>Survey chart</div>,
 }))
 vi.mock('./analytics-coverage-map', async () => {
   const React = await import('react')
@@ -615,7 +618,7 @@ describe('Analytics dashboard request dependencies', () => {
     expect(download).not.toHaveBeenCalled()
   })
 
-  it('keeps Add to Dashboard disabled with a Not available yet hint and disables unbuilt analysis views', async () => {
+  it('keeps Add to Dashboard disabled with a Not available yet hint and enables the survey/timeline views', async () => {
     render(<AnalyticsDashboard />)
     await waitFor(() => expect(api.getMonitoringDashboard).toHaveBeenCalled())
 
@@ -633,7 +636,249 @@ describe('Analytics dashboard request dependencies', () => {
     const timelineOption = screen.getByText('Project / activity timeline adherence', {
       selector: 'option',
     }) as HTMLOptionElement
-    expect(surveyOption.disabled).toBe(true)
-    expect(timelineOption.disabled).toBe(true)
+    expect(surveyOption.disabled).toBe(false)
+    expect(timelineOption.disabled).toBe(false)
+  })
+
+  describe('F9 survey and timeline analytics views', () => {
+    beforeEach(() => {
+      currentAccess.profile.permissions = [
+        ...currentAccess.profile.permissions,
+        'analytics.descriptive.read',
+      ]
+      // Keeps the unrelated "Descriptive statistics" panel from also erroring (and adding a
+      // second "Retry" button) while these tests exercise the survey/timeline views only.
+      api.getDescriptiveAnalytics.mockResolvedValue({
+        contractVersion: 'analytics.descriptive.v1',
+        projectId: 'project-a',
+        generatedAt: '2026-09-27T04:00:00.000Z',
+        monitoringPeriod: {
+          periodStart: '2026-09-01',
+          periodEnd: '2026-09-30',
+          businessTimeZone: 'Asia/Manila',
+        },
+        sadddPeriod: { periodStart: null, periodEnd: null },
+        sadddReleaseState: 'UNAVAILABLE',
+        privacy: {
+          threshold: 5,
+          complementarySuppression: true,
+          source: 'P06_SADDD_RELEASE',
+          beneficiaryRows: false,
+        },
+        counts: [],
+        distributions: [],
+        indicatorSummaries: [],
+      })
+    })
+
+    const suppressed = { state: 'SUPPRESSED', value: null, reason: 'SMALL_CELL' } as const
+    const missing = (reason: string) => ({ state: 'MISSING', value: null, reason }) as const
+    const available = (value: string) => ({ state: 'AVAILABLE', value, reason: null }) as const
+    const zero = { state: 'ZERO', value: '0', reason: null } as const
+
+    const surveyGroup = (overrides: Record<string, unknown> = {}) => ({
+      key: 'OVERALL',
+      label: 'All activities (cohort change)',
+      pairs: available('7'),
+      meanPre: available('40'),
+      meanPost: available('62'),
+      meanChange: available('22'),
+      improved: available('6'),
+      same: available('0'),
+      declined: available('1'),
+      ...overrides,
+    })
+
+    it('renders survey metric cards, chart and per-activity table, with activity titles instead of raw IDs', async () => {
+      const activityId = '40000000-0000-4000-8000-000000000099'
+      const unknownActivityId = '40000000-0000-4000-8000-0000000000aa'
+      api.getActivities.mockResolvedValue([
+        { id: activityId, projectId: 'project-a', code: 'A-1', title: 'Community Training' },
+      ])
+      api.getSurveyAnalytics.mockResolvedValue({
+        contractVersion: 'analytics.descriptive.survey.v1',
+        projectId: 'project-a',
+        generatedAt: '2026-09-27T04:00:00.000Z',
+        period: { periodStart: '2026-09-01', periodEnd: '2026-09-30' },
+        excludedRecords: 0,
+        overall: surveyGroup(),
+        byActivity: [
+          { ...surveyGroup(), key: activityId, label: activityId, pairs: available('5') },
+          {
+            ...surveyGroup(),
+            key: unknownActivityId,
+            label: unknownActivityId,
+            pairs: available('2'),
+          },
+        ],
+      })
+
+      render(<AnalyticsDashboard />)
+      await waitFor(() => expect(api.getMonitoringDashboard).toHaveBeenCalled())
+      fireEvent.change(screen.getByLabelText('Analysis view'), {
+        target: { value: 'survey' },
+      })
+
+      await waitFor(() => expect(api.getSurveyAnalytics).toHaveBeenCalledWith({
+        projectId: 'project-a',
+        periodStart: '2026-09-01',
+        periodEnd: '2026-09-30',
+      }))
+      const panel = await screen.findByTestId('survey-analytics')
+      expect(within(panel).getByText('Paired assessments')).toBeTruthy()
+      expect(within(panel).getByText('Survey chart')).toBeTruthy()
+      expect(within(panel).getByText('Community Training')).toBeTruthy()
+      expect(within(panel).getByText('Activity (name unavailable)')).toBeTruthy()
+      expect(panel.textContent).not.toMatch(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i)
+    })
+
+    it('shows the suppression label, never a raw count, when survey pairs are suppressed', async () => {
+      api.getSurveyAnalytics.mockResolvedValue({
+        contractVersion: 'analytics.descriptive.survey.v1',
+        projectId: 'project-a',
+        generatedAt: '2026-09-27T04:00:00.000Z',
+        period: { periodStart: '2026-09-01', periodEnd: '2026-09-30' },
+        excludedRecords: 0,
+        overall: surveyGroup({
+          pairs: suppressed,
+          meanPre: suppressed,
+          meanPost: suppressed,
+          meanChange: suppressed,
+          improved: suppressed,
+          same: suppressed,
+          declined: suppressed,
+        }),
+        byActivity: [],
+      })
+
+      render(<AnalyticsDashboard />)
+      await waitFor(() => expect(api.getMonitoringDashboard).toHaveBeenCalled())
+      fireEvent.change(screen.getByLabelText('Analysis view'), {
+        target: { value: 'survey' },
+      })
+
+      const panel = await screen.findByTestId('survey-analytics')
+      expect(within(panel).getAllByText('Suppressed (fewer than 5)').length).toBeGreaterThan(0)
+      expect(within(panel).queryByText('Survey chart')).toBeNull()
+    })
+
+    it('shows reason-coded guidance, never a fabricated zero, when survey has no paired assessments', async () => {
+      api.getSurveyAnalytics.mockResolvedValue({
+        contractVersion: 'analytics.descriptive.survey.v1',
+        projectId: 'project-a',
+        generatedAt: '2026-09-27T04:00:00.000Z',
+        period: { periodStart: '2026-09-01', periodEnd: '2026-09-30' },
+        excludedRecords: 0,
+        overall: surveyGroup({
+          pairs: zero,
+          meanPre: missing('NO_PAIRED_ASSESSMENTS'),
+          meanPost: missing('NO_PAIRED_ASSESSMENTS'),
+          meanChange: missing('NO_PAIRED_ASSESSMENTS'),
+          improved: missing('NO_PAIRED_ASSESSMENTS'),
+          same: missing('NO_PAIRED_ASSESSMENTS'),
+          declined: missing('NO_PAIRED_ASSESSMENTS'),
+        }),
+        byActivity: [],
+      })
+
+      render(<AnalyticsDashboard />)
+      await waitFor(() => expect(api.getMonitoringDashboard).toHaveBeenCalled())
+      fireEvent.change(screen.getByLabelText('Analysis view'), {
+        target: { value: 'survey' },
+      })
+
+      const panel = await screen.findByTestId('survey-analytics')
+      expect(
+        within(panel).getAllByText('No paired pre/post assessments yet').length,
+      ).toBeGreaterThan(0)
+      expect(within(panel).queryByText('0%')).toBeNull()
+    })
+
+    it('shows an error state with Retry when survey analytics fails to load', async () => {
+      api.getSurveyAnalytics.mockRejectedValue(new Error('Survey analytics could not be loaded.'))
+
+      render(<AnalyticsDashboard />)
+      await waitFor(() => expect(api.getMonitoringDashboard).toHaveBeenCalled())
+      fireEvent.change(screen.getByLabelText('Analysis view'), {
+        target: { value: 'survey' },
+      })
+
+      await waitFor(() =>
+        expect(screen.getByText('Survey analytics could not be loaded.')).toBeTruthy(),
+      )
+      const retry = screen.getByRole('button', { name: /retry/i })
+      api.getSurveyAnalytics.mockResolvedValue({
+        contractVersion: 'analytics.descriptive.survey.v1',
+        projectId: 'project-a',
+        generatedAt: '2026-09-27T04:00:00.000Z',
+        period: { periodStart: '2026-09-01', periodEnd: '2026-09-30' },
+        excludedRecords: 0,
+        overall: surveyGroup(),
+        byActivity: [],
+      })
+      fireEvent.click(retry)
+      await waitFor(() => expect(api.getSurveyAnalytics).toHaveBeenCalledTimes(2))
+      expect(await screen.findByTestId('survey-analytics')).toBeTruthy()
+    })
+
+    it('renders timeline metric cards without requiring a reporting period', async () => {
+      api.getTimelineAnalytics.mockResolvedValue({
+        contractVersion: 'analytics.descriptive.timeline.v1',
+        projectId: 'project-a',
+        generatedAt: '2026-09-27T04:00:00.000Z',
+        reportingDate: '2026-09-27',
+        elapsedPercent: available('50'),
+        remainingDays: available('30'),
+        overdueDays: zero,
+        activityCompletionPercent: available('75'),
+        activityOverdueCount: zero,
+        milestoneOnTimePercent: missing('NO_COMPLETED_MILESTONES'),
+      })
+
+      render(<AnalyticsDashboard />)
+      await waitFor(() => expect(api.getMonitoringDashboard).toHaveBeenCalled())
+      fireEvent.change(screen.getByLabelText('Analysis view'), {
+        target: { value: 'timeline' },
+      })
+
+      await waitFor(() =>
+        expect(api.getTimelineAnalytics).toHaveBeenCalledWith({ projectId: 'project-a' }),
+      )
+      const panel = await screen.findByTestId('timeline-analytics')
+      expect(within(panel).getByText('Elapsed')).toBeTruthy()
+      expect(within(panel).getByText('No completed milestones yet')).toBeTruthy()
+    })
+
+    it('shows an error state with Retry when timeline analytics fails to load', async () => {
+      api.getTimelineAnalytics.mockRejectedValue(
+        new Error('Timeline analytics could not be loaded.'),
+      )
+
+      render(<AnalyticsDashboard />)
+      await waitFor(() => expect(api.getMonitoringDashboard).toHaveBeenCalled())
+      fireEvent.change(screen.getByLabelText('Analysis view'), {
+        target: { value: 'timeline' },
+      })
+
+      await waitFor(() =>
+        expect(screen.getByText('Timeline analytics could not be loaded.')).toBeTruthy(),
+      )
+      const retry = screen.getByRole('button', { name: /retry/i })
+      api.getTimelineAnalytics.mockResolvedValue({
+        contractVersion: 'analytics.descriptive.timeline.v1',
+        projectId: 'project-a',
+        generatedAt: '2026-09-27T04:00:00.000Z',
+        reportingDate: '2026-09-27',
+        elapsedPercent: available('50'),
+        remainingDays: available('30'),
+        overdueDays: zero,
+        activityCompletionPercent: available('75'),
+        activityOverdueCount: zero,
+        milestoneOnTimePercent: available('100'),
+      })
+      fireEvent.click(retry)
+      await waitFor(() => expect(api.getTimelineAnalytics).toHaveBeenCalledTimes(2))
+      expect(await screen.findByTestId('timeline-analytics')).toBeTruthy()
+    })
   })
 })

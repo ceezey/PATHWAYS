@@ -52,6 +52,7 @@
 | OPS | ops-pathways.md | Working |
 | LOG | log-pathways.md | Control; append-only |
 | STATE | state.md | Control; operating position |
+| Deferred features register | deferred-features.md | Working |
 
 ## 3. RFCs
 
@@ -107,7 +108,7 @@ Do not build directly against an audit finding until the appropriate contract/CR
 | PRD-F6 | Metadata Integration | Must-Have | yes | yes | metadata RFC | implemented |
 | PRD-F7 | Indicators / Monitoring | Must-Have | yes | yes | - | implemented |
 | PRD-F8 | Dashboard / SADDD | Must-Have | yes | yes | SADDD RFC | implemented |
-| PRD-F9 | Descriptive Analytics | Supporting | yes | yes | - | partial (dashboard endpoints) |
+| PRD-F9 | Descriptive Analytics | Supporting | yes | yes | - | implemented (kpi/participation/survey/timeline views); see [deferred features register](deferred-features.md) for on-hold items |
 | PRD-F10 | Rule Alerts | Supporting | yes | yes | rules RFC | local API and initial runtime slice; integration verification pending |
 | PRD-F11 | Decision Support | Supporting | yes | yes | rules RFC | local human review API; integration verification pending |
 | PRD-F12 | Reporting / Visualization | Supporting | yes | yes | rollout CR | local preview/artifact APIs; final verification pending; hosted application deferred |

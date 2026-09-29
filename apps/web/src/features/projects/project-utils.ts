@@ -58,6 +58,20 @@ export const metricUnavailableLabel = (cell: MetricCell) => {
       return 'After project close'
     case 'RESTATEMENT_REVIEW_REQUIRED':
       return 'Under review'
+    // F9 survey/timeline analytics reasons (analytics.descriptive.survey.v1 /
+    // analytics.descriptive.timeline.v1): readable guidance, never a fabricated zero.
+    case 'NO_PAIRED_ASSESSMENTS':
+      return 'No paired pre/post assessments yet'
+    case 'NO_COMPLETED_MILESTONES':
+      return 'No completed milestones yet'
+    case 'NO_ACTIVITIES':
+      return 'No activities recorded yet'
+    case 'NO_PROJECT_DATES':
+      return 'Project start and end dates are not recorded'
+    // The source population exceeded its safe query limit: fail closed rather than
+    // silently truncate and understate the result.
+    case 'POPULATION_LIMIT_EXCEEDED':
+      return 'Too many records to summarize safely'
     // Unknown reasons are not assumed to be empty.
     default:
       return 'Unavailable'
@@ -68,8 +82,12 @@ export const metricUnavailableLabel = (cell: MetricCell) => {
  * Overview tile copy. A visible value (including a real zero) is shown as is; a source
  * without data yet reads "None yet"; suppression and failures are never shown as zero.
  */
-export const overviewMetricLabel = (cell: MetricCell, kind: 'percent' | 'count') => {
-  if (cell.value !== null)
-    return kind === 'percent' ? `${cell.value}%` : formatNumber(Number(cell.value))
+export const overviewMetricLabel = (cell: MetricCell, kind: 'percent' | 'pp' | 'count') => {
+  if (cell.value !== null) {
+    if (kind === 'percent') return `${cell.value}%`
+    // 'pp': a difference between two percentages, in percentage points, never '%'.
+    if (kind === 'pp') return `${cell.value}pp`
+    return formatNumber(Number(cell.value))
+  }
   return metricUnavailableLabel(cell)
 }

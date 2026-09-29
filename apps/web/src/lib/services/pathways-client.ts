@@ -94,6 +94,8 @@ import {
   type MonitoringDashboard,
   type SadddDashboard,
   type SadddQuery,
+  type SurveyAnalytics,
+  type TimelineAnalytics,
   dashboardQuerySchema,
   descriptiveAnalyticsQuerySchema,
   descriptiveAnalyticsSchema,
@@ -103,6 +105,8 @@ import {
   projectIndicatorSchema,
   sadddDashboardSchema,
   sadddQuerySchema,
+  surveyAnalyticsSchema,
+  timelineAnalyticsSchema,
 } from '@pathways/shared'
 import { type ProjectOverviewMetrics, projectOverviewMetricsSchema } from '@pathways/shared'
 import { readPublicProjects } from './public-projects'
@@ -349,6 +353,8 @@ export interface PathwaysClient {
   getMonitoringDashboard(query?: DashboardQuery): Promise<MonitoringDashboard>
   getSadddDashboard(query: SadddQuery): Promise<SadddDashboard>
   getDescriptiveAnalytics(query: DescriptiveAnalyticsQuery): Promise<DescriptiveAnalytics>
+  getSurveyAnalytics(query: DescriptiveAnalyticsQuery): Promise<SurveyAnalytics>
+  getTimelineAnalytics(query: DescriptiveAnalyticsQuery): Promise<TimelineAnalytics>
   getEvaluation(projectId: string): Promise<EvaluationRecord>
   getExpenses(projectId: string): Promise<ExpenseRecord[]>
   getRecommendationOutcomes(projectId: string): Promise<RecommendationOutcomeRecord[]>
@@ -1037,6 +1043,22 @@ class BackendReadyPathwaysClient implements PathwaysClient {
   async getDescriptiveAnalytics(query: DescriptiveAnalyticsQuery): Promise<DescriptiveAnalytics> {
     return descriptiveAnalyticsSchema.parse(
       await requestFoundation(`/analytics/descriptive${descriptiveAnalyticsSearch(query)}`),
+    )
+  }
+
+  async getSurveyAnalytics(query: DescriptiveAnalyticsQuery): Promise<SurveyAnalytics> {
+    return surveyAnalyticsSchema.parse(
+      await requestFoundation(
+        `/analytics/descriptive${descriptiveAnalyticsSearch({ ...query, view: 'survey' })}`,
+      ),
+    )
+  }
+
+  async getTimelineAnalytics(query: DescriptiveAnalyticsQuery): Promise<TimelineAnalytics> {
+    return timelineAnalyticsSchema.parse(
+      await requestFoundation(
+        `/analytics/descriptive${descriptiveAnalyticsSearch({ ...query, view: 'timeline' })}`,
+      ),
     )
   }
 
@@ -1760,6 +1782,7 @@ export function descriptiveAnalyticsSearch(query: DescriptiveAnalyticsQuery): st
     params.set('periodStart', parsed.periodStart)
     params.set('periodEnd', parsed.periodEnd)
   }
+  if (parsed.view) params.set('view', parsed.view)
   return `?${params.toString()}`
 }
 
