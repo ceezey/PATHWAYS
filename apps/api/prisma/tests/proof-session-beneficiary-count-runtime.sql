@@ -56,11 +56,15 @@ INSERT INTO pathways.system_users(
 )
 SELECT pg_temp.u(100+v.n),v.org_id,r.id,pg_temp.u(200+v.n),v.full_name,v.email,'ACTIVE',now()
 FROM (VALUES
-  (1,pg_temp.u(1),'PROGRAM_MANAGER','PSC Program Manager A','psc-pm-a@example.invalid'),
+  -- pathways.p09_role_allows never grants PROGRAM_MANAGER plain 'activities.read' (only
+  -- PROJECT_MANAGER, PROJECT_OFFICER, MONITORING_AND_EVALUATION_OFFICER and
+  -- SYSTEM_ADMINISTRATOR have it), so the aggregate-reading identities below use
+  -- PROJECT_MANAGER, the project-scoped role that also holds 'beneficiaries.aggregates.read'.
+  (1,pg_temp.u(1),'PROJECT_MANAGER','PSC Aggregate Reader A','psc-reader-a@example.invalid'),
   (2,pg_temp.u(1),'PROJECT_MANAGER','PSC Project Manager A','psc-mgr-a@example.invalid'),
   (3,pg_temp.u(1),'MONITORING_AND_EVALUATION_OFFICER','PSC M&E A','psc-me-a@example.invalid'),
   (4,pg_temp.u(1),'PROJECT_OFFICER','PSC Officer A','psc-officer-a@example.invalid'),
-  (5,pg_temp.u(2),'PROGRAM_MANAGER','PSC Program Manager B','psc-pm-b@example.invalid'),
+  (5,pg_temp.u(2),'PROJECT_MANAGER','PSC Aggregate Reader B','psc-reader-b@example.invalid'),
   (6,pg_temp.u(2),'MONITORING_AND_EVALUATION_OFFICER','PSC M&E B','psc-me-b@example.invalid'),
   (7,pg_temp.u(2),'PROJECT_OFFICER','PSC Officer B','psc-officer-b@example.invalid')
 ) v(n,org_id,role_code,full_name,email)
@@ -82,17 +86,28 @@ INSERT INTO pathways.projects(id,organization_id,code,title,start_date,end_date,
   (pg_temp.u(302),pg_temp.u(1),'PSC-A2','PSC Project A2','2026-01-01','2026-12-31',pg_temp.u(101)),
   (pg_temp.u(303),pg_temp.u(2),'PSC-B1','PSC Project B1','2026-01-01','2026-12-31',pg_temp.u(105));
 
+-- A PROJECT_MANAGER only gains pathways.p05_has_project_permission for a project through an
+-- explicit ACTIVE user_project_assignments row (unlike PROGRAM_MANAGER's portfolio-wide access
+-- through a managed program); the aggregate reader identities need one per project they call
+-- p08_activity_beneficiaries_reached against.
+INSERT INTO pathways.user_project_assignments(
+  id,organization_id,project_id,user_id,assigned_by_id
+) VALUES
+  (pg_temp.u(401),pg_temp.u(1),pg_temp.u(301),pg_temp.u(101),pg_temp.u(101)),
+  (pg_temp.u(402),pg_temp.u(1),pg_temp.u(302),pg_temp.u(101),pg_temp.u(101)),
+  (pg_temp.u(403),pg_temp.u(2),pg_temp.u(303),pg_temp.u(105),pg_temp.u(105));
+
 INSERT INTO pathways.project_activities(
-  id,organization_id,project_id,code,title,planned_start_date,planned_end_date,status,created_by_id
+  id,organization_id,project_id,code,title,planned_start_date,planned_end_date,actual_start_date,status,created_by_id
 ) VALUES
   (pg_temp.u(501),pg_temp.u(1),pg_temp.u(301),'PSC-ACT-1','Activity with mixed proofs',
-   '2026-01-01','2026-06-30','IN_PROGRESS',pg_temp.u(101)),
+   '2026-01-01','2026-06-30','2026-01-01','IN_PROGRESS',pg_temp.u(101)),
   (pg_temp.u(502),pg_temp.u(1),pg_temp.u(301),'PSC-ACT-2','Activity with no proofs',
-   '2026-01-01','2026-06-30','NOT_STARTED',pg_temp.u(101)),
+   '2026-01-01','2026-06-30',NULL,'NOT_STARTED',pg_temp.u(101)),
   (pg_temp.u(503),pg_temp.u(1),pg_temp.u(302),'PSC-ACT-3','Activity in the other project',
-   '2026-01-01','2026-06-30','IN_PROGRESS',pg_temp.u(101)),
+   '2026-01-01','2026-06-30','2026-01-01','IN_PROGRESS',pg_temp.u(101)),
   (pg_temp.u(504),pg_temp.u(2),pg_temp.u(303),'PSC-ACT-4','Activity in the other organization',
-   '2026-01-01','2026-06-30','IN_PROGRESS',pg_temp.u(105));
+   '2026-01-01','2026-06-30','2026-01-01','IN_PROGRESS',pg_temp.u(105));
 
 -- Activity 501: a PENDING update (excluded), an update that will be APPROVED with a NULL
 -- session count (counts as 0), an update that will be APPROVED with 10, an update that will
@@ -136,7 +151,7 @@ SELECT pg_temp.reject(
 
 SET LOCAL ROLE pathways_runtime;
 
--- Program Manager, organization A.
+-- Project Manager, organization A (via the explicit project assignment).
 SELECT set_config('request.jwt.claim.sub',pg_temp.u(201)::text,true),
        set_config('app.organization_id',pg_temp.u(1)::text,true),
        set_config('app.user_id',pg_temp.u(101)::text,true);

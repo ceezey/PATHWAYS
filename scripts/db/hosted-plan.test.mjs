@@ -24,8 +24,8 @@ test('MIGRATIONS_IN_ORDER matches the real migrations directory exactly, in orde
   assert.deepEqual([...MIGRATIONS_IN_ORDER].sort(), onDisk)
   // The migrations directory holds one folder per Prisma migration. 0000
   // squashes the original 0001-0026 into a single reviewed baseline, so the
-  // ledger has 16 rows even though the numbering runs 0000 through 0041.
-  assert.equal(MIGRATIONS_IN_ORDER.length, 16)
+  // ledger has 17 rows even though the numbering runs 0000 through 0042.
+  assert.equal(MIGRATIONS_IN_ORDER.length, 17)
   assert.equal(MIGRATIONS_IN_ORDER[0], BASELINE)
 })
 
@@ -56,6 +56,7 @@ test('the dry-run plan order exactly matches the documented stop points', () => 
     'preprovision:activity-media',
     'deploy:0041_activity_media_evidence',
     'cleanup:activity-media',
+    'deploy:0042_proof_session_beneficiary_count',
     'alter-runtime-role',
     'postconditions',
   ])
@@ -137,9 +138,23 @@ test('planIndexForAppliedCount resumes right after the deploy step for the last 
   assert.equal(plan[index].name, 'rules')
 })
 
-test('planIndexForAppliedCount resumes correctly for the last migration (0041)', () => {
+test('planIndexForAppliedCount resumes right after the deploy step for 0034 (mid-sequence cleanup still re-runs)', () => {
+  const plan = buildPlan()
+  // 9 applied: baseline + 0027..0034, i.e. right after the core-feature-completion deploy.
+  const index = planIndexForAppliedCount(9)
+  assert.equal(plan[index].type, 'cleanup')
+  assert.equal(plan[index].name, 'core')
+})
+
+test('planIndexForAppliedCount on a complete 0000-0041 ledger resumes directly at the 0042 deploy, skipping the already-run 0041 cleanup', () => {
+  const plan = buildPlan()
+  const index = planIndexForAppliedCount(MIGRATIONS_IN_ORDER.length - 1)
+  assert.equal(plan[index].type, 'deploy')
+  assert.deepEqual(plan[index].migrations, ['0042_proof_session_beneficiary_count'])
+})
+
+test('planIndexForAppliedCount on a fully complete 0000-0042 ledger resumes at alter-runtime-role', () => {
   const plan = buildPlan()
   const index = planIndexForAppliedCount(MIGRATIONS_IN_ORDER.length)
-  assert.equal(plan[index].type, 'cleanup')
-  assert.equal(plan[index].name, 'activity-media')
+  assert.equal(plan[index].type, 'alter-runtime-role')
 })

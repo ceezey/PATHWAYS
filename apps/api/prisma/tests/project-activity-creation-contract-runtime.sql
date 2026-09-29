@@ -282,10 +282,13 @@ BEGIN
 END
 $$;
 
--- Seven individuals exercise the participation/enrollment read-scoping assertions below.
--- Participation no longer feeds pathways.p08_activity_beneficiaries_reached (see
--- proof-session-beneficiary-count-runtime.sql for that aggregate's coverage); these fixtures
--- remain to cover beneficiary-record permission and journey-event scoping.
+-- Seven individuals exercise every authoritative Beneficiaries Reached filter. This suite
+-- runs only through Replay-Local.ps1, immediately after migration 0025 is applied to the
+-- disposable pathways_phase4_phase6_replay database, before the 0027-0042 forward chain
+-- (verified separately against cloned databases in Verify-Forward.ps1) ever reaches this
+-- database. pathways.p08_activity_beneficiaries_reached is therefore still the participation
+-- based definition from 0025 at this point, not the 0042 approved-session-sum redefinition;
+-- see proof-session-beneficiary-count-runtime.sql for that redefinition's own coverage.
 INSERT INTO pathways.beneficiaries(
   id,organization_id,code,subject_type,first_name,last_name,consent_recorded,
   data_processing_consent_recorded,is_dummy_record,created_by_id
@@ -385,11 +388,11 @@ SELECT set_config('request.jwt.claim.sub',pg_temp.u(202)::text,true),
        set_config('app.organization_id',pg_temp.u(1)::text,true),
        set_config('app.user_id',pg_temp.u(102)::text,true);
 SELECT pg_temp.assert_true(
-  (SELECT beneficiaries_reached=0
+  (SELECT beneficiaries_reached=2
    FROM pathways.p08_activity_beneficiaries_reached(
      pg_temp.u(1),pg_temp.u(301),ARRAY[pg_temp.u(501)]
    )),
-  'Program Manager receives zero with no approved proof session (participation is no longer counted)');
+  'Program Manager receives two distinct qualifying beneficiaries');
 SELECT pg_temp.assert_true(
   (SELECT beneficiaries_reached=0
    FROM pathways.p08_activity_beneficiaries_reached(
@@ -446,7 +449,7 @@ $$;
 SELECT set_config('request.jwt.claim.sub',pg_temp.u(201)::text,true),
        set_config('app.user_id',pg_temp.u(101)::text,true);
 SELECT pg_temp.assert_true(
-  (SELECT beneficiaries_reached=0
+  (SELECT beneficiaries_reached=2
    FROM pathways.p08_activity_beneficiaries_reached(
      pg_temp.u(1),pg_temp.u(301),ARRAY[pg_temp.u(501)]
    )),
