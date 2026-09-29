@@ -531,6 +531,8 @@ describe('per-file finalize', () => {
     const calls = tx.$queryRaw.mock.calls.map((call) => (call[0] as string[]).join('?'))
     const lock = calls.findIndex((sql) => sql.includes('pg_advisory_xact_lock'))
     expect(lock).toBeGreaterThanOrEqual(0)
+    // Prisma cannot deserialize a void column, so the lock must select a typed value.
+    expect(calls[lock]).toContain('SELECT 1::integer AS locked FROM')
     expect(tx.$queryRaw.mock.calls[lock].slice(1).join()).toContain(updateId)
     expect(tx.activityUpdate.findFirst.mock.invocationCallOrder[0]).toBeGreaterThan(
       tx.$queryRaw.mock.invocationCallOrder[lock],
