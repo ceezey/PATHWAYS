@@ -437,7 +437,9 @@ describe('ActivityProofDialog direct upload', () => {
     await waitFor(() => expect(api.getActivityProofUploadLimits).toHaveBeenCalledOnce())
     const field = screen.getByLabelText(/Beneficiaries reached this session/) as HTMLInputElement
     expect(field.disabled).toBe(false)
-    expect(screen.getByText(/Recorded with this proof\. It does not change/)).toBeTruthy()
+    expect(
+      screen.getByText(/Counts toward the activity's beneficiaries reached once M&E approves/),
+    ).toBeTruthy()
     expect(screen.queryByText(/not available yet/i)).toBeNull()
   })
 

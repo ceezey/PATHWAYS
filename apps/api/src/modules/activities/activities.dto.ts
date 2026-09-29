@@ -176,8 +176,11 @@ export class ReserveActivityProofDto {
   @Type(() => ActivityEvidenceFileDto)
   files!: ActivityEvidenceFileDto[]
 
-  // cr-pathways-proof-session-beneficiary-count: optional, recorded on this submission only.
-  // Never changes the activity's computed beneficiariesReached and never feeds SADDD.
+  // cr-pathways-proof-session-beneficiary-count: optional, recorded on this submission. Once
+  // M&E approves the proof, this value is summed into the activity's computed
+  // beneficiariesReached (pathways.p08_activity_beneficiaries_reached); PENDING, VERIFIED and
+  // REJECTED updates never contribute. It never feeds SADDD sex/age breakdowns, which stay
+  // sourced from participation records.
   @IsOptional()
   @IsInt()
   @Min(0)

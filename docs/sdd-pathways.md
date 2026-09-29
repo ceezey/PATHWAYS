@@ -130,9 +130,24 @@ The [approved change record](cr-pathways-proof-session-beneficiary-count.md) add
 `prisma` since baseline, so no preprovision is needed). The value is part of the existing
 `clientUpdateId` idempotent retry comparison and is surfaced on the activity's `updateNotes` history.
 It never enters `finalizeBody`/`canonical_source_request` (the `ACTIVITY_PROOF_FINALIZE` field
-enumeration is unchanged), never changes the activity's computed `beneficiariesReached` (still derived
-only from participation records through `pathways.p08_activity_beneficiaries_reached`), and is not
-read by SADDD.
+enumeration is unchanged).
+
+Final developer decision, 2026-09-29: an activity's computed `beneficiariesReached` is the SUM of
+`beneficiaries_reached_this_session` over that activity's `activity_updates` whose status is
+APPROVED (NULL as 0). PENDING, VERIFIED and REJECTED updates never count; an approved proof later
+rejected lowers the total. This replaces the prior participation-record computation entirely:
+`pathways.p08_activity_beneficiaries_reached` (migration 0042, `CREATE OR REPLACE FUNCTION`, same
+signature/return columns/owner/ACL/`SECURITY DEFINER`/search path) now sums approved session counts
+per requested activity instead of counting distinct participating beneficiaries. Consumers: the
+activity detail/list `beneficiariesReached` field switches to this new source. The project overview
+"beneficiaries reached" tile is unaffected: it is sourced from `pathways.p06_saddd` (a project-level,
+date-gated, small-cell-suppressed SADDD release of distinct individuals), never from
+`p08_activity_beneficiaries_reached`. The rules engine's typed metric catalog (`ruleMetrics` in
+`rule-contract.ts`) has no beneficiaries-reached metric type and does not evaluate
+`p08_activity_beneficiaries_reached`, so there is no rules-engine divergence.
+
+**SADDD caveat:** a typed per-session count has no sex/age breakdown, so SADDD sex/age breakdowns
+stay sourced from participation records; this change does not and cannot supply that breakdown.
 
 ## 8. Infrastructure
 

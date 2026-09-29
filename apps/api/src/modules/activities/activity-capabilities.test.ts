@@ -196,6 +196,34 @@ describe('server-computed activity capabilities', () => {
     })
   })
 
+  it('reports the activity beneficiariesReached exactly as the database aggregate returns it', async () => {
+    // cr-pathways-proof-session-beneficiary-count: pathways.p08_activity_beneficiaries_reached
+    // now sums each activity's APPROVED beneficiaries_reached_this_session values (NULL as 0)
+    // and excludes PENDING, VERIFIED and REJECTED updates; a later rejection lowers the sum.
+    // The service is a pass-through of that already-aggregated total, so this test fixes the
+    // contract at the boundary. The SQL aggregation itself is covered by
+    // apps/api/prisma/tests/proof-session-beneficiary-count-runtime.sql.
+    const actor = actorFor('PROJECT_MANAGER')
+    state.actor = actor
+    tx.project.findFirst.mockResolvedValueOnce({
+      projectActivity_project: [activityRow('IN_PROGRESS', 0)],
+    })
+    tx.$queryRaw.mockResolvedValueOnce([{ activityId, beneficiariesReached: 17 }])
+    const detail = await service.get(actor, projectId, activityId)
+    expect(detail.beneficiariesReached).toBe(17)
+  })
+
+  it('reports zero when the aggregate returns no row for the activity (no approved proofs yet)', async () => {
+    const actor = actorFor('PROJECT_MANAGER')
+    state.actor = actor
+    tx.project.findFirst.mockResolvedValueOnce({
+      projectActivity_project: [activityRow('IN_PROGRESS', 0)],
+    })
+    tx.$queryRaw.mockResolvedValueOnce([])
+    const detail = await service.get(actor, projectId, activityId)
+    expect(detail.beneficiariesReached).toBe(0)
+  })
+
   it('never widens a flag beyond the caller role ceiling (forged grant list)', () => {
     const forged = {
       ...actorFor('PROJECT_OFFICER'),

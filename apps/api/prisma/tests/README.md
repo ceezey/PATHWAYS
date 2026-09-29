@@ -129,11 +129,32 @@ The suite verifies the additive Project/Activity profile fields, normalized Proj
 Officer assignment rule, same-project Indicator/Journey links, immutable PHP budget
 records, timeline override constraint, and the aggregate-only
 `p08_activity_beneficiaries_reached` security boundary. Its participation fixtures
-prove distinct counting and exclusion of absent, archived, dummy, draft, and
-cancelled data. It also verifies Program Manager portfolio access without
-`beneficiaries.records.read`, guessed/cross-project/cross-organization rejection,
-function owner/search path/grants, forced RLS on the new link table, and runtime
-`NOBYPASSRLS`. Success prints `PROJECT_ACTIVITY_CREATION_CONTRACT_RUNTIME=PASS`.
+prove exclusion of absent, archived, dummy, draft, and cancelled data for the
+Program Manager portfolio and permission-boundary assertions; since
+`cr-pathways-proof-session-beneficiary-count` (migration 0042), participation no
+longer feeds the aggregate itself, so its expected `beneficiaries_reached` values are
+0 in this suite (no approved proof session exists in these fixtures). It also
+verifies Program Manager portfolio access without `beneficiaries.records.read`,
+guessed/cross-project/cross-organization rejection, function owner/search
+path/grants, forced RLS on the new link table, and runtime `NOBYPASSRLS`. Success
+prints `PROJECT_ACTIVITY_CREATION_CONTRACT_RUNTIME=PASS`.
+
+## Proof-session beneficiary count (migration 0042)
+
+`proof-session-beneficiary-count-runtime.sql` covers `cr-pathways-proof-session-beneficiary-count`.
+Run it as a local superuser against a disposable `pathways_phase2_*` or `pathways_phase4_*`
+database that already has 0042 applied. It rolls back all fixtures.
+
+The suite verifies that `p08_activity_beneficiaries_reached` sums an activity's `APPROVED`
+`activity_updates.beneficiaries_reached_this_session` values (treating NULL as 0), excludes
+PENDING and REJECTED updates, and that a `VERIFIED` update is structurally impossible on
+`activity_updates` (its CHECK constraint rejects it, so it can never contribute). It confirms an
+approved proof later rejected lowers the total, that an activity with no updates reports zero
+rather than null, cross-project isolation (an activity from another project in the same
+organization is rejected and the other project's own total is unaffected), cross-organization
+isolation in both directions, and that the function's owner, ACL, `SECURITY DEFINER` mode, empty
+search path, and `(activity_id, beneficiaries_reached)` signature are unchanged from the 0000
+baseline. Success prints `PROOF_SESSION_BENEFICIARY_COUNT_RUNTIME=PASS`.
 
 ## Default registration form (migration 0040)
 

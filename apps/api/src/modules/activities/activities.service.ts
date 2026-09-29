@@ -743,6 +743,9 @@ export class ActivitiesService {
       }
     }
     if (hasAtomicPermission(actor.roles[0], actor.permissions, 'beneficiaries.aggregates.read')) {
+      // cr-pathways-proof-session-beneficiary-count: the database function sums each
+      // activity's APPROVED beneficiaries_reached_this_session values (NULL as 0). PENDING,
+      // VERIFIED and REJECTED updates never contribute; a later rejection lowers the total.
       const ids = Prisma.join(activityIds.map((id) => Prisma.sql`${id}::uuid`))
       const rows = await tx.$queryRaw<
         Array<{ activityId: string; beneficiariesReached: number }>

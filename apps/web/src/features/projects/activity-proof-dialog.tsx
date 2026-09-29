@@ -437,8 +437,7 @@ const ScopedActivityProofDialog = ({
               value={beneficiariesReachedThisSession}
             />
             <p className="text-sm text-muted-foreground" id="activity-beneficiaries-reached-hint">
-              Recorded with this proof. It does not change the activity's beneficiaries-reached
-              total.
+              Counts toward the activity's beneficiaries reached once M&E approves this proof.
             </p>
           </div>
           <div className="space-y-2">
