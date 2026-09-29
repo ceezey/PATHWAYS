@@ -347,9 +347,14 @@ function mapActivity(
     updateNotes: updates.map((update) => {
       // A PENDING proof whose files are not all verified in storage yet (the read above lists
       // only verified files). Only its submitter receives the id needed to resume it.
+      // It is also incomplete when every file is verified but the update never committed (the
+      // activity is not FOR_REVIEW): the submitter must be able to resume it to send the finalize.
+      const evidenceCount =
+        update._count?.evidenceMedia_update ?? update.evidenceMedia_update.length
       const proofIncomplete =
         update.status === 'PENDING' &&
-        (update._count?.evidenceMedia_update ?? 0) > update.evidenceMedia_update.length
+        (evidenceCount > update.evidenceMedia_update.length ||
+          (evidenceCount > 0 && row.status !== 'FOR_REVIEW'))
       return {
         id: update.id,
         proofIncomplete,

@@ -592,6 +592,56 @@ describe('ActivityProofDialog direct upload', () => {
     )
   })
 
+  it('resumes an all-uploaded but uncommitted update with finalize only', async () => {
+    const resumable = {
+      ...activity,
+      updateNotes: [
+        {
+          id: 'update-1',
+          note: 'Participant Reached',
+          progress: 0,
+          beneficiariesReachedThisSession: null,
+          status: 'Submitted',
+          proofIncomplete: true,
+          resumeClientUpdateId: 'resume-client-id',
+        },
+      ],
+    } as unknown as Activity
+    api.reserveActivityProofUpload.mockResolvedValue({
+      clientUpdateId: 'resume-client-id',
+      updateId: 'update-1',
+      status: 'READY_TO_COMMIT',
+      files: [
+        {
+          evidenceId: 'evidence-1',
+          fileName: 'a.pdf',
+          contentType: 'application/pdf',
+          byteSize: 1024,
+          sha256: 'x'.repeat(64),
+          storageReady: true,
+          uploadUrl: null,
+        },
+      ],
+    })
+    api.finalizeActivityProofFile.mockResolvedValue({ status: 'COMMITTED', activity: resumable })
+    const onSubmitted = vi.fn()
+    render(
+      <ActivityProofDialog
+        activity={resumable}
+        onOpenChange={vi.fn()}
+        onSubmitted={onSubmitted}
+        open
+      />,
+    )
+    await waitFor(() => expect(api.getActivityProofUploadLimits).toHaveBeenCalledOnce())
+    selectFiles([makeFile('a.pdf', 'application/pdf')])
+    await screen.findByText('a.pdf')
+    fireEvent.click(screen.getByRole('button', { name: /Submit proof/ }))
+    await waitFor(() => expect(onSubmitted).toHaveBeenCalled())
+    expect(api.uploadActivityProofFile).not.toHaveBeenCalled()
+    expect(api.finalizeActivityProofFile).toHaveBeenCalledTimes(1)
+  })
+
   it('shows a server rejection from the reservation call', async () => {
     api.reserveActivityProofUpload.mockRejectedValueOnce(
       new PathwaysClientError('Attach between one and ten evidence files.', 'invalid', [], 400),
