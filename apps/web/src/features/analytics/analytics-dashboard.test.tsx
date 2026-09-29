@@ -947,7 +947,9 @@ describe('Analytics dashboard request dependencies', () => {
 
         // A survey view left selected still shows restricted wording, never "None yet" or Retry.
         fireEvent.change(screen.getByLabelText('Analysis view'), { target: { value: 'survey' } })
-        const restricted = await screen.findByText('Survey improvement is restricted for your role.')
+        const restricted = await screen.findByText(
+          'Survey improvement is restricted for your role.',
+        )
         expect(within(restricted.parentElement as HTMLElement).queryByText('None yet')).toBeNull()
         expect(screen.queryByRole('button', { name: /retry/i })).toBeNull()
         expect(screen.queryByTestId('survey-analytics')).toBeNull()
@@ -985,7 +987,9 @@ describe('Analytics dashboard request dependencies', () => {
       render(<AnalyticsDashboard />)
       await waitFor(() => expect(api.getMonitoringDashboard).toHaveBeenCalled())
       fireEvent.change(screen.getByLabelText('Analysis view'), { target: { value: 'survey' } })
-      expect(await screen.findByText('Survey improvement is restricted for your role.')).toBeTruthy()
+      expect(
+        await screen.findByText('Survey improvement is restricted for your role.'),
+      ).toBeTruthy()
       expect(screen.queryByRole('button', { name: /retry/i })).toBeNull()
     })
 

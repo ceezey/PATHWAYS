@@ -192,7 +192,9 @@ export const AnalyticsDashboard = () => {
   // The survey view offers only periods the database will release (no overlap with another).
   const pickerPeriods = useMemo(
     () =>
-      analysisView === 'survey' ? nonOverlappingAnalyticsPeriods(reportingPeriods) : reportingPeriods,
+      analysisView === 'survey'
+        ? nonOverlappingAnalyticsPeriods(reportingPeriods)
+        : reportingPeriods,
     [analysisView, reportingPeriods],
   )
   const selectedPeriod =
@@ -1225,8 +1227,7 @@ const SurveyAnalyticsPanel = ({
         icon={BarChart3}
       />
     )
-  if (error && errorKind !== 'retry')
-    return <UnavailableChart description={error} />
+  if (error && errorKind !== 'retry') return <UnavailableChart description={error} />
   if (error)
     return (
       <AsyncState

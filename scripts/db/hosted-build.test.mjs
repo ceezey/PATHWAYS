@@ -458,7 +458,10 @@ test('runHostedBuild --resume on a clean 19-row (0000-0044) ledger resumes direc
   )
   await assert.rejects(() => runHostedBuild({ io, config, resume: true }))
   const ranPsqlFile = io.calls.some((c) => c.kind === 'psqlFile')
-  assert.ok(!ranPsqlFile, 'no preprovision/cleanup step remains after the 0044 cleanup and before 0045')
+  assert.ok(
+    !ranPsqlFile,
+    'no preprovision/cleanup step remains after the 0044 cleanup and before 0045',
+  )
   const ranDeploy = io.calls.some((c) => c.kind === 'deploy')
   assert.ok(ranDeploy, 'resume must continue at the 0045 deploy')
 })
