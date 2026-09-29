@@ -365,6 +365,78 @@ describe('ActivityProofDialog direct upload', () => {
     expect(api.uploadActivityProofFile).toHaveBeenCalledTimes(2)
   })
 
+  it('retrying the last failed finalize commits or reports the unfinished update', async () => {
+    const onSubmitted = vi.fn()
+    api.reserveActivityProofUpload.mockResolvedValue({
+      clientUpdateId: 'client-1',
+      updateId: 'update-1',
+      status: 'READY_TO_COMMIT',
+      files: [
+        {
+          evidenceId: 'evidence-1',
+          fileName: 'a.pdf',
+          contentType: 'application/pdf',
+          byteSize: 1024,
+          sha256: 'x'.repeat(64),
+          storageReady: true,
+          uploadUrl: null,
+        },
+      ],
+    })
+    api.finalizeActivityProofFile
+      .mockRejectedValueOnce(new PathwaysClientError('Finalize failed.', 'network', [], 503))
+      .mockResolvedValueOnce({ status: 'UPLOADING', updateId: 'update-1', remaining: 1 })
+      .mockResolvedValueOnce({ status: 'COMMITTED', acknowledgement: {} })
+    api.getActivity.mockResolvedValue(activity)
+    renderDialog(onSubmitted)
+    await waitFor(() => expect(api.getActivityProofUploadLimits).toHaveBeenCalledOnce())
+    selectFiles([makeFile('a.pdf', 'application/pdf')])
+    await screen.findByText('a.pdf')
+    fireEvent.change(screen.getByLabelText(/Narrative Notes/), {
+      target: { value: 'Synthetic proof note' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: /Submit proof/ }))
+    await waitFor(() => expect(screen.getByText(/Failed:/)).toBeTruthy())
+    fireEvent.click(screen.getByRole('button', { name: 'Retry a.pdf' }))
+    await waitFor(() => expect(onSubmitted).toHaveBeenCalledWith(activity))
+    expect(api.finalizeActivityProofFile).toHaveBeenCalledTimes(3)
+  })
+
+  it('reports an unfinished update when the retried finalize still does not commit', async () => {
+    api.reserveActivityProofUpload.mockResolvedValue({
+      clientUpdateId: 'client-1',
+      updateId: 'update-1',
+      status: 'READY_TO_COMMIT',
+      files: [
+        {
+          evidenceId: 'evidence-1',
+          fileName: 'a.pdf',
+          contentType: 'application/pdf',
+          byteSize: 1024,
+          sha256: 'x'.repeat(64),
+          storageReady: true,
+          uploadUrl: null,
+        },
+      ],
+    })
+    api.finalizeActivityProofFile
+      .mockRejectedValueOnce(new PathwaysClientError('Finalize failed.', 'network', [], 503))
+      .mockResolvedValue({ status: 'UPLOADING', updateId: 'update-1', remaining: 1 })
+    renderDialog()
+    await waitFor(() => expect(api.getActivityProofUploadLimits).toHaveBeenCalledOnce())
+    selectFiles([makeFile('a.pdf', 'application/pdf')])
+    await screen.findByText('a.pdf')
+    fireEvent.change(screen.getByLabelText(/Narrative Notes/), {
+      target: { value: 'Synthetic proof note' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: /Submit proof/ }))
+    await waitFor(() => expect(screen.getByText(/Failed:/)).toBeTruthy())
+    fireEvent.click(screen.getByRole('button', { name: 'Retry a.pdf' }))
+    await waitFor(() =>
+      expect(screen.getByRole('alert').textContent).toContain('not submitted for review'),
+    )
+  })
+
   it('tells the user when every file is uploaded but the update did not commit', async () => {
     api.reserveActivityProofUpload.mockResolvedValue({
       clientUpdateId: 'client-1',

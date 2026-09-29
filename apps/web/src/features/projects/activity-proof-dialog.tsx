@@ -312,7 +312,17 @@ const ScopedActivityProofDialog = ({
     const item = files.find((entry) => entry.key === key)
     if (!item || item.status === 'uploading') return
     setError('')
-    await processFile(item)
+    const ok = await processFile(item)
+    // Once this was the last file to land, an UPLOADING reply can still mean the update is ready:
+    // one more idempotent finalize commits it, and a miss is reported rather than left silent.
+    const allUploaded = files.every((entry) => entry.key === key || entry.status === 'uploaded')
+    if (ok && allUploaded && scope.isCurrent() && !committed.current) {
+      await processFile(item)
+      if (scope.isCurrent() && !committed.current)
+        setError(
+          'The proof files are uploaded, but the update was not submitted for review. Select Submit proof to retry.',
+        )
+    }
   }
 
   const submitUpdate = async () => {
