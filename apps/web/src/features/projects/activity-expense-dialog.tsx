@@ -116,10 +116,10 @@ export const ActivityExpenseDialog = ({
               Expense submission is outside your current permissions.
             </p>
           ) : activityReferences.length === 0 ? (
-            <p className="text-sm text-muted-foreground" role="status">
-              No budget allocation is linked to this activity yet. Ask a Program or Grant Manager
-              to record one before submitting an expense.
-            </p>
+            <output className="text-sm text-muted-foreground">
+              No budget allocation is linked to this activity yet. Ask a Program or Grant Manager to
+              record one before submitting an expense.
+            </output>
           ) : (
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-2 sm:col-span-2">

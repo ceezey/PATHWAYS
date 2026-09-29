@@ -93,6 +93,19 @@ const OtpInput = React.forwardRef<HTMLDivElement, OtpInputProps>(
 
     const firstEmptyIndex = () => slots.findIndex((slot) => slot === '')
 
+    // autoFocus on the input itself is flagged by lint/a11y/noAutofocus and,
+    // more importantly, only ever fires on the DOM node's initial mount —
+    // it would miss cases where `autoFocus` turns on after the group is
+    // already rendered (e.g. a dialog that mounts this input before it
+    // opens). Focusing imperatively once, when the prop is true, keeps the
+    // same initial-focus behavior for both cases.
+    React.useEffect(() => {
+      if (autoFocus) {
+        inputRefs.current[0]?.focus()
+        inputRefs.current[0]?.select()
+      }
+    }, [autoFocus])
+
     const handleChange = (index: number, rawInput: string) => {
       const onlyDigits = rawInput.replace(/\D/g, '')
       if (!onlyDigits) {
@@ -173,12 +186,17 @@ const OtpInput = React.forwardRef<HTMLDivElement, OtpInputProps>(
     return (
       <div
         ref={ref}
+        // biome-ignore lint/a11y/useSemanticElements: <fieldset> ships browser
+        // default border/padding that would change this control's layout;
+        // role="group" plus aria-label gives the same grouping semantics
+        // without altering the approved visual design.
         role="group"
         aria-label={label}
         className={cn('flex justify-between gap-2', className)}
       >
         {slots.map((digit, index) => (
           <input
+            // biome-ignore lint/suspicious/noArrayIndexKey: fixed-length OTP digit boxes have no identity beyond position; length never changes and boxes are never reordered, inserted, or removed.
             key={index}
             id={index === 0 ? id : undefined}
             ref={(node) => {
@@ -192,7 +210,6 @@ const OtpInput = React.forwardRef<HTMLDivElement, OtpInputProps>(
             aria-label={`Digit ${index + 1} of ${length}`}
             value={digit}
             disabled={disabled}
-            autoFocus={autoFocus && index === 0}
             onChange={(event) => handleChange(index, event.target.value)}
             onKeyDown={(event) => handleKeyDown(index, event)}
             onPaste={(event) => handlePaste(index, event)}

@@ -163,9 +163,7 @@ describe('user management: create user via existing Auth authorization', () => {
     // Project Manager may authorize Project Officer and M&E Officer, not System Administrator.
     expect(screen.queryByRole('option', { name: 'System Administrator' })).toBeNull()
     expect(screen.getByRole('option', { name: 'Project Officer' })).toBeTruthy()
-    expect(
-      screen.getByRole('option', { name: 'Monitoring and Evaluation Officer' }),
-    ).toBeTruthy()
+    expect(screen.getByRole('option', { name: 'Monitoring and Evaluation Officer' })).toBeTruthy()
   })
 
   it('submits authorizeExistingUser with the DTO fields and refreshes the list on success', async () => {
@@ -227,9 +225,7 @@ describe('user management: create user via existing Auth authorization', () => {
     fireEvent.click(screen.getByLabelText(/assign project one/i))
     fireEvent.click(screen.getByRole('button', { name: /authorize account/i }))
 
-    expect(
-      await screen.findByText(/Enter the existing Auth user ID \(UUID\)/i),
-    ).toBeTruthy()
+    expect(await screen.findByText(/Enter the existing Auth user ID \(UUID\)/i)).toBeTruthy()
     expect(authorizeExistingUser).not.toHaveBeenCalled()
   })
 })

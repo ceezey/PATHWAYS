@@ -149,7 +149,9 @@ describe('MfaForm code entry', () => {
     const group = screen.getByRole('group', { name: 'Authenticator code' })
     const boxes = screen.getAllByLabelText(/Digit \d of 6/)
     expect(boxes).toHaveLength(6)
-    boxes.forEach((box) => expect(group.contains(box)).toBe(true))
+    for (const box of boxes) {
+      expect(group.contains(box)).toBe(true)
+    }
 
     fireEvent.change(boxes[0], { target: { value: '1' } })
     expect(boxes[1]).toBe(document.activeElement)
@@ -197,7 +199,9 @@ describe('MfaForm code entry', () => {
 
     const boxes = fillCode('12345')
     expect(submit.disabled).toBe(true)
-    boxes.forEach((box) => expect(box.getAttribute('type')).toBe('text'))
+    for (const box of boxes) {
+      expect(box.getAttribute('type')).toBe('text')
+    }
 
     fillCode('123456')
     expect(submit.disabled).toBe(false)
@@ -233,14 +237,7 @@ describe('MfaForm code entry', () => {
     // box 3 (index 2), the first empty box, not jump ahead.
     fireEvent.change(boxes[4], { target: { value: '9' } })
 
-    expect(boxes.map((box) => (box as HTMLInputElement).value)).toEqual([
-      '1',
-      '2',
-      '9',
-      '',
-      '',
-      '',
-    ])
+    expect(boxes.map((box) => (box as HTMLInputElement).value)).toEqual(['1', '2', '9', '', '', ''])
   })
 
   it('resets all boxes when the value prop is externally cleared', async () => {
@@ -253,14 +250,7 @@ describe('MfaForm code entry', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Verify authenticator code' }))
 
     await waitFor(() =>
-      expect(boxes.map((box) => (box as HTMLInputElement).value)).toEqual([
-        '',
-        '',
-        '',
-        '',
-        '',
-        '',
-      ]),
+      expect(boxes.map((box) => (box as HTMLInputElement).value)).toEqual(['', '', '', '', '', '']),
     )
   })
 })

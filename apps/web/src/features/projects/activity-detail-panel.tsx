@@ -11,7 +11,13 @@ import {
 } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 
-import { ProgressBar, SidePanel, StatusBadge, UnavailableHint, unavailableControlProps } from '@/components/pathways'
+import {
+  ProgressBar,
+  SidePanel,
+  StatusBadge,
+  UnavailableHint,
+  unavailableControlProps,
+} from '@/components/pathways'
 import { Button } from '@/components/ui/button'
 import { Sheet } from '@/components/ui/sheet'
 import type { Activity, ActivityProof, Indicator, JourneyStageConfig } from '@/types/pathways'

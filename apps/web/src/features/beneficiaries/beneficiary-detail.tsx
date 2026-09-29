@@ -141,7 +141,11 @@ export const BeneficiaryDetail = ({
   })
   const canEditBeneficiary = isUiActionAvailable(role, 'beneficiaries.edit', profile)
   const canViewAssessmentDetail = isUiActionAvailable(role, 'assessments.detail.view', profile)
-  const canTransitionJourney = isUiActionAvailable(role, 'beneficiaries.journey.transition', profile)
+  const canTransitionJourney = isUiActionAvailable(
+    role,
+    'beneficiaries.journey.transition',
+    profile,
+  )
   const canCorrectJourney = isUiActionAvailable(role, 'beneficiaries.journey.correct', profile)
   const [assessmentDetail, setAssessmentDetail] = useState<
     { state: 'idle' | 'loading' | 'error' } | { state: 'ready'; detail: AssessmentDetail }
@@ -348,7 +352,9 @@ export const BeneficiaryDetail = ({
       setJourneyOpen(false)
       toast.success('Enrollment status updated and reloaded from the project history.')
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Enrollment status could not be updated.')
+      toast.error(
+        error instanceof Error ? error.message : 'Enrollment status could not be updated.',
+      )
     } finally {
       setSavingJourney(false)
     }
@@ -946,11 +952,7 @@ export const BeneficiaryDetail = ({
             >
               Cancel
             </Button>
-            <Button
-              disabled={savingJourney}
-              onClick={() => void transitionJourney()}
-              type="button"
-            >
+            <Button disabled={savingJourney} onClick={() => void transitionJourney()} type="button">
               {savingJourney ? 'Saving...' : 'Save enrollment status'}
             </Button>
           </DialogFooter>

@@ -71,7 +71,11 @@ export const projectTeamEditSchema = projectSetupBaseSchema
     // stricter minimums — otherwise a project with a short/empty description
     // (or title just under the setup-form minimum) can never save a team
     // change: the hidden field fails validation before submit is attempted.
-    title: z.string().trim().min(3, 'Enter a project title.').max(160, 'Use at most 160 characters.'),
+    title: z
+      .string()
+      .trim()
+      .min(3, 'Enter a project title.')
+      .max(160, 'Use at most 160 characters.'),
     description: z.string().trim().max(2000, 'Use at most 2000 characters.'),
   })
   .refine(

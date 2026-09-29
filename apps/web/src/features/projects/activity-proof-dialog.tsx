@@ -400,7 +400,9 @@ const ScopedActivityProofDialog = ({
             {liveStatus}
           </output>
           <div className="space-y-2">
-            <Label htmlFor="activity-beneficiaries-reached">Beneficiaries reached this session</Label>
+            <Label htmlFor="activity-beneficiaries-reached">
+              Beneficiaries reached this session
+            </Label>
             <Input
               aria-describedby="activity-beneficiaries-reached-hint"
               aria-invalid={beneficiariesError}

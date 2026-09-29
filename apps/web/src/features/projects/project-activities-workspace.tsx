@@ -270,7 +270,8 @@ export const ProjectActivitiesWorkspace = ({
   // read that carries the activity linkage, so both the submit dialog and the pending-expense
   // list for an activity reuse them instead of a broader budgets.read query.
   const canReadExpenseReferences =
-    (canLogExpense || canValidateExpense) && principalHasAtomicPermission(profile, 'expenses.submit')
+    (canLogExpense || canValidateExpense) &&
+    principalHasAtomicPermission(profile, 'expenses.submit')
   const canReadExpenses =
     (canLogExpense || canValidateExpense) && principalHasAtomicPermission(profile, 'expenses.read')
 

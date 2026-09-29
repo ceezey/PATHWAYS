@@ -95,9 +95,9 @@ const openDialog = async () => {
   render(<ProjectTeamEditorDialog onUpdated={vi.fn()} project={project} />)
   fireEvent.click(screen.getByRole('button', { name: 'Edit team' }))
   await waitFor(() =>
-    expect((screen.getByRole('button', { name: 'Save assignments' }) as HTMLButtonElement).disabled).toBe(
-      false,
-    ),
+    expect(
+      (screen.getByRole('button', { name: 'Save assignments' }) as HTMLButtonElement).disabled,
+    ).toBe(false),
   )
 }
 
