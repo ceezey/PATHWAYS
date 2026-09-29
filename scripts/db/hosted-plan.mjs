@@ -125,27 +125,41 @@ export function assertResumablePrefix(ledgerRows) {
 // following cleanup step (0031, 0034, 0041), that cleanup step is re-run;
 // each cleanup script's own preconditions reject a target that was already
 // cleaned, surfacing a clear error rather than silently skipping it.
-// Migrations that were each, at some earlier point, the last entry in MIGRATIONS_IN_ORDER
-// before later migrations were appended (0041 before 0042 existed, then 0042 before 0043
-// existed). A ledger applied exactly through one of these is exactly the terminal state of an
-// already-completed hosted build that predates the newer migrations: cleanup (if any) and the
-// runtime-role alteration already ran to reach that state, so --resume must continue straight
-// at the very next migration's own deploy step rather than re-running an already-finished
-// cleanup (which would reject an already-cleaned target) or the runtime-role step again. A
-// ledger that instead stops right after one of these migrations mid-run (before its own
-// cleanup has executed) is a different, smaller applied count than the one checked here, so it
-// still falls through to the generic path below and correctly re-runs that cleanup.
+//
+// 0041_activity_media_evidence is, in the ledger alone, ambiguous: it is both (a) the
+// terminal state of an already-completed hosted build that predates 0042/0043 (cleanup already
+// ran, runtime-role already altered) and (b) the state of a build that crashed or was killed
+// between the 0041 deploy and its own cleanup step, which never ran (see the in-process catch
+// in runHostedBuild / hosted-build.mjs). Both states have the exact same appliedCount, so the
+// ledger cannot disambiguate them by itself: the caller must check live database state (whether
+// prisma still holds the temporary rules_store_owner/rules_enqueue_owner memberships granted by
+// hosted-activity-media-preprovision.sql) and pass the result in as `residualOwnerMemberships`.
+// When true, resume must re-run the cleanup step; when false, resume continues at the next
+// migration's own deploy step. 0042_proof_session_beneficiary_count has no matching
+// preprovision/cleanup pair (see buildPlan's comment on the 0042 deploy step), so a ledger
+// stopped exactly there is unambiguous and always resumes at the 0043 deploy; it is listed here
+// only so a future migration added with its own preprovision/cleanup keeps this table
+// consistent, not because it is currently ambiguous.
 const PRIOR_BUILD_COMPLETION_POINTS = [
   '0041_activity_media_evidence',
   '0042_proof_session_beneficiary_count',
 ]
 
-export function planIndexForAppliedCount(appliedCount) {
+export function planIndexForAppliedCount(appliedCount, { residualOwnerMemberships = false } = {}) {
   const plan = buildPlan()
   if (appliedCount === 0) return 0
   for (const migration of PRIOR_BUILD_COMPLETION_POINTS) {
     const migrationIndex = MIGRATIONS_IN_ORDER.indexOf(migration)
     if (migrationIndex !== -1 && appliedCount === migrationIndex + 1) {
+      if (migration === '0041_activity_media_evidence' && residualOwnerMemberships) {
+        const cleanupStepIndex = plan.findIndex(
+          (step) => step.type === 'cleanup' && step.name === 'activity-media',
+        )
+        if (cleanupStepIndex === -1) {
+          throw new Error('Could not locate the activity-media cleanup step')
+        }
+        return cleanupStepIndex
+      }
       const nextMigration = MIGRATIONS_IN_ORDER[migrationIndex + 1]
       const nextStepIndex = plan.findIndex(
         (step) => step.type === 'deploy' && step.migrations.includes(nextMigration),

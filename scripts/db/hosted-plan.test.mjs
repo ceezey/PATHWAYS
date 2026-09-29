@@ -150,6 +150,22 @@ test('planIndexForAppliedCount resumes right after the deploy step for 0034 (mid
 test('planIndexForAppliedCount on a complete 0000-0041 ledger resumes directly at the 0042 deploy, skipping the already-run 0041 cleanup', () => {
   const plan = buildPlan()
   const appliedThrough0041 = MIGRATIONS_IN_ORDER.indexOf('0041_activity_media_evidence') + 1
+  const index = planIndexForAppliedCount(appliedThrough0041, { residualOwnerMemberships: false })
+  assert.equal(plan[index].type, 'deploy')
+  assert.deepEqual(plan[index].migrations, ['0042_proof_session_beneficiary_count'])
+})
+
+test('planIndexForAppliedCount on a 0000-0041 ledger with residual owner memberships resumes at the activity-media cleanup step instead', () => {
+  const plan = buildPlan()
+  const appliedThrough0041 = MIGRATIONS_IN_ORDER.indexOf('0041_activity_media_evidence') + 1
+  const index = planIndexForAppliedCount(appliedThrough0041, { residualOwnerMemberships: true })
+  assert.equal(plan[index].type, 'cleanup')
+  assert.equal(plan[index].name, 'activity-media')
+})
+
+test('planIndexForAppliedCount defaults residualOwnerMemberships to false when omitted', () => {
+  const plan = buildPlan()
+  const appliedThrough0041 = MIGRATIONS_IN_ORDER.indexOf('0041_activity_media_evidence') + 1
   const index = planIndexForAppliedCount(appliedThrough0041)
   assert.equal(plan[index].type, 'deploy')
   assert.deepEqual(plan[index].migrations, ['0042_proof_session_beneficiary_count'])

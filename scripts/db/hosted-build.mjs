@@ -321,10 +321,28 @@ export async function resumePreflight(io, config) {
 
   const ledger = await readLedger(io, config.adminUrl)
   const appliedCount = assertResumablePrefix(ledger)
+
+  // Disambiguate a ledger applied exactly through 0041 (see planIndexForAppliedCount's
+  // PRIOR_BUILD_COMPLETION_POINTS comment): a prior completed build and a build killed between
+  // the 0041 deploy and its own cleanup produce the identical ledger, so read live database
+  // state rather than trusting the count alone. Only queried at that specific count; harmless
+  // (and cheap) to skip otherwise.
+  const activityMediaMigrationIndex = MIGRATIONS_IN_ORDER.indexOf('0041_activity_media_evidence')
+  let residualOwnerMemberships = false
+  if (appliedCount === activityMediaMigrationIndex + 1) {
+    const residualRows = io.psqlQuery(
+      config.adminUrl,
+      `SELECT count(*) FROM pg_catalog.pg_auth_members m JOIN pg_catalog.pg_roles r ON r.oid=m.roleid
+       JOIN pg_catalog.pg_roles p ON p.oid=m.member WHERE p.rolname='prisma'
+       AND r.rolname IN ('rules_store_owner','rules_enqueue_owner');`,
+    )
+    residualOwnerMemberships = residualRows[0] !== '0'
+  }
+
   console.log(
-    `PASS: resume preflight (pathways schema present, auth.users present, prisma role present, ledger is a clean finished prefix with ${appliedCount} migrations applied)`,
+    `PASS: resume preflight (pathways schema present, auth.users present, prisma role present, ledger is a clean finished prefix with ${appliedCount} migrations applied${appliedCount === activityMediaMigrationIndex + 1 ? `, residual activity-media owner memberships: ${residualOwnerMemberships}` : ''})`,
   )
-  return appliedCount
+  return { appliedCount, residualOwnerMemberships }
 }
 
 export async function readLedger(io, adminUrl) {
@@ -402,6 +420,17 @@ export async function postconditions(io, config) {
   console.log(
     `PASS: schema-level permission grants observed (${grantRows[0]} USAGE/CREATE grants on pathways*)`,
   )
+
+  const runtimeLoginRows = io.psqlQuery(
+    config.adminUrl,
+    "SELECT rolcanlogin FROM pg_catalog.pg_roles WHERE rolname='pathways_runtime';",
+  )
+  if (runtimeLoginRows[0] !== 't') {
+    throw new Error(
+      'Postcondition failed: pathways_runtime.rolcanlogin is not true; alter-runtime-role did not run or was reverted',
+    )
+  }
+  console.log('PASS: pathways_runtime has LOGIN enabled')
 }
 
 // ---------------------------------------------------------------------------
@@ -451,8 +480,8 @@ export async function runHostedBuild({ io, config, resume = false, log = console
   let captured = {}
 
   if (resume) {
-    const appliedCount = await resumePreflight(io, config)
-    startIndex = planIndexForAppliedCount(appliedCount)
+    const { appliedCount, residualOwnerMemberships } = await resumePreflight(io, config)
+    startIndex = planIndexForAppliedCount(appliedCount, { residualOwnerMemberships })
     const receipt = io.readReceipt ? io.readReceipt() : null
     if (receipt) captured = { ...captured, ...receipt }
     log(`Resuming at plan step ${startIndex} (${appliedCount} migrations already applied)`)
