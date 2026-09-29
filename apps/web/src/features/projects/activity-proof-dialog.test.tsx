@@ -435,13 +435,9 @@ describe('ActivityProofDialog direct upload', () => {
   it('enables the beneficiaries-reached-this-session field with the new hint', async () => {
     renderDialog()
     await waitFor(() => expect(api.getActivityProofUploadLimits).toHaveBeenCalledOnce())
-    const field = screen.getByLabelText(
-      /Beneficiaries reached this session/,
-    ) as HTMLInputElement
+    const field = screen.getByLabelText(/Beneficiaries reached this session/) as HTMLInputElement
     expect(field.disabled).toBe(false)
-    expect(
-      screen.getByText(/Recorded with this proof\. It does not change/),
-    ).toBeTruthy()
+    expect(screen.getByText(/Recorded with this proof\. It does not change/)).toBeTruthy()
     expect(screen.queryByText(/not available yet/i)).toBeNull()
   })
 
@@ -550,7 +546,12 @@ describe('ActivityProofDialog direct upload', () => {
       ],
     })
     api.uploadActivityProofFile.mockRejectedValue(
-      new PathwaysClientError('The file could not be uploaded. Retry this file.', 'network', [], 503),
+      new PathwaysClientError(
+        'The file could not be uploaded. Retry this file.',
+        'network',
+        [],
+        503,
+      ),
     )
     renderDialog()
     await waitFor(() => expect(api.getActivityProofUploadLimits).toHaveBeenCalledOnce())

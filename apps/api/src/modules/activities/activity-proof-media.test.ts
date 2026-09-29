@@ -371,7 +371,10 @@ describe('reserve (activities.proof.submit)', () => {
     'rejects an invalid beneficiariesReachedThisSession value %s at the DTO boundary',
     async (value) => {
       const errors = await validate(
-        plainToInstance(ReserveActivityProofDto, reserveInput({ beneficiariesReachedThisSession: value })),
+        plainToInstance(
+          ReserveActivityProofDto,
+          reserveInput({ beneficiariesReachedThisSession: value }),
+        ),
       )
       expect(errors.map((error) => error.property)).toContain('beneficiariesReachedThisSession')
     },
