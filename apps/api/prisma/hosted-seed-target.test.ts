@@ -38,7 +38,7 @@ describe('hosted seed target guard', () => {
         },
         { testLocal: false },
       ),
-    ).toThrow('DATABASE_URL must reference the allowed project ref')
+    ).toThrow('DATABASE_URL host must be exactly')
 
     expect(() =>
       assertSeedTarget(
@@ -48,7 +48,54 @@ describe('hosted seed target guard', () => {
         },
         { testLocal: false },
       ),
-    ).toThrow('DIRECT_URL must reference the allowed project ref')
+    ).toThrow('DIRECT_URL host must be exactly')
+  })
+
+  it('refuses a URL where the project ref appears only in the password or path, on a foreign host', () => {
+    expect(() =>
+      assertSeedTarget(
+        {
+          ...hostedEnv,
+          DATABASE_URL: `postgresql://pathways_runtime:${ALLOWED_PROJECT_REF}@evil.example.com:5432/${ALLOWED_PROJECT_REF}`,
+        },
+        { testLocal: false },
+      ),
+    ).toThrow('DATABASE_URL host must be exactly')
+    expect(() =>
+      assertSeedTarget(
+        {
+          ...hostedEnv,
+          DIRECT_URL: `postgresql://prisma:x@evil.example.com:5432/postgres?ref=${ALLOWED_PROJECT_REF}`,
+        },
+        { testLocal: false },
+      ),
+    ).toThrow('DIRECT_URL host must be exactly')
+  })
+
+  it('refuses a foreign pooler username on an otherwise-valid pooler host', () => {
+    expect(() =>
+      assertSeedTarget(
+        {
+          ...hostedEnv,
+          DATABASE_URL:
+            'postgresql://pathways_runtime.someotherref:x@aws-1-ap-southeast-1.pooler.supabase.com:5432/postgres',
+        },
+        { testLocal: false },
+      ),
+    ).toThrow('DATABASE_URL must use username')
+  })
+
+  it('accepts the pooler host form with username "<role>.<ref>"', () => {
+    expect(
+      assertSeedTarget(
+        {
+          SUPABASE_URL: ALLOWED_SUPABASE_URL,
+          DATABASE_URL: `postgresql://pathways_runtime.${ALLOWED_PROJECT_REF}:x@aws-1-ap-southeast-1.pooler.supabase.com:5432/postgres`,
+          DIRECT_URL: `postgresql://prisma.${ALLOWED_PROJECT_REF}:x@aws-1-ap-southeast-1.pooler.supabase.com:5432/postgres`,
+        },
+        { testLocal: false },
+      ),
+    ).toEqual({ mode: 'hosted', projectRef: ALLOWED_PROJECT_REF })
   })
 
   it('refuses a wrong SUPABASE_URL even when it looks similar', () => {
@@ -72,6 +119,15 @@ describe('hosted seed target guard', () => {
         { testLocal: false },
       ),
     ).toThrow()
+  })
+
+  it('refuses a loopback DIRECT_URL in hosted mode even when DATABASE_URL is valid', () => {
+    expect(() =>
+      assertSeedTarget(
+        { ...hostedEnv, DIRECT_URL: 'postgresql://prisma:x@127.0.0.1:5432/postgres' },
+        { testLocal: false },
+      ),
+    ).toThrow('DIRECT_URL host must be exactly')
   })
 
   it('requires every URL and refuses a partial env', () => {

@@ -14,6 +14,7 @@ import type { ApplicationIdentity } from '../src/modules/auth/developer-access'
 import type { RegisterBeneficiaryDto } from '../src/modules/beneficiaries/beneficiaries.dto'
 import { BeneficiariesService } from '../src/modules/beneficiaries/beneficiaries.service'
 import { IndicatorsService } from '../src/modules/indicators/indicators.service'
+import { ProgramsService } from '../src/modules/programs/programs.service'
 import type { CreateProjectDto } from '../src/modules/projects/projects.dto'
 import { ProjectsService } from '../src/modules/projects/projects.service'
 import { StorageService } from '../src/modules/storage/storage.service'
@@ -31,8 +32,9 @@ import { approvedOrganization } from './developer-bootstrap'
 
 const ALLOWED_PROJECT_REF = 'klbtoqdalmcsfjqophty'
 const ALLOWED_SUPABASE_URL = `https://${ALLOWED_PROJECT_REF}.supabase.co`
+const ALLOWED_DIRECT_PG_HOST = `db.${ALLOWED_PROJECT_REF}.supabase.co`
 const SYSTEM_ADMIN_EMAIL = 'cianjake.francisco@gmail.com'
-const LOOPBACK = new Set(['127.0.0.1', 'localhost', '[::1]'])
+const LOOPBACK = new Set(['127.0.0.1', 'localhost', '[::1]', '::1'])
 
 type DummyStaffAccount = {
   role: CanonicalRole
@@ -102,6 +104,58 @@ function generatePassword() {
   return `Pw-${randomBytes(18).toString('base64url')}`
 }
 
+function parseUrlOrThrow(raw: string, label: string): URL {
+  try {
+    return new URL(raw)
+  } catch {
+    throw new Error(`${label} is not a valid URL.`)
+  }
+}
+
+function safeUsername(url: URL): string {
+  try {
+    return decodeURIComponent(url.username || '')
+  } catch {
+    return url.username || ''
+  }
+}
+
+function isLoopback(hostname: string | null): boolean {
+  return Boolean(hostname) && LOOPBACK.has(String(hostname).toLowerCase())
+}
+
+function isPoolerHost(hostname: string | null): boolean {
+  return /\.pooler\.supabase\.com$/i.test(String(hostname || ''))
+}
+
+// Mirrors scripts/db/hosted-seed-target.mjs's assertHostedPgUrl: the host must be the
+// project's direct Postgres host (bare role username) or a pooler host (username
+// "<role>.<ref>"). Anything else, including a loopback host, is rejected in hosted mode.
+function assertHostedPgUrl(url: URL, label: string, expectedRole: string): void {
+  const host = (url.hostname || '').toLowerCase()
+  const username = safeUsername(url)
+  if (host === ALLOWED_DIRECT_PG_HOST) {
+    if (username !== expectedRole) {
+      throw new Error(
+        `${label} must connect as role "${expectedRole}" on ${ALLOWED_DIRECT_PG_HOST}.`,
+      )
+    }
+    return
+  }
+  if (isPoolerHost(host)) {
+    const expectedUsername = `${expectedRole}.${ALLOWED_PROJECT_REF}`
+    if (username !== expectedUsername) {
+      throw new Error(
+        `${label} must use username "${expectedUsername}" on a *.pooler.supabase.com host.`,
+      )
+    }
+    return
+  }
+  throw new Error(
+    `${label} host must be exactly ${ALLOWED_DIRECT_PG_HOST} or a *.pooler.supabase.com host with username "${expectedRole}.${ALLOWED_PROJECT_REF}". Refusing to seed any other target (including loopback hosts) in hosted mode.`,
+  )
+}
+
 function assertGuardedTarget() {
   const testLocal = process.env.PATHWAYS_HOSTED_SEED_MODE === 'test-local'
   const supabaseUrl = process.env.SUPABASE_URL
@@ -110,29 +164,29 @@ function assertGuardedTarget() {
   if (!supabaseUrl || !databaseUrl || !directUrl) {
     throw new Error('SUPABASE_URL, DATABASE_URL and DIRECT_URL are all required.')
   }
-  const hostOf = (url: string) => {
-    try {
-      return new URL(url).hostname
-    } catch {
-      return null
-    }
-  }
-  const supabaseHost = hostOf(supabaseUrl)
+  const supabaseParsed = parseUrlOrThrow(supabaseUrl, 'SUPABASE_URL')
+  const databaseParsed = parseUrlOrThrow(databaseUrl, 'DATABASE_URL')
+  const directParsed = parseUrlOrThrow(directUrl, 'DIRECT_URL')
+
   if (testLocal) {
-    if (!supabaseHost || !LOOPBACK.has(supabaseHost)) {
-      throw new Error('--test-local requires a loopback SUPABASE_URL. Refusing a hosted target.')
+    if (
+      !isLoopback(supabaseParsed.hostname) ||
+      !isLoopback(databaseParsed.hostname) ||
+      !isLoopback(directParsed.hostname)
+    ) {
+      throw new Error(
+        '--test-local requires every URL (SUPABASE_URL, DATABASE_URL, DIRECT_URL) to be loopback. ' +
+          'Refusing a hosted target.',
+      )
     }
     return { testLocal: true as const }
   }
   if (supabaseUrl !== ALLOWED_SUPABASE_URL) {
     throw new Error(`SUPABASE_URL must equal exactly ${ALLOWED_SUPABASE_URL}.`)
   }
-  if (!databaseUrl.includes(ALLOWED_PROJECT_REF) || !directUrl.includes(ALLOWED_PROJECT_REF)) {
-    throw new Error('DATABASE_URL and DIRECT_URL must reference the allowed project ref.')
-  }
-  if (supabaseHost && LOOPBACK.has(supabaseHost)) {
-    throw new Error('A hosted run cannot target a loopback host.')
-  }
+  // DATABASE_URL is the runtime identity; DIRECT_URL is the migration owner.
+  assertHostedPgUrl(databaseParsed, 'DATABASE_URL', 'pathways_runtime')
+  assertHostedPgUrl(directParsed, 'DIRECT_URL', 'prisma')
   return { testLocal: false as const }
 }
 
@@ -374,6 +428,7 @@ async function main() {
   const runtime = new PrismaService({ datasources: { db: { url: runtimeUrl } } })
   const storage = new StorageService()
   const projectsService = new ProjectsService(runtime)
+  const programsService = new ProgramsService(runtime)
   const activitiesService = new ActivitiesService(runtime, storage)
   const indicatorsService = new IndicatorsService(runtime)
   const beneficiariesService = new BeneficiariesService(runtime)
@@ -514,50 +569,84 @@ async function main() {
         staffByRole.set(staff.role, [...(staffByRole.get(staff.role) ?? []), user.id])
       }
 
-      const programs = [
-        {
-          code: 'CPE-2026',
-          name: 'Child Protection and Education Program',
-          description:
-            'Protects children and keeps them learning across Eastern Visayas and Bicol.',
-        },
-        {
-          code: 'RES-2026',
-          name: 'Resilient Communities Program',
-          description:
-            'Strengthens household resilience and livelihoods in disaster-prone provinces.',
-        },
-      ]
-      const programManagerId = staffByRole.get('PROGRAM_MANAGER')?.[0]
-      const programIds = new Map<string, string>()
-      for (const program of programs) {
-        const found =
-          (await tx.program.findFirst({
-            where: { organizationId: organization.id, code: program.code },
-          })) ??
-          (await tx.program.create({
-            data: {
-              organizationId: organization.id,
-              code: program.code,
-              name: program.name,
-              description: program.description,
-              managerUserId: programManagerId,
-              startDate: new Date('2026-01-01'),
-              endDate: new Date('2028-12-31'),
-              status: 'ONGOING',
-            },
-          }))
-        programIds.set(program.code, found.id)
-      }
-
       return {
         organizationId: organization.id,
         adminUserId: adminProfile.id,
         staffUserIds,
         staffByRole,
-        programIds,
       }
     })
+
+    // --- Programs: created through ProgramsService.create (authorized path) -------------
+    // Reference data, the organization and the first profiles above stay on the owner
+    // (superuser) connection because prisma owns those tables without FORCE RLS and this
+    // is the same one-time authorization-bootstrap path local-synthetic-seed already uses:
+    // there is no signed-in identity yet for RLS to check against until a System
+    // Administrator profile exists. Programs are ordinary domain data with an authorized
+    // service (ProgramsService.create, requiring SYSTEM_ADMINISTRATOR), so they are created
+    // the same way the seed drives projects/activities/indicators/beneficiaries below:
+    // through withAuthorizedOperation under a server-derived identity, on the runtime
+    // (RLS-enforced) connection, never on the owner connection.
+    const programPlans: Array<{
+      code: string
+      name: string
+      description: string
+      startDate: string
+      endDate: string
+      status: 'ONGOING'
+    }> = [
+      {
+        code: 'CPE-2026',
+        name: 'Child Protection and Education Program',
+        description: 'Protects children and keeps them learning across Eastern Visayas and Bicol.',
+        startDate: '2026-01-01',
+        endDate: '2028-12-31',
+        status: 'ONGOING',
+      },
+      {
+        code: 'RES-2026',
+        name: 'Resilient Communities Program',
+        description:
+          'Strengthens household resilience and livelihoods in disaster-prone provinces.',
+        startDate: '2026-01-01',
+        endDate: '2028-12-31',
+        status: 'ONGOING',
+      },
+    ]
+    const bootstrapAdministratorIdentity = identityFor(
+      adminAuthId,
+      workspace.organizationId,
+      workspace.adminUserId,
+    )
+    const programManagerId = workspace.staffByRole.get('PROGRAM_MANAGER')?.[0]
+    const programIds = new Map<string, string>()
+    for (const plan of programPlans) {
+      const existing = await prisma.program.findFirst({
+        where: { organizationId: workspace.organizationId, code: plan.code },
+      })
+      if (existing) {
+        programIds.set(plan.code, existing.id)
+        continue
+      }
+      const created = await programsService.create(bootstrapAdministratorIdentity, {
+        code: plan.code,
+        name: plan.name,
+        description: plan.description,
+        startDate: plan.startDate,
+        endDate: plan.endDate,
+        status: plan.status,
+      })
+      // CreateProgramDto has no managerUserId field (no authorized endpoint assigns a
+      // program manager yet); set it with a targeted owner-connection update rather than
+      // widening the public API surface for this seed alone.
+      if (programManagerId) {
+        await prisma.program.update({
+          where: { id: created.id },
+          data: { managerUserId: programManagerId },
+        })
+      }
+      programIds.set(plan.code, created.id)
+    }
 
     const emailOf = (staff: DummyStaffAccount) => staffEmail(staff)
     const userIdOf = (staff: DummyStaffAccount) =>
@@ -597,7 +686,7 @@ async function main() {
     let projectIndex = -1
     for (const plan of projectPlans) {
       projectIndex += 1
-      const programId = workspace.programIds.get(programCodesByProjectIndex[projectIndex])
+      const programId = programIds.get(programCodesByProjectIndex[projectIndex])
 
       // --- Project (through ProjectsService.create, under the Project Manager's own scope) ---
       const existingProject = await prisma.project.findFirst({
@@ -630,35 +719,15 @@ async function main() {
         projectId = (created as { id: string }).id
       }
 
-      // --- Team assignments: assign administrator so it can manage the project team, and
-      // confirm every staff member the project profile references is actively assigned. ---
-      await runtime.$transaction(async (tx) => {
-        await tx.$queryRaw`
-          SELECT set_config('request.jwt.claim.sub', ${adminAuthId}, true),
-            set_config('request.jwt.claims', '', true),
-            set_config('app.organization_id', ${workspace.organizationId}, true),
-            set_config('app.user_id', ${workspace.adminUserId}, true)`
-        const assignees = [
-          userIdOf(projectManagerStaff),
-          userIdOf(monitoringOfficerStaff),
-          ...projectOfficerStaff.map(userIdOf),
-        ]
-        for (const userId of assignees) {
-          const current = await tx.userProjectAssignment.findFirst({
-            where: { projectId, userId, status: 'ACTIVE' },
-          })
-          if (!current) {
-            await tx.userProjectAssignment.create({
-              data: {
-                organizationId: workspace.organizationId,
-                projectId,
-                userId,
-                assignedById: workspace.adminUserId,
-              },
-            })
-          }
-        }
-      })
+      // --- Team assignments: already established through the authorized path. ---
+      // projectsService.create() (above) runs the same private replaceTeamAssignments
+      // step the ProjectsService API uses for real team changes, under the Project
+      // Manager identity, inside the same transaction as project creation. There is
+      // no separate raw-SQL write here and no forged request.jwt.claim/app.* session
+      // config: the Row Level Security identity used for this project's team was
+      // always the one withAuthorizedOperation derived server-side for that call.
+      // On a rerun (existingProject above), the team from the first run is left
+      // untouched, matching this seed's no-duplicates guarantee.
 
       // --- Activities (5-8, mixed statuses) --------------------------------
       const activityTemplates = [
@@ -874,7 +943,7 @@ async function main() {
     )
     for (const staff of dummyStaff) console.info(`  ${emailOf(staff)}: ${staff.role}`)
     console.info('\nPrograms:')
-    for (const [code] of workspace.programIds) console.info(`  ${code}`)
+    for (const [code] of programIds) console.info(`  ${code}`)
     console.info('\nProjects:')
     for (const summary of projectSummaries) {
       console.info(

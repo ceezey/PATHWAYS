@@ -61,7 +61,9 @@ Every step prints `start` and `done` lines and has a time limit. A successful bu
 
 The ledger holds 16 rows because 0000 is the consolidated baseline for the historical 0001 to 0026.
 
-**If a step fails:** the tool still runs the matching cleanup script when the failed step was a preprovisioned migration. Fix the reported cause, then rerun with `--resume`. It continues only when the ledger is an exact finished prefix of the expected sequence, and refuses anything else. Never run `prisma migrate reset`, `db push` or `migrate resolve` by hand.
+**If a step fails:** the tool runs the matching cleanup script whenever the failure happens anywhere between a preprovision step and its cleanup (the preprovision step itself, or the deploy that follows it), then rethrows the original error. Fix the reported cause, then rerun with `--resume`.
+
+`--resume` runs its own preflight instead of the fresh-target one: it requires the pathways schema, `auth.users` and the prisma role to already be present (a partial build always has them), and the ledger to be an exact, cleanly finished prefix of the expected 0000-0041 sequence; it refuses anything else. It also recovers the rules cleanup's required `original_prisma_database_create` value from a small local receipt (`.tmp/hosted-build/receipt.json`, never containing secrets) written right after the rules preprovision step succeeds, so a resume works even from a fresh process after a crash. Never run `prisma migrate reset`, `db push` or `migrate resolve` by hand.
 
 ## 4. Seed realistic dummy data
 

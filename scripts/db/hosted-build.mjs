@@ -14,7 +14,7 @@
 //   PRISMA_ROLE_PASSWORD  >= 24 characters
 //   RUNTIME_ROLE_PASSWORD >= 24 characters
 import { spawnSync } from 'node:child_process'
-import { cpSync, mkdirSync, readFileSync, rmSync } from 'node:fs'
+import { cpSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -36,6 +36,10 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '.
 const migrationsDir = path.join(root, 'apps', 'api', 'prisma', 'migrations')
 const phase6Dir = path.join(root, 'infra', 'supabase', 'phase6')
 const stageDir = path.join(root, '.tmp', 'hosted-build', 'migrations')
+// A small local receipt, never containing secrets, that survives across process restarts
+// so a --resume run can recover the rules cleanup's required original_prisma_database_create
+// value even if the run that captured it crashed before reaching the cleanup step.
+const receiptPath = path.join(root, '.tmp', 'hosted-build', 'receipt.json')
 
 // ---------------------------------------------------------------------------
 // Live IO: the only place this file spawns a real process or opens a real
@@ -53,6 +57,23 @@ function checkTimeout(result, label, timeoutMs) {
     throw new Error(
       `${label} was killed by signal ${result.signal} (timeout ${Math.round(timeoutMs / 1000)}s)`,
     )
+  }
+}
+
+// Pure filesystem helpers for the small captured-value receipt. Kept separate from
+// createLiveIO (which is real-process/real-connection only) so they can also be
+// exercised directly against a real, disposable path in tests.
+export function writeCapturedReceipt(captured, filePath = receiptPath) {
+  mkdirSync(path.dirname(filePath), { recursive: true })
+  writeFileSync(filePath, `${JSON.stringify(captured, null, 2)}\n`, { mode: 0o600 })
+}
+
+export function readCapturedReceipt(filePath = receiptPath) {
+  if (!existsSync(filePath)) return null
+  try {
+    return JSON.parse(readFileSync(filePath, 'utf8'))
+  } catch {
+    return null
   }
 }
 
@@ -94,7 +115,14 @@ export function createLiveIO({ ref }) {
     })
     checkTimeout(result, label ?? command, timeoutMs)
     if (result.status !== 0) {
-      throw new Error(`${label ?? command} failed (exit ${result.status}): ${result.stderr}`)
+      const error = new Error(
+        `${label ?? command} failed (exit ${result.status}): ${result.stderr}`,
+      )
+      // Best-effort recovery: a failing psql script may still have \echo'd values before the
+      // statement that aborted it (e.g. the rules preprovision's captured
+      // original_prisma_database_create). Callers can inspect error.stdout for these.
+      error.stdout = result.stdout
+      throw error
     }
     console.log(
       `[hosted-build] done: ${label ?? command} (${Math.round((Date.now() - started) / 1000)}s)`,
@@ -156,6 +184,14 @@ export function createLiveIO({ ref }) {
           timeoutMs: DEPLOY_TIMEOUT_MS,
         },
       )
+    },
+    // Persists/reads the small original_prisma_database_create receipt so a later
+    // --resume invocation (a fresh process) can recover it for the rules cleanup.
+    writeReceipt(captured) {
+      writeCapturedReceipt(captured)
+    },
+    readReceipt() {
+      return readCapturedReceipt()
     },
     prismaMigrateResolve(directUrl, stagedMigrationsDir, migration) {
       run(
@@ -230,21 +266,26 @@ export function deriveExpectedRoles({ readFile = (p) => readFileSync(p, 'utf8') 
 // ---------------------------------------------------------------------------
 // Preflight / postconditions
 // ---------------------------------------------------------------------------
-export async function preflight(io, config) {
+function authUsersProblems(io, config) {
   const problems = []
-  const schemaRows = io.psqlQuery(
-    config.adminUrl,
-    "SELECT count(*) FROM pg_catalog.pg_namespace WHERE nspname='pathways';",
-  )
-  if (schemaRows[0] !== '0')
-    problems.push('The pathways schema already exists; target is not empty')
-
   const authUsersRows = io.psqlQuery(
     config.adminUrl,
     "SELECT count(*) FROM pg_catalog.pg_class c JOIN pg_catalog.pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname='auth' AND c.relname='users';",
   )
   if (authUsersRows[0] !== '1')
     problems.push('auth.users does not exist; expected the Supabase-managed auth schema')
+  return problems
+}
+
+// Preflight for a fresh (non-resumed) build: the target must be empty.
+export async function preflight(io, config) {
+  const problems = [...authUsersProblems(io, config)]
+  const schemaRows = io.psqlQuery(
+    config.adminUrl,
+    "SELECT count(*) FROM pg_catalog.pg_namespace WHERE nspname='pathways';",
+  )
+  if (schemaRows[0] !== '0')
+    problems.push('The pathways schema already exists; target is not empty')
 
   const prismaRoleRows = io.psqlQuery(
     config.adminUrl,
@@ -254,6 +295,36 @@ export async function preflight(io, config) {
 
   if (problems.length) throw new Error(`Preflight failed:\n- ${problems.join('\n- ')}`)
   console.log('PASS: preflight (pathways schema absent, auth.users present, prisma role absent)')
+}
+
+// Preflight for --resume: a partial build always has both the pathways schema and the
+// prisma role, so the fresh-target checks above would always fail here. Instead confirm
+// the target looks like a genuine in-progress build of THIS project (schema and role
+// present, auth.users present) and that the ledger is an exact finished prefix of the
+// expected migration sequence.
+export async function resumePreflight(io, config) {
+  const problems = [...authUsersProblems(io, config)]
+
+  const schemaRows = io.psqlQuery(
+    config.adminUrl,
+    "SELECT count(*) FROM pg_catalog.pg_namespace WHERE nspname='pathways';",
+  )
+  if (schemaRows[0] === '0') problems.push('The pathways schema does not exist; nothing to resume')
+
+  const prismaRoleRows = io.psqlQuery(
+    config.adminUrl,
+    "SELECT count(*) FROM pg_catalog.pg_roles WHERE rolname='prisma';",
+  )
+  if (prismaRoleRows[0] === '0') problems.push('The prisma role does not exist; nothing to resume')
+
+  if (problems.length) throw new Error(`Resume preflight failed:\n- ${problems.join('\n- ')}`)
+
+  const ledger = await readLedger(io, config.adminUrl)
+  const appliedCount = assertResumablePrefix(ledger)
+  console.log(
+    `PASS: resume preflight (pathways schema present, auth.users present, prisma role present, ledger is a clean finished prefix with ${appliedCount} migrations applied)`,
+  )
+  return appliedCount
 }
 
 export async function readLedger(io, adminUrl) {
@@ -336,15 +407,24 @@ export async function postconditions(io, config) {
 // ---------------------------------------------------------------------------
 // Plan execution
 // ---------------------------------------------------------------------------
+function extractOriginalPrismaDatabaseCreate(stdout) {
+  if (typeof stdout !== 'string') return undefined
+  const match = stdout.match(/Original prisma database CREATE:\s*(t|f)/)
+  return match ? match[1] === 't' : undefined
+}
+
 async function runPreprovision(io, config, step) {
   const stdout = io.psqlFile(config.adminUrl, path.join(phase6Dir, step.file), { label: step.file })
   if (step.name === 'rules') {
-    const match = stdout.match(/Original prisma database CREATE:\s*(t|f)/)
-    if (!match)
+    const originalPrismaDatabaseCreate = extractOriginalPrismaDatabaseCreate(stdout)
+    if (originalPrismaDatabaseCreate === undefined)
       throw new Error(
         'Could not capture original_prisma_database_create from rules preprovision output',
       )
-    return { originalPrismaDatabaseCreate: match[1] === 't' }
+    // Persisted immediately so a later --resume (a fresh process) can recover it even if
+    // this run never reaches the matching cleanup step.
+    io.writeReceipt({ originalPrismaDatabaseCreate })
+    return { originalPrismaDatabaseCreate }
   }
   return {}
 }
@@ -364,89 +444,121 @@ async function runCleanup(io, config, step, captured) {
 }
 
 export async function runHostedBuild({ io, config, resume = false, log = console.log }) {
-  await preflight(io, config)
-
   let startIndex = 0
+  // `captured` carries values obtained mid-run (e.g. rules preprovision's
+  // original_prisma_database_create) forward to the matching cleanup step, either later in
+  // this same process or, on --resume, recovered from the on-disk receipt below.
+  let captured = {}
+
   if (resume) {
-    const ledger = await readLedger(io, config.adminUrl)
-    const appliedCount = assertResumablePrefix(ledger)
+    const appliedCount = await resumePreflight(io, config)
     startIndex = planIndexForAppliedCount(appliedCount)
+    const receipt = io.readReceipt ? io.readReceipt() : null
+    if (receipt) captured = { ...captured, ...receipt }
     log(`Resuming at plan step ${startIndex} (${appliedCount} migrations already applied)`)
   } else {
+    await preflight(io, config)
     resetStage()
   }
 
   const plan = buildPlan()
-  let captured = {}
+  // Tracks a preprovision step whose matching cleanup has not yet run, so a failure in ANY
+  // later step (not just the preprovision step itself, e.g. the deploy immediately after it)
+  // still triggers that cleanup before the original error propagates.
+  let openPreprovision = null
 
   for (let index = startIndex; index < plan.length; index += 1) {
     const step = plan[index]
-    switch (step.type) {
-      case 'create-role': {
-        io.psqlSql(
-          config.adminUrl,
-          `CREATE ROLE prisma LOGIN INHERIT NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS PASSWORD '${config.prismaPassword}';
+    try {
+      switch (step.type) {
+        case 'create-role': {
+          io.psqlSql(
+            config.adminUrl,
+            `CREATE ROLE prisma LOGIN INHERIT NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS PASSWORD '${config.prismaPassword}';
 GRANT prisma TO postgres WITH INHERIT TRUE, SET TRUE;
 GRANT CREATE ON DATABASE postgres TO prisma;
 GRANT USAGE, CREATE ON SCHEMA public TO prisma;
 GRANT TEMPORARY ON DATABASE postgres TO prisma, authenticator, supabase_auth_admin, supabase_storage_admin,
   supabase_etl_admin, supabase_read_only_user, supabase_realtime_admin, supabase_replication_admin, supabase_privileged_role;
 REVOKE TEMPORARY ON DATABASE postgres FROM PUBLIC;`,
-          { label: 'create prisma role' },
-        )
-        break
-      }
-      case 'apply-baseline': {
-        io.psqlSql(
-          config.adminUrl,
-          readFileSync(path.join(migrationsDir, step.migration, 'migration.sql'), 'utf8'),
-          {
-            label: step.migration,
-          },
-        )
-        break
-      }
-      case 'resolve-baseline': {
-        stageMigrations([step.migration])
-        io.prismaMigrateResolve(config.directUrl, stageDir, step.migration)
-        break
-      }
-      case 'deploy': {
-        stageMigrations(step.migrations)
-        io.prismaMigrateDeploy(config.directUrl, stageDir)
-        break
-      }
-      case 'preprovision': {
-        try {
+            { label: 'create prisma role' },
+          )
+          break
+        }
+        case 'apply-baseline': {
+          io.psqlSql(
+            config.adminUrl,
+            readFileSync(path.join(migrationsDir, step.migration, 'migration.sql'), 'utf8'),
+            {
+              label: step.migration,
+            },
+          )
+          break
+        }
+        case 'resolve-baseline': {
+          stageMigrations([step.migration])
+          io.prismaMigrateResolve(config.directUrl, stageDir, step.migration)
+          break
+        }
+        case 'deploy': {
+          stageMigrations(step.migrations)
+          io.prismaMigrateDeploy(config.directUrl, stageDir)
+          break
+        }
+        case 'preprovision': {
           const result = await runPreprovision(io, config, step)
           captured = { ...captured, ...result }
-        } catch (error) {
           const matchingCleanup = plan
             .slice(index + 1)
             .find((s) => s.type === 'cleanup' && s.name === step.name)
-          if (matchingCleanup) await runCleanup(io, config, matchingCleanup, captured)
-          throw error
+          openPreprovision = matchingCleanup ?? null
+          break
         }
-        break
+        case 'cleanup': {
+          await runCleanup(io, config, step, captured)
+          openPreprovision = null
+          break
+        }
+        case 'alter-runtime-role': {
+          io.psqlSql(
+            config.adminUrl,
+            `ALTER ROLE pathways_runtime WITH LOGIN PASSWORD '${config.runtimePassword}';`,
+            { label: 'runtime login' },
+          )
+          break
+        }
+        case 'postconditions': {
+          await postconditions(io, config)
+          break
+        }
+        default:
+          throw new Error(`Unknown plan step type: ${step.type}`)
       }
-      case 'cleanup': {
-        await runCleanup(io, config, step, captured)
-        break
+    } catch (error) {
+      // Best-effort recovery: if the rules preprovision itself failed after its \echo but
+      // before this process captured a return value, try to recover it from the failing
+      // psql invocation's own partial stdout (see runCaptured in createLiveIO).
+      if (
+        step.type === 'preprovision' &&
+        step.name === 'rules' &&
+        !('originalPrismaDatabaseCreate' in captured)
+      ) {
+        const recovered = extractOriginalPrismaDatabaseCreate(error?.stdout)
+        if (recovered !== undefined) {
+          captured = { ...captured, originalPrismaDatabaseCreate: recovered }
+          io.writeReceipt(captured)
+        }
       }
-      case 'alter-runtime-role': {
-        io.psqlSql(
-          config.adminUrl,
-          `ALTER ROLE pathways_runtime WITH LOGIN PASSWORD '${config.runtimePassword}';`,
-          { label: 'runtime login' },
-        )
-        break
+      if (openPreprovision) {
+        await runCleanup(io, config, openPreprovision, captured)
+        openPreprovision = null
+      } else if (step.type === 'preprovision') {
+        const matchingCleanup = plan
+          .slice(index + 1)
+          .find((s) => s.type === 'cleanup' && s.name === step.name)
+        if (matchingCleanup) await runCleanup(io, config, matchingCleanup, captured)
       }
-      case 'postconditions': {
-        await postconditions(io, config)
-        break
-      }
-      default:
-        throw new Error(`Unknown plan step type: ${step.type}`)
+      throw error
     }
   }
 }

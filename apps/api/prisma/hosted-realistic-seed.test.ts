@@ -53,7 +53,49 @@ describe('assertGuardedTarget (defense in depth, mirrors scripts/db/hosted-seed-
         DIRECT_URL: 'postgresql://prisma:x@db.wrongref.supabase.co:5432/postgres',
       },
       () => {
-        expect(() => assertGuardedTarget()).toThrow('reference the allowed project ref')
+        expect(() => assertGuardedTarget()).toThrow('DATABASE_URL host must be exactly')
+      },
+    )
+  })
+
+  it('refuses a foreign host even when the ref appears only in the password or path', () => {
+    withEnv(
+      {
+        SUPABASE_URL: ALLOWED_SUPABASE_URL,
+        DATABASE_URL:
+          'postgresql://pathways_runtime:klbtoqdalmcsfjqophty@evil.example.com:5432/klbtoqdalmcsfjqophty',
+        DIRECT_URL: 'postgresql://prisma:x@db.klbtoqdalmcsfjqophty.supabase.co:5432/postgres',
+      },
+      () => {
+        expect(() => assertGuardedTarget()).toThrow('DATABASE_URL host must be exactly')
+      },
+    )
+  })
+
+  it('refuses a foreign pooler username', () => {
+    withEnv(
+      {
+        SUPABASE_URL: ALLOWED_SUPABASE_URL,
+        DATABASE_URL:
+          'postgresql://pathways_runtime.someotherref:x@aws-1-ap-southeast-1.pooler.supabase.com:5432/postgres',
+        DIRECT_URL: 'postgresql://prisma:x@db.klbtoqdalmcsfjqophty.supabase.co:5432/postgres',
+      },
+      () => {
+        expect(() => assertGuardedTarget()).toThrow('DATABASE_URL must use username')
+      },
+    )
+  })
+
+  it('refuses a loopback DIRECT_URL in hosted mode', () => {
+    withEnv(
+      {
+        SUPABASE_URL: ALLOWED_SUPABASE_URL,
+        DATABASE_URL:
+          'postgresql://pathways_runtime:x@db.klbtoqdalmcsfjqophty.supabase.co:5432/postgres',
+        DIRECT_URL: 'postgresql://prisma:x@127.0.0.1:5432/postgres',
+      },
+      () => {
+        expect(() => assertGuardedTarget()).toThrow('DIRECT_URL host must be exactly')
       },
     )
   })
@@ -90,7 +132,7 @@ describe('assertGuardedTarget (defense in depth, mirrors scripts/db/hosted-seed-
         DIRECT_URL: 'postgresql://prisma:x@127.0.0.1:54322/postgres',
       },
       () => {
-        expect(() => assertGuardedTarget()).toThrow('requires a loopback SUPABASE_URL')
+        expect(() => assertGuardedTarget()).toThrow('--test-local requires every URL')
       },
     )
     withEnv(
@@ -102,6 +144,32 @@ describe('assertGuardedTarget (defense in depth, mirrors scripts/db/hosted-seed-
       },
       () => {
         expect(assertGuardedTarget()).toEqual({ testLocal: true })
+      },
+    )
+  })
+
+  it('test-local with a loopback SUPABASE_URL but a hosted DATABASE_URL or DIRECT_URL must throw', () => {
+    withEnv(
+      {
+        PATHWAYS_HOSTED_SEED_MODE: 'test-local',
+        SUPABASE_URL: 'http://127.0.0.1:54321',
+        DATABASE_URL:
+          'postgresql://pathways_runtime:x@db.klbtoqdalmcsfjqophty.supabase.co:5432/postgres',
+        DIRECT_URL: 'postgresql://prisma:x@127.0.0.1:54322/postgres',
+      },
+      () => {
+        expect(() => assertGuardedTarget()).toThrow('--test-local requires every URL')
+      },
+    )
+    withEnv(
+      {
+        PATHWAYS_HOSTED_SEED_MODE: 'test-local',
+        SUPABASE_URL: 'http://127.0.0.1:54321',
+        DATABASE_URL: 'postgresql://pathways_runtime:x@127.0.0.1:54322/postgres',
+        DIRECT_URL: 'postgresql://prisma:x@db.klbtoqdalmcsfjqophty.supabase.co:5432/postgres',
+      },
+      () => {
+        expect(() => assertGuardedTarget()).toThrow('--test-local requires every URL')
       },
     )
   })
