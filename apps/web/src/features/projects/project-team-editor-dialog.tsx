@@ -170,7 +170,19 @@ export const ProjectTeamEditorDialog = ({
         project.id,
         {
           ...toUpdateProjectInput(values, project),
-          ...toProjectTeamInput(values, users, { clearBlank: true }),
+          ...toProjectTeamInput(values, users, {
+            clearBlank: true,
+            // Only a field the actor actually touched (chose "None" on) may
+            // be sent as an explicit null. An untouched field stays blank in
+            // form state whenever its stored assignment could not be
+            // resolved back to an eligible option (e.g. the directory is
+            // still loading), and must never be submitted as a clear.
+            dirtyFields: {
+              programManager: Boolean(form.formState.dirtyFields.programManager),
+              projectManager: Boolean(form.formState.dirtyFields.projectManager),
+              monitoringOfficer: Boolean(form.formState.dirtyFields.monitoringOfficer),
+            },
+          }),
         },
         mutationContext,
       )

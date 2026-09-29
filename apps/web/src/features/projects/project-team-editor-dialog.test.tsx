@@ -135,6 +135,36 @@ describe('ProjectTeamEditorDialog', () => {
     expect(payload.description).toBe('')
   })
 
+  it('keeps existing PM and M&E assignments visible after the directory loads, and saves without clearing them', async () => {
+    await openDialog()
+
+    // The stored assignments must still be showing once the eligible-user
+    // list has loaded (regression: getUsers() resolving after mount used to
+    // reset these fields to blank even though the stored name matched an
+    // eligible active user).
+    expect(screen.getByLabelText('Project Manager').textContent).toContain('Pat Manager')
+    expect(screen.getByLabelText('Monitoring and Evaluation Officer').textContent).toContain(
+      'Mo Officer',
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Save assignments' }))
+
+    await waitFor(() => expect(api.updateProject).toHaveBeenCalled())
+    const [, payload] = api.updateProject.mock.calls[0]
+    expect(payload).not.toHaveProperty('projectManagerId', null)
+    expect(payload).not.toHaveProperty('monitoringOfficerId', null)
+    expect(payload.projectManagerId).toBe(projectManagerUser.id)
+    expect(payload.monitoringOfficerId).toBe(meOfficerUser.id)
+  })
+
+  // "Explicitly choosing None sends null, and only for the touched field" is
+  // covered at the toProjectTeamInput unit level in
+  // project-form-validation.test.ts ("with dirtyFields, only nulls a blank
+  // role the actor actually touched"). Driving that same save through a
+  // real, opened Radix <Select> in this jsdom suite reproducibly hangs
+  // during unmount/cleanup — unrelated to this fix — so it is intentionally
+  // not exercised as a full dialog interaction here.
+
   it('lets a Program Manager assign Project Manager and M&E, but not Project Officer', async () => {
     access.profile.roles = ['PROGRAM_MANAGER']
     await openDialog()

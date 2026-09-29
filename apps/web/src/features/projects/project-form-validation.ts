@@ -109,45 +109,64 @@ const selectedUserId = (users: UserRecord[], name: string, role: UserRecord['rol
     ?.id
 
 // Resolves a single-assignment team field to the id to send: `null` clears
-// the assignment explicitly when clearBlank is set (team editor "None"),
-// a blank is omitted otherwise so project creation keeps server defaults,
-// a string sets it, and `undefined` means the selection could not be
-// resolved and should be left out of the payload rather than risk clearing
-// or corrupting an assignment (validateProjectTeamSelections rejects any
-// non-blank, non-eligible name before submission, so this path is only hit
-// defensively).
+// the assignment explicitly when clearBlank is set AND the actor explicitly
+// chose "None" for that field (team editor), a blank is omitted otherwise so
+// project creation keeps server defaults and an untouched field in the team
+// editor never clears a stored assignment, a string sets it, and `undefined`
+// means the selection could not be resolved and should be left out of the
+// payload rather than risk clearing or corrupting an assignment
+// (validateProjectTeamSelections rejects any non-blank, non-eligible name
+// before submission, so this path is only hit defensively).
 const resolvedRoleId = (
   users: UserRecord[],
   name: string,
   role: UserRecord['role'],
-  clearBlank: boolean,
+  explicitClear: boolean,
 ) => {
-  if (name === '') return clearBlank ? null : undefined
+  if (name === '') return explicitClear ? null : undefined
   return selectedUserId(users, name, role) ?? undefined
 }
+
+export type ProjectTeamSingleFieldName = 'programManager' | 'projectManager' | 'monitoringOfficer'
 
 export const toProjectTeamInput = (
   values: ProjectSetupSchema,
   users: UserRecord[],
-  { clearBlank = false }: { clearBlank?: boolean } = {},
+  {
+    clearBlank = false,
+    dirtyFields,
+  }: {
+    clearBlank?: boolean
+    // react-hook-form's formState.dirtyFields for the single-assignment team
+    // fields. When provided, `clearBlank` only takes effect for a field the
+    // actor actually touched (dirtyFields[field] === true) — a blank value
+    // the actor never interacted with is left out of the payload instead of
+    // being sent as an explicit clear. Omit this to keep the previous
+    // all-or-nothing clearBlank behavior (used by project creation, which
+    // has no pre-existing assignment to protect).
+    dirtyFields?: Partial<Record<ProjectTeamSingleFieldName, boolean>>
+  } = {},
 ): Partial<CreateProjectInput> => {
+  const explicitClearFor = (field: ProjectTeamSingleFieldName) =>
+    clearBlank && (dirtyFields === undefined || Boolean(dirtyFields[field]))
+
   const programManagerId = resolvedRoleId(
     users,
     values.programManager,
     'Program Manager',
-    clearBlank,
+    explicitClearFor('programManager'),
   )
   const projectManagerId = resolvedRoleId(
     users,
     values.projectManager,
     'Project Manager',
-    clearBlank,
+    explicitClearFor('projectManager'),
   )
   const monitoringOfficerId = resolvedRoleId(
     users,
     values.monitoringOfficer,
     'Monitoring and Evaluation Officer',
-    clearBlank,
+    explicitClearFor('monitoringOfficer'),
   )
   const selectedOfficerNames = values.projectOfficers
     .split(',')

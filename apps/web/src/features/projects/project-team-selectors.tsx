@@ -66,10 +66,15 @@ export const validateProjectTeamSelections = (
   users: UserRecord[],
 ) => {
   const errors: Partial<Record<TeamFieldName, string>> = {}
+  // A blank single-assignment field means "None" (an intentional, always
+  // allowed clear) rather than an unresolved selection, so it must never be
+  // treated as a name to validate against the eligible set. Filtering it
+  // out here keeps a blank field from being flagged as an invalid legacy
+  // value whenever the role happens to have at least one eligible user.
   const selectedByField: Record<TeamFieldName, string[]> = {
-    programManager: [values.programManager],
-    projectManager: [values.projectManager],
-    monitoringOfficer: [values.monitoringOfficer],
+    programManager: values.programManager ? [values.programManager] : [],
+    projectManager: values.projectManager ? [values.projectManager] : [],
+    monitoringOfficer: values.monitoringOfficer ? [values.monitoringOfficer] : [],
     projectOfficers: parseProjectOfficerNames(values.projectOfficers),
   }
 
@@ -153,6 +158,24 @@ const SingleTeamSelector = ({
             <Select
               disabled={disabled || Boolean(unavailableMessage) || options.length === 0}
               onValueChange={(userId) => {
+                // Radix Select mirrors its controlled value onto a visually
+                // hidden native <select> for form participation. When that
+                // native element's options change (e.g. this component's
+                // eligible-user list populates asynchronously after
+                // getUsers() resolves) while the dropdown has never been
+                // opened, the browser cannot yet find a matching <option>
+                // for the id we set, silently resets the native element's
+                // value to "", and Radix bubbles that back through
+                // onValueChange(''). No real SelectItem ever carries the
+                // value "" (Radix throws on an empty item value, and the
+                // "None" item uses noneOptionValue instead), so an
+                // onValueChange('') call is never a genuine user choice.
+                // Ignoring it here is what keeps an already-assigned,
+                // still-eligible user from being wiped out purely because
+                // the option list loaded after mount.
+                if (userId === '') {
+                  return
+                }
                 if (userId === noneOptionValue) {
                   field.onChange('')
                   return

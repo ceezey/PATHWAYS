@@ -320,4 +320,42 @@ describe('project setup validation', () => {
       toProjectTeamInput({ ...validValues, programManager: 'Someone Unlisted' }, []),
     ).not.toHaveProperty('programManagerId')
   })
+
+  it('with dirtyFields, only nulls a blank role the actor actually touched (chose None on)', () => {
+    // Regression: the team editor combines clearBlank:true with react-hook-form's
+    // dirtyFields so an assignment that reads back blank only because the
+    // eligible-user directory has not resolved it yet (not because the actor
+    // chose None) is never submitted as an explicit clear.
+    const blankValues = {
+      ...validValues,
+      programManager: '',
+      projectManager: '',
+      monitoringOfficer: '',
+    }
+
+    expect(
+      toProjectTeamInput(blankValues, [], {
+        clearBlank: true,
+        dirtyFields: { monitoringOfficer: true },
+      }),
+    ).toEqual({ monitoringOfficerId: null })
+
+    expect(
+      toProjectTeamInput(blankValues, [], {
+        clearBlank: true,
+        dirtyFields: { programManager: true, projectManager: true, monitoringOfficer: true },
+      }),
+    ).toEqual({
+      programManagerId: null,
+      projectManagerId: null,
+      monitoringOfficerId: null,
+    })
+
+    expect(
+      toProjectTeamInput(blankValues, [], {
+        clearBlank: true,
+        dirtyFields: {},
+      }),
+    ).toEqual({})
+  })
 })
