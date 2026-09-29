@@ -9,6 +9,10 @@ import type { DemoContext } from './local-demo-seed'
 import { stageActivities } from './local-demo-stage-activities'
 import { stageAssessments, stageMilestones } from './local-demo-stage-evidence'
 import { stageBudgets, stageExpenses } from './local-demo-stage-finance'
+import { stageDecisions } from './local-demo-stage-decisions'
+import { stagePublishing } from './local-demo-stage-publishing'
+import { stageReports } from './local-demo-stage-reports'
+import { stageEvaluation, stageRules } from './local-demo-stage-rules'
 import { stageJourneysAndForms, stageParticipation } from './local-demo-stage-forms'
 import { stageBeneficiaries, stageIndicators } from './local-demo-stage-people'
 import { message, projectOf } from './local-demo-util'
@@ -127,6 +131,11 @@ const stages: Stage[] = [
   { name: 'expenses', run: stageExpenses },
   { name: 'milestones', run: stageMilestones },
   { name: 'assessments', run: stageAssessments },
+  { name: 'rules', run: stageRules },
+  { name: 'evaluation', run: stageEvaluation },
+  { name: 'decisions', run: stageDecisions },
+  { name: 'public tracker', run: stagePublishing },
+  { name: 'reports', run: stageReports },
 ]
 
 const foundation = new Set(['programs', 'projects', 'team'])
