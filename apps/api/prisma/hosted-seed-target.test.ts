@@ -10,7 +10,7 @@ import {
   ALLOWED_SUPABASE_URL,
   assertSeedTarget,
   resolveEnvFilePath,
-} from '../../../scripts/db/hosted-target.mjs'
+} from '../../../scripts/db/hosted-seed-target.mjs'
 
 const repoRoot = path.resolve(__dirname, '..', '..', '..')
 const repoTmpDir = path.join(repoRoot, '.tmp')

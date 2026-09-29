@@ -29,7 +29,7 @@ function withEnv<T>(vars: Record<string, string | undefined>, run: () => T): T {
   }
 }
 
-describe('assertGuardedTarget (defense in depth, mirrors scripts/db/hosted-target.mjs)', () => {
+describe('assertGuardedTarget (defense in depth, mirrors scripts/db/hosted-seed-target.mjs)', () => {
   it('accepts the exact allowed hosted project', () => {
     withEnv(
       {
