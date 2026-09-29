@@ -25,6 +25,7 @@ export const MIGRATIONS_IN_ORDER = Object.freeze([
   '0039_project_partner_backfill',
   '0040_default_registration_form',
   '0041_activity_media_evidence',
+  '0042_proof_session_beneficiary_count',
 ])
 
 function range(from, to) {
@@ -64,6 +65,9 @@ export function buildPlan() {
     },
     { type: 'deploy', migrations: range(41, 41) },
     { type: 'cleanup', name: 'activity-media', file: 'hosted-activity-media-cleanup.sql' },
+    // 0042 needs no preprovision: prisma already owns pathways.activity_updates and
+    // pathways.p08_activity_beneficiaries_reached from the 0000 baseline.
+    { type: 'deploy', migrations: range(42, 42) },
     { type: 'alter-runtime-role' },
     { type: 'postconditions' },
   ]
@@ -119,6 +123,21 @@ export function assertResumablePrefix(ledgerRows) {
 export function planIndexForAppliedCount(appliedCount) {
   const plan = buildPlan()
   if (appliedCount === 0) return 0
+  // A ledger holding every migration through 0041 (one short of the full 0000-0042 list) is
+  // exactly the terminal state of an already-completed pre-0042 hosted build: cleanup and the
+  // runtime-role alteration already ran to reach that state, and 0042 itself needs neither, so
+  // --resume continues straight at 0042's own deploy step rather than re-running the 0041
+  // cleanup (which would reject an already-cleaned target) or the runtime-role step again.
+  if (appliedCount === MIGRATIONS_IN_ORDER.length - 1) {
+    const finalMigration = MIGRATIONS_IN_ORDER[MIGRATIONS_IN_ORDER.length - 1]
+    const finalStepIndex = plan.findIndex(
+      (step) => step.type === 'deploy' && step.migrations.includes(finalMigration),
+    )
+    if (finalStepIndex === -1) {
+      throw new Error(`Could not locate a deploy step for migration ${finalMigration}`)
+    }
+    return finalStepIndex
+  }
   const lastApplied = MIGRATIONS_IN_ORDER[appliedCount - 1]
   const stepIndex = plan.findIndex(
     (step) => step.type === 'deploy' && step.migrations.includes(lastApplied),

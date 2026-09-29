@@ -100,3 +100,21 @@ After the preview passes, update the Production environment with the same values
 ## 6. Verification
 
 Agents confirm each stage with read-only checks, covering the migration ledger, roles, buckets and row counts, and record the verified hosted facts in the rollout record. PATHWAYS-dev stays untouched until the developer retires it.
+
+## 7. Applying 0042 to the already-built role-staging
+
+The role-staging project described above was built through migration 0041. Migration 0042 (cr-pathways-proof-session-beneficiary-count) adds one nullable column to `pathways.activity_updates` and redefines `pathways.p08_activity_beneficiaries_reached`. It needs no preprovision or cleanup, so it slots into the existing `--resume` path as a single extra deploy step.
+
+The operator runs:
+
+```bash
+node scripts/db/hosted-build.mjs --env-file .tmp/role-staging-build.env --resume
+```
+
+Because the ledger is already the complete, cleanly finished 0000 to 0041 prefix, `--resume` continues with only the 0042 deploy and then the postconditions. It does not re-run the activity-media cleanup or the runtime-role alteration, since both already ran to reach that state. A successful run ends with these PASS lines:
+
+- `PASS: resume preflight (pathways schema present, auth.users present, prisma role present, ledger is a clean finished prefix with 16 migrations applied)`
+- `PASS: ledger has exactly 17 migrations 0000-0042, all finished and none failed`
+- `PASS: no residual temporary owner memberships for prisma`
+- `PASS: role count matches the repo-derived expectation (21 roles ...)`
+- `PASS: schema-level permission grants observed (...)`
