@@ -135,8 +135,8 @@ test('runHostedBuild executes the full plan in order against a fake IO and reach
   const kinds = io.calls.map((c) => c.kind)
   assert.ok(kinds.includes('psqlSql'))
   assert.ok(kinds.includes('resolve'))
-  assert.equal(kinds.filter((k) => k === 'deploy').length, 10)
-  assert.equal(kinds.filter((k) => k === 'psqlFile').length, 7) // 4 preprovision + 3 cleanup
+  assert.equal(kinds.filter((k) => k === 'deploy').length, 11)
+  assert.equal(kinds.filter((k) => k === 'psqlFile').length, 9) // 5 preprovision + 4 cleanup
 })
 
 test('runHostedBuild passes the captured original_prisma_database_create value to the rules cleanup', async () => {
@@ -346,30 +346,121 @@ test('runHostedBuild --resume on a clean 18-row (0000-0042) ledger resumes direc
     })),
   )
   await assert.rejects(() => runHostedBuild({ io, config, resume: true }))
-  const ranPreprovision = io.calls.some((c) => c.kind === 'psqlFile')
-  assert.ok(!ranPreprovision, 'no preprovision/cleanup step remains between 0042 and 0043')
-  const ranDeploy = io.calls.some((c) => c.kind === 'deploy')
-  assert.ok(ranDeploy, 'resume must continue at the 0043 deploy')
+  const firstDeploy = io.calls.findIndex((c) => c.kind === 'deploy')
+  const firstFile = io.calls.findIndex((c) => c.kind === 'psqlFile')
+  assert.ok(firstDeploy !== -1, 'resume must continue at the 0043 deploy')
+  assert.ok(
+    firstFile === -1 || firstDeploy < firstFile,
+    'no preprovision/cleanup step remains between 0042 and 0043',
+  )
 })
 
-test('runHostedBuild --resume on a clean 18-row (0000-0043) ledger resumes directly at the 0044 deploy', async () => {
+function ledgerThrough(migration) {
+  return MIGRATIONS_IN_ORDER.slice(0, MIGRATIONS_IN_ORDER.indexOf(migration) + 1).map(
+    (migration_name) => ({ migration_name, finished_at: 'now', rolled_back_at: null }),
+  )
+}
+function withResidualChain(io) {
+  const original = io.psqlQuery.bind(io)
+  io.psqlQuery = (url, sql) =>
+    sql.includes('pg_auth_members') && sql.includes('rules_source_proof_owner')
+      ? ['1']
+      : original(url, sql)
+}
+
+test('resumePreflight detects a residual temporary owner chain (including rules_source_proof_owner) on a ledger applied exactly through 0043 or 0044', async () => {
+  for (const migration of ['0043_activity_overdue_explanation', '0044_activity_progress_review']) {
+    const io = makeFakeIO({ schemaPresent: true, rolePresent: true })
+    io.setLedger(ledgerThrough(migration))
+    withResidualChain(io)
+    const { residualOwnerMemberships } = await resumePreflight(io, config)
+    assert.equal(residualOwnerMemberships, true, migration)
+  }
+})
+
+test('runHostedBuild --resume on a clean 0000-0043 ledger runs the activity-review preprovision before the 0044 deploy', async () => {
   const io = makeFakeIO({ schemaPresent: true, rolePresent: true })
-  const appliedThrough0043 = MIGRATIONS_IN_ORDER.slice(
+  io.setLedger(ledgerThrough('0043_activity_overdue_explanation'))
+  await assert.rejects(() => runHostedBuild({ io, config, resume: true }))
+  const provisionIndex = io.calls.findIndex(
+    (c) => c.kind === 'psqlFile' && c.filePath.endsWith('hosted-activity-review-preprovision.sql'),
+  )
+  const deployIndex = io.calls.findIndex((c) => c.kind === 'deploy')
+  const cleanupIndex = io.calls.findIndex(
+    (c) => c.kind === 'psqlFile' && c.filePath.endsWith('hosted-activity-review-cleanup.sql'),
+  )
+  assert.ok(provisionIndex !== -1 && deployIndex > provisionIndex && cleanupIndex > deployIndex)
+})
+
+test('runHostedBuild --resume on a 0000-0043 ledger with the chain already granted skips the preprovision and deploys 0044', async () => {
+  const io = makeFakeIO({ schemaPresent: true, rolePresent: true })
+  io.setLedger(ledgerThrough('0043_activity_overdue_explanation'))
+  withResidualChain(io)
+  await assert.rejects(() => runHostedBuild({ io, config, resume: true }))
+  assert.ok(
+    !io.calls.some(
+      (c) =>
+        c.kind === 'psqlFile' && c.filePath.endsWith('hosted-activity-review-preprovision.sql'),
+    ),
+    'a granted chain must not be provisioned twice',
+  )
+  assert.ok(io.calls.some((c) => c.kind === 'deploy'))
+})
+
+test('runHostedBuild --resume on a 0000-0044 ledger with residual owner memberships re-runs the activity-review cleanup first', async () => {
+  const io = makeFakeIO({ schemaPresent: true, rolePresent: true })
+  io.setLedger(ledgerThrough('0044_activity_progress_review'))
+  withResidualChain(io)
+  await assert.rejects(() => runHostedBuild({ io, config, resume: true }))
+  const first = io.calls.find((c) => c.kind === 'psqlFile')
+  assert.ok(first?.filePath.endsWith('hosted-activity-review-cleanup.sql'))
+  const firstDeploy = io.calls.findIndex((c) => c.kind === 'deploy')
+  const firstFile = io.calls.findIndex((c) => c.kind === 'psqlFile')
+  assert.ok(firstDeploy === -1 || firstFile < firstDeploy, 'cleanup precedes the 0045 deploy')
+})
+
+test('runHostedBuild runs the activity-review cleanup and rethrows when the 0044 deploy fails', async () => {
+  const io = makeFakeIO()
+  io.setLedger(
+    MIGRATIONS_IN_ORDER.map((migration_name) => ({
+      migration_name,
+      finished_at: 'now',
+      rolled_back_at: null,
+    })),
+  )
+  const originalDeploy = io.prismaMigrateDeploy.bind(io)
+  io.prismaMigrateDeploy = (directUrl, stageDir) => {
+    const deployCallsSoFar = io.calls.filter((c) => c.kind === 'deploy').length
+    if (deployCallsSoFar === 9) throw new Error('simulated 0044 deploy failure')
+    return originalDeploy(directUrl, stageDir)
+  }
+  await assert.rejects(() => runHostedBuild({ io, config }), /simulated 0044 deploy failure/)
+  assert.ok(
+    io.calls.some(
+      (c) => c.kind === 'psqlFile' && c.filePath.endsWith('hosted-activity-review-cleanup.sql'),
+    ),
+    'the activity-review cleanup must run when the 0044 deploy fails',
+  )
+})
+
+test('runHostedBuild --resume on a clean 19-row (0000-0044) ledger resumes directly at the 0045 deploy', async () => {
+  const io = makeFakeIO({ schemaPresent: true, rolePresent: true })
+  const appliedThrough0044 = MIGRATIONS_IN_ORDER.slice(
     0,
-    MIGRATIONS_IN_ORDER.indexOf('0043_activity_overdue_explanation') + 1,
+    MIGRATIONS_IN_ORDER.indexOf('0044_activity_progress_review') + 1,
   )
   io.setLedger(
-    appliedThrough0043.map((migration_name) => ({
+    appliedThrough0044.map((migration_name) => ({
       migration_name,
       finished_at: 'now',
       rolled_back_at: null,
     })),
   )
   await assert.rejects(() => runHostedBuild({ io, config, resume: true }))
-  const ranPreprovision = io.calls.some((c) => c.kind === 'psqlFile')
-  assert.ok(!ranPreprovision, 'no preprovision/cleanup step remains between 0043 and 0044')
+  const ranPsqlFile = io.calls.some((c) => c.kind === 'psqlFile')
+  assert.ok(!ranPsqlFile, 'no preprovision/cleanup step remains after the 0044 cleanup and before 0045')
   const ranDeploy = io.calls.some((c) => c.kind === 'deploy')
-  assert.ok(ranDeploy, 'resume must continue at the 0044 deploy')
+  assert.ok(ranDeploy, 'resume must continue at the 0045 deploy')
 })
 
 test('runHostedBuild runs the rules cleanup and rethrows when the 0031 deploy fails', async () => {

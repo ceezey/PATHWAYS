@@ -16,18 +16,18 @@ BEGIN;
 SET LOCAL lock_timeout = '5s';
 SET LOCAL statement_timeout = '60s';
 DO $$ BEGIN
- IF current_user <> 'prisma' OR NOT EXISTS(SELECT FROM public._prisma_migrations WHERE migration_name='0043_activity_overdue_explanation'
+ IF current_user <> 'prisma' OR NOT EXISTS(SELECT FROM public._prisma_migrations WHERE migration_name='0044_activity_progress_review'
   AND finished_at IS NOT NULL AND rolled_back_at IS NULL)
- THEN RAISE EXCEPTION '0044 requires the verified 0043 state and migration identity'; END IF;
+ THEN RAISE EXCEPTION '0045 requires the verified 0044 state and migration identity'; END IF;
  IF EXISTS(SELECT FROM pg_catalog.pg_proc p JOIN pg_catalog.pg_namespace n ON n.oid=p.pronamespace
   WHERE n.nspname='pathways' AND p.proname IN ('p10_f9_survey_aggregate','p10_f9_timeline_aggregate'))
- THEN RAISE EXCEPTION '0044 requires the functions to not already exist'; END IF;
+ THEN RAISE EXCEPTION '0045 requires the functions to not already exist'; END IF;
  IF (SELECT pg_catalog.pg_get_userbyid(proowner) FROM pg_catalog.pg_proc
   WHERE oid='pathways.p06_can(text,uuid)'::pg_catalog.regprocedure)<>'prisma'
   OR (SELECT pg_catalog.pg_get_userbyid(relowner) FROM pg_catalog.pg_class WHERE oid='pathways.assessment_results'::pg_catalog.regclass)<>'prisma'
   OR (SELECT pg_catalog.pg_get_userbyid(relowner) FROM pg_catalog.pg_class WHERE oid='pathways.project_activities'::pg_catalog.regclass)<>'prisma'
   OR (SELECT pg_catalog.pg_get_userbyid(relowner) FROM pg_catalog.pg_class WHERE oid='pathways.project_milestones'::pg_catalog.regclass)<>'prisma'
- THEN RAISE EXCEPTION '0044 requires prisma ownership of p06_can and the source tables'; END IF;
+ THEN RAISE EXCEPTION '0045 requires prisma ownership of p06_can and the source tables'; END IF;
 END $$;
 SELECT pg_advisory_xact_lock(505005,1);
 
@@ -254,7 +254,7 @@ DO $$ DECLARE fn text; BEGIN
   IF NOT EXISTS(SELECT FROM pg_catalog.pg_proc p WHERE p.oid=fn::pg_catalog.regprocedure
    AND pg_catalog.pg_get_userbyid(p.proowner)='prisma' AND p.prosecdef
    AND p.proconfig IS NOT DISTINCT FROM ARRAY['search_path=""'])
-  THEN RAISE EXCEPTION '0044 % owner/security/search_path postcondition failed',fn; END IF;
+  THEN RAISE EXCEPTION '0045 % owner/security/search_path postcondition failed',fn; END IF;
   IF EXISTS(SELECT FROM pg_catalog.pg_proc p
    CROSS JOIN LATERAL pg_catalog.aclexplode(coalesce(p.proacl,pg_catalog.acldefault('f',p.proowner))) a
    WHERE p.oid=fn::pg_catalog.regprocedure
@@ -262,7 +262,7 @@ DO $$ DECLARE fn text; BEGIN
   OR NOT has_function_privilege('pathways_runtime',fn,'EXECUTE')
   OR EXISTS(SELECT FROM (VALUES('anon'),('authenticated'),('service_role')) r(name)
    WHERE has_function_privilege(r.name,fn,'EXECUTE'))
-  THEN RAISE EXCEPTION '0044 % ACL postcondition failed',fn; END IF;
+  THEN RAISE EXCEPTION '0045 % ACL postcondition failed',fn; END IF;
  END LOOP;
 END $$;
 COMMIT;

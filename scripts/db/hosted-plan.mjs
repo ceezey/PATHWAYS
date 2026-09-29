@@ -4,7 +4,7 @@
 
 export const BASELINE = '0000_pathways_baseline_through_0026'
 
-// The exact 19-migration ledger this script must produce, in order. This is
+// The exact 45-migration ledger this script must produce, in order. This is
 // the repository's own migration directory listing (apps/api/prisma/migrations),
 // asserted against the real directory in hosted-plan.test.mjs so this literal
 // list can never silently drift from the repo.
@@ -27,7 +27,8 @@ export const MIGRATIONS_IN_ORDER = Object.freeze([
   '0041_activity_media_evidence',
   '0042_proof_session_beneficiary_count',
   '0043_activity_overdue_explanation',
-  '0044_f9_descriptive_aggregates',
+  '0044_activity_progress_review',
+  '0045_f9_descriptive_aggregates',
 ])
 
 function range(from, to) {
@@ -74,10 +75,19 @@ export function buildPlan() {
     // pathways.projects, pathways.organizations, pathways.system_users and
     // pathways.p05_has_project_permission from the 0000 baseline.
     { type: 'deploy', migrations: range(43, 43) },
-    // 0044 needs no preprovision: it adds two functions only, and prisma already owns
+    // 0044 replaces two rules-owned SECURITY DEFINER functions (owners rules_enqueue_owner and
+    // rules_source_proof_owner), so it needs a temporary SET-only owner chain, like 0041.
+    {
+      type: 'preprovision',
+      name: 'activity-review',
+      file: 'hosted-activity-review-preprovision.sql',
+    },
+    { type: 'deploy', migrations: range(44, 44) },
+    { type: 'cleanup', name: 'activity-review', file: 'hosted-activity-review-cleanup.sql' },
+    // 0045 needs no preprovision: it adds two functions only, and prisma already owns
     // pathways.p06_can, pathways.assessment_results, pathways.project_activities and
     // pathways.project_milestones from the 0000 baseline.
-    { type: 'deploy', migrations: range(44, 44) },
+    { type: 'deploy', migrations: range(45, 45) },
     { type: 'alter-runtime-role' },
     { type: 'postconditions' },
   ]
@@ -118,7 +128,7 @@ export function assertResumablePrefix(ledgerRows) {
   }
   if (appliedCount !== names.length) {
     throw new Error(
-      'Ledger is not an exact finished prefix of the expected 0000-0044 migrations; --resume refuses it',
+      'Ledger is not an exact finished prefix of the expected 0000-0045 migrations; --resume refuses it',
     )
   }
   return appliedCount
@@ -127,28 +137,42 @@ export function assertResumablePrefix(ledgerRows) {
 // Maps a count of already-applied migrations (from assertResumablePrefix) to
 // the plan step index to resume at. Cleanup steps are not tracked by the
 // Prisma ledger, so when resuming right after a migration that has a
-// following cleanup step (0031, 0034, 0041), that cleanup step is re-run;
+// following cleanup step (0031, 0034, 0041, 0044), that cleanup step is re-run;
 // each cleanup script's own preconditions reject a target that was already
 // cleaned, surfacing a clear error rather than silently skipping it.
 //
-// 0041_activity_media_evidence is, in the ledger alone, ambiguous: it is both (a) the
-// terminal state of an already-completed hosted build that predates 0042/0043 (cleanup already
-// ran, runtime-role already altered) and (b) the state of a build that crashed or was killed
-// between the 0041 deploy and its own cleanup step, which never ran (see the in-process catch
-// in runHostedBuild / hosted-build.mjs). Both states have the exact same appliedCount, so the
-// ledger cannot disambiguate them by itself: the caller must check live database state (whether
-// prisma still holds the temporary rules_store_owner/rules_enqueue_owner memberships granted by
-// hosted-activity-media-preprovision.sql) and pass the result in as `residualOwnerMemberships`.
-// When true, resume must re-run the cleanup step; when false, resume continues at the next
-// migration's own deploy step. 0042_proof_session_beneficiary_count has no matching
-// preprovision/cleanup pair (see buildPlan's comment on the 0042 deploy step), so a ledger
-// stopped exactly there is unambiguous and always resumes at the 0043 deploy; it is listed here
-// only so a future migration added with its own preprovision/cleanup keeps this table
-// consistent, not because it is currently ambiguous.
+// Some ledgers are, alone, ambiguous, because a temporary owner-role chain (preprovision) is
+// granted before and revoked after a deploy and the Prisma ledger cannot see either:
+//  * 0041_activity_media_evidence and 0044_activity_progress_review are both (a) the terminal
+//    state of a completed build (cleanup already ran) and (b) the state of a build that crashed
+//    between the deploy and its own cleanup, which never ran (see the in-process catch in
+//    runHostedBuild / hosted-build.mjs). Both have the same appliedCount.
+//  * 0043_activity_overdue_explanation is (a) a plain ledger that still needs the 0044
+//    preprovision, or (b) a build that crashed after that preprovision and before the 0044
+//    deploy, whose temporary chain is still granted (the preprovision would refuse to run again).
+// The caller therefore checks live database state (whether prisma still holds a temporary
+// rules owner membership) and passes it in as `residualOwnerMemberships`.
+// 0042_proof_session_beneficiary_count has no preprovision/cleanup pair (see buildPlan), so a
+// ledger stopped exactly there is unambiguous and always resumes at the 0043 deploy.
 const PRIOR_BUILD_COMPLETION_POINTS = [
   '0041_activity_media_evidence',
   '0042_proof_session_beneficiary_count',
+  '0043_activity_overdue_explanation',
+  '0044_activity_progress_review',
 ]
+
+// The migrations whose completion is ambiguous with a residual temporary owner chain, and the
+// cleanup step that revokes it.
+export const RESIDUAL_CHAIN_CLEANUPS = Object.freeze({
+  '0041_activity_media_evidence': 'activity-media',
+  '0044_activity_progress_review': 'activity-review',
+})
+// Ledger counts at which the caller must read live owner-membership state.
+export const RESIDUAL_CHAIN_MIGRATIONS = Object.freeze([
+  '0041_activity_media_evidence',
+  '0043_activity_overdue_explanation',
+  '0044_activity_progress_review',
+])
 
 export function planIndexForAppliedCount(appliedCount, { residualOwnerMemberships = false } = {}) {
   const plan = buildPlan()
@@ -156,22 +180,33 @@ export function planIndexForAppliedCount(appliedCount, { residualOwnerMembership
   for (const migration of PRIOR_BUILD_COMPLETION_POINTS) {
     const migrationIndex = MIGRATIONS_IN_ORDER.indexOf(migration)
     if (migrationIndex !== -1 && appliedCount === migrationIndex + 1) {
-      if (migration === '0041_activity_media_evidence' && residualOwnerMemberships) {
+      const cleanupName = RESIDUAL_CHAIN_CLEANUPS[migration]
+      if (cleanupName && residualOwnerMemberships) {
         const cleanupStepIndex = plan.findIndex(
-          (step) => step.type === 'cleanup' && step.name === 'activity-media',
+          (step) => step.type === 'cleanup' && step.name === cleanupName,
         )
         if (cleanupStepIndex === -1) {
-          throw new Error('Could not locate the activity-media cleanup step')
+          throw new Error(`Could not locate the ${cleanupName} cleanup step`)
         }
         return cleanupStepIndex
       }
       const nextMigration = MIGRATIONS_IN_ORDER[migrationIndex + 1]
+      if (nextMigration === undefined) {
+        const finalIndex = plan.findIndex((step) => step.type === 'alter-runtime-role')
+        if (finalIndex === -1) throw new Error('Could not locate the alter-runtime-role step')
+        return finalIndex
+      }
       const nextStepIndex = plan.findIndex(
         (step) => step.type === 'deploy' && step.migrations.includes(nextMigration),
       )
       if (nextStepIndex === -1) {
         throw new Error(`Could not locate a deploy step for migration ${nextMigration}`)
       }
+      // A deploy that is preceded by its own preprovision resumes at that preprovision, unless
+      // the temporary chain is already granted (a crash after the preprovision): then the
+      // preprovision would refuse to run again and the resume goes straight to the deploy.
+      const previous = plan[nextStepIndex - 1]
+      if (previous?.type === 'preprovision' && !residualOwnerMemberships) return nextStepIndex - 1
       return nextStepIndex
     }
   }

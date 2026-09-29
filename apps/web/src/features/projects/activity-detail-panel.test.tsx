@@ -210,6 +210,65 @@ describe('ActivityDetailContent server read model', () => {
     expect(screen.queryByRole('button', { name: /Review progress/ })).toBeNull()
   })
 
+  it('offers proof review only once every file is submitted, and explains the wait before that', () => {
+    const proofActivity = (storedStatus: 'IN_PROGRESS' | 'FOR_REVIEW'): Activity => ({
+      ...activity,
+      storedStatus,
+      status: storedStatus === 'FOR_REVIEW' ? 'For Review' : 'In Progress',
+      submittedProof: [
+        {
+          id: 'c0000000-0000-4000-8000-00000000000c',
+          updateId: 'b0000000-0000-4000-8000-00000000000b',
+          fileName: 'site.jpg',
+          status: 'Submitted',
+          submittedAt: '2026-09-27T00:00:00.000Z',
+          submittedBy: 'Synthetic officer',
+          updateUpdatedAt: '2026-09-27T00:00:00.000Z',
+          note: 'Sessions held.',
+        },
+      ],
+      updateNotes: [
+        {
+          id: 'b0000000-0000-4000-8000-00000000000b',
+          kind: 'proof',
+          note: 'Sessions held.',
+          progress: 60,
+          beneficiariesReachedThisSession: null,
+          status: 'Submitted',
+          submittedBy: 'Synthetic officer',
+          submittedAt: '2026-09-27T00:00:00.000Z',
+          reviewedBy: null,
+          reviewedAt: null,
+          reviewReason: null,
+          updatedAt: '2026-09-27T00:00:00.000Z',
+        },
+      ],
+    })
+    const props = {
+      canDecideProof: false,
+      canEdit: false,
+      canLogExpense: false,
+      canRequestExtension: false,
+      canSubmitProof: false,
+      canValidateExpense: false,
+      indicators: [],
+      journeyStages: [],
+      onActivityChanged: vi.fn(),
+      onEdit: vi.fn(),
+      onSubmitProof: vi.fn(),
+    }
+    const { rerender } = render(
+      <ActivityDetailContent activity={proofActivity('IN_PROGRESS')} canValidateProof {...props} />,
+    )
+    expect(screen.queryByRole('button', { name: /Review & validate proof/ })).toBeNull()
+    expect(screen.getByText(/Waiting for the officer to finish uploading/)).toBeTruthy()
+    rerender(
+      <ActivityDetailContent activity={proofActivity('FOR_REVIEW')} canValidateProof {...props} />,
+    )
+    expect(screen.getByRole('button', { name: /Review & validate proof/ })).toBeTruthy()
+    expect(screen.queryByText(/Waiting for the officer to finish uploading/)).toBeNull()
+  })
+
   it('shows pending expenses linked to this activity only when a validator can review them', () => {
     const pendingExpenses = [
       {

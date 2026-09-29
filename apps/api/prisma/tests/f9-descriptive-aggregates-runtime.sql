@@ -1,14 +1,14 @@
--- cr-pathways-f9-trusted-aggregates (migration 0044): behavioral checks for the trusted F9
+-- cr-pathways-f9-trusted-aggregates (migration 0045): behavioral checks for the trusted F9
 -- aggregate functions pathways.p10_f9_survey_aggregate and pathways.p10_f9_timeline_aggregate.
 -- Synthetic fixtures only; everything rolls back. Run as a local superuser against a disposable
--- pathways_phase2_* or pathways_phase4_* replay database that already has 0044 applied.
+-- pathways_phase2_* or pathways_phase4_* replay database that already has 0045 applied.
 \set ON_ERROR_STOP on
 BEGIN;
 
 DO $$ BEGIN
  IF current_database() !~ '^pathways_phase(2|4)_[a-z0-9_]+$' OR NOT (SELECT rolsuper FROM pg_roles WHERE rolname=current_user)
  OR inet_server_addr() IS DISTINCT FROM '127.0.0.1'::inet THEN
-  RAISE EXCEPTION '0044 f9-descriptive-aggregates checks require a disposable local database'; END IF;
+  RAISE EXCEPTION '0045 f9-descriptive-aggregates checks require a disposable local database'; END IF;
 END $$;
 
 CREATE TEMP TABLE f9_results(check_name text PRIMARY KEY) ON COMMIT DROP;
@@ -417,7 +417,7 @@ SELECT pg_temp.ok((SELECT NOT EXISTS(
 
 DO $$ DECLARE total integer; BEGIN
  SELECT count(*) INTO total FROM f9_results;
- IF total<>44 THEN RAISE EXCEPTION '0044 f9-descriptive-aggregates checks expected 44 assertions, recorded %',total; END IF;
+ IF total<>44 THEN RAISE EXCEPTION '0045 f9-descriptive-aggregates checks expected 44 assertions, recorded %',total; END IF;
  RAISE NOTICE 'F9_DESCRIPTIVE_AGGREGATES_RUNTIME=PASS (% assertions)',total;
 END $$;
 ROLLBACK;

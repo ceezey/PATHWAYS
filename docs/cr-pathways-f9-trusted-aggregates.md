@@ -6,7 +6,7 @@
 
 ## 1. Decision and Authority
 
-The developer decided on 2026-09-29 that Program Manager and Grant Manager receive real F9 survey improvement and timeline adherence aggregates, not a restricted state. The developer approved this record as written on 2026-09-29. Migration `0044` needs separate authorization before it is applied to any hosted database.
+The developer decided on 2026-09-29 that Program Manager and Grant Manager receive real F9 survey improvement and timeline adherence aggregates, not a restricted state. The developer approved this record as written on 2026-09-29. Migration `0045` needs separate authorization before it is applied to any hosted database.
 
 ## 2. Problem
 
@@ -16,7 +16,7 @@ Granting either detail permission is rejected. It would expose Beneficiary-level
 
 ## 3. Proposed Contract
 
-Migration `0044_f9_descriptive_aggregates` adds two SQL functions that follow the `p06_saddd` pattern in `0028_revised_aggregate_permission_guards`:
+Migration `0045_f9_descriptive_aggregates` adds two SQL functions that follow the `p06_saddd` pattern in `0028_revised_aggregate_permission_guards`:
 
 - `pathways.p10_f9_survey_aggregate(wanted_org uuid, wanted_project uuid, start_on date, end_on date) RETURNS jsonb`
 - `pathways.p10_f9_timeline_aggregate(wanted_org uuid, wanted_project uuid, reporting_on date) RETURNS jsonb`
@@ -42,15 +42,16 @@ Both functions:
 
 ## 5. Migration Registration
 
-Add `0044` everywhere `0043` is enumerated:
+Add `0045` everywhere `0044` is enumerated:
 
 - `scripts/db/hosted-plan.mjs` and its tests
 - `scripts/db/hosted-build.mjs` and its tests
 - `apps/api/prisma/legacy-retirement.test.ts`
 - `.gitattributes`
+- `infra/supabase/phase6/Verify-Forward.ps1` (f9a clone, replay and checks)
 - the runtime SQL suites in `apps/api/prisma/tests/`
 
-`schema.prisma` does not change, because the migration adds functions only. The migration history of `0000` through `0043` stays byte-for-byte unchanged.
+`schema.prisma` does not change, because the migration adds functions only. The migration history of `0000` through `0044` stays byte-for-byte unchanged.
 
 ## 6. Verification
 
@@ -65,7 +66,7 @@ API tests add Program Manager and Grant Manager cases for both views on read and
 
 ## 7. Release Impact
 
-This release now contains a migration. Release stage R6 stops for human authorization. Applying `0044` to `PATHWAYS-role-staging` or any hosted database needs separate developer authorization and follows the hosted build tooling. The `dev` to `master` question for migrations `0042` and `0043` is still undecided.
+This release now contains a migration. Release stage R6 stops for human authorization. Applying `0045` to `PATHWAYS-role-staging` or any hosted database needs separate developer authorization and follows the hosted build tooling. The `dev` to `master` question for migrations `0042` and `0043` is still undecided.
 
 ## 8. Disposition
 
@@ -77,8 +78,12 @@ When this record is approved and verified, update the F9 section of `docs/sdd-pa
 
 **Rule.** Survey results (JSON and CSV export) are released only for exactly one of the project's defined reporting periods, for every role, on one path. A defined reporting period is a distinct `(period_start, period_end)` pair of the project's non-archived, reviewed (`measurement_mode` set) Indicator definitions that overlaps the project dates. This is the same set the dashboard period picker offers (`deriveAnalyticsReportingPeriods`). A request whose start and end do not match one defined period exactly is refused with a typed 400. A matched period that overlaps another defined period of the same project is also refused, because two overlapping releasable periods can be differenced. The timeline view takes no period and is unaffected.
 
-**Enforcement.** The authority is `pathways.p10_f9_survey_aggregate` in migration `0044`: it raises `22023` unless the range matches one defined period of `wanted_project` in `wanted_org` and no other defined period overlaps it. It reads `project_indicators` under the definer, so roles holding `monitoring.read` without `indicators.read` are judged by the same rule. The API maps `22023` from the survey function to `BadRequestException` (400) on read and export. A 400 rolls back the request transaction, so no `ANALYTICS_DESCRIPTIVE_VIEWED` or export audit row is written, which matches every other validation failure on these routes. The web period picker already offers only defined periods; adjacent defined periods that do not overlap remain individually releasable.
+**Enforcement.** The authority is `pathways.p10_f9_survey_aggregate` in migration `0045`: it raises `22023` unless the range matches one defined period of `wanted_project` in `wanted_org` and no other defined period overlaps it. It reads `project_indicators` under the definer, so roles holding `monitoring.read` without `indicators.read` are judged by the same rule. The API maps `22023` from the survey function to `BadRequestException` (400) on read and export. A 400 rolls back the request transaction, so no `ANALYTICS_DESCRIPTIVE_VIEWED` or export audit row is written, which matches every other validation failure on these routes. The web period picker already offers only defined periods; adjacent defined periods that do not overlap remain individually releasable.
 
-**Migration.** `0044` is not applied to any database, so the function body is amended in place. The advisory lock key is also corrected to `(505005,1)` to match the migration convention.
+**Migration.** `0045` is not applied to any database, so the function body is amended in place. The advisory lock key is also corrected to `(505005,1)` to match the migration convention.
 
 **Verification.** `f9-descriptive-aggregates-runtime.sql` asserts a refused custom range, refused adjacent-day ranges (start and end), refused overlapping defined periods, a refused missing period, a refused custom range for Program Manager, and accepted exact defined periods including two adjacent non-overlapping ones. API tests cover the 400 for Program Manager and Grant Manager on read and export with no audit row. QAD-T33 and QAD-A20 record the rows.
+
+## Renumbering 2026-09-30
+
+`dev` gained `0044_activity_progress_review` while this record was open. This migration was never applied to any database, so it was renumbered from `0044_f9_descriptive_aggregates` to `0045_f9_descriptive_aggregates`. Its prerequisite check now requires `0044_activity_progress_review` finished. No function body changed. It uses advisory lock key `(505005,1)`, the same key `0044_activity_progress_review` takes; the locks are transaction-scoped and the migrations run serially, so they do not conflict.

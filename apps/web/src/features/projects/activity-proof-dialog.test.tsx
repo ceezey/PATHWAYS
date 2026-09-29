@@ -292,6 +292,30 @@ describe('ActivityProofDialog direct upload', () => {
     expect(api.uploadActivityProofFile).not.toHaveBeenCalled()
   })
 
+  it('explains a pending-review 409 from the reservation call and what unblocks it', async () => {
+    api.reserveActivityProofUpload.mockRejectedValueOnce(
+      new PathwaysClientError(
+        'Another activity update is already awaiting review.',
+        'invalid',
+        [],
+        409,
+      ),
+    )
+    renderDialog()
+    await waitFor(() => expect(api.getActivityProofUploadLimits).toHaveBeenCalledOnce())
+    selectFiles([makeFile('a.pdf', 'application/pdf')])
+    await screen.findByText('a.pdf')
+    fireEvent.change(screen.getByLabelText(/Narrative Notes/), {
+      target: { value: 'Synthetic proof note' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: /Submit proof/ }))
+    await waitFor(() =>
+      expect(screen.getByRole('alert').textContent).toContain('waiting for M&E review'),
+    )
+    expect(screen.getByRole('alert').textContent).toContain('approve or return that update')
+    expect(api.uploadActivityProofFile).not.toHaveBeenCalled()
+  })
+
   it('resubmits after a partial failure by reusing the same clientUpdateId and reservation', async () => {
     api.reserveActivityProofUpload.mockResolvedValue({
       clientUpdateId: 'client-1',
