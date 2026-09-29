@@ -9,6 +9,7 @@ const state = vi.hoisted(() => ({
   project: '10000000-0000-4000-8000-000000000001',
   title: 'Recorded project',
   generate: vi.fn(),
+  downloadArtifact: vi.fn(),
   success: vi.fn(),
   error: vi.fn(),
   refetch: vi.fn(),
@@ -18,6 +19,14 @@ const state = vi.hoisted(() => ({
   formsPending: false,
   previewError: false,
   reportsError: false,
+  permissions: [
+    'reports.read',
+    'reports.project.read',
+    'reports.generate',
+    'reports.export',
+    'forms.read',
+    'assessments.read',
+  ] as string[],
 }))
 vi.mock('@/hooks/use-current-role', () => ({
   useCurrentRole: () => ({
@@ -25,21 +34,14 @@ vi.mock('@/hooks/use-current-role', () => ({
       userId: state.user,
       organizationId: 'org',
       roles: ['MONITORING_AND_EVALUATION_OFFICER'],
-      permissions: [
-        'reports.read',
-        'reports.project.read',
-        'reports.generate',
-        'reports.export',
-        'forms.read',
-        'assessments.read',
-      ],
+      permissions: state.permissions,
       assignedProjectIds: [state.project],
     },
   }),
 }))
 vi.mock('@/lib/services/core-feature-client', () => ({
   coreDataClient: { generateReport: (...args: unknown[]) => state.generate(...args) },
-  downloadCoreArtifact: vi.fn(),
+  downloadCoreArtifact: (...args: unknown[]) => state.downloadArtifact(...args),
 }))
 vi.mock('@/lib/services/pathways-client', () => ({ pathwaysClient: { getProjects: vi.fn() } }))
 vi.mock('@/providers/authorized-query-provider', () => ({
@@ -107,12 +109,21 @@ describe('report generation owned retries', () => {
     state.project = '10000000-0000-4000-8000-000000000001'
     state.title = 'Recorded project'
     state.refetch.mockResolvedValue(undefined)
+    state.downloadArtifact.mockResolvedValue(undefined)
     state.projectsError = false
     state.projectsPending = false
     state.formsError = false
     state.formsPending = false
     state.previewError = false
     state.reportsError = false
+    state.permissions = [
+      'reports.read',
+      'reports.project.read',
+      'reports.generate',
+      'reports.export',
+      'forms.read',
+      'assessments.read',
+    ]
   })
   afterEach(cleanup)
   it('retries the same normalized request after response loss and rotates after acknowledged completion', async () => {
@@ -262,5 +273,22 @@ describe('report generation owned retries', () => {
     expect(screen.queryByText('Private report cell')).toBeNull()
     expect(screen.queryByText(/Current data generated/)).toBeNull()
     expect(screen.queryByText('Private saved report')).toBeNull()
+  })
+  it('downloads the saved report export using its stored format', async () => {
+    render(<LiveReportingWorkspace initialKind="project-summary" />)
+    fireEvent.click(screen.getByRole('button', { name: 'Download' }))
+    await waitFor(() => expect(state.downloadArtifact).toHaveBeenCalledOnce())
+    expect(state.downloadArtifact.mock.calls[0][0]).toBe(
+      `/projects/${state.project}/reports/30000000-0000-4000-8000-000000000003/export`,
+    )
+    expect(state.downloadArtifact.mock.calls[0][1]).toBe(
+      'report-30000000-0000-4000-8000-000000000003.pdf',
+    )
+  })
+  it('hides generate and download actions for a role missing those permissions', () => {
+    state.permissions = ['reports.read', 'reports.project.read', 'forms.read', 'assessments.read']
+    render(<LiveReportingWorkspace initialKind="project-summary" />)
+    expect(screen.queryByRole('button', { name: 'Generate private report' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Download' })).toBeNull()
   })
 })
