@@ -189,16 +189,19 @@ export const AnalyticsDashboard = () => {
       ),
     [indicatorDefinitions, projectId, selectedProject],
   )
-  // The survey view offers only periods the database will release (no overlap with another).
-  const pickerPeriods = useMemo(
-    () =>
-      analysisView === 'survey'
-        ? nonOverlappingAnalyticsPeriods(reportingPeriods)
-        : reportingPeriods,
-    [analysisView, reportingPeriods],
-  )
+  // Monitoring, KPI and descriptive panels always use every readable reporting period.
   const selectedPeriod =
-    pickerPeriods.find((candidate) => candidate.value === period) ?? pickerPeriods[0]
+    reportingPeriods.find((candidate) => candidate.value === period) ?? reportingPeriods[0]
+  // The survey releases only non-overlapping periods, so it keeps its own period. It never
+  // rewrites the shared period, so leaving the survey view restores the other panels' period.
+  const surveyPeriods = useMemo(
+    () => nonOverlappingAnalyticsPeriods(reportingPeriods),
+    [reportingPeriods],
+  )
+  const surveyPeriod =
+    surveyPeriods.find((candidate) => candidate.value === period) ?? surveyPeriods[0]
+  const pickerPeriods = analysisView === 'survey' ? surveyPeriods : reportingPeriods
+  const pickerPeriod = analysisView === 'survey' ? surveyPeriod : selectedPeriod
   const sadddUnavailableReason =
     !selectedProject?.startDate || !selectedProject.endDate
       ? missingSadddDates
@@ -284,11 +287,11 @@ export const AnalyticsDashboard = () => {
 
   useEffect(() => {
     setPeriod((current) =>
-      pickerPeriods.some((candidate) => candidate.value === current)
+      reportingPeriods.some((candidate) => candidate.value === current)
         ? current
-        : (pickerPeriods[0]?.value ?? ''),
+        : (reportingPeriods[0]?.value ?? ''),
     )
-  }, [pickerPeriods])
+  }, [reportingPeriods])
 
   useEffect(() => {
     if (!projectId || !selectedProject || !canReadBudgetUtilization) {
@@ -430,7 +433,7 @@ export const AnalyticsDashboard = () => {
 
   // Paired pre/post survey improvement. Requires a complete period, same as the API contract.
   useEffect(() => {
-    if (!projectId || !selectedPeriod || !canReadSurvey || analysisView !== 'survey') {
+    if (!projectId || !surveyPeriod || !canReadSurvey || analysisView !== 'survey') {
       setSurveyLoading(false)
       setSurvey(null)
       setSurveyError('')
@@ -446,8 +449,8 @@ export const AnalyticsDashboard = () => {
     pathwaysClient
       .getSurveyAnalytics({
         projectId,
-        periodStart: selectedPeriod.start,
-        periodEnd: selectedPeriod.end,
+        periodStart: surveyPeriod.start,
+        periodEnd: surveyPeriod.end,
       })
       .then((result) => {
         if (active) setSurvey(result)
@@ -472,7 +475,7 @@ export const AnalyticsDashboard = () => {
     return () => {
       active = false
     }
-  }, [analysisView, canReadSurvey, projectId, selectedPeriod, surveyLoadAttempt])
+  }, [analysisView, canReadSurvey, projectId, surveyPeriod, surveyLoadAttempt])
 
   // Timeline adherence uses the business reporting date server-side; no period selection needed.
   useEffect(() => {
@@ -510,16 +513,15 @@ export const AnalyticsDashboard = () => {
     const view = analysisView === 'survey' || analysisView === 'timeline' ? analysisView : undefined
     if (!ANALYTICS_AGGREGATE_EXPORT_UI_ENABLED || !canExportAnalytics || !projectId || exporting)
       return
-    if (view !== 'timeline' && !selectedPeriod) return
+    const exportPeriod = view === 'survey' ? surveyPeriod : selectedPeriod
+    if (view !== 'timeline' && !exportPeriod) return
     const capturedProject = projectId
     setExporting(true)
     try {
       await downloadCoreArtifact(
         `/analytics/descriptive/export${descriptiveAnalyticsSearch({
           projectId: capturedProject,
-          ...(selectedPeriod
-            ? { periodStart: selectedPeriod.start, periodEnd: selectedPeriod.end }
-            : {}),
+          ...(exportPeriod ? { periodStart: exportPeriod.start, periodEnd: exportPeriod.end } : {}),
           ...(view ? { view } : {}),
         })}`,
         `${view ?? 'descriptive'}-analytics-${capturedProject.toLowerCase()}.csv`,
@@ -663,7 +665,7 @@ export const AnalyticsDashboard = () => {
           <span className="text-sm font-medium">Reporting period</span>
           <Select
             disabled={pickerPeriods.length === 0}
-            value={selectedPeriod?.value ?? ''}
+            value={pickerPeriod?.value ?? ''}
             onValueChange={setPeriod}
           >
             <SelectTrigger aria-label="Reporting period">
@@ -765,7 +767,7 @@ export const AnalyticsDashboard = () => {
               disabled={
                 !selectedProject ||
                 exporting ||
-                (analysisView !== 'timeline' && !selectedPeriod) ||
+                (analysisView !== 'timeline' && !pickerPeriod) ||
                 (analysisView === 'survey' && !canReadSurvey)
               }
               onClick={() => void exportDescriptive()}
@@ -856,7 +858,7 @@ export const AnalyticsDashboard = () => {
                 error={surveyError}
                 errorKind={surveyErrorKind}
                 loading={surveyLoading}
-                noUsablePeriod={reportingPeriods.length > 0 && pickerPeriods.length === 0}
+                noUsablePeriod={reportingPeriods.length > 0 && surveyPeriods.length === 0}
                 onRetry={() => setSurveyLoadAttempt((value) => value + 1)}
                 periodsReadable={periodsReadable}
                 showChart={visualizationType !== 'table'}

@@ -1147,6 +1147,45 @@ describe('Analytics dashboard request dependencies', () => {
       }
     })
 
+    it('keeps the other panels on their period when every period overlaps, and restores it after the survey view', async () => {
+      api.getProjectIndicators.mockImplementation((projectId: string) =>
+        Promise.resolve(
+          projectId === 'project-a'
+            ? [
+                indicator('project-a', 'A-SEP', '2026-09-01', '2026-09-30'),
+                indicator('project-a', 'A-WIDE', '2026-08-15', '2026-09-15'),
+              ]
+            : [],
+        ),
+      )
+      render(<AnalyticsDashboard />)
+      await waitFor(() => expect(api.getDescriptiveAnalytics).toHaveBeenCalled())
+      const selected = () => (screen.getByLabelText('Reporting period') as HTMLSelectElement).value
+      const before = selected()
+      expect(before).not.toBe('')
+      const periodCalls = () =>
+        api.getDescriptiveAnalytics.mock.calls.map(
+          (call: [{ periodStart: string; periodEnd: string }]) =>
+            `${call[0].periodStart}::${call[0].periodEnd}`,
+        )
+      expect(new Set(periodCalls())).toEqual(new Set([before]))
+
+      fireEvent.change(screen.getByLabelText('Analysis view'), { target: { value: 'survey' } })
+      expect(
+        await screen.findByText('This reporting period cannot be used for survey results.'),
+      ).toBeTruthy()
+      expect(api.getSurveyAnalytics).not.toHaveBeenCalled()
+      // The descriptive panel keeps its loaded period and never falls back to "None yet".
+      expect(new Set(periodCalls())).toEqual(new Set([before]))
+      expect(
+        screen.queryByText('No active Indicator reporting period is available for this project.'),
+      ).toBeNull()
+
+      fireEvent.change(screen.getByLabelText('Analysis view'), { target: { value: 'kpi' } })
+      await waitFor(() => expect(selected()).toBe(before))
+      expect(new Set(periodCalls())).toEqual(new Set([before]))
+    })
+
     it('does not add a chart-type suffix to the timeline panel title', async () => {
       api.getTimelineAnalytics.mockResolvedValue({
         contractVersion: 'analytics.descriptive.timeline.v1',
