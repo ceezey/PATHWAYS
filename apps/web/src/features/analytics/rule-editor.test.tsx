@@ -487,13 +487,10 @@ describe('starting a rule from a template', () => {
     )
   })
 
-  it('renders the other three templates as disabled with their exact reason text', async () => {
+  it('hides the three templates that have no backend metric instead of showing a reason', async () => {
     renderEditor({ projectId })
     await screen.findByLabelText('Applies to')
-    expect(
-      screen.getByText('Requires KPI achievement and Budget burn, not yet available'),
-    ).toBeTruthy()
-    expect(screen.getAllByText('Requires Budget burn, not yet available')).toHaveLength(2)
+    expect(screen.queryByText(/not yet available/)).toBeNull()
     expect(screen.queryByRole('button', { name: 'Apply Financial Efficiency Risk' })).toBeNull()
     expect(screen.queryByRole('button', { name: 'Apply Budget Under-utilization' })).toBeNull()
     expect(screen.queryByRole('button', { name: 'Apply Ideal Vector' })).toBeNull()

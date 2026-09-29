@@ -82,7 +82,7 @@ describe('ActivityDetailContent server read model', () => {
     expect(document.body.textContent).not.toContain('Project target comparison')
   })
 
-  it('shows Request an extension as disabled with a Not available yet hint', () => {
+  it('hides Request an extension while it has no backend', () => {
     render(
       <ActivityDetailContent
         activity={activity}
@@ -100,13 +100,8 @@ describe('ActivityDetailContent server read model', () => {
         onSubmitProof={vi.fn()}
       />,
     )
-    const button = screen.getByRole('button', { name: 'Request an extension' })
-    // aria-disabled (not native disabled) so the control stays keyboard/AT reachable.
-    expect(button.hasAttribute('disabled')).toBe(false)
-    expect(button.getAttribute('aria-disabled')).toBe('true')
-    const describedBy = button.getAttribute('aria-describedby')
-    expect(describedBy).toBeTruthy()
-    expect(document.getElementById(describedBy as string)?.textContent).toBe('Not available yet')
+    expect(screen.queryByRole('button', { name: 'Request an extension' })).toBeNull()
+    expect(screen.queryByText('Not available yet')).toBeNull()
   })
 
   it.each([

@@ -20,3 +20,11 @@ export const STEP_UP_PIN_UI_ENABLED = false
  * docs/deferred-features.md.
  */
 export const ANALYTICS_AGGREGATE_EXPORT_UI_ENABLED = false
+
+/**
+ * Controls with no backend yet (disabled "Not available yet" buttons, disabled form options,
+ * the beneficiary Media proof tab and similar) are hidden (2026-09-30) so the product shows
+ * no unfinished state. Nothing server-side changes. Each hidden entry is listed in
+ * docs/deferred-features.md. Flip to `true` to show them again.
+ */
+export const UNFINISHED_CONTROLS_UI_ENABLED = false

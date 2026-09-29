@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
+import { UNFINISHED_CONTROLS_UI_ENABLED } from '@/constants/feature-flags'
 import { useCurrentRole } from '@/hooks/use-current-role'
 import { type SensitiveDraftOwner, useSensitiveDraftOwner } from '@/lib/auth/sensitive-drafts'
 import { principalHasAtomicPermission } from '@/lib/rbac/route-access'
@@ -472,20 +473,25 @@ function OwnedRuleEditor({
             <div className="space-y-2 rounded-sm border border-border p-3">
               <p className="font-semibold">Start from template</p>
               <ul className="space-y-2">
-                {ruleTemplates.map((spec) => (
-                  <li className="flex flex-wrap items-center justify-between gap-2" key={spec.key}>
-                    <span>{spec.name}</span>
-                    {spec.available ? (
-                      <Button type="button" variant="outline" onClick={() => applyTemplate(spec)}>
-                        Apply {spec.name}
-                      </Button>
-                    ) : (
-                      <span className="text-sm text-muted-foreground">
-                        {spec.unavailableReason}
-                      </span>
-                    )}
-                  </li>
-                ))}
+                {ruleTemplates
+                  .filter((spec) => spec.available || UNFINISHED_CONTROLS_UI_ENABLED)
+                  .map((spec) => (
+                    <li
+                      className="flex flex-wrap items-center justify-between gap-2"
+                      key={spec.key}
+                    >
+                      <span>{spec.name}</span>
+                      {spec.available ? (
+                        <Button type="button" variant="outline" onClick={() => applyTemplate(spec)}>
+                          Apply {spec.name}
+                        </Button>
+                      ) : (
+                        <span className="text-sm text-muted-foreground">
+                          {spec.unavailableReason}
+                        </span>
+                      )}
+                    </li>
+                  ))}
               </ul>
             </div>
           ) : null}

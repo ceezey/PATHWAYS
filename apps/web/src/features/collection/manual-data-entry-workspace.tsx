@@ -3,6 +3,7 @@ import { PageHeader } from '@/components/layout/page-header'
 import { SectionCard, UnavailableHint } from '@/components/pathways'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { UNFINISHED_CONTROLS_UI_ENABLED } from '@/constants/feature-flags'
 import { useCurrentRole } from '@/hooks/use-current-role'
 import { pathwaysClient } from '@/lib/services/pathways-client'
 import type {
@@ -358,29 +359,31 @@ export function ManualDataEntryWorkspace() {
                       ))}
                   </select>
                 </label>
-                <label className="block">
-                  Participant
-                  <select
-                    aria-describedby="manual-entry-participant-hint"
-                    aria-disabled="true"
-                    className="block w-full rounded border p-2"
-                    onChange={(e) => setDraft({ ...draft, beneficiaryId: e.target.value })}
-                    onKeyDown={(event) => {
-                      event.preventDefault()
-                    }}
-                    onMouseDown={(event) => {
-                      event.preventDefault()
-                    }}
-                    title="Not available yet"
-                    value={draft.beneficiaryId}
-                  >
-                    <option value="">Select participant</option>
-                  </select>
-                  <UnavailableHint
-                    id="manual-entry-participant-hint"
-                    message="Beneficiary selection is not available in this workspace"
-                  />
-                </label>
+                {UNFINISHED_CONTROLS_UI_ENABLED ? (
+                  <label className="block">
+                    Participant
+                    <select
+                      aria-describedby="manual-entry-participant-hint"
+                      aria-disabled="true"
+                      className="block w-full rounded border p-2"
+                      onChange={(e) => setDraft({ ...draft, beneficiaryId: e.target.value })}
+                      onKeyDown={(event) => {
+                        event.preventDefault()
+                      }}
+                      onMouseDown={(event) => {
+                        event.preventDefault()
+                      }}
+                      title="Not available yet"
+                      value={draft.beneficiaryId}
+                    >
+                      <option value="">Select participant</option>
+                    </select>
+                    <UnavailableHint
+                      id="manual-entry-participant-hint"
+                      message="Beneficiary selection is not available in this workspace"
+                    />
+                  </label>
+                ) : null}
                 <label className="block">
                   Attendance
                   <select
