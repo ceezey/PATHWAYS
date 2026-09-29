@@ -122,6 +122,9 @@ const ScopedActivityProofDialog = ({
   // overlapping finish() calls without blocking a later retry after a failed reload.
   const committed = useRef(false)
   const finishing = useRef(false)
+  // Keys of files whose signed-URL upload succeeded: the URL is single-use, so a retry of any
+  // later step (finalize, Submit) must never upload the file again.
+  const uploadedKeys = useRef(new Set<string>())
   const [beneficiariesReachedThisSession, setBeneficiariesReachedThisSession] = useState('')
   const noteError = error === 'Enter an update note before submitting proof.'
   const fileError = error.startsWith('Attach') || error.startsWith('Select up to')
@@ -153,6 +156,7 @@ const ScopedActivityProofDialog = ({
     reservation.current = null
     committed.current = false
     finishing.current = false
+    uploadedKeys.current = new Set()
     let cancelled = false
     pathwaysClient
       .getActivityProofUploadLimits(activity.projectId)
@@ -260,10 +264,11 @@ const ScopedActivityProofDialog = ({
   // update's commit, so this never skips straight to a local 'uploaded' status.
   const processFile = async (item: ProofFileItem): Promise<boolean> => {
     if (!activity || !reservation.current || !item.evidenceId) return false
-    if (item.uploadUrl) {
+    if (item.uploadUrl && !uploadedKeys.current.has(item.key)) {
       setFileState(item.key, { status: 'uploading', error: undefined })
       try {
         await pathwaysClient.uploadActivityProofFile(item.uploadUrl, item.file)
+        uploadedKeys.current.add(item.key)
       } catch (caught) {
         if (!scope.isCurrent()) return false
         setFileState(item.key, {
