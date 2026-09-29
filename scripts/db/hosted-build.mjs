@@ -42,29 +42,63 @@ const stageDir = path.join(root, '.tmp', 'hosted-build', 'migrations')
 // connection. Every other function takes an `io` object, so tests can inject
 // a fake one and exercise the full orchestration logic without a database.
 // ---------------------------------------------------------------------------
+const DEFAULT_TIMEOUT_MS = 2 * 60 * 1000
+const DEPLOY_TIMEOUT_MS = 10 * 60 * 1000
+
+function checkTimeout(result, label, timeoutMs) {
+  if (result.error && result.error.code === 'ETIMEDOUT') {
+    throw new Error(`${label} timed out after ${Math.round(timeoutMs / 1000)}s and was killed`)
+  }
+  if (result.signal) {
+    throw new Error(
+      `${label} was killed by signal ${result.signal} (timeout ${Math.round(timeoutMs / 1000)}s)`,
+    )
+  }
+}
+
 export function createLiveIO({ ref }) {
-  function run(command, args, { input, env, label } = {}) {
+  function run(command, args, { input, env, label, timeoutMs = DEFAULT_TIMEOUT_MS } = {}) {
+    console.log(
+      `[hosted-build] start: ${label ?? command} (timeout ${Math.round(timeoutMs / 1000)}s)`,
+    )
+    const started = Date.now()
     const result = spawnSync(command, args, {
       cwd: root,
       stdio: input === undefined ? 'inherit' : ['pipe', 'inherit', 'inherit'],
       input,
-      env: { ...process.env, ...env },
+      env: { ...process.env, MSYS_NO_PATHCONV: '1', ...env },
       shell: process.platform === 'win32',
+      timeout: timeoutMs,
+      killSignal: 'SIGKILL',
     })
+    checkTimeout(result, label ?? command, timeoutMs)
     if (result.status !== 0) throw new Error(`${label ?? command} failed (exit ${result.status})`)
+    console.log(
+      `[hosted-build] done: ${label ?? command} (${Math.round((Date.now() - started) / 1000)}s)`,
+    )
   }
 
-  function runCaptured(command, args, { input, env, label } = {}) {
+  function runCaptured(command, args, { input, env, label, timeoutMs = DEFAULT_TIMEOUT_MS } = {}) {
+    console.log(
+      `[hosted-build] start: ${label ?? command} (timeout ${Math.round(timeoutMs / 1000)}s)`,
+    )
+    const started = Date.now()
     const result = spawnSync(command, args, {
       cwd: root,
       input,
       encoding: 'utf8',
-      env: { ...process.env, ...env },
+      env: { ...process.env, MSYS_NO_PATHCONV: '1', ...env },
       shell: process.platform === 'win32',
+      timeout: timeoutMs,
+      killSignal: 'SIGKILL',
     })
+    checkTimeout(result, label ?? command, timeoutMs)
     if (result.status !== 0) {
       throw new Error(`${label ?? command} failed (exit ${result.status}): ${result.stderr}`)
     }
+    console.log(
+      `[hosted-build] done: ${label ?? command} (${Math.round((Date.now() - started) / 1000)}s)`,
+    )
     return result.stdout
   }
 
@@ -115,8 +149,11 @@ export function createLiveIO({ ref }) {
             DIRECT_URL: directUrl,
             DATABASE_URL: directUrl,
             PATHWAYS_PHASE6_REPLAY_MIGRATIONS: stagedMigrationsDir,
+            PRISMA_HIDE_UPDATE_MESSAGE: '1',
+            CHECKPOINT_DISABLE: '1',
           },
           label: 'prisma migrate deploy',
+          timeoutMs: DEPLOY_TIMEOUT_MS,
         },
       )
     },
@@ -140,6 +177,8 @@ export function createLiveIO({ ref }) {
             DIRECT_URL: directUrl,
             DATABASE_URL: directUrl,
             PATHWAYS_PHASE6_REPLAY_MIGRATIONS: stagedMigrationsDir,
+            PRISMA_HIDE_UPDATE_MESSAGE: '1',
+            CHECKPOINT_DISABLE: '1',
           },
           label: 'register baseline',
         },
@@ -218,6 +257,12 @@ export async function preflight(io, config) {
 }
 
 export async function readLedger(io, adminUrl) {
+  // A fresh project has no ledger until Prisma registers the baseline.
+  const exists = io.psqlQuery(
+    adminUrl,
+    "SELECT to_regclass('public._prisma_migrations') IS NOT NULL;",
+  )
+  if (exists[0] !== 't') return []
   const rows = io.psqlQuery(
     adminUrl,
     "SELECT migration_name || '|' || coalesce(finished_at::text,'') || '|' || coalesce(rolled_back_at::text,'') FROM public._prisma_migrations ORDER BY started_at;",

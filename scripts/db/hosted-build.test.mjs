@@ -48,6 +48,7 @@ function makeFakeIO({ ledgerRows = [] } = {}) {
       ) {
         return ['0']
       }
+      if (sql.includes('to_regclass')) return [currentLedger.length ? 't' : 'f']
       if (sql.includes('_prisma_migrations')) {
         return currentLedger.map(
           (r) => `${r.migration_name}|${r.finished_at ?? ''}|${r.rolled_back_at ?? ''}`,

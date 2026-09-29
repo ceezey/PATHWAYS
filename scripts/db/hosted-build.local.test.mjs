@@ -86,16 +86,14 @@ test(
         path.join(data, 'postgresql.conf'),
         `\nlisten_addresses='127.0.0.1'\nport=${port}\nunix_socket_directories=''\n`,
       )
-      run(tool('pg_ctl'), [
-        '-D',
-        data,
-        '-l',
-        path.join(owned, 'postgres.log'),
-        '-w',
-        '-t',
-        '30',
-        'start',
-      ])
+      // On Windows the server inherits pg_ctl's stdio; piped output would keep spawnSync
+      // waiting forever, so pg_ctl gets no pipes and the server logs to its own file.
+      const pgCtl = spawnSync(
+        tool('pg_ctl'),
+        ['-D', data, '-l', path.join(owned, 'postgres.log'), '-w', '-t', '30', 'start'],
+        { stdio: 'ignore', windowsHide: true, timeout: 60_000 },
+      )
+      if (pgCtl.status !== 0) throw new Error(`pg_ctl start failed (${pgCtl.status})`)
       started = true
 
       const adminUrl = `postgresql://postgres@127.0.0.1:${port}/postgres`
@@ -138,9 +136,7 @@ CREATE TABLE auth.users(id uuid PRIMARY KEY DEFAULT extensions.gen_random_uuid()
 CREATE TABLE auth.sessions(id uuid PRIMARY KEY DEFAULT extensions.gen_random_uuid(),
   user_id uuid REFERENCES auth.users(id), not_after timestamptz);
 CREATE FUNCTION auth.uid() RETURNS uuid LANGUAGE sql STABLE AS 'SELECT NULL::uuid';
-CREATE TABLE public._prisma_migrations(id text primary key default extensions.gen_random_uuid()::text,
-  checksum text not null default '', finished_at timestamptz, migration_name text not null,
-  logs text, rolled_back_at timestamptz, started_at timestamptz not null default now(), applied_steps_count int not null default 1);
+GRANT ALL ON ALL TABLES IN SCHEMA auth TO postgres;
 `,
         },
       )
@@ -188,11 +184,14 @@ CREATE TABLE public._prisma_migrations(id text primary key default extensions.ge
         `PASS: local integration run finished all ${finished.length} migrations 0000-0041`,
       )
     } finally {
-      if (started) {
+      if (process.env.HOSTED_BUILD_KEEP_CLUSTER === '1') {
+        t.diagnostic(`kept disposable cluster for inspection: ${data}`)
+      } else if (started) {
         run(tool('pg_ctl'), ['-D', data, '-m', 'fast', '-w', '-t', '30', 'stop'])
         await assertPortFree()
       }
-      fs.rmSync(owned, { recursive: true, force: true })
+      if (process.env.HOSTED_BUILD_KEEP_CLUSTER !== '1')
+        fs.rmSync(owned, { recursive: true, force: true })
     }
   },
 )
