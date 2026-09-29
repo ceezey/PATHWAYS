@@ -52,6 +52,7 @@
 | OPS | ops-pathways.md | Working |
 | LOG | log-pathways.md | Control; append-only |
 | STATE | state.md | Control; operating position |
+| Deferred features register | deferred-features.md | Control; updated alongside each hide/defer decision |
 
 ## 3. RFCs
 

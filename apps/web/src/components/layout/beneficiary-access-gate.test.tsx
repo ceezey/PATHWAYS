@@ -170,7 +170,55 @@ describe('BeneficiaryAccessGate (server-verified step-up)', () => {
   })
 })
 
-describe('BeneficiaryAccessGate PIN fallback (cr-pathways-beneficiary-step-up-pin)', () => {
+describe('BeneficiaryAccessGate (STEP_UP_PIN_UI_ENABLED false)', () => {
+  it('never offers "Use PIN" or "Set a PIN", and TOTP still works', async () => {
+    mocks.getStatus.mockResolvedValue(stale('SET'))
+    render(<BeneficiaryAccessGate preflight>{content}</BeneficiaryAccessGate>)
+    expect(await screen.findByText('Verify beneficiary module access')).toBeTruthy()
+    expect(screen.queryByRole('button', { name: 'Use PIN' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Use authenticator' })).toBeNull()
+    expect(screen.queryByText('PIN locked. Use your authenticator to unlock it.')).toBeNull()
+
+    fireEvent.change(codeInput(), { target: { value: '123456' } })
+    fireEvent.click(verifyButton())
+    expect(await screen.findByText('Scoped beneficiary content')).toBeTruthy()
+    expect(screen.queryByText('Set a beneficiary access PIN')).toBeNull()
+  })
+
+  it('never offers "Set a PIN" after a TOTP step-up even when no PIN exists', async () => {
+    mocks.getStatus.mockResolvedValue(stale('NONE'))
+    mocks.verify.mockResolvedValue(totpFresh('NONE'))
+    render(<BeneficiaryAccessGate preflight>{content}</BeneficiaryAccessGate>)
+    fireEvent.change(await screen.findByRole('textbox', { name: 'Authenticator code' }), {
+      target: { value: '123456' },
+    })
+    fireEvent.click(verifyButton())
+    expect(await screen.findByText('Scoped beneficiary content')).toBeTruthy()
+    expect(screen.queryByText('Set a beneficiary access PIN')).toBeNull()
+    expect(mocks.setPin).not.toHaveBeenCalled()
+  })
+})
+
+// The PIN fallback UI is hidden behind STEP_UP_PIN_UI_ENABLED (see
+// apps/web/src/constants/feature-flags.ts and docs/deferred-features.md). These tests
+// exercise the same gate with the flag forced on, so the underlying PIN behaviour the
+// API still enforces stays covered while the flag is off in the running app.
+describe('BeneficiaryAccessGate PIN fallback (cr-pathways-beneficiary-step-up-pin, flag on)', () => {
+  let EnabledGate: typeof import('./beneficiary-access-gate').BeneficiaryAccessGate
+
+  beforeEach(async () => {
+    vi.resetModules()
+    vi.doMock('@/constants/feature-flags', () => ({ STEP_UP_PIN_UI_ENABLED: true }))
+    ;({ BeneficiaryAccessGate: EnabledGate } = await import('./beneficiary-access-gate'))
+  })
+
+  afterEach(() => {
+    vi.doUnmock('@/constants/feature-flags')
+  })
+
+  const renderGate = (props: { preflight: boolean }) =>
+    render(<EnabledGate preflight={props.preflight}>{content}</EnabledGate>)
+
   const pinInput = () => screen.getByLabelText('Beneficiary access PIN') as HTMLInputElement
   const usePin = () => screen.queryByRole('button', { name: 'Use PIN' })
 
@@ -180,7 +228,7 @@ describe('BeneficiaryAccessGate PIN fallback (cr-pathways-beneficiary-step-up-pi
     ['SET', true],
   ] as const)('offers "Use PIN" for pinState %s: %s', async (pinState, offered) => {
     mocks.getStatus.mockResolvedValue(stale(pinState))
-    render(<BeneficiaryAccessGate preflight>{content}</BeneficiaryAccessGate>)
+    renderGate({ preflight: true })
     expect(await screen.findByText('Verify beneficiary module access')).toBeTruthy()
     expect(usePin() !== null).toBe(offered)
     if (pinState === 'LOCKED')
@@ -189,7 +237,7 @@ describe('BeneficiaryAccessGate PIN fallback (cr-pathways-beneficiary-step-up-pi
 
   it('verifies a PIN, clears it after each attempt and never stores it', async () => {
     mocks.verifyPin.mockRejectedValueOnce(new BeneficiaryStepUpError('Incorrect PIN', 'rejected'))
-    render(<BeneficiaryAccessGate preflight>{content}</BeneficiaryAccessGate>)
+    renderGate({ preflight: true })
     fireEvent.click(await screen.findByRole('button', { name: 'Use PIN' }))
     expect(screen.getByRole('button', { name: 'Use PIN' }).getAttribute('aria-pressed')).toBe(
       'true',
@@ -220,7 +268,7 @@ describe('BeneficiaryAccessGate PIN fallback (cr-pathways-beneficiary-step-up-pi
     mocks.verifyPin.mockRejectedValueOnce(
       new BeneficiaryStepUpError('PIN locked. Use your authenticator to unlock it.', 'locked'),
     )
-    render(<BeneficiaryAccessGate preflight>{content}</BeneficiaryAccessGate>)
+    renderGate({ preflight: true })
     fireEvent.click(await screen.findByRole('button', { name: 'Use PIN' }))
     fireEvent.change(pinInput(), { target: { value: '736150' } })
     fireEvent.click(screen.getByRole('button', { name: 'Verify PIN' }))
@@ -235,7 +283,7 @@ describe('BeneficiaryAccessGate PIN fallback (cr-pathways-beneficiary-step-up-pi
   it('unlocks a locked PIN after a successful authenticator step-up', async () => {
     mocks.getStatus.mockResolvedValue(stale('LOCKED'))
     mocks.verify.mockResolvedValue(totpFresh('LOCKED'))
-    render(<BeneficiaryAccessGate preflight>{content}</BeneficiaryAccessGate>)
+    renderGate({ preflight: true })
     fireEvent.change(await screen.findByRole('textbox', { name: 'Authenticator code' }), {
       target: { value: '123456' },
     })
@@ -247,7 +295,7 @@ describe('BeneficiaryAccessGate PIN fallback (cr-pathways-beneficiary-step-up-pi
   it('offers a skippable "Set a PIN" after a TOTP step-up when no PIN exists', async () => {
     mocks.getStatus.mockResolvedValue(stale('NONE'))
     mocks.verify.mockResolvedValue(totpFresh('NONE'))
-    render(<BeneficiaryAccessGate preflight>{content}</BeneficiaryAccessGate>)
+    renderGate({ preflight: true })
     fireEvent.change(await screen.findByRole('textbox', { name: 'Authenticator code' }), {
       target: { value: '123456' },
     })
@@ -262,7 +310,7 @@ describe('BeneficiaryAccessGate PIN fallback (cr-pathways-beneficiary-step-up-pi
   it('validates and saves a new PIN from the offer, clearing both fields', async () => {
     mocks.getStatus.mockResolvedValue(stale('NONE'))
     mocks.verify.mockResolvedValue(totpFresh('NONE'))
-    render(<BeneficiaryAccessGate preflight>{content}</BeneficiaryAccessGate>)
+    renderGate({ preflight: true })
     fireEvent.change(await screen.findByRole('textbox', { name: 'Authenticator code' }), {
       target: { value: '123456' },
     })
@@ -298,7 +346,7 @@ describe('BeneficiaryAccessGate PIN fallback (cr-pathways-beneficiary-step-up-pi
   it('treats dismissing the "Set a PIN" offer as skip: content opens, no navigation', async () => {
     mocks.getStatus.mockResolvedValue(stale('NONE'))
     mocks.verify.mockResolvedValue(totpFresh('NONE'))
-    render(<BeneficiaryAccessGate preflight>{content}</BeneficiaryAccessGate>)
+    renderGate({ preflight: true })
     fireEvent.change(await screen.findByRole('textbox', { name: 'Authenticator code' }), {
       target: { value: '123456' },
     })
@@ -311,7 +359,7 @@ describe('BeneficiaryAccessGate PIN fallback (cr-pathways-beneficiary-step-up-pi
   })
 
   it('still leaves to the dashboard when the blocking verification prompt is dismissed', async () => {
-    render(<BeneficiaryAccessGate preflight>{content}</BeneficiaryAccessGate>)
+    renderGate({ preflight: true })
     await screen.findByText('Verify beneficiary module access')
     fireEvent.click(screen.getByRole('button', { name: 'Dismiss dialog' }))
     expect(mocks.routerPush).toHaveBeenCalledWith('/dashboard')
@@ -320,7 +368,7 @@ describe('BeneficiaryAccessGate PIN fallback (cr-pathways-beneficiary-step-up-pi
   it('moves Enter in New PIN to the empty confirmation instead of submitting', async () => {
     mocks.getStatus.mockResolvedValue(stale('NONE'))
     mocks.verify.mockResolvedValue(totpFresh('NONE'))
-    render(<BeneficiaryAccessGate preflight>{content}</BeneficiaryAccessGate>)
+    renderGate({ preflight: true })
     fireEvent.change(await screen.findByRole('textbox', { name: 'Authenticator code' }), {
       target: { value: '123456' },
     })
@@ -338,7 +386,7 @@ describe('BeneficiaryAccessGate PIN fallback (cr-pathways-beneficiary-step-up-pi
   })
 
   it('returns to the authenticator when the PIN status cannot be refreshed', async () => {
-    render(<BeneficiaryAccessGate preflight={false}>{content}</BeneficiaryAccessGate>)
+    renderGate({ preflight: false })
     act(() => {
       window.dispatchEvent(new Event(STEP_UP_REQUIRED_EVENT))
     })

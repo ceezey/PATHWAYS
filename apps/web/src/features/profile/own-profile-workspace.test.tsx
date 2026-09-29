@@ -63,15 +63,12 @@ beforeEach(() => {
 })
 
 describe('own profile editing', () => {
-  it('shows the Beneficiary access PIN section only to Beneficiary detail roles', async () => {
+  it('has no Beneficiary access PIN section while STEP_UP_PIN_UI_ENABLED is false', async () => {
+    state.permissions = ['profile.manage', 'beneficiaries.records.read']
     render(<OwnProfileWorkspace />)
     await screen.findByLabelText('Name')
     expect(screen.queryByText('Beneficiary PIN form')).toBeNull()
-    cleanup()
-    state.permissions = ['profile.manage', 'beneficiaries.records.read']
-    render(<OwnProfileWorkspace />)
-    expect(await screen.findByText('Beneficiary PIN form')).toBeTruthy()
-    expect(screen.getByText('Beneficiary access PIN')).toBeTruthy()
+    expect(screen.queryByText('Beneficiary access PIN')).toBeNull()
   })
 
   it('updates only approved editable fields with the loaded revision', async () => {
@@ -161,5 +158,33 @@ describe('own profile editing', () => {
     expect(screen.queryByLabelText('Name')).toBeNull()
     expect(screen.queryByRole('button', { name: 'Verify password' })).toBeNull()
     expect(screen.queryByRole('button', { name: 'Save profile' })).toBeNull()
+  })
+})
+
+// The PIN section is hidden behind STEP_UP_PIN_UI_ENABLED (see
+// apps/web/src/constants/feature-flags.ts and docs/deferred-features.md). This covers
+// the underlying role gating with the flag forced on.
+describe('own profile editing (STEP_UP_PIN_UI_ENABLED true)', () => {
+  let EnabledWorkspace: typeof OwnProfileWorkspace
+
+  beforeEach(async () => {
+    vi.resetModules()
+    vi.doMock('@/constants/feature-flags', () => ({ STEP_UP_PIN_UI_ENABLED: true }))
+    ;({ OwnProfileWorkspace: EnabledWorkspace } = await import('./own-profile-workspace'))
+  })
+
+  afterEach(() => {
+    vi.doUnmock('@/constants/feature-flags')
+  })
+
+  it('shows the Beneficiary access PIN section only to Beneficiary detail roles', async () => {
+    render(<EnabledWorkspace />)
+    await screen.findByLabelText('Name')
+    expect(screen.queryByText('Beneficiary PIN form')).toBeNull()
+    cleanup()
+    state.permissions = ['profile.manage', 'beneficiaries.records.read']
+    render(<EnabledWorkspace />)
+    expect(await screen.findByText('Beneficiary PIN form')).toBeTruthy()
+    expect(screen.getByText('Beneficiary access PIN')).toBeTruthy()
   })
 })
