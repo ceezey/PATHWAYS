@@ -46,7 +46,7 @@ Keep both files under the repository's ignored `.tmp/` directory or outside the 
 node scripts/db/hosted-build.mjs --dry-run
 ```
 
-Check the printed 21-step plan. It covers the prisma role, the 0000 baseline and its registration, then staged deploys with the preprovision and cleanup steps around 0031, 0034, 0037 and 0041, then the 0042 and 0043 deploys, then the runtime login, then the postconditions.
+Check the printed 22-step plan. It covers the prisma role, the 0000 baseline and its registration, then staged deploys with the preprovision and cleanup steps around 0031, 0034, 0037 and 0041, then the 0042, 0043 and 0044 deploys, then the runtime login, then the postconditions.
 
 ```bash
 node scripts/db/hosted-build.mjs --env-file .tmp/role-staging-build.env
@@ -54,7 +54,7 @@ node scripts/db/hosted-build.mjs --env-file .tmp/role-staging-build.env
 
 Every step prints `start` and `done` lines and has a time limit. A successful build ends with these PASS lines:
 
-- `PASS: ledger has exactly 18 migrations 0000-0043, all finished and none failed`
+- `PASS: ledger has exactly 19 migrations 0000-0044, all finished and none failed`
 - `PASS: no residual temporary owner memberships for prisma`
 - `PASS: role count matches the repo-derived expectation (21 roles ...)`
 - `PASS: schema-level permission grants observed (...)`
@@ -136,13 +136,15 @@ The operator runs:
 node scripts/db/hosted-build.mjs --env-file .tmp/role-staging-build.env --resume
 ```
 
-Because the ledger is already the complete, cleanly finished 0000 to 0041 prefix, `--resume` first checks for residual activity-media owner memberships (see above), then continues with the 0042 deploy, then the 0043 deploy, then the postconditions. Unless a residual membership was found, it does not re-run the activity-media cleanup; the runtime-role alteration always runs again at the end regardless, since `ALTER ROLE ... WITH LOGIN` is idempotent. A successful run ends with these PASS lines:
+Because the ledger is already the complete, cleanly finished 0000 to 0041 prefix, `--resume` first checks for residual activity-media owner memberships (see above), then continues with the 0042 deploy, then the 0043 deploy, then the 0044 deploy, then the postconditions. Unless a residual membership was found, it does not re-run the activity-media cleanup; the runtime-role alteration always runs again at the end regardless, since `ALTER ROLE ... WITH LOGIN` is idempotent. A successful run ends with these PASS lines:
 
 - `PASS: resume preflight (pathways schema present, auth.users present, prisma role present, ledger is a clean finished prefix with 16 migrations applied, residual activity-media owner memberships: false)`
-- `PASS: ledger has exactly 18 migrations 0000-0043, all finished and none failed`
+- `PASS: ledger has exactly 19 migrations 0000-0044, all finished and none failed`
 - `PASS: no residual temporary owner memberships for prisma`
 - `PASS: role count matches the repo-derived expectation (21 roles ...)`
 - `PASS: schema-level permission grants observed (...)`
 - `PASS: pathways_runtime has LOGIN enabled`
 
 If role-staging had already been resumed through 0042 alone before 0043 existed (ledger holding exactly 0000 to 0042), the same command continues directly at the 0043 deploy and then the postconditions, without repeating any earlier step. That state is unambiguous: 0042 has no preprovision/cleanup pair, so there is no residual-membership check to make there.
+
+Migration 0044 (cr-pathways-f9-trusted-aggregates) adds two prisma-owned SECURITY DEFINER functions, `pathways.p10_f9_survey_aggregate` and `pathways.p10_f9_timeline_aggregate`, and changes no table, column, policy or grant. It also needs no preprovision or cleanup, so a ledger holding exactly 0000 to 0043 resumes directly at the 0044 deploy and then the postconditions. Applying 0044 to role-staging or any hosted database needs separate developer authorization.

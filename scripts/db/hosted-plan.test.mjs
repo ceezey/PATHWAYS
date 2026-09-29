@@ -24,8 +24,8 @@ test('MIGRATIONS_IN_ORDER matches the real migrations directory exactly, in orde
   assert.deepEqual([...MIGRATIONS_IN_ORDER].sort(), onDisk)
   // The migrations directory holds one folder per Prisma migration. 0000
   // squashes the original 0001-0026 into a single reviewed baseline, so the
-  // ledger has 18 rows even though the numbering runs 0000 through 0043.
-  assert.equal(MIGRATIONS_IN_ORDER.length, 18)
+  // ledger has 19 rows even though the numbering runs 0000 through 0044.
+  assert.equal(MIGRATIONS_IN_ORDER.length, 19)
   assert.equal(MIGRATIONS_IN_ORDER[0], BASELINE)
 })
 
@@ -58,6 +58,7 @@ test('the dry-run plan order exactly matches the documented stop points', () => 
     'cleanup:activity-media',
     'deploy:0042_proof_session_beneficiary_count',
     'deploy:0043_activity_overdue_explanation',
+    'deploy:0044_f9_descriptive_aggregates',
     'alter-runtime-role',
     'postconditions',
   ])
@@ -179,7 +180,15 @@ test('planIndexForAppliedCount on a complete 0000-0042 ledger resumes directly a
   assert.deepEqual(plan[index].migrations, ['0043_activity_overdue_explanation'])
 })
 
-test('planIndexForAppliedCount on a fully complete 0000-0043 ledger resumes at alter-runtime-role', () => {
+test('planIndexForAppliedCount on a complete 0000-0043 ledger resumes directly at the 0044 deploy', () => {
+  const plan = buildPlan()
+  const appliedThrough0043 = MIGRATIONS_IN_ORDER.indexOf('0043_activity_overdue_explanation') + 1
+  const index = planIndexForAppliedCount(appliedThrough0043)
+  assert.equal(plan[index].type, 'deploy')
+  assert.deepEqual(plan[index].migrations, ['0044_f9_descriptive_aggregates'])
+})
+
+test('planIndexForAppliedCount on a fully complete 0000-0044 ledger resumes at alter-runtime-role', () => {
   const plan = buildPlan()
   const index = planIndexForAppliedCount(MIGRATIONS_IN_ORDER.length)
   assert.equal(plan[index].type, 'alter-runtime-role')

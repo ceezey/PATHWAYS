@@ -4,7 +4,7 @@
 
 export const BASELINE = '0000_pathways_baseline_through_0026'
 
-// The exact 43-migration ledger this script must produce, in order. This is
+// The exact 19-migration ledger this script must produce, in order. This is
 // the repository's own migration directory listing (apps/api/prisma/migrations),
 // asserted against the real directory in hosted-plan.test.mjs so this literal
 // list can never silently drift from the repo.
@@ -27,6 +27,7 @@ export const MIGRATIONS_IN_ORDER = Object.freeze([
   '0041_activity_media_evidence',
   '0042_proof_session_beneficiary_count',
   '0043_activity_overdue_explanation',
+  '0044_f9_descriptive_aggregates',
 ])
 
 function range(from, to) {
@@ -73,6 +74,10 @@ export function buildPlan() {
     // pathways.projects, pathways.organizations, pathways.system_users and
     // pathways.p05_has_project_permission from the 0000 baseline.
     { type: 'deploy', migrations: range(43, 43) },
+    // 0044 needs no preprovision: it adds two functions only, and prisma already owns
+    // pathways.p06_can, pathways.assessment_results, pathways.project_activities and
+    // pathways.project_milestones from the 0000 baseline.
+    { type: 'deploy', migrations: range(44, 44) },
     { type: 'alter-runtime-role' },
     { type: 'postconditions' },
   ]
@@ -113,7 +118,7 @@ export function assertResumablePrefix(ledgerRows) {
   }
   if (appliedCount !== names.length) {
     throw new Error(
-      'Ledger is not an exact finished prefix of the expected 0000-0043 migrations; --resume refuses it',
+      'Ledger is not an exact finished prefix of the expected 0000-0044 migrations; --resume refuses it',
     )
   }
   return appliedCount

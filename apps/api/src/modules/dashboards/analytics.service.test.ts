@@ -9,9 +9,12 @@ import { ForbiddenException } from '@nestjs/common'
 import {
   type DescriptiveAnalytics,
   type MetricCell,
+  businessCalendarDate,
   descriptiveAnalyticsSchema,
+  surveyAggregateFromRows,
 } from '@pathways/shared'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { activityObservation } from '../rules/rule-metrics'
 import { AnalyticsController } from './analytics.controller'
 import { AnalyticsService } from './analytics.service'
 import { DashboardsService } from './dashboards.service'
@@ -122,6 +125,53 @@ function matchesScope(where: Record<string, unknown>, project: (typeof projects)
   })
 }
 
+type FixtureActivity = {
+  status: string
+  archivedAt: Date | null
+  plannedEndDate: Date | null
+}
+type FixtureMilestone = {
+  status: string
+  targetDate: Date | null
+  completionDate: Date | null
+  archivedAt?: Date | null
+}
+
+/**
+ * TypeScript mirror of pathways.p10_f9_timeline_aggregate (the SQL suite proves the SQL side).
+ * Eligible = non-archived and non-cancelled; overdue = non-completed with a planned end before
+ * the reporting date; missingDates = non-completed without a planned end date.
+ */
+function timelineAggregateFromFixture(
+  activities: FixtureActivity[],
+  milestones: FixtureMilestone[],
+  reportingDate: string,
+) {
+  const eligible = activities.filter((a) => a.archivedAt === null && a.status !== 'CANCELLED')
+  const open = eligible.filter((a) => a.status !== 'COMPLETED')
+  const days = (a: FixtureActivity) =>
+    Math.round(
+      (Date.parse(`${reportingDate}T00:00:00Z`) - (a.plannedEndDate as Date).getTime()) / 86400000,
+    )
+  const dated = open.filter((a) => a.plannedEndDate !== null)
+  const completedMilestones = milestones.filter((m) => !m.archivedAt && m.status === 'COMPLETED')
+  const rated = completedMilestones.filter((m) => m.targetDate && m.completionDate)
+  return {
+    activities: {
+      eligible: eligible.length,
+      completed: eligible.filter((a) => a.status === 'COMPLETED').length,
+      overdue: dated.filter((a) => days(a) > 0).length,
+      missingDates: open.length - dated.length,
+      maxOverdueDays: dated.length ? Math.max(0, ...dated.map(days)) : null,
+    },
+    milestones: {
+      completed: completedMilestones.length,
+      rated: rated.length,
+      onTime: rated.filter((m) => (m.completionDate as Date) <= (m.targetDate as Date)).length,
+    },
+  }
+}
+
 function harness(
   sadddRaw: unknown = releasedSaddd,
   projectEnd = '2026-06-30',
@@ -130,6 +180,11 @@ function harness(
     activities?: unknown[]
     milestones?: unknown[]
     projectStatus?: string
+    /** Overrides what the trusted SQL function returns (instead of deriving it from fixtures). */
+    surveyAggregate?: unknown
+    timelineAggregate?: unknown
+    /** Makes the trusted SQL function fail with this Prisma-style error. */
+    aggregateError?: { code?: string; meta?: { code: string } }
   } = {},
 ) {
   const sqlCalls: string[] = []
@@ -153,20 +208,67 @@ function harness(
           : null
       }),
     },
+    // Detail rows must never be read by F9 survey/timeline: the trusted SQL aggregates replace them.
     assessmentResult: {
-      findMany: vi.fn(async (_args: unknown) => options.assessmentResults ?? []),
+      findMany: vi.fn(async (_args: unknown) => {
+        throw new Error('Assessment rows must never be read by F9 analytics.')
+      }),
     },
     projectActivity: {
-      findMany: vi.fn(async (_args: unknown) => options.activities ?? []),
+      findMany: vi.fn(async (_args: unknown) => {
+        throw new Error('Activity rows must never be read by F9 analytics.')
+      }),
     },
     projectMilestone: {
-      findMany: vi.fn(async (_args: unknown) => options.milestones ?? []),
+      findMany: vi.fn(async (_args: unknown) => {
+        throw new Error('Milestone rows must never be read by F9 analytics.')
+      }),
     },
-    $queryRaw: vi.fn(async (query: { sql?: string } | TemplateStringsArray) => {
-      const sql = 'sql' in query && typeof query.sql === 'string' ? query.sql : ''
+    $queryRaw: vi.fn(async (query: { sql?: string; values?: unknown[] } | TemplateStringsArray) => {
+      const sql = Array.isArray(query)
+        ? query.join('?')
+        : 'sql' in query && typeof query.sql === 'string'
+          ? query.sql
+          : ''
+      const values = 'values' in query && Array.isArray(query.values) ? query.values : []
       sqlCalls.push(sql)
       if (sql.includes('p06_saddd')) return [{ data: sadddRaw }]
       if (sql.includes('p06_monitoring')) return [{ data: monitoringRaw }]
+      if (sql.includes('p10_f9_survey_aggregate') || sql.includes('p10_f9_timeline_aggregate')) {
+        if (options.aggregateError)
+          throw Object.assign(new Error('aggregate failed'), options.aggregateError)
+        if (sql.includes('p10_f9_survey_aggregate'))
+          return [
+            {
+              data:
+                options.surveyAggregate ??
+                surveyAggregateFromRows(
+                  ((options.assessmentResults ?? []) as Array<Record<string, unknown>>).map(
+                    (row) => ({
+                      id: row.id as string,
+                      type: row.type as 'PRE_TEST' | 'POST_TEST',
+                      score: String(row.score),
+                      maximumScore: String(row.maximumScore),
+                      assessmentDate: (row.assessmentDate as Date).toISOString().slice(0, 10),
+                      enrollmentId: row.enrollmentId as string | null,
+                      activityId: row.activityId as string | null,
+                    }),
+                  ),
+                ),
+            },
+          ]
+        return [
+          {
+            data:
+              options.timelineAggregate ??
+              timelineAggregateFromFixture(
+                (options.activities ?? []) as FixtureActivity[],
+                (options.milestones ?? []) as FixtureMilestone[],
+                String(values[2]),
+              ),
+          },
+        ]
+      }
       return []
     }),
     auditLog: { create: vi.fn(async () => ({})) },
@@ -392,7 +494,9 @@ describe('analytics descriptive read and export', () => {
     // one successful read (readOnly, above) is audited.
     expect(tx.auditLog.create).toHaveBeenCalledTimes(1)
     expect(tx.auditLog.create).toHaveBeenCalledWith(
-      expect.objectContaining({ data: expect.objectContaining({ action: 'ANALYTICS_DESCRIPTIVE_VIEWED' }) }),
+      expect.objectContaining({
+        data: expect.objectContaining({ action: 'ANALYTICS_DESCRIPTIVE_VIEWED' }),
+      }),
     )
   })
 
@@ -572,9 +676,11 @@ describe('analytics descriptive views: survey and timeline', () => {
     ]
   }
 
-  it('happy: computes survey pairing from a select that carries no beneficiary identity', async () => {
+  it('happy: computes survey pairing from the trusted aggregate, never from assessment rows', async () => {
     const rows = ['e1', 'e2', 'e3', 'e4', 'e5'].flatMap((id) => pairedRows(id, 40, 60))
-    const { service, tx } = harness(releasedSaddd, '2026-06-30', { assessmentResults: rows })
+    const { service, tx, sqlCalls } = harness(releasedSaddd, '2026-06-30', {
+      assessmentResults: rows,
+    })
     const identity = actor('MONITORING_AND_EVALUATION_OFFICER')
     const result = await service.descriptive(identity, {
       projectId: projectA,
@@ -586,18 +692,9 @@ describe('analytics descriptive views: survey and timeline', () => {
       contractVersion: 'analytics.descriptive.survey.v1',
       overall: { pairs: { state: 'AVAILABLE', value: '5' } },
     })
-    const select = (
-      tx.assessmentResult.findMany.mock.calls[0]?.[0] as { select: Record<string, boolean> }
-    ).select
-    expect(select).toEqual({
-      id: true,
-      type: true,
-      score: true,
-      maximumScore: true,
-      assessmentDate: true,
-      enrollmentId: true,
-      activityId: true,
-    })
+    // Only the trusted aggregate function is called; assessment rows are never read.
+    expect(tx.assessmentResult.findMany).not.toHaveBeenCalled()
+    expect(sqlCalls.filter((sql) => sql.includes('p10_f9_survey_aggregate'))).toHaveLength(1)
     expect(tx.auditLog.create).toHaveBeenCalledWith(
       expect.objectContaining({
         data: expect.objectContaining({
@@ -612,7 +709,7 @@ describe('analytics descriptive views: survey and timeline', () => {
     )
   })
 
-  it('happy: computes timeline adherence from the complete unpaginated activity/milestone population', async () => {
+  it('happy: computes timeline adherence from the trusted activity/milestone aggregate', async () => {
     const activities = [
       {
         id: '40000000-0000-4000-8000-000000000011',
@@ -632,7 +729,11 @@ describe('analytics descriptive views: survey and timeline', () => {
       },
     ]
     const milestones = [
-      { status: 'COMPLETED', targetDate: new Date('2026-01-10'), completionDate: new Date('2026-01-10') },
+      {
+        status: 'COMPLETED',
+        targetDate: new Date('2026-01-10'),
+        completionDate: new Date('2026-01-10'),
+      },
       { status: 'CANCELLED', targetDate: new Date('2020-01-01'), completionDate: null },
     ]
     const { service, tx } = harness(releasedSaddd, '2026-12-31', {
@@ -647,8 +748,9 @@ describe('analytics descriptive views: survey and timeline', () => {
       activityCompletionPercent: { state: 'AVAILABLE', value: '50' },
       milestoneOnTimePercent: { state: 'AVAILABLE', value: '100' },
     })
-    // Fetches cap+1 (max 1000) with a deterministic orderBy to detect truncation; never UI-paginated.
-    expect((tx.projectActivity.findMany.mock.calls[0]?.[0] as { take: number }).take).toBe(1001)
+    // Counts come from the trusted aggregate; activity and milestone rows are never read.
+    expect(tx.projectActivity.findMany).not.toHaveBeenCalled()
+    expect(tx.projectMilestone.findMany).not.toHaveBeenCalled()
     expect(tx.auditLog.create).toHaveBeenCalledWith(
       expect.objectContaining({
         data: expect.objectContaining({
@@ -774,103 +876,280 @@ describe('analytics descriptive views: survey and timeline', () => {
     expect(tx.auditLog.create).not.toHaveBeenCalled()
   })
 
-  it('sad: survey fails closed (POPULATION_LIMIT_EXCEEDED) rather than silently truncating at the row cap', async () => {
-    const atCap = Array.from({ length: 5000 / 2 }, (_, index) =>
-      pairedRows(`e${index}`, 40, 60),
-    ).flat()
-    const overCap = [...atCap, ...pairedRows('e-extra', 40, 60)]
-    const { service: atCapService } = harness(releasedSaddd, '2026-06-30', {
-      assessmentResults: atCap,
+  describe('trusted aggregates for aggregate-only roles', () => {
+    const fivePairs = () => ['e1', 'e2', 'e3', 'e4', 'e5'].flatMap((id) => pairedRows(id, 40, 60))
+    const period = { periodStart: '2026-01-01', periodEnd: '2026-12-31' }
+    const activityFixture = (status: string, plannedEnd: string | null, archived = false) => ({
+      status,
+      archivedAt: archived ? new Date('2026-01-01') : null,
+      plannedEndDate: plannedEnd ? new Date(plannedEnd) : null,
     })
-    const atCapResult = await atCapService.descriptive(
-      actor('MONITORING_AND_EVALUATION_OFFICER'),
-      { projectId: projectA, periodStart: '2026-01-01', periodEnd: '2026-12-31', view: 'survey' },
-    )
-    expect(atCapResult).toMatchObject({ overall: { pairs: { state: 'AVAILABLE' } } })
 
-    const { service: overCapService, tx } = harness(releasedSaddd, '2026-06-30', {
-      assessmentResults: overCap,
-    })
-    const overCapResult = await overCapService.descriptive(
-      actor('MONITORING_AND_EVALUATION_OFFICER'),
-      { projectId: projectA, periodStart: '2026-01-01', periodEnd: '2026-12-31', view: 'survey' },
+    it.each(['PROGRAM_MANAGER', 'GRANT_MANAGER'] as const)(
+      'happy: %s receives real survey aggregates on read and export, not a restricted state',
+      async (role) => {
+        expect(rolePermissions[role]).not.toContain('assessments.detail.read')
+        expect(rolePermissions[role]).not.toContain('activities.read')
+        const { service, tx, sqlCalls } = harness(releasedSaddd, '2026-06-30', {
+          assessmentResults: fivePairs(),
+        })
+        const identity = actor(role)
+        const read = (await service.descriptive(identity, {
+          projectId: projectA,
+          ...period,
+          view: 'survey',
+        })) as { overall: { pairs: MetricCell; meanPre: MetricCell; meanPost: MetricCell } }
+        expect(read.overall.pairs).toMatchObject({ state: 'AVAILABLE', value: '5' })
+        expect(read.overall.meanPre.value).toBe('40')
+        expect(read.overall.meanPost.value).toBe('60')
+        const csv = (
+          await service.export(identity, { projectId: projectA, ...period, view: 'survey' })
+        ).bytes.toString('utf8')
+        expect(csv).toMatch(
+          /"SURVEY","OVERALL","All activities \(cohort change\) - Paired assessments","AVAILABLE","5"/,
+        )
+        expect(sqlCalls.filter((sql) => sql.includes('p10_f9_survey_aggregate'))).toHaveLength(2)
+        expect(tx.assessmentResult.findMany).not.toHaveBeenCalled()
+        expect(tx.auditLog.create).toHaveBeenCalledTimes(2)
+      },
     )
-    expect(overCapResult).toMatchObject({
-      overall: { pairs: { state: 'MISSING', reason: 'POPULATION_LIMIT_EXCEEDED' } },
-      byActivity: [],
-    })
-    expect(
-      (tx.assessmentResult.findMany.mock.calls[0]?.[0] as { take: number }).take,
-    ).toBe(5001)
-  })
 
-  it('sad: timeline fails closed (POPULATION_LIMIT_EXCEEDED) rather than silently truncating at the row cap', async () => {
-    const activityUuid = (index: number) =>
-      `50000000-0000-4000-8000-${index.toString(16).padStart(12, '0')}`
-    const activity = (index: number) => ({
-      id: activityUuid(index),
-      organizationId: orgA,
-      projectId: projectA,
-      status: 'COMPLETED',
-      archivedAt: null,
-      plannedEndDate: new Date('2026-02-01'),
-    })
-    const atCap = Array.from({ length: 1000 }, (_, index) => activity(index))
-    const overCap = [...atCap, activity(1000)]
-    const { service: atCapService } = harness(releasedSaddd, '2026-06-30', {
-      activities: atCap,
-      milestones: [],
-      projectStatus: 'ONGOING',
-    })
-    const atCapResult = await atCapService.descriptive(
-      actor('MONITORING_AND_EVALUATION_OFFICER'),
-      { projectId: projectA, view: 'timeline' },
+    it.each(['PROGRAM_MANAGER', 'GRANT_MANAGER'] as const)(
+      'happy: %s receives real timeline aggregates on read and export, not "No activities recorded yet"',
+      async (role) => {
+        expect(rolePermissions[role]).not.toContain('activities.read')
+        const { service, tx, sqlCalls } = harness(releasedSaddd, '2026-12-31', {
+          activities: [
+            activityFixture('COMPLETED', '2026-02-01'),
+            activityFixture('IN_PROGRESS', '2026-01-01'),
+            activityFixture('NOT_STARTED', '2099-01-01'),
+            activityFixture('CANCELLED', '2020-01-01'),
+            activityFixture('IN_PROGRESS', '2020-01-01', true),
+          ],
+          milestones: [
+            {
+              status: 'COMPLETED',
+              targetDate: new Date('2026-01-10'),
+              completionDate: new Date('2026-01-09'),
+              archivedAt: null,
+            },
+          ],
+          projectStatus: 'ONGOING',
+        })
+        const identity = actor(role)
+        const read = (await service.descriptive(identity, {
+          projectId: projectA,
+          view: 'timeline',
+        })) as {
+          activityCompletionPercent: MetricCell
+          activityOverdueCount: MetricCell
+          milestoneOnTimePercent: MetricCell
+        }
+        // 3 eligible (cancelled and archived excluded), 1 completed, 1 overdue.
+        expect(read.activityCompletionPercent).toMatchObject({
+          state: 'AVAILABLE',
+          value: '33.3333',
+        })
+        expect(read.activityOverdueCount).toMatchObject({ state: 'AVAILABLE', value: '1' })
+        expect(read.milestoneOnTimePercent).toMatchObject({ state: 'AVAILABLE', value: '100' })
+        const csv = (
+          await service.export(identity, { projectId: projectA, view: 'timeline' })
+        ).bytes.toString('utf8')
+        expect(csv).toContain('"Overdue activities","AVAILABLE","1"')
+        expect(sqlCalls.filter((sql) => sql.includes('p10_f9_timeline_aggregate'))).toHaveLength(2)
+        expect(tx.projectActivity.findMany).not.toHaveBeenCalled()
+        expect(tx.projectMilestone.findMany).not.toHaveBeenCalled()
+      },
     )
-    expect(atCapResult).toMatchObject({ activityCompletionPercent: { state: 'AVAILABLE' } })
 
-    const { service: overCapService } = harness(releasedSaddd, '2026-06-30', {
-      activities: overCap,
-      milestones: [],
-      projectStatus: 'ONGOING',
+    it('abuse: a Project Officer is denied survey and timeline read and export before any aggregate call', async () => {
+      const { service, sqlCalls } = harness()
+      const officer = actor('PROJECT_OFFICER')
+      for (const view of ['survey', 'timeline'] as const) {
+        await expect(
+          service.descriptive(officer, { projectId: projectA, ...period, view }),
+        ).rejects.toMatchObject({ status: 403 })
+        await expect(
+          service.export(officer, { projectId: projectA, ...period, view }),
+        ).rejects.toMatchObject({ status: 403 })
+      }
+      expect(sqlCalls.some((sql) => sql.includes('p10_f9'))).toBe(false)
     })
-    const overCapResult = await overCapService.descriptive(
-      actor('MONITORING_AND_EVALUATION_OFFICER'),
-      { projectId: projectA, view: 'timeline' },
-    )
-    expect(overCapResult).toMatchObject({
-      activityCompletionPercent: { state: 'MISSING', reason: 'POPULATION_LIMIT_EXCEEDED' },
-      activityOverdueCount: { state: 'MISSING', reason: 'POPULATION_LIMIT_EXCEEDED' },
-    })
-  })
 
-  it('sad: timeline fails closed on milestoneOnTimePercent alone when only milestones exceed the cap (activities stay within it)', async () => {
-    const milestone = (index: number) => ({
-      status: 'COMPLETED' as const,
-      targetDate: new Date('2026-02-01'),
-      completionDate: new Date('2026-02-01'),
+    it('guard order: monitoring permission, then project scope, then the aggregate call, then audit', async () => {
+      const { service, tx, sqlCalls } = harness(releasedSaddd, '2026-06-30', {
+        assessmentResults: fivePairs(),
+      })
+      await service.descriptive(actor('GRANT_MANAGER'), {
+        projectId: projectA,
+        ...period,
+        view: 'survey',
+      })
+      const scopeOrder = tx.project.findFirst.mock.invocationCallOrder[0] ?? 0
+      const aggregateOrder =
+        tx.$queryRaw.mock.invocationCallOrder[
+          sqlCalls.findIndex((sql) => sql.includes('p10_f9_survey_aggregate'))
+        ] ?? 0
+      const auditOrder = tx.auditLog.create.mock.invocationCallOrder[0] ?? 0
+      expect(scopeOrder).toBeGreaterThan(0)
+      expect(aggregateOrder).toBeGreaterThan(scopeOrder)
+      expect(auditOrder).toBeGreaterThan(aggregateOrder)
     })
-    const overCapMilestones = Array.from({ length: 1001 }, (_, index) => milestone(index))
-    const { service } = harness(releasedSaddd, '2026-06-30', {
-      activities: [],
-      milestones: overCapMilestones,
-      projectStatus: 'ONGOING',
+
+    it('abuse: the function guard denial (42501) is a 403 and writes no audit row', async () => {
+      const { service, tx } = harness(releasedSaddd, '2026-06-30', {
+        aggregateError: { meta: { code: '42501' } },
+      })
+      await expect(
+        service.descriptive(actor('PROGRAM_MANAGER'), {
+          projectId: projectA,
+          ...period,
+          view: 'survey',
+        }),
+      ).rejects.toMatchObject({ status: 403 })
+      await expect(
+        service.export(actor('GRANT_MANAGER'), { projectId: projectA, view: 'timeline' }),
+      ).rejects.toMatchObject({ status: 403 })
+      expect(tx.auditLog.create).not.toHaveBeenCalled()
     })
-    const result = await service.descriptive(actor('MONITORING_AND_EVALUATION_OFFICER'), {
-      projectId: projectA,
-      view: 'timeline',
+
+    it('sad: a statement timeout on the aggregate is a 503, never an empty or partial view', async () => {
+      const { service, tx } = harness(releasedSaddd, '2026-06-30', {
+        aggregateError: { meta: { code: '57014' } },
+      })
+      await expect(
+        service.descriptive(actor('PROGRAM_MANAGER'), {
+          projectId: projectA,
+          ...period,
+          view: 'survey',
+        }),
+      ).rejects.toMatchObject({ status: 503 })
+      await expect(
+        service.descriptive(actor('GRANT_MANAGER'), { projectId: projectA, view: 'timeline' }),
+      ).rejects.toMatchObject({ status: 503 })
+      await expect(
+        service.export(actor('PROGRAM_MANAGER'), { projectId: projectA, view: 'timeline' }),
+      ).rejects.toMatchObject({ status: 503 })
+      expect(tx.auditLog.create).not.toHaveBeenCalled()
     })
-    expect(result).toMatchObject({
-      milestoneOnTimePercent: { state: 'MISSING', reason: 'POPULATION_LIMIT_EXCEEDED' },
+
+    it('sad: a statement_timeout is set before the aggregate function runs', async () => {
+      const { service, sqlCalls } = harness(releasedSaddd, '2026-06-30', {
+        assessmentResults: fivePairs(),
+      })
+      await service.descriptive(actor('PROGRAM_MANAGER'), {
+        projectId: projectA,
+        ...period,
+        view: 'survey',
+      })
+      const timeout = sqlCalls.findIndex((sql) => sql.includes("set_config('statement_timeout'"))
+      const aggregate = sqlCalls.findIndex((sql) => sql.includes('p10_f9_survey_aggregate'))
+      expect(timeout).toBeGreaterThanOrEqual(0)
+      expect(aggregate).toBeGreaterThan(timeout)
     })
-    // Activities were not truncated, so the activity metrics are unaffected.
-    expect(result).not.toMatchObject({
-      activityCompletionPercent: { reason: 'POPULATION_LIMIT_EXCEEDED' },
+
+    it('sad: a malformed aggregate from the database is a 503, never a fabricated view', async () => {
+      const { service } = harness(releasedSaddd, '2026-06-30', {
+        surveyAggregate: { excludedRecords: 0, groups: [{ activityId: null, pairs: 'x' }] },
+        timelineAggregate: { activities: {}, milestones: {} },
+      })
+      await expect(
+        service.descriptive(actor('PROGRAM_MANAGER'), {
+          projectId: projectA,
+          ...period,
+          view: 'survey',
+        }),
+      ).rejects.toMatchObject({ status: 503 })
+      await expect(
+        service.descriptive(actor('PROGRAM_MANAGER'), { projectId: projectA, view: 'timeline' }),
+      ).rejects.toMatchObject({ status: 503 })
+    })
+
+    it('abuse: suppression still runs in the API on the unsuppressed aggregate (3 pairs are suppressed)', async () => {
+      const { service } = harness(releasedSaddd, '2026-06-30', {
+        surveyAggregate: {
+          excludedRecords: 1,
+          groups: [
+            {
+              activityId: null,
+              pairs: 3,
+              sumPre: 120,
+              sumPost: 180,
+              improved: 3,
+              same: 0,
+              declined: 0,
+            },
+          ],
+        },
+      })
+      const result = await service.descriptive(actor('PROGRAM_MANAGER'), {
+        projectId: projectA,
+        ...period,
+        view: 'survey',
+      })
+      expect(result).toMatchObject({
+        excludedRecords: 1,
+        overall: {
+          pairs: { state: 'SUPPRESSED', value: null, reason: 'SMALL_CELL' },
+          meanPre: { state: 'SUPPRESSED', value: null },
+        },
+      })
+    })
+
+    it('parity: the SQL aggregate mirror reproduces the rule-engine activity observation', async () => {
+      const cases = [
+        [activityFixture('COMPLETED', '2026-02-01'), activityFixture('IN_PROGRESS', '2026-01-01')],
+        [activityFixture('IN_PROGRESS', null), activityFixture('COMPLETED', null)],
+        [activityFixture('CANCELLED', '2020-01-01'), activityFixture('NOT_STARTED', '2026-12-31')],
+        [activityFixture('IN_PROGRESS', '2026-12-30', true)],
+        [],
+      ]
+      for (const activities of cases) {
+        const { service } = harness(releasedSaddd, '2026-12-31', {
+          activities,
+          milestones: [],
+          projectStatus: 'ONGOING',
+        })
+        const result = (await service.descriptive(actor('PROGRAM_MANAGER'), {
+          projectId: projectA,
+          view: 'timeline',
+        })) as { activityCompletionPercent: MetricCell; activityOverdueCount: MetricCell }
+        const reportingDate = businessCalendarDate(new Date(), 'Asia/Manila')
+        const members = activities.map((a, index) => ({
+          id: `50000000-0000-4000-8000-${String(index + 1).padStart(12, '0')}`,
+          organizationId: orgA,
+          projectId: projectA,
+          revision: '1',
+          status: a.status,
+          archived: a.archivedAt !== null,
+          plannedEndDate: a.plannedEndDate ? a.plannedEndDate.toISOString().slice(0, 10) : null,
+        }))
+        const base = {
+          scope: { organizationId: orgA, projectId: projectA },
+          conditionId: 'analytics-timeline-view',
+          asOf: new Date().toISOString(),
+          reportingDate,
+          populationRevision: '1',
+          activities: members,
+        }
+        const completion = activityObservation({
+          ...base,
+          metric: 'ACTIVITY_COMPLETION_PERCENT',
+        }).cell
+        const overdue = activityObservation({ ...base, metric: 'ACTIVITY_OVERDUE_COUNT' }).cell
+        const remap = (cell: MetricCell) =>
+          cell.reason === 'EMPTY_POPULATION' ? { ...cell, reason: 'NO_ACTIVITIES' } : cell
+        expect(result.activityCompletionPercent).toEqual(remap(completion))
+        expect(result.activityOverdueCount).toEqual(remap(overdue))
+      }
     })
   })
 
   it('sad: an unexpected export retrieval failure is a 503, never a 500 or a client error', async () => {
-    const { service, tx } = harness(releasedSaddd, '2026-06-30', { assessmentResults: [] })
-    tx.assessmentResult.findMany.mockRejectedValueOnce(new Error('connection reset'))
+    const { service, tx } = harness(releasedSaddd, '2026-06-30', {
+      assessmentResults: [],
+      aggregateError: {},
+    })
     const identity = actor('PROJECT_MANAGER')
     await expect(
       service.export(identity, {
@@ -915,7 +1194,9 @@ describe('analytics descriptive views: survey and timeline', () => {
     // improved/declined, act-B's split is recoverable as overall (7/8) minus act-A
     // (5/5). The CSV must withhold every byActivity row, not just act-B's.
     const rows = [
-      ...['a1', 'a2', 'a3', 'a4', 'a5'].flatMap((id) => pairedRows(id, 40, 70, { activityId: 'act-A' })),
+      ...['a1', 'a2', 'a3', 'a4', 'a5'].flatMap((id) =>
+        pairedRows(id, 40, 70, { activityId: 'act-A' }),
+      ),
       ...['a6', 'a7'].flatMap((id) => pairedRows(id, 70, 40, { activityId: 'act-A' })),
       ...['b1', 'b2'].flatMap((id) => pairedRows(id, 40, 70, { activityId: 'act-B' })),
       ...['b3', 'b4', 'b5'].flatMap((id) => pairedRows(id, 70, 40, { activityId: 'act-B' })),

@@ -14,30 +14,29 @@ import {
   type SurveyAnalytics,
   type TimelineAnalytics,
   businessCalendarDate,
-  computeSurveyAnalytics,
+  computeSurveyAnalyticsFromAggregates,
   descriptiveAnalyticsQuerySchema,
+  surveyAggregateSchema,
   timelineAnalyticsSchema,
 } from '@pathways/shared'
-import type { Prisma } from '@prisma/client'
+import { Prisma } from '@prisma/client'
 import { PrismaService } from '../../prisma/prisma.service'
 import { hasAtomicPermission } from '../auth/authorization-policy'
 import { projectScope } from '../auth/authorized-data.service'
 import { withAuthorizedOperation } from '../auth/authorized-operation'
 import type { ApplicationIdentity } from '../auth/developer-access'
+import { monitoringSqlError } from '../indicators/indicators.service'
 import { DashboardsService } from './dashboards.service'
 import {
   buildDescriptiveAnalytics,
   buildTimelineAnalytics,
   descriptiveAnalyticsCsv,
   surveyAnalyticsCsv,
+  timelineAggregateSchema,
   timelineAnalyticsCsv,
 } from './descriptive-analytics'
 
 const logger = new Logger('AnalyticsService')
-
-/** Fetch cap+1 with a deterministic orderBy; exceeding it fails closed instead of truncating. */
-const SURVEY_ROW_CAP = 5000
-const POPULATION_CAP = 1000
 
 export function parseDescriptiveQuery(value: unknown): DescriptiveAnalyticsQuery {
   const parsed = descriptiveAnalyticsQuerySchema.safeParse(value)
@@ -141,9 +140,28 @@ export class AnalyticsService {
   }
 
   /**
+   * Calls one trusted F9 aggregate function inside the caller's authorized transaction.
+   * The function enforces org, permission and project scope itself (42501 -> 403) and
+   * returns group aggregates only. A bounded statement timeout guards the aggregation;
+   * a timeout or other database fault maps to the existing 503 path.
+   */
+  private async callAggregate(tx: Prisma.TransactionClient, query: Prisma.Sql): Promise<unknown> {
+    await tx.$queryRaw`SELECT set_config('statement_timeout','3000',true)`
+    try {
+      const result = await tx.$queryRaw<Array<{ data: unknown }>>(query)
+      return result[0]?.data
+    } catch (error) {
+      monitoringSqlError(error)
+    }
+  }
+
+  /**
    * Paired pre/post survey improvement (analytics.descriptive.survey.v1). The
-   * select projects only score/max/date/enrollment/activity IDs; it never selects
-   * Beneficiary identity, and raw rows never leave this method.
+   * unsuppressed group aggregate comes from pathways.p10_f9_survey_aggregate, which
+   * every role with analytics.descriptive.read and monitoring.read may call without
+   * holding assessment detail access. Assessment rows are never read here; threshold,
+   * complementary suppression and cross-group withholding run in the shared calculator
+   * before anything leaves this process.
    */
   private async computeSurvey(
     tx: Prisma.TransactionClient,
@@ -154,53 +172,27 @@ export class AnalyticsService {
     if (!query.periodStart || !query.periodEnd)
       throw new BadRequestException('Survey analytics requires a complete period.')
     const project = await this.requireProject(tx, actor, query.projectId)
-    const rows = await tx.assessmentResult.findMany({
-      where: {
-        organizationId: actor.organizationId,
-        projectId: project.id,
-        type: { in: ['PRE_TEST', 'POST_TEST'] },
-        assessmentDate: {
-          gte: new Date(`${query.periodStart}T00:00:00.000Z`),
-          lte: new Date(`${query.periodEnd}T23:59:59.999Z`),
-        },
-      },
-      select: {
-        id: true,
-        type: true,
-        score: true,
-        maximumScore: true,
-        assessmentDate: true,
-        enrollmentId: true,
-        activityId: true,
-      },
-      // Deterministic tie-break (date then id) so a truncation boundary is stable.
-      orderBy: [{ assessmentDate: 'asc' }, { id: 'asc' }],
-      take: SURVEY_ROW_CAP + 1,
-    })
-    const truncated = rows.length > SURVEY_ROW_CAP
-    const boundedRows = truncated ? rows.slice(0, SURVEY_ROW_CAP) : rows
-    return computeSurveyAnalytics({
+    const raw = await this.callAggregate(
+      tx,
+      Prisma.sql`SELECT pathways.p10_f9_survey_aggregate(${actor.organizationId}::uuid,${project.id}::uuid,${query.periodStart}::date,${query.periodEnd}::date) AS data`,
+    )
+    const aggregate = surveyAggregateSchema.safeParse(raw)
+    if (!aggregate.success)
+      throw new ServiceUnavailableException('Survey aggregate response contract is unavailable.')
+    return computeSurveyAnalyticsFromAggregates({
       projectId: project.id,
       periodStart: query.periodStart,
       periodEnd: query.periodEnd,
       generatedAt: new Date().toISOString(),
-      truncated,
-      rows: boundedRows.map((row) => ({
-        id: row.id,
-        type: row.type,
-        score: row.score === null ? null : row.score.toString(),
-        maximumScore: row.maximumScore === null ? null : row.maximumScore.toString(),
-        assessmentDate: row.assessmentDate.toISOString().slice(0, 10),
-        enrollmentId: row.enrollmentId,
-        activityId: row.activityId,
-      })),
+      aggregate: aggregate.data,
     })
   }
 
   /**
-   * Timeline adherence (analytics.descriptive.timeline.v1). Activities and
-   * milestones are fetched in full (never paginated) so the reused rule-metric
-   * population math sees the complete, bounded population.
+   * Timeline adherence (analytics.descriptive.timeline.v1). Project-level elapsed and
+   * remaining days come from the project row every permitted role can read; activity
+   * and milestone counts come from pathways.p10_f9_timeline_aggregate so roles without
+   * activities.read still receive real counts. Rows are never read here.
    */
   private async computeTimeline(
     tx: Prisma.TransactionClient,
@@ -209,66 +201,32 @@ export class AnalyticsService {
   ): Promise<TimelineAnalytics> {
     this.requireMonitoringRead(actor)
     const project = await this.requireProject(tx, actor, query.projectId)
-    const [activitiesRaw, milestonesRaw] = await Promise.all([
-      tx.projectActivity.findMany({
-        where: { organizationId: actor.organizationId, projectId: project.id, archivedAt: null },
-        select: {
-          id: true,
-          organizationId: true,
-          projectId: true,
-          status: true,
-          archivedAt: true,
-          plannedEndDate: true,
-        },
-        // Deterministic tie-break (id is unique) so a truncation boundary is stable.
-        orderBy: [{ id: 'asc' }],
-        take: POPULATION_CAP + 1,
-      }),
-      tx.projectMilestone.findMany({
-        where: { organizationId: actor.organizationId, projectId: project.id, archivedAt: null },
-        select: { status: true, targetDate: true, completionDate: true },
-        orderBy: [{ id: 'asc' }],
-        take: POPULATION_CAP + 1,
-      }),
-    ])
-    const activitiesTruncated = activitiesRaw.length > POPULATION_CAP
-    const milestonesTruncated = milestonesRaw.length > POPULATION_CAP
-    const activities = activitiesTruncated ? activitiesRaw.slice(0, POPULATION_CAP) : activitiesRaw
-    const milestones = milestonesTruncated ? milestonesRaw.slice(0, POPULATION_CAP) : milestonesRaw
     const zone = readApiEnv(process.env).BUSINESS_TIME_ZONE
     const generatedAt = new Date().toISOString()
+    const reportingDate = businessCalendarDate(new Date(), zone)
+    const raw = await this.callAggregate(
+      tx,
+      Prisma.sql`SELECT pathways.p10_f9_timeline_aggregate(${actor.organizationId}::uuid,${project.id}::uuid,${reportingDate}::date) AS data`,
+    )
+    const aggregate = timelineAggregateSchema.safeParse(raw)
+    if (!aggregate.success)
+      throw new ServiceUnavailableException('Timeline aggregate response contract is unavailable.')
     // Parsed against the contract, same as every other view, instead of trusting the builder's shape.
-    return timelineAnalyticsSchema.parse(buildTimelineAnalytics({
-      projectId: project.id,
-      organizationId: actor.organizationId,
-      generatedAt,
-      reportingDate: businessCalendarDate(new Date(), zone),
-      activitiesTruncated,
-      milestonesTruncated,
-      project: {
-        status: project.status,
-        archived: project.archivedAt !== null,
-        startDate: project.startDate ? project.startDate.toISOString().slice(0, 10) : null,
-        endDate: project.endDate ? project.endDate.toISOString().slice(0, 10) : null,
-      },
-      activities: activities.map((activity) => ({
-        id: activity.id,
-        organizationId: activity.organizationId,
-        projectId: activity.projectId,
-        status: activity.status,
-        archived: activity.archivedAt !== null,
-        plannedEndDate: activity.plannedEndDate
-          ? activity.plannedEndDate.toISOString().slice(0, 10)
-          : null,
-      })),
-      milestones: milestones.map((milestone) => ({
-        status: milestone.status,
-        targetDate: milestone.targetDate ? milestone.targetDate.toISOString().slice(0, 10) : null,
-        completionDate: milestone.completionDate
-          ? milestone.completionDate.toISOString().slice(0, 10)
-          : null,
-      })),
-    }))
+    return timelineAnalyticsSchema.parse(
+      buildTimelineAnalytics({
+        projectId: project.id,
+        organizationId: actor.organizationId,
+        generatedAt,
+        reportingDate,
+        project: {
+          status: project.status,
+          archived: project.archivedAt !== null,
+          startDate: project.startDate ? project.startDate.toISOString().slice(0, 10) : null,
+          endDate: project.endDate ? project.endDate.toISOString().slice(0, 10) : null,
+        },
+        aggregate: aggregate.data,
+      }),
+    )
   }
 
   private async recordViewedAudit(
@@ -296,8 +254,11 @@ export class AnalyticsService {
 
   async descriptive(identity: ApplicationIdentity, input: unknown) {
     const query = parseDescriptiveQuery(input)
-    return withAuthorizedOperation(this.prisma, identity, 'analytics.descriptive.read', (tx, actor) =>
-      this.dispatch(tx, actor, query),
+    return withAuthorizedOperation(
+      this.prisma,
+      identity,
+      'analytics.descriptive.read',
+      (tx, actor) => this.dispatch(tx, actor, query),
     )
   }
 
@@ -353,62 +314,11 @@ export class AnalyticsService {
     actor: ApplicationIdentity,
     query: DescriptiveAnalyticsQuery,
   ) {
-      if (!hasAtomicPermission(actor.roles[0], actor.permissions, 'analytics.descriptive.read'))
-        throw new ForbiddenException('Descriptive analytics permission is required.')
-      if (query.view === 'survey') {
-        const data = await this.computeSurvey(tx, actor, query)
-        const csv = surveyAnalyticsCsv(data)
-        await tx.auditLog.create({
-          data: {
-            organizationId: actor.organizationId,
-            projectId: data.projectId,
-            actorUserId: actor.userId,
-            action: 'ANALYTICS_DESCRIPTIVE_EXPORTED',
-            entityType: 'Project',
-            entityId: data.projectId,
-            changes: {
-              contractVersion: data.contractVersion,
-              format: 'CSV',
-              view: 'survey',
-              period: data.period,
-              rowCount: data.byActivity.length + 1,
-            },
-          },
-        })
-        return {
-          bytes: Buffer.from(csv, 'utf8'),
-          contentType: 'text/csv; charset=utf-8',
-          fileName: `survey-analytics-${data.projectId}-${data.period.periodEnd}.csv`,
-        }
-      }
-      if (query.view === 'timeline') {
-        const data = await this.computeTimeline(tx, actor, query)
-        const csv = timelineAnalyticsCsv(data)
-        await tx.auditLog.create({
-          data: {
-            organizationId: actor.organizationId,
-            projectId: data.projectId,
-            actorUserId: actor.userId,
-            action: 'ANALYTICS_DESCRIPTIVE_EXPORTED',
-            entityType: 'Project',
-            entityId: data.projectId,
-            changes: {
-              contractVersion: data.contractVersion,
-              format: 'CSV',
-              view: 'timeline',
-              reportingDate: data.reportingDate,
-              rowCount: 6,
-            },
-          },
-        })
-        return {
-          bytes: Buffer.from(csv, 'utf8'),
-          contentType: 'text/csv; charset=utf-8',
-          fileName: `timeline-analytics-${data.projectId}-${data.reportingDate}.csv`,
-        }
-      }
-      const data = await this.compute(tx, actor, query)
-      const csv = descriptiveAnalyticsCsv(data)
+    if (!hasAtomicPermission(actor.roles[0], actor.permissions, 'analytics.descriptive.read'))
+      throw new ForbiddenException('Descriptive analytics permission is required.')
+    if (query.view === 'survey') {
+      const data = await this.computeSurvey(tx, actor, query)
+      const csv = surveyAnalyticsCsv(data)
       await tx.auditLog.create({
         data: {
           organizationId: actor.organizationId,
@@ -420,16 +330,67 @@ export class AnalyticsService {
           changes: {
             contractVersion: data.contractVersion,
             format: 'CSV',
-            monitoringPeriod: data.monitoringPeriod,
-            sadddReleaseState: data.sadddReleaseState,
-            rowCount: data.counts.length + data.distributions.length,
+            view: 'survey',
+            period: data.period,
+            rowCount: data.byActivity.length + 1,
           },
         },
       })
       return {
         bytes: Buffer.from(csv, 'utf8'),
         contentType: 'text/csv; charset=utf-8',
-        fileName: `descriptive-analytics-${data.projectId}-${data.monitoringPeriod.periodEnd}.csv`,
+        fileName: `survey-analytics-${data.projectId}-${data.period.periodEnd}.csv`,
       }
+    }
+    if (query.view === 'timeline') {
+      const data = await this.computeTimeline(tx, actor, query)
+      const csv = timelineAnalyticsCsv(data)
+      await tx.auditLog.create({
+        data: {
+          organizationId: actor.organizationId,
+          projectId: data.projectId,
+          actorUserId: actor.userId,
+          action: 'ANALYTICS_DESCRIPTIVE_EXPORTED',
+          entityType: 'Project',
+          entityId: data.projectId,
+          changes: {
+            contractVersion: data.contractVersion,
+            format: 'CSV',
+            view: 'timeline',
+            reportingDate: data.reportingDate,
+            rowCount: 6,
+          },
+        },
+      })
+      return {
+        bytes: Buffer.from(csv, 'utf8'),
+        contentType: 'text/csv; charset=utf-8',
+        fileName: `timeline-analytics-${data.projectId}-${data.reportingDate}.csv`,
+      }
+    }
+    const data = await this.compute(tx, actor, query)
+    const csv = descriptiveAnalyticsCsv(data)
+    await tx.auditLog.create({
+      data: {
+        organizationId: actor.organizationId,
+        projectId: data.projectId,
+        actorUserId: actor.userId,
+        action: 'ANALYTICS_DESCRIPTIVE_EXPORTED',
+        entityType: 'Project',
+        entityId: data.projectId,
+        changes: {
+          contractVersion: data.contractVersion,
+          format: 'CSV',
+          monitoringPeriod: data.monitoringPeriod,
+          sadddReleaseState: data.sadddReleaseState,
+          rowCount: data.counts.length + data.distributions.length,
+        },
+      },
+    })
+    return {
+      bytes: Buffer.from(csv, 'utf8'),
+      contentType: 'text/csv; charset=utf-8',
+      fileName: `descriptive-analytics-${data.projectId}-${data.monitoringPeriod.periodEnd}.csv`,
+    }
   }
 }

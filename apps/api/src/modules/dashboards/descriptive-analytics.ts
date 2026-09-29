@@ -1,18 +1,18 @@
 import {
   DESCRIPTIVE_ANALYTICS_CONTRACT_VERSION,
-  TIMELINE_ANALYTICS_CONTRACT_VERSION,
   type DescriptiveAnalytics,
   type DescriptiveSection,
   type MetricCell,
   type MonitoringDashboard,
   type SadddDashboard,
   type SurveyAnalytics,
+  TIMELINE_ANALYTICS_CONTRACT_VERSION,
   type TimelineAnalytics,
-  type TimelineMilestoneRow,
-  milestoneOnTimeCell,
-  missingMetric,
+  milestoneCountsSchema,
+  milestoneOnTimeFromCounts,
 } from '@pathways/shared'
-import { activityObservation, timelineObservation } from '../rules/rule-metrics'
+import { z } from 'zod'
+import { activityAggregateCells, timelineObservation } from '../rules/rule-metrics'
 
 type Bucket = { key: string; label: string; metric: MetricCell }
 type Distribution = DescriptiveAnalytics['distributions'][number]
@@ -188,21 +188,36 @@ function withReason(cell: MetricCell, from: string, to: string): MetricCell {
   return cell.reason === from ? { ...cell, reason: to } : cell
 }
 
-export type TimelineActivityRow = {
-  id: string
-  organizationId: string
-  projectId: string
-  status: 'NOT_STARTED' | 'IN_PROGRESS' | 'FOR_REVIEW' | 'COMPLETED' | 'CANCELLED'
-  archived: boolean
-  plannedEndDate: string | null
-}
+/**
+ * Activity and milestone counts returned by the trusted
+ * pathways.p10_f9_timeline_aggregate function. Counts only: no row or identifier.
+ * `maxOverdueDays` is the SQL mirror of the largest per-activity overdue days and
+ * is validated but not part of the timeline view contract.
+ */
+export const timelineAggregateSchema = z
+  .object({
+    activities: z
+      .object({
+        eligible: z.number().int().min(0),
+        completed: z.number().int().min(0),
+        overdue: z.number().int().min(0),
+        missingDates: z.number().int().min(0),
+        maxOverdueDays: z.number().int().min(0).nullable(),
+      })
+      .strict(),
+    milestones: milestoneCountsSchema,
+  })
+  .strict()
+export type TimelineAggregate = z.infer<typeof timelineAggregateSchema>
 
 /**
- * Builds the timeline adherence view (analytics.descriptive.timeline.v1) by reusing
- * the rule engine's pure timeline/activity math (rule-metrics.ts) so the two never
- * drift, plus a milestone on-time calculation. Reasons are remapped to the
- * descriptive-analytics vocabulary (NO_PROJECT_DATES/NO_ACTIVITIES) so callers see
- * one consistent set of MISSING reasons for this view.
+ * Builds the timeline adherence view (analytics.descriptive.timeline.v1). Project
+ * level elapsed/remaining/overdue days come from the project row through the rule
+ * engine's pure timelineObservation; activity metrics come from database-side counts
+ * through activityAggregateCells (the aggregate form of activityObservation), so the
+ * two never drift. Reasons are remapped to the descriptive-analytics vocabulary
+ * (NO_PROJECT_DATES/NO_ACTIVITIES) so callers see one consistent set of MISSING
+ * reasons for this view.
  */
 export function buildTimelineAnalytics(input: {
   projectId: string
@@ -215,16 +230,9 @@ export function buildTimelineAnalytics(input: {
     startDate: string | null
     endDate: string | null
   }
-  activities: readonly TimelineActivityRow[]
-  milestones: readonly TimelineMilestoneRow[]
-  /**
-   * Set by the caller when the activity/milestone query hit its population cap.
-   * Fail closed: the affected cells report MISSING (POPULATION_LIMIT_EXCEEDED)
-   * instead of a silently truncated, misleading computation.
-   */
-  activitiesTruncated?: boolean
-  milestonesTruncated?: boolean
+  aggregate: TimelineAggregate
 }): TimelineAnalytics {
+  const aggregate = timelineAggregateSchema.parse(input.aggregate)
   const scope = { organizationId: input.organizationId, projectId: input.projectId }
   const timelineInput = {
     scope,
@@ -236,15 +244,6 @@ export function buildTimelineAnalytics(input: {
     revision: '1',
     startDate: input.project.startDate,
     endDate: input.project.endDate,
-  }
-  const activities = input.activities.map((activity) => ({ ...activity, revision: '1' }))
-  const activityInput = {
-    scope,
-    conditionId: 'analytics-timeline-view',
-    asOf: input.generatedAt,
-    reportingDate: input.reportingDate,
-    populationRevision: '1',
-    activities,
   }
   const elapsedPercent = withReason(
     timelineObservation({ ...timelineInput, metric: 'PROJECT_TIMELINE_ELAPSED_PERCENT' }).cell,
@@ -261,20 +260,8 @@ export function buildTimelineAnalytics(input: {
     'MISSING_DATES',
     'NO_PROJECT_DATES',
   )
-  const activityCompletionPercent = input.activitiesTruncated
-    ? missingMetric('POPULATION_LIMIT_EXCEEDED')
-    : withReason(
-        activityObservation({ ...activityInput, metric: 'ACTIVITY_COMPLETION_PERCENT' }).cell,
-        'EMPTY_POPULATION',
-        'NO_ACTIVITIES',
-      )
-  const activityOverdueCount = input.activitiesTruncated
-    ? missingMetric('POPULATION_LIMIT_EXCEEDED')
-    : withReason(
-        activityObservation({ ...activityInput, metric: 'ACTIVITY_OVERDUE_COUNT' }).cell,
-        'EMPTY_POPULATION',
-        'NO_ACTIVITIES',
-      )
+  const { maxOverdueDays: _maxOverdueDays, ...activityCounts } = aggregate.activities
+  const activityCells = activityAggregateCells(activityCounts)
   return {
     contractVersion: TIMELINE_ANALYTICS_CONTRACT_VERSION,
     projectId: input.projectId,
@@ -283,11 +270,17 @@ export function buildTimelineAnalytics(input: {
     elapsedPercent,
     remainingDays,
     overdueDays,
-    activityCompletionPercent,
-    activityOverdueCount,
-    milestoneOnTimePercent: input.milestonesTruncated
-      ? missingMetric('POPULATION_LIMIT_EXCEEDED')
-      : milestoneOnTimeCell(input.milestones),
+    activityCompletionPercent: withReason(
+      activityCells.ACTIVITY_COMPLETION_PERCENT,
+      'EMPTY_POPULATION',
+      'NO_ACTIVITIES',
+    ),
+    activityOverdueCount: withReason(
+      activityCells.ACTIVITY_OVERDUE_COUNT,
+      'EMPTY_POPULATION',
+      'NO_ACTIVITIES',
+    ),
+    milestoneOnTimePercent: milestoneOnTimeFromCounts(aggregate.milestones),
   }
 }
 
@@ -376,7 +369,15 @@ export function surveyAnalyticsCsv(data: SurveyAnalytics): string {
     ...[data.overall, ...data.byActivity].flatMap((group) =>
       cells.map(([field, label]) => {
         const metric = group[field]
-        return ['SURVEY', group.key, `${group.label} - ${label}`, metric.state, metric.value, null, metric.reason]
+        return [
+          'SURVEY',
+          group.key,
+          `${group.label} - ${label}`,
+          metric.state,
+          metric.value,
+          null,
+          metric.reason,
+        ]
       }),
     ),
   ]

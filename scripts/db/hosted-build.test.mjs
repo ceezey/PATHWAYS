@@ -135,7 +135,7 @@ test('runHostedBuild executes the full plan in order against a fake IO and reach
   const kinds = io.calls.map((c) => c.kind)
   assert.ok(kinds.includes('psqlSql'))
   assert.ok(kinds.includes('resolve'))
-  assert.equal(kinds.filter((k) => k === 'deploy').length, 9)
+  assert.equal(kinds.filter((k) => k === 'deploy').length, 10)
   assert.equal(kinds.filter((k) => k === 'psqlFile').length, 7) // 4 preprovision + 3 cleanup
 })
 
@@ -350,6 +350,26 @@ test('runHostedBuild --resume on a clean 18-row (0000-0042) ledger resumes direc
   assert.ok(!ranPreprovision, 'no preprovision/cleanup step remains between 0042 and 0043')
   const ranDeploy = io.calls.some((c) => c.kind === 'deploy')
   assert.ok(ranDeploy, 'resume must continue at the 0043 deploy')
+})
+
+test('runHostedBuild --resume on a clean 18-row (0000-0043) ledger resumes directly at the 0044 deploy', async () => {
+  const io = makeFakeIO({ schemaPresent: true, rolePresent: true })
+  const appliedThrough0043 = MIGRATIONS_IN_ORDER.slice(
+    0,
+    MIGRATIONS_IN_ORDER.indexOf('0043_activity_overdue_explanation') + 1,
+  )
+  io.setLedger(
+    appliedThrough0043.map((migration_name) => ({
+      migration_name,
+      finished_at: 'now',
+      rolled_back_at: null,
+    })),
+  )
+  await assert.rejects(() => runHostedBuild({ io, config, resume: true }))
+  const ranPreprovision = io.calls.some((c) => c.kind === 'psqlFile')
+  assert.ok(!ranPreprovision, 'no preprovision/cleanup step remains between 0043 and 0044')
+  const ranDeploy = io.calls.some((c) => c.kind === 'deploy')
+  assert.ok(ranDeploy, 'resume must continue at the 0044 deploy')
 })
 
 test('runHostedBuild runs the rules cleanup and rethrows when the 0031 deploy fails', async () => {

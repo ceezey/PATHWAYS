@@ -68,10 +68,6 @@ export const metricUnavailableLabel = (cell: MetricCell) => {
       return 'No activities recorded yet'
     case 'NO_PROJECT_DATES':
       return 'Project start and end dates are not recorded'
-    // The source population exceeded its safe query limit: fail closed rather than
-    // silently truncate and understate the result.
-    case 'POPULATION_LIMIT_EXCEEDED':
-      return 'Too many records to summarize safely'
     // Unknown reasons are not assumed to be empty.
     default:
       return 'Unavailable'
