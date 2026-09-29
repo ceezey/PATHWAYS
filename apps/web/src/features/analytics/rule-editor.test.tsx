@@ -197,6 +197,29 @@ describe('two-step rule editor navigation', () => {
     await screen.findByLabelText('Rule name')
     expect(screen.queryByText('Start from template')).toBeNull()
   })
+
+  it('disables the Applies to select while editing an existing draft', async () => {
+    renderEditor({ projectId, original: existingRule })
+    const scope = (await screen.findByLabelText('Applies to')) as HTMLSelectElement
+    expect(scope.disabled).toBe(true)
+  })
+
+  it('saves an edited draft with expectedVersion and no code or projectId, without creating a new rule', async () => {
+    renderEditor({ projectId, original: existingRule })
+    await screen.findByLabelText('Rule name')
+    fireEvent.click(screen.getByRole('button', { name: 'Next: Recommendations' }))
+    await waitFor(() =>
+      expect(screen.getAllByText('Step 2 of 2: Recommendations').length).toBeGreaterThan(0),
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'Save draft' }))
+    await waitFor(() => expect(state.draftRule).toHaveBeenCalledTimes(1))
+    const [ruleId, payload] = state.draftRule.mock.calls[0]
+    expect(ruleId).toBe(existingRule.id)
+    expect(payload.expectedVersion).toBe(3)
+    expect(payload).not.toHaveProperty('code')
+    expect(payload).not.toHaveProperty('projectId')
+    expect(state.createRule).not.toHaveBeenCalled()
+  })
 })
 
 describe('project-scoped record bindings', () => {
@@ -253,7 +276,22 @@ describe('starting a rule from a template', () => {
     expect((screen.getByLabelText('Rule name') as HTMLInputElement).value).toBe(
       'Operations Bottleneck',
     )
+    expect((screen.getByLabelText('Rule code') as HTMLInputElement).value).toBe(
+      'OPERATIONS_BOTTLENECK',
+    )
     expect((screen.getByLabelText('Severity') as HTMLSelectElement).value).toBe('HIGH')
+    expect((screen.getByLabelText('Combine conditions') as HTMLSelectElement).value).toBe('AND')
+    const metricSelects = screen.getAllByLabelText('Metric') as HTMLSelectElement[]
+    const operatorSelects = screen.getAllByLabelText('Comparison') as HTMLSelectElement[]
+    const thresholdInputs = screen.getAllByLabelText('Threshold') as HTMLInputElement[]
+    expect(metricSelects.map((select) => select.value)).toEqual([
+      'PROJECT_TIMELINE_ELAPSED_PERCENT',
+      'ACTIVITY_COMPLETION_PERCENT',
+    ])
+    expect(operatorSelects.map((select) => select.value)).toEqual(['GT', 'LT'])
+    expect(thresholdInputs.map((input) => input.value)).toEqual(['50', '40'])
+    expect(state.createRule).not.toHaveBeenCalled()
+    expect(state.draftRule).not.toHaveBeenCalled()
     fireEvent.click(screen.getByRole('button', { name: 'Next: Recommendations' }))
     await waitFor(() =>
       expect(screen.getAllByText('Step 2 of 2: Recommendations').length).toBeGreaterThan(0),
