@@ -92,7 +92,7 @@ export function RuleConfigurationWorkspace() {
           <Label htmlFor="rules-project">Rule scope</Label>
           <select
             id="rules-project"
-            className="h-10 w-full rounded-sm border border-input bg-background px-3"
+            className="h-11 w-full rounded-sm border border-input bg-background px-3"
             value={projectId ?? ''}
             onChange={(event) => {
               setProjectId(event.target.value || null)
@@ -297,7 +297,7 @@ export function RuleConfigurationWorkspace() {
               <Label htmlFor="rule-copy-project">Project</Label>
               <select
                 id="rule-copy-project"
-                className="h-10 w-full rounded-sm border border-input bg-background px-3"
+                className="h-11 w-full rounded-sm border border-input bg-background px-3"
                 value={copyProject ?? ''}
                 onChange={(event) => setCopyProject(event.target.value || null)}
               >

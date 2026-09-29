@@ -22,7 +22,7 @@ export const newCondition = (): RuleNode => ({
   id: `c_${crypto.randomUUID().replaceAll('-', '')}`,
   metric: 'PROJECT_REMAINING_DAYS',
   operator: 'LT',
-  threshold: '',
+  threshold: '0',
 })
 export const leafCount = (node: RuleNode): number =>
   node.kind === 'CONDITION' ? 1 : node.children.reduce((sum, child) => sum + leafCount(child), 0)
@@ -34,8 +34,15 @@ type Props = {
   remainingLeaves: number
   indicators: Choice[]
   activities: Choice[]
+  metrics?: readonly (typeof ruleMetrics)[number][]
   path?: string
   depth?: number
+}
+/** Removes indicator/activity bindings from every condition, e.g. after a project change. */
+export function clearRecordBindings(node: RuleNode): RuleNode {
+  if (node.kind === 'GROUP') return { ...node, children: node.children.map(clearRecordBindings) }
+  const { indicatorId: _indicator, activityId: _activity, ...rest } = node
+  return rest
 }
 export function RuleConditionEditor({
   node,
@@ -44,6 +51,7 @@ export function RuleConditionEditor({
   remainingLeaves,
   indicators,
   activities,
+  metrics = ruleMetrics,
   path = 'root',
   depth = 0,
 }: Props) {
@@ -54,7 +62,7 @@ export function RuleConditionEditor({
         <legend className="px-2 font-semibold">Condition group</legend>
         <Label htmlFor={id('mode')}>Combine conditions</Label>
         <select
-          className="h-10 rounded-sm border border-input bg-background px-3"
+          className="h-11 rounded-sm border border-input bg-background px-3"
           id={id('mode')}
           value={node.mode}
           onChange={(event) => onChange({ ...node, mode: event.target.value as 'AND' | 'OR' })}
@@ -76,6 +84,7 @@ export function RuleConditionEditor({
               remainingLeaves={remainingLeaves}
               indicators={indicators}
               activities={activities}
+              metrics={metrics}
               path={`${path}-${index}`}
               depth={depth + 1}
             />
@@ -131,7 +140,7 @@ export function RuleConditionEditor({
       <div className="space-y-2">
         <Label htmlFor={id('metric')}>Metric</Label>
         <select
-          className="h-10 w-full rounded-sm border border-input bg-background px-3"
+          className="h-11 w-full rounded-sm border border-input bg-background px-3"
           id={id('metric')}
           value={node.metric}
           onChange={(event) => {
@@ -139,7 +148,7 @@ export function RuleConditionEditor({
             onChange({ ...rest, metric: event.target.value as typeof node.metric })
           }}
         >
-          {ruleMetrics.map((metric) => (
+          {metrics.map((metric) => (
             <option value={metric} key={metric}>
               {label(metric)}
             </option>
@@ -149,7 +158,7 @@ export function RuleConditionEditor({
       <div className="space-y-2">
         <Label htmlFor={id('operator')}>Comparison</Label>
         <select
-          className="h-10 w-full rounded-sm border border-input bg-background px-3"
+          className="h-11 w-full rounded-sm border border-input bg-background px-3"
           id={id('operator')}
           value={node.operator}
           onChange={(event) => {
@@ -197,7 +206,7 @@ export function RuleConditionEditor({
         <div className="space-y-2 md:col-span-2">
           <Label htmlFor={id('record')}>{indicator ? 'Indicator' : 'Activity'}</Label>
           <select
-            className="h-10 w-full rounded-sm border border-input bg-background px-3"
+            className="h-11 w-full rounded-sm border border-input bg-background px-3"
             id={id('record')}
             required
             value={indicator ? (node.indicatorId ?? '') : (node.activityId ?? '')}
