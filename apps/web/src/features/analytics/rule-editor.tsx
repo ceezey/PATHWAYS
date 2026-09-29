@@ -10,7 +10,7 @@ import { principalHasAtomicPermission } from '@/lib/rbac/route-access'
 import { PathwaysClientError, pathwaysClient } from '@/lib/services/pathways-client'
 import { rulesHumanClient } from '@/lib/services/rules-human-client'
 import { useAuthorizedRead } from '@/providers/authorized-query-provider'
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useId, useRef, useState } from 'react'
 import {
   RuleConditionEditor,
   clearRecordBindings,
@@ -19,13 +19,13 @@ import {
 } from './rule-condition-editor'
 import { type HumanRule, createRuleSchema, draftRuleSchema } from './rules-human-contract'
 import { parseRuleTree, ruleMetrics } from './rules-validation'
-import type { RuleNode } from './rules-validation'
+import type { RuleCondition, RuleNode } from './rules-validation'
 
 type Props = {
   projectId: string | null
   original?: HumanRule
   template?: HumanRule
-  onSaved: () => void
+  onSaved: (scopeProjectId: string | null) => void
 }
 const requires = (node: RuleNode, prefix: string): boolean =>
   node.kind === 'GROUP'
@@ -35,6 +35,14 @@ const recordBoundMetrics = ruleMetrics.filter(
   (metric) => metric.startsWith('INDICATOR_') || metric === 'ACTIVITY_OVERDUE_DAYS',
 )
 const projectFreeMetrics = ruleMetrics.filter((metric) => !recordBoundMetrics.includes(metric))
+const metricLabel = (metric: string) => metric.replaceAll('_', ' ').toLowerCase()
+/** First record-bound condition metric found in the tree, for a condition-specific error. */
+const findRecordBoundLeaf = (node: RuleNode): RuleCondition | null =>
+  node.kind === 'GROUP'
+    ? (node.children.map(findRecordBoundLeaf).find(Boolean) ?? null)
+    : recordBoundMetrics.includes(node.metric)
+      ? node
+      : null
 
 type RuleTemplateSpec = {
   key: string
@@ -109,11 +117,12 @@ export const ruleTemplates: RuleTemplateSpec[] = [
 
 export function RuleEditor(props: Props) {
   const { profile, access } = useCurrentRole()
+  const initialScopeProjectId = props.original ? props.original.projectId : props.projectId
   const owner = useSensitiveDraftOwner(
     profile,
     'rule-editor',
     props.original ? 'rules.update' : 'rules.create',
-    props.projectId,
+    initialScopeProjectId,
     props.original
       ? `${props.original.id}:${props.original.version}`
       : `new:${props.template?.id ?? ''}:${props.template?.version ?? ''}`,
@@ -131,10 +140,22 @@ function OwnedRuleEditor({
   owner,
 }: Props & { owner: SensitiveDraftOwner }) {
   const initial = original ?? template
-  const { profile } = useCurrentRole()
+  const { profile, access } = useCurrentRole()
   const [step, setStep] = useState<1 | 2>(1)
   const [scopeProjectId, setScopeProjectId] = useState<string | null>(
     original ? original.projectId : projectId,
+  )
+  // Re-checked whenever the selected scope changes, independent of the mount-time owner,
+  // so eligibility always reflects the scope that will actually be submitted.
+  const scopeOwner = useSensitiveDraftOwner(
+    profile,
+    'rule-editor-scope',
+    original ? 'rules.update' : 'rules.create',
+    scopeProjectId,
+    original
+      ? `${original.id}:${original.version}`
+      : `new:${template?.id ?? ''}:${template?.version ?? ''}`,
+    access === 'ready',
   )
   const [name, setName] = useState(initial?.name ?? '')
   const [code, setCode] = useState(original?.code ?? '')
@@ -149,12 +170,24 @@ function OwnedRuleEditor({
     })) ?? [{ id: crypto.randomUUID(), title: '', text: '' }],
   )
   const [stepError, setStepError] = useState('')
+  const [stepErrorField, setStepErrorField] = useState<string | null>(null)
   const [scopeNotice, setScopeNotice] = useState('')
   const [notice, setNotice] = useState('')
   const [busy, setBusy] = useState(false)
   const [locked, setLocked] = useState(false)
   const mounted = useRef(true)
   const inFlight = useRef(false)
+  const stepErrorId = useId()
+  const appliesToHelpId = useId()
+  const step1HeadingRef = useRef<HTMLHeadingElement>(null)
+  const step2HeadingRef = useRef<HTMLHeadingElement>(null)
+  const stepFocusPending = useRef(false)
+  useEffect(() => {
+    if (!stepFocusPending.current) return
+    stepFocusPending.current = false
+    const heading = step === 1 ? step1HeadingRef.current : step2HeadingRef.current
+    heading?.focus()
+  }, [step])
   const captured = useRef<
     | Parameters<typeof rulesHumanClient.createRule>[0]
     | Parameters<typeof rulesHumanClient.draftRule>[1]
@@ -190,7 +223,7 @@ function OwnedRuleEditor({
     'rule-binding-activities-context',
     scopeProjectId,
     'activities.context.read',
-    (signal) => pathwaysClient.getActivityContext(scopeProjectId ?? '').then((value) => value),
+    (signal) => pathwaysClient.getActivityContext(scopeProjectId ?? '', signal),
     Boolean(
       scopeProjectId &&
         requires(conditions, 'ACTIVITY_OVERDUE_DAYS') &&
@@ -225,27 +258,62 @@ function OwnedRuleEditor({
   const validateStepOne = (): boolean => {
     if (!name.trim()) {
       setStepError('Enter a rule name.')
+      setStepErrorField('rule-name')
       return false
     }
     if (!original && !/^[A-Z][A-Z0-9_-]{1,79}$/.test(code)) {
       setStepError('Enter a rule code using capital letters, numbers, underscores, or hyphens.')
+      setStepErrorField('rule-code')
       return false
+    }
+    if (template && !scopeProjectId) {
+      setStepError(
+        'Copied rules must apply to a project. Choose a project for Applies to before continuing.',
+      )
+      setStepErrorField('rule-applies-to')
+      return false
+    }
+    if (!scopeProjectId) {
+      const offending = findRecordBoundLeaf(conditions)
+      if (offending) {
+        setStepError(
+          `The condition using "${metricLabel(offending.metric)}" requires a project scope; organization templates cannot bind indicator or activity records.`,
+        )
+        setStepErrorField('rule-applies-to')
+        return false
+      }
     }
     try {
       parseRuleTree(conditions)
     } catch (error) {
       setStepError(error instanceof Error ? error.message : 'Review the rule conditions.')
+      setStepErrorField(null)
       return false
     }
     setStepError('')
+    setStepErrorField(null)
     return true
   }
   const goNext = () => {
-    if (validateStepOne()) setStep(2)
+    if (validateStepOne()) {
+      stepFocusPending.current = true
+      setStep(2)
+    }
+  }
+  const goBack = () => {
+    stepFocusPending.current = true
+    setStep(1)
   }
   const submit = async () => {
     if (!isCurrent() || inFlight.current) return
     if (!validateStepOne()) {
+      stepFocusPending.current = true
+      setStep(1)
+      return
+    }
+    if (!scopeOwner) {
+      setNotice('Current permission for the selected Applies to scope is required.')
+      stepFocusPending.current = true
       setStep(1)
       return
     }
@@ -281,7 +349,7 @@ function OwnedRuleEditor({
       else if ('code' in captured.current) await rulesHumanClient.createRule(captured.current)
       if (isCurrent()) {
         captured.current = null
-        onSaved()
+        onSaved(scopeProjectId)
       }
     } catch (error) {
       if (!isCurrent()) return
@@ -312,24 +380,50 @@ function OwnedRuleEditor({
         else void submit()
       }}
     >
-      <output className="sr-only" aria-live="polite">
-        {step === 1 ? 'Step 1 of 2: Rule' : 'Step 2 of 2: Recommendations'}
-        {stepError ? `. ${stepError}` : ''}
+      <output id={stepErrorId} className="block text-sm" aria-live="polite">
+        {stepError}
       </output>
-      <p className="text-sm font-semibold" aria-hidden="true">
-        {step === 1 ? 'Step 1 of 2: Rule' : 'Step 2 of 2: Recommendations'}
-      </p>
       {step === 1 ? (
         <div className="space-y-4">
+          <h2
+            ref={step1HeadingRef}
+            tabIndex={-1}
+            className="text-sm font-semibold outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          >
+            Step 1 of 2: Rule
+          </h2>
           <div className="space-y-2">
             <Label htmlFor="rule-applies-to">Applies to</Label>
             <select
               id="rule-applies-to"
-              className="h-11 w-full rounded-sm border border-input bg-background px-3"
+              className="h-11 w-full rounded-sm border border-input bg-background px-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
               value={scopeProjectId ?? ''}
-              disabled={busy || locked || Boolean(original)}
+              disabled={
+                busy ||
+                locked ||
+                Boolean(original) ||
+                Boolean(template) ||
+                (Boolean(scopeProjectId) && (projects.isLoading || projects.isError))
+              }
+              aria-invalid={stepErrorField === 'rule-applies-to' || undefined}
+              aria-describedby={
+                [
+                  stepErrorField === 'rule-applies-to' ? stepErrorId : null,
+                  original || template ? appliesToHelpId : null,
+                ]
+                  .filter(Boolean)
+                  .join(' ') || undefined
+              }
               onChange={(event) => onScopeProjectChange(event.target.value)}
             >
+              {scopeProjectId &&
+              !projects.data?.some((project) => project.id === scopeProjectId) ? (
+                <option value={scopeProjectId} disabled>
+                  {projects.isError
+                    ? 'Current project (project choices unavailable)'
+                    : 'Current project (loading project choices...)'}
+                </option>
+              ) : null}
               <option value="">Organization template (no project)</option>
               {projects.data?.map((project) => (
                 <option key={project.id} value={project.id}>
@@ -337,6 +431,20 @@ function OwnedRuleEditor({
                 </option>
               ))}
             </select>
+            {original ? (
+              <p id={appliesToHelpId} className="text-sm text-muted-foreground">
+                Scope is fixed for existing rules.
+              </p>
+            ) : template ? (
+              <p id={appliesToHelpId} className="text-sm text-muted-foreground">
+                Scope is fixed to the copy target project.
+              </p>
+            ) : null}
+            {projects.isError ? (
+              <Button type="button" variant="outline" onClick={() => void projects.refetch()}>
+                Retry project choices
+              </Button>
+            ) : null}
             {!scopeProjectId ? (
               <p className="text-sm text-muted-foreground">
                 Organization templates cannot bind to a specific indicator or activity record. Copy
@@ -349,7 +457,7 @@ function OwnedRuleEditor({
               </output>
             ) : null}
           </div>
-          {!original ? (
+          {!original && !template ? (
             <div className="space-y-2 rounded-sm border border-border p-3">
               <p className="font-semibold">Start from template</p>
               <ul className="space-y-2">
@@ -378,6 +486,8 @@ function OwnedRuleEditor({
                 value={name}
                 required
                 maxLength={160}
+                aria-invalid={stepErrorField === 'rule-name' || undefined}
+                aria-describedby={stepErrorField === 'rule-name' ? stepErrorId : undefined}
                 onChange={(event) => setName(event.target.value)}
               />
             </div>
@@ -389,6 +499,8 @@ function OwnedRuleEditor({
                 disabled={Boolean(original)}
                 required={!original}
                 maxLength={80}
+                aria-invalid={stepErrorField === 'rule-code' || undefined}
+                aria-describedby={stepErrorField === 'rule-code' ? stepErrorId : undefined}
                 onChange={(event) => setCode(event.target.value)}
               />
               <p className="text-sm text-muted-foreground">
@@ -398,7 +510,7 @@ function OwnedRuleEditor({
             <div className="space-y-2">
               <Label htmlFor="rule-severity">Severity</Label>
               <select
-                className="h-11 w-full rounded-sm border border-input bg-background px-3"
+                className="h-11 w-full rounded-sm border border-input bg-background px-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                 id="rule-severity"
                 value={severity}
                 onChange={(event) => setSeverity(event.target.value as HumanRule['severity'])}
@@ -444,6 +556,15 @@ function OwnedRuleEditor({
                   Retry activity choices
                 </Button>
               ) : null}
+              {activitiesContext.isError ? (
+                <Button
+                  onClick={() => void activitiesContext.refetch()}
+                  type="button"
+                  variant="outline"
+                >
+                  Retry activity choices
+                </Button>
+              ) : null}
               {scopeProjectId &&
               ((!principalHasAtomicPermission(profile, 'indicators.read') &&
                 requires(conditions, 'INDICATOR_')) ||
@@ -454,17 +575,19 @@ function OwnedRuleEditor({
               ) : null}
             </div>
           ) : null}
-          {stepError ? (
-            <output className="block text-sm" aria-live="polite">
-              {stepError}
-            </output>
-          ) : null}
           <Button type="button" onClick={goNext} disabled={busy || locked}>
             Next: Recommendations
           </Button>
         </div>
       ) : (
         <div className="space-y-4">
+          <h2
+            ref={step2HeadingRef}
+            tabIndex={-1}
+            className="text-sm font-semibold outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          >
+            Step 2 of 2: Recommendations
+          </h2>
           <fieldset className="space-y-4" disabled={busy || locked}>
             <legend className="font-semibold">Predefined recommendations</legend>
             {recommendations.map((recommendation, index) => (
@@ -543,7 +666,7 @@ function OwnedRuleEditor({
             </output>
           ) : null}
           <div className="flex flex-wrap gap-2">
-            <Button type="button" variant="outline" onClick={() => setStep(1)} disabled={busy}>
+            <Button type="button" variant="outline" onClick={goBack} disabled={busy}>
               Back
             </Button>
             <Button disabled={busy} type="submit">

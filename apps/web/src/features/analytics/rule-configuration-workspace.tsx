@@ -37,6 +37,7 @@ export function RuleConfigurationWorkspace() {
   const [action, setAction] = useState<DialogAction | null>(null)
   const [showTest, setShowTest] = useState(false)
   const [copyProject, setCopyProject] = useState<string | null>(null)
+  const [savedScopeNotice, setSavedScopeNotice] = useState('')
   const projects = useAuthorizedRead('rules-project-choices', null, 'projects.read', (signal) =>
     pathwaysClient.getProjects(signal),
   )
@@ -64,8 +65,20 @@ export function RuleConfigurationWorkspace() {
   const rule = detail.data
   const has = (permission: Parameters<typeof principalHasAtomicPermission>[1]) =>
     principalHasAtomicPermission(profile, permission)
-  const refresh = () => {
+  const refresh = (savedScope?: string | null) => {
     setAction(null)
+    if (savedScope !== undefined) {
+      const scopeName = savedScope
+        ? (projects.data?.find((project) => project.id === savedScope)?.title ??
+          'the selected project')
+        : 'Organization templates'
+      if (savedScope !== projectId) {
+        setProjectId(savedScope)
+        setCursor(null)
+        setSelection(null)
+      }
+      setSavedScopeNotice(`Rule saved to ${scopeName}.`)
+    }
     void queue.refetch()
     void detail.refetch()
   }
@@ -100,6 +113,7 @@ export function RuleConfigurationWorkspace() {
               setSelection(null)
               setAction(null)
               setShowTest(false)
+              setSavedScopeNotice('')
             }}
           >
             <option value="">Organization templates</option>
@@ -110,7 +124,7 @@ export function RuleConfigurationWorkspace() {
             ))}
           </select>
         </div>
-        <Button type="button" variant="outline" onClick={refresh}>
+        <Button type="button" variant="outline" onClick={() => refresh()}>
           Refresh rules
         </Button>
         {has('rules.create') ? (
@@ -124,6 +138,11 @@ export function RuleConfigurationWorkspace() {
           </Button>
         ) : null}
       </div>
+      {savedScopeNotice ? (
+        <output className="block text-sm" aria-live="polite">
+          {savedScopeNotice}
+        </output>
+      ) : null}
       {queue.isError ? (
         <AsyncState
           status="error"

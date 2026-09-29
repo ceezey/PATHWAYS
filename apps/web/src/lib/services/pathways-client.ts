@@ -269,6 +269,7 @@ export interface PathwaysClient {
   ): Promise<SourceMutationResult<ProjectDetail>>
   getActivityContext(
     projectId: string,
+    signal?: AbortSignal,
   ): Promise<Pick<Activity, 'id' | 'title' | 'journeyStageId'>[]>
   getActivities(projectId: string, signal?: AbortSignal): Promise<ActivitySummary[]>
   getActivity(projectId: string, activityId: string, signal?: AbortSignal): Promise<Activity>
@@ -639,9 +640,11 @@ class BackendReadyPathwaysClient implements PathwaysClient {
 
   async getActivityContext(
     projectId: string,
+    signal?: AbortSignal,
   ): Promise<Pick<Activity, 'id' | 'title' | 'journeyStageId'>[]> {
     const rows = await requestFoundation(
       `/projects/${encodeURIComponent(projectId)}/activities/context`,
+      { signal },
     )
     if (
       !Array.isArray(rows) ||

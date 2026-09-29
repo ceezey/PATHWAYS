@@ -268,6 +268,89 @@ describe('project-scoped record bindings', () => {
   })
 })
 
+const templateRule: HumanRule = {
+  id: '30000000-0000-4000-8000-000000000002',
+  projectId: null,
+  templateOriginId: null,
+  logicalRuleId: '30000000-0000-4000-8000-000000000002',
+  code: 'ORG_TEMPLATE',
+  name: 'Org template',
+  version: 1,
+  status: 'ACTIVE',
+  severity: 'HIGH',
+  conditions: {
+    kind: 'CONDITION',
+    id: 'c_template',
+    metric: 'PROJECT_REMAINING_DAYS',
+    operator: 'LT',
+    threshold: '5',
+  },
+  recommendations: [
+    { id: '50000000-0000-4000-8000-000000000002', title: 'Template title', text: 'Template text' },
+  ],
+  activatedAt: null,
+  archivedAt: null,
+}
+
+describe('organization scope with a record-bound condition', () => {
+  it('keeps the displayed and stored metric in sync and reports a specific error on switch to organization scope', async () => {
+    renderEditor({ projectId })
+    await screen.findByLabelText('Applies to')
+    fireEvent.change(screen.getByLabelText('Metric'), {
+      target: { value: 'ACTIVITY_OVERDUE_DAYS' },
+    })
+    const recordSelect = (await screen.findByLabelText('Activity')) as HTMLSelectElement
+    fireEvent.change(recordSelect, { target: { value: 'act-1' } })
+    fireEvent.change(screen.getByLabelText('Applies to'), { target: { value: '' } })
+    const metricSelect = screen.getByLabelText('Metric') as HTMLSelectElement
+    expect(metricSelect.value).toBe('ACTIVITY_OVERDUE_DAYS')
+    expect(screen.queryByLabelText('Activity')).toBeNull()
+    expect(screen.getAllByText(/unavailable for organization templates/).length).toBeGreaterThan(0)
+    fillStepOne()
+    fireEvent.click(screen.getByRole('button', { name: 'Next: Recommendations' }))
+    expect(
+      await screen.findByText(
+        /The condition using "activity overdue days" requires a project scope/,
+      ),
+    ).toBeTruthy()
+    expect(screen.queryAllByText('Step 2 of 2: Recommendations')).toHaveLength(0)
+  })
+})
+
+describe('copying a template into a project', () => {
+  it('hides the template picker and locks Applies to during a copy', async () => {
+    renderEditor({ projectId, template: templateRule })
+    await screen.findByLabelText('Applies to')
+    expect(screen.queryByText('Start from template')).toBeNull()
+    const scope = screen.getByLabelText('Applies to') as HTMLSelectElement
+    expect(scope.disabled).toBe(true)
+    expect(scope.value).toBe(projectId)
+    expect(screen.getByText('Scope is fixed to the copy target project.')).toBeTruthy()
+  })
+})
+
+describe('project choices load failure', () => {
+  it('shows a retry action for project choices', async () => {
+    state.projects.mockRejectedValueOnce(new Error('network down'))
+    renderEditor({ projectId })
+    expect(await screen.findByRole('button', { name: 'Retry project choices' })).toBeTruthy()
+  })
+})
+
+describe('step focus management', () => {
+  it('moves focus to the step heading after Next and Back', async () => {
+    renderEditor({ projectId })
+    await screen.findByLabelText('Applies to')
+    fillStepOne()
+    fireEvent.click(screen.getByRole('button', { name: 'Next: Recommendations' }))
+    await waitFor(() =>
+      expect(document.activeElement?.textContent).toBe('Step 2 of 2: Recommendations'),
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'Back' }))
+    await waitFor(() => expect(document.activeElement?.textContent).toBe('Step 1 of 2: Rule'))
+  })
+})
+
 describe('starting a rule from a template', () => {
   it('prefills the Operations Bottleneck template fields exactly', async () => {
     renderEditor({ projectId })

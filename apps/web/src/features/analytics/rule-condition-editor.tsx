@@ -62,7 +62,7 @@ export function RuleConditionEditor({
         <legend className="px-2 font-semibold">Condition group</legend>
         <Label htmlFor={id('mode')}>Combine conditions</Label>
         <select
-          className="h-11 rounded-sm border border-input bg-background px-3"
+          className="h-11 rounded-sm border border-input bg-background px-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
           id={id('mode')}
           value={node.mode}
           onChange={(event) => onChange({ ...node, mode: event.target.value as 'AND' | 'OR' })}
@@ -131,6 +131,8 @@ export function RuleConditionEditor({
     )
   const indicator = node.metric.startsWith('INDICATOR_')
   const activity = node.metric === 'ACTIVITY_OVERDUE_DAYS'
+  const metricAvailable = metrics.includes(node.metric)
+  const metricUnavailableId = id('metric-unavailable')
   return (
     <fieldset
       className="grid gap-3 rounded-sm border border-border p-4 md:grid-cols-2"
@@ -140,25 +142,37 @@ export function RuleConditionEditor({
       <div className="space-y-2">
         <Label htmlFor={id('metric')}>Metric</Label>
         <select
-          className="h-11 w-full rounded-sm border border-input bg-background px-3"
+          className="h-11 w-full rounded-sm border border-input bg-background px-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
           id={id('metric')}
           value={node.metric}
+          aria-describedby={!metricAvailable ? metricUnavailableId : undefined}
           onChange={(event) => {
             const { indicatorId: _indicator, activityId: _activity, ...rest } = node
             onChange({ ...rest, metric: event.target.value as typeof node.metric })
           }}
         >
+          {!metricAvailable ? (
+            <option value={node.metric} disabled>
+              {label(node.metric)} (unavailable for organization templates)
+            </option>
+          ) : null}
           {metrics.map((metric) => (
             <option value={metric} key={metric}>
               {label(metric)}
             </option>
           ))}
         </select>
+        {!metricAvailable ? (
+          <p id={metricUnavailableId} className="text-sm text-muted-foreground">
+            This metric is unavailable for organization templates because it binds to a
+            project-specific record. Copy this rule into a project to use it.
+          </p>
+        ) : null}
       </div>
       <div className="space-y-2">
         <Label htmlFor={id('operator')}>Comparison</Label>
         <select
-          className="h-11 w-full rounded-sm border border-input bg-background px-3"
+          className="h-11 w-full rounded-sm border border-input bg-background px-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
           id={id('operator')}
           value={node.operator}
           onChange={(event) => {
@@ -202,11 +216,11 @@ export function RuleConditionEditor({
           />
         </div>
       ) : null}
-      {indicator || activity ? (
+      {(indicator || activity) && metricAvailable ? (
         <div className="space-y-2 md:col-span-2">
           <Label htmlFor={id('record')}>{indicator ? 'Indicator' : 'Activity'}</Label>
           <select
-            className="h-11 w-full rounded-sm border border-input bg-background px-3"
+            className="h-11 w-full rounded-sm border border-input bg-background px-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
             id={id('record')}
             required
             value={indicator ? (node.indicatorId ?? '') : (node.activityId ?? '')}
