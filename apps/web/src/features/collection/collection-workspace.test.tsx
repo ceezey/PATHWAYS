@@ -295,13 +295,9 @@ describe('collection import workspace', () => {
     })
     await screen.findByText(/Preview ready for wide-extend.csv/)
 
-    // The preview is capped, not rendering every one of the 40 source rows. Both the
-    // "Data preview" panel and the "Correct isolated data" corrections table show the
-    // same capped-row message.
-    await waitFor(() =>
-      expect(
-        screen.getAllByText(new RegExp(`Showing the first 5 of ${rowCount} rows`)).length,
-      ).toBeGreaterThan(0),
+    // The read-only Data preview is capped, not rendering every one of the 40 source rows.
+    await screen.findByText(
+      new RegExp(`Showing the first 5 of ${rowCount} rows for mapping and validation review`),
     )
     const previewRegion = screen.getByRole('region', { name: 'Data preview rows' })
     expect(previewRegion.className).toContain('overflow-x-auto')
@@ -314,6 +310,70 @@ describe('collection import workspace', () => {
     expect(mappingRegion.className).toContain('overflow-x-auto')
     expect(mappingRegion.className).toContain('max-w-full')
     expect(mappingRegion.getAttribute('tabIndex')).toBe('0')
+  })
+
+  it('paginates the editable correction table instead of capping it, and keeps edits across pages', async () => {
+    const rowCount = 40
+    const headers = ['beneficiary_id', 'attendance_status', 'note']
+    const rows = Array.from({ length: rowCount }, (_, rowIndex) =>
+      headers.map((_, columnIndex) => `row-${rowIndex + 1}-col-${columnIndex + 1}`).join(','),
+    )
+    const csvText = `${headers.join(',')}\n${rows.join('\n')}`
+
+    render(
+      <DisplayLabelsProvider>
+        <CollectionWorkspace
+          initialView="import"
+          initialMode="extend"
+          initialProjectId="futuremakers-ncr"
+        />
+      </DisplayLabelsProvider>,
+    )
+    await waitFor(() => expect(api.getDigitalForms).toHaveBeenCalled())
+
+    fireEvent.change(screen.getByLabelText('Source file'), {
+      target: {
+        files: [csvFile('correction.csv', async () => csvText)],
+      },
+    })
+    await screen.findByText(/Preview ready for correction.csv/)
+
+    fireEvent.click(screen.getByText('Correct isolated data before reprocessing'))
+    const correctionRegion = screen.getByRole('region', {
+      name: 'Isolated data rows awaiting correction',
+    })
+    expect(correctionRegion.className).toContain('overflow-x-auto')
+    expect(correctionRegion.className).toContain('max-w-full')
+    expect(correctionRegion.getAttribute('tabIndex')).toBe('0')
+
+    // Page 1 shows rows 1-25, all correctable (not capped at MAX_PREVIEW_ROWS).
+    expect(screen.getByText('Rows 1-25 of 40')).toBeTruthy()
+    expect(within(correctionRegion).getAllByRole('row')).toHaveLength(25)
+    expect(screen.getByLabelText('Row 1: beneficiary_id')).toBeTruthy()
+    expect(screen.getByLabelText('Row 25: note')).toBeTruthy()
+    expect(screen.queryByLabelText('Row 26: beneficiary_id')).toBeNull()
+    const previousButton = screen.getByRole('button', { name: 'Previous' })
+    expect((previousButton as HTMLButtonElement).disabled).toBe(true)
+
+    // Editing a cell on page 2 must reach the underlying row state (the reprocess payload).
+    fireEvent.click(screen.getByRole('button', { name: 'Next' }))
+    expect(screen.getByText('Rows 26-40 of 40')).toBeTruthy()
+    expect(within(correctionRegion).getAllByRole('row')).toHaveLength(15)
+    const rowThirtyField = screen.getByLabelText('Row 30: note') as HTMLInputElement
+    fireEvent.change(rowThirtyField, { target: { value: 'corrected-note-30' } })
+    expect(rowThirtyField.value).toBe('corrected-note-30')
+
+    // Going back to page 1 and returning to page 2 keeps the edit (rows live in shared state).
+    fireEvent.click(screen.getByRole('button', { name: 'Previous' }))
+    expect(screen.getByText('Rows 1-25 of 40')).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: 'Next' }))
+    expect(screen.getByText('Rows 26-40 of 40')).toBeTruthy()
+    expect((screen.getByLabelText('Row 30: note') as HTMLInputElement).value).toBe(
+      'corrected-note-30',
+    )
+
+    const nextButton = screen.getByRole('button', { name: 'Next' })
+    expect((nextButton as HTMLButtonElement).disabled).toBe(true)
   })
 
   it('reuses the same import id after an uncertain upload and starts a new id for a new file', async () => {

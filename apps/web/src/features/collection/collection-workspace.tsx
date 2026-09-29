@@ -101,8 +101,10 @@ type ExportFormat = FormDefinitionExportFormat
 
 type CollectionMode = 'scratch' | 'import' | 'extend'
 
-/** Preview and correction tables render at most this many rows so a wide file cannot stretch the page. */
-const MAX_CORRECTION_ROWS = 5
+/** The read-only Data preview and Metadata mapping tables render at most this many rows. */
+const MAX_PREVIEW_ROWS = 5
+/** The editable correction table paginates instead of capping, so every row stays correctable. */
+const CORRECTION_PAGE_SIZE = 25
 type CollectionView = 'home' | 'forms' | 'builder' | 'import'
 type FieldType = BuilderFieldType
 type ImportStatus = 'idle' | 'reading' | 'ready' | 'error'
@@ -368,6 +370,7 @@ const OwnedCollectionWorkspace = ({
   const [indicatorIds, setIndicatorIds] = useState<string[]>([])
   const [exportFormat, setExportFormat] = useState<ExportFormat>('csv')
   const [duplicateDecision, setDuplicateDecision] = useState<'pending' | 'skip' | 'keep'>('pending')
+  const [correctionPage, setCorrectionPage] = useState(0)
   const [view, setView] = useState<CollectionView>(initialView)
   const [formTitle, setFormTitle] = useState('Journey 1 - Intake & Assessment Form')
   const [formType, setFormType] = useState('OTHER')
@@ -523,6 +526,17 @@ const OwnedCollectionWorkspace = ({
     }
     return { valid, finish }
   }
+  // Edits the isolated correction table in place; rows live in parsedImport so the
+  // correction stays available to whatever eventually reprocesses the batch.
+  const updateCorrectionCell = (rowIndex: number, column: string, value: string) => {
+    setParsedImport((current) => {
+      if (!current) return current
+      const rows = current.rows.slice()
+      rows[rowIndex] = { ...rows[rowIndex], [column]: value }
+      return { ...current, rows }
+    })
+  }
+
   const changeProject = (next: string) => {
     if (mutation.current || next === projectId) return
     intent.current++
@@ -530,6 +544,7 @@ const OwnedCollectionWorkspace = ({
     lastSelectedFileRef.current = null
     uploadIdentity.current = null
     setParsedImport(null)
+    setCorrectionPage(0)
     setImportStatus('idle')
     setUploadProgress(0)
     setImportMessage('No source file selected yet.')
@@ -678,6 +693,7 @@ const OwnedCollectionWorkspace = ({
     lastSelectedFileRef.current = null
     uploadIdentity.current = null
     setParsedImport(null)
+    setCorrectionPage(0)
     setMappingRows([])
     const form = forms.find((f) => f.id === summary.id)
     if (!form) return
@@ -887,6 +903,7 @@ const OwnedCollectionWorkspace = ({
 
       if (!validParse()) return
       setParsedImport(parsed)
+      setCorrectionPage(0)
       const selectedForm = forms.find(
         (form) =>
           form.id === editingFormId && form.projectId === projectId && form.status === 'PUBLISHED',
@@ -1622,49 +1639,90 @@ const OwnedCollectionWorkspace = ({
               </option>
             </select>
           </label>
-          {parsedImport?.rows.length ? (
-            <details className="min-w-0">
-              <summary>Correct isolated data before reprocessing</summary>
-              <p className="mt-2 text-xs text-muted-foreground">
-                Showing the first {Math.min(parsedImport.rows.length, MAX_CORRECTION_ROWS)} of{' '}
-                {parsedImport.rows.length} rows.
-              </p>
-              <section
-                aria-label="Isolated data rows awaiting correction"
-                className="mt-2 max-w-full overflow-x-auto"
-                // biome-ignore lint/a11y/noNoninteractiveTabindex: scroll container needs keyboard access to reach content clipped by overflow-x-auto
-                tabIndex={0}
-              >
-                <table className="min-w-max">
-                  <tbody>
-                    {parsedImport.rows.slice(0, MAX_CORRECTION_ROWS).map((row, index) => (
-                      <tr
-                        key={parsedImport.headers
-                          .map((column) => `${column}:${String(row[column] ?? '')}`)
-                          .join('|')}
-                      >
-                        {parsedImport.headers.map((column) => {
-                          const cellValue = String(row[column] ?? '')
-                          return (
-                            <td key={column}>
-                              <Input
-                                aria-label={`Row ${index + 1}: ${column}`}
-                                className="max-w-[220px] truncate"
-                                title={cellValue}
-                                value={cellValue}
-                                readOnly
-                                aria-readonly="true"
-                              />
-                            </td>
-                          )
-                        })}
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </section>
-            </details>
-          ) : null}
+          {parsedImport?.rows.length
+            ? (() => {
+                const totalRows = parsedImport.rows.length
+                const totalPages = Math.max(1, Math.ceil(totalRows / CORRECTION_PAGE_SIZE))
+                const page = Math.min(correctionPage, totalPages - 1)
+                const pageStart = page * CORRECTION_PAGE_SIZE
+                const pageEnd = Math.min(pageStart + CORRECTION_PAGE_SIZE, totalRows)
+                const pageRows = parsedImport.rows.slice(pageStart, pageEnd)
+                return (
+                  <details className="min-w-0">
+                    <summary>Correct isolated data before reprocessing</summary>
+                    <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
+                      {totalPages > 1 ? (
+                        <output aria-live="polite" className="text-xs text-muted-foreground">
+                          Rows {pageStart + 1}-{pageEnd} of {totalRows}
+                        </output>
+                      ) : (
+                        <p className="text-xs text-muted-foreground">
+                          Rows {pageStart + 1}-{pageEnd} of {totalRows}
+                        </p>
+                      )}
+                      {totalPages > 1 ? (
+                        <div className="flex gap-2">
+                          <Button
+                            className="min-h-11"
+                            disabled={page === 0}
+                            onClick={() => setCorrectionPage((current) => Math.max(0, current - 1))}
+                            size="sm"
+                            type="button"
+                            variant="outline"
+                          >
+                            Previous
+                          </Button>
+                          <Button
+                            className="min-h-11"
+                            disabled={pageEnd >= totalRows}
+                            onClick={() => setCorrectionPage((current) => current + 1)}
+                            size="sm"
+                            type="button"
+                            variant="outline"
+                          >
+                            Next
+                          </Button>
+                        </div>
+                      ) : null}
+                    </div>
+                    <section
+                      aria-label="Isolated data rows awaiting correction"
+                      className="mt-2 max-w-full overflow-x-auto"
+                      // biome-ignore lint/a11y/noNoninteractiveTabindex: scroll container needs keyboard access to reach content clipped by overflow-x-auto
+                      tabIndex={0}
+                    >
+                      <table className="min-w-max">
+                        <tbody>
+                          {pageRows.map((row, relativeIndex) => {
+                            const rowIndex = pageStart + relativeIndex
+                            return (
+                              <tr key={rowIndex}>
+                                {parsedImport.headers.map((column) => {
+                                  const cellValue = String(row[column] ?? '')
+                                  return (
+                                    <td key={column}>
+                                      <Input
+                                        aria-label={`Row ${rowIndex + 1}: ${column}`}
+                                        className="max-w-[220px] truncate"
+                                        title={cellValue}
+                                        value={cellValue}
+                                        onChange={(event) =>
+                                          updateCorrectionCell(rowIndex, column, event.target.value)
+                                        }
+                                      />
+                                    </td>
+                                  )
+                                })}
+                              </tr>
+                            )
+                          })}
+                        </tbody>
+                      </table>
+                    </section>
+                  </details>
+                )
+              })()
+            : null}
           <ImportView
             fields={fields}
             formTitle={formTitle}
@@ -2937,7 +2995,7 @@ const DataPreview = ({ parsedImport }: { parsedImport: ParsedImport }) => (
   <div className="min-w-0 rounded-lg border bg-card p-4">
     <h2 className="text-lg font-semibold text-foreground">Data preview</h2>
     <p className="mt-1 text-sm text-muted-foreground">
-      Showing the first {Math.min(parsedImport.rows.length, MAX_CORRECTION_ROWS)} of{' '}
+      Showing the first {Math.min(parsedImport.rows.length, MAX_PREVIEW_ROWS)} of{' '}
       {parsedImport.rows.length} rows for mapping and validation review.
     </p>
     <section
@@ -2957,7 +3015,7 @@ const DataPreview = ({ parsedImport }: { parsedImport: ParsedImport }) => (
           </tr>
         </thead>
         <tbody>
-          {parsedImport.rows.slice(0, MAX_CORRECTION_ROWS).map((row, index) => (
+          {parsedImport.rows.slice(0, MAX_PREVIEW_ROWS).map((row, index) => (
             <tr key={`${parsedImport.fileName}-${index}`} className="border-t">
               {parsedImport.headers.map((header) => {
                 const cellText = formatValue(row[header])
