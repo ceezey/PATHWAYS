@@ -1205,10 +1205,10 @@ describe('ActivityProofDialog progress suggestion', () => {
     )
   })
 
-  it('caps the suggestion at 100', () => {
+  it('never auto-fills 100 (caps the suggestion at 99)', () => {
     show(withTarget())
     session('500')
-    expect(progressInput().value).toBe('100')
+    expect(progressInput().value).toBe('99')
   })
 
   it('stops overwriting after a manual edit and Use suggestion re-applies it', () => {
@@ -1268,6 +1268,81 @@ describe('ActivityProofDialog progress suggestion', () => {
     await waitFor(() =>
       expect(api.reserveActivityProofUpload).toHaveBeenCalledWith(
         expect.objectContaining({ progressPercent: 25, beneficiariesReachedThisSession: 5 }),
+      ),
+    )
+  })
+
+  const submitWith = async (value: string) => {
+    show(withTarget())
+    fireEvent.change(progressInput(), { target: { value } })
+    fireEvent.change(screen.getByLabelText(/Narrative Notes/), { target: { value: 'done' } })
+    selectFiles([makeFile('a.pdf', 'application/pdf')])
+    await screen.findByText('a.pdf')
+    fireEvent.click(screen.getByRole('button', { name: /Submit proof/ }))
+  }
+
+  it.each(['', '101', '-1', '12.5'])(
+    'rejects invalid progress %j without reserving',
+    async (value) => {
+      await submitWith(value)
+      const alert = await screen.findByRole('alert')
+      expect(alert.textContent).toContain('Progress must be a whole number from 0 to 100')
+      expect(progressInput().getAttribute('aria-invalid')).toBe('true')
+      expect(progressInput().getAttribute('aria-describedby')).toContain(
+        'activity-proof-progress-error',
+      )
+      expect(alert.id).toBe('activity-proof-progress-error')
+      expect(api.reserveActivityProofUpload).not.toHaveBeenCalled()
+    },
+  )
+
+  it('sends a manual value of 60 as progressPercent', async () => {
+    api.reserveActivityProofUpload.mockRejectedValue(new Error('stop'))
+    await submitWith('60')
+    await waitFor(() =>
+      expect(api.reserveActivityProofUpload).toHaveBeenCalledWith(
+        expect.objectContaining({ progressPercent: 60 }),
+      ),
+    )
+  })
+
+  it('shows a linked completion warning at 100', () => {
+    show(withTarget())
+    fireEvent.change(progressInput(), { target: { value: '100' } })
+    const notice = screen.getByText(/100% marks this activity Completed when M&E approves/)
+    expect(notice.id).toBe('activity-proof-progress-complete')
+    expect(progressInput().getAttribute('aria-describedby')).toContain(notice.id)
+  })
+
+  it('shows a non-blocking note below current progress', () => {
+    show(withTarget({ progress: 50 }))
+    fireEvent.change(progressInput(), { target: { value: '30' } })
+    expect(screen.getByText('This is lower than the current progress (50%).')).toBeTruthy()
+  })
+
+  it('resume sends the stored non-zero progress exactly', async () => {
+    api.reserveActivityProofUpload.mockRejectedValue(new Error('stop'))
+    show(
+      withTarget({
+        updateNotes: [
+          {
+            id: 'u1',
+            note: 'n',
+            progress: 7,
+            beneficiariesReachedThisSession: null,
+            status: 'Submitted',
+            proofIncomplete: true,
+            resumeClientUpdateId: 'rc',
+          },
+        ],
+      }),
+    )
+    selectFiles([makeFile('a.pdf', 'application/pdf')])
+    await screen.findByText('a.pdf')
+    fireEvent.click(screen.getByRole('button', { name: /Submit proof/ }))
+    await waitFor(() =>
+      expect(api.reserveActivityProofUpload).toHaveBeenCalledWith(
+        expect.objectContaining({ progressPercent: 7, clientUpdateId: 'rc' }),
       ),
     )
   })

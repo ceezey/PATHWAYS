@@ -152,14 +152,31 @@ const ScopedActivityProofDialog = ({
     if (typeof target !== 'number' || !(target > 0) || typeof reached !== 'number') return null
     const session = parsedBeneficiariesReachedThisSession()
     const total = reached + (typeof session === 'number' ? session : 0)
-    const percent = Math.min(100, Math.floor((total / target) * 100))
-    return { percent: Math.max(activity.progress, percent), total, target }
+    const percent = Math.floor((total / target) * 100)
+    // Automatic suggestions never reach 100: completion is only ever an explicit choice.
+    return {
+      percent: Math.min(99, Math.max(activity.progress, percent)),
+      total,
+      target,
+      includesSession: typeof session === 'number',
+    }
   })()
   const progressValue = resume
     ? String(resume.progress)
     : progressEdited
       ? progressText
       : String(suggestion?.percent ?? activity?.progress ?? 0)
+
+  const numericProgress = progressValue.trim() === '' ? Number.NaN : Number(progressValue)
+  const completionNotice = numericProgress === 100
+  const lowerNotice =
+    !resume &&
+    progressEdited &&
+    activity !== null &&
+    activity !== undefined &&
+    Number.isInteger(numericProgress) &&
+    numericProgress >= 0 &&
+    numericProgress < activity.progress
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: scope is stable per instance key.
   useEffect(() => {
@@ -551,6 +568,8 @@ const ScopedActivityProofDialog = ({
               aria-describedby={
                 [
                   suggestion ? 'activity-proof-progress-hint' : '',
+                  completionNotice ? 'activity-proof-progress-complete' : '',
+                  lowerNotice ? 'activity-proof-progress-lower' : '',
                   progressError ? 'activity-proof-progress-error' : '',
                 ]
                   .filter(Boolean)
@@ -573,8 +592,7 @@ const ScopedActivityProofDialog = ({
             {suggestion ? (
               <div className="flex flex-wrap items-center gap-2">
                 <p className="text-sm text-muted-foreground" id="activity-proof-progress-hint">
-                  Suggested from beneficiaries: {suggestion.total} of {suggestion.target} reached
-                  (including this session) = {suggestion.percent}%.
+                  {`Suggested from beneficiaries: ${suggestion.total} of ${suggestion.target} reached ${suggestion.includesSession ? '(including this session) ' : ''}= ${suggestion.percent}%.`}
                 </p>
                 <Button
                   disabled={submitting || locked}
@@ -586,6 +604,20 @@ const ScopedActivityProofDialog = ({
                   Use suggestion ({suggestion.percent}%)
                 </Button>
               </div>
+            ) : null}
+            {completionNotice ? (
+              <p
+                className="text-sm font-medium text-foreground"
+                id="activity-proof-progress-complete"
+              >
+                100% marks this activity Completed when M&E approves this proof. It can no longer be
+                edited after that.
+              </p>
+            ) : null}
+            {lowerNotice && activity ? (
+              <p className="text-sm text-muted-foreground" id="activity-proof-progress-lower">
+                This is lower than the current progress ({activity.progress}%).
+              </p>
             ) : null}
           </div>
           <div className="space-y-2">
