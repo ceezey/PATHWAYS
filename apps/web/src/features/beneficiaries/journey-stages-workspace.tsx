@@ -152,10 +152,6 @@ export const JourneyStagesWorkspace = ({
             </button>
           ))}
         </div>
-        <p className="mt-4 rounded-sm border border-info/25 bg-info-subtle p-3 text-sm leading-6 text-info">
-          Open-ended follow-up can continue after core participation. The interface supports human
-          review and beneficiary context, not strict timeline compliance scoring.
-        </p>
         <div className="mt-6 grid gap-6 border-t border-border pt-6 xl:grid-cols-[minmax(0,1fr)_420px]">
           <div>
             <div className="flex flex-wrap items-center justify-between gap-3">
