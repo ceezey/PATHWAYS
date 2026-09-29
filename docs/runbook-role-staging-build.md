@@ -46,7 +46,7 @@ Keep both files under the repository's ignored `.tmp/` directory or outside the 
 node scripts/db/hosted-build.mjs --dry-run
 ```
 
-Check the printed 19-step plan. It covers the prisma role, the 0000 baseline and its registration, then staged deploys with the preprovision and cleanup steps around 0031, 0034, 0037 and 0041, then the runtime login, then the postconditions.
+Check the printed 21-step plan. It covers the prisma role, the 0000 baseline and its registration, then staged deploys with the preprovision and cleanup steps around 0031, 0034, 0037 and 0041, then the 0042 and 0043 deploys, then the runtime login, then the postconditions.
 
 ```bash
 node scripts/db/hosted-build.mjs --env-file .tmp/role-staging-build.env
@@ -54,12 +54,13 @@ node scripts/db/hosted-build.mjs --env-file .tmp/role-staging-build.env
 
 Every step prints `start` and `done` lines and has a time limit. A successful build ends with these PASS lines:
 
-- `PASS: ledger has exactly 16 migrations 0000-0041, all finished and none failed`
+- `PASS: ledger has exactly 18 migrations 0000-0043, all finished and none failed`
 - `PASS: no residual temporary owner memberships for prisma`
 - `PASS: role count matches the repo-derived expectation (21 roles ...)`
 - `PASS: schema-level permission grants observed (...)`
+- `PASS: pathways_runtime has LOGIN enabled`
 
-The ledger holds 16 rows because 0000 is the consolidated baseline for the historical 0001 to 0026.
+The ledger holds 18 rows because 0000 is the consolidated baseline for the historical 0001 to 0026.
 
 **If a step fails:** the tool runs the matching cleanup script whenever the failure happens anywhere between a preprovision step and its cleanup (the preprovision step itself, or the deploy that follows it), then rethrows the original error. Fix the reported cause, then rerun with `--resume`.
 
