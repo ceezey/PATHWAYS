@@ -47,6 +47,7 @@ export const ActivityExpenseDialog = ({
   const [draft, setDraft] = useState(emptyDraft)
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState('')
+  const [errorField, setErrorField] = useState<'receipt' | 'form' | 'server'>('form')
   const [notice, setNotice] = useState('')
   const [receiptFile, setReceiptFile] = useState<File | null>(null)
   const [fileKey, setFileKey] = useState(0)
@@ -56,6 +57,7 @@ export const ActivityExpenseDialog = ({
     if (!open) return
     setDraft(emptyDraft)
     setError('')
+    setErrorField('form')
     setNotice('')
     setReceiptFile(null)
     setFileKey((key) => key + 1)
@@ -72,18 +74,22 @@ export const ActivityExpenseDialog = ({
       !draft.date ||
       !draft.description.trim()
     ) {
+      setErrorField('form')
       setError('Choose a linked budget allocation and complete every field.')
       return
     }
     if (!canAttachReceipt) {
+      setErrorField('receipt')
       setError('A receipt is required, and this account cannot attach receipts.')
       return
     }
     if (!receiptFile) {
+      setErrorField('receipt')
       setError('Attach the receipt (PDF, PNG or JPEG) before submitting.')
       return
     }
     if (receiptFile.size > maxReceiptBytes || !receiptTypes.includes(receiptFile.type)) {
+      setErrorField('receipt')
       setError('Receipt must be a PDF, PNG or JPEG of at most 10 MiB.')
       return
     }
@@ -119,6 +125,7 @@ export const ActivityExpenseDialog = ({
       onSubmitted()
       onOpenChange(false)
     } catch (submitError) {
+      setErrorField('server')
       setError(
         submitError instanceof Error ? submitError.message : 'Expense submission unavailable.',
       )
@@ -220,6 +227,11 @@ export const ActivityExpenseDialog = ({
               </div>
             </div>
           )}
+          {canSubmit && !canAttachReceipt ? (
+            <p className="text-sm font-medium text-destructive" role="alert">
+              A receipt is required, and this account cannot attach receipts.
+            </p>
+          ) : null}
           {canSubmit && activityReferences.length > 0 && canAttachReceipt ? (
             <div className="space-y-2">
               <Label htmlFor="activity-expense-receipt">
@@ -228,8 +240,10 @@ export const ActivityExpenseDialog = ({
               <Input
                 accept="application/pdf,image/png,image/jpeg"
                 aria-required="true"
-                aria-describedby={error ? 'activity-expense-error' : undefined}
-                aria-invalid={error ? true : undefined}
+                aria-describedby={
+                  error && errorField === 'receipt' ? 'activity-expense-error' : undefined
+                }
+                aria-invalid={error && errorField === 'receipt' ? true : undefined}
                 disabled={submitting}
                 id="activity-expense-receipt"
                 key={fileKey}
@@ -261,7 +275,9 @@ export const ActivityExpenseDialog = ({
             </Button>
             <Button
               className="gap-2"
-              disabled={submitting || !canSubmit || activityReferences.length === 0}
+              disabled={
+                submitting || !canSubmit || !canAttachReceipt || activityReferences.length === 0
+              }
               type="submit"
             >
               {submitting ? (
