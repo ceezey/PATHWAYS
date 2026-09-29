@@ -123,8 +123,9 @@ describe('ActivityExpenseReviewDialog', () => {
     ).toBe(true)
   })
 
-  it('keeps Validate and Return focusable but blocks activation when no receipt is attached', () => {
+  it('blocks Validate but allows Return for correction when no receipt is attached', async () => {
     state.profile.permissions = ['expenses.verify']
+    state.reviewExpense.mockResolvedValue({ status: 'REJECTED' })
     const noReceiptExpense: PendingExpense = { ...expense, receiptEvidenceId: null }
     render(
       <ActivityExpenseReviewDialog
@@ -139,27 +140,85 @@ describe('ActivityExpenseReviewDialog', () => {
       name: /Return for correction/,
     }) as HTMLButtonElement
 
-    // aria-disabled (not native disabled): stays in the tab order and
-    // reachable by screen readers, unlike native disabled would.
+    // aria-disabled (not native disabled) keeps Validate reachable by keyboard.
     expect(validate.disabled).toBe(false)
     expect(validate.getAttribute('aria-disabled')).toBe('true')
     validate.focus()
     expect(document.activeElement).toBe(validate)
-
-    const describedBy = validate.getAttribute('aria-describedby')
-    expect(describedBy).toBeTruthy()
-    const hint = document.getElementById(describedBy as string)
-    expect(hint?.textContent).toBe('Attach a private receipt before review.')
-    expect(returnButton.getAttribute('aria-describedby')).toBe(describedBy)
-
     fireEvent.click(validate)
     expect(state.reviewExpense).not.toHaveBeenCalled()
 
+    // Return is never receipt-gated.
+    expect(returnButton.getAttribute('aria-disabled')).toBeNull()
     fireEvent.change(screen.getByLabelText('Correction reason'), {
-      target: { value: 'Missing itemized receipt detail.' },
+      target: { value: 'Please attach the receipt.' },
     })
     fireEvent.click(returnButton)
-    expect(state.reviewExpense).not.toHaveBeenCalled()
+    await waitFor(() => expect(state.reviewExpense).toHaveBeenCalledTimes(1))
+    expect(state.reviewExpense.mock.calls[0][2]).toEqual({
+      expectedUpdatedAt: noReceiptExpense.updatedAt,
+      stage: 'VERIFY',
+      decision: 'REJECT',
+      reason: 'Please attach the receipt.',
+    })
+  })
+
+  it('reviews several expenses in sequence, including a return without a receipt', async () => {
+    state.profile.permissions = ['expenses.verify']
+    state.reviewExpense.mockResolvedValue({ status: 'OK' })
+    const second: PendingExpense = {
+      ...expense,
+      id: 'expense-2',
+      updatedAt: '2026-01-17T00:00:00.000Z',
+    }
+    const third: PendingExpense = {
+      ...expense,
+      id: 'expense-3',
+      updatedAt: '2026-01-18T00:00:00.000Z',
+      receiptEvidenceId: null,
+    }
+    const onReviewed = vi.fn()
+    const view = render(
+      <ActivityExpenseReviewDialog
+        expense={expense}
+        onOpenChange={vi.fn()}
+        onReviewed={onReviewed}
+      />,
+    )
+    fireEvent.click(screen.getByRole('button', { name: /Validate expense/ }))
+    await waitFor(() => expect(state.reviewExpense).toHaveBeenCalledTimes(1))
+
+    view.rerender(
+      <ActivityExpenseReviewDialog
+        expense={second}
+        onOpenChange={vi.fn()}
+        onReviewed={onReviewed}
+      />,
+    )
+    fireEvent.click(screen.getByRole('button', { name: /Validate expense/ }))
+    await waitFor(() => expect(state.reviewExpense).toHaveBeenCalledTimes(2))
+
+    view.rerender(
+      <ActivityExpenseReviewDialog
+        expense={third}
+        onOpenChange={vi.fn()}
+        onReviewed={onReviewed}
+      />,
+    )
+    fireEvent.change(screen.getByLabelText('Correction reason'), {
+      target: { value: 'No receipt attached.' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: /Return for correction/ }))
+    await waitFor(() => expect(state.reviewExpense).toHaveBeenCalledTimes(3))
+
+    expect(state.reviewExpense.mock.calls.map(([, id]) => id)).toEqual([
+      'expense-1',
+      'expense-2',
+      'expense-3',
+    ])
+    expect(state.reviewExpense.mock.calls[1][2].expectedUpdatedAt).toBe(second.updatedAt)
+    expect(state.reviewExpense.mock.calls[2][2].decision).toBe('REJECT')
+    expect(onReviewed).toHaveBeenCalledTimes(3)
   })
 
   it('shows the server error and keeps the dialog open', async () => {

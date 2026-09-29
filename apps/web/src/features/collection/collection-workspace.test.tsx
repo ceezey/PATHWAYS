@@ -942,7 +942,7 @@ describe('collection form definition export', () => {
     ],
   }
 
-  it('downloads every approved format through the audited server export', async () => {
+  it('exports the form as CSV through the audited server export without a format control', async () => {
     api.getDigitalForms.mockResolvedValue([exportForm])
     Object.defineProperty(URL, 'createObjectURL', { configurable: true, value: vi.fn() })
     vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => undefined)
@@ -954,71 +954,40 @@ describe('collection form definition export', () => {
     )
 
     await waitFor(() => expect(screen.getByText('Activity Entry')).toBeTruthy())
-    const select = screen.getByLabelText('Download format')
-    expect(
-      within(select)
-        .getAllByRole('option')
-        .map((option) => option.textContent),
-    ).toEqual(['CSV', 'XLSX', 'XLS', 'PDF'])
-    for (const format of ['csv', 'xlsx', 'xls', 'pdf']) {
-      fireEvent.change(select, { target: { value: format } })
-      fireEvent.click(screen.getByRole('button', { name: 'Export form' }))
-      await waitFor(() =>
-        expect(core.downloadCoreArtifact).toHaveBeenLastCalledWith(
-          `/metadata/projects/futuremakers-ncr/forms/form-1/export?format=${format.toUpperCase()}`,
-          `activity-entry-v2.${format}`,
-          expect.any(Function),
-        ),
-      )
-    }
-    expect(core.downloadCoreArtifact).toHaveBeenCalledTimes(4)
+    expect(screen.queryByText('Download format')).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: 'Export form' }))
+    await waitFor(() =>
+      expect(core.downloadCoreArtifact).toHaveBeenLastCalledWith(
+        '/metadata/projects/futuremakers-ncr/forms/form-1/export?format=CSV',
+        'activity-entry-v2.csv',
+        expect.any(Function),
+      ),
+    )
+    expect(core.downloadCoreArtifact).toHaveBeenCalledTimes(1)
     expect(api.getDigitalForm).not.toHaveBeenCalled()
   })
 
-  it('hides the Download Format control on the extend import page', async () => {
-    api.getProjectsForRole.mockResolvedValue([
-      { id: 'futuremakers-ncr', title: 'Futuremakers NCR' },
-    ])
-    render(
-      <DisplayLabelsProvider>
-        <CollectionWorkspace
-          initialView="import"
-          initialMode="extend"
-          initialProjectId="futuremakers-ncr"
-        />
-      </DisplayLabelsProvider>,
-    )
-    await waitFor(() => expect(api.getDigitalForms).toHaveBeenCalled())
-    expect(screen.queryByText('Download format')).toBeNull()
-  })
-
-  it('still shows the Download Format control on the plain import page', async () => {
-    api.getProjectsForRole.mockResolvedValue([
-      { id: 'futuremakers-ncr', title: 'Futuremakers NCR' },
-    ])
-    render(
-      <DisplayLabelsProvider>
-        <CollectionWorkspace
-          initialView="import"
-          initialMode="import"
-          initialProjectId="futuremakers-ncr"
-        />
-      </DisplayLabelsProvider>,
-    )
-    await waitFor(() => expect(api.getDigitalForms).toHaveBeenCalled())
-    expect(screen.getByText('Download format')).toBeTruthy()
-  })
-
-  it('still shows the Download Format control on the Forms page', async () => {
-    api.getDigitalForms.mockResolvedValue([exportForm])
-    render(
-      <DisplayLabelsProvider>
-        <CollectionWorkspace initialView="forms" />
-      </DisplayLabelsProvider>,
-    )
-    await waitFor(() => expect(screen.getByText('Activity Entry')).toBeTruthy())
-    expect(screen.getByText('Download format')).toBeTruthy()
-  })
+  it.each([
+    ['extend import', 'import', 'extend'],
+    ['plain import', 'import', 'import'],
+    ['Forms', 'forms', 'scratch'],
+    ['Home', 'home', 'scratch'],
+    ['Builder', 'builder', 'scratch'],
+  ] as const)(
+    'does not show the Download format control on the %s view',
+    async (_name, view, mode) => {
+      api.getDigitalForms.mockResolvedValue([exportForm])
+      render(
+        <DisplayLabelsProvider>
+          <CollectionWorkspace initialView={view} initialMode={mode} />
+        </DisplayLabelsProvider>,
+      )
+      await waitFor(() => expect(api.getProjectsForRole).toHaveBeenCalled())
+      await waitFor(() => expect(api.getDigitalForms).toHaveBeenCalled())
+      expect(screen.queryByText('Download format')).toBeNull()
+      expect(screen.queryByLabelText('Download format')).toBeNull()
+    },
+  )
 
   it('does not request an export without forms.export', async () => {
     currentAccess.profile.permissions = currentAccess.profile.permissions.filter(
