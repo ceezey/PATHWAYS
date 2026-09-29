@@ -545,7 +545,16 @@ describe('Analytics dashboard request dependencies', () => {
     expect(api.getProjectIndicators).not.toHaveBeenCalled()
     expect(api.getMonitoringDashboard).not.toHaveBeenCalled()
   })
-  it('loads descriptive statistics and exports suppressed aggregates with the analytics permissions', async () => {
+  // The export button is hidden behind ANALYTICS_AGGREGATE_EXPORT_UI_ENABLED (see
+  // apps/web/src/constants/feature-flags.ts and docs/deferred-features.md). This test
+  // forces the flag on so the underlying export behaviour the API still serves stays
+  // covered while the flag is off in the running app.
+  it('loads descriptive statistics and exports suppressed aggregates with the analytics permissions (flag on)', async () => {
+    vi.resetModules()
+    vi.doMock('@/constants/feature-flags', () => ({
+      ANALYTICS_AGGREGATE_EXPORT_UI_ENABLED: true,
+    }))
+    const { AnalyticsDashboard: ExportEnabledDashboard } = await import('./analytics-dashboard')
     currentAccess.profile.permissions = [
       ...currentAccess.profile.permissions,
       'analytics.descriptive.read',
@@ -576,7 +585,7 @@ describe('Analytics dashboard request dependencies', () => {
       indicatorSummaries: [],
     })
     download.mockResolvedValue(undefined)
-    render(<AnalyticsDashboard />)
+    render(<ExportEnabledDashboard />)
 
     await waitFor(() =>
       expect(api.getDescriptiveAnalytics).toHaveBeenCalledWith({
@@ -596,6 +605,20 @@ describe('Analytics dashboard request dependencies', () => {
         'descriptive-analytics-project-a.csv',
       ),
     )
+
+    vi.doUnmock('@/constants/feature-flags')
+  })
+
+  it('hides the export button even with the analytics.export permission while the flag is off', async () => {
+    currentAccess.profile.permissions = [
+      ...currentAccess.profile.permissions,
+      'analytics.descriptive.read',
+      'analytics.export',
+    ]
+    render(<AnalyticsDashboard />)
+    await waitFor(() => expect(api.getMonitoringDashboard).toHaveBeenCalled())
+    expect(screen.queryByRole('button', { name: 'Export aggregates (CSV)' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Exporting aggregates' })).toBeNull()
   })
 
   it('hides descriptive statistics and export for roles without the analytics permissions', async () => {

@@ -84,6 +84,11 @@ const ActivityCard = ({
       </h3>
       <StatusBadge tone={activityStatusTone(activity.status)}>{activity.status}</StatusBadge>
     </div>
+    {activity.overdueExplanationNeeded ? (
+      <div className="mt-2">
+        <StatusBadge tone="warning">Overdue: explanation needed</StatusBadge>
+      </div>
+    ) : null}
     <p
       className={`mt-3 flex items-center gap-2 text-sm font-medium ${
         activity.status === 'Overdue' ? 'text-danger' : 'text-muted-foreground'
@@ -155,6 +160,9 @@ const ActivityListRow = ({
     </div>
     <div className="space-y-2">
       <StatusBadge tone={activityStatusTone(activity.status)}>{activity.status}</StatusBadge>
+      {activity.overdueExplanationNeeded ? (
+        <StatusBadge tone="warning">Overdue: explanation needed</StatusBadge>
+      ) : null}
       <p
         className={`flex items-start gap-2 text-sm ${
           activity.status === 'Overdue' ? 'font-medium text-danger' : 'text-muted-foreground'

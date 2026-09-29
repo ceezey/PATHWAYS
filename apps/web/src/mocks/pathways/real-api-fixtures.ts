@@ -21,6 +21,8 @@ export const testActivities: Activity[] = mockActivities.map((activity) => ({
   journeyStageIds: activity.journeyStageId ? [activity.journeyStageId] : [],
   submittedProof: [],
   updateNotes: [],
+  overdueExplanations: [],
+  overdueExplanationNeeded: activity.status === 'Overdue',
 
   updatedAt: '2026-09-01T00:00:00.000Z',
 }))

@@ -108,6 +108,7 @@ const summary: ActivitySummary = {
   targetBeneficiaries: 10,
   progress: 20,
   updatedAt: '2026-09-25T00:00:00.000Z',
+  overdueExplanationNeeded: false,
 }
 const detail: Activity = {
   ...summary,
@@ -117,6 +118,7 @@ const detail: Activity = {
   budgetLogged: null,
   submittedProof: [],
   updateNotes: [],
+  overdueExplanations: [],
 }
 
 let client: QueryClient
@@ -195,6 +197,21 @@ describe('project activities permission-aware loading', () => {
     expect(api.getIndicators).not.toHaveBeenCalled()
     expect(api.getActivity).not.toHaveBeenCalled()
     expect(api.getUsers).not.toHaveBeenCalled()
+  })
+
+  it('shows the overdue-explanation-needed badge only when the list item flags it', async () => {
+    api.getActivities.mockResolvedValue([{ ...summary, overdueExplanationNeeded: true }])
+    renderWorkspace()
+    await screen.findByRole('heading', { name: 'Activities' })
+    expect(await screen.findByText('Overdue: explanation needed')).toBeTruthy()
+  })
+
+  it('hides the overdue-explanation-needed badge when the list item does not flag it', async () => {
+    api.getActivities.mockResolvedValue([{ ...summary, overdueExplanationNeeded: false }])
+    renderWorkspace()
+    await screen.findByRole('heading', { name: 'Activities' })
+    await waitFor(() => expect(api.getJourneyStages).toHaveBeenCalledOnce())
+    expect(screen.queryByText('Overdue: explanation needed')).toBeNull()
   })
 
   it('loads assignable officers only after opening the activity editor, never GET /users', async () => {

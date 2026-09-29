@@ -266,6 +266,116 @@ describe('collection import workspace', () => {
     ])
   })
 
+  it('keeps a wide, many-row extend-mode preview inside its own scroll container with a capped row count', async () => {
+    const columnCount = 12
+    const rowCount = 40
+    const headers = Array.from({ length: columnCount }, (_, index) => `Source column ${index + 1}`)
+    const rows = Array.from({ length: rowCount }, (_, rowIndex) =>
+      headers
+        .map((_, columnIndex) => `row-${rowIndex + 1}-col-${columnIndex + 1}-${'x'.repeat(40)}`)
+        .join(','),
+    )
+    const csvText = `${headers.join(',')}\n${rows.join('\n')}`
+
+    render(
+      <DisplayLabelsProvider>
+        <CollectionWorkspace
+          initialView="import"
+          initialMode="extend"
+          initialProjectId="futuremakers-ncr"
+        />
+      </DisplayLabelsProvider>,
+    )
+    await waitFor(() => expect(api.getDigitalForms).toHaveBeenCalled())
+
+    fireEvent.change(screen.getByLabelText('Source file'), {
+      target: {
+        files: [csvFile('wide-extend.csv', async () => csvText)],
+      },
+    })
+    await screen.findByText(/Preview ready for wide-extend.csv/)
+
+    // The read-only Data preview is capped, not rendering every one of the 40 source rows.
+    await screen.findByText(
+      new RegExp(`Showing the first 5 of ${rowCount} rows for mapping and validation review`),
+    )
+    const previewRegion = screen.getByRole('region', { name: 'Data preview rows' })
+    expect(previewRegion.className).toContain('overflow-x-auto')
+    expect(previewRegion.className).toContain('max-w-full')
+    expect(previewRegion.getAttribute('tabIndex')).toBe('0')
+    expect(within(previewRegion).getAllByRole('row')).toHaveLength(1 + 5)
+
+    // The mapping table for the same wide file is also its own scroll container.
+    const mappingRegion = screen.getByRole('region', { name: 'Metadata mapping rows' })
+    expect(mappingRegion.className).toContain('overflow-x-auto')
+    expect(mappingRegion.className).toContain('max-w-full')
+    expect(mappingRegion.getAttribute('tabIndex')).toBe('0')
+  })
+
+  it('paginates the editable correction table instead of capping it, and keeps edits across pages', async () => {
+    const rowCount = 40
+    const headers = ['beneficiary_id', 'attendance_status', 'note']
+    const rows = Array.from({ length: rowCount }, (_, rowIndex) =>
+      headers.map((_, columnIndex) => `row-${rowIndex + 1}-col-${columnIndex + 1}`).join(','),
+    )
+    const csvText = `${headers.join(',')}\n${rows.join('\n')}`
+
+    render(
+      <DisplayLabelsProvider>
+        <CollectionWorkspace
+          initialView="import"
+          initialMode="extend"
+          initialProjectId="futuremakers-ncr"
+        />
+      </DisplayLabelsProvider>,
+    )
+    await waitFor(() => expect(api.getDigitalForms).toHaveBeenCalled())
+
+    fireEvent.change(screen.getByLabelText('Source file'), {
+      target: {
+        files: [csvFile('correction.csv', async () => csvText)],
+      },
+    })
+    await screen.findByText(/Preview ready for correction.csv/)
+
+    fireEvent.click(screen.getByText('Correct isolated data before reprocessing'))
+    const correctionRegion = screen.getByRole('region', {
+      name: 'Isolated data rows awaiting correction',
+    })
+    expect(correctionRegion.className).toContain('overflow-x-auto')
+    expect(correctionRegion.className).toContain('max-w-full')
+    expect(correctionRegion.getAttribute('tabIndex')).toBe('0')
+
+    // Page 1 shows rows 1-25, all correctable (not capped at MAX_PREVIEW_ROWS).
+    expect(screen.getByText('Rows 1-25 of 40')).toBeTruthy()
+    expect(within(correctionRegion).getAllByRole('row')).toHaveLength(25)
+    expect(screen.getByLabelText('Row 1: beneficiary_id')).toBeTruthy()
+    expect(screen.getByLabelText('Row 25: note')).toBeTruthy()
+    expect(screen.queryByLabelText('Row 26: beneficiary_id')).toBeNull()
+    const previousButton = screen.getByRole('button', { name: 'Previous' })
+    expect((previousButton as HTMLButtonElement).disabled).toBe(true)
+
+    // Editing a cell on page 2 must reach the underlying row state (the reprocess payload).
+    fireEvent.click(screen.getByRole('button', { name: 'Next' }))
+    expect(screen.getByText('Rows 26-40 of 40')).toBeTruthy()
+    expect(within(correctionRegion).getAllByRole('row')).toHaveLength(15)
+    const rowThirtyField = screen.getByLabelText('Row 30: note') as HTMLInputElement
+    fireEvent.change(rowThirtyField, { target: { value: 'corrected-note-30' } })
+    expect(rowThirtyField.value).toBe('corrected-note-30')
+
+    // Going back to page 1 and returning to page 2 keeps the edit (rows live in shared state).
+    fireEvent.click(screen.getByRole('button', { name: 'Previous' }))
+    expect(screen.getByText('Rows 1-25 of 40')).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: 'Next' }))
+    expect(screen.getByText('Rows 26-40 of 40')).toBeTruthy()
+    expect((screen.getByLabelText('Row 30: note') as HTMLInputElement).value).toBe(
+      'corrected-note-30',
+    )
+
+    const nextButton = screen.getByRole('button', { name: 'Next' })
+    expect((nextButton as HTMLButtonElement).disabled).toBe(true)
+  })
+
   it('reuses the same import id after an uncertain upload and starts a new id for a new file', async () => {
     const definition = {
       id: 'published-form',
@@ -663,6 +773,99 @@ describe('collection import workspace', () => {
     expect(screen.getByText('BEN-002')).toBeTruthy()
     expect(screen.getByRole('button', { name: 'Proceed' }).hasAttribute('disabled')).toBe(false)
   })
+
+  it('shows the fetched project selection even when options arrive after the initial render', async () => {
+    let resolveProjects: ((value: Array<{ id: string; title: string }>) => void) | undefined
+    api.getProjectsForRole.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          resolveProjects = resolve
+        }),
+    )
+    render(
+      <DisplayLabelsProvider>
+        <CollectionWorkspace
+          initialView="import"
+          initialMode="extend"
+          initialProjectId="futuremakers-ncr"
+        />
+      </DisplayLabelsProvider>,
+    )
+    await act(async () => {
+      resolveProjects?.([{ id: 'futuremakers-ncr', title: 'Futuremakers NCR' }])
+    })
+    const projectField = () => screen.getByText('Project selection').closest('div') as HTMLElement
+    await waitFor(() =>
+      expect(within(projectField()).getByRole('combobox').textContent).toContain(
+        'Futuremakers NCR',
+      ),
+    )
+  })
+
+  it('shows the fetched projects again on a second mount (a cached list on remount)', async () => {
+    api.getProjectsForRole.mockResolvedValue([
+      { id: 'futuremakers-ncr', title: 'Futuremakers NCR' },
+    ])
+    const { unmount } = render(
+      <DisplayLabelsProvider>
+        <CollectionWorkspace
+          initialView="import"
+          initialMode="extend"
+          initialProjectId="futuremakers-ncr"
+        />
+      </DisplayLabelsProvider>,
+    )
+    await waitFor(() => expect(api.getDigitalForms).toHaveBeenCalled())
+    unmount()
+    api.getProjectsForRole.mockClear()
+
+    render(
+      <DisplayLabelsProvider>
+        <CollectionWorkspace
+          initialView="import"
+          initialMode="extend"
+          initialProjectId="futuremakers-ncr"
+        />
+      </DisplayLabelsProvider>,
+    )
+    await waitFor(() => expect(api.getProjectsForRole).toHaveBeenCalled())
+    const projectField = () => screen.getByText('Project selection').closest('div') as HTMLElement
+    await waitFor(() =>
+      expect(within(projectField()).getByRole('combobox').textContent).toContain(
+        'Futuremakers NCR',
+      ),
+    )
+  })
+
+  it('keeps the auto-selected project when the profile permission list is rebuilt in a different order', async () => {
+    api.getProjectsForRole.mockResolvedValue([
+      { id: 'futuremakers-ncr', title: 'Futuremakers NCR' },
+      { id: 'second-project', title: 'Second Project' },
+    ])
+    const { rerender } = render(
+      <DisplayLabelsProvider>
+        <CollectionWorkspace initialView="import" initialMode="extend" />
+      </DisplayLabelsProvider>,
+    )
+    await waitFor(() => expect(api.getDigitalForms).toHaveBeenCalled())
+
+    const projectField = () => screen.getByText('Project selection').closest('div') as HTMLElement
+    const trigger = () => within(projectField()).getByRole('combobox')
+    await waitFor(() => expect(trigger().textContent).toContain('Futuremakers NCR'))
+
+    // The auth layer rebuilds the permission list with the same permissions in a
+    // different order (e.g. after a token refresh merges grants from two sources).
+    // Because the permission set is unchanged, the workspace must not remount and
+    // drop the already-selected project.
+    currentAccess.profile.permissions = [...currentAccess.profile.permissions].reverse()
+    rerender(
+      <DisplayLabelsProvider>
+        <CollectionWorkspace initialView="import" initialMode="extend" />
+      </DisplayLabelsProvider>,
+    )
+
+    expect(trigger().textContent).toContain('Futuremakers NCR')
+  })
 })
 
 describe('collection field selection', () => {
@@ -770,6 +973,51 @@ describe('collection form definition export', () => {
     }
     expect(core.downloadCoreArtifact).toHaveBeenCalledTimes(4)
     expect(api.getDigitalForm).not.toHaveBeenCalled()
+  })
+
+  it('hides the Download Format control on the extend import page', async () => {
+    api.getProjectsForRole.mockResolvedValue([
+      { id: 'futuremakers-ncr', title: 'Futuremakers NCR' },
+    ])
+    render(
+      <DisplayLabelsProvider>
+        <CollectionWorkspace
+          initialView="import"
+          initialMode="extend"
+          initialProjectId="futuremakers-ncr"
+        />
+      </DisplayLabelsProvider>,
+    )
+    await waitFor(() => expect(api.getDigitalForms).toHaveBeenCalled())
+    expect(screen.queryByText('Download format')).toBeNull()
+  })
+
+  it('still shows the Download Format control on the plain import page', async () => {
+    api.getProjectsForRole.mockResolvedValue([
+      { id: 'futuremakers-ncr', title: 'Futuremakers NCR' },
+    ])
+    render(
+      <DisplayLabelsProvider>
+        <CollectionWorkspace
+          initialView="import"
+          initialMode="import"
+          initialProjectId="futuremakers-ncr"
+        />
+      </DisplayLabelsProvider>,
+    )
+    await waitFor(() => expect(api.getDigitalForms).toHaveBeenCalled())
+    expect(screen.getByText('Download format')).toBeTruthy()
+  })
+
+  it('still shows the Download Format control on the Forms page', async () => {
+    api.getDigitalForms.mockResolvedValue([exportForm])
+    render(
+      <DisplayLabelsProvider>
+        <CollectionWorkspace initialView="forms" />
+      </DisplayLabelsProvider>,
+    )
+    await waitFor(() => expect(screen.getByText('Activity Entry')).toBeTruthy())
+    expect(screen.getByText('Download format')).toBeTruthy()
   })
 
   it('does not request an export without forms.export', async () => {

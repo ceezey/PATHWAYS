@@ -191,6 +191,7 @@ const auditSchema = z
     entityId: z.string().nullable(),
     projectId: uuid.nullable(),
     actorUserId: uuid.nullable(),
+    actorName: z.string().nullable(),
   })
   .strict()
 export const coreDataClient = {

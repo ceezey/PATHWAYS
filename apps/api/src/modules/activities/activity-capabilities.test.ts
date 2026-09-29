@@ -95,6 +95,7 @@ const activityRow = (status: string, personalAssignments: number) => ({
   activityUpdate_activity: [],
   activityJourneyStageMapping_activity: [],
   activityIndicatorLink_activity: [],
+  activityOverdueExplanation_activity: [],
   _count: { projectActivityAssignment_activity: personalAssignments },
 })
 
@@ -151,11 +152,13 @@ describe('server-computed activity capabilities', () => {
       canEdit: false,
       canRecordProgress: true,
       canSubmitProof: true,
+      canExplainOverdue: false,
     })
     expect(unassigned?.capabilities).toEqual({
       canEdit: false,
       canRecordProgress: false,
       canSubmitProof: false,
+      canExplainOverdue: false,
     })
     // The flags are the only list addition: no count or internal key leaks.
     expect(assigned).not.toHaveProperty('_count')
@@ -172,6 +175,10 @@ describe('server-computed activity capabilities', () => {
       canEdit: true,
       canRecordProgress: false,
       canSubmitProof: false,
+      // PROJECT_MANAGER holds monitoring.review and this row was already resolved through
+      // projectScope(actor), so canExplainOverdue no longer needs a personal activity
+      // assignment (see activities.service.ts activityCapabilities).
+      canExplainOverdue: true,
     })
     expect(detail).not.toHaveProperty('_count')
     const select = tx.project.findFirst.mock.calls[0][0].select.projectActivity_project.select
@@ -193,7 +200,36 @@ describe('server-computed activity capabilities', () => {
       canEdit: false,
       canRecordProgress: false,
       canSubmitProof: false,
+      canExplainOverdue: false,
     })
+  })
+
+  it('reports the activity beneficiariesReached exactly as the database aggregate returns it', async () => {
+    // cr-pathways-proof-session-beneficiary-count: pathways.p08_activity_beneficiaries_reached
+    // now sums each activity's APPROVED beneficiaries_reached_this_session values (NULL as 0)
+    // and excludes PENDING, VERIFIED and REJECTED updates; a later rejection lowers the sum.
+    // The service is a pass-through of that already-aggregated total, so this test fixes the
+    // contract at the boundary. The SQL aggregation itself is covered by
+    // apps/api/prisma/tests/proof-session-beneficiary-count-runtime.sql.
+    const actor = actorFor('PROJECT_MANAGER')
+    state.actor = actor
+    tx.project.findFirst.mockResolvedValueOnce({
+      projectActivity_project: [activityRow('IN_PROGRESS', 0)],
+    })
+    tx.$queryRaw.mockResolvedValueOnce([{ activityId, beneficiariesReached: 17 }])
+    const detail = await service.get(actor, projectId, activityId)
+    expect(detail.beneficiariesReached).toBe(17)
+  })
+
+  it('reports zero when the aggregate returns no row for the activity (no approved proofs yet)', async () => {
+    const actor = actorFor('PROJECT_MANAGER')
+    state.actor = actor
+    tx.project.findFirst.mockResolvedValueOnce({
+      projectActivity_project: [activityRow('IN_PROGRESS', 0)],
+    })
+    tx.$queryRaw.mockResolvedValueOnce([])
+    const detail = await service.get(actor, projectId, activityId)
+    expect(detail.beneficiariesReached).toBe(0)
   })
 
   it('never widens a flag beyond the caller role ceiling (forged grant list)', () => {

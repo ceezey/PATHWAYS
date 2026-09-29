@@ -70,6 +70,9 @@ function makeFakeIO({ ledgerRows = [], schemaPresent = false, rolePresent = fals
       if (sql.includes('pg_roles WHERE rolname IN')) {
         return [String(deriveExpectedRoles().all.length)]
       }
+      if (sql.includes("rolname='pathways_runtime'") && sql.includes('rolcanlogin')) {
+        return ['t']
+      }
       if (sql.includes('pg_auth_members')) return ['0']
       return ['0']
     },
@@ -132,7 +135,7 @@ test('runHostedBuild executes the full plan in order against a fake IO and reach
   const kinds = io.calls.map((c) => c.kind)
   assert.ok(kinds.includes('psqlSql'))
   assert.ok(kinds.includes('resolve'))
-  assert.equal(kinds.filter((k) => k === 'deploy').length, 7)
+  assert.equal(kinds.filter((k) => k === 'deploy').length, 9)
   assert.equal(kinds.filter((k) => k === 'psqlFile').length, 7) // 4 preprovision + 3 cleanup
 })
 
@@ -218,8 +221,50 @@ test('resumePreflight passes when schema and role are present and the ledger is 
       rolled_back_at: null,
     })),
   )
-  const appliedCount = await resumePreflight(io, config)
+  const { appliedCount, residualOwnerMemberships } = await resumePreflight(io, config)
   assert.equal(appliedCount, 5)
+  assert.equal(residualOwnerMemberships, false)
+})
+
+test('resumePreflight detects residual activity-media owner memberships on a ledger applied exactly through 0041', async () => {
+  const io = makeFakeIO({ schemaPresent: true, rolePresent: true })
+  const appliedThrough0041 = MIGRATIONS_IN_ORDER.slice(
+    0,
+    MIGRATIONS_IN_ORDER.indexOf('0041_activity_media_evidence') + 1,
+  )
+  io.setLedger(
+    appliedThrough0041.map((migration_name) => ({
+      migration_name,
+      finished_at: 'now',
+      rolled_back_at: null,
+    })),
+  )
+  const original = io.psqlQuery.bind(io)
+  io.psqlQuery = (url, sql) =>
+    sql.includes('pg_auth_members') && sql.includes('rules_store_owner')
+      ? ['1']
+      : original(url, sql)
+  const { appliedCount, residualOwnerMemberships } = await resumePreflight(io, config)
+  assert.equal(appliedCount, appliedThrough0041.length)
+  assert.equal(residualOwnerMemberships, true)
+})
+
+test('resumePreflight reports no residual activity-media owner memberships on a clean ledger applied exactly through 0041', async () => {
+  const io = makeFakeIO({ schemaPresent: true, rolePresent: true })
+  const appliedThrough0041 = MIGRATIONS_IN_ORDER.slice(
+    0,
+    MIGRATIONS_IN_ORDER.indexOf('0041_activity_media_evidence') + 1,
+  )
+  io.setLedger(
+    appliedThrough0041.map((migration_name) => ({
+      migration_name,
+      finished_at: 'now',
+      rolled_back_at: null,
+    })),
+  )
+  const { appliedCount, residualOwnerMemberships } = await resumePreflight(io, config)
+  assert.equal(appliedCount, appliedThrough0041.length)
+  assert.equal(residualOwnerMemberships, false)
 })
 
 test('resumePreflight refuses when the pathways schema is absent', async () => {
@@ -230,6 +275,81 @@ test('resumePreflight refuses when the pathways schema is absent', async () => {
 test('resumePreflight refuses when the prisma role is absent', async () => {
   const io = makeFakeIO({ schemaPresent: true, rolePresent: false })
   await assert.rejects(() => resumePreflight(io, config), /prisma role does not exist/)
+})
+
+test('runHostedBuild --resume on a 17-row (0000-0041) ledger with residual owner memberships resumes at the activity-media cleanup step', async () => {
+  const io = makeFakeIO({ schemaPresent: true, rolePresent: true })
+  const appliedThrough0041 = MIGRATIONS_IN_ORDER.slice(
+    0,
+    MIGRATIONS_IN_ORDER.indexOf('0041_activity_media_evidence') + 1,
+  )
+  io.setLedger(
+    appliedThrough0041.map((migration_name) => ({
+      migration_name,
+      finished_at: 'now',
+      rolled_back_at: null,
+    })),
+  )
+  const original = io.psqlQuery.bind(io)
+  io.psqlQuery = (url, sql) =>
+    sql.includes('pg_auth_members') && sql.includes('rules_store_owner')
+      ? ['1']
+      : original(url, sql)
+  // The fake IO does not simulate the ledger growing as deploys run, so postconditions at
+  // the end will fail; this test only cares that the right step ran first.
+  await assert.rejects(() => runHostedBuild({ io, config, resume: true }))
+  const ranActivityMediaCleanup = io.calls.some(
+    (c) => c.kind === 'psqlFile' && c.filePath.endsWith('hosted-activity-media-cleanup.sql'),
+  )
+  assert.ok(ranActivityMediaCleanup, 'resume must re-run the cleanup left pending by the crash')
+  // Cleanup must run before any further deploy; find their relative order.
+  const cleanupIndex = io.calls.findIndex(
+    (c) => c.kind === 'psqlFile' && c.filePath.endsWith('hosted-activity-media-cleanup.sql'),
+  )
+  const deployIndex = io.calls.findIndex((c) => c.kind === 'deploy')
+  assert.ok(deployIndex === -1 || cleanupIndex < deployIndex)
+})
+
+test('runHostedBuild --resume on a clean 17-row (0000-0041) ledger resumes directly at the 0042 deploy', async () => {
+  const io = makeFakeIO({ schemaPresent: true, rolePresent: true })
+  const appliedThrough0041 = MIGRATIONS_IN_ORDER.slice(
+    0,
+    MIGRATIONS_IN_ORDER.indexOf('0041_activity_media_evidence') + 1,
+  )
+  io.setLedger(
+    appliedThrough0041.map((migration_name) => ({
+      migration_name,
+      finished_at: 'now',
+      rolled_back_at: null,
+    })),
+  )
+  await assert.rejects(() => runHostedBuild({ io, config, resume: true }))
+  const ranActivityMediaCleanup = io.calls.some(
+    (c) => c.kind === 'psqlFile' && c.filePath.endsWith('hosted-activity-media-cleanup.sql'),
+  )
+  assert.ok(!ranActivityMediaCleanup, 'a clean ledger must not re-run the already-finished cleanup')
+  const ranDeploy = io.calls.some((c) => c.kind === 'deploy')
+  assert.ok(ranDeploy, 'resume must continue at the 0042 deploy')
+})
+
+test('runHostedBuild --resume on a clean 18-row (0000-0042) ledger resumes directly at the 0043 deploy', async () => {
+  const io = makeFakeIO({ schemaPresent: true, rolePresent: true })
+  const appliedThrough0042 = MIGRATIONS_IN_ORDER.slice(
+    0,
+    MIGRATIONS_IN_ORDER.indexOf('0042_proof_session_beneficiary_count') + 1,
+  )
+  io.setLedger(
+    appliedThrough0042.map((migration_name) => ({
+      migration_name,
+      finished_at: 'now',
+      rolled_back_at: null,
+    })),
+  )
+  await assert.rejects(() => runHostedBuild({ io, config, resume: true }))
+  const ranPreprovision = io.calls.some((c) => c.kind === 'psqlFile')
+  assert.ok(!ranPreprovision, 'no preprovision/cleanup step remains between 0042 and 0043')
+  const ranDeploy = io.calls.some((c) => c.kind === 'deploy')
+  assert.ok(ranDeploy, 'resume must continue at the 0043 deploy')
 })
 
 test('runHostedBuild runs the rules cleanup and rethrows when the 0031 deploy fails', async () => {
@@ -393,6 +513,23 @@ test('postconditions passes and prints role/permission/grant PASS lines when eve
   assert.ok(logs.some((l) => l.startsWith('PASS: no residual')))
   assert.ok(logs.some((l) => l.startsWith('PASS: role count matches')))
   assert.ok(logs.some((l) => l.startsWith('PASS: schema-level permission grants')))
+})
+
+test('postconditions fails when pathways_runtime.rolcanlogin is false', async () => {
+  const io = makeFakeIO()
+  io.setLedger(
+    MIGRATIONS_IN_ORDER.map((migration_name) => ({
+      migration_name,
+      finished_at: 'now',
+      rolled_back_at: null,
+    })),
+  )
+  const original = io.psqlQuery.bind(io)
+  io.psqlQuery = (url, sql) =>
+    sql.includes("rolname='pathways_runtime'") && sql.includes('rolcanlogin')
+      ? ['f']
+      : original(url, sql)
+  await assert.rejects(() => postconditions(io, config), /rolcanlogin is not true/)
 })
 
 test('deriveExpectedRoles pulls role names from the actual reviewed phase6 preprovision scripts', () => {

@@ -4,7 +4,7 @@
 
 export const BASELINE = '0000_pathways_baseline_through_0026'
 
-// The exact 42-migration ledger this script must produce, in order. This is
+// The exact 43-migration ledger this script must produce, in order. This is
 // the repository's own migration directory listing (apps/api/prisma/migrations),
 // asserted against the real directory in hosted-plan.test.mjs so this literal
 // list can never silently drift from the repo.
@@ -25,6 +25,8 @@ export const MIGRATIONS_IN_ORDER = Object.freeze([
   '0039_project_partner_backfill',
   '0040_default_registration_form',
   '0041_activity_media_evidence',
+  '0042_proof_session_beneficiary_count',
+  '0043_activity_overdue_explanation',
 ])
 
 function range(from, to) {
@@ -64,6 +66,13 @@ export function buildPlan() {
     },
     { type: 'deploy', migrations: range(41, 41) },
     { type: 'cleanup', name: 'activity-media', file: 'hosted-activity-media-cleanup.sql' },
+    // 0042 needs no preprovision: prisma already owns pathways.activity_updates and
+    // pathways.p08_activity_beneficiaries_reached from the 0000 baseline.
+    { type: 'deploy', migrations: range(42, 42) },
+    // 0043 needs no preprovision: prisma already owns pathways.project_activities,
+    // pathways.projects, pathways.organizations, pathways.system_users and
+    // pathways.p05_has_project_permission from the 0000 baseline.
+    { type: 'deploy', migrations: range(43, 43) },
     { type: 'alter-runtime-role' },
     { type: 'postconditions' },
   ]
@@ -104,7 +113,7 @@ export function assertResumablePrefix(ledgerRows) {
   }
   if (appliedCount !== names.length) {
     throw new Error(
-      'Ledger is not an exact finished prefix of the expected 0000-0041 migrations; --resume refuses it',
+      'Ledger is not an exact finished prefix of the expected 0000-0043 migrations; --resume refuses it',
     )
   }
   return appliedCount
@@ -116,9 +125,51 @@ export function assertResumablePrefix(ledgerRows) {
 // following cleanup step (0031, 0034, 0041), that cleanup step is re-run;
 // each cleanup script's own preconditions reject a target that was already
 // cleaned, surfacing a clear error rather than silently skipping it.
-export function planIndexForAppliedCount(appliedCount) {
+//
+// 0041_activity_media_evidence is, in the ledger alone, ambiguous: it is both (a) the
+// terminal state of an already-completed hosted build that predates 0042/0043 (cleanup already
+// ran, runtime-role already altered) and (b) the state of a build that crashed or was killed
+// between the 0041 deploy and its own cleanup step, which never ran (see the in-process catch
+// in runHostedBuild / hosted-build.mjs). Both states have the exact same appliedCount, so the
+// ledger cannot disambiguate them by itself: the caller must check live database state (whether
+// prisma still holds the temporary rules_store_owner/rules_enqueue_owner memberships granted by
+// hosted-activity-media-preprovision.sql) and pass the result in as `residualOwnerMemberships`.
+// When true, resume must re-run the cleanup step; when false, resume continues at the next
+// migration's own deploy step. 0042_proof_session_beneficiary_count has no matching
+// preprovision/cleanup pair (see buildPlan's comment on the 0042 deploy step), so a ledger
+// stopped exactly there is unambiguous and always resumes at the 0043 deploy; it is listed here
+// only so a future migration added with its own preprovision/cleanup keeps this table
+// consistent, not because it is currently ambiguous.
+const PRIOR_BUILD_COMPLETION_POINTS = [
+  '0041_activity_media_evidence',
+  '0042_proof_session_beneficiary_count',
+]
+
+export function planIndexForAppliedCount(appliedCount, { residualOwnerMemberships = false } = {}) {
   const plan = buildPlan()
   if (appliedCount === 0) return 0
+  for (const migration of PRIOR_BUILD_COMPLETION_POINTS) {
+    const migrationIndex = MIGRATIONS_IN_ORDER.indexOf(migration)
+    if (migrationIndex !== -1 && appliedCount === migrationIndex + 1) {
+      if (migration === '0041_activity_media_evidence' && residualOwnerMemberships) {
+        const cleanupStepIndex = plan.findIndex(
+          (step) => step.type === 'cleanup' && step.name === 'activity-media',
+        )
+        if (cleanupStepIndex === -1) {
+          throw new Error('Could not locate the activity-media cleanup step')
+        }
+        return cleanupStepIndex
+      }
+      const nextMigration = MIGRATIONS_IN_ORDER[migrationIndex + 1]
+      const nextStepIndex = plan.findIndex(
+        (step) => step.type === 'deploy' && step.migrations.includes(nextMigration),
+      )
+      if (nextStepIndex === -1) {
+        throw new Error(`Could not locate a deploy step for migration ${nextMigration}`)
+      }
+      return nextStepIndex
+    }
+  }
   const lastApplied = MIGRATIONS_IN_ORDER[appliedCount - 1]
   const stepIndex = plan.findIndex(
     (step) => step.type === 'deploy' && step.migrations.includes(lastApplied),

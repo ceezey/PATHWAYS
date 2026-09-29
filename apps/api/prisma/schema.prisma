@@ -87,6 +87,7 @@ model Organization {
   beneficiaryActivityParticipation_organization BeneficiaryActivityParticipation[] @relation("BeneficiaryActivityParticipation_organization")
   beneficiaryJourneyEvent_organization          BeneficiaryJourneyEvent[]          @relation("BeneficiaryJourneyEvent_organization")
   activityUpdate_organization                   ActivityUpdate[]                   @relation("ActivityUpdate_organization")
+  activityOverdueExplanation_organization       ActivityOverdueExplanation[]       @relation("ActivityOverdueExplanation_organization")
 
   @@index([status], map: "organizations_status_idx")
   @@map("organizations")
@@ -214,6 +215,7 @@ model SystemUser {
   beneficiaryJourneyEvent_recordedBy          BeneficiaryJourneyEvent[]          @relation("BeneficiaryJourneyEvent_recordedBy")
   activityUpdate_submittedBy                  ActivityUpdate[]                   @relation("ActivityUpdate_submittedBy")
   activityUpdate_reviewedBy                   ActivityUpdate[]                   @relation("ActivityUpdate_reviewedBy")
+  activityOverdueExplanation_recordedBy       ActivityOverdueExplanation[]       @relation("ActivityOverdueExplanation_recordedBy")
   userProjectAssignment_user                  UserProjectAssignment[]            @relation("UserProjectAssignment_user")
   projectPublication_submittedBy              ProjectPublication[]               @relation("ProjectPublication_submittedBy")
   projectPublication_approvedBy               ProjectPublication[]               @relation("ProjectPublication_approvedBy")
@@ -718,6 +720,7 @@ model Project {
   beneficiaryActivityParticipation_project BeneficiaryActivityParticipation[] @relation("BeneficiaryActivityParticipation_project")
   beneficiaryJourneyEvent_project          BeneficiaryJourneyEvent[]          @relation("BeneficiaryJourneyEvent_project")
   activityUpdate_project                   ActivityUpdate[]                   @relation("ActivityUpdate_project")
+  activityOverdueExplanation_project       ActivityOverdueExplanation[]       @relation("ActivityOverdueExplanation_project")
   projectPublication_project               ProjectPublication?                @relation("ProjectPublication_project")
 
   @@unique([organizationId, id], map: "projects_scope_key")
@@ -801,6 +804,7 @@ model ProjectActivity {
   beneficiaryActivityParticipation_activity BeneficiaryActivityParticipation[] @relation("BeneficiaryActivityParticipation_activity")
   beneficiaryJourneyEvent_activity          BeneficiaryJourneyEvent[]          @relation("BeneficiaryJourneyEvent_activity")
   activityUpdate_activity                   ActivityUpdate[]                   @relation("ActivityUpdate_activity")
+  activityOverdueExplanation_activity       ActivityOverdueExplanation[]       @relation("ActivityOverdueExplanation_activity")
 
   @@unique([organizationId, projectId, id], map: "project_activities_scope_key")
   @@unique([organizationId, projectId, code], map: "project_activities_project_code_key")
@@ -825,6 +829,7 @@ model ActivityUpdate {
   reviewedById         String?         @map("reviewed_by_id") @db.Uuid
   reviewedAt           DateTime?       @map("reviewed_at") @db.Timestamptz(3)
   reviewReason         String?         @map("review_reason")
+  beneficiariesReachedThisSession Int? @map("beneficiaries_reached_this_session")
   createdAt            DateTime        @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt            DateTime        @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
   organization         Organization    @relation("ActivityUpdate_organization", fields: [organizationId], references: [id], onDelete: Restrict, onUpdate: Restrict, map: "activity_updates_organization_fk")
@@ -841,6 +846,29 @@ model ActivityUpdate {
   @@index([organizationId, submittedById], map: "activity_updates_submitted_by_idx")
   @@index([organizationId, reviewedById], map: "activity_updates_reviewed_by_idx")
   @@map("activity_updates")
+  @@schema("pathways")
+}
+
+model ActivityOverdueExplanation {
+  id                String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId    String          @map("organization_id") @db.Uuid
+  projectId         String          @map("project_id") @db.Uuid
+  activityId        String          @map("activity_id") @db.Uuid
+  category          String
+  explanation       String
+  recordedById      String          @map("recorded_by_id") @db.Uuid
+  recordedAt        DateTime        @default(now()) @map("recorded_at") @db.Timestamptz(3)
+  clientMutationId  String          @map("client_mutation_id") @db.Uuid
+  organization      Organization    @relation("ActivityOverdueExplanation_organization", fields: [organizationId], references: [id], onDelete: Restrict, onUpdate: Restrict, map: "activity_overdue_explanations_organization_fk")
+  project           Project         @relation("ActivityOverdueExplanation_project", fields: [organizationId, projectId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict, map: "activity_overdue_explanations_project_fk")
+  activity          ProjectActivity @relation("ActivityOverdueExplanation_activity", fields: [organizationId, projectId, activityId], references: [organizationId, projectId, id], onDelete: Restrict, onUpdate: Restrict, map: "activity_overdue_explanations_activity_fk")
+  recordedBy        SystemUser      @relation("ActivityOverdueExplanation_recordedBy", fields: [organizationId, recordedById], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict, map: "activity_overdue_explanations_recorded_by_fk")
+
+  @@unique([organizationId, projectId, activityId, id], map: "activity_overdue_explanations_scope_key")
+  @@unique([organizationId, clientMutationId], map: "activity_overdue_explanations_client_key")
+  @@index([organizationId, projectId, activityId, recordedAt], map: "activity_overdue_explanations_activity_time_idx")
+  @@index([organizationId, recordedById], map: "activity_overdue_explanations_recorded_by_idx")
+  @@map("activity_overdue_explanations")
   @@schema("pathways")
 }
 

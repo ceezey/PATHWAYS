@@ -122,6 +122,70 @@ The [approved inspection contract](cr-pathways-private-activity-proof-inspection
 ### Activity proof direct upload (reduced scope)
 The [approved change record](cr-pathways-activity-progress-media.md) is implemented on its feature branch with a developer-authorized scope reduction, section 9. Only Submit proof changes: reserve (JSON, one activity update plus one to ten evidence rows, `storage_ready = false`) -> direct signed upload to `pathways-private` per file, outside the API request body -> per-file finalize (stored size, leading-byte signature and streamed SHA-256 against the declaration, `EVIDENCE_MAX_FILE_BYTES`) -> the existing `ACTIVITY_PROOF_FINALIZE` commit once every file is verified. Accepted types are PDF, JPEG, PNG, WebP, MP4, MOV and WebM. Activity-update evidence is typed `PHOTO`, `VIDEO` or `DOCUMENT` from the verified content type (migration `0041_activity_media_evidence`, widening `evidence_media_activity_update_check`); `PROGRESS_PROOF` and `COMPLETION_PROOF` stay valid on existing rows. The inspection bounds in the section above scale to ten proofs and `EVIDENCE_MAX_FILE_BYTES` for this path. Deferred, not built on this branch: files on Record progress, a combined Update-progress dialog, and upload progress bars. Record progress is unchanged.
 
+### Proof session beneficiary count
+The [approved change record](cr-pathways-proof-session-beneficiary-count.md) adds an optional whole-number
+`beneficiariesReachedThisSession` (0-100000) to the Submit proof reservation, stored on
+`pathways.activity_updates.beneficiaries_reached_this_session` (migration
+`0042_proof_session_beneficiary_count`, a nullable bounds-checked column; the table is owned by
+`prisma` since baseline, so no preprovision is needed). The value is part of the existing
+`clientUpdateId` idempotent retry comparison and is surfaced on the activity's `updateNotes` history.
+It never enters `finalizeBody`/`canonical_source_request` (the `ACTIVITY_PROOF_FINALIZE` field
+enumeration is unchanged).
+
+Final developer decision, 2026-09-29: an activity's computed `beneficiariesReached` is the SUM of
+`beneficiaries_reached_this_session` over that activity's `activity_updates` whose status is
+APPROVED (NULL as 0). PENDING, VERIFIED and REJECTED updates never count; an approved proof later
+rejected lowers the total. This replaces the prior participation-record computation entirely:
+`pathways.p08_activity_beneficiaries_reached` (migration 0042, `CREATE OR REPLACE FUNCTION`, same
+signature/return columns/owner/ACL/`SECURITY DEFINER`/search path) now sums approved session counts
+per requested activity instead of counting distinct participating beneficiaries. Consumers: the
+activity detail/list `beneficiariesReached` field switches to this new source. The project overview
+"beneficiaries reached" tile is unaffected: it is sourced from `pathways.p06_saddd` (a project-level,
+date-gated, small-cell-suppressed SADDD release of distinct individuals), never from
+`p08_activity_beneficiaries_reached`. The rules engine's typed metric catalog (`ruleMetrics` in
+`rule-contract.ts`) has no beneficiaries-reached metric type and does not evaluate
+`p08_activity_beneficiaries_reached`, so there is no rules-engine divergence.
+
+**SADDD caveat:** a typed per-session count has no sex/age breakdown, so SADDD sex/age breakdowns
+stay sourced from participation records; this change does not and cannot supply that breakdown.
+
+### Activity overdue explanation
+The [approved change record](cr-pathways-activity-overdue-explanation.md) adds
+`POST /projects/:projectId/activities/:activityId/overdue-explanations`, guarded by
+`monitoring.review` and scoped to the actor's active *project* assignment: the same
+`projectScope(actor)` rule `requireActivity` already applies for every project-scoped M&E read
+(`SYSTEM_ADMINISTRATOR` org-wide, `PROGRAM_MANAGER` also via a managed program, every other role
+holding `monitoring.review` needs an active project assignment), not a personal per-activity
+assignment. (A first pass reused `activities.progress.update`'s personal-activity
+`requireActiveAssignment` check; corrected the same day because M&E officers are normally assigned to
+the project, not to individual activities, which would have locked most of them out. Migration 0043's
+RLS INSERT policy already encoded the correct project-level rule via
+`p05_has_project_permission('monitoring.review', project_id)`, so only the application-layer service
+method and `canExplainOverdue` needed to change.) `monitoring.review` is held by
+`SYSTEM_ADMINISTRATOR`, `MONITORING_AND_EVALUATION_OFFICER`, `PROJECT_MANAGER`, `PROGRAM_MANAGER` and
+`GRANT_MANAGER`; this is its first enforced use (previously declared in the RBAC contract but not yet
+guarding any endpoint). The body is `category` (`WEATHER | SECURITY | FUNDING | COMMUNITY | LOGISTICS
+| OTHER`), `explanation` (10-2000 trimmed characters) and `clientMutationId`. The endpoint returns
+`409` when the activity is not currently overdue, using the existing `activityPresentationStatus`
+predicate already shared by the activity list and detail (`plannedEndDate` earlier than the business
+date and status not `COMPLETED`/`CANCELLED`), and is idempotent on `clientMutationId` (a replay with
+identical input returns the existing row; a changed replay is a `409` conflict), matching the
+`recordProgress`/`reserveProof` convention. Migration `0043_activity_overdue_explanation` creates the
+append-only `pathways.activity_overdue_explanations` table, scoped like the sibling `activity_updates`
+table with composite FKs on `(organization_id, project_id, activity_id)` and `(organization_id,
+project_id)`; RLS is enabled and forced, with `SELECT`/`INSERT` policies (no `UPDATE`/`DELETE` grant)
+built only from `current_setting('app.organization_id'/'app.user_id')` and the prisma-owned
+`pathways.p05_has_project_permission`, never the postgres-owned `runtime_context_organization`/
+`runtime_context_user` wrappers the baseline `activity_updates` policies use. Activity detail gains
+`overdueExplanations` (newest first, with `actorName` and `recordedAt`) and
+`overdueExplanationNeeded` (true when overdue and no explanation has been recorded on or after the
+activity's `plannedEndDate`); the activity list gains a lean, `recordedAt`-only projection of the same
+flag; capabilities gain `canExplainOverdue` (holds `monitoring.review`; no separate assignment check,
+since every row reaching `activityCapabilities` was already read through `projectScope(actor)`). The
+web UI (activity detail panel and activities list) shows an "Overdue: explanation needed" badge, an
+"Explain delay" dialog (category select, bounded explanation textarea, retried `clientMutationId`),
+and an "Overdue explanations" history section.
+
 ## 8. Infrastructure
 
 Current feature work does not implement:

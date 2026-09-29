@@ -100,6 +100,11 @@ import { ImportProcessingPanel, type ImportProcessingState } from './import-proc
 type ExportFormat = FormDefinitionExportFormat
 
 type CollectionMode = 'scratch' | 'import' | 'extend'
+
+/** The read-only Data preview and Metadata mapping tables render at most this many rows. */
+const MAX_PREVIEW_ROWS = 5
+/** The editable correction table paginates instead of capping, so every row stays correctable. */
+const CORRECTION_PAGE_SIZE = 25
 type CollectionView = 'home' | 'forms' | 'builder' | 'import'
 type FieldType = BuilderFieldType
 type ImportStatus = 'idle' | 'reading' | 'ready' | 'error'
@@ -304,7 +309,7 @@ export const CollectionWorkspace = (props: CollectionWorkspaceProps) => {
       ? JSON.stringify([
           profile.userId,
           profile.organizationId,
-          profile.roles,
+          [...profile.roles].sort(),
           [...profile.permissions].sort(),
           [...profile.assignedProjectIds].sort(),
           props.initialProjectId,
@@ -365,6 +370,7 @@ const OwnedCollectionWorkspace = ({
   const [indicatorIds, setIndicatorIds] = useState<string[]>([])
   const [exportFormat, setExportFormat] = useState<ExportFormat>('csv')
   const [duplicateDecision, setDuplicateDecision] = useState<'pending' | 'skip' | 'keep'>('pending')
+  const [correctionPage, setCorrectionPage] = useState(0)
   const [view, setView] = useState<CollectionView>(initialView)
   const [formTitle, setFormTitle] = useState('Journey 1 - Intake & Assessment Form')
   const [formType, setFormType] = useState('OTHER')
@@ -520,6 +526,17 @@ const OwnedCollectionWorkspace = ({
     }
     return { valid, finish }
   }
+  // Edits the isolated correction table in place; rows live in parsedImport so the
+  // correction stays available to whatever eventually reprocesses the batch.
+  const updateCorrectionCell = (rowIndex: number, column: string, value: string) => {
+    setParsedImport((current) => {
+      if (!current) return current
+      const rows = current.rows.slice()
+      rows[rowIndex] = { ...rows[rowIndex], [column]: value }
+      return { ...current, rows }
+    })
+  }
+
   const changeProject = (next: string) => {
     if (mutation.current || next === projectId) return
     intent.current++
@@ -527,6 +544,7 @@ const OwnedCollectionWorkspace = ({
     lastSelectedFileRef.current = null
     uploadIdentity.current = null
     setParsedImport(null)
+    setCorrectionPage(0)
     setImportStatus('idle')
     setUploadProgress(0)
     setImportMessage('No source file selected yet.')
@@ -675,6 +693,7 @@ const OwnedCollectionWorkspace = ({
     lastSelectedFileRef.current = null
     uploadIdentity.current = null
     setParsedImport(null)
+    setCorrectionPage(0)
     setMappingRows([])
     const form = forms.find((f) => f.id === summary.id)
     if (!form) return
@@ -884,6 +903,7 @@ const OwnedCollectionWorkspace = ({
 
       if (!validParse()) return
       setParsedImport(parsed)
+      setCorrectionPage(0)
       const selectedForm = forms.find(
         (form) =>
           form.id === editingFormId && form.projectId === projectId && form.status === 'PUBLISHED',
@@ -1396,20 +1416,22 @@ const OwnedCollectionWorkspace = ({
         />
       ) : null}
 
-      <label className="block text-sm">
-        Download format{' '}
-        <select
-          className="ml-2 rounded border p-2"
-          value={exportFormat}
-          onChange={(e) => setExportFormat(e.target.value as ExportFormat)}
-        >
-          {formDefinitionExportFormats.map((f) => (
-            <option key={f} value={f}>
-              {f.toUpperCase()}
-            </option>
-          ))}
-        </select>
-      </label>
+      {!(view === 'import' && mode === 'extend') ? (
+        <label className="block text-sm">
+          Download format{' '}
+          <select
+            className="ml-2 rounded border p-2"
+            value={exportFormat}
+            onChange={(e) => setExportFormat(e.target.value as ExportFormat)}
+          >
+            {formDefinitionExportFormats.map((f) => (
+              <option key={f} value={f}>
+                {f.toUpperCase()}
+              </option>
+            ))}
+          </select>
+        </label>
+      ) : null}
       {view === 'builder' &&
         canManageForms &&
         forms.find((form) => form.id === editingFormId)?.status === 'PUBLISHED' && (
@@ -1619,35 +1641,90 @@ const OwnedCollectionWorkspace = ({
               </option>
             </select>
           </label>
-          {parsedImport?.rows.length ? (
-            <details>
-              <summary>Correct isolated data before reprocessing</summary>
-              <div className="overflow-x-auto">
-                <table>
-                  <tbody>
-                    {parsedImport.rows.map((row, index) => (
-                      <tr
-                        key={parsedImport.headers
-                          .map((column) => `${column}:${String(row[column] ?? '')}`)
-                          .join('|')}
-                      >
-                        {parsedImport.headers.map((column) => (
-                          <td key={column}>
-                            <Input
-                              aria-label={`Row ${index + 1}: ${column}`}
-                              value={String(row[column] ?? '')}
-                              readOnly
-                              aria-readonly="true"
-                            />
-                          </td>
-                        ))}
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </details>
-          ) : null}
+          {parsedImport?.rows.length
+            ? (() => {
+                const totalRows = parsedImport.rows.length
+                const totalPages = Math.max(1, Math.ceil(totalRows / CORRECTION_PAGE_SIZE))
+                const page = Math.min(correctionPage, totalPages - 1)
+                const pageStart = page * CORRECTION_PAGE_SIZE
+                const pageEnd = Math.min(pageStart + CORRECTION_PAGE_SIZE, totalRows)
+                const pageRows = parsedImport.rows.slice(pageStart, pageEnd)
+                return (
+                  <details className="min-w-0">
+                    <summary>Correct isolated data before reprocessing</summary>
+                    <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
+                      {totalPages > 1 ? (
+                        <output aria-live="polite" className="text-xs text-muted-foreground">
+                          Rows {pageStart + 1}-{pageEnd} of {totalRows}
+                        </output>
+                      ) : (
+                        <p className="text-xs text-muted-foreground">
+                          Rows {pageStart + 1}-{pageEnd} of {totalRows}
+                        </p>
+                      )}
+                      {totalPages > 1 ? (
+                        <div className="flex gap-2">
+                          <Button
+                            className="min-h-11"
+                            disabled={page === 0}
+                            onClick={() => setCorrectionPage((current) => Math.max(0, current - 1))}
+                            size="sm"
+                            type="button"
+                            variant="outline"
+                          >
+                            Previous
+                          </Button>
+                          <Button
+                            className="min-h-11"
+                            disabled={pageEnd >= totalRows}
+                            onClick={() => setCorrectionPage((current) => current + 1)}
+                            size="sm"
+                            type="button"
+                            variant="outline"
+                          >
+                            Next
+                          </Button>
+                        </div>
+                      ) : null}
+                    </div>
+                    <section
+                      aria-label="Isolated data rows awaiting correction"
+                      className="mt-2 max-w-full overflow-x-auto"
+                      // biome-ignore lint/a11y/noNoninteractiveTabindex: scroll container needs keyboard access to reach content clipped by overflow-x-auto
+                      tabIndex={0}
+                    >
+                      <table className="min-w-max">
+                        <tbody>
+                          {pageRows.map((row, relativeIndex) => {
+                            const rowIndex = pageStart + relativeIndex
+                            return (
+                              <tr key={rowIndex}>
+                                {parsedImport.headers.map((column) => {
+                                  const cellValue = String(row[column] ?? '')
+                                  return (
+                                    <td key={column}>
+                                      <Input
+                                        aria-label={`Row ${rowIndex + 1}: ${column}`}
+                                        className="max-w-[220px] truncate"
+                                        title={cellValue}
+                                        value={cellValue}
+                                        onChange={(event) =>
+                                          updateCorrectionCell(rowIndex, column, event.target.value)
+                                        }
+                                      />
+                                    </td>
+                                  )
+                                })}
+                              </tr>
+                            )
+                          })}
+                        </tbody>
+                      </table>
+                    </section>
+                  </details>
+                )
+              })()
+            : null}
           <ImportView
             fields={fields}
             formTitle={formTitle}
@@ -1940,8 +2017,8 @@ const BuilderView = ({
   setSelectedFieldId: (fieldId: string) => void
   updateField: (fieldId: string, patch: Partial<FormField>) => void
 }) => (
-  <div className="grid gap-4 xl:grid-cols-[1fr_300px]">
-    <div className="space-y-4">
+  <div className="grid min-w-0 gap-4 xl:grid-cols-[minmax(0,1fr)_300px]">
+    <div className="min-w-0 space-y-4">
       <FormInfoPanel
         formTitle={formTitle}
         formType={formType}
@@ -2086,7 +2163,7 @@ const BuilderView = ({
       </div>
     </div>
 
-    <aside className="space-y-4">
+    <aside className="min-w-0 space-y-4">
       <MetadataMapPanel
         fields={fields}
         mappedCount={mappedCount}
@@ -2593,8 +2670,8 @@ const ImportView = ({
   retrySelectedFile: () => void
   uploadProgress: number
 }) => (
-  <div className="grid gap-4 xl:grid-cols-[1fr_300px]">
-    <div className="space-y-4">
+  <div className="grid min-w-0 gap-4 xl:grid-cols-[minmax(0,1fr)_300px]">
+    <div className="min-w-0 space-y-4">
       <FormInfoPanel
         formTitle={formTitle}
         formType={formType}
@@ -2721,7 +2798,7 @@ const ImportView = ({
       {parsedImport ? <DataPreview parsedImport={parsedImport} /> : null}
     </div>
 
-    <aside className="space-y-4">
+    <aside className="min-w-0 space-y-4">
       <ImportValidationPanel
         canProceed={importCanProceed}
         mappingReadiness={mappingReadiness}
@@ -2779,7 +2856,7 @@ const MappingTable = ({
       .map((row) => ({ code: row.targetField, label: row.sourceColumn })),
   ].filter((option, index, all) => all.findIndex((other) => other.code === option.code) === index)
   return (
-    <div className="rounded-lg border bg-card p-4">
+    <div className="min-w-0 rounded-lg border bg-card p-4">
       <div className="flex flex-col gap-3 border-b pb-3 md:flex-row md:items-center md:justify-between">
         <div>
           <h2 className="text-lg font-semibold text-foreground">Metadata mapping</h2>
@@ -2820,7 +2897,12 @@ const MappingTable = ({
               ? 'The current file must finish successfully before proceeding.'
               : mappingReadiness.message}
       </p>
-      <div className="mt-4 overflow-x-auto">
+      <section
+        aria-label="Metadata mapping rows"
+        className="mt-4 max-w-full overflow-x-auto"
+        // biome-ignore lint/a11y/noNoninteractiveTabindex: scroll container needs keyboard access to reach content clipped by overflow-x-auto
+        tabIndex={0}
+      >
         <table className="w-full min-w-[720px] text-left text-sm">
           <thead className="text-xs uppercase text-muted-foreground">
             <tr>
@@ -2832,8 +2914,10 @@ const MappingTable = ({
           <tbody>
             {mappingRows.map((row) => (
               <tr key={row.id} className="border-t">
-                <td className="px-3 py-3 font-medium text-foreground">
-                  <span className="block">{row.sourceColumn}</span>
+                <td className="max-w-[220px] px-3 py-3 font-medium text-foreground">
+                  <span className="block truncate" title={row.sourceColumn}>
+                    {row.sourceColumn}
+                  </span>
                   {row.autoMatched && row.status === 'mapped' ? (
                     <StatusBadge tone="success">Auto-matched</StatusBadge>
                   ) : null}
@@ -2904,41 +2988,54 @@ const MappingTable = ({
             ))}
           </tbody>
         </table>
-      </div>
+      </section>
     </div>
   )
 }
 
 const DataPreview = ({ parsedImport }: { parsedImport: ParsedImport }) => (
-  <div className="rounded-lg border bg-card p-4">
+  <div className="min-w-0 rounded-lg border bg-card p-4">
     <h2 className="text-lg font-semibold text-foreground">Data preview</h2>
     <p className="mt-1 text-sm text-muted-foreground">
-      The first rows are shown for mapping and validation review.
+      Showing the first {Math.min(parsedImport.rows.length, MAX_PREVIEW_ROWS)} of{' '}
+      {parsedImport.rows.length} rows for mapping and validation review.
     </p>
-    <div className="mt-4 overflow-x-auto">
+    <section
+      aria-label="Data preview rows"
+      className="mt-4 max-w-full overflow-x-auto"
+      // biome-ignore lint/a11y/noNoninteractiveTabindex: scroll container needs keyboard access to reach content clipped by overflow-x-auto
+      tabIndex={0}
+    >
       <table className="w-full min-w-[720px] text-left text-sm">
         <thead className="text-xs uppercase text-muted-foreground">
           <tr>
             {parsedImport.headers.map((header) => (
-              <th key={header} className="px-3 py-2">
+              <th key={header} className="max-w-[220px] truncate px-3 py-2" title={header}>
                 {header}
               </th>
             ))}
           </tr>
         </thead>
         <tbody>
-          {parsedImport.rows.slice(0, 5).map((row, index) => (
+          {parsedImport.rows.slice(0, MAX_PREVIEW_ROWS).map((row, index) => (
             <tr key={`${parsedImport.fileName}-${index}`} className="border-t">
-              {parsedImport.headers.map((header) => (
-                <td key={header} className="px-3 py-3 text-muted-foreground">
-                  {formatValue(row[header])}
-                </td>
-              ))}
+              {parsedImport.headers.map((header) => {
+                const cellText = formatValue(row[header])
+                return (
+                  <td
+                    key={header}
+                    className="max-w-[220px] truncate px-3 py-3 text-muted-foreground"
+                    title={cellText}
+                  >
+                    {cellText}
+                  </td>
+                )
+              })}
             </tr>
           ))}
         </tbody>
       </table>
-    </div>
+    </section>
   </div>
 )
 
