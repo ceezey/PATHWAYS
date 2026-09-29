@@ -55,6 +55,8 @@ const activity = {
   cancellationReason: null,
   submittedProof: [],
   updateNotes: [],
+  overdueExplanations: [],
+  overdueExplanationNeeded: false,
   updatedAt: '2026-09-21T00:00:00.000Z',
 }
 

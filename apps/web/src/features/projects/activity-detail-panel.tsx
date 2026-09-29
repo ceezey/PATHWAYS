@@ -24,6 +24,7 @@ import type { Activity, ActivityProof, Indicator, JourneyStageConfig } from '@/t
 
 import { ActivityExpenseDialog, type ExpenseBudgetReference } from './activity-expense-dialog'
 import { ActivityExpenseReviewDialog, type PendingExpense } from './activity-expense-review-dialog'
+import { ActivityExplainDelayDialog, categoryLabels } from './activity-explain-delay-dialog'
 import { ActivityProgressDialog } from './activity-progress-dialog'
 import { ActivityProofFiles } from './activity-proof-files'
 import { ActivityProofReviewDialog } from './activity-proof-review-dialog'
@@ -94,6 +95,7 @@ export const ActivityDetailContent = ({
   requestedProofId?: string
 }) => {
   const [progressOpen, setProgressOpen] = useState(false)
+  const [explainDelayOpen, setExplainDelayOpen] = useState(false)
   const [expenseOpen, setExpenseOpen] = useState(false)
   const [expenseReviewTarget, setExpenseReviewTarget] = useState<PendingExpense | null>(null)
   const [reviewTarget, setReviewTarget] = useState<{
@@ -105,6 +107,8 @@ export const ActivityDetailContent = ({
   const showEdit = canEdit && activity.capabilities?.canEdit === true
   const showSubmitProof = canSubmitProof && activity.capabilities?.canSubmitProof === true
   const showRecordProgress = canRecordProgress && activity.capabilities?.canRecordProgress === true
+  const showExplainDelay =
+    activity.capabilities?.canExplainOverdue === true && activity.status === 'Overdue'
   const latestProof = activity.submittedProof.at(-1)
   const correctionRequired = latestProof?.status === 'Flagged'
 
@@ -118,6 +122,9 @@ export const ActivityDetailContent = ({
     <div className="space-y-5 pb-1">
       <div className="flex flex-wrap gap-2">
         <StatusBadge tone={activityStatusTone(activity.status)}>{activity.status}</StatusBadge>
+        {activity.overdueExplanationNeeded ? (
+          <StatusBadge tone="warning">Overdue: explanation needed</StatusBadge>
+        ) : null}
         {latestProof ? (
           <StatusBadge tone={proofTone(latestProof.status)}>
             Proof v{proofVersion(activity, latestProof)} · {latestProof.status}
@@ -379,6 +386,37 @@ export const ActivityDetailContent = ({
         </section>
       ) : null}
 
+      {activity.overdueExplanations.length > 0 || activity.status === 'Overdue' ? (
+        <section aria-labelledby={`overdue-explanations-${activity.id}`}>
+          <h3
+            className="text-sm font-semibold text-foreground"
+            id={`overdue-explanations-${activity.id}`}
+          >
+            Overdue explanations
+          </h3>
+          {activity.overdueExplanations.length > 0 ? (
+            <ul className="mt-3 space-y-2 text-sm text-muted-foreground">
+              {activity.overdueExplanations.map((entry) => (
+                <li
+                  className="rounded-sm border border-border bg-surface-subtle px-3 py-2"
+                  key={entry.id}
+                >
+                  <span className="font-medium text-foreground">
+                    {categoryLabels[entry.category]}
+                  </span>{' '}
+                  · {formatDate(entry.recordedAt)} · {entry.actorName}
+                  <p className="mt-1 leading-6">{entry.explanation}</p>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="mt-3 rounded-sm border border-dashed border-border p-4 text-sm text-muted-foreground">
+              None yet.
+            </p>
+          )}
+        </section>
+      ) : null}
+
       {correctionRequired && showSubmitProof ? (
         <p className="rounded-sm border border-danger/25 bg-danger-subtle p-3 text-sm text-danger">
           A correction is required. Review the return reason above, then submit a new proof version.
@@ -411,6 +449,17 @@ export const ActivityDetailContent = ({
           >
             <TrendingUp className="h-4 w-4" aria-hidden="true" />
             Record progress
+          </Button>
+        ) : null}
+        {showExplainDelay ? (
+          <Button
+            className="gap-2"
+            onClick={() => setExplainDelayOpen(true)}
+            type="button"
+            variant="outline"
+          >
+            <BellRing className="h-4 w-4" aria-hidden="true" />
+            Explain delay
           </Button>
         ) : null}
         {canLogExpense ? (
@@ -446,6 +495,14 @@ export const ActivityDetailContent = ({
           onOpenChange={setProgressOpen}
           onRecorded={onActivityChanged}
           open={progressOpen}
+        />
+      ) : null}
+      {explainDelayOpen ? (
+        <ActivityExplainDelayDialog
+          activity={activity}
+          onOpenChange={setExplainDelayOpen}
+          onRecorded={onActivityChanged}
+          open={explainDelayOpen}
         />
       ) : null}
       <ActivityExpenseDialog

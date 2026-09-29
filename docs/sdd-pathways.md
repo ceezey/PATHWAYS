@@ -152,8 +152,16 @@ stay sourced from participation records; this change does not and cannot supply 
 ### Activity overdue explanation
 The [approved change record](cr-pathways-activity-overdue-explanation.md) adds
 `POST /projects/:projectId/activities/:activityId/overdue-explanations`, guarded by
-`monitoring.review` plus an active personal `ProjectActivityAssignment` on the activity (mirroring
-`activities.progress.update`'s `requireActiveAssignment` check). `monitoring.review` is held by
+`monitoring.review` and scoped to the actor's active *project* assignment: the same
+`projectScope(actor)` rule `requireActivity` already applies for every project-scoped M&E read
+(`SYSTEM_ADMINISTRATOR` org-wide, `PROGRAM_MANAGER` also via a managed program, every other role
+holding `monitoring.review` needs an active project assignment), not a personal per-activity
+assignment. (A first pass reused `activities.progress.update`'s personal-activity
+`requireActiveAssignment` check; corrected the same day because M&E officers are normally assigned to
+the project, not to individual activities, which would have locked most of them out. Migration 0043's
+RLS INSERT policy already encoded the correct project-level rule via
+`p05_has_project_permission('monitoring.review', project_id)`, so only the application-layer service
+method and `canExplainOverdue` needed to change.) `monitoring.review` is held by
 `SYSTEM_ADMINISTRATOR`, `MONITORING_AND_EVALUATION_OFFICER`, `PROJECT_MANAGER`, `PROGRAM_MANAGER` and
 `GRANT_MANAGER`; this is its first enforced use (previously declared in the RBAC contract but not yet
 guarding any endpoint). The body is `category` (`WEATHER | SECURITY | FUNDING | COMMUNITY | LOGISTICS
@@ -171,8 +179,12 @@ built only from `current_setting('app.organization_id'/'app.user_id')` and the p
 `runtime_context_user` wrappers the baseline `activity_updates` policies use. Activity detail gains
 `overdueExplanations` (newest first, with `actorName` and `recordedAt`) and
 `overdueExplanationNeeded` (true when overdue and no explanation has been recorded on or after the
-activity's `plannedEndDate`); capabilities gain `canExplainOverdue`. The web UI is deferred to a
-separate phase.
+activity's `plannedEndDate`); the activity list gains a lean, `recordedAt`-only projection of the same
+flag; capabilities gain `canExplainOverdue` (holds `monitoring.review`; no separate assignment check,
+since every row reaching `activityCapabilities` was already read through `projectScope(actor)`). The
+web UI (activity detail panel and activities list) shows an "Overdue: explanation needed" badge, an
+"Explain delay" dialog (category select, bounded explanation textarea, retried `clientMutationId`),
+and an "Overdue explanations" history section.
 
 ## 8. Infrastructure
 

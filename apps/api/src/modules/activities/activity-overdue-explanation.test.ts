@@ -235,12 +235,7 @@ describe('Activity overdue explanation (monitoring.review)', () => {
     ]) {
       tx.project.findFirst.mockResolvedValue({ id: projectId, startDate: null, endDate: null })
       const roleActor = { ...actor, roles: [...roles], assignedProjectIds: [] }
-      const result = await service.recordOverdueExplanation(
-        roleActor,
-        projectId,
-        activityId,
-        input,
-      )
+      const result = await service.recordOverdueExplanation(roleActor, projectId, activityId, input)
       expect(result.id).toBe(activityId)
     }
   })

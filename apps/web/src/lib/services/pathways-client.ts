@@ -21,6 +21,7 @@ import { getBrowserSupabaseClient } from '@/lib/supabase/client'
 import type {
   Activity,
   ActivityCapabilities,
+  ActivityOverdueExplanation,
   ActivityProofFinalizeResult,
   ActivityProofReservation,
   ActivityProofReservedFile,
@@ -64,6 +65,7 @@ import type {
   RecommendationOutcomeRecord,
   RecommendationRecord,
   RecordActivityProgressInput,
+  RecordOverdueExplanationInput,
   RegisterBeneficiaryInput,
   ReportRecord,
   ReserveActivityProofUploadInput,
@@ -303,6 +305,7 @@ export interface PathwaysClient {
     context?: SourceMutationContext,
   ): Promise<SourceMutationResult<Activity>>
   recordActivityProgress(input: RecordActivityProgressInput): Promise<Activity>
+  recordOverdueExplanation(input: RecordOverdueExplanationInput): Promise<Activity>
   reviewActivityUpdate(
     projectId: string,
     activityId: string,
@@ -786,6 +789,22 @@ class BackendReadyPathwaysClient implements PathwaysClient {
             clientUpdateId: input.clientUpdateId,
             progressPercent: input.progress,
             note: input.note,
+          }),
+        },
+      ),
+    )
+  }
+
+  async recordOverdueExplanation(input: RecordOverdueExplanationInput): Promise<Activity> {
+    return parseActivity(
+      await requestFoundation(
+        `/projects/${encodeURIComponent(input.projectId)}/activities/${encodeURIComponent(input.activityId)}/overdue-explanations`,
+        {
+          method: 'POST',
+          body: JSON.stringify({
+            clientMutationId: input.clientMutationId,
+            category: input.category,
+            explanation: input.explanation,
           }),
         },
       ),
@@ -2300,11 +2319,12 @@ const activityResponseKeys = [
 ] as const satisfies readonly (keyof Activity)[]
 
 // Activity capability flags (feature/project-rbac-ui-and-partners). Advisory only: a response
-// without them shows no Edit, Record progress or Submit proof control.
+// without them shows no Edit, Record progress, Submit proof or Explain delay control.
 const noActivityCapabilities: ActivityCapabilities = {
   canEdit: false,
   canRecordProgress: false,
   canSubmitProof: false,
+  canExplainOverdue: false,
 }
 
 function parseActivityCapabilities(value: unknown): ActivityCapabilities {
@@ -2313,17 +2333,59 @@ function parseActivityCapabilities(value: unknown): ActivityCapabilities {
   if (
     !row ||
     typeof row !== 'object' ||
-    Object.keys(row).length !== 3 ||
+    Object.keys(row).length !== 4 ||
     typeof row.canEdit !== 'boolean' ||
     typeof row.canRecordProgress !== 'boolean' ||
-    typeof row.canSubmitProof !== 'boolean'
+    typeof row.canSubmitProof !== 'boolean' ||
+    typeof row.canExplainOverdue !== 'boolean'
   )
     throw new PathwaysClientError('Invalid activity response.', 'network')
   return {
     canEdit: row.canEdit,
     canRecordProgress: row.canRecordProgress,
     canSubmitProof: row.canSubmitProof,
+    canExplainOverdue: row.canExplainOverdue,
   }
+}
+
+const overdueExplanationCategories = new Set<string>([
+  'WEATHER',
+  'SECURITY',
+  'FUNDING',
+  'COMMUNITY',
+  'LOGISTICS',
+  'OTHER',
+] satisfies ActivityOverdueExplanation['category'][])
+
+function parseOverdueExplanation(value: unknown): ActivityOverdueExplanation {
+  const row = value as Partial<Record<keyof ActivityOverdueExplanation, unknown>> | null
+  if (
+    !row ||
+    typeof row !== 'object' ||
+    Object.keys(row).length !== 5 ||
+    typeof row.id !== 'string' ||
+    typeof row.category !== 'string' ||
+    !overdueExplanationCategories.has(row.category) ||
+    typeof row.explanation !== 'string' ||
+    row.explanation.length < 10 ||
+    row.explanation.length > 2000 ||
+    typeof row.actorName !== 'string' ||
+    typeof row.recordedAt !== 'string'
+  )
+    throw new PathwaysClientError('Invalid activity response.', 'network')
+  return {
+    id: row.id,
+    category: row.category as ActivityOverdueExplanation['category'],
+    explanation: row.explanation,
+    actorName: row.actorName,
+    recordedAt: row.recordedAt,
+  }
+}
+
+function parseOverdueExplanations(value: unknown): ActivityOverdueExplanation[] {
+  if (!Array.isArray(value) || value.length > 100)
+    throw new PathwaysClientError('Invalid activity response.', 'network')
+  return value.map(parseOverdueExplanation)
 }
 
 function parseAssignableProjectOfficers(value: unknown): AssignableProjectOfficer[] {
@@ -2500,7 +2562,8 @@ function parseActivity(value: unknown): Activity {
     !Array.isArray(row.indicatorIds) ||
     !Array.isArray(row.journeyStageIds) ||
     !Array.isArray(row.submittedProof) ||
-    !Array.isArray(row.updateNotes)
+    !Array.isArray(row.updateNotes) ||
+    typeof row.overdueExplanationNeeded !== 'boolean'
   ) {
     throw new PathwaysClientError('Invalid activity response.', 'network')
   }
@@ -2535,6 +2598,8 @@ function parseActivity(value: unknown): Activity {
     budgetLogged,
     budgetLoggedEntries,
     capabilities: parseActivityCapabilities(row.capabilities),
+    overdueExplanations: parseOverdueExplanations(row.overdueExplanations),
+    overdueExplanationNeeded: row.overdueExplanationNeeded,
   }
 }
 
@@ -2560,6 +2625,7 @@ const activitySummaryKeys = [
   'progress',
   'updatedAt',
   'capabilities',
+  'overdueExplanationNeeded',
 ] as const satisfies readonly (keyof ActivitySummary)[]
 
 const presentedActivityStatuses = new Set<string>([
@@ -2600,7 +2666,8 @@ function parseActivitySummary(value: unknown): ActivitySummary {
     !Array.isArray(row.assignedUserIds) ||
     !Array.isArray(row.assignedTo) ||
     !Array.isArray(row.indicatorIds) ||
-    !Array.isArray(row.journeyStageIds)
+    !Array.isArray(row.journeyStageIds) ||
+    typeof row.overdueExplanationNeeded !== 'boolean'
   ) {
     throw new PathwaysClientError('Invalid activity response.', 'network')
   }

@@ -53,16 +53,31 @@ KPI / Budget / Timeline") is held by `SYSTEM_ADMINISTRATOR`, `MONITORING_AND_EVA
 `monitoring.review` is declared in the contract but not yet enforced by any controller; this CR is
 its first concrete use. Its disposition note ("Scoped action grant; detail and supporting operations
 remain separately authorized") means the endpoint below must still enforce its own project/activity
-scope, exactly as `activities.progress.update` does via `requireActiveAssignment` in
-`activities.service.ts`.
+scope.
+
+**Correction (2026-09-29, same day, before release):** the first implementation reused
+`requireActiveAssignment`, the *personal activity* assignment check `activities.progress.update` and
+`activities.proof.submit` use (`ProjectActivityAssignment`, i.e. a specific officer assigned to this
+one activity). M&E officers are normally assigned to the *project* as a whole
+(`ProjectAssignment`/`assignedProjectIds`), not to individual activities, so that check would have
+locked out most M&E officers. The endpoint and `canExplainOverdue` now rely on the project-scope rule
+`requireActivity` already applies (`projectScope(actor)` inside `requireProject`), which is the exact
+rule migration `0043`'s RLS INSERT policy already encoded via
+`pathways.p05_has_project_permission('monitoring.review', project_id)`
+(`apps/api/prisma/migrations/0000_pathways_baseline_through_0026/migration.sql`): `SYSTEM_ADMINISTRATOR`
+is org-wide; `PROGRAM_MANAGER` also qualifies via a managed program; every other role holding
+`monitoring.review` (`GRANT_MANAGER`, `MONITORING_AND_EVALUATION_OFFICER`, `PROJECT_MANAGER`) needs an
+active project assignment. No migration change was needed: the database layer was already correct: only
+the application-layer service method and the `canExplainOverdue` capability reused the wrong helper.
 
 ## 3. Proposed Change
 
 1. `POST /projects/:projectId/activities/:activityId/overdue-explanations`, guarded by
-   `RequirePermission('monitoring.review')`, additionally requiring an active personal
-   `ProjectActivityAssignment` on the activity (mirroring `recordProgress`'s
-   `requireActiveAssignment` check). Body: `category` (`WEATHER | SECURITY | FUNDING | COMMUNITY |
-   LOGISTICS | OTHER`), `explanation` (10-2000 trimmed characters), `clientMutationId` (UUID).
+   `RequirePermission('monitoring.review')`, scoped to the actor's active *project* assignment (the
+   same `projectScope(actor)` rule `requireActivity` already applies for every project-scoped M&E
+   read; see the Correction note in section 2), not a personal per-activity assignment. Body:
+   `category` (`WEATHER | SECURITY | FUNDING | COMMUNITY | LOGISTICS | OTHER`), `explanation` (10-2000
+   trimmed characters), `clientMutationId` (UUID).
    Returns `409` if the activity is not currently overdue (`activityPresentationStatus(...).overdue`
    is false). An idempotent replay (same `clientMutationId`) returns the same row; a replay with a
    different category/explanation for the same id is a `409` conflict, matching the
@@ -73,8 +88,10 @@ scope, exactly as `activities.progress.update` does via `requireActiveAssignment
 3. Activity detail gains `overdueExplanations` (newest first, with `actorName` and `recordedAt`) and
    `overdueExplanationNeeded: true` when the activity is currently overdue and no explanation has
    been recorded on or after the date it became overdue (i.e. after its `plannedEndDate`).
-4. Capabilities gain `canExplainOverdue` (holds `monitoring.review` and has an active personal
-   activity assignment), following the existing `canRecordProgress`/`canSubmitProof` pattern.
+4. Capabilities gain `canExplainOverdue` (holds `monitoring.review`; project scope is already
+   guaranteed because every row reaching `activityCapabilities` was read through
+   `projectScope(actor)`), following the existing `canRecordProgress`/`canSubmitProof` pattern but
+   without their extra personal-assignment condition (see the Correction note in section 2).
 5. An `ACTIVITY_OVERDUE_EXPLANATION_RECORDED` audit row, following the existing
    `ACTIVITY_PROGRESS_RECORDED` pattern.
 
@@ -103,27 +120,45 @@ assert ownership, constraints, RLS enabled+forced, exactly two policies, the exa
 `has_function_privilege` for `p05_has_project_permission` on both `prisma` and `pathways_runtime`.
 
 ### Authorization / Privacy
-New use of the existing `monitoring.review` permission, additionally gated by an active personal
-activity assignment (mirroring `activities.progress.update`). No Beneficiary data is touched. Cross-
-project and cross-organization requests are denied before any row is read, following the existing
-`requireProjectActivity` convention.
+New use of the existing `monitoring.review` permission, gated by the actor's project scope
+(`projectScope(actor)`, the same rule `requireActivity` already applies and migration 0043's RLS
+INSERT policy already encodes via `p05_has_project_permission`), not a personal per-activity
+assignment. No Beneficiary data is touched. Cross-project and cross-organization requests are denied
+before any row is read, following the existing `requireProjectActivity` convention (uniform 404, the
+same as every other project-scoped read/write in this module).
 
 ### API
 See section 3 item 1. `overdueExplanations` and `overdueExplanationNeeded` are added to the existing
 activity-detail response (`mapActivity`); `canExplainOverdue` is added to `activityCapabilities`.
 
 ### UI
-Deferred to a later phase; not touched by this change (backend/CR phase only).
+Added in this same change (activity detail panel and activities list,
+`apps/web/src/features/projects/activity-detail-panel.tsx`,
+`apps/web/src/features/projects/project-activities-workspace.tsx`,
+`apps/web/src/features/projects/activity-explain-delay-dialog.tsx`): an "Overdue: explanation needed"
+badge in both the list and the detail; an "Explain delay" button (gated by
+`capabilities.canExplainOverdue` and the activity's overdue status) opening a dialog with a category
+select (friendly labels), a 10-2000 character explanation textarea with a live count, Enter-does-not-
+submit, a reused `clientMutationId` across a retry, and 409/403 messages shown as text; an "Overdue
+explanations" history section (newest first, "None yet" only once the activity has been overdue with
+no entries); strict web-client parsers for the new fields (`apps/web/src/lib/services/pathways-client.ts`).
 
 ### Tests
-Happy path; `409` when the activity is not overdue; invalid category; invalid explanation length
-(`<10` or `>2000`); idempotent replay (same id, same body, same row); `409` on a conflicting replay;
-`403` without `monitoring.review`; `403` when the caller holds `monitoring.review` but has no active
-assignment on the activity; cross-project and cross-organization denial (existing convention); and
-`overdueExplanationNeeded` true before, false immediately after recording.
+API (`apps/api/src/modules/activities/activity-overdue-explanation.test.ts`,
+`activity-capabilities.test.ts`): happy path; `409` when the activity is not overdue; invalid category;
+invalid explanation length (`<10` or `>2000`); idempotent replay (same id, same body, same row); `409`
+on a conflicting replay; `403` without `monitoring.review`; a project-assigned M&E officer with no
+personal activity assignment succeeds; an unassigned M&E officer gets the uniform project-scope 404
+(not 403 - see the Correction note in section 2); `SYSTEM_ADMINISTRATOR`/`PROGRAM_MANAGER`/
+`GRANT_MANAGER` scope matches the RBAC policy; cross-project and cross-organization denial (existing
+convention); and `overdueExplanationNeeded` true before, false immediately after recording.
 `apps/api/prisma/tests/activity-overdue-explanation-runtime.sql`: scope isolation, append-only (no
 `UPDATE`/`DELETE` grant), the category/length `CHECK` constraints, and idempotency at the database
-layer.
+layer. Web (`activity-detail-panel.test.tsx`, `project-activities-workspace.test.tsx`,
+`activity-explain-delay-dialog.test.tsx`, `pathways-client.project-data.test.ts`): badge show/hide;
+button capability gating; dialog validation (too short, too long, missing category); Enter does not
+submit; retry reuses the `clientMutationId`, a definitive rejection draws a fresh one; history
+renders newest first; the parser rejects a malformed `overdueExplanations` entry.
 
 ### Documentation
 This CR, its `docs/index.md` entry, an SDD note, QAD rows, and the Auth RFC endpoint list.
@@ -163,6 +198,6 @@ with the actor and time.
 
 ## 9. Disposition
 
-Applied on `feature/activity-overdue-explanation` (backend and Change Record phase only). Migration
-`0043` creates the table locally; hosted application follows the standard release sequence and is
-not claimed here. The web UI phase is explicitly deferred to a later, separate phase.
+Applied on `feature/activity-overdue-explanation`: backend, the project-assignment correction, the web
+UI phase, and this Change Record. Migration `0043` creates the table locally; hosted application
+follows the standard release sequence and is not claimed here.
