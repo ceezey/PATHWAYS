@@ -15,7 +15,7 @@ import {
   Trash2,
 } from 'lucide-react'
 import Link from 'next/link'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { toast } from 'sonner'
 
 import { createFileSummary } from '@pathways/imports'
@@ -85,7 +85,6 @@ import {
 } from './digital-form-contract'
 import {
   type FormDefinitionExportFormat,
-  formDefinitionExportFormats,
   formDefinitionExportRequest,
 } from './form-definition-export'
 import {
@@ -319,7 +318,10 @@ export const CollectionWorkspace = (props: CollectionWorkspaceProps) => {
   const latestOwner = useRef(identity)
   latestOwner.current = identity
   const alive = useRef(true)
-  useEffect(() => {
+  // A layout effect, so React's development StrictMode remount re-arms this flag before the
+  // owned child's passive effects re-run. As a passive effect it ran after them, so the child's
+  // mount-time ownership check saw a dead owner and skipped loading the project list.
+  useLayoutEffect(() => {
     alive.current = true
     return () => {
       alive.current = false
@@ -368,7 +370,8 @@ const OwnedCollectionWorkspace = ({
   const [hydratedFormId, setHydratedFormId] = useState<string | undefined>()
   const [editingBaseUpdatedAt, setEditingBaseUpdatedAt] = useState<string | null>(null)
   const [indicatorIds, setIndicatorIds] = useState<string[]>([])
-  const [exportFormat, setExportFormat] = useState<ExportFormat>('csv')
+  // Format selection is hidden (docs/deferred-features.md); exports use the default.
+  const exportFormat: ExportFormat = 'csv'
   const [duplicateDecision, setDuplicateDecision] = useState<'pending' | 'skip' | 'keep'>('pending')
   const [correctionPage, setCorrectionPage] = useState(0)
   const [view, setView] = useState<CollectionView>(initialView)
@@ -1416,22 +1419,6 @@ const OwnedCollectionWorkspace = ({
         />
       ) : null}
 
-      {!(view === 'import' && mode === 'extend') ? (
-        <label className="block text-sm">
-          Download format{' '}
-          <select
-            className="ml-2 rounded border p-2"
-            value={exportFormat}
-            onChange={(e) => setExportFormat(e.target.value as ExportFormat)}
-          >
-            {formDefinitionExportFormats.map((f) => (
-              <option key={f} value={f}>
-                {f.toUpperCase()}
-              </option>
-            ))}
-          </select>
-        </label>
-      ) : null}
       {view === 'builder' &&
         canManageForms &&
         forms.find((form) => form.id === editingFormId)?.status === 'PUBLISHED' && (
