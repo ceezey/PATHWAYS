@@ -266,6 +266,56 @@ describe('collection import workspace', () => {
     ])
   })
 
+  it('keeps a wide, many-row extend-mode preview inside its own scroll container with a capped row count', async () => {
+    const columnCount = 12
+    const rowCount = 40
+    const headers = Array.from({ length: columnCount }, (_, index) => `Source column ${index + 1}`)
+    const rows = Array.from({ length: rowCount }, (_, rowIndex) =>
+      headers
+        .map((_, columnIndex) => `row-${rowIndex + 1}-col-${columnIndex + 1}-${'x'.repeat(40)}`)
+        .join(','),
+    )
+    const csvText = `${headers.join(',')}\n${rows.join('\n')}`
+
+    render(
+      <DisplayLabelsProvider>
+        <CollectionWorkspace
+          initialView="import"
+          initialMode="extend"
+          initialProjectId="futuremakers-ncr"
+        />
+      </DisplayLabelsProvider>,
+    )
+    await waitFor(() => expect(api.getDigitalForms).toHaveBeenCalled())
+
+    fireEvent.change(screen.getByLabelText('Source file'), {
+      target: {
+        files: [csvFile('wide-extend.csv', async () => csvText)],
+      },
+    })
+    await screen.findByText(/Preview ready for wide-extend.csv/)
+
+    // The preview is capped, not rendering every one of the 40 source rows. Both the
+    // "Data preview" panel and the "Correct isolated data" corrections table show the
+    // same capped-row message.
+    await waitFor(() =>
+      expect(
+        screen.getAllByText(new RegExp(`Showing the first 5 of ${rowCount} rows`)).length,
+      ).toBeGreaterThan(0),
+    )
+    const previewRegion = screen.getByRole('region', { name: 'Data preview rows' })
+    expect(previewRegion.className).toContain('overflow-x-auto')
+    expect(previewRegion.className).toContain('max-w-full')
+    expect(previewRegion.getAttribute('tabIndex')).toBe('0')
+    expect(within(previewRegion).getAllByRole('row')).toHaveLength(1 + 5)
+
+    // The mapping table for the same wide file is also its own scroll container.
+    const mappingRegion = screen.getByRole('region', { name: 'Metadata mapping rows' })
+    expect(mappingRegion.className).toContain('overflow-x-auto')
+    expect(mappingRegion.className).toContain('max-w-full')
+    expect(mappingRegion.getAttribute('tabIndex')).toBe('0')
+  })
+
   it('reuses the same import id after an uncertain upload and starts a new id for a new file', async () => {
     const definition = {
       id: 'published-form',
