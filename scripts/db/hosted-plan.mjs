@@ -4,7 +4,7 @@
 
 export const BASELINE = '0000_pathways_baseline_through_0026'
 
-// The exact 42-migration ledger this script must produce, in order. This is
+// The exact 43-migration ledger this script must produce, in order. This is
 // the repository's own migration directory listing (apps/api/prisma/migrations),
 // asserted against the real directory in hosted-plan.test.mjs so this literal
 // list can never silently drift from the repo.
@@ -26,6 +26,7 @@ export const MIGRATIONS_IN_ORDER = Object.freeze([
   '0040_default_registration_form',
   '0041_activity_media_evidence',
   '0042_proof_session_beneficiary_count',
+  '0043_activity_overdue_explanation',
 ])
 
 function range(from, to) {
@@ -68,6 +69,10 @@ export function buildPlan() {
     // 0042 needs no preprovision: prisma already owns pathways.activity_updates and
     // pathways.p08_activity_beneficiaries_reached from the 0000 baseline.
     { type: 'deploy', migrations: range(42, 42) },
+    // 0043 needs no preprovision: prisma already owns pathways.project_activities,
+    // pathways.projects, pathways.organizations, pathways.system_users and
+    // pathways.p05_has_project_permission from the 0000 baseline.
+    { type: 'deploy', migrations: range(43, 43) },
     { type: 'alter-runtime-role' },
     { type: 'postconditions' },
   ]
@@ -108,7 +113,7 @@ export function assertResumablePrefix(ledgerRows) {
   }
   if (appliedCount !== names.length) {
     throw new Error(
-      'Ledger is not an exact finished prefix of the expected 0000-0041 migrations; --resume refuses it',
+      'Ledger is not an exact finished prefix of the expected 0000-0043 migrations; --resume refuses it',
     )
   }
   return appliedCount
@@ -120,23 +125,36 @@ export function assertResumablePrefix(ledgerRows) {
 // following cleanup step (0031, 0034, 0041), that cleanup step is re-run;
 // each cleanup script's own preconditions reject a target that was already
 // cleaned, surfacing a clear error rather than silently skipping it.
+// Migrations that were each, at some earlier point, the last entry in MIGRATIONS_IN_ORDER
+// before later migrations were appended (0041 before 0042 existed, then 0042 before 0043
+// existed). A ledger applied exactly through one of these is exactly the terminal state of an
+// already-completed hosted build that predates the newer migrations: cleanup (if any) and the
+// runtime-role alteration already ran to reach that state, so --resume must continue straight
+// at the very next migration's own deploy step rather than re-running an already-finished
+// cleanup (which would reject an already-cleaned target) or the runtime-role step again. A
+// ledger that instead stops right after one of these migrations mid-run (before its own
+// cleanup has executed) is a different, smaller applied count than the one checked here, so it
+// still falls through to the generic path below and correctly re-runs that cleanup.
+const PRIOR_BUILD_COMPLETION_POINTS = [
+  '0041_activity_media_evidence',
+  '0042_proof_session_beneficiary_count',
+]
+
 export function planIndexForAppliedCount(appliedCount) {
   const plan = buildPlan()
   if (appliedCount === 0) return 0
-  // A ledger holding every migration through 0041 (one short of the full 0000-0042 list) is
-  // exactly the terminal state of an already-completed pre-0042 hosted build: cleanup and the
-  // runtime-role alteration already ran to reach that state, and 0042 itself needs neither, so
-  // --resume continues straight at 0042's own deploy step rather than re-running the 0041
-  // cleanup (which would reject an already-cleaned target) or the runtime-role step again.
-  if (appliedCount === MIGRATIONS_IN_ORDER.length - 1) {
-    const finalMigration = MIGRATIONS_IN_ORDER[MIGRATIONS_IN_ORDER.length - 1]
-    const finalStepIndex = plan.findIndex(
-      (step) => step.type === 'deploy' && step.migrations.includes(finalMigration),
-    )
-    if (finalStepIndex === -1) {
-      throw new Error(`Could not locate a deploy step for migration ${finalMigration}`)
+  for (const migration of PRIOR_BUILD_COMPLETION_POINTS) {
+    const migrationIndex = MIGRATIONS_IN_ORDER.indexOf(migration)
+    if (migrationIndex !== -1 && appliedCount === migrationIndex + 1) {
+      const nextMigration = MIGRATIONS_IN_ORDER[migrationIndex + 1]
+      const nextStepIndex = plan.findIndex(
+        (step) => step.type === 'deploy' && step.migrations.includes(nextMigration),
+      )
+      if (nextStepIndex === -1) {
+        throw new Error(`Could not locate a deploy step for migration ${nextMigration}`)
+      }
+      return nextStepIndex
     }
-    return finalStepIndex
   }
   const lastApplied = MIGRATIONS_IN_ORDER[appliedCount - 1]
   const stepIndex = plan.findIndex(

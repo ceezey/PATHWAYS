@@ -63,7 +63,7 @@ The ledger holds 16 rows because 0000 is the consolidated baseline for the histo
 
 **If a step fails:** the tool runs the matching cleanup script whenever the failure happens anywhere between a preprovision step and its cleanup (the preprovision step itself, or the deploy that follows it), then rethrows the original error. Fix the reported cause, then rerun with `--resume`.
 
-`--resume` runs its own preflight instead of the fresh-target one: it requires the pathways schema, `auth.users` and the prisma role to already be present (a partial build always has them), and the ledger to be an exact, cleanly finished prefix of the expected 0000-0041 sequence; it refuses anything else. It also recovers the rules cleanup's required `original_prisma_database_create` value from a small local receipt (`.tmp/hosted-build/receipt.json`, never containing secrets) written right after the rules preprovision step succeeds, so a resume works even from a fresh process after a crash. Never run `prisma migrate reset`, `db push` or `migrate resolve` by hand.
+`--resume` runs its own preflight instead of the fresh-target one: it requires the pathways schema, `auth.users` and the prisma role to already be present (a partial build always has them), and the ledger to be an exact, cleanly finished prefix of the expected 0000-0043 sequence; it refuses anything else. It also recovers the rules cleanup's required `original_prisma_database_create` value from a small local receipt (`.tmp/hosted-build/receipt.json`, never containing secrets) written right after the rules preprovision step succeeds, so a resume works even from a fresh process after a crash. Never run `prisma migrate reset`, `db push` or `migrate resolve` by hand.
 
 ## 4. Seed realistic dummy data
 
@@ -101,9 +101,9 @@ After the preview passes, update the Production environment with the same values
 
 Agents confirm each stage with read-only checks, covering the migration ledger, roles, buckets and row counts, and record the verified hosted facts in the rollout record. PATHWAYS-dev stays untouched until the developer retires it.
 
-## 7. Applying 0042 to the already-built role-staging
+## 7. Applying 0042 and 0043 to the already-built role-staging
 
-The role-staging project described above was built through migration 0041. Migration 0042 (cr-pathways-proof-session-beneficiary-count) adds one nullable column to `pathways.activity_updates` and redefines `pathways.p08_activity_beneficiaries_reached`. It needs no preprovision or cleanup, so it slots into the existing `--resume` path as a single extra deploy step.
+The role-staging project described above was built through migration 0041. Migration 0042 (cr-pathways-proof-session-beneficiary-count) adds one nullable column to `pathways.activity_updates` and redefines `pathways.p08_activity_beneficiaries_reached`. Migration 0043 (cr-pathways-activity-overdue-explanation) creates the append-only `pathways.activity_overdue_explanations` table. Neither needs preprovision or cleanup, so both slot into the existing `--resume` path as two extra deploy steps, applied together by a single command.
 
 The operator runs:
 
@@ -111,10 +111,12 @@ The operator runs:
 node scripts/db/hosted-build.mjs --env-file .tmp/role-staging-build.env --resume
 ```
 
-Because the ledger is already the complete, cleanly finished 0000 to 0041 prefix, `--resume` continues with only the 0042 deploy and then the postconditions. It does not re-run the activity-media cleanup or the runtime-role alteration, since both already ran to reach that state. A successful run ends with these PASS lines:
+Because the ledger is already the complete, cleanly finished 0000 to 0041 prefix, `--resume` continues with the 0042 deploy, then the 0043 deploy, then the postconditions. It does not re-run the activity-media cleanup or the runtime-role alteration, since both already ran to reach that state. A successful run ends with these PASS lines:
 
 - `PASS: resume preflight (pathways schema present, auth.users present, prisma role present, ledger is a clean finished prefix with 16 migrations applied)`
-- `PASS: ledger has exactly 17 migrations 0000-0042, all finished and none failed`
+- `PASS: ledger has exactly 18 migrations 0000-0043, all finished and none failed`
 - `PASS: no residual temporary owner memberships for prisma`
 - `PASS: role count matches the repo-derived expectation (21 roles ...)`
 - `PASS: schema-level permission grants observed (...)`
+
+If role-staging had already been resumed through 0042 alone before 0043 existed (ledger holding exactly 0000 to 0042), the same command continues directly at the 0043 deploy and then the postconditions, without repeating any earlier step.
