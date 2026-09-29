@@ -7,6 +7,17 @@ import type { Activity } from '@/types/pathways'
 
 vi.mock('./activity-expense-dialog', () => ({ ActivityExpenseDialog: () => null }))
 vi.mock('./activity-expense-review-dialog', () => ({ ActivityExpenseReviewDialog: () => null }))
+vi.mock('./activity-explain-delay-dialog', () => ({
+  ActivityExplainDelayDialog: () => <div>Explain delay dialog</div>,
+  categoryLabels: {
+    WEATHER: 'Weather',
+    SECURITY: 'Security',
+    FUNDING: 'Funding',
+    COMMUNITY: 'Community',
+    LOGISTICS: 'Logistics',
+    OTHER: 'Other',
+  },
+}))
 vi.mock('./activity-proof-files', () => ({ ActivityProofFiles: () => null }))
 vi.mock('./activity-proof-review-dialog', () => ({ ActivityProofReviewDialog: () => null }))
 
@@ -35,6 +46,8 @@ const activity: Activity = {
 
   submittedProof: [],
   updateNotes: [],
+  overdueExplanations: [],
+  overdueExplanationNeeded: false,
   updatedAt: '2026-09-25T00:00:00.000Z',
 }
 
@@ -252,5 +265,110 @@ describe('ActivityDetailContent server read model', () => {
       />,
     )
     expect(screen.queryByText('Submitted expenses for validation')).toBeNull()
+  })
+
+  const baseProps = {
+    canDecideProof: false,
+    canEdit: false,
+    canLogExpense: false,
+    canRequestExtension: false,
+    canSubmitProof: false,
+    canValidateExpense: false,
+    canValidateProof: false,
+    indicators: [],
+    journeyStages: [],
+    onActivityChanged: vi.fn(),
+    onEdit: vi.fn(),
+    onSubmitProof: vi.fn(),
+  }
+
+  it('shows the overdue-explanation-needed badge only when the server flag is true', () => {
+    const { rerender } = render(
+      <ActivityDetailContent
+        activity={{ ...activity, overdueExplanationNeeded: true }}
+        {...baseProps}
+      />,
+    )
+    expect(screen.getByText('Overdue: explanation needed')).toBeTruthy()
+    rerender(
+      <ActivityDetailContent
+        activity={{ ...activity, overdueExplanationNeeded: false }}
+        {...baseProps}
+      />,
+    )
+    expect(screen.queryByText('Overdue: explanation needed')).toBeNull()
+  })
+
+  it('shows Explain delay only when capability and overdue status both hold', () => {
+    const baseCapabilities = {
+      canEdit: false,
+      canRecordProgress: false,
+      canSubmitProof: false,
+      canExplainOverdue: true,
+    }
+    const overdueActivity: Activity = {
+      ...activity,
+      status: 'Overdue',
+      storedStatus: 'IN_PROGRESS',
+      capabilities: baseCapabilities,
+    }
+    const { rerender } = render(<ActivityDetailContent activity={overdueActivity} {...baseProps} />)
+    expect(screen.getByRole('button', { name: 'Explain delay' })).toBeTruthy()
+
+    // Capability false: no button even though overdue.
+    rerender(
+      <ActivityDetailContent
+        activity={{
+          ...overdueActivity,
+          capabilities: { ...baseCapabilities, canExplainOverdue: false },
+        }}
+        {...baseProps}
+      />,
+    )
+    expect(screen.queryByRole('button', { name: 'Explain delay' })).toBeNull()
+
+    // Not overdue: no button even with the capability.
+    rerender(
+      <ActivityDetailContent
+        activity={{ ...overdueActivity, status: 'In Progress' }}
+        {...baseProps}
+      />,
+    )
+    expect(screen.queryByRole('button', { name: 'Explain delay' })).toBeNull()
+  })
+
+  it('renders the overdue explanation history newest first, or None yet for an overdue activity with none', () => {
+    const { rerender } = render(
+      <ActivityDetailContent activity={{ ...activity, status: 'Overdue' }} {...baseProps} />,
+    )
+    expect(screen.getByText('Overdue explanations')).toBeTruthy()
+    expect(screen.getByText('None yet.')).toBeTruthy()
+
+    rerender(
+      <ActivityDetailContent
+        activity={{
+          ...activity,
+          status: 'Overdue',
+          overdueExplanations: [
+            {
+              id: 'exp-1',
+              category: 'WEATHER',
+              explanation: 'A storm delayed the site visit.',
+              actorName: 'Synthetic officer',
+              recordedAt: '2026-09-20T00:00:00.000Z',
+            },
+          ],
+        }}
+        {...baseProps}
+      />,
+    )
+    expect(screen.getByText('Weather')).toBeTruthy()
+    expect(screen.getByText('A storm delayed the site visit.')).toBeTruthy()
+    expect(screen.queryByText('None yet.')).toBeNull()
+  })
+
+  it('hides the overdue explanation history for a never-overdue activity with no entries', () => {
+    render(<ActivityDetailContent activity={{ ...activity, status: 'Planned' }} {...baseProps} />)
+    expect(screen.queryByText('Overdue explanations')).toBeNull()
   })
 })

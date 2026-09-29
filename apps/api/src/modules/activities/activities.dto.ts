@@ -175,6 +175,17 @@ export class ReserveActivityProofDto {
   @ValidateNested({ each: true })
   @Type(() => ActivityEvidenceFileDto)
   files!: ActivityEvidenceFileDto[]
+
+  // cr-pathways-proof-session-beneficiary-count: optional, recorded on this submission. Once
+  // M&E approves the proof, this value is summed into the activity's computed
+  // beneficiariesReached (pathways.p08_activity_beneficiaries_reached); PENDING, VERIFIED and
+  // REJECTED updates never contribute. It never feeds SADDD sex/age breakdowns, which stay
+  // sourced from participation records.
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  @Max(100000)
+  beneficiariesReachedThisSession?: number
 }
 
 export class RecordActivityProgressDto {
@@ -189,6 +200,28 @@ export class RecordActivityProgressDto {
   @IsString()
   @Length(1, 4000)
   note!: string
+}
+
+export const overdueExplanationCategories = [
+  'WEATHER',
+  'SECURITY',
+  'FUNDING',
+  'COMMUNITY',
+  'LOGISTICS',
+  'OTHER',
+] as const
+export type OverdueExplanationCategory = (typeof overdueExplanationCategories)[number]
+
+export class RecordOverdueExplanationDto {
+  @IsUUID()
+  clientMutationId!: string
+
+  @IsIn(overdueExplanationCategories)
+  category!: OverdueExplanationCategory
+
+  @IsString()
+  @Length(10, 2000)
+  explanation!: string
 }
 
 export class ReviewActivityUpdateDto {

@@ -21,6 +21,7 @@ import type { AuthenticatedRequest } from '../auth/developer-access'
 import {
   CreateActivityDto,
   RecordActivityProgressDto,
+  RecordOverdueExplanationDto,
   ReserveActivityProofDto,
   ReviewActivityUpdateDto,
   SaveMilestoneDto,
@@ -130,6 +131,17 @@ export class ActivitiesController {
     @Body() body: RecordActivityProgressDto,
   ) {
     return this.activities.recordProgress(profile(request), projectId, activityId, body)
+  }
+
+  @Post(':activityId/overdue-explanations')
+  @RequirePermission('monitoring.review')
+  recordOverdueExplanation(
+    @Req() request: AuthenticatedRequest,
+    @Param('projectId') projectId: string,
+    @Param('activityId') activityId: string,
+    @Body() body: RecordOverdueExplanationDto,
+  ) {
+    return this.activities.recordOverdueExplanation(profile(request), projectId, activityId, body)
   }
 
   // The multipart proof route (POST :activityId/updates) is retired: evidence is reserved

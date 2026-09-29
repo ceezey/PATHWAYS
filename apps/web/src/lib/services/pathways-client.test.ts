@@ -324,6 +324,8 @@ describe('PATHWAYS frontend data boundary', () => {
 
       submittedProof: [],
       updateNotes: [],
+      overdueExplanations: [],
+      overdueExplanationNeeded: false,
       updatedAt: '2026-09-20T00:00:00.000Z',
     }
     vi.stubGlobal('window', {})
@@ -1305,6 +1307,8 @@ describe('Activity proof response parsing', () => {
       progress: 40,
       submittedProof: [],
       updateNotes: [],
+      overdueExplanations: [],
+      overdueExplanationNeeded: false,
       updatedAt: '2026-09-20T00:00:00.000Z',
       sourceAcknowledgement: { requestId: 'req-1', committed: true, replayed: false },
     }
@@ -1319,7 +1323,12 @@ describe('Activity proof response parsing', () => {
         // treated as withheld, and capabilities default when absent from the response.
         budgetLogged: null,
         budgetLoggedEntries: null,
-        capabilities: { canEdit: false, canRecordProgress: false, canSubmitProof: false },
+        capabilities: {
+          canEdit: false,
+          canRecordProgress: false,
+          canSubmitProof: false,
+          canExplainOverdue: false,
+        },
       },
     })
     // Extra top-level keys alongside `activity` are rejected.

@@ -119,6 +119,32 @@ export interface ActivityCapabilities {
   canEdit: boolean
   canRecordProgress: boolean
   canSubmitProof: boolean
+  canExplainOverdue: boolean
+}
+
+export type OverdueExplanationCategory =
+  | 'WEATHER'
+  | 'SECURITY'
+  | 'FUNDING'
+  | 'COMMUNITY'
+  | 'LOGISTICS'
+  | 'OTHER'
+
+/** One append-only entry from `activityOverdueExplanations` (cr-pathways-activity-overdue-explanation). */
+export interface ActivityOverdueExplanation {
+  id: string
+  category: OverdueExplanationCategory
+  explanation: string
+  actorName: string
+  recordedAt: string
+}
+
+export interface RecordOverdueExplanationInput {
+  projectId: string
+  activityId: string
+  clientMutationId: string
+  category: OverdueExplanationCategory
+  explanation: string
 }
 
 /** Minimal projection from `GET /projects/:id/activities/assignable-officers`. */
@@ -163,6 +189,8 @@ export interface Activity {
   updateNotes: ActivityUpdateNote[]
   updatedAt: string
   capabilities?: ActivityCapabilities
+  overdueExplanations: ActivityOverdueExplanation[]
+  overdueExplanationNeeded: boolean
 }
 
 /**
@@ -190,6 +218,7 @@ export type ActivitySummary = Pick<
   | 'progress'
   | 'updatedAt'
   | 'capabilities'
+  | 'overdueExplanationNeeded'
 >
 
 export interface ActivityProof {
@@ -219,6 +248,8 @@ export interface ActivityUpdateNote {
   kind?: 'proof' | 'progress'
   note: string
   progress: number
+  /** Optional, recorded on this submission only (cr-pathways-proof-session-beneficiary-count). */
+  beneficiariesReachedThisSession?: number | null
   status: 'Submitted' | 'Flagged' | 'Accepted'
   submittedBy: string
   submittedAt: string
@@ -287,6 +318,8 @@ export interface ReserveActivityProofUploadInput {
   progressPercent: number
   note: string
   files: ActivityProofFileDeclaration[]
+  /** Optional, recorded on this submission only (cr-pathways-proof-session-beneficiary-count). */
+  beneficiariesReachedThisSession?: number
 }
 
 export interface ActivityProofReservedFile {

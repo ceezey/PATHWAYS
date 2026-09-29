@@ -109,10 +109,21 @@ const ScopedActivityProofDialog = ({
   // overlapping finish() calls without blocking a later retry after a failed reload.
   const committed = useRef(false)
   const finishing = useRef(false)
-  const [beneficiariesReachedThisSession, setBeneficiariesReachedThisSession] = useState(0)
+  const [beneficiariesReachedThisSession, setBeneficiariesReachedThisSession] = useState('')
   const noteError = error === 'Enter an update note before submitting proof.'
   const fileError = error.startsWith('Attach') || error.startsWith('Select up to')
   const beneficiariesError = error.startsWith('Beneficiaries reached this session')
+
+  // Empty is allowed; otherwise a whole number from 0 to 100000. Returns null when the field
+  // should not be sent at all (empty), a number when valid, or undefined when invalid.
+  const parsedBeneficiariesReachedThisSession = (): number | null | undefined => {
+    const trimmed = beneficiariesReachedThisSession.trim()
+    if (!trimmed) return null
+    if (!/^\d+$/.test(trimmed)) return undefined
+    const value = Number(trimmed)
+    if (!Number.isInteger(value) || value < 0 || value > 100000) return undefined
+    return value
+  }
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: scope is stable per instance key.
   useEffect(() => {
@@ -121,7 +132,7 @@ const ScopedActivityProofDialog = ({
     setFiles([])
     setError('')
     setLocked(false)
-    setBeneficiariesReachedThisSession(0)
+    setBeneficiariesReachedThisSession('')
     reservation.current = null
     committed.current = false
     finishing.current = false
@@ -289,6 +300,11 @@ const ScopedActivityProofDialog = ({
       setError('Attach at least one proof file.')
       return
     }
+    const beneficiaries = parsedBeneficiariesReachedThisSession()
+    if (beneficiaries === undefined) {
+      setError('Beneficiaries reached this session must be a whole number from 0 to 100000.')
+      return
+    }
     setSubmitting(true)
     setError('')
     try {
@@ -325,6 +341,7 @@ const ScopedActivityProofDialog = ({
           progressPercent: activity.progress,
           note: note.trim(),
           files: declarations,
+          ...(beneficiaries === null ? {} : { beneficiariesReachedThisSession: beneficiaries }),
         })
         if (!scope.isCurrent()) return
         if (reserved.status === 'COMMITTED') {
@@ -391,6 +408,7 @@ const ScopedActivityProofDialog = ({
       >
         <form
           className="space-y-5"
+          noValidate
           onSubmit={(event) => {
             event.preventDefault()
             void submitUpdate()
@@ -404,24 +422,26 @@ const ScopedActivityProofDialog = ({
               Beneficiaries reached this session
             </Label>
             <Input
-              aria-describedby="activity-beneficiaries-reached-hint"
+              aria-describedby={
+                beneficiariesError
+                  ? 'activity-beneficiaries-reached-hint activity-beneficiaries-reached-error'
+                  : 'activity-beneficiaries-reached-hint'
+              }
               aria-invalid={beneficiariesError}
-              disabled
+              disabled={submitting || locked}
               id="activity-beneficiaries-reached"
               min={0}
+              max={100000}
               onChange={(event) => {
-                setBeneficiariesReachedThisSession(Number(event.target.value))
+                setBeneficiariesReachedThisSession(event.target.value)
                 if (beneficiariesError) setError('')
               }}
-              title="Not available yet"
               type="number"
               step={1}
               value={beneficiariesReachedThisSession}
             />
             <p className="text-sm text-muted-foreground" id="activity-beneficiaries-reached-hint">
-              Session beneficiary counts are unavailable until backend support is added. The
-              submitted proof retains the current {activity?.progress ?? 0}% progress for M&E
-              review.
+              Counts toward the activity's beneficiaries reached once M&E approves this proof.
             </p>
           </div>
           <div className="space-y-2">
@@ -526,7 +546,13 @@ const ScopedActivityProofDialog = ({
             <p
               className="text-sm font-medium text-destructive"
               id={
-                noteError ? 'activity-note-error' : fileError ? 'activity-proof-error' : undefined
+                noteError
+                  ? 'activity-note-error'
+                  : fileError
+                    ? 'activity-proof-error'
+                    : beneficiariesError
+                      ? 'activity-beneficiaries-reached-error'
+                      : undefined
               }
               role="alert"
             >
