@@ -1164,10 +1164,10 @@ describe('Analytics dashboard request dependencies', () => {
       const before = selected()
       expect(before).not.toBe('')
       const periodCalls = () =>
-        api.getDescriptiveAnalytics.mock.calls.map(
-          (call: [{ periodStart: string; periodEnd: string }]) =>
-            `${call[0].periodStart}::${call[0].periodEnd}`,
-        )
+        api.getDescriptiveAnalytics.mock.calls.map((call) => {
+          const query = call[0] as { periodStart: string; periodEnd: string }
+          return `${query.periodStart}::${query.periodEnd}`
+        })
       expect(new Set(periodCalls())).toEqual(new Set([before]))
 
       fireEvent.change(screen.getByLabelText('Analysis view'), { target: { value: 'survey' } })
