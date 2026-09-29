@@ -115,6 +115,45 @@ describe('ActivityExpenseReviewDialog', () => {
     ).toBe(true)
   })
 
+  it('keeps Validate and Return focusable but blocks activation when no receipt is attached', () => {
+    state.profile.permissions = ['expenses.verify']
+    const noReceiptExpense: PendingExpense = { ...expense, receiptEvidenceId: null }
+    render(
+      <ActivityExpenseReviewDialog
+        expense={noReceiptExpense}
+        onOpenChange={vi.fn()}
+        onReviewed={vi.fn()}
+      />,
+    )
+
+    const validate = screen.getByRole('button', { name: /Validate expense/ }) as HTMLButtonElement
+    const returnButton = screen.getByRole('button', {
+      name: /Return for correction/,
+    }) as HTMLButtonElement
+
+    // aria-disabled (not native disabled): stays in the tab order and
+    // reachable by screen readers, unlike native disabled would.
+    expect(validate.disabled).toBe(false)
+    expect(validate.getAttribute('aria-disabled')).toBe('true')
+    validate.focus()
+    expect(document.activeElement).toBe(validate)
+
+    const describedBy = validate.getAttribute('aria-describedby')
+    expect(describedBy).toBeTruthy()
+    const hint = document.getElementById(describedBy as string)
+    expect(hint?.textContent).toBe('Attach a private receipt before review.')
+    expect(returnButton.getAttribute('aria-describedby')).toBe(describedBy)
+
+    fireEvent.click(validate)
+    expect(state.reviewExpense).not.toHaveBeenCalled()
+
+    fireEvent.change(screen.getByLabelText('Correction reason'), {
+      target: { value: 'Missing itemized receipt detail.' },
+    })
+    fireEvent.click(returnButton)
+    expect(state.reviewExpense).not.toHaveBeenCalled()
+  })
+
   it('shows the server error and keeps the dialog open', async () => {
     state.profile.permissions = ['expenses.verify']
     state.reviewExpense.mockRejectedValueOnce(new Error('Expense review rejected.'))

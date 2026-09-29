@@ -30,7 +30,11 @@ import type { PathwaysRole } from '@/types/pathways-role'
 
 import type { ProjectSetupSchema } from './project-form-validation'
 
-type TeamFieldName = 'programManager' | 'projectManager' | 'monitoringOfficer' | 'projectOfficers'
+export type TeamFieldName =
+  | 'programManager'
+  | 'projectManager'
+  | 'monitoringOfficer'
+  | 'projectOfficers'
 
 const teamRoles: Record<TeamFieldName, PathwaysRole> = {
   programManager: 'Program Manager',
@@ -219,6 +223,7 @@ const SingleTeamSelector = ({
 
 export const ProjectTeamSelectors = ({
   control,
+  disallowAssignRoles,
   disallowClearRoles,
   loadError,
   loading,
@@ -227,6 +232,10 @@ export const ProjectTeamSelectors = ({
   users,
 }: {
   control: Control<ProjectSetupSchema>
+  // Fields the signed-in actor is not authorized to assign (mirrors
+  // canAssignRole server-side): the selector and its None option are
+  // disabled rather than hidden, so the current assignment stays visible.
+  disallowAssignRoles?: TeamFieldName[]
   disallowClearRoles?: Exclude<TeamFieldName, 'projectOfficers'>[]
   loadError: string | null
   loading: boolean
@@ -238,6 +247,7 @@ export const ProjectTeamSelectors = ({
   const disabled = loading || Boolean(loadError)
   const canClear = (fieldName: Exclude<TeamFieldName, 'projectOfficers'>) =>
     !disallowClearRoles?.includes(fieldName)
+  const canAssignField = (fieldName: TeamFieldName) => !disallowAssignRoles?.includes(fieldName)
 
   return (
     <div className="space-y-5">
@@ -263,7 +273,7 @@ export const ProjectTeamSelectors = ({
         <SingleTeamSelector
           allowClear={canClear('programManager')}
           control={control}
-          disabled={disabled}
+          disabled={disabled || !canAssignField('programManager')}
           fieldName="programManager"
           label="Program Manager"
           loadError={loadError}
@@ -274,7 +284,7 @@ export const ProjectTeamSelectors = ({
         <SingleTeamSelector
           allowClear={canClear('projectManager')}
           control={control}
-          disabled={disabled}
+          disabled={disabled || !canAssignField('projectManager')}
           fieldName="projectManager"
           label="Project Manager"
           loadError={loadError}
@@ -285,7 +295,7 @@ export const ProjectTeamSelectors = ({
         <SingleTeamSelector
           allowClear={canClear('monitoringOfficer')}
           control={control}
-          disabled={disabled}
+          disabled={disabled || !canAssignField('monitoringOfficer')}
           fieldName="monitoringOfficer"
           label="Monitoring and Evaluation Officer"
           loadError={loadError}
@@ -317,7 +327,10 @@ export const ProjectTeamSelectors = ({
                       <Button
                         className="w-full justify-between gap-3 font-normal"
                         disabled={
-                          disabled || Boolean(unavailableMessage) || officerOptions.length === 0
+                          disabled ||
+                          Boolean(unavailableMessage) ||
+                          officerOptions.length === 0 ||
+                          !canAssignField('projectOfficers')
                         }
                         onBlur={field.onBlur}
                         ref={field.ref}

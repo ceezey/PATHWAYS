@@ -196,8 +196,40 @@ describe('project setup validation', () => {
       programId: '70000000-0000-4000-8000-000000000007',
       status: 'CANCELLED',
       expectedUpdatedAt: '2026-09-23T00:00:00.000Z',
+      objectives: 'Existing objectives',
     })
     expect(input).not.toHaveProperty('targetGoal')
+  })
+
+  it('carries the stored objectives into the update payload (the setup/team forms have no objectives field)', () => {
+    const input = toUpdateProjectInput(validValues, {
+      id: 'project-id',
+      code: 'PRJ-EXISTING',
+      title: 'Existing project',
+      description: 'Existing description',
+      objectives: 'Reduce dropout rates in target barangays',
+      area: 'Navotas',
+      sector: 'Sector not recorded',
+      status: 'Planned',
+      storedStatus: 'PLANNED',
+      health: 'On Track',
+      period: '2026-08-01 - 2026-12-01',
+      projectManager: 'Not assigned',
+      programManager: 'Not assigned',
+      monitoringOfficer: 'Not assigned',
+      projectOfficers: [],
+      targetBeneficiaries: 0,
+
+      budgetCode: 'Not recorded',
+      updatedAt: '2026-09-23T00:00:00.000Z',
+      programId: undefined,
+    })
+
+    expect(input.objectives).toBe('Reduce dropout rates in target barangays')
+
+    // toCreateProjectInput and the setup form's own schema must stay untouched.
+    const created = toCreateProjectInput(validValues)
+    expect(created).not.toHaveProperty('objectives')
   })
 
   it('accepts the team-only edit schema without dates, sector, or area', () => {

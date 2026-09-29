@@ -42,6 +42,16 @@ export function ActivityExpenseReviewDialog({
   const [reason, setReason] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState('')
+  const missingReceipt = !expense?.receiptEvidenceId
+  const receiptHintId = 'expense-review-receipt-hint'
+  // aria-disabled (not native disabled) so Validate/Return stay reachable by
+  // keyboard and screen readers, which then hear the persistent hint below
+  // via aria-describedby instead of losing the control from the tab order.
+  const blockMissingReceipt = (event: { preventDefault: () => void; stopPropagation: () => void }) => {
+    if (!missingReceipt) return
+    event.preventDefault()
+    event.stopPropagation()
+  }
 
   useEffect(() => {
     if (!expense) return
@@ -126,6 +136,11 @@ export function ActivityExpenseReviewDialog({
               value={reason}
             />
           </div>
+          {missingReceipt ? (
+            <p className="text-sm font-medium text-muted-foreground" id={receiptHintId}>
+              Attach a private receipt before review.
+            </p>
+          ) : null}
           {error ? (
             <p className="text-sm font-medium text-destructive" role="alert">
               {error}
@@ -136,9 +151,18 @@ export function ActivityExpenseReviewDialog({
               Cancel
             </Button>
             <Button
+              aria-describedby={missingReceipt ? receiptHintId : undefined}
+              aria-disabled={missingReceipt || undefined}
               className="gap-2"
               disabled={submitting || !canVerify || !reason.trim()}
-              onClick={() => void submit(false)}
+              onClick={(event) => {
+                blockMissingReceipt(event)
+                if (missingReceipt) return
+                void submit(false)
+              }}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter' || event.key === ' ') blockMissingReceipt(event)
+              }}
               type="button"
               variant="outline"
             >
@@ -146,9 +170,18 @@ export function ActivityExpenseReviewDialog({
               Return for correction
             </Button>
             <Button
+              aria-describedby={missingReceipt ? receiptHintId : undefined}
+              aria-disabled={missingReceipt || undefined}
               className="gap-2"
               disabled={submitting || !canVerify}
-              onClick={() => void submit(true)}
+              onClick={(event) => {
+                blockMissingReceipt(event)
+                if (missingReceipt) return
+                void submit(true)
+              }}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter' || event.key === ' ') blockMissingReceipt(event)
+              }}
               type="button"
             >
               {submitting ? (

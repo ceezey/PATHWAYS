@@ -63,9 +63,16 @@ export type ProjectSetupSchema = z.infer<typeof projectSetupBaseSchema>
 export const projectTeamEditSchema = projectSetupBaseSchema
   .extend({
     sector: z.string().trim().max(160, 'Use at most 160 characters.'),
-    area: z.string().trim(),
+    area: z.string().trim().max(240, 'Use at most 240 characters.'),
     startDate: z.string(),
     endDate: z.string(),
+    // These fields are carried through unchanged, never edited here, so the
+    // schema must only enforce the API's own bounds, not the setup form's
+    // stricter minimums — otherwise a project with a short/empty description
+    // (or title just under the setup-form minimum) can never save a team
+    // change: the hidden field fails validation before submit is attempted.
+    title: z.string().trim().min(3, 'Enter a project title.').max(160, 'Use at most 160 characters.'),
+    description: z.string().trim().max(2000, 'Use at most 2000 characters.'),
   })
   .refine(
     (value) =>
@@ -172,6 +179,12 @@ export const toUpdateProjectInput = (
   current: ProjectDetail,
 ): UpdateProjectInput => ({
   ...projectCoreInput(values),
+
+  // The setup/team-edit forms carry no objectives field, so projectCoreInput
+  // never sets it; without this, PATCH /projects/:id would null the stored
+  // column on every save. Only the update path re-sends the current value —
+  // create and the form itself must stay untouched.
+  objectives: current.objectives || undefined,
 
   code: current.code,
   programId: current.programId ?? undefined,

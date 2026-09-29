@@ -25,13 +25,35 @@ import { Form } from '@/components/ui/form'
 import { pathwaysClient } from '@/lib/services/pathways-client'
 import type { ProjectDetail, UserRecord } from '@/types/pathways'
 
+// Mirrors the server-side gate (apps/api/src/modules/auth/authorization-policy.ts,
+// canAssignRole/canAuthorizeRole) so the dialog disables fields the actor
+// cannot save, instead of letting a rejected PATCH be the only feedback.
+import {
+  type CanonicalRole,
+  canAssignRole,
+} from '../../../../api/src/modules/auth/authorization-policy'
+
 import {
   type ProjectSetupSchema,
   projectTeamEditSchema,
   toProjectTeamInput,
   toUpdateProjectInput,
 } from './project-form-validation'
-import { ProjectTeamSelectors, validateProjectTeamSelections } from './project-team-selectors'
+import {
+  type TeamFieldName,
+  ProjectTeamSelectors,
+  validateProjectTeamSelections,
+} from './project-team-selectors'
+
+// Which project-role field a given assignment field maps to, for the
+// canAssignRole check. Program Manager is deliberately excluded: no actor
+// (including System Administrator) may assign it through this dialog —
+// canAssignRole's own target list never includes PROGRAM_MANAGER.
+const assignTargetRoles: Partial<Record<TeamFieldName, CanonicalRole>> = {
+  projectManager: 'PROJECT_MANAGER',
+  monitoringOfficer: 'MONITORING_AND_EVALUATION_OFFICER',
+  projectOfficers: 'PROJECT_OFFICER',
+}
 
 const teamFields = [
   'programManager',
@@ -90,6 +112,14 @@ export const ProjectTeamEditorDialog = ({
   // authority from this dialog (the API also enforces this server-side).
   const preventProjectManagerSelfRemoval =
     Boolean(profile?.userId) && profile?.userId === project.projectManagerId
+
+  const actorRole = profile?.roles[0] as CanonicalRole | undefined
+  const disallowAssignRoles = (Object.keys(assignTargetRoles) as TeamFieldName[]).filter(
+    (field) => {
+      const target = assignTargetRoles[field]
+      return !target || !actorRole || !canAssignRole(actorRole, target)
+    },
+  )
 
   useEffect(() => {
     if (open) form.reset(formDefaults(project))
@@ -191,6 +221,7 @@ export const ProjectTeamEditorDialog = ({
             />
             <ProjectTeamSelectors
               control={form.control}
+              disallowAssignRoles={disallowAssignRoles}
               disallowClearRoles={
                 preventProjectManagerSelfRemoval ? ['projectManager'] : undefined
               }
