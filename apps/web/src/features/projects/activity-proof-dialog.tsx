@@ -126,6 +126,7 @@ const ScopedActivityProofDialog = ({
   // later step (finalize, Submit) must never upload the file again.
   const uploadedKeys = useRef(new Set<string>())
   const [beneficiariesReachedThisSession, setBeneficiariesReachedThisSession] = useState('')
+  const progressError = error.startsWith('Progress must')
   const noteError = error === 'Enter an update note before submitting proof.'
   const fileError = error.startsWith('Attach') || error.startsWith('Select up to')
   const beneficiariesError = error.startsWith('Beneficiaries reached this session')
@@ -141,9 +142,46 @@ const ScopedActivityProofDialog = ({
     return value
   }
 
+  // The progress field follows the beneficiary-based suggestion until the officer edits it.
+  const [progressText, setProgressText] = useState('')
+  const [progressEdited, setProgressEdited] = useState(false)
+  const suggestion = (() => {
+    if (resume || !activity) return null
+    const target = activity.targetBeneficiaries
+    const reached = activity.beneficiariesReached
+    if (typeof target !== 'number' || !(target > 0) || typeof reached !== 'number') return null
+    const session = parsedBeneficiariesReachedThisSession()
+    const total = reached + (typeof session === 'number' ? session : 0)
+    const percent = Math.floor((total / target) * 100)
+    // Automatic suggestions never reach 100: completion is only ever an explicit choice.
+    return {
+      percent: Math.min(99, Math.max(activity.progress, percent)),
+      total,
+      target,
+      includesSession: typeof session === 'number',
+    }
+  })()
+  const progressValue = resume
+    ? String(resume.progress)
+    : progressEdited
+      ? progressText
+      : String(suggestion?.percent ?? activity?.progress ?? 0)
+
+  const numericProgress = progressValue.trim() === '' ? Number.NaN : Number(progressValue)
+  const lowerNotice =
+    !resume &&
+    progressEdited &&
+    activity !== null &&
+    activity !== undefined &&
+    Number.isInteger(numericProgress) &&
+    numericProgress >= 0 &&
+    numericProgress < activity.progress
+
   // biome-ignore lint/correctness/useExhaustiveDependencies: scope is stable per instance key.
   useEffect(() => {
     if (!activity || !open) return
+    setProgressText('')
+    setProgressEdited(false)
     setNote(resume?.note ?? '')
     setFiles([])
     setError('')
@@ -340,6 +378,16 @@ const ScopedActivityProofDialog = ({
       setError('Beneficiaries reached this session must be a whole number from 0 to 100000.')
       return
     }
+    const progressPercent = resume ? resume.progress : Number(progressValue)
+    if (
+      !progressValue.trim() ||
+      !Number.isInteger(progressPercent) ||
+      progressPercent < 0 ||
+      progressPercent > 100
+    ) {
+      setError('Progress must be a whole number from 0 to 100.')
+      return
+    }
     setSubmitting(true)
     setError('')
     try {
@@ -373,7 +421,7 @@ const ScopedActivityProofDialog = ({
           projectId: activity.projectId,
           activityId: activity.id,
           clientUpdateId,
-          progressPercent: resume?.progress ?? activity.progress,
+          progressPercent,
           note: note.trim(),
           files: declarations,
           ...(beneficiaries === null ? {} : { beneficiariesReachedThisSession: beneficiaries }),
@@ -514,6 +562,43 @@ const ScopedActivityProofDialog = ({
             </p>
           </div>
           <div className="space-y-2">
+            <Label htmlFor="activity-proof-progress">Progress (%)</Label>
+            <Input
+              aria-describedby={
+                [
+                  suggestion ? 'activity-proof-progress-hint' : '',
+                  lowerNotice ? 'activity-proof-progress-lower' : '',
+                  progressError ? 'activity-proof-progress-error' : '',
+                ]
+                  .filter(Boolean)
+                  .join(' ') || undefined
+              }
+              aria-invalid={progressError}
+              disabled={submitting || locked || Boolean(resume)}
+              id="activity-proof-progress"
+              max={100}
+              min={0}
+              onChange={(event) => {
+                setProgressText(event.target.value)
+                setProgressEdited(true)
+                if (progressError) setError('')
+              }}
+              step={1}
+              type="number"
+              value={progressValue}
+            />
+            {suggestion ? (
+              <p className="text-sm text-muted-foreground" id="activity-proof-progress-hint">
+                {`Suggested from beneficiaries: ${suggestion.total} of ${suggestion.target} reached ${suggestion.includesSession ? '(including this session) ' : ''}= ${suggestion.percent}%.`}
+              </p>
+            ) : null}
+            {lowerNotice && activity ? (
+              <p className="text-sm text-muted-foreground" id="activity-proof-progress-lower">
+                This is lower than the current progress ({activity.progress}%).
+              </p>
+            ) : null}
+          </div>
+          <div className="space-y-2">
             <Label htmlFor="activity-note">
               Narrative Notes
               <span aria-hidden="true" className="ml-1 text-danger">
@@ -621,7 +706,9 @@ const ScopedActivityProofDialog = ({
                     ? 'activity-proof-error'
                     : beneficiariesError
                       ? 'activity-beneficiaries-reached-error'
-                      : undefined
+                      : progressError
+                        ? 'activity-proof-progress-error'
+                        : undefined
               }
               role="alert"
             >
