@@ -2,7 +2,7 @@
 
 **ID:** `cr-pathways-f9-trusted-aggregates`
 **Date:** 2026-09-29
-**Status:** Approved (implementation pending; amended 2026-09-29, see section 9)
+**Status:** Approved (implementation pending; amended 2026-09-29 and 2026-09-30, see sections 9 and 10)
 
 ## 1. Decision and Authority
 
@@ -87,3 +87,22 @@ When this record is approved and verified, update the F9 section of `docs/sdd-pa
 ## Renumbering 2026-09-30
 
 `dev` gained `0044_activity_progress_review` while this record was open. This migration was never applied to any database, so it was renumbered from `0044_f9_descriptive_aggregates` to `0045_f9_descriptive_aggregates`. Its prerequisite check now requires `0044_activity_progress_review` finished. No function body changed. It uses advisory lock key `(505005,1)`, the same key `0044_activity_progress_review` takes; the locks are transaction-scoped and the migrations run serially, so they do not conflict.
+
+## 10. Approved amendment 2026-09-30: survey restricted for aggregate-only roles
+
+**Approved by the developer on 2026-09-30 (time-constrained decision).** The R1 privacy review found that even with the defined-period rule, an aggregate-only role can re-query an open reporting period repeatedly while assessments are still being recorded and difference the successive releases to recover one person's scores. A closed-period release freeze (each closed period released once, from a frozen copy) would close the gap, but it needs a new table and is deferred.
+
+**Decision.** The survey view requires `assessments.detail.read` in addition to `analytics.descriptive.read` and `monitoring.read`. Program Manager, Grant Manager and any other role without `assessments.detail.read` (including System Administrator) receive an explicit restricted state for survey improvement, on read and CSV export. Roles that hold it (Project Manager, Monitoring and Evaluation Officer) keep the survey exactly as before. The timeline view is unchanged: it stays real for every role holding `analytics.descriptive.read` and `monitoring.read`, because it releases activity and milestone counts, not person-level scores. The defined non-overlapping period rule stays in place for the roles that can still read the survey.
+
+**Enforcement.**
+
+- `pathways.p10_f9_survey_aggregate` in `0045` raises `42501` unless `pathways.p06_can('assessments.detail.read', wanted_project)` also passes. `0045` is unapplied, so the function body is amended in place. The timeline function is unchanged. `0045` also gains ownership precondition checks for `project_indicators` and `projects`, the two tables the survey function now reads under the definer.
+- The API checks `assessments.detail.read` in `computeSurvey` before the project scope query or any aggregate call, for both read and export, so a restricted role never reaches a survey query.
+
+**Restricted contract.** The API answers a restricted survey request with `403` (`ForbiddenException`, message "Survey improvement is restricted for your role."), the same typed refusal the other permission checks on these routes use (`requireMonitoringRead`). It is not an empty result and not a 200 with a placeholder, because the survey schema has no restricted state and an empty shape would read as "no data". The overview-metrics `null` convention applies to a section inside a payload that otherwise loads; here the whole view is refused, so a 403 matches the existing contract. The denial throws inside the authorized transaction, so it writes no audit row, which matches every other permission denial on these routes. The web does not depend on the 403: it disables the survey option and never fetches for roles without `assessments.detail.read`, and it maps a 403 that still arrives to the same restricted wording with no Retry.
+
+**Web.** The survey option is available only with all three permissions. Otherwise the survey panel shows "Survey improvement is restricted for your role." (not "None yet", not retryable). A 400 from the survey fetch (refused or overlapping period) is a non-retryable state that reads "This reporting period cannot be used for survey results."; Retry stays only for network and 5xx failures. The survey period picker hides periods that overlap another defined period, because those are always refused.
+
+**Deferred.** Manager survey totals with a closed-period release freeze are recorded in `docs/deferred-features.md` as On hold, with the re-enable path (a per-period frozen release table).
+
+**Verification.** `f9-descriptive-aggregates-runtime.sql` asserts `42501` on the survey function for Program Manager and Grant Manager (including exact defined periods) while the timeline function still succeeds for them, and success plus the period rules for a role holding `assessments.detail.read`. API tests assert Program Manager, Grant Manager and System Administrator survey read and export are 403 before any query with no audit row, that Project Manager and Monitoring and Evaluation Officer still get the survey, and that Program and Grant Manager timelines stay real. Web tests cover the restricted wording with no fetch and no Retry, the 400 wording without Retry, Retry on network or 5xx errors, and hiding overlapping periods. QAD-T31, QAD-T33, QAD-T34 and QAD-T35 record the rows.

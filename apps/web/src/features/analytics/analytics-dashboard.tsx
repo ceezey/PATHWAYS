@@ -55,7 +55,10 @@ import {
 } from './analytics-charts'
 import { AnalyticsCoverageMap } from './analytics-coverage-map'
 import { toProjectCoverageFeatureCollection } from './analytics-location-utils'
-import { deriveAnalyticsReportingPeriods } from './analytics-reporting-periods'
+import {
+  deriveAnalyticsReportingPeriods,
+  nonOverlappingAnalyticsPeriods,
+} from './analytics-reporting-periods'
 
 const analysisViews = [
   { value: 'kpi', label: 'KPI / indicator performance' },
@@ -92,6 +95,19 @@ const metricNumber = (cell: { value: string | null }) => {
   return Number.isFinite(value) ? value : null
 }
 
+type SurveyErrorKind = 'restricted' | 'period' | 'retry'
+const SURVEY_RESTRICTED_MESSAGE = 'Survey improvement is restricted for your role.'
+const SURVEY_PERIOD_MESSAGE = 'This reporting period cannot be used for survey results.'
+
+/** 403 = role restriction and 400 = refused period are final; only network/5xx may be retried. */
+const surveyErrorKindFor = (caught: unknown): SurveyErrorKind => {
+  const status =
+    caught && typeof caught === 'object' && 'status' in caught
+      ? (caught as { status?: unknown }).status
+      : undefined
+  return status === 403 ? 'restricted' : status === 400 ? 'period' : 'retry'
+}
+
 export const AnalyticsDashboard = () => {
   const { labels } = useDisplayLabels()
   const { role, profile } = useCurrentRole()
@@ -101,6 +117,10 @@ export const AnalyticsDashboard = () => {
   // Survey and timeline read person-derived aggregates, so the API requires both permissions
   // (analytics.descriptive.read and monitoring.read). Anything less is restricted, never "None yet".
   const canReadSurveyTimeline = canReadDescriptive && canReadIndicators
+  // Survey improvement additionally requires assessments.detail.read (CR amendment 2026-09-30):
+  // aggregate-only roles (Program Manager, Grant Manager) see an explicit restricted state.
+  const canReadSurvey =
+    canReadSurveyTimeline && principalHasAtomicPermission(profile, 'assessments.detail.read')
   const canExportAnalytics =
     canReadDescriptive && principalHasAtomicPermission(profile, 'analytics.export')
   const canReadBudgetUtilization =
@@ -145,6 +165,8 @@ export const AnalyticsDashboard = () => {
   const [survey, setSurvey] = useState<SurveyAnalytics | null>(null)
   const [surveyLoading, setSurveyLoading] = useState(false)
   const [surveyError, setSurveyError] = useState('')
+  // restricted (403) and period (400) are final answers, so only 'retry' offers Retry.
+  const [surveyErrorKind, setSurveyErrorKind] = useState<SurveyErrorKind>('retry')
   const [surveyLoadAttempt, setSurveyLoadAttempt] = useState(0)
   const [timeline, setTimeline] = useState<TimelineAnalytics | null>(null)
   const [timelineLoading, setTimelineLoading] = useState(false)
@@ -167,8 +189,14 @@ export const AnalyticsDashboard = () => {
       ),
     [indicatorDefinitions, projectId, selectedProject],
   )
+  // The survey view offers only periods the database will release (no overlap with another).
+  const pickerPeriods = useMemo(
+    () =>
+      analysisView === 'survey' ? nonOverlappingAnalyticsPeriods(reportingPeriods) : reportingPeriods,
+    [analysisView, reportingPeriods],
+  )
   const selectedPeriod =
-    reportingPeriods.find((candidate) => candidate.value === period) ?? reportingPeriods[0]
+    pickerPeriods.find((candidate) => candidate.value === period) ?? pickerPeriods[0]
   const sadddUnavailableReason =
     !selectedProject?.startDate || !selectedProject.endDate
       ? missingSadddDates
@@ -254,11 +282,11 @@ export const AnalyticsDashboard = () => {
 
   useEffect(() => {
     setPeriod((current) =>
-      reportingPeriods.some((candidate) => candidate.value === current)
+      pickerPeriods.some((candidate) => candidate.value === current)
         ? current
-        : (reportingPeriods[0]?.value ?? ''),
+        : (pickerPeriods[0]?.value ?? ''),
     )
-  }, [reportingPeriods])
+  }, [pickerPeriods])
 
   useEffect(() => {
     if (!projectId || !selectedProject || !canReadBudgetUtilization) {
@@ -400,10 +428,11 @@ export const AnalyticsDashboard = () => {
 
   // Paired pre/post survey improvement. Requires a complete period, same as the API contract.
   useEffect(() => {
-    if (!projectId || !selectedPeriod || !canReadSurveyTimeline || analysisView !== 'survey') {
+    if (!projectId || !selectedPeriod || !canReadSurvey || analysisView !== 'survey') {
       setSurveyLoading(false)
       setSurvey(null)
       setSurveyError('')
+      setSurveyErrorKind('retry')
       return
     }
     void surveyLoadAttempt
@@ -411,6 +440,7 @@ export const AnalyticsDashboard = () => {
     setSurveyLoading(true)
     setSurvey(null)
     setSurveyError('')
+    setSurveyErrorKind('retry')
     pathwaysClient
       .getSurveyAnalytics({
         projectId,
@@ -421,10 +451,18 @@ export const AnalyticsDashboard = () => {
         if (active) setSurvey(result)
       })
       .catch((caught: unknown) => {
-        if (active)
-          setSurveyError(
-            caught instanceof Error ? caught.message : 'Survey analytics could not be loaded.',
-          )
+        if (!active) return
+        const kind = surveyErrorKindFor(caught)
+        setSurveyErrorKind(kind)
+        setSurveyError(
+          kind === 'restricted'
+            ? SURVEY_RESTRICTED_MESSAGE
+            : kind === 'period'
+              ? SURVEY_PERIOD_MESSAGE
+              : caught instanceof Error
+                ? caught.message
+                : 'Survey analytics could not be loaded.',
+        )
       })
       .finally(() => {
         if (active) setSurveyLoading(false)
@@ -432,7 +470,7 @@ export const AnalyticsDashboard = () => {
     return () => {
       active = false
     }
-  }, [analysisView, canReadSurveyTimeline, projectId, selectedPeriod, surveyLoadAttempt])
+  }, [analysisView, canReadSurvey, projectId, selectedPeriod, surveyLoadAttempt])
 
   // Timeline adherence uses the business reporting date server-side; no period selection needed.
   useEffect(() => {
@@ -503,6 +541,7 @@ export const AnalyticsDashboard = () => {
     setDescriptiveError('')
     setSurvey(null)
     setSurveyError('')
+    setSurveyErrorKind('retry')
     setTimeline(null)
     setTimelineError('')
     setBudgetTotals(null)
@@ -621,7 +660,7 @@ export const AnalyticsDashboard = () => {
         <div className="space-y-2 xl:col-span-2">
           <span className="text-sm font-medium">Reporting period</span>
           <Select
-            disabled={reportingPeriods.length === 0}
+            disabled={pickerPeriods.length === 0}
             value={selectedPeriod?.value ?? ''}
             onValueChange={setPeriod}
           >
@@ -629,7 +668,7 @@ export const AnalyticsDashboard = () => {
               <SelectValue placeholder="No reporting periods" />
             </SelectTrigger>
             <SelectContent>
-              {reportingPeriods.map((row) => (
+              {pickerPeriods.map((row) => (
                 <SelectItem key={row.value} value={row.value}>
                   {row.label}
                 </SelectItem>
@@ -650,11 +689,13 @@ export const AnalyticsDashboard = () => {
               {analysisViews.map((view) => (
                 <SelectItem
                   disabled={
-                    (view.value === 'survey' || view.value === 'timeline') && !canReadSurveyTimeline
+                    (view.value === 'survey' && !canReadSurvey) ||
+                    (view.value === 'timeline' && !canReadSurveyTimeline)
                   }
                   key={view.value}
                   title={
-                    (view.value === 'survey' || view.value === 'timeline') && !canReadSurveyTimeline
+                    (view.value === 'survey' && !canReadSurvey) ||
+                    (view.value === 'timeline' && !canReadSurveyTimeline)
                       ? 'Not available for this role'
                       : undefined
                   }
@@ -720,7 +761,10 @@ export const AnalyticsDashboard = () => {
             <Button
               className="shrink-0"
               disabled={
-                !selectedProject || exporting || (analysisView !== 'timeline' && !selectedPeriod)
+                !selectedProject ||
+                exporting ||
+                (analysisView !== 'timeline' && !selectedPeriod) ||
+                (analysisView === 'survey' && !canReadSurvey)
               }
               onClick={() => void exportDescriptive()}
               type="button"
@@ -799,8 +843,8 @@ export const AnalyticsDashboard = () => {
                   </div>
                 ) : null}
               </>
-            ) : analysisView === 'survey' && !canReadSurveyTimeline ? (
-              <UnavailableChart description="Survey improvement is not available for this role." />
+            ) : analysisView === 'survey' && !canReadSurvey ? (
+              <UnavailableChart description={SURVEY_RESTRICTED_MESSAGE} />
             ) : analysisView === 'timeline' && !canReadSurveyTimeline ? (
               <UnavailableChart description="Timeline adherence is not available for this role." />
             ) : analysisView === 'survey' ? (
@@ -808,7 +852,9 @@ export const AnalyticsDashboard = () => {
                 activities={activities}
                 data={survey}
                 error={surveyError}
+                errorKind={surveyErrorKind}
                 loading={surveyLoading}
+                noUsablePeriod={reportingPeriods.length > 0 && pickerPeriods.length === 0}
                 onRetry={() => setSurveyLoadAttempt((value) => value + 1)}
                 periodsReadable={periodsReadable}
                 showChart={visualizationType !== 'table'}
@@ -1153,6 +1199,8 @@ const SurveyAnalyticsPanel = ({
   data,
   loading,
   error,
+  errorKind,
+  noUsablePeriod,
   onRetry,
   periodsReadable,
   showChart,
@@ -1161,6 +1209,8 @@ const SurveyAnalyticsPanel = ({
   data: SurveyAnalytics | null
   loading: boolean
   error: string
+  errorKind: SurveyErrorKind
+  noUsablePeriod: boolean
   onRetry: () => void
   periodsReadable: boolean
   showChart: boolean
@@ -1175,6 +1225,8 @@ const SurveyAnalyticsPanel = ({
         icon={BarChart3}
       />
     )
+  if (error && errorKind !== 'retry')
+    return <UnavailableChart description={error} />
   if (error)
     return (
       <AsyncState
@@ -1185,6 +1237,7 @@ const SurveyAnalyticsPanel = ({
         onRetry={onRetry}
       />
     )
+  if (!data && noUsablePeriod) return <UnavailableChart description={SURVEY_PERIOD_MESSAGE} />
   if (!data)
     return (
       <UnavailableChart

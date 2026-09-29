@@ -38,8 +38,11 @@ CREATE FUNCTION pg_temp.near(actual double precision,expected double precision) 
   SELECT abs(actual-expected)<1e-9
 $$;
 
--- Org A: Program Manager (u101, project A1 only), Grant Manager (u102, projects A1 and A2),
--- Project Officer (u103, A1). Org B: Grant Manager (u105, project B1).
+-- Org A: Program Manager (u101, project A1 only), Grant Manager (u102, projects A1, A2, A4, A5),
+-- Project Officer (u103, A1), Project Manager (u104, A1, A2, A4, A5; holds assessments.detail.read).
+-- Org B: Grant Manager (u105, project B1), Project Manager (u106, B1).
+-- Amendment 2026-09-30: survey requires assessments.detail.read, so Program and Grant Managers are
+-- refused the survey aggregate (42501) while the timeline aggregate stays available to them.
 SET LOCAL session_replication_role = replica;
 INSERT INTO auth.users(id) SELECT pg_temp.u(200+n) FROM generate_series(1,8) n;
 INSERT INTO pathways.organizations(id,code,name) VALUES
@@ -48,7 +51,8 @@ INSERT INTO pathways.organizations(id,code,name) VALUES
 INSERT INTO pathways.roles(code,name) VALUES
   ('PROGRAM_MANAGER','Program Manager'),
   ('GRANT_MANAGER','Grant Manager'),
-  ('PROJECT_OFFICER','Project Officer')
+  ('PROJECT_OFFICER','Project Officer'),
+  ('PROJECT_MANAGER','Project Manager')
 ON CONFLICT(code) DO NOTHING;
 INSERT INTO pathways.system_users(
   id,organization_id,role_id,auth_user_id,full_name,email,account_status,activated_at
@@ -58,18 +62,25 @@ FROM (VALUES
   (1,pg_temp.u(1),'PROGRAM_MANAGER','F9 Program Manager A','f9-pm-a@example.invalid'),
   (2,pg_temp.u(1),'GRANT_MANAGER','F9 Grant Manager A','f9-gm-a@example.invalid'),
   (3,pg_temp.u(1),'PROJECT_OFFICER','F9 Officer A','f9-po-a@example.invalid'),
-  (5,pg_temp.u(2),'GRANT_MANAGER','F9 Grant Manager B','f9-gm-b@example.invalid')
+  (4,pg_temp.u(1),'PROJECT_MANAGER','F9 Project Manager A','f9-pjm-a@example.invalid'),
+  (5,pg_temp.u(2),'GRANT_MANAGER','F9 Grant Manager B','f9-gm-b@example.invalid'),
+  (6,pg_temp.u(2),'PROJECT_MANAGER','F9 Project Manager B','f9-pjm-b@example.invalid')
 ) v(n,org_id,role_code,full_name,email)
 JOIN pathways.roles r ON r.code=v.role_code;
 
 INSERT INTO pathways.permissions(code,name) VALUES
   ('analytics.descriptive.read','analytics.descriptive.read'),
-  ('monitoring.read','monitoring.read')
+  ('monitoring.read','monitoring.read'),
+  ('assessments.detail.read','assessments.detail.read')
 ON CONFLICT(code) DO NOTHING;
 INSERT INTO pathways.role_permissions(role_id,permission_id)
 SELECT r.id,p.id FROM pathways.roles r CROSS JOIN pathways.permissions p
-WHERE r.code IN ('PROGRAM_MANAGER','GRANT_MANAGER','PROJECT_OFFICER')
+WHERE r.code IN ('PROGRAM_MANAGER','GRANT_MANAGER','PROJECT_OFFICER','PROJECT_MANAGER')
   AND p.code IN ('analytics.descriptive.read','monitoring.read')
+ON CONFLICT DO NOTHING;
+INSERT INTO pathways.role_permissions(role_id,permission_id)
+SELECT r.id,p.id FROM pathways.roles r CROSS JOIN pathways.permissions p
+WHERE r.code='PROJECT_MANAGER' AND p.code='assessments.detail.read'
 ON CONFLICT DO NOTHING;
 
 INSERT INTO pathways.projects(id,organization_id,code,title,start_date,end_date,created_by_id) VALUES
@@ -85,7 +96,12 @@ INSERT INTO pathways.user_project_assignments(id,organization_id,project_id,user
   (pg_temp.u(404),pg_temp.u(1),pg_temp.u(301),pg_temp.u(103),pg_temp.u(101)),
   (pg_temp.u(405),pg_temp.u(2),pg_temp.u(303),pg_temp.u(105),pg_temp.u(105)),
   (pg_temp.u(406),pg_temp.u(1),pg_temp.u(304),pg_temp.u(102),pg_temp.u(101)),
-  (pg_temp.u(407),pg_temp.u(1),pg_temp.u(305),pg_temp.u(102),pg_temp.u(101));
+  (pg_temp.u(407),pg_temp.u(1),pg_temp.u(305),pg_temp.u(102),pg_temp.u(101)),
+  (pg_temp.u(408),pg_temp.u(1),pg_temp.u(301),pg_temp.u(104),pg_temp.u(101)),
+  (pg_temp.u(409),pg_temp.u(1),pg_temp.u(302),pg_temp.u(104),pg_temp.u(101)),
+  (pg_temp.u(410),pg_temp.u(1),pg_temp.u(304),pg_temp.u(104),pg_temp.u(101)),
+  (pg_temp.u(411),pg_temp.u(1),pg_temp.u(305),pg_temp.u(104),pg_temp.u(101)),
+  (pg_temp.u(412),pg_temp.u(2),pg_temp.u(303),pg_temp.u(106),pg_temp.u(105));
 
 -- Defined reporting periods (cr-pathways-f9-trusted-aggregates amendment 2026-09-29): the distinct
 -- (period_start, period_end) pairs of non-archived, reviewed Indicator definitions.
@@ -215,13 +231,13 @@ SELECT pg_temp.ok(
   AND NOT has_function_privilege('service_role','pathways.p10_f9_survey_aggregate(uuid,uuid,date,date)','EXECUTE'),
   'only pathways_runtime may execute the functions');
 
--- Access: Program Manager and Grant Manager (no assessments.detail.read / activities.read) succeed.
+-- Access: Program Manager and Grant Manager (no assessments.detail.read / activities.read) are
+-- refused the survey aggregate and still receive the timeline aggregate.
 SET LOCAL ROLE pathways_runtime;
 SELECT set_config('request.jwt.claim.sub',pg_temp.u(201)::text,true),
        set_config('app.organization_id',pg_temp.u(1)::text,true),
        set_config('app.user_id',pg_temp.u(101)::text,true);
 INSERT INTO f9_out VALUES
-  ('survey_pm',pathways.p10_f9_survey_aggregate(pg_temp.u(1),pg_temp.u(301),DATE '2026-01-01',DATE '2026-12-31')),
   ('timeline_pm',pathways.p10_f9_timeline_aggregate(pg_temp.u(1),pg_temp.u(301),DATE '2026-06-15'));
 -- The Program Manager cannot read the underlying rows directly, only the aggregate.
 SELECT pg_temp.ok((SELECT count(*)=0 FROM pathways.assessment_results),
@@ -229,29 +245,19 @@ SELECT pg_temp.ok((SELECT count(*)=0 FROM pathways.assessment_results),
 SELECT pg_temp.ok((SELECT count(*)=0 FROM pathways.project_activities),
   'Program Manager sees zero activity rows directly (activities.read is absent)');
 SELECT pg_temp.reject(
-  format($i$SELECT pathways.p10_f9_survey_aggregate(%L,%L,DATE '2026-02-01',DATE '2026-03-31')$i$,pg_temp.u(1),pg_temp.u(301)),
-  '22023','Program Manager is refused a custom survey range (defined-period rule applies to every role)');
--- Out-of-scope project for the Program Manager (assigned to A1 only).
+  format($i$SELECT pathways.p10_f9_survey_aggregate(%L,%L,DATE '2026-01-01',DATE '2026-12-31')$i$,pg_temp.u(1),pg_temp.u(301)),
+  '42501','Program Manager is denied the survey aggregate (assessments.detail.read is absent)');
 SELECT pg_temp.reject(
-  format($i$SELECT pathways.p10_f9_survey_aggregate(%L,%L,DATE '2026-01-01',DATE '2026-12-31')$i$,pg_temp.u(1),pg_temp.u(302)),
-  '42501','Program Manager is denied survey aggregate for an unassigned project');
+  format($i$SELECT pathways.p10_f9_survey_aggregate(%L,%L,DATE '2026-02-01',DATE '2026-03-31')$i$,pg_temp.u(1),pg_temp.u(301)),
+  '42501','Program Manager is denied a custom survey range with the permission error, not a period error');
+-- Out-of-scope project for the Program Manager (assigned to A1 only).
 SELECT pg_temp.reject(
   format($i$SELECT pathways.p10_f9_timeline_aggregate(%L,%L,DATE '2026-06-15')$i$,pg_temp.u(1),pg_temp.u(302)),
   '42501','Program Manager is denied timeline aggregate for an unassigned project');
 -- Cross-organization: org A session targeting org B's organization and project.
 SELECT pg_temp.reject(
-  format($i$SELECT pathways.p10_f9_survey_aggregate(%L,%L,DATE '2026-01-01',DATE '2026-12-31')$i$,pg_temp.u(2),pg_temp.u(303)),
-  '42501','A cross-organization survey aggregate request is denied');
-SELECT pg_temp.reject(
   format($i$SELECT pathways.p10_f9_timeline_aggregate(%L,%L,DATE '2026-06-15')$i$,pg_temp.u(2),pg_temp.u(303)),
   '42501','A cross-organization timeline aggregate request is denied');
--- Right organization claimed, but the project belongs to org B.
-SELECT pg_temp.reject(
-  format($i$SELECT pathways.p10_f9_survey_aggregate(%L,%L,DATE '2026-01-01',DATE '2026-12-31')$i$,pg_temp.u(1),pg_temp.u(303)),
-  '42501','An org B project under an org A claim is denied');
-SELECT pg_temp.reject(
-  format($i$SELECT pathways.p10_f9_survey_aggregate(NULL,%L,DATE '2026-01-01',DATE '2026-12-31')$i$,pg_temp.u(301)),
-  '42501','A null organization is denied');
 RESET ROLE;
 
 SET LOCAL ROLE pathways_runtime;
@@ -259,12 +265,37 @@ SELECT set_config('request.jwt.claim.sub',pg_temp.u(202)::text,true),
        set_config('app.organization_id',pg_temp.u(1)::text,true),
        set_config('app.user_id',pg_temp.u(102)::text,true);
 INSERT INTO f9_out VALUES
-  ('survey_gm',pathways.p10_f9_survey_aggregate(pg_temp.u(1),pg_temp.u(301),DATE '2026-01-01',DATE '2026-12-31')),
   ('timeline_gm',pathways.p10_f9_timeline_aggregate(pg_temp.u(1),pg_temp.u(301),DATE '2026-06-15')),
-  ('timeline_gm_a2',pathways.p10_f9_timeline_aggregate(pg_temp.u(1),pg_temp.u(302),DATE '2026-06-15')),
+  ('timeline_gm_a2',pathways.p10_f9_timeline_aggregate(pg_temp.u(1),pg_temp.u(302),DATE '2026-06-15'));
+SELECT pg_temp.reject(
+  format($i$SELECT pathways.p10_f9_survey_aggregate(%L,%L,DATE '2026-01-01',DATE '2026-12-31')$i$,pg_temp.u(1),pg_temp.u(301)),
+  '42501','Grant Manager is denied the survey aggregate (assessments.detail.read is absent)');
+SELECT pg_temp.reject(
+  format($i$SELECT pathways.p10_f9_survey_aggregate(%L,%L,DATE '2026-01-01',DATE '2026-06-30')$i$,pg_temp.u(1),pg_temp.u(304)),
+  '42501','Grant Manager is denied an exact defined period of the survey aggregate');
+RESET ROLE;
+
+-- Project Manager (holds assessments.detail.read) receives the survey aggregate.
+SET LOCAL ROLE pathways_runtime;
+SELECT set_config('request.jwt.claim.sub',pg_temp.u(204)::text,true),
+       set_config('app.organization_id',pg_temp.u(1)::text,true),
+       set_config('app.user_id',pg_temp.u(104)::text,true);
+INSERT INTO f9_out VALUES
+  ('survey_pm',pathways.p10_f9_survey_aggregate(pg_temp.u(1),pg_temp.u(301),DATE '2026-01-01',DATE '2026-12-31')),
+  ('timeline_pjm',pathways.p10_f9_timeline_aggregate(pg_temp.u(1),pg_temp.u(301),DATE '2026-06-15')),
   ('survey_gm_empty',pathways.p10_f9_survey_aggregate(pg_temp.u(1),pg_temp.u(302),DATE '2026-01-01',DATE '2026-12-31')),
   ('survey_gm_h1',pathways.p10_f9_survey_aggregate(pg_temp.u(1),pg_temp.u(304),DATE '2026-01-01',DATE '2026-06-30')),
   ('survey_gm_h2',pathways.p10_f9_survey_aggregate(pg_temp.u(1),pg_temp.u(304),DATE '2026-07-01',DATE '2026-12-31'));
+-- Cross-organization and null-organization requests stay denied for a role that holds the permission.
+SELECT pg_temp.reject(
+  format($i$SELECT pathways.p10_f9_survey_aggregate(%L,%L,DATE '2026-01-01',DATE '2026-12-31')$i$,pg_temp.u(2),pg_temp.u(303)),
+  '42501','A cross-organization survey aggregate request is denied');
+SELECT pg_temp.reject(
+  format($i$SELECT pathways.p10_f9_survey_aggregate(%L,%L,DATE '2026-01-01',DATE '2026-12-31')$i$,pg_temp.u(1),pg_temp.u(303)),
+  '42501','An org B project under an org A claim is denied');
+SELECT pg_temp.reject(
+  format($i$SELECT pathways.p10_f9_survey_aggregate(NULL,%L,DATE '2026-01-01',DATE '2026-12-31')$i$,pg_temp.u(301)),
+  '42501','A null organization is denied');
 -- Defined-period rule: only an exact, non-overlapping defined reporting period is released, so
 -- adjacent or arbitrary custom ranges cannot be differenced to isolate one person.
 SELECT pg_temp.reject(
@@ -287,19 +318,31 @@ SELECT pg_temp.reject(
   '22023','A missing period is refused');
 RESET ROLE;
 
--- Both permissions are required: removing monitoring.read from Grant Manager denies the call.
+-- Every permission is required: removing monitoring.read from Project Manager denies both calls.
 DELETE FROM pathways.role_permissions rp USING pathways.roles r,pathways.permissions p
-WHERE rp.role_id=r.id AND rp.permission_id=p.id AND r.code='GRANT_MANAGER' AND p.code='monitoring.read';
+WHERE rp.role_id=r.id AND rp.permission_id=p.id AND r.code='PROJECT_MANAGER' AND p.code='monitoring.read';
 SET LOCAL ROLE pathways_runtime;
 SELECT pg_temp.reject(
   format($i$SELECT pathways.p10_f9_survey_aggregate(%L,%L,DATE '2026-01-01',DATE '2026-12-31')$i$,pg_temp.u(1),pg_temp.u(301)),
-  '42501','Grant Manager without monitoring.read is denied the survey aggregate');
+  '42501','Project Manager without monitoring.read is denied the survey aggregate');
 SELECT pg_temp.reject(
   format($i$SELECT pathways.p10_f9_timeline_aggregate(%L,%L,DATE '2026-06-15')$i$,pg_temp.u(1),pg_temp.u(301)),
-  '42501','Grant Manager without monitoring.read is denied the timeline aggregate');
+  '42501','Project Manager without monitoring.read is denied the timeline aggregate');
 RESET ROLE;
 INSERT INTO pathways.role_permissions(role_id,permission_id)
-SELECT r.id,p.id FROM pathways.roles r,pathways.permissions p WHERE r.code='GRANT_MANAGER' AND p.code='monitoring.read';
+SELECT r.id,p.id FROM pathways.roles r,pathways.permissions p WHERE r.code='PROJECT_MANAGER' AND p.code='monitoring.read';
+-- Removing assessments.detail.read denies only the survey aggregate; the timeline stays available.
+DELETE FROM pathways.role_permissions rp USING pathways.roles r,pathways.permissions p
+WHERE rp.role_id=r.id AND rp.permission_id=p.id AND r.code='PROJECT_MANAGER' AND p.code='assessments.detail.read';
+SET LOCAL ROLE pathways_runtime;
+SELECT pg_temp.reject(
+  format($i$SELECT pathways.p10_f9_survey_aggregate(%L,%L,DATE '2026-01-01',DATE '2026-12-31')$i$,pg_temp.u(1),pg_temp.u(301)),
+  '42501','Project Manager without assessments.detail.read is denied the survey aggregate');
+SELECT pg_temp.ok(pathways.p10_f9_timeline_aggregate(pg_temp.u(1),pg_temp.u(301),DATE '2026-06-15') IS NOT NULL,
+  'Project Manager without assessments.detail.read still receives the timeline aggregate');
+RESET ROLE;
+INSERT INTO pathways.role_permissions(role_id,permission_id)
+SELECT r.id,p.id FROM pathways.roles r,pathways.permissions p WHERE r.code='PROJECT_MANAGER' AND p.code='assessments.detail.read';
 
 -- Project Officer (assigned to A1) lacks analytics.descriptive.read by role.
 SET LOCAL ROLE pathways_runtime;
@@ -314,11 +357,11 @@ SELECT pg_temp.reject(
   '42501','Project Officer is denied the timeline aggregate');
 RESET ROLE;
 
--- Org B Grant Manager sees only org B data and is denied org A.
+-- Org B Project Manager sees only org B data and is denied org A.
 SET LOCAL ROLE pathways_runtime;
-SELECT set_config('request.jwt.claim.sub',pg_temp.u(205)::text,true),
+SELECT set_config('request.jwt.claim.sub',pg_temp.u(206)::text,true),
        set_config('app.organization_id',pg_temp.u(2)::text,true),
-       set_config('app.user_id',pg_temp.u(105)::text,true);
+       set_config('app.user_id',pg_temp.u(106)::text,true);
 SELECT pg_temp.reject(
   format($i$SELECT pathways.p10_f9_timeline_aggregate(%L,%L,DATE '2026-06-15')$i$,pg_temp.u(1),pg_temp.u(301)),
   '42501','An org B session is denied org A timeline aggregate');
@@ -328,8 +371,6 @@ INSERT INTO f9_out VALUES
 RESET ROLE;
 
 -- Survey parity: pairing, same-date tie-break, latest-by-date, invalid scores, no-activity group.
-SELECT pg_temp.ok((SELECT doc=(SELECT doc FROM f9_out WHERE name='survey_gm') FROM f9_out WHERE name='survey_pm'),
-  'Program Manager and Grant Manager receive identical survey aggregates');
 SELECT pg_temp.ok((SELECT doc->>'excludedRecords'='2' FROM f9_out WHERE name='survey_pm'),
   'survey excludes exactly the zero-maximum and NaN-score rows (2), not the enrollment-less row');
 SELECT pg_temp.ok((SELECT jsonb_array_length(doc->'groups')=3 FROM f9_out WHERE name='survey_pm'),
@@ -367,6 +408,8 @@ SELECT pg_temp.ok((SELECT jsonb_array_length(doc->'groups')=1 AND (doc->'groups'
 -- Timeline parity.
 SELECT pg_temp.ok((SELECT doc=(SELECT doc FROM f9_out WHERE name='timeline_gm') FROM f9_out WHERE name='timeline_pm'),
   'Program Manager and Grant Manager receive identical timeline aggregates');
+SELECT pg_temp.ok((SELECT doc=(SELECT doc FROM f9_out WHERE name='timeline_pjm') FROM f9_out WHERE name='timeline_pm'),
+  'Project Manager receives the same timeline aggregate as the aggregate-only roles');
 SELECT pg_temp.ok((SELECT (doc->'activities'->>'eligible')::int=5 AND (doc->'activities'->>'completed')::int=1
     FROM f9_out WHERE name='timeline_pm'),
   'timeline eligible excludes cancelled and archived activities (5) and counts 1 completed');
@@ -412,12 +455,12 @@ SELECT pg_temp.ok((SELECT NOT EXISTS(
       SELECT '%'||pg_temp.u(n)::text||'%' FROM generate_series(700,712) n
       UNION ALL SELECT '%'||pg_temp.u(n)::text||'%' FROM generate_series(1001,1026) n
       UNION ALL SELECT '%'||pg_temp.u(n)::text||'%' FROM generate_series(601,608) n
-      UNION ALL SELECT '%'||pg_temp.u(n)::text||'%' FROM generate_series(101,105) n)))),
+      UNION ALL SELECT '%'||pg_temp.u(n)::text||'%' FROM generate_series(101,106) n)))),
   'no enrollment, assessment, milestone, or user identifier appears in any output');
 
 DO $$ DECLARE total integer; BEGIN
  SELECT count(*) INTO total FROM f9_results;
- IF total<>44 THEN RAISE EXCEPTION '0045 f9-descriptive-aggregates checks expected 44 assertions, recorded %',total; END IF;
+ IF total<>48 THEN RAISE EXCEPTION '0045 f9-descriptive-aggregates checks expected 48 assertions, recorded %',total; END IF;
  RAISE NOTICE 'F9_DESCRIPTIVE_AGGREGATES_RUNTIME=PASS (% assertions)',total;
 END $$;
 ROLLBACK;

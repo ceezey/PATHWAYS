@@ -1,12 +1,13 @@
 -- cr-pathways-f9-trusted-aggregates: trusted F9 survey improvement and timeline adherence
 -- aggregates for aggregate-only roles (Program Manager, Grant Manager) that hold
 -- analytics.descriptive.read and monitoring.read but not assessments.detail.read or
--- activities.read. Adds two prisma-owned SECURITY DEFINER functions only (no table, column,
+-- activities.read. Amendment 2026-09-30: the survey function additionally requires
+-- assessments.detail.read (aggregate-only roles are refused); the timeline function is unchanged. Adds two prisma-owned SECURITY DEFINER functions only (no table, column,
 -- policy or grant change), following the pathways.p06_saddd guard pattern from
 -- 0028_revised_aggregate_permission_guards.
 --
 -- Both functions raise 42501 unless wanted_org equals app.organization_id and the session user
--- holds BOTH analytics.descriptive.read AND monitoring.read on wanted_project through
+-- holds BOTH analytics.descriptive.read AND monitoring.read (survey: plus assessments.detail.read) on wanted_project through
 -- pathways.p06_can. They read only the requested organization and project and return group
 -- aggregates (counts and sums) only: never a row, enrollment, Beneficiary or assessment
 -- identifier. Suppression is intentionally NOT applied here: the API process passes the
@@ -27,7 +28,9 @@ DO $$ BEGIN
   OR (SELECT pg_catalog.pg_get_userbyid(relowner) FROM pg_catalog.pg_class WHERE oid='pathways.assessment_results'::pg_catalog.regclass)<>'prisma'
   OR (SELECT pg_catalog.pg_get_userbyid(relowner) FROM pg_catalog.pg_class WHERE oid='pathways.project_activities'::pg_catalog.regclass)<>'prisma'
   OR (SELECT pg_catalog.pg_get_userbyid(relowner) FROM pg_catalog.pg_class WHERE oid='pathways.project_milestones'::pg_catalog.regclass)<>'prisma'
- THEN RAISE EXCEPTION '0045 requires prisma ownership of p06_can and the source tables'; END IF;
+  OR (SELECT pg_catalog.pg_get_userbyid(relowner) FROM pg_catalog.pg_class WHERE oid='pathways.project_indicators'::pg_catalog.regclass)<>'prisma'
+  OR (SELECT pg_catalog.pg_get_userbyid(relowner) FROM pg_catalog.pg_class WHERE oid='pathways.projects'::pg_catalog.regclass)<>'prisma'
+ THEN RAISE EXCEPTION '0045 requires prisma ownership of p06_can and the source tables (assessment_results, project_activities, project_milestones, project_indicators, projects)'; END IF;
 END $$;
 SELECT pg_advisory_xact_lock(505005,1);
 
@@ -51,6 +54,7 @@ BEGIN
   IF wanted_org IS DISTINCT FROM nullif(current_setting('app.organization_id', true), '')::uuid
      OR NOT pathways.p06_can('analytics.descriptive.read', wanted_project)
      OR NOT pathways.p06_can('monitoring.read', wanted_project)
+     OR NOT pathways.p06_can('assessments.detail.read', wanted_project)
   THEN
     RAISE EXCEPTION 'Analytics scope unavailable' USING ERRCODE='42501';
   END IF;

@@ -794,7 +794,7 @@ describe('analytics descriptive views: survey and timeline', () => {
 
   it('abuse: an out-of-scope project is denied for survey and timeline before any query', async () => {
     const { service, tx } = harness()
-    const identity = actor('SYSTEM_ADMINISTRATOR')
+    const identity = actor('PROJECT_MANAGER')
     await expect(
       service.descriptive(identity, {
         projectId: projectB,
@@ -813,7 +813,7 @@ describe('analytics descriptive views: survey and timeline', () => {
 
   it('abuse: a cross-org project is denied for survey and timeline before any query', async () => {
     const { service, tx } = harness()
-    const identity = actor('SYSTEM_ADMINISTRATOR', { organizationId: orgB })
+    const identity = actor('PROJECT_MANAGER', { organizationId: orgB })
     await expect(
       service.descriptive(identity, {
         projectId: projectA,
@@ -877,7 +877,7 @@ describe('analytics descriptive views: survey and timeline', () => {
   })
 
   describe('defined-period rule (adjacent-period differencing abuse)', () => {
-    it.each(['PROGRAM_MANAGER', 'GRANT_MANAGER', 'MONITORING_AND_EVALUATION_OFFICER'] as const)(
+    it.each(['PROJECT_MANAGER', 'MONITORING_AND_EVALUATION_OFFICER'] as const)(
       'abuse: %s custom or adjacent survey ranges refused by the aggregate function are a 400 on read and export, with no audit row',
       async (role) => {
         const { service, tx } = harness(releasedSaddd, '2026-06-30', {
@@ -903,7 +903,7 @@ describe('analytics descriptive views: survey and timeline', () => {
     it('sad: a survey request without a complete period is a 400 before the aggregate is called', async () => {
       const { service, sqlCalls } = harness()
       await expect(
-        service.descriptive(actor('GRANT_MANAGER'), { projectId: projectA, view: 'survey' }),
+        service.descriptive(actor('PROJECT_MANAGER'), { projectId: projectA, view: 'survey' }),
       ).rejects.toMatchObject({ status: 400 })
       expect(sqlCalls.filter((sql) => sql.includes('p10_f9_survey_aggregate'))).toHaveLength(0)
     })
@@ -927,11 +927,35 @@ describe('analytics descriptive views: survey and timeline', () => {
       plannedEndDate: plannedEnd ? new Date(plannedEnd) : null,
     })
 
-    it.each(['PROGRAM_MANAGER', 'GRANT_MANAGER'] as const)(
-      'happy: %s receives real survey aggregates on read and export, not a restricted state',
+    it.each(['PROGRAM_MANAGER', 'GRANT_MANAGER', 'SYSTEM_ADMINISTRATOR'] as const)(
+      'abuse: %s (no assessments.detail.read) is refused survey read and export with a 403 before any query',
       async (role) => {
         expect(rolePermissions[role]).not.toContain('assessments.detail.read')
-        expect(rolePermissions[role]).not.toContain('activities.read')
+        const { service, tx, sqlCalls } = harness(releasedSaddd, '2026-06-30', {
+          assessmentResults: fivePairs(),
+        })
+        const identity = actor(role)
+        await expect(
+          service.descriptive(identity, { projectId: projectA, ...period, view: 'survey' }),
+        ).rejects.toMatchObject({
+          status: 403,
+          message: 'Survey improvement is restricted for your role.',
+        })
+        await expect(
+          service.export(identity, { projectId: projectA, ...period, view: 'survey' }),
+        ).rejects.toMatchObject({ status: 403 })
+        expect(sqlCalls).toHaveLength(0)
+        expect(tx.$queryRaw).not.toHaveBeenCalled()
+        expect(tx.project.findFirst).not.toHaveBeenCalled()
+        expect(tx.assessmentResult.findMany).not.toHaveBeenCalled()
+        expect(tx.auditLog.create).not.toHaveBeenCalled()
+      },
+    )
+
+    it.each(['PROJECT_MANAGER', 'MONITORING_AND_EVALUATION_OFFICER'] as const)(
+      'happy: %s (holds assessments.detail.read) still receives real survey aggregates on read and export',
+      async (role) => {
+        expect(rolePermissions[role]).toContain('assessments.detail.read')
         const { service, tx, sqlCalls } = harness(releasedSaddd, '2026-06-30', {
           assessmentResults: fivePairs(),
         })
@@ -1022,7 +1046,7 @@ describe('analytics descriptive views: survey and timeline', () => {
       const { service, tx, sqlCalls } = harness(releasedSaddd, '2026-06-30', {
         assessmentResults: fivePairs(),
       })
-      await service.descriptive(actor('GRANT_MANAGER'), {
+      await service.descriptive(actor('PROJECT_MANAGER'), {
         projectId: projectA,
         ...period,
         view: 'survey',
@@ -1043,7 +1067,7 @@ describe('analytics descriptive views: survey and timeline', () => {
         aggregateError: { meta: { code: '42501' } },
       })
       await expect(
-        service.descriptive(actor('PROGRAM_MANAGER'), {
+        service.descriptive(actor('PROJECT_MANAGER'), {
           projectId: projectA,
           ...period,
           view: 'survey',
@@ -1060,7 +1084,7 @@ describe('analytics descriptive views: survey and timeline', () => {
         aggregateError: { meta: { code: '57014' } },
       })
       await expect(
-        service.descriptive(actor('PROGRAM_MANAGER'), {
+        service.descriptive(actor('PROJECT_MANAGER'), {
           projectId: projectA,
           ...period,
           view: 'survey',
@@ -1079,7 +1103,7 @@ describe('analytics descriptive views: survey and timeline', () => {
       const { service, sqlCalls } = harness(releasedSaddd, '2026-06-30', {
         assessmentResults: fivePairs(),
       })
-      await service.descriptive(actor('PROGRAM_MANAGER'), {
+      await service.descriptive(actor('PROJECT_MANAGER'), {
         projectId: projectA,
         ...period,
         view: 'survey',
@@ -1096,7 +1120,7 @@ describe('analytics descriptive views: survey and timeline', () => {
         timelineAggregate: { activities: {}, milestones: {} },
       })
       await expect(
-        service.descriptive(actor('PROGRAM_MANAGER'), {
+        service.descriptive(actor('PROJECT_MANAGER'), {
           projectId: projectA,
           ...period,
           view: 'survey',
@@ -1124,7 +1148,7 @@ describe('analytics descriptive views: survey and timeline', () => {
           ],
         },
       })
-      const result = await service.descriptive(actor('PROGRAM_MANAGER'), {
+      const result = await service.descriptive(actor('PROJECT_MANAGER'), {
         projectId: projectA,
         ...period,
         view: 'survey',
@@ -1231,10 +1255,10 @@ describe('analytics descriptive views: survey and timeline', () => {
   })
 
   it('abuse: CSV export withholds a whole byActivity breakdown when a group would leak a sub-count by subtraction', async () => {
-    // act-A: 5 improved / 5 declined (visible on its own); act-B: 2 improved / 3
-    // declined (its own group suppressed) -- without cross-group suppression on
-    // improved/declined, act-B's split is recoverable as overall (7/8) minus act-A
-    // (5/5). The CSV must withhold every byActivity row, not just act-B's.
+    // act-A: 5 improved / 2 declined (7 pairs, visible on its own); act-B: 2 improved / 3
+    // declined (5 pairs, its own group suppressed) -- without cross-group suppression on
+    // improved/declined, act-B's split is recoverable as overall (7 improved / 5 declined)
+    // minus act-A (5 / 2). The CSV must withhold every byActivity row, not just act-B's.
     const rows = [
       ...['a1', 'a2', 'a3', 'a4', 'a5'].flatMap((id) =>
         pairedRows(id, 40, 70, { activityId: 'act-A' }),

@@ -24,7 +24,7 @@ test('MIGRATIONS_IN_ORDER matches the real migrations directory exactly, in orde
   assert.deepEqual([...MIGRATIONS_IN_ORDER].sort(), onDisk)
   // The migrations directory holds one folder per Prisma migration. 0000
   // squashes the original 0001-0026 into a single reviewed baseline, so the
-  // ledger has 19 rows even though the numbering runs 0000 through 0045.
+  // ledger has 20 rows (baseline plus 0027-0045) even though the numbering runs 0000 through 0045.
   assert.equal(MIGRATIONS_IN_ORDER.length, 20)
   assert.equal(MIGRATIONS_IN_ORDER[0], BASELINE)
 })

@@ -49,6 +49,23 @@ export const formatAnalyticsReportingPeriod = (start: string, end: string) => {
   return `${fullDateFormatter.format(first.date)} \u2013 ${fullDateFormatter.format(last.date)}`
 }
 
+/**
+ * Survey results are released only for a period that overlaps no other defined period of the
+ * project (the database function refuses the rest), so the survey picker offers only those.
+ */
+export const nonOverlappingAnalyticsPeriods = (
+  periods: readonly AnalyticsReportingPeriod[],
+): AnalyticsReportingPeriod[] =>
+  periods.filter((candidate) =>
+    periods.every(
+      (other) =>
+        other === candidate ||
+        (other.start === candidate.start && other.end === candidate.end) ||
+        other.start > candidate.end ||
+        other.end < candidate.start,
+    ),
+  )
+
 export const deriveAnalyticsReportingPeriods = (
   project: Pick<ProjectSummary, 'startDate' | 'endDate'> | undefined,
   indicators: Pick<ProjectIndicator, 'status' | 'periodStart' | 'periodEnd'>[],

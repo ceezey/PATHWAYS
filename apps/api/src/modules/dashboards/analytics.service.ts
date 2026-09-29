@@ -86,6 +86,19 @@ export class AnalyticsService {
   }
 
   /**
+   * Survey improvement is restricted to roles that also hold assessments.detail.read (CR
+   * amendment 2026-09-30). Aggregate-only roles (Program Manager, Grant Manager) are refused
+   * with a 403 before any survey query runs: repeated reads of an open period could otherwise
+   * be differenced to recover one person's scores. Like requireMonitoringRead, a denial throws
+   * inside the authorized transaction, so it writes no audit row. The web maps this 403 to the
+   * "restricted for your role" state.
+   */
+  private requireSurveyAccess(actor: ApplicationIdentity) {
+    if (!hasAtomicPermission(actor.roles[0], actor.permissions, 'assessments.detail.read'))
+      throw new ForbiddenException('Survey improvement is restricted for your role.')
+  }
+
+  /**
    * Reuses the dashboard aggregate contracts inside the caller's authorized
    * transaction. Project scope is resolved by the dashboard scope query before
    * any aggregate is read; SADDD comes only from the suppressed p06_saddd release.
@@ -175,14 +188,14 @@ export class AnalyticsService {
   /**
    * Paired pre/post survey improvement (analytics.descriptive.survey.v1). Results are released
    * only for exactly one of the project's defined, non-overlapping reporting periods (the
-   * Indicator reporting periods the dashboard period picker offers), for every role, so
+   * Indicator reporting periods the dashboard period picker offers), so
    * adjacent or custom ranges cannot be differenced to recover one person's scores. The
    * database function is the enforcing authority (22023 -> 400, no audit row, same as any
    * other validation failure); the API deliberately does not re-read Indicator rows because
    * roles that hold monitoring.read need not hold indicators.read. The
    * unsuppressed group aggregate comes from pathways.p10_f9_survey_aggregate, which
-   * every role with analytics.descriptive.read and monitoring.read may call without
-   * holding assessment detail access. Assessment rows are never read here; threshold,
+   * requires analytics.descriptive.read, monitoring.read and assessments.detail.read (checked
+   * here and again in the function). Assessment rows are never read here; threshold,
    * complementary suppression and cross-group withholding run in the shared calculator
    * before anything leaves this process.
    */
@@ -192,6 +205,7 @@ export class AnalyticsService {
     query: DescriptiveAnalyticsQuery,
   ): Promise<SurveyAnalytics> {
     this.requireMonitoringRead(actor)
+    this.requireSurveyAccess(actor)
     if (!query.periodStart || !query.periodEnd)
       throw new BadRequestException('Survey analytics requires a complete period.')
     const project = await this.requireProject(tx, actor, query.projectId)

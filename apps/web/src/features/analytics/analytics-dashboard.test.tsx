@@ -669,6 +669,7 @@ describe('Analytics dashboard request dependencies', () => {
       currentAccess.profile.permissions = [
         ...currentAccess.profile.permissions,
         'analytics.descriptive.read',
+        'assessments.detail.read',
       ]
       // Keeps the unrelated "Descriptive statistics" panel from also erroring (and adding a
       // second "Retry" button) while these tests exercise the survey/timeline views only.
@@ -883,7 +884,7 @@ describe('Analytics dashboard request dependencies', () => {
       })
 
       it.each([
-        ['survey', 'Survey improvement is not available for this role.'],
+        ['survey', 'Survey improvement is restricted for your role.'],
         ['timeline', 'Timeline adherence is not available for this role.'],
       ])(
         'shows restricted wording, never empty-data wording, for the %s view',
@@ -907,6 +908,98 @@ describe('Analytics dashboard request dependencies', () => {
           expect(api.getTimelineAnalytics).not.toHaveBeenCalled()
         },
       )
+    })
+
+    describe('aggregate-only roles (Program/Grant Manager) without assessments.detail.read', () => {
+      beforeEach(() => {
+        currentAccess.profile.permissions = [
+          'projects.read',
+          'monitoring.read',
+          'analytics.read',
+          'analytics.descriptive.read',
+          'analytics.export',
+        ]
+      })
+
+      it('disables the survey option, keeps timeline enabled and real, and never fetches survey', async () => {
+        api.getTimelineAnalytics.mockResolvedValue({
+          contractVersion: 'analytics.descriptive.timeline.v1',
+          projectId: 'project-a',
+          generatedAt: '2026-09-27T04:00:00.000Z',
+          reportingDate: '2026-09-27',
+          elapsedPercent: available('50'),
+          remainingDays: available('30'),
+          overdueDays: zero,
+          activityCompletionPercent: available('75'),
+          activityOverdueCount: zero,
+          milestoneOnTimePercent: available('100'),
+        })
+        render(<AnalyticsDashboard />)
+        await waitFor(() => expect(api.getMonitoringDashboard).toHaveBeenCalled())
+        const survey = screen.getByText('Survey improvement', {
+          selector: 'option',
+        }) as HTMLOptionElement
+        const timeline = screen.getByText('Project / activity timeline adherence', {
+          selector: 'option',
+        }) as HTMLOptionElement
+        expect(survey.disabled).toBe(true)
+        expect(timeline.disabled).toBe(false)
+
+        // A survey view left selected still shows restricted wording, never "None yet" or Retry.
+        fireEvent.change(screen.getByLabelText('Analysis view'), { target: { value: 'survey' } })
+        const restricted = await screen.findByText('Survey improvement is restricted for your role.')
+        expect(within(restricted.parentElement as HTMLElement).queryByText('None yet')).toBeNull()
+        expect(screen.queryByRole('button', { name: /retry/i })).toBeNull()
+        expect(screen.queryByTestId('survey-analytics')).toBeNull()
+        expect(api.getSurveyAnalytics).not.toHaveBeenCalled()
+
+        fireEvent.change(screen.getByLabelText('Analysis view'), { target: { value: 'timeline' } })
+        expect(await screen.findByTestId('timeline-analytics')).toBeTruthy()
+        expect(api.getSurveyAnalytics).not.toHaveBeenCalled()
+      })
+    })
+
+    it('shows period wording with no Retry when the survey fetch is refused with a 400', async () => {
+      api.getSurveyAnalytics.mockRejectedValue(
+        Object.assign(new Error('Survey analytics requires exactly one defined period.'), {
+          status: 400,
+        }),
+      )
+      render(<AnalyticsDashboard />)
+      await waitFor(() => expect(api.getMonitoringDashboard).toHaveBeenCalled())
+      fireEvent.change(screen.getByLabelText('Analysis view'), { target: { value: 'survey' } })
+      expect(
+        await screen.findByText('This reporting period cannot be used for survey results.'),
+      ).toBeTruthy()
+      expect(screen.queryByRole('button', { name: /retry/i })).toBeNull()
+      expect(screen.queryByText('Survey analytics could not be loaded')).toBeNull()
+      expect(api.getSurveyAnalytics).toHaveBeenCalledTimes(1)
+    })
+
+    it('maps a 403 from the survey fetch to the restricted wording with no Retry', async () => {
+      api.getSurveyAnalytics.mockRejectedValue(
+        Object.assign(new Error('Survey improvement is restricted for your role.'), {
+          status: 403,
+        }),
+      )
+      render(<AnalyticsDashboard />)
+      await waitFor(() => expect(api.getMonitoringDashboard).toHaveBeenCalled())
+      fireEvent.change(screen.getByLabelText('Analysis view'), { target: { value: 'survey' } })
+      expect(await screen.findByText('Survey improvement is restricted for your role.')).toBeTruthy()
+      expect(screen.queryByRole('button', { name: /retry/i })).toBeNull()
+    })
+
+    it('keeps Retry for a network or 5xx survey failure', async () => {
+      api.getSurveyAnalytics.mockRejectedValue(
+        Object.assign(new Error('The requested operation could not be completed.'), {
+          status: 503,
+        }),
+      )
+      render(<AnalyticsDashboard />)
+      await waitFor(() => expect(api.getMonitoringDashboard).toHaveBeenCalled())
+      fireEvent.change(screen.getByLabelText('Analysis view'), { target: { value: 'survey' } })
+      await screen.findByText('The requested operation could not be completed.')
+      expect(screen.getByRole('button', { name: /retry/i })).toBeTruthy()
     })
 
     it('enables survey and timeline for a role holding both analytics.descriptive.read and monitoring.read', async () => {
@@ -941,6 +1034,42 @@ describe('Analytics dashboard request dependencies', () => {
       expect(values).toEqual(['2026-09-01::2026-09-30', '2026-08-01::2026-08-31'])
       for (const call of api.getSurveyAnalytics.mock.calls) {
         expect(['2026-09-01', '2026-08-01']).toContain(call[0].periodStart)
+      }
+    })
+
+    it('hides overlapping periods from the survey period picker only', async () => {
+      api.getProjectIndicators.mockImplementation((projectId: string) =>
+        Promise.resolve(
+          projectId === 'project-a'
+            ? [
+                indicator('project-a', 'A-SEP', '2026-09-01', '2026-09-30'),
+                indicator('project-a', 'A-WIDE', '2026-08-15', '2026-09-15'),
+                indicator('project-a', 'A-JUL', '2026-07-01', '2026-07-31'),
+              ]
+            : [],
+        ),
+      )
+      api.getSurveyAnalytics.mockResolvedValue({
+        contractVersion: 'analytics.descriptive.survey.v1',
+        projectId: 'project-a',
+        generatedAt: '2026-09-27T04:00:00.000Z',
+        period: { periodStart: '2026-07-01', periodEnd: '2026-07-31' },
+        excludedRecords: 0,
+        overall: surveyGroup(),
+        byActivity: [],
+      })
+      render(<AnalyticsDashboard />)
+      await waitFor(() => expect(api.getMonitoringDashboard).toHaveBeenCalled())
+      const values = () =>
+        [...(screen.getByLabelText('Reporting period') as HTMLSelectElement).options]
+          .map((option) => option.value)
+          .filter(Boolean)
+      expect(values()).toHaveLength(3)
+      fireEvent.change(screen.getByLabelText('Analysis view'), { target: { value: 'survey' } })
+      await waitFor(() => expect(values()).toEqual(['2026-07-01::2026-07-31']))
+      await waitFor(() => expect(api.getSurveyAnalytics).toHaveBeenCalled())
+      for (const call of api.getSurveyAnalytics.mock.calls) {
+        expect(call[0].periodStart).toBe('2026-07-01')
       }
     })
 
