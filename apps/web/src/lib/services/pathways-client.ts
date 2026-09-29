@@ -2449,7 +2449,13 @@ const isAllowedActivityProofUploadUrl = (value: unknown): value is string | null
   } catch {
     return false
   }
-  return parsed.protocol === 'https:' && parsed.origin === allowed.origin
+  if (parsed.origin !== allowed.origin) return false
+  if (parsed.protocol === 'https:') return true
+  // The local Supabase stack (pnpm dev:local) serves storage over plain http on a loopback host;
+  // that is accepted only when the configured Supabase URL is itself that loopback origin.
+  return (
+    parsed.protocol === 'http:' && ['localhost', '127.0.0.1', '[::1]'].includes(parsed.hostname)
+  )
 }
 
 function parseActivityProofUploadLimits(value: unknown): ActivityProofUploadLimits {

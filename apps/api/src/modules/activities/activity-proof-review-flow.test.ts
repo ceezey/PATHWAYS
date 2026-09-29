@@ -115,6 +115,8 @@ function activityRow(actor: ApplicationIdentity) {
         reviewedAt: update.reviewedAt ?? null,
         reviewReason: update.reviewReason ?? null,
         updatedAt: update.updatedAt,
+        clientUpdateId: update.clientUpdateId,
+        submittedById: update.submittedById,
         submittedBy: { fullName: names[update.submittedById] },
         reviewedBy: update.reviewedById ? { fullName: names[update.reviewedById] } : null,
         evidenceMedia_update: files
@@ -223,6 +225,8 @@ const as = <T>(actor: ApplicationIdentity, run: () => Promise<T>) => {
 }
 const detail = () =>
   as(reviewer, () => service.get(reviewer, projectId, activityId)) as Promise<Loose>
+const officerDetail = () =>
+  as(officer, () => service.get(officer, projectId, activityId)) as Promise<Loose>
 const files = [
   { fileName: 'site.jpg', contentType: 'image/jpeg' as const, byteSize: 1000, sha256: sha(1) },
   {
@@ -320,6 +324,11 @@ describe('proof submit, reviewer visibility and review', () => {
       expect(seen.updateNotes).toHaveLength(1)
       expect(seen.updateNotes[0]).toMatchObject({ kind: 'proof', status: 'Submitted' })
       expect(seen.submittedProof).toHaveLength(0)
+      // The unfinished upload is flagged so the officer can resume it and M&E can be told.
+      expect(seen.updateNotes[0]).toMatchObject({ proofIncomplete: true })
+      // Only the submitter receives the resume id; the reviewer never does.
+      expect(seen.updateNotes[0].resumeClientUpdateId).toBeNull()
+      expect((await officerDetail()).updateNotes[0].resumeClientUpdateId).toBe(clientUpdateId)
 
       const [first, second] = reserved.files
       const partial = await finalize(reserved.updateId, first.evidenceId)
@@ -328,6 +337,8 @@ describe('proof submit, reviewer visibility and review', () => {
 
       const done = await finalize(reserved.updateId, second.evidenceId)
       expect(done.status).toBe('COMMITTED')
+      expect((await detail()).updateNotes[0]).toMatchObject({ proofIncomplete: false })
+      expect((await officerDetail()).updateNotes[0].resumeClientUpdateId).toBeNull()
 
       // After the last file the activity is FOR_REVIEW and both files are listed as Submitted.
       seen = await detail()
