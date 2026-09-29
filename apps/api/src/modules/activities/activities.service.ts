@@ -373,10 +373,7 @@ function mapActivity(
 }
 
 /** True when an overdue explanation was recorded on or after the planned end date. */
-function hasExplanationSinceDue(
-  explanations: { recordedAt: Date }[],
-  plannedEndDate: Date | null,
-) {
+function hasExplanationSinceDue(explanations: { recordedAt: Date }[], plannedEndDate: Date | null) {
   return explanations.some(
     (explanation) => calendarDate(explanation.recordedAt) >= calendarDate(plannedEndDate),
   )
