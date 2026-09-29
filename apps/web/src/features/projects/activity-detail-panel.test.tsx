@@ -1,6 +1,6 @@
 /* @vitest-environment jsdom */
 
-import { cleanup, render, screen } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import type { Activity } from '@/types/pathways'
@@ -429,5 +429,104 @@ describe('ActivityDetailContent server read model', () => {
   it('hides the overdue explanation history for a never-overdue activity with no entries', () => {
     render(<ActivityDetailContent activity={{ ...activity, status: 'Planned' }} {...baseProps} />)
     expect(screen.queryByText('Overdue explanations')).toBeNull()
+  })
+  describe('returned proof correction', () => {
+    const returned = (status: 'Flagged' | 'Accepted', withReason = true): Activity => ({
+      ...activity,
+      storedStatus: 'IN_PROGRESS',
+      status: 'In Progress',
+      capabilities: { canSubmitProof: true } as Activity['capabilities'],
+      submittedProof: [
+        {
+          id: 'c0000000-0000-4000-8000-00000000000c',
+          updateId: 'b0000000-0000-4000-8000-00000000000b',
+          fileName: 'site.jpg',
+          status,
+          submittedAt: '2026-09-27T00:00:00.000Z',
+          submittedBy: 'Synthetic officer',
+          updateUpdatedAt: '2026-09-27T00:00:00.000Z',
+          note: 'Sessions held.',
+        },
+      ],
+      updateNotes: [
+        {
+          id: 'b0000000-0000-4000-8000-00000000000b',
+          kind: 'proof',
+          note: 'Sessions held.',
+          progress: 60,
+          status,
+          submittedBy: 'Synthetic officer',
+          submittedAt: '2026-09-27T00:00:00.000Z',
+          reviewedBy: withReason ? 'Synthetic M&E' : null,
+          reviewedAt: null,
+          reviewReason: withReason ? 'Photo is blurry.' : null,
+          updatedAt: '2026-09-27T00:00:00.000Z',
+        },
+      ],
+    })
+    const base = {
+      canDecideProof: false,
+      canEdit: false,
+      canLogExpense: false,
+      canRequestExtension: false,
+      canValidateExpense: false,
+      indicators: [],
+      journeyStages: [],
+      onActivityChanged: vi.fn(),
+      onEdit: vi.fn(),
+    }
+
+    it('shows Submit correction to the submitter, opens the dialog, and shows the reason', () => {
+      const onSubmitProof = vi.fn()
+      const a = returned('Flagged')
+      render(
+        <ActivityDetailContent
+          activity={a}
+          canSubmitProof
+          canValidateProof={false}
+          onSubmitProof={onSubmitProof}
+          {...base}
+        />,
+      )
+      expect(screen.getByText('Returned by Synthetic M&E: Photo is blurry.')).toBeTruthy()
+      fireEvent.click(screen.getByRole('button', { name: 'Submit correction' }))
+      expect(onSubmitProof).toHaveBeenCalledWith(a)
+    })
+
+    it('hides the button for M&E and for accepted proofs', () => {
+      const { rerender } = render(
+        <ActivityDetailContent
+          activity={returned('Flagged')}
+          canSubmitProof={false}
+          canValidateProof
+          onSubmitProof={vi.fn()}
+          {...base}
+        />,
+      )
+      expect(screen.queryByRole('button', { name: 'Submit correction' })).toBeNull()
+      rerender(
+        <ActivityDetailContent
+          activity={returned('Accepted')}
+          canSubmitProof
+          canValidateProof={false}
+          onSubmitProof={vi.fn()}
+          {...base}
+        />,
+      )
+      expect(screen.queryByRole('button', { name: 'Submit correction' })).toBeNull()
+    })
+
+    it('omits the reason line when none is recorded', () => {
+      render(
+        <ActivityDetailContent
+          activity={returned('Flagged', false)}
+          canSubmitProof
+          canValidateProof={false}
+          onSubmitProof={vi.fn()}
+          {...base}
+        />,
+      )
+      expect(screen.queryByText(/Returned by/)).toBeNull()
+    })
   })
 })
