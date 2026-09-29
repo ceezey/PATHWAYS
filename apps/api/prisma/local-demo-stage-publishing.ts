@@ -2,7 +2,11 @@ import type { ProjectKey } from './local-demo-data'
 import type { DemoContext } from './local-demo-seed'
 import { projectOf, step } from './local-demo-util'
 
-const publications: Array<{ project: ProjectKey; summary: string; state: 'PUBLISHED' | 'APPROVED' | 'FOR_REVIEW' }> = [
+const publications: Array<{
+  project: ProjectKey
+  summary: string
+  state: 'PUBLISHED' | 'APPROVED' | 'FOR_REVIEW'
+}> = [
   {
     project: 'EHK',
     state: 'PUBLISHED',

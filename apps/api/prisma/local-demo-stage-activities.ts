@@ -1,10 +1,10 @@
 import type { ApplicationIdentity } from '../src/modules/auth/developer-access'
 import {
+  type DemoActivity,
+  type DemoProject,
   addDaysIso,
   demoActivities,
   demoProjects,
-  type DemoActivity,
-  type DemoProject,
 } from './local-demo-data'
 import type { DemoContext } from './local-demo-seed'
 import { asUser, fieldPhotoPng, projectOf, sha256, textPdf } from './local-demo-util'
@@ -13,7 +13,12 @@ export const activityCode = (project: DemoProject, index: number) =>
   `${project.key}-${String(index + 1).padStart(2, '0')}`
 
 /** Uploads one file to the signed URL the service returned, exactly like the browser does. */
-async function putSignedUpload(ctx: DemoContext, uploadUrl: string, bytes: Buffer, contentType: string) {
+async function putSignedUpload(
+  ctx: DemoContext,
+  uploadUrl: string,
+  bytes: Buffer,
+  contentType: string,
+) {
   const url = new URL(uploadUrl)
   const marker = '/object/upload/sign/'
   const start = url.pathname.indexOf(marker)
@@ -103,24 +108,40 @@ async function review(
   const row = await asUser(ctx, ctx.staff.me, (tx) =>
     tx.activityUpdate.findUniqueOrThrow({ where: { id: updateId }, select: { updatedAt: true } }),
   )
-  await ctx.services.activities.reviewUpdate(ctx.staff.me.identity, projectId, activityId, updateId, {
-    clientMutationId: ctx.stable(`review:${updateId}:${decision}`),
-    decision,
-    reason,
-    expectedUpdatedAt: row.updatedAt.toISOString(),
-  })
+  await ctx.services.activities.reviewUpdate(
+    ctx.staff.me.identity,
+    projectId,
+    activityId,
+    updateId,
+    {
+      clientMutationId: ctx.stable(`review:${updateId}:${decision}`),
+      decision,
+      reason,
+      expectedUpdatedAt: row.updatedAt.toISOString(),
+    },
+  )
 }
 
-async function startActivity(ctx: DemoContext, projectId: string, activityId: string, code: string) {
+async function startActivity(
+  ctx: DemoContext,
+  projectId: string,
+  activityId: string,
+  code: string,
+) {
   const row = await ctx.owner.projectActivity.findUniqueOrThrow({
     where: { id: activityId },
     select: { updatedAt: true },
   })
-  await ctx.services.activities.transition(ctx.staff.projectManager.identity, projectId, activityId, {
-    clientMutationId: ctx.stable(`start:${code}`),
-    status: 'IN_PROGRESS',
-    expectedUpdatedAt: row.updatedAt.toISOString(),
-  })
+  await ctx.services.activities.transition(
+    ctx.staff.projectManager.identity,
+    projectId,
+    activityId,
+    {
+      clientMutationId: ctx.stable(`start:${code}`),
+      status: 'IN_PROGRESS',
+      expectedUpdatedAt: row.updatedAt.toISOString(),
+    },
+  )
 }
 
 async function applyOutcome(
@@ -156,11 +177,18 @@ async function applyOutcome(
       return
     case 'OVERDUE_EXPLAINED':
       await startActivity(ctx, projectId, activityId, code)
-      await ctx.services.activities.recordOverdueExplanation(ctx.staff.me.identity, projectId, activityId, {
-        clientMutationId: ctx.stable(`overdue:${code}`),
-        category: activity.category ?? 'OTHER',
-        explanation: activity.explanation ?? 'The activity was delayed by circumstances outside the team control.',
-      })
+      await ctx.services.activities.recordOverdueExplanation(
+        ctx.staff.me.identity,
+        projectId,
+        activityId,
+        {
+          clientMutationId: ctx.stable(`overdue:${code}`),
+          category: activity.category ?? 'OTHER',
+          explanation:
+            activity.explanation ??
+            'The activity was delayed by circumstances outside the team control.',
+        },
+      )
       return
     case 'PROGRESS_VERIFIED': {
       await startActivity(ctx, projectId, activityId, code)
@@ -175,23 +203,77 @@ async function applyOutcome(
           select: { id: true },
         }),
       )
-      await review(ctx, projectId, activityId, update.id, 'APPROVE', activity.reviewNote ?? 'Progress verified.')
+      await review(
+        ctx,
+        projectId,
+        activityId,
+        update.id,
+        'APPROVE',
+        activity.reviewNote ?? 'Progress verified.',
+      )
       return
     }
     case 'PENDING_REVIEW':
       await startActivity(ctx, projectId, activityId, code)
-      await submitProof(ctx, project, activity, code, officer, projectId, activityId, activity.progress ?? 60, activity.note ?? '', seed)
+      await submitProof(
+        ctx,
+        project,
+        activity,
+        code,
+        officer,
+        projectId,
+        activityId,
+        activity.progress ?? 60,
+        activity.note ?? '',
+        seed,
+      )
       return
     case 'RETURNED': {
       await startActivity(ctx, projectId, activityId, code)
-      const updateId = await submitProof(ctx, project, activity, code, officer, projectId, activityId, activity.progress ?? 40, activity.note ?? '', seed)
-      await review(ctx, projectId, activityId, updateId, 'RETURN', activity.reviewNote ?? 'Please correct and resubmit.')
+      const updateId = await submitProof(
+        ctx,
+        project,
+        activity,
+        code,
+        officer,
+        projectId,
+        activityId,
+        activity.progress ?? 40,
+        activity.note ?? '',
+        seed,
+      )
+      await review(
+        ctx,
+        projectId,
+        activityId,
+        updateId,
+        'RETURN',
+        activity.reviewNote ?? 'Please correct and resubmit.',
+      )
       return
     }
     case 'COMPLETED': {
       await startActivity(ctx, projectId, activityId, code)
-      const updateId = await submitProof(ctx, project, activity, code, officer, projectId, activityId, 100, activity.note ?? '', seed)
-      await review(ctx, projectId, activityId, updateId, 'APPROVE', activity.reviewNote ?? 'Proof verified.')
+      const updateId = await submitProof(
+        ctx,
+        project,
+        activity,
+        code,
+        officer,
+        projectId,
+        activityId,
+        100,
+        activity.note ?? '',
+        seed,
+      )
+      await review(
+        ctx,
+        projectId,
+        activityId,
+        updateId,
+        'APPROVE',
+        activity.reviewNote ?? 'Proof verified.',
+      )
       return
     }
   }

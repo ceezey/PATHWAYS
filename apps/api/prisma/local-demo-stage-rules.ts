@@ -5,7 +5,13 @@ import { demoRules } from './local-demo-data'
 import type { DemoContext } from './local-demo-seed'
 import { projectOf, step } from './local-demo-util'
 
-type RuleRow = { id: string; code: string; version: number; status: string; projectId: string | null }
+type RuleRow = {
+  id: string
+  code: string
+  version: number
+  status: string
+  projectId: string | null
+}
 
 function invocation(purpose: 'DRAIN' | 'SWEEP', budgetMs = 24_000): MachineInvocation {
   const enteredAt = performance.now()
@@ -53,7 +59,11 @@ export async function stageRules(ctx: DemoContext) {
   let created = 0
   for (const plan of demoRules) {
     const projectId = projectOf(ctx, plan.project)
-    const listed = (await ctx.services.rules.listRules(admin, { projectId, kind: 'PROJECT', limit: '100' })) as unknown as {
+    const listed = (await ctx.services.rules.listRules(admin, {
+      projectId,
+      kind: 'PROJECT',
+      limit: '100',
+    })) as unknown as {
       items: RuleRow[]
     }
     if (listed.items.some((row) => row.code === plan.code)) continue

@@ -1,10 +1,10 @@
 import {
+  type DemoProject,
+  type ProjectKey,
   addDaysIso,
   demoActivities,
   demoMilestones,
   demoProjects,
-  type DemoProject,
-  type ProjectKey,
 } from './local-demo-data'
 import type { DemoContext } from './local-demo-seed'
 import { activityCode } from './local-demo-stage-activities'

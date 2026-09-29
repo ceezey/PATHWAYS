@@ -1,0 +1,26 @@
+Registration operation,Beneficiary code,Subject type,First name,Middle name,Last name,Sex,Birth date,Disability status,Barangay,City or municipality,Province,Participation consent,Data processing consent,Minor status,Guardian consent,Enrollment date
+CREATE,BOR-2026-001,INDIVIDUAL,Jocelyn,Abella,Tabuena,FEMALE,2014-03-18,WITHOUT_DISABILITY,Songco,Borongan City,Eastern Samar,true,true,true,true,2026-08-17
+CREATE,BOR-2026-002,INDIVIDUAL,Kyla,Cinco,Nacional,FEMALE,2012-11-02,WITHOUT_DISABILITY,Songco,Borongan City,Eastern Samar,true,true,true,true,2026-08-17
+CREATE,BOR-2026-003,INDIVIDUAL,Rhea,Lagrimas,Gabon,FEMALE,2011-06-25,WITHOUT_DISABILITY,Sabang,Borongan City,Eastern Samar,true,true,true,true,2026-08-17
+CREATE,BOR-2026-004,INDIVIDUAL,Princess,Ogayon,Espina,FEMALE,2010-09-09,WITH_DISABILITY,Sabang,Borongan City,Eastern Samar,true,true,true,true,2026-08-18
+CREATE,BOR-2026-005,INDIVIDUAL,Maricris,Espina,Alcala,FEMALE,2009-01-30,WITHOUT_DISABILITY,Maypangdan,Borongan City,Eastern Samar,true,true,true,true,2026-08-18
+CREATE,BOR-2026-006,INDIVIDUAL,Shiela,Nacional,Baldeo,FEMALE,2008-07-14,WITHOUT_DISABILITY,Maypangdan,Borongan City,Eastern Samar,true,true,false,false,2026-08-18
+CREATE,BOR-2026-007,INDIVIDUAL,Liezel,Baldeo,Lumen,FEMALE,2009-12-05,WITHOUT_DISABILITY,Taboc,Borongan City,Eastern Samar,true,true,true,true,2026-08-19
+CREATE,BOR-2026-008,INDIVIDUAL,Analyn,Tabalba,Marquez,FEMALE,2010-04-21,WITHOUT_DISABILITY,Taboc,Borongan City,Eastern Samar,true,true,true,true,2026-08-19
+CREATE,BOR-2026-009,INDIVIDUAL,Ericka,Gabon,Quilantang,FEMALE,2013-10-11,WITHOUT_DISABILITY,Punta Maria,Borongan City,Eastern Samar,true,true,true,true,2026-08-20
+CREATE,BOR-2026-010,INDIVIDUAL,Hazel,Alcala,Sabalza,FEMALE,2015-02-27,WITHOUT_DISABILITY,Punta Maria,Borongan City,Eastern Samar,true,true,true,true,2026-08-20
+CREATE,BOR-2026-011,INDIVIDUAL,Rex,Abella,Tomarong,MALE,2013-05-16,WITHOUT_DISABILITY,Campesao,Borongan City,Eastern Samar,true,true,true,true,2026-08-20
+CREATE,BOR-2026-012,INDIVIDUAL,Jomar,Cinco,Evardone,MALE,2016-08-08,WITHOUT_DISABILITY,Campesao,Borongan City,Eastern Samar,true,true,true,true,2026-08-21
+CREATE,BOR-2026-013,INDIVIDUAL,Ryan,Lagrimas,Cabales,MALE,2019-11-19,WITHOUT_DISABILITY,Songco,Borongan City,Eastern Samar,true,true,true,true,2026-08-21
+CREATE,BOR-2026-014,INDIVIDUAL,Cherry,Ogayon,Yabut,FEMALE,2020-03-03,WITHOUT_DISABILITY,Sabang,Borongan City,Eastern Samar,true,true,true,true,2026-08-24
+CREATE,BOR-2026-015,INDIVIDUAL,Rowena,Espina,Dagondon,FEMALE,1991-06-12,WITHOUT_DISABILITY,Maypangdan,Borongan City,Eastern Samar,true,true,false,false,2026-08-24
+CREATE,BOR-2026-016,INDIVIDUAL,Marites,Nacional,Abesamis,FEMALE,1988-02-20,WITHOUT_DISABILITY,Taboc,Borongan City,Eastern Samar,true,true,false,false,2026-08-25
+CREATE,BOR-2026-017,INDIVIDUAL,Norma,Baldeo,Cabrera,FEMALE,1979-09-01,WITHOUT_DISABILITY,Songco,Borongan City,Eastern Samar,true,true,false,false,2026-08-25
+CREATE,BOR-2026-018,INDIVIDUAL,Gemma,Tabalba,Tabuena,FEMALE,1984-12-14,WITHOUT_DISABILITY,Punta Maria,Borongan City,Eastern Samar,true,true,false,false,2026-08-26
+CREATE,BOR-2026-019,INDIVIDUAL,Edwin,Gabon,Nacional,MALE,1975-04-07,WITHOUT_DISABILITY,Campesao,Borongan City,Eastern Samar,true,true,false,false,2026-08-26
+CREATE,BOR-2026-020,INDIVIDUAL,Danilo,Alcala,Gabon,MALE,1968-10-23,WITHOUT_DISABILITY,Sabang,Borongan City,Eastern Samar,true,true,false,false,2026-08-27
+CREATE,BOR-2026-021,INDIVIDUAL,Vilma,Abella,Espina,FEMALE,1962-07-30,WITH_DISABILITY,Maypangdan,Borongan City,Eastern Samar,true,true,false,false,2026-08-27
+CREATE,BOR-2026-022,INDIVIDUAL,Elizabeth,Cinco,Lagrimas,FEMALE,1956-01-09,WITHOUT_DISABILITY,Taboc,Borongan City,Eastern Samar,true,true,false,false,2026-08-28
+CREATE,BOR-2026-023,INDIVIDUAL,Noel,Lumen,Ogayon,MALE,1999-03-25,WITHOUT_DISABILITY,Songco,Borongan City,Eastern Samar,true,true,false,false,2026-09-01
+CREATE,BOR-2026-024,INDIVIDUAL,Cristina,Marquez,Baldeo,FEMALE,2001-08-17,WITHOUT_DISABILITY,Sabang,Borongan City,Eastern Samar,true,true,false,false,2026-09-01
+CREATE,BOR-2026-025,INDIVIDUAL,Alvin,Quilantang,Tabalba,MALE,1994-11-06,WITHOUT_DISABILITY,Punta Maria,Borongan City,Eastern Samar,true,true,false,false,2026-09-02

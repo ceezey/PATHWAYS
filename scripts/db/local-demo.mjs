@@ -1,8 +1,8 @@
 // Fills the LOCAL Supabase stack with the realistic presentation workspace
 // (apps/api/prisma/local-demo-seed.ts). Run after `pnpm db:local:reset`. Loopback only:
 // the database URLs are fixed to the local container and the seed refuses any other target.
-import { randomBytes } from 'node:crypto'
 import { execFileSync, spawnSync } from 'node:child_process'
+import { randomBytes } from 'node:crypto'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -15,8 +15,24 @@ function psql(sql) {
   // Fixed local container only, same as local-reset.mjs.
   execFileSync(
     'docker',
-    ['exec', '-i', localDatabase.container, 'psql', '-v', 'ON_ERROR_STOP=1', '-q', '-U', 'postgres', '-d', 'postgres'],
-    { input: sql, stdio: ['pipe', 'inherit', 'inherit'], env: { ...process.env, MSYS_NO_PATHCONV: '1' } },
+    [
+      'exec',
+      '-i',
+      localDatabase.container,
+      'psql',
+      '-v',
+      'ON_ERROR_STOP=1',
+      '-q',
+      '-U',
+      'postgres',
+      '-d',
+      'postgres',
+    ],
+    {
+      input: sql,
+      stdio: ['pipe', 'inherit', 'inherit'],
+      env: { ...process.env, MSYS_NO_PATHCONV: '1' },
+    },
   )
 }
 

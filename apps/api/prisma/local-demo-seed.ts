@@ -18,8 +18,8 @@ import { StorageService } from '../src/modules/storage/storage.service'
 import { PrismaService } from '../src/prisma/prisma.service'
 import { reconcileStorageBuckets, stableUuid } from './hosted-realistic-seed'
 import type { ProjectKey } from './local-demo-data'
-import { assertLoopback } from './local-synthetic-seed'
 import { runDemoStages } from './local-demo-stages'
+import { assertLocalDemoTarget } from './local-demo-target'
 
 /**
  * Local presentation workspace. Runs only against the loopback Supabase stack (assertLoopback plus
@@ -30,21 +30,21 @@ import { runDemoStages } from './local-demo-stages'
  * connection, exactly like the base seed and hosted seed do for programs.
  */
 
-const LOCAL_DB_PORT = '54322'
-
-export function assertLocalDemoTarget(env: NodeJS.ProcessEnv) {
-  assertLoopback('DIRECT_URL', env.DIRECT_URL)
-  assertLoopback('DATABASE_URL', env.DATABASE_URL)
-  assertLoopback('SUPABASE_URL', env.SUPABASE_URL)
-  for (const label of ['DIRECT_URL', 'DATABASE_URL'] as const) {
-    if (new URL(env[label] as string).port !== LOCAL_DB_PORT)
-      throw new Error(`${label} must use the local database port ${LOCAL_DB_PORT}.`)
-  }
-  if (env.NODE_ENV === 'production') throw new Error('The local demo workspace never runs in production.')
+export type StaffKey =
+  | 'admin'
+  | 'programManager'
+  | 'grantManager'
+  | 'projectManager'
+  | 'me'
+  | 'liza'
+  | 'emmanuel'
+export type Staff = {
+  userId: string
+  authUserId: string
+  email: string
+  role: string
+  identity: ApplicationIdentity
 }
-
-export type StaffKey = 'admin' | 'programManager' | 'grantManager' | 'projectManager' | 'me' | 'liza' | 'emmanuel'
-export type Staff = { userId: string; authUserId: string; email: string; role: string; identity: ApplicationIdentity }
 
 export type DemoContext = {
   today: string
@@ -88,7 +88,11 @@ export function manilaToday() {
   return new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Manila' }).format(new Date())
 }
 
-function identityFor(authUserId: string, organizationId: string, userId: string): ApplicationIdentity {
+function identityFor(
+  authUserId: string,
+  organizationId: string,
+  userId: string,
+): ApplicationIdentity {
   // Roles, permissions and assignments are re-derived from the database inside every authorized
   // operation; nothing here is trusted.
   return {
@@ -145,10 +149,14 @@ async function main() {
     for (const [key, email] of Object.entries(staffEmails) as Array<[StaffKey, string]>) {
       const user = await owner.systemUser.findFirst({
         where: { email },
-        select: { id: true, authUserId: true, organizationId: true, role: { select: { code: true } } },
+        select: {
+          id: true,
+          authUserId: true,
+          organizationId: true,
+          role: { select: { code: true } },
+        },
       })
-      if (!user)
-        throw new Error(`Base account ${email} is missing. Run pnpm db:local:reset first.`)
+      if (!user) throw new Error(`Base account ${email} is missing. Run pnpm db:local:reset first.`)
       organizationId = user.organizationId
       staff[key] = {
         userId: user.id,
@@ -170,7 +178,7 @@ async function main() {
       programIds: new Map(),
       projectIds: new Map(),
       // A salt is only for rebuilding after hand-deleting rows during development; normal runs use none.
-      stable: (seed) => stableUuid(`${process.env.PATHWAYS_DEMO_SALT ?? ""}${seed}`),
+      stable: (seed) => stableUuid(`${process.env.PATHWAYS_DEMO_SALT ?? ''}${seed}`),
       log: (line) => console.info(line),
     }
     failures.push(...(await runDemoStages(context)))
@@ -190,4 +198,3 @@ if (require.main === module) {
     process.exitCode = 1
   })
 }
-

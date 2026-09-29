@@ -77,12 +77,12 @@ export function fieldPhotoPng(seed: number, width = 640, height = 400) {
 
 /** A small single-page PDF (attendance sheet or receipt) with plain text lines. */
 export function textPdf(title: string, lines: string[]) {
-  const escape = (value: string) => value.replace(/[\\()]/g, '\\$&')
+  const escapeText = (value: string) => value.replace(/[\\()]/g, '\\$&')
   const content = [
     'BT /F1 16 Tf 56 780 Td',
-    `(${escape(title)}) Tj`,
+    `(${escapeText(title)}) Tj`,
     '/F1 11 Tf',
-    ...lines.map((line) => `0 -22 Td (${escape(line)}) Tj`),
+    ...lines.map((line) => `0 -22 Td (${escapeText(line)}) Tj`),
     'ET',
   ].join('\n')
   const objects = [
@@ -122,7 +122,11 @@ type RuntimeTx = Parameters<Parameters<DemoContext['runtime']['$transaction']>[0
 
 /** Runs a read on the runtime role with the verified identity of one staff member, the same
  * session settings the API installs, so row level security decides what is visible. */
-export async function asUser<T>(ctx: DemoContext, staff: Staff, run: (tx: RuntimeTx) => Promise<T>) {
+export async function asUser<T>(
+  ctx: DemoContext,
+  staff: Staff,
+  run: (tx: RuntimeTx) => Promise<T>,
+) {
   return ctx.runtime.$transaction(async (tx) => {
     await tx.$queryRaw`SELECT set_config('request.jwt.claim.sub', ${staff.authUserId}, true),
       set_config('request.jwt.claims', '', true),

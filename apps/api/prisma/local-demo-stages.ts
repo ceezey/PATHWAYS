@@ -1,20 +1,18 @@
 import type { CreateProjectDto } from '../src/modules/projects/projects.dto'
-import {
-  addDaysIso,
-  demoPrograms,
-  demoProjects,
-  type DemoProject,
-} from './local-demo-data'
+import { type DemoProject, addDaysIso, demoPrograms, demoProjects } from './local-demo-data'
 import type { DemoContext } from './local-demo-seed'
 import { stageActivities } from './local-demo-stage-activities'
+import { stageCriteria } from './local-demo-stage-criteria'
+import { stageDecisions } from './local-demo-stage-decisions'
 import { stageAssessments, stageMilestones } from './local-demo-stage-evidence'
 import { stageBudgets, stageExpenses } from './local-demo-stage-finance'
-import { stageDecisions } from './local-demo-stage-decisions'
+import { stageJourneysAndForms, stageParticipation } from './local-demo-stage-forms'
+import { stageImports } from './local-demo-stage-imports'
+import { stageEnrollmentOutcomes } from './local-demo-stage-outcomes'
+import { stageBeneficiaries, stageIndicators } from './local-demo-stage-people'
 import { stagePublishing } from './local-demo-stage-publishing'
 import { stageReports } from './local-demo-stage-reports'
 import { stageEvaluation, stageRules } from './local-demo-stage-rules'
-import { stageJourneysAndForms, stageParticipation } from './local-demo-stage-forms'
-import { stageBeneficiaries, stageIndicators } from './local-demo-stage-people'
 import { message, projectOf } from './local-demo-util'
 
 type Stage = { name: string; run: (ctx: DemoContext) => Promise<void> }
@@ -80,7 +78,8 @@ async function stageProjects(ctx: DemoContext) {
       ctx.projectIds.set(plan.key, existing.id)
       continue
     }
-    if (plan.key === 'SSG') throw new Error('The base project SSG-ES-2026 is missing. Run pnpm db:local:reset.')
+    if (plan.key === 'SSG')
+      throw new Error('The base project SSG-ES-2026 is missing. Run pnpm db:local:reset.')
     const created = (await ctx.services.projects.create(
       ctx.staff.projectManager.identity,
       projectDto(ctx, plan),
@@ -111,7 +110,12 @@ async function stageTeam(ctx: DemoContext) {
         })
         if (!current)
           await tx.userProjectAssignment.create({
-            data: { organizationId: ctx.organizationId, projectId, userId, assignedById: admin.userId },
+            data: {
+              organizationId: ctx.organizationId,
+              projectId,
+              userId,
+              assignedById: admin.userId,
+            },
           })
       }
     }
@@ -127,15 +131,18 @@ const stages: Stage[] = [
   { name: 'beneficiaries', run: stageBeneficiaries },
   { name: 'journeys and forms', run: stageJourneysAndForms },
   { name: 'participation', run: stageParticipation },
+  { name: 'imports', run: stageImports },
   { name: 'budgets', run: stageBudgets },
   { name: 'expenses', run: stageExpenses },
   { name: 'milestones', run: stageMilestones },
   { name: 'assessments', run: stageAssessments },
+  { name: 'journey outcomes', run: stageEnrollmentOutcomes },
   { name: 'rules', run: stageRules },
   { name: 'evaluation', run: stageEvaluation },
   { name: 'decisions', run: stageDecisions },
   { name: 'public tracker', run: stagePublishing },
   { name: 'reports', run: stageReports },
+  { name: 'evaluation criteria', run: stageCriteria },
 ]
 
 const foundation = new Set(['programs', 'projects', 'team'])

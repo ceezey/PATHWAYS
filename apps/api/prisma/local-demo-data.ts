@@ -235,7 +235,7 @@ export const demoActivities: Record<ProjectKey, DemoActivity[]> = {
       officer: 'liza',
       progress: 100,
       note: 'All 320 household interviews and 14 school head interviews completed; data entry verified.',
-      reviewNote: 'Sample size and coverage confirmed against the survey plan.',
+      reviewNote: 'Household coverage confirmed against the survey plan.',
       reached: 320,
     },
     {
@@ -356,7 +356,8 @@ export const demoActivities: Record<ProjectKey, DemoActivity[]> = {
       officer: 'liza',
       progress: 40,
       note: 'Peer educator training day 1 held for 22 girls in Taboc and Punta Maria.',
-      reviewNote: 'The attendance sheet in the uploaded proof is unsigned; please upload the signed copy.',
+      reviewNote:
+        'The attendance sheet in the uploaded proof is unsigned; please upload the signed copy.',
       reached: 22,
     },
   ],
@@ -365,7 +366,8 @@ export const demoActivities: Record<ProjectKey, DemoActivity[]> = {
       key: 'assessment',
       title: 'Household livelihood and vulnerability assessment',
       type: 'Assessment',
-      description: 'Assessment of household income sources and disaster exposure in five barangays.',
+      description:
+        'Assessment of household income sources and disaster exposure in five barangays.',
       startOffset: -180,
       endOffset: -140,
       target: 400,
@@ -374,7 +376,7 @@ export const demoActivities: Record<ProjectKey, DemoActivity[]> = {
       officer: 'emmanuel',
       progress: 100,
       note: 'Assessment forms collected from 404 households.',
-      reviewNote: 'Coverage and sampling verified.',
+      reviewNote: 'Coverage and household selection verified.',
       reached: 404,
     },
     {
@@ -398,7 +400,8 @@ export const demoActivities: Record<ProjectKey, DemoActivity[]> = {
       key: 'livelihood',
       title: 'Abaca and coconut by-product livelihood grants',
       type: 'Livelihood Support',
-      description: 'Starter grants and coaching for household enterprises in abaca and coconut processing.',
+      description:
+        'Starter grants and coaching for household enterprises in abaca and coconut processing.',
       startOffset: -30,
       endOffset: 60,
       target: 150,
@@ -440,7 +443,8 @@ export const demoActivities: Record<ProjectKey, DemoActivity[]> = {
       key: 'mapping',
       title: 'Out-of-school youth mapping and enrollment drive',
       type: 'Outreach',
-      description: 'Door-to-door mapping and enrollment drive for out-of-school youth in four barangays.',
+      description:
+        'Door-to-door mapping and enrollment drive for out-of-school youth in four barangays.',
       startOffset: -320,
       endOffset: -280,
       target: 300,
@@ -534,7 +538,8 @@ export const demoActivities: Record<ProjectKey, DemoActivity[]> = {
       key: 'play',
       title: 'Community play and stimulation corners setup',
       type: 'Infrastructure',
-      description: 'Setup of play and stimulation corners in two community child development centers.',
+      description:
+        'Setup of play and stimulation corners in two community child development centers.',
       startOffset: -30,
       endOffset: 20,
       target: 2,
@@ -659,7 +664,9 @@ export type DemoCohort = {
 export const demoCohorts: Record<ProjectKey, DemoCohort> = {
   SSG: {
     count: 42,
-    ages: [12, 14, 16, 13, 15, 17, 11, 10, 14, 16, 38, 41, 45, 52, 29, 35, 13, 15, 12, 9, 7, 5, 66, 70],
+    ages: [
+      12, 14, 16, 13, 15, 17, 11, 10, 14, 16, 38, 41, 45, 52, 29, 35, 13, 15, 12, 9, 7, 5, 66, 70,
+    ],
     femaleShare: 0.75,
   },
   CRL: {
@@ -783,7 +790,11 @@ export type PlannedPerson = {
 }
 
 /** Deterministic cohort for one project: same input, same people. */
-export function planCohort(project: DemoProject, today: string, projectStart: string): PlannedPerson[] {
+export function planCohort(
+  project: DemoProject,
+  today: string,
+  projectStart: string,
+): PlannedPerson[] {
   const cohort = demoCohorts[project.key]
   const people: PlannedPerson[] = []
   const seed = project.key.charCodeAt(0) + project.key.charCodeAt(1)
@@ -791,7 +802,10 @@ export function planCohort(project: DemoProject, today: string, projectStart: st
     const age = cohort.ages[index % cohort.ages.length]
     const female = (index * 7 + seed) % 100 < cohort.femaleShare * 100
     const firstNames = female ? femaleFirstNames : maleFirstNames
-    const enrollOffset = Math.min(20 + index * 3, Math.max(20, daysBetween(projectStart, today) - 10))
+    const enrollOffset = Math.min(
+      20 + index * 3,
+      Math.max(20, daysBetween(projectStart, today) - 10),
+    )
     const enrollmentDate = addDaysIso(projectStart, enrollOffset)
     people.push({
       code: `BEN-${project.code}-${String(index + 1).padStart(3, '0')}`,
@@ -953,8 +967,16 @@ export const demoBudgets: Partial<Record<ProjectKey, DemoBudgetLine[]>> = {
     { category: 'Community orientation sessions', amount: '95000.00', activityKey: 'orientation' },
     { category: 'Life skills session materials', amount: '260000.00', activityKey: 'lifeskills' },
     { category: 'Learning kits and hygiene supplies', amount: '320000.00', activityKey: 'kits' },
-    { category: 'Committee training venue and meals', amount: '150000.00', activityKey: 'committee' },
-    { category: 'Project staff travel', amount: '210000.00', remarks: 'Monthly travel to partner schools.' },
+    {
+      category: 'Committee training venue and meals',
+      amount: '150000.00',
+      activityKey: 'committee',
+    },
+    {
+      category: 'Project staff travel',
+      amount: '210000.00',
+      remarks: 'Monthly travel to partner schools.',
+    },
   ],
   CRL: [
     { category: 'Livelihood starter grants', amount: '900000.00', activityKey: 'livelihood' },
@@ -1193,20 +1215,99 @@ export type DemoMilestone = {
 }
 
 export const demoMilestones: DemoMilestone[] = [
-  { project: 'SSG', title: 'Baseline results validated', description: 'Baseline findings presented to partners.', targetOffset: -120, completedOffset: -125 },
-  { project: 'SSG', title: 'School protection committees organized in six barangays', description: 'Committees formally organized and oriented.', targetOffset: -90, completedOffset: -84 },
-  { project: 'SSG', title: 'Midpoint review with the Department of Education', description: 'Joint midpoint review of progress and risks.', targetOffset: -30, completedOffset: -12 },
-  { project: 'SSG', title: 'Learning kit distribution completed', description: 'All targeted girls received their kits.', targetOffset: -5 },
-  { project: 'SSG', title: 'Year-end results workshop', description: 'Results and learning workshop with partners.', targetOffset: 90 },
-  { project: 'ALS', title: 'Learning centers opened in four barangays', description: 'All four centers operating.', targetOffset: -280, completedOffset: -282 },
-  { project: 'ALS', title: 'Cycle 1 module completion', description: 'First module set completed by learners.', targetOffset: -100, completedOffset: -96 },
-  { project: 'ALS', title: 'Accreditation and equivalency assessment taken', description: 'Learners take the assessment.', targetOffset: 10 },
-  { project: 'WSH', title: 'Facility assessment report approved', description: 'Assessment report approved by the schools division.', targetOffset: -350, completedOffset: -351 },
-  { project: 'WSH', title: 'Half of the schools handed over', description: 'Six schools with completed facilities.', targetOffset: -120, completedOffset: -70 },
-  { project: 'WSH', title: 'All twelve schools handed over', description: 'All facilities handed over.', targetOffset: -30 },
-  { project: 'CRL', title: 'Barangay response teams organized', description: 'Five teams formally organized.', targetOffset: -60, completedOffset: -58 },
-  { project: 'CRL', title: 'First livelihood group cohort supported', description: '60 households received grants and coaching.', targetOffset: -10 },
-  { project: 'EHK', title: 'Kits delivered to all three barangays', description: 'Distribution completed.', targetOffset: -150, completedOffset: -152 },
+  {
+    project: 'SSG',
+    title: 'Baseline results validated',
+    description: 'Baseline findings presented to partners.',
+    targetOffset: -120,
+    completedOffset: -125,
+  },
+  {
+    project: 'SSG',
+    title: 'School protection committees organized in six barangays',
+    description: 'Committees formally organized and oriented.',
+    targetOffset: -90,
+    completedOffset: -84,
+  },
+  {
+    project: 'SSG',
+    title: 'Midpoint review with the Department of Education',
+    description: 'Joint midpoint review of progress and risks.',
+    targetOffset: -30,
+    completedOffset: -12,
+  },
+  {
+    project: 'SSG',
+    title: 'Learning kit distribution completed',
+    description: 'All targeted girls received their kits.',
+    targetOffset: -5,
+  },
+  {
+    project: 'SSG',
+    title: 'Year-end results workshop',
+    description: 'Results and learning workshop with partners.',
+    targetOffset: 90,
+  },
+  {
+    project: 'ALS',
+    title: 'Learning centers opened in four barangays',
+    description: 'All four centers operating.',
+    targetOffset: -280,
+    completedOffset: -282,
+  },
+  {
+    project: 'ALS',
+    title: 'Cycle 1 module completion',
+    description: 'First module set completed by learners.',
+    targetOffset: -100,
+    completedOffset: -96,
+  },
+  {
+    project: 'ALS',
+    title: 'Accreditation and equivalency assessment taken',
+    description: 'Learners take the assessment.',
+    targetOffset: 10,
+  },
+  {
+    project: 'WSH',
+    title: 'Facility assessment report approved',
+    description: 'Assessment report approved by the schools division.',
+    targetOffset: -350,
+    completedOffset: -351,
+  },
+  {
+    project: 'WSH',
+    title: 'Half of the schools handed over',
+    description: 'Six schools with completed facilities.',
+    targetOffset: -120,
+    completedOffset: -70,
+  },
+  {
+    project: 'WSH',
+    title: 'All twelve schools handed over',
+    description: 'All facilities handed over.',
+    targetOffset: -30,
+  },
+  {
+    project: 'CRL',
+    title: 'Barangay response teams organized',
+    description: 'Five teams formally organized.',
+    targetOffset: -60,
+    completedOffset: -58,
+  },
+  {
+    project: 'CRL',
+    title: 'First livelihood group cohort supported',
+    description: '60 households received grants and coaching.',
+    targetOffset: -10,
+  },
+  {
+    project: 'EHK',
+    title: 'Kits delivered to all three barangays',
+    description: 'Distribution completed.',
+    targetOffset: -150,
+    completedOffset: -152,
+  },
 ]
 
 export const forbiddenVisibleWords = [
@@ -1230,7 +1331,13 @@ export function visibleStrings(): string[] {
   const out: string[] = []
   for (const program of demoPrograms) out.push(program.name, program.description)
   for (const project of demoProjects) {
-    out.push(project.title, project.description, project.objectives, project.implementationArea, project.sector)
+    out.push(
+      project.title,
+      project.description,
+      project.objectives,
+      project.implementationArea,
+      project.sector,
+    )
     out.push(...project.partners, ...project.barangays)
   }
   for (const list of Object.values(demoActivities))
@@ -1257,3 +1364,79 @@ export function visibleStrings(): string[] {
   out.push(...femaleFirstNames, ...maleFirstNames, ...middleNames, ...lastNames)
   return out.filter(Boolean)
 }
+
+// Form definitions shared by the seed and by the fixture tests.
+export type DemoFormField = {
+  code: string
+  label: string
+  dataType:
+    | 'TEXT'
+    | 'LONG_TEXT'
+    | 'INTEGER'
+    | 'DECIMAL'
+    | 'DATE'
+    | 'BOOLEAN'
+    | 'SELECT'
+    | 'MULTIPLE_SELECT'
+  required: boolean
+  metadataKey: boolean
+  sadddField: boolean
+  allowedValues?: string[]
+  minimumValue?: string
+  maximumValue?: string
+  minimumLength?: number
+  maximumLength?: number
+}
+
+const field = (
+  code: string,
+  label: string,
+  dataType: DemoFormField['dataType'],
+  patch: Partial<DemoFormField> = {},
+): DemoFormField => ({
+  code,
+  label,
+  dataType,
+  required: false,
+  metadataKey: false,
+  sadddField: false,
+  ...patch,
+})
+
+/** Household Profile: the published form the household follow-up import file maps to. */
+export const householdProfileFields: DemoFormField[] = [
+  field('beneficiary_code', 'Beneficiary code', 'TEXT', { required: true, metadataKey: true }),
+  field('household_size', 'Household size', 'INTEGER', {
+    required: true,
+    minimumValue: '1',
+    maximumValue: '30',
+  }),
+  field('children_in_school', 'Children in school', 'INTEGER', {
+    minimumValue: '0',
+    maximumValue: '20',
+  }),
+  field('main_income_source', 'Main income source', 'SELECT', {
+    required: true,
+    allowedValues: ['Farming', 'Fishing', 'Small business', 'Wage labor', 'Remittances', 'Other'],
+  }),
+  field('monthly_income_range', 'Monthly income range', 'SELECT', {
+    allowedValues: ['Below 5,000', '5,000 to 9,999', '10,000 to 14,999', '15,000 and above'],
+  }),
+  field('has_toilet', 'Has toilet', 'BOOLEAN'),
+  field('visit_date', 'Visit date', 'DATE', { required: true }),
+  field('remarks', 'Remarks', 'LONG_TEXT', { maximumLength: 2000 }),
+]
+
+export const attendanceFields: DemoFormField[] = [
+  field('beneficiary_code', 'Beneficiary code', 'TEXT', { required: true, metadataKey: true }),
+  field('participation_date', 'Participation date', 'DATE', { required: true }),
+  field('attendance_status', 'Attendance status', 'SELECT', {
+    required: true,
+    allowedValues: ['PRESENT', 'ABSENT', 'COMPLETED', 'NOT_COMPLETED', 'EXCUSED'],
+  }),
+  field('progress_status', 'Progress status', 'SELECT', {
+    required: true,
+    allowedValues: ['NOT_STARTED', 'IN_PROGRESS', 'COMPLETED', 'NEEDS_FOLLOW_UP'],
+  }),
+  field('progress_notes', 'Progress notes', 'LONG_TEXT', { maximumLength: 2000 }),
+]

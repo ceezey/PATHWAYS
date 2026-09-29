@@ -1,12 +1,12 @@
 import type { RegisterBeneficiaryDto } from '../src/modules/beneficiaries/beneficiaries.dto'
 import {
+  type DemoProject,
+  type PlannedPerson,
   addDaysIso,
   demoCohorts,
   demoIndicators,
   demoProjects,
   planCohort,
-  type PlannedPerson,
-  type DemoProject,
 } from './local-demo-data'
 import type { DemoContext } from './local-demo-seed'
 import { projectOf } from './local-demo-util'
@@ -107,7 +107,10 @@ export async function stageBeneficiaries(ctx: DemoContext) {
   for (const project of demoProjects) {
     const projectId = projectOf(ctx, project.key)
     const registrar = registrarFor(ctx, project)
-    const context = await ctx.services.beneficiaries.ensureDefaultRegistrationForm(registrar, projectId)
+    const context = await ctx.services.beneficiaries.ensureDefaultRegistrationForm(
+      registrar,
+      projectId,
+    )
     const formId = context.definitions[0]?.id
     if (!formId) throw new Error(`No registration form is available for ${project.code}.`)
     const row = await ctx.owner.project.findUniqueOrThrow({
@@ -126,6 +129,10 @@ export async function stageBeneficiaries(ctx: DemoContext) {
       registered += 1
     }
   }
-  ctx.log(`  beneficiaries registered: ${registered} (cohorts ${Object.values(demoCohorts).map((c) => c.count).join('/')})`)
+  ctx.log(
+    `  beneficiaries registered: ${registered} (cohorts ${Object.values(demoCohorts)
+      .map((c) => c.count)
+      .join('/')})`,
+  )
   void addDaysIso
 }

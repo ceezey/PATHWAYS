@@ -12,12 +12,49 @@ type ReportPlan = {
 }
 
 const reportPlans: ReportPlan[] = [
-  { project: 'SSG', by: 'projectManager', kind: 'PROJECT_SUMMARY', format: 'PDF', name: 'Safe Schools for Girls project summary, September 2026' },
-  { project: 'SSG', by: 'me', kind: 'INDICATOR_SUMMARY', format: 'XLSX', name: 'Safe Schools for Girls indicator progress' },
-  { project: 'SSG', by: 'me', kind: 'SURVEY_FORM_RESULTS', format: 'XLSX', name: 'Committee training feedback results', formCode: 'committee_training_feedback' },
-  { project: 'CRL', by: 'programManager', kind: 'PROJECT_SUMMARY', format: 'XLSX', name: 'Community Resilience and Livelihoods quarterly summary' },
-  { project: 'WSH', by: 'grantManager', kind: 'PROJECT_SUMMARY', format: 'PDF', name: 'School WASH Rehabilitation delay review' },
-  { project: 'ALS', by: 'me', kind: 'INDICATOR_SUMMARY', format: 'XLSX', name: 'Alternative Learning System indicator results' },
+  {
+    project: 'SSG',
+    by: 'projectManager',
+    kind: 'PROJECT_SUMMARY',
+    format: 'PDF',
+    name: 'Safe Schools for Girls project summary, September 2026',
+  },
+  {
+    project: 'SSG',
+    by: 'me',
+    kind: 'INDICATOR_SUMMARY',
+    format: 'XLSX',
+    name: 'Safe Schools for Girls indicator progress',
+  },
+  {
+    project: 'SSG',
+    by: 'me',
+    kind: 'SURVEY_FORM_RESULTS',
+    format: 'XLSX',
+    name: 'Committee training feedback results',
+    formCode: 'committee_training_feedback',
+  },
+  {
+    project: 'CRL',
+    by: 'programManager',
+    kind: 'PROJECT_SUMMARY',
+    format: 'XLSX',
+    name: 'Community Resilience and Livelihoods quarterly summary',
+  },
+  {
+    project: 'WSH',
+    by: 'grantManager',
+    kind: 'PROJECT_SUMMARY',
+    format: 'PDF',
+    name: 'School WASH Rehabilitation delay review',
+  },
+  {
+    project: 'ALS',
+    by: 'me',
+    kind: 'INDICATOR_SUMMARY',
+    format: 'XLSX',
+    name: 'Alternative Learning System indicator results',
+  },
 ]
 
 /** Generated report artifacts, each produced by a role that holds the matching report permission.
@@ -37,7 +74,9 @@ export async function stageReports(ctx: DemoContext) {
     }
     await step(`report ${plan.name}`, () =>
       ctx.services.reports.generate(identity, projectId, {
-        clientRequestId: ctx.stable(`report:${plan.project}:${plan.kind}:${plan.format}:${plan.name}`),
+        clientRequestId: ctx.stable(
+          `report:${plan.project}:${plan.kind}:${plan.format}:${plan.name}`,
+        ),
         kind: plan.kind,
         format: plan.format,
         name: plan.name,

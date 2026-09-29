@@ -1,11 +1,11 @@
 import {
+  type DemoExpense,
+  type DemoProject,
   addDaysIso,
   demoActivities,
   demoBudgets,
   demoExpenses,
   demoProjects,
-  type DemoExpense,
-  type DemoProject,
 } from './local-demo-data'
 import type { DemoContext } from './local-demo-seed'
 import { activityCode } from './local-demo-stage-activities'
@@ -57,11 +57,16 @@ export async function stageBudgets(ctx: DemoContext) {
 }
 
 async function listExpenses(ctx: DemoContext, projectId: string) {
-  return (await ctx.services.finance.expenses(ctx.staff.projectManager.identity, projectId)) as ExpenseRow[]
+  return (await ctx.services.finance.expenses(
+    ctx.staff.projectManager.identity,
+    projectId,
+  )) as ExpenseRow[]
 }
 
 async function findExpense(ctx: DemoContext, projectId: string, description: string) {
-  const row = (await listExpenses(ctx, projectId)).find((entry) => entry.description === description)
+  const row = (await listExpenses(ctx, projectId)).find(
+    (entry) => entry.description === description,
+  )
   if (!row) throw new Error(`Expense "${description}" was not found.`)
   return row
 }
@@ -74,12 +79,19 @@ export async function stageExpenses(ctx: DemoContext) {
     const project = projectByKey(plan.project)
     const projectId = projectOf(ctx, project.key)
     const submitter = ctx.staff[plan.submitter].identity
-    const budgets = (await ctx.services.finance.budgets(ctx.staff.projectManager.identity, projectId)) as BudgetRow[]
+    const budgets = (await ctx.services.finance.budgets(
+      ctx.staff.projectManager.identity,
+      projectId,
+    )) as BudgetRow[]
     const budget = budgets.find((row) => row.category === plan.budgetCategory)
     if (!budget) throw new Error(`Budget line "${plan.budgetCategory}" is missing.`)
-    const already = (await listExpenses(ctx, projectId)).some((row) => row.description === plan.description)
+    const already = (await listExpenses(ctx, projectId)).some(
+      (row) => row.description === plan.description,
+    )
     if (already) continue
-    await step(`expense ${plan.description}`, () => runExpense(ctx, plan, projectId, budget.id, submitter))
+    await step(`expense ${plan.description}`, () =>
+      runExpense(ctx, plan, projectId, budget.id, submitter),
+    )
     count += 1
   }
   ctx.log(`  expenses recorded: ${count}`)
@@ -143,5 +155,3 @@ async function runExpense(
   row = await findExpense(ctx, projectId, plan.description)
   await finance.signoff(ctx.staff.programManager.identity, projectId, row.id)
 }
-
-
