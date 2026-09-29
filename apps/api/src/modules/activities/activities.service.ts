@@ -1825,7 +1825,9 @@ export class ActivitiesService {
         )
         unverified.forEach((row, index) => {
           if (signed[index]?.path !== row.objectKey) throw new Error('Unexpected upload URL')
-          urls.set(row.id, signed[index].uploadUrl)
+          // An already stored object gets no URL; finalize verifies its exact bytes.
+          const uploadUrl = signed[index].uploadUrl
+          if (uploadUrl) urls.set(row.id, uploadUrl)
         })
       } catch {
         throw new ServiceUnavailableException(
