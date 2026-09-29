@@ -432,6 +432,143 @@ describe('ActivityProofDialog direct upload', () => {
     )
   })
 
+  it('enables the beneficiaries-reached-this-session field with the new hint', async () => {
+    renderDialog()
+    await waitFor(() => expect(api.getActivityProofUploadLimits).toHaveBeenCalledOnce())
+    const field = screen.getByLabelText(
+      /Beneficiaries reached this session/,
+    ) as HTMLInputElement
+    expect(field.disabled).toBe(false)
+    expect(
+      screen.getByText(/Recorded with this proof\. It does not change/),
+    ).toBeTruthy()
+    expect(screen.queryByText(/not available yet/i)).toBeNull()
+  })
+
+  it.each(['-1', '1.5', '100001'])(
+    'rejects an invalid beneficiaries-reached-this-session value client-side: %s',
+    async (invalid) => {
+      renderDialog()
+      await waitFor(() => expect(api.getActivityProofUploadLimits).toHaveBeenCalledOnce())
+      selectFiles([makeFile('a.pdf', 'application/pdf')])
+      await screen.findByText('a.pdf')
+      fireEvent.change(screen.getByLabelText(/Narrative Notes/), {
+        target: { value: 'Synthetic proof note' },
+      })
+      fireEvent.change(screen.getByLabelText(/Beneficiaries reached this session/), {
+        target: { value: invalid },
+      })
+      fireEvent.click(screen.getByRole('button', { name: /Submit proof/ }))
+      await waitFor(() =>
+        expect(screen.getByRole('alert').textContent).toContain(
+          'Beneficiaries reached this session must be a whole number from 0 to 100000.',
+        ),
+      )
+      expect(api.reserveActivityProofUpload).not.toHaveBeenCalled()
+    },
+  )
+
+  it('allows an empty beneficiaries-reached-this-session value and omits it from the request', async () => {
+    api.reserveActivityProofUpload.mockResolvedValue({
+      clientUpdateId: 'client-1',
+      updateId: 'update-1',
+      status: 'UPLOADING',
+      files: [
+        {
+          evidenceId: 'evidence-1',
+          fileName: 'a.pdf',
+          contentType: 'application/pdf',
+          byteSize: 1024,
+          sha256: 'x'.repeat(64),
+          storageReady: false,
+          uploadUrl: 'https://storage.invalid/evidence-1',
+        },
+      ],
+    })
+    renderDialog()
+    await waitFor(() => expect(api.getActivityProofUploadLimits).toHaveBeenCalledOnce())
+    selectFiles([makeFile('a.pdf', 'application/pdf')])
+    await screen.findByText('a.pdf')
+    fireEvent.change(screen.getByLabelText(/Narrative Notes/), {
+      target: { value: 'Synthetic proof note' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: /Submit proof/ }))
+    await waitFor(() => expect(api.reserveActivityProofUpload).toHaveBeenCalledOnce())
+    const request = api.reserveActivityProofUpload.mock.calls[0][0]
+    expect('beneficiariesReachedThisSession' in request).toBe(false)
+  })
+
+  it('sends a valid beneficiaries-reached-this-session value in the reservation request', async () => {
+    api.reserveActivityProofUpload.mockResolvedValue({
+      clientUpdateId: 'client-1',
+      updateId: 'update-1',
+      status: 'UPLOADING',
+      files: [
+        {
+          evidenceId: 'evidence-1',
+          fileName: 'a.pdf',
+          contentType: 'application/pdf',
+          byteSize: 1024,
+          sha256: 'x'.repeat(64),
+          storageReady: false,
+          uploadUrl: 'https://storage.invalid/evidence-1',
+        },
+      ],
+    })
+    renderDialog()
+    await waitFor(() => expect(api.getActivityProofUploadLimits).toHaveBeenCalledOnce())
+    selectFiles([makeFile('a.pdf', 'application/pdf')])
+    await screen.findByText('a.pdf')
+    fireEvent.change(screen.getByLabelText(/Narrative Notes/), {
+      target: { value: 'Synthetic proof note' },
+    })
+    fireEvent.change(screen.getByLabelText(/Beneficiaries reached this session/), {
+      target: { value: '42' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: /Submit proof/ }))
+    await waitFor(() => expect(api.reserveActivityProofUpload).toHaveBeenCalledOnce())
+    expect(api.reserveActivityProofUpload).toHaveBeenCalledWith(
+      expect.objectContaining({ beneficiariesReachedThisSession: 42 }),
+    )
+  })
+
+  it('locks the beneficiaries-reached-this-session field after a partial failure', async () => {
+    api.reserveActivityProofUpload.mockResolvedValue({
+      clientUpdateId: 'client-1',
+      updateId: 'update-1',
+      status: 'UPLOADING',
+      files: [
+        {
+          evidenceId: 'evidence-1',
+          fileName: 'a.pdf',
+          contentType: 'application/pdf',
+          byteSize: 1024,
+          sha256: 'x'.repeat(64),
+          storageReady: false,
+          uploadUrl: 'https://storage.invalid/evidence-1',
+        },
+      ],
+    })
+    api.uploadActivityProofFile.mockRejectedValue(
+      new PathwaysClientError('The file could not be uploaded. Retry this file.', 'network', [], 503),
+    )
+    renderDialog()
+    await waitFor(() => expect(api.getActivityProofUploadLimits).toHaveBeenCalledOnce())
+    selectFiles([makeFile('a.pdf', 'application/pdf')])
+    await screen.findByText('a.pdf')
+    fireEvent.change(screen.getByLabelText(/Narrative Notes/), {
+      target: { value: 'Synthetic proof note' },
+    })
+    fireEvent.change(screen.getByLabelText(/Beneficiaries reached this session/), {
+      target: { value: '7' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: /Submit proof/ }))
+    await waitFor(() => expect(screen.getByText(/Failed:/)).toBeTruthy())
+    expect(
+      (screen.getByLabelText(/Beneficiaries reached this session/) as HTMLInputElement).disabled,
+    ).toBe(true)
+  })
+
   it('retries only the reload when finish() fails after the update already committed', async () => {
     api.reserveActivityProofUpload.mockResolvedValue({
       clientUpdateId: 'client-1',

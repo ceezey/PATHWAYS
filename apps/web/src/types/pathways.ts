@@ -219,6 +219,8 @@ export interface ActivityUpdateNote {
   kind?: 'proof' | 'progress'
   note: string
   progress: number
+  /** Optional, recorded on this submission only (cr-pathways-proof-session-beneficiary-count). */
+  beneficiariesReachedThisSession?: number | null
   status: 'Submitted' | 'Flagged' | 'Accepted'
   submittedBy: string
   submittedAt: string
@@ -287,6 +289,8 @@ export interface ReserveActivityProofUploadInput {
   progressPercent: number
   note: string
   files: ActivityProofFileDeclaration[]
+  /** Optional, recorded on this submission only (cr-pathways-proof-session-beneficiary-count). */
+  beneficiariesReachedThisSession?: number
 }
 
 export interface ActivityProofReservedFile {

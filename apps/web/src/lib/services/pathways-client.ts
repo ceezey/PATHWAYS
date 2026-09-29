@@ -841,6 +841,9 @@ class BackendReadyPathwaysClient implements PathwaysClient {
         progressPercent: input.progressPercent,
         note: input.note,
         files: input.files,
+        ...(input.beneficiariesReachedThisSession === undefined
+          ? {}
+          : { beneficiariesReachedThisSession: input.beneficiariesReachedThisSession }),
       }),
     }).then(parseActivityProofReservation)
   }
