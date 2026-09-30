@@ -93,6 +93,7 @@
 | Spec | File | Date | Scope | Status |
 |---|---|---|---|---|
 | [Docs canonical reconciliation](superpowers/specs/2026-10-01-docs-canonical-reconciliation-design.md) | 2026-10-01-docs-canonical-reconciliation-design.md | 2026-10-01 | Rebuild and reconcile the documentation suite into a canonical baseline | Draft; developer review pending |
+| [Docs canonical reconciliation plan](superpowers/plans/2026-10-01-docs-canonical-reconciliation.md) | 2026-10-01-docs-canonical-reconciliation.md | 2026-10-01 | Task-by-task implementation plan for the reconciliation spec | Approved; in progress |
 
 ### Workflow rule
 

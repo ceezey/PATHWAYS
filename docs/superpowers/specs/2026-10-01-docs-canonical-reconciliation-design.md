@@ -259,13 +259,13 @@ Not committed: the template folder, `docs/reference/`, `docs/activity-log.md`. R
 | 4 | UES, GTM, PITCH, WRAP, OPS SLOs, after the developer questionnaire | 3 and answers |
 | 5 | `index.md`, `log-pathways.md`, `README.md`; `pnpm docs:materialize`; `pnpm docs:check` | 4 |
 
-Drafting is done by Sonnet subagents (one per doc or small group, parallel within a wave), each given the fact sheet, the relevant manuscript extract and the template headings. The coordinator reviews each draft against the fact sheet and manuscript before accepting it. One atomic commit per wave.
+Drafting is done by Sonnet subagents (one per doc or small group, parallel within a wave), each given the fact sheet, the relevant manuscript extract and the template headings. The coordinator reviews each draft against the fact sheet and manuscript before accepting it. One focused commit per task, grouped by wave.
 
 ## 8. Verification
 
 Run against a clean copy of the tracked tree (`git archive HEAD`), because `docs:check` scans every `.md` under `docs/` recursively and would otherwise include the untracked reference folders.
 
-- `grep -ri arkilaunch` over tracked files returns nothing.
+- A case-insensitive search for the other repository's name over tracked files returns nothing (the search term lives only in the scratchpad harness, never in a tracked file).
 - `pnpm docs:check` passes; `pnpm docs:materialize` produces no diff.
 - Every `SAD section N` and `build guide section N` reference in `.claude/agents/`, `sad-pathways.md` and `build-pathways.md` resolves to the heading holding that concept (invariant 2); `pnpm sad:test` passes.
 - Every use case cites a real route or endpoint and permission from the fact sheet; every gate is linked to at least one use case; every manuscript use case report is either in the PRD or in the not-carried-forward table.
