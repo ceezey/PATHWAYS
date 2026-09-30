@@ -13,6 +13,7 @@ import {
   downloadCoreArtifact,
   type expenseAck,
 } from '@/lib/services/core-feature-client'
+import { pathwaysClient } from '@/lib/services/pathways-client'
 import { useAuthorizedRead } from '@/providers/authorized-query-provider'
 import { useEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
@@ -50,6 +51,18 @@ function FinanceContent({ projectId }: { projectId: string }) {
     'expenses.submit',
     (signal) => coreDataClient.budgetReferences(projectId, signal),
   )
+  const activityNames = useAuthorizedRead(
+    'expense-reference-activities',
+    projectId,
+    'activities.context.read',
+    (signal) => pathwaysClient.getActivityContext(projectId, signal),
+    can('activities.context.read'),
+  )
+  const referenceLabel = (row: { category: string; activityId: string | null }) => {
+    if (row.category !== 'ACTIVITY_PROFILE_TOTAL') return row.category
+    const title = activityNames.data?.find((activity) => activity.id === row.activityId)?.title
+    return title ? `Activity budget: ${title}` : 'Activity budget'
+  }
   const currentBudgets = !budgets.isError && !budgets.isPending ? budgets.data : undefined
   const currentReferences =
     !references.isError && !references.isPending ? references.data : undefined
@@ -509,7 +522,7 @@ function FinanceContent({ projectId }: { projectId: string }) {
                 <option value="">Choose an allocation</option>
                 {currentReferences?.map((row) => (
                   <option key={row.id} value={row.id}>
-                    {row.category}
+                    {referenceLabel(row)}
                   </option>
                 ))}
               </select>
