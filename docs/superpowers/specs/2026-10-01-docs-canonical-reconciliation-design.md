@@ -42,6 +42,7 @@ Known outdated manuscript content: use case diagrams and reports, activity diagr
 | D5 | Integration: work on `docs/canonical-reconcile`, merge into `dev` locally, push `origin/dev` as `ceezey`; no PR. |
 | D6 | Approach B: suite docs are rebuilt from the template skeleton and repopulated under the source precedence in section 4. |
 | D7 | SAD and BUILD may take the template section numbering; section references in `.claude/agents/` and live docs are realigned to the new numbers in the same wave. |
+| D8 | The PRD carries a Requirements-Features Matrix and a Locked charter per feature (purpose, why it helps, gate criteria, bounds), replacing the Acceptance Summary (section 5.6). |
 
 ## 4. Source Precedence
 
@@ -72,20 +73,42 @@ CRs (20), RFCs (4), audits (2), runbooks (5), governance templates (3). Content 
 
 `docs/cr-pathways-doc-reconciliation-2026-10-01.md`: source precedence, the append-only exception (D2), the design-authority change (D1), and superseded manuscript items.
 
+### 5.6 Requirements-Features Matrix and feature charters (D8)
+
+`prd-pathways.md` is the single authority; `IDEA.md` shows a summary and links to it.
+
+**ID mapping.** The manuscript matrix uses F1-F12 with F12 as the Public Project Tracker. PRD IDs stay (invariant 1): manuscript F1-F11 map to PRD-F1 to PRD-F11, manuscript F12 maps to PRD-F13, and PRD-F12 Reporting / Visualization is kept. The PRD states this mapping once.
+
+**Matrix.** One row per functional and non-functional requirement from manuscript Table 5, reconciled to the system. Columns: requirement, PRD feature ID(s), priority, problem addressed (Problem-Requirements Matrix row), current status from the repository.
+
+**Charter per feature (PRD-F1 to PRD-F13):**
+
+| Field | Content |
+|---|---|
+| Purpose | What the feature is for, one or two sentences, grounded in the manuscript objective |
+| Why it helps | The problem it removes, citing the Problem-Requirements row and the affected role |
+| Gate criteria | Numbered, testable, behavior-level conditions `G-F<n>-<m>`, each linked to QAD row(s); the feature is complete only when every gate passes; gates the current code does not meet are marked Not met and linked to `deferred-features.md` |
+| Bounds (in) | The capabilities the feature covers, and nothing beyond them |
+| Bounds (out) | Adjacent capabilities explicitly excluded, each with a reason |
+| Lock | Locked; adding a gate or widening a bound requires an approved `cr-pathways-*`; anything outside the bounds is out of scope by default |
+
+Gate sources, in order: current PRD acceptance text, QAD rows and Applied CRs; then manuscript objectives and use case intent restated against actual behavior. A gate without a source is omitted and noted in the reconciliation CR. QAD rows cite their gate IDs. No new checker is added for gate IDs.
+
 ### 5.5 Out of scope
 
 Product code, migrations, and agent behavior (models, tools, prompts beyond section references). Exceptions:
 
 - `.claude/agents/*.md`: section-number references only (D7), for example "SAD section 3.1" and "build guide section 8".
+- `.claude/agents/requirements-qa-gate.md`: "PRD acceptance criteria" becomes "PRD gate criteria (`G-F<n>-<m>`)" (D8).
 - `scripts/docs/check.py`: a minimal change only if a rebuilt heading legitimately breaks a rule; named in the reconciliation CR.
 
 Historical CRs that cite old section numbers (for example `cr-pathways-sad-orchestration.md`) keep their text; the reconciliation CR carries an old-to-new section map.
 
-Not committed: the template folder, `docs/reference/`, root `CLAUDE.md`, `docs/activity-log.md`.
+Not committed: the template folder, `docs/reference/`, `docs/activity-log.md`. Root `CLAUDE.md` is tracked (developer-approved).
 
 ## 6. Invariants
 
-1. Stable IDs are preserved exactly: `PRD-F1` to `PRD-F13`, QAD row IDs, RFC and CR filenames, migration numbers.
+1. Stable IDs are preserved exactly: `PRD-F1` to `PRD-F13`, QAD row IDs, RFC and CR filenames, migration numbers. Gate IDs are stable once assigned.
 2. Every SAD and BUILD concept that agents or checkers depend on survives the rebuild under some section: roster and trigger paths, per-role engineering rules (one subsection per role, named exactly as the agent), sequenced pipeline, handoff packet, output schema; BUILD release sequence, traceability grounding, Human Intervention block. After renumbering (D7), every `SAD section N` and `build guide section N` reference in `.claude/agents/`, `build-pathways.md` and `sad-pathways.md` points to the section holding that concept.
 3. SAD keeps a roster table with `Specialist` and `Model` columns matching `.claude/agents/` (parsed by `check_agents` in `scripts/docs/check.py`), and its trigger paths stay identical to the globs in `scripts/sad/check.ts`.
 4. `pnpm docs:check` passes (baseline on `origin/dev`: 0 failures, 0 warnings).
@@ -96,8 +119,8 @@ Not committed: the template folder, `docs/reference/`, root `CLAUDE.md`, `docs/a
 | Wave | Content | Depends on |
 |---|---|---|
 | 0 | Branch; extract manuscript text; build a scratchpad fact sheet from the repo (roles, permission matrix, API modules and routes, Prisma models, migrations 0000-0045, web routes, current design tokens) | - |
-| 1 | `IDEA.md`, BRD, PRD | 0 |
-| 2 | DSD (with gap table), SDD (manuscript ERD and dictionary checked against Prisma), QAD, SAD, BUILD; realign section references in `.claude/agents/` (D7) | 1 |
+| 1 | `IDEA.md`, BRD, PRD (matrix and charters, D8) | 0 |
+| 2 | DSD (with gap table), SDD (manuscript ERD and dictionary checked against Prisma), QAD (rows cite gate IDs), SAD, BUILD; realign section references in `.claude/agents/` (D7, D8) | 1 |
 | 3 | VAL, SCRUTINY, VOICE, CLR, AIA, OPS (without SLOs); record edits; `state.md`, `deferred-features.md`, reconciliation CR | 2 |
 | 4 | UES, GTM, PITCH, WRAP, OPS SLOs, after the developer questionnaire | 3 and answers |
 | 5 | `index.md`, `log-pathways.md`, `README.md`; `pnpm docs:materialize`; `pnpm docs:check` | 4 |
@@ -111,6 +134,7 @@ Run against a clean copy of the tracked tree (`git archive HEAD`), because `docs
 - `grep -ri arkilaunch` over tracked files returns nothing.
 - `pnpm docs:check` passes; `pnpm docs:materialize` produces no diff.
 - Every `SAD section N` and `build guide section N` reference in `.claude/agents/`, `sad-pathways.md` and `build-pathways.md` resolves to the heading holding that concept (invariant 2); `pnpm sad:test` passes.
+- Every gate `G-F<n>-<m>` links at least one QAD row and every QAD row citing a gate resolves; every feature has all six charter fields.
 - Every cited PRD, QAD and CR ID resolves; no broken relative links inside `docs/`.
 - Spot checks: roles and permissions against the RBAC seed and migrations; SDD tables against `schema.prisma`; DSD "current" column against `apps/web/src/app/globals.css`.
 - `git status` shows no staged file from the untracked folders.
