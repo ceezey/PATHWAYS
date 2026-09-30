@@ -76,7 +76,12 @@ export const IndicatorProgressChart = ({ rows }: { rows: DescriptiveAnalysisRow[
       color: ['#0072CE'],
       tooltip: { trigger: 'axis', valueFormatter: (value: number) => `${value}%` },
       grid: { ...grid, left: 8, right: 24 },
-      xAxis: { type: 'value', min: 0, max: Math.max(100, ...rows.map((row) => row.value)), name: '% of target' },
+      xAxis: {
+        type: 'value',
+        min: 0,
+        max: Math.max(100, ...rows.map((row) => row.value)),
+        name: '% of target',
+      },
       yAxis: { type: 'category', inverse: true, data: rows.map((row) => row.label) },
       series: [
         {

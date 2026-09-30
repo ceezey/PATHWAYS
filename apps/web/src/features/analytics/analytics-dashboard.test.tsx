@@ -3,12 +3,9 @@
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { AnalyticsDashboard } from './analytics-dashboard'
-// These tests cover the hidden state of controls behind UNFINISHED_CONTROLS_UI_ENABLED.
-vi.mock('@/constants/feature-flags', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('@/constants/feature-flags')>()),
-  UNFINISHED_CONTROLS_UI_ENABLED: false,
-}))
+import { rulesHumanClient } from '@/lib/services/rules-human-client'
+
+import { AnalyticsDashboard, countOpenAlerts } from './analytics-dashboard'
 
 const api = vi.hoisted(() => ({
   getActivities: vi.fn(),
@@ -20,6 +17,7 @@ const api = vi.hoisted(() => ({
   getSurveyAnalytics: vi.fn(),
   getTimelineAnalytics: vi.fn(),
 }))
+const alertHook = vi.hoisted(() => ({ result: { data: undefined } as Record<string, unknown> }))
 const download = vi.hoisted(() => vi.fn())
 const finance = vi.hoisted(() => ({
   budgets: vi.fn(),
@@ -61,7 +59,7 @@ vi.mock('@/components/layout/page-header', () => ({
   PageHeader: ({ title }: { title: string }) => <h1>{title}</h1>,
 }))
 vi.mock('@/providers/authorized-query-provider', () => ({
-  useAuthorizedRead: () => ({ data: undefined }),
+  useAuthorizedRead: () => alertHook.result,
 }))
 vi.mock('@/lib/services/rules-human-client', () => ({ rulesHumanClient: { listAlerts: vi.fn() } }))
 vi.mock('./analytics-charts', () => ({
@@ -210,6 +208,7 @@ describe('Analytics dashboard request dependencies', () => {
       'monitoring.read',
       'analytics.read',
     ]
+    alertHook.result = { data: undefined }
     coverageMap.instanceCount = 0
     coverageMap.featureCollections.length = 0
     const projects = [
@@ -498,15 +497,7 @@ describe('Analytics dashboard request dependencies', () => {
       participationRecords: { value: null, state: 'SUPPRESSED', reason: 'SMALL_COHORT' },
     })
 
-    // Participation patterns is hidden behind UNFINISHED_CONTROLS_UI_ENABLED; force it on here.
-    vi.resetModules()
-    vi.doMock('@/constants/feature-flags', () => ({
-      ANALYTICS_AGGREGATE_EXPORT_UI_ENABLED: false,
-      UNFINISHED_CONTROLS_UI_ENABLED: true,
-    }))
-    const { AnalyticsDashboard: ParticipationDashboard } = await import('./analytics-dashboard')
-    vi.doUnmock('@/constants/feature-flags')
-    render(<ParticipationDashboard />)
+    render(<AnalyticsDashboard />)
 
     await waitFor(() => expect(api.getMonitoringDashboard).toHaveBeenCalled())
     fireEvent.change(screen.getByLabelText('Analysis view'), {
@@ -531,15 +522,7 @@ describe('Analytics dashboard request dependencies', () => {
       },
     })
 
-    // Participation patterns is hidden behind UNFINISHED_CONTROLS_UI_ENABLED; force it on here.
-    vi.resetModules()
-    vi.doMock('@/constants/feature-flags', () => ({
-      ANALYTICS_AGGREGATE_EXPORT_UI_ENABLED: false,
-      UNFINISHED_CONTROLS_UI_ENABLED: true,
-    }))
-    const { AnalyticsDashboard: ParticipationDashboard } = await import('./analytics-dashboard')
-    vi.doUnmock('@/constants/feature-flags')
-    render(<ParticipationDashboard />)
+    render(<AnalyticsDashboard />)
 
     await waitFor(() => expect(api.getMonitoringDashboard).toHaveBeenCalled())
     fireEvent.change(screen.getByLabelText('Analysis view'), {
@@ -579,7 +562,7 @@ describe('Analytics dashboard request dependencies', () => {
     vi.resetModules()
     vi.doMock('@/constants/feature-flags', () => ({
       ANALYTICS_AGGREGATE_EXPORT_UI_ENABLED: true,
-      UNFINISHED_CONTROLS_UI_ENABLED: false,
+      UNFINISHED_CONTROLS_UI_ENABLED: true,
     }))
     const { AnalyticsDashboard: ExportEnabledDashboard } = await import('./analytics-dashboard')
     currentAccess.profile.permissions = [
@@ -668,12 +651,40 @@ describe('Analytics dashboard request dependencies', () => {
     expect(download).not.toHaveBeenCalled()
   })
 
-  it('hides Add to Dashboard while unfinished controls are hidden and restricts the survey/timeline views', async () => {
+  it('keeps Add to Dashboard aria-disabled with a Not available yet hint', async () => {
     render(<AnalyticsDashboard />)
+    await waitFor(() => expect(api.getMonitoringDashboard).toHaveBeenCalled())
+
+    const addToDashboard = screen.getByRole('button', { name: 'Add to Dashboard' })
+    // aria-disabled (not native disabled) so the control stays keyboard/AT reachable.
+    expect(addToDashboard.hasAttribute('disabled')).toBe(false)
+    expect(addToDashboard.getAttribute('aria-disabled')).toBe('true')
+    addToDashboard.focus()
+    expect(document.activeElement).toBe(addToDashboard)
+    const describedBy = addToDashboard.getAttribute('aria-describedby')
+    expect(describedBy).toBeTruthy()
+    expect(document.getElementById(describedBy as string)?.textContent).toBe('Not available yet')
+  })
+
+  it('hides Add to Dashboard and Participation patterns while unfinished controls are hidden', async () => {
+    vi.resetModules()
+    vi.doMock('@/constants/feature-flags', () => ({
+      ANALYTICS_AGGREGATE_EXPORT_UI_ENABLED: false,
+      UNFINISHED_CONTROLS_UI_ENABLED: false,
+    }))
+    const { AnalyticsDashboard: HiddenDashboard } = await import('./analytics-dashboard')
+    vi.doUnmock('@/constants/feature-flags')
+    render(<HiddenDashboard />)
     await waitFor(() => expect(api.getMonitoringDashboard).toHaveBeenCalled())
 
     expect(screen.queryByRole('button', { name: 'Add to Dashboard' })).toBeNull()
     expect(screen.queryByText('Not available yet')).toBeNull()
+    expect(screen.queryByText('Participation patterns', { selector: 'option' })).toBeNull()
+  })
+
+  it('restricts the survey/timeline views without the descriptive read permission', async () => {
+    render(<AnalyticsDashboard />)
+    await waitFor(() => expect(api.getMonitoringDashboard).toHaveBeenCalled())
 
     const surveyOption = screen.getByText('Survey improvement', {
       selector: 'option',
@@ -684,6 +695,133 @@ describe('Analytics dashboard request dependencies', () => {
     // Default profile holds monitoring.read but not analytics.descriptive.read: restricted.
     expect(surveyOption.disabled).toBe(true)
     expect(timelineOption.disabled).toBe(true)
+  })
+
+  describe('overview metric cards', () => {
+    const cardText = (label: string) =>
+      screen
+        .getAllByText(label)
+        .map((node) => node.parentElement?.parentElement?.textContent ?? '')
+        .join(' | ')
+
+    it('shows the role-restricted state for alerts without alerts.read', async () => {
+      render(<AnalyticsDashboard />)
+      await waitFor(() => expect(api.getMonitoringDashboard).toHaveBeenCalled())
+      expect(cardText('Rule-Based Alerts')).toContain('Unavailable')
+      expect(screen.getByText('Rule-Based Alerts are unavailable for this role.')).toBeTruthy()
+      expect(screen.queryByText('Rule-Based Alerts unavailable')).toBeNull()
+    })
+
+    it('shows a loading state, not the role message, while alerts load', async () => {
+      currentAccess.profile.permissions = [...currentAccess.profile.permissions, 'alerts.read']
+      alertHook.result = { data: undefined, isError: false }
+      render(<AnalyticsDashboard />)
+      await waitFor(() => expect(api.getMonitoringDashboard).toHaveBeenCalled())
+      expect(cardText('Rule-Based Alerts')).toContain('Loading...')
+      expect(screen.getByText('Loading Rule-Based Alerts')).toBeTruthy()
+      expect(screen.queryByText('Rule-Based Alerts are unavailable for this role.')).toBeNull()
+    })
+
+    it('shows an error state with Retry when the alert read fails', async () => {
+      const refetch = vi.fn()
+      currentAccess.profile.permissions = [...currentAccess.profile.permissions, 'alerts.read']
+      alertHook.result = { data: undefined, isError: true, refetch }
+      render(<AnalyticsDashboard />)
+      await waitFor(() => expect(api.getMonitoringDashboard).toHaveBeenCalled())
+      expect(screen.getByText('Rule-Based Alerts unavailable')).toBeTruthy()
+      expect(screen.queryByText('Rule-Based Alerts are unavailable for this role.')).toBeNull()
+      fireEvent.click(screen.getByRole('button', { name: /retry/i }))
+      expect(refetch).toHaveBeenCalledTimes(1)
+    })
+
+    it.each([
+      [{ count: 7, capped: false }, '7', '7 open alerts'],
+      [{ count: 1, capped: false }, '1', '1 open alert in'],
+      [{ count: 1000, capped: true }, '1000+', '1000+ open alerts'],
+    ])('renders the open alert count %j', async (data, cardValue, panelText) => {
+      currentAccess.profile.permissions = [...currentAccess.profile.permissions, 'alerts.read']
+      alertHook.result = { data, isError: false }
+      render(<AnalyticsDashboard />)
+      await waitFor(() => expect(api.getMonitoringDashboard).toHaveBeenCalled())
+      expect(cardText('Rule-Based Alerts')).toContain(cardValue)
+      expect(document.body.textContent).toContain(panelText)
+    })
+
+    it('shows Beneficiary reach from the released aggregate cell', async () => {
+      api.getMonitoringDashboard.mockResolvedValue({
+        ...monitoring,
+        enrolledIndividuals: { state: 'AVAILABLE', value: '128', reason: null },
+      })
+      render(<AnalyticsDashboard />)
+      await waitFor(() => expect(cardText('Beneficiary reach')).toContain('128'))
+    })
+
+    it('shows suppression wording, never a number, for a suppressed Beneficiary reach', async () => {
+      api.getMonitoringDashboard.mockResolvedValue({
+        ...monitoring,
+        enrolledIndividuals: { state: 'SUPPRESSED', value: null, reason: 'SMALL_COHORT' },
+      })
+      render(<AnalyticsDashboard />)
+      await waitFor(() => expect(cardText('Beneficiary reach')).toContain('Suppressed'))
+    })
+
+    it('renders the Indicator progress chart only when a released progress value exists', async () => {
+      api.getMonitoringDashboard.mockResolvedValue({
+        ...monitoring,
+        indicators: [
+          {
+            ...indicator('project-a', 'A-SEP', '2026-09-01', '2026-09-30'),
+            progress: { state: 'AVAILABLE', value: '42', reason: null },
+          },
+        ],
+      })
+      render(<AnalyticsDashboard />)
+      expect(await screen.findByText('Indicator progress chart')).toBeTruthy()
+    })
+
+    it('shows None yet, not the chart, when no indicator progress is released', async () => {
+      api.getMonitoringDashboard.mockResolvedValue({
+        ...monitoring,
+        indicators: [indicator('project-a', 'A-SEP', '2026-09-01', '2026-09-30')],
+      })
+      render(<AnalyticsDashboard />)
+      await waitFor(() =>
+        expect(
+          screen.getByText('No released indicator progress for this project and period.'),
+        ).toBeTruthy(),
+      )
+      expect(screen.queryByText('Indicator progress chart')).toBeNull()
+    })
+  })
+
+  describe('countOpenAlerts', () => {
+    const page = (n: number, nextCursor: string | null) => ({
+      items: Array.from({ length: n }, (_, i) => ({ id: `alert-${i}` })),
+      nextCursor,
+    })
+
+    it('counts each open status with the server filter and follows cursors', async () => {
+      const list = vi.mocked(rulesHumanClient.listAlerts)
+      list.mockImplementation((async (input: { status?: string; cursor?: string }) => {
+        if (input.status === 'NEW') return input.cursor ? page(5, null) : page(100, 'c1')
+        if (input.status === 'REVIEWED') return page(3, null)
+        return page(0, null)
+      }) as never)
+      await expect(countOpenAlerts('project-a')).resolves.toEqual({ count: 108, capped: false })
+      expect(list).toHaveBeenCalledWith(
+        expect.objectContaining({ status: 'NEW', cursor: 'c1', projectId: 'project-a' }),
+        undefined,
+      )
+    })
+
+    it('stops at the page bound and reports the count as capped', async () => {
+      const list = vi.mocked(rulesHumanClient.listAlerts)
+      list.mockImplementation((async () => page(100, 'more')) as never)
+      const result = await countOpenAlerts('project-a')
+      expect(result.capped).toBe(true)
+      expect(result.count).toBe(3 * 10 * 100)
+      expect(list).toHaveBeenCalledTimes(30)
+    })
   })
 
   describe('F9 survey and timeline analytics views', () => {

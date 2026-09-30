@@ -114,6 +114,35 @@ const surveyErrorKindFor = (caught: unknown): SurveyErrorKind => {
   return status === 403 ? 'restricted' : status === 400 ? 'period' : 'retry'
 }
 
+const OPEN_ALERT_STATUSES = ['NEW', 'REVIEWED', 'ACTIONED'] as const
+const OPEN_ALERT_MAX_PAGES = 10
+
+/**
+ * Counts open alerts with the server status filter, following cursors per status. It stops
+ * after OPEN_ALERT_MAX_PAGES pages of a status and reports `capped` so the UI shows "N+".
+ */
+export const countOpenAlerts = async (projectId: string, signal?: AbortSignal) => {
+  let count = 0
+  let capped = false
+  for (const status of OPEN_ALERT_STATUSES) {
+    let cursor: string | undefined
+    for (let page = 0; ; page += 1) {
+      const result = await rulesHumanClient.listAlerts(
+        { projectId, status, limit: '100', ...(cursor ? { cursor } : {}) },
+        signal,
+      )
+      count += result.items.length
+      if (!result.nextCursor) break
+      if (page + 1 >= OPEN_ALERT_MAX_PAGES) {
+        capped = true
+        break
+      }
+      cursor = result.nextCursor
+    }
+  }
+  return { count, capped }
+}
+
 export const AnalyticsDashboard = () => {
   const { labels } = useDisplayLabels()
   const { role, profile } = useCurrentRole()
@@ -180,18 +209,20 @@ export const AnalyticsDashboard = () => {
   const [timelineLoadAttempt, setTimelineLoadAttempt] = useState(0)
 
   const selectedProject = projects.find((row) => row.id === projectId)
+  const canReadAlerts = principalHasAtomicPermission(profile, 'alerts.read')
   const alertRead = useAuthorizedRead(
     'analytics-open-alerts',
     projectId || null,
     'alerts.read',
-    (signal) => rulesHumanClient.listAlerts({ projectId, limit: '100' }, signal),
+    (signal) => countOpenAlerts(projectId, signal),
     Boolean(projectId),
   )
-  const openAlertCount = alertRead.data
-    ? alertRead.data.items.filter((item) =>
-        ['NEW', 'REVIEWED', 'ACTIONED'].includes(item.lifecycle),
-      ).length
-    : null
+  const openAlerts = alertRead.data ?? null
+  const openAlertCount = openAlerts ? openAlerts.count : null
+  // A capped count is shown as "N+" rather than passed off as exact.
+  const openAlertText = openAlerts ? `${openAlerts.count}${openAlerts.capped ? '+' : ''}` : ''
+  const alertsLoading = canReadAlerts && Boolean(projectId) && !openAlerts && !alertRead.isError
+  const alertsFailed = canReadAlerts && !openAlerts && alertRead.isError
   const projectCoverageFeatures = useMemo(
     () =>
       toProjectCoverageFeatureCollection(
@@ -1007,11 +1038,27 @@ export const AnalyticsDashboard = () => {
               }
             />
             <MetricCard
-              description="Open alerts (new, reviewed or actioned) in the selected project."
+              description={
+                !canReadAlerts
+                  ? 'Rule-Based Alerts are unavailable for this role.'
+                  : alertsFailed
+                    ? 'Open alerts could not be loaded. Use Retry in the Rule-Based Alerts panel.'
+                    : 'Open alerts (new, reviewed or actioned) in the selected project.'
+              }
               icon={AlertTriangle}
               label="Rule-Based Alerts"
               tone={openAlertCount ? 'warning' : 'info'}
-              value={openAlertCount === null ? 'Unavailable' : String(openAlertCount)}
+              value={
+                !canReadAlerts
+                  ? 'Unavailable'
+                  : alertsLoading
+                    ? 'Loading...'
+                    : alertsFailed
+                      ? 'Unavailable'
+                      : openAlerts
+                        ? openAlertText
+                        : 'Unavailable'
+              }
             />
           </section>
           <section className="space-y-6" aria-labelledby="fixed-monitoring-charts-title">
@@ -1180,13 +1227,31 @@ export const AnalyticsDashboard = () => {
                 )}
               </ChartPanel>
               <ChartPanel title="Rule-Based Alerts">
-                {openAlertCount === null ? (
-                  <UnavailableChart description="Rule-Based Alerts are unavailable for this role or project." />
-                ) : (
+                {!canReadAlerts ? (
+                  <UnavailableChart description="Rule-Based Alerts are unavailable for this role." />
+                ) : alertsLoading ? (
+                  <AsyncState
+                    status="loading"
+                    title="Loading Rule-Based Alerts"
+                    description="Verifying current alert access."
+                    icon={AlertTriangle}
+                  />
+                ) : alertsFailed ? (
+                  <AsyncState
+                    status="error"
+                    title="Rule-Based Alerts unavailable"
+                    description="Open alerts could not be loaded."
+                    icon={AlertTriangle}
+                    onRetry={() => void alertRead.refetch()}
+                  />
+                ) : openAlerts ? (
                   <p className="text-sm text-foreground">
-                    <span className="text-3xl font-semibold tabular-nums">{openAlertCount}</span>{' '}
-                    open alert{openAlertCount === 1 ? '' : 's'} in this project.
+                    <span className="text-3xl font-semibold tabular-nums">{openAlertText}</span>{' '}
+                    open alert{openAlerts.count === 1 && !openAlerts.capped ? '' : 's'} in this
+                    project.
                   </p>
+                ) : (
+                  <UnavailableChart description="Select a project to see its Rule-Based Alerts." />
                 )}
               </ChartPanel>
             </div>
