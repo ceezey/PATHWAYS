@@ -43,6 +43,9 @@ Known outdated manuscript content: use case diagrams and reports, activity diagr
 | D6 | Approach B: suite docs are rebuilt from the template skeleton and repopulated under the source precedence in section 4. |
 | D7 | SAD and BUILD may take the template section numbering; section references in `.claude/agents/` and live docs are realigned to the new numbers in the same wave. |
 | D8 | The PRD carries a Requirements-Features Matrix and a Locked charter per feature (purpose, why it helps, gate criteria, bounds), replacing the Acceptance Summary (section 5.5). |
+| D9 | Each feature carries reconciled use cases and workflows, drawn as Mermaid UML diagrams (section 5.6). |
+| D10 | The PRD carries explicit Functional (`FR-<n>`) and Non-Functional (`NFR-<n>`) Requirements; every NFR is tagged with one ISO/IEC 25010 characteristic (section 5.7). |
+| D11 | Testing and evaluation are organized by the eight ISO/IEC 25010 product quality characteristics (section 5.8). |
 
 ## 4. Source Precedence
 
@@ -94,7 +97,51 @@ CRs (20), RFCs (4), audits (2), runbooks (5), governance templates (3). Content 
 
 Gate sources, in order: current PRD acceptance text, QAD rows and Applied CRs; then manuscript objectives and use case intent restated against actual behavior. A gate without a source is omitted and noted in the reconciliation CR. QAD rows cite their gate IDs. No new checker is added for gate IDs.
 
-### 5.6 Out of scope
+### 5.6 Use cases and workflows (D9)
+
+Sources: manuscript use case reports (Tables 6-31) and activity diagrams (Figures 15-24), reconciled to web routes, API endpoints, the permission matrix and state machines in the repository.
+
+**Use cases** (PRD section 4, grouped under each feature charter). Each has a stable ID `UC-F<n>-<m>`, actor role(s) and required permission, trigger and preconditions, main flow, alternate and exception flows (permission denied, validation failure, step-up required, maker-checker rejection), postconditions and audit effects, and the gate IDs it satisfies.
+
+**Workflows and screens** (PRD section 5). Screen Inventory (5.1): every screen with route, reachable roles and feature. App Flow (5.3): one diagram per end-to-end workflow, with role swimlanes and named routes.
+
+**Manuscript use case disposition** (recorded in the reconciliation CR):
+
+| Manuscript use case | Treatment |
+|---|---|
+| Supported | Restated to match actual behavior |
+| Partly supported | Written as implemented; missing parts marked Not met and linked to `deferred-features.md` |
+| Not supported (deferred or retired) | Listed in "Manuscript use cases not carried forward" with the reason; not in the PRD |
+
+**Diagrams as code: Mermaid only** (renders on GitHub; fenced blocks are exempt from the `docs:check` dash rules).
+
+| UML diagram | Mermaid form | Location |
+|---|---|---|
+| Use case | `flowchart LR`: actor nodes, stadium-shaped use cases, system boundary subgraph; one per feature group | PRD section 4 |
+| Activity | `flowchart TD` with one subgraph per role as swimlanes; replaces manuscript Figures 15-24 | PRD section 5.3 |
+| State machine | `stateDiagram-v2` for lifecycles: alert, journey, proof inspection, import batch, expense approval | PRD charter of the owning feature |
+| Sequence | `sequenceDiagram`, only for flows with non-obvious backend steps: import promotion, evidence upload and finalize, rule evaluation and sweep, step-up | SDD section 4.1 |
+| ER | `erDiagram` per domain, reconciled to `schema.prisma`; replaces manuscript Figures 25-33 | SDD section 3 |
+| Component | `flowchart` from `docs/reference/pathways-architecture.md` | SDD section 2, README |
+
+Diagram labels use role and screen names, never personal data.
+
+### 5.7 Functional and Non-Functional Requirements (D10)
+
+PRD section 3 lists Functional Requirements `FR-<n>` (from the functional rows of manuscript Table 5, reconciled), each mapped to its PRD feature(s), use cases and gates. PRD section 5.7 lists Non-Functional Requirements `NFR-<n>`, each tagged with exactly one ISO/IEC 25010 characteristic, stated measurably where a source value exists and otherwise as a qualitative target marked "threshold not established" (numeric targets come from the D4 questionnaire). The Requirements-Features Matrix (5.5) rows use these IDs. `FR`/`NFR` IDs are stable once assigned.
+
+### 5.8 ISO/IEC 25010 testing and evaluation (D11)
+
+The quality model is ISO/IEC 25010 with its eight product quality characteristics: Functional Suitability, Performance Efficiency, Compatibility, Usability, Reliability, Security, Maintainability, Portability. The manuscript passage using 2023 edition names ("interaction capability", "flexibility") is normalized to these eight and noted in the reconciliation CR.
+
+QAD is organized so that:
+
+- every QAD test row carries one ISO/IEC 25010 characteristic plus its PRD, gate and use case IDs, and keeps the happy / sad / abuse path classification;
+- each characteristic has a coverage section naming the automated tests (from the repository test suites), manual checks and NFRs it verifies; a characteristic without coverage is shown as a gap, not hidden;
+- User Acceptance Testing uses the manuscript instrument: 5-point Likert questionnaire items grouped by the eight characteristics, respondent groups, and the statistical treatment (weighted mean and verbal interpretation) from the manuscript;
+- SAD reviewer pillars and QAD characteristics use the same eight names.
+
+### 5.9 Out of scope
 
 Product code, migrations, and agent behavior (models, tools, prompts beyond section references). Exceptions:
 
@@ -108,7 +155,7 @@ Not committed: the template folder, `docs/reference/`, `docs/activity-log.md`. R
 
 ## 6. Invariants
 
-1. Stable IDs are preserved exactly: `PRD-F1` to `PRD-F13`, QAD row IDs, RFC and CR filenames, migration numbers. Gate IDs are stable once assigned.
+1. Stable IDs are preserved exactly: `PRD-F1` to `PRD-F13`, QAD row IDs, RFC and CR filenames, migration numbers. Gate, use case, FR and NFR IDs are stable once assigned.
 2. Every SAD and BUILD concept that agents or checkers depend on survives the rebuild under some section: roster and trigger paths, per-role engineering rules (one subsection per role, named exactly as the agent), sequenced pipeline, handoff packet, output schema; BUILD release sequence, traceability grounding, Human Intervention block. After renumbering (D7), every `SAD section N` and `build guide section N` reference in `.claude/agents/`, `build-pathways.md` and `sad-pathways.md` points to the section holding that concept.
 3. SAD keeps a roster table with `Specialist` and `Model` columns matching `.claude/agents/` (parsed by `check_agents` in `scripts/docs/check.py`), and its trigger paths stay identical to the globs in `scripts/sad/check.ts`.
 4. `pnpm docs:check` passes (baseline on `origin/dev`: 0 failures, 0 warnings).
@@ -119,8 +166,8 @@ Not committed: the template folder, `docs/reference/`, `docs/activity-log.md`. R
 | Wave | Content | Depends on |
 |---|---|---|
 | 0 | Branch; extract manuscript text; build a scratchpad fact sheet from the repo (roles, permission matrix, API modules and routes, Prisma models, migrations 0000-0045, web routes, current design tokens) | - |
-| 1 | `IDEA.md`, BRD, PRD (matrix and charters, D8) | 0 |
-| 2 | DSD (with gap table), SDD (manuscript ERD and dictionary checked against Prisma), QAD (rows cite gate IDs), SAD, BUILD; realign section references in `.claude/agents/` (D7, D8) | 1 |
+| 1 | `IDEA.md`, BRD, PRD (matrix, charters, FR/NFR, use cases, workflows and diagrams; D8-D10), one drafter per feature group | 0 |
+| 2 | DSD (with gap table), SDD (manuscript ERD and dictionary checked against Prisma), QAD (ISO/IEC 25010 structure, rows cite gate and use case IDs; D11), SDD sequence and ER diagrams (D9), SAD, BUILD; realign section references in `.claude/agents/` (D7, D8) | 1 |
 | 3 | VAL, SCRUTINY, VOICE, CLR, AIA, OPS (without SLOs); record edits; `state.md`, `deferred-features.md`, reconciliation CR | 2 |
 | 4 | UES, GTM, PITCH, WRAP, OPS SLOs, after the developer questionnaire | 3 and answers |
 | 5 | `index.md`, `log-pathways.md`, `README.md`; `pnpm docs:materialize`; `pnpm docs:check` | 4 |
@@ -134,6 +181,9 @@ Run against a clean copy of the tracked tree (`git archive HEAD`), because `docs
 - `grep -ri arkilaunch` over tracked files returns nothing.
 - `pnpm docs:check` passes; `pnpm docs:materialize` produces no diff.
 - Every `SAD section N` and `build guide section N` reference in `.claude/agents/`, `sad-pathways.md` and `build-pathways.md` resolves to the heading holding that concept (invariant 2); `pnpm sad:test` passes.
+- Every use case cites a real route or endpoint and permission from the fact sheet; every gate is linked to at least one use case; every manuscript use case report is either in the PRD or in the not-carried-forward table.
+- Every FR maps to a feature; every NFR has exactly one of the eight characteristics; each characteristic has a QAD coverage section.
+- Every Mermaid block renders (checked with the Mermaid CLI in the scratchpad, not added as a project dependency).
 - Every gate `G-F<n>-<m>` links at least one QAD row and every QAD row citing a gate resolves; every feature has all six charter fields.
 - Every cited PRD, QAD and CR ID resolves; no broken relative links inside `docs/`.
 - Spot checks: roles and permissions against the RBAC seed and migrations; SDD tables against `schema.prisma`; DSD "current" column against `apps/web/src/app/globals.css`.
@@ -157,5 +207,6 @@ Any failing check is fixed on the branch and the sequence repeats; nothing reach
 | Template wording or identity leaks in | Precedence rule 4; grep gate; coordinator review |
 | Outdated manuscript use cases / ERD re-enter as current | Repository wins; superseded items listed in the CR |
 | Design docs claim the new UI is shipped | D1 gap table separates current from target |
+| PRD grows too large to review | One drafter per feature group; diagrams only where section 5.6 lists them; sequence diagrams limited to the named backend flows |
 | Parallel drafters contradict each other | Single fact sheet; wave ordering; coordinator review |
 | Renumbered SAD/BUILD silently breaks agents | D7 realignment in the same wave; reference-resolution gate in section 8 |
