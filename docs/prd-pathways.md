@@ -1553,7 +1553,7 @@ One row per web route in `apps/web/src/app`. Roles come from `apps/web/src/lib/r
 | `/reports/survey-results` | Survey/Form Results | All six roles | PRD-F12 |
 | `/settings/audit` | Audit Log | System Administrator, Program Manager, Project Manager | PRD-F1 |
 | `/settings/backups` | Backup & Recovery | System Administrator | PRD-F1 |
-| `/settings/labels` | Edit Labels |  | PRD-F1 |
+| `/settings/labels` | Edit Labels | None granted | PRD-F1 |
 | `/settings` | Settings | All six roles | PRD-F1 |
 | `/settings/profile` | My Profile | All six roles | PRD-F1 |
 | `/settings/rules` | Alerts Repository (settings path) | System Administrator | PRD-F10 |
@@ -1635,20 +1635,18 @@ flowchart TD
 ```mermaid
 flowchart TD
   subgraph PM[Project Manager]
-    A1[Open Project setup] --> A2[Enter profile, dates and beneficiary group]
-    A4[Add activities, milestones and budget]
+    A1[Open Project setup] --> A2[Enter profile, target beneficiaries and opening budget]
+    A4[Add activities and milestones]
   end
   subgraph SY[System]
-    B1[Validate and create project] --> B2[Write audit event]
-    B2 --> B3[Assign project to organization workspace]
-  end
-  subgraph SA[System Administrator]
-    C1[Authorize staff to the project]
+    B1[Validate and create project] --> B2[Self-assign creator to the project]
+    B2 --> B3[Write audit event]
   end
   A2 --> B1
   B3 --> A4
-  B3 --> C1
 ```
+
+Later assignment changes are a separate user-management action under `assignments.manage`, not part of project setup.
 
 #### 5.3.4 Monitoring Structure Configuration
 
