@@ -50,6 +50,7 @@ Known outdated manuscript content: use case diagrams and reports, activity diagr
 | D13 | SDD carries the current tech stack (frontend, backend, database, tools) with versions from the project dependency files (section 5.10). |
 | D14 | SDD section 2 carries an explicit High-Level Architecture: component, deployment and request/trust-boundary views (section 5.11). |
 | D15 | A Draft `rfc-pathways-aws-hosting-migration.md` records a phased migration strategy to the client AWS stack; it authorizes no implementation (section 5.12). |
+| D16 | A manuscript alignment audit traces the Purpose and Description, specific objectives, Problem-Requirements Matrix and Scope and Limitations to the running system; production deployment is gated on it (section 5.13). |
 
 ## 4. Source Precedence
 
@@ -82,6 +83,8 @@ CRs (20), RFCs (4), audits (2), runbooks (5), governance templates (3). Content 
 
 `docs/rfc-pathways-aws-hosting-migration.md` (Draft; D15).
 
+`docs/audit-pathways-manuscript-alignment-20261001.md` (D16).
+
 ### 5.5 Requirements-Features Matrix and feature charters (D8)
 
 `prd-pathways.md` is the single authority; `IDEA.md` shows a summary and links to it.
@@ -94,12 +97,14 @@ CRs (20), RFCs (4), audits (2), runbooks (5), governance templates (3). Content 
 
 | Field | Content |
 |---|---|
-| Purpose | What the feature is for, one or two sentences, grounded in the manuscript objective |
-| Why it helps | The problem it removes, citing the Problem-Requirements row and the affected role |
+| Purpose | What the feature is for, one or two sentences, sourced from the Problem-Requirements Matrix requirement (`R1`-`R8`) and the specific objective (1.1-1.8, 2.1-2.4) it fulfils |
+| Why it helps | The problem it removes (`P1`-`P8` from the Problem-Requirements Matrix, manuscript Table 4) and the affected role |
 | Gate criteria | Numbered, testable, behavior-level conditions `G-F<n>-<m>`, each linked to QAD row(s); the feature is complete only when every gate passes; gates the current code does not meet are marked Not met and linked to `deferred-features.md` |
 | Bounds (in) | The capabilities the feature covers, and nothing beyond them |
 | Bounds (out) | Adjacent capabilities explicitly excluded, each with a reason |
 | Lock | Locked; adding a gate or widening a bound requires an approved `cr-pathways-*`; anything outside the bounds is out of scope by default |
+
+Purpose source: manuscript Table 4 Problem-Requirements Matrix (problems `P1`-`P8`, requirements `R1`-`R8`) with the specific objectives in Purpose and Description. Every feature cites at least one `R<n>`; every `R<n>` is covered by at least one feature or shown as a gap. The matrix (5.5) and IDEA.md use the same `P<n>`/`R<n>` labels.
 
 Bounds source: manuscript Chapter 1 Scope and Limitations (manuscript pp. 26-28) is the primary source for Bounds (in) and Bounds (out), reconciled to the repository. Its system-wide limitations (not a full project management, ERP or replacement platform; no guaranteed real-time sync or API integration with KOBO, YES!ME or PMERL; no individual beneficiary evaluation; predefined rules only, no AI, predictive ML or autonomous decisions; beneficiaries are data subjects, never system actors; public tracker limited to approved, non-sensitive, high-level information; capstone time and resource limits) appear once as System-wide Bounds in PRD section 6 (Out of Scope) and are cited, not repeated, by each charter.
 
@@ -202,7 +207,28 @@ Content:
 
 OPS and SDD link to the RFC; neither claims AWS readiness.
 
-### 5.13 Out of scope
+### 5.13 Manuscript alignment audit and production gate (D16)
+
+New `docs/audit-pathways-manuscript-alignment-20261001.md`, following `audit-template.md` and the existing audit workflow (audit records findings; CRs decide).
+
+Trace table, one row per manuscript commitment:
+
+| Source | Items |
+|---|---|
+| Purpose and Description | each distinct capability claim (for example centralized project and beneficiary information, interoperable information layer, descriptive analytics with KPI and segment insights, prescriptive course-of-action proposals, rule-based underperformance alerts, public tracker) |
+| Specific objectives | 1.1-1.8, 2.1-2.4, 3.1-3.8 |
+| Problem-Requirements Matrix | R1-R8 |
+| Scope and Limitations | each coverage area and each limitation |
+
+Columns: item, PRD feature(s) and gate(s), status (`Met`, `Partly met`, `Not met`, `Deferred`, `Not applicable to code` for evaluation-only items such as UAT), evidence (file and route references, or QAD rows), and finding ID for every status other than `Met`.
+
+Known items to examine closely: R4 reusable project structures for recurring project types; "prescriptive analytics" against the rules-only bound; "beneficiary outcome assessment" against the no-individual-evaluation limitation; the forty-hour preparation claim (evaluation evidence, not code); objective numbering changes that affect older CRs citing manuscript objectives (for example the step-up CR citing Objective 2.2).
+
+**Production gate.** BUILD release criteria and QAD Definition of Done add a Manuscript Alignment gate: production deployment (master release or any AWS cutover) is blocked while any Must-Have item is `Not met` or `Partly met` without an approved CR that either schedules the work or formally descopes it with the manuscript impact stated. The audit is re-run before each production release; the `release-integrator` path reads the gate from BUILD.
+
+This documentation task produces the audit and the gate. Closing gaps in code is separate feature work, each through its own CR.
+
+### 5.14 Out of scope
 
 Product code, migrations, and agent behavior (models, tools, prompts beyond section references). Exceptions:
 
@@ -229,7 +255,7 @@ Not committed: the template folder, `docs/reference/`, `docs/activity-log.md`. R
 | 0 | Branch; extract manuscript text; build a scratchpad fact sheet from the repo (roles, permission matrix, API modules and routes, Prisma models, migrations 0000-0045, web routes, current design tokens) | - |
 | 1 | `IDEA.md`, BRD, PRD (matrix, charters, FR/NFR, use cases, workflows and diagrams; D8-D10), one drafter per feature group | 0 |
 | 2 | DSD (with gap table), SDD (architecture D14, tech stack D13, ER diagrams and database architecture D12, checked against Prisma), QAD (ISO/IEC 25010 structure, rows cite gate and use case IDs; D11), SDD sequence and ER diagrams (D9), SAD, BUILD; realign section references in `.claude/agents/` (D7, D8) | 1 |
-| 3 | VAL, SCRUTINY, VOICE, CLR, AIA, OPS (without SLOs); AWS migration RFC (D15); record edits; `state.md`, `deferred-features.md`, reconciliation CR | 2 |
+| 3 | VAL, SCRUTINY, VOICE, CLR, AIA, OPS (without SLOs); AWS migration RFC (D15); manuscript alignment audit (D16); record edits; `state.md`, `deferred-features.md`, reconciliation CR | 2 |
 | 4 | UES, GTM, PITCH, WRAP, OPS SLOs, after the developer questionnaire | 3 and answers |
 | 5 | `index.md`, `log-pathways.md`, `README.md`; `pnpm docs:materialize`; `pnpm docs:check` | 4 |
 
@@ -247,6 +273,7 @@ Run against a clean copy of the tracked tree (`git archive HEAD`), because `docs
 - Every table named in the Database Architecture exists in `schema.prisma` and every mapped model appears in exactly one module; every manuscript dictionary table has a reconciliation row.
 - Every file reference in the AWS migration RFC exists; the RFC and OPS make no AWS readiness claim.
 - Every charter's bounds trace to Scope and Limitations or to an Applied CR.
+- Every feature cites an `R<n>` and objective; every `R1`-`R8` and every specific objective has a row in the alignment audit with status and evidence; the Manuscript Alignment gate appears in BUILD release criteria and QAD Definition of Done.
 - Every tech stack version matches the dependency files.
 - Every Mermaid block renders (checked with the Mermaid CLI in the scratchpad, not added as a project dependency).
 - Every gate `G-F<n>-<m>` links at least one QAD row and every QAD row citing a gate resolves; every feature has all six charter fields.
@@ -271,6 +298,7 @@ Any failing check is fixed on the branch and the sequence repeats; nothing reach
 | Template-first rebuild drops verified contract detail | Invariants 1-3; per-doc review against the fact sheet; records kept intact (5.2) |
 | Template wording or identity leaks in | Precedence rule 4; grep gate; coordinator review |
 | Outdated manuscript use cases / ERD re-enter as current | Repository wins; superseded items listed in the CR |
+| System ships to production without meeting manuscript commitments | D16 alignment audit and production gate; gaps resolved or formally descoped by CR |
 | Design docs claim the new UI is shipped | D1 gap table separates current from target |
 | PRD grows too large to review | One drafter per feature group; diagrams only where section 5.6 lists them; sequence diagrams limited to the named backend flows |
 | Parallel drafters contradict each other | Single fact sheet; wave ordering; coordinator review |
