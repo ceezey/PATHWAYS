@@ -62,6 +62,7 @@
 | Metadata/ingestion | rfc-pathways-metadata-ingestion.md | PRD-F5/F6 | Working |
 | SADDD/privacy | rfc-pathways-saddd-privacy.md | PRD-F8 | Locked |
 | Rules/decision support | rfc-pathways-rule-alerts-decision-support.md | PRD-F10/F11 | Working |
+| AWS hosting migration | rfc-pathways-aws-hosting-migration.md | Hosting, auth, storage, database portability | Draft |
 
 ## 4. Runbooks
 
