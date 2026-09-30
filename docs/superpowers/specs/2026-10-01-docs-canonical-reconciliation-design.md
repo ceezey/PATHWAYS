@@ -46,6 +46,8 @@ Known outdated manuscript content: use case diagrams and reports, activity diagr
 | D9 | Each feature carries reconciled use cases and workflows, drawn as Mermaid UML diagrams (section 5.6). |
 | D10 | The PRD carries explicit Functional (`FR-<n>`) and Non-Functional (`NFR-<n>`) Requirements; every NFR is tagged with one ISO/IEC 25010 characteristic (section 5.7). |
 | D11 | Testing and evaluation are organized by the eight ISO/IEC 25010 product quality characteristics (section 5.8). |
+| D12 | SDD carries a data dictionary for the core tables, reconciled to `schema.prisma` and the migrations (section 5.9). |
+| D13 | SDD carries the current tech stack (frontend, backend, database, tools) with versions from the project dependency files (section 5.10). |
 
 ## 4. Source Precedence
 
@@ -141,7 +143,35 @@ QAD is organized so that:
 - User Acceptance Testing uses the manuscript instrument: 5-point Likert questionnaire items grouped by the eight characteristics, respondent groups, and the statistical treatment (weighted mean and verbal interpretation) from the manuscript;
 - SAD reviewer pillars and QAD characteristics use the same eight names.
 
-### 5.9 Out of scope
+### 5.9 Data dictionary (D12)
+
+Location: SDD section 3, after the domain ER diagrams. Source: `apps/api/prisma/schema.prisma` (55 models, 53 enums) and the migration chain; the manuscript data dictionary (Tables 32-61) supplies descriptions only where it still matches.
+
+**Core tables** are the tables that hold the records behind PRD-F1 to PRD-F13 (organizations, roles, permissions, users, audit, programs, projects, activities, milestones, indicators, forms, fields, imports, mappings, submissions, beneficiaries, enrollments, participation, journey stages and events, budgets, expenses, assessments, rules, alerts, recommendations, proof and evidence, reports, public tracker). Each core table gets:
+
+- purpose and owning PRD feature(s);
+- a column table: column, PostgreSQL type, nullable, key or constraint (PK, FK target, unique, check), default, description, sensitivity (`public`, `internal`, `personal`, `SADDD`);
+- the enums it uses, listed with their values;
+- its access boundary in one line (organization scoping, RLS or API permission).
+
+**Supporting tables** (job queues, idempotency, sessions and step-up, import staging, caches) appear in one summary table: name, purpose, feature, without column detail.
+
+A reconciliation table maps each manuscript data dictionary table to its current table: same, renamed, merged, split, or not implemented. The data dictionary lists schema only, never sample values or record contents. Every column listed must exist in `schema.prisma`.
+
+### 5.10 Tech stack (D13)
+
+Location: SDD section 2 (authoritative), with a short summary in `README.md` and `IDEA.md`. Versions come from `package.json` files, `.nvmrc`, `pnpm-lock.yaml`, `supabase/config.toml` and `.github/workflows/ci.yml`, never from memory.
+
+| Layer | Content |
+|---|---|
+| Frontend | Next.js, React, TypeScript, Tailwind CSS, Radix UI primitives, TanStack Query and Table, React Hook Form with Zod, ECharts, MapLibre, shared `@pathways/ui` |
+| Backend | NestJS, Prisma, Zod and class-validator, Pino logging, Helmet, Swagger, PDFKit, shared `@pathways/imports` (PapaParse, SheetJS, unpdf) |
+| Database and platform | Supabase: PostgreSQL 17, Auth with MFA, Storage; Vercel hosting for API and web |
+| Tools | pnpm workspaces, Node version from `.nvmrc`, Biome, Vitest, Playwright, Husky and lint-staged, Supabase CLI, tsx, GitHub Actions CI, Sentry, `docs:check` / `sad:check` scripts, Claude Code agents |
+
+Each row lists the package and its pinned or ranged version and one-line role. The manuscript Development Tools, Hardware and Software Requirements tables (Tables 62-64) are reconciled against this list in the reconciliation CR.
+
+### 5.11 Out of scope
 
 Product code, migrations, and agent behavior (models, tools, prompts beyond section references). Exceptions:
 
@@ -167,7 +197,7 @@ Not committed: the template folder, `docs/reference/`, `docs/activity-log.md`. R
 |---|---|---|
 | 0 | Branch; extract manuscript text; build a scratchpad fact sheet from the repo (roles, permission matrix, API modules and routes, Prisma models, migrations 0000-0045, web routes, current design tokens) | - |
 | 1 | `IDEA.md`, BRD, PRD (matrix, charters, FR/NFR, use cases, workflows and diagrams; D8-D10), one drafter per feature group | 0 |
-| 2 | DSD (with gap table), SDD (manuscript ERD and dictionary checked against Prisma), QAD (ISO/IEC 25010 structure, rows cite gate and use case IDs; D11), SDD sequence and ER diagrams (D9), SAD, BUILD; realign section references in `.claude/agents/` (D7, D8) | 1 |
+| 2 | DSD (with gap table), SDD (tech stack D13; ER diagrams and data dictionary D12, checked against Prisma), QAD (ISO/IEC 25010 structure, rows cite gate and use case IDs; D11), SDD sequence and ER diagrams (D9), SAD, BUILD; realign section references in `.claude/agents/` (D7, D8) | 1 |
 | 3 | VAL, SCRUTINY, VOICE, CLR, AIA, OPS (without SLOs); record edits; `state.md`, `deferred-features.md`, reconciliation CR | 2 |
 | 4 | UES, GTM, PITCH, WRAP, OPS SLOs, after the developer questionnaire | 3 and answers |
 | 5 | `index.md`, `log-pathways.md`, `README.md`; `pnpm docs:materialize`; `pnpm docs:check` | 4 |
@@ -183,6 +213,8 @@ Run against a clean copy of the tracked tree (`git archive HEAD`), because `docs
 - Every `SAD section N` and `build guide section N` reference in `.claude/agents/`, `sad-pathways.md` and `build-pathways.md` resolves to the heading holding that concept (invariant 2); `pnpm sad:test` passes.
 - Every use case cites a real route or endpoint and permission from the fact sheet; every gate is linked to at least one use case; every manuscript use case report is either in the PRD or in the not-carried-forward table.
 - Every FR maps to a feature; every NFR has exactly one of the eight characteristics; each characteristic has a QAD coverage section.
+- Every data dictionary column and enum value exists in `schema.prisma`; every core table has all listed fields; every manuscript dictionary table has a reconciliation row.
+- Every tech stack version matches the dependency files.
 - Every Mermaid block renders (checked with the Mermaid CLI in the scratchpad, not added as a project dependency).
 - Every gate `G-F<n>-<m>` links at least one QAD row and every QAD row citing a gate resolves; every feature has all six charter fields.
 - Every cited PRD, QAD and CR ID resolves; no broken relative links inside `docs/`.
