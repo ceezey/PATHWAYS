@@ -195,10 +195,7 @@ export const ProjectDirectory = () => {
               <CardContent className="flex-1 px-6 pb-6 pt-0">
                 <div className="space-y-3 border-t border-border pt-5">
                   <p className="line-clamp-4 text-base leading-6 text-foreground">
-                    {('description' in project &&
-                      typeof project.description === 'string' &&
-                      project.description) ||
-                      'No project description recorded.'}
+                    {project.description || 'No project description recorded.'}
                   </p>
                   <ProjectTimeline
                     timeline={timelineProgress(
@@ -242,28 +239,13 @@ export const ProjectDirectory = () => {
           ))}
         </section>
       ) : null}
-      {previewId && !previewProject ? (
-        <div className="space-y-3">
-          <AsyncState
-            status={preview.isError ? 'error' : 'loading'}
-            title="Project preview"
-            description={
-              preview.isError
-                ? 'The preview could not be loaded. Try again.'
-                : 'Loading project details.'
-            }
-            onRetry={preview.isError ? () => void preview.refetch() : undefined}
-          />
-          <Button type="button" variant="outline" onClick={() => setPreviewId(null)}>
-            Cancel preview
-          </Button>
-        </div>
-      ) : null}
       <ProjectPreviewDialog
+        failed={preview.isError}
         onOpenChange={(open) => {
           if (!open) setPreviewId(null)
         }}
-        open={Boolean(previewProject)}
+        onRetry={() => void preview.refetch()}
+        open={Boolean(previewId)}
         project={previewProject}
       />
     </>

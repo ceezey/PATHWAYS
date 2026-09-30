@@ -1,8 +1,9 @@
 'use client'
 
-import { ArrowRight } from 'lucide-react'
+import { ArrowRight, FolderKanban } from 'lucide-react'
 import Link from 'next/link'
 
+import { AsyncState } from '@/components/pathways/async-state'
 import { DialogShell } from '@/components/pathways/dialog-shell'
 import { StatusBadge } from '@/components/pathways/status-badge'
 import { Button } from '@/components/ui/button'
@@ -15,14 +16,41 @@ import { projectHealthTone, projectStatusTone } from './project-utils'
 export const ProjectPreviewDialog = ({
   project,
   open,
+  failed = false,
+  onRetry,
   onOpenChange,
 }: {
   project: ProjectDetail | null
   open: boolean
+  /** The preview read failed; shows the error state with Retry inside the dialog. */
+  failed?: boolean
+  onRetry?: () => void
   onOpenChange: (open: boolean) => void
 }) => (
   <Dialog open={open} onOpenChange={onOpenChange}>
-    {project ? (
+    {!project ? (
+      <DialogShell
+        title="Project preview"
+        description={failed ? 'The preview could not be loaded.' : 'Loading project details.'}
+      >
+        <AsyncState
+          description={
+            failed ? 'The preview could not be loaded. Try again.' : 'Loading project details.'
+          }
+          icon={FolderKanban}
+          onRetry={failed ? onRetry : undefined}
+          status={failed ? 'error' : 'loading'}
+          title={failed ? 'Preview unavailable' : 'Loading preview'}
+        />
+        <div className="flex justify-end">
+          <DialogClose asChild>
+            <Button type="button" variant="outline">
+              Close
+            </Button>
+          </DialogClose>
+        </div>
+      </DialogShell>
+    ) : (
       <DialogShell
         title={project.title}
         description={`${project.area} - ${project.period} - ${project.sector}`}
@@ -66,6 +94,6 @@ export const ProjectPreviewDialog = ({
           </div>
         </div>
       </DialogShell>
-    ) : null}
+    )}
   </Dialog>
 )
