@@ -150,6 +150,14 @@ function FinanceContent({ projectId }: { projectId: string }) {
   // Keyed per expense so a rationale can never carry over to a different expense.
   const [reasons, setReasons] = useState<Record<string, string>>({})
   const [editingBudget, setEditingBudget] = useState<{ id: string; updatedAt: string } | null>(null)
+  const allocationFormRef = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    if (!editingBudget) return
+    const form = allocationFormRef.current
+    if (!form) return
+    form.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    form.querySelector('input')?.focus({ preventScroll: true })
+  }, [editingBudget])
   // biome-ignore lint/correctness/useExhaustiveDependencies: An allocation edit is invalidated with its update authority.
   useEffect(() => {
     setEditingBudget(null)
@@ -417,7 +425,7 @@ function FinanceContent({ projectId }: { projectId: string }) {
             <div className="space-y-3">
               {budgets.data.map((row) => (
                 <div key={row.id} className="rounded-md border p-4">
-                  <p className="font-semibold">{row.category}</p>
+                  <p className="font-semibold">{referenceLabel(row)}</p>
                   <p>PHP {row.plannedBudget}</p>
                   {row.remarks ? (
                     <p className="text-sm text-muted-foreground">{row.remarks}</p>
@@ -447,7 +455,7 @@ function FinanceContent({ projectId }: { projectId: string }) {
         )}
         {(budgetOwner || (editingBudget && budgetUpdateOwner)) &&
         (!editingBudget || currentBudgets) ? (
-          <div className="mt-5 grid gap-3 md:grid-cols-3">
+          <div ref={allocationFormRef} className="mt-5 grid gap-3 md:grid-cols-3">
             <Label>
               Category
               <Input
