@@ -76,6 +76,7 @@ vi.mock('@/providers/authorized-query-provider', () => ({
             ? [
                 {
                   id: budgetId,
+                  activityId: state.activityBudget ? 'activity-1' : null,
                   category: state.activityBudget ? 'ACTIVITY_PROFILE_TOTAL' : 'Delivery',
                   plannedBudget: '125.00',
                   remarks: null,
@@ -289,7 +290,9 @@ describe('finance owned commands', () => {
       'activities.context.read',
     ]
     render(<LiveFinanceWorkspace projectId={projectId} />)
-    expect(screen.getByText('Activity budget: Site visit')).toBeTruthy()
+    const labels = screen.getAllByText('Activity budget: Site visit')
+    // One in the allocation list, one in the expense reference select.
+    expect(labels.some((node) => node.tagName === 'P')).toBe(true)
     expect(screen.getByRole('option', { name: 'Activity budget: Site visit' })).toBeTruthy()
     expect(screen.queryByText('ACTIVITY_PROFILE_TOTAL')).toBeNull()
   })
