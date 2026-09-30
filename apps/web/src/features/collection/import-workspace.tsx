@@ -1,6 +1,6 @@
 'use client'
 
-import { FileSpreadsheet, RefreshCw, Upload } from 'lucide-react'
+import { RefreshCw, Upload } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { toast } from 'sonner'
 
@@ -992,12 +992,6 @@ function OwnedImportWorkspace({ scope }: { scope: SensitiveDraftOwner }) {
               </>
             )}
           </div>
-        </div>
-
-        <div className="rounded-lg border border-info/20 bg-info/10 p-4 text-sm text-info">
-          <FileSpreadsheet className="mr-2 inline h-4 w-4" aria-hidden="true" />
-          Beneficiary registration rows remain marked unprocessed until P04 supplies the domain
-          handler; generic valid rows alone become versioned submissions.
         </div>
       </fieldset>
     </div>
