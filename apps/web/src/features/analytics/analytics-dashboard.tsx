@@ -37,6 +37,8 @@ import { can } from '@/lib/rbac/can'
 import { principalHasAtomicPermission } from '@/lib/rbac/route-access'
 import { coreDataClient, downloadCoreArtifact } from '@/lib/services/core-feature-client'
 import { descriptiveAnalyticsSearch, pathwaysClient } from '@/lib/services/pathways-client'
+import { rulesHumanClient } from '@/lib/services/rules-human-client'
+import { useAuthorizedRead } from '@/providers/authorized-query-provider'
 import type { ActivitySummary, ProjectIndicator, ProjectSummary } from '@/types/pathways'
 import {
   type DescriptiveAnalytics,
@@ -55,6 +57,7 @@ import {
   DescriptiveAnalysisChart,
   SadddChart,
   SurveyImprovementChart,
+  IndicatorProgressChart,
 } from './analytics-charts'
 import { AnalyticsCoverageMap } from './analytics-coverage-map'
 import { toProjectCoverageFeatureCollection } from './analytics-location-utils'
@@ -177,6 +180,18 @@ export const AnalyticsDashboard = () => {
   const [timelineLoadAttempt, setTimelineLoadAttempt] = useState(0)
 
   const selectedProject = projects.find((row) => row.id === projectId)
+  const alertRead = useAuthorizedRead(
+    'analytics-open-alerts',
+    projectId || null,
+    'alerts.read',
+    (signal) => rulesHumanClient.listAlerts({ projectId, limit: '100' }, signal),
+    Boolean(projectId),
+  )
+  const openAlertCount = alertRead.data
+    ? alertRead.data.items.filter((item) =>
+        ['NEW', 'REVIEWED', 'ACTIONED'].includes(item.lifecycle),
+      ).length
+    : null
   const projectCoverageFeatures = useMemo(
     () =>
       toProjectCoverageFeatureCollection(
@@ -970,11 +985,15 @@ export const AnalyticsDashboard = () => {
               }
             />
             <MetricCard
-              description="Beneficiary reach is unavailable as a distinct server metric for this view."
+              description="Enrolled individuals overlapping the period; privacy suppression applies."
               icon={UsersRound}
               label="Beneficiary reach"
               tone="info"
-              value="Unavailable"
+              value={
+                monitoring?.enrolledIndividuals
+                  ? formatMetricCell(monitoring.enrolledIndividuals)
+                  : 'Unavailable'
+              }
             />
             <MetricCard
               description="Completed activities in the selected project."
@@ -986,19 +1005,31 @@ export const AnalyticsDashboard = () => {
               }
             />
             <MetricCard
-              description="Rule-Based Alerts are unavailable in the current API."
+              description="Open alerts (new, reviewed or actioned) in the selected project."
               icon={AlertTriangle}
               label="Rule-Based Alerts"
-              tone="info"
-              value="Unavailable"
+              tone={openAlertCount ? 'warning' : 'info'}
+              value={openAlertCount === null ? 'Unavailable' : String(openAlertCount)}
             />
           </section>
           <section className="space-y-6" aria-labelledby="fixed-monitoring-charts-title">
             <h2 className="text-lg font-semibold" id="fixed-monitoring-charts-title">
               Monitoring charts
             </h2>
-            <ChartPanel title="Project performance trend">
-              <UnavailableChart description="Project performance history is unavailable in the current API." />
+            <ChartPanel title="Indicator progress">
+              {indicators.some((row) => metricNumber(row.progress) !== null) ? (
+                <IndicatorProgressChart
+                  rows={indicators.flatMap((row) => {
+                    const value = metricNumber(row.progress)
+                    return value === null ? [] : [{ id: row.id, label: row.name, value }]
+                  })}
+                />
+              ) : (
+                <UnavailableChart
+                  description="No released indicator progress for this project and period."
+                  {...(monitoringReadable ? { title: 'None yet' } : {})}
+                />
+              )}
             </ChartPanel>
             <ChartPanel title="SADDD Analysis">
               {sadddLoading ? (
@@ -1147,7 +1178,14 @@ export const AnalyticsDashboard = () => {
                 )}
               </ChartPanel>
               <ChartPanel title="Rule-Based Alerts">
-                <UnavailableChart description="Rule-Based Alerts are unavailable in the current API." />
+                {openAlertCount === null ? (
+                  <UnavailableChart description="Rule-Based Alerts are unavailable for this role or project." />
+                ) : (
+                  <p className="text-sm text-foreground">
+                    <span className="text-3xl font-semibold tabular-nums">{openAlertCount}</span>{' '}
+                    open alert{openAlertCount === 1 ? '' : 's'} in this project.
+                  </p>
+                )}
               </ChartPanel>
             </div>
           </section>

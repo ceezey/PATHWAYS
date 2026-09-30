@@ -55,11 +55,16 @@ vi.mock('@/lib/rbac/can', () => ({ can: () => false }))
 vi.mock('@/components/layout/page-header', () => ({
   PageHeader: ({ title }: { title: string }) => <h1>{title}</h1>,
 }))
+vi.mock('@/providers/authorized-query-provider', () => ({
+  useAuthorizedRead: () => ({ data: undefined }),
+}))
+vi.mock('@/lib/services/rules-human-client', () => ({ rulesHumanClient: { listAlerts: vi.fn() } }))
 vi.mock('./analytics-charts', () => ({
   ActivityCompletionChart: () => <div>Activity chart</div>,
   DescriptiveAnalysisChart: () => <div>Analysis chart</div>,
   SadddChart: () => <div>SADDD chart</div>,
   SurveyImprovementChart: () => <div>Survey chart</div>,
+  IndicatorProgressChart: () => <div>Indicator progress chart</div>,
 }))
 vi.mock('./analytics-coverage-map', async () => {
   const React = await import('react')

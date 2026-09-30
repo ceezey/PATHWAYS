@@ -64,10 +64,30 @@ export const DescriptiveAnalysisChart = ({
 const grid = { left: 16, right: 16, top: 28, bottom: 18, containLabel: true }
 const colors = ['#0072CE', '#0B2E4F', '#8A4B08', '#B42318', '#526779']
 
-export const ProjectPerformanceTrendChart = (_props: Pick<ChartProps, 'projects'>) => (
-  <div className="flex h-[300px] items-center justify-center rounded-sm border border-border bg-surface-subtle p-4 text-sm text-muted-foreground">
-    Historical project trends are unavailable until the API provides a time series.
-  </div>
+export const IndicatorProgressChart = ({ rows }: { rows: DescriptiveAnalysisRow[] }) => (
+  <ReactECharts
+    className="h-[320px] w-full"
+    option={{
+      animation: false,
+      aria: {
+        enabled: true,
+        description: `Indicator progress toward target. ${rows.map((row) => `${row.label}: ${row.value}%`).join('; ')}.`,
+      },
+      color: ['#0072CE'],
+      tooltip: { trigger: 'axis', valueFormatter: (value: number) => `${value}%` },
+      grid: { ...grid, left: 8, right: 24 },
+      xAxis: { type: 'value', min: 0, max: Math.max(100, ...rows.map((row) => row.value)), name: '% of target' },
+      yAxis: { type: 'category', inverse: true, data: rows.map((row) => row.label) },
+      series: [
+        {
+          name: 'Progress',
+          type: 'bar',
+          data: rows.map((row) => row.value),
+          label: { show: true, position: 'right', formatter: '{c}%' },
+        },
+      ],
+    }}
+  />
 )
 
 export const BudgetUtilizationChart = ({

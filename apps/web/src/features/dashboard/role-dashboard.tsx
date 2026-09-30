@@ -302,7 +302,7 @@ const ConnectedMonitoringSnapshot = ({
         setProjectId((current) =>
           records.some((record) => record.id === current)
             ? current
-            : (records.find((record) => record.id === requested)?.id ?? 'all'),
+            : (records.find((record) => record.id === requested)?.id ?? (records.length ? 'all' : '')),
         )
       })
       .catch((caught: unknown) => {
