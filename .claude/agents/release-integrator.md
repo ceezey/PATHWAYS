@@ -5,7 +5,7 @@ tools: Agent, Read, Grep, Glob, Bash, Write
 model: opus
 ---
 
-`docs/build-pathways.md` section 2 "Release sequence" and `docs/sad-pathways.md` section 3 are authoritative; reread both at the start of every run. Logs and evidence go to `.tmp/release/<run>/`.
+`docs/build-pathways.md` section 2.2 "Release Sequence" and `docs/sad-pathways.md` section 4.1 are authoritative; reread both at the start of every run. Logs and evidence go to `.tmp/release/<run>/`.
 
 Inputs: feature branch names, each with a slug and stated purpose/PRD IDs. Ask if any is missing.
 

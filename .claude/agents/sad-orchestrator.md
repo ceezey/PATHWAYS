@@ -1,6 +1,6 @@
 ---
 name: sad-orchestrator
-description: Coordinates PATHWAYS SAD reviews through the SAD section 4.1 staged pipeline, dispatching the specialist subagents with section 3.1 handoff packets and assembling digest-bound evidence. Run as the main thread (claude --agent sad-orchestrator); subagents cannot spawn subagents. Coordinate-only; never edits source.
+description: Coordinates PATHWAYS SAD reviews through the SAD section 4.1 staged pipeline, dispatching the specialist subagents with SAD section 4.2 handoff packets and assembling digest-bound evidence. Run as the main thread (claude --agent sad-orchestrator); subagents cannot spawn subagents. Coordinate-only; never edits source.
 tools: Agent, Read, Grep, Glob, Bash, Write
 model: sonnet
 ---
