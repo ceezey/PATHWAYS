@@ -42,7 +42,7 @@ Known outdated manuscript content: use case diagrams and reports, activity diagr
 | D5 | Integration: work on `docs/canonical-reconcile`, merge into `dev` locally, push `origin/dev` as `ceezey`; no PR. |
 | D6 | Approach B: suite docs are rebuilt from the template skeleton and repopulated under the source precedence in section 4. |
 | D7 | SAD and BUILD may take the template section numbering; section references in `.claude/agents/` and live docs are realigned to the new numbers in the same wave. |
-| D8 | The PRD carries a Requirements-Features Matrix and a Locked charter per feature (purpose, why it helps, gate criteria, bounds), replacing the Acceptance Summary (section 5.6). |
+| D8 | The PRD carries a Requirements-Features Matrix and a Locked charter per feature (purpose, why it helps, gate criteria, bounds), replacing the Acceptance Summary (section 5.5). |
 
 ## 4. Source Precedence
 
@@ -73,7 +73,7 @@ CRs (20), RFCs (4), audits (2), runbooks (5), governance templates (3). Content 
 
 `docs/cr-pathways-doc-reconciliation-2026-10-01.md`: source precedence, the append-only exception (D2), the design-authority change (D1), and superseded manuscript items.
 
-### 5.6 Requirements-Features Matrix and feature charters (D8)
+### 5.5 Requirements-Features Matrix and feature charters (D8)
 
 `prd-pathways.md` is the single authority; `IDEA.md` shows a summary and links to it.
 
@@ -94,7 +94,7 @@ CRs (20), RFCs (4), audits (2), runbooks (5), governance templates (3). Content 
 
 Gate sources, in order: current PRD acceptance text, QAD rows and Applied CRs; then manuscript objectives and use case intent restated against actual behavior. A gate without a source is omitted and noted in the reconciliation CR. QAD rows cite their gate IDs. No new checker is added for gate IDs.
 
-### 5.5 Out of scope
+### 5.6 Out of scope
 
 Product code, migrations, and agent behavior (models, tools, prompts beyond section references). Exceptions:
 
