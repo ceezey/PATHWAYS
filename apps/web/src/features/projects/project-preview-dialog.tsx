@@ -1,0 +1,99 @@
+'use client'
+
+import { ArrowRight, FolderKanban } from 'lucide-react'
+import Link from 'next/link'
+
+import { AsyncState } from '@/components/pathways/async-state'
+import { DialogShell } from '@/components/pathways/dialog-shell'
+import { StatusBadge } from '@/components/pathways/status-badge'
+import { Button } from '@/components/ui/button'
+import { Dialog, DialogClose } from '@/components/ui/dialog'
+import type { ProjectDetail } from '@/types/pathways'
+
+import { ProjectOverviewMetrics } from './project-overview-metrics'
+import { projectHealthTone, projectStatusTone } from './project-utils'
+
+export const ProjectPreviewDialog = ({
+  project,
+  open,
+  failed = false,
+  onRetry,
+  onOpenChange,
+}: {
+  project: ProjectDetail | null
+  open: boolean
+  /** The preview read failed; shows the error state with Retry inside the dialog. */
+  failed?: boolean
+  onRetry?: () => void
+  onOpenChange: (open: boolean) => void
+}) => (
+  <Dialog open={open} onOpenChange={onOpenChange}>
+    {!project ? (
+      <DialogShell
+        title="Project preview"
+        description={failed ? 'The preview could not be loaded.' : 'Loading project details.'}
+      >
+        <AsyncState
+          description={
+            failed ? 'The preview could not be loaded. Try again.' : 'Loading project details.'
+          }
+          icon={FolderKanban}
+          onRetry={failed ? onRetry : undefined}
+          status={failed ? 'error' : 'loading'}
+          title={failed ? 'Preview unavailable' : 'Loading preview'}
+        />
+        <div className="flex justify-end">
+          <DialogClose asChild>
+            <Button type="button" variant="outline">
+              Close
+            </Button>
+          </DialogClose>
+        </div>
+      </DialogShell>
+    ) : (
+      <DialogShell
+        title={project.title}
+        description={`${project.area} - ${project.period} - ${project.sector}`}
+      >
+        <div className="space-y-5">
+          <div className="flex flex-wrap gap-2">
+            <StatusBadge tone={projectStatusTone(project.status)}>{project.status}</StatusBadge>
+            <StatusBadge tone={projectHealthTone(project.health)}>{project.health}</StatusBadge>
+          </div>
+          <dl className="grid gap-3 text-sm sm:grid-cols-2">
+            <div>
+              <dt className="text-muted-foreground">Region</dt>
+              <dd className="mt-1 font-medium text-foreground">{project.area}</dd>
+            </div>
+            <div>
+              <dt className="text-muted-foreground">Project period</dt>
+              <dd className="mt-1 font-medium text-foreground">{project.period}</dd>
+            </div>
+          </dl>
+          <ProjectOverviewMetrics
+            compact
+            projectId={project.id}
+            targetBeneficiaries={project.targetBeneficiaries}
+          />
+          <dl className="text-sm">
+            <dt className="text-muted-foreground">Project Manager</dt>
+            <dd className="mt-1 font-medium text-foreground">{project.projectManager}</dd>
+          </dl>
+          <div className="flex flex-wrap justify-end gap-2">
+            <DialogClose asChild>
+              <Button type="button" variant="outline">
+                Close
+              </Button>
+            </DialogClose>
+            <Button asChild className="gap-2">
+              <Link href={`/projects/${project.id}`}>
+                Open Project
+                <ArrowRight className="h-4 w-4" aria-hidden="true" />
+              </Link>
+            </Button>
+          </div>
+        </div>
+      </DialogShell>
+    )}
+  </Dialog>
+)

@@ -4,6 +4,7 @@ import { Pencil } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
 import type { EditablePageHeadingKey } from '@/constants/display-labels'
+import { UNFINISHED_CONTROLS_UI_ENABLED } from '@/constants/feature-flags'
 
 // Organization display-label editing is deferred (docs/cr-pathways-frontend-usability.md, F-07):
 // there is no server endpoint to save a page heading yet, so this stays a disabled, self-contained
@@ -16,6 +17,8 @@ export const PageHeadingEditor = ({
   title: string
 }) => {
   const hintId = `page-heading-editor-hint-${labelKey}`
+
+  if (!UNFINISHED_CONTROLS_UI_ENABLED) return null
 
   return (
     <>

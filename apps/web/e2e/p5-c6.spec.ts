@@ -200,7 +200,7 @@ test.describe('P5-C6 responsive baseline and remediation', () => {
     await seedPrototypeSession(page)
     await page.setViewportSize({ width: 1024, height: 640 })
     await page.goto('/analytics')
-    await expect(page.getByRole('heading', { name: 'Project performance trend' })).toBeVisible()
+    await expect(page.getByRole('heading', { name: 'Indicator progress' })).toBeVisible()
 
     const sidebar = page.getByRole('complementary')
     const roleControl = sidebar.getByRole('combobox', { name: 'Prototype Role Preview' })

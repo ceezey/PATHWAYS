@@ -26,7 +26,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { ANALYTICS_AGGREGATE_EXPORT_UI_ENABLED } from '@/constants/feature-flags'
+import {
+  ANALYTICS_AGGREGATE_EXPORT_UI_ENABLED,
+  UNFINISHED_CONTROLS_UI_ENABLED,
+} from '@/constants/feature-flags'
 import { metricUnavailableLabel, overviewMetricLabel } from '@/features/projects/project-utils'
 import { useCurrentRole } from '@/hooks/use-current-role'
 import { useDisplayLabels } from '@/hooks/use-display-labels'
@@ -34,6 +37,8 @@ import { can } from '@/lib/rbac/can'
 import { principalHasAtomicPermission } from '@/lib/rbac/route-access'
 import { coreDataClient, downloadCoreArtifact } from '@/lib/services/core-feature-client'
 import { descriptiveAnalyticsSearch, pathwaysClient } from '@/lib/services/pathways-client'
+import { rulesHumanClient } from '@/lib/services/rules-human-client'
+import { useAuthorizedRead } from '@/providers/authorized-query-provider'
 import type { ActivitySummary, ProjectIndicator, ProjectSummary } from '@/types/pathways'
 import {
   type DescriptiveAnalytics,
@@ -50,6 +55,7 @@ import { toast } from 'sonner'
 import {
   ActivityCompletionChart,
   DescriptiveAnalysisChart,
+  IndicatorProgressChart,
   SadddChart,
   SurveyImprovementChart,
 } from './analytics-charts'
@@ -106,6 +112,35 @@ const surveyErrorKindFor = (caught: unknown): SurveyErrorKind => {
       ? (caught as { status?: unknown }).status
       : undefined
   return status === 403 ? 'restricted' : status === 400 ? 'period' : 'retry'
+}
+
+const OPEN_ALERT_STATUSES = ['NEW', 'REVIEWED', 'ACTIONED'] as const
+const OPEN_ALERT_MAX_PAGES = 10
+
+/**
+ * Counts open alerts with the server status filter, following cursors per status. It stops
+ * after OPEN_ALERT_MAX_PAGES pages of a status and reports `capped` so the UI shows "N+".
+ */
+export const countOpenAlerts = async (projectId: string, signal?: AbortSignal) => {
+  let count = 0
+  let capped = false
+  for (const status of OPEN_ALERT_STATUSES) {
+    let cursor: string | undefined
+    for (let page = 0; ; page += 1) {
+      const result = await rulesHumanClient.listAlerts(
+        { projectId, status, limit: '100', ...(cursor ? { cursor } : {}) },
+        signal,
+      )
+      count += result.items.length
+      if (!result.nextCursor) break
+      if (page + 1 >= OPEN_ALERT_MAX_PAGES) {
+        capped = true
+        break
+      }
+      cursor = result.nextCursor
+    }
+  }
+  return { count, capped }
 }
 
 export const AnalyticsDashboard = () => {
@@ -174,6 +209,20 @@ export const AnalyticsDashboard = () => {
   const [timelineLoadAttempt, setTimelineLoadAttempt] = useState(0)
 
   const selectedProject = projects.find((row) => row.id === projectId)
+  const canReadAlerts = principalHasAtomicPermission(profile, 'alerts.read')
+  const alertRead = useAuthorizedRead(
+    'analytics-open-alerts',
+    projectId || null,
+    'alerts.read',
+    (signal) => countOpenAlerts(projectId, signal),
+    Boolean(projectId),
+  )
+  const openAlerts = alertRead.data ?? null
+  const openAlertCount = openAlerts ? openAlerts.count : null
+  // A capped count is shown as "N+" rather than passed off as exact.
+  const openAlertText = openAlerts ? `${openAlerts.count}${openAlerts.capped ? '+' : ''}` : ''
+  const alertsLoading = canReadAlerts && Boolean(projectId) && !openAlerts && !alertRead.isError
+  const alertsFailed = canReadAlerts && !openAlerts && alertRead.isError
   const projectCoverageFeatures = useMemo(
     () =>
       toProjectCoverageFeatureCollection(
@@ -690,24 +739,26 @@ export const AnalyticsDashboard = () => {
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              {analysisViews.map((view) => (
-                <SelectItem
-                  disabled={
-                    (view.value === 'survey' && !canReadSurvey) ||
-                    (view.value === 'timeline' && !canReadSurveyTimeline)
-                  }
-                  key={view.value}
-                  title={
-                    (view.value === 'survey' && !canReadSurvey) ||
-                    (view.value === 'timeline' && !canReadSurveyTimeline)
-                      ? 'Not available for this role'
-                      : undefined
-                  }
-                  value={view.value}
-                >
-                  {view.label}
-                </SelectItem>
-              ))}
+              {analysisViews
+                .filter((view) => UNFINISHED_CONTROLS_UI_ENABLED || view.value !== 'participation')
+                .map((view) => (
+                  <SelectItem
+                    disabled={
+                      (view.value === 'survey' && !canReadSurvey) ||
+                      (view.value === 'timeline' && !canReadSurveyTimeline)
+                    }
+                    key={view.value}
+                    title={
+                      (view.value === 'survey' && !canReadSurvey) ||
+                      (view.value === 'timeline' && !canReadSurveyTimeline)
+                        ? 'Not available for this role'
+                        : undefined
+                    }
+                    value={view.value}
+                  >
+                    {view.label}
+                  </SelectItem>
+                ))}
             </SelectContent>
           </Select>
         </div>
@@ -749,17 +800,19 @@ export const AnalyticsDashboard = () => {
             </SelectContent>
           </Select>
         </div>
-        <div className="flex items-end sm:col-span-2 xl:col-span-3 xl:col-start-10 xl:row-start-3">
-          <Button
-            className="shrink-0"
-            type="button"
-            {...unavailableControlProps('analytics-add-to-dashboard-hint')}
-          >
-            <Plus className="mr-2 h-4 w-4" aria-hidden="true" />
-            Add to Dashboard
-          </Button>
-          <UnavailableHint id="analytics-add-to-dashboard-hint" />
-        </div>
+        {UNFINISHED_CONTROLS_UI_ENABLED ? (
+          <div className="flex items-end sm:col-span-2 xl:col-span-3 xl:col-start-10 xl:row-start-3">
+            <Button
+              className="shrink-0"
+              type="button"
+              {...unavailableControlProps('analytics-add-to-dashboard-hint')}
+            >
+              <Plus className="mr-2 h-4 w-4" aria-hidden="true" />
+              Add to Dashboard
+            </Button>
+            <UnavailableHint id="analytics-add-to-dashboard-hint" />
+          </div>
+        ) : null}
         {ANALYTICS_AGGREGATE_EXPORT_UI_ENABLED && canExportAnalytics ? (
           <div className="flex flex-wrap justify-end gap-2 border-t border-border pt-4 sm:col-span-2 xl:col-span-12 xl:row-start-4">
             <Button
@@ -965,11 +1018,15 @@ export const AnalyticsDashboard = () => {
               }
             />
             <MetricCard
-              description="Beneficiary reach is unavailable as a distinct server metric for this view."
+              description="Enrolled individuals overlapping the period; privacy suppression applies."
               icon={UsersRound}
               label="Beneficiary reach"
               tone="info"
-              value="Unavailable"
+              value={
+                monitoring?.enrolledIndividuals
+                  ? formatMetricCell(monitoring.enrolledIndividuals)
+                  : 'Unavailable'
+              }
             />
             <MetricCard
               description="Completed activities in the selected project."
@@ -981,19 +1038,47 @@ export const AnalyticsDashboard = () => {
               }
             />
             <MetricCard
-              description="Rule-Based Alerts are unavailable in the current API."
+              description={
+                !canReadAlerts
+                  ? 'Rule-Based Alerts are unavailable for this role.'
+                  : alertsFailed
+                    ? 'Open alerts could not be loaded. Use Retry in the Rule-Based Alerts panel.'
+                    : 'Open alerts (new, reviewed or actioned) in the selected project.'
+              }
               icon={AlertTriangle}
               label="Rule-Based Alerts"
-              tone="info"
-              value="Unavailable"
+              tone={openAlertCount ? 'warning' : 'info'}
+              value={
+                !canReadAlerts
+                  ? 'Unavailable'
+                  : alertsLoading
+                    ? 'Loading...'
+                    : alertsFailed
+                      ? 'Unavailable'
+                      : openAlerts
+                        ? openAlertText
+                        : 'Unavailable'
+              }
             />
           </section>
           <section className="space-y-6" aria-labelledby="fixed-monitoring-charts-title">
             <h2 className="text-lg font-semibold" id="fixed-monitoring-charts-title">
               Monitoring charts
             </h2>
-            <ChartPanel title="Project performance trend">
-              <UnavailableChart description="Project performance history is unavailable in the current API." />
+            <ChartPanel title="Indicator progress">
+              {indicators.some((row) => metricNumber(row.progress) !== null) ? (
+                <IndicatorProgressChart
+                  rows={indicators.flatMap((row) => {
+                    const value = metricNumber(row.progress)
+                    return value === null ? [] : [{ id: row.id, label: row.name, value }]
+                  })}
+                />
+              ) : (
+                <UnavailableChart
+                  description="No released indicator progress for this project and period."
+                  {...(monitoringReadable ? { title: 'None yet' } : {})}
+                />
+              )}
             </ChartPanel>
             <ChartPanel title="SADDD Analysis">
               {sadddLoading ? (
@@ -1142,7 +1227,32 @@ export const AnalyticsDashboard = () => {
                 )}
               </ChartPanel>
               <ChartPanel title="Rule-Based Alerts">
-                <UnavailableChart description="Rule-Based Alerts are unavailable in the current API." />
+                {!canReadAlerts ? (
+                  <UnavailableChart description="Rule-Based Alerts are unavailable for this role." />
+                ) : alertsLoading ? (
+                  <AsyncState
+                    status="loading"
+                    title="Loading Rule-Based Alerts"
+                    description="Verifying current alert access."
+                    icon={AlertTriangle}
+                  />
+                ) : alertsFailed ? (
+                  <AsyncState
+                    status="error"
+                    title="Rule-Based Alerts unavailable"
+                    description="Open alerts could not be loaded."
+                    icon={AlertTriangle}
+                    onRetry={() => void alertRead.refetch()}
+                  />
+                ) : openAlerts ? (
+                  <p className="text-sm text-foreground">
+                    <span className="text-3xl font-semibold tabular-nums">{openAlertText}</span>{' '}
+                    open alert{openAlerts.count === 1 && !openAlerts.capped ? '' : 's'} in this
+                    project.
+                  </p>
+                ) : (
+                  <UnavailableChart description="Select a project to see its Rule-Based Alerts." />
+                )}
               </ChartPanel>
             </div>
           </section>

@@ -22,6 +22,7 @@ export type DashboardActionKind = 'dialog' | 'navigate' | 'toast'
 
 /** Project profile only. Overview metrics come from `GET /projects/:id/overview-metrics`. */
 export interface ProjectSummary {
+  description?: string
   targetBeneficiaries?: number
 
   startDate?: string | null

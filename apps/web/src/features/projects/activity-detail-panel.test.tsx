@@ -104,9 +104,37 @@ describe('ActivityDetailContent server read model', () => {
     // aria-disabled (not native disabled) so the control stays keyboard/AT reachable.
     expect(button.hasAttribute('disabled')).toBe(false)
     expect(button.getAttribute('aria-disabled')).toBe('true')
+    button.focus()
+    expect(document.activeElement).toBe(button)
     const describedBy = button.getAttribute('aria-describedby')
     expect(describedBy).toBeTruthy()
     expect(document.getElementById(describedBy as string)?.textContent).toBe('Not available yet')
+  })
+
+  it('hides Request an extension while unfinished controls are hidden', async () => {
+    vi.resetModules()
+    vi.doMock('@/constants/feature-flags', () => ({ UNFINISHED_CONTROLS_UI_ENABLED: false }))
+    const { ActivityDetailContent: HiddenContent } = await import('./activity-detail-panel')
+    vi.doUnmock('@/constants/feature-flags')
+    render(
+      <HiddenContent
+        activity={activity}
+        canDecideProof={false}
+        canEdit={false}
+        canLogExpense={false}
+        canRequestExtension
+        canSubmitProof={false}
+        canValidateExpense={false}
+        canValidateProof={false}
+        indicators={[]}
+        journeyStages={[]}
+        onActivityChanged={vi.fn()}
+        onEdit={vi.fn()}
+        onSubmitProof={vi.fn()}
+      />,
+    )
+    expect(screen.queryByRole('button', { name: 'Request an extension' })).toBeNull()
+    expect(screen.queryByText('Not available yet')).toBeNull()
   })
 
   it.each([

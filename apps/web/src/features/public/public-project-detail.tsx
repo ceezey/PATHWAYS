@@ -43,6 +43,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
+import { UNFINISHED_CONTROLS_UI_ENABLED } from '@/constants/feature-flags'
 import { cn } from '@/lib/utils'
 import type {
   PublicDashboardLayoutPreset,
@@ -310,19 +311,23 @@ export const PublicProjectDetail = ({
                   Back to Public Tracker
                 </Link>
               </Button>
-              <Button
-                className="gap-2"
-                size="sm"
-                type="button"
-                {...Object.assign(
-                  { onClick: openEditor },
-                  unavailableControlProps('public-project-edit-staff-preview-hint'),
-                )}
-              >
-                <SlidersHorizontal className="h-4 w-4" aria-hidden="true" />
-                Edit staff preview
-              </Button>
-              <UnavailableHint id="public-project-edit-staff-preview-hint" />
+              {UNFINISHED_CONTROLS_UI_ENABLED ? (
+                <>
+                  <Button
+                    className="gap-2"
+                    size="sm"
+                    type="button"
+                    {...Object.assign(
+                      { onClick: openEditor },
+                      unavailableControlProps('public-project-edit-staff-preview-hint'),
+                    )}
+                  >
+                    <SlidersHorizontal className="h-4 w-4" aria-hidden="true" />
+                    Edit staff preview
+                  </Button>
+                  <UnavailableHint id="public-project-edit-staff-preview-hint" />
+                </>
+              ) : null}
             </div>
           </div>
         </section>

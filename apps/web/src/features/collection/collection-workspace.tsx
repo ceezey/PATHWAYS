@@ -51,6 +51,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import { UNFINISHED_CONTROLS_UI_ENABLED } from '@/constants/feature-flags'
 import { useCurrentRole } from '@/hooks/use-current-role'
 import { useDisplayLabels } from '@/hooks/use-display-labels'
 import { sensitiveDraftGeneration } from '@/lib/auth/sensitive-drafts'
@@ -1563,7 +1564,7 @@ const OwnedCollectionWorkspace = ({
                 />
               </div>
             </div>
-            <div>
+            <div hidden={!UNFINISHED_CONTROLS_UI_ENABLED}>
               <p id="linked-indicators-label">Linked indicators</p>
               {indicators
                 .filter((i) => i.projectId === projectId)
@@ -1631,26 +1632,28 @@ const OwnedCollectionWorkspace = ({
 
       {view === 'import' ? (
         <div className="space-y-4">
-          <label>
-            Duplicate records decision{' '}
-            <select
-              className="rounded border p-2"
-              value={duplicateDecision}
-              onChange={(e) => {
-                if (mutation.current) return
-                intent.current++
-                setDuplicateDecision(e.target.value as 'pending' | 'skip' | 'keep')
-              }}
-            >
-              <option value="pending">Decide when duplicates are flagged</option>
-              <option disabled title="Not available yet" value="skip">
-                Skip duplicates (not available yet)
-              </option>
-              <option disabled title="Not available yet" value="keep">
-                Keep confirmed duplicates (not available yet)
-              </option>
-            </select>
-          </label>
+          {UNFINISHED_CONTROLS_UI_ENABLED ? (
+            <label>
+              Duplicate records decision{' '}
+              <select
+                className="rounded border p-2"
+                value={duplicateDecision}
+                onChange={(e) => {
+                  if (mutation.current) return
+                  intent.current++
+                  setDuplicateDecision(e.target.value as 'pending' | 'skip' | 'keep')
+                }}
+              >
+                <option value="pending">Decide when duplicates are flagged</option>
+                <option disabled title="Not available yet" value="skip">
+                  Skip duplicates (not available yet)
+                </option>
+                <option disabled title="Not available yet" value="keep">
+                  Keep confirmed duplicates (not available yet)
+                </option>
+              </select>
+            </label>
+          ) : null}
           {parsedImport?.rows.length
             ? (() => {
                 const totalRows = parsedImport.rows.length
