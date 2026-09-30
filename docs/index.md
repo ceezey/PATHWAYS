@@ -88,6 +88,7 @@
 |---|---|---|---|
 | [audit-pathways-rbac-csv-20260928](audit-pathways-rbac-csv-20260928.md) | 2026-09-28 | Revised RBAC CSV against contract, API, SQL and web enforcement | Dispositioned by [RBAC audit closure](cr-pathways-rbac-audit-closure.md); implementation applied locally |
 | [audit-pathways-frontend-controls-20260929](audit-pathways-frontend-controls-20260929.md) | 2026-09-29 | Web controls, client methods, UiActions and routes against current API/RBAC enforcement | Dispositioned by [frontend usability Change Record](cr-pathways-frontend-usability.md); implementation pending |
+| [audit-pathways-manuscript-alignment-20261001](audit-pathways-manuscript-alignment-20261001.md) | 2026-10-01 | Manuscript purpose, objectives, requirements and scope against the running system | Open; gates production release |
 
 ### Design Specs
 
