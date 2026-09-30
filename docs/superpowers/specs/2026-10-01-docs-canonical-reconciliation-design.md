@@ -80,6 +80,8 @@ CRs (20), RFCs (4), audits (2), runbooks (5), governance templates (3). Content 
 
 `docs/cr-pathways-doc-reconciliation-2026-10-01.md`: source precedence, the append-only exception (D2), the design-authority change (D1), and superseded manuscript items.
 
+`docs/rfc-pathways-aws-hosting-migration.md` (Draft; D15).
+
 ### 5.5 Requirements-Features Matrix and feature charters (D8)
 
 `prd-pathways.md` is the single authority; `IDEA.md` shows a summary and links to it.
