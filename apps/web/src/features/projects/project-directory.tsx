@@ -1,6 +1,6 @@
 'use client'
 
-import { ArrowRight, FolderKanban, Plus, Search } from 'lucide-react'
+import { ArrowRight, Eye, FolderKanban, Plus, Search } from 'lucide-react'
 import Link from 'next/link'
 import { useMemo, useState } from 'react'
 
@@ -26,6 +26,7 @@ import { useAuthorizedRead } from '@/providers/authorized-query-provider'
 import type { ProjectStatus, ProjectSummary } from '@/types/pathways'
 import { type MetricCell, businessCalendarDate, timelineProgress } from '@pathways/shared'
 
+import { ProjectPreviewDialog } from './project-preview-dialog'
 import {
   type ProjectStatusFilter,
   formatNumber,
@@ -34,6 +35,7 @@ import {
   projectStatusFilters,
   projectStatusTone,
 } from './project-utils'
+import { useProjectRead } from './use-project-reads'
 
 const directoryDescription = {
   'Program Manager': 'Projects across the assigned portfolio.',
@@ -61,6 +63,9 @@ export const ProjectDirectory = () => {
     !directory.eligible || directory.isPending ? 'loading' : directory.isError ? 'error' : 'success'
   const [query, setQuery] = useState('')
   const [statusFilter, setStatusFilter] = useState<ProjectStatusFilter>('All')
+  const [previewId, setPreviewId] = useState<string | null>(null)
+  const preview = useProjectRead(previewId ?? '', Boolean(previewId && canReadDetail))
+  const previewProject = previewId && preview.data?.id === previewId ? preview.data : null
   const businessDate = businessCalendarDate(new Date(), 'Asia/Manila')
   const filteredProjects = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase()
@@ -189,7 +194,7 @@ export const ProjectDirectory = () => {
               </CardHeader>
               <CardContent className="flex-1 px-6 pb-6 pt-0">
                 <div className="space-y-3 border-t border-border pt-5">
-                  <ProjectMeasure label="KPI achievement" value="See overview" />
+                  <ProjectMeasure label="KPI achievement" value="Indicator results against targets" />
                   <ProjectMeasure
                     label="Target beneficiaries"
                     value={
@@ -198,7 +203,7 @@ export const ProjectDirectory = () => {
                         : 'Not recorded'
                     }
                   />
-                  <ProjectMeasure label="Budget utilization" value="See overview" />
+                  <ProjectMeasure label="Budget utilization" value="Approved spending against the plan" />
                   <ProjectTimeline
                     timeline={timelineProgress(
                       project.startDate ?? null,
@@ -218,7 +223,16 @@ export const ProjectDirectory = () => {
                   </span>
                 </div>
                 {canReadDetail ? (
-                  <div className="grid w-full gap-2 2xl:flex 2xl:w-auto 2xl:justify-end">
+                  <div className="grid w-full grid-cols-2 gap-2 2xl:flex 2xl:w-auto 2xl:justify-end">
+                    <Button
+                      className="gap-2 px-3"
+                      onClick={() => setPreviewId(project.id)}
+                      type="button"
+                      variant="outline"
+                    >
+                      <Eye className="h-4 w-4" aria-hidden="true" />
+                      Quick Preview
+                    </Button>
                     <Button asChild className="gap-2 px-3">
                       <Link href={`/projects/${project.id}`}>
                         Open Project
@@ -232,6 +246,30 @@ export const ProjectDirectory = () => {
           ))}
         </section>
       ) : null}
+      {previewId && !previewProject ? (
+        <div className="space-y-3">
+          <AsyncState
+            status={preview.isError ? 'error' : 'loading'}
+            title="Project preview"
+            description={
+              preview.isError
+                ? 'The preview could not be loaded. Try again.'
+                : 'Loading project details.'
+            }
+            onRetry={preview.isError ? () => void preview.refetch() : undefined}
+          />
+          <Button type="button" variant="outline" onClick={() => setPreviewId(null)}>
+            Cancel preview
+          </Button>
+        </div>
+      ) : null}
+      <ProjectPreviewDialog
+        onOpenChange={(open) => {
+          if (!open) setPreviewId(null)
+        }}
+        open={Boolean(previewProject)}
+        project={previewProject}
+      />
     </>
   )
 }

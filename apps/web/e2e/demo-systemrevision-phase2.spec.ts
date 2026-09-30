@@ -176,7 +176,7 @@ test('project entry lands on Overview with compact source-aligned cards and keyb
   await expect(futureMakersCard.getByText('National Capital Region', { exact: true })).toBeVisible()
   await expect(futureMakersCard.getByText('Jan 2026 - Dec 2026', { exact: true })).toBeVisible()
   await expect(futureMakersCard.getByText('Project Manager A', { exact: true })).toBeVisible()
-  await expect(futureMakersCard.getByRole('button', { name: 'Quick Preview' })).toHaveCount(0)
+  await expect(futureMakersCard.getByRole('button', { name: 'Quick Preview' })).toBeVisible()
   await expect(futureMakersCard.getByRole('link', { name: 'Open Project' })).toBeVisible()
   await page.screenshot({
     fullPage: true,
