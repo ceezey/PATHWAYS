@@ -194,16 +194,12 @@ export const ProjectDirectory = () => {
               </CardHeader>
               <CardContent className="flex-1 px-6 pb-6 pt-0">
                 <div className="space-y-3 border-t border-border pt-5">
-                  <ProjectMeasure label="KPI achievement" value="Indicator results against targets" />
-                  <ProjectMeasure
-                    label="Target beneficiaries"
-                    value={
-                      project.targetBeneficiaries !== undefined
-                        ? formatNumber(project.targetBeneficiaries)
-                        : 'Not recorded'
-                    }
-                  />
-                  <ProjectMeasure label="Budget utilization" value="Approved spending against the plan" />
+                  <p className="line-clamp-4 text-base leading-6 text-foreground">
+                    {('description' in project &&
+                      typeof project.description === 'string' &&
+                      project.description) ||
+                      'No project description recorded.'}
+                  </p>
                   <ProjectTimeline
                     timeline={timelineProgress(
                       project.startDate ?? null,
