@@ -46,8 +46,10 @@ Known outdated manuscript content: use case diagrams and reports, activity diagr
 | D9 | Each feature carries reconciled use cases and workflows, drawn as Mermaid UML diagrams (section 5.6). |
 | D10 | The PRD carries explicit Functional (`FR-<n>`) and Non-Functional (`NFR-<n>`) Requirements; every NFR is tagged with one ISO/IEC 25010 characteristic (section 5.7). |
 | D11 | Testing and evaluation are organized by the eight ISO/IEC 25010 product quality characteristics (section 5.8). |
-| D12 | SDD carries a data dictionary for the core tables, reconciled to `schema.prisma` and the migrations (section 5.9). |
+| D12 | SDD carries "Database Architecture: Repository Baseline and Production Requirements": a module-level table (Database Module, Tables, Purpose) reconciled to `schema.prisma`, plus production database requirements (section 5.9). |
 | D13 | SDD carries the current tech stack (frontend, backend, database, tools) with versions from the project dependency files (section 5.10). |
+| D14 | SDD section 2 carries an explicit High-Level Architecture: component, deployment and request/trust-boundary views (section 5.11). |
+| D15 | A Draft `rfc-pathways-aws-hosting-migration.md` records a phased migration strategy to the client AWS stack; it authorizes no implementation (section 5.12). |
 
 ## 4. Source Precedence
 
@@ -97,6 +99,8 @@ CRs (20), RFCs (4), audits (2), runbooks (5), governance templates (3). Content 
 | Bounds (out) | Adjacent capabilities explicitly excluded, each with a reason |
 | Lock | Locked; adding a gate or widening a bound requires an approved `cr-pathways-*`; anything outside the bounds is out of scope by default |
 
+Bounds source: manuscript Chapter 1 Scope and Limitations (manuscript pp. 26-28) is the primary source for Bounds (in) and Bounds (out), reconciled to the repository. Its system-wide limitations (not a full project management, ERP or replacement platform; no guaranteed real-time sync or API integration with KOBO, YES!ME or PMERL; no individual beneficiary evaluation; predefined rules only, no AI, predictive ML or autonomous decisions; beneficiaries are data subjects, never system actors; public tracker limited to approved, non-sensitive, high-level information; capstone time and resource limits) appear once as System-wide Bounds in PRD section 6 (Out of Scope) and are cited, not repeated, by each charter.
+
 Gate sources, in order: current PRD acceptance text, QAD rows and Applied CRs; then manuscript objectives and use case intent restated against actual behavior. A gate without a source is omitted and noted in the reconciliation CR. QAD rows cite their gate IDs. No new checker is added for gate IDs.
 
 ### 5.6 Use cases and workflows (D9)
@@ -143,20 +147,21 @@ QAD is organized so that:
 - User Acceptance Testing uses the manuscript instrument: 5-point Likert questionnaire items grouped by the eight characteristics, respondent groups, and the statistical treatment (weighted mean and verbal interpretation) from the manuscript;
 - SAD reviewer pillars and QAD characteristics use the same eight names.
 
-### 5.9 Data dictionary (D12)
+### 5.9 Database Architecture: Repository Baseline and Production Requirements (D12)
 
-Location: SDD section 3, after the domain ER diagrams. Source: `apps/api/prisma/schema.prisma` (55 models, 53 enums) and the migration chain; the manuscript data dictionary (Tables 32-61) supplies descriptions only where it still matches.
+Location: SDD section 3, after the domain ER diagrams. Purpose: a scoped, module-level view that future contributors and AI workflows can load quickly; `schema.prisma` stays the column-level authority, so no per-column dictionary is kept in docs.
 
-**Core tables** are the tables that hold the records behind PRD-F1 to PRD-F13 (organizations, roles, permissions, users, audit, programs, projects, activities, milestones, indicators, forms, fields, imports, mappings, submissions, beneficiaries, enrollments, participation, journey stages and events, budgets, expenses, assessments, rules, alerts, recommendations, proof and evidence, reports, public tracker). Each core table gets:
+**Repository Baseline** table:
 
-- purpose and owning PRD feature(s);
-- a column table: column, PostgreSQL type, nullable, key or constraint (PK, FK target, unique, check), default, description, sensitivity (`public`, `internal`, `personal`, `SADDD`);
-- the enums it uses, listed with their values;
-- its access boundary in one line (organization scoping, RLS or API permission).
+| Database Module | Tables | Purpose |
+|---|---|---|
+| one row per module | the Prisma models (and mapped table names) in the module | what the module supports, its owning PRD feature(s), and what is not implemented |
 
-**Supporting tables** (job queues, idempotency, sessions and step-up, import staging, caches) appear in one summary table: name, purpose, feature, without column detail.
+Modules follow the PRD feature groups: access and organization; programs, projects, activities and milestones; indicators and monitoring; forms, imports and metadata mapping; beneficiaries, enrollments, participation and journeys; finance (budgets, expenses, receipts); assessments, rules, alerts and recommendations; proof and evidence; reporting and public tracker; runtime and support (audit, step-up, jobs, idempotency, staging). Every listed table exists in `schema.prisma`; every mapped model belongs to exactly one module; the "not implemented" notes come from comparing the manuscript data dictionary (Tables 32-61) and PRD bounds with the schema. Enums are named per module; values are not listed.
 
-A reconciliation table maps each manuscript data dictionary table to its current table: same, renamed, merged, split, or not implemented. The data dictionary lists schema only, never sample values or record contents. Every column listed must exist in `schema.prisma`.
+**Production Requirements** (host-independent): PostgreSQL 17; required roles (`pathways_runtime`, `prisma`, rules worker and sweeper roles) and least-privilege checks; `pgcrypto`; RLS and organization scoping (transaction-local organization context); SSL for remote connections; migration-chain replay from baseline; backup and restore (from `runbook-backup-restore.md`); and the provider prerequisites the migrations currently assume, with a pointer to the D15 RFC.
+
+The manuscript-to-current table mapping lives in the reconciliation CR. The section describes schema only, never record contents.
 
 ### 5.10 Tech stack (D13)
 
@@ -171,7 +176,31 @@ Location: SDD section 2 (authoritative), with a short summary in `README.md` and
 
 Each row lists the package and its pinned or ranged version and one-line role. The manuscript Development Tools, Hardware and Software Requirements tables (Tables 62-64) are reconciled against this list in the reconciliation CR.
 
-### 5.11 Out of scope
+### 5.11 High-Level Architecture (D14)
+
+SDD section 2, each view as a Mermaid diagram with a short narrative:
+
+1. **Component view:** from `docs/reference/pathways-architecture.md`, reconciled to current modules and routes.
+2. **Deployment view (current):** browser; Next.js web on Vercel; NestJS API on Vercel; Supabase PostgreSQL 17 reached through Prisma as `pathways_runtime`; Supabase Auth; Supabase Storage reached only through the API; Sentry; the rules dispatcher (standalone, not yet scheduled).
+3. **Request and trust boundaries:** bearer token, auth guard, workspace resolution, transaction-local organization context, RLS; signed upload and digest-verified finalize; public tracker read path.
+
+The tech stack (D13) sits beside these views. README carries the component view only.
+
+### 5.12 AWS hosting migration strategy (D15)
+
+New `docs/rfc-pathways-aws-hosting-migration.md`, status Draft, registered in `index.md`. It is a strategy, not an approval: Supabase and Vercel stay canonical until a CR approves each phase.
+
+Content:
+
+- **Target mapping** (client direction): web on AWS Amplify Hosting or ECS/Fargate; API on ECS Fargate (Docker); RDS PostgreSQL; S3 for file storage; Cognito or the organization-approved identity provider; CloudWatch; Secrets Manager.
+- **Isolation requirement:** multi-organization isolation is preserved and the domain model does not hard-code Plan International Pilipinas. Current evidence: organization context and RLS on every request; "Plan International" appears only in seed and bootstrap scripts. Known v1 constraint: one organization per login.
+- **Coupling inventory:** hard couplings (auth token claims and session liveness, `auth.*` schema references, migrations needing `supabase_admin` or a true superuser, Supabase role names in revoke lists, `extensions`-schema pgcrypto, web auth flows, admin-API provisioning, storage API calls, loopback-only listeners, hardcoded bucket name) and soft couplings (environment names, scheduler, dashboard settings, Prisma binary target), each with file references.
+- **Phases,** each needing its own CR, SAD review, isolation tests and staging rehearsal: P0 portability preparation on current hosting (configurable listener and fixed Dockerfiles, storage and auth adapters, app-owned session liveness, RDS-compatible migrations, neutral environment names); P1 database to RDS PostgreSQL 17; P2 storage to S3 with preserved key layout and digest re-verification; P3 authentication to Cognito or the organization identity provider (MFA re-enrollment, step-up freshness claim to be confirmed by a spike, recovery email); P4 compute and operations (Amplify or ECS web, ECS Fargate API behind a load balancer, scheduled rules dispatcher task, Secrets Manager, CloudWatch logs and alarms); P5 cutover and rollback.
+- **Open client decisions:** Cognito or existing identity provider, AWS region and data residency, operating responsibility.
+
+OPS and SDD link to the RFC; neither claims AWS readiness.
+
+### 5.13 Out of scope
 
 Product code, migrations, and agent behavior (models, tools, prompts beyond section references). Exceptions:
 
@@ -197,8 +226,8 @@ Not committed: the template folder, `docs/reference/`, `docs/activity-log.md`. R
 |---|---|---|
 | 0 | Branch; extract manuscript text; build a scratchpad fact sheet from the repo (roles, permission matrix, API modules and routes, Prisma models, migrations 0000-0045, web routes, current design tokens) | - |
 | 1 | `IDEA.md`, BRD, PRD (matrix, charters, FR/NFR, use cases, workflows and diagrams; D8-D10), one drafter per feature group | 0 |
-| 2 | DSD (with gap table), SDD (tech stack D13; ER diagrams and data dictionary D12, checked against Prisma), QAD (ISO/IEC 25010 structure, rows cite gate and use case IDs; D11), SDD sequence and ER diagrams (D9), SAD, BUILD; realign section references in `.claude/agents/` (D7, D8) | 1 |
-| 3 | VAL, SCRUTINY, VOICE, CLR, AIA, OPS (without SLOs); record edits; `state.md`, `deferred-features.md`, reconciliation CR | 2 |
+| 2 | DSD (with gap table), SDD (architecture D14, tech stack D13, ER diagrams and database architecture D12, checked against Prisma), QAD (ISO/IEC 25010 structure, rows cite gate and use case IDs; D11), SDD sequence and ER diagrams (D9), SAD, BUILD; realign section references in `.claude/agents/` (D7, D8) | 1 |
+| 3 | VAL, SCRUTINY, VOICE, CLR, AIA, OPS (without SLOs); AWS migration RFC (D15); record edits; `state.md`, `deferred-features.md`, reconciliation CR | 2 |
 | 4 | UES, GTM, PITCH, WRAP, OPS SLOs, after the developer questionnaire | 3 and answers |
 | 5 | `index.md`, `log-pathways.md`, `README.md`; `pnpm docs:materialize`; `pnpm docs:check` | 4 |
 
@@ -213,7 +242,9 @@ Run against a clean copy of the tracked tree (`git archive HEAD`), because `docs
 - Every `SAD section N` and `build guide section N` reference in `.claude/agents/`, `sad-pathways.md` and `build-pathways.md` resolves to the heading holding that concept (invariant 2); `pnpm sad:test` passes.
 - Every use case cites a real route or endpoint and permission from the fact sheet; every gate is linked to at least one use case; every manuscript use case report is either in the PRD or in the not-carried-forward table.
 - Every FR maps to a feature; every NFR has exactly one of the eight characteristics; each characteristic has a QAD coverage section.
-- Every data dictionary column and enum value exists in `schema.prisma`; every core table has all listed fields; every manuscript dictionary table has a reconciliation row.
+- Every table named in the Database Architecture exists in `schema.prisma` and every mapped model appears in exactly one module; every manuscript dictionary table has a reconciliation row.
+- Every file reference in the AWS migration RFC exists; the RFC and OPS make no AWS readiness claim.
+- Every charter's bounds trace to Scope and Limitations or to an Applied CR.
 - Every tech stack version matches the dependency files.
 - Every Mermaid block renders (checked with the Mermaid CLI in the scratchpad, not added as a project dependency).
 - Every gate `G-F<n>-<m>` links at least one QAD row and every QAD row citing a gate resolves; every feature has all six charter fields.
