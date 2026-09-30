@@ -5,6 +5,11 @@ import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-li
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { RuleEditor } from './rule-editor'
 import type { HumanRule } from './rules-human-contract'
+// These tests cover the hidden state of controls behind UNFINISHED_CONTROLS_UI_ENABLED.
+vi.mock('@/constants/feature-flags', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/constants/feature-flags')>()),
+  UNFINISHED_CONTROLS_UI_ENABLED: false,
+}))
 
 const state = vi.hoisted(() => ({
   permissions: [

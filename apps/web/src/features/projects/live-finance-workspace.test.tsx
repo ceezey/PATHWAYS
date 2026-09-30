@@ -46,6 +46,9 @@ vi.mock('@/lib/auth/sensitive-drafts', () => ({
     }
   },
 }))
+vi.mock('@/lib/services/pathways-client', () => ({
+  pathwaysClient: { getActivityContext: vi.fn().mockResolvedValue([]) },
+}))
 vi.mock('@/lib/services/core-feature-client', () => ({
   coreDataClient: {
     submitExpense: (...args: unknown[]) => state.submit(...args),

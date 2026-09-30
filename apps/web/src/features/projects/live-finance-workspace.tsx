@@ -155,7 +155,7 @@ function FinanceContent({ projectId }: { projectId: string }) {
     if (!editingBudget) return
     const form = allocationFormRef.current
     if (!form) return
-    form.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    form.scrollIntoView?.({ behavior: 'smooth', block: 'center' })
     form.querySelector('input')?.focus({ preventScroll: true })
   }, [editingBudget])
   // biome-ignore lint/correctness/useExhaustiveDependencies: An allocation edit is invalidated with its update authority.

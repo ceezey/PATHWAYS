@@ -27,4 +27,4 @@ export const ANALYTICS_AGGREGATE_EXPORT_UI_ENABLED = false
  * no unfinished state. Nothing server-side changes. Each hidden entry is listed in
  * docs/deferred-features.md. Flip to `true` to show them again.
  */
-export const UNFINISHED_CONTROLS_UI_ENABLED = false
+export const UNFINISHED_CONTROLS_UI_ENABLED = true

@@ -22,6 +22,11 @@ vi.mock('./activity-proof-files', () => ({ ActivityProofFiles: () => null }))
 vi.mock('./activity-proof-review-dialog', () => ({ ActivityProofReviewDialog: () => null }))
 
 import { ActivityDetailContent } from './activity-detail-panel'
+// These tests cover the hidden state of controls behind UNFINISHED_CONTROLS_UI_ENABLED.
+vi.mock('@/constants/feature-flags', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/constants/feature-flags')>()),
+  UNFINISHED_CONTROLS_UI_ENABLED: false,
+}))
 
 const activity: Activity = {
   id: 'a0908103-0597-4cbb-874f-61ad0d5e3f83',

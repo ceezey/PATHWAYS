@@ -1,9 +1,14 @@
 // @vitest-environment jsdom
 
 import { cleanup, render, screen } from '@testing-library/react'
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { PageHeadingEditor } from './page-heading-editor'
+// These tests cover the hidden state of controls behind UNFINISHED_CONTROLS_UI_ENABLED.
+vi.mock('@/constants/feature-flags', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/constants/feature-flags')>()),
+  UNFINISHED_CONTROLS_UI_ENABLED: false,
+}))
 
 afterEach(() => {
   cleanup()
