@@ -90,9 +90,9 @@
 
 ### Design Specs
 
-| Spec | Date | Scope | Status |
-|---|---|---|---|
-| [2026-10-01-docs-canonical-reconciliation-design](superpowers/specs/2026-10-01-docs-canonical-reconciliation-design.md) | 2026-10-01 | Rebuild and reconcile the documentation suite into a canonical baseline | Draft; developer review pending |
+| Spec | File | Date | Scope | Status |
+|---|---|---|---|---|
+| [Docs canonical reconciliation](superpowers/specs/2026-10-01-docs-canonical-reconciliation-design.md) | 2026-10-01-docs-canonical-reconciliation-design.md | 2026-10-01 | Rebuild and reconcile the documentation suite into a canonical baseline | Draft; developer review pending |
 
 ### Workflow rule
 
