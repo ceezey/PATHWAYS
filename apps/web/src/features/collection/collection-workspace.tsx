@@ -1645,16 +1645,12 @@ const OwnedCollectionWorkspace = ({
                 }}
               >
                 <option value="pending">Decide when duplicates are flagged</option>
-                {UNFINISHED_CONTROLS_UI_ENABLED ? (
-                  <>
-                    <option disabled title="Not available yet" value="skip">
-                      Skip duplicates (not available yet)
-                    </option>
-                    <option disabled title="Not available yet" value="keep">
-                      Keep confirmed duplicates (not available yet)
-                    </option>
-                  </>
-                ) : null}
+                <option disabled title="Not available yet" value="skip">
+                  Skip duplicates (not available yet)
+                </option>
+                <option disabled title="Not available yet" value="keep">
+                  Keep confirmed duplicates (not available yet)
+                </option>
               </select>
             </label>
           ) : null}

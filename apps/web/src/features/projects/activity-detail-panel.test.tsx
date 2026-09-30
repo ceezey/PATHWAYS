@@ -22,11 +22,6 @@ vi.mock('./activity-proof-files', () => ({ ActivityProofFiles: () => null }))
 vi.mock('./activity-proof-review-dialog', () => ({ ActivityProofReviewDialog: () => null }))
 
 import { ActivityDetailContent } from './activity-detail-panel'
-// These tests cover the hidden state of controls behind UNFINISHED_CONTROLS_UI_ENABLED.
-vi.mock('@/constants/feature-flags', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('@/constants/feature-flags')>()),
-  UNFINISHED_CONTROLS_UI_ENABLED: false,
-}))
 
 const activity: Activity = {
   id: 'a0908103-0597-4cbb-874f-61ad0d5e3f83',
@@ -87,9 +82,42 @@ describe('ActivityDetailContent server read model', () => {
     expect(document.body.textContent).not.toContain('Project target comparison')
   })
 
-  it('hides Request an extension while it has no backend', () => {
+  it('shows Request an extension as disabled with a Not available yet hint', () => {
     render(
       <ActivityDetailContent
+        activity={activity}
+        canDecideProof={false}
+        canEdit={false}
+        canLogExpense={false}
+        canRequestExtension
+        canSubmitProof={false}
+        canValidateExpense={false}
+        canValidateProof={false}
+        indicators={[]}
+        journeyStages={[]}
+        onActivityChanged={vi.fn()}
+        onEdit={vi.fn()}
+        onSubmitProof={vi.fn()}
+      />,
+    )
+    const button = screen.getByRole('button', { name: 'Request an extension' })
+    // aria-disabled (not native disabled) so the control stays keyboard/AT reachable.
+    expect(button.hasAttribute('disabled')).toBe(false)
+    expect(button.getAttribute('aria-disabled')).toBe('true')
+    button.focus()
+    expect(document.activeElement).toBe(button)
+    const describedBy = button.getAttribute('aria-describedby')
+    expect(describedBy).toBeTruthy()
+    expect(document.getElementById(describedBy as string)?.textContent).toBe('Not available yet')
+  })
+
+  it('hides Request an extension while unfinished controls are hidden', async () => {
+    vi.resetModules()
+    vi.doMock('@/constants/feature-flags', () => ({ UNFINISHED_CONTROLS_UI_ENABLED: false }))
+    const { ActivityDetailContent: HiddenContent } = await import('./activity-detail-panel')
+    vi.doUnmock('@/constants/feature-flags')
+    render(
+      <HiddenContent
         activity={activity}
         canDecideProof={false}
         canEdit={false}

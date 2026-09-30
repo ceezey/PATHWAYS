@@ -5,11 +5,6 @@ import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-li
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { RuleEditor } from './rule-editor'
 import type { HumanRule } from './rules-human-contract'
-// These tests cover the hidden state of controls behind UNFINISHED_CONTROLS_UI_ENABLED.
-vi.mock('@/constants/feature-flags', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('@/constants/feature-flags')>()),
-  UNFINISHED_CONTROLS_UI_ENABLED: false,
-}))
 
 const state = vi.hoisted(() => ({
   permissions: [
@@ -492,12 +487,35 @@ describe('starting a rule from a template', () => {
     )
   })
 
-  it('hides the three templates that have no backend metric instead of showing a reason', async () => {
+  it('shows the three templates that have no backend metric as text with their exact reason', async () => {
     renderEditor({ projectId })
     await screen.findByLabelText('Applies to')
-    expect(screen.queryByText(/not yet available/)).toBeNull()
+    expect(
+      screen.getByText('Requires KPI achievement and Budget burn, not yet available'),
+    ).toBeTruthy()
+    expect(screen.getAllByText('Requires Budget burn, not yet available')).toHaveLength(2)
     expect(screen.queryByRole('button', { name: 'Apply Financial Efficiency Risk' })).toBeNull()
     expect(screen.queryByRole('button', { name: 'Apply Budget Under-utilization' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Apply Ideal Vector' })).toBeNull()
+  })
+
+  it('hides the three templates that have no backend metric while unfinished controls are hidden', async () => {
+    vi.resetModules()
+    vi.doMock('@/constants/feature-flags', () => ({ UNFINISHED_CONTROLS_UI_ENABLED: false }))
+    const { RuleEditor: HiddenRuleEditor } = await import('./rule-editor')
+    const { AuthorizedQueryProvider: HiddenProvider } = await import(
+      '@/providers/authorized-query-provider'
+    )
+    vi.doUnmock('@/constants/feature-flags')
+    render(
+      <QueryClientProvider client={new QueryClient()}>
+        <HiddenProvider>
+          <HiddenRuleEditor projectId={projectId} onSaved={vi.fn()} />
+        </HiddenProvider>
+      </QueryClientProvider>,
+    )
+    await screen.findByLabelText('Applies to')
+    expect(screen.queryByText(/not yet available/)).toBeNull()
     expect(screen.queryByRole('button', { name: 'Apply Ideal Vector' })).toBeNull()
   })
 })

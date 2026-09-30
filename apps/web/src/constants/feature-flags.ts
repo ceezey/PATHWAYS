@@ -23,8 +23,8 @@ export const ANALYTICS_AGGREGATE_EXPORT_UI_ENABLED = false
 
 /**
  * Controls with no backend yet (disabled "Not available yet" buttons, disabled form options,
- * the beneficiary Media proof tab and similar) are hidden (2026-09-30) so the product shows
- * no unfinished state. Nothing server-side changes. Each hidden entry is listed in
- * docs/deferred-features.md. Flip to `true` to show them again.
+ * the beneficiary Media proof tab and similar) are shown (true, the shipped value). Set to
+ * `false` to hide them so the product shows no unfinished state; nothing server-side changes.
+ * Each gated entry is listed in docs/deferred-features.md.
  */
 export const UNFINISHED_CONTROLS_UI_ENABLED = true
