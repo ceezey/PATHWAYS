@@ -493,7 +493,15 @@ describe('Analytics dashboard request dependencies', () => {
       participationRecords: { value: null, state: 'SUPPRESSED', reason: 'SMALL_COHORT' },
     })
 
-    render(<AnalyticsDashboard />)
+    // Participation patterns is hidden behind UNFINISHED_CONTROLS_UI_ENABLED; force it on here.
+    vi.resetModules()
+    vi.doMock('@/constants/feature-flags', () => ({
+      ANALYTICS_AGGREGATE_EXPORT_UI_ENABLED: false,
+      UNFINISHED_CONTROLS_UI_ENABLED: true,
+    }))
+    const { AnalyticsDashboard: ParticipationDashboard } = await import('./analytics-dashboard')
+    vi.doUnmock('@/constants/feature-flags')
+    render(<ParticipationDashboard />)
 
     await waitFor(() => expect(api.getMonitoringDashboard).toHaveBeenCalled())
     fireEvent.change(screen.getByLabelText('Analysis view'), {
@@ -518,7 +526,15 @@ describe('Analytics dashboard request dependencies', () => {
       },
     })
 
-    render(<AnalyticsDashboard />)
+    // Participation patterns is hidden behind UNFINISHED_CONTROLS_UI_ENABLED; force it on here.
+    vi.resetModules()
+    vi.doMock('@/constants/feature-flags', () => ({
+      ANALYTICS_AGGREGATE_EXPORT_UI_ENABLED: false,
+      UNFINISHED_CONTROLS_UI_ENABLED: true,
+    }))
+    const { AnalyticsDashboard: ParticipationDashboard } = await import('./analytics-dashboard')
+    vi.doUnmock('@/constants/feature-flags')
+    render(<ParticipationDashboard />)
 
     await waitFor(() => expect(api.getMonitoringDashboard).toHaveBeenCalled())
     fireEvent.change(screen.getByLabelText('Analysis view'), {

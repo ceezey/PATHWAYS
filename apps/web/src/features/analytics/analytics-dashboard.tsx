@@ -55,9 +55,9 @@ import { toast } from 'sonner'
 import {
   ActivityCompletionChart,
   DescriptiveAnalysisChart,
+  IndicatorProgressChart,
   SadddChart,
   SurveyImprovementChart,
-  IndicatorProgressChart,
 } from './analytics-charts'
 import { AnalyticsCoverageMap } from './analytics-coverage-map'
 import { toProjectCoverageFeatureCollection } from './analytics-location-utils'
@@ -708,24 +708,26 @@ export const AnalyticsDashboard = () => {
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              {analysisViews.map((view) => (
-                <SelectItem
-                  disabled={
-                    (view.value === 'survey' && !canReadSurvey) ||
-                    (view.value === 'timeline' && !canReadSurveyTimeline)
-                  }
-                  key={view.value}
-                  title={
-                    (view.value === 'survey' && !canReadSurvey) ||
-                    (view.value === 'timeline' && !canReadSurveyTimeline)
-                      ? 'Not available for this role'
-                      : undefined
-                  }
-                  value={view.value}
-                >
-                  {view.label}
-                </SelectItem>
-              ))}
+              {analysisViews
+                .filter((view) => UNFINISHED_CONTROLS_UI_ENABLED || view.value !== 'participation')
+                .map((view) => (
+                  <SelectItem
+                    disabled={
+                      (view.value === 'survey' && !canReadSurvey) ||
+                      (view.value === 'timeline' && !canReadSurveyTimeline)
+                    }
+                    key={view.value}
+                    title={
+                      (view.value === 'survey' && !canReadSurvey) ||
+                      (view.value === 'timeline' && !canReadSurveyTimeline)
+                        ? 'Not available for this role'
+                        : undefined
+                    }
+                    value={view.value}
+                  >
+                    {view.label}
+                  </SelectItem>
+                ))}
             </SelectContent>
           </Select>
         </div>
