@@ -6,6 +6,8 @@ const state = vi.hoisted(() => ({
   budgetsError: false,
   referencesError: false,
   twoExpenses: false,
+  activityBudget: false,
+  activityTitles: true,
   user: 'submitter',
   generation: 0,
   role: 'PROJECT_OFFICER',
@@ -60,54 +62,62 @@ vi.mock('@/lib/services/core-feature-client', () => ({
 vi.mock('@/providers/authorized-query-provider', () => ({
   useAuthorizedRead: (key: string) => ({
     data:
-      key === 'expense-budget-references'
-        ? [{ id: budgetId, category: 'Delivery', activityId: null }]
-        : key === 'finance-budgets'
+      key === 'expense-reference-activities'
+        ? state.activityTitles
+          ? [{ id: 'activity-1', title: 'Site visit' }]
+          : []
+        : key === 'expense-budget-references'
           ? [
-              {
-                id: budgetId,
-                category: 'Delivery',
-                plannedBudget: '125.00',
-                remarks: null,
-                updatedAt: '2026-09-27T00:00:00.000Z',
-              },
+              state.activityBudget
+                ? { id: budgetId, category: 'ACTIVITY_PROFILE_TOTAL', activityId: 'activity-1' }
+                : { id: budgetId, category: 'Delivery', activityId: null },
             ]
-          : [
-              ...(state.twoExpenses
-                ? [
-                    {
-                      id: secondExpenseId,
-                      budgetRecordId: budgetId,
-                      description: 'Second expense',
-                      amount: '35.00',
-                      expenseDate: '2026-09-27',
-                      status: 'PENDING',
-                      receiptEvidenceId: projectId,
-                      submittedById: 'different-submitter',
-                      verifiedById: null,
-                      approvedById: null,
-                      signedOffById: null,
-                      signedOffAt: null,
-                      updatedAt: '2026-09-27T00:00:00.000Z',
-                    },
-                  ]
-                : []),
-              {
-                id: budgetId,
-                budgetRecordId: budgetId,
-                description: 'Recorded expense',
-                amount: '20.00',
-                expenseDate: '2026-09-27',
-                status: 'PENDING',
-                receiptEvidenceId: projectId,
-                submittedById: 'different-submitter',
-                verifiedById: null,
-                approvedById: null,
-                signedOffById: null,
-                signedOffAt: null,
-                updatedAt: '2026-09-27T00:00:00.000Z',
-              },
-            ],
+          : key === 'finance-budgets'
+            ? [
+                {
+                  id: budgetId,
+                  category: state.activityBudget ? 'ACTIVITY_PROFILE_TOTAL' : 'Delivery',
+                  plannedBudget: '125.00',
+                  remarks: null,
+                  updatedAt: '2026-09-27T00:00:00.000Z',
+                },
+              ]
+            : [
+                ...(state.twoExpenses
+                  ? [
+                      {
+                        id: secondExpenseId,
+                        budgetRecordId: budgetId,
+                        description: 'Second expense',
+                        amount: '35.00',
+                        expenseDate: '2026-09-27',
+                        status: 'PENDING',
+                        receiptEvidenceId: projectId,
+                        submittedById: 'different-submitter',
+                        verifiedById: null,
+                        approvedById: null,
+                        signedOffById: null,
+                        signedOffAt: null,
+                        updatedAt: '2026-09-27T00:00:00.000Z',
+                      },
+                    ]
+                  : []),
+                {
+                  id: budgetId,
+                  budgetRecordId: budgetId,
+                  description: 'Recorded expense',
+                  amount: '20.00',
+                  expenseDate: '2026-09-27',
+                  status: 'PENDING',
+                  receiptEvidenceId: projectId,
+                  submittedById: 'different-submitter',
+                  verifiedById: null,
+                  approvedById: null,
+                  signedOffById: null,
+                  signedOffAt: null,
+                  updatedAt: '2026-09-27T00:00:00.000Z',
+                },
+              ],
     isPending: false,
     isError:
       (key === 'expense-budget-references' && state.referencesError) ||
@@ -133,6 +143,8 @@ describe('finance owned commands', () => {
     state.referencesError = false
     state.budgetsError = false
     state.twoExpenses = false
+    state.activityBudget = false
+    state.activityTitles = true
     state.user = 'submitter'
     state.generation = 0
     state.role = 'PROJECT_OFFICER'
@@ -267,6 +279,48 @@ describe('finance owned commands', () => {
       },
     ])
   })
+  it('names the activity on activity budgets in the list and the reference select', () => {
+    state.activityBudget = true
+    state.role = 'PROJECT_MANAGER'
+    state.permissions = [
+      'projects.read',
+      'budgets.read',
+      'expenses.submit',
+      'activities.context.read',
+    ]
+    render(<LiveFinanceWorkspace projectId={projectId} />)
+    expect(screen.getByText('Activity budget: Site visit')).toBeTruthy()
+    expect(screen.getByRole('option', { name: 'Activity budget: Site visit' })).toBeTruthy()
+    expect(screen.queryByText('ACTIVITY_PROFILE_TOTAL')).toBeNull()
+  })
+
+  it('falls back to a plain Activity budget label when the activity title is unknown', () => {
+    state.activityBudget = true
+    state.activityTitles = false
+    state.role = 'PROJECT_MANAGER'
+    state.permissions = ['projects.read', 'budgets.read', 'expenses.submit']
+    render(<LiveFinanceWorkspace projectId={projectId} />)
+    expect(screen.getAllByText('Activity budget').length).toBeGreaterThan(0)
+    expect(screen.queryByText('ACTIVITY_PROFILE_TOTAL')).toBeNull()
+  })
+
+  it('scrolls to and focuses the allocation form when an allocation is edited', () => {
+    const scrollIntoView = vi.fn()
+    const original = HTMLElement.prototype.scrollIntoView
+    HTMLElement.prototype.scrollIntoView = scrollIntoView
+    try {
+      state.role = 'PROJECT_MANAGER'
+      state.permissions = ['projects.read', 'budgets.read', 'budgets.update']
+      render(<LiveFinanceWorkspace projectId={projectId} />)
+      expect(scrollIntoView).not.toHaveBeenCalled()
+      fireEvent.click(screen.getByRole('button', { name: 'Edit allocation' }))
+      expect(scrollIntoView).toHaveBeenCalledWith({ behavior: 'smooth', block: 'center' })
+      expect(document.activeElement).toBe(screen.getByLabelText('Category'))
+    } finally {
+      HTMLElement.prototype.scrollIntoView = original
+    }
+  })
+
   it('does not refetch or toast a review after its permission is revoked while awaiting the response', async () => {
     state.role = 'MONITORING_AND_EVALUATION_OFFICER'
     state.permissions = ['projects.read', 'expenses.read', 'expenses.verify']
