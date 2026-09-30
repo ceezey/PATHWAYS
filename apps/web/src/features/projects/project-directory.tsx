@@ -29,7 +29,6 @@ import { type MetricCell, businessCalendarDate, timelineProgress } from '@pathwa
 import { ProjectPreviewDialog } from './project-preview-dialog'
 import {
   type ProjectStatusFilter,
-  formatNumber,
   overviewMetricLabel,
   projectHealthTone,
   projectStatusFilters,
@@ -272,30 +271,6 @@ const ProjectTimeline = ({ timeline }: { timeline: MetricCell }) => (
     )}
     <span className="font-semibold tabular-nums text-foreground">
       {timeline.value !== null ? `${timeline.value}%` : '—'}
-    </span>
-  </div>
-)
-
-const ProjectMeasure = ({
-  label,
-  value,
-  tone,
-}: {
-  label: string
-  value: string
-  tone?: 'success' | 'warning' | 'danger'
-}) => (
-  <div className="flex items-center justify-between gap-4 text-sm">
-    <span className="text-muted-foreground">{label}</span>
-    <span
-      className={cn(
-        'text-base font-semibold tabular-nums text-foreground',
-        tone === 'success' && 'text-success',
-        tone === 'warning' && 'text-warning',
-        tone === 'danger' && 'text-danger',
-      )}
-    >
-      {value}
     </span>
   </div>
 )

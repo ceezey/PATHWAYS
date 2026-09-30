@@ -249,18 +249,14 @@ const SavedMonitoringCharts = ({ projectId }: { projectId: string }) => (
       <h3 className="text-lg font-semibold" id="saved-charts-title">
         Monitoring charts
       </h3>
-      {UNFINISHED_CONTROLS_UI_ENABLED ? (
-        <>
-          <Button
-            size="sm"
-            variant="outline"
-            {...unavailableControlProps('role-dashboard-add-chart-hint')}
-          >
-            Add a chart
-          </Button>
-          <UnavailableHint id="role-dashboard-add-chart-hint" />
-        </>
-      ) : null}
+      <Button
+        size="sm"
+        variant="outline"
+        {...unavailableControlProps('role-dashboard-add-chart-hint')}
+      >
+        Add a chart
+      </Button>
+      <UnavailableHint id="role-dashboard-add-chart-hint" />
     </div>
     <EmptyState
       description={
