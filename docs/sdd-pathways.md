@@ -353,6 +353,10 @@ All touched endpoints validate DTO input, bound their queries, derive actor and 
 | GET | `/dashboards/saddd` | SADDD analysis | `analytics.saddd.read` | PRD-F8 |
 | GET | `/analytics/descriptive` | Descriptive analytics views | `analytics.descriptive.read` | PRD-F9 |
 | POST | `/alerts/:id/review` | Review rule-based alert | `alerts.review` | PRD-F10 |
+| POST | `/recommendations/:id/review` | Review recommendation | `recommendations.review` | PRD-F11 |
+| GET | `/recommendations` | List recommendations | `recommendations.read` | PRD-F11 |
+| GET | `/projects/:projectId/reports/preview` | Preview report | `reports.read` | PRD-F12 |
+| POST | `/projects/:projectId/reports` | Generate report | `reports.generate` | PRD-F12 |
 | GET | `/public/projects` | Public tracker list | public | PRD-F13 |
 
 Request: `POST /projects` takes project name, program, dates and budget profile; organization and actor are never read from the body.
@@ -365,6 +369,10 @@ Request: `POST .../batches/upload` is multipart with one CSV, XLSX, XLS or text-
 Request: `PATCH .../mapping` takes source column to form field pairs for the batch.
 Request: `GET /analytics/descriptive` takes optional `view` (`kpi`, `participation`, `survey`, `timeline`), and `periodStart` with `periodEnd` for `survey`.
 Request: `POST /alerts/:id/review` takes a review decision and an optional note.
+Request: `POST /recommendations/:id/review` takes a review decision and an optional note.
+Request: `GET /recommendations` takes optional project and status filters and returns a bounded page.
+Request: `GET .../reports/preview` takes report type and reporting period as query parameters.
+Request: `POST /projects/:projectId/reports` takes report type, reporting period and format.
 
 Other controller groups follow the same pattern: finance (budgets, expenses, receipts, review, signoff), evaluations, reports (PRD-F12), recommendations (PRD-F11), publication (submit, approve, publish, withdraw), rules and notifications. The internal rules routes `POST /internal/rules/drain` and `/internal/rules/sweep` are not exposed to browser roles.
 
