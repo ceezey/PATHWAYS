@@ -235,24 +235,24 @@ Every Not met or Partly met gate is registered in [deferred-features](deferred-f
 
 | Gate | Condition | Missing behavior | Deferred register entry |
 |---|---|---|---|
-| G-F7-5 | Indicators can be linked and reused across projects | No cross-project reuse in apps/api/src/modules/indicators | Not registered in docs/deferred-features.md; manuscript alignment audit (R4 gap) |
-| G-F8-7 | Dashboard responsiveness verified at production scale | No scale verification evidence | cr-pathways-performance-scaling (steps 3-5 deferred) |
-| G-F9-9 | Participation breakdowns, indicator trends, server budget aggregate | Views hidden or computed in browser | deferred-features: F9 participation breakdowns, F9 indicator trends, F9 server-side budget aggregate |
-| G-F9-10 | Survey totals for aggregate-only roles via closed-period release | Restricted state for Program Manager and Grant Manager | deferred-features: F9 manager survey totals |
-| G-F10-1 | One alert per episode with versioned evidence | Integration verification pending (Partly met) | Not registered: verification gap |
-| G-F10-5 | Alert permission and scope | Combined PostgreSQL evidence pending (Partly met) | Not registered: verification gap |
-| G-F10-6 | Budget, Beneficiary and survey rule metrics evaluate | Metrics unavailable in admitted catalog | cr-pathways-f10-f11-runtime-authority |
-| G-F10-7 | Scheduled background evaluation hosted | Machine processing disabled by default; hosting deferred | Hosted application deferred |
-| G-F11-1 | Review of predefined recommendations | Integration verification pending (Partly met) | Not registered: verification gap |
-| G-F11-5 | Recommendation Auto-resolved with its alert | DecisionStatus has no Auto-resolved value | Not registered |
-| G-F12-1 | Role scope and suppression on outputs | Final verification pending (Partly met) | Not registered: verification gap |
-| G-F12-4 | All report types export in all formats | CSV generation gap | Not registered |
-| G-F13-5 | Public pages verified hosted | Hosted application deferred | Hosted application deferred |
-| G-F3-6 | Registration sharing an identity is held for review; review step unreachable by default roles (permission granted to no role); no merge | Review permission not granted to any role; no merge or linkage-flag operation | Not established: no deferred register entry yet |
-| G-F4-6 | A user can attach a free-text note to a journey record | No note route or table for journey notes | Not established: no deferred register entry yet |
-| G-F6-7 | Choosing a data type for a new field and translating values during import | On hold per developer request | Import data-type and value mapping |
-| G-F1-10 | The app locks sign-in after repeated failures | No in-app sign-in lockout; the API does not implement one (only the step-up PIN lockout exists, PRD-F3) | Not yet registered; add to docs/deferred-features.md |
-| G-F2-4 | A project can be archived by a role holding `projects.archive` | Permission granted in rbac-contract.json but no archive route or UI (projects.controller.ts has create and update only) | Not yet registered; add to docs/deferred-features.md |
+| G-F7-5 | Indicators can be linked and reused across projects | No cross-project reuse in apps/api/src/modules/indicators | deferred-features: Project Template Library and cross-project Indicator Library (MA-01) |
+| G-F8-7 | Dashboard responsiveness verified at production scale | No scale verification evidence | deferred-features: Performance scaling CR steps 3-5 (MA-08) |
+| G-F9-9 | Participation breakdowns, indicator trends, server budget aggregate | Views hidden or computed in browser | deferred-features: F9 participation breakdowns, F9 indicator trends, F9 server-side budget aggregate (MA-08) |
+| G-F9-10 | Survey totals for aggregate-only roles via closed-period release | Restricted state for Program Manager and Grant Manager | deferred-features: F9 manager survey totals (MA-08) |
+| G-F10-1 | One alert per episode with versioned evidence | Integration verification pending (Partly met) | deferred-features: Integration verification for alerts, recommendations and report scope (MA-11) |
+| G-F10-5 | Alert permission and scope | Combined PostgreSQL evidence pending (Partly met) | deferred-features: Integration verification for alerts, recommendations and report scope (MA-11) |
+| G-F10-6 | Budget, Beneficiary and survey rule metrics evaluate | Metrics unavailable in admitted catalog | deferred-features: Rule metrics for Budget, Beneficiary and survey (MA-09); cr-pathways-f10-f11-runtime-authority |
+| G-F10-7 | Scheduled background evaluation hosted | Machine processing disabled by default; hosting deferred | deferred-features: Hosting, SSO and cloud move to the client AWS stack (MA-10) |
+| G-F11-1 | Review of predefined recommendations | Integration verification pending (Partly met) | deferred-features: Integration verification for alerts, recommendations and report scope (MA-11) |
+| G-F11-5 | Recommendation Auto-resolved with its alert | DecisionStatus has no Auto-resolved value | deferred-features: Recommendation Auto-resolved state (MA-12) |
+| G-F12-1 | Role scope and suppression on outputs | Final verification pending (Partly met) | deferred-features: Integration verification for alerts, recommendations and report scope (MA-11) |
+| G-F12-4 | All report types export in all formats | CSV generation gap | deferred-features: CSV report generation on the private bucket (MA-13) |
+| G-F13-5 | Public pages verified hosted | Hosted application deferred | deferred-features: Hosting, SSO and cloud move to the client AWS stack (MA-10) |
+| G-F3-6 | Registration sharing an identity is held for review; review step unreachable by default roles (permission granted to no role); no merge | Review permission not granted to any role; no merge or linkage-flag operation | deferred-features: Duplicate-identity review and merge (MA-14) |
+| G-F4-6 | A user can attach a free-text note to a journey record | No note route or table for journey notes | deferred-features: Free-text journey note (MA-06) |
+| G-F6-7 | Choosing a data type for a new field and translating values during import | On hold per developer request | deferred-features: Import data-type and value mapping (MA-07) |
+| G-F1-10 | The app locks sign-in after repeated failures | No in-app sign-in lockout; the API does not implement one (only the step-up PIN lockout exists, PRD-F3) | deferred-features: Sign-in lockout after repeated failures (MA-04) |
+| G-F2-4 | A project can be archived by a role holding `projects.archive` | Permission granted in rbac-contract.json but no archive route or UI (projects.controller.ts has create and update only) | deferred-features: Project archive (MA-05) |
 
 ### 3.13 Records touched
 
