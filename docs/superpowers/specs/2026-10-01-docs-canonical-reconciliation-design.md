@@ -41,6 +41,7 @@ Known outdated manuscript content: use case diagrams and reports, activity diagr
 | D4 | Suite topics without source material are not invented. The developer answers a questionnaire before UES, GTM, PITCH, WRAP and the OPS SLO section are written. |
 | D5 | Integration: work on `docs/canonical-reconcile`, merge into `dev` locally, push `origin/dev` as `ceezey`; no PR. |
 | D6 | Approach B: suite docs are rebuilt from the template skeleton and repopulated under the source precedence in section 4. |
+| D7 | SAD and BUILD may take the template section numbering; section references in `.claude/agents/` and live docs are realigned to the new numbers in the same wave. |
 
 ## 4. Source Precedence
 
@@ -73,16 +74,22 @@ CRs (20), RFCs (4), audits (2), runbooks (5), governance templates (3). Content 
 
 ### 5.5 Out of scope
 
-`.claude/agents/`, product code, migrations. Exception: a minimal `scripts/docs/check.py` change if a rebuilt heading legitimately breaks a rule; any such change is named in the reconciliation CR.
+Product code, migrations, and agent behavior (models, tools, prompts beyond section references). Exceptions:
+
+- `.claude/agents/*.md`: section-number references only (D7), for example "SAD section 3.1" and "build guide section 8".
+- `scripts/docs/check.py`: a minimal change only if a rebuilt heading legitimately breaks a rule; named in the reconciliation CR.
+
+Historical CRs that cite old section numbers (for example `cr-pathways-sad-orchestration.md`) keep their text; the reconciliation CR carries an old-to-new section map.
 
 Not committed: the template folder, `docs/reference/`, root `CLAUDE.md`, `docs/activity-log.md`.
 
 ## 6. Invariants
 
 1. Stable IDs are preserved exactly: `PRD-F1` to `PRD-F13`, QAD row IDs, RFC and CR filenames, migration numbers.
-2. Section numbers referenced by `.claude/agents/` keep their meaning: SAD sections 1 (roster and trigger paths), 2 (engineering rules), 3 and 3.1 (pipeline, handoff packet), 5 (output schema); BUILD sections 2, 3 and 8. Template sections that the current SAD or BUILD lack are appended or nested, never inserted by renumbering.
-3. `pnpm docs:check` passes (baseline on `origin/dev`: 0 failures, 0 warnings).
-4. No invented facts: missing source material is either asked for (D4) or stated as "not established" with the reason.
+2. Every SAD and BUILD concept that agents or checkers depend on survives the rebuild under some section: roster and trigger paths, per-role engineering rules (one subsection per role, named exactly as the agent), sequenced pipeline, handoff packet, output schema; BUILD release sequence, traceability grounding, Human Intervention block. After renumbering (D7), every `SAD section N` and `build guide section N` reference in `.claude/agents/`, `build-pathways.md` and `sad-pathways.md` points to the section holding that concept.
+3. SAD keeps a roster table with `Specialist` and `Model` columns matching `.claude/agents/` (parsed by `check_agents` in `scripts/docs/check.py`), and its trigger paths stay identical to the globs in `scripts/sad/check.ts`.
+4. `pnpm docs:check` passes (baseline on `origin/dev`: 0 failures, 0 warnings).
+5. No invented facts: missing source material is either asked for (D4) or stated as "not established" with the reason.
 
 ## 7. Process
 
@@ -90,7 +97,7 @@ Not committed: the template folder, `docs/reference/`, root `CLAUDE.md`, `docs/a
 |---|---|---|
 | 0 | Branch; extract manuscript text; build a scratchpad fact sheet from the repo (roles, permission matrix, API modules and routes, Prisma models, migrations 0000-0045, web routes, current design tokens) | - |
 | 1 | `IDEA.md`, BRD, PRD | 0 |
-| 2 | DSD (with gap table), SDD (manuscript ERD and dictionary checked against Prisma), QAD, SAD, BUILD | 1 |
+| 2 | DSD (with gap table), SDD (manuscript ERD and dictionary checked against Prisma), QAD, SAD, BUILD; realign section references in `.claude/agents/` (D7) | 1 |
 | 3 | VAL, SCRUTINY, VOICE, CLR, AIA, OPS (without SLOs); record edits; `state.md`, `deferred-features.md`, reconciliation CR | 2 |
 | 4 | UES, GTM, PITCH, WRAP, OPS SLOs, after the developer questionnaire | 3 and answers |
 | 5 | `index.md`, `log-pathways.md`, `README.md`; `pnpm docs:materialize`; `pnpm docs:check` | 4 |
@@ -103,7 +110,7 @@ Run against a clean copy of the tracked tree (`git archive HEAD`), because `docs
 
 - `grep -ri arkilaunch` over tracked files returns nothing.
 - `pnpm docs:check` passes; `pnpm docs:materialize` produces no diff.
-- Every `SAD section N` and `build guide section N` reference in `.claude/agents/` resolves to an existing heading with the same meaning.
+- Every `SAD section N` and `build guide section N` reference in `.claude/agents/`, `sad-pathways.md` and `build-pathways.md` resolves to the heading holding that concept (invariant 2); `pnpm sad:test` passes.
 - Every cited PRD, QAD and CR ID resolves; no broken relative links inside `docs/`.
 - Spot checks: roles and permissions against the RBAC seed and migrations; SDD tables against `schema.prisma`; DSD "current" column against `apps/web/src/app/globals.css`.
 - `git status` shows no staged file from the untracked folders.
@@ -122,8 +129,9 @@ Any failing check is fixed on the branch and the sequence repeats; nothing reach
 
 | Risk | Mitigation |
 |---|---|
-| Template-first rebuild drops verified contract detail | Invariants 1-2; per-doc review against the fact sheet; records kept intact (5.2) |
+| Template-first rebuild drops verified contract detail | Invariants 1-3; per-doc review against the fact sheet; records kept intact (5.2) |
 | Template wording or identity leaks in | Precedence rule 4; grep gate; coordinator review |
 | Outdated manuscript use cases / ERD re-enter as current | Repository wins; superseded items listed in the CR |
 | Design docs claim the new UI is shipped | D1 gap table separates current from target |
 | Parallel drafters contradict each other | Single fact sheet; wave ordering; coordinator review |
+| Renumbered SAD/BUILD silently breaks agents | D7 realignment in the same wave; reference-resolution gate in section 8 |
