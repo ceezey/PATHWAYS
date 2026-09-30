@@ -49,7 +49,7 @@ import type {
   RoleDashboardViewModel,
 } from '@/types/pathways'
 import { type PathwaysRole, getPathwaysRoleDisplayName } from '@/types/pathways-role'
-import { formatMetricCell } from '@pathways/shared'
+import { businessCalendarDate, formatMetricCell } from '@pathways/shared'
 
 import { ActivityDetailPanel } from '../projects/activity-detail-panel'
 import { ActivityProofDialog } from '../projects/activity-proof-dialog'
@@ -273,13 +273,14 @@ const SavedMonitoringCharts = ({ projectId }: { projectId: string }) => (
     />
   </section>
 )
-/** Trailing 366 calendar days (the API maximum) so demo-period activity is included. */
+/** Trailing 12 months (366 calendar days, the API maximum) ending today in Manila business time. */
 const trailingYearPeriod = () => {
-  const end = new Date()
-  const start = new Date(end.getTime() - 365 * 86400000)
-  const iso = (d: Date) => d.toISOString().slice(0, 10)
-  return { periodStart: iso(start), periodEnd: iso(end) }
+  const periodEnd = businessCalendarDate(new Date(), 'Asia/Manila')
+  const start = new Date(`${periodEnd}T00:00:00.000Z`)
+  start.setUTCDate(start.getUTCDate() - 365)
+  return { periodStart: start.toISOString().slice(0, 10), periodEnd }
 }
+const PERIOD_NOTE = 'Covers the last 12 months.'
 const ConnectedMonitoringSnapshot = ({
   role,
 }: {
@@ -302,7 +303,8 @@ const ConnectedMonitoringSnapshot = ({
         setProjectId((current) =>
           records.some((record) => record.id === current)
             ? current
-            : (records.find((record) => record.id === requested)?.id ?? (records.length ? 'all' : '')),
+            : (records.find((record) => record.id === requested)?.id ??
+              (records.length ? 'all' : '')),
         )
       })
       .catch((caught: unknown) => {
@@ -320,7 +322,10 @@ const ConnectedMonitoringSnapshot = ({
     setMetrics([])
     setError('')
     pathwaysClient
-      .getMonitoringDashboard({ ...(projectId === 'all' ? {} : { projectId }), ...trailingYearPeriod() })
+      .getMonitoringDashboard({
+        ...(projectId === 'all' ? {} : { projectId }),
+        ...trailingYearPeriod(),
+      })
       .then((result) => {
         if (!active) return
         setMetrics([
@@ -334,19 +339,19 @@ const ConnectedMonitoringSnapshot = ({
             id: 'participation',
             label: 'Participation records',
             value: formatMetricCell(result.participationRecords),
-            helperText: 'Committed records, not a count of people.',
+            helperText: `Committed records, not a count of people. ${PERIOD_NOTE}`,
           },
           {
             id: 'attending',
             label: 'Distinct attending individuals',
             value: formatMetricCell(result.attendingIndividuals),
-            helperText: 'Present/completed attendance; deduplicated across projects.',
+            helperText: `Present/completed attendance; deduplicated across projects. ${PERIOD_NOTE}`,
           },
           {
             id: 'enrolled',
             label: 'Enrolled individuals',
             value: formatMetricCell(result.enrolledIndividuals),
-            helperText: 'Enrollment overlaps this period; privacy suppression applies.',
+            helperText: 'Enrollment overlaps the last 12 months; privacy suppression applies.',
           },
         ])
       })
