@@ -273,6 +273,13 @@ const SavedMonitoringCharts = ({ projectId }: { projectId: string }) => (
     />
   </section>
 )
+/** Trailing 366 calendar days (the API maximum) so demo-period activity is included. */
+const trailingYearPeriod = () => {
+  const end = new Date()
+  const start = new Date(end.getTime() - 365 * 86400000)
+  const iso = (d: Date) => d.toISOString().slice(0, 10)
+  return { periodStart: iso(start), periodEnd: iso(end) }
+}
 const ConnectedMonitoringSnapshot = ({
   role,
 }: {
@@ -295,7 +302,7 @@ const ConnectedMonitoringSnapshot = ({
         setProjectId((current) =>
           records.some((record) => record.id === current)
             ? current
-            : (records.find((record) => record.id === requested)?.id ?? records[0]?.id ?? ''),
+            : (records.find((record) => record.id === requested)?.id ?? 'all'),
         )
       })
       .catch((caught: unknown) => {
@@ -313,7 +320,7 @@ const ConnectedMonitoringSnapshot = ({
     setMetrics([])
     setError('')
     pathwaysClient
-      .getMonitoringDashboard({ projectId })
+      .getMonitoringDashboard({ ...(projectId === 'all' ? {} : { projectId }), ...trailingYearPeriod() })
       .then((result) => {
         if (!active) return
         setMetrics([
@@ -367,6 +374,7 @@ const ConnectedMonitoringSnapshot = ({
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
+              <SelectItem value="all">All authorized projects</SelectItem>
               {projects.map((project) => (
                 <SelectItem key={project.id} value={project.id}>
                   {project.title}
@@ -409,7 +417,7 @@ const ConnectedMonitoringSnapshot = ({
           title="No authorized projects"
         />
       )}
-      <SavedMonitoringCharts projectId={projectId} />
+      {UNFINISHED_CONTROLS_UI_ENABLED ? <SavedMonitoringCharts projectId={projectId} /> : null}
     </SectionCard>
   )
 }
