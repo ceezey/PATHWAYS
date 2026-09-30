@@ -8,6 +8,8 @@
 
 **Approval:** On 2026-09-27 and 2026-09-28 the developer approved a coordinate-only SAD orchestrator in `.claude/agents/`, a staged review pipeline with typed handoff packets, and a multi-branch release sequence. The developer authorized autonomous merge and push of `dev` into `master` once every release gate passes on the exact commit.
 
+**Superseded by:** sad-pathways.md sections 3.1, 3.2 and 4.1-4.4 and build-pathways.md sections 1.2 and 2.2 (2026-10-01 reconciliation); old section numbers map to new ones in cr-pathways-doc-reconciliation-2026-10-01.md section 3.5
+
 ## 1. Trigger and current contract
 
 The SAD defined seven review roles and a concurrent review protocol. No agent definitions existed. There was no handoff packet, stage order or release sequence, so each session re-derived orchestration and evidence assembly.
