@@ -113,22 +113,178 @@ Current shared application description:
 
 Do not casually rename the product or modules outside approved copy/configuration mechanisms.
 
-### Principles
+### Design Principles
 
-Design principles from the brand foundations:
+#### Context Over Navigation
 
-- **Context over navigation:** stay in the working context with side panels, drawers, inline expansion and inspectors; use a full page only when the primary working context changes. The goal is minimum unnecessary context switching, not zero navigation.
-- **Recognition before recall:** show project, activity and indicator names, status labels, relationships, recent context, selected filters and the current workflow step instead of internal IDs or hidden state.
-- **One clear next action:** each task state has one visually dominant next action, for example dataset uploaded then Review mappings, mappings reviewed then Apply import.
-- **Progressive disclosure:** Glance (status, key metrics, urgent attention, next action), Scan (lists, records, submissions, alerts), Inspect (metadata, history, validation, relationships, evidence, audit). Do not expose Inspect detail by default; do not hide what is needed to finish the task safely.
-- **Connected information:** show only relationships that help the user understand context, trace information or complete the task.
-- **Human control:** system-generated mappings, alerts and recommendations are distinguishable from verified or user-approved information. Use "Suggested match", "Potential match", "Needs review", "Flagged for review", "Recommended action"; never imply certainty or present rule-based output as AI conclusions.
-- **Safety by design (proportionate friction):** frequent, low-risk, reversible actions need minimal interaction; deleting, overwriting imports, publishing, changing access, applying consequential mappings or exposing information externally need deliberate confirmation that states what will happen, what is affected, whether it is reversible and what to do to proceed. Fewer clicks never overrides safety.
-- **Inclusive by design:** accessibility is a foundation (section 6).
-- Border-first, not shadow-first.
-- Evidence-first: charts, approved project media, safe maps, and the existing mark; evidence/media carries explicit access and publication provenance.
-- Truthful states: missing data is unavailable, never fabricated.
-- Frontend visibility is not authorization.
+Users should remain in their current working context whenever practical.
+
+Prefer:
+
+- contextual side panels
+- drawers
+- inline expansion
+- inline editing
+- contextual actions
+- inspectors
+
+over unnecessary:
+
+- page changes
+- nested pages
+- nested tabs
+- repeated modal dialogs
+- back-and-forth navigation
+
+A full page SHOULD be used when the user's primary working context changes.
+
+A contextual panel SHOULD be used when the user is inspecting or modifying
+supporting information within the current task.
+
+##### Example
+
+Preferred:
+
+Project Activity
+→ Open activity inspector
+→ Review linked indicator
+→ Update status
+→ Return to activity without losing context
+
+Avoid:
+
+Project Activity
+→ Activity page
+→ Indicator page
+→ Edit page
+→ Confirmation page
+→ Navigate back repeatedly
+
+The objective is not "zero navigation."
+
+The objective is minimum unnecessary context switching.
+
+#### Recognition Before Recall
+
+PATHWAYS MUST NOT depend on users remembering information that the system
+already knows or can reasonably display.
+
+Prefer visible:
+
+- project names
+- activity names
+- indicator labels
+- status labels
+- relationships
+- recent context
+- selected filters
+- current project
+- current workflow step
+
+over requiring users to remember:
+
+- internal IDs
+- codes without labels
+- previous selections
+- hidden relationships
+- navigation locations
+- technical terminology
+
+Relevant context SHOULD appear near the decision or action that depends
+on it.
+
+#### One Clear Next Action
+
+Each task state SHOULD have one visually dominant next action.
+
+This does NOT mean that a screen may contain only one action.
+
+It means the expected next step should be immediately distinguishable
+from alternatives.
+
+Examples:
+
+Dataset uploaded
+→ Review mappings
+
+Mappings reviewed
+→ Apply import
+
+Incomplete activity
+→ Update activity
+
+Flagged indicator
+→ Review evidence
+
+Avoid presenting multiple unrelated actions with equal visual emphasis.
+
+#### Progressive Disclosure
+
+Complexity MUST be revealed according to user need.
+
+Use the hierarchy:
+
+GLANCE
+→ SCAN
+→ INSPECT
+
+##### Glance
+Immediate status, important metrics, urgent attention, next action.
+
+##### Scan
+Activities, beneficiaries, submissions, alerts, records, summaries.
+
+##### Inspect
+Metadata, history, validation details, relationships, evidence,
+audit information.
+
+Do not expose maximum detail by default simply because the information
+exists.
+
+Do not hide information required to understand or safely complete the
+current task.
+
+#### Connected Information
+
+PATHWAYS records SHOULD communicate meaningful relationships.
+
+When relevant, an object may reveal:
+
+- parent project
+- related activity
+- connected indicator
+- related beneficiaries
+- originating dataset
+- validation status
+- monitoring output
+- report usage
+
+Do not add relationships merely for visual complexity.
+
+Only display relationships that help the user understand context,
+trace information, or complete the current task.
+
+#### Human Control
+
+PATHWAYS supports human judgment.
+
+It does not replace human judgment.
+
+System-generated mappings, alerts, recommendations, and interpretations
+MUST be distinguishable from verified or user-approved information.
+
+Use language such as:
+
+- Suggested match
+- Potential match
+- Needs review
+- Flagged for review
+- Recommended action
+- Review recommendation
+
+Avoid language that implies certainty when human review is still required.
+
+Do not present rule-based outputs as AI-generated conclusions.
 
 ### Brand decision test
 
@@ -152,9 +308,80 @@ When sources conflict:
 
 Do not invent new colors, spacing values, radii or component conventions. Before producing a screen, determine user, task, context, required information, primary action and safety or access constraints, then pick the established PATHWAYS pattern. Optimize for clarity, continuity, accessibility, traceability, low cognitive effort, minimum unnecessary interaction and human control; not for visual novelty, maximum density, minimum clicks at the expense of safety, dashboard aesthetics over workflow usability, or autonomous-looking behavior.
 
+### Safety by Design
+
+PATHWAYS uses proportionate friction.
+
+Frequent, low-risk, reversible actions SHOULD require minimal interaction.
+
+High-impact, destructive, privacy-sensitive, or difficult-to-reverse
+actions MUST require greater clarity and deliberate confirmation.
+
+#### Low-friction examples
+
+- opening a record
+- changing a filter
+- viewing metadata
+- expanding details
+- navigating between related information
+
+#### Deliberate-action examples
+
+- deleting records
+- overwriting imported data
+- publishing information
+- changing access permissions
+- applying consequential mappings
+- exposing information externally
+
+For consequential actions, communicate:
+
+1. What will happen
+2. What information is affected
+3. Whether the action can be reversed
+4. What the user must do to proceed
+
+"Fewer clicks" MUST NOT override safety.
+
+The goal is fewer unnecessary interactions, not fewer interactions at
+any cost.
+
+### Inclusive by Design
+
+Accessibility is a foundation, not an optional enhancement.
+
+PATHWAYS is used by people with different:
+
+- organizational roles
+- technical confidence
+- workloads
+- devices
+- interaction preferences
+- perceptual, motor, and cognitive needs
+
+Interfaces MUST remain understandable without specialist technical
+knowledge unless the task itself requires such knowledge.
+
+#### Required principles
+
+- Do not communicate meaning through color alone.
+- Pair important states with text and/or recognizable icons.
+- Maintain visible keyboard focus.
+- Use clear labels instead of relying only on icons.
+- Use predictable placement for recurring controls.
+- Preserve user-entered information after recoverable errors.
+- Explain errors in human-readable language.
+- Avoid unnecessary memory requirements.
+- Avoid interaction that depends only on hover.
+- Maintain readable hierarchy at increased text size and zoom.
+- Provide accessible alternatives or summaries for visualized data.
+
+Role-specific interfaces MAY simplify or expose different functionality,
+but MUST preserve the same design language and interaction logic.
+
 ### Language
 
-Write for operational understanding, not implementation architecture: "Connected indicator" not "Indicator metadata relationship", "Needs review" not "Validation exception", "7 fields need review" not "7 mapping errors". Buttons describe the action (Review 7 fields, Save project, Apply import, Generate report, Return for correction); avoid OK, Proceed, Execute, Submit when a specific label exists.
+Write for operational understanding, not implementation architecture: "Connected indicator" not "Indicator metadata relationship", "Needs review" not "Validation exception", "7 fields need review" not "7 mapping errors". Buttons describe the action (Review 7 fields, Save project, Apply import, Generate report, Return for correction); avoid ambiguous labels such as: OK, Proceed, Execute, Submit when a more specific action label exists.
 
 ### Imagery and evidence
 
@@ -196,6 +423,8 @@ Current tokens are the 47 CSS variables in `apps/web/src/app/globals.css` (HSL t
 | blue.300 | #66B4FF | Charts and accents |
 | blue.100 | #CDE6FF | Selected and informational surfaces |
 
+**Rules**
+
 Use blue.700 for primary filled buttons with white text, blue.500 for brand accents, links and non-body-text UI, blue.900 for strong headings and focus, blue.100 for selected or informational surfaces. Blue indicates identity, interaction, navigation, focus, selection or information, never decoration.
 
 **Pathways Cyan** (connected information, secondary brand expression, sidebar, highlights, data visualization)
@@ -207,6 +436,8 @@ Use blue.700 for primary filled buttons with white text, blue.500 for brand acce
 | cyan.500 | #00A5FE | Sidebar highlights and visual accents |
 | cyan.300 | #66CAFE | Data visualization |
 | cyan.100 | #CCEDFF | Informational surfaces |
+
+**Rules**
 
 Cyan stays secondary to blue in the interaction hierarchy, never substitutes for semantic status colors, and gets no additional shades without a formal update.
 
@@ -221,20 +452,105 @@ Cyan stays secondary to blue in the interaction hierarchy, never substitutes for
 | canvas | #F4F1EC | Primary page ground |
 | paper | #FFFFFF | Elevated cards and working surfaces |
 
+**Rules**
+
 Most operational content uses neutral surfaces; do not fill every card with brand color. Use divider only when spacing alone is insufficient.
 
-**Semantic colors** (700 = accessible text, 500 = UI signal, 100 = background)
+#### Semantic Colors
 
-| Meaning | 700 | 500 | 100 |
-|---|---|---|---|
-| Success: complete, verified, validated | #08783E | #18A957 | #DDE6E8 |
-| Warning: flagged, attention required, pending review | #9A5200 | #D97706 | #FFF0C7 |
-| Danger: overdue, incomplete, error, blocked | #B51D32 | #EF3340 | #FFE1E5 |
-| Information: in progress, guidance | #005EBF | #007DFE | #CDE6FF |
+Semantic colors have fixed meanings.
+
+##### Success
+
+Meaning:
+Complete, verified, validated, successful.
+
+| Token | Hex |
+|---|---|
+| success.700 | #08783E |
+| success.500 | #18A957 |
+| success.100 | #DDE6E8 |
+
+Use success.700 as accessible text on success.100 where specified.
+
+##### Warning
+
+Meaning:
+Flagged, attention required, pending review.
+
+| Token | Hex |
+|---|---|
+| warning.700 | #9A5200 |
+| warning.500 | #D97706 |
+| warning.100 | #FFF0C7 |
+
+NOTE:
+The canonical hexadecimal value for `warning.700` MUST be verified
+against the approved palette source before implementation if the source
+token is incomplete or malformed.
+
+Do not guess or silently replace an unclear design token.
+
+##### Danger
+
+Meaning:
+Overdue, incomplete, error, blocked, or other states requiring
+significant attention.
+
+| Token | Hex |
+|---|---|
+| danger.700 | #B51D32 |
+| danger.500 | #EF3340 |
+| danger.100 | #FFE1E5 |
+
+Danger MUST NOT be used decoratively.
+
+##### Information
+
+Meaning:
+In progress, informational guidance, neutral system assistance.
+
+| Token | Hex |
+|---|---|
+| info.700 | #005EBF |
+| info.500 | #007DFE |
+| info.100 | #CDE6FF |
+
+Information intentionally reuses the Pathways Blue family.
 
 Developer decision (2026-10-01): success.700 is #08783E and success.100 is #DDE6E8, as stated in the color foundations file; the palette image values #08783F and #DDF6E8 are not used.
 
-Semantic rules: information reuses the blue family; danger is never decorative; every important state pairs color with an icon or text label (for example Verified, Needs review, Validation failed, In progress); never a green dot only, red row only or yellow background only. Use the 700 tone for text on its 100 surface; 500 tones are UI signals and large display elements, not body text. Do not assume two palette colors are accessible together.
+#### Semantic Usage Rule
+
+Semantic color communicates state, not category decoration.
+
+Every important semantic state MUST have a non-color indicator.
+
+Preferred pattern:
+
+[icon] Status label
+
+Examples:
+
+✓ Verified
+! Needs review
+× Validation failed
+i In progress
+
+Never use:
+
+green dot only
+red row only
+yellow background only
+
+to communicate meaning.
+
+Text and Contrast: For semantic surfaces, prefer the 700 tone for text on the corresponding 100 surface. 500 tones are primarily UI signals and large visual elements rather than default body text.
+
+Use established accessible foreground/background combinations.
+
+Do not assume that two colors are accessible simply because they are part
+of the approved palette.
 
 Charts primarily use the blue and cyan families; semantic colors only when the chart itself shows a semantic state; no danger red for a neutral category; do not rely on hue alone, add labels, values, patterns, markers or direct annotation.
 
@@ -375,9 +691,111 @@ Cards represent meaningful bounded groups; not every piece of information is a c
 
 ## 3. Layout & Spatial System
 
+### Core Guidance
+
+PATHWAYS interfaces are designed for operational work that requires
+attention, without requiring unnecessary attention to the interface.
+
+The interface should allow users to:
+
+UNDERSTAND AT A GLANCE
+ACT WITHOUT SEARCHING
+INVESTIGATE WITHOUT LOSING CONTEXT
+
+Three governing principles:
+
+1. Accessible by default
+2. Fewer unnecessary decisions
+3. Bounded information density
+
+These principles MUST NOT override safety, traceability, or required
+information.
+
+### Information Density
+
+PATHWAYS uses bounded density.
+
+Organize information according to:
+
+GLANCE
+→ SCAN
+→ INSPECT
+
+#### Glance
+
+Show:
+- critical KPIs
+- status
+- attention items
+- expected next action
+
+#### Scan
+
+Show:
+- activity lists
+- records
+- submissions
+- alerts
+- beneficiary lists
+- monitoring summaries
+
+#### Inspect
+
+Show:
+- detailed metadata
+- history
+- validation information
+- audit information
+- connected records
+- supporting evidence
+
+Do not expose Inspect-level detail by default on overview screens.
+
+Do not hide Glance-level information behind additional navigation.
+
+### Geometry and Radius
+
+Use only the approved radius scale.
+
+| Radius | Usage |
+|---|---|
+| 4 px | Tags and compact elements |
+| 8 px | Controls |
+| 12 px | Cards |
+| 16 px | Panels |
+| 999 px | Pills |
+
+Do not invent intermediate radii for ordinary components.
+
+Radius communicates containment.
+
+It is not decoration.
+
+Avoid excessive rounded containers nested inside other rounded
+containers.
+
 ### Spacing rhythm (target)
 
 4 px basis. Approved tokens: 4, 8, 12, 16, 24, 32 px. Use 8-16 px inside dense controls and 24-32 px between major related blocks. Spacing establishes hierarchy before extra borders, backgrounds or shadows; no arbitrary values when a token fits.
+
+### Accessible Interaction Sizes
+
+Minimum interaction target:
+44 × 44 px
+
+Approved button sizes:
+
+Small: 36 px visual button height
+Default: 44 px
+Large: 52 px
+
+A visually smaller control MAY be used in compact contexts only when its
+effective interaction target remains accessible.
+
+Default buttons SHOULD use the 44 px interaction size.
+
+Large buttons SHOULD be reserved for explicit primary actions and
+high-emphasis flows.
 
 ### Standard desktop layout (target)
 
@@ -451,13 +869,74 @@ Role filtering happens before navigation is rendered. Project workspaces use per
 
 **Status presentation.** Every status uses color plus a text label, and an icon where it helps (for example "! Needs review", never a yellow dot). Status pills use the 999 px radius and one convention across screens.
 
-**Feedback and errors.** Show meaningful processing states ("Importing 248 records...", "241 records matched. 7 need review.", "Changes saved.") rather than indefinite spinners. Errors say what happened, what was affected, what to do next and whether existing information changed; they appear near the affected field and never erase valid input.
+**Feedback and System state.** Show meaningful processing states ("Importing 248 records...", "241 records matched. 7 need review.", "Changes saved.") rather than indefinite spinners. 
+
+Important operations SHOULD expose:
+
+1. current state
+2. result
+3. required next action, if any
+
+**Errors and Recovery.** say what happened, what was affected, what to do next and whether existing information changed; they appear near the affected field and never erase valid input. Errors MUST help the user recover.
+
+Avoid:
+
+"Invalid metadata."
+
+Prefer:
+
+"7 fields could not be matched. Review the highlighted fields before
+applying this dataset."
+
+Validation errors SHOULD appear near the affected information whenever
+possible.
+
+Do not erase valid user input after a recoverable error.
 
 **Forms.** Minimize entry and memory load, default from known context when safe, group related fields, mark required fields, use progressive sections for long workflows, and offer a review state for consequential submission.
 
 **Context preservation.** Filters, search terms, selected records, pagination and expanded states survive a temporary inspection.
 
-**Reduced-click rule.** Remove interactions caused only by avoidable page switching, duplicated confirmation, hidden frequent actions, repeated entry, needless intermediate screens or context loss. Keep interaction that protects data integrity, privacy, access control, consequential changes, external publication or destructive operations.
+### Reduced-Click Rule
+
+PATHWAYS optimizes for fewer unnecessary interactions.
+
+Do NOT optimize purely for the smallest numerical click count.
+
+Remove interactions that exist only because of:
+
+- avoidable page switching
+- duplicated confirmation
+- hidden frequent actions
+- repeated information entry
+- unnecessary intermediate screens
+- preventable context loss
+
+Retain interaction when it protects:
+
+- data integrity
+- privacy
+- access control
+- consequential changes
+- external publication
+- destructive operations
+
+Efficiency and safety are complementary requirements.
+
+### Search and Frequent Utilities
+
+Frequently used global utilities MAY remain persistently available.
+
+Examples:
+
+- activity search
+- notifications
+- project context
+- user/account controls
+
+Do not allow utility controls to compete visually with the primary task.
+
+Search labels and placeholders SHOULD describe what is searchable.
 
 ### Current component specs (implemented)
 
@@ -553,7 +1032,7 @@ No essential information may depend on animation.
 
 ## 6. Accessibility (a11y)
 
-Target rules from the foundations: meaning never by color alone; important states pair color with text or a recognizable icon; visible keyboard focus; clear labels rather than icon-only controls, with accessible names where icon-only; predictable placement of recurring controls; 44 x 44 px effective targets; nothing essential depends on hover; errors associated with their fields and explained in plain language; user input preserved after recoverable errors; readable hierarchy at increased text size and zoom; charts expose meaning through labels, values or summaries. Role-specific interfaces may simplify functionality but keep the same design language.
+Target rules from the foundations: meaning never by color alone; important states pair color with text or a recognizable icon; visible keyboard focus; clear labels rather than icon-only controls, with accessible names where icon-only; predictable placement of recurring controls; 44 x 44 px effective targets; nothing essential depends on hover; errors associated with their fields and explained in plain language; user input preserved after recoverable errors; readable hierarchy at increased text size and zoom; charts MUST expose meaning through labels, values or summaries. Role-specific interfaces may simplify functionality but keep the same design language.
 
 Current implementation:
 
