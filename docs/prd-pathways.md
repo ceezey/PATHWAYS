@@ -167,10 +167,10 @@ The Problem / Requirement mapping is derived from the requirement text and objec
 | G-F1-4 | A guessed or unassigned project identifier is denied on the API | Met | QAD-A01, QAD-A02 |
 | G-F1-5 | Role and assignment escalation is denied; each manager authorizes only the roles in their scope | Met | QAD-A06, QAD-R03 |
 | G-F1-6 | A revoked grant, inactive role, ended assignment or deactivated account denies the next request | Met | QAD-R05 |
-| G-F1-7 | An actor with `audit.read` lists audit events in their scope with filters; others are denied | Met | To be added |
-| G-F1-8 | A user views and updates only their own profile | Met | To be added |
-| G-F1-9 | A user requests a password reset from the sign-in page and sets a new password through the recovery link | Met | To be added |
-| G-F1-10 | The app locks sign-in after repeated failures | Not met: no in-app sign-in lockout; the API does not implement one (the only lockout in code is the step-up PIN, PRD-F3) | To be added |
+| G-F1-7 | An actor with `audit.read` lists audit events in their scope with filters; others are denied | Met | QAD-T36 |
+| G-F1-8 | A user views and updates only their own profile | Met | QAD-T37 |
+| G-F1-9 | A user requests a password reset from the sign-in page and sets a new password through the recovery link | Met | QAD-T38 |
+| G-F1-10 | The app locks sign-in after repeated failures | Not met: no in-app sign-in lockout; the API does not implement one (the only lockout in code is the step-up PIN, PRD-F3) | QAD-T39 |
 
 #### Use Cases
 
@@ -285,21 +285,21 @@ flowchart LR
 | G-F2-1 | A Project Manager creates a project with target beneficiaries, an opening budget and automatic self-assignment, audited | Met | QAD-R08 |
 | G-F2-2 | Project list and detail show only scoped projects and the tabs the role may read | Met | QAD-R02 |
 | G-F2-3 | Locked fields stay disabled and unsubmitted; a write carrying free-text implementing partners is rejected | Met | QAD-RBP-06, QAD-RBP-07 |
-| G-F2-4 | A project can be archived by a role holding `projects.archive` | Not met | To be added |
+| G-F2-4 | A project can be archived by a role holding `projects.archive` | Not met | QAD-T40 |
 | G-F2-5 | Authorized activity create and update persist; dates outside the project timeline need a justification | Met | QAD-T02 |
 | G-F2-6 | A progress update or proof submission enters review, and only one update awaits review per activity | Met | QAD-T02 |
-| G-F2-7 | A reviewer other than the submitter approves or returns an update, and only approval moves activity progress | Met | To be added |
-| G-F2-8 | Private proof inspection succeeds only for a pending update and fails with a conflict when revisions changed | Met | To be added |
-| G-F2-9 | A reviewer records an overdue explanation for an activity | Met | To be added |
-| G-F2-10 | Milestones are created and updated only with `milestones.manage` | Met | To be added |
+| G-F2-7 | A reviewer other than the submitter approves or returns an update, and only approval moves activity progress | Met | QAD-T41 |
+| G-F2-8 | Private proof inspection succeeds only for a pending update and fails with a conflict when revisions changed | Met | QAD-A22 |
+| G-F2-9 | A reviewer records an overdue explanation for an activity | Met | QAD-T42 |
+| G-F2-10 | Milestones are created and updated only with `milestones.manage` | Met | QAD-T43 |
 | G-F2-11 | Each role sees only the actions its permissions allow; a forged capability flag still returns 403 | Met | QAD-RBP-01, QAD-RBP-05 |
 | G-F2-12 | The assignable-officer read lists only active Project Officers with access, and denies other roles | Met | QAD-RBP-02, QAD-RBP-08 |
 | G-F2-13 | An out-of-scope project or activity is denied before any write | Met | QAD-A02, QAD-P09 |
-| G-F2-14 | A budget record is created or replaced with a stale-revision check | Met | To be added |
-| G-F2-15 | An expense is submitted against a budget reference; a retry with the same client request id does not duplicate it | Met | To be added |
-| G-F2-16 | A private receipt is attached to a pending expense, and verification or approval needs it | Met | To be added |
-| G-F2-17 | An expense is verified, then approved by a distinct reviewer; rejection requires a reason | Met | To be added |
-| G-F2-18 | Final sign-off is recorded once per expense by a holder of `expenses.signoff` | Met | To be added |
+| G-F2-14 | A budget record is created or replaced with a stale-revision check | Met | QAD-T44 |
+| G-F2-15 | An expense is submitted against a budget reference; a retry with the same client request id does not duplicate it | Met | QAD-T45 |
+| G-F2-16 | A private receipt is attached to a pending expense, and verification or approval needs it | Met | QAD-T46 |
+| G-F2-17 | An expense is verified, then approved by a distinct reviewer; rejection requires a reason | Met | QAD-T47 |
+| G-F2-18 | Final sign-off is recorded once per expense by a holder of `expenses.signoff` | Met | QAD-T48 |
 | G-F2-19 | Overview metrics derive budget utilization and timeline deterministically and deny out-of-scope projects | Met | QAD-P03, QAD-P08 |
 
 #### Use Cases
@@ -506,7 +506,7 @@ stateDiagram-v2
 | G-F3-3 | A project without a published registration form provisions exactly one system form with the canonical field set; a second or parallel call returns the same form | Met | QAD-DRF-01 |
 | G-F3-4 | Beneficiary detail without a fresh server-verified step-up returns 403 `STEP_UP_REQUIRED`, and client-supplied step-up values are ignored | Met | QAD-A11 |
 | G-F3-5 | Program Manager, Grant Manager and System Administrator requests for beneficiary detail are denied | Met | QAD-A03 |
-| G-F3-6 | A registration sharing an identity with an existing profile is held as review-required, and the matched profile stays hidden from registrars; the review step is unreachable by default roles and no merge is provided | Partly met | To be added (test: beneficiaries.service.test.ts) |
+| G-F3-6 | A registration sharing an identity with an existing profile is held as review-required, and the matched profile stays hidden from registrars; the review step is unreachable by default roles and no merge is provided | Partly met | QAD-A23 |
 
 #### Use Cases
 
@@ -592,12 +592,12 @@ Not applicable to this charter: a profile is active or archived, and journey lif
 
 | Gate | Condition | Status | QAD |
 |---|---|---|---|
-| G-F4-1 | System Administrator, Monitoring and Evaluation Officer and Project Manager can save journey stages for a project; other roles are denied | Met | To be added (test: participants.service.test.ts) |
+| G-F4-1 | System Administrator, Monitoring and Evaluation Officer and Project Manager can save journey stages for a project; other roles are denied | Met | QAD-T49 |
 | G-F4-2 | A participation or progress event persists against the enrollment and history returns it in chronological order | Met | QAD-T04 |
-| G-F4-3 | A completion, dropout or transfer event closes the enrollment with its end date and reason | Met | To be added (test: participants.service.test.ts) |
-| G-F4-4 | A correction adds a new event linked to the original with a required reason; the original is never overwritten | Met | To be added (test: participants.service.test.ts) |
+| G-F4-3 | A completion, dropout or transfer event closes the enrollment with its end date and reason | Met | QAD-T50 |
+| G-F4-4 | A correction adds a new event linked to the original with a required reason; the original is never overwritten | Met | QAD-T51 |
 | G-F4-5 | Reading journey history requires a fresh step-up, project assignment and `journeys.read`; unassigned or cross-organization requests are denied | Met | QAD-A11 |
-| G-F4-6 | A user can attach a free-text note to a journey record | Not met | To be added |
+| G-F4-6 | A user can attach a free-text note to a journey record | Not met | QAD-T52 |
 
 #### Use Cases
 
@@ -715,7 +715,7 @@ stateDiagram-v2
 |---|---|---|---|
 | G-F5-1 | An authorized user generates or builds a form, publishes it and sees it offered for entry; a form with missing required structure cannot publish | Met | QAD-T05 |
 | G-F5-2 | A valid direct entry persists as a validated submission linked to the project, and an invalid entry is rejected with field messages | Met | QAD-T05 |
-| G-F5-3 | A draft submission can be saved and edited before submit | Met | To be added |
+| G-F5-3 | A draft submission can be saved and edited before submit | Met | QAD-T53 |
 | G-F5-4 | Each form-definition export format downloads and writes one audit row; roles other than Monitoring and Evaluation Officer and System Administrator are denied | Met | QAD-IMP-04 |
 | G-F5-5 | A form request from another organization or an unassigned project is denied before any form is read | Met | QAD-IMP-11 |
 
@@ -814,7 +814,7 @@ stateDiagram-v2
 | G-F6-4 | Only users holding `imports.review` confirm or change a mapping; cross-project and other-uploader calls are denied before any write | Met | QAD-SM-11 |
 | G-F6-5 | A 5,000-row batch finishes through repeated bounded process calls; a failed or stopped run keeps server state and offers resume | Met | QAD-IMP-02 |
 | G-F6-6 | Spreadsheet formulas and scripted PDFs are not executed and scanned or oversized files fail with stable messages | Met | QAD-A07 |
-| G-F6-7 | Choosing a data type for a new field and translating values during import | Not met | To be added |
+| G-F6-7 | Choosing a data type for a new field and translating values during import | Not met | QAD-T54 |
 
 #### Use Cases
 
@@ -931,11 +931,11 @@ stateDiagram-v2
 
 | Gate | Condition | Status | QAD |
 |---|---|---|---|
-| G-F7-1 | An authorized user creates and updates an indicator in an assigned project; unauthorized roles and other organizations are refused | Met | To be added |
+| G-F7-1 | An authorized user creates and updates an indicator in an assigned project; unauthorized roles and other organizations are refused | Met | QAD-T55 |
 | G-F7-2 | An indicator shows the correct trusted metric, target and source | Met | QAD-T07 |
-| G-F7-3 | A measurement save is idempotent: the same key and input is read-only on retry, conflicting reuse fails | Met | To be added |
-| G-F7-4 | Indicator progress is independent of the retired project target goal and shows unavailable states instead of zero | Met | To be added |
-| G-F7-5 | Indicators can be linked and reused across projects | Not met | To be added |
+| G-F7-3 | A measurement save is idempotent: the same key and input is read-only on retry, conflicting reuse fails | Met | QAD-T56 |
+| G-F7-4 | Indicator progress is independent of the retired project target goal and shows unavailable states instead of zero | Met | QAD-T57 |
+| G-F7-5 | Indicators can be linked and reused across projects | Not met | QAD-T58 |
 
 #### Use Cases
 
@@ -1005,13 +1005,13 @@ Not applicable: indicators have active and archived flags only; no approval life
 
 | Gate | Condition | Status | QAD |
 |---|---|---|---|
-| G-F8-1 | Dashboards show only projects the role and assignment allow, with no cross-organization data | Met | To be added |
+| G-F8-1 | Dashboards show only projects the role and assignment allow, with no cross-organization data | Met | QAD-T59 |
 | G-F8-2 | Dashboard and SADDD values come from trusted persisted data | Met | QAD-T08 |
 | G-F8-3 | SADDD counts 1 to 4 are suppressed, counts 0 and 5 or more are shown, and complementary suppression holds | Met | QAD-A10 |
-| G-F8-4 | Age bands follow the locked boundaries; missing birth date is Unknown and an invalid one is excluded | Met | To be added |
+| G-F8-4 | Age bands follow the locked boundaries; missing birth date is Unknown and an invalid one is excluded | Met | QAD-T60 |
 | G-F8-5 | Program Manager and Grant Manager receive aggregates only, with raw beneficiary denial unchanged | Met | QAD-R06 |
-| G-F8-6 | SADDD is omitted for an open project period instead of failing the dashboard | Met | To be added |
-| G-F8-7 | Dashboard responsiveness is verified at production scale | Not met | To be added |
+| G-F8-6 | SADDD is omitted for an open project period instead of failing the dashboard | Met | QAD-T61 |
+| G-F8-7 | Dashboard responsiveness is verified at production scale | Not met | QAD-T62 |
 
 #### Use Cases
 
@@ -1094,8 +1094,8 @@ Not applicable: the dashboard is a read model with no lifecycle.
 | G-F9-6 | A retrieval fault returns 503, never a 500 or a silently empty payload | Met | QAD-T30 |
 | G-F9-7 | Survey results are released only for an exact non-overlapping period and only to roles with `assessments.detail.read` | Met | QAD-T33 |
 | G-F9-8 | Aggregate-only roles cannot difference open-period survey releases | Met | QAD-A21 |
-| G-F9-9 | Participation breakdowns, indicator trends and a server budget aggregate are available | Not met | To be added |
-| G-F9-10 | Survey totals for Program Manager and Grant Manager through a closed-period release table | Not met | To be added |
+| G-F9-9 | Participation breakdowns, indicator trends and a server budget aggregate are available | Not met | QAD-T63 |
+| G-F9-10 | Survey totals for Program Manager and Grant Manager through a closed-period release table | Not met | QAD-T64 |
 
 #### Use Cases
 
@@ -1170,10 +1170,10 @@ Not applicable: analytics views are read models with no lifecycle.
 | G-F10-1 | A rule that holds for an episode raises exactly one alert carrying versioned evidence | Partly met | QAD-T09 |
 | G-F10-2 | An unavailable metric is recorded as not evaluated and never raises a misleading alert | Met | QAD-T24 |
 | G-F10-3 | A rule containing raw SQL or code is rejected | Met | QAD-A08 |
-| G-F10-4 | Alert status follows the lifecycle state machine and terminal alerts accept no further disposition | Met | To be added |
-| G-F10-5 | Only holders of the alert permissions read, review or record an outcome, scoped to their organization and project | Partly met | To be added |
-| G-F10-6 | Budget, Beneficiary and survey rule metrics evaluate and raise alerts | Not met | To be added |
-| G-F10-7 | Background evaluation runs on a schedule in the hosted environment | Not met | To be added |
+| G-F10-4 | Alert status follows the lifecycle state machine and terminal alerts accept no further disposition | Met | QAD-T65 |
+| G-F10-5 | Only holders of the alert permissions read, review or record an outcome, scoped to their organization and project | Partly met | QAD-T66 |
+| G-F10-6 | Budget, Beneficiary and survey rule metrics evaluate and raise alerts | Not met | QAD-T67 |
+| G-F10-7 | Background evaluation runs on a schedule in the hosted environment | Not met | QAD-T68 |
 
 #### Use Cases
 
@@ -1276,10 +1276,10 @@ stateDiagram-v2
 | Gate | Condition | Status | QAD |
 |---|---|---|---|
 | G-F11-1 | An authorized user reviews a predefined recommendation linked to its alert and evidence | Partly met | QAD-T10 |
-| G-F11-2 | An outcome requires a note and records actor, time and decision | Met | To be added |
-| G-F11-3 | A user without the outcome permission sees the recommendation read-only | Met | To be added |
+| G-F11-2 | An outcome requires a note and records actor, time and decision | Met | QAD-T69 |
+| G-F11-3 | A user without the outcome permission sees the recommendation read-only | Met | QAD-T70 |
 | G-F11-4 | A recommendation is retrieved from configuration and never generated at runtime | Met | QAD-A08 |
-| G-F11-5 | A recommendation is marked Auto-resolved when its linked alert clears | Not met | To be added |
+| G-F11-5 | A recommendation is marked Auto-resolved when its linked alert clears | Not met | QAD-T71 |
 
 #### Use Cases
 
@@ -1360,8 +1360,8 @@ stateDiagram-v2
 |---|---|---|---|
 | G-F12-1 | Report and visualization output respects role scope and suppression | Partly met | QAD-T13 |
 | G-F12-2 | A failed report or export leaves source data intact | Met | QAD-T26 |
-| G-F12-3 | Export writes an audit event without report content | Met | To be added |
-| G-F12-4 | Every report type exports as CSV, XLS, XLSX and PDF | Not met | To be added |
+| G-F12-3 | Export writes an audit event without report content | Met | QAD-T72 |
+| G-F12-4 | Every report type exports as CSV, XLS, XLSX and PDF | Not met | QAD-T73 |
 | G-F12-5 | Descriptive views refuse callers without `analytics.descriptive.read` and exports refuse callers without `analytics.export` | Met | QAD-A18 |
 
 #### Use Cases
@@ -1441,9 +1441,9 @@ flowchart LR
 |---|---|---|---|
 | G-F13-1 | The public surface exposes only approved data and no private media | Met | QAD-T11 |
 | G-F13-2 | A public request for private media is denied | Met | QAD-A09 |
-| G-F13-3 | Publication requires a distinct approver and follows the publication state machine | Met | To be added |
-| G-F13-4 | A withdrawn project disappears from public reads immediately | Met | To be added |
-| G-F13-5 | The public pages are verified in a hosted environment | Not met | To be added |
+| G-F13-3 | Publication requires a distinct approver and follows the publication state machine | Met | QAD-T74 |
+| G-F13-4 | A withdrawn project disappears from public reads immediately | Met | QAD-T75 |
+| G-F13-5 | The public pages are verified in a hosted environment | Not met | QAD-T76 |
 
 #### Use Cases
 
