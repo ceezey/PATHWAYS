@@ -592,6 +592,8 @@ END $$;
       Invoke-LocalSql 'ALTER TABLE auth.users ADD COLUMN IF NOT EXISTS email text;' $phase6Database
       Invoke-LocalSql ([IO.File]::ReadAllText((Join-Path $phase6Root 'apps/api/prisma/tests/signin-password-hook-runtime.sql'))) $phase6Database
       Write-Output 'SIGNIN_PASSWORD_HOOK_RUNTIME=PASS'
+      Invoke-LocalSql ([IO.File]::ReadAllText((Join-Path $phase6Root 'apps/api/prisma/tests/p09-role-allows-grants-runtime.sql'))) $phase6Database
+      Write-Output 'P09_ROLE_ALLOWS_GRANTS_RUNTIME=PASS'
     }
     Invoke-LocalSql 'ALTER ROLE pathways_runtime LOGIN;' $phase6Database
     $env:PATHWAYS_CSV_RBAC_LOCAL_TESTS = '1'

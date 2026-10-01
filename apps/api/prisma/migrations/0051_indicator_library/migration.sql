@@ -34,6 +34,15 @@ LANGUAGE sql IMMUTABLE SECURITY INVOKER SET search_path='' AS $matrix$
   OR pathways.p09_role_allows_0048($1,$2)
 $matrix$;
 
+-- Carry the EXECUTE grants of the renamed function over so the rules owners keep access.
+DO $$ DECLARE g oid; BEGIN
+ REVOKE ALL ON FUNCTION pathways.p09_role_allows(text,text) FROM PUBLIC,anon,authenticated,service_role;
+ FOR g IN SELECT DISTINCT a.grantee FROM pg_proc p,aclexplode(p.proacl) a
+  WHERE p.oid='pathways.p09_role_allows_0048(text,text)'::regprocedure AND a.grantee NOT IN (0,p.proowner) LOOP
+  EXECUTE format('GRANT EXECUTE ON FUNCTION pathways.p09_role_allows(text,text) TO %I',(SELECT rolname FROM pg_roles WHERE oid=g));
+ END LOOP;
+END $$;
+
 INSERT INTO pathways.role_permissions(role_id,permission_id)
 SELECT r.id,p.id FROM pathways.roles r JOIN pathways.permissions p ON p.code LIKE 'indicators.library.%'
 WHERE r.code IN ('SYSTEM_ADMINISTRATOR','MONITORING_AND_EVALUATION_OFFICER','PROJECT_MANAGER')
@@ -113,6 +122,8 @@ DO $$ BEGIN
  OR pathways.p09_role_allows('PROGRAM_MANAGER','indicators.library.read')
  OR pathways.p09_role_allows('GRANT_MANAGER','indicators.library.read')
  THEN RAISE EXCEPTION '0051 grant postcondition failed'; END IF;
+ IF EXISTS((SELECT a.grantee,a.privilege_type FROM pg_proc p,aclexplode(COALESCE(p.proacl,acldefault('f',p.proowner))) a WHERE p.oid='pathways.p09_role_allows(text,text)'::regprocedure EXCEPT SELECT a.grantee,a.privilege_type FROM pg_proc p,aclexplode(COALESCE(p.proacl,acldefault('f',p.proowner))) a WHERE p.oid='pathways.p09_role_allows_0048(text,text)'::regprocedure) UNION ALL (SELECT a.grantee,a.privilege_type FROM pg_proc p,aclexplode(COALESCE(p.proacl,acldefault('f',p.proowner))) a WHERE p.oid='pathways.p09_role_allows_0048(text,text)'::regprocedure EXCEPT SELECT a.grantee,a.privilege_type FROM pg_proc p,aclexplode(COALESCE(p.proacl,acldefault('f',p.proowner))) a WHERE p.oid='pathways.p09_role_allows(text,text)'::regprocedure))
+ THEN RAISE EXCEPTION 'p09_role_allows grants differ from the previous function'; END IF;
  IF NOT (SELECT relrowsecurity AND relforcerowsecurity FROM pg_catalog.pg_class
   WHERE oid='pathways.indicator_library_entries'::pg_catalog.regclass)
  OR (SELECT count(*) FROM pg_catalog.pg_policy WHERE polrelid='pathways.indicator_library_entries'::pg_catalog.regclass)<>3
