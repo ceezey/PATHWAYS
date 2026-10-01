@@ -28,20 +28,27 @@ describe('approved CSV RBAC contract', () => {
       .sort()
     const pairs = (block: string) =>
       [...block.matchAll(/\('([A-Z_]+)','([a-z.]+)'\)/g)].map((match) => `${match[1]}:${match[2]}`)
-    const amended = contract.amendments.flatMap((amendment) =>
-      amendment.grants.map(([role, permission]) => `${role}:${permission}`),
-    )
-    // Effective grants: the 0027 baseline plus forward amendments (0035 inserts them).
+    const key = ([role, permission]: string[]) => `${role}:${permission}`
+    const grants = contract.amendments.flatMap((amendment) => amendment.grants.map(key))
+    const revokes = contract.amendments.flatMap((amendment) => amendment.revokes?.map(key) ?? [])
+    // Effective grants: the 0027 baseline plus forward amendments, minus later revokes.
     expect(
-      [...pairs(sql.split('INSERT INTO rbac_expected VALUES')[1].split(';')[0]), ...amended].sort(),
+      [...pairs(sql.split('INSERT INTO rbac_expected VALUES')[1].split(';')[0]), ...grants]
+        .filter((pair) => !revokes.includes(pair))
+        .sort(),
     ).toEqual(expected)
-    // The immutable ceiling is replaced wholesale; the latest definition must match.
+    // 0035 is the last wholesale matrix; 0047 and 0048 wrap it, so undo their deltas here.
+    const later = contract.amendments.filter((amendment) => amendment.migration >= '0036')
+    const laterGrants = later.flatMap((amendment) => amendment.grants.map(key))
+    const at0035 = [...expected.filter((pair) => !laterGrants.includes(pair)), ...revokes]
     expect(pairs(latestMatrix.split('AS $matrix$')[1].split('$matrix$;')[0]).sort()).toEqual(
-      expected,
+      at0035.sort(),
     )
-    for (const [role, permission] of contract.amendments.flatMap((amendment) => amendment.grants)) {
-      expect(latestMatrix).toContain(`WHERE r.code='${role}'`)
-      expect(latestMatrix).toContain(`'${permission}'`)
+    for (const amendment of contract.amendments) {
+      const text = migration(amendment.migration)
+      for (const [, permission] of amendment.grants) expect(text).toContain(`'${permission}'`)
+      for (const [role, permission] of amendment.revokes ?? [])
+        expect(text).toContain(`$1='${role}' AND $2='${permission}'`)
     }
   })
   it('matches every canonical grant and preserves unique permission definitions', () => {

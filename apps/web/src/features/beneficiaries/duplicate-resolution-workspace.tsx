@@ -2,16 +2,10 @@
 
 import { ArrowLeft, CheckCircle2, Link2, SearchCheck, UsersRound } from 'lucide-react'
 import Link from 'next/link'
-import { useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 
 import { PageHeader } from '@/components/layout/page-header'
-import {
-  EmptyState,
-  SectionCard,
-  StatusBadge,
-  UnavailableHint,
-  unavailableControlProps,
-} from '@/components/pathways'
+import { EmptyState, SectionCard, StatusBadge } from '@/components/pathways'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -23,58 +17,101 @@ import {
 } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { UNFINISHED_CONTROLS_UI_ENABLED } from '@/constants/feature-flags'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
+import { useCurrentRole } from '@/hooks/use-current-role'
+import { useSafeProjectSelection } from '@/hooks/use-safe-project-selection'
+import {
+  type DuplicateCandidatePair,
+  type DuplicateProfile,
+  pathwaysClient,
+} from '@/lib/services/pathways-client'
+import type { ProjectSummary } from '@/types/pathways'
 
-type DuplicateCandidate = {
-  id: string
-  leftId: string
-  rightId: string
-  confidence: 'High' | 'Medium'
-  reasons: string[]
-  left: PersonSummary
-  right: PersonSummary
-}
+type Decision = 'KEEP_DISTINCT' | 'LINK'
 
-type PersonSummary = {
-  code: string
-  name: string
-  birthDate: string
-  location: string
-  project: string
-  contact: string
-  updatedAt: string
-}
-
-const candidates: DuplicateCandidate[] = []
-
-const unavailable =
-  'Duplicate review is unavailable until a server-backed matching and resolution service is available.'
+const pairId = (pair: DuplicateCandidatePair) => `${pair.left.code} / ${pair.right.code}`
+const failure = 'Duplicate candidates could not be loaded. Try again.'
 
 export const DuplicateResolutionWorkspace = () => {
+  const { role } = useCurrentRole()
+  const [projects, setProjects] = useState<ProjectSummary[]>([])
+  const [projectId, setProjectId] = useSafeProjectSelection(projects.map((project) => project.id))
+  const [pairs, setPairs] = useState<DuplicateCandidatePair[]>([])
+  const [status, setStatus] = useState<'loading' | 'ready' | 'failed'>('loading')
   const [query, setQuery] = useState('')
-  const [selectedId, setSelectedId] = useState(candidates[0]?.id ?? '')
-  const [decision, setDecision] = useState<'link' | 'distinct' | null>(null)
+  const [selectedKey, setSelectedKey] = useState('')
+  const [decision, setDecision] = useState<Decision | null>(null)
+  const [busy, setBusy] = useState(false)
   const [notice, setNotice] = useState('')
+
+  useEffect(() => {
+    if (!role) return
+    let active = true
+    pathwaysClient
+      .getProjectsForRole(role)
+      .then((rows) => active && setProjects(rows))
+      .catch(() => active && setStatus('failed'))
+    return () => {
+      active = false
+    }
+  }, [role])
+
+  const load = useCallback(async () => {
+    if (!projectId) return
+    setStatus('loading')
+    try {
+      setPairs(await pathwaysClient.getDuplicateCandidates(projectId))
+      setStatus('ready')
+    } catch {
+      setStatus('failed')
+    }
+  }, [projectId])
+
+  useEffect(() => {
+    void load()
+  }, [load])
+
   const visible = useMemo(() => {
     const normalized = query.trim().toLocaleLowerCase()
     return normalized
-      ? candidates.filter((candidate) =>
-          [
-            candidate.id,
-            candidate.left.code,
-            candidate.right.code,
-            candidate.left.name,
-            candidate.right.name,
-          ].some((value) => value.toLocaleLowerCase().includes(normalized)),
+      ? pairs.filter((pair) =>
+          [pair.left.code, pair.right.code, pair.left.name].some((value) =>
+            value.toLocaleLowerCase().includes(normalized),
+          ),
         )
-      : candidates
-  }, [query])
-  const selected = candidates.find((candidate) => candidate.id === selectedId) ?? visible[0]
+      : pairs
+  }, [pairs, query])
+  const selected = visible.find((pair) => pairId(pair) === selectedKey) ?? visible[0]
 
-  const confirmDecision = () => {
+  const confirmDecision = async () => {
     if (!selected || !decision) return
-    setNotice(unavailable)
-    setDecision(null)
+    setBusy(true)
+    try {
+      await pathwaysClient.resolveDuplicate(projectId, {
+        leftId: selected.left.id,
+        rightId: selected.right.id,
+        decision,
+      })
+      setNotice(
+        decision === 'LINK'
+          ? 'Profiles linked as the same person. The decision is audited.'
+          : 'Profiles kept as distinct people. The decision is audited.',
+      )
+      setDecision(null)
+      await load()
+    } catch {
+      setNotice('')
+      setStatus('failed')
+      setDecision(null)
+    } finally {
+      setBusy(false)
+    }
   }
 
   return (
@@ -93,9 +130,14 @@ export const DuplicateResolutionWorkspace = () => {
         }
       />
 
-      <div className="rounded-xl border border-warning/25 bg-warning-subtle px-4 py-3 text-sm leading-6 text-warning">
-        {unavailable}
-      </div>
+      {status === 'failed' ? (
+        <div
+          role="alert"
+          className="rounded-xl border border-danger/25 bg-danger-subtle px-4 py-3 text-sm leading-6 text-danger"
+        >
+          {failure}
+        </div>
+      ) : null}
 
       {notice ? (
         <output className="flex items-start gap-2 rounded-xl border border-success/25 bg-success-subtle px-4 py-3 text-sm leading-6 text-success">
@@ -105,91 +147,90 @@ export const DuplicateResolutionWorkspace = () => {
       ) : null}
 
       <div className="grid gap-6 xl:grid-cols-[320px_minmax(0,1fr)]">
-        <SectionCard title="Review queue" description={unavailable}>
+        <SectionCard
+          title="Review queue"
+          description="Profiles in the project that share a name and birth date."
+          className="rounded-xl"
+        >
           <div className="space-y-3">
+            {projects.length > 1 ? (
+              <div className="space-y-2">
+                <Label htmlFor="duplicate-project">Project</Label>
+                <Select value={projectId} onValueChange={setProjectId}>
+                  <SelectTrigger id="duplicate-project">
+                    <SelectValue placeholder="Select a project" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {projects.map((project) => (
+                      <SelectItem key={project.id} value={project.id}>
+                        {project.title}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            ) : null}
             <div className="space-y-2">
               <Label htmlFor="duplicate-search">Search queue</Label>
               <Input
                 id="duplicate-search"
                 type="search"
-                placeholder="Name, code, or match ID"
+                placeholder="Name or code"
                 value={query}
                 onChange={(event) => setQuery(event.target.value)}
               />
             </div>
             {visible.length ? (
-              visible.map((candidate) => (
+              visible.map((pair) => (
                 <button
-                  key={candidate.id}
+                  key={pairId(pair)}
                   type="button"
-                  className={`w-full rounded-md border p-4 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ${selected?.id === candidate.id ? 'border-primary bg-primary-subtle' : 'hover:border-primary/40'}`}
-                  onClick={() => setSelectedId(candidate.id)}
-                  aria-pressed={selected?.id === candidate.id}
+                  className={`min-h-11 w-full rounded-xl border p-4 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ${selected && pairId(selected) === pairId(pair) ? 'border-primary bg-primary-subtle' : 'hover:border-primary/40'}`}
+                  onClick={() => setSelectedKey(pairId(pair))}
+                  aria-pressed={selected ? pairId(selected) === pairId(pair) : false}
                 >
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="text-xs font-semibold uppercase tracking-wide text-primary">
-                      {candidate.id}
-                    </span>
-                    <StatusBadge tone={candidate.confidence === 'High' ? 'warning' : 'neutral'}>
-                      {candidate.confidence}
-                    </StatusBadge>
-                  </div>
-                  <p className="mt-2 text-sm font-semibold">{candidate.left.name}</p>
-                  <p className="mt-1 text-xs text-muted-foreground">
-                    {candidate.left.code} / {candidate.right.code}
-                  </p>
+                  <p className="text-sm font-semibold">{pair.left.name}</p>
+                  <p className="mt-1 text-xs text-muted-foreground">{pairId(pair)}</p>
                 </button>
               ))
             ) : (
-              <EmptyState icon={UsersRound} title="No possible matches" description={unavailable} />
+              <EmptyState
+                icon={UsersRound}
+                title="No possible matches"
+                description={
+                  status === 'loading' ? 'Loading candidates.' : 'No unreviewed matches were found.'
+                }
+              />
             )}
           </div>
         </SectionCard>
 
         <SectionCard
-          title={selected ? `Compare ${selected.id}` : 'Record comparison'}
-          description="Review differences and matching evidence before retaining or merging records."
+          title={selected ? `Compare ${pairId(selected)}` : 'Record comparison'}
+          description="Review differences and matching evidence before deciding."
+          className="rounded-xl"
         >
           {selected ? (
             <div className="space-y-6">
-              <div className="flex flex-wrap gap-2">
-                {selected.reasons.map((reason) => (
-                  <StatusBadge key={reason} tone="neutral">
-                    {reason}
-                  </StatusBadge>
-                ))}
-              </div>
+              <StatusBadge tone="neutral">Same name and birth date</StatusBadge>
               <div className="grid gap-4 lg:grid-cols-2">
                 <PersonCard label="Existing profile" person={selected.left} />
                 <PersonCard label="Potential match" person={selected.right} />
               </div>
-              {UNFINISHED_CONTROLS_UI_ENABLED ? (
-                <div className="flex flex-wrap justify-end gap-3">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    {...Object.assign(
-                      { onClick: () => setDecision('distinct') },
-                      unavailableControlProps('duplicate-keep-distinct-hint'),
-                    )}
-                  >
-                    <SearchCheck className="mr-2 h-4 w-4" aria-hidden="true" />
-                    Keep as distinct people
-                  </Button>
-                  <UnavailableHint id="duplicate-keep-distinct-hint" />
-                  <Button
-                    type="button"
-                    {...Object.assign(
-                      { onClick: () => setDecision('link') },
-                      unavailableControlProps('duplicate-merge-linked-hint'),
-                    )}
-                  >
-                    <Link2 className="mr-2 h-4 w-4" aria-hidden="true" />
-                    Merge linked profiles
-                  </Button>
-                  <UnavailableHint id="duplicate-merge-linked-hint" />
-                </div>
-              ) : null}
+              <div className="flex flex-wrap justify-end gap-3">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setDecision('KEEP_DISTINCT')}
+                >
+                  <SearchCheck className="mr-2 h-4 w-4" aria-hidden="true" />
+                  Keep as distinct people
+                </Button>
+                <Button type="button" onClick={() => setDecision('LINK')}>
+                  <Link2 className="mr-2 h-4 w-4" aria-hidden="true" />
+                  Merge linked profiles
+                </Button>
+              </div>
             </div>
           ) : null}
         </SectionCard>
@@ -199,21 +240,23 @@ export const DuplicateResolutionWorkspace = () => {
         <DialogContent>
           <DialogHeader>
             <DialogTitle>
-              {decision === 'link'
-                ? 'Flag these profiles as related?'
+              {decision === 'LINK'
+                ? 'Link these profiles as one person?'
                 : 'Keep these profiles distinct?'}
             </DialogTitle>
             <DialogDescription>
-              {decision === 'link'
-                ? 'The right profile will be merged into the existing profile. Enrollments, participation, assessments, and notes are retained, and the action is audited.'
-                : 'Both profiles will remain and the reviewed decision will be retained in history.'}
+              {decision === 'LINK'
+                ? 'Both profiles stay and keep their own records; the link is recorded in the audit trail and the pair leaves the queue.'
+                : 'Both profiles stay and the reviewed decision is recorded in the audit trail.'}
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setDecision(null)}>
+            <Button variant="outline" onClick={() => setDecision(null)} disabled={busy}>
               Cancel
             </Button>
-            <Button onClick={confirmDecision}>Confirm decision</Button>
+            <Button onClick={confirmDecision} disabled={busy}>
+              Confirm decision
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -221,7 +264,7 @@ export const DuplicateResolutionWorkspace = () => {
   )
 }
 
-const PersonCard = ({ label, person }: { label: string; person: PersonSummary }) => (
+const PersonCard = ({ label, person }: { label: string; person: DuplicateProfile }) => (
   <section className="rounded-xl border bg-card p-5" aria-label={label}>
     <p className="text-xs font-semibold uppercase tracking-wide text-primary">{label}</p>
     <h2 className="mt-2 text-lg font-semibold">{person.name}</h2>
@@ -230,10 +273,8 @@ const PersonCard = ({ label, person }: { label: string; person: PersonSummary })
       {(
         [
           ['Birth date', person.birthDate],
-          ['Location', person.location],
-          ['Project', person.project],
-          ['Contact', person.contact],
-          ['Last updated', person.updatedAt],
+          ['Location', person.location || 'Not recorded'],
+          ['Last updated', person.updatedAt.slice(0, 10)],
         ] as const
       ).map(([term, value]) => (
         <div key={term} className="grid grid-cols-[110px_1fr] gap-3">

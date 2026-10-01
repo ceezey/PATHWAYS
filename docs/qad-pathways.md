@@ -114,6 +114,7 @@ Every implemented feature requires:
 | QAD-T77 | lint and typecheck pass across all workspaces before merge | Happy | Maintainability | PRD-F1 to PRD-F13 (NFR-14) | None | None | Command: `pnpm lint`; `pnpm typecheck` |
 | QAD-T78 | the SAD checker routes changed paths to specialist reviews deterministically | Happy | Maintainability | PRD-F1 to PRD-F13 (NFR-14) | None | None | `scripts/sad/check.test.ts` |
 | QAD-T79 | the schema, migration chain and security catalog replay on disposable PostgreSQL 18 from archive and from the baseline | Happy | Portability | PRD-F1 to PRD-F13 (NFR-11) | None | None | `infra/supabase/phase6/Replay-Local.ps1`; `apps/api/prisma/tests/baseline-security-catalog.sql` |
+| QAD-IR-01 | an M&E Officer lists unreviewed same-name, same-birth-date pairs, then records Keep distinct or Link; each writes one audit event and the pair leaves the queue | Happy | Functional Suitability | PRD-F3 | G-F3-6 | UC-F3-3 | `apps/api/src/modules/beneficiaries/identity-review.service.test.ts`; `apps/web/src/features/beneficiaries/duplicate-resolution-workspace.test.tsx` |
 
 ### 3.2 Sad Paths
 
@@ -167,6 +168,9 @@ Every implemented feature requires:
 | QAD-T80 | keyboard operation, focus order, labels and contrast meet the design baseline on every primary screen; not yet verified (NFR-11) | Sad | Usability | PRD-F1 to PRD-F13 (NFR-6) | None | None | Manual; pending |
 | QAD-T81 | the application works on the supported browsers and Windows versions in the PRD; not yet verified (NFR-11) | Sad | Compatibility | PRD-F1 to PRD-F13 (NFR-11) | None | None | Manual; pending |
 | QAD-T82 | a backup restore recovers organization data after an interruption without loss beyond the 24-hour recovery point and within the 5 to 8 hour recovery time (NFR-15; PRD 5.7, OPS 1); target not yet verified | Sad | Reliability | PRD-F1 to PRD-F13 (NFR-15) | None | None | Manual; pending, backup runbook exists |
+| QAD-IR-02 | a role without the review grant, the same profile twice, a profile outside the project or an already decided pair is rejected with no audit write | Sad | Security | PRD-F3 | G-F3-6 | UC-F3-3 | `apps/api/src/modules/beneficiaries/identity-review.service.test.ts` |
+| QAD-JR-01 | System Administrator requests beneficiary journey history -> 403, while listing and saving project journey stages succeeds | Sad | Security | PRD-F4 | G-F4-5 | UC-F4-4 | `apps/api/src/modules/participants/journeys-access.test.ts` |
+| QAD-FP-01 | a form author publishes their own form -> 403 with no write or audit, in any role; a role without `forms.publish` is denied | Sad | Security | PRD-F5 | G-F5-1 | UC-F5-1 | `apps/api/src/modules/metadata/metadata.service.test.ts` |
 
 ### 3.3 Abuse / Adversarial Paths
 
@@ -223,6 +227,8 @@ Every implemented feature requires:
 | QAD-RBP-10 | Migration 0039 splits legacy text on newline, `;` and `,`, de-duplicates by `lower(btrim(name))`, skips (never truncates) pieces outside 1-120 characters, skips a whole project that would exceed 20 linked partners, never removes an existing structured link, writes exactly one `PROJECT_PARTNERS_BACKFILLED` audit row per changed project, and is a no-op on a second run | Abuse | Reliability | PRD-F2 | None | UC-F2-1 | `apps/api/prisma/tests/project-partner-backfill-runtime.sql` |
 | QAD-A22 | private proof inspection succeeds only for a pending update and returns a conflict when revisions changed | Abuse | Security | PRD-F2 | G-F2-8 | UC-F2-4 | `apps/api/src/modules/activities/private-proof-inspection.service.test.ts` |
 | QAD-A23 | a registration sharing an identity with an existing profile is held as review-required and the matched profile stays hidden from registrars | Abuse | Security | PRD-F3 | G-F3-6 | UC-F3-3 | `apps/api/src/modules/beneficiaries/beneficiaries.service.test.ts` |
+| QAD-IR-03 | a Project Officer or System Administrator with a forged review permission, or a request for an out-of-scope project, is denied before any profile is read | Abuse | Security | PRD-F3 | G-F3-6 | UC-F3-3 | `apps/api/src/modules/beneficiaries/identity-review.service.test.ts` |
+| QAD-JR-02 | a System Administrator profile claiming `journeys.read` is still denied beneficiary journey history and, without `journeys.manage`, stage listing | Abuse | Security | PRD-F4 | G-F4-5 | UC-F4-4 | `apps/api/src/modules/participants/journeys-access.test.ts`; `apps/api/src/modules/auth/csv-rbac.test.ts` |
 
 ### 3.4 Traceability
 
@@ -230,9 +236,9 @@ Every implemented feature requires:
 |---|---|---|
 | PRD-F1 | RBAC and Workspace Management | QAD-T01, QAD-T20, QAD-A01, QAD-A02, QAD-A05, QAD-A06, QAD-R01, QAD-R02, QAD-R03, QAD-R04, QAD-R05, QAD-R06, QAD-R07, QAD-R09, QAD-T36, QAD-T37, QAD-T38, QAD-T39, QAD-T77, QAD-T78, QAD-T79, QAD-T80, QAD-T81, QAD-T82 |
 | PRD-F2 | Project Profile and Activity Tracking | QAD-T02, QAD-R08, QAD-P01, QAD-P02, QAD-P03, QAD-P04, QAD-P06, QAD-P07, QAD-P08, QAD-P09, QAD-P10, QAD-RBP-01, QAD-RBP-02, QAD-RBP-03, QAD-RBP-04, QAD-RBP-05, QAD-RBP-06, QAD-RBP-07, QAD-RBP-08, QAD-RBP-09, QAD-RBP-10, QAD-T40, QAD-T41, QAD-A22, QAD-T42, QAD-T43, QAD-T44, QAD-T45, QAD-T46, QAD-T47, QAD-T48 |
-| PRD-F3 | Centralized Beneficiary Profile | QAD-T03, QAD-A03, QAD-A04, QAD-A11, QAD-A12, QAD-A13, QAD-A14, QAD-DRF-01, QAD-DRF-02, QAD-DRF-03, QAD-DRF-04, QAD-DRF-05, QAD-DRF-06, QAD-DRF-07, QAD-DRF-08, QAD-DRF-09, QAD-DRF-10, QAD-A23 |
-| PRD-F4 | Beneficiary Journey Tracking | QAD-T04, QAD-T49, QAD-T50, QAD-T51, QAD-T52 |
-| PRD-F5 | Digital Data Collection and Preparation | QAD-T05, QAD-IMP-04, QAD-IMP-09, QAD-IMP-11, QAD-IMP-13, QAD-T53 |
+| PRD-F3 | Centralized Beneficiary Profile | QAD-T03, QAD-A03, QAD-A04, QAD-A11, QAD-A12, QAD-A13, QAD-A14, QAD-DRF-01, QAD-DRF-02, QAD-DRF-03, QAD-DRF-04, QAD-DRF-05, QAD-DRF-06, QAD-DRF-07, QAD-DRF-08, QAD-DRF-09, QAD-DRF-10, QAD-A23, QAD-IR-01, QAD-IR-02, QAD-IR-03 |
+| PRD-F4 | Beneficiary Journey Tracking | QAD-T04, QAD-T49, QAD-T50, QAD-T51, QAD-T52, QAD-JR-01, QAD-JR-02 |
+| PRD-F5 | Digital Data Collection and Preparation | QAD-T05, QAD-IMP-04, QAD-IMP-09, QAD-IMP-11, QAD-IMP-13, QAD-T53, QAD-FP-01 |
 | PRD-F6 | Metadata-Driven Data Integration | QAD-T06, QAD-T21, QAD-T22, QAD-T25, QAD-A07, QAD-IMP-01, QAD-IMP-02, QAD-IMP-03, QAD-IMP-05, QAD-IMP-06, QAD-IMP-07, QAD-IMP-08, QAD-IMP-10, QAD-IMP-12, QAD-SM-01, QAD-SM-02, QAD-SM-03, QAD-SM-04, QAD-SM-05, QAD-SM-06, QAD-SM-07, QAD-SM-08, QAD-SM-09, QAD-SM-10, QAD-SM-11, QAD-T54 |
 | PRD-F7 | Project Indicator and Monitoring | QAD-T07, QAD-P05, QAD-T55, QAD-T56, QAD-T57, QAD-T58 |
 | PRD-F8 | Aggregated Monitoring Dashboard with SADDD Analysis | QAD-T08, QAD-T23, QAD-A10, QAD-T59, QAD-T60, QAD-T61, QAD-T62 |
@@ -289,7 +295,7 @@ PRD-F9 to PRD-F13 rows are in the matrix above and are cited by their gates in t
 - **NFR IDs:** NFR-1, NFR-2, NFR-12.
 - **Automated tests:** RBAC, organization isolation, step-up, suppression and public-exposure rows (abuse table), API guard tests, and SQL privilege runtime tests.
 - **Manual checks:** Public privacy review; security review by the SAD specialists.
-- **Gaps:** No penetration test. Identity-match review for duplicate registrations is partly met (G-F3-6).
+- **Gaps:** No penetration test.
 
 #### 3.5.7 Maintainability
 

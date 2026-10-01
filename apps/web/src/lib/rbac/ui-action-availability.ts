@@ -37,6 +37,7 @@ const supportedActionPermission: Partial<Record<UiAction, AtomicPermission>> = {
   'assessments.detail.view': 'assessments.detail.read',
   'beneficiaries.create': 'beneficiaries.records.register',
   'beneficiaries.edit': 'beneficiaries.profiles.update',
+  'beneficiaries.merge': 'beneficiaries.identities.review',
   'beneficiaries.participation.record': 'participation.record',
   'beneficiaries.journey.transition': 'beneficiaries.enrollments.manage',
   'beneficiaries.journey.correct': 'participation.record',

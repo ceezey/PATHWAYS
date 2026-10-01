@@ -57,7 +57,7 @@ Admin = System Administrator; Program = Program Manager; Grant = Grant Manager; 
 | `activities.create` | PO, PM |
 | `activities.update` | PM |
 | `activities.proof.submit` | PO, PM |
-| `journeys.read` | Admin, PO, M&E, PM |
+| `journeys.read` | PO, M&E, PM (Admin lists stages through `journeys.manage`) |
 | `journeys.manage` | Admin, M&E, PM |
 | `participation.record` | PO, M&E, PM |
 | `budgets.read` | Admin, PM, Program, Grant |
@@ -82,7 +82,7 @@ Admin = System Administrator; Program = Program Manager; Grant = Grant Manager; 
 | `beneficiaries.records.register` | PO, M&E, PM |
 | `beneficiaries.profiles.update` | PO, M&E, PM |
 | `beneficiaries.enrollments.manage` | PO, M&E, PM |
-| `beneficiaries.identities.review` | Denied |
+| `beneficiaries.identities.review` | M&E |
 | `beneficiaries.records.archive` | Denied |
 | `beneficiaries.aggregates.read` | Admin, PO, M&E, PM, Program, Grant |
 | `recommendations.outcome.record` | Admin, PO, M&E, PM, Program, Grant |

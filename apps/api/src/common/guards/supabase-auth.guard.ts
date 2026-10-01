@@ -131,7 +131,7 @@ export class SupabaseAuthGuard implements CanActivate {
       request.auth = identity
       throw new ForbiddenException('MFA verification is required before application access.')
     }
-    const permission = this.reflector.getAllAndOverride<string>(PERMISSION_KEY, handlers)
+    const permission = this.reflector.getAllAndOverride<string | string[]>(PERMISSION_KEY, handlers)
     if (boundary === 'workspace-discovery' && !permission) {
       await assertSeparateSession()
       request.auth = identity
@@ -172,7 +172,15 @@ export class SupabaseAuthGuard implements CanActivate {
     if (
       permission &&
       (request.user.roles.length !== 1 ||
-        !hasAtomicPermission(request.user.roles[0], request.user.permissions, permission))
+        ![permission]
+          .flat()
+          .some((code) =>
+            hasAtomicPermission(
+              request.user?.roles[0] ?? '',
+              request.user?.permissions ?? [],
+              code,
+            ),
+          ))
     ) {
       request.user = undefined
       request.authSessionId = undefined

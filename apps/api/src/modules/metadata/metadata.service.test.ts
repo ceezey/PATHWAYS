@@ -165,6 +165,19 @@ describe('P02 metadata service', () => {
     expect(tx.auditLog.create).not.toHaveBeenCalled()
   })
 
+  it('denies the author publishing own form in any publish role, and a role without forms.publish', async () => {
+    for (const role of ['SYSTEM_ADMINISTRATOR', 'PROJECT_OFFICER']) {
+      state.actor = actor(role, authorId)
+      await expect(
+        service.publishForm(state.actor, projectId, formId, {
+          expectedUpdatedAt: now.toISOString(),
+        }),
+      ).rejects.toBeInstanceOf(ForbiddenException)
+    }
+    expect(tx.digitalForm.updateMany).not.toHaveBeenCalled()
+    expect(tx.auditLog.create).not.toHaveBeenCalled()
+  })
+
   it('refuses to publish an incompatible Beneficiary registration definition', async () => {
     tx.digitalForm.findFirst.mockResolvedValue(
       form({

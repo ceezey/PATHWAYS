@@ -510,21 +510,22 @@ describe('P04 beneficiary registration service', () => {
     })
   })
 
-  it('returns review without disclosing a record for ambiguous exact identifiers', async () => {
+  it('returns an ambiguous-identity review to the reviewer without disclosing a record', async () => {
     tx.beneficiary.findUnique.mockResolvedValue({ id: beneficiaryId })
     tx.beneficiaryIdentifier.findUnique.mockResolvedValue({
       beneficiaryId: '50000000-0000-4000-8000-000000000099',
     })
     await expect(
       promote(values({ external_identifier_type: 'PARTNER_ID', external_identifier_value: 'A-1' })),
-    ).resolves.toEqual({ kind: 'REVIEW', code: 'IDENTITY_REVIEW_REQUIRED' })
+    ).resolves.toEqual({ kind: 'REVIEW', code: 'AMBIGUOUS_IDENTITY' })
     expect(tx.beneficiary.createMany).not.toHaveBeenCalled()
   })
 
   it('does not merge unknown LINK input using names, dates or email', async () => {
-    await expect(promote(values({ registration_operation: 'LINK' }))).rejects.toBeInstanceOf(
-      ForbiddenException,
-    )
+    await expect(promote(values({ registration_operation: 'LINK' }))).resolves.toEqual({
+      kind: 'REVIEW',
+      code: 'UNKNOWN_IDENTITY',
+    })
     expect(tx.beneficiary.createMany).not.toHaveBeenCalled()
   })
 
@@ -590,7 +591,7 @@ describe('P04 beneficiary registration service', () => {
     const updateFields = ['display_name']
     await expect(
       promote(values({ registration_operation: 'UPDATE', profile_update_fields: updateFields })),
-    ).rejects.toBeInstanceOf(ForbiddenException)
+    ).resolves.toEqual({ kind: 'REVIEW', code: 'SHARED_PROFILE_UPDATE_REVIEW_REQUIRED' })
     expect(tx.beneficiary.updateMany).not.toHaveBeenCalled()
   })
 
