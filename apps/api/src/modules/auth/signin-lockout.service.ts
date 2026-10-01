@@ -94,7 +94,7 @@ export class SignInLockoutService {
     if (result.session) {
       await this.db(
         () => this.prisma.$queryRaw<Array<{ s: unknown }>>`
-          SELECT pathways.signin_lockout_reset(${email}::text) AS s`,
+          SELECT 0 AS s FROM (SELECT pathways.signin_lockout_reset(${email}::text)) r`,
       )
       return result.session
     }

@@ -34,7 +34,7 @@ ROLLBACK;
 DO $$ BEGIN
  IF NOT EXISTS(SELECT FROM pg_catalog.pg_roles WHERE rolname='prisma' AND rolcanlogin AND rolinherit AND NOT rolsuper
   AND NOT rolcreaterole AND NOT rolreplication)
- OR NOT EXISTS(SELECT FROM public._prisma_migrations WHERE migration_name='0051_indicator_library'
+ OR NOT EXISTS(SELECT FROM public._prisma_migrations WHERE migration_name='0052_signin_password_hook'
   AND finished_at IS NOT NULL AND rolled_back_at IS NULL)
  OR EXISTS(SELECT FROM public._prisma_migrations WHERE migration_name='0053_expense_submit_race'
   AND finished_at IS NOT NULL AND rolled_back_at IS NULL)
@@ -44,7 +44,7 @@ DO $$ BEGIN
   WHERE m.member=(SELECT oid FROM pg_catalog.pg_roles WHERE rolname='prisma')
   AND (r.rolname LIKE 'rules\_%\_owner' OR r.rolname IN('public_projection_owner','report_projection_owner','finance_operation_owner')))
  OR NOT EXISTS(SELECT FROM pg_catalog.pg_roles WHERE rolname='finance_operation_owner' AND NOT rolinherit AND NOT rolcanlogin AND NOT rolsuper)
- THEN RAISE EXCEPTION 'Verified 0051 ledger without 0053, clean ledger and post-cleanup prisma role required'; END IF;
+ THEN RAISE EXCEPTION 'Verified 0052 ledger without 0053, clean ledger and post-cleanup prisma role required'; END IF;
 END $$;
 GRANT finance_operation_owner TO prisma WITH ADMIN FALSE, INHERIT FALSE, SET TRUE GRANTED BY postgres;
 DO $$ BEGIN

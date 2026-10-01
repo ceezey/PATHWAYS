@@ -24,8 +24,8 @@ test('MIGRATIONS_IN_ORDER matches the real migrations directory exactly, in orde
   assert.deepEqual([...MIGRATIONS_IN_ORDER].sort(), onDisk)
   // The migrations directory holds one folder per Prisma migration. 0000
   // squashes the original 0001-0026 into a single reviewed baseline, so the
-  // ledger has 27 rows (baseline plus 0027-0051 and 0053) even though the numbering has gaps.
-  assert.equal(MIGRATIONS_IN_ORDER.length, 27)
+  // ledger has 28 rows (baseline plus 0027-0053) even though the numbering has gaps.
+  assert.equal(MIGRATIONS_IN_ORDER.length, 28)
   assert.equal(MIGRATIONS_IN_ORDER[0], BASELINE)
 })
 
@@ -68,6 +68,7 @@ test('the dry-run plan order exactly matches the documented stop points', () => 
     'deploy:0049_journey_event_note',
     'deploy:0050_import_value_map',
     'deploy:0051_indicator_library',
+    'deploy:0052_signin_password_hook',
     'preprovision:expense-submit',
     'deploy:0053_expense_submit_race',
     'cleanup:expense-submit',
@@ -249,9 +250,9 @@ test('planIndexForAppliedCount on a 0000-0044 ledger with residual owner members
   assert.equal(plan[index].name, 'activity-review')
 })
 
-test('planIndexForAppliedCount on a 0000-0051 ledger resumes at the expense-submit preprovision, or at the 0053 deploy when its chain is granted', () => {
+test('planIndexForAppliedCount on a 0000-0052 ledger resumes at the expense-submit preprovision, or at the 0053 deploy when its chain is granted', () => {
   const plan = buildPlan()
-  const applied = MIGRATIONS_IN_ORDER.indexOf('0051_indicator_library') + 1
+  const applied = MIGRATIONS_IN_ORDER.indexOf('0052_signin_password_hook') + 1
   const fresh = planIndexForAppliedCount(applied)
   assert.equal(plan[fresh].type, 'preprovision')
   assert.equal(plan[fresh].name, 'expense-submit')

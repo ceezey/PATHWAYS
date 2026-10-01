@@ -11,9 +11,9 @@ BEGIN;
 SET LOCAL lock_timeout = '5s';
 SET LOCAL statement_timeout = '60s';
 DO $$ DECLARE fn record; BEGIN
- IF current_user <> 'prisma' OR NOT EXISTS(SELECT FROM public._prisma_migrations WHERE migration_name='0051_indicator_library'
+ IF current_user <> 'prisma' OR NOT EXISTS(SELECT FROM public._prisma_migrations WHERE migration_name='0052_signin_password_hook'
   AND finished_at IS NOT NULL AND rolled_back_at IS NULL)
- THEN RAISE EXCEPTION '0053 requires the verified 0051 state and migration identity'; END IF;
+ THEN RAISE EXCEPTION '0053 requires the verified 0052 state and migration identity'; END IF;
  IF NOT pg_catalog.pg_has_role('prisma','finance_operation_owner','SET')
  THEN RAISE EXCEPTION '0053 requires the temporary finance_operation_owner SET membership (run hosted-expense-submit-preprovision.sql)'; END IF;
  IF (SELECT pg_catalog.pg_get_userbyid(nspowner) FROM pg_catalog.pg_namespace WHERE nspname='pathways')<>'prisma'

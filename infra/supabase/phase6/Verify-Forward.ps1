@@ -36,6 +36,7 @@ $forwardInventory = @(
   '0049_journey_event_note'
   '0050_import_value_map'
   '0051_indicator_library'
+  '0052_signin_password_hook'
   '0053_expense_submit_race'
 )
 if (($forwardMigrations.Name -join ',') -cne ($forwardInventory -join ',')) { throw 'Forward migration inventory requires renewed review.' }

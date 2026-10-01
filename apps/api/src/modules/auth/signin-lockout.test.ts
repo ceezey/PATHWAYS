@@ -130,3 +130,12 @@ describe('sign-in body', () => {
     expect(JSON.stringify((error as BadRequestException).getResponse())).not.toContain('pppp')
   })
 })
+
+describe('sign-in reset query', () => {
+  it('never selects the void reset function as a result column', async () => {
+    const h = harness([ok])
+    await h.service.signIn('a@x.org', 'right')
+    const reset = h.calls.find((sql) => sql.includes('signin_lockout_reset')) ?? ''
+    expect(reset).toMatch(/SELECT 0 AS s FROM \(SELECT pathways\.signin_lockout_reset/)
+  })
+})

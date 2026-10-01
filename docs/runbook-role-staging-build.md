@@ -46,7 +46,7 @@ Keep both files under the repository's ignored `.tmp/` directory or outside the 
 node scripts/db/hosted-build.mjs --dry-run
 ```
 
-Check the printed 34-step plan. It covers the prisma role, the 0000 baseline and its registration, then staged deploys with the preprovision and cleanup steps around 0031, 0034, 0037, 0041 and 0044, with the 0042 and 0043 deploys between 0041 and 0044, the 0045 deploy after 0044 and one deploy each for 0046 to 0051 after 0045, then the expense-submit preprovision, the 0053 deploy and its cleanup, then the runtime login, then the postconditions.
+Check the printed 35-step plan. It covers the prisma role, the 0000 baseline and its registration, then staged deploys with the preprovision and cleanup steps around 0031, 0034, 0037, 0041 and 0044, with the 0042 and 0043 deploys between 0041 and 0044, the 0045 deploy after 0044 and one deploy each for 0046 to 0052 after 0045, then the expense-submit preprovision, the 0053 deploy and its cleanup, then the runtime login, then the postconditions.
 
 ```bash
 node scripts/db/hosted-build.mjs --env-file .tmp/role-staging-build.env
@@ -54,13 +54,13 @@ node scripts/db/hosted-build.mjs --env-file .tmp/role-staging-build.env
 
 Every step prints `start` and `done` lines and has a time limit. A successful build ends with these PASS lines:
 
-- `PASS: ledger has exactly 27 migrations 0000-0053, all finished and none failed`
+- `PASS: ledger has exactly 28 migrations 0000-0053, all finished and none failed`
 - `PASS: no residual temporary owner memberships for prisma`
 - `PASS: role count matches the repo-derived expectation (21 roles ...)`
 - `PASS: schema-level permission grants observed (...)`
 - `PASS: pathways_runtime has LOGIN enabled`
 
-The ledger holds 27 rows because 0000 is the consolidated baseline for the historical 0001 to 0026.
+The ledger holds 28 rows because 0000 is the consolidated baseline for the historical 0001 to 0026.
 
 **If a step fails:** the tool runs the matching cleanup script whenever the failure happens anywhere between a preprovision step and its cleanup (the preprovision step itself, or the deploy that follows it), then rethrows the original error. Fix the reported cause, then rerun with `--resume`.
 
@@ -140,7 +140,7 @@ node scripts/db/hosted-build.mjs --env-file .tmp/role-staging-build.env --resume
 Because the ledger is already the complete, cleanly finished 0000 to 0041 prefix, `--resume` first checks for residual activity-media owner memberships (see above), then continues with the 0042 deploy, then the 0043 deploy, then the activity-review preprovision, the 0044 deploy and its cleanup, then the 0045 deploy, then the postconditions. Unless a residual membership was found, it does not re-run the activity-media cleanup; the runtime-role alteration always runs again at the end regardless, since `ALTER ROLE ... WITH LOGIN` is idempotent. A successful run ends with these PASS lines:
 
 - `PASS: resume preflight (pathways schema present, auth.users present, prisma role present, ledger is a clean finished prefix with 16 migrations applied, residual temporary owner memberships: false)`
-- `PASS: ledger has exactly 27 migrations 0000-0053, all finished and none failed`
+- `PASS: ledger has exactly 28 migrations 0000-0053, all finished and none failed`
 - `PASS: no residual temporary owner memberships for prisma`
 - `PASS: role count matches the repo-derived expectation (21 roles ...)`
 - `PASS: schema-level permission grants observed (...)`

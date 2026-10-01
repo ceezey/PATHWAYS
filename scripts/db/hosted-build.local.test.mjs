@@ -280,7 +280,7 @@ GRANT ALL ON ALL TABLES IN SCHEMA auth TO postgres;
 )
 
 test(
-  'hosted-build --resume recovers after a real deploy failure, cleans up, and finishes at the full 27-row ledger',
+  'hosted-build --resume recovers after a real deploy failure, cleans up, and finishes at the full 28-row ledger',
   { skip: !shouldRun },
   async (t) => {
     const bin = findPgBin()
