@@ -1,15 +1,16 @@
 # Fresh synthetic loopback replay only. No hosted URL, credential or env file is read.
 [CmdletBinding()]
 param(
-  [switch]$Phase4IndicatorPolicy,
-  [switch]$RuleBasedAccessAlignment,
-  [switch]$DashboardHomeProjectScope,
   [switch]$ProjectActivityCreationRepair,
   [switch]$CsvRbacRealignment,
   [switch]$MigrationBaseline,
-  [string]$PostgresBin
+  [switch]$SaveTemplate,
+  [string]$PostgresBin,
+  [int]$Port = 0
 )
 $ErrorActionPreference = 'Stop'
+. (Join-Path $PSScriptRoot 'replay-port.ps1')
+. (Join-Path $PSScriptRoot 'migrations-hash.ps1')
 if ($MigrationBaseline) { $CsvRbacRealignment = $true }
 if ($CsvRbacRealignment) { $ProjectActivityCreationRepair = $true }
 $phase6Root = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot '../../..')).Path
@@ -34,11 +35,11 @@ $phase6Stage = Join-Path $phase6Parent 'migrations'
 $phase6History = Join-Path $phase6Parent 'history'
 $phase6Config = Join-Path $PSScriptRoot 'prisma.replay.config.ts'
 $phase6Database = 'pathways_phase4_phase6_replay'
-$phase6Port = 55448
+$phase6Port = if ($Port -gt 0) { $Port } else { Get-FreeLoopbackPort }
 $phase6Exit = 1
 $phase6Started = $false
 $phase6PreviousEnvironment = @{}
-foreach ($phase6EnvironmentName in @('PATHWAYS_PHASE6_REPLAY_MIGRATIONS','PATHWAYS_CSV_RBAC_LOCAL_TESTS','PATHWAYS_FEATURE_READ_LOCAL_TESTS','PATHWAYS_PROJECT_ACTIVITY_CREATION_LOCAL_TESTS','PATHWAYS_C8_LOCAL_TESTS','PATHWAYS_EXPECTED_TABLE_COUNT','PATHWAYS_DASHBOARD_HOME_SCOPE_LOCAL_TESTS','DIRECT_URL','DATABASE_URL')) {
+foreach ($phase6EnvironmentName in @('PATHWAYS_PHASE6_REPLAY_MIGRATIONS','PATHWAYS_CSV_RBAC_LOCAL_TESTS','PATHWAYS_FEATURE_READ_LOCAL_TESTS','PATHWAYS_PROJECT_ACTIVITY_CREATION_LOCAL_TESTS','PATHWAYS_C8_LOCAL_TESTS','PATHWAYS_EXPECTED_TABLE_COUNT','PATHWAYS_DASHBOARD_HOME_SCOPE_LOCAL_TESTS','PATHWAYS_REPLAY_PORT','DIRECT_URL','DATABASE_URL')) {
   $phase6EnvironmentItem = Get-Item -LiteralPath "Env:$phase6EnvironmentName" -ErrorAction SilentlyContinue
   $phase6PreviousEnvironment[$phase6EnvironmentName] = if ($null -eq $phase6EnvironmentItem) {
     @{ Present = $false; Value = $null }
@@ -60,7 +61,7 @@ try {
   if ($LASTEXITCODE -ne 0) { throw 'Historical archive integrity/extraction failed' }
   & $phase6Tools['initdb'] -D $phase6Data -U postgres -A trust --encoding=UTF8 --locale=C | Out-Null
   if ($LASTEXITCODE -ne 0) { throw 'Disposable cluster creation failed.' }
-  Add-Content -LiteralPath (Join-Path $phase6Data 'postgresql.conf') -Value "`nlisten_addresses='127.0.0.1'`nport=$phase6Port`nunix_socket_directories=''`n"
+  Add-Content -LiteralPath (Join-Path $phase6Data 'postgresql.conf') -Value "`nlisten_addresses='127.0.0.1'`nport=$phase6Port`npathways.replay_port=$phase6Port`nunix_socket_directories=''`n"
   $phase6Start = Start-Process -FilePath $phase6Tools['pg_ctl'] `
     -ArgumentList @('-D',$phase6Data,'-l',(Join-Path $phase6Parent 'postgres.log'),'-s','start') `
     @phase6ProcessOptions
@@ -75,6 +76,8 @@ try {
   } while ([DateTime]::UtcNow -lt $phase6StartDeadline)
   if ($LASTEXITCODE -ne 0) { throw 'Disposable cluster readiness timed out.' }
   $phase6Started = $true
+  $env:PATHWAYS_REPLAY_PORT = "$phase6Port"
+  Write-Output "REPLAY_PORT=$phase6Port"
   & $phase6Tools['createdb'] -w -h 127.0.0.1 -p $phase6Port -U postgres $phase6Database
   if ($LASTEXITCODE -ne 0) { throw 'Disposable database creation failed.' }
   Invoke-LocalSql ([IO.File]::ReadAllText((Join-Path $phase6Root 'apps/api/prisma/tests/security-adapter-local-bootstrap.sql'))) $phase6Database
@@ -173,7 +176,7 @@ try {
       }
     }
 
-    if ($Phase4IndicatorPolicy -or $RuleBasedAccessAlignment -or $DashboardHomeProjectScope -or $ProjectActivityCreationRepair) {
+    if ($ProjectActivityCreationRepair) {
       # Synthetic existing reference rows exercise the upgrade path. The
       # checked-in policy supplies equivalent mappings when a fresh target is
       # provisioned after its migrations; no managed target is used here.
@@ -213,7 +216,7 @@ WHERE id='89000000-0000-4000-8000-000000000021'::uuid
       pnpm --filter @pathways/api exec prisma migrate deploy --config $phase6Config
       if ($LASTEXITCODE -ne 0) { throw '0022 project target-goal replay failed.' }
 
-      if ($RuleBasedAccessAlignment -or $DashboardHomeProjectScope -or $ProjectActivityCreationRepair) {
+      if ($ProjectActivityCreationRepair) {
         # Reproduce the managed pre-0023 authorization state: both target roles
         # exist, M&E already has rules.read, and unrelated Project Manager rows
         # must remain unchanged.
@@ -277,7 +280,7 @@ WHERE code IN ('PROJECT_MANAGER','MONITORING_AND_EVALUATION_OFFICER','PROJECT_OF
 '@
         Invoke-LocalSql $ruleAccessRemoveSeedSql $phase6Database
 
-        if ($DashboardHomeProjectScope -or $ProjectActivityCreationRepair) {
+        if ($ProjectActivityCreationRepair) {
           Copy-Item -LiteralPath (Join-Path $phase6History '0024_dashboard_home_project_scope') -Destination $phase6Stage -Recurse
           pnpm --filter @pathways/api exec prisma migrate deploy --config $phase6Config
           if ($LASTEXITCODE -ne 0) { throw '0024 dashboard-home project-scope replay failed.' }
@@ -470,12 +473,6 @@ SELECT (SELECT count(*) FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamesp
   if ($ProjectActivityCreationRepair) {
     $phase6Post = $phase6Post.Replace("n.nspname='pathways' AND c.relkind='r')=45", "n.nspname='pathways' AND c.relkind='r')=46")
     $phase6Post = $phase6Post.Replace('FROM public._prisma_migrations)=20', 'FROM public._prisma_migrations)=25')
-  } elseif ($DashboardHomeProjectScope) {
-    $phase6Post = $phase6Post.Replace('FROM public._prisma_migrations)=20', 'FROM public._prisma_migrations)=24')
-  } elseif ($RuleBasedAccessAlignment) {
-    $phase6Post = $phase6Post.Replace('FROM public._prisma_migrations)=20', 'FROM public._prisma_migrations)=23')
-  } elseif ($Phase4IndicatorPolicy) {
-    $phase6Post = $phase6Post.Replace('FROM public._prisma_migrations)=20', 'FROM public._prisma_migrations)=22')
   }
   $phase6Result = $phase6Post | & $phase6Tools['psql'] -X -w -q -A -t -h 127.0.0.1 -p $phase6Port -U postgres -d $phase6Database -v ON_ERROR_STOP=1
   if ($LASTEXITCODE -ne 0 -or $phase6Result.Trim() -cne 't') { throw 'Replay postflight failed.' }
@@ -483,7 +480,7 @@ SELECT (SELECT count(*) FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamesp
   if ($ProjectActivityCreationRepair) {
     $env:PATHWAYS_PROJECT_ACTIVITY_CREATION_LOCAL_TESTS = '1'
   }
-  if (-not $CsvRbacRealignment -and -not ($Phase4IndicatorPolicy -or $RuleBasedAccessAlignment -or $DashboardHomeProjectScope -or $ProjectActivityCreationRepair)) {
+  if (-not $CsvRbacRealignment -and -not $ProjectActivityCreationRepair) {
   Push-Location $phase6Root
   try {
     pnpm --dir apps/api exec vitest run src/modules/activities/feature-read.local.test.ts
@@ -512,12 +509,10 @@ SELECT (SELECT count(*) FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamesp
   Write-Output 'PROJECT_ACTIVITY_JOURNEY_RUNTIME=PASS'
   Write-Output 'PROJECT_TARGET_GOAL_RUNTIME=PASS'
   $phase6IndicatorSql = [IO.File]::ReadAllText((Join-Path $phase6Root 'apps/api/prisma/tests/project-indicator-dashboard-runtime.sql'))
-  if ($Phase4IndicatorPolicy) {
-    $phase6IndicatorSql = "\set PHASE4_INDICATOR_POLICY 1`n" + $phase6IndicatorSql
-  }
+  $phase6IndicatorSql = "\set PHASE4_INDICATOR_POLICY 1`n" + $phase6IndicatorSql
   Invoke-LocalSql $phase6IndicatorSql $phase6Database
   Write-Output 'PROJECT_INDICATOR_DASHBOARD_RUNTIME=PASS'
-  if ($DashboardHomeProjectScope -or $ProjectActivityCreationRepair) {
+  if ($ProjectActivityCreationRepair) {
     # The current-schema dashboard-home vitest does not run against historical replay databases.
     Invoke-LocalSql ([IO.File]::ReadAllText((Join-Path $phase6Root 'apps/api/prisma/tests/dashboard-home-project-scope-runtime.sql'))) $phase6Database
     Write-Output 'DASHBOARD_HOME_PROJECT_SCOPE_RUNTIME=PASS'
@@ -526,13 +521,12 @@ SELECT (SELECT count(*) FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamesp
     Invoke-LocalSql ([IO.File]::ReadAllText((Join-Path $phase6Root 'apps/api/prisma/tests/project-activity-creation-contract-runtime.sql'))) $phase6Database
     Write-Output 'PROJECT_ACTIVITY_CREATION_CONTRACT_RUNTIME=PASS'
   }
-  if ($Phase4IndicatorPolicy) { Write-Output 'PHASE4_PM_INDICATOR_RUNTIME=PASS' }
-  if ($RuleBasedAccessAlignment -or $DashboardHomeProjectScope -or $ProjectActivityCreationRepair) { Write-Output 'RULE_BASED_ACCESS_ALIGNMENT_RUNTIME=PASS' }
+  if ($ProjectActivityCreationRepair) { Write-Output 'RULE_BASED_ACCESS_ALIGNMENT_RUNTIME=PASS' }
   if ($CsvRbacRealignment) {
     $rbacCatalogSql = Join-Path $phase6Root 'apps/api/prisma/tests/csv-rbac-catalog.sql'
     $rbacBeforeCatalog = (& $phase6Tools['psql'] -X -q -A -t -w -h 127.0.0.1 -p $phase6Port -U postgres -d $phase6Database -v ON_ERROR_STOP=1 -f $rbacCatalogSql) | ConvertFrom-Json
     if ($LASTEXITCODE -ne 0) { throw 'Baseline catalog unavailable.' }
-    [IO.File]::WriteAllText((Join-Path $phase6Root '.tmp/rbac-local-before-catalog.json'), ($rbacBeforeCatalog | ConvertTo-Json -Depth 100))
+    [IO.File]::WriteAllText((Join-Path $phase6Parent 'rbac-local-before-catalog.json'), ($rbacBeforeCatalog | ConvertTo-Json -Depth 100))
     $rbacModelDiffBefore = Join-Path $phase6Parent 'prisma-before.sql'
     # Introspection must include provider schemas referenced by domain FKs.
     # This temporary input changes no repository schema and its diff is never run.
@@ -569,7 +563,7 @@ END $$;
     $env:DIRECT_URL = $env:DATABASE_URL
     $rbacUpgradeCatalog = (& $phase6Tools['psql'] -X -q -A -t -w -h 127.0.0.1 -p $phase6Port -U postgres -d $phase6Database -v ON_ERROR_STOP=1 -f $rbacCatalogSql) | ConvertFrom-Json
     if ($LASTEXITCODE -ne 0) { throw 'Upgrade catalog unavailable.' }
-    [IO.File]::WriteAllText((Join-Path $phase6Root '.tmp/rbac-local-after-catalog.json'), ($rbacUpgradeCatalog | ConvertTo-Json -Depth 100))
+    [IO.File]::WriteAllText((Join-Path $phase6Parent 'rbac-local-after-catalog.json'), ($rbacUpgradeCatalog | ConvertTo-Json -Depth 100))
     $rbacFreshCatalog = (& $phase6Tools['psql'] -X -q -A -t -w -h 127.0.0.1 -p $phase6Port -U postgres -d pathways_phase4_rbac_fresh -v ON_ERROR_STOP=1 -f $rbacCatalogSql) | ConvertFrom-Json
     if ($LASTEXITCODE -ne 0) { throw 'Fresh catalog unavailable.' }
     if (($rbacUpgradeCatalog | ConvertTo-Json -Depth 100 -Compress) -cne ($rbacFreshCatalog | ConvertTo-Json -Depth 100 -Compress)) { throw 'Fresh/upgrade catalog or security objects differ.' }
@@ -582,7 +576,7 @@ END $$;
     # Existing SQL-only expressions may remain outside Prisma; report the baseline,
     # never execute this generated diff or treat it as a correction migration.
     Write-Output ('CSV_RBAC_PRISMA_DIFF_BYTES=' + (Get-Item -LiteralPath $rbacModelDiffAfter).Length)
-    Copy-Item -LiteralPath $rbacModelDiffAfter -Destination (Join-Path $phase6Root '.tmp/rbac-prisma-baseline-diff.sql')
+    Copy-Item -LiteralPath $rbacModelDiffAfter -Destination (Join-Path $phase6Parent 'rbac-prisma-baseline-diff.sql')
     Write-Output 'CSV_RBAC_CATALOG_PARITY=PASS'
     if ($MigrationBaseline) {
       . (Join-Path $PSScriptRoot 'Verify-Baseline.ps1')
@@ -621,6 +615,29 @@ END $$;
     Write-Output 'CSV_RBAC_UPGRADE_AND_FRESH_REPLAY=PASS'
   }
   Write-Output 'LEGACY_TABLE_PRESERVATION=PASS'
+  if ($SaveTemplate) {
+    $phase6Clones = @(& $phase6Tools['psql'] -X -w -q -A -t -h 127.0.0.1 -p $phase6Port -U postgres -d postgres -v ON_ERROR_STOP=1 `
+      -c "SELECT datname FROM pg_database WHERE NOT datistemplate AND datname NOT IN ('postgres','$phase6Database')")
+    foreach ($phase6Clone in $phase6Clones) {
+      & $phase6Tools['psql'] -X -w -q -h 127.0.0.1 -p $phase6Port -U postgres -d postgres -v ON_ERROR_STOP=1 -c "DROP DATABASE `"$phase6Clone`" WITH (FORCE)"
+      if ($LASTEXITCODE -ne 0) { throw "Template clone drop failed: $phase6Clone" }
+    }
+    # The disposable compatibility probe is not part of the migration chain.
+    & $phase6Tools['psql'] -X -w -q -h 127.0.0.1 -p $phase6Port -U postgres -d $phase6Database -v ON_ERROR_STOP=1 -c "DROP TABLE IF EXISTS pathways.baseline_compatibility_probe; DELETE FROM public._prisma_migrations WHERE migration_name='0035_disposable_compatibility_probe';"
+    if ($LASTEXITCODE -ne 0) { throw 'Template probe cleanup failed.' }
+    $phase6Stop = Start-Process -FilePath $phase6Tools['pg_ctl'] `
+      -ArgumentList @('-D',$phase6Data,'-m','fast','-t','260','-s','stop') @phase6ProcessOptions
+    if (-not $phase6Stop.WaitForExit(270000) -or $phase6Stop.ExitCode -ne 0) { throw 'Template cluster stop failed.' }
+    $phase6Started = $false
+    $phase6Template = Join-Path $phase6Root '.tmp/pathways-replay-template'
+    if (Test-Path -LiteralPath $phase6Template) { Remove-Item -LiteralPath $phase6Template -Recurse -Force }
+    New-Item -ItemType Directory -Path $phase6Template | Out-Null
+    Copy-Item -LiteralPath $phase6Data -Destination (Join-Path $phase6Template 'data') -Recurse
+    Remove-Item -LiteralPath (Join-Path $phase6Template 'data/postmaster.pid') -Force -ErrorAction SilentlyContinue
+    [ordered]@{ migrationsHash = (Get-MigrationsHash $phase6Root); database = $phase6Database; createdAt = (Get-Date).ToUniversalTime().ToString('o') } |
+      ConvertTo-Json | Set-Content -LiteralPath (Join-Path $phase6Template 'manifest.json')
+    Write-Output 'REPLAY_TEMPLATE_SAVED=PASS'
+  }
   $phase6Exit = 0
 } catch {
   Write-Output ('PHASE6_LOCAL_REPLAY=FAILED; ' + $_.Exception.Message)

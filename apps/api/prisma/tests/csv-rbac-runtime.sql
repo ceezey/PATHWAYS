@@ -3,7 +3,7 @@
 BEGIN;
 DO $$ BEGIN
  IF current_database() NOT IN ('pathways_phase4_phase6_replay','pathways_phase4_rbac_fresh')
- OR inet_server_addr() IS DISTINCT FROM '127.0.0.1'::inet OR inet_server_port()<>55448
+ OR inet_server_addr() IS DISTINCT FROM '127.0.0.1'::inet OR inet_server_port() IS DISTINCT FROM current_setting('pathways.replay_port', true)::int
  OR current_user<>'postgres' THEN RAISE EXCEPTION 'CSV RBAC tests require disposable replay'; END IF;
 END $$;
 CREATE FUNCTION pg_temp.u(n integer) RETURNS uuid LANGUAGE sql IMMUTABLE AS $$

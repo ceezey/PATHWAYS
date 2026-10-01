@@ -647,7 +647,7 @@ model ProjectImplementingPartner {
   partner        ImplementingPartner @relation(fields: [organizationId, partnerId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
 
   @@id([organizationId, projectId, partnerId])
-  @@index([organizationId, partnerId])
+  @@index([organizationId, partnerId], map: "project_implementing_partners_partner_idx")
   @@map("project_implementing_partners")
   @@schema("pathways")
 }
@@ -1114,7 +1114,7 @@ model DataImportBatch {
   originalFileName            String              @map("original_file_name")
   fileType                    ImportFileType      @default(CSV) @map("file_type")
   sourceChecksum              String              @map("source_checksum") @db.Char(64)
-  clientImportId              String              @map("client_import_id") @db.Uuid
+  clientImportId              String              @default(dbgenerated("gen_random_uuid()")) @map("client_import_id") @db.Uuid
   storageBucket               String              @map("storage_bucket")
   storageObjectKey            String              @map("storage_object_key")
   storageStatus               ImportStorageStatus @default(RESERVED) @map("storage_status")
@@ -1156,6 +1156,7 @@ model DataImportBatch {
   @@unique([organizationId, uploadedById, clientImportId], map: "data_import_batches_client_key")
   @@unique([storageBucket, storageObjectKey], map: "data_import_batches_storage_object_key")
   @@index([organizationId, projectId, status], map: "data_import_batches_project_status_idx")
+  @@index([organizationId, projectId, status, processingClaimedAt], map: "data_import_batches_claim_idx")
   @@index([organizationId, projectId, createdAt(sort: Desc), id], map: "data_import_batches_project_created_idx")
   @@index([organizationId, projectId, formId, formVersion], map: "data_import_batches_form_version_idx")
   @@index([organizationId, uploadedById], map: "data_import_batches_uploaded_by_idx")
@@ -1198,6 +1199,7 @@ model DataImportRow {
   @@unique([organizationId, projectId, formId, importBatchId, id], map: "data_import_rows_batch_scope_key")
   @@unique([importBatchId, rowNumber], map: "data_import_rows_batch_number_key")
   @@index([importBatchId, status], map: "data_import_rows_batch_status_idx")
+  @@index([importBatchId, status, processingClaimedAt], map: "data_import_rows_claim_idx")
   @@index([organizationId, validatedById], map: "data_import_rows_validated_by_idx")
   @@map("data_import_rows")
   @@schema("pathways")

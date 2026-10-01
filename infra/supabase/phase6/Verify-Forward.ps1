@@ -1,7 +1,7 @@
 # Called inside the guarded synthetic Replay-Local cluster, after 0028 parity.
 # Non-secret placeholder for a trust-auth disposable cluster; overridable from the environment.
 $trustLocalPlaceholder = if ($env:PHASE2_TRUST_PLACEHOLDER) { $env:PHASE2_TRUST_PLACEHOLDER } else { 'trust-local' }
-if (-not $MigrationBaseline -or -not $phase6Started -or $phase6Port -ne 55448 -or
+if (-not $MigrationBaseline -or -not $phase6Started -or $phase6Port -le 0 -or
     $phase6Database -cne 'pathways_phase4_phase6_replay') { throw 'Forward verification requires owned baseline replay.' }
 $forwardDatabases = @($phase6Database, 'pathways_phase4_baseline', 'pathways_phase4_forward_fault', 'pathways_phase4_forward_restore', 'pathways_phase4_core_fault', 'pathways_phase4_core_retry', 'pathways_phase4_pdf_fault', 'pathways_phase4_pdf_retry', 'pathways_phase4_pin_fault', 'pathways_phase4_pin_retry', 'pathways_phase4_import_fault', 'pathways_phase4_import_retry', 'pathways_phase4_partner_fault', 'pathways_phase4_partner_retry', 'pathways_phase4_partner_suite', 'pathways_phase4_drf_fault', 'pathways_phase4_drf_retry', 'pathways_phase4_media_fault', 'pathways_phase4_media_retry', 'pathways_phase4_psc_fault', 'pathways_phase4_psc_retry', 'pathways_phase4_oex_fault', 'pathways_phase4_oex_retry', 'pathways_phase4_prv_fault', 'pathways_phase4_prv_retry', 'pathways_phase4_f9a_fault', 'pathways_phase4_f9a_retry')
 $forwardStage = Join-Path $phase6Parent 'forward-migrations'
@@ -46,13 +46,13 @@ if (($forwardMigrations.Name -join ',') -cne ($forwardInventory -join ',')) { th
 
 function Assert-ForwardTarget([string]$Database) {
   if ($Database -cnotin $forwardDatabases) { throw 'Unapproved forward database.' }
-  $identity = (& $phase6Tools['psql'] -X -q -A -t -w -h 127.0.0.1 -p 55448 -U postgres -d $Database -v ON_ERROR_STOP=1 -c "SELECT json_build_object('database',current_database(),'host',host(inet_server_addr()),'port',inet_server_port(),'data',current_setting('data_directory'));") | ConvertFrom-Json
-  if ($LASTEXITCODE -ne 0 -or $identity.database -cne $Database -or $identity.host -cne '127.0.0.1' -or $identity.port -ne 55448 -or
+  $identity = (& $phase6Tools['psql'] -X -q -A -t -w -h 127.0.0.1 -p $phase6Port -U postgres -d $Database -v ON_ERROR_STOP=1 -c "SELECT json_build_object('database',current_database(),'host',host(inet_server_addr()),'port',inet_server_port(),'data',current_setting('data_directory'));") | ConvertFrom-Json
+  if ($LASTEXITCODE -ne 0 -or $identity.database -cne $Database -or $identity.host -cne '127.0.0.1' -or $identity.port -ne $phase6Port -or
       [IO.Path]::GetFullPath($identity.data) -cne [IO.Path]::GetFullPath($phase6Data)) { throw 'Forward cluster identity differs.' }
 }
 function Read-ForwardSql([string]$Database, [string]$Sql) {
   Assert-ForwardTarget $Database
-  $result = $Sql | & $phase6Tools['psql'] -X -q -A -t -w -h 127.0.0.1 -p 55448 -U postgres -d $Database -v ON_ERROR_STOP=1
+  $result = $Sql | & $phase6Tools['psql'] -X -q -A -t -w -h 127.0.0.1 -p $phase6Port -U postgres -d $Database -v ON_ERROR_STOP=1
   if ($LASTEXITCODE -ne 0) { throw 'Forward assertion SQL failed.' }
   return ($result -join "`n")
 }
@@ -84,12 +84,12 @@ function Restore-ForwardDatabaseAcl([string]$Database) {
   if ($Database -cnotin $forwardDatabases[2..($forwardDatabases.Count - 1)]) { throw 'Database ACL restoration requires a fixed restored clone.' }
   Assert-ForwardTarget 'pathways_phase4_baseline'
   Assert-ForwardTarget $Database
-  Invoke-LocalSql @'
+  Invoke-LocalSql (@'
 BEGIN;
 DO $acl$
 DECLARE source_db record;target_db record;entry record;principal text;
 BEGIN
- IF current_user<>'postgres' OR session_user<>'postgres' OR inet_server_addr() IS DISTINCT FROM '127.0.0.1'::inet OR inet_server_port()<>55448 OR current_database() NOT IN ('pathways_phase4_forward_fault','pathways_phase4_forward_restore','pathways_phase4_core_fault','pathways_phase4_core_retry','pathways_phase4_pdf_fault','pathways_phase4_pdf_retry','pathways_phase4_pin_fault','pathways_phase4_pin_retry','pathways_phase4_import_fault','pathways_phase4_import_retry','pathways_phase4_partner_fault','pathways_phase4_partner_retry','pathways_phase4_drf_fault','pathways_phase4_drf_retry','pathways_phase4_media_fault','pathways_phase4_media_retry','pathways_phase4_psc_fault','pathways_phase4_psc_retry','pathways_phase4_oex_fault','pathways_phase4_oex_retry','pathways_phase4_prv_fault','pathways_phase4_prv_retry','pathways_phase4_f9a_fault','pathways_phase4_f9a_retry') THEN RAISE EXCEPTION 'Only owned restored database ACLs may be reconstructed'; END IF;
+ IF current_user<>'postgres' OR session_user<>'postgres' OR inet_server_addr() IS DISTINCT FROM '127.0.0.1'::inet OR inet_server_port()<>__PORT__ OR current_database() NOT IN ('pathways_phase4_forward_fault','pathways_phase4_forward_restore','pathways_phase4_core_fault','pathways_phase4_core_retry','pathways_phase4_pdf_fault','pathways_phase4_pdf_retry','pathways_phase4_pin_fault','pathways_phase4_pin_retry','pathways_phase4_import_fault','pathways_phase4_import_retry','pathways_phase4_partner_fault','pathways_phase4_partner_retry','pathways_phase4_drf_fault','pathways_phase4_drf_retry','pathways_phase4_media_fault','pathways_phase4_media_retry','pathways_phase4_psc_fault','pathways_phase4_psc_retry','pathways_phase4_oex_fault','pathways_phase4_oex_retry','pathways_phase4_prv_fault','pathways_phase4_prv_retry','pathways_phase4_f9a_fault','pathways_phase4_f9a_retry') THEN RAISE EXCEPTION 'Only owned restored database ACLs may be reconstructed'; END IF;
  SELECT * INTO STRICT source_db FROM pg_catalog.pg_database WHERE datname='pathways_phase4_baseline';
  SELECT * INTO STRICT target_db FROM pg_catalog.pg_database WHERE datname=current_database();
  IF source_db.datdba<>target_db.datdba OR source_db.datdba<>(SELECT oid FROM pg_catalog.pg_roles WHERE rolname='postgres') THEN RAISE EXCEPTION 'Unexpected source/restore database owner'; END IF;
@@ -105,7 +105,7 @@ BEGIN
  END LOOP;
 END $acl$;
 COMMIT;
-'@ $Database
+'@).Replace('__PORT__', "$phase6Port") $Database
   if ((Read-ForwardDatabaseAcl $Database) -cne (Read-ForwardDatabaseAcl 'pathways_phase4_baseline')) { throw 'Restored database ACL differs from source, including default PUBLIC rights.' }
 }
 
@@ -123,7 +123,7 @@ function Invoke-ForwardDeploy {
   Assert-ForwardTarget $Database
   $beforeDeployLog = Read-ForwardPostgresLog
   $env:PATHWAYS_PHASE6_REPLAY_MIGRATIONS = $forwardStage
-  $env:DIRECT_URL = "postgresql://prisma@127.0.0.1:55448/${Database}?sslmode=disable&connection_limit=1"
+  $env:DIRECT_URL = "postgresql://prisma@127.0.0.1:${phase6Port}/${Database}?sslmode=disable&connection_limit=1"
   $env:DATABASE_URL = $env:DIRECT_URL
   try {
     if ($Provision) {
@@ -215,12 +215,12 @@ function Invoke-ForwardFaultRetryClones {
   )
   $snapshot = Join-Path $phase6Parent ('forward-pre' + $Label + '.dump')
   Assert-ForwardTarget 'pathways_phase4_baseline'
-  & $phase6Tools['pg_dump'] -w -h 127.0.0.1 -p 55448 -U postgres -d pathways_phase4_baseline --format=custom --file=$snapshot
+  & $phase6Tools['pg_dump'] -w -h 127.0.0.1 -p $phase6Port -U postgres -d pathways_phase4_baseline --format=custom --file=$snapshot
   if ($LASTEXITCODE -ne 0) { throw "$Label recovery backup failed." }
   foreach ($db in @($FaultDatabase, $RetryDatabase)) {
     Invoke-LocalSql "CREATE DATABASE $db;" 'postgres'
     Assert-ForwardTarget $db
-    & $phase6Tools['pg_restore'] -w -h 127.0.0.1 -p 55448 -U postgres -d $db --exit-on-error $snapshot
+    & $phase6Tools['pg_restore'] -w -h 127.0.0.1 -p $phase6Port -U postgres -d $db --exit-on-error $snapshot
     if ($LASTEXITCODE -ne 0) { throw "$Label recovery restore failed." }
     Restore-ForwardDatabaseAcl $db
     if ((Read-ForwardLedger $db) -cne (Read-ForwardLedger 'pathways_phase4_baseline')) { throw "$Label recovery changed original ledger." }
@@ -359,12 +359,12 @@ try {
       # a clean recovery target. Neither target fabricates/resolves ledger rows.
       $snapshot = Join-Path $phase6Parent 'forward-pre0031.dump'
       Assert-ForwardTarget 'pathways_phase4_baseline'
-      & $phase6Tools['pg_dump'] -w -h 127.0.0.1 -p 55448 -U postgres -d pathways_phase4_baseline --format=custom --file=$snapshot
+      & $phase6Tools['pg_dump'] -w -h 127.0.0.1 -p $phase6Port -U postgres -d pathways_phase4_baseline --format=custom --file=$snapshot
       if ($LASTEXITCODE -ne 0) { throw 'Forward recovery backup failed.' }
       foreach ($db in $forwardDatabases[2..3]) {
         Invoke-LocalSql "CREATE DATABASE $db;" 'postgres'
         Assert-ForwardTarget $db
-        & $phase6Tools['pg_restore'] -w -h 127.0.0.1 -p 55448 -U postgres -d $db --exit-on-error $snapshot
+        & $phase6Tools['pg_restore'] -w -h 127.0.0.1 -p $phase6Port -U postgres -d $db --exit-on-error $snapshot
         if ($LASTEXITCODE -ne 0) { throw 'Forward recovery restore failed.' }
         Restore-ForwardDatabaseAcl $db
         if ((Read-ForwardLedger $db) -cne (Read-ForwardLedger 'pathways_phase4_baseline')) { throw 'Recovery changed original ledger rows.' }
@@ -397,12 +397,12 @@ try {
       # evidence and avoid resolving or editing either migration ledger.
       $coreSnapshot = Join-Path $phase6Parent 'forward-pre0034.dump'
       Assert-ForwardTarget 'pathways_phase4_baseline'
-      & $phase6Tools['pg_dump'] -w -h 127.0.0.1 -p 55448 -U postgres -d pathways_phase4_baseline --format=custom --file=$coreSnapshot
+      & $phase6Tools['pg_dump'] -w -h 127.0.0.1 -p $phase6Port -U postgres -d pathways_phase4_baseline --format=custom --file=$coreSnapshot
       if ($LASTEXITCODE -ne 0) { throw 'Core recovery backup failed.' }
       foreach ($db in $forwardDatabases[4..5]) {
         Invoke-LocalSql "CREATE DATABASE $db;" 'postgres'
         Assert-ForwardTarget $db
-        & $phase6Tools['pg_restore'] -w -h 127.0.0.1 -p 55448 -U postgres -d $db --exit-on-error $coreSnapshot
+        & $phase6Tools['pg_restore'] -w -h 127.0.0.1 -p $phase6Port -U postgres -d $db --exit-on-error $coreSnapshot
         if ($LASTEXITCODE -ne 0) { throw 'Core recovery restore failed.' }
         Restore-ForwardDatabaseAcl $db
         if ((Read-ForwardLedger $db) -cne (Read-ForwardLedger 'pathways_phase4_baseline')) { throw 'Core recovery changed original ledger.' }
@@ -434,12 +434,12 @@ try {
       # post-cleanup role state; prisma needs only its ownership of the enum type.
       $pdfSnapshot = Join-Path $phase6Parent 'forward-pre0036.dump'
       Assert-ForwardTarget 'pathways_phase4_baseline'
-      & $phase6Tools['pg_dump'] -w -h 127.0.0.1 -p 55448 -U postgres -d pathways_phase4_baseline --format=custom --file=$pdfSnapshot
+      & $phase6Tools['pg_dump'] -w -h 127.0.0.1 -p $phase6Port -U postgres -d pathways_phase4_baseline --format=custom --file=$pdfSnapshot
       if ($LASTEXITCODE -ne 0) { throw '0036 recovery backup failed.' }
       foreach ($db in @('pathways_phase4_pdf_fault', 'pathways_phase4_pdf_retry')) {
         Invoke-LocalSql "CREATE DATABASE $db;" 'postgres'
         Assert-ForwardTarget $db
-        & $phase6Tools['pg_restore'] -w -h 127.0.0.1 -p 55448 -U postgres -d $db --exit-on-error $pdfSnapshot
+        & $phase6Tools['pg_restore'] -w -h 127.0.0.1 -p $phase6Port -U postgres -d $db --exit-on-error $pdfSnapshot
         if ($LASTEXITCODE -ne 0) { throw '0036 recovery restore failed.' }
         Restore-ForwardDatabaseAcl $db
         if ((Read-ForwardLedger $db) -cne (Read-ForwardLedger 'pathways_phase4_baseline')) { throw '0036 recovery changed original ledger.' }
@@ -473,12 +473,12 @@ try {
       # cr-pathways-beneficiary-step-up-pin: independent pre-0037 fault/retry clones.
       $pinSnapshot = Join-Path $phase6Parent 'forward-pre0037.dump'
       Assert-ForwardTarget 'pathways_phase4_baseline'
-      & $phase6Tools['pg_dump'] -w -h 127.0.0.1 -p 55448 -U postgres -d pathways_phase4_baseline --format=custom --file=$pinSnapshot
+      & $phase6Tools['pg_dump'] -w -h 127.0.0.1 -p $phase6Port -U postgres -d pathways_phase4_baseline --format=custom --file=$pinSnapshot
       if ($LASTEXITCODE -ne 0) { throw 'Step-up PIN recovery backup failed.' }
       foreach ($db in @('pathways_phase4_pin_fault', 'pathways_phase4_pin_retry')) {
         Invoke-LocalSql "CREATE DATABASE $db;" 'postgres'
         Assert-ForwardTarget $db
-        & $phase6Tools['pg_restore'] -w -h 127.0.0.1 -p 55448 -U postgres -d $db --exit-on-error $pinSnapshot
+        & $phase6Tools['pg_restore'] -w -h 127.0.0.1 -p $phase6Port -U postgres -d $db --exit-on-error $pinSnapshot
         if ($LASTEXITCODE -ne 0) { throw 'Step-up PIN recovery restore failed.' }
         Restore-ForwardDatabaseAcl $db
         if ((Read-ForwardLedger $db) -cne (Read-ForwardLedger 'pathways_phase4_baseline')) { throw 'Step-up PIN recovery changed original ledger.' }
@@ -498,7 +498,7 @@ SELECT NOT EXISTS(SELECT FROM pg_catalog.pg_auth_members m JOIN pg_catalog.pg_ro
       $savedPreference = $ErrorActionPreference
       try {
         $ErrorActionPreference = 'Continue'
-        $pinGuardOutput = (& $phase6Tools['psql'] -X -q -w -h 127.0.0.1 -p 55448 -U prisma -d pathways_phase4_pin_retry -v ON_ERROR_STOP=1 -f (Join-Path $migration.FullName 'migration.sql') 2>&1) -join "`n"
+        $pinGuardOutput = (& $phase6Tools['psql'] -X -q -w -h 127.0.0.1 -p $phase6Port -U prisma -d pathways_phase4_pin_retry -v ON_ERROR_STOP=1 -f (Join-Path $migration.FullName 'migration.sql') 2>&1) -join "`n"
         $pinGuardExit = $LASTEXITCODE
       } finally { $ErrorActionPreference = $savedPreference }
       if ($pinGuardExit -eq 0 -or $pinGuardOutput -notmatch '0037 requires pgcrypto installed in schema extensions') { throw '0037 did not fail closed without its DBA prerequisite.' }
@@ -661,7 +661,7 @@ FROM pg_catalog.pg_enum e JOIN pg_catalog.pg_type t ON t.oid=e.enumtypid WHERE t
   try {
     Assert-ForwardTarget 'pathways_phase4_pdf_retry'
     $pdfRuntime = [IO.File]::ReadAllText((Join-Path $phase6Root 'apps/api/prisma/tests/import-pdf-file-type-runtime.sql')) |
-      & $phase6Tools['psql'] -X -q -A -t -w -h 127.0.0.1 -p 55448 -U postgres -d pathways_phase4_pdf_retry -v ON_ERROR_STOP=1
+      & $phase6Tools['psql'] -X -q -A -t -w -h 127.0.0.1 -p $phase6Port -U postgres -d pathways_phase4_pdf_retry -v ON_ERROR_STOP=1
     if ($LASTEXITCODE -ne 0 -or ($pdfRuntime -join "`n") -notmatch 'IMPORT_PDF_FILE_TYPE_RUNTIME_ASSERTIONS_PASSED=4') { throw '0036 runtime suite failed.' }
   } finally {
     if ($pdfRuntimeLogin -ceq 'false') { Invoke-LocalSql 'ALTER ROLE pathways_runtime NOLOGIN;' 'pathways_phase4_pdf_retry' }
@@ -677,7 +677,7 @@ FROM pg_catalog.pg_enum e JOIN pg_catalog.pg_type t ON t.oid=e.enumtypid WHERE t
   Assert-ForwardTarget 'pathways_phase4_pin_retry'
   Invoke-LocalSql ([IO.File]::ReadAllText((Join-Path $phase6Root 'apps/api/prisma/tests/step-up-pin-concurrency-fixture.sql'))) 'pathways_phase4_pin_retry'
   $pinRuntimeLogin = (Read-ForwardSql 'pathways_phase4_pin_retry' "SELECT rolcanlogin FROM pg_catalog.pg_roles WHERE rolname='pathways_runtime';").Trim()
-  $pinRaceEnvironment = @{ PHASE2_RACE_DATABASE = 'pathways_phase4_pin_retry'; PHASE2_LOCAL_PORT = '55448'; PHASE2_RUNTIME_PASSWORD = $trustLocalPlaceholder; PHASE2_OWNER_PASSWORD = $trustLocalPlaceholder }
+  $pinRaceEnvironment = @{ PHASE2_RACE_DATABASE = 'pathways_phase4_pin_retry'; PHASE2_LOCAL_PORT = "$phase6Port"; PHASE2_RUNTIME_PASSWORD = $trustLocalPlaceholder; PHASE2_OWNER_PASSWORD = $trustLocalPlaceholder }
   try {
     Invoke-LocalSql 'ALTER ROLE pathways_runtime LOGIN;' 'pathways_phase4_pin_retry'
     foreach ($key in $pinRaceEnvironment.Keys) { Set-Item -LiteralPath "Env:$key" -Value $pinRaceEnvironment[$key] }
@@ -717,7 +717,7 @@ FROM pg_catalog.pg_enum e JOIN pg_catalog.pg_type t ON t.oid=e.enumtypid WHERE t
   Invoke-LocalSql "CREATE DATABASE $partnerSuiteDb TEMPLATE pathways_phase4_partner_retry;" 'postgres'
   try {
     Assert-ForwardTarget $partnerSuiteDb
-    $partnerSuiteOutput = (& $phase6Tools['psql'] -X -q -w -h 127.0.0.1 -p 55448 -U prisma -d $partnerSuiteDb -v ON_ERROR_STOP=1 -f (Join-Path $phase6Root 'apps/api/prisma/tests/project-partner-backfill-runtime.sql') 2>&1) -join "`n"
+    $partnerSuiteOutput = (& $phase6Tools['psql'] -X -q -w -h 127.0.0.1 -p $phase6Port -U prisma -d $partnerSuiteDb -v ON_ERROR_STOP=1 -f (Join-Path $phase6Root 'apps/api/prisma/tests/project-partner-backfill-runtime.sql') 2>&1) -join "`n"
     if ($LASTEXITCODE -ne 0 -or $partnerSuiteOutput -notmatch 'PROJECT_PARTNER_BACKFILL_RUNTIME_ASSERTIONS_PASSED=13') { throw '0039 runtime suite failed.' }
   } finally {
     Assert-ForwardTarget 'pathways_phase4_baseline'
@@ -741,7 +741,7 @@ FROM pg_catalog.pg_enum e JOIN pg_catalog.pg_type t ON t.oid=e.enumtypid WHERE t
   Assert-ForwardTarget 'pathways_phase4_drf_retry'
   Invoke-LocalSql ([IO.File]::ReadAllText((Join-Path $phase6Root 'apps/api/prisma/tests/default-registration-form-concurrency-fixture.sql'))) 'pathways_phase4_drf_retry'
   $drfRuntimeLogin = (Read-ForwardSql 'pathways_phase4_drf_retry' "SELECT rolcanlogin FROM pg_catalog.pg_roles WHERE rolname='pathways_runtime';").Trim()
-  $drfRaceEnvironment = @{ PHASE2_RACE_DATABASE = 'pathways_phase4_drf_retry'; PHASE2_LOCAL_PORT = '55448'; PHASE2_RUNTIME_PASSWORD = $trustLocalPlaceholder; PHASE2_OWNER_PASSWORD = $trustLocalPlaceholder }
+  $drfRaceEnvironment = @{ PHASE2_RACE_DATABASE = 'pathways_phase4_drf_retry'; PHASE2_LOCAL_PORT = "$phase6Port"; PHASE2_RUNTIME_PASSWORD = $trustLocalPlaceholder; PHASE2_OWNER_PASSWORD = $trustLocalPlaceholder }
   try {
     Invoke-LocalSql 'ALTER ROLE pathways_runtime LOGIN;' 'pathways_phase4_drf_retry'
     foreach ($key in $drfRaceEnvironment.Keys) { Set-Item -LiteralPath "Env:$key" -Value $drfRaceEnvironment[$key] }
@@ -764,7 +764,7 @@ FROM pg_catalog.pg_enum e JOIN pg_catalog.pg_type t ON t.oid=e.enumtypid WHERE t
     # The suite's completion marker is a RAISE NOTICE (stderr), so merge streams rather than
     # using the stdout-only Read-ForwardSql helper.
     Assert-ForwardTarget $db
-    $mediaSuite = (& $phase6Tools['psql'] -X -q -w -h 127.0.0.1 -p 55448 -U postgres -d $db -v ON_ERROR_STOP=1 -f (Join-Path $phase6Root 'apps/api/prisma/tests/activity-media-evidence-runtime.sql') 2>&1) -join "`n"
+    $mediaSuite = (& $phase6Tools['psql'] -X -q -w -h 127.0.0.1 -p $phase6Port -U postgres -d $db -v ON_ERROR_STOP=1 -f (Join-Path $phase6Root 'apps/api/prisma/tests/activity-media-evidence-runtime.sql') 2>&1) -join "`n"
     if ($LASTEXITCODE -ne 0 -or $mediaSuite -notmatch 'ACTIVITY_MEDIA_EVIDENCE_RUNTIME=PASS') { throw "Activity media evidence runtime suite failed in $db." }
   }
   Write-Output 'FORWARD_0041_ACTIVITY_MEDIA_EVIDENCE_RUNTIME=PASS'
@@ -781,7 +781,7 @@ FROM pg_catalog.pg_enum e JOIN pg_catalog.pg_type t ON t.oid=e.enumtypid WHERE t
     # The suite's completion marker is a RAISE NOTICE (stderr), so merge streams rather than
     # using the stdout-only Read-ForwardSql helper.
     Assert-ForwardTarget $db
-    $pscSuite = (& $phase6Tools['psql'] -X -q -w -h 127.0.0.1 -p 55448 -U postgres -d $db -v ON_ERROR_STOP=1 -f (Join-Path $phase6Root 'apps/api/prisma/tests/proof-session-beneficiary-count-runtime.sql') 2>&1) -join "`n"
+    $pscSuite = (& $phase6Tools['psql'] -X -q -w -h 127.0.0.1 -p $phase6Port -U postgres -d $db -v ON_ERROR_STOP=1 -f (Join-Path $phase6Root 'apps/api/prisma/tests/proof-session-beneficiary-count-runtime.sql') 2>&1) -join "`n"
     if ($LASTEXITCODE -ne 0 -or $pscSuite -notmatch 'PROOF_SESSION_BENEFICIARY_COUNT_RUNTIME=PASS') {
       Write-Output $pscSuite
       throw "Proof-session beneficiary count runtime suite failed in $db."
@@ -801,7 +801,7 @@ FROM pg_catalog.pg_enum e JOIN pg_catalog.pg_type t ON t.oid=e.enumtypid WHERE t
     # The suite's completion marker is a RAISE NOTICE (stderr), so merge streams rather than
     # using the stdout-only Read-ForwardSql helper.
     Assert-ForwardTarget $db
-    $oexSuite = (& $phase6Tools['psql'] -X -q -w -h 127.0.0.1 -p 55448 -U postgres -d $db -v ON_ERROR_STOP=1 -f (Join-Path $phase6Root 'apps/api/prisma/tests/activity-overdue-explanation-runtime.sql') 2>&1) -join "`n"
+    $oexSuite = (& $phase6Tools['psql'] -X -q -w -h 127.0.0.1 -p $phase6Port -U postgres -d $db -v ON_ERROR_STOP=1 -f (Join-Path $phase6Root 'apps/api/prisma/tests/activity-overdue-explanation-runtime.sql') 2>&1) -join "`n"
     if ($LASTEXITCODE -ne 0 -or $oexSuite -notmatch 'ACTIVITY_OVERDUE_EXPLANATION_RUNTIME=PASS') {
       Write-Output $oexSuite
       throw "Activity overdue explanation runtime suite failed in $db."
@@ -821,7 +821,7 @@ FROM pg_catalog.pg_enum e JOIN pg_catalog.pg_type t ON t.oid=e.enumtypid WHERE t
     # The suite's completion marker is a RAISE NOTICE (stderr), so merge streams rather than
     # using the stdout-only Read-ForwardSql helper.
     Assert-ForwardTarget $db
-    $prvSuite = (& $phase6Tools['psql'] -X -q -w -h 127.0.0.1 -p 55448 -U postgres -d $db -v ON_ERROR_STOP=1 -f (Join-Path $phase6Root 'apps/api/prisma/tests/activity-progress-review-runtime.sql') 2>&1) -join "`n"
+    $prvSuite = (& $phase6Tools['psql'] -X -q -w -h 127.0.0.1 -p $phase6Port -U postgres -d $db -v ON_ERROR_STOP=1 -f (Join-Path $phase6Root 'apps/api/prisma/tests/activity-progress-review-runtime.sql') 2>&1) -join "`n"
     if ($LASTEXITCODE -ne 0 -or $prvSuite -notmatch 'ACTIVITY_PROGRESS_REVIEW_RUNTIME=PASS') {
       Write-Output $prvSuite
       throw "Activity progress review runtime suite failed in $db."
@@ -841,7 +841,7 @@ FROM pg_catalog.pg_enum e JOIN pg_catalog.pg_type t ON t.oid=e.enumtypid WHERE t
     # The suite's completion marker is a RAISE NOTICE (stderr), so merge streams rather than
     # using the stdout-only Read-ForwardSql helper.
     Assert-ForwardTarget $db
-    $f9aSuite = (& $phase6Tools['psql'] -X -q -w -h 127.0.0.1 -p 55448 -U postgres -d $db -v ON_ERROR_STOP=1 -f (Join-Path $phase6Root 'apps/api/prisma/tests/f9-descriptive-aggregates-runtime.sql') 2>&1) -join "`n"
+    $f9aSuite = (& $phase6Tools['psql'] -X -q -w -h 127.0.0.1 -p $phase6Port -U postgres -d $db -v ON_ERROR_STOP=1 -f (Join-Path $phase6Root 'apps/api/prisma/tests/f9-descriptive-aggregates-runtime.sql') 2>&1) -join "`n"
     if ($LASTEXITCODE -ne 0 -or $f9aSuite -notmatch 'F9_DESCRIPTIVE_AGGREGATES_RUNTIME=PASS') {
       Write-Output $f9aSuite
       throw "F9 descriptive aggregates runtime suite failed in $db."
@@ -852,7 +852,7 @@ FROM pg_catalog.pg_enum e JOIN pg_catalog.pg_type t ON t.oid=e.enumtypid WHERE t
   Assert-ForwardTarget 'pathways_phase4_f9a_retry'
   Invoke-LocalSql ([IO.File]::ReadAllText((Join-Path $phase6Root 'apps/api/prisma/tests/finance-expense-concurrency-fixture.sql'))) 'pathways_phase4_f9a_retry'
   $expenseRuntimeLogin = (Read-ForwardSql 'pathways_phase4_f9a_retry' "SELECT rolcanlogin FROM pg_catalog.pg_roles WHERE rolname='pathways_runtime';").Trim()
-  $expenseRaceEnvironment = @{ PHASE2_RACE_DATABASE = 'pathways_phase4_f9a_retry'; PHASE2_LOCAL_PORT = '55448'; PHASE2_RUNTIME_PASSWORD = $trustLocalPlaceholder; PHASE2_OWNER_PASSWORD = $trustLocalPlaceholder }
+  $expenseRaceEnvironment = @{ PHASE2_RACE_DATABASE = 'pathways_phase4_f9a_retry'; PHASE2_LOCAL_PORT = "$phase6Port"; PHASE2_RUNTIME_PASSWORD = $trustLocalPlaceholder; PHASE2_OWNER_PASSWORD = $trustLocalPlaceholder }
   try {
     Invoke-LocalSql 'ALTER ROLE pathways_runtime LOGIN;' 'pathways_phase4_f9a_retry'
     foreach ($key in $expenseRaceEnvironment.Keys) { Set-Item -LiteralPath "Env:$key" -Value $expenseRaceEnvironment[$key] }

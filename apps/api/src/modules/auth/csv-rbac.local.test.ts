@@ -6,6 +6,8 @@ import { rolePermissions } from './authorization-policy'
 import type { ApplicationIdentity } from './developer-access'
 
 const enabled = process.env.PATHWAYS_CSV_RBAC_LOCAL_TESTS === '1'
+const replayPort = Number(process.env.PATHWAYS_REPLAY_PORT)
+if (enabled && !replayPort) throw new Error('PATHWAYS_REPLAY_PORT is required')
 const id = (n: number) => `a9900000-0000-4000-8000-${String(n).padStart(12, '0')}`
 
 // Synthetic prerequisites commit so genuine runtime LOGIN sessions can see them.
@@ -15,25 +17,25 @@ describe.skipIf(!enabled)('CSV RBAC API against runtime RLS', () => {
     const admin = new PrismaService({
       datasources: {
         db: {
-          url: 'postgresql://postgres@127.0.0.1:55448/pathways_phase4_phase6_replay?schema=public&connection_limit=1&connect_timeout=3&pool_timeout=5',
+          url: `postgresql://postgres@127.0.0.1:${replayPort}/pathways_phase4_phase6_replay?schema=public&connection_limit=1&connect_timeout=3&pool_timeout=5`,
         },
       },
     })
     const runtime = new PrismaService({
       datasources: {
         db: {
-          url: 'postgresql://pathways_runtime@127.0.0.1:55448/pathways_phase4_phase6_replay?schema=public&connection_limit=1&connect_timeout=3&pool_timeout=5',
+          url: `postgresql://pathways_runtime@127.0.0.1:${replayPort}/pathways_phase4_phase6_replay?schema=public&connection_limit=1&connect_timeout=3&pool_timeout=5`,
         },
       },
     })
     try {
       const [guard] = await admin.$queryRaw<Array<{ safe: boolean }>>`
         SELECT current_database()='pathways_phase4_phase6_replay' AND inet_server_addr()='127.0.0.1'::inet
-        AND inet_server_port()=55448 AND current_user='postgres' AND session_user='postgres' AS safe`
+        AND inet_server_port() = ${replayPort} AND current_user='postgres' AND session_user='postgres' AS safe`
       expect(guard.safe).toBe(true)
       const [runtimeGuard] = await runtime.$queryRaw<Array<{ safe: boolean }>>`
         SELECT current_database()='pathways_phase4_phase6_replay' AND inet_server_addr()='127.0.0.1'::inet
-        AND inet_server_port()=55448 AND current_user='pathways_runtime' AND session_user='pathways_runtime'
+        AND inet_server_port() = ${replayPort} AND current_user='pathways_runtime' AND session_user='pathways_runtime'
         AND NOT r.rolsuper AND NOT r.rolbypassrls AND NOT r.rolcreatedb AND NOT r.rolcreaterole
         AND NOT r.rolinherit AND NOT r.rolreplication
         AND NOT EXISTS(SELECT FROM pg_catalog.pg_auth_members m WHERE m.member=r.oid)

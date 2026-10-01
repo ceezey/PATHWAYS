@@ -7,6 +7,8 @@ import { describe, expect, it } from 'vitest'
 import { DashboardsService } from './dashboards.service'
 
 const enabled = process.env.PATHWAYS_DASHBOARD_HOME_SCOPE_LOCAL_TESTS === '1'
+const replayPort = Number(process.env.PATHWAYS_REPLAY_PORT)
+if (enabled && !replayPort) throw new Error('PATHWAYS_REPLAY_PORT is required')
 const id = (number: number) => `a9240000-0000-4000-8000-${String(number).padStart(12, '0')}`
 const organizationId = id(1)
 const authSubject = id(2)
@@ -27,7 +29,7 @@ describe.skipIf(!enabled)('dashboard home on disposable PostgreSQL', () => {
   it('allows projects.read without granting analytics.read', async () => {
     const localUrl = new URL('postgresql://127.0.0.1')
     localUrl.username = 'postgres'
-    localUrl.port = '55448'
+    localUrl.port = String(replayPort)
     localUrl.pathname = '/pathways_phase4_phase6_replay'
     localUrl.searchParams.set('schema', 'public')
     localUrl.searchParams.set('connection_limit', '1')
@@ -40,7 +42,7 @@ describe.skipIf(!enabled)('dashboard home on disposable PostgreSQL', () => {
       const [guard] = await client.$queryRaw<Array<{ safe: boolean }>>`
         SELECT current_database() = 'pathways_phase4_phase6_replay'
           AND inet_server_addr() = '127.0.0.1'::inet
-          AND inet_server_port() = 55448
+          AND inet_server_port() = ${replayPort}
           AND current_user = 'postgres'
           AND session_user = 'postgres'
           AND to_regprocedure(
