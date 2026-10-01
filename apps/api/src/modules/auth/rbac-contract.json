@@ -445,6 +445,21 @@
     ],
     "forms.archive": [],
     "indicators.archive": [],
+    "indicators.library.read": [
+      "SYSTEM_ADMINISTRATOR",
+      "MONITORING_AND_EVALUATION_OFFICER",
+      "PROJECT_MANAGER"
+    ],
+    "indicators.library.create": [
+      "SYSTEM_ADMINISTRATOR",
+      "MONITORING_AND_EVALUATION_OFFICER",
+      "PROJECT_MANAGER"
+    ],
+    "indicators.library.archive": [
+      "SYSTEM_ADMINISTRATOR",
+      "MONITORING_AND_EVALUATION_OFFICER",
+      "PROJECT_MANAGER"
+    ],
     "milestones.manage": [],
     "activities.progress.update": [
       "PROJECT_OFFICER",
@@ -1795,6 +1810,22 @@
       "grants": [
         ["SYSTEM_ADMINISTRATOR", "activities.read"],
         ["SYSTEM_ADMINISTRATOR", "budgets.read"]
+      ]
+    },
+    {
+      "changeRecord": "cr-pathways-indicator-library",
+      "migration": "0051_indicator_library",
+      "rows": [51],
+      "grants": [
+        ["SYSTEM_ADMINISTRATOR", "indicators.library.read"],
+        ["SYSTEM_ADMINISTRATOR", "indicators.library.create"],
+        ["SYSTEM_ADMINISTRATOR", "indicators.library.archive"],
+        ["MONITORING_AND_EVALUATION_OFFICER", "indicators.library.read"],
+        ["MONITORING_AND_EVALUATION_OFFICER", "indicators.library.create"],
+        ["MONITORING_AND_EVALUATION_OFFICER", "indicators.library.archive"],
+        ["PROJECT_MANAGER", "indicators.library.read"],
+        ["PROJECT_MANAGER", "indicators.library.create"],
+        ["PROJECT_MANAGER", "indicators.library.archive"]
       ]
     }
   ]

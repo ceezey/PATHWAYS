@@ -22,7 +22,7 @@ describe('approved CSV RBAC contract', () => {
         'utf8',
       )
     const sql = migration('0027_revised_csv_rbac')
-    const latestMatrix = migration('0035_admin_read_access')
+    const latestMatrix = migration('0051_indicator_library')
     const expected = Object.entries(contract.permissions)
       .flatMap(([permission, roles]) => roles.map((role) => `${role}:${permission}`))
       .sort()
@@ -31,7 +31,7 @@ describe('approved CSV RBAC contract', () => {
     const amended = contract.amendments.flatMap((amendment) =>
       amendment.grants.map(([role, permission]) => `${role}:${permission}`),
     )
-    // Effective grants: the 0027 baseline plus forward amendments (0035 inserts them).
+    // Effective grants: the 0027 baseline plus forward amendments (each amendment migration inserts its own).
     expect(
       [...pairs(sql.split('INSERT INTO rbac_expected VALUES')[1].split(';')[0]), ...amended].sort(),
     ).toEqual(expected)
@@ -40,8 +40,9 @@ describe('approved CSV RBAC contract', () => {
       expected,
     )
     for (const [role, permission] of contract.amendments.flatMap((amendment) => amendment.grants)) {
-      expect(latestMatrix).toContain(`WHERE r.code='${role}'`)
-      expect(latestMatrix).toContain(`'${permission}'`)
+      const amendment = contract.amendments.find((a) => a.grants.some((g) => g[1] === permission))
+      expect(migration(amendment?.migration ?? '')).toContain(`'${role}'`)
+      expect(latestMatrix).toContain(`('${role}','${permission}')`)
     }
   })
   it('matches every canonical grant and preserves unique permission definitions', () => {
@@ -104,6 +105,13 @@ describe('approved CSV RBAC contract', () => {
       'expenses.submit',
     ] as const) {
       expect(rolePermissions.SYSTEM_ADMINISTRATOR).not.toContain(permission)
+    }
+  })
+  it('grants the indicator library only to the roles that hold indicator creation', () => {
+    for (const role of Object.keys(rolePermissions) as Array<keyof typeof rolePermissions>) {
+      const holdsCreate = rolePermissions[role].includes('indicators.create')
+      for (const action of ['read', 'create', 'archive'] as const)
+        expect(rolePermissions[role].includes(`indicators.library.${action}`)).toBe(holdsCreate)
     }
   })
   it('permits only Admin to assign Grant Manager', () => {
