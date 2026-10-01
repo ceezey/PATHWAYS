@@ -53,7 +53,7 @@ Six internal roles are defined in `apps/api/src/modules/auth/rbac-contract.json`
 | PRD-F5 | Digital Data Collection and Preparation | Must-Have | F5 | R2 | 1.4, 2.1 | Implemented; G-F6-7 on hold (see [deferred features](deferred-features.md)) |
 | PRD-F6 | Metadata-Driven Data Integration | Must-Have | F6 | R2 | 1.1, 1.4, 2.1 | Implemented; G-F6-7 on hold (see [deferred features](deferred-features.md)) |
 | PRD-F7 | Project Indicator and Monitoring | Must-Have | F7 | R3, R4 | 1.5 | Implemented; G-F7-5 not met, deferred (see [deferred features](deferred-features.md)) |
-| PRD-F8 | Aggregated Monitoring Dashboard with SADDD Analysis | Must-Have | F8 | R3 | 1.6, 2.2, 2.3 | Implemented; G-F8-7 load not verified (see [deferred features](deferred-features.md)) |
+| PRD-F8 | Aggregated Monitoring Dashboard with SADDD Analysis | Must-Have | F8 | R3 | 1.6, 2.2, 2.3 | Implemented; G-F8-7 verified locally at assumed production scale |
 | PRD-F9 | Descriptive Analytics and Project Performance Summaries | Supporting | F9 | R3, R7 | 1.6, 2.2 | Implemented for KPI, participation, survey and timeline views; on-hold items in the deferred register |
 | PRD-F10 | Rule-Based Alerts | Supporting | F10 | R7 | 1.7, 2.4 | Local API and initial runtime slice; integration verification pending |
 | PRD-F11 | Rule-Based Decision Support and Recommendations | Supporting | F11 | R7 | 1.7, 2.4 | Local human review API; integration verification pending |
@@ -996,7 +996,6 @@ Not applicable: indicators have active and archived flags only; no approval life
 - Aggregate output only; no SADDD drilldown to individual beneficiaries for any role.
 **Bounds (out):**
 - SADDD for an open or undefined project period: omitted, not estimated (analytics.service.ts precondition)
-- Verified dashboard performance at production scale: deferred (cr-pathways-performance-scaling; G-F8-7)
 - Drilldown to beneficiary records for Program Manager and Grant Manager: aggregate-only roles (rfc-pathways-auth-rbac-isolation)
 - Custom dashboard widgets and "Add to Dashboard": hidden pending a storage decision (deferred-features)
 - Predictive or machine-learning analysis: not in scope (Scope and Limitations)
@@ -1012,7 +1011,7 @@ Not applicable: indicators have active and archived flags only; no approval life
 | G-F8-4 | Age bands follow the locked boundaries; missing birth date is Unknown and an invalid one is excluded | Met | QAD-T60 |
 | G-F8-5 | Program Manager and Grant Manager receive aggregates only, with raw beneficiary denial unchanged | Met | QAD-R06 |
 | G-F8-6 | SADDD is omitted for an open project period instead of failing the dashboard | Met | QAD-T61 |
-| G-F8-7 | Dashboard responsiveness is verified at production scale | Not met | QAD-T62 |
+| G-F8-7 | Dashboard responsiveness is verified at production scale | Met | QAD-T62, QAD-T87 |
 
 #### Use Cases
 

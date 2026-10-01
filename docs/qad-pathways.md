@@ -24,7 +24,7 @@ Every implemented feature requires:
 - Feature tests run alongside the [SAD review gates](sad-pathways.md); automated check success does not imply semantic approval.
 - Proposed changes need concurrent specialist reviews before implementation, and final content needs renewed review and external evidence validation.
 - Scope: the 13 features PRD-F1 to PRD-F13. The Must-Have features PRD-F1 to PRD-F8 are traced in section 3.4.
-- Out of scope: load testing at production scale (gate G-F8-7 is Not met) and hosted-environment verification of public pages (gate G-F13-5 is Not met).
+- Out of scope: hosted-environment verification of public pages (gate G-F13-5 is Not met).
 
 ## 2. Test Environments & Data
 
@@ -158,7 +158,7 @@ Every implemented feature requires:
 | QAD-T52 | a user attaches a trimmed free-text note to a journey event and to its correction; the audit records only that a note exists | Happy | Functional Suitability | PRD-F4 | G-F4-6 | UC-F4-2 | `apps/api/src/modules/participants/journey-note.test.ts` |
 | QAD-T54 | a reviewer declares a data type and translates values ("M" and "F" to canonical values); a coercion failure stays staged with a reason; an oversized map or formula-like values are rejected | Happy, Sad, Abuse | Functional Suitability | PRD-F6 | G-F6-7 | UC-F6-2 | `packages/imports/src/normalization.test.ts`; `apps/api/src/modules/imports/imports.dto.value-map.test.ts`; `apps/api/src/modules/imports/imports.service.test.ts`; `apps/web/src/features/collection/import-value-map-editor.test.tsx` |
 | QAD-T58 | an invalid library definition, a request key reused for a different entry, a missing or archived entry, and a caller without the library permission are refused and nothing is created | Sad | Functional Suitability | PRD-F7 | G-F7-5 | UC-F7-1 | `apps/api/src/modules/indicators/indicator-library.service.test.ts` |
-| QAD-T62 | dashboard responsiveness is verified at production scale; not measured, so the gate is Not met | Sad | Performance Efficiency | PRD-F8 | G-F8-7 | UC-F8-1 | Manual; pending, gate Not met |
+| QAD-T62 | dashboard responsiveness at production scale (assumed 20 projects, 10,000 beneficiaries, 50,000 journey events, 200 indicators with 12 readings; no volumes are stated in the PRD or validation plan) stays under the NFR-3 p95 of 800 ms for home, monitoring and SADDD | Happy | Performance Efficiency | PRD-F8 | G-F8-7 | UC-F8-1 | Measured 2026-10-01, local Supabase stack and ts-node API on one Windows 11 machine, 50 runs per endpoint; cold / warm p95 ms: home 530 / 394, monitoring 358 / 377, SADDD 381 / 605; `scripts/perf/dashboard-load.mjs`, `apps/api/prisma/local-load-seed.ts`; gate Met |
 | QAD-T63 | participation breakdowns, indicator trends and a server budget aggregate in descriptive analytics; not delivered, so the gate is Not met | Sad | Functional Suitability | PRD-F9 | G-F9-9 | UC-F9-1 | Manual; pending, gate Not met |
 | QAD-T64 | survey totals for Program Manager and Grant Manager through a closed-period release table; not delivered, so the gate is Not met | Sad | Functional Suitability | PRD-F9 | G-F9-10 | UC-F9-1 | Manual; pending, gate Not met |
 | QAD-T67 | budget, Beneficiary and survey rule metrics evaluate and raise alerts; not delivered, so the gate is Not met | Sad | Functional Suitability | PRD-F10 | G-F10-6 | UC-F10-1 | Manual; pending, gate Not met |
@@ -173,6 +173,7 @@ Every implemented feature requires:
 | QAD-JR-01 | System Administrator requests beneficiary journey history -> 403, while listing and saving project journey stages succeeds | Sad | Security | PRD-F4 | G-F4-5 | UC-F4-4 | `apps/api/src/modules/participants/journeys-access.test.ts` |
 | QAD-FP-01 | a form author publishes their own form -> 403 with no write or audit, in any role; a role without `forms.publish` is denied | Sad | Security | PRD-F5 | G-F5-1 | UC-F5-1 | `apps/api/src/modules/metadata/metadata.service.test.ts` |
 | QAD-T83 | a journey note over 1000 characters or only whitespace is rejected with 400 and nothing is stored | Sad | Functional Suitability | PRD-F4 | G-F4-6 | UC-F4-2 | `apps/api/src/modules/participants/journey-note.test.ts` |
+| QAD-T87 | the first (cold) dashboard request after API start is recorded and stays under 800 ms at the same scale | Happy | Performance Efficiency | PRD-F8 | G-F8-7 | UC-F8-1 | Measured 2026-10-01: cold home 530 ms, monitoring 358 ms, SADDD 381 ms; `scripts/perf/dashboard-load.mjs` |
 
 ### 3.3 Abuse / Adversarial Paths
 
@@ -245,7 +246,7 @@ Every implemented feature requires:
 | PRD-F5 | Digital Data Collection and Preparation | QAD-T05, QAD-IMP-04, QAD-IMP-09, QAD-IMP-11, QAD-IMP-13, QAD-T53, QAD-FP-01 |
 | PRD-F6 | Metadata-Driven Data Integration | QAD-T06, QAD-T21, QAD-T22, QAD-T25, QAD-A07, QAD-IMP-01, QAD-IMP-02, QAD-IMP-03, QAD-IMP-05, QAD-IMP-06, QAD-IMP-07, QAD-IMP-08, QAD-IMP-10, QAD-IMP-12, QAD-SM-01, QAD-SM-02, QAD-SM-03, QAD-SM-04, QAD-SM-05, QAD-SM-06, QAD-SM-07, QAD-SM-08, QAD-SM-09, QAD-SM-10, QAD-SM-11, QAD-T54 |
 | PRD-F7 | Project Indicator and Monitoring | QAD-T07, QAD-P05, QAD-T55, QAD-T56, QAD-T57, QAD-T58, QAD-IL-01, QAD-IL-02 |
-| PRD-F8 | Aggregated Monitoring Dashboard with SADDD Analysis | QAD-T08, QAD-T23, QAD-A10, QAD-T59, QAD-T60, QAD-T61, QAD-T62 |
+| PRD-F8 | Aggregated Monitoring Dashboard with SADDD Analysis | QAD-T08, QAD-T23, QAD-A10, QAD-T59, QAD-T60, QAD-T61, QAD-T62, QAD-T87 |
 
 PRD-F9 to PRD-F13 rows are in the matrix above and are cited by their gates in the PRD.
 
@@ -266,7 +267,7 @@ PRD-F9 to PRD-F13 rows are in the matrix above and are cited by their gates in t
 - **Automated tests:** Chunked promotion and read-cache rows (QAD-IMP-01, QAD-IMP-02, QAD-P01, QAD-P02); rule-engine determinism.
 - **Manual checks:** Measured response timing at production scale.
 - **Thresholds:** NFR-3 API p95 under 800 ms for normal pages, imports excluded (PRD 5.7, developer target 2026-10-01); a target, not yet measured.
-- **Gaps:** Production-scale dashboard verification is Not met (G-F8-7); performance scaling steps 3-5 are deferred.
+- **Gaps:** Performance scaling steps 3-5 are deferred; dashboard scale was measured locally only (QAD-T62, QAD-T87).
 
 #### 3.5.3 Compatibility
 

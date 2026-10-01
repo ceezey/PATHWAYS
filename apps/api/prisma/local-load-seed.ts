@@ -1,4 +1,4 @@
-import { PrismaClient } from '@prisma/client'
+import { execFileSync } from 'node:child_process'
 
 import { assertLocalDemoTarget } from './local-demo-target'
 
@@ -14,13 +14,12 @@ export const LOAD_SCALE = {
 export function loadSeedStatements(s = LOAD_SCALE) {
   const org = '(SELECT id FROM pathways.organizations ORDER BY created_at LIMIT 1)'
   const user = "(SELECT id FROM pathways.system_users WHERE email = 'jose.reyes@pathways.example')"
-  const me =
-    "(SELECT id FROM pathways.system_users WHERE email = 'carlo.mendoza@pathways.example')"
+  const me = "(SELECT id FROM pathways.system_users WHERE email = 'carlo.mendoza@pathways.example')"
   const loadProjects =
     "(SELECT p.*, row_number() OVER (ORDER BY p.code) AS n FROM pathways.projects p WHERE p.code LIKE 'LOAD-%')"
   return [
     `INSERT INTO pathways.projects (organization_id, code, title, status, start_date, end_date, created_by_id)
-     SELECT ${org}, 'LOAD-' || g, 'Load project ' || g, 'ONGOING', '2026-01-01', '2026-12-31', ${user}
+     SELECT ${org}, 'LOAD-' || g, 'Load project ' || g, 'ONGOING', '2026-01-01', '2026-06-30', ${user}
      FROM generate_series(1, ${s.projects}) g ON CONFLICT DO NOTHING`,
     `INSERT INTO pathways.user_project_assignments (organization_id, project_id, user_id, assigned_by_id)
      SELECT p.organization_id, p.id, ${me}, ${user} FROM pathways.projects p
@@ -36,7 +35,7 @@ export function loadSeedStatements(s = LOAD_SCALE) {
      ON CONFLICT DO NOTHING`,
     `INSERT INTO pathways.beneficiary_journey_events (organization_id, project_id, enrollment_id, event_type, event_date, note, recorded_by_id)
      SELECT e.organization_id, e.project_id, e.id,
-       (ARRAY['PARTICIPATION','PROGRESS_UPDATE','FOLLOW_UP','COMPLETION'])[1 + (g % 4)]::pathways."JourneyEventType",
+       (ARRAY['PARTICIPATION','PROGRESS_UPDATE','FOLLOW_UP','COMPLETION'])[1 + (g % 4)]::pathways.journey_event_type,
        DATE '2026-03-01' + (g % 200), 'load-seed', ${user}
      FROM generate_series(1, ${s.events}) g
      JOIN (SELECT e.*, row_number() OVER (ORDER BY e.id) AS n FROM pathways.beneficiary_project_enrollments e
@@ -46,13 +45,13 @@ export function loadSeedStatements(s = LOAD_SCALE) {
     `INSERT INTO pathways.project_indicators (organization_id, project_id, code, name, measurement_mode, numeric_kind, direction,
        display_precision, period_start, period_end, unit_label, data_source, target_value, created_by_id)
      SELECT p.organization_id, p.id, 'LOADI-' || g, 'Load indicator ' || g, 'MANUAL', 'COUNT', 'HIGHER_IS_BETTER',
-       0, '2026-01-01', '2026-12-31', 'persons', 'synthetic load seed', 1000, ${user}
+       0, '2026-01-01', '2026-06-30', 'persons', 'synthetic load seed', 1000, ${user}
      FROM generate_series(1, ${s.indicators}) g
      JOIN ${loadProjects} p ON p.n = (g % ${s.projects}) + 1
      ON CONFLICT DO NOTHING`,
     `INSERT INTO pathways.project_indicator_measurements (organization_id, project_id, indicator_id, period_start, period_end,
        value, source, client_measurement_id, request_hash, recorded_by_id)
-     SELECT i.organization_id, i.project_id, i.id, DATE '2026-01-01' + ((m - 1) * 28), DATE '2026-01-01' + (m * 28) - 1,
+     SELECT i.organization_id, i.project_id, i.id, DATE '2026-01-01' + ((m - 1) * 14), DATE '2026-01-01' + (m * 14) - 1,
        m * 50, 'load-seed', gen_random_uuid(), md5(random()::text) || md5(random()::text), ${user}
      FROM pathways.project_indicators i CROSS JOIN generate_series(1, ${s.readings}) m
      WHERE i.code LIKE 'LOADI-%'
@@ -60,22 +59,53 @@ export function loadSeedStatements(s = LOAD_SCALE) {
   ]
 }
 
-async function main() {
+function main() {
   assertLocalDemoTarget(process.env)
-  const owner = new PrismaClient({ datasources: { db: { url: process.env.DIRECT_URL } } })
-  try {
-    for (const sql of loadSeedStatements()) await owner.$executeRawUnsafe(sql)
-    const [row] = await owner.$queryRawUnsafe<{ id: string }[]>(
+  // Superuser in the fixed local container with replica mode skips the source-proof triggers; ANALYZE refreshes planner stats like autovacuum would.
+  const script = [
+    'SET session_replication_role = replica;',
+    ...loadSeedStatements().map((q) => q + ';'),
+    'ANALYZE;',
+  ].join('\n')
+  execFileSync(
+    'docker',
+    [
+      'exec',
+      '-i',
+      'supabase_db_pathways',
+      'psql',
+      '-v',
+      'ON_ERROR_STOP=1',
+      '-q',
+      '-U',
+      'supabase_admin',
+      '-d',
+      'postgres',
+    ],
+    {
+      input: script,
+      stdio: ['pipe', 'inherit', 'inherit'],
+      env: { ...process.env, MSYS_NO_PATHCONV: '1' },
+    },
+  )
+  const id = execFileSync(
+    'docker',
+    [
+      'exec',
+      '-i',
+      'supabase_db_pathways',
+      'psql',
+      '-tA',
+      '-U',
+      'supabase_admin',
+      '-d',
+      'postgres',
+      '-c',
       "SELECT id FROM pathways.projects WHERE code = 'LOAD-1'",
-    )
-    console.info(`Load seed done. SADDD project for perf run: ${row?.id}`)
-  } finally {
-    await owner.$disconnect()
-  }
+    ],
+    { encoding: 'utf8', env: { ...process.env, MSYS_NO_PATHCONV: '1' } },
+  ).trim()
+  console.info(`Load seed done. SADDD project for perf run: ${id}`)
 }
 
-if (require.main === module)
-  main().catch((error) => {
-    console.error(error)
-    process.exit(1)
-  })
+if (require.main === module) main()
