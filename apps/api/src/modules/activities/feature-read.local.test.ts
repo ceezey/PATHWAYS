@@ -97,6 +97,8 @@ describe.skipIf(!enabled)('joined feature reads on disposable PostgreSQL', () =>
               })),
               skipDuplicates: true,
             })
+            // Seed as superuser without the runtime-only source-proof triggers.
+            await transaction.$executeRaw`SET LOCAL session_replication_role = replica`
             await transaction.$executeRaw`INSERT INTO auth.users(id) VALUES (${authSubject}::uuid)`
             await transaction.organization.create({
               data: {
@@ -162,18 +164,20 @@ describe.skipIf(!enabled)('joined feature reads on disposable PostgreSQL', () =>
             })
             const projects = new ProjectsService(scoped)
             const activities = new ActivitiesService(scoped, {} as StorageService)
+            await transaction.$executeRaw`SET LOCAL session_replication_role = origin`
             await transaction.$executeRaw`SET LOCAL ROLE pathways_runtime`
 
             queries.length = 0
             await expect(projects.list(actor)).resolves.toHaveLength(1)
-            expect(queries).toHaveLength(3)
+            // Fourth statement is the project budget read for budget-entitled roles.
+            expect(queries, queries.join(" ## ")).toHaveLength(4)
             expect(queries[2]).toMatch(/user_project_assignments/i)
 
             queries.length = 0
             await expect(activities.list(actor, projectId)).resolves.toHaveLength(1)
-            expect(queries).toHaveLength(3)
+            expect(queries, queries.join(" ## ")).toHaveLength(3)
             expect(queries[2]).toMatch(/project_activities/i)
-            expect(queries[2]).toMatch(/activity_updates/i)
+            expect(queries[2]).toMatch(/project_activity_assignments/i)
 
             completed = true
             throw rollback

@@ -88,6 +88,8 @@ describe.skipIf(!enabled)('C8 service path on disposable PostgreSQL', () => {
                 skipDuplicates: true,
               })
             }
+            // Seed as superuser without the runtime-only source-proof triggers.
+            await tx.$executeRaw`SET LOCAL session_replication_role = replica`
             await tx.$executeRaw`INSERT INTO auth.users(id) VALUES (${authSubject}::uuid)`
             await tx.organization.create({
               data: {
@@ -163,6 +165,7 @@ describe.skipIf(!enabled)('C8 service path on disposable PostgreSQL', () => {
             })
             const beneficiaries = new BeneficiariesService(scoped)
             const dashboards = new DashboardsService(scoped, {} as IndicatorsService)
+            await tx.$executeRaw`SET LOCAL session_replication_role = origin`
             await tx.$executeRaw`SET LOCAL ROLE pathways_runtime`
 
             const list = (filters: Partial<BeneficiaryListQueryDto>) =>

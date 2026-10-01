@@ -38,7 +38,7 @@ $phase6Port = 55448
 $phase6Exit = 1
 $phase6Started = $false
 $phase6PreviousEnvironment = @{}
-foreach ($phase6EnvironmentName in @('PATHWAYS_PHASE6_REPLAY_MIGRATIONS','PATHWAYS_CSV_RBAC_LOCAL_TESTS','PATHWAYS_FEATURE_READ_LOCAL_TESTS','PATHWAYS_PROJECT_ACTIVITY_CREATION_LOCAL_TESTS','PATHWAYS_C8_LOCAL_TESTS','PATHWAYS_DASHBOARD_HOME_SCOPE_LOCAL_TESTS','DIRECT_URL','DATABASE_URL')) {
+foreach ($phase6EnvironmentName in @('PATHWAYS_PHASE6_REPLAY_MIGRATIONS','PATHWAYS_CSV_RBAC_LOCAL_TESTS','PATHWAYS_FEATURE_READ_LOCAL_TESTS','PATHWAYS_PROJECT_ACTIVITY_CREATION_LOCAL_TESTS','PATHWAYS_C8_LOCAL_TESTS','PATHWAYS_EXPECTED_TABLE_COUNT','PATHWAYS_DASHBOARD_HOME_SCOPE_LOCAL_TESTS','DIRECT_URL','DATABASE_URL')) {
   $phase6EnvironmentItem = Get-Item -LiteralPath "Env:$phase6EnvironmentName" -ErrorAction SilentlyContinue
   $phase6PreviousEnvironment[$phase6EnvironmentName] = if ($null -eq $phase6EnvironmentItem) {
     @{ Present = $false; Value = $null }
@@ -594,9 +594,8 @@ END $$;
     } finally { Pop-Location }
     if ($MigrationBaseline) {
       # Only this path reaches the current schema, so the current-schema API suites run here.
-      $currentTableCount = (& $phase6Tools['psql'] -X -w -q -A -t -h 127.0.0.1 -p $phase6Port -U postgres -d $phase6Database -v ON_ERROR_STOP=1 -c "SELECT count(*) FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname='pathways' AND c.relkind='r'").Trim()
-      if ($LASTEXITCODE -ne 0 -or $currentTableCount -notmatch '^\d+$') { throw 'Current-schema table count unavailable.' }
-      $env:PATHWAYS_EXPECTED_TABLE_COUNT = $currentTableCount
+      # Fixed pathways table count at migration 0051 so a missing or extra table fails the guard.
+      $env:PATHWAYS_EXPECTED_TABLE_COUNT = "58"
       $env:PATHWAYS_FEATURE_READ_LOCAL_TESTS = '1'
       $env:PATHWAYS_C8_LOCAL_TESTS = '1'
       $env:PATHWAYS_DASHBOARD_HOME_SCOPE_LOCAL_TESTS = '1'
