@@ -28,7 +28,7 @@ Defense: October 6, 2026. Timing: 5 minutes setup, 10 minutes presentation, 20 m
 
 ## 3. Live Demo Script
 
-**Goal:** generate a report covering budget, KPI and descriptive analysis for a project. The demo runs on the local seeded workspace ([local development](runbook-local-dev.md)). Every step below is Met in `docs/prd-pathways.md`.
+**Goal:** generate a project report with KPI and descriptive analysis; budget and expenses are reviewed on the finance screens (steps 2 to 6). The demo runs on the local seeded workspace ([local development](runbook-local-dev.md)). Every step below is Met in `docs/prd-pathways.md`.
 
 | Step | Role | Action | Route | Permission |
 |---|---|---|---|---|
@@ -40,7 +40,7 @@ Defense: October 6, 2026. Timing: 5 minutes setup, 10 minutes presentation, 20 m
 | 6 | Grant Manager | Signs off the expense and reads the budget | `/projects/:projectId/budget` | `expenses.signoff` |
 | 7 | Project Manager | Reviews indicators and progress | `/projects/:projectId/monitor-evaluate` | Per route access in PRD section 5.1 |
 | 8 | Program Manager | Views descriptive analytics (aggregates only) | `/analytics` | `analytics.descriptive.read` |
-| 9 | Program Manager | Previews and generates the report | `/reports`, `/reports/preview` | `reports.generate` |
+| 9 | Program Manager | Previews and generates the project report | `/reports`, `/reports/preview` | `reports.generate` |
 
 Not met, stated honestly:
 

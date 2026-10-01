@@ -1848,7 +1848,7 @@ Sources are the manuscript Table 5 non-functional rows and the Quality Plan (Cha
 | NFR-1 | Maintain secure role-based access control and organization workspace isolation | Security | Threshold not established | Table 5, non-functional row 1 |
 | NFR-2 | Protect sensitive beneficiary and project information from unauthorized access | Security | Threshold not established | Table 5, non-functional row 2 |
 | NFR-3 | Provide responsive dashboard generation and monitoring operations under normal usage | Performance Efficiency | p95 under 800 ms for normal pages, imports excluded (Developer target 2026-10-01) | Table 5, non-functional row 3 |
-| NFR-4 | Maintain centralized and consistent monitoring records across project workflows | Reliability | Availability 99.5% monthly; RPO 24 hours, RTO 5 to 8 hours (Developer target 2026-10-01) | Table 5, non-functional row 4 |
+| NFR-4 | Maintain centralized and consistent monitoring records across project workflows | Reliability | Threshold not established | Table 5, non-functional row 4 |
 | NFR-5 | Support metadata-driven configuration without repeated database restructuring | Maintainability | Threshold not established | Table 5, non-functional row 5 |
 | NFR-6 | Provide a user-friendly and organized monitoring interface for users with varying technical experience | Usability | Threshold not established | Table 5, non-functional row 6 |
 | NFR-7 | Maintain operational reliability during project monitoring and reporting activities | Reliability | Availability 99.5% monthly (Developer target 2026-10-01) | Table 5, non-functional row 7 |
