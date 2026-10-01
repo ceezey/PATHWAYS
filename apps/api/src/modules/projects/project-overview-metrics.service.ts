@@ -58,13 +58,16 @@ export class ProjectOverviewMetricsService {
       where: { organizationId: actor.organizationId, projectId, status: 'APPROVED' },
       _sum: { amount: true },
     })
+    const approvedBudget = planned ? planned.plannedBudget.toFixed(2) : null
+    const countableSpending = (spent._sum.amount ?? 0).toFixed(2)
     try {
-      return budgetUtilization(
-        planned ? planned.plannedBudget.toFixed(2) : null,
-        (spent._sum.amount ?? 0).toFixed(2),
-      )
+      return {
+        metric: budgetUtilization(approvedBudget, countableSpending),
+        approvedBudget,
+        countableSpending,
+      }
     } catch {
-      return missingMetric('OUT_OF_RANGE')
+      return { metric: missingMetric('OUT_OF_RANGE'), approvedBudget, countableSpending }
     }
   }
 
@@ -116,9 +119,7 @@ export class ProjectOverviewMetricsService {
         can('indicators.read') && can('monitoring.read') ? await this.kpi(tx, actor, row.id) : null
       // Spending totals are expense data, so both finance reads are required.
       const budget =
-        can('budgets.read') && can('expenses.read')
-          ? { metric: await this.budget(tx, actor, row.id) }
-          : null
+        can('budgets.read') && can('expenses.read') ? await this.budget(tx, actor, row.id) : null
       const reached =
         can('beneficiaries.aggregates.read') && can('analytics.saddd.read')
           ? {

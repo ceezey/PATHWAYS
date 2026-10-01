@@ -188,7 +188,11 @@ describe('GET /projects/:projectId/overview-metrics', () => {
       indicatorCount: 2,
       reportedCount: 2,
     })
-    expect(result.budgetUtilization).toEqual({ metric: cell('25') })
+    expect(result.budgetUtilization).toEqual({
+      metric: cell('25'),
+      approvedBudget: '1000.00',
+      countableSpending: '250.00',
+    })
     expect(result.beneficiariesReached).toEqual({ metric: cell('30'), target: 120 })
     expect(result.timeline).toEqual({
       metric: cell('100'),
@@ -249,6 +253,16 @@ describe('GET /projects/:projectId/overview-metrics', () => {
     const result = await service.read(manager, projectA)
     expect(result.kpiAchievement).toBeNull()
     expect(indicators.readInTransaction).not.toHaveBeenCalled()
+  })
+
+  it('reports the server-side aggregate total regardless of how many approved expenses exist', async () => {
+    const { service, tx } = harness({ plannedBudget: '500000.00', approvedSpending: '123456.78' })
+    const result = await service.read(actor('PROJECT_MANAGER'), projectA)
+    expect(result.budgetUtilization).toMatchObject({
+      approvedBudget: '500000.00',
+      countableSpending: '123456.78',
+    })
+    expect(tx.budgetExpenseEntry.aggregate).toHaveBeenCalledTimes(1)
   })
 
   it('never reports missing sources as zero', async () => {

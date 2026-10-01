@@ -399,12 +399,8 @@ function FinanceContent({ projectId }: { projectId: string }) {
         title="Budget & Finance"
         description="Manage scoped allocations, private receipts, separated reviews and final sign-off."
       />
-      {can('budgets.read') && can('expenses.read') && budgets.data && expenses.data ? (
-        <FinanceBudgetSummary
-          budgets={budgets.data}
-          expenses={expenses.data}
-          projectId={projectId}
-        />
+      {can('budgets.read') && can('expenses.read') ? (
+        <FinanceBudgetSummary projectId={projectId} />
       ) : null}
       <SectionCard
         title="Budget allocation"

@@ -5,40 +5,22 @@ import { moneyCents } from '@pathways/shared'
 import { overviewMetricLabel } from './project-utils'
 import { useProjectOverviewMetricsRead } from './use-project-reads'
 
-type BudgetRow = { activityId: string | null; category: string; plannedBudget: string }
-type ExpenseRow = { amount: string; status: string }
-
 const php = (cents: bigint) =>
   new Intl.NumberFormat('en-US', { currency: 'PHP', style: 'currency' }).format(Number(cents) / 100)
 
-/** Approved project budget, countable (APPROVED) spending, utilization and remaining balance. */
-export const FinanceBudgetSummary = ({
-  projectId,
-  budgets,
-  expenses,
-}: {
-  projectId: string
-  budgets: BudgetRow[]
-  expenses: ExpenseRow[]
-}) => {
-  const metrics = useProjectOverviewMetricsRead(projectId).data
-  const project = budgets.find(
-    (row) => row.activityId === null && row.category === 'PROJECT_PROFILE_TOTAL',
-  )
-  const approved = project ? moneyCents(project.plannedBudget) : null
-  const spent = expenses
-    .filter((row) => row.status === 'APPROVED')
-    .reduce((total, row) => total + moneyCents(row.amount), 0n)
-  const utilization = metrics?.budgetUtilization
-    ? overviewMetricLabel(metrics.budgetUtilization.metric, 'percent')
-    : 'Unavailable'
+/** Approved budget, countable spending, utilization and remaining balance from the server totals. */
+export const FinanceBudgetSummary = ({ projectId }: { projectId: string }) => {
+  const budget = useProjectOverviewMetricsRead(projectId).data?.budgetUtilization
+  const approved = budget?.approvedBudget ? moneyCents(budget.approvedBudget) : null
+  const spent = budget ? moneyCents(budget.countableSpending) : null
+  const utilization = budget ? overviewMetricLabel(budget.metric, 'percent') : 'Unavailable'
   const tiles = [
     { label: 'Approved budget', value: approved === null ? 'Not recorded' : php(approved) },
-    { label: 'Countable spending', value: php(spent) },
+    { label: 'Countable spending', value: spent === null ? 'Unavailable' : php(spent) },
     { label: 'Utilization', value: utilization },
     {
       label: 'Remaining balance',
-      value: approved === null ? 'Unavailable' : php(approved - spent),
+      value: approved === null || spent === null ? 'Unavailable' : php(approved - spent),
     },
   ]
   return (
