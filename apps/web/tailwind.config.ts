@@ -20,6 +20,7 @@ const config: Config = {
         'primary-active': 'hsl(var(--primary-active))',
         'primary-subtle': 'hsl(var(--primary-subtle))',
         'primary-foreground': 'hsl(var(--primary-foreground))',
+        ink: 'hsl(var(--ink))',
         navy: 'hsl(var(--navy))',
         'navy-foreground': 'hsl(var(--navy-foreground))',
         'navy-muted': 'hsl(var(--navy-muted))',
@@ -81,9 +82,11 @@ const config: Config = {
         '2xl': 'var(--radius-2xl)',
         full: '9999px',
       },
+      maxHeight: { dialog: '90dvh' },
+      minHeight: { state: '70dvh' },
       boxShadow: {
-        popover: '0 8px 20px rgb(11 46 79 / 10%), 0 1px 3px rgb(11 46 79 / 8%)',
-        dialog: '0 16px 40px rgb(11 46 79 / 14%), 0 2px 6px rgb(11 46 79 / 8%)',
+        popover: '0 8px 20px rgb(35 38 49 / 10%), 0 1px 3px rgb(35 38 49 / 8%)',
+        dialog: '0 16px 40px rgb(35 38 49 / 14%), 0 2px 6px rgb(35 38 49 / 8%)',
       },
       fontFamily: {
         heading: ['var(--font-heading)', '"Segoe UI"', '"Helvetica Neue"', 'Arial', 'sans-serif'],
