@@ -168,3 +168,15 @@ The same ambiguity applies to the 0044 chain, so `--resume` reads the live owner
 After 0044, a progress-only note that is still `PENDING` on a role-staging activity can be approved or returned by the assigned M&E officer, and the activity keeps `IN_PROGRESS` until an approved proof update reaches 100 percent.
 
 Migration 0045 (cr-pathways-f9-trusted-aggregates) adds two prisma-owned SECURITY DEFINER functions, `pathways.p10_f9_survey_aggregate` and `pathways.p10_f9_timeline_aggregate`, and changes no table, column, policy or grant. It needs no preprovision or cleanup, so a ledger holding exactly 0000 to 0044 (cleanup already run) resumes directly at the 0045 deploy and then the postconditions. Applying 0045 to role-staging or any hosted database needs separate developer authorization.
+
+## 8. Verified hosted facts
+
+2026-10-02, PATHWAYS-role-staging (ref `klbtoqdalmcsfjqophty`), read-only checks:
+
+- Ledger: 29 rows 0000-0054, all finished, none rolled back; 0046-0053 applied 2026-10-01 14:11-14:12 UTC, 0054 applied 2026-10-02.
+- No residual temporary owner memberships for `prisma`; `pathways_runtime` LOGIN true.
+- Schema `pathways_auth` present; `supabase_auth_admin` has USAGE on `pathways_auth` and not on `pathways`.
+- `p09_role_allows` and `p09_role_allows_0048` ACLs equal `p09_role_allows_0035` (`pathways_runtime` and 8 `rules_*_owner` roles, EXECUTE); `anon`, `authenticated` and `service_role` cannot execute.
+- `SYSTEM_ADMINISTRATOR` lacks `journeys.read`; `MONITORING_AND_EVALUATION_OFFICER` holds `beneficiaries.identities.review`.
+- Password Verification Attempt hook not enabled on hosted (Free plan, developer decision).
+- Runtime SQL suites for these migrations pass in the local MigrationBaseline replay.

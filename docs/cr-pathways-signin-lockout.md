@@ -2,7 +2,7 @@
 
 **ID:** `cr-pathways-signin-lockout`  
 **Date:** 2026-10-01  
-**Status:** Approved by developer 2026-10-01 (implemented on branch `feat/f1-signin-lockout`; migration 0046 not applied to any database)
+**Status:** Applied (2026-10-02; 0046 and 0052 applied on PATHWAYS-role-staging, runtime SQL passes; hosted hook not enabled on Free plan, not an Applied condition)
 
 ## 1. Trigger
 
@@ -79,3 +79,5 @@ If upgraded to a plan with Auth Hooks, enable it as a developer step:
 1. In the Supabase dashboard open Authentication, Hooks, Password Verification Attempt, choose Postgres function, and select `pathways_auth.password_verification_attempt`. If the picker does not list schema `pathways_auth`, enable the hook through the Supabase Management API auth config with uri `pg-functions://postgres/pathways_auth/password_verification_attempt`.
 2. Rollback order: disable the hook first, then drop schema `pathways_auth`.
 3. A hook error blocks all password sign-ins.
+
+Verified 2026-10-02: 0046-0054 applied on PATHWAYS-role-staging (see the verified hosted facts in the staging runbook, section 8).
