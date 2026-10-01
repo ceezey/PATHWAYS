@@ -18,6 +18,7 @@ import { useAuthorizedRead } from '@/providers/authorized-query-provider'
 import { useEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
 import type { z } from 'zod'
+import { FinanceBudgetSummary } from './finance-budget-summary'
 
 export function LiveFinanceWorkspace({ projectId }: { projectId: string }) {
   const { profile } = useCurrentRole()
@@ -398,6 +399,13 @@ function FinanceContent({ projectId }: { projectId: string }) {
         title="Budget & Finance"
         description="Manage scoped allocations, private receipts, separated reviews and final sign-off."
       />
+      {can('budgets.read') && can('expenses.read') && budgets.data && expenses.data ? (
+        <FinanceBudgetSummary
+          budgets={budgets.data}
+          expenses={expenses.data}
+          projectId={projectId}
+        />
+      ) : null}
       <SectionCard
         title="Budget allocation"
         description="Budget detail requires current budget permission; expense submission uses references without exposing allocation amounts."
