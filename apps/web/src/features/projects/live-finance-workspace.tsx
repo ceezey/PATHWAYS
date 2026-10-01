@@ -530,7 +530,7 @@ function FinanceContent({ projectId }: { projectId: string }) {
             <Label>
               Budget reference
               <select
-                className="h-10 w-full rounded-md border bg-background px-3"
+                className="h-11 w-full rounded-md border bg-background px-3"
                 value={reference}
                 disabled={!currentReferences}
                 onChange={(event) => setReference(event.target.value)}

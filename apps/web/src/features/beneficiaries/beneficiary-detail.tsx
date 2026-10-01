@@ -574,7 +574,7 @@ export const BeneficiaryDetail = ({
                               type="button"
                             >
                               <span
-                                className={`flex h-10 w-10 items-center justify-center rounded-full border-2 text-xs font-semibold transition-colors ${
+                                className={`flex h-11 w-11 items-center justify-center rounded-full border-2 text-xs font-semibold transition-colors ${
                                   selected
                                     ? 'border-primary bg-primary text-primary-foreground'
                                     : active

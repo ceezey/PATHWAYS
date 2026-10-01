@@ -311,7 +311,7 @@ function EvaluationContent({ projectId }: { projectId: string }) {
                 <Label>
                   Type
                   <select
-                    className="h-10 w-full rounded-md border bg-background px-3"
+                    className="h-11 w-full rounded-md border bg-background px-3"
                     value={row.type}
                     onChange={(event) => edit(index, 'type', event.target.value)}
                   >

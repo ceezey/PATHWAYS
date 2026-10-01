@@ -13,7 +13,7 @@ export const MetricTooltip = ({ label, children }: { label: string; children: st
         aria-describedby={open ? tooltipId : undefined}
         aria-expanded={open}
         aria-label={`More information about ${label}`}
-        className="inline-flex h-7 w-7 items-center justify-center rounded-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+        className="-m-2 inline-flex h-11 w-11 items-center justify-center rounded-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
         onBlur={() => setOpen(false)}
         onClick={() => setOpen(true)}
         onFocus={() => setOpen(true)}

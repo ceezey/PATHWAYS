@@ -40,7 +40,7 @@ export const FilterChoiceGroup = ({
             type="radio"
             value={option}
           />
-          <span className="inline-flex min-h-10 items-center justify-center whitespace-nowrap rounded-sm px-3 py-2 text-sm font-medium transition-[background-color,color,box-shadow] duration-150 peer-checked:bg-primary-subtle peer-checked:text-light-blue-foreground peer-focus-visible:outline-none peer-focus-visible:ring-2 peer-focus-visible:ring-ring peer-focus-visible:ring-offset-2">
+          <span className="inline-flex min-h-11 items-center justify-center whitespace-nowrap rounded-sm px-3 py-2 text-sm font-medium transition-[background-color,color,box-shadow] duration-150 peer-checked:bg-primary-subtle peer-checked:text-light-blue-foreground peer-focus-visible:outline-none peer-focus-visible:ring-2 peer-focus-visible:ring-ring peer-focus-visible:ring-offset-2">
             {option}
           </span>
         </label>

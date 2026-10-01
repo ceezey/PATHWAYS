@@ -409,7 +409,7 @@ export const ProjectTeamSelectors = ({
                   <ul aria-label="Selected Project Officers" className="space-y-2">
                     {selectedNames.map((name) => (
                       <li
-                        className="flex min-h-10 items-center justify-between gap-3 rounded-md border border-border bg-muted/40 px-3 py-2 text-sm"
+                        className="flex min-h-11 items-center justify-between gap-3 rounded-md border border-border bg-muted/40 px-3 py-2 text-sm"
                         key={name}
                       >
                         <span className="min-w-0">
@@ -424,7 +424,7 @@ export const ProjectTeamSelectors = ({
                         </span>
                         <Button
                           aria-label={`Remove ${name}`}
-                          className="h-10 w-10 shrink-0"
+                          className="h-11 w-11 shrink-0"
                           onClick={() =>
                             updateSelectedNames(
                               selectedNames.filter((selectedName) => selectedName !== name),
