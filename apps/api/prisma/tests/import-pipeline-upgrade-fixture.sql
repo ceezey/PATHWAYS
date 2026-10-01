@@ -5,7 +5,7 @@ DO $$
 BEGIN
   IF current_database() <> 'pathways_phase4_phase6_replay'
      OR inet_server_addr() IS DISTINCT FROM '127.0.0.1'::inet
-     OR inet_server_port() <> 55448 OR current_user <> 'postgres'
+     OR inet_server_port() IS DISTINCT FROM current_setting('pathways.replay_port', true)::int OR current_user <> 'postgres'
      OR EXISTS(SELECT FROM public._prisma_migrations WHERE migration_name='0009_import_state_enums') THEN
     RAISE EXCEPTION 'P03 upgrade fixture requires the guarded post-0008/pre-0009 replay target';
   END IF;

@@ -7,9 +7,11 @@ param(
   [switch]$ProjectActivityCreationRepair,
   [switch]$CsvRbacRealignment,
   [switch]$MigrationBaseline,
-  [string]$PostgresBin
+  [string]$PostgresBin,
+  [int]$Port = 0
 )
 $ErrorActionPreference = 'Stop'
+. (Join-Path $PSScriptRoot 'replay-port.ps1')
 if ($MigrationBaseline) { $CsvRbacRealignment = $true }
 if ($CsvRbacRealignment) { $ProjectActivityCreationRepair = $true }
 $phase6Root = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot '../../..')).Path
@@ -34,11 +36,11 @@ $phase6Stage = Join-Path $phase6Parent 'migrations'
 $phase6History = Join-Path $phase6Parent 'history'
 $phase6Config = Join-Path $PSScriptRoot 'prisma.replay.config.ts'
 $phase6Database = 'pathways_phase4_phase6_replay'
-$phase6Port = 55448
+$phase6Port = if ($Port -gt 0) { $Port } else { Get-FreeLoopbackPort }
 $phase6Exit = 1
 $phase6Started = $false
 $phase6PreviousEnvironment = @{}
-foreach ($phase6EnvironmentName in @('PATHWAYS_PHASE6_REPLAY_MIGRATIONS','PATHWAYS_CSV_RBAC_LOCAL_TESTS','PATHWAYS_FEATURE_READ_LOCAL_TESTS','PATHWAYS_PROJECT_ACTIVITY_CREATION_LOCAL_TESTS','PATHWAYS_C8_LOCAL_TESTS','PATHWAYS_EXPECTED_TABLE_COUNT','PATHWAYS_DASHBOARD_HOME_SCOPE_LOCAL_TESTS','DIRECT_URL','DATABASE_URL')) {
+foreach ($phase6EnvironmentName in @('PATHWAYS_PHASE6_REPLAY_MIGRATIONS','PATHWAYS_CSV_RBAC_LOCAL_TESTS','PATHWAYS_FEATURE_READ_LOCAL_TESTS','PATHWAYS_PROJECT_ACTIVITY_CREATION_LOCAL_TESTS','PATHWAYS_C8_LOCAL_TESTS','PATHWAYS_EXPECTED_TABLE_COUNT','PATHWAYS_DASHBOARD_HOME_SCOPE_LOCAL_TESTS','PATHWAYS_REPLAY_PORT','DIRECT_URL','DATABASE_URL')) {
   $phase6EnvironmentItem = Get-Item -LiteralPath "Env:$phase6EnvironmentName" -ErrorAction SilentlyContinue
   $phase6PreviousEnvironment[$phase6EnvironmentName] = if ($null -eq $phase6EnvironmentItem) {
     @{ Present = $false; Value = $null }
@@ -60,7 +62,7 @@ try {
   if ($LASTEXITCODE -ne 0) { throw 'Historical archive integrity/extraction failed' }
   & $phase6Tools['initdb'] -D $phase6Data -U postgres -A trust --encoding=UTF8 --locale=C | Out-Null
   if ($LASTEXITCODE -ne 0) { throw 'Disposable cluster creation failed.' }
-  Add-Content -LiteralPath (Join-Path $phase6Data 'postgresql.conf') -Value "`nlisten_addresses='127.0.0.1'`nport=$phase6Port`nunix_socket_directories=''`n"
+  Add-Content -LiteralPath (Join-Path $phase6Data 'postgresql.conf') -Value "`nlisten_addresses='127.0.0.1'`nport=$phase6Port`npathways.replay_port=$phase6Port`nunix_socket_directories=''`n"
   $phase6Start = Start-Process -FilePath $phase6Tools['pg_ctl'] `
     -ArgumentList @('-D',$phase6Data,'-l',(Join-Path $phase6Parent 'postgres.log'),'-s','start') `
     @phase6ProcessOptions
@@ -75,6 +77,8 @@ try {
   } while ([DateTime]::UtcNow -lt $phase6StartDeadline)
   if ($LASTEXITCODE -ne 0) { throw 'Disposable cluster readiness timed out.' }
   $phase6Started = $true
+  $env:PATHWAYS_REPLAY_PORT = "$phase6Port"
+  Write-Output "REPLAY_PORT=$phase6Port"
   & $phase6Tools['createdb'] -w -h 127.0.0.1 -p $phase6Port -U postgres $phase6Database
   if ($LASTEXITCODE -ne 0) { throw 'Disposable database creation failed.' }
   Invoke-LocalSql ([IO.File]::ReadAllText((Join-Path $phase6Root 'apps/api/prisma/tests/security-adapter-local-bootstrap.sql'))) $phase6Database
@@ -532,7 +536,7 @@ SELECT (SELECT count(*) FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamesp
     $rbacCatalogSql = Join-Path $phase6Root 'apps/api/prisma/tests/csv-rbac-catalog.sql'
     $rbacBeforeCatalog = (& $phase6Tools['psql'] -X -q -A -t -w -h 127.0.0.1 -p $phase6Port -U postgres -d $phase6Database -v ON_ERROR_STOP=1 -f $rbacCatalogSql) | ConvertFrom-Json
     if ($LASTEXITCODE -ne 0) { throw 'Baseline catalog unavailable.' }
-    [IO.File]::WriteAllText((Join-Path $phase6Root '.tmp/rbac-local-before-catalog.json'), ($rbacBeforeCatalog | ConvertTo-Json -Depth 100))
+    [IO.File]::WriteAllText((Join-Path $phase6Parent 'rbac-local-before-catalog.json'), ($rbacBeforeCatalog | ConvertTo-Json -Depth 100))
     $rbacModelDiffBefore = Join-Path $phase6Parent 'prisma-before.sql'
     # Introspection must include provider schemas referenced by domain FKs.
     # This temporary input changes no repository schema and its diff is never run.
@@ -569,7 +573,7 @@ END $$;
     $env:DIRECT_URL = $env:DATABASE_URL
     $rbacUpgradeCatalog = (& $phase6Tools['psql'] -X -q -A -t -w -h 127.0.0.1 -p $phase6Port -U postgres -d $phase6Database -v ON_ERROR_STOP=1 -f $rbacCatalogSql) | ConvertFrom-Json
     if ($LASTEXITCODE -ne 0) { throw 'Upgrade catalog unavailable.' }
-    [IO.File]::WriteAllText((Join-Path $phase6Root '.tmp/rbac-local-after-catalog.json'), ($rbacUpgradeCatalog | ConvertTo-Json -Depth 100))
+    [IO.File]::WriteAllText((Join-Path $phase6Parent 'rbac-local-after-catalog.json'), ($rbacUpgradeCatalog | ConvertTo-Json -Depth 100))
     $rbacFreshCatalog = (& $phase6Tools['psql'] -X -q -A -t -w -h 127.0.0.1 -p $phase6Port -U postgres -d pathways_phase4_rbac_fresh -v ON_ERROR_STOP=1 -f $rbacCatalogSql) | ConvertFrom-Json
     if ($LASTEXITCODE -ne 0) { throw 'Fresh catalog unavailable.' }
     if (($rbacUpgradeCatalog | ConvertTo-Json -Depth 100 -Compress) -cne ($rbacFreshCatalog | ConvertTo-Json -Depth 100 -Compress)) { throw 'Fresh/upgrade catalog or security objects differ.' }
@@ -582,7 +586,7 @@ END $$;
     # Existing SQL-only expressions may remain outside Prisma; report the baseline,
     # never execute this generated diff or treat it as a correction migration.
     Write-Output ('CSV_RBAC_PRISMA_DIFF_BYTES=' + (Get-Item -LiteralPath $rbacModelDiffAfter).Length)
-    Copy-Item -LiteralPath $rbacModelDiffAfter -Destination (Join-Path $phase6Root '.tmp/rbac-prisma-baseline-diff.sql')
+    Copy-Item -LiteralPath $rbacModelDiffAfter -Destination (Join-Path $phase6Parent 'rbac-prisma-baseline-diff.sql')
     Write-Output 'CSV_RBAC_CATALOG_PARITY=PASS'
     if ($MigrationBaseline) {
       . (Join-Path $PSScriptRoot 'Verify-Baseline.ps1')

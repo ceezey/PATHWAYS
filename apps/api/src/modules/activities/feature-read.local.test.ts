@@ -10,6 +10,8 @@ import { ActivitiesService } from './activities.service'
 // Explicit opt-in only. This harness uses one fixed, password-free loopback
 // database created and removed by phase6/Replay-Local.ps1.
 const enabled = process.env.PATHWAYS_FEATURE_READ_LOCAL_TESTS === '1'
+const replayPort = Number(process.env.PATHWAYS_REPLAY_PORT)
+if (enabled && !replayPort) throw new Error('PATHWAYS_REPLAY_PORT is required')
 // The current-schema replay supplies its measured table count.
 const expectedPathwaysTableCount = Number(
   process.env.PATHWAYS_EXPECTED_TABLE_COUNT ??
@@ -38,7 +40,7 @@ describe.skipIf(!enabled)('joined feature reads on disposable PostgreSQL', () =>
   it('uses context, profile, and one scoped feature statement per read under runtime RLS', async () => {
     const localUrl = new URL('postgresql://127.0.0.1')
     localUrl.username = 'postgres'
-    localUrl.port = '55448'
+    localUrl.port = String(replayPort)
     localUrl.pathname = '/pathways_phase4_phase6_replay'
     localUrl.searchParams.set('schema', 'public')
     localUrl.searchParams.set('connection_limit', '1')
@@ -60,7 +62,7 @@ describe.skipIf(!enabled)('joined feature reads on disposable PostgreSQL', () =>
       const [guard] = await client.$queryRaw<Array<{ safe: boolean }>>`
         SELECT current_database() = 'pathways_phase4_phase6_replay'
           AND inet_server_addr() = '127.0.0.1'::inet
-          AND inet_server_port() = 55448
+          AND inet_server_port() = ${replayPort}
           AND current_user = 'postgres' AND session_user = 'postgres'
           AND (SELECT count(*) FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
                WHERE n.nspname = 'pathways' AND c.relkind = 'r') = ${expectedPathwaysTableCount}

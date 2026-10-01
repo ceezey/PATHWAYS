@@ -90,7 +90,7 @@ catalogs, zero counts, checksums, ledger evidence, and `prisma migrate status`.
 `project-indicator-dashboard-runtime.sql` is a new candidate suite, not a recorded PASS.
 Run it only through the updated `infra/supabase/phase6/Replay-Local.ps1`; it refuses any
 other database/port/user. The harness replays 0001–0013 into its guarded loopback
-PostgreSQL 18 scratch cluster on port 55448 and removes that environment afterward.
+PostgreSQL 18 scratch cluster on the replay port and removes that environment afterward.
 This is not a live API database and never authorizes PATHWAYS-dev writes.
 
 The suite supplies synthetic two-organization/six-role records, 30 individuals with

@@ -2,10 +2,10 @@
 \set ON_ERROR_STOP on
 BEGIN;
 DO $$ BEGIN IF current_database() NOT IN ('pathways_phase4_phase6_replay','pathways_phase4_baseline','pathways_phase4_forward_fault','pathways_phase4_forward_restore','pathways_phase4_core_fault','pathways_phase4_core_retry')
- OR inet_server_addr() IS DISTINCT FROM '127.0.0.1'::inet OR inet_server_port() IS DISTINCT FROM 55448
+ OR inet_server_addr() IS DISTINCT FROM '127.0.0.1'::inet OR inet_server_port() IS DISTINCT FROM current_setting('pathways.replay_port', true)::int
  OR current_user<>'postgres' OR session_user<>'postgres'
  OR NOT EXISTS(SELECT FROM pg_catalog.pg_roles WHERE rolname='postgres' AND rolsuper)
- THEN RAISE EXCEPTION 'Only owned disposable55448 local superuser profile permitted'; END IF; END $$;
+ THEN RAISE EXCEPTION 'Only owned disposable replay port local superuser profile permitted'; END IF; END $$;
 -- Preserve owner authority until schema grant removal completes.
 REVOKE CREATE ON SCHEMA pathways FROM public_projection_owner,report_projection_owner,finance_operation_owner;
 REVOKE public_projection_owner,report_projection_owner,finance_operation_owner FROM prisma GRANTED BY postgres RESTRICT;

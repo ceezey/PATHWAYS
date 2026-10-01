@@ -6,7 +6,7 @@ DO $$
 BEGIN
   IF current_database() <> 'pathways_phase4_phase6_replay'
      OR inet_server_addr() IS DISTINCT FROM '127.0.0.1'::inet
-     OR inet_server_port() <> 55448 OR current_user <> 'postgres' THEN
+     OR inet_server_port() IS DISTINCT FROM current_setting('pathways.replay_port', true)::int OR current_user <> 'postgres' THEN
     RAISE EXCEPTION 'P03 checks require the guarded disposable replay target';
   END IF;
 END
