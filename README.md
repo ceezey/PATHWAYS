@@ -1,43 +1,14 @@
 # PATHWAYS
 
-**PATHWAYS** is a metadata-driven project information management platform with deterministic rule-based decision-support features for humanitarian and development organizations.
+**PATHWAYS** is a metadata-driven project information management platform with deterministic, rule-based decision support for humanitarian and development organizations.
 
-It centralizes project, activity, Beneficiary, indicator, monitoring, and reporting information; structures data preparation through metadata; supports descriptive dashboards and SADDD; and provides explainable rule-based alerts plus predefined recommendation prompts for human review.
-
-## Current Direction
-
-- PostgreSQL / Supabase development path
-- Prisma data/migration layer
-- Supabase Auth and Storage
-- six canonical roles including Grant Manager
-- core feature development first
-- `dev` for development; `origin/master` for deployment
-- Vercel API/web release authorized; SSO and AWS hosting postponed
-- no user-facing prototype/mock/presentation-only product framing
-- no AI/autonomous humanitarian decisions
+It removes the repeated export, import, verification and mapping that field data need after collection. Project, activity, Beneficiary, indicator, monitoring and reporting information live in one governed workspace, with descriptive dashboards (including SADDD: sex, age and disability disaggregated data), explainable rule-based alerts and predefined recommendation prompts that people review. There is no autonomous AI decision making. PATHWAYS sits beside collection tools such as KOBO and does not replace them.
 
 Do not infer feature completion from documentation alone. The current repository and executed tests are the implementation authority.
 
-## AI-Assisted Development Workflow
+## Features
 
-PATHWAYS adopts a curated documentation-first workflow based on the supplied ArkiLaunch repository.
-
-Start substantial work in this order:
-
-1. [`docs/index.md`](docs/index.md): manifest, statuses, traceability, Change Log, and Health Check.
-2. [`AGENTS.md`](AGENTS.md): AI/agent build rules and guardrails.
-3. Relevant Locked/Working PRD / SDD / RFC / DSD / QAD documents for the task.
-4. Current repository code, migrations, tests, and configuration.
-5. Implement only the explicitly authorized task/phase.
-6. Update durable documentation only when an approved contract or verified repository fact changes.
-7. Report the phase result in chat.
-8. Stop before the next phase unless explicitly authorized.
-
-Task TODOs, temporary source-of-truth notes, phase prompts, and phase-report templates are **disposable workflow context** and are not stored in the repository.
-
-The documentation workflow is maintained in-repository. No external documentation engine is required.
-
-## Core MVP
+Core (Must-Have):
 
 1. Role-Based Access Control and Workspace Management
 2. Project Profile and Activity Tracking
@@ -48,72 +19,95 @@ The documentation workflow is maintained in-repository. No external documentatio
 7. Project Indicator and Monitoring
 8. Aggregated Monitoring Dashboard with SADDD Analysis
 
-Supporting features:
+Supporting: descriptive analytics, rule-based alerts, human-reviewed decision support, reporting and visualization, and a controlled public project tracker.
 
-- descriptive analytics;
-- rule-based alerts;
-- predefined human-reviewed recommendations;
-- reporting/data visualization;
-- controlled public project tracker.
+Six canonical roles apply, including Grant Manager. Frontend visibility is not authorization: every request is checked on the server against the role, permissions, organization and project assignment. Program Manager and Grant Manager see aggregate Beneficiary information only.
 
-## Security Model
+## Architecture
 
-Protected request path:
-
-```text
-Supabase Auth identity
-→ linked PATHWAYS system user
-→ active account state
-→ organization
-→ canonical role
-→ permissions
-→ project assignment where required
-→ scoped backend query
+```mermaid
+flowchart TD
+subgraph access["Access and workspace"]
+  web["PATHWAYS workspace (Next.js)"]
+  signin["Sign-in workflows"]
+  authapi["Authentication API"]
+  tokenauth["Token verification"]
+end
+subgraph delivery["Project delivery"]
+  projects["Projects and activities"]
+  beneficiaries["Beneficiary profiles"]
+  journey["Beneficiary journeys"]
+  finance["Budgets and expenses"]
+end
+subgraph collection["Collection and monitoring"]
+  metadata["Form metadata"]
+  imports["Data imports"]
+  indicators["Indicators"]
+end
+subgraph insight["Decision and reporting"]
+  analytics["Dashboards and analytics"]
+  rules["Rule evaluation"]
+  reports["Reporting"]
+  tracker["Public project tracker"]
+end
+subgraph platform["Platform services"]
+  supaauth["Supabase Auth"]
+  db[("PostgreSQL via Prisma")]
+  storage["Supabase Storage"]
+  storesvc["Private file access"]
+end
+staff(("Organization staff"))
+staff -->|"uses workspace"| web
+staff -->|"signs in"| signin
+signin -->|"requests access"| authapi
+authapi -->|"verifies token"| tokenauth
+tokenauth -->|"verifies identity"| supaauth
+web -->|"manages projects and activities"| projects
+web -->|"manages profiles"| beneficiaries
+web -->|"records journeys"| journey
+web -->|"configures forms"| metadata
+web -->|"prepares imports"| imports
+web -->|"tracks indicators"| indicators
+web -->|"manages finances"| finance
+web -->|"reviews monitoring"| analytics
+web -->|"configures decision support"| rules
+web -->|"creates reports"| reports
+web -->|"views published projects"| tracker
+projects -->|"inspects proof"| storesvc
+finance -->|"handles receipts"| storesvc
+storesvc -->|"reads private files"| storage
+projects --> db
+beneficiaries --> db
+metadata --> db
+imports --> db
+indicators --> db
+rules --> db
 ```
 
-Frontend visibility is not authorization.
+Domain modules live in `apps/api/src/modules`. The browser reaches domain data only through the API and Prisma. See `docs/sdd-pathways.md` for the full design.
 
-Program Manager and Grant Manager are aggregate-only for Beneficiary information.
+## Tech Stack
 
-## Documentation
-
-The full documentation manifest is [`docs/index.md`](docs/index.md).
-
-High-use documents:
-
-| Document | Purpose |
+| Layer | Technology |
 |---|---|
-| `docs/index.md` | manifest, statuses, traceability, Change Log, Health Check |
-| `BRAND.md` | materialized PATHWAYS brand/product identity |
-| `DESIGN.md` | materialized PATHWAYS UI/design-system reference |
-| `docs/prd-pathways.md` | product requirements / stable feature IDs |
-| `docs/sdd-pathways.md` | architecture / security / data direction |
-| `docs/qad-pathways.md` | QA, abuse, privacy, acceptance |
-| `docs/dsd-pathways.md` | UI/design governance |
-| `docs/build-pathways.md` | canonical build/agent guide |
-| `docs/ops-pathways.md` | operational/recovery guidance |
-| `docs/rfc-pathways-rule-alerts-decision-support.md` | dynamic rule/decision-support design |
+| Runtime and tooling | Node 22, pnpm 11, TypeScript 5 |
+| Web | Next.js 15 (App Router), React 19, Tailwind CSS 3, TanStack Query, ECharts |
+| API | NestJS 10, Zod, nestjs-pino, helmet, pdfkit |
+| Data | PostgreSQL 17 with row-level security, Prisma 6 |
+| Identity and files | Supabase Auth (including TOTP) and Supabase Storage |
+| Hosting and monitoring | Vercel, Sentry |
+| Tests | Vitest, Playwright |
 
-Root `AGENTS.md` is materialized from `docs/build-pathways.md`.
+Exact versions are in `docs/sdd-pathways.md` section 2.4 and the `package.json` files.
 
-Root `BRAND.md` and `DESIGN.md` are materialized from canonical `docs/dsd-pathways.md`. Regenerate them with `pnpm docs:materialize` and validate the suite with `pnpm docs:check`; never hand-edit materialized files.
+## Quick Start
 
-Disposable phase/task workflow artifacts are intentionally kept out of the repository.
+- Environment setup: [README-setup.md](README-setup.md)
+- Local development commands and rules: [docs/runbook-local-dev.md](docs/runbook-local-dev.md)
+- Validate documentation: `pnpm docs:check`; regenerate `AGENTS.md`, `BRAND.md` and `DESIGN.md` with `pnpm docs:materialize` (never hand-edit them).
 
-## Development Restraint
+## Documentation Map
 
-Prefer the smallest implementation that satisfies approved requirements without weakening:
+The full manifest, statuses, traceability, Change Log and Health Check are in [docs/index.md](docs/index.md). Start there, then read [AGENTS.md](AGENTS.md) for agent build rules and the relevant PRD, SDD, DSD, QAD or RFC for the task.
 
-- security;
-- privacy;
-- data integrity;
-- validation;
-- auditability;
-- migration safety;
-- recovery;
-- accessibility;
-- testability.
-
-## Scope Note
-
-The Vercel API/web release was authorized on 2026-09-26 (see `docs/ops-pathways.md`, including its open items). SSO and AWS hosting are not current feature-work acceptance criteria and require a future explicit authorization.
+Branches: `dev` for development, `origin/master` for deployment. SSO and AWS hosting are deferred and need explicit authorization (see `docs/rfc-pathways-aws-hosting-migration.md`, a Draft strategy only).
