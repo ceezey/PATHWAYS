@@ -1,3 +1,4 @@
+import { Transform } from 'class-transformer'
 import { IsDateString, IsIn, IsObject, IsOptional, IsString, IsUUID, Length } from 'class-validator'
 
 export class RecordParticipationDto {
@@ -29,6 +30,12 @@ export class EnrollmentJourneyEventDto {
   @IsOptional()
   @IsUUID()
   destinationProjectId?: string
+
+  @IsOptional()
+  @Transform(({ value }) => (typeof value === 'string' ? value.trim() : value))
+  @IsString()
+  @Length(1, 1000)
+  note?: string
 }
 
 export class CorrectJourneyEventDto {
@@ -42,6 +49,12 @@ export class CorrectJourneyEventDto {
   @IsString()
   @Length(1, 1000)
   reason!: string
+
+  @IsOptional()
+  @Transform(({ value }) => (typeof value === 'string' ? value.trim() : value))
+  @IsString()
+  @Length(1, 1000)
+  note?: string
 
   @IsOptional()
   @IsUUID()

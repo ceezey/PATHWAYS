@@ -473,6 +473,7 @@ export class ParticipantsService {
           eventType: true,
           eventDate: true,
           description: true,
+          note: true,
           stageId: true,
           stageCodeSnapshot: true,
           stageNameSnapshot: true,
@@ -581,6 +582,7 @@ export class ParticipantsService {
             eventType: input.eventType,
             eventDate: date,
             description: input.description.trim(),
+            note: input.note ?? null,
             recordedById: actor.userId,
           },
         })
@@ -606,10 +608,12 @@ export class ParticipantsService {
             action: `ENROLLMENT_${input.eventType}`,
             entityType: 'BeneficiaryProjectEnrollment',
             entityId: enrollment.id,
-            changes:
-              input.eventType === 'TRANSFER'
+            changes: {
+              ...(input.eventType === 'TRANSFER'
                 ? { destinationProjectId: input.destinationProjectId }
-                : undefined,
+                : {}),
+              noteAttached: Boolean(input.note),
+            },
           },
         })
         return {
@@ -659,6 +663,7 @@ export class ParticipantsService {
             eventType: original.eventType,
             eventDate: new Date(`${input.eventDate}T00:00:00.000Z`),
             description: input.description.trim(),
+            note: input.note ?? null,
             correctsEventId: original.id,
             correctionReason: input.reason.trim(),
             recordedById: actor.userId,
@@ -673,7 +678,11 @@ export class ParticipantsService {
             action: 'JOURNEY_EVENT_CORRECTED',
             entityType: 'BeneficiaryJourneyEvent',
             entityId: correction.id,
-            changes: { correctsEventId: original.id, reason: input.reason.trim() },
+            changes: {
+              correctsEventId: original.id,
+              reason: input.reason.trim(),
+              noteAttached: Boolean(input.note),
+            },
           },
         })
         return { id: correction.id }

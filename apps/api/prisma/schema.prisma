@@ -1512,6 +1512,7 @@ model BeneficiaryJourneyEvent {
   eventType             JourneyEventType                  @map("event_type")
   eventDate             DateTime                          @map("event_date") @db.Date
   description           String?
+  note                  String?
   stageCodeSnapshot     String?                           @map("stage_code_snapshot")
   stageNameSnapshot     String?                           @map("stage_name_snapshot")
   activityCodeSnapshot  String?                           @map("activity_code_snapshot")
