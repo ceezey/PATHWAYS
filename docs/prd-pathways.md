@@ -488,13 +488,13 @@ stateDiagram-v2
 - Register, search, view and update beneficiary profiles inside assigned projects; archive exists in code but `beneficiaries.records.archive` is granted to no default role.
 - Register through a project registration form or the one system default registration form provisioned on first use.
 - Minimum beneficiary age 5 at the enrollment date and no future birth date, on create, import and changed-profile edit.
-- Enroll a beneficiary in a project and hold a possible duplicate identity for review; the review flow exists in code but `beneficiaries.identities.review` is granted to no default role.
+- Enroll a beneficiary in a project and hold a possible duplicate identity for review; the Monitoring and Evaluation Officer reviews same-name, same-birth-date pairs and records a link or keep-distinct decision (`beneficiaries.identities.review`, cr-pathways-core-rbac-identity-review).
 - Open beneficiary detail only after a fresh server-verified step-up (TOTP or PIN).
 **Bounds (out):**
 - Beneficiary self-registration, login or public submission: beneficiaries are never users (Scope and Limitations, paragraph 6).
 - Evaluating a beneficiary as an individual: records are project monitoring data only (Scope and Limitations, paragraph 4).
 - Raw beneficiary detail for System Administrator, Program Manager and Grant Manager: aggregate-only access (cr-pathways-admin-read-access, cr-pathways-beneficiary-step-up).
-- Automatic record merge: no merge operation exists (Scope and Limitations, paragraph 3).
+- Automatic record merge or movement of profile data: a review records an audited decision only (Scope and Limitations, paragraph 3).
 **Lock:** Locked. Adding a gate or widening a bound requires an approved `cr-pathways-*`; anything outside these bounds is out of scope by default. System-wide bounds: section 6.1.
 
 #### Gate Criteria
@@ -506,7 +506,7 @@ stateDiagram-v2
 | G-F3-3 | A project without a published registration form provisions exactly one system form with the canonical field set; a second or parallel call returns the same form | Met | QAD-DRF-01 |
 | G-F3-4 | Beneficiary detail without a fresh server-verified step-up returns 403 `STEP_UP_REQUIRED`, and client-supplied step-up values are ignored | Met | QAD-A11 |
 | G-F3-5 | Program Manager, Grant Manager and System Administrator requests for beneficiary detail are denied | Met | QAD-A03 |
-| G-F3-6 | A registration sharing an identity with an existing profile is held as review-required, and the matched profile stays hidden from registrars; the review step is unreachable by default roles and no merge is provided | Partly met | To be added (test: beneficiaries.service.test.ts) |
+| G-F3-6 | A registration sharing an identity with an existing profile is held as review-required, and the matched profile stays hidden from registrars; a Monitoring and Evaluation Officer lists unreviewed pairs and records a link or keep-distinct decision, each audited; other roles are denied and no profile data is merged | Met | QAD-A23, QAD-IR-01, QAD-IR-02, QAD-IR-03 |
 
 #### Use Cases
 
@@ -559,14 +559,14 @@ flowchart LR
 
 | Field | Value |
 |---|---|
-| Actor | None by default: no default role holds the permission; a future role grant would be needed |
-| Permission | `beneficiaries.identities.review` (granted to no default role) |
+| Actor | Monitoring and Evaluation Officer |
+| Permission | `beneficiaries.identities.review` |
 | Trigger | A registration shares an identity with an existing profile and is held for review. |
-| Preconditions | A role has been granted the review permission (none is by default), with a fresh step-up and project assignment. |
-| Main flow | 1. The registration response reports `IDENTITY_REVIEW_REQUIRED` or `DUPLICATE_IDENTITY` (`POST /beneficiaries/projects/:projectId/registrations`). 2. The reviewer opens `/beneficiaries/duplicates`. 3. The reviewer confirms a new or an existing beneficiary and continues. |
-| Alternate / exception | A caller without the review permission sees only the review-required code and cannot see the matched profile. Merging two profiles is not offered. |
-| Postconditions | No profile is merged; the outcome is audited. |
-| Gates | G-F3-6 (Partly met) |
+| Preconditions | The user holds the review permission, a fresh step-up and project assignment. |
+| Main flow | 1. The registration response reports `IDENTITY_REVIEW_REQUIRED` or `DUPLICATE_IDENTITY` (`POST /beneficiaries/projects/:projectId/registrations`). 2. The reviewer opens `/beneficiaries/duplicates`, which lists unreviewed pairs (`GET /beneficiaries/projects/:projectId/duplicate-candidates`). 3. The reviewer compares a pair and confirms Keep as distinct people or Merge linked profiles (`POST /beneficiaries/projects/:projectId/duplicate-candidates/resolve`). |
+| Alternate / exception | A caller without the review permission sees only the review-required code and cannot see the matched profile; the queue and decision routes return 403. A pair already decided, the same profile twice or a profile outside the project is rejected. |
+| Postconditions | The pair leaves the queue; no profile data is merged or moved; the decision is audited. |
+| Gates | G-F3-6 |
 
 #### State Machines
 
@@ -596,7 +596,7 @@ Not applicable to this charter: a profile is active or archived, and journey lif
 | G-F4-2 | A participation or progress event persists against the enrollment and history returns it in chronological order | Met | QAD-T04 |
 | G-F4-3 | A completion, dropout or transfer event closes the enrollment with its end date and reason | Met | To be added (test: participants.service.test.ts) |
 | G-F4-4 | A correction adds a new event linked to the original with a required reason; the original is never overwritten | Met | To be added (test: participants.service.test.ts) |
-| G-F4-5 | Reading journey history requires a fresh step-up, project assignment and `journeys.read`; unassigned or cross-organization requests are denied | Met | QAD-A11 |
+| G-F4-5 | Reading journey history requires a fresh step-up, project assignment and `journeys.read`; unassigned or cross-organization requests are denied, and System Administrator (aggregate-only) is denied with 403 | Met | QAD-A11, QAD-JR-01, QAD-JR-02 |
 | G-F4-6 | A user can attach a free-text note to a journey record | Not met | To be added |
 
 #### Use Cases
@@ -713,7 +713,7 @@ stateDiagram-v2
 
 | Gate | Condition | Status | QAD |
 |---|---|---|---|
-| G-F5-1 | An authorized user generates or builds a form, publishes it and sees it offered for entry; a form with missing required structure cannot publish | Met | QAD-T05 |
+| G-F5-1 | An authorized user generates or builds a form, a different holder of `forms.publish` publishes it and it is offered for entry; the author cannot publish their own form (403), and a form with missing required structure cannot publish | Met | QAD-T05, QAD-FP-01 |
 | G-F5-2 | A valid direct entry persists as a validated submission linked to the project, and an invalid entry is rejected with field messages | Met | QAD-T05 |
 | G-F5-3 | A draft submission can be saved and edited before submit | Met | To be added |
 | G-F5-4 | Each form-definition export format downloads and writes one audit row; roles other than Monitoring and Evaluation Officer and System Administrator are denied | Met | QAD-IMP-04 |
@@ -743,9 +743,9 @@ flowchart LR
 | Actor | Monitoring and Evaluation Officer |
 | Permission | `forms.generate` |
 | Trigger | The user creates a monitoring form for a project. |
-| Preconditions | The user is assigned to the project; holds `forms.manage` and `forms.publish` for edit and publish. |
-| Main flow | 1. The user opens `/collection/forms/new`. 2. The user generates a form (`POST /metadata/projects/:projectId/forms/generate`) or creates one (`POST /metadata/projects/:projectId/forms`). 3. The user previews and edits it (`PATCH /metadata/projects/:projectId/forms/:formId`). 4. The user publishes (`POST /metadata/projects/:projectId/forms/:formId/publish`). |
-| Alternate / exception | Missing required fields: publish blocked with a field message. Edits to a published form create a new version (`POST /metadata/projects/:projectId/forms/:formId/versions`). Permission denied: 403. |
+| Preconditions | The user is assigned to the project; holds `forms.manage` for edit. Publishing needs `forms.publish`, held by Monitoring and Evaluation Officer and System Administrator only; a second holder (another M&E Officer or a System Administrator) must publish, because the author cannot publish their own form. |
+| Main flow | 1. The user opens `/collection/forms/new`. 2. The user generates a form (`POST /metadata/projects/:projectId/forms/generate`) or creates one (`POST /metadata/projects/:projectId/forms`). 3. The user previews and edits it (`PATCH /metadata/projects/:projectId/forms/:formId`). 4. A second `forms.publish` holder publishes (`POST /metadata/projects/:projectId/forms/:formId/publish`). |
+| Alternate / exception | Missing required fields: publish blocked with a field message. Edits to a published form create a new version (`POST /metadata/projects/:projectId/forms/:formId/versions`). Permission denied, or the publisher is the form's author: 403. |
 | Postconditions | The form is published and linked to the project; form metadata and an audit event are recorded. |
 | Gates | G-F5-1, G-F5-5 |
 
