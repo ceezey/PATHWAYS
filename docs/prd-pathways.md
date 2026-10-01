@@ -701,7 +701,7 @@ stateDiagram-v2
 **Bounds (in):**
 - Generate a form from a template or build one, edit it by new version, publish and archive it.
 - Export a form definition (CSV, XLSX, XLS, PDF) for the Monitoring and Evaluation Officer and System Administrator, with one audit row and no field content.
-- Encode records through a published form: validate, save a draft, submit, each linked to the project and audited.
+- Encode records through a published form: validate, save a draft, submit, each linked to the project and audited. v4 target: retired (V4-C11); pending code follow-up.
 - Field rules are deterministic validation; no AI proposes or fills values.
 **Bounds (out):**
 - Replacing specialized field collection platforms: PATHWAYS prepares and receives data only (Scope and Limitations, paragraph 3).
@@ -715,8 +715,8 @@ stateDiagram-v2
 | Gate | Condition | Status | QAD |
 |---|---|---|---|
 | G-F5-1 | An authorized user generates or builds a form, a different holder of `forms.publish` publishes it and it is offered for entry; the author cannot publish their own form (403), and a form with missing required structure cannot publish | Met | QAD-T05, QAD-FP-01 |
-| G-F5-2 | A valid direct entry persists as a validated submission linked to the project, and an invalid entry is rejected with field messages | Met | QAD-T05 |
-| G-F5-3 | A draft submission can be saved and edited before submit | Met | QAD-T53 |
+| G-F5-2 | A valid direct entry persists as a validated submission linked to the project, and an invalid entry is rejected with field messages; v4 target: retired (V4-C11); pending code follow-up | Met | QAD-T05 |
+| G-F5-3 | A draft submission can be saved and edited before submit; v4 target: retired (V4-C11); pending code follow-up | Met | QAD-T53 |
 | G-F5-4 | Each form-definition export format downloads and writes one audit row; roles other than Monitoring and Evaluation Officer and System Administrator are denied | Met | QAD-IMP-04 |
 | G-F5-5 | A form request from another organization or an unassigned project is denied before any form is read | Met | QAD-IMP-11 |
 

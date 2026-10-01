@@ -33,7 +33,7 @@ Roles: SA System Administrator, PO Project Officer, ME Monitoring and Evaluation
 | V4-C07 | 47 | Add Project Activity | PO | Denied | `activities.create` | Adopt | Revoke `activities.create` |
 | V4-C08 | 60 to 63 | Journey Tracking tab and configuration | SA | Granted | `journeys.manage`; `journeys.read` revoked by 0047 | Already satisfied | None |
 | V4-C09 | 97, 100 | Customize Dashboard; Assess Survey Improvements | PO | Denied | `dashboards.customize`, `assessments.read` | Adopt | Revoke both |
-| V4-C10 | 103, 104 | Perform SADDD Analysis; View SADDD Breakdown | PO | Denied; Granted | `analytics.saddd.read` | Adopt stricter reading (V4-R2) | Revoke `analytics.saddd.read` |
+| V4-C10 | 103, 104 | Perform SADDD Analysis; View SADDD Breakdown | PO | Denied; Granted | `analytics.saddd.read` | Adopt stricter reading (V4-R2) | Revoke `analytics.saddd.read`; `beneficiaries.aggregates.read` also sources only from rows 99 and 100 and gates activity, report and dashboard aggregates for PO, so the migration CR re-sources it to a v4 row (for example reporting rows 112 to 117) or revokes it |
 | V4-C11 | none | Encode Project Data | PO, ME | Row removed | `submissions.write` (UC-F5-2) | Retire | Revoke `submissions.write`; remove `/collection/entry` and direct entry routes |
 
 V4-C04 and V4-C05: the expense chain stays ME verify, PM approve, PG or GM sign-off; v4 row 44 is read as the verify stage only. V4-C08: the tab and configuration run on `journeys.manage`, which SA keeps; individual journey history is denied to SA by v4 rows 81 to 85 as well.
@@ -44,7 +44,7 @@ Label renames adopted: row 37 Add Budget; row 40 View Budget Tab / View Budget O
 
 | ID | Rule |
 |---|---|
-| V4-R1 | A parent row is an aggregate label: granted means the role holds at least one child capability; it adds no permission (rows 37, 45, 54). |
+| V4-R1 | A parent row is a grouping label; it neither grants nor limits its children (rows 32, 37, 45, 54). Program and Grant Manager on row 54 resolve to their monitoring reads under rows 88 to 94. |
 | V4-R2 | Rows sharing one permission resolve to the stricter reading (rows 103 and 104). |
 | V4-R3 | Rows with the same label and roles collapse into one (rows 88 and 93; 96 and 109); rows 95 and 106 share one permission. |
 | V4-R4 | Record Audit Log (rows 30 and 123) is a system action recorded for every audited mutation, not a grant. |
@@ -55,7 +55,7 @@ Row 76 spelling is corrected to Beneficiary Management wherever the docs quote i
 
 ### 3.4 Existing gaps v4 names
 
-Rows 53 Activity Escalation, 68 Import Existing File, 97 Customize Dashboard and 122 to 125 Backup and Recovery have no working capability; their entries in `deferred-features.md` stand unchanged. Under the v4 note, row 68 means importing collected data, which `/collection/import` already covers.
+These v4 rows have no working capability: row 53 Activity Escalation (deferred in [cr-pathways-rbac-audit-closure](cr-pathways-rbac-audit-closure.md); now registered in `deferred-features.md`), row 68 Import Existing File (see below), row 97 Customize Dashboard (`deferred-features.md` "Analytics Add to Dashboard") and rows 122, 124 and 125 Backup and Recovery (PRD-F1 Bounds (out); recovery follows the operational runbook). Row 123 Record Audit Log is covered by V4-R4. Under the v4 note, row 68 means importing collected data, which `/collection/import` already covers.
 
 ## 4. Impact
 
@@ -85,7 +85,7 @@ None in this record. Follow-up: `csv-rbac.test.ts` and route-access suites for V
 | `rfc-pathways-auth-rbac-isolation.md` (source note) | Yes | [x] |
 | `qad-pathways.md` section 3.7 | Yes | [x] |
 | `audit-pathways-manuscript-alignment-20261001.md` (MA-18) | Yes | [x] |
-| `deferred-features.md` (RBAC v4 grant migration) | Yes | [x] |
+| `deferred-features.md` (RBAC v4 grant migration, Activity escalation) | Yes | [x] |
 | `index.md`, `state.md`, `activity-log.md`, `log-pathways.md` | Yes | [x] |
 
 ## 5. Alternatives Considered

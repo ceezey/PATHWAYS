@@ -36,6 +36,8 @@ The notification inbox shown on the board is registered in `deferred-features.md
 | Rule lifecycle Draft, Test, Active, Inactive | Alerts context | The system uses Draft, Active and Archived; testing is an action that creates no live output, which is carried |
 | Coverage options (all, selected projects, specific records) | Alerts context | The system scopes a rule to a project or an organization template |
 | Recommendation states For Review, Reviewed, Accepted, Rejected | Alerts context | The system records decision outcomes through its existing contract; only "accepting executes nothing" is carried |
+| Category, eligibility or evaluation timing, and recommendation type as rule-form fields | Alerts context | No such field in the strict rule contract (`rules-human-contract.ts`); predefined recommendations carry only an id, title and text |
+| Alert states limited to New, Reviewed, Resolved, Dismissed | Alerts context | The system also has Actioned and Auto-resolved (`alert-lifecycle.ts`); DSD lists all six |
 | Sample projects, records, codes and amounts | Both | Sample data never enters tracked docs |
 
 ## 4. Impact
