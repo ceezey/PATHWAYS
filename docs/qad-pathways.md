@@ -169,7 +169,7 @@ Every implemented feature requires:
 | QAD-T81 | the application works on the supported browsers and Windows versions in the PRD; not yet verified (NFR-11) | Sad | Compatibility | PRD-F1 to PRD-F13 (NFR-11) | None | None | Manual; pending |
 | QAD-T82 | a backup restore recovers organization data after an interruption without loss beyond the 24-hour recovery point and within the 5 to 8 hour recovery time (NFR-15; PRD 5.7, OPS 1); target not yet verified | Sad | Reliability | PRD-F1 to PRD-F13 (NFR-15) | None | None | Manual; pending, backup runbook exists |
 | QAD-IR-02 | a role without the review grant, the same profile twice, a profile outside the project or an already decided pair is rejected with no audit write | Sad | Security | PRD-F3 | G-F3-6 | UC-F3-3 | `apps/api/src/modules/beneficiaries/identity-review.service.test.ts` |
-| QAD-JR-01 | System Administrator requests journey stages or beneficiary journey history -> 403 | Sad | Security | PRD-F4 | G-F4-5 | UC-F4-4 | `apps/api/src/modules/participants/journeys-access.test.ts` |
+| QAD-JR-01 | System Administrator requests beneficiary journey history -> 403, while listing and saving project journey stages succeeds | Sad | Security | PRD-F4 | G-F4-5 | UC-F4-4 | `apps/api/src/modules/participants/journeys-access.test.ts` |
 | QAD-FP-01 | a form author publishes their own form -> 403 with no write or audit, in any role; a role without `forms.publish` is denied | Sad | Security | PRD-F5 | G-F5-1 | UC-F5-1 | `apps/api/src/modules/metadata/metadata.service.test.ts` |
 
 ### 3.3 Abuse / Adversarial Paths
@@ -227,7 +227,7 @@ Every implemented feature requires:
 | QAD-A22 | private proof inspection succeeds only for a pending update and returns a conflict when revisions changed | Abuse | Security | PRD-F2 | G-F2-8 | UC-F2-4 | `apps/api/src/modules/activities/private-proof-inspection.service.test.ts` |
 | QAD-A23 | a registration sharing an identity with an existing profile is held as review-required and the matched profile stays hidden from registrars | Abuse | Security | PRD-F3 | G-F3-6 | UC-F3-3 | `apps/api/src/modules/beneficiaries/beneficiaries.service.test.ts` |
 | QAD-IR-03 | a Project Officer or System Administrator with a forged review permission, or a request for an out-of-scope project, is denied before any profile is read | Abuse | Security | PRD-F3 | G-F3-6 | UC-F3-3 | `apps/api/src/modules/beneficiaries/identity-review.service.test.ts` |
-| QAD-JR-02 | a System Administrator profile claiming `journeys.read` or `journeys.manage` is still denied journey reads | Abuse | Security | PRD-F4 | G-F4-5 | UC-F4-4 | `apps/api/src/modules/participants/journeys-access.test.ts`; `apps/api/src/modules/auth/csv-rbac.test.ts` |
+| QAD-JR-02 | a System Administrator profile claiming `journeys.read` is still denied beneficiary journey history and, without `journeys.manage`, stage listing | Abuse | Security | PRD-F4 | G-F4-5 | UC-F4-4 | `apps/api/src/modules/participants/journeys-access.test.ts`; `apps/api/src/modules/auth/csv-rbac.test.ts` |
 
 ### 3.4 Traceability
 

@@ -57,7 +57,7 @@ Admin = System Administrator; Program = Program Manager; Grant = Grant Manager; 
 | `activities.create` | PO, PM |
 | `activities.update` | PM |
 | `activities.proof.submit` | PO, PM |
-| `journeys.read` | PO, M&E, PM |
+| `journeys.read` | PO, M&E, PM (Admin lists stages through `journeys.manage`) |
 | `journeys.manage` | Admin, M&E, PM |
 | `participation.record` | PO, M&E, PM |
 | `budgets.read` | Admin, PM, Program, Grant |

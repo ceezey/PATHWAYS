@@ -16,7 +16,7 @@ Developer decisions of 2026-10-01 on audit findings: System Administrator is agg
 
 ## 3. Proposed Change
 
-A. Remove `journeys.read` from System Administrator. System Administrator keeps `journeys.manage`. This departs from CSV rows 55 and 56 by developer decision; the locked CSV hash is unchanged and the departure is recorded as the `amendments` entry for migration 0047 in `rbac-contract.json`.
+A. Remove `journeys.read` from System Administrator, which closes individual beneficiary journey history and events to it. System Administrator keeps `journeys.manage` and its project-level Journey Stages configuration: the stage list route authorizes `journeys.read` OR `journeys.manage`, and the stage and mapping select policies are amended to allow `journeys.manage`. Beneficiary journey history and events stay on `journeys.read`, step-up and beneficiary-record access. This departs from CSV rows 55 and 56 by developer decision; the locked CSV hash is unchanged and the departure is recorded as the `amendments` entry for migration 0047 in `rbac-contract.json`.
 
 B. Grant `beneficiaries.identities.review` to M&E Officer only. Add two audited routes, both requiring the grant, a fresh step-up and project assignment: `GET /beneficiaries/projects/:projectId/duplicate-candidates` lists unreviewed pairs of enrolled profiles with the same name and birth date; `POST .../duplicate-candidates/resolve` records `KEEP_DISTINCT` or `LINK`. Both decisions write an audit event and move no profile data: "merge" is a linkage decision that removes the pair from the queue, not a physical merge. The Duplicate Review page shows the queue and both controls.
 
@@ -28,19 +28,19 @@ C. Documentation only: the author rule stays. Roles holding `forms.publish` are 
 Duplicate review becomes usable by M&E Officers. Physical merge of profiles stays out of scope.
 
 ### Data / Migration
-Migrations `0047_revoke_sa_journeys_read` and `0048_identity_review_grant` wrap the 0035 `p09_role_allows` matrix (renamed `p09_role_allows_0035`) and adjust `role_permissions`. Not applied by this change; staging and hosted application follow the usual gated process.
+Migrations `0047_revoke_sa_journeys_read` (also recreates the `p05_stage_select` and `p05_mapping_select` policies to admit `journeys.manage`) and `0048_identity_review_grant` wrap the 0035 `p09_role_allows` matrix (renamed `p09_role_allows_0035`) and adjust `role_permissions`. Not applied by this change; staging and hosted application follow the usual gated process.
 
 ### Authorization / Privacy
-System Administrator can no longer read journey stages (`GET /projects/:projectId/journey-stages`) or beneficiary journey history; saving stages (`journeys.manage`) is unchanged. The review routes return only code, name, birth date, location and last-updated date; no contact data.
+System Administrator can no longer read beneficiary journey history or events. Listing and saving project journey stages is unchanged for it. The review routes return only code, name, birth date, location and last-updated date; no contact data.
 
 ### API
-Two routes in the beneficiaries module; no change to the registration endpoint.
+Two routes in the beneficiaries module; no change to the registration endpoint. `RequirePermission` and the guard accept several permissions (any one suffices) and `withAuthorizedOperation` takes an `alsoAllow` option; only the stage list route uses them.
 
 ### UI
 `duplicate-resolution-workspace.tsx` loads the queue and enables Keep distinct and Merge (link) with a confirmation dialog; the link to the page shows for roles holding the review grant.
 
 ### Tests
-`csv-rbac.test.ts` (amendments with revokes), `journeys-access.test.ts` (System Administrator 403 even with a claimed permission), `identity-review.service.test.ts`, `duplicate-resolution-workspace.test.tsx`, `ui-action-availability.test.ts`, `metadata.service.test.ts` (author cannot publish in any role).
+`csv-rbac.test.ts` (amendments with revokes), `journeys-access.test.ts` (System Administrator lists and saves stages; beneficiary history 403 even with a claimed permission), `identity-review.service.test.ts`, `duplicate-resolution-workspace.test.tsx`, `ui-action-availability.test.ts`, `metadata.service.test.ts` (author cannot publish in any role).
 
 ### Documentation
 PRD F3, F4 and F5 gates and use cases, QAD rows, RBAC RFC matrix, deferred-features register and index.
@@ -63,4 +63,4 @@ Developer decisions A, B and C, 2026-10-01.
 
 ## 9. Disposition
 
-Code, migrations and documents are in the branch `feat/f3-f4-rbac-identity-review`. Mark Applied after the migrations run on staging. Follow-ups: the System Administrator Journey Stages page loads stages through `journeys.read`, so it now receives 403 and needs a developer decision (allow stage listing on `journeys.manage`); `infra/supabase/phase6/Verify-Forward.ps1` and `scripts/db/hosted-plan.mjs` carry migration inventories that need 0047 and 0048 at release integration.
+Code, migrations and documents are in the branch `feat/f3-f4-rbac-identity-review`. Mark Applied after the migrations run on staging. Follow-up: `infra/supabase/phase6/Verify-Forward.ps1` and `scripts/db/hosted-plan.mjs` carry migration inventories that need 0047 and 0048 at release integration.

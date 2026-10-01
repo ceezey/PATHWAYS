@@ -592,11 +592,11 @@ Not applicable to this charter: a profile is active or archived, and journey lif
 
 | Gate | Condition | Status | QAD |
 |---|---|---|---|
-| G-F4-1 | System Administrator, Monitoring and Evaluation Officer and Project Manager can save journey stages for a project; other roles are denied | Met | To be added (test: participants.service.test.ts) |
+| G-F4-1 | System Administrator, Monitoring and Evaluation Officer and Project Manager can list and save journey stages for a project (`journeys.read` or `journeys.manage` lists; `journeys.manage` saves); other roles are denied | Met | To be added (test: participants.service.test.ts) |
 | G-F4-2 | A participation or progress event persists against the enrollment and history returns it in chronological order | Met | QAD-T04 |
 | G-F4-3 | A completion, dropout or transfer event closes the enrollment with its end date and reason | Met | To be added (test: participants.service.test.ts) |
 | G-F4-4 | A correction adds a new event linked to the original with a required reason; the original is never overwritten | Met | To be added (test: participants.service.test.ts) |
-| G-F4-5 | Reading journey history requires a fresh step-up, project assignment and `journeys.read`; unassigned or cross-organization requests are denied, and System Administrator (aggregate-only) is denied with 403 | Met | QAD-A11, QAD-JR-01, QAD-JR-02 |
+| G-F4-5 | Reading journey history requires a fresh step-up, project assignment and `journeys.read`; unassigned or cross-organization requests are denied, and System Administrator (aggregate-only) is denied beneficiary journey history with 403 while keeping project-level stage configuration | Met | QAD-A11, QAD-JR-01, QAD-JR-02 |
 | G-F4-6 | A user can attach a free-text note to a journey record | Not met | To be added |
 
 #### Use Cases

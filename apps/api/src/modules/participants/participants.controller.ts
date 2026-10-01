@@ -27,8 +27,9 @@ function profile(request: AuthenticatedRequest) {
 @Controller('projects/:projectId/journey-stages')
 export class JourneyStagesController {
   constructor(@Inject(ParticipantsService) private readonly participants: ParticipantsService) {}
+  // Project-level configuration read: Admin holds journeys.manage only.
   @Get()
-  @RequirePermission('journeys.read')
+  @RequirePermission('journeys.read', 'journeys.manage')
   list(@Req() request: AuthenticatedRequest, @Param('projectId') projectId: string) {
     return this.participants.listStages(profile(request), projectId)
   }

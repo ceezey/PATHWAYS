@@ -88,16 +88,22 @@ export class ParticipantsService {
   }
 
   listStages(identity: ApplicationIdentity, projectId: string) {
-    return withAuthorizedOperation(this.prisma, identity, 'journeys.read', async (tx, actor) => {
-      const id = await this.requireProject(tx, actor, projectId)
-      const stages = await tx.journeyStage.findMany({
-        where: { organizationId: actor.organizationId, projectId: id, archivedAt: null },
-        select: stageSelection,
-        orderBy: [{ stageOrder: 'asc' }, { id: 'asc' }],
-        take: 100,
-      })
-      return stages.map(mapStage)
-    })
+    return withAuthorizedOperation(
+      this.prisma,
+      identity,
+      'journeys.read',
+      async (tx, actor) => {
+        const id = await this.requireProject(tx, actor, projectId)
+        const stages = await tx.journeyStage.findMany({
+          where: { organizationId: actor.organizationId, projectId: id, archivedAt: null },
+          select: stageSelection,
+          orderBy: [{ stageOrder: 'asc' }, { id: 'asc' }],
+          take: 100,
+        })
+        return stages.map(mapStage)
+      },
+      { alsoAllow: ['journeys.manage'] },
+    )
   }
 
   saveStages(

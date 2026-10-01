@@ -22,6 +22,8 @@ import type { ApplicationIdentity } from './developer-access'
 export interface AuthorizedOperationOptions {
   transactionTimeoutMs?: number
   isolationLevel?: 'RepeatableRead'
+  // Extra permissions that also satisfy the check.
+  alsoAllow?: readonly AtomicPermission[]
 }
 
 import {
@@ -161,7 +163,11 @@ export async function withAuthorizedOperation<T>(
         } finally {
           profileMs = boundedOperationDuration(performance.now() - profileStartedAt)
         }
-        if (!hasAtomicPermission(profile.roles[0], profile.permissions, permission)) {
+        if (
+          ![permission, ...(options?.alsoAllow ?? [])].some((code) =>
+            hasAtomicPermission(profile.roles[0], profile.permissions, code),
+          )
+        ) {
           throw new ForbiddenException('Required application permission is missing.')
         }
         if (inspection) await setInspectionTransactionBudget(tx, inspection.budget)
