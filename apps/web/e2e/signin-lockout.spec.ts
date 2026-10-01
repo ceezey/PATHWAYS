@@ -94,6 +94,13 @@ const signIn = (request: import('@playwright/test').APIRequestContext, e: string
 
 test('five failures lock and the correct password is still refused', async ({ request, page }) => {
   test.setTimeout(90_000)
+  const directGrant = () =>
+    request.post(`${provider.url}/auth/v1/token?grant_type=password`, {
+      headers: { apikey: provider.anonKey },
+      data: { email, password: passwords[email] },
+    })
+  // Control: before locking, the same direct grant succeeds.
+  expect((await directGrant()).status()).toBe(200)
   for (let i = 0; i < 5; i++) {
     const r = await signIn(request, email, 'wrong-password')
     // The fifth failure itself returns the lock response.
@@ -104,11 +111,9 @@ test('five failures lock and the correct password is still refused', async ({ re
   expect((await locked.json()).code).toBe('SIGN_IN_LOCKED')
 
   // The password hook refuses a direct grant that skips the API (migration 0052).
-  const direct = await request.post(`${provider.url}/auth/v1/token?grant_type=password`, {
-    headers: { apikey: provider.anonKey },
-    data: { email, password: passwords[email] },
-  })
-  expect(direct.ok()).toBe(false)
+  const direct = await directGrant()
+  expect(direct.status()).toBe(400)
+  expect(await direct.text()).toContain('Sign-in is temporarily locked')
 
   await page.goto(`${web}/staff/login`)
   await page.getByLabel('Email').fill(email)

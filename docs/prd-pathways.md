@@ -169,7 +169,7 @@ The Problem / Requirement mapping is derived from the requirement text and objec
 | G-F1-7 | An actor with `audit.read` lists audit events in their scope with filters; others are denied | Met | QAD-T36 |
 | G-F1-8 | A user views and updates only their own profile | Met | QAD-T37 |
 | G-F1-9 | A user requests a password reset from the sign-in page and sets a new password through the recovery link | Met | QAD-T38 |
-| G-F1-10 | The app locks sign-in for 15 minutes after 5 failed attempts within 15 minutes, with a uniform response for known and unknown accounts, reset on success and an audit event | Met | QAD-T39 |
+| G-F1-10 | The app locks sign-in for 15 minutes after 5 failed attempts within 15 minutes, with a uniform response for known and unknown accounts, reset on success and an audit event | Met for app sign-in; direct calls to the identity provider bypass it on the hosted Free plan (hook unavailable, see [deferred features](deferred-features.md)) | QAD-T39, QAD-A25 |
 
 #### Use Cases
 

@@ -25,6 +25,7 @@ $$;
 ALTER FUNCTION pathways_auth.lockout_remaining(text) OWNER TO prisma;
 
 -- Invoker hook: runs as supabase_auth_admin, which can read auth.users.
+-- An error in the helper fails closed and blocks all password sign-ins.
 CREATE FUNCTION pathways_auth.password_verification_attempt(event jsonb) RETURNS jsonb
 LANGUAGE plpgsql STABLE SECURITY INVOKER SET search_path TO '' AS $$
 BEGIN
