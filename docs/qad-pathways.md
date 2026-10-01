@@ -115,6 +115,7 @@ Every implemented feature requires:
 | QAD-T78 | the SAD checker routes changed paths to specialist reviews deterministically | Happy | Maintainability | PRD-F1 to PRD-F13 (NFR-14) | None | None | `scripts/sad/check.test.ts` |
 | QAD-T79 | the schema, migration chain and security catalog replay on disposable PostgreSQL 18 from archive and from the baseline | Happy | Portability | PRD-F1 to PRD-F13 (NFR-11) | None | None | `infra/supabase/phase6/Replay-Local.ps1`; `apps/api/prisma/tests/baseline-security-catalog.sql` |
 | QAD-IR-01 | an M&E Officer lists unreviewed same-name, same-birth-date pairs, then records Keep distinct or Link; each writes one audit event and the pair leaves the queue | Happy | Functional Suitability | PRD-F3 | G-F3-6 | UC-F3-3 | `apps/api/src/modules/beneficiaries/identity-review.service.test.ts`; `apps/web/src/features/beneficiaries/duplicate-resolution-workspace.test.tsx` |
+| QAD-IL-01 | a library entry is created, listed and archived, and a project indicator created from it is an independent copy with the project period, baseline and target | Happy | Functional Suitability | PRD-F7 | G-F7-5 | UC-F7-1 | `apps/api/src/modules/indicators/indicator-library.service.test.ts`; `apps/web/src/features/projects/indicator-library-manager.test.tsx`; `apps/web/src/features/projects/project-indicators-workspace.test.tsx` |
 
 ### 3.2 Sad Paths
 
@@ -156,7 +157,7 @@ Every implemented feature requires:
 | QAD-T40 | a role holding `projects.archive` archives a project; delivered, covered by QAD-P10 | Sad | Functional Suitability | PRD-F2 | G-F2-4 | UC-F2-1 | Automated via QAD-P10 route test |
 | QAD-T52 | a user attaches a trimmed free-text note to a journey event and to its correction; the audit records only that a note exists | Happy | Functional Suitability | PRD-F4 | G-F4-6 | UC-F4-2 | `apps/api/src/modules/participants/journey-note.test.ts` |
 | QAD-T54 | a reviewer declares a data type and translates values ("M" and "F" to canonical values); a coercion failure stays staged with a reason; an oversized map or formula-like values are rejected | Happy, Sad, Abuse | Functional Suitability | PRD-F6 | G-F6-7 | UC-F6-2 | `packages/imports/src/normalization.test.ts`; `apps/api/src/modules/imports/imports.dto.value-map.test.ts`; `apps/api/src/modules/imports/imports.service.test.ts`; `apps/web/src/features/collection/import-value-map-editor.test.tsx` |
-| QAD-T58 | indicators are linked and reused across projects; not delivered, so the gate is Not met | Sad | Functional Suitability | PRD-F7 | G-F7-5 | UC-F7-1 | Manual; pending, gate Not met |
+| QAD-T58 | an invalid library definition, a request key reused for a different entry, a missing or archived entry, and a caller without the library permission are refused and nothing is created | Sad | Functional Suitability | PRD-F7 | G-F7-5 | UC-F7-1 | `apps/api/src/modules/indicators/indicator-library.service.test.ts` |
 | QAD-T62 | dashboard responsiveness is verified at production scale; not measured, so the gate is Not met | Sad | Performance Efficiency | PRD-F8 | G-F8-7 | UC-F8-1 | Manual; pending, gate Not met |
 | QAD-T63 | participation breakdowns, indicator trends and a server budget aggregate in descriptive analytics; not delivered, so the gate is Not met | Sad | Functional Suitability | PRD-F9 | G-F9-9 | UC-F9-1 | Manual; pending, gate Not met |
 | QAD-T64 | survey totals for Program Manager and Grant Manager through a closed-period release table; not delivered, so the gate is Not met | Sad | Functional Suitability | PRD-F9 | G-F9-10 | UC-F9-1 | Manual; pending, gate Not met |
@@ -231,6 +232,7 @@ Every implemented feature requires:
 | QAD-IR-03 | a Project Officer or System Administrator with a forged review permission, or a request for an out-of-scope project, is denied before any profile is read | Abuse | Security | PRD-F3 | G-F3-6 | UC-F3-3 | `apps/api/src/modules/beneficiaries/identity-review.service.test.ts` |
 | QAD-JR-02 | a System Administrator profile claiming `journeys.read` is still denied beneficiary journey history and, without `journeys.manage`, stage listing | Abuse | Security | PRD-F4 | G-F4-5 | UC-F4-4 | `apps/api/src/modules/participants/journeys-access.test.ts`; `apps/api/src/modules/auth/csv-rbac.test.ts` |
 | QAD-A24 | a non-string note, or note content in the audit record, is refused; the note body is never logged | Abuse | Security | PRD-F4 | G-F4-6 | UC-F4-4 | `apps/api/src/modules/participants/journey-note.test.ts` |
+| QAD-IL-02 | Org B lists, archives or uses an Org A library entry, or a request carries forged organization, creator or binding fields, or a role without the library permission calls it -> denied, nothing created | Abuse | Security | PRD-F7 | G-F7-5 | UC-F7-1 | `apps/api/src/modules/indicators/indicator-library.service.test.ts`; `apps/api/src/modules/auth/csv-rbac.test.ts` |
 
 ### 3.4 Traceability
 
@@ -242,7 +244,7 @@ Every implemented feature requires:
 | PRD-F4 | Beneficiary Journey Tracking | QAD-T04, QAD-T49, QAD-T50, QAD-T51, QAD-T52, QAD-T83, QAD-A24 |
 | PRD-F5 | Digital Data Collection and Preparation | QAD-T05, QAD-IMP-04, QAD-IMP-09, QAD-IMP-11, QAD-IMP-13, QAD-T53, QAD-FP-01 |
 | PRD-F6 | Metadata-Driven Data Integration | QAD-T06, QAD-T21, QAD-T22, QAD-T25, QAD-A07, QAD-IMP-01, QAD-IMP-02, QAD-IMP-03, QAD-IMP-05, QAD-IMP-06, QAD-IMP-07, QAD-IMP-08, QAD-IMP-10, QAD-IMP-12, QAD-SM-01, QAD-SM-02, QAD-SM-03, QAD-SM-04, QAD-SM-05, QAD-SM-06, QAD-SM-07, QAD-SM-08, QAD-SM-09, QAD-SM-10, QAD-SM-11, QAD-T54 |
-| PRD-F7 | Project Indicator and Monitoring | QAD-T07, QAD-P05, QAD-T55, QAD-T56, QAD-T57, QAD-T58 |
+| PRD-F7 | Project Indicator and Monitoring | QAD-T07, QAD-P05, QAD-T55, QAD-T56, QAD-T57, QAD-T58, QAD-IL-01, QAD-IL-02 |
 | PRD-F8 | Aggregated Monitoring Dashboard with SADDD Analysis | QAD-T08, QAD-T23, QAD-A10, QAD-T59, QAD-T60, QAD-T61, QAD-T62 |
 
 PRD-F9 to PRD-F13 rows are in the matrix above and are cited by their gates in the PRD.
@@ -251,11 +253,11 @@ PRD-F9 to PRD-F13 rows are in the matrix above and are cited by their gates in t
 
 #### 3.5.1 Functional Suitability
 
-- **Rows:** 52 in the matrix with this characteristic.
+- **Rows:** 53 in the matrix with this characteristic.
 - **NFR IDs:** NFR-9.
 - **Automated tests:** Workflow, validation and metric rows (API service tests, `packages/shared` metric contracts, SQL runtime tests in `apps/api/prisma/tests/`).
 - **Manual checks:** Acceptance walk-through of each use case by role.
-- **Gaps:** Gates Not met for PRD-F2 archive, PRD-F6 data types, PRD-F7 indicator reuse, PRD-F9 breakdowns, PRD-F10 budget and survey metrics, PRD-F11 auto-resolve and PRD-F12 export formats.
+- **Gaps:** Gates Not met for PRD-F9 breakdowns, PRD-F10 budget and survey metrics, PRD-F11 auto-resolve and PRD-F12 export formats.
 
 #### 3.5.2 Performance Efficiency
 
@@ -293,7 +295,7 @@ PRD-F9 to PRD-F13 rows are in the matrix above and are cited by their gates in t
 
 #### 3.5.6 Security
 
-- **Rows:** 68 in the matrix with this characteristic.
+- **Rows:** 69 in the matrix with this characteristic.
 - **NFR IDs:** NFR-1, NFR-2, NFR-12.
 - **Automated tests:** RBAC, organization isolation, step-up, suppression and public-exposure rows (abuse table), API guard tests, and SQL privilege runtime tests.
 - **Manual checks:** Public privacy review; security review by the SAD specialists.

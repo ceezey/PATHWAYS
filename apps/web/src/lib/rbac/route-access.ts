@@ -46,6 +46,7 @@ export const routePolicy = {
     ['indicators.read'],
     'project',
   ),
+  indicatorLibrary: entry('/indicators/library', 'Indicator library', ['indicators.library.read']),
   monitoring: entry(
     '/projects/:projectId/monitor-evaluate',
     'Monitor & Evaluate',

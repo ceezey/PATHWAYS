@@ -166,7 +166,7 @@ Versions are the dependency specifiers in the repository `package.json` files an
 
 ## 3. Data Architecture
 
-The Prisma schema (`apps/api/prisma/schema.prisma`) defines 55 models in the `pathways` schema. Migrations run from the `0000_pathways_baseline_through_0026` baseline through 0045, 20 folders in `apps/api/prisma/migrations`. Enums are mapped in the same schema (for example `rule_metric`, `rule_operator`, `decision_status`).
+The Prisma schema (`apps/api/prisma/schema.prisma`) defines 56 models in the `pathways` schema. Migrations run from the `0000_pathways_baseline_through_0026` baseline through 0045 and 0051, 21 folders in `apps/api/prisma/migrations`. Enums are mapped in the same schema (for example `rule_metric`, `rule_operator`, `decision_status`).
 
 ### 3.1 Domain ER Diagrams
 
@@ -349,6 +349,10 @@ All touched endpoints validate DTO input, bound their queries, derive actor and 
 | PATCH | `/imports/projects/:projectId/batches/:batchId/mapping` | Save field mapping | `imports.review` | PRD-F6 |
 | POST | `/imports/projects/:projectId/batches/:batchId/process` | Promote validated rows | `imports.process` | PRD-F6 |
 | POST | `/projects/:projectId/indicators/:indicatorId/measurements` | Record measurement | `indicators.update` | PRD-F7 |
+| POST | `/projects/:projectId/indicators/from-library` | Create a project indicator by copying a library entry | `indicators.create` and `indicators.library.read` | PRD-F7 |
+| GET | `/indicator-library` | List active library entries | `indicators.library.read` | PRD-F7 |
+| POST | `/indicator-library` | Create a library entry | `indicators.library.create` | PRD-F7 |
+| POST | `/indicator-library/:entryId/archive` | Archive a library entry | `indicators.library.archive` | PRD-F7 |
 | GET | `/dashboards/monitoring` | Aggregated monitoring dashboard | `monitoring.read` | PRD-F8 |
 | GET | `/dashboards/saddd` | SADDD analysis | `analytics.saddd.read` | PRD-F8 |
 | GET | `/analytics/descriptive` | Descriptive analytics views | `analytics.descriptive.read` | PRD-F9 |

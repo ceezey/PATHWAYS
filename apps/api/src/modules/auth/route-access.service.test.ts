@@ -34,15 +34,15 @@ const service = new RouteAccessService({
 // Explicit approved CSV route matrix, independent of the route implementation.
 const allowed: Record<CanonicalRole, string> = {
   SYSTEM_ADMINISTRATOR:
-    'dashboard unauthorized projects reports surveyReport forms form profile settings projectReport indicatorReport analytics indicators monitoring collection imports alerts recommendations rules settingsRules users audit backups transparency transparencyPreview transparencyQueue evidence formCreate journey project activities activity budget',
+    'dashboard unauthorized projects reports surveyReport forms form profile settings projectReport indicatorReport analytics indicators indicatorLibrary monitoring collection imports alerts recommendations rules settingsRules users audit backups transparency transparencyPreview transparencyQueue evidence formCreate journey project activities activity budget',
   PROGRAM_MANAGER:
     'dashboard unauthorized projects reports surveyReport profile settings projectReport indicatorReport project analytics budget monitoring transparency transparencyPreview transparencyQueue alerts recommendations users audit evidence',
   GRANT_MANAGER:
     'dashboard unauthorized projects reports surveyReport profile settings projectReport indicatorReport project analytics budget monitoring transparency transparencyPreview transparencyQueue alerts recommendations evidence',
   PROJECT_MANAGER:
-    'dashboard unauthorized projects reports surveyReport profile settings projectReport indicatorReport project projectCreate projectEdit analytics activities activity indicators budget monitoring transparency transparencyPreview transparencyQueue beneficiaries beneficiaryCreate beneficiary beneficiaryEdit alerts recommendations users audit beneficiaryReport reportPreview evidence journey',
+    'dashboard unauthorized projects reports surveyReport profile settings projectReport indicatorReport project projectCreate projectEdit analytics activities activity indicators indicatorLibrary budget monitoring transparency transparencyPreview transparencyQueue beneficiaries beneficiaryCreate beneficiary beneficiaryEdit alerts recommendations users audit beneficiaryReport reportPreview evidence journey',
   MONITORING_AND_EVALUATION_OFFICER:
-    'dashboard unauthorized projects reports surveyReport forms form profile settings projectReport indicatorReport project analytics activities activity evidence indicators monitoring beneficiaries beneficiaryCreate beneficiary beneficiaryEdit collection manualEntry formCreate formEntry imports alerts recommendations beneficiaryReport reportPreview journey',
+    'dashboard unauthorized projects reports surveyReport forms form profile settings projectReport indicatorReport project analytics activities activity evidence indicators indicatorLibrary monitoring beneficiaries beneficiaryCreate beneficiary beneficiaryEdit collection manualEntry formCreate formEntry imports alerts recommendations beneficiaryReport reportPreview journey',
   PROJECT_OFFICER:
     'dashboard unauthorized projects reports surveyReport form profile settings projectReport indicatorReport activities activity beneficiaries beneficiaryCreate beneficiary beneficiaryEdit collection manualEntry formEntry imports beneficiaryReport reportPreview alerts analytics evidence project recommendations',
 }

@@ -92,6 +92,7 @@ Admin = System Administrator; Program = Program Manager; Grant = Grant Manager; 
 | `public.publish` | Admin, PM, Program, Grant |
 | `evidence.review` | M&E |
 | `indicators.create` | Admin, M&E, PM |
+| `indicators.library.read`, `indicators.library.create`, `indicators.library.archive` | Admin, M&E, PM (cr-pathways-indicator-library, 0051) |
 | `indicators.update` | Admin, M&E, PM |
 | `collection.read` | Admin, PO, M&E |
 | `forms.read` | Admin, PO, M&E |

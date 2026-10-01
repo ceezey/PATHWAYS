@@ -55,7 +55,7 @@ The cut line is the set of system-wide bounds from the manuscript Scope and Limi
 - no full project management platform or ERP;
 - no full real-time synchronization or complete API integration with KOBO, YES!ME or PMERL;
 - no beneficiary-level or internal financial data on the public tracker;
-- deferred and unbuilt items (for example a Project Template Library and an organization Indicator Library) are tracked in the deferred features register, not promised here.
+- deferred and unbuilt items (for example a Project Template Library) are tracked in the deferred features register, not promised here.
 
 ## 4. Success & Judging Criteria
 
@@ -91,7 +91,7 @@ Open questions are tracked through change records and the deferred features regi
 - Judging criteria for the capstone defense are Not established.
 - The number of UAT respondents is Not established in the manuscript.
 - Whether the forty-hour preparation estimate holds is evaluation evidence still to be gathered.
-- Reusable project structures for recurring project types (requirement R4) need a scheduling or descoping decision.
+- Reusable project structures for recurring project types (requirement R4) beyond the delivered indicator library need a scheduling or descoping decision.
 
 ## Self-Check
 

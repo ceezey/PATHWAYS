@@ -8,6 +8,7 @@ const state = vi.hoisted(() => ({
   roles: ['PROJECT_MANAGER'],
   permissions: ['monitoring.read'],
   data: [] as unknown[],
+  library: undefined as unknown,
 }))
 vi.mock('@/hooks/use-current-role', () => ({
   useCurrentRole: () => ({
@@ -35,7 +36,16 @@ vi.mock('@/features/analytics/use-monitoring-read', () => ({
   }),
 }))
 vi.mock('@/providers/authorized-query-provider', () => ({
-  useAuthorizedRead: () => ({ data: undefined, isError: false }),
+  useAuthorizedRead: (
+    resource: string,
+    _project: unknown,
+    _permission: string,
+    _read: unknown,
+    enabled = true,
+  ) => ({
+    data: resource === 'indicator-library' && enabled ? state.library : undefined,
+    isError: false,
+  }),
 }))
 vi.mock('@/lib/services/pathways-client', () => ({
   PathwaysClientError: class extends Error {},
@@ -67,6 +77,7 @@ describe('P06 dedicated indicator workspace', () => {
     state.roles = ['PROJECT_MANAGER']
     state.permissions = ['monitoring.read']
     state.data = []
+    state.library = undefined
   })
   it('does not convert blank baseline/target into fabricated zero', () => {
     expect(indicatorInputFromForm(form(), [])).toMatchObject({
@@ -120,6 +131,29 @@ describe('P06 dedicated indicator workspace', () => {
     expect(html).toContain('Add project indicator')
     expect(html).toContain('Manual measurement')
     expect(html).not.toContain('Indicator Library')
+  })
+  it('offers use-from-library only with library read and an existing entry', () => {
+    const props = { projectId: '79000000-0000-4000-8000-000000000003' }
+    state.permissions = ['monitoring.read', 'indicators.create', 'indicators.library.read']
+    expect(renderToStaticMarkup(createElement(ProjectIndicatorsWorkspace, props))).not.toContain(
+      'Use from library',
+    )
+    state.library = [
+      {
+        id: '79000000-0000-4000-8000-000000000020',
+        code: 'WORKSHOP_ATTENDEES',
+        name: 'Workshop attendees',
+        recipe: null,
+      },
+    ]
+    const html = renderToStaticMarkup(createElement(ProjectIndicatorsWorkspace, props))
+    expect(html).toContain('Use from library')
+    expect(html).toContain('WORKSHOP_ATTENDEES')
+    expect(html).toContain('href="/indicators/library"')
+    state.permissions = ['monitoring.read', 'indicators.create']
+    const denied = renderToStaticMarkup(createElement(ProjectIndicatorsWorkspace, props))
+    expect(denied).not.toContain('Use from library')
+    expect(denied).not.toContain('/indicators/library')
   })
   it('hides creation for a forged grant beyond the role ceiling', () => {
     // A Project Officer never holds indicators.create; a stray grant cannot show the action.

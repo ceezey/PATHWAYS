@@ -149,6 +149,66 @@ export const createIndicatorSchema = z
   .strict()
   .superRefine(validateIndicatorDefinition)
 export type CreateIndicatorInput = z.infer<typeof createIndicatorSchema>
+/** Library entries are definition templates: no period, targets or project, activity or form IDs. */
+export const libraryRecipes = metricRecipes.filter((recipe) => !recipe.startsWith('FORM_'))
+export const createLibraryEntrySchema = z
+  .object({
+    code: definitionFields.code,
+    name: definitionFields.name,
+    description: definitionFields.description,
+    unitLabel: definitionFields.unitLabel,
+    dataSource: definitionFields.dataSource,
+    mode: definitionFields.mode,
+    numericKind: definitionFields.numericKind,
+    direction: definitionFields.direction,
+    displayPrecision: definitionFields.displayPrecision,
+    recipe: z.enum(libraryRecipes as [MetricRecipe, ...MetricRecipe[]]).optional(),
+    clientMutationId: uuid,
+  })
+  .strict()
+  .superRefine(({ recipe, clientMutationId: _id, ...entry }, ctx) =>
+    validateIndicatorDefinition(
+      {
+        ...entry,
+        periodStart: '2000-01-01',
+        periodEnd: '2000-12-31',
+        baseline: null,
+        target: null,
+        binding: recipe ? { recipe } : undefined,
+      },
+      ctx,
+    ),
+  )
+export type CreateLibraryEntryInput = z.infer<typeof createLibraryEntrySchema>
+export const libraryEntrySchema = z
+  .object({
+    id: uuid,
+    code: z.string(),
+    name: z.string(),
+    description: z.string().nullable(),
+    unitLabel: z.string(),
+    dataSource: z.string(),
+    mode: z.enum(['MANUAL', 'DERIVED']),
+    numericKind: z.enum(numericKinds),
+    direction: z.enum(['HIGHER_IS_BETTER', 'LOWER_IS_BETTER', 'DESCRIPTIVE']),
+    displayPrecision: z.number().int().min(0).max(4),
+    recipe: z.enum(metricRecipes).nullable(),
+    createdAt: z.string(),
+  })
+  .strict()
+export type LibraryEntry = z.infer<typeof libraryEntrySchema>
+/** Project-specific values supplied when a library definition is copied into a project. */
+export const useLibraryEntrySchema = z
+  .object({
+    libraryEntryId: uuid,
+    clientMutationId: uuid,
+    periodStart: date,
+    periodEnd: date,
+    baseline: decimal.nullable(),
+    target: decimal.nullable(),
+  })
+  .strict()
+export type UseLibraryEntryInput = z.infer<typeof useLibraryEntrySchema>
 /** Semantic fields are immutable: create a new code/definition for a different metric or period. */
 export const updateIndicatorSchema = z
   .object({

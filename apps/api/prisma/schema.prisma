@@ -88,6 +88,7 @@ model Organization {
   beneficiaryJourneyEvent_organization          BeneficiaryJourneyEvent[]          @relation("BeneficiaryJourneyEvent_organization")
   activityUpdate_organization                   ActivityUpdate[]                   @relation("ActivityUpdate_organization")
   activityOverdueExplanation_organization       ActivityOverdueExplanation[]       @relation("ActivityOverdueExplanation_organization")
+  indicatorLibraryEntry_organization            IndicatorLibraryEntry[]            @relation("IndicatorLibraryEntry_organization")
 
   @@index([status], map: "organizations_status_idx")
   @@map("organizations")
@@ -216,6 +217,7 @@ model SystemUser {
   activityUpdate_submittedBy                  ActivityUpdate[]                   @relation("ActivityUpdate_submittedBy")
   activityUpdate_reviewedBy                   ActivityUpdate[]                   @relation("ActivityUpdate_reviewedBy")
   activityOverdueExplanation_recordedBy       ActivityOverdueExplanation[]       @relation("ActivityOverdueExplanation_recordedBy")
+  indicatorLibraryEntry_createdBy             IndicatorLibraryEntry[]            @relation("IndicatorLibraryEntry_createdBy")
   userProjectAssignment_user                  UserProjectAssignment[]            @relation("UserProjectAssignment_user")
   projectPublication_submittedBy              ProjectPublication[]               @relation("ProjectPublication_submittedBy")
   projectPublication_approvedBy               ProjectPublication[]               @relation("ProjectPublication_approvedBy")
@@ -869,6 +871,32 @@ model ActivityOverdueExplanation {
   @@index([organizationId, projectId, activityId, recordedAt], map: "activity_overdue_explanations_activity_time_idx")
   @@index([organizationId, recordedById], map: "activity_overdue_explanations_recorded_by_idx")
   @@map("activity_overdue_explanations")
+  @@schema("pathways")
+}
+
+model IndicatorLibraryEntry {
+  id               String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId   String       @map("organization_id") @db.Uuid
+  code             String
+  name             String
+  description      String?
+  unitLabel        String       @map("unit_label")
+  dataSource       String       @map("data_source")
+  measurementMode  String       @map("measurement_mode")
+  numericKind      String       @map("numeric_kind")
+  direction        String
+  displayPrecision Int          @map("display_precision")
+  recipe           String?
+  clientMutationId String       @map("client_mutation_id") @db.Uuid
+  createdById      String       @map("created_by_id") @db.Uuid
+  createdAt        DateTime     @default(now()) @map("created_at") @db.Timestamptz(3)
+  archivedAt       DateTime?    @map("archived_at") @db.Timestamptz(3)
+  organization     Organization @relation("IndicatorLibraryEntry_organization", fields: [organizationId], references: [id], onDelete: Restrict, onUpdate: Restrict, map: "indicator_library_entries_organization_fk")
+  createdBy        SystemUser   @relation("IndicatorLibraryEntry_createdBy", fields: [organizationId, createdById], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict, map: "indicator_library_entries_created_by_fk")
+
+  @@unique([organizationId, clientMutationId], map: "indicator_library_entries_client_key")
+  @@index([organizationId, createdById], map: "indicator_library_entries_created_by_idx")
+  @@map("indicator_library_entries")
   @@schema("pathways")
 }
 

@@ -22,7 +22,7 @@ describe('approved CSV RBAC contract', () => {
         'utf8',
       )
     const sql = migration('0027_revised_csv_rbac')
-    const latestMatrix = migration('0035_admin_read_access')
+    const latestMatrix = migration('0051_indicator_library')
     const expected = Object.entries(contract.permissions)
       .flatMap(([permission, roles]) => roles.map((role) => `${role}:${permission}`))
       .sort()
@@ -111,6 +111,13 @@ describe('approved CSV RBAC contract', () => {
       'expenses.submit',
     ] as const) {
       expect(rolePermissions.SYSTEM_ADMINISTRATOR).not.toContain(permission)
+    }
+  })
+  it('grants the indicator library only to the roles that hold indicator creation', () => {
+    for (const role of Object.keys(rolePermissions) as Array<keyof typeof rolePermissions>) {
+      const holdsCreate = rolePermissions[role].includes('indicators.create')
+      for (const action of ['read', 'create', 'archive'] as const)
+        expect(rolePermissions[role].includes(`indicators.library.${action}`)).toBe(holdsCreate)
     }
   })
   it('permits only Admin to assign Grant Manager', () => {

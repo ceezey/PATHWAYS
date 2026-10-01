@@ -98,6 +98,7 @@ import {
   type SadddQuery,
   type SurveyAnalytics,
   type TimelineAnalytics,
+  type UseLibraryEntryInput,
   dashboardQuerySchema,
   descriptiveAnalyticsQuerySchema,
   descriptiveAnalyticsSchema,
@@ -114,6 +115,7 @@ import { type ProjectOverviewMetrics, projectOverviewMetricsSchema } from '@path
 import { readPublicProjects } from './public-projects'
 type CreateIndicatorInput = Omit<ApiCreateIndicatorInput, 'clientMutationId'>
 type UpdateIndicatorInput = Omit<ApiUpdateIndicatorInput, 'clientMutationId'>
+type UseLibraryEntryDraft = Omit<UseLibraryEntryInput, 'clientMutationId'>
 import {
   STEP_UP_REQUIRED_CODE,
   announceStepUpRequired,
@@ -334,6 +336,11 @@ export interface PathwaysClient {
   createProjectIndicator(
     projectId: string,
     input: CreateIndicatorInput,
+    context?: SourceMutationContext,
+  ): Promise<SourceMutationResult<ProjectIndicator>>
+  createProjectIndicatorFromLibrary(
+    projectId: string,
+    input: UseLibraryEntryDraft,
     context?: SourceMutationContext,
   ): Promise<SourceMutationResult<ProjectIndicator>>
   updateProjectIndicator(
@@ -996,6 +1003,20 @@ class BackendReadyPathwaysClient implements PathwaysClient {
   ): Promise<SourceMutationResult<ProjectIndicator>> {
     return requestSourceMutation(
       `/projects/${encodeURIComponent(projectId)}/indicators`,
+      'POST',
+      input,
+      context,
+      (value) => projectIndicatorSchema.parse(value),
+    )
+  }
+
+  async createProjectIndicatorFromLibrary(
+    projectId: string,
+    input: UseLibraryEntryDraft,
+    context?: SourceMutationContext,
+  ): Promise<SourceMutationResult<ProjectIndicator>> {
+    return requestSourceMutation(
+      `/projects/${encodeURIComponent(projectId)}/indicators/from-library`,
       'POST',
       input,
       context,

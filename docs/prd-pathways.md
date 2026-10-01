@@ -16,7 +16,7 @@ PATHWAYS is a metadata-driven project information management system with rule-ba
 | P1 Dependence on technical staff; uneven usability across roles | R1 Structured, usable project information environment | PRD-F1, PRD-F2, PRD-F3 |
 | P2 Repeated export-import handling and manual preparation | R2 Organized preparation and integration of field data | PRD-F5, PRD-F6 |
 | P3 Manual metadata and dashboard setup | R3 Organized generation of monitoring outputs | PRD-F7, PRD-F8, PRD-F9, PRD-F12 |
-| P4 No standard setup for recurring projects | R4 Consistent project setup through reusable structures | PRD-F2, PRD-F7 (known gap, not claimed as met) |
+| P4 No standard setup for recurring projects | R4 Consistent project setup through reusable structures | PRD-F2, PRD-F7 (indicator definitions delivered; project structure templates a known gap) |
 | P5 Records spread across tools and files | R5 Centralized project and beneficiary information | PRD-F2, PRD-F3 |
 | P6 Difficulty tracking beneficiary participation | R6 Clearer tracking of participation and progression | PRD-F4 |
 | P7 Information not ready for action | R7 Timely summaries, rule-based flags and suggested actions | PRD-F9, PRD-F10, PRD-F11 |
@@ -100,7 +100,7 @@ Status comes from the repository, not the manuscript labels "In Progress" and "P
 | FR-6 | Digital monitoring forms and fields | PRD-F5 | High | P2 / R2 | Implemented |
 | FR-7 | Dataset upload, mapping and validation | PRD-F5, PRD-F6 | High | P2 / R2 | Implemented; data-type and value mapping on hold |
 | FR-8 | Centralized encoded and imported records | PRD-F6 | High | P5 / R5 | Implemented |
-| FR-9 | Indicator and monitoring parameter configuration | PRD-F7 | High | P3 / R3, P4 / R4 | Implemented; reusable project structures not built |
+| FR-9 | Indicator and monitoring parameter configuration | PRD-F7 | High | P3 / R3, P4 / R4 | Implemented; reusable indicator definitions through the organization library (cr-pathways-indicator-library); project structure templates not built |
 | FR-10 | Aggregated dashboards and SADDD summaries | PRD-F8 | High | P3 / R3 | Implemented |
 | FR-11 | Descriptive analytics and performance summaries | PRD-F9 | Medium | P3 / R3, P7 / R7 | Implemented for four views; breakdowns, trends and server budget aggregate on hold |
 | FR-12 | Rule-based alerts | PRD-F10 | Medium | P7 / R7 | Local API and runtime slice; integration verification pending |
@@ -271,7 +271,7 @@ flowchart LR
 - Budget records and expense entries with a private receipt, verification, approval, rejection and final sign-off.
 **Bounds (out):**
 - Project archive: `POST /projects/:projectId/archive` is guarded by `projects.archive`; archived projects leave the default list and there is no unarchive.
-- Reusable project structures: not built; stays a known gap for R4 (Scope and Limitations).
+- Reusable project structures (activity and monitoring templates): not built; stays a known gap for R4 (Scope and Limitations). Reusable indicator definitions are delivered by PRD-F7.
 - Project target goal: retired (cr-pathways-retire-project-target-goal).
 - Free-text implementing partners: writes are rejected (cr-pathways-project-rbac-ui-and-partners).
 - Request-an-extension and Media proof tab controls: hidden, see the deferred register (cr-pathways-frontend-usability).
@@ -920,8 +920,9 @@ stateDiagram-v2
 - Record measurements against an indicator, with a replayed save returning the original result.
 - Show trusted current value and progress; missing values and invalid denominators show the established unavailable state, never an invented zero.
 - Audit every indicator create, update and measurement.
+- Keep an organization indicator library of definition templates (create, list, archive under `indicators.library.*`) and create a project indicator from an entry by copying its definition; no live link and no project data in the library (cr-pathways-indicator-library).
 **Bounds (out):**
-- Reusable indicator definitions across projects: not built; R4 stays a known gap, not claimed as met (Scope and Limitations / deferred-features)
+- Live links between a library entry and project indicators, editing or deleting a library entry, sharing a library across organizations, and project structure templates: not built (deferred-features)
 - Archiving indicators: the archive route exists but `indicators.archive` is granted to no role (rbac-contract.json)
 - Project-level target goal comparison: retired, historical column preserved (cr-pathways-retire-project-target-goal)
 - Disaggregation requirements on the indicator definition: disaggregation is computed in PRD-F8 from beneficiary fields (Scope and Limitations)
@@ -935,7 +936,7 @@ stateDiagram-v2
 | G-F7-2 | An indicator shows the correct trusted metric, target and source | Met | QAD-T07 |
 | G-F7-3 | A measurement save is idempotent: the same key and input is read-only on retry, conflicting reuse fails | Met | QAD-T56 |
 | G-F7-4 | Indicator progress is independent of the retired project target goal and shows unavailable states instead of zero | Met | QAD-T57 |
-| G-F7-5 | Indicators can be linked and reused across projects | Not met | QAD-T58 |
+| G-F7-5 | Indicator definitions can be reused across projects through an organization library; a project indicator created from an entry is an independent copy | Met | QAD-IL-01, QAD-IL-02, QAD-T58 |
 
 #### Use Cases
 
@@ -962,7 +963,7 @@ flowchart LR
 | Trigger | The user opens a project workspace to define or change an indicator |
 | Preconditions | The user is authenticated, assigned to the project and holds the permission |
 | Main flow | 1. The user opens the indicator list (route `/projects/:projectId/indicators`). 2. The system lists existing indicators (`indicators.read`). 3. The user defines name, unit, baseline, target, direction and source. 4. The system validates the definition. 5. The user saves. |
-| Alternate / exception | Permission denied: 403, no change. Required field missing or invalid: 400, nothing saved. Reuse of an existing indicator in another project: not supported. |
+| Alternate / exception | Permission denied: 403, no change. Required field missing or invalid: 400, nothing saved. Library entry missing, archived or from another organization: 404, nothing created. Using a library entry also needs `indicators.library.read`. |
 | Postconditions | The indicator is stored for the project and an audit event is written |
 | Gates | G-F7-1, G-F7-2, G-F7-5 |
 
@@ -1883,7 +1884,7 @@ Each bound comes from the manuscript Scope and Limitations (Chapter 1).
 
 ### 6.2 Deferred Features
 
-Hidden, deferred and gapped items are tracked in [deferred-features](deferred-features.md). Also out of scope for this release: a Project Template Library, an organization Indicator Library, and SSO or AWS hosting work outside separately authorized releases (`docs/rfc-pathways-aws-hosting-migration.md`).
+Hidden, deferred and gapped items are tracked in [deferred-features](deferred-features.md). Also out of scope for this release: a Project Template Library (activity and monitoring structure templates) and SSO or AWS hosting work outside separately authorized releases (`docs/rfc-pathways-aws-hosting-migration.md`).
 
 ## 7. AI / Agent Feature Specifications
 

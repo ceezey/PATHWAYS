@@ -489,6 +489,17 @@ describe('RBAC matrix', () => {
     })
   })
 
+  it('opens the indicator library only to roles that hold indicator creation', () => {
+    for (const role of [
+      'System Administrator',
+      'Monitoring and Evaluation Officer',
+      'Project Manager',
+    ] as const)
+      expect(getRouteAccess(role, '/indicators/library').allowed).toBe(true)
+    for (const role of ['Project Officer', 'Program Manager', 'Grant Manager'] as const)
+      expect(getRouteAccess(role, '/indicators/library').allowed).toBe(false)
+  })
+
   it('keeps label settings in the System Administrator area', () => {
     expect(getRouteAccess('System Administrator', '/settings/labels')).toMatchObject({
       allowed: false,
