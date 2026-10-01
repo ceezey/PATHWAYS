@@ -9,8 +9,11 @@ import { describe, expect, it } from 'vitest'
 import { DashboardsService } from './dashboards.service'
 
 const enabled = process.env.PATHWAYS_C8_LOCAL_TESTS === '1'
-const expectedPathwaysTableCount =
-  process.env.PATHWAYS_PROJECT_ACTIVITY_CREATION_LOCAL_TESTS === '1' ? 46 : 45
+// The current-schema replay supplies its measured table count.
+const expectedPathwaysTableCount = Number(
+  process.env.PATHWAYS_EXPECTED_TABLE_COUNT ??
+    (process.env.PATHWAYS_PROJECT_ACTIVITY_CREATION_LOCAL_TESTS === '1' ? 46 : 45),
+)
 const id = (number: number) => `a5800000-0000-4000-8000-${String(number).padStart(12, '0')}`
 const organizationId = id(1)
 const authSubject = id(2)

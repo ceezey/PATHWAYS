@@ -8,8 +8,6 @@
 - Integration on integrate/core-features (from dev a75406d): merged ui-foundation-tokens, core-ui-alignment, f2-project-archive, core-doc-drift, core-gate-coverage, f1-signin-lockout, f3-f4-rbac-identity-review, f4-journey-note, f6-import-value-map and f7-indicator-library.
 - Migration chain re-linked 0045 to 0046 to 0047 to 0048 to 0049 to 0050 to 0051 (predecessor guards on each); 0051 now wraps p09_role_allows as left by 0048 so SA journeys.read stays revoked and M&E keeps identities.review.
 - Inventories unified in hosted-plan, its test, legacy-retirement test, Verify-Forward (26 migrations, 317 grants), runbook and SDD counts; PRD and QAD rows merged with unique QAD IDs. Not pushed; no hosted migration applied.
-
-## 2026-10-01 replay: current-schema tests gated out of historical modes
-- Root cause: historical replay modes (22-25 migrations) ran current-schema Prisma vitest suites (feature-read, dashboard-home) that read projects.implementing_partners, absent in those databases.
-- Fix: feature-read and c8 tests skip in Phase4IndicatorPolicy, RuleBasedAccessAlignment, DashboardHomeProjectScope and ProjectActivityCreationRepair; dashboard-home vitest removed from replay (SQL runtime kept).
-- Modes run, all exit 0: Phase4IndicatorPolicy, RuleBasedAccessAlignment, DashboardHomeProjectScope, ProjectActivityCreationRepair, MigrationBaseline. Negative check: wrong assertion failed the replay.
+- Replay fix on fix/indicator-policy-replay: historical modes (22 to 25 migrations) ran current-schema Prisma suites that read projects.implementing_partners, absent there.
+- The feature-read, c8 and dashboard-home suites now run only in -MigrationBaseline (current schema, measured table count passed via PATHWAYS_EXPECTED_TABLE_COUNT); historical modes keep their SQL runtime checks.
+- Replay modes run before the fix round: Phase4IndicatorPolicy, RuleBasedAccessAlignment, DashboardHomeProjectScope, ProjectActivityCreationRepair and MigrationBaseline exit 0; a wrong assertion failed the replay.

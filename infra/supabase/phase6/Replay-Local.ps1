@@ -592,6 +592,23 @@ END $$;
       pnpm --dir apps/api exec vitest run src/modules/auth/csv-rbac.local.test.ts
       if ($LASTEXITCODE -ne 0) { throw 'CSV RBAC API runtime checks failed.' }
     } finally { Pop-Location }
+    if ($MigrationBaseline) {
+      # Only this path reaches the current schema, so the current-schema API suites run here.
+      $currentTableCount = (& $phase6Tools['psql'] -X -w -q -A -t -h 127.0.0.1 -p $phase6Port -U postgres -d $phase6Database -v ON_ERROR_STOP=1 -c "SELECT count(*) FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname='pathways' AND c.relkind='r'").Trim()
+      if ($LASTEXITCODE -ne 0 -or $currentTableCount -notmatch '^\d+$') { throw 'Current-schema table count unavailable.' }
+      $env:PATHWAYS_EXPECTED_TABLE_COUNT = $currentTableCount
+      $env:PATHWAYS_FEATURE_READ_LOCAL_TESTS = '1'
+      $env:PATHWAYS_C8_LOCAL_TESTS = '1'
+      $env:PATHWAYS_DASHBOARD_HOME_SCOPE_LOCAL_TESTS = '1'
+      Push-Location $phase6Root
+      try {
+        foreach ($currentSuite in @('activities/feature-read', 'dashboards/c8-runtime', 'dashboards/dashboard-home-runtime')) {
+          pnpm --dir apps/api exec vitest run "src/modules/$currentSuite.local.test.ts"
+          if ($LASTEXITCODE -ne 0) { throw "Current-schema suite $currentSuite failed." }
+        }
+      } finally { Pop-Location }
+      Write-Output 'CURRENT_SCHEMA_API_RUNTIME=PASS'
+    }
     Write-Output 'CSV_RBAC_UPGRADE_AND_FRESH_REPLAY=PASS'
   }
   Write-Output 'LEGACY_TABLE_PRESERVATION=PASS'

@@ -10,8 +10,11 @@ import { ActivitiesService } from './activities.service'
 // Explicit opt-in only. This harness uses one fixed, password-free loopback
 // database created and removed by phase6/Replay-Local.ps1.
 const enabled = process.env.PATHWAYS_FEATURE_READ_LOCAL_TESTS === '1'
-const expectedPathwaysTableCount =
-  process.env.PATHWAYS_PROJECT_ACTIVITY_CREATION_LOCAL_TESTS === '1' ? 46 : 45
+// The current-schema replay supplies its measured table count.
+const expectedPathwaysTableCount = Number(
+  process.env.PATHWAYS_EXPECTED_TABLE_COUNT ??
+    (process.env.PATHWAYS_PROJECT_ACTIVITY_CREATION_LOCAL_TESTS === '1' ? 46 : 45),
+)
 const id = (number: number) => `a5700000-0000-4000-8000-${String(number).padStart(12, '0')}`
 const organizationId = id(1)
 const authSubject = id(2)
