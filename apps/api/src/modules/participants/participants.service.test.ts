@@ -219,25 +219,28 @@ describe('F4 journey stage, enrollment closure and correction gates', () => {
   it.each([
     ['COMPLETION', 'COMPLETED'],
     ['DROPOUT', 'DROPPED'],
-  ] as const)('G-F4-3 %s closes the enrollment with end date and reason', async (eventType, status) => {
-    await service.transitionEnrollment(caller, projectId, beneficiaryId, {
-      eventType,
-      eventDate: '2026-06-20',
-      description: ' Left the programme ',
-    })
-    expect(txOps.beneficiaryJourneyEvent.create.mock.calls[0]?.[0].data).toMatchObject({
-      eventType,
-      description: 'Left the programme',
-    })
-    expect(txOps.beneficiaryProjectEnrollment.update).toHaveBeenCalledWith({
-      where: { id: enrollmentId },
-      data: {
-        status,
-        endedDate: new Date('2026-06-20T00:00:00.000Z'),
-        endReason: 'Left the programme',
-      },
-    })
-  })
+  ] as const)(
+    'G-F4-3 %s closes the enrollment with end date and reason',
+    async (eventType, status) => {
+      await service.transitionEnrollment(caller, projectId, beneficiaryId, {
+        eventType,
+        eventDate: '2026-06-20',
+        description: ' Left the programme ',
+      })
+      expect(txOps.beneficiaryJourneyEvent.create.mock.calls[0]?.[0].data).toMatchObject({
+        eventType,
+        description: 'Left the programme',
+      })
+      expect(txOps.beneficiaryProjectEnrollment.update).toHaveBeenCalledWith({
+        where: { id: enrollmentId },
+        data: {
+          status,
+          endedDate: new Date('2026-06-20T00:00:00.000Z'),
+          endReason: 'Left the programme',
+        },
+      })
+    },
+  )
 
   it('G-F4-3 TRANSFER closes the enrollment once an active destination enrollment exists', async () => {
     txOps.beneficiaryProjectEnrollment.findFirst
