@@ -616,6 +616,12 @@ END $$;
   }
   Write-Output 'LEGACY_TABLE_PRESERVATION=PASS'
   if ($SaveTemplate) {
+    $phase6Clones = @(& $phase6Tools['psql'] -X -w -q -A -t -h 127.0.0.1 -p $phase6Port -U postgres -d postgres -v ON_ERROR_STOP=1 `
+      -c "SELECT datname FROM pg_database WHERE NOT datistemplate AND datname NOT IN ('postgres','$phase6Database')")
+    foreach ($phase6Clone in $phase6Clones) {
+      & $phase6Tools['psql'] -X -w -q -h 127.0.0.1 -p $phase6Port -U postgres -d postgres -v ON_ERROR_STOP=1 -c "DROP DATABASE `"$phase6Clone`" WITH (FORCE)"
+      if ($LASTEXITCODE -ne 0) { throw "Template clone drop failed: $phase6Clone" }
+    }
     $phase6Stop = Start-Process -FilePath $phase6Tools['pg_ctl'] `
       -ArgumentList @('-D',$phase6Data,'-m','fast','-t','260','-s','stop') @phase6ProcessOptions
     if (-not $phase6Stop.WaitForExit(270000) -or $phase6Stop.ExitCode -ne 0) { throw 'Template cluster stop failed.' }
