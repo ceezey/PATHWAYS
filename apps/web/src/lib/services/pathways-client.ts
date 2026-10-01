@@ -268,6 +268,7 @@ export interface PathwaysClient {
     input: UpdateProjectInput,
     context?: SourceMutationContext,
   ): Promise<SourceMutationResult<ProjectDetail>>
+  archiveProject(id: string): Promise<{ id: string; archivedAt: string }>
   updateProjectPeriod(
     id: string,
     endDate: string,
@@ -618,6 +619,12 @@ class BackendReadyPathwaysClient implements PathwaysClient {
       context,
       (value) => mapProject(value as ApiProject),
     )
+  }
+
+  async archiveProject(id: string): Promise<{ id: string; archivedAt: string }> {
+    return (await requestFoundation(`/projects/${encodeURIComponent(id)}/archive`, {
+      method: 'POST',
+    })) as { id: string; archivedAt: string }
   }
 
   async updateProjectPeriod(

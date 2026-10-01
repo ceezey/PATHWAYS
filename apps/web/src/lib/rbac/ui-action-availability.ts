@@ -24,6 +24,7 @@ export type UiAction =
   | 'progress.review'
   | 'projects.profile.manage'
   | 'projects.team.manage'
+  | 'projects.archive'
   | 'journeys.manage'
   | 'milestones.manage'
 
@@ -44,6 +45,7 @@ const supportedActionPermission: Partial<Record<UiAction, AtomicPermission>> = {
   'milestones.manage': 'milestones.manage',
   'projects.profile.manage': 'projects.update',
   'projects.team.manage': 'assignments.manage',
+  'projects.archive': 'projects.archive',
 }
 
 export const isUiActionAvailable = (

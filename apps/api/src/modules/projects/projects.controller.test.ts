@@ -3,6 +3,8 @@ import { plainToInstance } from 'class-transformer'
 import { validate } from 'class-validator'
 import { describe, expect, it, vi } from 'vitest'
 
+import { PERMISSION_KEY } from '../../common/decorators/permission.decorator'
+import { hasAtomicPermission } from '../auth/authorization-policy'
 import type { ApplicationIdentity, AuthenticatedRequest } from '../auth/developer-access'
 import { ProjectsController } from './projects.controller'
 import { CreateProjectDto, UpdateProjectDto } from './projects.dto'
@@ -177,5 +179,21 @@ describe('ProjectsController active project contract', () => {
     })
     expect(await validate(dto)).toHaveLength(0)
     expect(dto.targetBeneficiaries).toBe(250)
+  })
+
+  it('guards archive with projects.archive, which a Project Officer does not hold', async () => {
+    expect(Reflect.getMetadata(PERMISSION_KEY, ProjectsController.prototype.archive)).toBe(
+      'projects.archive',
+    )
+    expect(hasAtomicPermission('PROJECT_OFFICER', ['projects.archive'], 'projects.archive')).toBe(
+      false,
+    )
+    expect(hasAtomicPermission('PROJECT_MANAGER', ['projects.archive'], 'projects.archive')).toBe(
+      true,
+    )
+    const service = { archive: vi.fn().mockResolvedValue({ id: assignedProjectId }) }
+    const controller = new ProjectsController(service as unknown as ProjectsService)
+    await controller.archive({ user: identity } as AuthenticatedRequest, assignedProjectId)
+    expect(service.archive).toHaveBeenCalledWith(identity, assignedProjectId)
   })
 })

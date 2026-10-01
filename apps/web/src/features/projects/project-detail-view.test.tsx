@@ -10,7 +10,13 @@ import type { ProjectDetail } from '@/types/pathways'
 import type { MetricCell, ProjectOverviewMetrics } from '@pathways/shared'
 
 const projectId = '73500000-0000-4000-8000-000000000004'
-const api = vi.hoisted(() => ({ getProject: vi.fn(), getProjectOverviewMetrics: vi.fn() }))
+const api = vi.hoisted(() => ({
+  getProject: vi.fn(),
+  getProjectOverviewMetrics: vi.fn(),
+  archiveProject: vi.fn(),
+}))
+const router = vi.hoisted(() => ({ push: vi.fn() }))
+vi.mock('next/navigation', () => ({ useRouter: () => router }))
 const access = vi.hoisted(() => ({
   access: 'ready',
   role: 'System Administrator',
@@ -163,13 +169,26 @@ describe('project team editing authority', () => {
     expect(partners?.querySelector('dd')?.textContent).toBe('Not recorded')
   })
 
-  it('omits the project archive control because no archive endpoint exists', async () => {
-    access.role = 'Project Manager'
-    access.profile.roles = ['PROJECT_MANAGER']
-    access.profile.permissions = ['projects.read', 'projects.detail.read', 'projects.update']
+  it('hides the archive control from a role without projects.archive', async () => {
+    access.role = 'Project Officer'
+    access.profile.roles = ['PROJECT_OFFICER']
+    access.profile.permissions = ['projects.read', 'projects.detail.read', 'projects.archive']
     renderView()
     expect(await screen.findByText('Project team')).toBeTruthy()
     expect(screen.queryByRole('button', { name: 'Archive project' })).toBeNull()
+  })
+
+  it('archives after confirmation and returns to the project list', async () => {
+    access.role = 'Project Manager'
+    access.profile.roles = ['PROJECT_MANAGER']
+    access.profile.permissions = ['projects.read', 'projects.detail.read', 'projects.archive']
+    api.archiveProject.mockResolvedValue({ id: projectId, archivedAt: '2026-10-01T00:00:00.000Z' })
+    renderView()
+    fireEvent.click(await screen.findByRole('button', { name: 'Archive project' }))
+    expect(api.archiveProject).not.toHaveBeenCalled()
+    fireEvent.click(await screen.findByRole('button', { name: 'Confirm archive' }))
+    await waitFor(() => expect(api.archiveProject).toHaveBeenCalledWith(projectId))
+    await waitFor(() => expect(router.push).toHaveBeenCalledWith('/projects'))
   })
 })
 

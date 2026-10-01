@@ -540,4 +540,39 @@ export class ProjectsService {
       return { ...mapProject(result, budgets.get(current.id) ?? null), sourceAcknowledgement }
     })
   }
+
+  archive(identity: ApplicationIdentity, projectId: string) {
+    return withAuthorizedOperation(this.prisma, identity, 'projects.archive', async (tx, actor) => {
+      if (!UUID_PATTERN.test(projectId)) throw new NotFoundException('Project unavailable.')
+      // Scope without the archived filter so a repeat call stays idempotent.
+      const current = await tx.project.findFirst({
+        where: {
+          AND: [{ ...projectScope(actor), archivedAt: undefined }, { id: projectId.toLowerCase() }],
+        },
+        select: { id: true, archivedAt: true },
+      })
+      if (!current) throw new NotFoundException('Project unavailable.')
+      if (current.archivedAt)
+        return { id: current.id, archivedAt: current.archivedAt.toISOString() }
+      const archivedAt = new Date()
+      const changed = await tx.project.updateMany({
+        where: { id: current.id, organizationId: actor.organizationId, archivedAt: null },
+        data: { archivedAt },
+      })
+      if (changed.count !== 1)
+        throw new ConflictException('Project changed; reload before archiving.')
+      await tx.auditLog.create({
+        data: {
+          organizationId: actor.organizationId,
+          actorUserId: actor.userId,
+          projectId: current.id,
+          action: 'PROJECT_ARCHIVED',
+          entityType: 'Project',
+          entityId: current.id,
+          changes: { archivedAt: archivedAt.toISOString() },
+        },
+      })
+      return { id: current.id, archivedAt: archivedAt.toISOString() }
+    })
+  }
 }
