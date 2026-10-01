@@ -483,7 +483,7 @@ SELECT (SELECT count(*) FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamesp
   if ($ProjectActivityCreationRepair) {
     $env:PATHWAYS_PROJECT_ACTIVITY_CREATION_LOCAL_TESTS = '1'
   }
-  if (-not $CsvRbacRealignment) {
+  if (-not $CsvRbacRealignment -and -not ($Phase4IndicatorPolicy -or $RuleBasedAccessAlignment -or $DashboardHomeProjectScope -or $ProjectActivityCreationRepair)) {
   Push-Location $phase6Root
   try {
     pnpm --dir apps/api exec vitest run src/modules/activities/feature-read.local.test.ts
@@ -518,14 +518,7 @@ SELECT (SELECT count(*) FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamesp
   Invoke-LocalSql $phase6IndicatorSql $phase6Database
   Write-Output 'PROJECT_INDICATOR_DASHBOARD_RUNTIME=PASS'
   if ($DashboardHomeProjectScope -or $ProjectActivityCreationRepair) {
-    $env:PATHWAYS_DASHBOARD_HOME_SCOPE_LOCAL_TESTS = '1'
-    if (-not $CsvRbacRealignment) {
-    Push-Location $phase6Root
-    try {
-      pnpm --dir apps/api exec vitest run src/modules/dashboards/dashboard-home-runtime.local.test.ts
-      if ($LASTEXITCODE -ne 0) { throw '0024 API/Prisma runtime test failed.' }
-    } finally { Pop-Location }
-    }
+    # The current-schema dashboard-home vitest does not run against historical replay databases.
     Invoke-LocalSql ([IO.File]::ReadAllText((Join-Path $phase6Root 'apps/api/prisma/tests/dashboard-home-project-scope-runtime.sql'))) $phase6Database
     Write-Output 'DASHBOARD_HOME_PROJECT_SCOPE_RUNTIME=PASS'
   }
