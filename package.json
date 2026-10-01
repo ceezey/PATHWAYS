@@ -27,6 +27,8 @@
     "db:local:reset": "node scripts/db/local-reset.mjs",
     "db:local:seed": "node scripts/db/local-seed.mjs",
     "db:local:demo": "node scripts/db/local-demo.mjs",
+    "db:local:load-seed": "node scripts/db/local-load-seed.mjs",
+    "perf:dashboards": "node scripts/perf/dashboard-load.mjs",
     "dev:local": "node scripts/db/local-dev.mjs"
   },
   "devDependencies": {
