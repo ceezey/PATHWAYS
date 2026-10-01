@@ -40,7 +40,7 @@ Every implemented feature requires:
 
 ## 3. Core Test Scenarios (Test Matrix)
 
-166 rows: 117 carried forward with stable IDs and 49 added so that every PRD gate has a QAD row. Evidence is a repository test path, a command, or `Manual`. A row whose gate is Not met records the test as pending.
+168 rows: 117 carried forward with stable IDs and 51 added so that every PRD gate has a QAD row. Evidence is a repository test path, a command, or `Manual`. A row whose gate is Not met records the test as pending.
 
 ### 3.1 Happy Paths
 
@@ -154,7 +154,7 @@ Every implemented feature requires:
 | QAD-RBP-07 | `LockedField` never submits a value for the field it locks, even if the disabled control is force-submitted | Sad | Usability | PRD-F2 | G-F2-3 | UC-F2-1 | `apps/web/src/components/pathways/locked-field.test.tsx` |
 | QAD-T39 | 5 failed sign-ins lock the identifier for 15 minutes with a uniform response for known and unknown accounts, a locked identifier is refused without checking the password, success resets the count, and a provider outage is not counted | Sad | Security | PRD-F1 | G-F1-10 | UC-F1-1 | `apps/api/src/modules/auth/signin-lockout.test.ts`; `apps/web/src/features/auth/signin-request.test.ts` |
 | QAD-T40 | a role holding `projects.archive` archives a project; delivered, covered by QAD-P10 | Sad | Functional Suitability | PRD-F2 | G-F2-4 | UC-F2-1 | Automated via QAD-P10 route test |
-| QAD-T52 | a user attaches a free-text note to a journey record; not delivered, so the gate is Not met | Sad | Functional Suitability | PRD-F4 | G-F4-6 | UC-F4-2 | Manual; pending, gate Not met |
+| QAD-T52 | a user attaches a trimmed free-text note to a journey event and to its correction; the audit records only that a note exists | Happy | Functional Suitability | PRD-F4 | G-F4-6 | UC-F4-2 | `apps/api/src/modules/participants/journey-note.test.ts` |
 | QAD-T54 | choosing a data type for a new field and translating values during import; not delivered, so the gate is Not met | Sad | Functional Suitability | PRD-F6 | G-F6-7 | UC-F6-2 | Manual; pending, gate Not met |
 | QAD-T58 | indicators are linked and reused across projects; not delivered, so the gate is Not met | Sad | Functional Suitability | PRD-F7 | G-F7-5 | UC-F7-1 | Manual; pending, gate Not met |
 | QAD-T62 | dashboard responsiveness is verified at production scale; not measured, so the gate is Not met | Sad | Performance Efficiency | PRD-F8 | G-F8-7 | UC-F8-1 | Manual; pending, gate Not met |
@@ -171,6 +171,7 @@ Every implemented feature requires:
 | QAD-IR-02 | a role without the review grant, the same profile twice, a profile outside the project or an already decided pair is rejected with no audit write | Sad | Security | PRD-F3 | G-F3-6 | UC-F3-3 | `apps/api/src/modules/beneficiaries/identity-review.service.test.ts` |
 | QAD-JR-01 | System Administrator requests beneficiary journey history -> 403, while listing and saving project journey stages succeeds | Sad | Security | PRD-F4 | G-F4-5 | UC-F4-4 | `apps/api/src/modules/participants/journeys-access.test.ts` |
 | QAD-FP-01 | a form author publishes their own form -> 403 with no write or audit, in any role; a role without `forms.publish` is denied | Sad | Security | PRD-F5 | G-F5-1 | UC-F5-1 | `apps/api/src/modules/metadata/metadata.service.test.ts` |
+| QAD-T83 | a journey note over 1000 characters or only whitespace is rejected with 400 and nothing is stored | Sad | Functional Suitability | PRD-F4 | G-F4-6 | UC-F4-2 | `apps/api/src/modules/participants/journey-note.test.ts` |
 
 ### 3.3 Abuse / Adversarial Paths
 
@@ -229,6 +230,7 @@ Every implemented feature requires:
 | QAD-A23 | a registration sharing an identity with an existing profile is held as review-required and the matched profile stays hidden from registrars | Abuse | Security | PRD-F3 | G-F3-6 | UC-F3-3 | `apps/api/src/modules/beneficiaries/beneficiaries.service.test.ts` |
 | QAD-IR-03 | a Project Officer or System Administrator with a forged review permission, or a request for an out-of-scope project, is denied before any profile is read | Abuse | Security | PRD-F3 | G-F3-6 | UC-F3-3 | `apps/api/src/modules/beneficiaries/identity-review.service.test.ts` |
 | QAD-JR-02 | a System Administrator profile claiming `journeys.read` is still denied beneficiary journey history and, without `journeys.manage`, stage listing | Abuse | Security | PRD-F4 | G-F4-5 | UC-F4-4 | `apps/api/src/modules/participants/journeys-access.test.ts`; `apps/api/src/modules/auth/csv-rbac.test.ts` |
+| QAD-A24 | a non-string note, or note content in the audit record, is refused; the note body is never logged | Abuse | Security | PRD-F4 | G-F4-6 | UC-F4-4 | `apps/api/src/modules/participants/journey-note.test.ts` |
 
 ### 3.4 Traceability
 
@@ -237,7 +239,7 @@ Every implemented feature requires:
 | PRD-F1 | RBAC and Workspace Management | QAD-T01, QAD-T20, QAD-A01, QAD-A02, QAD-A05, QAD-A06, QAD-R01, QAD-R02, QAD-R03, QAD-R04, QAD-R05, QAD-R06, QAD-R07, QAD-R09, QAD-T36, QAD-T37, QAD-T38, QAD-T39, QAD-T77, QAD-T78, QAD-T79, QAD-T80, QAD-T81, QAD-T82 |
 | PRD-F2 | Project Profile and Activity Tracking | QAD-T02, QAD-R08, QAD-P01, QAD-P02, QAD-P03, QAD-P04, QAD-P06, QAD-P07, QAD-P08, QAD-P09, QAD-P10, QAD-RBP-01, QAD-RBP-02, QAD-RBP-03, QAD-RBP-04, QAD-RBP-05, QAD-RBP-06, QAD-RBP-07, QAD-RBP-08, QAD-RBP-09, QAD-RBP-10, QAD-T40, QAD-T41, QAD-A22, QAD-T42, QAD-T43, QAD-T44, QAD-T45, QAD-T46, QAD-T47, QAD-T48 |
 | PRD-F3 | Centralized Beneficiary Profile | QAD-T03, QAD-A03, QAD-A04, QAD-A11, QAD-A12, QAD-A13, QAD-A14, QAD-DRF-01, QAD-DRF-02, QAD-DRF-03, QAD-DRF-04, QAD-DRF-05, QAD-DRF-06, QAD-DRF-07, QAD-DRF-08, QAD-DRF-09, QAD-DRF-10, QAD-A23, QAD-IR-01, QAD-IR-02, QAD-IR-03 |
-| PRD-F4 | Beneficiary Journey Tracking | QAD-T04, QAD-T49, QAD-T50, QAD-T51, QAD-T52, QAD-JR-01, QAD-JR-02 |
+| PRD-F4 | Beneficiary Journey Tracking | QAD-T04, QAD-T49, QAD-T50, QAD-T51, QAD-T52, QAD-T83, QAD-A24 |
 | PRD-F5 | Digital Data Collection and Preparation | QAD-T05, QAD-IMP-04, QAD-IMP-09, QAD-IMP-11, QAD-IMP-13, QAD-T53, QAD-FP-01 |
 | PRD-F6 | Metadata-Driven Data Integration | QAD-T06, QAD-T21, QAD-T22, QAD-T25, QAD-A07, QAD-IMP-01, QAD-IMP-02, QAD-IMP-03, QAD-IMP-05, QAD-IMP-06, QAD-IMP-07, QAD-IMP-08, QAD-IMP-10, QAD-IMP-12, QAD-SM-01, QAD-SM-02, QAD-SM-03, QAD-SM-04, QAD-SM-05, QAD-SM-06, QAD-SM-07, QAD-SM-08, QAD-SM-09, QAD-SM-10, QAD-SM-11, QAD-T54 |
 | PRD-F7 | Project Indicator and Monitoring | QAD-T07, QAD-P05, QAD-T55, QAD-T56, QAD-T57, QAD-T58 |
@@ -253,7 +255,7 @@ PRD-F9 to PRD-F13 rows are in the matrix above and are cited by their gates in t
 - **NFR IDs:** NFR-9.
 - **Automated tests:** Workflow, validation and metric rows (API service tests, `packages/shared` metric contracts, SQL runtime tests in `apps/api/prisma/tests/`).
 - **Manual checks:** Acceptance walk-through of each use case by role.
-- **Gaps:** Gates Not met for PRD-F2 archive, PRD-F4 notes, PRD-F6 data types, PRD-F7 indicator reuse, PRD-F9 breakdowns, PRD-F10 budget and survey metrics, PRD-F11 auto-resolve and PRD-F12 export formats.
+- **Gaps:** Gates Not met for PRD-F2 archive, PRD-F6 data types, PRD-F7 indicator reuse, PRD-F9 breakdowns, PRD-F10 budget and survey metrics, PRD-F11 auto-resolve and PRD-F12 export formats.
 
 #### 3.5.2 Performance Efficiency
 

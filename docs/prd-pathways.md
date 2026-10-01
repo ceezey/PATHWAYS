@@ -578,12 +578,13 @@ Not applicable to this charter: a profile is active or archived, and journey lif
 **Bounds (in):**
 - Configure project journey stages (entry, core, branch, follow-up) and map activities to them.
 - Record enrollment events: participation, progress update, completion, follow-up, dropout and transfer.
+- Attach an optional free-text note (1 to 1000 characters) to a journey event or its correction.
 - Correct an event by adding a linked correction with a reason; the original is kept.
 - Read chronological participation and progression history within assigned projects.
 **Bounds (out):**
 - Judging whether a beneficiary learned, improved or failed: project-level review only (Scope and Limitations, paragraph 4).
 - Journey stage configuration reading beneficiary events: configuration holders cannot retrieve events without the read permission and step-up (cr-pathways-admin-read-access).
-- Free-text journey notes and data-ripple display from the manuscript: no route exists (Not carried forward, see the use case disposition).
+- Data-ripple display from the manuscript: no route exists (Not carried forward, see the use case disposition).
 - Participation history for Program Manager and Grant Manager: aggregate-only roles (cr-pathways-beneficiary-step-up).
 **Lock:** Locked. Adding a gate or widening a bound requires an approved `cr-pathways-*`; anything outside these bounds is out of scope by default. System-wide bounds: section 6.1.
 
@@ -596,7 +597,7 @@ Not applicable to this charter: a profile is active or archived, and journey lif
 | G-F4-3 | A completion, dropout or transfer event closes the enrollment with its end date and reason | Met | QAD-T50 |
 | G-F4-4 | A correction adds a new event linked to the original with a required reason; the original is never overwritten | Met | QAD-T51 |
 | G-F4-5 | Reading journey history requires a fresh step-up, project assignment and `journeys.read`; unassigned or cross-organization requests are denied, and System Administrator (aggregate-only) is denied beneficiary journey history with 403 while keeping project-level stage configuration | Met | QAD-A11, QAD-JR-01, QAD-JR-02 |
-| G-F4-6 | A user can attach a free-text note to a journey record | Not met | QAD-T52 |
+| G-F4-6 | A user can attach a free-text note to a journey record | Met | QAD-T52, QAD-T83, QAD-A24 |
 
 #### Use Cases
 
@@ -646,9 +647,9 @@ flowchart LR
 | Trigger | A beneficiary attends, progresses, completes, drops out or transfers. |
 | Preconditions | The beneficiary has an enrollment in the project; the user has a fresh step-up. |
 | Main flow | 1. The user opens the beneficiary on `/participants`. 2. The user submits the event (`POST /beneficiaries/projects/:projectId/:beneficiaryId/journey/events`). 3. The system stores the event against the enrollment. 4. For completion, dropout or transfer the system sets the enrollment status, end date and reason. |
-| Alternate / exception | Permission denied or stale step-up: no write. Event on a closed enrollment or unknown beneficiary: rejected. Attaching a free-text note is not provided. |
+| Alternate / exception | Permission denied or stale step-up: no write. Event on a closed enrollment or unknown beneficiary: rejected. An optional note over 1000 characters or only whitespace: rejected with 400. |
 | Postconditions | The event is in history; closing events end the enrollment; an audit event is recorded. |
-| Gates | G-F4-2, G-F4-3, G-F4-5, G-F4-6 (Not met) |
+| Gates | G-F4-2, G-F4-3, G-F4-5, G-F4-6 |
 
 ##### UC-F4-3 Correct journey event
 

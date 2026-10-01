@@ -48,6 +48,7 @@ export const mapBeneficiaryJourneyHistory = (history: BeneficiaryJourneyHistory)
       author: event.recordedBy,
       createdAt: event.recordedAt,
       visibility: 'Project team',
+      ...(event.note ? { journeyNote: event.note } : {}),
       note: event.correctionReason
         ? `${event.description as string} (Correction: ${event.correctionReason})`
         : (event.description as string),

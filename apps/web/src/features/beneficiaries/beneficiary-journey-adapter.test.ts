@@ -64,4 +64,37 @@ describe('beneficiary journey history adapter', () => {
     expect(result.notes.map((note) => note.id)).toEqual(['event-1', 'event-2'])
     expect(result.notes[1]?.note).toContain('Correction: Verified source record')
   })
+
+  it('exposes the optional journey note and leaves it off when absent', () => {
+    const event = {
+      id: 'event-1',
+      eventType: 'FOLLOW_UP',
+      eventDate: '2026-06-15',
+      description: 'Followed up.',
+      stageId: null,
+      stageCodeSnapshot: null,
+      stageNameSnapshot: null,
+      activityId: null,
+      activityCodeSnapshot: null,
+      activityTitleSnapshot: null,
+      participationId: null,
+      participation: null,
+      correctsEventId: null,
+      correctionReason: null,
+      recordedAt: '2026-06-15T12:00:00.000Z',
+      recordedBy: 'officer-a',
+    } as const
+    const history = (note: string | null): BeneficiaryJourneyHistory => ({
+      projectId: 'project-a',
+      beneficiaryId: 'beneficiary-a',
+      enrollmentId: 'enrollment-a',
+      enrollmentStatus: 'ACTIVE',
+      events: [{ ...event, note }],
+    })
+
+    expect(mapBeneficiaryJourneyHistory(history('Needs a visit.')).notes[0]?.journeyNote).toBe(
+      'Needs a visit.',
+    )
+    expect(mapBeneficiaryJourneyHistory(history(null)).notes[0]).not.toHaveProperty('journeyNote')
+  })
 })

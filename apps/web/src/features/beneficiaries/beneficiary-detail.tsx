@@ -123,12 +123,14 @@ export const BeneficiaryDetail = ({
     eventType: EnrollmentJourneyEventInput['eventType']
     eventDate: string
     description: string
+    note: string
     stageId: string
     destinationProjectId: string
   }>({
     eventType: 'FOLLOW_UP',
     eventDate: todayIso(),
     description: '',
+    note: '',
     stageId: '',
     destinationProjectId: '',
   })
@@ -138,6 +140,7 @@ export const BeneficiaryDetail = ({
     eventId: '',
     eventDate: todayIso(),
     description: '',
+    note: '',
     reason: '',
   })
   const canEditBeneficiary = isUiActionAvailable(role, 'beneficiaries.edit', profile)
@@ -249,6 +252,7 @@ export const BeneficiaryDetail = ({
       eventType: 'FOLLOW_UP',
       eventDate: todayIso(),
       description: '',
+      note: '',
       stageId: selectedStage?.id ?? '',
       destinationProjectId: transferDestinationOptions[0]?.projectId ?? '',
     })
@@ -261,6 +265,7 @@ export const BeneficiaryDetail = ({
       eventId: correctableNote.id,
       eventDate: todayIso(),
       description: correctableNote.note,
+      note: correctableNote.journeyNote ?? '',
       reason: '',
     })
     setNoteOpen(true)
@@ -343,6 +348,7 @@ export const BeneficiaryDetail = ({
         eventType: journeyDraft.eventType,
         eventDate: journeyDraft.eventDate,
         description: journeyDraft.description.trim(),
+        ...(journeyDraft.note.trim() ? { note: journeyDraft.note.trim() } : {}),
         ...(journeyDraft.stageId ? { stageId: journeyDraft.stageId } : {}),
         ...(journeyDraft.eventType === 'TRANSFER'
           ? { destinationProjectId: journeyDraft.destinationProjectId }
@@ -376,6 +382,7 @@ export const BeneficiaryDetail = ({
         eventDate: noteDraft.eventDate,
         description: noteDraft.description.trim(),
         reason: noteDraft.reason.trim(),
+        ...(noteDraft.note.trim() ? { note: noteDraft.note.trim() } : {}),
         ...(selectedStage ? { stageId: selectedStage.id } : {}),
       }
       await pathwaysClient.correctBeneficiaryJourneyEvent(
@@ -942,6 +949,16 @@ export const BeneficiaryDetail = ({
                 setJourneyDraft((current) => ({ ...current, description: event.target.value }))
               }
             />
+            <Textarea
+              aria-label="Journey note"
+              className="min-h-11"
+              maxLength={1000}
+              placeholder="Optional journey note (max 1000 characters)"
+              value={journeyDraft.note}
+              onChange={(event) =>
+                setJourneyDraft((current) => ({ ...current, note: event.target.value }))
+              }
+            />
           </div>
           <DialogFooter>
             <Button
@@ -987,6 +1004,16 @@ export const BeneficiaryDetail = ({
               value={noteDraft.description}
               onChange={(event) =>
                 setNoteDraft((current) => ({ ...current, description: event.target.value }))
+              }
+            />
+            <Textarea
+              aria-label="Journey note"
+              className="min-h-11"
+              maxLength={1000}
+              placeholder="Optional journey note (max 1000 characters)"
+              value={noteDraft.note}
+              onChange={(event) =>
+                setNoteDraft((current) => ({ ...current, note: event.target.value }))
               }
             />
             <Textarea
@@ -1136,6 +1163,11 @@ const JourneyNoteList = ({
           <div className="rounded-xl border border-border bg-surface-subtle p-3" key={note.id}>
             <StatusBadge tone="neutral">{note.visibility}</StatusBadge>
             <p className="mt-2 text-sm leading-6 text-foreground">{note.note}</p>
+            {note.journeyNote ? (
+              <p className="mt-2 rounded-xl border border-border bg-card p-3 text-sm leading-6 text-foreground">
+                {note.journeyNote}
+              </p>
+            ) : null}
             <p className="mt-2 text-xs text-muted-foreground">
               {note.author} · {formatDate(note.createdAt)}
             </p>
