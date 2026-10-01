@@ -114,6 +114,17 @@ Gates are the `G-F<n>-<m>` rows in the PRD. SDD and QAD cite every feature by it
 
 Statuses mirror the PRD summary. The [approved rollout Change Record](cr-pathways-self-managed-rollout-scenarios.md) limits the current phase to Core and Alerts source verification and dev release; hosted schema application, account provisioning and master release remain deferred.
 
+### 1.8 UI/UX Foundations Reference
+
+| Reference | File | Role |
+|---|---|---|
+| [Brand foundations](ui-ux-pathways-reference/pathways-brand-foundations.md) | pathways-brand-foundations.md | Source the DSD transcribes; `docs/dsd-pathways.md` remains the design authority (the DSD wins where they differ) |
+| [Color foundations](ui-ux-pathways-reference/pathways-color-foundations.md) | pathways-color-foundations.md | Source the DSD transcribes; `docs/dsd-pathways.md` remains the design authority (the DSD wins where they differ) |
+| [UI foundations](ui-ux-pathways-reference/pathways-ui-foundations.md) | pathways-ui-foundations.md | Source the DSD transcribes; `docs/dsd-pathways.md` remains the design authority (the DSD wins where they differ) |
+| [Design system note](ui-ux-pathways-reference/pathways-design-system-note.md) | pathways-design-system-note.md | Source the DSD transcribes; `docs/dsd-pathways.md` remains the design authority (the DSD wins where they differ) |
+| [UI foundations image](ui-ux-pathways-reference/Pathways%20UI%20foundations.png) | Pathways UI foundations.png | Source the DSD transcribes; `docs/dsd-pathways.md` remains the design authority (the DSD wins where they differ) |
+| [Color palette image](ui-ux-pathways-reference/Pathways%20color%20palette.png) | Pathways color palette.png | Source the DSD transcribes; `docs/dsd-pathways.md` remains the design authority (the DSD wins where they differ) |
+
 ## 2. Change Log
 
 Newest first. Core P1 supporting contract reconciliation is approved for local implementation after coordinator and independent reviews; no installed endpoint or complete migration acceptance is claimed.

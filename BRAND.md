@@ -297,6 +297,8 @@ When sources conflict:
 4. User workflow context beats decorative consistency.
 5. If a required value is missing or ambiguous, do not invent it; flag it for human review.
 
+The original foundations are kept for reference in `docs/ui-ux-pathways-reference/`; this DSD is authoritative.
+
 Do not invent new colors, spacing values, radii or component conventions. Before producing a screen, determine user, task, context, required information, primary action and safety or access constraints, then pick the established PATHWAYS pattern. Optimize for clarity, continuity, accessibility, traceability, low cognitive effort, minimum unnecessary interaction and human control; not for visual novelty, maximum density, minimum clicks at the expense of safety, dashboard aesthetics over workflow usability, or autonomous-looking behavior.
 
 ### Safety by Design
