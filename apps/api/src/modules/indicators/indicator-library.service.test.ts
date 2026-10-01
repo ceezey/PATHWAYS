@@ -58,7 +58,7 @@ const stored = {
   numericKind: 'COUNT',
   direction: 'HIGHER_IS_BETTER',
   displayPrecision: 0,
-  recipe: null,
+  recipe: null as string | null,
   clientMutationId: key(1),
   createdById: manager.userId,
   createdAt: new Date('2026-10-01T00:00:00.000Z'),

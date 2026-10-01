@@ -83,7 +83,7 @@ describe('Deferred legacy-table retirement contract', () => {
 
   it('keeps the datamodel and verifier aligned with the reviewed migration', () => {
     expect(schema).not.toMatch(/^model Legacy/m)
-    expect(schema.match(/^model /gm)).toHaveLength(55)
+    expect(schema.match(/^model /gm)).toHaveLength(56)
     expect(schema).toMatch(/^model UserStepUpPin\s*\{/m)
     expect(schema).toMatch(/^model BeneficiaryStepUpGrant\s*\{/m)
     expect(schema).toMatch(/^model ExpenseSignoff\s*\{/m)
