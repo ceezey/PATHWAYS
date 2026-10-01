@@ -1847,11 +1847,11 @@ Sources are the manuscript Table 5 non-functional rows and the Quality Plan (Cha
 |---|---|---|---|---|
 | NFR-1 | Maintain secure role-based access control and organization workspace isolation | Security | Threshold not established | Table 5, non-functional row 1 |
 | NFR-2 | Protect sensitive beneficiary and project information from unauthorized access | Security | Threshold not established | Table 5, non-functional row 2 |
-| NFR-3 | Provide responsive dashboard generation and monitoring operations under normal usage | Performance Efficiency | Threshold not established | Table 5, non-functional row 3 |
-| NFR-4 | Maintain centralized and consistent monitoring records across project workflows | Reliability | Threshold not established | Table 5, non-functional row 4 |
+| NFR-3 | Provide responsive dashboard generation and monitoring operations under normal usage | Performance Efficiency | p95 under 800 ms for normal pages, imports excluded (Developer target 2026-10-01) | Table 5, non-functional row 3 |
+| NFR-4 | Maintain centralized and consistent monitoring records across project workflows | Reliability | Availability 99.5% monthly; RPO 24 hours, RTO 5 to 8 hours (Developer target 2026-10-01) | Table 5, non-functional row 4 |
 | NFR-5 | Support metadata-driven configuration without repeated database restructuring | Maintainability | Threshold not established | Table 5, non-functional row 5 |
 | NFR-6 | Provide a user-friendly and organized monitoring interface for users with varying technical experience | Usability | Threshold not established | Table 5, non-functional row 6 |
-| NFR-7 | Maintain operational reliability during project monitoring and reporting activities | Reliability | Threshold not established | Table 5, non-functional row 7 |
+| NFR-7 | Maintain operational reliability during project monitoring and reporting activities | Reliability | Availability 99.5% monthly (Developer target 2026-10-01) | Table 5, non-functional row 7 |
 | NFR-8 | Support scalability for increasing projects, beneficiaries and organizational records | Performance Efficiency | Threshold not established | Table 5, non-functional row 8 |
 | NFR-9 | Maintain accurate processing of monitoring data, dashboards and analytical summaries | Functional Suitability | Threshold not established | Table 5, non-functional row 9 |
 | NFR-10 | Validate uploaded datasets and prevent invalid monitoring records from being processed | Reliability | Threshold not established | Table 5, non-functional row 10 |
@@ -1859,7 +1859,7 @@ Sources are the manuscript Table 5 non-functional rows and the Quality Plan (Cha
 | NFR-12 | Maintain auditability and traceability of important monitoring and administrative actions | Security | Threshold not established | Table 5, non-functional row 12 |
 | NFR-13 | Work alongside existing tools with practical import, export and output preparation | Compatibility | Threshold not established | Quality Plan, Table 65 |
 | NFR-14 | Keep organized structures, reusable components and documentation so maintainers can find, change and test issues | Maintainability | Threshold not established | Quality Plan, Table 65 |
-| NFR-15 | Handle errors and interruptions and support recovery that reduces data loss | Reliability | Threshold not established | Quality Plan, Table 65 |
+| NFR-15 | Handle errors and interruptions and support recovery that reduces data loss | Reliability | RPO 24 hours, RTO 5 to 8 hours (Developer target 2026-10-01) | Quality Plan, Table 65 |
 
 ## 6. Out of Scope for This Release
 

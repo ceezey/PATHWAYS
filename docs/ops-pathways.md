@@ -47,9 +47,16 @@ Before claiming a release complete, verify Vercel build status, API health, unau
 
 ## 1. SLOs & SLIs
 
-Targets not established; collected in Task 19.
+Developer targets, 2026-10-01. Not yet measured or enforced.
 
-Signals to track meanwhile: database connection failures, API errors, import failure and retry, storage failures, authorization-denial anomalies, rule-evaluation failures, backup and restore success.
+| SLO | Target |
+|---|---|
+| Availability | 99.5% monthly (about 3.6 hours of downtime per month) |
+| API latency | p95 under 800 ms for normal pages; imports excluded |
+| RPO | 24 hours (daily backup) |
+| RTO | 5 to 8 hours |
+
+Signals to track: database connection failures, API errors, import failure and retry, storage failures, authorization-denial anomalies, rule-evaluation failures, backup and restore success.
 
 ## 2. Observability; Logs, Metrics, Traces
 
@@ -64,7 +71,7 @@ Never log passwords, bearer or refresh tokens, API secrets, secret-bearing datab
 
 ## 3. Alerting & On-Call
 
-Not established: no alert routing, pager or on-call rota exists. Sentry is the only error channel.
+Support is best effort with no on-call for now (developer target 2026-10-01). No alert routing or pager exists; Sentry is the only error channel.
 
 ## 4. Incident Response
 
@@ -97,7 +104,7 @@ Use `postmortem-template.md`. Not established: no postmortems recorded.
 
 ## Self-Check
 
-- [x] no production SLO invented
+- [x] SLOs are developer targets, not measured results
 - [x] security and privacy incidents covered
 - [x] backup and recovery linked
 - [x] no AWS readiness claimed

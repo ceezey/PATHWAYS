@@ -34,16 +34,16 @@ PATHWAYS is an internal organizational system for humanitarian and development o
 
 | Item | Status |
 |---|---|
-| Funding sources | Not established; collected in Task 19 |
-| Development and hosting cost figures | Not established; collected in Task 19 |
-| Operating cost owner after the capstone | Not established; collected in Task 19 |
+| Funding sources | Client sponsorship; monthly amount Not established; funding after the capstone Not established (unknown) |
+| Development and hosting cost figures | Client-sponsored; amounts and cost ceiling Not established (unknown) |
+| Operating cost owner after the capstone | Capstone team until turnover, then PUP before release to Plan International Pilipinas; funding Not established |
 | Pricing or revenue | Not applicable; no commercial model in the manuscript |
 
 ## 4. Business Model Canvas
 
 | Block | Content | Source |
 |---|---|---|
-| Customer segments | Humanitarian and development organizations with program and project teams; Plan International Pilipinas is the concrete pilot setting | Manuscript Ch1, Project Context |
+| Customer segments | Humanitarian and development organizations with program and project teams; Plan International Pilipinas is the concrete pilot setting; year one is 1 organization and about 15 staff users | Manuscript Ch1, Project Context |
 | Value propositions | Usable project information with less repeated preparation; centralized project and beneficiary records; rule-based alerts and recommendations; controlled stakeholder visibility | Manuscript Ch1, Purpose and Description |
 | Channels | Web application for internal roles; Public Project Tracker for external stakeholders | Manuscript Ch1, Scope and Limitations |
 | Customer relationships | Not established | Not established; no source in the manuscript |
@@ -51,7 +51,7 @@ PATHWAYS is an internal organizational system for humanitarian and development o
 | Key resources | The PATHWAYS web system and its metadata-driven data preparation, rule engine and role-based access control | Manuscript Ch1, Objectives 1 and 2 |
 | Key activities | Project and beneficiary record management, form and dataset preparation, indicator and dashboard generation, alert and recommendation review | Manuscript Ch1, Objective 1 |
 | Key partners | Donors, sponsors and partners as read-only viewers; existing collection and reporting platforms as interoperating tools | Manuscript Ch1, Purpose and Description |
-| Cost structure | Not established | Not established; collected in Task 19 |
+| Cost structure | Client-sponsored hosting; amounts Not established | Developer answers 2026-10-01 |
 
 ## 5. Impact Variables
 
@@ -68,7 +68,7 @@ Impact is judged on these variables. None has a measured baseline in the manuscr
 
 ## 6. Capital Philosophy Gate
 
-The capstone scope has no funded deployment decision to gate. Capital, hosting and operating-cost decisions for any real deployment are recorded in the UES (`docs/ues-pathways.md`). Figures are Not established here and are collected in Task 19.
+The capstone scope has no funded deployment decision to gate. Capital, hosting and operating-cost decisions for any real deployment are recorded in the UES (`docs/ues-pathways.md`). Cost is client-sponsored; figures are Not established.
 
 ## 7. Strategic Alignment
 
