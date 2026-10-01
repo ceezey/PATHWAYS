@@ -21,3 +21,9 @@ After application, confirm six roles, 98 permission definitions, 306 grants, one
 Installed Prisma 6.19.2 reports the retained-history database up to date after baseline registration. The guarded replay rejects nonzero status and proves subsequent migration creation with multi-schema `migrate diff` and application through `migrate deploy`; it does not authorize a reset or claim automatic provider shadow-database provisioning. Actual aggregate entrypoint tests reproduce the pre-0028 PO denial and verify the correction on fresh and upgrade databases.
 
 Verify both dev previews even when only shared frontend route policy changes: the API imports that policy. A skipped API build requires an explicit development redeploy of the reviewed source. A SQL/docs-only commit may retain verified previews whose application source is unchanged. Keep production settings unchanged.
+
+## 7. Schema drift
+
+The full replay (`Replay-Local.ps1 -MigrationBaseline`) gates datamodel drift introduced by the SQL-only baseline revision: `Replay-Local.ps1` records the `prisma migrate diff` (replayed database to `schema.prisma`) before and after the revision, and `Verify-Baseline.ps1` fails with `Baseline revision introduced datamodel divergence` unless every replayed database still matches that after-diff. A passing run prints `BASELINE_REVISED_PRISMA_DATAMODEL_PARITY=PASS`. Both sides use the same `schema.prisma`, so a field added only to `schema.prisma` is not detected by the replay (verified 2026-10-02: replay exit 0 with a temporary field).
+
+`prisma migrate diff --from-migrations` with a shadow database cannot be used for this chain: 0000 requires `postgres`, 0027 onward require `prisma`, and DBA preprovision SQL runs between steps, while Prisma applies everything over one connection. Hosted drift is covered by the schema comparison in `runbook-role-staging-build.md`.
