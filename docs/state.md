@@ -23,6 +23,7 @@ The earlier [revised RBAC and migration baseline Change Record](cr-pathways-revi
 
 ## Assumptions
 
+- The Figma component board is sample UI; DSD and the foundations decide every design value.
 - The new brand, color and UI foundations are a design target; the shipped UI keeps the current tokens until an approved change migrates it.
 - Missing source material (UES, GTM, PITCH, WRAP, OPS SLOs, funding and cost figures) is Not established until the developer answers the questionnaire.
 

@@ -130,6 +130,7 @@ Statuses mirror the PRD summary. The [approved rollout Change Record](cr-pathway
 | [Design system note](ui-ux-pathways-reference/pathways-design-system-note.md) | pathways-design-system-note.md | Source the DSD transcribes; `docs/dsd-pathways.md` remains the design authority (the DSD wins where they differ) |
 | [UI foundations image](ui-ux-pathways-reference/Pathways%20UI%20foundations.png) | Pathways UI foundations.png | Source the DSD transcribes; `docs/dsd-pathways.md` remains the design authority (the DSD wins where they differ) |
 | [Color palette image](ui-ux-pathways-reference/Pathways%20color%20palette.png) | Pathways color palette.png | Source the DSD transcribes; `docs/dsd-pathways.md` remains the design authority (the DSD wins where they differ) |
+| Figma component board | file `fQee5ydlhJPLFhj8yUx8pA`, canvas `1344:2` | Sample UI only; DSD section 4 "Figma reference specimens" maps it; the DSD wins everywhere |
 
 ## 2. Change Log
 
@@ -137,6 +138,7 @@ Newest first. Core P1 supporting contract reconciliation is approved for local i
 
 | CR ID | Date | Summary | Status |
 |---|---|---|---|
+| [cr-pathways-figma-reference-integration](cr-pathways-figma-reference-integration.md) | 2026-10-01 | DSD gains a non-authoritative Figma reference section (five specimen families mapped to existing components, a not-adopted list) and a Figma rank in the authority order; local module guidance folded into DSD; notification inbox deferred | Applied |
 | [cr-pathways-rbac-v4-adoption](cr-pathways-rbac-v4-adoption.md) | 2026-10-01 | Manuscript access matrix v4 becomes the documented source of record: 11 cell decisions (adopt, kept deviation, already satisfied), six interpretation rules, Encode Project Data retired; code follows in the RBAC v4 grant migration | Approved; docs propagated; code pending |
 | [cr-pathways-doc-reconciliation-2026-10-01](cr-pathways-doc-reconciliation-2026-10-01.md) | 2026-10-01 | Rebuilt the documentation suite into one canonical baseline: repository first, then the rev-2026 manuscript, then the new brand, color and UI foundations as design target only; stable IDs preserved; contradicted records superseded; no code or migration change | Applied |
 | [cr-pathways-indicator-library](cr-pathways-indicator-library.md) | 2026-10-01 | Organization indicator library of definition templates (create, list, archive under `indicators.library.*`) and create-project-indicator-from-entry by copy with no live link; closes G-F7-5 and the indicator part of MA-01 (migration 0051, not applied) | Approved; implemented on feature branch, staging apply pending |

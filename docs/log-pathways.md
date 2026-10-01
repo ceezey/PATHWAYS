@@ -50,6 +50,7 @@ Do not rewrite old entries to make them match newer architecture. Correct prior 
 ### 2026-10-01: RBAC v4 and Figma Reference Reconciliation
 
 - Adopted manuscript access matrix v4 in the docs under [cr-pathways-rbac-v4-adoption](cr-pathways-rbac-v4-adoption.md); code follows in the registered RBAC v4 grant migration.
+- Added a non-authoritative Figma reference section to DSD under [cr-pathways-figma-reference-integration](cr-pathways-figma-reference-integration.md).
 - No code, migration or agent behavior changed.
 
 ## 2. Friction

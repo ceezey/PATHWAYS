@@ -420,7 +420,7 @@ Expected: exit 0.
 Run: `git grep -n "UCD\|UCR\|National scope" -- docs ':!docs/superpowers'`
 Expected: hits only inside the DSD "Not adopted" list and the Figma CR.
 
-Run: `git grep -n "figma.com/api/mcp/asset" -- . ; git grep -n "FutureMakers\|Youth RISE\|Pascual\|Perez\|Leah Sy" -- docs BRAND.md DESIGN.md ':!docs/superpowers'`
+Run: `git grep -n "figma.com/api/mcp/asset" -- .` and a `git grep` over `docs`, `BRAND.md` and `DESIGN.md` for the board's sample project and person names (pattern list kept in the plan workspace, not tracked)
 Expected: no output.
 
 - [ ] **Step 7: Commit**
