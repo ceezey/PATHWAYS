@@ -46,14 +46,14 @@ Six internal roles are defined in `apps/api/src/modules/auth/rbac-contract.json`
 
 | ID | Feature | Priority | Manuscript ID | Requirement | Objective | Status |
 |---|---|---|---|---|---|---|
-| PRD-F1 | RBAC and Workspace Management | Must-Have | F1 | R1 | 1.8 | Implemented |
-| PRD-F2 | Project Profile and Activity Tracking | Must-Have | F2 | R1, R4, R5 | 1.1, 1.2, 1.5 | Implemented |
-| PRD-F3 | Centralized Beneficiary Profile | Must-Have | F3 | R1, R5 | 1.1, 1.3 | Implemented |
-| PRD-F4 | Beneficiary Journey Tracking | Must-Have | F4 | R6 | 1.1, 1.3 | Implemented |
-| PRD-F5 | Digital Data Collection and Preparation | Must-Have | F5 | R2 | 1.4, 2.1 | Implemented |
-| PRD-F6 | Metadata-Driven Data Integration | Must-Have | F6 | R2 | 1.1, 1.4, 2.1 | Implemented |
-| PRD-F7 | Project Indicator and Monitoring | Must-Have | F7 | R3, R4 | 1.5 | Implemented |
-| PRD-F8 | Aggregated Monitoring Dashboard with SADDD Analysis | Must-Have | F8 | R3 | 1.6, 2.2, 2.3 | Implemented |
+| PRD-F1 | RBAC and Workspace Management | Must-Have | F1 | R1 | 1.8 | Implemented; G-F1-10 not met (see [deferred features](deferred-features.md)) |
+| PRD-F2 | Project Profile and Activity Tracking | Must-Have | F2 | R1, R4, R5 | 1.1, 1.2, 1.5 | Implemented; G-F2-4 not met (see [deferred features](deferred-features.md)) |
+| PRD-F3 | Centralized Beneficiary Profile | Must-Have | F3 | R1, R5 | 1.1, 1.3 | Implemented; G-F3-6 partial (see [deferred features](deferred-features.md)) |
+| PRD-F4 | Beneficiary Journey Tracking | Must-Have | F4 | R6 | 1.1, 1.3 | Implemented; G-F4-6 not met (see [deferred features](deferred-features.md)) |
+| PRD-F5 | Digital Data Collection and Preparation | Must-Have | F5 | R2 | 1.4, 2.1 | Implemented; G-F6-7 on hold (see [deferred features](deferred-features.md)) |
+| PRD-F6 | Metadata-Driven Data Integration | Must-Have | F6 | R2 | 1.1, 1.4, 2.1 | Implemented; G-F6-7 on hold (see [deferred features](deferred-features.md)) |
+| PRD-F7 | Project Indicator and Monitoring | Must-Have | F7 | R3, R4 | 1.5 | Implemented; G-F7-5 not met, deferred (see [deferred features](deferred-features.md)) |
+| PRD-F8 | Aggregated Monitoring Dashboard with SADDD Analysis | Must-Have | F8 | R3 | 1.6, 2.2, 2.3 | Implemented; G-F8-7 load not verified (see [deferred features](deferred-features.md)) |
 | PRD-F9 | Descriptive Analytics and Project Performance Summaries | Supporting | F9 | R3, R7 | 1.6, 2.2 | Implemented for KPI, participation, survey and timeline views; on-hold items in the deferred register |
 | PRD-F10 | Rule-Based Alerts | Supporting | F10 | R7 | 1.7, 2.4 | Local API and initial runtime slice; integration verification pending |
 | PRD-F11 | Rule-Based Decision Support and Recommendations | Supporting | F11 | R7 | 1.7, 2.4 | Local human review API; integration verification pending |
@@ -845,7 +845,7 @@ flowchart LR
 | Permission | `imports.upload` |
 | Trigger | The user imports a collected file into a project. |
 | Preconditions | A published target form exists in an assigned project; the file is CSV, XLS, XLSX or a text-layer PDF. |
-| Main flow | 1. The user opens `/collection/import`. 2. The user selects the project, form and file. 3. The user uploads (`POST /imports/projects/:projectId/batches/upload`). 4. The system stores the file, parses the rows and sets the batch to UPLOADED. 5. The user may request automatic mapping (`POST /imports/projects/:projectId/batches/:batchId/automatic-mapping`). |
+| Main flow | 1. The user opens `/collection/import`. 2. The user selects the project, form and file. 3. The user uploads (`POST /imports/projects/:projectId/batches/upload`). 4. The system stores the file, parses the rows and sets the batch to UPLOADED. 5. The user may request automatic mapping (`POST /imports/projects/:projectId/batches/:batchId/automatic-mapping`, `imports.upload`); suggestions are reviewed in UC-F6-2. |
 | Alternate / exception | Unsupported or unsafe file: rejected with a stable code. Interrupted upload: batch is RECOVERY_REQUIRED and is resumed (`POST /imports/projects/:projectId/batches/:batchId/resume`). Permission denied: 403. |
 | Postconditions | A staged batch exists with its source rows; an audit event is recorded. |
 | Gates | G-F6-3, G-F6-5, G-F6-6 |
@@ -859,7 +859,7 @@ flowchart LR
 | Trigger | A batch has suggested or pending column mappings. |
 | Preconditions | The batch is UPLOADED or MAPPED and belongs to an assigned project. |
 | Main flow | 1. The user opens the batch on `/imports`. 2. The user reviews each suggestion and its reason. 3. The user confirms all or one, maps, or ignores a column (`PATCH /imports/projects/:projectId/batches/:batchId/mapping`). 4. The system records a new mapping revision attributed to the reviewer. |
-| Alternate / exception | A Project Officer sees suggestions read-only and is denied. Stale revision: conflict. Field mapped twice: rejected. Choosing a data type or translating values is not provided. |
+| Alternate / exception | Automatic-mapping suggestions are requested under `imports.upload` (UC-F6-1) and confirmed here under `imports.review`. A Project Officer sees suggestions read-only and is denied. Stale revision: conflict. Field mapped twice: rejected. Choosing a data type or translating values is not provided. |
 | Postconditions | The batch is MAPPED at a new revision; an audit event is recorded without cell values. |
 | Gates | G-F6-3, G-F6-4, G-F6-7 (Not met) |
 
@@ -1053,7 +1053,7 @@ flowchart LR
 | Permission | `analytics.saddd.read` |
 | Trigger | The user opens the SADDD breakdown for a project |
 | Preconditions | The project has a fixed, valid, closed period; beneficiary SADDD fields are present |
-| Main flow | 1. The user opens the dashboard (route `/dashboard`). 2. The user selects one project and the SADDD dimension. 3. The system computes the breakdown (route `/dashboards/saddd`). 4. The system suppresses counts 1 to 4 and applies complementary suppression. 5. The user reads the aggregate. |
+| Main flow | 1. The user opens analytics (route `/analytics`). 2. The user selects one project and the SADDD dimension. 3. The system computes the breakdown (route `/dashboards/saddd`). 4. The system suppresses counts 1 to 4 and applies complementary suppression. 5. The user reads the aggregate. |
 | Alternate / exception | Open or invalid period: SADDD is omitted. Incomplete SADDD fields: a completeness warning is shown. No data: an empty result is shown. Permission denied: 403. |
 | Postconditions | Only suppressed aggregates are returned; no individual record is exposed |
 | Gates | G-F8-3, G-F8-4, G-F8-5, G-F8-6 |
