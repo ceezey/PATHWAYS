@@ -117,12 +117,7 @@
     "activities.create": ["PROJECT_OFFICER", "PROJECT_MANAGER"],
     "activities.update": ["PROJECT_MANAGER"],
     "activities.proof.submit": ["PROJECT_OFFICER", "PROJECT_MANAGER"],
-    "journeys.read": [
-      "SYSTEM_ADMINISTRATOR",
-      "PROJECT_OFFICER",
-      "MONITORING_AND_EVALUATION_OFFICER",
-      "PROJECT_MANAGER"
-    ],
+    "journeys.read": ["PROJECT_OFFICER", "MONITORING_AND_EVALUATION_OFFICER", "PROJECT_MANAGER"],
     "journeys.manage": [
       "SYSTEM_ADMINISTRATOR",
       "MONITORING_AND_EVALUATION_OFFICER",
@@ -223,7 +218,7 @@
       "MONITORING_AND_EVALUATION_OFFICER",
       "PROJECT_MANAGER"
     ],
-    "beneficiaries.identities.review": [],
+    "beneficiaries.identities.review": ["MONITORING_AND_EVALUATION_OFFICER"],
     "beneficiaries.records.archive": [],
     "beneficiaries.aggregates.read": [
       "SYSTEM_ADMINISTRATOR",
@@ -1796,6 +1791,20 @@
         ["SYSTEM_ADMINISTRATOR", "activities.read"],
         ["SYSTEM_ADMINISTRATOR", "budgets.read"]
       ]
+    },
+    {
+      "changeRecord": "cr-pathways-core-rbac-identity-review",
+      "migration": "0047_revoke_sa_journeys_read",
+      "rows": [55, 56],
+      "grants": [],
+      "revokes": [["SYSTEM_ADMINISTRATOR", "journeys.read"]]
+    },
+    {
+      "changeRecord": "cr-pathways-core-rbac-identity-review",
+      "migration": "0048_identity_review_grant",
+      "rows": [],
+      "grants": [["MONITORING_AND_EVALUATION_OFFICER", "beneficiaries.identities.review"]],
+      "revokes": []
     }
   ]
 }
