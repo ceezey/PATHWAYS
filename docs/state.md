@@ -17,7 +17,8 @@ The earlier [revised RBAC and migration baseline Change Record](cr-pathways-revi
 - Target beneficiaries remain active. [Approved project target-goal retirement](cr-pathways-retire-project-target-goal.md) removes live inputs, outputs and comparisons while preserving its database column/history and independent indicator targets; implementation/verification remain pending.
 - Production runtime and deployment completion require independently verified evidence.
 
-- The manuscript alignment audit records 17 findings (2 High, 8 Medium, 7 Low); each needs a Change Record, a deferral or evidence it is false before any production release.
+- RBAC v4 is the documented access source of record; the running contract keeps the earlier matrix until the RBAC v4 grant migration lands ([cr-pathways-rbac-v4-adoption](cr-pathways-rbac-v4-adoption.md)).
+- The manuscript alignment audit records 18 findings (2 High, 9 Medium, 7 Low); each needs a Change Record, a deferral or evidence it is false before any production release.
 - UAT under ISO/IEC 25010 has not been run, so Objectives 3.1 to 3.8 have no results.
 
 ## Assumptions

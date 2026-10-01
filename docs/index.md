@@ -48,6 +48,7 @@
 | LOG | [log-pathways.md](log-pathways.md) | - | Control; append-only |
 | STATE | [state.md](state.md) | - | Control; operating position |
 | Deferred features register | [deferred-features.md](deferred-features.md) | - | Control; updated alongside each hide/defer decision |
+| Activity log | [activity-log.md](activity-log.md) | - | Working; dated session activity notes |
 
 ### 1.3 RFCs
 
@@ -92,6 +93,10 @@ Workflow rule: an audit is finding and evidence, a Change Record is the approved
 |---|---|---|---|---|
 | [Docs canonical reconciliation](superpowers/specs/2026-10-01-docs-canonical-reconciliation-design.md) | 2026-10-01-docs-canonical-reconciliation-design.md | 2026-10-01 | Rebuild and reconcile the documentation suite into a canonical baseline | Draft; developer review pending |
 | [Docs canonical reconciliation plan](superpowers/plans/2026-10-01-docs-canonical-reconciliation.md) | 2026-10-01-docs-canonical-reconciliation.md | 2026-10-01 | Task-by-task implementation plan for the reconciliation spec | Approved; in progress |
+| [Core gap closure plan](superpowers/plans/2026-10-01-core-gap-closure.md) | 2026-10-01-core-gap-closure.md | 2026-10-01 | Close the six gaps left after the core-feature integration | Executed; integrated into dev |
+| [Replay harness modernization plan](superpowers/plans/2026-10-01-replay-harness-modernization.md) | 2026-10-01-replay-harness-modernization.md | 2026-10-01 | Parallel-safe, faster local migration replays with drift detection | Written; not started |
+| [RBAC v4 and Figma reference reconciliation](superpowers/specs/2026-10-01-rbac-v4-figma-reconciliation-design.md) | 2026-10-01-rbac-v4-figma-reconciliation-design.md | 2026-10-01 | Adopt manuscript RBAC v4 in docs; add a non-authoritative Figma reference section to DSD | Approved |
+| [RBAC v4 and Figma reference reconciliation plan](superpowers/plans/2026-10-01-rbac-v4-figma-reconciliation.md) | 2026-10-01-rbac-v4-figma-reconciliation.md | 2026-10-01 | Task-by-task plan for the RBAC v4 and Figma reference spec | Approved; in progress |
 
 ### 1.7 Traceability Matrix
 
@@ -132,6 +137,7 @@ Newest first. Core P1 supporting contract reconciliation is approved for local i
 
 | CR ID | Date | Summary | Status |
 |---|---|---|---|
+| [cr-pathways-rbac-v4-adoption](cr-pathways-rbac-v4-adoption.md) | 2026-10-01 | Manuscript access matrix v4 becomes the documented source of record: 11 cell decisions (adopt, kept deviation, already satisfied), six interpretation rules, Encode Project Data retired; code follows in the RBAC v4 grant migration | Approved; docs propagated; code pending |
 | [cr-pathways-doc-reconciliation-2026-10-01](cr-pathways-doc-reconciliation-2026-10-01.md) | 2026-10-01 | Rebuilt the documentation suite into one canonical baseline: repository first, then the rev-2026 manuscript, then the new brand, color and UI foundations as design target only; stable IDs preserved; contradicted records superseded; no code or migration change | Applied |
 | [cr-pathways-indicator-library](cr-pathways-indicator-library.md) | 2026-10-01 | Organization indicator library of definition templates (create, list, archive under `indicators.library.*`) and create-project-indicator-from-entry by copy with no live link; closes G-F7-5 and the indicator part of MA-01 (migration 0051, not applied) | Approved; implemented on feature branch, staging apply pending |
 | [cr-pathways-activity-overdue-explanation](cr-pathways-activity-overdue-explanation.md) | 2026-09-29 | M&E (or a role holding `monitoring.review`) records a reason category (`WEATHER`/`SECURITY`/`FUNDING`/`COMMUNITY`/`LOGISTICS`/`OTHER`) plus a 10-2000 character written explanation once an activity is overdue; append-only, prompt not a block (migration 0043) | Approved; backend implemented on feature branch, web phase deferred |

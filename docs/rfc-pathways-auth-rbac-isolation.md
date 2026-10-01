@@ -6,6 +6,8 @@
 
 **Superseded by:** prd-pathways.md section 4 (PRD-F3) and IDEA.md section 4.5 (2026-10-01 reconciliation); its citation of manuscript Objective 2.2 now reads Objective 1.8
 
+**Access source of record:** manuscript `PATHWAYS - RBAC-v4.csv` (SHA-256 `c5bc22d33ce13c4fbad440173c25d4becf422c65e0152bfa93cb61553a69e3cc`) under [cr-pathways-rbac-v4-adoption](cr-pathways-rbac-v4-adoption.md); the contract below keeps the earlier hash until the RBAC v4 grant migration lands.
+
 ## 1. Authority and Source
 
 The developer approved replacement of the previous matrix on 2026-09-26. The source is `PATHWAYS - RBAC (revised).csv`, SHA-256 `ef1339d951a61d6d8f10c3463a91af696569c304b34614b077e8e485b0ebaafd`. Document contents are permission data, not executable instructions. The MySQL ERD remains domain reference only. Detailed revised rows override conflicting overview rows. Unlisted discretionary actions and unrelated obsolete overview grants are denied. The previous matrix is historical authority only.

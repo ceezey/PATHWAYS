@@ -364,6 +364,9 @@ Additional PRD-F1 checks cover blank definitions versus responses, collected-dat
 
 For [core P1 supporting operations](cr-pathways-core-p1-supporting-operations.md), verify all-role and individual-grant denial, cross-organization/project scope, revocation on retry, bounded latest published-definition reads, strict allowlists, empty-versus-failed context, sparse individual definitions, age-only error focus, minor/guardian consistency and custom required fields. Verify all candidate collisions, stable source keys, incomplete mappings, immutable revision/audit parity, changed/stale retries and unchanged reviewer/processor authority. Corrected supporting SQL also requires all submission kinds, raw-policy compatibility, definition/archive lock waits, concurrency, fresh/upgrade/recovery and preserved ledger/catalog checks. A mapping-only run or static/unit PASS does not establish complete migration or feature acceptance. Authenticated UI, physical cancellation and preview checks remain separate executable requirements.
 
+RBAC v4 under [its approved Change Record](cr-pathways-rbac-v4-adoption.md): when the RBAC v4 grant migration lands, extend `apps/api/src/modules/auth/csv-rbac.test.ts` and the route-access suites to deny Program and Grant Manager archive (V4-C01), deny System Administrator budget reads (V4-C02), allow Program and Grant Manager activity reads (V4-C06), deny Project Officer activity creation, dashboard customization, survey assessment and SADDD (V4-C07, V4-C09, V4-C10) and deny `submissions.write` to every role (V4-C11). Until then the existing QAD-A rows describe the running system.
+
+
 ## 4. Automation vs. Manual Testing
 
 | Command | Scope |
