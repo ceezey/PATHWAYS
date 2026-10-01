@@ -58,6 +58,10 @@ Live import files for the presentation are in `apps/api/prisma/demo-fixtures/`:
 
 Passwords for the seeded accounts are written only to the ignored `.tmp/local-seed/`.
 
+## Fast Runtime SQL Runs
+
+For development speed only. Save the replayed cluster once per migration change with `./infra/supabase/phase6/Replay-Local.ps1 -MigrationBaseline -SaveTemplate` (writes `.tmp/pathways-replay-template/` with a migrations hash). Then run any runtime SQL file with `./infra/supabase/phase6/Invoke-RuntimeSql.ps1 -File apps/api/prisma/tests/<file>.sql`. Each run copies the template to a disposable loopback cluster on a free port and deletes it afterwards. The runner refuses a stale template after any migration change. `finance-expense-runtime.sql` measured 75 s on the first run, dominated by copying the roughly 900 MB template data directory. Files that rely on psql variables set only inside the replay are replay-only. The full `Replay-Local.ps1 -MigrationBaseline` stays the merge gate.
+
 ## End of Session
 
 - tests;

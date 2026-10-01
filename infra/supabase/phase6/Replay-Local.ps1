@@ -4,11 +4,13 @@ param(
   [switch]$ProjectActivityCreationRepair,
   [switch]$CsvRbacRealignment,
   [switch]$MigrationBaseline,
+  [switch]$SaveTemplate,
   [string]$PostgresBin,
   [int]$Port = 0
 )
 $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot 'replay-port.ps1')
+. (Join-Path $PSScriptRoot 'migrations-hash.ps1')
 if ($MigrationBaseline) { $CsvRbacRealignment = $true }
 if ($CsvRbacRealignment) { $ProjectActivityCreationRepair = $true }
 $phase6Root = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot '../../..')).Path
@@ -613,6 +615,20 @@ END $$;
     Write-Output 'CSV_RBAC_UPGRADE_AND_FRESH_REPLAY=PASS'
   }
   Write-Output 'LEGACY_TABLE_PRESERVATION=PASS'
+  if ($SaveTemplate) {
+    $phase6Stop = Start-Process -FilePath $phase6Tools['pg_ctl'] `
+      -ArgumentList @('-D',$phase6Data,'-m','fast','-t','260','-s','stop') @phase6ProcessOptions
+    if (-not $phase6Stop.WaitForExit(270000) -or $phase6Stop.ExitCode -ne 0) { throw 'Template cluster stop failed.' }
+    $phase6Started = $false
+    $phase6Template = Join-Path $phase6Root '.tmp/pathways-replay-template'
+    if (Test-Path -LiteralPath $phase6Template) { Remove-Item -LiteralPath $phase6Template -Recurse -Force }
+    New-Item -ItemType Directory -Path $phase6Template | Out-Null
+    Copy-Item -LiteralPath $phase6Data -Destination (Join-Path $phase6Template 'data') -Recurse
+    Remove-Item -LiteralPath (Join-Path $phase6Template 'data/postmaster.pid') -Force -ErrorAction SilentlyContinue
+    [ordered]@{ migrationsHash = (Get-MigrationsHash $phase6Root); database = $phase6Database; createdAt = (Get-Date).ToUniversalTime().ToString('o') } |
+      ConvertTo-Json | Set-Content -LiteralPath (Join-Path $phase6Template 'manifest.json')
+    Write-Output 'REPLAY_TEMPLATE_SAVED=PASS'
+  }
   $phase6Exit = 0
 } catch {
   Write-Output ('PHASE6_LOCAL_REPLAY=FAILED; ' + $_.Exception.Message)
