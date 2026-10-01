@@ -588,6 +588,8 @@ END $$;
       . (Join-Path $PSScriptRoot 'Verify-Baseline.ps1')
       Invoke-LocalSql ([IO.File]::ReadAllText((Join-Path $phase6Root 'apps/api/prisma/tests/finance-expense-runtime.sql'))) $phase6Database
       Write-Output 'FINANCE_EXPENSE_RUNTIME=PASS'
+      # The disposable auth.users stub has no email column, which the hook suite reads.
+      Invoke-LocalSql 'ALTER TABLE auth.users ADD COLUMN IF NOT EXISTS email text;' $phase6Database
       Invoke-LocalSql ([IO.File]::ReadAllText((Join-Path $phase6Root 'apps/api/prisma/tests/signin-password-hook-runtime.sql'))) $phase6Database
       Write-Output 'SIGNIN_PASSWORD_HOOK_RUNTIME=PASS'
     }
@@ -600,7 +602,7 @@ END $$;
     } finally { Pop-Location }
     if ($MigrationBaseline) {
       # Only this path reaches the current schema, so the current-schema API suites run here.
-      # Fixed pathways table count at migration 0051 so a missing or extra table fails the guard.
+      # Fixed pathways table count (unchanged through 0053; 0052 adds only the pathways_auth schema) so a missing or extra table fails the guard.
       $env:PATHWAYS_EXPECTED_TABLE_COUNT = "58"
       $env:PATHWAYS_FEATURE_READ_LOCAL_TESTS = '1'
       $env:PATHWAYS_C8_LOCAL_TESTS = '1'
