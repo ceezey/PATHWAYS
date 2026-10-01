@@ -58,6 +58,8 @@ Apply 0046 through the normal staged chain after 0045; it asserts the 0045 ledge
 
 API unit tests (happy, sad, abuse), web request tests, `tsc` and biome on both apps. The 0046 SQL has not been run against a database; a runtime SQL test on the staging role is required before release.
 
+Local stack run (2026-10-01, 0000-0051 chain, API 4000, web 3000): `apps/web/e2e/signin-lockout.spec.ts` (QAD-T86) passed 3 of 3: lock after 5 failures (429 SIGN_IN_LOCKED, correct password refused, staff login shows the locked message), identical unknown/known failure responses, and sign-in succeeding after `locked_until` is moved into the past. The run found one defect: `signin_lockout_reset` returns void, which Prisma cannot read as a result column, so every successful sign-in returned 503; the call now selects a literal (`signin-lockout.service.ts`, covered in `signin-lockout.test.ts`).
+
 ## 8. Approval
 
 Developer decision, 2026-10-01: build G-F1-10.

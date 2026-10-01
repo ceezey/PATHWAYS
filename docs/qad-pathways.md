@@ -173,6 +173,7 @@ Every implemented feature requires:
 | QAD-JR-01 | System Administrator requests beneficiary journey history -> 403, while listing and saving project journey stages succeeds | Sad | Security | PRD-F4 | G-F4-5 | UC-F4-4 | `apps/api/src/modules/participants/journeys-access.test.ts` |
 | QAD-FP-01 | a form author publishes their own form -> 403 with no write or audit, in any role; a role without `forms.publish` is denied | Sad | Security | PRD-F5 | G-F5-1 | UC-F5-1 | `apps/api/src/modules/metadata/metadata.service.test.ts` |
 | QAD-T83 | a journey note over 1000 characters or only whitespace is rejected with 400 and nothing is stored | Sad | Functional Suitability | PRD-F4 | G-F4-6 | UC-F4-2 | `apps/api/src/modules/participants/journey-note.test.ts` |
+| QAD-T86 | five failed sign-ins lock the email for 15 minutes on the local stack: the sixth attempt returns 429 SIGN_IN_LOCKED even with the correct password, unknown and known emails fail identically, and an expired lock signs in with 200 | Abuse | Security | PRD-F1 | G-F1-10 | UC-F1-1 | `apps/web/e2e/signin-lockout.spec.ts` |
 
 ### 3.3 Abuse / Adversarial Paths
 
