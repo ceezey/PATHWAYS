@@ -183,4 +183,4 @@ Migration 0045 (cr-pathways-f9-trusted-aggregates) adds two prisma-owned SECURIT
 
 ## Hosted schema comparison (developer only)
 
-After a staging apply, the developer runs `pg_dump --schema-only --no-owner --no-privileges` against staging and against a fresh local replay template, then diffs the two files. Any difference is drift and blocks marking Change Records Applied. Agents never connect to staging.
+After a staging apply, the developer dumps only the app schemas with `pg_dump --schema-only --no-owner --schema=public --schema=pathways --schema=pathways_auth --schema=pathways_rules_internal` (privileges kept, so missing grants such as the 0054 `p09_role_allows` EXECUTE loss show up) against staging and against a fresh local replay template, then diffs the two files. Do not dump the whole database: hosted Supabase `auth`, `storage`, extensions and `graphql` schemas differ from the local bootstrap stubs. Any difference in these schemas is drift and blocks marking Change Records Applied. Agents never connect to staging.
