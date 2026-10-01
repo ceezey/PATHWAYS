@@ -19,5 +19,6 @@ describe('Button', () => {
   it('keeps the approved small size at 36 pixels', () => {
     render(<Button size="sm">Filter</Button>)
     expect(screen.getByRole('button', { name: 'Filter' }).className).toContain('h-9')
+    expect(screen.getByRole('button', { name: 'Filter' }).className).toContain('after:-inset-1')
   })
 })

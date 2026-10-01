@@ -153,7 +153,7 @@ export const ActivityExpenseDialog = ({
             void submit()
           }}
         >
-          <div className="rounded-sm border border-border bg-surface-subtle p-3 text-sm">
+          <div className="rounded-xl border border-border bg-surface-subtle p-3 text-sm">
             <p className="font-medium text-foreground">Linked activity</p>
             <p className="mt-1 text-muted-foreground">{activity.title}</p>
           </div>
@@ -171,7 +171,7 @@ export const ActivityExpenseDialog = ({
               <div className="space-y-2 sm:col-span-2">
                 <Label htmlFor="activity-expense-budget">Budget allocation</Label>
                 <select
-                  className="h-10 w-full rounded-md border bg-background px-3"
+                  className="h-11 w-full rounded-md border bg-background px-3"
                   id="activity-expense-budget"
                   onChange={(event) =>
                     setDraft((current) => ({ ...current, budgetRecordId: event.target.value }))

@@ -592,7 +592,7 @@ function OwnedImportWorkspace({ scope }: { scope: SensitiveDraftOwner }) {
 
       <fieldset disabled={pending} className="space-y-6">
         {loadState !== 'ready' ? (
-          <div className="rounded-lg border bg-card p-4 text-sm text-muted-foreground">
+          <div className="rounded-xl border bg-card p-4 text-sm text-muted-foreground">
             {loadState === 'loading'
               ? 'Loading authorized projects...'
               : 'Authorized projects could not be loaded.'}
@@ -744,14 +744,14 @@ function OwnedImportWorkspace({ scope }: { scope: SensitiveDraftOwner }) {
                   <CardContent>
                     <div className="grid gap-3 sm:grid-cols-3 lg:grid-cols-6">
                       {Object.entries(batch.totals).map(([label, value]) => (
-                        <div key={label} className="rounded-md bg-muted/40 p-3">
+                        <div key={label} className="rounded-xl bg-muted/40 p-3">
                           <p className="text-xs uppercase text-muted-foreground">{label}</p>
                           <p className="text-lg font-semibold">{value}</p>
                         </div>
                       ))}
                     </div>
                     {batch.failureCode ? (
-                      <p className="mt-4 rounded-md border border-warning/30 bg-warning/10 p-3 text-sm text-warning">
+                      <p className="mt-4 rounded-xl border border-warning/30 bg-warning/10 p-3 text-sm text-warning">
                         Import notice: {batch.failureCode.replaceAll('_', ' ')}
                       </p>
                     ) : null}
@@ -805,7 +805,7 @@ function OwnedImportWorkspace({ scope }: { scope: SensitiveDraftOwner }) {
                         return (
                           <div
                             key={column.key}
-                            className="grid items-center gap-3 rounded-md border p-3 sm:grid-cols-2"
+                            className="grid items-center gap-3 rounded-xl border p-3 sm:grid-cols-2"
                           >
                             <div className="space-y-1">
                               <span className="block break-all text-sm font-medium">

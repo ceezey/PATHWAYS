@@ -203,7 +203,11 @@ describe('project overview metrics', () => {
     api.getProjectOverviewMetrics.mockResolvedValue(
       metrics({
         kpiAchievement: { metric: missing('NO_MEASUREMENT'), indicatorCount: 1, reportedCount: 0 },
-        budgetUtilization: { metric: missing('NO_PLANNED_BUDGET') },
+        budgetUtilization: {
+          metric: missing('NO_PLANNED_BUDGET'),
+          approvedBudget: null,
+          countableSpending: '0.00',
+        },
         beneficiariesReached: { metric: missing('RELEASED_AFTER_PROJECT_CLOSE'), target: null },
         timeline: { metric: missing('PROJECT_DATES_REQUIRED'), startDate: null, endDate: null },
       }),
@@ -219,7 +223,13 @@ describe('project overview metrics', () => {
 
   it('says "None yet" for a planned budget with no approved expenses, never a fabricated 0%', async () => {
     api.getProjectOverviewMetrics.mockResolvedValue(
-      metrics({ budgetUtilization: { metric: missing('NO_APPROVED_EXPENSES') } }),
+      metrics({
+        budgetUtilization: {
+          metric: missing('NO_APPROVED_EXPENSES'),
+          approvedBudget: '100.00',
+          countableSpending: '0.00',
+        },
+      }),
     )
     renderView()
     await waitFor(async () => expect(await tile('Budget utilization')).toBe('None yet'))

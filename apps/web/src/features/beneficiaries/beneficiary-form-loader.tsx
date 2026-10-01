@@ -96,7 +96,7 @@ export const BeneficiaryFormLoader = ({
   if (loadState === 'restricted' || loadState === 'unavailable') {
     const restricted = loadState === 'restricted'
     return (
-      <div className="space-y-4 rounded-lg border border-border bg-card p-8 text-center">
+      <div className="space-y-4 rounded-2xl border border-border bg-card p-8 text-center">
         <AsyncState
           description={
             restricted
@@ -128,7 +128,7 @@ export const BeneficiaryFormLoader = ({
 
   if (projects.length === 0) {
     return (
-      <div className="space-y-4 rounded-lg border border-border bg-card p-8 text-center">
+      <div className="space-y-4 rounded-2xl border border-border bg-card p-8 text-center">
         <AsyncState
           description="No projects are assigned to this account, so a beneficiary enrollment cannot be started."
           icon={FolderLock}

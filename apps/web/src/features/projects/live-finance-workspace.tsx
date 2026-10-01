@@ -18,6 +18,7 @@ import { useAuthorizedRead } from '@/providers/authorized-query-provider'
 import { useEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
 import type { z } from 'zod'
+import { FinanceBudgetSummary } from './finance-budget-summary'
 
 export function LiveFinanceWorkspace({ projectId }: { projectId: string }) {
   const { profile } = useCurrentRole()
@@ -398,6 +399,9 @@ function FinanceContent({ projectId }: { projectId: string }) {
         title="Budget & Finance"
         description="Manage scoped allocations, private receipts, separated reviews and final sign-off."
       />
+      {can('budgets.read') && can('expenses.read') ? (
+        <FinanceBudgetSummary projectId={projectId} />
+      ) : null}
       <SectionCard
         title="Budget allocation"
         description="Budget detail requires current budget permission; expense submission uses references without exposing allocation amounts."
@@ -424,7 +428,7 @@ function FinanceContent({ projectId }: { projectId: string }) {
           ) : (
             <div className="space-y-3">
               {budgets.data.map((row) => (
-                <div key={row.id} className="rounded-md border p-4">
+                <div key={row.id} className="rounded-xl border p-4">
                   <p className="font-semibold">{referenceLabel(row)}</p>
                   <p>PHP {row.plannedBudget}</p>
                   {row.remarks ? (
@@ -522,7 +526,7 @@ function FinanceContent({ projectId }: { projectId: string }) {
             <Label>
               Budget reference
               <select
-                className="h-10 w-full rounded-md border bg-background px-3"
+                className="h-11 w-full rounded-md border bg-background px-3"
                 value={reference}
                 disabled={!currentReferences}
                 onChange={(event) => setReference(event.target.value)}
@@ -574,7 +578,7 @@ function FinanceContent({ projectId }: { projectId: string }) {
             </Button>
           </div>
           {pending ? (
-            <div className="mt-5 rounded-md border p-4">
+            <div className="mt-5 rounded-xl border p-4">
               <p className="mb-3 text-sm">
                 Own submission {pending.id} · {pending.status}
               </p>
@@ -609,7 +613,7 @@ function FinanceContent({ projectId }: { projectId: string }) {
           ) : (
             <div className="space-y-4">
               {expenses.data.map((row) => (
-                <div key={row.id} className="space-y-3 rounded-md border p-4">
+                <div key={row.id} className="space-y-3 rounded-xl border p-4">
                   <div className="flex flex-wrap justify-between gap-3">
                     <div>
                       <p className="font-semibold">{row.description}</p>

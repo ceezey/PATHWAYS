@@ -492,7 +492,7 @@ const EvidenceSummaryCard = ({ activities }: { activities: EvidenceActivitySumma
         </table>
       </div>
     ) : (
-      <p className="rounded-lg border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
+      <p className="rounded-2xl border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
         No evidence records are available for this project.
       </p>
     )}
@@ -634,7 +634,7 @@ const EvidenceView = ({
         <div className="space-y-3">
           {evidence.length > 0 ? (
             evidence.map((record) => (
-              <div key={record.id} className="rounded-lg border border-border bg-background p-4">
+              <div key={record.id} className="rounded-xl border border-border bg-background p-4">
                 <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
                   <div className="min-w-0">
                     <p className="break-words font-medium text-foreground">{record.reportTitle}</p>
@@ -688,7 +688,7 @@ const EvidenceView = ({
               </div>
             ))
           ) : (
-            <p className="rounded-lg border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
+            <p className="rounded-2xl border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
               No evidence records are available for this project.
             </p>
           )}
@@ -701,7 +701,7 @@ const EvidenceView = ({
           reports.map((report) => (
             <div
               key={report.id}
-              className="rounded-lg border border-border bg-background p-3 text-sm"
+              className="rounded-xl border border-border bg-background p-3 text-sm"
             >
               <p className="font-medium text-foreground">{report.name}</p>
               <p className="mt-1 text-muted-foreground">
@@ -748,7 +748,7 @@ const IndicatorsView = ({
     <div className="grid gap-4 xl:grid-cols-2">
       {indicators.length > 0 ? (
         indicators.map((indicator) => (
-          <div key={indicator.id} className="rounded-lg border border-border bg-background p-4">
+          <div key={indicator.id} className="rounded-xl border border-border bg-background p-4">
             <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
               <div className="min-w-0">
                 <p className="text-sm font-medium text-primary">{indicator.code}</p>
@@ -799,7 +799,7 @@ const IndicatorsView = ({
           </div>
         ))
       ) : (
-        <p className="rounded-lg border border-dashed border-border p-6 text-center text-sm text-muted-foreground xl:col-span-2">
+        <p className="rounded-2xl border border-dashed border-border p-6 text-center text-sm text-muted-foreground xl:col-span-2">
           No indicator records are available for this project.
         </p>
       )}

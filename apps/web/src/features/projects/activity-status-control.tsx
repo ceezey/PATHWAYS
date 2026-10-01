@@ -144,7 +144,7 @@ export const ActivityStatusControl = ({
           aria-busy={pending}
           aria-label={`Change status for ${activity.title}. Current status: ${activity.status}`}
           className={cn(
-            'h-10 w-auto min-w-36 max-w-full rounded-full px-3 py-1 text-xs font-medium',
+            'h-11 w-auto min-w-36 max-w-full rounded-full px-3 py-1 text-xs font-medium',
             statusToneClasses[activityStatusTone(activity.status)],
           )}
           id={controlId}

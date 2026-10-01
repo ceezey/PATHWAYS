@@ -529,7 +529,7 @@ const ScopedActivityProofDialog = ({
             {liveStatus}
           </output>
           {resume ? (
-            <p className="rounded-sm border border-warning/40 bg-warning-subtle p-3 text-sm text-foreground">
+            <p className="rounded-xl border border-warning/40 bg-warning-subtle p-3 text-sm text-foreground">
               An earlier upload for this update did not finish. Its note is kept below. Select the
               same proof files again to finish submitting it for review.
             </p>
@@ -656,7 +656,7 @@ const ScopedActivityProofDialog = ({
               {files.map((item) => (
                 <li
                   key={item.key}
-                  className="flex items-center justify-between gap-2 rounded-sm border border-border bg-surface-subtle p-3"
+                  className="flex items-center justify-between gap-2 rounded-xl border border-border bg-surface-subtle p-3"
                 >
                   <div className="min-w-0 flex-1">
                     <p className="break-all text-sm font-medium text-foreground">

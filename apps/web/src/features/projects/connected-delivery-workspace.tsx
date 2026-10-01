@@ -157,7 +157,7 @@ export function ConnectedBudgetWorkspace({ projectId }: { projectId: string }) {
             Approved amounts affect spending once; submitted totals remain visible for review.
           </p>
         </div>
-        <dl className="grid overflow-hidden rounded-lg border border-border bg-card sm:grid-cols-2 xl:grid-cols-4">
+        <dl className="grid overflow-hidden rounded-2xl border border-border bg-card sm:grid-cols-2 xl:grid-cols-4">
           {[
             ['Total budget', budget ? peso(budget.plannedAmount) : 'Unavailable'],
             ['Logged expenses', budget ? peso(budget.actualSpending) : 'Unavailable'],
@@ -199,7 +199,7 @@ export function ConnectedBudgetWorkspace({ projectId }: { projectId: string }) {
                   )
                   return (
                     <article
-                      className="rounded-md border border-border bg-surface-subtle p-4"
+                      className="rounded-xl border border-border bg-surface-subtle p-4"
                       key={alert.id}
                     >
                       <div className="flex items-start justify-between gap-3">
@@ -227,7 +227,7 @@ export function ConnectedBudgetWorkspace({ projectId }: { projectId: string }) {
                           {recommendation?.text ?? 'No recommendation recorded for this alert.'}
                         </p>
                         {recommendation?.outcome ? (
-                          <div className="mt-3 rounded-sm border border-border bg-background p-3 text-sm">
+                          <div className="mt-3 rounded-xl border border-border bg-background p-3 text-sm">
                             <p className="font-medium text-foreground">
                               {recommendation.outcome === 'Decline'
                                 ? 'Reject'
@@ -320,7 +320,7 @@ export function ConnectedBudgetWorkspace({ projectId }: { projectId: string }) {
                             </p>
                           ) : null}
                           {expense.reason ? (
-                            <p className="rounded-sm border border-border bg-surface-subtle p-3 text-sm text-muted-foreground">
+                            <p className="rounded-xl border border-border bg-surface-subtle p-3 text-sm text-muted-foreground">
                               Decision reason: {expense.reason}
                             </p>
                           ) : null}
@@ -334,7 +334,7 @@ export function ConnectedBudgetWorkspace({ projectId }: { projectId: string }) {
                 })}
               </div>
             ) : (
-              <div className="rounded-md border border-dashed border-border p-6 text-center">
+              <div className="rounded-xl border border-dashed border-border p-6 text-center">
                 <ReceiptText className="mx-auto h-6 w-6 text-muted-foreground" aria-hidden="true" />
                 <p className="mt-2 font-medium text-foreground">No validated expenses</p>
                 <p className="mt-1 text-sm text-muted-foreground">
@@ -417,7 +417,7 @@ export function ConnectedBudgetWorkspace({ projectId }: { projectId: string }) {
             </DialogDescription>
           </DialogHeader>
           {previewExpense ? (
-            <dl className="grid gap-4 rounded-sm border border-border bg-surface-subtle p-4 text-sm sm:grid-cols-2">
+            <dl className="grid gap-4 rounded-xl border border-border bg-surface-subtle p-4 text-sm sm:grid-cols-2">
               <div>
                 <dt className="text-muted-foreground">Category</dt>
                 <dd className="font-medium text-foreground">{previewExpense.category}</dd>
@@ -724,7 +724,7 @@ export function ConnectedIndicatorWorkspace({ projectId }: { projectId?: string 
         {rows.length ? (
           <div className="grid gap-3 lg:grid-cols-2">
             {rows.map((indicator) => (
-              <article className="rounded-md border border-border bg-card p-4" key={indicator.id}>
+              <article className="rounded-xl border border-border bg-card p-4" key={indicator.id}>
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
                     <p className="text-xs font-semibold uppercase tracking-wide text-primary">
@@ -771,7 +771,7 @@ export function ConnectedIndicatorWorkspace({ projectId }: { projectId?: string 
             ))}
           </div>
         ) : (
-          <p className="rounded-md border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
+          <p className="rounded-xl border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
             No indicators match this project and search.
           </p>
         )}

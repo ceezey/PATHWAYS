@@ -25,7 +25,7 @@ export function FeatureDirectory() {
       </p>
       <ul className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
         {visibleFeatures(profile).map((feature) => (
-          <li key={feature.title} className="rounded-lg border bg-card p-4">
+          <li key={feature.title} className="rounded-xl border bg-card p-4">
             <span className="text-xs text-muted-foreground">{feature.group}</span>
             <Link
               prefetch={false}

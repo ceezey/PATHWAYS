@@ -221,7 +221,7 @@ export const BeneficiaryMediaProof = ({
   return (
     <section
       aria-labelledby="beneficiary-media-title"
-      className="overflow-hidden rounded-lg border border-border bg-card"
+      className="overflow-hidden rounded-2xl border border-border bg-card"
     >
       <div className="border-b border-border bg-surface-subtle p-5">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
@@ -264,7 +264,7 @@ export const BeneficiaryMediaProof = ({
             )
           ) : null}
         </div>
-        <div className="mt-4 flex items-start gap-3 rounded-sm border border-info/25 bg-info-subtle p-3 text-xs leading-5 text-info">
+        <div className="mt-4 flex items-start gap-3 rounded-xl border border-info/25 bg-info-subtle p-3 text-xs leading-5 text-info">
           <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
           <p>{unavailableReason ?? 'Selected files are review-only and are not published.'}</p>
         </div>
@@ -346,7 +346,7 @@ export const BeneficiaryMediaProof = ({
       </div>
 
       <Dialog onOpenChange={setAddOpen} open={addOpen}>
-        <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl">
+        <DialogContent className="max-h-dialog overflow-y-auto sm:max-w-2xl">
           <DialogHeader>
             <DialogTitle>Add media</DialogTitle>
             <DialogDescription>
@@ -370,7 +370,7 @@ export const BeneficiaryMediaProof = ({
             </div>
 
             {selectedFiles.length > 0 ? (
-              <div className="space-y-2 rounded-sm border border-border bg-surface-subtle p-3">
+              <div className="space-y-2 rounded-xl border border-border bg-surface-subtle p-3">
                 <p className="text-sm font-medium text-foreground">Selected files</p>
                 {selectedFiles.map((file) => (
                   <div
@@ -463,7 +463,7 @@ export const BeneficiaryMediaProof = ({
         open={Boolean(selectedMedia)}
       >
         {selectedMedia ? (
-          <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl">
+          <DialogContent className="max-h-dialog overflow-y-auto sm:max-w-2xl">
             <DialogHeader>
               <DialogTitle>Review media proof</DialogTitle>
               <DialogDescription>
@@ -649,7 +649,7 @@ const MediaPreview = ({
     return (
       <video
         aria-label={`Selected video proof preview: ${item.fileName}`}
-        className={`${previewClassName} w-full bg-slate-950 object-contain`}
+        className={`${previewClassName} w-full bg-ink object-contain`}
         controls
         muted
         preload="metadata"
@@ -664,7 +664,7 @@ const MediaPreview = ({
     >
       <div className="relative flex flex-col items-center gap-3 text-center">
         {item.mediaType === 'Video' ? (
-          <span className="flex h-14 w-14 items-center justify-center rounded-full border border-white/30 bg-slate-950/35">
+          <span className="flex h-14 w-14 items-center justify-center rounded-full border border-white/30 bg-ink/35">
             <Play className="ml-1 h-6 w-6" fill="currentColor" aria-hidden="true" />
           </span>
         ) : (
@@ -675,7 +675,7 @@ const MediaPreview = ({
           <p className="mt-1 text-xs text-white/80">No file is available for this record</p>
         </div>
       </div>
-      <span className="absolute left-3 top-3 rounded-full border border-white/30 bg-slate-950/30 px-2 py-1 text-xs font-semibold uppercase tracking-wide">
+      <span className="absolute left-3 top-3 rounded-full border border-white/30 bg-ink/30 px-2 py-1 text-xs font-semibold uppercase tracking-wide">
         Reference media
       </span>
     </div>
@@ -703,7 +703,7 @@ const MediaKpi = ({
 )
 
 const MetadataRow = ({ label, value }: { label: string; value: string }) => (
-  <div className="rounded-sm border border-border bg-surface-subtle p-3">
+  <div className="rounded-xl border border-border bg-surface-subtle p-3">
     <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{label}</p>
     <p className="mt-1 break-words text-sm font-medium text-foreground">{value}</p>
   </div>
