@@ -395,6 +395,8 @@ export interface PathwaysClient {
     beneficiaryId: string,
     expectedUpdatedAt: string,
   ): Promise<{ id: string; status: 'ARCHIVED'; archivedAt: string }>
+  getDuplicateCandidates(projectId: string): Promise<DuplicateCandidatePair[]>
+  resolveDuplicate(projectId: string, input: ResolveDuplicateInput): Promise<void>
   getBeneficiaryMediaProofForRole(
     role: PathwaysRole,
     beneficiaryId: string,
@@ -1271,6 +1273,19 @@ class BackendReadyPathwaysClient implements PathwaysClient {
     ) as Promise<{ id: string; status: 'ARCHIVED'; archivedAt: string }>
   }
 
+  async getDuplicateCandidates(projectId: string): Promise<DuplicateCandidatePair[]> {
+    return (await requestFoundation(
+      `/beneficiaries/projects/${encodeURIComponent(projectId)}/duplicate-candidates`,
+    )) as DuplicateCandidatePair[]
+  }
+
+  async resolveDuplicate(projectId: string, input: ResolveDuplicateInput): Promise<void> {
+    await requestFoundation(
+      `/beneficiaries/projects/${encodeURIComponent(projectId)}/duplicate-candidates/resolve`,
+      { method: 'POST', body: JSON.stringify(input) },
+    )
+  }
+
   async getBeneficiaryMediaProofForRole(
     _role: PathwaysRole,
     _beneficiaryId: string,
@@ -2002,6 +2017,21 @@ function readContextCookie() {
     .find((part) => part.startsWith(`${contextCookieName}=`))
     ?.slice(contextCookieName.length + 1)
   return value
+}
+
+export type DuplicateProfile = {
+  id: string
+  code: string
+  name: string
+  birthDate: string
+  location: string
+  updatedAt: string
+}
+export type DuplicateCandidatePair = { left: DuplicateProfile; right: DuplicateProfile }
+export type ResolveDuplicateInput = {
+  leftId: string
+  rightId: string
+  decision: 'KEEP_DISTINCT' | 'LINK'
 }
 
 export async function requestFoundationResponse(
