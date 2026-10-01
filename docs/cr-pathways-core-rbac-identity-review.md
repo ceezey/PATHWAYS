@@ -2,7 +2,7 @@
 
 **ID:** `cr-pathways-core-rbac-identity-review`
 **Date:** 2026-10-01
-**Status:** Approved
+**Status:** Applied (2026-10-02; 0047, 0048 and 0051 applied on PATHWAYS-role-staging, 0054 grant fix applied)
 
 ## 1. Trigger
 
@@ -64,3 +64,5 @@ Developer decisions A, B and C, 2026-10-01.
 ## 9. Disposition
 
 Code, migrations and documents are in the branch `feat/f3-f4-rbac-identity-review`. Mark Applied after the migrations run on staging. The inventories in `infra/supabase/phase6/Verify-Forward.ps1` and `scripts/db/hosted-plan.mjs` carry 0047 and 0048 on `integrate/core-features`; 0051 now wraps the function as left by 0048.
+
+Verified 2026-10-02: 0047, 0048, 0051 and 0054 applied on PATHWAYS-role-staging; SYSTEM_ADMINISTRATOR lacks `journeys.read`, MONITORING_AND_EVALUATION_OFFICER holds `beneficiaries.identities.review`.

@@ -68,3 +68,5 @@ Developer approved 2026-10-01 (building G-F6-7 as described in the request).
 ## 9. Disposition
 
 Code and tests delivered on `feat/f6-import-value-map`. Migration 0050 not applied to any database; staging apply and release gates remain open.
+
+Update 2026-10-02: migration 0050 is applied on PATHWAYS-role-staging (ledger 0000-0054). Status stays Approved; open condition: release gates (dev to master) remain open.

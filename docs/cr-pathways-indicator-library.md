@@ -2,7 +2,7 @@
 
 **ID:** `cr-pathways-indicator-library`
 **Date:** 2026-10-01
-**Status:** Approved
+**Status:** Applied (2026-10-02; 0051 and 0054 applied on PATHWAYS-role-staging, runtime SQL passes in local replay)
 
 ## 1. Trigger
 
@@ -69,3 +69,5 @@ Developer decision 2026-10-01: build G-F7-5 Indicator and Template Library (R4) 
 ## 9. Disposition
 
 Mark Applied after the staging apply and runtime SQL checks. Follow-up: Project Template Library remains deferred.
+
+Verified 2026-10-02: 0051 applied on PATHWAYS-role-staging; `p09_role_allows` ACLs match `p09_role_allows_0035` after 0054; runtime SQL suites pass in the local MigrationBaseline replay.
