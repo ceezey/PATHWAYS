@@ -21,8 +21,10 @@ import { Input } from '@/components/ui/input'
 import { useSession } from '@/hooks/use-session'
 import { getBrowserSupabaseClient } from '@/lib/supabase/client'
 import { type LoginSchema, loginSchema } from './login-validation'
+import { requestSignIn } from './signin-request'
 
 const invalidCredentialsMessage = 'Could not sign in. Check your credentials and try again.'
+const lockedMessage = 'Too many failed sign-in attempts. Try again in 15 minutes.'
 const authenticationUnavailableMessage =
   'Authentication is temporarily unavailable. No application access was granted.'
 
@@ -58,12 +60,20 @@ export const LoginForm = () => {
     setBusy(true)
     setError('')
     try {
-      const { data, error: authError } = await supabase.auth.signInWithPassword({
-        email: values.identifier,
-        password: values.password,
-      })
+      const outcome = await requestSignIn(values.identifier, values.password)
       form.resetField('password')
-      if (authError || !data.session) {
+      if (outcome.kind === 'locked') {
+        setError(lockedMessage)
+        return
+      }
+      const { error: authError } =
+        outcome.kind === 'session'
+          ? await supabase.auth.setSession({
+              access_token: outcome.accessToken,
+              refresh_token: outcome.refreshToken,
+            })
+          : { error: true }
+      if (authError) {
         setError(invalidCredentialsMessage)
         return
       }

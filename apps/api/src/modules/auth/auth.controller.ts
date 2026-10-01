@@ -15,11 +15,15 @@ import {
 import { ApiOkResponse, ApiTags } from '@nestjs/swagger'
 
 import { AuthBoundary } from '../../common/decorators/auth-boundary.decorator'
+import { Public } from '../../common/decorators/public.decorator'
 import { AuthService } from './auth.service'
 // biome-ignore lint/style/useImportType: Nest needs the DTO constructors for validation.
 import { ChangeStepUpPinDto, VerifyStepUpPinDto } from './beneficiary-step-up-pin.dto'
 import { BeneficiaryStepUpPinService, type StepUpPinActor } from './beneficiary-step-up-pin.service'
 import type { AuthenticatedRequest } from './developer-access'
+// biome-ignore lint/style/useImportType: Nest needs the DTO constructor for validation.
+import { SignInDto } from './signin-lockout.dto'
+import { SignInLockoutService } from './signin-lockout.service'
 import { WorkspaceResolutionService } from './workspace-resolution.service'
 
 // Identity, organization and session come only from the guard's verified values.
@@ -37,7 +41,19 @@ export class AuthController {
     @Inject(AuthService) private readonly authService: AuthService,
     @Inject(WorkspaceResolutionService) private readonly workspaces: WorkspaceResolutionService,
     @Inject(BeneficiaryStepUpPinService) private readonly pins: BeneficiaryStepUpPinService,
+    @Inject(SignInLockoutService) private readonly signIns: SignInLockoutService,
   ) {}
+
+  @Post('sign-in')
+  @Public()
+  @HttpCode(200)
+  @Header('Cache-Control', 'private, no-store')
+  @ApiOkResponse({
+    description: 'Identity-provider session; 429 SIGN_IN_LOCKED after repeated failures.',
+  })
+  signIn(@Body() body: SignInDto) {
+    return this.signIns.signIn(body.email, body.password)
+  }
 
   @Get('workspaces')
   @AuthBoundary('workspace-discovery')
