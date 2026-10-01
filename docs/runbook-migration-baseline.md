@@ -24,6 +24,14 @@ Verify both dev previews even when only shared frontend route policy changes: th
 
 ## 7. Schema drift
 
-The full replay (`Replay-Local.ps1 -MigrationBaseline`) gates datamodel drift introduced by the SQL-only baseline revision: `Replay-Local.ps1` records the `prisma migrate diff` (replayed database to `schema.prisma`) before and after the revision, and `Verify-Baseline.ps1` fails with `Baseline revision introduced datamodel divergence` unless every replayed database still matches that after-diff. A passing run prints `BASELINE_REVISED_PRISMA_DATAMODEL_PARITY=PASS`. Both sides use the same `schema.prisma`, so a field added only to `schema.prisma` is not detected by the replay (verified 2026-10-02: replay exit 0 with a temporary field).
+Local gate: `./infra/supabase/phase6/Test-SchemaDrift.ps1` copies the saved replay template to a disposable loopback cluster, introspects it as `postgres`, runs `prisma migrate diff` to `apps/api/prisma/schema.prisma` and compares the result with the committed `infra/supabase/phase6/schema-drift-expected.sql` (the known diff from SQL-only objects Prisma cannot model). It takes seconds and refuses a stale template.
 
-`prisma migrate diff --from-migrations` with a shadow database cannot be used for this chain: 0000 requires `postgres`, 0027 onward require `prisma`, and DBA preprovision SQL runs between steps, while Prisma applies everything over one connection. Hosted drift is covered by the schema comparison in `runbook-role-staging-build.md`.
+| Output | Exit |
+|---|---|
+| `SCHEMA_DRIFT=CLEAN` | 0 |
+| `SCHEMA_DRIFT=DRIFT` (prints the difference) | 2 |
+| `SCHEMA_DRIFT=ERROR; <message>` | 1 |
+
+Run `-Accept` only after an intended migration plus schema change, once the new diff has been reviewed; it rewrites the expected file. `-Schema <path>` checks another schema copy.
+
+The replay `BASELINE_REVISED_PRISMA_DATAMODEL_PARITY` marker covers only SQL-only baseline revisions, because both sides use the same `schema.prisma`. `prisma migrate diff --from-migrations` cannot be used for this chain (0000 requires `postgres`, 0027 onward require `prisma`). Hosted drift is covered by the schema comparison in `runbook-role-staging-build.md`.

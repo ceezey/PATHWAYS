@@ -378,6 +378,7 @@ RBAC v4 under [its approved Change Record](cr-pathways-rbac-v4-adoption.md): whe
 | `pnpm build` | production build |
 | `./infra/supabase/phase6/Replay-Local.ps1 -MigrationBaseline` | migration and SQL runtime replay on disposable PostgreSQL |
 | `./infra/supabase/phase6/Replay-Local.ps1 -MigrationBaseline -SaveTemplate`, then `./infra/supabase/phase6/Invoke-RuntimeSql.ps1 -File <sql>` | save the replayed cluster once per migration change, then run one runtime SQL file against a disposable copy (development speed only, the full replay stays the merge gate) |
+| `./infra/supabase/phase6/Test-SchemaDrift.ps1` (`-Accept` after a reviewed migration plus schema change) | seconds-long check that `schema.prisma` matches the migration chain, run against the saved template (exit 0 clean, 2 drift, 1 error) |
 | `pnpm sad:test`, `pnpm sad:typecheck`, `pnpm sad:check` | SAD checker |
 | `pnpm docs:check` | documentation checks |
 

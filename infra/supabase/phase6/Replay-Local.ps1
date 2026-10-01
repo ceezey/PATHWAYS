@@ -622,6 +622,9 @@ END $$;
       & $phase6Tools['psql'] -X -w -q -h 127.0.0.1 -p $phase6Port -U postgres -d postgres -v ON_ERROR_STOP=1 -c "DROP DATABASE `"$phase6Clone`" WITH (FORCE)"
       if ($LASTEXITCODE -ne 0) { throw "Template clone drop failed: $phase6Clone" }
     }
+    # The disposable compatibility probe is not part of the migration chain.
+    & $phase6Tools['psql'] -X -w -q -h 127.0.0.1 -p $phase6Port -U postgres -d $phase6Database -v ON_ERROR_STOP=1 -c "DROP TABLE IF EXISTS pathways.baseline_compatibility_probe; DELETE FROM public._prisma_migrations WHERE migration_name='0035_disposable_compatibility_probe';"
+    if ($LASTEXITCODE -ne 0) { throw 'Template probe cleanup failed.' }
     $phase6Stop = Start-Process -FilePath $phase6Tools['pg_ctl'] `
       -ArgumentList @('-D',$phase6Data,'-m','fast','-t','260','-s','stop') @phase6ProcessOptions
     if (-not $phase6Stop.WaitForExit(270000) -or $phase6Stop.ExitCode -ne 0) { throw 'Template cluster stop failed.' }
