@@ -221,7 +221,7 @@ export const BeneficiaryMediaProof = ({
   return (
     <section
       aria-labelledby="beneficiary-media-title"
-      className="overflow-hidden rounded-lg border border-border bg-card"
+      className="overflow-hidden rounded-2xl border border-border bg-card"
     >
       <div className="border-b border-border bg-surface-subtle p-5">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
@@ -264,7 +264,7 @@ export const BeneficiaryMediaProof = ({
             )
           ) : null}
         </div>
-        <div className="mt-4 flex items-start gap-3 rounded-sm border border-info/25 bg-info-subtle p-3 text-xs leading-5 text-info">
+        <div className="mt-4 flex items-start gap-3 rounded-xl border border-info/25 bg-info-subtle p-3 text-xs leading-5 text-info">
           <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
           <p>{unavailableReason ?? 'Selected files are review-only and are not published.'}</p>
         </div>
@@ -370,7 +370,7 @@ export const BeneficiaryMediaProof = ({
             </div>
 
             {selectedFiles.length > 0 ? (
-              <div className="space-y-2 rounded-sm border border-border bg-surface-subtle p-3">
+              <div className="space-y-2 rounded-xl border border-border bg-surface-subtle p-3">
                 <p className="text-sm font-medium text-foreground">Selected files</p>
                 {selectedFiles.map((file) => (
                   <div
@@ -703,7 +703,7 @@ const MediaKpi = ({
 )
 
 const MetadataRow = ({ label, value }: { label: string; value: string }) => (
-  <div className="rounded-sm border border-border bg-surface-subtle p-3">
+  <div className="rounded-xl border border-border bg-surface-subtle p-3">
     <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{label}</p>
     <p className="mt-1 break-words text-sm font-medium text-foreground">{value}</p>
   </div>

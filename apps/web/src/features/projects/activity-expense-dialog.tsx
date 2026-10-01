@@ -153,7 +153,7 @@ export const ActivityExpenseDialog = ({
             void submit()
           }}
         >
-          <div className="rounded-sm border border-border bg-surface-subtle p-3 text-sm">
+          <div className="rounded-xl border border-border bg-surface-subtle p-3 text-sm">
             <p className="font-medium text-foreground">Linked activity</p>
             <p className="mt-1 text-muted-foreground">{activity.title}</p>
           </div>

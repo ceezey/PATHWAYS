@@ -247,7 +247,7 @@ const MapNotice = ({
 }) => (
   <div
     className={cn(
-      'absolute inset-x-3 top-3 z-10 mx-auto max-w-xl rounded-sm border border-border bg-background/95 p-4 text-center shadow-sm backdrop-blur-sm',
+      'absolute inset-x-3 top-3 z-10 mx-auto max-w-xl rounded-xl border border-border bg-background/95 p-4 text-center shadow-sm backdrop-blur-sm',
       !onRetry && 'pointer-events-none',
     )}
   >

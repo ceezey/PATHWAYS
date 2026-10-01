@@ -128,7 +128,7 @@ export const ActivityReviewDialog = ({
             />
           ) : null}
           {pendingUpdate ? (
-            <div className="rounded-lg border border-border bg-muted/40 p-4 text-sm">
+            <div className="rounded-xl border border-border bg-muted/40 p-4 text-sm">
               <p className="font-medium text-foreground">{pendingUpdate.progress}% progress</p>
               <p className="mt-1 text-muted-foreground">{pendingUpdate.note}</p>
               <p className="mt-2 text-xs text-muted-foreground">

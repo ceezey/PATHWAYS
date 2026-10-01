@@ -93,12 +93,12 @@ export const DuplicateResolutionWorkspace = () => {
         }
       />
 
-      <div className="rounded-lg border border-warning/25 bg-warning-subtle px-4 py-3 text-sm leading-6 text-warning">
+      <div className="rounded-xl border border-warning/25 bg-warning-subtle px-4 py-3 text-sm leading-6 text-warning">
         {unavailable}
       </div>
 
       {notice ? (
-        <output className="flex items-start gap-2 rounded-lg border border-success/25 bg-success-subtle px-4 py-3 text-sm leading-6 text-success">
+        <output className="flex items-start gap-2 rounded-xl border border-success/25 bg-success-subtle px-4 py-3 text-sm leading-6 text-success">
           <CheckCircle2 className="mt-1 h-4 w-4 shrink-0" aria-hidden="true" />
           {notice}
         </output>
@@ -222,7 +222,7 @@ export const DuplicateResolutionWorkspace = () => {
 }
 
 const PersonCard = ({ label, person }: { label: string; person: PersonSummary }) => (
-  <section className="rounded-md border bg-card p-5" aria-label={label}>
+  <section className="rounded-xl border bg-card p-5" aria-label={label}>
     <p className="text-xs font-semibold uppercase tracking-wide text-primary">{label}</p>
     <h2 className="mt-2 text-lg font-semibold">{person.name}</h2>
     <p className="text-sm text-muted-foreground">{person.code}</p>

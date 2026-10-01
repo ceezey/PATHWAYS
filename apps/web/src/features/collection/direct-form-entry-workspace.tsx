@@ -364,7 +364,7 @@ function OwnedDirectFormEntryWorkspace({
 
   if (form?.formType === 'TRAINING_SURVEY' && beneficiaryId && !subjectOwner?.isCurrent())
     return (
-      <div className="space-y-3 rounded-lg border p-5">
+      <div className="space-y-3 rounded-2xl border p-5">
         <output>
           Current identified survey access is unavailable. Existing values and contributor details
           are hidden; the saved record is unchanged.
@@ -387,7 +387,7 @@ function OwnedDirectFormEntryWorkspace({
     )
   if (loadStatus !== 'ready' || !form) {
     return (
-      <div className="rounded-lg border bg-card p-6 text-sm text-muted-foreground">
+      <div className="rounded-2xl border bg-card p-6 text-sm text-muted-foreground">
         {loadStatus === 'loading'
           ? 'Loading the published form definition...'
           : 'The form could not be loaded. Check the project, form, and your access.'}
@@ -397,7 +397,7 @@ function OwnedDirectFormEntryWorkspace({
 
   if (form.status !== 'PUBLISHED') {
     return (
-      <div className="rounded-lg border border-warning/30 bg-warning/10 p-6 text-sm text-warning">
+      <div className="rounded-2xl border border-warning/30 bg-warning/10 p-6 text-sm text-warning">
         Direct entry is available only for a published form version.
       </div>
     )
@@ -405,7 +405,7 @@ function OwnedDirectFormEntryWorkspace({
 
   if (form.formType === 'BENEFICIARY_REGISTRATION') {
     return (
-      <div className="space-y-4 rounded-lg border bg-card p-6 text-sm text-muted-foreground">
+      <div className="space-y-4 rounded-2xl border bg-card p-6 text-sm text-muted-foreground">
         <p>
           Beneficiary registration uses the registration workflow so the profile, enrollment,
           consent provenance, submission, and audit record are committed together.
@@ -433,13 +433,13 @@ function OwnedDirectFormEntryWorkspace({
       />
 
       {notice ? (
-        <div className="flex items-start gap-2 rounded-lg border border-info/20 bg-info/10 px-4 py-3 text-sm text-info">
+        <div className="flex items-start gap-2 rounded-xl border border-info/20 bg-info/10 px-4 py-3 text-sm text-info">
           <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
           <span>{notice}</span>
         </div>
       ) : null}
 
-      <div className="space-y-5 rounded-lg border bg-card p-5 shadow-sm">
+      <div className="space-y-5 rounded-2xl border bg-card p-5 shadow-sm">
         {form.formType === 'TRAINING_SURVEY' ? (
           <SurveySubjectPicker
             projectId={projectId}
@@ -466,13 +466,13 @@ function OwnedDirectFormEntryWorkspace({
         ))}
 
         {form.fields.length === 0 ? (
-          <p className="rounded-lg border border-dashed p-6 text-center text-sm text-muted-foreground">
+          <p className="rounded-2xl border border-dashed p-6 text-center text-sm text-muted-foreground">
             This published form has no fields.
           </p>
         ) : null}
 
         {form.formType === 'TRAINING_SURVEY' && subjectLocked && !finalized ? (
-          <div className="space-y-2 rounded-md border p-3 text-sm">
+          <div className="space-y-2 rounded-xl border p-3 text-sm">
             <p>
               The previous draft or uncertain save may already exist. Retry preserves its exact
               contributor and submission identifier. Starting a separate response preserves that

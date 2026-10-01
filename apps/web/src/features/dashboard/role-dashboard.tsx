@@ -387,7 +387,7 @@ const ConnectedMonitoringSnapshot = ({
       </div>
       {error ? (
         <EmptyState
-          className="rounded-lg border border-border bg-card"
+          className="rounded-xl border border-border bg-card"
           description={error}
           icon={AlertTriangle}
           title="Monitoring data unavailable"
@@ -564,7 +564,7 @@ export const RoleDashboard = () => {
     return (
       <>
         <h1 className="sr-only">Dashboard</h1>
-        <div className="flex min-h-[360px] items-center justify-center rounded-lg border border-border bg-card">
+        <div className="flex min-h-[360px] items-center justify-center rounded-2xl border border-border bg-card">
           <div className="flex items-center gap-3 text-sm text-muted-foreground">
             <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
             Loading dashboard...
@@ -579,7 +579,7 @@ export const RoleDashboard = () => {
       <>
         <h1 className="sr-only">Dashboard unavailable</h1>
         <EmptyState
-          className="min-h-[360px] rounded-lg border border-border bg-card"
+          className="min-h-[360px] rounded-2xl border border-border bg-card"
           description="We could not load this dashboard right now. Reload the page to try again."
           icon={AlertTriangle}
           title="Dashboard data unavailable"
@@ -616,7 +616,7 @@ export const RoleDashboard = () => {
       ) : null}
       {emptyDashboard ? (
         <EmptyState
-          className="min-h-[260px] rounded-lg border border-border bg-card"
+          className="min-h-[260px] rounded-2xl border border-border bg-card"
           description="No dashboard records are available for this account."
           icon={ShieldCheck}
           title="No dashboard records"

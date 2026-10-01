@@ -322,7 +322,7 @@ export const BeneficiaryAccessGate = ({
           <output
             aria-atomic="true"
             aria-live="polite"
-            className="block rounded-lg border border-warning/20 bg-warning/10 p-4 text-sm leading-6 text-warning"
+            className="block rounded-xl border border-warning/20 bg-warning/10 p-4 text-sm leading-6 text-warning"
           >
             {message}
           </output>

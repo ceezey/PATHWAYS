@@ -724,7 +724,7 @@ const ScopedBeneficiaryForm = ({
 
   return (
     <div className="space-y-6">
-      <section className="flex flex-col gap-4 rounded-lg border border-border bg-card p-5 md:flex-row md:items-start md:justify-between">
+      <section className="flex flex-col gap-4 rounded-2xl border border-border bg-card p-5 md:flex-row md:items-start md:justify-between">
         <div className="space-y-2">
           <div>
             <h1 className="text-3xl font-semibold tracking-tight text-foreground">
@@ -755,7 +755,7 @@ const ScopedBeneficiaryForm = ({
         <output
           aria-atomic="true"
           aria-live="polite"
-          className="block rounded-sm border border-info/25 bg-info-subtle p-3 text-sm text-info"
+          className="block rounded-xl border border-info/25 bg-info-subtle p-3 text-sm text-info"
         >
           Recovered your unsaved beneficiary draft.
         </output>
@@ -763,7 +763,7 @@ const ScopedBeneficiaryForm = ({
 
       <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_360px]">
         <form
-          className="space-y-5 rounded-lg border border-border bg-card p-5"
+          className="space-y-5 rounded-2xl border border-border bg-card p-5"
           noValidate
           onSubmit={handleSubmit}
         >
@@ -1073,7 +1073,7 @@ const ScopedBeneficiaryForm = ({
             </Field>
           </div>
 
-          <div className="grid gap-3 rounded-sm border border-border bg-surface-subtle p-4 md:grid-cols-2">
+          <div className="grid gap-3 rounded-xl border border-border bg-surface-subtle p-4 md:grid-cols-2">
             <ToggleField
               checked={draft.consentToParticipate}
               disabled={Boolean(beneficiary)}
@@ -1122,7 +1122,7 @@ const ScopedBeneficiaryForm = ({
 
           {submitted && displayedValidationIssues.length > 0 ? (
             <div
-              className="rounded-sm border border-danger/25 bg-danger-subtle p-4 text-sm text-danger"
+              className="rounded-xl border border-danger/25 bg-danger-subtle p-4 text-sm text-danger"
               aria-labelledby="beneficiary-error-summary-title"
               role="alert"
             >
@@ -1157,7 +1157,7 @@ const ScopedBeneficiaryForm = ({
           </div>
         </form>
 
-        <aside className="space-y-4 rounded-lg border border-border bg-card p-5">
+        <aside className="space-y-4 rounded-2xl border border-border bg-card p-5">
           <h2 className="text-lg font-semibold text-foreground">Profile preview</h2>
           <div className="space-y-3 text-sm">
             <PreviewRow label="Code" value={draft.code || 'Pending'} />
@@ -1207,7 +1207,7 @@ const ScopedBeneficiaryForm = ({
                 : 'Review this coded profile and project enrollment.'}
             </DialogDescription>
           </DialogHeader>
-          <div className="rounded-sm border border-border bg-surface-subtle p-4 text-sm">
+          <div className="rounded-xl border border-border bg-surface-subtle p-4 text-sm">
             <p className="font-medium">{draft.code}</p>
             <p className="mt-1 text-muted-foreground">
               {[
@@ -1334,7 +1334,7 @@ const ToggleField = ({
   )
 
 const PreviewRow = ({ label, value }: { label: string; value?: string }) => (
-  <div className="rounded-md border border-border bg-background p-3">
+  <div className="rounded-xl border border-border bg-background p-3">
     <p className="text-xs uppercase text-muted-foreground">{label}</p>
     <p className="mt-1 font-medium text-foreground">{value || 'Pending'}</p>
   </div>

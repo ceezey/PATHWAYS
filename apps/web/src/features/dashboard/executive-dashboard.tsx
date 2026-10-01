@@ -69,7 +69,7 @@ export const ExecutiveDashboard = ({
     <div className="space-y-5">
       <section
         aria-labelledby="executive-summary-title"
-        className="overflow-hidden rounded-lg border border-border border-t-2 border-t-primary bg-card"
+        className="overflow-hidden rounded-2xl border border-border border-t-2 border-t-primary bg-card"
       >
         <div className="border-b border-border bg-surface-subtle p-5">
           <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
@@ -147,7 +147,7 @@ export const ExecutiveDashboard = ({
 
       <section
         className={cn(
-          'flex flex-col gap-4 rounded-lg border p-4 md:flex-row md:items-center md:justify-between',
+          'flex flex-col gap-4 rounded-xl border p-4 md:flex-row md:items-center md:justify-between',
           riskToneClasses[context.riskSeverity],
         )}
       >

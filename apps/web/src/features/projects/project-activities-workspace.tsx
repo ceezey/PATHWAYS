@@ -76,7 +76,7 @@ const ActivityCard = ({
 }) => (
   <article
     aria-label={`Activity: ${activity.title}`}
-    className="flex min-w-0 flex-col rounded-sm border border-border bg-background p-4"
+    className="flex min-w-0 flex-col rounded-xl border border-border bg-background p-4"
   >
     <div className="flex items-start justify-between gap-3">
       <h3 className="min-w-0 break-words text-base font-semibold leading-6 text-foreground">
@@ -147,7 +147,7 @@ const ActivityListRow = ({
 }) => (
   <article
     aria-label={`Activity: ${activity.title}`}
-    className="grid min-w-0 gap-4 rounded-sm border border-border bg-background p-4 md:grid-cols-2 xl:grid-cols-[minmax(0,1.4fr)_minmax(170px,0.7fr)_minmax(180px,0.8fr)_minmax(150px,0.6fr)_auto] xl:items-center"
+    className="grid min-w-0 gap-4 rounded-xl border border-border bg-background p-4 md:grid-cols-2 xl:grid-cols-[minmax(0,1.4fr)_minmax(170px,0.7fr)_minmax(180px,0.8fr)_minmax(150px,0.6fr)_auto] xl:items-center"
   >
     <div className="min-w-0">
       <h3 className="break-words text-base font-semibold leading-6 text-foreground">

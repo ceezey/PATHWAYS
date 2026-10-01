@@ -93,7 +93,7 @@ function OwnedSurveySubjectPicker({
       </p>
     )
   return (
-    <section className="space-y-3 rounded-lg border p-4" aria-label="Survey contributor">
+    <section className="space-y-3 rounded-xl border p-4" aria-label="Survey contributor">
       <label htmlFor="survey-contributor">Contributor (optional)</label>
       <p className="text-sm text-muted-foreground">
         Anonymous responses are saved but excluded from identified-person aggregates. A contributor

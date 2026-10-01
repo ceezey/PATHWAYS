@@ -122,7 +122,7 @@ function NewIndicator({
     }
   }
   return (
-    <details className="rounded-lg border border-border bg-card p-4">
+    <details className="rounded-xl border border-border bg-card p-4">
       <summary className="cursor-pointer font-medium">Add project indicator</summary>
       <p className="my-3 text-sm text-muted-foreground">
         A definition owns one reporting period and one value authority. Binding, unit, baseline,
@@ -357,7 +357,7 @@ function IndicatorEditor({
     }
   }
   return (
-    <details className="mt-4 rounded-md border border-border p-3">
+    <details className="mt-4 rounded-xl border border-border p-3">
       <summary className="cursor-pointer text-sm font-medium">Manage this indicator</summary>
       <form
         className="mt-3 space-y-3"
@@ -581,7 +581,7 @@ export function ProjectIndicatorsWorkspace({ projectId }: { projectId: string })
         </Button>
       </header>
       {message ? (
-        <output aria-live="polite" className="block rounded-md border border-border p-3 text-sm">
+        <output aria-live="polite" className="block rounded-xl border border-border p-3 text-sm">
           {message}
         </output>
       ) : null}

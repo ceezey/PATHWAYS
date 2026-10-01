@@ -165,7 +165,7 @@ const AggregateBucketChart = ({
     {buckets.some((bucket) => bucket.metric.value !== null) ? (
       <ReactECharts className={`${height} w-full`} option={aggregateChartOption(buckets, label)} />
     ) : (
-      <p className="rounded-sm border border-border bg-surface-subtle p-4 text-sm text-muted-foreground">
+      <p className="rounded-xl border border-border bg-surface-subtle p-4 text-sm text-muted-foreground">
         No releasable values for this view.
       </p>
     )}

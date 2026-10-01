@@ -69,7 +69,7 @@ function OwnedSourceMutationRecovery({
   }
   if (!pending.length) return null
   return (
-    <div className="space-y-2 rounded-md border border-warning/40 bg-warning/10 p-3">
+    <div className="space-y-2 rounded-xl border border-warning/40 bg-warning/10 p-3">
       <p className="text-sm">
         An earlier save has not been confirmed. Retry its unchanged input, or check its outcome and
         reload before editing.

@@ -450,7 +450,7 @@ const ScopedActivityFormDialog = ({
                 <output
                   aria-atomic="true"
                   aria-live="polite"
-                  className="block rounded-sm border border-info/25 bg-info-subtle p-3 text-sm text-info"
+                  className="block rounded-xl border border-info/25 bg-info-subtle p-3 text-sm text-info"
                 >
                   Recovered your unsaved activity draft.
                 </output>
@@ -655,7 +655,7 @@ const ScopedActivityFormDialog = ({
                   render={({ field }) => (
                     <FormItem className="lg:col-span-2">
                       <FormControl aria-required="true">
-                        <fieldset className="space-y-2 rounded-md border border-input bg-background p-3">
+                        <fieldset className="space-y-2 rounded-xl border border-input bg-background p-3">
                           <legend className="px-1 text-sm font-medium text-foreground">
                             Assigned officers
                             <span aria-hidden="true" className="ml-1 text-danger">
@@ -709,7 +709,7 @@ const ScopedActivityFormDialog = ({
                     render={({ field }) => (
                       <FormItem className="lg:col-span-2">
                         <FormControl>
-                          <fieldset className="space-y-2 rounded-md border border-input bg-background p-3">
+                          <fieldset className="space-y-2 rounded-xl border border-input bg-background p-3">
                             <legend className="px-1 text-sm font-medium text-foreground">
                               Connected indicators
                             </legend>

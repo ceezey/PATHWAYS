@@ -144,7 +144,7 @@ export const ActivityDetailContent = ({
           value={activity.progress}
         />
       ) : null}
-      <dl className="grid gap-4 rounded-sm border border-border bg-surface-subtle p-4 text-sm sm:grid-cols-2">
+      <dl className="grid gap-4 rounded-xl border border-border bg-surface-subtle p-4 text-sm sm:grid-cols-2">
         <div>
           <dt className="text-muted-foreground">Dates</dt>
           <dd className="mt-1 font-medium text-foreground">
@@ -210,7 +210,7 @@ export const ActivityDetailContent = ({
               </article>
             ))
           ) : (
-            <p className="rounded-sm border border-dashed border-border p-4 text-sm text-muted-foreground">
+            <p className="rounded-xl border border-dashed border-border p-4 text-sm text-muted-foreground">
               No indicators are connected to this activity.
             </p>
           )}
@@ -272,7 +272,7 @@ export const ActivityDetailContent = ({
               const progress = proofUpdate?.progress ?? activity.progress
               return (
                 <article
-                  className={`rounded-sm border bg-background p-4 ${
+                  className={`rounded-xl border bg-background p-4 ${
                     highlighted ? 'border-primary ring-2 ring-primary/20' : 'border-border'
                   }`}
                   id={`activity-proof-${proof.id}`}
@@ -296,7 +296,7 @@ export const ActivityDetailContent = ({
                     <ActivityProofFiles proof={proof} />
                   </div>
                   {proof.status === 'Flagged' ? (
-                    <div className="mt-3 rounded-sm border border-danger/25 bg-danger-subtle p-3 text-sm text-danger">
+                    <div className="mt-3 rounded-xl border border-danger/25 bg-danger-subtle p-3 text-sm text-danger">
                       <p>This proof was returned for correction.</p>
                       {returnedUpdate?.reviewReason ? (
                         <p className="mt-1">
@@ -358,7 +358,7 @@ export const ActivityDetailContent = ({
             })}
           </div>
         ) : (
-          <p className="mt-3 rounded-sm border border-dashed border-border p-4 text-sm text-muted-foreground">
+          <p className="mt-3 rounded-xl border border-dashed border-border p-4 text-sm text-muted-foreground">
             {activity.updateNotes.length > 0
               ? 'No proof has been submitted.'
               : 'No update or proof has been submitted.'}
@@ -446,7 +446,7 @@ export const ActivityDetailContent = ({
               ))}
             </ul>
           ) : (
-            <p className="mt-3 rounded-sm border border-dashed border-border p-4 text-sm text-muted-foreground">
+            <p className="mt-3 rounded-xl border border-dashed border-border p-4 text-sm text-muted-foreground">
               None yet.
             </p>
           )}
@@ -454,19 +454,19 @@ export const ActivityDetailContent = ({
       ) : null}
 
       {incompleteProof && ownIncompleteProof && showSubmitProof ? (
-        <output className="block rounded-sm border border-warning/40 bg-warning-subtle p-3 text-sm text-foreground">
+        <output className="block rounded-xl border border-warning/40 bg-warning-subtle p-3 text-sm text-foreground">
           Your proof upload was not finished, so this update is not with M&E yet. Choose Resume
           proof upload, then select the same files again.
         </output>
       ) : null}
       {incompleteProof && !ownIncompleteProof && canValidateProof ? (
-        <output className="block rounded-sm border border-border bg-surface-subtle p-3 text-sm text-muted-foreground">
+        <output className="block rounded-xl border border-border bg-surface-subtle p-3 text-sm text-muted-foreground">
           Proof upload not finished. {incompleteProof.submittedBy} has an update waiting for its
           files to upload. It can be reviewed once every file is submitted.
         </output>
       ) : null}
       {correctionRequired && showSubmitProof ? (
-        <p className="rounded-sm border border-danger/25 bg-danger-subtle p-3 text-sm text-danger">
+        <p className="rounded-xl border border-danger/25 bg-danger-subtle p-3 text-sm text-danger">
           A correction is required. Review the return reason above, then submit a new proof version.
         </p>
       ) : null}

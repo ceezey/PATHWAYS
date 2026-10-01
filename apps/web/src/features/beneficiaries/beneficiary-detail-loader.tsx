@@ -162,7 +162,7 @@ export const BeneficiaryDetailLoader = ({
 
   return (
     <div className="flex min-h-[60vh] items-center justify-center p-6">
-      <div className="w-full max-w-2xl space-y-4 rounded-lg border border-border bg-card p-8 text-center">
+      <div className="w-full max-w-2xl space-y-4 rounded-2xl border border-border bg-card p-8 text-center">
         <AsyncState
           description={
             restricted

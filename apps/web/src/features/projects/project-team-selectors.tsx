@@ -282,7 +282,7 @@ export const ProjectTeamSelectors = ({
       ) : null}
       {loadError ? (
         <div
-          className="flex flex-col gap-3 rounded-md border border-danger/30 bg-danger/5 p-3 text-sm sm:flex-row sm:items-center sm:justify-between"
+          className="flex flex-col gap-3 rounded-xl border border-danger/30 bg-danger/5 p-3 text-sm sm:flex-row sm:items-center sm:justify-between"
           role="alert"
         >
           <p className="text-danger">{loadError}</p>

@@ -103,7 +103,7 @@ export function ActivityExpenseReviewDialog({
         description="Validate the exact Project Officer submission before it enters the expense ledger."
       >
         <div className="space-y-4">
-          <div className="rounded-sm border border-border bg-surface-subtle p-4">
+          <div className="rounded-xl border border-border bg-surface-subtle p-4">
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div>
                 <p className="font-semibold text-foreground">{expense.category}</p>

@@ -688,7 +688,7 @@ export const AnalyticsDashboard = () => {
       />
       <section
         aria-labelledby="analytics-view-title"
-        className="grid gap-4 rounded-lg border border-border bg-card p-5 sm:grid-cols-2 xl:grid-cols-12"
+        className="grid gap-4 rounded-2xl border border-border bg-card p-5 sm:grid-cols-2 xl:grid-cols-12"
       >
         <div className="sm:col-span-2 xl:col-span-12">
           <h2 className="text-lg font-semibold" id="analytics-view-title">
@@ -876,12 +876,12 @@ export const AnalyticsDashboard = () => {
               <>
                 <AnalyticsCoverageMap featureCollection={projectCoverageFeatures} />
                 {mapDataLoading ? (
-                  <output className="mt-4 rounded-sm border border-border bg-surface-subtle p-3 text-sm text-muted-foreground">
+                  <output className="mt-4 rounded-xl border border-border bg-surface-subtle p-3 text-sm text-muted-foreground">
                     Updating project analytics.
                   </output>
                 ) : mapDataError ? (
                   <div
-                    className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-sm border border-danger/30 bg-danger-subtle p-3 text-sm text-danger"
+                    className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-danger/30 bg-danger-subtle p-3 text-sm text-danger"
                     role="alert"
                   >
                     <span>{mapDataError}</span>
@@ -1104,7 +1104,7 @@ export const AnalyticsDashboard = () => {
                   <div data-testid="saddd-chart">
                     <SadddChart dashboard={saddd} />
                   </div>
-                  <details className="mt-3 rounded-sm border border-border p-3 text-sm">
+                  <details className="mt-3 rounded-xl border border-border p-3 text-sm">
                     <summary className="cursor-pointer font-medium">
                       Accessible SADDD data table
                     </summary>
@@ -1271,7 +1271,7 @@ const ChartPanel = ({
   description?: string
   children: React.ReactNode
 }) => (
-  <section className="overflow-hidden rounded-lg border border-border bg-card p-5">
+  <section className="overflow-hidden rounded-2xl border border-border bg-card p-5">
     <h2 className="text-lg font-semibold text-foreground">{title}</h2>
     {description ? <p className="mt-1 text-sm text-muted-foreground">{description}</p> : null}
     <div className="mt-4">{children}</div>

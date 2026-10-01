@@ -189,7 +189,7 @@ function OwnedReview({
             <StatusBadge tone="warning">Submitted</StatusBadge>
           </div>
           {progressOnly ? (
-            <p className="rounded-sm border border-border bg-surface-subtle p-3 text-sm">
+            <p className="rounded-xl border border-border bg-surface-subtle p-3 text-sm">
               Progress note without proof files: {update?.note}
             </p>
           ) : (
