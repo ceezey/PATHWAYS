@@ -62,7 +62,7 @@ Signals to track: database connection failures, API errors, import failure and r
 
 | Signal | Current state |
 |---|---|
-| Logs | `nestjs-pino` structured JSON to stdout; Vercel captures it |
+| Logs | `nestjs-pino` structured JSON to stdout; expected to be captured by the hosting platform's function logs (not verified) |
 | Errors | `@sentry/nestjs` via `apps/api/src/common/sentry.ts` |
 | Metrics | Not established |
 | Traces | Not established |

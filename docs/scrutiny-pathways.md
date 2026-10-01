@@ -22,7 +22,7 @@ The concept is coherent and bounded. The main risks are documentation drift from
 | 3 | Mobile collection tools often lack identity verification and record linking | Verified | Manuscript Chapter 2, Field Data Collection, Roberts et al. 2023 |
 | 4 | A monitoring layer need not replace KOBO | Verified | Manuscript Chapter 2, Field Data Collection, rev-2026 |
 | 5 | Decision support is rule-based and human-led | Verified | Manuscript Chapter 2, Decision Support, rev-2026 |
-| 6 | Role-based access is enforced server-side | Verified | Repository 2026, `apps/api/src/modules/auth/rbac-contract.json` |
+| 6 | Role-based access is enforced server-side | Verified | Repository 2026, `apps/api/src/common/guards/supabase-auth.guard.ts` (reads the permission decorator on each route); grants defined in `apps/api/src/modules/auth/rbac-contract.json` and checked by `csv-rbac.test.ts` |
 | 7 | Data model covers organizations, projects and beneficiaries | Verified | Repository 2026, `apps/api/prisma/schema.prisma` |
 | 8 | Schema changes are versioned migrations | Verified | Repository 2026, `apps/api/prisma/migrations` |
 | 9 | Documentation set passes automated checks | Verified | Repository 2026, `scripts/docs/check.py` |
@@ -39,7 +39,7 @@ The concept is coherent and bounded. The main risks are documentation drift from
 | Import reliability | Active | Staging, validation, idempotency |
 | Rule engine explainability | Supporting | Typed metrics, deterministic evaluation |
 | Public publishing | Supporting | Separate approval step before publication |
-| Hosting, SSO, cloud move | Deferred | Not a current feature blocker |
+| Hosting, SSO, cloud move | Deferred | Not a current feature blocker; hosting and cloud are the hosting and AWS row of `docs/deferred-features.md`, and the identity provider is an open decision in `docs/rfc-pathways-aws-hosting-migration.md` section 9 |
 | UI maturity wording | Active | No prototype, mock or demo labels in user-facing copy |
 
 ## 4. Assumption Stress-Test

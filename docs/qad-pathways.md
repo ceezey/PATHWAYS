@@ -166,7 +166,7 @@ Every implemented feature requires:
 | QAD-T76 | the public pages are verified in a hosted environment; not performed, so the gate is Not met | Sad | Portability | PRD-F13 | G-F13-5 | UC-F13-2 | Manual; pending, gate Not met |
 | QAD-T80 | keyboard operation, focus order, labels and contrast meet the design baseline on every primary screen; not yet verified (NFR-11) | Sad | Usability | PRD-F1 to PRD-F13 (NFR-6) | None | None | Manual; pending |
 | QAD-T81 | the application works on the supported browsers and Windows versions in the PRD; not yet verified (NFR-11) | Sad | Compatibility | PRD-F1 to PRD-F13 (NFR-11) | None | None | Manual; pending |
-| QAD-T82 | a backup restore recovers organization data after an interruption without loss beyond the stated recovery point; not yet verified (NFR-15) | Sad | Reliability | PRD-F1 to PRD-F13 (NFR-15) | None | None | Manual; pending, backup runbook exists |
+| QAD-T82 | a backup restore recovers organization data after an interruption without loss beyond the 24-hour recovery point and within the 5 to 8 hour recovery time (NFR-15; PRD 5.7, OPS 1); target not yet verified | Sad | Reliability | PRD-F1 to PRD-F13 (NFR-15) | None | None | Manual; pending, backup runbook exists |
 
 ### 3.3 Abuse / Adversarial Paths
 
@@ -254,7 +254,8 @@ PRD-F9 to PRD-F13 rows are in the matrix above and are cited by their gates in t
 - **NFR IDs:** NFR-3, NFR-8.
 - **Automated tests:** Chunked promotion and read-cache rows (QAD-IMP-01, QAD-IMP-02, QAD-P01, QAD-P02); rule-engine determinism.
 - **Manual checks:** Measured response timing at production scale.
-- **Gaps:** No numeric threshold is established (PRD). Production-scale dashboard verification is Not met (G-F8-7); performance scaling steps 3-5 are deferred.
+- **Thresholds:** NFR-3 API p95 under 800 ms for normal pages, imports excluded (PRD 5.7, developer target 2026-10-01); a target, not yet measured.
+- **Gaps:** Production-scale dashboard verification is Not met (G-F8-7); performance scaling steps 3-5 are deferred.
 
 #### 3.5.3 Compatibility
 
@@ -278,6 +279,7 @@ PRD-F9 to PRD-F13 rows are in the matrix above and are cited by their gates in t
 - **NFR IDs:** NFR-4, NFR-7, NFR-10, NFR-15.
 - **Automated tests:** Rollback, idempotency, fault-mapping, validation and deterministic-ordering rows (QAD-IMP-05 to QAD-IMP-09, QAD-T21, QAD-T22, QAD-T30, QAD-T45, QAD-T56, QAD-T65).
 - **Manual checks:** Backup restore rehearsal (QAD-T82).
+- **Thresholds:** NFR-7 availability 99.5% monthly (PRD 5.7, OPS 1); NFR-15 RPO 24 hours and RTO 5 to 8 hours (PRD 5.7, OPS 1). These are targets, not yet measured.
 - **Gaps:** Operational reliability (NFR-7) and recovery (NFR-15) are not verified; hosted scheduled rule evaluation is Not met (G-F10-7); there is no in-app sign-in lockout (G-F1-10).
 
 #### 3.5.6 Security

@@ -369,10 +369,10 @@ Request: `POST .../batches/upload` is multipart with one CSV, XLSX, XLS or text-
 Request: `PATCH .../mapping` takes source column to form field pairs for the batch.
 Request: `GET /analytics/descriptive` takes optional `view` (`kpi`, `participation`, `survey`, `timeline`), and `periodStart` with `periodEnd` for `survey`.
 Request: `POST /alerts/:id/review` takes a review decision and an optional note.
-Request: `POST /recommendations/:id/review` takes a review decision and an optional note.
-Request: `GET /recommendations` takes optional project and status filters and returns a bounded page.
-Request: `GET .../reports/preview` takes report type and reporting period as query parameters.
-Request: `POST /projects/:projectId/reports` takes report type, reporting period and format.
+Request: `POST /recommendations/:id/review` takes `expectedRevision`, an optional note and `clientOperationId`.
+Request: `GET /recommendations` takes optional `projectId`, `alertId`, `cursor` and `limit` (1 to 100, default 25) query parameters and returns a bounded page.
+Request: `GET .../reports/preview` takes `kind` (PROJECT_SUMMARY, INDICATOR_SUMMARY, BENEFICIARY_SUMMARY, SURVEY_FORM_RESULTS) and, for survey reports only, `formId` as query parameters.
+Request: `POST /projects/:projectId/reports` takes `kind`, `formId` (survey reports only), `clientRequestId`, `name` and `format` (CSV, XLSX, XLS, PDF).
 
 Other controller groups follow the same pattern: finance (budgets, expenses, receipts, review, signoff), evaluations, reports (PRD-F12), recommendations (PRD-F11), publication (submit, approve, publish, withdraw), rules and notifications. The internal rules routes `POST /internal/rules/drain` and `/internal/rules/sweep` are not exposed to browser roles.
 

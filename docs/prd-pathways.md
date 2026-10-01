@@ -125,6 +125,8 @@ Status comes from the repository, not the manuscript labels "In Progress" and "P
 | NFR-14 | Maintainable, modular and documented code | PRD-F1 to PRD-F13 | Not established | Objective 3.7 | Implemented |
 | NFR-15 | Recoverability from errors and interruptions | PRD-F1 to PRD-F13 | Not established | Objective 3.5 | Not verified; backup runbook exists |
 
+Thresholds for these requirements are in section 5.7.
+
 The Problem / Requirement mapping is derived from the requirement text and objective wording, not from a manuscript column.
 
 ### 3.4 Manuscript Feature ID Mapping
@@ -1841,7 +1843,7 @@ The list is not exhaustive; the code in the audit module is the source. Events c
 
 ### 5.7 Non-Functional Requirements
 
-Sources are the manuscript Table 5 non-functional rows and the Quality Plan (Chapter 3, ISO/IEC 25010). A Measure holds a number only where a source gives one.
+Sources are the manuscript Table 5 non-functional rows and the Quality Plan (Chapter 3, ISO/IEC 25010). A Measure holds a number only where a source gives one. Delivery status for each NFR is in the section 3.3 matrix.
 
 | NFR | Requirement | ISO/IEC 25010 | Measure | Source |
 |---|---|---|---|---|

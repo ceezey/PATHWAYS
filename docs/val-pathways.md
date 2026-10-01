@@ -48,7 +48,7 @@ Calendar timebox: Not established in the source material for this brief. Feasibi
 - Project-owned indicators; no Project Template Library.
 - Descriptive analytics and deterministic, typed rules; no predictive models.
 - Import and preparation instead of full enterprise synchronization.
-- Core features (PRD-F1 to PRD-F11) built first; deployment, SSO and cloud hosting deferred (`docs/deferred-features.md`).
+- Core features (PRD-F1 to PRD-F11) built first; deployment and cloud hosting deferred (hosting and AWS row of `docs/deferred-features.md`; `docs/rfc-pathways-aws-hosting-migration.md`); the identity provider is an open decision in that RFC, section 9.
 - Delivery status of each feature is tracked in `docs/prd-pathways.md` and `docs/build-pathways.md`, not claimed here.
 
 ## 4. Kill Criteria
