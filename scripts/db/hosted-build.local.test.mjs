@@ -264,7 +264,7 @@ GRANT ALL ON ALL TABLES IN SCHEMA auth TO postgres;
       const finished = ledgerOut.trim().split(/\r?\n/).filter(Boolean)
       assert.deepEqual(finished, [...MIGRATIONS_IN_ORDER])
       t.diagnostic(
-        `PASS: local integration run finished all ${finished.length} migrations 0000-0045`,
+        `PASS: local integration run finished all ${finished.length} migrations 0000-0051`,
       )
     } finally {
       if (process.env.HOSTED_BUILD_KEEP_CLUSTER === '1') {
@@ -280,7 +280,7 @@ GRANT ALL ON ALL TABLES IN SCHEMA auth TO postgres;
 )
 
 test(
-  'hosted-build --resume recovers after a real deploy failure, cleans up, and finishes at the full 20-row ledger',
+  'hosted-build --resume recovers after a real deploy failure, cleans up, and finishes at the full 26-row ledger',
   { skip: !shouldRun },
   async (t) => {
     const bin = findPgBin()
@@ -378,7 +378,7 @@ test(
       const finished = ledgerOut.trim().split(/\r?\n/).filter(Boolean)
       assert.deepEqual(finished, [...MIGRATIONS_IN_ORDER])
       t.diagnostic(
-        `PASS: --resume after an injected 0034 deploy failure reached all ${finished.length} migrations 0000-0045`,
+        `PASS: --resume after an injected 0034 deploy failure reached all ${finished.length} migrations 0000-0051`,
       )
     } finally {
       if (process.env.HOSTED_BUILD_KEEP_CLUSTER === '1') {

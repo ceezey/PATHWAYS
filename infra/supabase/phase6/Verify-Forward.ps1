@@ -30,6 +30,12 @@ $forwardInventory = @(
   '0043_activity_overdue_explanation'
   '0044_activity_progress_review'
   '0045_f9_descriptive_aggregates'
+  '0046_signin_lockout'
+  '0047_revoke_sa_journeys_read'
+  '0048_identity_review_grant'
+  '0049_journey_event_note'
+  '0050_import_value_map'
+  '0051_indicator_library'
 )
 if (($forwardMigrations.Name -join ',') -cne ($forwardInventory -join ',')) { throw 'Forward migration inventory requires renewed review.' }
 
@@ -607,7 +613,7 @@ SELECT (pathways.p09_role_allows('SYSTEM_ADMINISTRATOR','activities.read')
  AND (SELECT count(*) FROM pathways.role_permissions rp JOIN pathways.roles r ON r.id=rp.role_id
       JOIN pathways.permissions p ON p.id=rp.permission_id
       WHERE r.code='SYSTEM_ADMINISTRATOR' AND p.code IN ('activities.read','budgets.read'))=2
- AND (SELECT count(*) FROM pathways.role_permissions)=308)::text;
+ AND (SELECT count(*) FROM pathways.role_permissions)=317)::text;
 "@
     if ($adminRead.Trim() -cne 'true') { throw "0035 admin read grants differ in $db." }
   }

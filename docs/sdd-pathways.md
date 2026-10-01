@@ -166,7 +166,7 @@ Versions are the dependency specifiers in the repository `package.json` files an
 
 ## 3. Data Architecture
 
-The Prisma schema (`apps/api/prisma/schema.prisma`) defines 56 models in the `pathways` schema. Migrations run from the `0000_pathways_baseline_through_0026` baseline through 0045 and 0051, 21 folders in `apps/api/prisma/migrations`. Enums are mapped in the same schema (for example `rule_metric`, `rule_operator`, `decision_status`).
+The Prisma schema (`apps/api/prisma/schema.prisma`) defines 56 models in the `pathways` schema. Migrations run from the `0000_pathways_baseline_through_0026` baseline through 0051, 26 folders in `apps/api/prisma/migrations`. Enums are mapped in the same schema (for example `rule_metric`, `rule_operator`, `decision_status`).
 
 ### 3.1 Domain ER Diagrams
 

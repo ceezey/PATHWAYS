@@ -24,8 +24,8 @@ test('MIGRATIONS_IN_ORDER matches the real migrations directory exactly, in orde
   assert.deepEqual([...MIGRATIONS_IN_ORDER].sort(), onDisk)
   // The migrations directory holds one folder per Prisma migration. 0000
   // squashes the original 0001-0026 into a single reviewed baseline, so the
-  // ledger has 21 rows (baseline plus 0027-0045 and 0051) even though the numbering has gaps.
-  assert.equal(MIGRATIONS_IN_ORDER.length, 21)
+  // ledger has 26 rows (baseline plus 0027-0051) even though the numbering has gaps.
+  assert.equal(MIGRATIONS_IN_ORDER.length, 26)
   assert.equal(MIGRATIONS_IN_ORDER[0], BASELINE)
 })
 
@@ -62,6 +62,11 @@ test('the dry-run plan order exactly matches the documented stop points', () => 
     'deploy:0044_activity_progress_review',
     'cleanup:activity-review',
     'deploy:0045_f9_descriptive_aggregates',
+    'deploy:0046_signin_lockout',
+    'deploy:0047_revoke_sa_journeys_read',
+    'deploy:0048_identity_review_grant',
+    'deploy:0049_journey_event_note',
+    'deploy:0050_import_value_map',
     'deploy:0051_indicator_library',
     'alter-runtime-role',
     'postconditions',
@@ -209,12 +214,20 @@ test('planIndexForAppliedCount on a clean 0000-0044 ledger resumes directly at t
   assert.deepEqual(plan[index].migrations, ['0045_f9_descriptive_aggregates'])
 })
 
-test('planIndexForAppliedCount on a 0000-0045 ledger resumes at the 0051 deploy', () => {
+test('planIndexForAppliedCount on a 0000-0045 ledger resumes at the 0046 deploy', () => {
   const plan = buildPlan()
   const appliedThrough0045 = MIGRATIONS_IN_ORDER.indexOf('0045_f9_descriptive_aggregates') + 1
   const index = planIndexForAppliedCount(appliedThrough0045)
   assert.equal(plan[index].type, 'deploy')
-  assert.deepEqual(plan[index].migrations, ['0051_indicator_library'])
+  assert.deepEqual(plan[index].migrations, ['0046_signin_lockout'])
+})
+
+test('planIndexForAppliedCount on a 0000-0048 ledger resumes at the 0049 deploy', () => {
+  const plan = buildPlan()
+  const index = planIndexForAppliedCount(
+    MIGRATIONS_IN_ORDER.indexOf('0048_identity_review_grant') + 1,
+  )
+  assert.deepEqual(plan[index].migrations, ['0049_journey_event_note'])
 })
 
 test('planIndexForAppliedCount on a complete 0000-0051 ledger resumes at alter-runtime-role', () => {

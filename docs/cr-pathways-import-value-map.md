@@ -55,7 +55,7 @@ PRD G-F6-7 and UC-F6-2, QAD-T54, deferred-features (row removed), audit MA-07 ro
 
 ## 6. Migration / Rollback
 
-Apply `0050` after the verified 0045 state (its guard names 0045 because 0046 to 0049 are built in parallel branches; renumber the guard if the chain differs at release). Rollback: ignore the columns (the code treats null as no rule) or drop both columns and their two constraints.
+Apply `0050` after the verified 0049 state; its guard asserts 0049 in the 0046 to 0051 chain. Rollback: ignore the columns (the code treats null as no rule) or drop both columns and their two constraints.
 
 ## 7. Verification
 

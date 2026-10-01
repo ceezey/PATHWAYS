@@ -3,6 +3,10 @@
 BEGIN;
 SET LOCAL lock_timeout = '5s';
 SET LOCAL statement_timeout = '60s';
+DO $$ BEGIN
+ IF NOT EXISTS(SELECT FROM public._prisma_migrations WHERE migration_name='0047_revoke_sa_journeys_read' AND finished_at IS NOT NULL AND rolled_back_at IS NULL)
+ THEN RAISE EXCEPTION '0048 requires the verified 0047 state'; END IF;
+END $$;
 SELECT pg_advisory_xact_lock(505005,1);
 
 CREATE OR REPLACE FUNCTION pathways.p09_role_allows(role_code text,wanted_permission text) RETURNS boolean

@@ -4,7 +4,7 @@
 
 export const BASELINE = '0000_pathways_baseline_through_0026'
 
-// The exact 21-row migration ledger (baseline plus 0027-0045 and 0051) this script must produce, in order. This is
+// The exact 26-row migration ledger (baseline plus 0027-0051) this script must produce, in order. This is
 // the repository's own migration directory listing (apps/api/prisma/migrations),
 // asserted against the real directory in hosted-plan.test.mjs so this literal
 // list can never silently drift from the repo.
@@ -29,6 +29,11 @@ export const MIGRATIONS_IN_ORDER = Object.freeze([
   '0043_activity_overdue_explanation',
   '0044_activity_progress_review',
   '0045_f9_descriptive_aggregates',
+  '0046_signin_lockout',
+  '0047_revoke_sa_journeys_read',
+  '0048_identity_review_grant',
+  '0049_journey_event_note',
+  '0050_import_value_map',
   '0051_indicator_library',
 ])
 
@@ -89,9 +94,10 @@ export function buildPlan() {
     // pathways.p06_can, pathways.assessment_results, pathways.project_activities and
     // pathways.project_milestones from the 0000 baseline.
     { type: 'deploy', migrations: range(45, 45) },
-    // 0051 needs no preprovision: prisma already owns pathways.organizations, pathways.system_users
-    // and pathways.p09_role_allows, and it only adds one table and the library grants.
-    { type: 'deploy', migrations: range(51, 51) },
+    // 0046-0051 need no preprovision: prisma already owns every table and function they touch
+    // (0046 adds its own table; 0047, 0048 and 0051 wrap pathways.p09_role_allows). One step each
+    // so --resume after a partial ledger restarts at the first unapplied migration.
+    ...range(46, 51).map((name) => ({ type: 'deploy', migrations: [name] })),
     { type: 'alter-runtime-role' },
     { type: 'postconditions' },
   ]

@@ -30,7 +30,7 @@ Out of scope: a Project Template Library (activity arrangements and monitoring c
 G-F7-5 becomes Met for indicator definitions. The deferred-features entry for the libraries is replaced by one entry for the Project Template Library only.
 
 ### Data / Migration
-`0051_indicator_library` (not applied by this change). Predecessor is 0045; 0046-0050 are built in parallel. It inserts three permissions and nine role grants, replaces `pathways.p09_role_allows` in place with the 0035 matrix plus the nine pairs, and creates `pathways.indicator_library_entries` (check constraints for code, text bounds, kind and recipe; unique request key per organization; partial unique active code). No existing row, table or policy changes. Hosted ledger plan and tests carry the new migration.
+`0051_indicator_library` (not applied by this change). Predecessor is 0050. It inserts three permissions and nine role grants, wraps `pathways.p09_role_allows` as left by 0048 (renamed to `p09_role_allows_0048`, so the 0047 and 0048 changes stay) with the nine pairs, and creates `pathways.indicator_library_entries` (check constraints for code, text bounds, kind and recipe; unique request key per organization; partial unique active code). No existing row, table or policy changes. Hosted ledger plan and tests carry the new migration.
 
 ### Authorization / Privacy
 Row level security is enabled and forced: select, insert and archive policies match `app.organization_id` and check `p09_can` for the matching library permission; insert also requires `created_by_id` to be the actor. The runtime role holds SELECT, INSERT and `UPDATE (archived_at)` only, with no DELETE. The service filters by the actor organization as well. The table holds no personal or project data. Audit events: `INDICATOR_LIBRARY_ENTRY_CREATED` and `INDICATOR_LIBRARY_ENTRY_ARCHIVED`.
@@ -56,7 +56,7 @@ PRD-F7 bounds, UC-F7-1, G-F7-5, FR-9, QAD rows, deferred-features, index, auth R
 
 ## 6. Migration / Rollback
 
-Apply `0051` after 0045 on the verified ledger with the normal staged deploy; it needs no preprovision. It is forward only. Recovery before use: restore the protected backup. After use, archive entries instead of deleting; the table and grants can be dropped only by a reviewed follow-up migration because project indicators never reference it.
+Apply `0051` after 0050 on the verified ledger with the normal staged deploy; it needs no preprovision. It is forward only. Recovery before use: restore the protected backup. After use, archive entries instead of deleting; the table and grants can be dropped only by a reviewed follow-up migration because project indicators never reference it.
 
 ## 7. Verification
 

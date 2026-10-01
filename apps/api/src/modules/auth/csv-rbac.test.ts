@@ -22,7 +22,7 @@ describe('approved CSV RBAC contract', () => {
         'utf8',
       )
     const sql = migration('0027_revised_csv_rbac')
-    const latestMatrix = migration('0051_indicator_library')
+    const latestMatrix = migration('0035_admin_read_access')
     const expected = Object.entries(contract.permissions)
       .flatMap(([permission, roles]) => roles.map((role) => `${role}:${permission}`))
       .sort()
@@ -37,13 +37,14 @@ describe('approved CSV RBAC contract', () => {
         .filter((pair) => !revokes.includes(pair))
         .sort(),
     ).toEqual(expected)
-    // 0035 is the last wholesale matrix; 0047 and 0048 wrap it, so undo their deltas here.
+    // 0035 is the last wholesale matrix; 0047, 0048 and 0051 wrap it, so undo their deltas here.
     const later = contract.amendments.filter((amendment) => amendment.migration >= '0036')
     const laterGrants = later.flatMap((amendment) => amendment.grants.map(key))
     const at0035 = [...expected.filter((pair) => !laterGrants.includes(pair)), ...revokes]
     expect(pairs(latestMatrix.split('AS $matrix$')[1].split('$matrix$;')[0]).sort()).toEqual(
       at0035.sort(),
     )
+    expect(migration('0051_indicator_library')).toContain('pathways.p09_role_allows_0048($1,$2)')
     for (const amendment of contract.amendments) {
       const text = migration(amendment.migration)
       for (const [, permission] of amendment.grants) expect(text).toContain(`'${permission}'`)
