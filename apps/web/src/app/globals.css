@@ -40,13 +40,13 @@
     --secondary: 205.7 10.8% 92%;
     --secondary-foreground: 227.1 16.7% 16.5%;
     --muted: 228 33.3% 97.1%;
-    --muted-foreground: 218.2 9% 47.8%;
+    --muted-foreground: 218.8 9.5% 41.2%;
     --accent: var(--blue-100);
     --accent-foreground: var(--blue-700);
     --link: var(--blue-700);
     --success: 148.9 87.5% 25.1%;
     --success-500: 146.1 75.1% 37.8%;
-    --success-subtle: 190.9 19.3% 88.8%;
+    --success-subtle: 144.1 45.6% 91.4%;
     --success-foreground: 0 0% 100%;
     --warning: 31.9 100% 30.2%;
     --warning-500: 32.1 94.6% 43.7%;

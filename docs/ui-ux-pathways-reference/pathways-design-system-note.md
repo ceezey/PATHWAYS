@@ -64,3 +64,8 @@ USER
 → APPROPRIATE PATHWAYS PATTERN
 
 Then design.
+
+## Deviations from Foundations
+
+**muted-foreground**: Changed from `218.2 9% 47.8%` to `218.8 9.5% 41.2%` to meet WCAG AA contrast on all backgrounds.
+**success-subtle**: Changed from `190.9 19.3% 88.8%` to `144.1 45.6% 91.4%` to meet WCAG AA contrast with success foreground.

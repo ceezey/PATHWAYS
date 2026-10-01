@@ -116,6 +116,7 @@ Every implemented feature requires:
 | QAD-T79 | the schema, migration chain and security catalog replay on disposable PostgreSQL 18 from archive and from the baseline | Happy | Portability | PRD-F1 to PRD-F13 (NFR-11) | None | None | `infra/supabase/phase6/Replay-Local.ps1`; `apps/api/prisma/tests/baseline-security-catalog.sql` |
 | QAD-IR-01 | an M&E Officer lists unreviewed same-name, same-birth-date pairs, then records Keep distinct or Link; each writes one audit event and the pair leaves the queue | Happy | Functional Suitability | PRD-F3 | G-F3-6 | UC-F3-3 | `apps/api/src/modules/beneficiaries/identity-review.service.test.ts`; `apps/web/src/features/beneficiaries/duplicate-resolution-workspace.test.tsx` |
 | QAD-IL-01 | a library entry is created, listed and archived, and a project indicator created from it is an independent copy with the project period, baseline and target | Happy | Functional Suitability | PRD-F7 | G-F7-5 | UC-F7-1 | `apps/api/src/modules/indicators/indicator-library.service.test.ts`; `apps/web/src/features/projects/indicator-library-manager.test.tsx`; `apps/web/src/features/projects/project-indicators-workspace.test.tsx` |
+| QAD-T88 | muted-foreground text and success-subtle background meet WCAG AA contrast ratio of 4.5:1 | Happy | Usability | PRD-F1 to PRD-F13 (NFR-2) | None | None | `apps/web/src/app/contrast.test.ts` |
 
 ### 3.2 Sad Paths
 
