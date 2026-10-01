@@ -421,6 +421,7 @@ export interface BeneficiaryJourneyEvent {
   eventType: JourneyEventType
   eventDate: string
   description: string | null
+  note?: string | null
   stageId: string | null
   stageCodeSnapshot: string | null
   stageNameSnapshot: string | null
@@ -452,12 +453,14 @@ export interface EnrollmentJourneyEventInput {
   description: string
   stageId?: string
   destinationProjectId?: string
+  note?: string
 }
 
 export interface CorrectJourneyEventInput {
   eventDate: string
   description: string
   reason: string
+  note?: string
   stageId?: string
 }
 
@@ -500,6 +503,7 @@ export interface BeneficiaryNoteRecord {
   createdAt: string
   visibility: 'Internal' | 'Project team'
   note: string
+  journeyNote?: string
 }
 
 export type BeneficiaryMediaType = 'Photo' | 'Video'
