@@ -4,6 +4,7 @@ import { mkdirSync, writeFileSync } from 'node:fs'
 import path from 'node:path'
 import { expect, test } from '@playwright/test'
 import { createClient } from '@supabase/supabase-js'
+import { localDatabase } from '../../../scripts/db/local-target.mjs'
 
 const api = process.env.PATHWAYS_LOCAL_API_URL ?? 'http://127.0.0.1:4000/api'
 const web = 'http://127.0.0.1:3000'
@@ -11,6 +12,20 @@ const shell = process.platform === 'win32'
 const email = 'lockout-probe@example.test'
 const email2 = 'lockout-probe-2@example.test'
 const passwords: Record<string, string> = {}
+
+// The suite needs the disposable local database container.
+const hasLocalDb = (() => {
+  try {
+    return (
+      execFileSync('docker', ['ps', '--filter', `name=${localDatabase.container}`, '-q'], {
+        encoding: 'utf8',
+      }).trim() !== ''
+    )
+  } catch {
+    return false
+  }
+})()
+test.skip(!hasLocalDb, 'Local Supabase database container is not running')
 
 test.describe.configure({ mode: 'serial' })
 
@@ -21,8 +36,8 @@ const ownerSql = (sql: string) =>
     [
       'exec',
       '-e',
-      'PGPASSWORD=prisma-local',
-      'supabase_db_pathways',
+      `PGPASSWORD=${localDatabase.prismaPassword}`,
+      localDatabase.container,
       'psql',
       '-h',
       '127.0.0.1',
@@ -79,6 +94,7 @@ test('five failures lock and the correct password is still refused', async ({ re
   test.setTimeout(90_000)
   for (let i = 0; i < 5; i++) {
     const r = await signIn(request, email, 'wrong-password')
+    // The fifth failure itself returns the lock response.
     expect(r.status()).toBe(i < 4 ? 401 : 429)
   }
   const locked = await signIn(request, email, passwords[email])
@@ -108,4 +124,10 @@ test('an expired lock lets the correct password sign in', async ({ request }) =>
   )
   const ok = await signIn(request, email2, passwords[email2])
   expect(ok.status()).toBe(200)
+  // A success resets the counter, so the next wrong attempt is failure number one.
+  expect((await signIn(request, email2, 'wrong-password')).status()).toBe(401)
+  const row = ownerSql(
+    `SELECT failed_attempts, locked_until IS NULL AS unlocked FROM pathways.signin_lockouts WHERE identifier_hash = pathways.signin_lockout_hash('${email2}')`,
+  )
+  expect(row).toMatch(/1 +\| +t/)
 })
