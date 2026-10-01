@@ -368,8 +368,8 @@ Request: `POST /beneficiaries/projects/:projectId/registrations` takes the regis
 Request: `POST .../batches/upload` is multipart with one CSV, XLSX, XLS or text-layer PDF file and a form identifier.
 Request: `PATCH .../mapping` takes source column to form field pairs for the batch.
 Request: `GET /analytics/descriptive` takes optional `view` (`kpi`, `participation`, `survey`, `timeline`), and `periodStart` with `periodEnd` for `survey`.
-Request: `POST /alerts/:id/review` takes a review decision and an optional note.
-Request: `POST /recommendations/:id/review` takes `expectedRevision`, an optional note and `clientOperationId`.
+Request: `POST /alerts/:id/review` takes `expectedRevision`, a required `note` of 1 to 2000 trimmed characters and `clientOperationId`.
+Request: `POST /recommendations/:id/review` takes `expectedRevision`, a required `note` of 1 to 2000 trimmed characters and `clientOperationId`.
 Request: `GET /recommendations` takes optional `projectId`, `alertId`, `cursor` and `limit` (1 to 100, default 25) query parameters and returns a bounded page.
 Request: `GET .../reports/preview` takes `kind` (PROJECT_SUMMARY, INDICATOR_SUMMARY, BENEFICIARY_SUMMARY, SURVEY_FORM_RESULTS) and, for survey reports only, `formId` as query parameters.
 Request: `POST /projects/:projectId/reports` takes `kind`, `formId` (survey reports only), `clientRequestId`, `name` and `format` (CSV, XLSX, XLS, PDF).
