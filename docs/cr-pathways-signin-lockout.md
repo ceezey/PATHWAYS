@@ -68,16 +68,14 @@ Developer decision, 2026-10-01: build G-F1-10.
 
 ## 9. Disposition
 
-Residual risk: anyone can lock a known email for 15 minutes at a time. The direct-grant bypass is closed by migration 0052, which adds the password-verification-attempt hook `pathways_auth.password_verification_attempt` (read-only, executable only by `supabase_auth_admin`, which has USAGE on the dedicated `pathways_auth` schema and none on `pathways`; failures are still counted only by the API). Accepted residual: `supabase_auth_admin` can probe lock state for arbitrary emails through the `pathways_auth.lockout_remaining` helper; it is the auth role itself and already holds auth.users. Mark Applied after 0046 and 0052 are applied, their runtime SQL tests pass, and the staging hook below is enabled.
+Residual risk: anyone can lock a known email for 15 minutes at a time. Locally, the direct-grant bypass is closed by migration 0052, which adds the password-verification-attempt hook `pathways_auth.password_verification_attempt` (read-only, executable only by `supabase_auth_admin`, which has USAGE on the dedicated `pathways_auth` schema and none on `pathways`; failures are still counted only by the API). Accepted residual: `supabase_auth_admin` can probe lock state for arbitrary emails through the `pathways_auth.lockout_remaining` helper; it is the auth role itself and already holds auth.users. Mark Applied after 0046 and 0052 are applied on `PATHWAYS-role-staging` and their runtime SQL tests pass; on the Free plan the hook is not enabled, so enabling it is not an Applied condition.
 
-### Staging hook handoff (developer step)
-
-After 0052 is applied on `PATHWAYS-role-staging`, in the Supabase dashboard open Authentication, Hooks, Password Verification Attempt, choose Postgres function, select `pathways_auth.password_verification_attempt`, and enable it. Local stacks enable it through `supabase/config.toml` (`[auth.hook.password_verification_attempt]`). Rollback: disable the hook, then drop schema `pathways_auth` cascade.
+### Hosted hook status
 
 Hosted plan limit (developer decision, 2026-10-01): the Supabase projects are on the Free plan, where the Password Verification Attempt hook is not available. Migration 0052 is applied on every target (the same 0000-0053 chain locally, in replay and hosted), but the hook is enabled only locally through `supabase/config.toml`; on hosted Free it is installed and inert. G-F1-10 holds for app sign-in (the API route) on hosted. Direct calls to Supabase `/auth/v1/token` with the anon key bypass the lockout on hosted Free and rely on the Supabase built-in per-IP auth rate limits (the developer may tighten them in the dashboard); a CAPTCHA is the alternative.
 
-If upgraded to a plan with Auth Hooks, before enabling:
+If upgraded to a plan with Auth Hooks, enable it as a developer step:
 
-1. If the dashboard picker does not list schema `pathways_auth`, enable the hook through the Supabase Management API auth config with uri `pg-functions://postgres/pathways_auth/password_verification_attempt`.
+1. In the Supabase dashboard open Authentication, Hooks, Password Verification Attempt, choose Postgres function, and select `pathways_auth.password_verification_attempt`. If the picker does not list schema `pathways_auth`, enable the hook through the Supabase Management API auth config with uri `pg-functions://postgres/pathways_auth/password_verification_attempt`.
 2. Rollback order: disable the hook first, then drop schema `pathways_auth`.
 3. A hook error blocks all password sign-ins.
