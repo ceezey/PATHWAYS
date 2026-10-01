@@ -16,8 +16,8 @@ describe('Button', () => {
     expect(button.className).toContain('active:translate-y-px')
   })
 
-  it('keeps the approved dense control exception at 40 pixels', () => {
+  it('keeps the approved small size at 36 pixels', () => {
     render(<Button size="sm">Filter</Button>)
-    expect(screen.getByRole('button', { name: 'Filter' }).className).toContain('h-10')
+    expect(screen.getByRole('button', { name: 'Filter' }).className).toContain('h-9')
   })
 })
