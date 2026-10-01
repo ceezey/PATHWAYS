@@ -1,5 +1,6 @@
 'use client'
 
+import { chartGrid, chartPalette } from '@/lib/chart-palette'
 import ReactECharts from 'echarts-for-react'
 
 export const DashboardPreviewChart = () => (
@@ -18,11 +19,11 @@ export const DashboardPreviewChart = () => (
       xAxis: {
         type: 'category',
         data: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun'],
-        axisLine: { lineStyle: { color: '#D6DEE6' } },
+        axisLine: { lineStyle: { color: chartGrid } },
       },
       yAxis: {
         type: 'value',
-        splitLine: { lineStyle: { color: '#E9EEF2' } },
+        splitLine: { lineStyle: { color: chartGrid } },
       },
       series: [
         {
@@ -30,8 +31,8 @@ export const DashboardPreviewChart = () => (
           type: 'line',
           smooth: true,
           areaStyle: { opacity: 0.12 },
-          lineStyle: { width: 3, color: '#0072CE' },
-          itemStyle: { color: '#0072CE' },
+          lineStyle: { width: 3, color: chartPalette[0] },
+          itemStyle: { color: chartPalette[0] },
         },
       ],
     }}
