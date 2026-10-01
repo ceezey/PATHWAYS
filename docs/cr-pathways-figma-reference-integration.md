@@ -30,7 +30,7 @@ The notification inbox shown on the board is registered in `deferred-features.md
 |---|---|---|
 | Do not assume the M&E Officer verifies or a manager approves expenses | Budget module context | Superseded: the system's chain is established (M&E verify, PM approve, PG or GM sign-off) and kept by [cr-pathways-rbac-v4-adoption](cr-pathways-rbac-v4-adoption.md) V4-C03 to V4-C05 |
 | Role vocabulary (MERL Officer, Superuser/Admin) | Budget module context | Not system role names; the six system roles apply |
-| Budget revision and reallocation history model | Budget module context | Data-model guidance with no current system support; not a design rule |
+| Budget revision and reallocation history model | Budget module context | Data-model guidance, not a design rule; the system already keeps prior budget records by archive and replace (`finance.service.ts`), and no reallocation workflow or revision approval exists |
 | Agent question lists and mental-model diagrams | Both | Process guidance for agents, already covered by DSD "Agent implementation rules" |
 | Recommendation rules configured independently of alerts | Alerts context | The system attaches 1 to 10 predefined recommendations to a rule and never generates them at runtime (G-F11-4) |
 | Rule lifecycle Draft, Test, Active, Inactive | Alerts context | The system uses Draft, Active and Archived; testing is an action that creates no live output, which is carried |

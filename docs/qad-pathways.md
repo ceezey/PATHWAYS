@@ -366,7 +366,6 @@ For [core P1 supporting operations](cr-pathways-core-p1-supporting-operations.md
 
 RBAC v4 under [its approved Change Record](cr-pathways-rbac-v4-adoption.md): when the RBAC v4 grant migration lands, extend `apps/api/src/modules/auth/csv-rbac.test.ts` and the route-access suites to deny Program and Grant Manager archive (V4-C01), deny System Administrator budget reads (V4-C02), allow Program and Grant Manager activity reads (V4-C06), deny Project Officer activity creation, dashboard customization, survey assessment and SADDD (V4-C07, V4-C09, V4-C10) and deny `submissions.write` to every role (V4-C11). Until then the existing QAD-A rows describe the running system.
 
-
 ## 4. Automation vs. Manual Testing
 
 | Command | Scope |

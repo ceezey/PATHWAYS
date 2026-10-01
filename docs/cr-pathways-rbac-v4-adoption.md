@@ -38,7 +38,7 @@ Roles: SA System Administrator, PO Project Officer, ME Monitoring and Evaluation
 
 V4-C04 and V4-C05: the expense chain stays ME verify, PM approve, PG or GM sign-off; v4 row 44 is read as the verify stage only. V4-C08: the tab and configuration run on `journeys.manage`, which SA keeps; individual journey history is denied to SA by v4 rows 81 to 85 as well.
 
-Label renames adopted: row 37 Add Budget; row 40 View Budget Tab / View Budget Overview; row 88 View Aggregated Monitoring Dashboards (under Project Module); row 107 Review Alert & Log Outcome; row 110 Review Linked Evaluation & Log Outcome.
+Label renames adopted: row 38 Add Budget; row 40 View Budget Tab / View Budget Overview; row 88 View Aggregated Monitoring Dashboards (under Project Module); row 107 Review Alert & Log Outcome; row 110 Review Linked Evaluation & Log Outcome.
 
 ### 3.3 Interpretation rules
 

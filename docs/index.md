@@ -96,7 +96,7 @@ Workflow rule: an audit is finding and evidence, a Change Record is the approved
 | [Core gap closure plan](superpowers/plans/2026-10-01-core-gap-closure.md) | 2026-10-01-core-gap-closure.md | 2026-10-01 | Close the six gaps left after the core-feature integration | Executed; integrated into dev |
 | [Replay harness modernization plan](superpowers/plans/2026-10-01-replay-harness-modernization.md) | 2026-10-01-replay-harness-modernization.md | 2026-10-01 | Parallel-safe, faster local migration replays with drift detection | Written; not started |
 | [RBAC v4 and Figma reference reconciliation](superpowers/specs/2026-10-01-rbac-v4-figma-reconciliation-design.md) | 2026-10-01-rbac-v4-figma-reconciliation-design.md | 2026-10-01 | Adopt manuscript RBAC v4 in docs; add a non-authoritative Figma reference section to DSD | Approved |
-| [RBAC v4 and Figma reference reconciliation plan](superpowers/plans/2026-10-01-rbac-v4-figma-reconciliation.md) | 2026-10-01-rbac-v4-figma-reconciliation.md | 2026-10-01 | Task-by-task plan for the RBAC v4 and Figma reference spec | Approved; in progress |
+| [RBAC v4 and Figma reference reconciliation plan](superpowers/plans/2026-10-01-rbac-v4-figma-reconciliation.md) | 2026-10-01-rbac-v4-figma-reconciliation.md | 2026-10-01 | Task-by-task plan for the RBAC v4 and Figma reference spec | Executed; merged into dev |
 
 ### 1.7 Traceability Matrix
 

@@ -1520,7 +1520,7 @@ The manuscript access matrix v4 is the documented source of record under [cr-pat
 | V4-C10 | Project Officer loses SADDD analysis | UC-F8-2 |
 | V4-C11 | Encode Project Data is retired | UC-F5-2, `/collection/entry`, direct data entry |
 
-Kept deviations, no pending change: the expense chain stays verify, approve, sign-off (V4-C03 to V4-C05).
+Kept deviations, no pending change: the expense chain stays verify, approve, sign-off (V4-C03 to V4-C05). Already satisfied, no pending change: System Administrator keeps the Journey Tracking tab and configuration through `journeys.manage` (V4-C08).
 
 ### 5.1 Screen Inventory
 

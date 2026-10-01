@@ -3,7 +3,7 @@
 **Date:** 2026-10-01
 **Branch:** `docs/rbac-v4-figma-reconcile` (cut from `dev` at `deae91f`)
 **Path:** Architectural (brainstorming; spec, then plan)
-**Status:** Draft for developer review
+**Status:** Approved (2026-10-01); applied by `cr-pathways-rbac-v4-adoption` and `cr-pathways-figma-reference-integration`
 
 ## 1. Intent
 
@@ -61,7 +61,7 @@ Role abbreviations: SA System Administrator, PO Project Officer, ME Monitoring a
 | 103, 104 | Perform SADDD Analysis, View SADDD Breakdown | PO | Denied, Granted | `analytics.saddd.read` | Adopt stricter reading (E3) | Revoke |
 | (none) | Encode Project Data | PO, ME | Row removed | `submissions.write` | Retire (E4) | Revoke and remove UC-F5-2 surface |
 
-Label renames adopted as written in v4: rows 37, 40, 88, 107, 110.
+Label renames adopted as written in v4: rows 38, 40, 88, 107, 110.
 
 v4 rows with no working capability (53 Activity Escalation, 68 Import Existing File, 97 Customize Dashboard, 122 to 125 Backup and Recovery) are listed in the CR as existing gaps with their current deferred-register entries; this wave does not change their state. Under the v4 note, row 68 means importing collected data, which the existing `/collection/import` flow already covers; the CR records that reading.
 
