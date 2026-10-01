@@ -90,10 +90,10 @@ Every implemented feature requires:
 | QAD-T42 | a reviewer records an overdue explanation for an activity | Happy | Functional Suitability | PRD-F2 | G-F2-9 | UC-F2-4 | `apps/api/src/modules/activities/activity-overdue-explanation.test.ts`; `apps/api/prisma/tests/activity-overdue-explanation-runtime.sql` |
 | QAD-T43 | milestones are created and updated only with `milestones.manage` | Happy | Functional Suitability | PRD-F2 | G-F2-10 | UC-F2-5 | `apps/api/src/modules/activities/activity-milestones.test.ts` |
 | QAD-T44 | a budget record is created or replaced with a stale-revision check | Happy | Functional Suitability | PRD-F2 | G-F2-14 | UC-F2-6 | `apps/api/src/modules/finance/finance.ledger.test.ts` |
-| QAD-T45 | an expense is submitted against a budget reference and a retry with the same client request id does not duplicate it | Happy | Reliability | PRD-F2 | G-F2-15 | UC-F2-7 | `apps/api/src/modules/finance/finance.ledger.test.ts` |
+| QAD-T45 | an expense is submitted against a budget reference and a retry with the same client request id does not duplicate it | Happy | Reliability | PRD-F2 | G-F2-15 | UC-F2-7 | `apps/api/src/modules/finance/finance.ledger.test.ts`, `apps/api/prisma/tests/finance-expense-runtime.sql` |
 | QAD-T46 | a private receipt is attached to a pending expense and verification or approval needs it | Happy | Functional Suitability | PRD-F2 | G-F2-16 | UC-F2-7 | `apps/api/src/modules/finance/finance.service.test.ts`; `apps/api/prisma/tests/finance-evaluation-decisions.sql` |
 | QAD-T47 | an expense is verified, then approved by a distinct reviewer, and rejection requires a reason | Happy | Functional Suitability | PRD-F2 | G-F2-17 | UC-F2-8 | `apps/api/src/modules/finance/finance.boundary.test.ts`; `apps/api/prisma/tests/finance-evaluation-decisions.sql` |
-| QAD-T48 | final sign-off is recorded once per expense by a holder of `expenses.signoff` | Happy | Functional Suitability | PRD-F2 | G-F2-18 | UC-F2-9 | `apps/api/src/modules/finance/finance.ledger.test.ts` |
+| QAD-T48 | final sign-off is recorded once per expense by a holder of `expenses.signoff` | Happy | Functional Suitability | PRD-F2 | G-F2-18 | UC-F2-9 | `apps/api/src/modules/finance/finance.ledger.test.ts`, `apps/api/prisma/tests/finance-expense-runtime.sql` |
 | QAD-T49 | System Administrator, Monitoring and Evaluation Officer and Project Manager save journey stages; other roles are denied | Happy | Functional Suitability | PRD-F4 | G-F4-1 | UC-F4-1 | `apps/api/src/modules/participants/participants.service.test.ts` |
 | QAD-T50 | a completion, dropout or transfer event closes the enrollment with its end date and reason | Happy | Functional Suitability | PRD-F4 | G-F4-3 | UC-F4-2 | `apps/api/src/modules/participants/participants.service.test.ts` |
 | QAD-T51 | a correction adds a new event linked to the original with a required reason and the original is never overwritten | Happy | Reliability | PRD-F4 | G-F4-4 | UC-F4-3 | `apps/api/src/modules/participants/participants.service.test.ts` |
@@ -173,6 +173,8 @@ Every implemented feature requires:
 | QAD-JR-01 | System Administrator requests beneficiary journey history -> 403, while listing and saving project journey stages succeeds | Sad | Security | PRD-F4 | G-F4-5 | UC-F4-4 | `apps/api/src/modules/participants/journeys-access.test.ts` |
 | QAD-FP-01 | a form author publishes their own form -> 403 with no write or audit, in any role; a role without `forms.publish` is denied | Sad | Security | PRD-F5 | G-F5-1 | UC-F5-1 | `apps/api/src/modules/metadata/metadata.service.test.ts` |
 | QAD-T83 | a journey note over 1000 characters or only whitespace is rejected with 400 and nothing is stored | Sad | Functional Suitability | PRD-F4 | G-F4-6 | UC-F4-2 | `apps/api/src/modules/participants/journey-note.test.ts` |
+| QAD-T84 | an expense retry reusing a client request id with different content is rejected with 22023 and nothing is stored | Sad | Reliability | PRD-F2 | G-F2-15 | UC-F2-7 | `apps/api/prisma/tests/finance-expense-runtime.sql`, `apps/api/prisma/tests/finance-expense-concurrency.mjs` |
+| QAD-T85 | a second final sign-off for the same expense is rejected by the once-per-expense key and by a holder without `expenses.signoff` | Abuse | Security | PRD-F2 | G-F2-18 | UC-F2-9 | `apps/api/prisma/tests/finance-expense-runtime.sql` |
 
 ### 3.3 Abuse / Adversarial Paths
 
@@ -239,7 +241,7 @@ Every implemented feature requires:
 | Must-Have | Feature | QAD IDs |
 |---|---|---|
 | PRD-F1 | RBAC and Workspace Management | QAD-T01, QAD-T20, QAD-A01, QAD-A02, QAD-A05, QAD-A06, QAD-R01, QAD-R02, QAD-R03, QAD-R04, QAD-R05, QAD-R06, QAD-R07, QAD-R09, QAD-T36, QAD-T37, QAD-T38, QAD-T39, QAD-T77, QAD-T78, QAD-T79, QAD-T80, QAD-T81, QAD-T82 |
-| PRD-F2 | Project Profile and Activity Tracking | QAD-T02, QAD-R08, QAD-P01, QAD-P02, QAD-P03, QAD-P04, QAD-P06, QAD-P07, QAD-P08, QAD-P09, QAD-P10, QAD-RBP-01, QAD-RBP-02, QAD-RBP-03, QAD-RBP-04, QAD-RBP-05, QAD-RBP-06, QAD-RBP-07, QAD-RBP-08, QAD-RBP-09, QAD-RBP-10, QAD-T40, QAD-T41, QAD-A22, QAD-T42, QAD-T43, QAD-T44, QAD-T45, QAD-T46, QAD-T47, QAD-T48 |
+| PRD-F2 | Project Profile and Activity Tracking | QAD-T02, QAD-R08, QAD-P01, QAD-P02, QAD-P03, QAD-P04, QAD-P06, QAD-P07, QAD-P08, QAD-P09, QAD-P10, QAD-RBP-01, QAD-RBP-02, QAD-RBP-03, QAD-RBP-04, QAD-RBP-05, QAD-RBP-06, QAD-RBP-07, QAD-RBP-08, QAD-RBP-09, QAD-RBP-10, QAD-T40, QAD-T41, QAD-A22, QAD-T42, QAD-T43, QAD-T44, QAD-T45, QAD-T46, QAD-T47, QAD-T48, QAD-T84, QAD-T85 |
 | PRD-F3 | Centralized Beneficiary Profile | QAD-T03, QAD-A03, QAD-A04, QAD-A11, QAD-A12, QAD-A13, QAD-A14, QAD-DRF-01, QAD-DRF-02, QAD-DRF-03, QAD-DRF-04, QAD-DRF-05, QAD-DRF-06, QAD-DRF-07, QAD-DRF-08, QAD-DRF-09, QAD-DRF-10, QAD-A23, QAD-IR-01, QAD-IR-02, QAD-IR-03 |
 | PRD-F4 | Beneficiary Journey Tracking | QAD-T04, QAD-T49, QAD-T50, QAD-T51, QAD-T52, QAD-T83, QAD-A24 |
 | PRD-F5 | Digital Data Collection and Preparation | QAD-T05, QAD-IMP-04, QAD-IMP-09, QAD-IMP-11, QAD-IMP-13, QAD-T53, QAD-FP-01 |

@@ -584,7 +584,11 @@ END $$;
     Write-Output ('CSV_RBAC_PRISMA_DIFF_BYTES=' + (Get-Item -LiteralPath $rbacModelDiffAfter).Length)
     Copy-Item -LiteralPath $rbacModelDiffAfter -Destination (Join-Path $phase6Root '.tmp/rbac-prisma-baseline-diff.sql')
     Write-Output 'CSV_RBAC_CATALOG_PARITY=PASS'
-    if ($MigrationBaseline) { . (Join-Path $PSScriptRoot 'Verify-Baseline.ps1') }
+    if ($MigrationBaseline) {
+      . (Join-Path $PSScriptRoot 'Verify-Baseline.ps1')
+      Invoke-LocalSql ([IO.File]::ReadAllText((Join-Path $phase6Root 'apps/api/prisma/tests/finance-expense-runtime.sql'))) $phase6Database
+      Write-Output 'FINANCE_EXPENSE_RUNTIME=PASS'
+    }
     Invoke-LocalSql 'ALTER ROLE pathways_runtime LOGIN;' $phase6Database
     $env:PATHWAYS_CSV_RBAC_LOCAL_TESTS = '1'
     Push-Location $phase6Root

@@ -135,8 +135,8 @@ test('runHostedBuild executes the full plan in order against a fake IO and reach
   const kinds = io.calls.map((c) => c.kind)
   assert.ok(kinds.includes('psqlSql'))
   assert.ok(kinds.includes('resolve'))
-  assert.equal(kinds.filter((k) => k === 'deploy').length, 17)
-  assert.equal(kinds.filter((k) => k === 'psqlFile').length, 9) // 5 preprovision + 4 cleanup
+  assert.equal(kinds.filter((k) => k === 'deploy').length, 18)
+  assert.equal(kinds.filter((k) => k === 'psqlFile').length, 11) // 6 preprovision + 5 cleanup
 })
 
 test('runHostedBuild passes the captured original_prisma_database_create value to the rules cleanup', async () => {
@@ -457,13 +457,13 @@ test('runHostedBuild --resume on a clean 19-row (0000-0044) ledger resumes direc
     })),
   )
   await assert.rejects(() => runHostedBuild({ io, config, resume: true }))
-  const ranPsqlFile = io.calls.some((c) => c.kind === 'psqlFile')
+  const firstDeploy = io.calls.findIndex((c) => c.kind === 'deploy')
+  const firstPsqlFile = io.calls.findIndex((c) => c.kind === 'psqlFile')
+  assert.ok(firstDeploy !== -1, 'resume must continue at the 0045 deploy')
   assert.ok(
-    !ranPsqlFile,
+    firstPsqlFile === -1 || firstPsqlFile > firstDeploy,
     'no preprovision/cleanup step remains after the 0044 cleanup and before 0045',
   )
-  const ranDeploy = io.calls.some((c) => c.kind === 'deploy')
-  assert.ok(ranDeploy, 'resume must continue at the 0045 deploy')
 })
 
 test('runHostedBuild runs the rules cleanup and rethrows when the 0031 deploy fails', async () => {
