@@ -32,6 +32,12 @@ function credentials() {
   throw new Error('No M&E Officer credentials; set PERF_EMAIL and PERF_PASSWORD.')
 }
 
+// Rejects anything but a plain address before it is interpolated into SQL.
+const safeEmail = (e) => {
+  if (!/^[A-Za-z0-9._+-]+@[A-Za-z0-9.-]+$/.test(e)) throw new Error('unexpected email format')
+  return e
+}
+
 // Runs SQL in the fixed local container only.
 const psql = (sql) =>
   execFileSync(
@@ -82,7 +88,7 @@ async function signIn() {
       },
       body: JSON.stringify(body),
     })
-    if (!r.ok) throw new Error(`${route} ${r.status} ${(await r.text()).slice(0, 160)}`)
+    if (!r.ok) throw new Error(`${route.split('?')[0]} ${r.status}`)
     return r.json()
   }
   psql("DELETE FROM auth.mfa_factors WHERE friendly_name LIKE 'perf-%'")
@@ -108,7 +114,7 @@ const token = await signIn()
 
 // Looks up the workspace selector headers in the fixed local container.
 const [orgId, userId] = psql(
-  `SELECT organization_id, id FROM pathways.system_users WHERE email = '${credentials().email}'`,
+  `SELECT organization_id, id FROM pathways.system_users WHERE email = '${safeEmail(credentials().email)}'`,
 ).split(' ')
 const headers = {
   authorization: `Bearer ${token}`,
@@ -121,15 +127,16 @@ for (const route of paths) {
     const t = performance.now()
     const r = await fetch(base + route, { headers })
     const body = await r.text()
-    if (process.env.PERF_TIMING && i === runs - 1) console.error(route.split('?')[0], r.headers.get('server-timing'))
-    if (!r.ok) throw new Error(`${route} ${r.status} ${body.slice(0, 160)}`)
+    if (process.env.PERF_TIMING && i === runs - 1)
+      console.error(route.split('?')[0], r.headers.get('server-timing'))
+    if (!r.ok) throw new Error(`${route.split('?')[0]} ${r.status}`)
     times.push(performance.now() - t)
   }
   console.log(
     JSON.stringify({
       path: route.split('?')[0],
       runs,
-      cold: Math.round(times[0]),
+      coldFirstRequest: Math.round(times[0]),
       p50: Math.round(p(times, 0.5)),
       p95: Math.round(p(times, 0.95)),
       pass: p(times, 0.95) < 800,

@@ -2,6 +2,7 @@ import { execFileSync } from 'node:child_process'
 
 import { assertLocalDemoTarget } from './local-demo-target'
 
+// Writes go via docker exec into the fixed supabase_db_pathways container, which is the real safety boundary.
 // Synthetic, local-only production-scale volume for G-F8-7; never run against a hosted database.
 export const LOAD_SCALE = {
   projects: 20,
@@ -9,6 +10,9 @@ export const LOAD_SCALE = {
   events: 50000,
   indicators: 200,
   readings: 12,
+  activitiesPerProject: 25,
+  milestonesPerProject: 10,
+  participations: 50000,
 }
 
 export function loadSeedStatements(s = LOAD_SCALE) {
@@ -42,6 +46,24 @@ export function loadSeedStatements(s = LOAD_SCALE) {
            WHERE e.beneficiary_id IN (SELECT id FROM pathways.beneficiaries WHERE code LIKE 'LOADB-%')) e
        ON e.n = (g % ${s.beneficiaries}) + 1
      WHERE NOT EXISTS (SELECT 1 FROM pathways.beneficiary_journey_events WHERE note = 'load-seed')`,
+    `INSERT INTO pathways.project_activities (organization_id, project_id, code, title, created_by_id)
+     SELECT p.organization_id, p.id, 'ACT-' || g, 'Load activity ' || g, ${user}
+     FROM ${loadProjects} p CROSS JOIN generate_series(1, ${s.activitiesPerProject}) g
+     ON CONFLICT DO NOTHING`,
+    `INSERT INTO pathways.project_milestones (organization_id, project_id, title, target_date)
+     SELECT p.organization_id, p.id, 'Load milestone ' || g, DATE '2026-02-01' + g * 14
+     FROM ${loadProjects} p CROSS JOIN generate_series(1, ${s.milestonesPerProject}) g
+     WHERE NOT EXISTS (SELECT 1 FROM pathways.project_milestones m WHERE m.project_id = p.id AND m.title LIKE 'Load milestone%')`,
+    `INSERT INTO pathways.beneficiary_activity_participations (organization_id, project_id, enrollment_id, activity_id, participation_date, recorded_by_id)
+     SELECT e.organization_id, e.project_id, e.id, a.id, DATE '2026-03-01' + ((g - 1) / ${s.beneficiaries}) * 7, ${user}
+     FROM generate_series(1, ${s.participations}) g
+     JOIN (SELECT e.*, row_number() OVER (ORDER BY e.id) AS n FROM pathways.beneficiary_project_enrollments e
+           WHERE e.beneficiary_id IN (SELECT id FROM pathways.beneficiaries WHERE code LIKE 'LOADB-%')) e
+       ON e.n = (g % ${s.beneficiaries}) + 1
+     JOIN (SELECT a.*, row_number() OVER (PARTITION BY a.project_id ORDER BY a.code) AS k FROM pathways.project_activities a
+           WHERE a.code LIKE 'ACT-%' AND a.project_id IN (SELECT id FROM ${loadProjects} lp)) a
+       ON a.project_id = e.project_id AND a.k = (g % ${s.activitiesPerProject}) + 1
+     ON CONFLICT DO NOTHING`,
     `INSERT INTO pathways.project_indicators (organization_id, project_id, code, name, measurement_mode, numeric_kind, direction,
        display_precision, period_start, period_end, unit_label, data_source, target_value, created_by_id)
      SELECT p.organization_id, p.id, 'LOADI-' || g, 'Load indicator ' || g, 'MANUAL', 'COUNT', 'HIGHER_IS_BETTER',

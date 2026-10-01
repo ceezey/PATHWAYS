@@ -38,3 +38,5 @@ Date: 2026-10-01. Branch: dev (a75406d). Read-only QA against PRD section 4 gate
 ## Decisions required (Change Record or descope)
 
 G-F1-10, G-F3-6, G-F4-5 (SA journeys.read), G-F4-6, G-F5-1 two-person rule, G-F6-7, G-F7-5, G-F8-7.
+
+> Note 2026-10-01: G-F8-7 was later measured locally at assumed scale and is Met (single user; staging re-measure pending); see QAD-T62 in [qad-pathways](qad-pathways.md). The finding above is kept as dated.

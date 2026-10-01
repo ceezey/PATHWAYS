@@ -28,7 +28,7 @@ Adopt in this order. Each item is measured before and after, and the next one st
 1. **Measure first.**
    - Record request counts, preflight counts and time to interactive for the dashboard, project workspace and Beneficiaries pages on the development preview.
    - Record API p95 latency per endpoint from existing logs.
-   - Measured 2026-10-01 on the local stack with `pnpm perf:dashboards` at 20 projects, 10,000 beneficiaries, 50,000 journey events and 200 indicators with 12 readings: p95 home 394 ms, monitoring 377 ms, SADDD 605 ms warm (cold 530, 358, 381), under the NFR-3 limit of 800 ms. Stale planner statistics after a bulk load pushed the profile query to about 430 ms until ANALYZE ran; production relies on autovacuum.
+   - Measured 2026-10-01 on the local stack with `pnpm perf:dashboards` at the QAD-T62 scale (single user): warm p95 home 554 ms, monitoring 495 ms, SADDD 506 ms (first request 528, 505, 479), under the NFR-3 limit of 800 ms. Stale planner statistics after a bulk load pushed the profile query to about 430 ms until ANALYZE ran; production relies on autovacuum.
 2. **Short client cache for authorized reads.**
    - Replace `staleTime: 0` with a short window (proposed 30 seconds) for list and summary reads only.
    - Query keys always include organization id, user id, role and project id.

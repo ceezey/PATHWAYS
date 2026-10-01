@@ -115,3 +115,5 @@ Findings: 2 High, 8 Medium, 7 Low. Highest risk: MA-01 (R4 templates) and MA-09 
 | SL-21 | Scope and Limitations | Public tracker excludes beneficiary-level, assessment and financial evidence | G-F13-1, G-F13-2 | Met | QAD-T11, QAD-A09 | - |
 | SL-22 | Scope and Limitations | Adaptable to other organizations | G-F1-3 | Met | Organization isolation on every request (QAD-A05) | - |
 | SL-23 | Scope and Limitations | Final decision, validation and approval remain with the organization | G-F10-4, G-F11-2 | Met | Alert dispositions and recommendation outcomes need a human actor and note; no autonomous action (G-F11-2, G-F11-4) | - |
+
+> Note 2026-10-01: G-F8-7 was later measured locally at assumed scale and is Met (single user; staging re-measure pending); see QAD-T62 in [qad-pathways](qad-pathways.md). The finding above is kept as dated.

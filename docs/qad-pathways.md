@@ -158,7 +158,7 @@ Every implemented feature requires:
 | QAD-T52 | a user attaches a trimmed free-text note to a journey event and to its correction; the audit records only that a note exists | Happy | Functional Suitability | PRD-F4 | G-F4-6 | UC-F4-2 | `apps/api/src/modules/participants/journey-note.test.ts` |
 | QAD-T54 | a reviewer declares a data type and translates values ("M" and "F" to canonical values); a coercion failure stays staged with a reason; an oversized map or formula-like values are rejected | Happy, Sad, Abuse | Functional Suitability | PRD-F6 | G-F6-7 | UC-F6-2 | `packages/imports/src/normalization.test.ts`; `apps/api/src/modules/imports/imports.dto.value-map.test.ts`; `apps/api/src/modules/imports/imports.service.test.ts`; `apps/web/src/features/collection/import-value-map-editor.test.tsx` |
 | QAD-T58 | an invalid library definition, a request key reused for a different entry, a missing or archived entry, and a caller without the library permission are refused and nothing is created | Sad | Functional Suitability | PRD-F7 | G-F7-5 | UC-F7-1 | `apps/api/src/modules/indicators/indicator-library.service.test.ts` |
-| QAD-T62 | dashboard responsiveness at production scale (assumed 20 projects, 10,000 beneficiaries, 50,000 journey events, 200 indicators with 12 readings; no volumes are stated in the PRD or validation plan) stays under the NFR-3 p95 of 800 ms for home, monitoring and SADDD | Happy | Performance Efficiency | PRD-F8 | G-F8-7 | UC-F8-1 | Measured 2026-10-01, local Supabase stack and ts-node API on one Windows 11 machine, 50 runs per endpoint; cold / warm p95 ms: home 530 / 394, monitoring 358 / 377, SADDD 381 / 605; `scripts/perf/dashboard-load.mjs`, `apps/api/prisma/local-load-seed.ts`; gate Met |
+| QAD-T62 | dashboard responsiveness at production scale (assumed 20 projects, 10,000 beneficiaries, 50,000 journey events, 200 indicators with 12 readings, 500 activities, 200 milestones and 50,000 participations; no volumes are stated in the PRD or validation plan) stays under the NFR-3 p95 of 800 ms for home, monitoring and SADDD | Happy | Performance Efficiency | PRD-F8 | G-F8-7 | UC-F8-1 | Measured 2026-10-01, local Supabase stack and ts-node API on one Windows 11 machine, single user, 50 runs per endpoint; first-request sample (single, not after an API restart) / warm p95 ms: home 528 / 554, monitoring 505 / 495, SADDD 479 / 506. Dashboard functions p06_home_dashboard, p06_monitoring (p06_compute_monitoring) and p06_saddd read base tables only (project_activities, project_milestones, beneficiary_project_enrollments, beneficiary_activity_participations, beneficiaries, form_submissions, sensitive_aggregate_releases); no trigger-maintained aggregate or projection, so replica-mode seeding is representative; form_submissions are not seeded; `scripts/perf/dashboard-load.mjs`, `apps/api/prisma/local-load-seed.ts`; gate Met (local, assumed scale, single user; staging re-measure pending) |
 | QAD-T63 | participation breakdowns, indicator trends and a server budget aggregate in descriptive analytics; not delivered, so the gate is Not met | Sad | Functional Suitability | PRD-F9 | G-F9-9 | UC-F9-1 | Manual; pending, gate Not met |
 | QAD-T64 | survey totals for Program Manager and Grant Manager through a closed-period release table; not delivered, so the gate is Not met | Sad | Functional Suitability | PRD-F9 | G-F9-10 | UC-F9-1 | Manual; pending, gate Not met |
 | QAD-T67 | budget, Beneficiary and survey rule metrics evaluate and raise alerts; not delivered, so the gate is Not met | Sad | Functional Suitability | PRD-F10 | G-F10-6 | UC-F10-1 | Manual; pending, gate Not met |
@@ -173,7 +173,7 @@ Every implemented feature requires:
 | QAD-JR-01 | System Administrator requests beneficiary journey history -> 403, while listing and saving project journey stages succeeds | Sad | Security | PRD-F4 | G-F4-5 | UC-F4-4 | `apps/api/src/modules/participants/journeys-access.test.ts` |
 | QAD-FP-01 | a form author publishes their own form -> 403 with no write or audit, in any role; a role without `forms.publish` is denied | Sad | Security | PRD-F5 | G-F5-1 | UC-F5-1 | `apps/api/src/modules/metadata/metadata.service.test.ts` |
 | QAD-T83 | a journey note over 1000 characters or only whitespace is rejected with 400 and nothing is stored | Sad | Functional Suitability | PRD-F4 | G-F4-6 | UC-F4-2 | `apps/api/src/modules/participants/journey-note.test.ts` |
-| QAD-T87 | the first (cold) dashboard request after API start is recorded and stays under 800 ms at the same scale | Happy | Performance Efficiency | PRD-F8 | G-F8-7 | UC-F8-1 | Measured 2026-10-01: cold home 530 ms, monitoring 358 ms, SADDD 381 ms; `scripts/perf/dashboard-load.mjs` |
+| QAD-T87 | the first-request (single sample, not after an API restart) dashboard latency is recorded and stays under 800 ms at the same scale | Happy | Performance Efficiency | PRD-F8 | G-F8-7 | UC-F8-1 | Measured 2026-10-01: first request home 528 ms, monitoring 505 ms, SADDD 479 ms; `scripts/perf/dashboard-load.mjs` |
 
 ### 3.3 Abuse / Adversarial Paths
 
@@ -262,11 +262,11 @@ PRD-F9 to PRD-F13 rows are in the matrix above and are cited by their gates in t
 
 #### 3.5.2 Performance Efficiency
 
-- **Rows:** 5 in the matrix with this characteristic.
+- **Rows:** 6 in the matrix with this characteristic.
 - **NFR IDs:** NFR-3, NFR-8.
 - **Automated tests:** Chunked promotion and read-cache rows (QAD-IMP-01, QAD-IMP-02, QAD-P01, QAD-P02); rule-engine determinism.
-- **Manual checks:** Measured response timing at production scale.
-- **Thresholds:** NFR-3 API p95 under 800 ms for normal pages, imports excluded (PRD 5.7, developer target 2026-10-01); a target, not yet measured.
+- **Manual checks:** Measured dashboard response timing at assumed production scale (QAD-T62, QAD-T87).
+- **Thresholds:** NFR-3 API p95 under 800 ms for normal pages, imports excluded (PRD 5.7, developer target 2026-10-01); dashboards measured locally 2026-10-01 (QAD-T62); other endpoints not yet measured.
 - **Gaps:** Performance scaling steps 3-5 are deferred; dashboard scale was measured locally only (QAD-T62, QAD-T87).
 
 #### 3.5.3 Compatibility
