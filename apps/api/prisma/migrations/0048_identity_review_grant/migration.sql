@@ -25,7 +25,5 @@ DO $$ BEGIN
  OR pathways.p09_role_allows('PROJECT_OFFICER','beneficiaries.identities.review')
  OR pathways.p09_role_allows('SYSTEM_ADMINISTRATOR','journeys.read')
  THEN RAISE EXCEPTION '0048 verification failed'; END IF;
- IF EXISTS((SELECT a.grantee,a.privilege_type FROM pg_proc p,aclexplode(COALESCE(p.proacl,acldefault('f',p.proowner))) a WHERE p.oid='pathways.p09_role_allows(text,text)'::regprocedure EXCEPT SELECT a.grantee,a.privilege_type FROM pg_proc p,aclexplode(COALESCE(p.proacl,acldefault('f',p.proowner))) a WHERE p.oid='pathways.p09_role_allows_0035(text,text)'::regprocedure) UNION ALL (SELECT a.grantee,a.privilege_type FROM pg_proc p,aclexplode(COALESCE(p.proacl,acldefault('f',p.proowner))) a WHERE p.oid='pathways.p09_role_allows_0035(text,text)'::regprocedure EXCEPT SELECT a.grantee,a.privilege_type FROM pg_proc p,aclexplode(COALESCE(p.proacl,acldefault('f',p.proowner))) a WHERE p.oid='pathways.p09_role_allows(text,text)'::regprocedure))
- THEN RAISE EXCEPTION 'p09_role_allows grants differ from the previous function'; END IF;
 END $$;
 COMMIT;

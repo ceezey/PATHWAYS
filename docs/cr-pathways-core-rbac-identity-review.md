@@ -28,7 +28,7 @@ C. Documentation only: the author rule stays. Roles holding `forms.publish` are 
 Duplicate review becomes usable by M&E Officers. Physical merge of profiles stays out of scope.
 
 ### Data / Migration
-Migrations `0047_revoke_sa_journeys_read` (also recreates the `p05_stage_select` and `p05_mapping_select` policies to admit `journeys.manage`) and `0048_identity_review_grant` wrap the 0035 `p09_role_allows` matrix (renamed `p09_role_allows_0035`) and adjust `role_permissions`. Not applied by this change; staging and hosted application follow the usual gated process. Amended before any hosted apply: 0047 copies the EXECUTE grants of the renamed function to the new one and 0047, 0048 and 0051 assert ACL parity (a missing grant denied rules recommendation outcomes).
+Migrations `0047_revoke_sa_journeys_read` (also recreates the `p05_stage_select` and `p05_mapping_select` policies to admit `journeys.manage`) and `0048_identity_review_grant` wrap the 0035 `p09_role_allows` matrix (renamed `p09_role_allows_0035`) and adjust `role_permissions`. Not applied by this change; staging and hosted application follow the usual gated process. Role-staging applied the original 0047, 0048 and 0051 before the in-place amendment, so the amendment was reverted to keep ledger checksums equal and the EXECUTE grant fix moved to forward migration `0054_p09_role_allows_grants` (a missing grant denied rules recommendation outcomes).
 
 ### Authorization / Privacy
 System Administrator can no longer read beneficiary journey history or events. Listing and saving project journey stages is unchanged for it. The review routes return only code, name, birth date, location and last-updated date; no contact data.

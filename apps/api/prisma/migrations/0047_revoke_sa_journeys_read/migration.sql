@@ -16,15 +16,6 @@ LANGUAGE sql IMMUTABLE SECURITY INVOKER SET search_path='' AS $matrix$
  SELECT NOT ($1='SYSTEM_ADMINISTRATOR' AND $2='journeys.read') AND pathways.p09_role_allows_0035($1,$2)
 $matrix$;
 
--- Carry the EXECUTE grants of the renamed function over so the rules owners keep access.
-DO $$ DECLARE g oid; BEGIN
- REVOKE ALL ON FUNCTION pathways.p09_role_allows(text,text) FROM PUBLIC,anon,authenticated,service_role;
- FOR g IN SELECT DISTINCT a.grantee FROM pg_proc p,aclexplode(p.proacl) a
-  WHERE p.oid='pathways.p09_role_allows_0035(text,text)'::regprocedure AND a.grantee NOT IN (0,p.proowner) LOOP
-  EXECUTE format('GRANT EXECUTE ON FUNCTION pathways.p09_role_allows(text,text) TO %I',(SELECT rolname FROM pg_roles WHERE oid=g));
- END LOOP;
-END $$;
-
 DELETE FROM pathways.role_permissions rp USING pathways.roles r, pathways.permissions p
 WHERE rp.role_id=r.id AND rp.permission_id=p.id AND r.code='SYSTEM_ADMINISTRATOR' AND p.code='journeys.read';
 
@@ -45,7 +36,5 @@ DO $$ BEGIN
  OR NOT pathways.p09_role_allows('PROJECT_MANAGER','journeys.read')
  OR NOT pathways.p09_role_allows('SYSTEM_ADMINISTRATOR','journeys.manage')
  THEN RAISE EXCEPTION '0047 verification failed'; END IF;
- IF EXISTS((SELECT a.grantee,a.privilege_type FROM pg_proc p,aclexplode(COALESCE(p.proacl,acldefault('f',p.proowner))) a WHERE p.oid='pathways.p09_role_allows(text,text)'::regprocedure EXCEPT SELECT a.grantee,a.privilege_type FROM pg_proc p,aclexplode(COALESCE(p.proacl,acldefault('f',p.proowner))) a WHERE p.oid='pathways.p09_role_allows_0035(text,text)'::regprocedure) UNION ALL (SELECT a.grantee,a.privilege_type FROM pg_proc p,aclexplode(COALESCE(p.proacl,acldefault('f',p.proowner))) a WHERE p.oid='pathways.p09_role_allows_0035(text,text)'::regprocedure EXCEPT SELECT a.grantee,a.privilege_type FROM pg_proc p,aclexplode(COALESCE(p.proacl,acldefault('f',p.proowner))) a WHERE p.oid='pathways.p09_role_allows(text,text)'::regprocedure))
- THEN RAISE EXCEPTION 'p09_role_allows grants differ from the previous function'; END IF;
 END $$;
 COMMIT;

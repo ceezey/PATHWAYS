@@ -1,5 +1,5 @@
--- 0047/0048/0051 wrap pathways.p09_role_allows: its EXECUTE grants must survive each rename.
--- Run as a local superuser against a disposable replay database with 0051 applied; rolls back.
+-- 0054 restores the EXECUTE grants lost by the 0047/0048/0051 renames on p09_role_allows and p09_role_allows_0048.
+-- Run as a local superuser against a disposable replay database with 0054 applied; rolls back.
 \set ON_ERROR_STOP on
 BEGIN;
 
@@ -10,19 +10,21 @@ DO $$ BEGIN
   RAISE EXCEPTION 'p09 grant checks require a disposable local database'; END IF;
 END $$;
 
-DO $$ DECLARE r text; BEGIN
+DO $$ DECLARE r text; f text; BEGIN
+ FOREACH f IN ARRAY ARRAY['p09_role_allows','p09_role_allows_0048'] LOOP
  FOREACH r IN ARRAY ARRAY['pathways_runtime','rules_human_owner','rules_outcome_owner','rules_eligibility_owner','rules_config_owner',
   'rules_capacity_owner','rules_runtime_guard_owner','rules_enqueue_owner','rules_source_proof_owner'] LOOP
-  IF NOT has_function_privilege(r,'pathways.p09_role_allows(text,text)','EXECUTE') THEN
-   RAISE EXCEPTION 'Role % cannot execute p09_role_allows',r; END IF;
+  IF NOT has_function_privilege(r,format('pathways.%I(text,text)',f),'EXECUTE') THEN
+   RAISE EXCEPTION 'Role % cannot execute %',r,f; END IF;
  END LOOP;
  FOREACH r IN ARRAY ARRAY['anon','authenticated','service_role'] LOOP
-  IF has_function_privilege(r,'pathways.p09_role_allows(text,text)','EXECUTE') THEN
-   RAISE EXCEPTION 'Role % can execute p09_role_allows',r; END IF;
+  IF has_function_privilege(r,format('pathways.%I(text,text)',f),'EXECUTE') THEN
+   RAISE EXCEPTION 'Role % can execute %',r,f; END IF;
  END LOOP;
  IF EXISTS(SELECT 1 FROM pg_proc p,aclexplode(p.proacl) a
-  WHERE p.oid='pathways.p09_role_allows(text,text)'::regprocedure AND a.grantee=0) THEN
-  RAISE EXCEPTION 'PUBLIC can execute p09_role_allows'; END IF;
+  WHERE p.oid=format('pathways.%I(text,text)',f)::regprocedure AND a.grantee=0) THEN
+  RAISE EXCEPTION 'PUBLIC can execute %',f; END IF;
+ END LOOP;
 END $$;
 
 -- The recommendation preview body runs as rules_outcome_owner and checks these permissions.
