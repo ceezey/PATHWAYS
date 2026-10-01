@@ -16,6 +16,50 @@ export interface ImportRowNormalizationResult {
   errors: ImportValueError[]
 }
 
+export type ImportDataType = FormFieldValidationContract['dataType']
+
+export const IMPORT_VALUE_MAP_LIMITS = Object.freeze({ maxEntries: 50, maxTextLength: 100 })
+
+/** Data types a reviewer may declare for a column, by target field type. */
+const COMPATIBLE_TYPES: Record<ImportDataType, readonly ImportDataType[]> = {
+  TEXT: ['TEXT'],
+  LONG_TEXT: ['TEXT', 'LONG_TEXT'],
+  SELECT: ['TEXT', 'SELECT'],
+  MULTIPLE_SELECT: ['MULTIPLE_SELECT'],
+  INTEGER: ['INTEGER'],
+  DECIMAL: ['INTEGER', 'DECIMAL'],
+  DATE: ['DATE'],
+  BOOLEAN: ['BOOLEAN'],
+}
+
+export function compatibleImportDataTypes(target: ImportDataType): readonly ImportDataType[] {
+  return COMPATIBLE_TYPES[target]
+}
+
+export interface ImportValueMapEntry {
+  from: string
+  to: string
+}
+
+export interface ImportColumnRule {
+  dataType?: ImportDataType
+  valueMap?: ReadonlyMap<string, string>
+}
+
+const mapKey = (value: string) => value.normalize('NFKC').trim().toLowerCase()
+
+/** Builds the exact-match lookup; keys are NFKC, trimmed and case-folded, duplicates are rejected. */
+export function buildImportValueMap(entries: readonly ImportValueMapEntry[]): Map<string, string> {
+  if (entries.length > IMPORT_VALUE_MAP_LIMITS.maxEntries) throw new Error('VALUE_MAP_TOO_LARGE')
+  const map = new Map<string, string>()
+  for (const { from, to } of entries) {
+    const key = mapKey(from)
+    if (!key || map.has(key)) throw new Error('VALUE_MAP_INVALID')
+    map.set(key, to)
+  }
+  return map
+}
+
 function conversionError(field: FormFieldValidationContract, code: string, message: string) {
   return { fieldCode: field.code, code, message }
 }
@@ -112,14 +156,28 @@ function mappedError(error: FormValueError): ImportValueError {
   }
 }
 
+function translate(raw: unknown, rule: ImportColumnRule | undefined): unknown {
+  if (!rule?.valueMap || (typeof raw !== 'string' && typeof raw !== 'number')) return raw
+  const mapped = rule.valueMap.get(mapKey(String(raw)))
+  return mapped === undefined ? raw : mapped
+}
+
+/** Applies the reviewed value map, then the declared type check, then the field's own coercion. */
 export function normalizeImportedRow(
   fields: readonly FormFieldValidationContract[],
   rawValuesByFieldCode: Readonly<Record<string, unknown>>,
+  rules: Readonly<Record<string, ImportColumnRule>> = {},
 ): ImportRowNormalizationResult {
   const values: Record<string, string | number | boolean | string[] | null> = Object.create(null)
   const errors: ImportValueError[] = []
   for (const field of fields) {
-    const converted = convert(field, rawValuesByFieldCode[field.code])
+    const rule = Object.hasOwn(rules, field.code) ? rules[field.code] : undefined
+    const raw = translate(rawValuesByFieldCode[field.code], rule)
+    const declared =
+      rule?.dataType && rule.dataType !== field.dataType
+        ? convert({ ...field, dataType: rule.dataType }, raw)
+        : null
+    const converted = declared?.error ? declared : convert(field, raw)
     values[field.code] = converted.value
     if (converted.error) errors.push(converted.error)
   }

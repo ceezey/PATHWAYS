@@ -18,10 +18,13 @@ import {
   AUTO_SMART_V2,
   AUTO_SMART_V2_LIMITS,
   IMPORT_ENGINEERING_LIMITS,
+  type ImportColumnRule,
   ImportParseError,
   type ImportSourceColumn,
   type SmartMatchDecision,
   type SupportedImportFileType,
+  buildImportValueMap,
+  compatibleImportDataTypes,
   normalizeImportedRow,
   parseSecureImport,
   smartMatchColumns,
@@ -174,6 +177,19 @@ function jsonStrings(value: Prisma.JsonValue | null) {
   return Array.isArray(value) && value.every((item) => typeof item === 'string')
     ? (value as string[])
     : null
+}
+
+function storedValueMap(value: Prisma.JsonValue): { from: string; to: string }[] {
+  if (!Array.isArray(value)) return []
+  return value.flatMap((entry) =>
+    entry &&
+    typeof entry === 'object' &&
+    !Array.isArray(entry) &&
+    typeof entry.from === 'string' &&
+    typeof entry.to === 'string'
+      ? [{ from: entry.from, to: entry.to }]
+      : [],
+  )
 }
 
 function contract(field: FieldRow): FormFieldValidationContract {
@@ -351,6 +367,8 @@ export class ImportsService {
           suggestedField: { select: { code: true, label: true } },
           matchScore: true,
           matchReason: true,
+          dataType: true,
+          valueMap: true,
         },
         orderBy: { sourceFieldName: 'asc' },
         take: IMPORT_ENGINEERING_LIMITS.maxSourceColumns,
@@ -700,7 +718,7 @@ export class ImportsService {
           projectId: batch.projectId,
           formId: batch.formId,
         },
-        select: { id: true, code: true },
+        select: { id: true, code: true, dataType: true },
         take: IMPORT_ENGINEERING_LIMITS.maxMappedFields,
       })
       const byCode = new Map(fields.map((field) => [field.code, field]))
@@ -713,6 +731,11 @@ export class ImportsService {
           throw new BadRequestException('Each source column must be mapped or ignored, not both.')
         }
         if (item.ignored) {
+          if (item.dataType || item.valueMap) {
+            throw new BadRequestException(
+              'An ignored column cannot carry a data type or value map.',
+            )
+          }
           return {
             organizationId: actor.organizationId,
             projectId: batch.projectId,
@@ -732,6 +755,16 @@ export class ImportsService {
           throw new BadRequestException('The mapping targets too many form fields.')
         }
         targets.add(target.id)
+        if (item.dataType && !compatibleImportDataTypes(target.dataType).includes(item.dataType)) {
+          throw new BadRequestException('The chosen data type does not fit the target field.')
+        }
+        if (item.valueMap) {
+          try {
+            buildImportValueMap(item.valueMap)
+          } catch {
+            throw new BadRequestException('The value map is oversized or has a duplicate source.')
+          }
+        }
         return {
           organizationId: actor.organizationId,
           projectId: batch.projectId,
@@ -741,6 +774,8 @@ export class ImportsService {
           sourceFieldName: sourceKey,
           targetFieldId: target.id,
           status: 'MAPPED',
+          dataType: item.dataType,
+          valueMap: item.valueMap?.map(({ from, to }) => ({ from, to })),
         }
       })
       await tx.metadataMapping.createMany({ data })
@@ -788,6 +823,7 @@ export class ImportsService {
             revision,
             mapped: targets.size,
             ignored: sourceColumnKeys.length - targets.size,
+            valueMapped: input.mappings.filter((item) => item.valueMap).length,
           },
         },
       })
@@ -815,6 +851,8 @@ export class ImportsService {
         select: {
           sourceFieldName: true,
           status: true,
+          dataType: true,
+          valueMap: true,
           targetField: { select: fieldSelection },
         },
         take: IMPORT_ENGINEERING_LIMITS.maxSourceColumns,
@@ -855,6 +893,16 @@ export class ImportsService {
       if (requiredCodes.some((field) => !mappedCodes.has(field.code))) {
         throw new BadRequestException('Every required form field must have a source mapping.')
       }
+      const rules = Object.create(null) as Record<string, ImportColumnRule>
+      for (const mapping of mappings) {
+        if (mapping.status !== 'MAPPED' || !mapping.targetField) continue
+        rules[mapping.targetField.code] = {
+          ...(mapping.dataType ? { dataType: mapping.dataType } : {}),
+          ...(mapping.valueMap
+            ? { valueMap: buildImportValueMap(storedValueMap(mapping.valueMap)) }
+            : {}),
+        }
+      }
       const rows = await tx.dataImportRow.findMany({
         where: { organizationId: actor.organizationId, importBatchId: batch.id },
         select: { id: true, rowNumber: true, rawData: true },
@@ -870,7 +918,7 @@ export class ImportsService {
             byFieldCode[mapping.targetField.code] = raw[mapping.sourceFieldName]
           }
         }
-        return { row, result: normalizeImportedRow(fields, byFieldCode) }
+        return { row, result: normalizeImportedRow(fields, byFieldCode, rules) }
       })
       const metadataKeys = mappedFields
         .filter((field) => field.isMetadataKey)

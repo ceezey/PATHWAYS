@@ -1190,6 +1190,8 @@ model MetadataMapping {
   suggestedFieldId  String?         @map("suggested_field_id") @db.Uuid
   matchScore        Int?            @map("match_score") @db.SmallInt
   matchReason       String?         @map("match_reason")
+  dataType          FieldDataType?  @map("data_type")
+  valueMap          Json?           @map("value_map")
   createdAt         DateTime        @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt         DateTime        @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
   organization      Organization    @relation("MetadataMapping_organization", fields: [organizationId], references: [id], onDelete: Restrict, onUpdate: Restrict, map: "metadata_mappings_organization_fk")
