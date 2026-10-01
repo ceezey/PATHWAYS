@@ -1,9 +1,6 @@
 # Fresh synthetic loopback replay only. No hosted URL, credential or env file is read.
 [CmdletBinding()]
 param(
-  [switch]$Phase4IndicatorPolicy,
-  [switch]$RuleBasedAccessAlignment,
-  [switch]$DashboardHomeProjectScope,
   [switch]$ProjectActivityCreationRepair,
   [switch]$CsvRbacRealignment,
   [switch]$MigrationBaseline,
@@ -177,7 +174,7 @@ try {
       }
     }
 
-    if ($Phase4IndicatorPolicy -or $RuleBasedAccessAlignment -or $DashboardHomeProjectScope -or $ProjectActivityCreationRepair) {
+    if ($ProjectActivityCreationRepair) {
       # Synthetic existing reference rows exercise the upgrade path. The
       # checked-in policy supplies equivalent mappings when a fresh target is
       # provisioned after its migrations; no managed target is used here.
@@ -217,7 +214,7 @@ WHERE id='89000000-0000-4000-8000-000000000021'::uuid
       pnpm --filter @pathways/api exec prisma migrate deploy --config $phase6Config
       if ($LASTEXITCODE -ne 0) { throw '0022 project target-goal replay failed.' }
 
-      if ($RuleBasedAccessAlignment -or $DashboardHomeProjectScope -or $ProjectActivityCreationRepair) {
+      if ($ProjectActivityCreationRepair) {
         # Reproduce the managed pre-0023 authorization state: both target roles
         # exist, M&E already has rules.read, and unrelated Project Manager rows
         # must remain unchanged.
@@ -281,7 +278,7 @@ WHERE code IN ('PROJECT_MANAGER','MONITORING_AND_EVALUATION_OFFICER','PROJECT_OF
 '@
         Invoke-LocalSql $ruleAccessRemoveSeedSql $phase6Database
 
-        if ($DashboardHomeProjectScope -or $ProjectActivityCreationRepair) {
+        if ($ProjectActivityCreationRepair) {
           Copy-Item -LiteralPath (Join-Path $phase6History '0024_dashboard_home_project_scope') -Destination $phase6Stage -Recurse
           pnpm --filter @pathways/api exec prisma migrate deploy --config $phase6Config
           if ($LASTEXITCODE -ne 0) { throw '0024 dashboard-home project-scope replay failed.' }
@@ -474,12 +471,6 @@ SELECT (SELECT count(*) FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamesp
   if ($ProjectActivityCreationRepair) {
     $phase6Post = $phase6Post.Replace("n.nspname='pathways' AND c.relkind='r')=45", "n.nspname='pathways' AND c.relkind='r')=46")
     $phase6Post = $phase6Post.Replace('FROM public._prisma_migrations)=20', 'FROM public._prisma_migrations)=25')
-  } elseif ($DashboardHomeProjectScope) {
-    $phase6Post = $phase6Post.Replace('FROM public._prisma_migrations)=20', 'FROM public._prisma_migrations)=24')
-  } elseif ($RuleBasedAccessAlignment) {
-    $phase6Post = $phase6Post.Replace('FROM public._prisma_migrations)=20', 'FROM public._prisma_migrations)=23')
-  } elseif ($Phase4IndicatorPolicy) {
-    $phase6Post = $phase6Post.Replace('FROM public._prisma_migrations)=20', 'FROM public._prisma_migrations)=22')
   }
   $phase6Result = $phase6Post | & $phase6Tools['psql'] -X -w -q -A -t -h 127.0.0.1 -p $phase6Port -U postgres -d $phase6Database -v ON_ERROR_STOP=1
   if ($LASTEXITCODE -ne 0 -or $phase6Result.Trim() -cne 't') { throw 'Replay postflight failed.' }
@@ -487,7 +478,7 @@ SELECT (SELECT count(*) FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamesp
   if ($ProjectActivityCreationRepair) {
     $env:PATHWAYS_PROJECT_ACTIVITY_CREATION_LOCAL_TESTS = '1'
   }
-  if (-not $CsvRbacRealignment -and -not ($Phase4IndicatorPolicy -or $RuleBasedAccessAlignment -or $DashboardHomeProjectScope -or $ProjectActivityCreationRepair)) {
+  if (-not $CsvRbacRealignment -and -not $ProjectActivityCreationRepair) {
   Push-Location $phase6Root
   try {
     pnpm --dir apps/api exec vitest run src/modules/activities/feature-read.local.test.ts
@@ -516,12 +507,10 @@ SELECT (SELECT count(*) FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamesp
   Write-Output 'PROJECT_ACTIVITY_JOURNEY_RUNTIME=PASS'
   Write-Output 'PROJECT_TARGET_GOAL_RUNTIME=PASS'
   $phase6IndicatorSql = [IO.File]::ReadAllText((Join-Path $phase6Root 'apps/api/prisma/tests/project-indicator-dashboard-runtime.sql'))
-  if ($Phase4IndicatorPolicy) {
-    $phase6IndicatorSql = "\set PHASE4_INDICATOR_POLICY 1`n" + $phase6IndicatorSql
-  }
+  $phase6IndicatorSql = "\set PHASE4_INDICATOR_POLICY 1`n" + $phase6IndicatorSql
   Invoke-LocalSql $phase6IndicatorSql $phase6Database
   Write-Output 'PROJECT_INDICATOR_DASHBOARD_RUNTIME=PASS'
-  if ($DashboardHomeProjectScope -or $ProjectActivityCreationRepair) {
+  if ($ProjectActivityCreationRepair) {
     # The current-schema dashboard-home vitest does not run against historical replay databases.
     Invoke-LocalSql ([IO.File]::ReadAllText((Join-Path $phase6Root 'apps/api/prisma/tests/dashboard-home-project-scope-runtime.sql'))) $phase6Database
     Write-Output 'DASHBOARD_HOME_PROJECT_SCOPE_RUNTIME=PASS'
@@ -530,8 +519,7 @@ SELECT (SELECT count(*) FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamesp
     Invoke-LocalSql ([IO.File]::ReadAllText((Join-Path $phase6Root 'apps/api/prisma/tests/project-activity-creation-contract-runtime.sql'))) $phase6Database
     Write-Output 'PROJECT_ACTIVITY_CREATION_CONTRACT_RUNTIME=PASS'
   }
-  if ($Phase4IndicatorPolicy) { Write-Output 'PHASE4_PM_INDICATOR_RUNTIME=PASS' }
-  if ($RuleBasedAccessAlignment -or $DashboardHomeProjectScope -or $ProjectActivityCreationRepair) { Write-Output 'RULE_BASED_ACCESS_ALIGNMENT_RUNTIME=PASS' }
+  if ($ProjectActivityCreationRepair) { Write-Output 'RULE_BASED_ACCESS_ALIGNMENT_RUNTIME=PASS' }
   if ($CsvRbacRealignment) {
     $rbacCatalogSql = Join-Path $phase6Root 'apps/api/prisma/tests/csv-rbac-catalog.sql'
     $rbacBeforeCatalog = (& $phase6Tools['psql'] -X -q -A -t -w -h 127.0.0.1 -p $phase6Port -U postgres -d $phase6Database -v ON_ERROR_STOP=1 -f $rbacCatalogSql) | ConvertFrom-Json
