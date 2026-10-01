@@ -68,8 +68,8 @@ Developer decision, 2026-10-01: build G-F1-10.
 
 ## 9. Disposition
 
-Residual risk: anyone can lock a known email for 15 minutes at a time. The direct-grant bypass is closed by migration 0052, which adds the password-verification-attempt hook `pathways.p52_password_verification_attempt` (read-only, executable only by `supabase_auth_admin`; failures are still counted only by the API). Mark Applied after 0046 and 0052 are applied, their runtime SQL tests pass, and the staging hook below is enabled.
+Residual risk: anyone can lock a known email for 15 minutes at a time. The direct-grant bypass is closed by migration 0052, which adds the password-verification-attempt hook `pathways_auth.password_verification_attempt` (read-only, executable only by `supabase_auth_admin`, which has USAGE on the dedicated `pathways_auth` schema and none on `pathways`; failures are still counted only by the API). Accepted residual: `supabase_auth_admin` can probe lock state for arbitrary emails through the `pathways_auth.lockout_remaining` helper; it is the auth role itself and already holds auth.users. Mark Applied after 0046 and 0052 are applied, their runtime SQL tests pass, and the staging hook below is enabled.
 
 ### Staging hook handoff (developer step)
 
-After 0052 is applied on `PATHWAYS-role-staging`, in the Supabase dashboard open Authentication, Hooks, Password Verification Attempt, choose Postgres function, select `pathways.p52_password_verification_attempt`, and enable it. Local stacks enable it through `supabase/config.toml` (`[auth.hook.password_verification_attempt]`). Rollback: disable the hook, then drop the function.
+After 0052 is applied on `PATHWAYS-role-staging`, in the Supabase dashboard open Authentication, Hooks, Password Verification Attempt, choose Postgres function, select `pathways_auth.password_verification_attempt`, and enable it. Local stacks enable it through `supabase/config.toml` (`[auth.hook.password_verification_attempt]`). Rollback: disable the hook, then drop schema `pathways_auth` cascade.
