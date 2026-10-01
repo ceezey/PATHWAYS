@@ -37,6 +37,12 @@ import {
   runImportProcessing,
 } from './import-auto-continue'
 import { ImportProcessingPanel, type ImportProcessingState } from './import-processing-panel'
+import {
+  type ColumnRuleDraft,
+  ImportValueMapEditor,
+  emptyColumnRule,
+  ruleToMappingInput,
+} from './import-value-map-editor'
 
 const mappingLockedStatuses = new Set(['PROCESSING', 'PARTIALLY_PROCESSED', 'PROCESSED', 'FAILED'])
 
@@ -103,6 +109,7 @@ function OwnedImportWorkspace({ scope }: { scope: SensitiveDraftOwner }) {
   const [batch, setBatch] = useState<ImportBatchDefinition | null>(null)
   const [rows, setRows] = useState<ImportRowDefinition[]>([])
   const [mapping, setMapping] = useState<Record<string, string>>({})
+  const [rules, setRules] = useState<Record<string, ColumnRuleDraft>>({})
   const [mappingNotice, setMappingNotice] = useState('')
   const mappingHeading = useRef<HTMLSpanElement>(null)
   const [pending, setPending] = useState(false)
@@ -194,6 +201,7 @@ function OwnedImportWorkspace({ scope }: { scope: SensitiveDraftOwner }) {
     setBatch(null)
     setRows([])
     setMapping({})
+    setRules({})
     Promise.all([
       pathwaysClient.getDigitalForms(projectId),
       pathwaysClient.getImportBatches(projectId),
@@ -263,6 +271,14 @@ function OwnedImportWorkspace({ scope }: { scope: SensitiveDraftOwner }) {
       if (latest.current.batch?.id !== detail.id) setMappingNotice('')
       setBatch(detail)
       setRows(page.rows)
+      setRules(
+        Object.fromEntries(
+          (detail.mappings ?? []).map((stored) => [
+            stored.sourceFieldName,
+            { dataType: stored.dataType ?? '', pairs: stored.valueMap ?? [] },
+          ]),
+        ),
+      )
       setMapping(
         Object.fromEntries(
           (
@@ -386,6 +402,12 @@ function OwnedImportWorkspace({ scope }: { scope: SensitiveDraftOwner }) {
       sourceFieldName: column.key,
       ignored: draft[column.key] === '__ignore__',
       targetFieldCode: draft[column.key] === '__ignore__' ? undefined : draft[column.key],
+      ...(draft[column.key] === '__ignore__'
+        ? {}
+        : ruleToMappingInput(
+            rules[column.key],
+            selectedForm?.fields.find((field) => field.code === draft[column.key])?.dataType,
+          )),
     }))
     const ticket = begin('imports.review')
     if (!ticket) return
@@ -799,6 +821,9 @@ function OwnedImportWorkspace({ scope }: { scope: SensitiveDraftOwner }) {
                       {sourceColumns.map((column) => {
                         const stored = storedMappingByKey.get(column.key)
                         const automatic = automaticMatchReason(stored)
+                        const targetField = selectedForm?.fields.find(
+                          (field) => field.code === mapping[column.key],
+                        )
                         const suggestion = openSuggestions.find(
                           (item) => item.column.key === column.key,
                         )
@@ -865,6 +890,22 @@ function OwnedImportWorkspace({ scope }: { scope: SensitiveDraftOwner }) {
                                 ))}
                               </SelectContent>
                             </Select>
+                            {targetField ? (
+                              <div className="sm:col-span-2">
+                                <ImportValueMapEditor
+                                  columnLabel={`column ${column.columnIndex}`}
+                                  disabled={!mappingEditable}
+                                  fieldType={targetField.dataType}
+                                  idPrefix={`import-rule-${column.key}`}
+                                  rule={rules[column.key] ?? emptyColumnRule}
+                                  onChange={(next) =>
+                                    !mutation.current &&
+                                    scope.isCurrent() &&
+                                    setRules((current) => ({ ...current, [column.key]: next }))
+                                  }
+                                />
+                              </div>
+                            ) : null}
                           </div>
                         )
                       })}
