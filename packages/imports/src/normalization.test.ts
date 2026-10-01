@@ -1,11 +1,8 @@
 import type { FormFieldValidationContract } from '@pathways/shared'
 import { describe, expect, it } from 'vitest'
 
-import {
-  buildImportValueMap,
-  compatibleImportDataTypes,
-  normalizeImportedRow,
-} from './normalization'
+import { normalizeImportedRow } from './normalization'
+import { buildImportValueMap, compatibleImportDataTypes } from './value-map'
 
 const fields: FormFieldValidationContract[] = [
   { code: 'text', label: 'Text', dataType: 'TEXT', required: true, maximumLength: 8 },
