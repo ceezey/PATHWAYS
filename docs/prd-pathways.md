@@ -271,7 +271,7 @@ flowchart LR
 - Milestone create and update.
 - Budget records and expense entries with a private receipt, verification, approval, rejection and final sign-off.
 **Bounds (out):**
-- Project archive: `projects.archive` is granted but no route enforces it (Scope and Limitations / deferred register entry to be added).
+- Project archive: `POST /projects/:projectId/archive` is guarded by `projects.archive`; archived projects leave the default list and there is no unarchive.
 - Reusable project structures: not built; stays a known gap for R4 (Scope and Limitations).
 - Project target goal: retired (cr-pathways-retire-project-target-goal).
 - Free-text implementing partners: writes are rejected (cr-pathways-project-rbac-ui-and-partners).
@@ -285,7 +285,7 @@ flowchart LR
 | G-F2-1 | A Project Manager creates a project with target beneficiaries, an opening budget and automatic self-assignment, audited | Met | QAD-R08 |
 | G-F2-2 | Project list and detail show only scoped projects and the tabs the role may read | Met | QAD-R02 |
 | G-F2-3 | Locked fields stay disabled and unsubmitted; a write carrying free-text implementing partners is rejected | Met | QAD-RBP-06, QAD-RBP-07 |
-| G-F2-4 | A project can be archived by a role holding `projects.archive` | Not met | To be added |
+| G-F2-4 | A project can be archived by a role holding `projects.archive` | Met | QAD-P10 |
 | G-F2-5 | Authorized activity create and update persist; dates outside the project timeline need a justification | Met | QAD-T02 |
 | G-F2-6 | A progress update or proof submission enters review, and only one update awaits review per activity | Met | QAD-T02 |
 | G-F2-7 | A reviewer other than the submitter approves or returns an update, and only approval moves activity progress | Met | To be added |
@@ -344,10 +344,10 @@ flowchart LR
 | Permission | `projects.create` |
 | Trigger | The manager starts a new project or edits one |
 | Preconditions | The manager holds `projects.create`; updating needs `projects.update` and assignment to the project |
-| Main flow | 1. The manager opens the form (route `/projects/new`). 2. The manager enters profile details, structured implementing partners and the opening budget. 3. The API creates the project, the budget record and the self-assignment (route `POST /projects`). 4. To edit, the manager saves changes (route `PATCH /projects/:projectId`). |
+| Main flow | 1. The manager opens the form (route `/projects/new`). 2. The manager enters profile details, structured implementing partners and the opening budget. 3. The API creates the project, the budget record and the self-assignment (route `POST /projects`). 4. To edit, the manager saves changes (route `PATCH /projects/:projectId`). 5. A holder of `projects.archive` confirms the archive on the project overview (route `POST /projects/:projectId/archive`). |
 | Alternate / exception | Missing required field or invalid value: the save is rejected; locked field: shown disabled and never submitted; permission missing: 403 |
 | Postconditions | The project and budget record exist in the organization and the change is audited |
-| Gates | G-F2-1, G-F2-2, G-F2-3, G-F2-4 (Not met) |
+| Gates | G-F2-1, G-F2-2, G-F2-3, G-F2-4 |
 
 ##### UC-F2-2 Manage activity
 
