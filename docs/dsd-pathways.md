@@ -232,7 +232,7 @@ Most operational content uses neutral surfaces; do not fill every card with bran
 | Danger: overdue, incomplete, error, blocked | #B51D32 | #EF3340 | #FFE1E5 |
 | Information: in progress, guidance | #005EBF | #007DFE | #CDE6FF |
 
-Ambiguity flagged for human review: the color foundations file gives success.700 as #08783E and success.100 as #DDE6E8, while the palette image shows #08783F and #DDF6E8. The foundations file value is used here; confirm against the approved palette source before implementation.
+Developer decision (2026-10-01): success.700 is #08783E and success.100 is #DDE6E8, as stated in the color foundations file; the palette image values #08783F and #DDF6E8 are not used.
 
 Semantic rules: information reuses the blue family; danger is never decorative; every important state pairs color with an icon or text label (for example Verified, Needs review, Validation failed, In progress); never a green dot only, red row only or yellow background only. Use the 700 tone for text on its 100 surface; 500 tones are UI signals and large display elements, not body text. Do not assume two palette colors are accessible together.
 
