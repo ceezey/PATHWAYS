@@ -588,6 +588,8 @@ END $$;
       . (Join-Path $PSScriptRoot 'Verify-Baseline.ps1')
       Invoke-LocalSql ([IO.File]::ReadAllText((Join-Path $phase6Root 'apps/api/prisma/tests/finance-expense-runtime.sql'))) $phase6Database
       Write-Output 'FINANCE_EXPENSE_RUNTIME=PASS'
+      Invoke-LocalSql ([IO.File]::ReadAllText((Join-Path $phase6Root 'apps/api/prisma/tests/signin-password-hook-runtime.sql'))) $phase6Database
+      Write-Output 'SIGNIN_PASSWORD_HOOK_RUNTIME=PASS'
     }
     Invoke-LocalSql 'ALTER ROLE pathways_runtime LOGIN;' $phase6Database
     $env:PATHWAYS_CSV_RBAC_LOCAL_TESTS = '1'
