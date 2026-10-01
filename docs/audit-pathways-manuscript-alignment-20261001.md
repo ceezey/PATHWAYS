@@ -34,6 +34,7 @@ An audit records what was found. It does not become implementation authority by 
 | MA-15 | Low | Purpose claims beneficiary outcome assessment while the limitations forbid individual evaluation; the system supports project-level pre-test and post-test summaries only | G-F9-2; Scope and Limitations | Purpose and Description | Reword the manuscript to project-level outcome monitoring |
 | MA-16 | Low | Older CRs cite Specific Objective 2.2 for step-up; in rev-2026 2.2 is descriptive analytics and step-up is inferred under 1.8 (role-based access control) | `cr-pathways-beneficiary-step-up.md`, `cr-pathways-beneficiary-step-up-pin.md` | Objective 1.8 | Add a renumbering note to the two CRs |
 | MA-17 | Low | UAT under ISO/IEC 25010 has not been run, so Objectives 3.1 to 3.8 have no results | QAD section 8.2 | Objective 3 | Run the UAT and record results in QAD |
+| MA-18 | Medium | The manuscript access matrix v4 is not reflected; 14 role cells differ from the running contract and Encode Project Data is removed | `rbac-contract.json` hash `ef1339d9`; v4 hash `c5bc22d3` | Objective 1.8 | Closed in docs by [cr-pathways-rbac-v4-adoption](cr-pathways-rbac-v4-adoption.md); code follow-up in deferred-features |
 
 ## 3. Non-Findings / Verified Controls
 
@@ -49,7 +50,7 @@ Each finding must be closed through an approved Change Record, explicitly deferr
 
 ## 5. Summary
 
-Findings: 2 High, 8 Medium, 7 Low. Highest risk: MA-01 (R4 templates) and MA-09 (rule metrics).
+Findings: 2 High, 9 Medium, 7 Low. Highest risk: MA-01 (R4 templates) and MA-09 (rule metrics). MA-18 is closed in docs; its code follow-up is registered.
 
 ### Trace table
 
@@ -70,7 +71,7 @@ Findings: 2 High, 8 Medium, 7 Low. Highest risk: MA-01 (R4 templates) and MA-09 
 | 1.5 | Purpose and Objectives | Project monitoring structure: configured activities, indicators and targets | PRD-F2, F7; G-F7-1 to G-F7-5 | Partly met | Indicator CRUD and measurements Met; cross-project reuse Not met | MA-01 |
 | 1.6 | Purpose and Objectives | Dashboards, descriptive analytics, SADDD, beneficiary progress summaries and visualization | PRD-F8, F9, F12; G-F8-7, G-F9-9, G-F9-10, G-F12-4 | Partly met | Dashboard, SADDD and survey views Met; scale verification, three views and CSV export gaps | MA-08, MA-13 |
 | 1.7 | Purpose and Objectives | Rule-based alerts and decision-support recommendations | PRD-F10, F11; G-F10-1, G-F10-6, G-F11-5 | Partly met | Alert lifecycle and human review exist; metric catalog incomplete, Auto-resolved absent, verification pending | MA-09, MA-11, MA-12 |
-| 1.8 | Purpose and Objectives | Secure role-based access control and a public project tracker | PRD-F1, F13; G-F1-10, G-F13-5 | Partly met | Access control Met (QAD-A01 to A06); no sign-in lockout; tracker not hosted. Step-up PIN (renumbered from old Objective 2.2) is covered by G-F3-4 | MA-04, MA-10, MA-16 |
+| 1.8 | Purpose and Objectives | Secure role-based access control and a public project tracker | PRD-F1, F13; G-F1-10, G-F13-5 | Partly met | Access control Met (QAD-A01 to A06); no sign-in lockout; tracker not hosted. Step-up PIN (renumbered from old Objective 2.2) is covered by G-F3-4 | MA-04, MA-10, MA-16, MA-18 |
 | 2.1 | Purpose and Objectives | Metadata-driven data preparation | PRD-F5, F6 | Met | Forms, mappings and validation in apps/api/src/modules/metadata and imports; data type and value mapping delivered (QAD-T54) | MA-07 |
 | 2.2 | Purpose and Objectives | Descriptive analytics and dashboard visualization | PRD-F8, F9 | Partly met | apps/api/src/modules/dashboards; participation, trend and budget views hidden or browser-computed (G-F9-9) | MA-08 |
 | 2.3 | Purpose and Objectives | SADDD analysis | PRD-F8; G-F8-3, G-F8-4 | Met | Suppression and age bands verified (QAD-A10) | - |

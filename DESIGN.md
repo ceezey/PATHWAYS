@@ -579,6 +579,32 @@ A genuinely empty value or list reads "None yet". Load failures and permission s
 
 **Data fetching.** Protected reads go through `useAuthorizedRead` (TanStack Query). Reads are live by default. Lists and summaries may opt in to the 30-second summary window. Beneficiary, step-up and import batch-status reads are never cached. Workspace tabs share stable resource keys, such as one project read for the Overview and Activities tabs.
 
+### Figma reference specimens (non-authoritative)
+
+The Figma board `fQee5ydlhJPLFhj8yUx8pA` (page Branding, canvas `1344:2`, frame `1344:35` "component inventory") is sample UI. This DSD and the foundations decide tokens, color, spacing, layout, navigation, role names and copy. Use the board for component anatomy, states and composition only.
+
+**How to use it.** Call Figma `get_screenshot` or `get_design_context` on a node below for structure and states, then build from the listed component and DSD tokens. Never copy Figma hex values, spacing, labels or sample data.
+
+| Family | Node | Specimens | Existing component | DSD rule illustrated |
+|---|---|---|---|---|
+| Application structure | `1344:67` | Shell, page header with one primary action, role and scope chips, sidebar item states | `components/layout/app-shell.tsx`, `sidebar.tsx`, `sidebar-nav-item.tsx`, `page-header.tsx`, `site-header.tsx` | Standard desktop layout; One Clear Next Action |
+| Actions, navigation and inputs | `1344:179` | Buttons at 36, 44 and 52 px; icon buttons with tooltip; tabs; search with filter chips and clear all; fields with helper, error and read-only states; status and permission badges | `components/ui/button.tsx`, `tabs.tsx`, `input.tsx`, `select.tsx`, `pathways/filter-bar.tsx`, `filter-choice-group.tsx`, `status-badge.tsx`, `locked-field.tsx` | Accessible Interaction Sizes; no color-only status |
+| Project content and decision support | `1344:342` | KPI cards (one metric and one qualifier), project cards with delivery and budget bars, progress and budget card with threshold, alert, recommendation | `pathways/metric-card.tsx`, `progress-bar.tsx`, `section-card.tsx`; no current project-card component | Glance level; Human Control |
+| Records and workspace activity | `1344:505` | Activity table with column chooser and export, evidence list with file, status and provenance, audit trail | `components/ui/table.tsx`; no current evidence-list or audit-trail component | Scan level; Connected Information |
+| Feedback, overlays and system states | `1344:646` | Detail drawer (480 px), confirmation modal, empty, error and loading states, toast and inline notice | `pathways/side-panel.tsx`, `confirmation-dialog.tsx`, `empty-state.tsx`, `async-state.tsx`, `loading-skeleton.tsx`, `status-message.tsx`, `components/ui/sonner.tsx` | Context Over Navigation; Safety by Design |
+
+The board's UI foundations (`1344:913`) and color palette (`1344:1487`) mirror the tracked images in `docs/ui-ux-pathways-reference/`; the tracked foundations win on any difference.
+
+**Not adopted from the board:**
+
+- the saturated brand-blue sidebar and the gradient sidebar backgrounds (`1353:49`); staff surfaces keep neutral tokens and the authentication gradient stays the only gradient exception;
+- the flat six-item sidebar; grouped navigation in `apps/web/src/constants/navigation.ts` stays;
+- the `UCD` and `UCR` role labels and the "National scope" chip; show the six system role names and organization scope;
+- "Delete" on activities; activities are cancelled through status, never deleted;
+- the Project Manager "Budget approvals restricted" chip and "expenses + evaluations" approvals; the expense chain is verify, approve, sign-off and no role holds evaluation approval stages;
+- the notification inbox; registered as deferred;
+- all sample names, places, codes and amounts.
+
 ### Domain composition patterns
 
 **Project directory**
@@ -604,6 +630,10 @@ Page Header
 **Dashboards.** Use trusted metrics and explicit project context. Do not introduce one universal overall project-success percentage unless an approved methodology defines it. The Project Overview KPI achievement tile uses the developer-approved methodology (2026-09-28) in the SDD "Project workspace reads" section.
 
 **Rule configuration.** The create/edit dialog is a two-step wizard inside the existing dialog shell (no separate route). Step 1, "Rule", collects Applies to (project or organization template), an optional Start from template picker shown only when creating a new rule, name, code, severity, and the nested AND/OR condition tree with typed metrics, operators, and thresholds. Step 2, "Recommendations", collects the 1 to 10 predefined recommendations. Next validates step 1 client-side before advancing; Back preserves entered data; the final Create draft or Save draft action appears only on step 2 and always submits one payload matching the existing server contract. A step change and step 1 validation errors are announced through an aria-live region. Indicator and activity options for conditions are scoped to the selected project and reload from the existing authorized-read gating (activities.read or activities.context.read); changing the project clears any existing indicator/activity bindings in conditions and shows an inline explanation. Organization templates cannot bind record-specific metrics and show those metrics as unavailable with a short explanation. Existing visual grammar continues: rule list left, selected rule detail right, configuration/view-only status, two-column form at medium sizes, info-subtle rule preview, human-review disclaimer, explicit server-unavailable state. No arbitrary SQL/code input.
+
+**Budget module.** Budget is a monitoring surface, not an accounting system: no ledger, payables, payroll, autonomous approval or fund movement. The opening budget is captured in project setup, so there is no separate top-level create-budget flow. Expenses are recorded inside the project or activity context and stay linked to it; the project expense list on `/projects/:projectId/budget` aggregates those records and never holds a second copy. The overview summarizes before detail: approved budget, countable spending, remaining balance and utilization, with pending amounts shown separately and the counted basis labelled. Logged, submitted, verified, approved and countable spending are distinct terms and are never used interchangeably. Review actions follow the current chain (Monitoring and Evaluation Officer verifies, Project Manager approves, Program or Grant Manager signs off). Budget conditions and thresholds come from configured rules once budget metrics are admitted (MA-09), never from fixed cutoffs. Show KPI achievement and budget utilization side by side; never divide one by the other as an efficiency score. Budget recommendations use advisory wording such as "Review whether an approved budget adjustment may be necessary", never an instruction to move funds. The public tracker shows only approved high-level budget figures, never expense entries, receipts, review remarks or internal alerts.
+
+**Alert and recommendation queue.** Rule forms keep applies-to scope, metric, operator and threshold as separate, plainly named fields; the unit comes from the selected metric and the word "parameter" is not shown. Metrics come only from the typed metric list, never free-text formulas. Severity labels alerts only; predefined recommendations carry a title and text, never a severity. Every alert on `/alerts` shows its title, message, severity, affected project or record and its basis (current metric value against the threshold). Alert states read New, Reviewed, Actioned, Resolved, Dismissed and Auto-resolved; alerts are never shown as Accepted or Rejected. Accepting a recommendation on `/recommendations` records a human decision and executes nothing. Rule tests never create live alerts, recommendations or notices. One open alert exists per rule and affected record; resolved and dismissed alerts stay in history. A referenced record does not become visible to a user who lacks access to it.
 
 **Beneficiary-sensitive UI.** Scope is explicit where relevant; aggregate-only roles do not receive detail data; private media remains private by default; public publication requires separate provenance/approval; forbidden existence does not leak through error/empty states.
 

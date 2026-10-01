@@ -270,7 +270,7 @@ flowchart LR
 - Milestone create and update.
 - Budget records and expense entries with a private receipt, verification, approval, rejection and final sign-off.
 **Bounds (out):**
-- Project archive: `POST /projects/:projectId/archive` is guarded by `projects.archive`; archived projects leave the default list and there is no unarchive.
+- Project archive: `POST /projects/:projectId/archive` is guarded by `projects.archive`; archived projects leave the default list and there is no unarchive. v4 target: Program Manager and Grant Manager lose this grant (V4-C01); pending code follow-up.
 - Reusable project structures (activity and monitoring templates): not built; stays a known gap for R4 (Scope and Limitations). Reusable indicator definitions are delivered by PRD-F7.
 - Project target goal: retired (cr-pathways-retire-project-target-goal).
 - Free-text implementing partners: writes are rejected (cr-pathways-project-rbac-ui-and-partners).
@@ -354,6 +354,7 @@ flowchart LR
 |---|---|
 | Actor | Project Manager, Project Officer |
 | Permission | `activities.create` |
+| v4 target | Project Officer removed (V4-C07); pending code follow-up |
 | Trigger | The actor adds or edits an activity on a project |
 | Preconditions | A project exists and the actor is assigned to it; editing needs `activities.update` |
 | Main flow | 1. The actor opens the activity list (route `/projects/[projectId]/activities`). 2. The actor picks an assignable officer (route `GET /projects/:projectId/activities/assignable-officers`). 3. The actor creates the activity (route `POST /projects/:projectId/activities`). 4. To edit, the actor saves with the current revision (route `PATCH /projects/:projectId/activities/:activityId`). |
@@ -700,7 +701,7 @@ stateDiagram-v2
 **Bounds (in):**
 - Generate a form from a template or build one, edit it by new version, publish and archive it.
 - Export a form definition (CSV, XLSX, XLS, PDF) for the Monitoring and Evaluation Officer and System Administrator, with one audit row and no field content.
-- Encode records through a published form: validate, save a draft, submit, each linked to the project and audited.
+- Encode records through a published form: validate, save a draft, submit, each linked to the project and audited. v4 target: retired (V4-C11); pending code follow-up.
 - Field rules are deterministic validation; no AI proposes or fills values.
 **Bounds (out):**
 - Replacing specialized field collection platforms: PATHWAYS prepares and receives data only (Scope and Limitations, paragraph 3).
@@ -714,8 +715,8 @@ stateDiagram-v2
 | Gate | Condition | Status | QAD |
 |---|---|---|---|
 | G-F5-1 | An authorized user generates or builds a form, a different holder of `forms.publish` publishes it and it is offered for entry; the author cannot publish their own form (403), and a form with missing required structure cannot publish | Met | QAD-T05, QAD-FP-01 |
-| G-F5-2 | A valid direct entry persists as a validated submission linked to the project, and an invalid entry is rejected with field messages | Met | QAD-T05 |
-| G-F5-3 | A draft submission can be saved and edited before submit | Met | QAD-T53 |
+| G-F5-2 | A valid direct entry persists as a validated submission linked to the project, and an invalid entry is rejected with field messages; v4 target: retired (V4-C11); pending code follow-up | Met | QAD-T05 |
+| G-F5-3 | A draft submission can be saved and edited before submit; v4 target: retired (V4-C11); pending code follow-up | Met | QAD-T53 |
 | G-F5-4 | Each form-definition export format downloads and writes one audit row; roles other than Monitoring and Evaluation Officer and System Administrator are denied | Met | QAD-IMP-04 |
 | G-F5-5 | A form request from another organization or an unassigned project is denied before any form is read | Met | QAD-IMP-11 |
 
@@ -755,6 +756,7 @@ flowchart LR
 |---|---|
 | Actor | Project Officer, Monitoring and Evaluation Officer |
 | Permission | `submissions.write` |
+| v4 target | Retired by v4 (V4-C11); pending code follow-up |
 | Trigger | The user enters collected data for a published form. |
 | Preconditions | A published form exists in an assigned project. |
 | Main flow | 1. The user opens `/collection/entry` and selects the form. 2. The user fills the form; the web validates it (`POST /metadata/projects/:projectId/forms/:formId/validate`). 3. The user saves a draft (`POST /metadata/projects/:projectId/forms/:formId/submissions`) and later edits it (`PATCH /metadata/projects/:projectId/forms/:formId/submissions/:submissionId`). 4. The user submits (`POST /metadata/projects/:projectId/forms/:formId/submissions/:submissionId/submit`). |
@@ -1051,6 +1053,7 @@ flowchart LR
 |---|---|
 | Actor | Project Officer, Monitoring and Evaluation Officer, Project Manager, Program Manager, Grant Manager, System Administrator |
 | Permission | `analytics.saddd.read` |
+| v4 target | Project Officer removed (V4-C10); pending code follow-up |
 | Trigger | The user opens the SADDD breakdown for a project |
 | Preconditions | The project has a fixed, valid, closed period; beneficiary SADDD fields are present |
 | Main flow | 1. The user opens analytics (route `/analytics`). 2. The user selects one project and the SADDD dimension. 3. The system computes the breakdown (route `/dashboards/saddd`). 4. The system suppresses counts 1 to 4 and applies complementary suppression. 5. The user reads the aggregate. |
@@ -1503,6 +1506,22 @@ stateDiagram-v2
 
 ## 5. App Flow & UX Intent
 
+### 5.0 RBAC v4 targets (pending code follow-up)
+
+The manuscript access matrix v4 is the documented source of record under [cr-pathways-rbac-v4-adoption](cr-pathways-rbac-v4-adoption.md). The roles in this PRD describe what runs today; the targets below take effect when the RBAC v4 grant migration lands.
+
+| CR row | Target | Affects |
+|---|---|---|
+| V4-C01 | Program Manager and Grant Manager lose project archive | G-F2-4, UC-F2-1 step 5 |
+| V4-C02 | System Administrator loses budget overview and utilization | `/projects/:projectId/budget` |
+| V4-C06 | Program Manager and Grant Manager gain read access to project activities | `/projects/:projectId/activities` and activity detail |
+| V4-C07 | Project Officer loses activity creation | UC-F2-2 |
+| V4-C09 | Project Officer loses dashboard customization and survey assessment results | PRD-F8, PRD-F9 |
+| V4-C10 | Project Officer loses SADDD analysis | UC-F8-2 |
+| V4-C11 | Encode Project Data is retired | UC-F5-2, `/collection/entry`, direct data entry |
+
+Kept deviations, no pending change: the expense chain stays verify, approve, sign-off (V4-C03 to V4-C05).
+
 ### 5.1 Screen Inventory
 
 One row per web route in `apps/web/src/app`. Roles come from `apps/web/src/lib/rbac/route-access.ts`, resolved against the atomic grants in `apps/api/src/modules/auth/authorization-policy.ts`. The route decision is a UI ceiling; the API remains the authority. Alias routes reuse the verified route named in their Screen cell. Program Manager and Grant Manager never reach beneficiary-scoped routes.
@@ -1523,12 +1542,12 @@ One row per web route in `apps/web/src/app`. Roles come from `apps/web/src/lib/r
 | `/beneficiaries/evaluation-center` | Evaluation center (alias of Beneficiaries) | Project Manager, Monitoring and Evaluation Officer, Project Officer | PRD-F4 |
 | `/beneficiaries/new` | Beneficiary registration | Project Manager, Monitoring and Evaluation Officer, Project Officer | PRD-F3 |
 | `/beneficiaries` | Beneficiaries | Project Manager, Monitoring and Evaluation Officer, Project Officer | PRD-F3 |
-| `/collection/entry` | Encode project data | Monitoring and Evaluation Officer, Project Officer | PRD-F5 |
+| `/collection/entry` | Encode project data (v4: retired, V4-C11; pending code follow-up) | Monitoring and Evaluation Officer, Project Officer | PRD-F5 |
 | `/collection/forms/new` | Form setup | System Administrator, Monitoring and Evaluation Officer | PRD-F5 |
 | `/collection/forms` | Forms | System Administrator, Monitoring and Evaluation Officer | PRD-F5 |
 | `/collection/import` | Metadata-Driven Data Integration | System Administrator, Monitoring and Evaluation Officer, Project Officer | PRD-F6 |
 | `/collection` | Collection | System Administrator, Monitoring and Evaluation Officer, Project Officer | PRD-F5 |
-| `/collection/projects/:projectId/forms/:formId/entries/new` | Direct data entry | Monitoring and Evaluation Officer, Project Officer | PRD-F5 |
+| `/collection/projects/:projectId/forms/:formId/entries/new` | Direct data entry (v4: retired, V4-C11; pending code follow-up) | Monitoring and Evaluation Officer, Project Officer | PRD-F5 |
 | `/collection/projects/:projectId/forms/:formId` | Form definition | System Administrator, Monitoring and Evaluation Officer, Project Officer | PRD-F5 |
 | `/dashboard` | Dashboard | All six roles | PRD-F1 |
 | `/imports` | Imports (alias of Data Integration) | System Administrator, Monitoring and Evaluation Officer, Project Officer | PRD-F6 |

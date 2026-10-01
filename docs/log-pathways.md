@@ -47,6 +47,12 @@ Do not rewrite old entries to make them match newer architecture. Correct prior 
 - Rewrote this log, the index and the README on the new structure. One-time exception to append-only: the earlier entries were regrouped under the Action log with neutral wording and every dated fact and its order preserved.
 - No code, migration or agent behavior changed.
 
+### 2026-10-01: RBAC v4 and Figma Reference Reconciliation
+
+- Adopted manuscript access matrix v4 in the docs under [cr-pathways-rbac-v4-adoption](cr-pathways-rbac-v4-adoption.md); code follows in the registered RBAC v4 grant migration.
+- Added a non-authoritative Figma reference section to DSD under [cr-pathways-figma-reference-integration](cr-pathways-figma-reference-integration.md).
+- No code, migration or agent behavior changed.
+
 ## 2. Friction
 
 - Generated SDD/DSD/QAD were Working until reconciled with the current PATHWAYS repository; the 2026-10-01 reconciliation moved them to Locked.

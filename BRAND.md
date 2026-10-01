@@ -288,6 +288,7 @@ Before introducing a new UI pattern ask: does it preserve the user's context, re
 | Brand foundations | Product character, UX principles, accessibility philosophy, safety-by-design, language, interaction intent |
 | Color foundations | Exact color tokens and color usage |
 | UI foundations | Exact spacing, radius, sizing, component, surface, density and layout rules |
+| Figma board `fQee5ydlhJPLFhj8yUx8pA` (page Branding, canvas `1344:2`) | Nothing; sample UI showing anatomy, states and composition only. Never overrides a token, rule, role name, navigation or copy |
 
 When sources conflict:
 
