@@ -318,3 +318,46 @@ describe('Project creation contract', () => {
     await expect(service.get(manager, foreignProjectId)).rejects.toBeInstanceOf(NotFoundException)
   })
 })
+
+describe('Project archive contract', () => {
+  const service = new ProjectsService({} as PrismaService)
+  const archiver = { ...manager, permissions: [...manager.permissions, 'projects.archive'] }
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    state.actor = archiver
+    state.tx = tx as unknown as Prisma.TransactionClient
+    tx.project.findFirst.mockResolvedValue({ id: projectId, archivedAt: null })
+    tx.project.updateMany.mockResolvedValue({ count: 1 })
+  })
+
+  it('sets archivedAt in the actor organization and audits it', async () => {
+    const result = await service.archive(archiver, projectId)
+    expect(result.id).toBe(projectId)
+    expect(tx.project.updateMany).toHaveBeenCalledWith({
+      where: { id: projectId, organizationId, archivedAt: null },
+      data: { archivedAt: expect.any(Date) },
+    })
+    expect(tx.auditLog.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({ action: 'PROJECT_ARCHIVED', organizationId, projectId }),
+    })
+  })
+
+  it('is idempotent for an already archived project', async () => {
+    tx.project.findFirst.mockResolvedValue({ id: projectId, archivedAt: now })
+    await expect(service.archive(archiver, projectId)).resolves.toEqual({
+      id: projectId,
+      archivedAt: now.toISOString(),
+    })
+    expect(tx.project.updateMany).not.toHaveBeenCalled()
+    expect(tx.auditLog.create).not.toHaveBeenCalled()
+  })
+
+  it('denies a cross-organization or unscoped project without writing', async () => {
+    tx.project.findFirst.mockResolvedValue(null)
+    await expect(service.archive(archiver, foreignProjectId)).rejects.toBeInstanceOf(
+      NotFoundException,
+    )
+    expect(tx.project.updateMany).not.toHaveBeenCalled()
+  })
+})

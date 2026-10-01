@@ -3,6 +3,7 @@ import {
   Controller,
   ForbiddenException,
   Get,
+  HttpCode,
   Inject,
   Param,
   Patch,
@@ -51,5 +52,12 @@ export class ProjectsController {
     @Body() body: UpdateProjectDto,
   ) {
     return this.projects.update(profile(request), projectId, body)
+  }
+
+  @Post(':projectId/archive')
+  @HttpCode(200)
+  @RequirePermission('projects.archive')
+  archive(@Req() request: AuthenticatedRequest, @Param('projectId') projectId: string) {
+    return this.projects.archive(profile(request), projectId)
   }
 }
