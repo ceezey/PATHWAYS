@@ -22,6 +22,7 @@ const preprovision = {
   '0037_step_up_pin': 'hosted-step-up-pin-preprovision.sql',
   '0041_activity_media_evidence': 'hosted-activity-media-preprovision.sql',
   '0044_activity_progress_review': 'hosted-activity-review-preprovision.sql',
+  '0053_expense_submit_race': 'hosted-expense-submit-preprovision.sql',
 }
 // Hosted DBAs revoke the temporary owner-role memberships right after 0031 and 0034.
 // Local runs the same reviewed cleanups at the same points, so later migrations (0037's
@@ -37,6 +38,8 @@ const cleanup = {
   '0041_activity_media_evidence': ['hosted-activity-media-cleanup.sql', []],
   // 0044's temporary SET chain to the rules owner roles is revoked right after it.
   '0044_activity_progress_review': ['hosted-activity-review-cleanup.sql', []],
+  // 0053's temporary SET membership to finance_operation_owner is revoked right after it.
+  '0053_expense_submit_race': ['hosted-expense-submit-cleanup.sql', []],
 }
 
 function run(command, args, { input, env, label } = {}) {

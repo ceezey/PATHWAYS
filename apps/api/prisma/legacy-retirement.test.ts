@@ -62,6 +62,7 @@ describe('Deferred legacy-table retirement contract', () => {
       '0049_journey_event_note',
       '0050_import_value_map',
       '0051_indicator_library',
+      '0053_expense_submit_race',
     ])
     expect(migration).toContain('DEFERRED REVIEW ARTIFACT -- NOT AN ACTIVE PRISMA MIGRATION')
   })

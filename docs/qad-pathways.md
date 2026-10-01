@@ -173,7 +173,7 @@ Every implemented feature requires:
 | QAD-JR-01 | System Administrator requests beneficiary journey history -> 403, while listing and saving project journey stages succeeds | Sad | Security | PRD-F4 | G-F4-5 | UC-F4-4 | `apps/api/src/modules/participants/journeys-access.test.ts` |
 | QAD-FP-01 | a form author publishes their own form -> 403 with no write or audit, in any role; a role without `forms.publish` is denied | Sad | Security | PRD-F5 | G-F5-1 | UC-F5-1 | `apps/api/src/modules/metadata/metadata.service.test.ts` |
 | QAD-T83 | a journey note over 1000 characters or only whitespace is rejected with 400 and nothing is stored | Sad | Functional Suitability | PRD-F4 | G-F4-6 | UC-F4-2 | `apps/api/src/modules/participants/journey-note.test.ts` |
-| QAD-T84 | an expense retry reusing a client request id with different content is rejected with 22023 and nothing is stored | Sad | Reliability | PRD-F2 | G-F2-15 | UC-F2-7 | `apps/api/prisma/tests/finance-expense-runtime.sql` |
+| QAD-T84 | an expense retry reusing a client request id with different content is rejected with 22023 and nothing is stored | Sad | Reliability | PRD-F2 | G-F2-15 | UC-F2-7 | `apps/api/prisma/tests/finance-expense-runtime.sql`, `apps/api/prisma/tests/finance-expense-concurrency.mjs` |
 | QAD-T85 | a second final sign-off for the same expense is rejected by the once-per-expense key and by a holder without `expenses.signoff` | Abuse | Security | PRD-F2 | G-F2-18 | UC-F2-9 | `apps/api/prisma/tests/finance-expense-runtime.sql` |
 
 ### 3.3 Abuse / Adversarial Paths

@@ -4,7 +4,7 @@
 
 export const BASELINE = '0000_pathways_baseline_through_0026'
 
-// The exact 26-row migration ledger (baseline plus 0027-0051) this script must produce, in order. This is
+// The exact 27-row migration ledger (baseline plus 0027-0051 and 0053) this script must produce, in order. This is
 // the repository's own migration directory listing (apps/api/prisma/migrations),
 // asserted against the real directory in hosted-plan.test.mjs so this literal
 // list can never silently drift from the repo.
@@ -35,6 +35,7 @@ export const MIGRATIONS_IN_ORDER = Object.freeze([
   '0049_journey_event_note',
   '0050_import_value_map',
   '0051_indicator_library',
+  '0053_expense_submit_race',
 ])
 
 function range(from, to) {
@@ -98,6 +99,15 @@ export function buildPlan() {
     // (0046 adds its own table; 0047, 0048 and 0051 wrap pathways.p09_role_allows). One step each
     // so --resume after a partial ledger restarts at the first unapplied migration.
     ...range(46, 51).map((name) => ({ type: 'deploy', migrations: [name] })),
+    // 0053 replaces pathways.p34_submit_expense, owned by finance_operation_owner, so it needs a
+    // temporary SET-only membership for prisma, like 0044.
+    {
+      type: 'preprovision',
+      name: 'expense-submit',
+      file: 'hosted-expense-submit-preprovision.sql',
+    },
+    { type: 'deploy', migrations: range(53, 53) },
+    { type: 'cleanup', name: 'expense-submit', file: 'hosted-expense-submit-cleanup.sql' },
     { type: 'alter-runtime-role' },
     { type: 'postconditions' },
   ]
@@ -138,7 +148,7 @@ export function assertResumablePrefix(ledgerRows) {
   }
   if (appliedCount !== names.length) {
     throw new Error(
-      'Ledger is not an exact finished prefix of the expected 0000-0051 migrations; --resume refuses it',
+      'Ledger is not an exact finished prefix of the expected 0000-0053 migrations; --resume refuses it',
     )
   }
   return appliedCount
@@ -147,7 +157,7 @@ export function assertResumablePrefix(ledgerRows) {
 // Maps a count of already-applied migrations (from assertResumablePrefix) to
 // the plan step index to resume at. Cleanup steps are not tracked by the
 // Prisma ledger, so when resuming right after a migration that has a
-// following cleanup step (0031, 0034, 0041, 0044), that cleanup step is re-run;
+// following cleanup step (0031, 0034, 0041, 0044, 0053), that cleanup step is re-run;
 // each cleanup script's own preconditions reject a target that was already
 // cleaned, surfacing a clear error rather than silently skipping it.
 //
@@ -160,6 +170,8 @@ export function assertResumablePrefix(ledgerRows) {
 //  * 0043_activity_overdue_explanation is (a) a plain ledger that still needs the 0044
 //    preprovision, or (b) a build that crashed after that preprovision and before the 0044
 //    deploy, whose temporary chain is still granted (the preprovision would refuse to run again).
+//  * 0051_indicator_library and 0053_expense_submit_race follow the same two shapes for the 0053
+//    expense-submit preprovision and cleanup (temporary finance_operation_owner membership).
 // The caller therefore checks live database state (whether prisma still holds a temporary
 // rules owner membership) and passes it in as `residualOwnerMemberships`.
 // 0042_proof_session_beneficiary_count has no preprovision/cleanup pair (see buildPlan), so a
@@ -169,6 +181,8 @@ const PRIOR_BUILD_COMPLETION_POINTS = [
   '0042_proof_session_beneficiary_count',
   '0043_activity_overdue_explanation',
   '0044_activity_progress_review',
+  '0051_indicator_library',
+  '0053_expense_submit_race',
 ]
 
 // The migrations whose completion is ambiguous with a residual temporary owner chain, and the
@@ -176,12 +190,15 @@ const PRIOR_BUILD_COMPLETION_POINTS = [
 export const RESIDUAL_CHAIN_CLEANUPS = Object.freeze({
   '0041_activity_media_evidence': 'activity-media',
   '0044_activity_progress_review': 'activity-review',
+  '0053_expense_submit_race': 'expense-submit',
 })
 // Ledger counts at which the caller must read live owner-membership state.
 export const RESIDUAL_CHAIN_MIGRATIONS = Object.freeze([
   '0041_activity_media_evidence',
   '0043_activity_overdue_explanation',
   '0044_activity_progress_review',
+  '0051_indicator_library',
+  '0053_expense_submit_race',
 ])
 
 export function planIndexForAppliedCount(appliedCount, { residualOwnerMemberships = false } = {}) {
