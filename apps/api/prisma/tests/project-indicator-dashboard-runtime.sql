@@ -444,6 +444,7 @@ BEGIN
  FOR b IN SELECT value FROM jsonb_array_elements(d->'age') LOOP
    PERFORM pg_temp.assert_true(b#>>'{metric,state}'='SUPPRESSED' AND b#>>'{metric,value}' IS NULL,'whole-release complement has no hidden numeric value');
  END LOOP;
+ PERFORM pg_temp.assert_true(EXISTS(SELECT 1 FROM jsonb_array_elements(d->'completeness') c WHERE c->>'key'='INVALID_BIRTH_DATE' AND c->>'label'='Excluded invalid birth date'),'G-F8-4 invalid birth date is flagged as an excluded completeness row');
 END $$;
 
 DO $$

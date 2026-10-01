@@ -1,10 +1,34 @@
-import { ConflictException, ForbiddenException } from '@nestjs/common'
+import 'reflect-metadata'
+
+import { ConflictException, ForbiddenException, NotFoundException } from '@nestjs/common'
 import type { Prisma } from '@prisma/client'
+import { plainToInstance } from 'class-transformer'
+import { validate } from 'class-validator'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { hasAtomicPermission, rolePermissions } from '@app/modules/auth/authorization-policy'
 import type { ApplicationIdentity } from '@app/modules/auth/developer-access'
 import type { PrismaService } from '@app/prisma/prisma.service'
+import { CorrectJourneyEventDto } from './participants.dto'
 import { ParticipantsService } from './participants.service'
+
+const state = vi.hoisted(() => ({ actor: undefined as ApplicationIdentity | undefined }))
+const txOps = vi.hoisted(() => ({
+  project: { findFirst: vi.fn() },
+  beneficiaryProjectEnrollment: { findFirst: vi.fn(), update: vi.fn() },
+  beneficiaryJourneyEvent: { findFirst: vi.fn(), create: vi.fn() },
+  journeyStage: { findFirst: vi.fn() },
+  auditLog: { create: vi.fn() },
+}))
+
+// The operation boundary is replaced with a permission check against the synthetic actor.
+vi.mock('@app/modules/auth/authorized-operation', () => ({
+  withAuthorizedOperation: vi.fn(async (_prisma, _identity, permission: string, work) => {
+    if (!state.actor?.permissions.includes(permission))
+      throw new ForbiddenException('Permission denied.')
+    return work(txOps, state.actor)
+  }),
+}))
 
 const organizationId = '10000000-0000-4000-8000-000000000001'
 const projectId = '20000000-0000-4000-8000-000000000002'
@@ -146,5 +170,148 @@ describe('P05 participation promotion contract', () => {
     ).resolves.toEqual({ participationId: 'participation', enrollmentId })
     expect(tx.beneficiaryActivityParticipation.create).not.toHaveBeenCalled()
     expect(tx.beneficiaryJourneyEvent.create).not.toHaveBeenCalled()
+  })
+})
+
+describe('F4 journey stage, enrollment closure and correction gates', () => {
+  const service = new ParticipantsService({} as PrismaService)
+  const caller = {} as ApplicationIdentity
+  const beneficiaryId = 'a1000000-0000-4000-8000-0000000000a1'
+  const eventId = 'b1000000-0000-4000-8000-0000000000b1'
+  const manager: ApplicationIdentity = {
+    ...actor,
+    roles: ['PROJECT_MANAGER'],
+    permissions: ['beneficiaries.enrollments.manage', 'participation.record'],
+  }
+  const canManageStages = (role: keyof typeof rolePermissions) =>
+    hasAtomicPermission(role, rolePermissions[role], 'journeys.manage')
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    state.actor = manager
+    txOps.project.findFirst.mockResolvedValue({ id: projectId })
+    txOps.beneficiaryProjectEnrollment.findFirst.mockResolvedValue({
+      id: enrollmentId,
+      beneficiaryId,
+    })
+    txOps.beneficiaryJourneyEvent.findFirst.mockResolvedValue(null)
+  })
+
+  it('G-F4-1 grants stage save to System Administrator, M&E Officer and Project Manager only', () => {
+    for (const role of [
+      'SYSTEM_ADMINISTRATOR',
+      'MONITORING_AND_EVALUATION_OFFICER',
+      'PROJECT_MANAGER',
+    ] as const)
+      expect(canManageStages(role)).toBe(true)
+    for (const role of ['PROJECT_OFFICER', 'PROGRAM_MANAGER', 'GRANT_MANAGER'] as const)
+      expect(canManageStages(role)).toBe(false)
+  })
+
+  it('G-F4-1 denies stage save before any scoped read without the manage permission', async () => {
+    state.actor = { ...manager, roles: ['PROJECT_OFFICER'], permissions: ['journeys.read'] }
+    await expect(service.saveStages(caller, projectId, { stages: [] })).rejects.toBeInstanceOf(
+      ForbiddenException,
+    )
+    expect(txOps.project.findFirst).not.toHaveBeenCalled()
+  })
+
+  it.each([
+    ['COMPLETION', 'COMPLETED'],
+    ['DROPOUT', 'DROPPED'],
+  ] as const)(
+    'G-F4-3 %s closes the enrollment with end date and reason',
+    async (eventType, status) => {
+      await service.transitionEnrollment(caller, projectId, beneficiaryId, {
+        eventType,
+        eventDate: '2026-06-20',
+        description: ' Left the programme ',
+      })
+      expect(txOps.beneficiaryJourneyEvent.create.mock.calls[0]?.[0].data).toMatchObject({
+        eventType,
+        description: 'Left the programme',
+      })
+      expect(txOps.beneficiaryProjectEnrollment.update).toHaveBeenCalledWith({
+        where: { id: enrollmentId },
+        data: {
+          status,
+          endedDate: new Date('2026-06-20T00:00:00.000Z'),
+          endReason: 'Left the programme',
+        },
+      })
+    },
+  )
+
+  it('G-F4-3 TRANSFER closes the enrollment once an active destination enrollment exists', async () => {
+    txOps.beneficiaryProjectEnrollment.findFirst
+      .mockResolvedValueOnce({ id: enrollmentId, beneficiaryId })
+      .mockResolvedValueOnce({ id: 'destination-enrollment' })
+    await service.transitionEnrollment(caller, projectId, beneficiaryId, {
+      eventType: 'TRANSFER',
+      eventDate: '2026-06-20',
+      description: 'Moved to the partner project',
+      destinationProjectId: '20000000-0000-4000-8000-0000000000d2',
+    })
+    expect(txOps.beneficiaryProjectEnrollment.update.mock.calls[0]?.[0].data).toMatchObject({
+      status: 'TRANSFERRED',
+      endReason: 'Moved to the partner project',
+    })
+  })
+
+  it('G-F4-3 a follow-up event leaves the enrollment open', async () => {
+    await service.transitionEnrollment(caller, projectId, beneficiaryId, {
+      eventType: 'FOLLOW_UP',
+      eventDate: '2026-06-20',
+      description: 'Check-in',
+    })
+    expect(txOps.beneficiaryProjectEnrollment.update).not.toHaveBeenCalled()
+  })
+
+  it('G-F4-4 a correction is a new event linked to the original with the reason', async () => {
+    txOps.beneficiaryJourneyEvent.findFirst.mockResolvedValue({
+      id: eventId,
+      enrollmentId,
+      eventType: 'PARTICIPATION',
+      activityId,
+    })
+    txOps.beneficiaryJourneyEvent.create.mockResolvedValue({ id: 'correction' })
+    await expect(
+      service.correctEvent(caller, projectId, beneficiaryId, eventId, {
+        eventDate: '2026-06-16',
+        description: 'Wrong date',
+        reason: ' Date typo ',
+      }),
+    ).resolves.toEqual({ id: 'correction' })
+    expect(txOps.beneficiaryJourneyEvent.create.mock.calls[0]?.[0].data).toMatchObject({
+      correctsEventId: eventId,
+      correctionReason: 'Date typo',
+      enrollmentId,
+    })
+    expect(txOps.auditLog.create.mock.calls[0]?.[0].data.action).toBe('JOURNEY_EVENT_CORRECTED')
+    expect(txOps.beneficiaryJourneyEvent).not.toHaveProperty('update')
+  })
+
+  it('G-F4-4 rejects correcting a correction because only uncorrected originals match', async () => {
+    txOps.beneficiaryJourneyEvent.findFirst.mockResolvedValue(null)
+    await expect(
+      service.correctEvent(caller, projectId, beneficiaryId, eventId, {
+        eventDate: '2026-06-16',
+        description: 'Again',
+        reason: 'Second fix',
+      }),
+    ).rejects.toBeInstanceOf(NotFoundException)
+    expect(txOps.beneficiaryJourneyEvent.findFirst.mock.calls[0]?.[0].where).toMatchObject({
+      correctsEventId: null,
+    })
+    expect(txOps.beneficiaryJourneyEvent.create).not.toHaveBeenCalled()
+  })
+
+  it('G-F4-4 requires a non-empty reason at the request boundary', async () => {
+    const dto = plainToInstance(CorrectJourneyEventDto, {
+      eventDate: '2026-06-16',
+      description: 'Fix',
+      reason: '',
+    })
+    expect((await validate(dto)).map((error) => error.property)).toContain('reason')
   })
 })
