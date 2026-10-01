@@ -37,7 +37,8 @@ async function claims(tx) {
 }
 async function submit(tx, request, amount) {
   await claims(tx)
-  const [row] = await tx.$queryRaw`SELECT pathways.p34_submit_expense(${project}::uuid, ${request}::uuid,
+  const [row] =
+    await tx.$queryRaw`SELECT pathways.p34_submit_expense(${project}::uuid, ${request}::uuid,
     ${budget}::uuid, 'Venue', ${amount}::numeric, DATE '2026-09-30') AS value`
   return row.value.id
 }

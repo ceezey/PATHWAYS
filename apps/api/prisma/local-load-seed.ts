@@ -86,7 +86,7 @@ function main() {
   // Superuser in the fixed local container with replica mode skips the source-proof triggers; ANALYZE refreshes planner stats like autovacuum would.
   const script = [
     'SET session_replication_role = replica;',
-    ...loadSeedStatements().map((q) => q + ';'),
+    ...loadSeedStatements().map((q) => `${q};`),
     'ANALYZE;',
   ].join('\n')
   execFileSync(
