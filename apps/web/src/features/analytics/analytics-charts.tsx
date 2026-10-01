@@ -1,5 +1,6 @@
 'use client'
 
+import { chartPalette, chartSignal } from '@/lib/chart-palette'
 import { type SadddDashboard, type SurveyGroup, formatMetricCell } from '@pathways/shared'
 import ReactECharts from 'echarts-for-react'
 
@@ -40,7 +41,7 @@ export const DescriptiveAnalysisChart = ({
         enabled: true,
         description: `${title}. ${rows.map((row) => `${row.label}: ${row.value} ${unit}`).join('; ')}.`,
       },
-      color: ['#0072CE'],
+      color: [chartPalette[0]],
       tooltip: {
         trigger: 'axis',
         valueFormatter: (value: number) => `${value.toLocaleString()} ${unit}`,
@@ -62,7 +63,6 @@ export const DescriptiveAnalysisChart = ({
 )
 
 const grid = { left: 16, right: 16, top: 28, bottom: 18, containLabel: true }
-const colors = ['#0072CE', '#0B2E4F', '#8A4B08', '#B42318', '#526779']
 
 export const IndicatorProgressChart = ({ rows }: { rows: DescriptiveAnalysisRow[] }) => (
   <ReactECharts
@@ -73,7 +73,7 @@ export const IndicatorProgressChart = ({ rows }: { rows: DescriptiveAnalysisRow[
         enabled: true,
         description: `Indicator progress toward target. ${rows.map((row) => `${row.label}: ${row.value}%`).join('; ')}.`,
       },
-      color: ['#0072CE'],
+      color: [chartPalette[0]],
       tooltip: { trigger: 'axis', valueFormatter: (value: number) => `${value}%` },
       grid: { ...grid, left: 8, right: 24 },
       xAxis: {
@@ -114,7 +114,7 @@ export const BudgetUtilizationChart = ({
             legendLabels,
           ),
         },
-        color: ['#0072CE', '#8A4B08'],
+        color: chartPalette.slice(0, 2),
         tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' } },
         ...legendLayout,
         xAxis: { type: 'value' },
@@ -216,7 +216,7 @@ export const ActivityCompletionChart = ({ activities }: Pick<ChartProps, 'activi
           enabled: true,
           description: 'Project activity totals grouped by completion status.',
         },
-        color: colors,
+        color: chartPalette,
         tooltip: { trigger: 'item' },
         series: [
           {
@@ -245,7 +245,7 @@ export const AlertCountsChart = ({ alerts }: Pick<ChartProps, 'alerts'>) => {
           enabled: true,
           description: 'Rule-Based Alert totals grouped by severity.',
         },
-        color: ['#B42318', '#8A4B08', '#005EA8'],
+        color: [chartSignal.danger, chartSignal.warning, chartSignal.info],
         tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' } },
         grid,
         xAxis: { type: 'category', data: severities },

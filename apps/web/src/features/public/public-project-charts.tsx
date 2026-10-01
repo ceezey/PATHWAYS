@@ -1,10 +1,10 @@
 'use client'
 
+import { chartPalette } from '@/lib/chart-palette'
 import ReactECharts from 'echarts-for-react'
 
 import type { PublicProjectRecord } from '@/types/pathways'
 
-const colors = ['#0072CE', '#0B2E4F', '#8A4B08', '#526779']
 const grid = { left: 12, right: 16, top: 28, bottom: 18, containLabel: true }
 
 export const PublicProgressTrendChart = ({ project }: { project: PublicProjectRecord }) => (
@@ -16,7 +16,7 @@ export const PublicProgressTrendChart = ({ project }: { project: PublicProjectRe
         enabled: true,
         description: `Approved progress trend for ${project.title}.`,
       },
-      color: colors,
+      color: chartPalette,
       tooltip: { trigger: 'axis' },
       grid,
       xAxis: {
@@ -46,7 +46,7 @@ export const PublicIndicatorChart = ({ project }: { project: PublicProjectRecord
         enabled: true,
         description: `Selected public indicator progress for ${project.title}.`,
       },
-      color: ['#0072CE'],
+      color: [chartPalette[0]],
       tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' } },
       grid,
       xAxis: { type: 'value', max: 100 },
@@ -79,7 +79,7 @@ export const PublicPortfolioChart = ({ projects }: { projects: PublicProjectReco
         enabled: true,
         description: 'Average selected-indicator progress across approved public projects.',
       },
-      color: colors,
+      color: chartPalette,
       tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' } },
       legend: { top: 0 },
       grid,

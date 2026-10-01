@@ -5,6 +5,7 @@ import type { GeoJSONSource, MapLibreMap } from 'maplibre-gl'
 import { useEffect, useRef, useState } from 'react'
 
 import { Button } from '@/components/ui/button'
+import { chartPalette } from '@/lib/chart-palette'
 import { cn } from '@/lib/utils'
 
 import {
@@ -137,7 +138,7 @@ export const AnalyticsCoverageMap = ({
             type: 'circle',
             source: sourceId,
             paint: {
-              'circle-color': '#0077b6',
+              'circle-color': chartPalette[0],
               'circle-radius': 7,
               'circle-stroke-color': '#ffffff',
               'circle-stroke-width': 2,
