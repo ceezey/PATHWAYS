@@ -12,6 +12,7 @@ const shell = process.platform === 'win32'
 const email = 'lockout-probe@example.test'
 const email2 = 'lockout-probe-2@example.test'
 const passwords: Record<string, string> = {}
+let provider = { url: '', anonKey: '' }
 
 // The suite needs the disposable local database container.
 const hasLocalDb = (() => {
@@ -66,6 +67,7 @@ test.beforeAll(async () => {
       return out.slice(out.indexOf('{'))
     })(),
   )
+  provider = { url: status.API_URL, anonKey: status.ANON_KEY }
   const admin = createClient(status.API_URL, status.SERVICE_ROLE_KEY, {
     auth: { autoRefreshToken: false, persistSession: false },
   })
@@ -100,6 +102,13 @@ test('five failures lock and the correct password is still refused', async ({ re
   const locked = await signIn(request, email, passwords[email])
   expect(locked.status()).toBe(429)
   expect((await locked.json()).code).toBe('SIGN_IN_LOCKED')
+
+  // The password hook refuses a direct grant that skips the API (migration 0052).
+  const direct = await request.post(`${provider.url}/auth/v1/token?grant_type=password`, {
+    headers: { apikey: provider.anonKey },
+    data: { email, password: passwords[email] },
+  })
+  expect(direct.ok()).toBe(false)
 
   await page.goto(`${web}/staff/login`)
   await page.getByLabel('Email').fill(email)

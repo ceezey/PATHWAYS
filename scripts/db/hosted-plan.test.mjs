@@ -24,8 +24,8 @@ test('MIGRATIONS_IN_ORDER matches the real migrations directory exactly, in orde
   assert.deepEqual([...MIGRATIONS_IN_ORDER].sort(), onDisk)
   // The migrations directory holds one folder per Prisma migration. 0000
   // squashes the original 0001-0026 into a single reviewed baseline, so the
-  // ledger has 26 rows (baseline plus 0027-0051) even though the numbering has gaps.
-  assert.equal(MIGRATIONS_IN_ORDER.length, 26)
+  // ledger has 27 rows (baseline plus 0027-0052) even though the numbering has gaps.
+  assert.equal(MIGRATIONS_IN_ORDER.length, 27)
   assert.equal(MIGRATIONS_IN_ORDER[0], BASELINE)
 })
 
@@ -68,6 +68,7 @@ test('the dry-run plan order exactly matches the documented stop points', () => 
     'deploy:0049_journey_event_note',
     'deploy:0050_import_value_map',
     'deploy:0051_indicator_library',
+    'deploy:0052_signin_password_hook',
     'alter-runtime-role',
     'postconditions',
   ])
@@ -230,7 +231,7 @@ test('planIndexForAppliedCount on a 0000-0048 ledger resumes at the 0049 deploy'
   assert.deepEqual(plan[index].migrations, ['0049_journey_event_note'])
 })
 
-test('planIndexForAppliedCount on a complete 0000-0051 ledger resumes at alter-runtime-role', () => {
+test('planIndexForAppliedCount on a complete 0000-0052 ledger resumes at alter-runtime-role', () => {
   const plan = buildPlan()
   const index = planIndexForAppliedCount(MIGRATIONS_IN_ORDER.length)
   assert.equal(plan[index].type, 'alter-runtime-role')

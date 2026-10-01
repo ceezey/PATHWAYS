@@ -4,7 +4,7 @@
 
 export const BASELINE = '0000_pathways_baseline_through_0026'
 
-// The exact 26-row migration ledger (baseline plus 0027-0051) this script must produce, in order. This is
+// The exact 27-row migration ledger (baseline plus 0027-0052) this script must produce, in order. This is
 // the repository's own migration directory listing (apps/api/prisma/migrations),
 // asserted against the real directory in hosted-plan.test.mjs so this literal
 // list can never silently drift from the repo.
@@ -35,6 +35,7 @@ export const MIGRATIONS_IN_ORDER = Object.freeze([
   '0049_journey_event_note',
   '0050_import_value_map',
   '0051_indicator_library',
+  '0052_signin_password_hook',
 ])
 
 function range(from, to) {
@@ -94,10 +95,10 @@ export function buildPlan() {
     // pathways.p06_can, pathways.assessment_results, pathways.project_activities and
     // pathways.project_milestones from the 0000 baseline.
     { type: 'deploy', migrations: range(45, 45) },
-    // 0046-0051 need no preprovision: prisma already owns every table and function they touch
+    // 0046-0052 need no preprovision: prisma already owns every table and function they touch
     // (0046 adds its own table; 0047, 0048 and 0051 wrap pathways.p09_role_allows). One step each
     // so --resume after a partial ledger restarts at the first unapplied migration.
-    ...range(46, 51).map((name) => ({ type: 'deploy', migrations: [name] })),
+    ...range(46, 52).map((name) => ({ type: 'deploy', migrations: [name] })),
     { type: 'alter-runtime-role' },
     { type: 'postconditions' },
   ]
@@ -138,7 +139,7 @@ export function assertResumablePrefix(ledgerRows) {
   }
   if (appliedCount !== names.length) {
     throw new Error(
-      'Ledger is not an exact finished prefix of the expected 0000-0051 migrations; --resume refuses it',
+      'Ledger is not an exact finished prefix of the expected 0000-0052 migrations; --resume refuses it',
     )
   }
   return appliedCount

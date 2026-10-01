@@ -58,7 +58,9 @@ Apply 0046 through the normal staged chain after 0045; it asserts the 0045 ledge
 
 API unit tests (happy, sad, abuse), web request tests, `tsc` and biome on both apps. The 0046 SQL has not been run against a database; a runtime SQL test on the staging role is required before release.
 
-Local stack run (2026-10-01, 0000-0051 chain, API 4000, web 3000): `apps/web/e2e/signin-lockout.spec.ts` (QAD-T86) passed 3 of 3: lock after 5 failures (429 SIGN_IN_LOCKED, correct password refused, staff login shows the locked message), identical unknown/known failure responses, and sign-in succeeding after `locked_until` is moved into the past. The run found one defect: `signin_lockout_reset` returns void, which Prisma cannot read as a result column, so every successful sign-in returned 503; the call now selects a literal (`signin-lockout.service.ts`, covered in `signin-lockout.test.ts`).
+Migration 0052 runtime SQL (`signin-password-hook-runtime.sql`) passes 8 assertions on the local stack (`SIGNIN_PASSWORD_HOOK_RUNTIME=PASS`); the e2e spec also posts a direct password grant for a locked email and gets a non-2xx response (QAD-A25). The Replay-Local wiring is not yet verified.
+
+Local stack run (2026-10-01, 0000-0052 chain, API 4000, web 3000): `apps/web/e2e/signin-lockout.spec.ts` (QAD-T86) passed 3 of 3: lock after 5 failures (429 SIGN_IN_LOCKED, correct password refused, staff login shows the locked message), identical unknown/known failure responses, and sign-in succeeding after `locked_until` is moved into the past. The run found one defect: `signin_lockout_reset` returns void, which Prisma cannot read as a result column, so every successful sign-in returned 503; the call now selects a literal (`signin-lockout.service.ts`, covered in `signin-lockout.test.ts`).
 
 ## 8. Approval
 
@@ -66,4 +68,8 @@ Developer decision, 2026-10-01: build G-F1-10.
 
 ## 9. Disposition
 
-Residual risk: a client that calls the identity provider directly bypasses the counter, and anyone can lock a known email for 15 minutes at a time. Disabling direct password grants is a follow-up. Mark Applied after 0046 is applied and its runtime SQL test passes.
+Residual risk: anyone can lock a known email for 15 minutes at a time. The direct-grant bypass is closed by migration 0052, which adds the password-verification-attempt hook `pathways.p52_password_verification_attempt` (read-only, executable only by `supabase_auth_admin`; failures are still counted only by the API). Mark Applied after 0046 and 0052 are applied, their runtime SQL tests pass, and the staging hook below is enabled.
+
+### Staging hook handoff (developer step)
+
+After 0052 is applied on `PATHWAYS-role-staging`, in the Supabase dashboard open Authentication, Hooks, Password Verification Attempt, choose Postgres function, select `pathways.p52_password_verification_attempt`, and enable it. Local stacks enable it through `supabase/config.toml` (`[auth.hook.password_verification_attempt]`). Rollback: disable the hook, then drop the function.

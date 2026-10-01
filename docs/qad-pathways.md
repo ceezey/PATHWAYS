@@ -233,13 +233,14 @@ Every implemented feature requires:
 | QAD-IR-03 | a Project Officer or System Administrator with a forged review permission, or a request for an out-of-scope project, is denied before any profile is read | Abuse | Security | PRD-F3 | G-F3-6 | UC-F3-3 | `apps/api/src/modules/beneficiaries/identity-review.service.test.ts` |
 | QAD-JR-02 | a System Administrator profile claiming `journeys.read` is still denied beneficiary journey history and, without `journeys.manage`, stage listing | Abuse | Security | PRD-F4 | G-F4-5 | UC-F4-4 | `apps/api/src/modules/participants/journeys-access.test.ts`; `apps/api/src/modules/auth/csv-rbac.test.ts` |
 | QAD-A24 | a non-string note, or note content in the audit record, is refused; the note body is never logged | Abuse | Security | PRD-F4 | G-F4-6 | UC-F4-4 | `apps/api/src/modules/participants/journey-note.test.ts` |
+| QAD-A25 | a direct grant_type=password call to the identity provider is refused while the email is locked, even with the correct password | Abuse | Security | PRD-F1 | G-F1-10 | UC-F1-1 | `apps/web/e2e/signin-lockout.spec.ts`, `apps/api/prisma/tests/signin-password-hook-runtime.sql` |
 | QAD-IL-02 | Org B lists, archives or uses an Org A library entry, or a request carries forged organization, creator or binding fields, or a role without the library permission calls it -> denied, nothing created | Abuse | Security | PRD-F7 | G-F7-5 | UC-F7-1 | `apps/api/src/modules/indicators/indicator-library.service.test.ts`; `apps/api/src/modules/auth/csv-rbac.test.ts` |
 
 ### 3.4 Traceability
 
 | Must-Have | Feature | QAD IDs |
 |---|---|---|
-| PRD-F1 | RBAC and Workspace Management | QAD-T01, QAD-T20, QAD-A01, QAD-A02, QAD-A05, QAD-A06, QAD-R01, QAD-R02, QAD-R03, QAD-R04, QAD-R05, QAD-R06, QAD-R07, QAD-R09, QAD-T36, QAD-T37, QAD-T38, QAD-T39, QAD-T77, QAD-T78, QAD-T79, QAD-T80, QAD-T81, QAD-T82 |
+| PRD-F1 | RBAC and Workspace Management | QAD-T01, QAD-T20, QAD-A01, QAD-A02, QAD-A05, QAD-A06, QAD-R01, QAD-R02, QAD-R03, QAD-R04, QAD-R05, QAD-R06, QAD-R07, QAD-R09, QAD-T36, QAD-T37, QAD-T38, QAD-T39, QAD-T77, QAD-T78, QAD-T79, QAD-T80, QAD-T81, QAD-T82, QAD-T86, QAD-A25 |
 | PRD-F2 | Project Profile and Activity Tracking | QAD-T02, QAD-R08, QAD-P01, QAD-P02, QAD-P03, QAD-P04, QAD-P06, QAD-P07, QAD-P08, QAD-P09, QAD-P10, QAD-RBP-01, QAD-RBP-02, QAD-RBP-03, QAD-RBP-04, QAD-RBP-05, QAD-RBP-06, QAD-RBP-07, QAD-RBP-08, QAD-RBP-09, QAD-RBP-10, QAD-T40, QAD-T41, QAD-A22, QAD-T42, QAD-T43, QAD-T44, QAD-T45, QAD-T46, QAD-T47, QAD-T48 |
 | PRD-F3 | Centralized Beneficiary Profile | QAD-T03, QAD-A03, QAD-A04, QAD-A11, QAD-A12, QAD-A13, QAD-A14, QAD-DRF-01, QAD-DRF-02, QAD-DRF-03, QAD-DRF-04, QAD-DRF-05, QAD-DRF-06, QAD-DRF-07, QAD-DRF-08, QAD-DRF-09, QAD-DRF-10, QAD-A23, QAD-IR-01, QAD-IR-02, QAD-IR-03 |
 | PRD-F4 | Beneficiary Journey Tracking | QAD-T04, QAD-T49, QAD-T50, QAD-T51, QAD-T52, QAD-T83, QAD-A24 |
