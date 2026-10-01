@@ -6,15 +6,142 @@
 
 ## 2. Brand Primitives
 
-### 2.1 Logo / Mark
+### 2.0 Token Architecture
 
-Asset: `apps/web/public/brand/pathways-mark.png`, served as:
+Current tokens are the 47 CSS variables in `apps/web/src/app/globals.css` (HSL triplets consumed through Tailwind semantic names). The target tokens below come from the Pathways foundations. The target is not shipped; product UI keeps using the current variables until an approved change migrates them, and the gap table in section 2.1 is the migration map. Use semantic variables, never new hard-coded colors, and do not invent values (section 1 conflict rules).
 
-```text
-/brand/pathways-mark.png
-```
+### 2.1 Colors
 
-Coded default size: `32 × 32px`. The staff sidebar commonly renders the mark around `44 × 44px` and applies a white/inverted treatment on navy.
+**Color principle.** Blue is direction and action; cyan is connection and information; neutrals are working surfaces and hierarchy; semantic colors are status and attention. Do not reinterpret these roles per screen.
+
+**Pathways Blue** (primary interaction and navigation family)
+
+| Token | Hex | Intended use |
+|---|---|---|
+| blue.900 | #00356F | Headings, strong focus |
+| blue.700 | #005EBF | Accessible buttons with white text |
+| blue.500 | #007DFE | Core brand, links, visual accents |
+| blue.300 | #66B4FF | Charts and accents |
+| blue.100 | #CDE6FF | Selected and informational surfaces |
+
+Use blue.700 for primary filled buttons with white text, blue.500 for brand accents, links and non-body-text UI, blue.900 for strong headings and focus, blue.100 for selected or informational surfaces. Blue indicates identity, interaction, navigation, focus, selection or information, never decoration.
+
+**Pathways Cyan** (connected information, secondary brand expression, sidebar, highlights, data visualization)
+
+| Token | Hex | Intended use |
+|---|---|---|
+| cyan.900 | #00537F | Deep accent text |
+| cyan.700 | #0074B3 | Accessible filled treatments with white text |
+| cyan.500 | #00A5FE | Sidebar highlights and visual accents |
+| cyan.300 | #66CAFE | Data visualization |
+| cyan.100 | #CCEDFF | Informational surfaces |
+
+Cyan stays secondary to blue in the interaction hierarchy, never substitutes for semantic status colors, and gets no additional shades without a formal update.
+
+**Interface neutrals**
+
+| Token | Hex | Intended use |
+|---|---|---|
+| ink | #232631 | Primary text |
+| muted | #6F7785 | Secondary text |
+| divider | #DBDFE2 | Borders and separators |
+| surface | #F5F6FA | Cards, pills, contained surfaces |
+| canvas | #F4F1EC | Primary page ground |
+| paper | #FFFFFF | Elevated cards and working surfaces |
+
+Most operational content uses neutral surfaces; do not fill every card with brand color. Use divider only when spacing alone is insufficient.
+
+**Semantic colors** (700 = accessible text, 500 = UI signal, 100 = background)
+
+| Meaning | 700 | 500 | 100 |
+|---|---|---|---|
+| Success: complete, verified, validated | #08783E | #18A957 | #DDE6E8 |
+| Warning: flagged, attention required, pending review | #9A5200 | #D97706 | #FFF0C7 |
+| Danger: overdue, incomplete, error, blocked | #B51D32 | #EF3340 | #FFE1E5 |
+| Information: in progress, guidance | #005EBF | #007DFE | #CDE6FF |
+
+Developer decision (2026-10-01): success.700 is #08783E and success.100 is #DDE6E8, as stated in the color foundations file; the palette image values #08783F and #DDF6E8 are not used.
+
+Semantic rules: information reuses the blue family; danger is never decorative; every important state pairs color with an icon or text label (for example Verified, Needs review, Validation failed, In progress); never a green dot only, red row only or yellow background only. Use the 700 tone for text on its 100 surface; 500 tones are UI signals and large display elements, not body text. Do not assume two palette colors are accessible together.
+
+Charts primarily use the blue and cyan families; semantic colors only when the chart itself shows a semantic state; no danger red for a neutral category; do not rely on hue alone, add labels, values, patterns, markers or direct annotation.
+
+Prohibited: inventing brand colors, decorative semantic colors, color-only status, saturated brand-color operational surfaces, low-contrast "soft" text, treating blue and cyan as interchangeable, gradients replacing functional tokens.
+
+**Authentication gradient exception.** Current auth surfaces use a light-blue/white gradient such as `#C8EAF9 -> #F5FBFE -> #FFFFFF -> #DCEFFC`. It is an access-surface exception, not a staff-workspace background.
+
+**Gap table: current versus target.** Current values are the `globals.css` HSL triplets with approximate hex; Target values are the foundation tokens above.
+
+| Token | Current | Target | Use |
+|---|---|---|---|
+| `background` | `0 0% 100%` (#FFFFFF) | `canvas` #F4F1EC | primary page ground where the layout calls for it |
+| `foreground` | `205.7 43.2% 15.9%` (#172B3A) | `ink` #232631 | primary text |
+| `workspace` | `0 0% 100%` (#FFFFFF) | `paper` #FFFFFF | elevated working surfaces |
+| `surface-subtle` | `210 33.3% 97.6%` (#F7F9FB) | `surface` #F5F6FA | cards, pills, contained areas |
+| `card` | `0 0% 100%` (#FFFFFF) | `paper` #FFFFFF | card ground |
+| `card-foreground` | `205.7 43.2% 15.9%` (#172B3A) | `ink` #232631 | card text |
+| `popover` | `0 0% 100%` (#FFFFFF) | `paper` #FFFFFF | menus and popovers |
+| `popover-foreground` | `205.7 43.2% 15.9%` (#172B3A) | `ink` #232631 | popover text |
+| `primary` | `206.8 100% 40.4%` (#0072CE) | `blue.700` #005EBF | primary filled button with white text |
+| `primary-hover` | `206.6 100% 36.3%` (#0067B9) | `blue.900` #00356F | hover and pressed (darken plus motion) |
+| `primary-active` | `206.5 100% 32%` (#005BA3) | `blue.900` #00356F | pressed |
+| `primary-subtle` | `206.7 75% 95.3%` (#EAF4FC) | `blue.100` #CDE6FF | selected and informational surface |
+| `primary-foreground` | `0 0% 100%` (#FFFFFF) | `paper` #FFFFFF | text on primary |
+| `navy` | `209.1 75.6% 17.6%` (#0B2E4F) | `blue.900` #00356F | strong headings, focus, dark shell |
+| `navy-foreground` | `0 0% 100%` (#FFFFFF) | `paper` #FFFFFF | text on dark shell |
+| `navy-muted` | `207.7 31% 83.5%` (#C8D6E2) | `blue.100` #CDE6FF | secondary text on dark shell |
+| `light-blue` | `206.7 75% 95.3%` (#EAF4FC) | `blue.100` #CDE6FF | light brand surface |
+| `light-blue-foreground` | `206.4 100% 32.9%` (#005EA8) | `blue.700` #005EBF | text on light brand surface |
+| `secondary` | `206.7 25.7% 93.1%` (#E9EEF2) | `surface` #F5F6FA | secondary and disabled surface |
+| `secondary-foreground` | `205.7 43.2% 15.9%` (#172B3A) | `ink` #232631 | text on secondary |
+| `muted` | `204 23.8% 95.9%` (#F2F5F7) | `surface` #F5F6FA | neutral fill |
+| `muted-foreground` | `207.7 19.2% 39.8%` (#526779) | `muted` #6F7785 | secondary text |
+| `accent` | `206.7 75% 95.3%` (#EAF4FC) | `blue.100` #CDE6FF | hover and selected accent |
+| `accent-foreground` | `206.4 100% 32.9%` (#005EA8) | `blue.700` #005EBF | text on accent |
+| `link` | `206.4 100% 32.9%` (#005EA8) | `blue.500` #007DFE | links |
+| `success` | `150.3 59.5% 30%` (#1F7A4D) | `success.700` #08783E | accessible success text |
+| `success-subtle` | `147.7 41.9% 93.9%` (#E9F6EF) | `success.100` #DDE6E8 | success surface |
+| `success-foreground` | `0 0% 100%` (#FFFFFF) | `paper` #FFFFFF | text on success fill |
+| `warning` | `30.9 89% 28.6%` (#8A4B08) | `warning.700` #9A5200 | accessible warning text |
+| `warning-subtle` | `34.6 100% 94.9%` (#FFF4E5) | `warning.100` #FFF0C7 | warning surface |
+| `warning-foreground` | `0 0% 100%` (#FFFFFF) | `paper` #FFFFFF | text on warning fill |
+| `danger` | `4.2 76.5% 40%` | `danger.700` #B51D32 | accessible danger text |
+| `danger-hover` | `4.4 76.5% 35.1%` | `danger.700` #B51D32 | destructive hover |
+| `danger-active` | `4.5 79.9% 29.2%` | `danger.700` #B51D32 | destructive pressed |
+| `danger-subtle` | `3.5 81% 95.9%` (#FDEDEC) | `danger.100` #FFE1E5 | danger surface |
+| `danger-foreground` | `0 0% 100%` (#FFFFFF) | `paper` #FFFFFF | text on danger fill |
+| `info` | `206.4 100% 32.9%` (#005EA8) | `info.700` #005EBF | informational text |
+| `info-subtle` | `206.7 75% 95.3%` (#EAF4FC) | `info.100` #CDE6FF | informational surface |
+| `info-foreground` | `0 0% 100%` (#FFFFFF) | `paper` #FFFFFF | text on info fill |
+| `destructive` | `4.2 76.5% 40%` | `danger.700` #B51D32 | destructive action |
+| `destructive-foreground` | `0 0% 100%` (#FFFFFF) | `paper` #FFFFFF | text on destructive |
+| `disabled-foreground` | `209.1 15.3% 42.2%` | `muted` #6F7785 | disabled text, explained where important |
+| `border` | `210 24.2% 87.1%` (#D6DEE6) | `divider` #DBDFE2 | borders and separators |
+| `border-strong` | `209.1 20.6% 65.7%` (#96A8BA) | `divider` #DBDFE2 | stronger divider (no separate target value; flagged) |
+| `input` | `210 15.2% 58.8%` (#8696A6) | `muted` #6F7785 | form border (no separate target value; flagged) |
+| `ring` | `206.8 100% 40.4%` (#0072CE) | `blue.700` #005EBF | keyboard focus ring |
+| `radius` | `0.375rem` | 8 px controls, 12 px cards, 16 px panels | radius scale (section 2.5) |
+| `brand-blue-900 (new)` | none | #00356F | headings, strong focus |
+| `brand-blue-700 (new)` | none | #005EBF | accessible buttons with white text |
+| `brand-blue-500 (new)` | none | #007DFE | core brand, links, accents |
+| `brand-blue-300 (new)` | none | #66B4FF | charts and accents |
+| `brand-blue-100 (new)` | none | #CDE6FF | selected and informational surfaces |
+| `brand-cyan-900 (new)` | none | #00537F | deep accent text |
+| `brand-cyan-700 (new)` | none | #0074B3 | accessible filled treatments with white text |
+| `brand-cyan-500 (new)` | none | #00A5FE | sidebar highlights and accents |
+| `brand-cyan-300 (new)` | none | #66CAFE | data visualization |
+| `brand-cyan-100 (new)` | none | #CCEDFF | informational surfaces |
+| `canvas (new)` | none | #F4F1EC | primary page ground |
+| `success-500 (new)` | none | #18A957 | success UI signal |
+| `warning-500 (new)` | none | #D97706 | warning UI signal |
+| `danger-500 (new)` | none | #EF3340 | danger UI signal |
+| `info-500 (new)` | none | #007DFE | information UI signal |
+
+### 2.2 Logo System
+
+Asset: `apps/web/public/brand/pathways-mark.png`, served as `/brand/pathways-mark.png`.
+
+Coded default size: `32 x 32px`. The staff sidebar commonly renders the mark around `44 x 44px` and applies a white/inverted treatment on the dark shell.
 
 Rules:
 - use the existing mark;
@@ -22,58 +149,17 @@ Rules:
 - do not recreate it as CSS art, emoji, or an improvised SVG;
 - decorative empty-alt treatment is acceptable when adjacent PATHWAYS text supplies the accessible name.
 
-### 2.2 Color Tokens
-
-Current CSS variables are canonical until an approved change updates them.
-
-| Token | Approx. Hex | Use |
-|---|---|---|
-| `background` | `#FFFFFF` | page background |
-| `foreground` | `#172B3A` | primary text |
-| `workspace` | `#FFFFFF` | staff workspace |
-| `surface-subtle` | `#F7F9FB` | low-emphasis surfaces |
-| `primary` | `#0072CE` | primary action/selection |
-| `primary-hover` | `#0067B9` | hover |
-| `primary-active` | `#005BA3` | active |
-| `primary-subtle` | `#EAF4FC` | selected/info surface |
-| `navy` | `#0B2E4F` | staff shell/public hero |
-| `navy-muted` | `#C8D6E2` | text on navy |
-| `secondary` | `#E9EEF2` | secondary/disabled surface |
-| `muted` | `#F2F5F7` | neutral fill |
-| `muted-foreground` | `#526779` | secondary text |
-| `success` | `#1F7A4D` | positive/on-track |
-| `success-subtle` | `#E9F6EF` | success surface |
-| `warning` | `#8A4B08` | caution/at-risk |
-| `warning-subtle` | `#FFF4E5` | warning surface |
-| `danger` | `#B42318` | destructive/critical |
-| `danger-subtle` | `#FDEDEC` | danger surface |
-| `info` | `#005EA8` | informational text |
-| `border` | `#D6DEE6` | default divider |
-| `border-strong` | `#96A8BA` | stronger hover/divider |
-| `input` | `#8696A6` | form border |
-| `ring` | `#0072CE` | focus ring |
-
-Use semantic CSS variables/Tailwind names instead of new hard-coded colors for normal product UI. Semantic status colors are always paired with readable text.
-
-**Authentication gradient exception.** Current auth surfaces use a light-blue/white gradient such as:
-
-```text
-#C8EAF9 → #F5FBFE → #FFFFFF → #DCEFFC
-```
-
-This is an access-surface exception, not the default staff-workspace background.
-
 ### 2.3 Typography
 
-Heading font: `MomoTrustDisplay-Regular.ttf`, loaded via `next/font/local` as `--font-heading`. Applied to h1-h4, product name, card/dialog titles, and other selected headings. Current global CSS forces normal/regular heading weight.
+Current heading font: `MomoTrustDisplay-Regular.ttf`, loaded via `next/font/local` as `--font-heading`, applied to h1-h4, product name, card/dialog titles and selected headings; global CSS forces regular weight.
 
-Body font:
+Current body font:
 
 ```text
 "Segoe UI", "Helvetica Neue", Arial, sans-serif
 ```
 
-Tables and numeric monitoring/financial data use tabular numerals.
+The foundations define no typeface; type stays as above until a formal update. Tables and numeric monitoring/financial data use tabular numerals.
 
 Common current scales:
 - page H1: `text-3xl` (30px)
@@ -86,33 +172,61 @@ Common current scales:
 
 Do not introduce a competing type system without approval.
 
-### 2.4 Radius, Borders, Elevation
+### 2.4 Imagery & Illustration
 
-Root radius: `--radius: 0.375rem`.
+Use the existing mark, charts, approved project media and safe maps. Avoid decorative stock humanitarian imagery, fake Beneficiary portraits, fabricated project photos and placeholders that imply verified impact. Private evidence stays private until separately approved. Brand artwork may use approved brand treatments; operational UI stays restrained and readable.
 
-- `rounded-lg` ≈ 6px
-- `rounded-md` ≈ 4px
-- `rounded-sm` ≈ 2px
-- pills/badges/progress may use full radius
+### 2.5 Elevation & Depth
 
-Popover shadow:
+**Radius scale (target).** Use only these; radius communicates containment, and nested rounded containers are avoided.
 
-```text
-0 8px 20px rgb(11 46 79 / 10%),
-0 1px 3px rgb(11 46 79 / 8%)
-```
+| Radius | Usage |
+|---|---|
+| 4 px | Tags and compact elements |
+| 8 px | Controls |
+| 12 px | Cards |
+| 16 px | Panels |
+| 999 px | Pills (status) |
 
-Dialog shadow:
+Current: root `--radius: 0.375rem`, so `rounded-lg` is about 6px, `rounded-md` 4px, `rounded-sm` 2px; pills, badges and progress use full radius.
 
-```text
-0 16px 40px rgb(11 46 79 / 14%),
-0 2px 6px rgb(11 46 79 / 8%)
-```
+**Border-first elevation (target).** Prefer spacing, then a subtle surface difference, then a border, then a shadow only when extra elevation is needed.
 
-Cards are generally flat/bordered. Existing localized `shadow-sm` usage is acceptable where already established; do not add strong shadows to normal cards by default.
+| Level | Use |
+|---|---|
+| Level 0 | Inline |
+| Level 1 | Card |
+| Level 2 | Menu |
+| Level 3 | Modal |
+
+Cards represent meaningful bounded groups; not every piece of information is a card. Current popover shadow `0 8px 20px rgb(11 46 79 / 10%), 0 1px 3px rgb(11 46 79 / 8%)`; current dialog shadow `0 16px 40px rgb(11 46 79 / 14%), 0 2px 6px rgb(11 46 79 / 8%)`. Cards are generally flat and bordered; existing localized `shadow-sm` is acceptable, but no strong shadows on normal cards.
 ## 3. Layout & Spatial System
 
-### Staff shell
+### Spacing rhythm (target)
+
+4 px basis. Approved tokens: 4, 8, 12, 16, 24, 32 px. Use 8-16 px inside dense controls and 24-32 px between major related blocks. Spacing establishes hierarchy before extra borders, backgrounds or shadows; no arbitrary values when a token fits.
+
+### Standard desktop layout (target)
+
+A centered application workspace with persistent primary navigation and a clear content area.
+
+| Property | Value |
+|---|---|
+| Viewport | 1440-1920 px |
+| Content maximum | 1200 px |
+| Gutter | 32-64 px |
+| Wider screens | extra width becomes outer margin |
+
+Sidebar variants are one navigation architecture, not different information architectures:
+
+1. Full sidebar (dark).
+2. Branded/component sidebar (blue, cyan highlights).
+3. Collapsed sidebar (icons only). It keeps recognizable navigation through icons, tooltips or labels, accessible names and active-state indication.
+
+Frequent global utilities (activity search, notifications, project context, account controls) may stay persistent but never compete with the primary task; search labels and placeholders describe what is searchable. Summary cards stay 160-240 px wide and wrap to a new row before labels are compressed; the card grid is 12 columns.
+
+
+### Current staff shell (implemented)
 
 Desktop:
 - expanded sidebar: `292px`
@@ -146,6 +260,32 @@ Current staff navigation groups:
 
 Role filtering happens before navigation is rendered. Project workspaces use permission-aware tabs. Frontend visibility is not authorization.
 ## 4. Core Component Specs
+
+### Target foundations
+
+**Button sizes.** Small 36 px visual height (compact contexts only, effective target stays 44 x 44 px), Default 44 px, Large 52 px (explicit primary actions and high-emphasis flows). Minimum interaction target 44 x 44 px.
+
+**Action hierarchy.** One dominant primary action per working context: Primary (expected next step), Secondary (alternative), Tertiary (low-emphasis contextual), Destructive (consequential removal, not adjacent to frequent safe actions). Frequent actions are not hidden in overflow menus.
+
+**Interaction states.** Default (blue.700 fill), hover/pressed (darken plus motion), keyboard focus (3 px visible ring), disabled (no action available; explain how to proceed when the action is important), loading where applicable. Minimum contrast ratio 4.5:1.
+
+**Card sizing and padding.** 16 px compact metric or dense utility card, 20 px default card, 24 px feature or high-emphasis card; use the smallest padding that preserves readability.
+
+**Row heights.** Compact 44 px (dense utility lists), Default 56 px (title plus status or action), Rich 72 px (secondary information or several related values). Do not increase height to look spacious.
+
+**Choosing containers.** Card for summary metrics and bounded groups; Row for repeated records; Table when users compare across columns, sort or filter; Context panel or inspector for supporting information that keeps the screen context; Drawer for short contextual create or edit flows (do not nest drawers); Full page for a changed primary task. Avoid card soup.
+
+**Status presentation.** Every status uses color plus a text label, and an icon where it helps (for example "! Needs review", never a yellow dot). Status pills use the 999 px radius and one convention across screens.
+
+**Feedback and errors.** Show meaningful processing states ("Importing 248 records...", "241 records matched. 7 need review.", "Changes saved.") rather than indefinite spinners. Errors say what happened, what was affected, what to do next and whether existing information changed; they appear near the affected field and never erase valid input.
+
+**Forms.** Minimize entry and memory load, default from known context when safe, group related fields, mark required fields, use progressive sections for long workflows, and offer a review state for consequential submission.
+
+**Context preservation.** Filters, search terms, selected records, pagination and expanded states survive a temporary inspection.
+
+**Reduced-click rule.** Remove interactions caused only by avoidable page switching, duplicated confirmation, hidden frequent actions, repeated entry, needless intermediate screens or context loss. Keep interaction that protects data integrity, privacy, access control, consequential changes, external publication or destructive operations.
+
+### Current component specs (implemented)
 
 ### Buttons
 Variants: primary/default, secondary, outline, ghost, destructive. Normal height: `44px`.
@@ -237,6 +377,10 @@ Libraries: ECharts, MapLibre GL.
 No essential information may depend on animation.
 ## 6. Accessibility (a11y)
 
+Target rules from the foundations: meaning never by color alone; important states pair color with text or a recognizable icon; visible keyboard focus; clear labels rather than icon-only controls, with accessible names where icon-only; predictable placement of recurring controls; 44 x 44 px effective targets; nothing essential depends on hover; errors associated with their fields and explained in plain language; user input preserved after recoverable errors; readable hierarchy at increased text size and zoom; charts expose meaning through labels, values or summaries. Role-specific interfaces may simplify functionality but keep the same design language.
+
+Current implementation:
+
 Preserve existing direction:
 - skip link
 - semantic landmarks
@@ -254,7 +398,7 @@ Preserve existing direction:
 The historical `design-qa.md` records a fixed mobile navigation close-control contrast issue and scoped focus/target-size evidence.
 
 Do not claim full WCAG conformance without a complete audit. Final-gate additions: measured contrast, 200% zoom/reflow, forced-colors, screen-reader sampling, chart/map alternatives.
-## 7. Taste-Skill Settings
+## 7. Design Review Settings
 
 ### Verified frontend stack
 
@@ -278,15 +422,21 @@ Use existing assets first. Do not:
 - use arbitrary remote imagery;
 - use stock/fabricated Beneficiary imagery as evidence;
 - publish private media without approval/provenance.
-## 8. Impeccable Quality Gate
+
+### Agent implementation rules
+
+When generating a screen: reuse existing tokens and patterns, identify the user's primary task and one dominant next action, preserve workflow context, use approved spacing, radius and color tokens, communicate loading, empty, error and success states, support keyboard access, use plain operational language. Do not invent a design language, colors or spacing values; no decorative gradients in ordinary UI; not every block is a card; no frequent actions in overflow menus; no color-only status; no needless nested navigation; do not expose sensitive Beneficiary information simply because it exists; do not present rule-based suggestions as autonomous decisions. When uncertain, prefer the simpler established pattern.
+## 8. Design Quality Gate
 
 Before accepting frontend/design work:
 
 - [ ] current primitives reused before creating new ones
-- [ ] semantic tokens reused
+- [ ] semantic tokens reused; any target token used is listed in the section 2.1 gap table
 - [ ] heading/body typography preserved
 - [ ] correct staff/auth/public surface mode preserved
-- [ ] 44px normal target size preserved
+- [ ] 44px normal target size preserved (36 px only in compact contexts with a 44 px effective target)
+- [ ] radius and spacing values taken from the approved scales
+- [ ] one dominant primary action per working context
 - [ ] keyboard/focus tested
 - [ ] mobile overflow/reflow tested
 - [ ] loading/empty/error states implemented

@@ -1,38 +1,51 @@
 # AI Assurance Dossier (AIA)
 
-## Trigger Status
+**Status:** Working; not triggered
+**Version:** 2.0
+**Last reconciled:** 2026-10-01
+**Owner:** PATHWAYS capstone team
 
-**NOT ACTIVE for current runtime.**
+## 0. Trigger and Scope
 
-PATHWAYS currently has no approved runtime AI/ML feature.
+The AIA is not triggered. PATHWAYS has no AI or ML in the product: no model inference, training or generated content at runtime. AI coding assistants are development tools, not runtime dependencies.
 
-Rule-based decision support means deterministic configured rules plus predefined human-reviewed recommendation prompts.
+## 1. System Card
 
-## Current Model Card
+| Item | Value |
+|---|---|
+| Decision support | Deterministic rule engine (`apps/api/src/modules/rules/rule-engine.ts`) |
+| Inputs | Configured alert rules, conditions and project data |
+| Outputs | Rule-based alerts and predefined, human-reviewed recommendation prompts |
+| Learning | None; the same inputs give the same results |
+| Human role | Staff review alerts and decide; no autonomous action |
 
-No model.
+## 2. Risk Register
 
-AI coding assistants are development tools, not runtime product dependencies.
+| ID | Risk | Mitigation |
+|---|---|---|
+| AIA-R1 | Wrong source data yields a wrong alert | Import validation; alerts cite their inputs |
+| AIA-R2 | Wrong metric definition | Rules are configured and reviewed before enabling |
+| AIA-R3 | Inappropriate threshold | Threshold review by the project manager |
+| AIA-R4 | Alert history rewritten | Snapshots preserved; history is not rewritten |
 
-## Important Limitation
+## 3. Self-Audit Checklist
 
-Deterministic rules can still be wrong if:
+- [x] no model, training data or inference service in the runtime
+- [x] rules distinguished from AI in all docs
+- [x] every recommendation is predefined and human-reviewed
+- [ ] re-run this checklist when any trigger in section 4 is proposed
 
-- source data are wrong;
-- metric definitions are wrong;
-- thresholds are inappropriate.
+## 4. Cross-links and Escalation
 
-Therefore explainability and human review remain required.
+A Change Record and explicit approval are required before any feature that predicts beneficiary outcomes, generates recommendations with ML or generative inference, ranks beneficiaries, makes autonomous decisions or trains on sensitive data. Escalate to privacy review per [CLR](clr-pathways.md) section 3. The rules module is in [SDD](sdd-pathways.md) section 3.2.
 
-## Trigger for Future AIA Expansion
+## 5. Regulatory Awareness
 
-A Change Record and explicit approval are required before any feature that:
+Not established: the manuscript states no AI-specific regulation. Only RA 10173 is cited, in [CLR](clr-pathways.md) section 0.
 
-- predicts Beneficiary outcomes;
-- generates project recommendations using ML/generative inference;
-- ranks Beneficiaries;
-- makes autonomous humanitarian decisions;
-- trains on sensitive project/Beneficiary data.
+## 6. Materialization
+
+Not applicable while the dossier is not triggered. If triggered, add a model card, data lineage and evaluation results here.
 
 ## Self-Check
 
