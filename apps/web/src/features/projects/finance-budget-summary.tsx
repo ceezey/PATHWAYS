@@ -9,9 +9,7 @@ type BudgetRow = { activityId: string | null; category: string; plannedBudget: s
 type ExpenseRow = { amount: string; status: string }
 
 const php = (cents: bigint) =>
-  new Intl.NumberFormat('en-US', { currency: 'PHP', style: 'currency' }).format(
-    Number(cents) / 100,
-  )
+  new Intl.NumberFormat('en-US', { currency: 'PHP', style: 'currency' }).format(Number(cents) / 100)
 
 /** Approved project budget, countable (APPROVED) spending, utilization and remaining balance. */
 export const FinanceBudgetSummary = ({
