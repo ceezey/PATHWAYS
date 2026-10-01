@@ -131,7 +131,7 @@ describe('confirming a smart mapping suggestion', () => {
         data: expect.objectContaining({
           actorUserId: 'me-1',
           action: 'IMPORT_MAPPING_REVISED',
-          changes: { revision: 2, mapped: 1, ignored: 0 },
+          changes: { revision: 2, mapped: 1, ignored: 0, valueMapped: 0 },
         }),
       }),
     )

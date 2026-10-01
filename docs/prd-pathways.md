@@ -814,7 +814,7 @@ stateDiagram-v2
 | G-F6-4 | Only users holding `imports.review` confirm or change a mapping; cross-project and other-uploader calls are denied before any write | Met | QAD-SM-11 |
 | G-F6-5 | A 5,000-row batch finishes through repeated bounded process calls; a failed or stopped run keeps server state and offers resume | Met | QAD-IMP-02 |
 | G-F6-6 | Spreadsheet formulas and scripted PDFs are not executed and scanned or oversized files fail with stable messages | Met | QAD-A07 |
-| G-F6-7 | Choosing a data type for a new field and translating values during import | Not met | QAD-T54 |
+| G-F6-7 | A reviewer can declare a data type and translate source values per mapped column; a value that still fails stays staged with a reason | Met | QAD-T54 |
 
 #### Use Cases
 
@@ -859,9 +859,9 @@ flowchart LR
 | Trigger | A batch has suggested or pending column mappings. |
 | Preconditions | The batch is UPLOADED or MAPPED and belongs to an assigned project. |
 | Main flow | 1. The user opens the batch on `/imports`. 2. The user reviews each suggestion and its reason. 3. The user confirms all or one, maps, or ignores a column (`PATCH /imports/projects/:projectId/batches/:batchId/mapping`). 4. The system records a new mapping revision attributed to the reviewer. |
-| Alternate / exception | Automatic-mapping suggestions are requested under `imports.upload` (UC-F6-1) and confirmed here under `imports.review`. A Project Officer sees suggestions read-only and is denied. Stale revision: conflict. Field mapped twice: rejected. Choosing a data type or translating values is not provided. |
+| Alternate / exception | Automatic-mapping suggestions are requested under `imports.upload` (UC-F6-1) and confirmed here under `imports.review`. A Project Officer sees suggestions read-only and is denied. Stale revision: conflict. Field mapped twice: rejected. A reviewer may also declare a data type and add up to 50 value translations per mapped column; an untranslated value that fails stays staged with a reason. |
 | Postconditions | The batch is MAPPED at a new revision; an audit event is recorded without cell values. |
-| Gates | G-F6-3, G-F6-4, G-F6-7 (Not met) |
+| Gates | G-F6-3, G-F6-4, G-F6-7 |
 
 ##### UC-F6-3 Validate batch
 

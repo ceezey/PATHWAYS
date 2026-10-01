@@ -268,9 +268,57 @@ describe('P03 import service', () => {
     })
     expect(tx.auditLog.create).toHaveBeenCalledWith(
       expect.objectContaining({
-        data: expect.objectContaining({ changes: { revision: 1, mapped: 1, ignored: 1 } }),
+        data: expect.objectContaining({
+          changes: { revision: 1, mapped: 1, ignored: 1, valueMapped: 0 },
+        }),
       }),
     )
+  })
+
+  // QAD-T54
+  it('stores a reviewed data type and value map, and rejects a type that does not fit', async () => {
+    const staged = batch({
+      sourceHeaders: [{ key: 'column_0001', header: 'Sex', columnIndex: 1 }],
+      status: 'UPLOADED',
+      mappingRevision: 0,
+    })
+    tx.dataImportBatch.findFirst.mockResolvedValue(staged)
+    tx.dataImportBatch.findUnique.mockResolvedValue(staged)
+    tx.formField.findMany.mockResolvedValue([
+      { id: '41000000-0000-4000-8000-000000000005', code: 'sex', dataType: 'SELECT' },
+    ])
+    const mapped = {
+      sourceFieldName: 'column_0001',
+      targetFieldCode: 'sex',
+      ignored: false,
+    }
+
+    await service.saveMapping(actor, projectId, batchId, {
+      expectedMappingRevision: 0,
+      mappings: [{ ...mapped, dataType: 'TEXT', valueMap: [{ from: 'M', to: 'Male' }] }],
+    })
+    expect(tx.metadataMapping.createMany).toHaveBeenCalledWith({
+      data: [expect.objectContaining({ dataType: 'TEXT', valueMap: [{ from: 'M', to: 'Male' }] })],
+    })
+
+    tx.metadataMapping.createMany.mockClear()
+    for (const bad of [
+      { dataType: 'INTEGER' as const },
+      {
+        valueMap: [
+          { from: 'M', to: 'Male' },
+          { from: ' m', to: 'Man' },
+        ],
+      },
+    ]) {
+      await expect(
+        service.saveMapping(actor, projectId, batchId, {
+          expectedMappingRevision: 0,
+          mappings: [{ ...mapped, ...bad }],
+        }),
+      ).rejects.toBeInstanceOf(BadRequestException)
+    }
+    expect(tx.metadataMapping.createMany).not.toHaveBeenCalled()
   })
 
   it('keeps the mapped-field ceiling at 100 for a wider source file', async () => {

@@ -3,6 +3,7 @@ import {
   type FormValueError,
   validateAndNormalizeFormData,
 } from '@pathways/shared'
+import { type ImportColumnRule, mapKey } from './value-map'
 
 export interface ImportValueError {
   fieldCode: string
@@ -112,14 +113,28 @@ function mappedError(error: FormValueError): ImportValueError {
   }
 }
 
+function translate(raw: unknown, rule: ImportColumnRule | undefined): unknown {
+  if (!rule?.valueMap || (typeof raw !== 'string' && typeof raw !== 'number')) return raw
+  const mapped = rule.valueMap.get(mapKey(String(raw)))
+  return mapped === undefined ? raw : mapped
+}
+
+/** Applies the reviewed value map, then the declared type check, then the field's own coercion. */
 export function normalizeImportedRow(
   fields: readonly FormFieldValidationContract[],
   rawValuesByFieldCode: Readonly<Record<string, unknown>>,
+  rules: Readonly<Record<string, ImportColumnRule>> = {},
 ): ImportRowNormalizationResult {
   const values: Record<string, string | number | boolean | string[] | null> = Object.create(null)
   const errors: ImportValueError[] = []
   for (const field of fields) {
-    const converted = convert(field, rawValuesByFieldCode[field.code])
+    const rule = Object.hasOwn(rules, field.code) ? rules[field.code] : undefined
+    const raw = translate(rawValuesByFieldCode[field.code], rule)
+    const declared =
+      rule?.dataType && rule.dataType !== field.dataType
+        ? convert({ ...field, dataType: rule.dataType }, raw)
+        : null
+    const converted = declared?.error ? declared : convert(field, raw)
     values[field.code] = converted.value
     if (converted.error) errors.push(converted.error)
   }

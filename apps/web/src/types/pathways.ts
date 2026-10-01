@@ -957,6 +957,8 @@ export interface ImportBatchDefinition {
     /** AUTO_SMART_V2: a field suggested for a PENDING column; confirmation needs imports.review. */
     suggestedField?: { code: string; label: string } | null
     matchScore?: number | null
+    dataType?: FormFieldDataType | null
+    valueMap?: Array<{ from: string; to: string }> | null
     matchReason?:
       | 'EXACT'
       | 'SYNONYM'
@@ -992,6 +994,10 @@ export interface ImportMappingInput {
   sourceFieldName: string
   targetFieldCode?: string
   ignored: boolean
+  /** Declared type of the translated values; must fit the target field. */
+  dataType?: FormFieldDataType
+  /** Exact-match translations applied before coercion; at most 50 entries. */
+  valueMap?: Array<{ from: string; to: string }>
 }
 
 export interface SurveyAggregateCount {
