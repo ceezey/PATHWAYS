@@ -151,7 +151,7 @@ Every implemented feature requires:
 | QAD-RBP-05 | A forged capability flag or a hidden UI action still returns 403 from the API when called directly | Sad | Security | PRD-F2 | G-F2-11 | UC-F2-2 | `apps/api/src/modules/activities/activity-capabilities.test.ts` |
 | QAD-RBP-06 | A write carrying `implementingPartners` is rejected with 400 | Sad | Reliability | PRD-F2 | G-F2-3 | UC-F2-1 | `apps/api/src/modules/projects/projects.service.test.ts` |
 | QAD-RBP-07 | `LockedField` never submits a value for the field it locks, even if the disabled control is force-submitted | Sad | Usability | PRD-F2 | G-F2-3 | UC-F2-1 | `apps/web/src/components/pathways/locked-field.test.tsx` |
-| QAD-T39 | repeated sign-in failures lock the account in the app; not implemented in the API, so the gate is Not met | Sad | Security | PRD-F1 | G-F1-10 | UC-F1-1 | Manual; pending, gate Not met |
+| QAD-T39 | 5 failed sign-ins lock the identifier for 15 minutes with a uniform response for known and unknown accounts, a locked identifier is refused without checking the password, success resets the count, and a provider outage is not counted | Sad | Security | PRD-F1 | G-F1-10 | UC-F1-1 | `apps/api/src/modules/auth/signin-lockout.test.ts`; `apps/web/src/features/auth/signin-request.test.ts` |
 | QAD-T40 | a role holding `projects.archive` archives a project; not delivered, so the gate is Not met | Sad | Functional Suitability | PRD-F2 | G-F2-4 | UC-F2-1 | Manual; pending, gate Not met |
 | QAD-T52 | a user attaches a free-text note to a journey record; not delivered, so the gate is Not met | Sad | Functional Suitability | PRD-F4 | G-F4-6 | UC-F4-2 | Manual; pending, gate Not met |
 | QAD-T54 | choosing a data type for a new field and translating values during import; not delivered, so the gate is Not met | Sad | Functional Suitability | PRD-F6 | G-F6-7 | UC-F6-2 | Manual; pending, gate Not met |
@@ -280,7 +280,7 @@ PRD-F9 to PRD-F13 rows are in the matrix above and are cited by their gates in t
 - **Automated tests:** Rollback, idempotency, fault-mapping, validation and deterministic-ordering rows (QAD-IMP-05 to QAD-IMP-09, QAD-T21, QAD-T22, QAD-T30, QAD-T45, QAD-T56, QAD-T65).
 - **Manual checks:** Backup restore rehearsal (QAD-T82).
 - **Thresholds:** NFR-7 availability 99.5% monthly (PRD 5.7, OPS 1); NFR-15 RPO 24 hours and RTO 5 to 8 hours (PRD 5.7, OPS 1). These are targets, not yet measured.
-- **Gaps:** Operational reliability (NFR-7) and recovery (NFR-15) are not verified; hosted scheduled rule evaluation is Not met (G-F10-7); there is no in-app sign-in lockout (G-F1-10).
+- **Gaps:** Operational reliability (NFR-7) and recovery (NFR-15) are not verified; hosted scheduled rule evaluation is Not met (G-F10-7).
 
 #### 3.5.6 Security
 
@@ -288,7 +288,7 @@ PRD-F9 to PRD-F13 rows are in the matrix above and are cited by their gates in t
 - **NFR IDs:** NFR-1, NFR-2, NFR-12.
 - **Automated tests:** RBAC, organization isolation, step-up, suppression and public-exposure rows (abuse table), API guard tests, and SQL privilege runtime tests.
 - **Manual checks:** Public privacy review; security review by the SAD specialists.
-- **Gaps:** No penetration test. Identity-match review for duplicate registrations is partly met (G-F3-6). No sign-in lockout (G-F1-10).
+- **Gaps:** No penetration test. Identity-match review for duplicate registrations is partly met (G-F3-6).
 
 #### 3.5.7 Maintainability
 

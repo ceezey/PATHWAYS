@@ -153,7 +153,6 @@ The Problem / Requirement mapping is derived from the requirement text and objec
 - In-app account creation with emailed credentials: accounts are authorized from existing identity accounts (Scope and Limitations / cr-pathways-revised-rbac-baseline).
 - Backup and restore as an in-app workflow: the `backups.*` permissions have no API handler, and recovery follows the operational runbook (Scope and Limitations / cr-pathways-rbac-audit-closure).
 - Beneficiary identity step-up: governed by PRD-F3 (cr-pathways-beneficiary-step-up).
-- Sign-in lockout after failed attempts: not implemented by the API; the step-up PIN lockout belongs to PRD-F3 (G-F1-10).
 - Self-registration, external login and beneficiary login: beneficiaries and external stakeholders have no account (Scope and Limitations).
 **Lock:** Locked. Adding a gate or widening a bound requires an approved `cr-pathways-*`; anything outside these bounds is out of scope by default. System-wide bounds: section 6.1.
 
@@ -170,7 +169,7 @@ The Problem / Requirement mapping is derived from the requirement text and objec
 | G-F1-7 | An actor with `audit.read` lists audit events in their scope with filters; others are denied | Met | To be added |
 | G-F1-8 | A user views and updates only their own profile | Met | To be added |
 | G-F1-9 | A user requests a password reset from the sign-in page and sets a new password through the recovery link | Met | To be added |
-| G-F1-10 | The app locks sign-in after repeated failures | Not met: no in-app sign-in lockout; the API does not implement one (the only lockout in code is the step-up PIN, PRD-F3) | To be added |
+| G-F1-10 | The app locks sign-in for 15 minutes after 5 failed attempts within 15 minutes, with a uniform response for known and unknown accounts, reset on success and an audit event | Met | QAD-T39 |
 
 #### Use Cases
 
@@ -204,9 +203,9 @@ flowchart LR
 | Trigger | The user opens the sign-in page |
 | Preconditions | The account is active and belongs to an organization |
 | Main flow | 1. The user signs in through the identity provider (route `/login`). 2. The API resolves organization, role, permissions and assignments from the verified identity (route `GET /auth/me`). 3. When the user has more than one workspace, the user selects one (route `/workspace`). 4. The user is redirected to the role dashboard (route `/dashboard`). |
-| Alternate / exception | Inactive, suspended or deactivated account: access is denied (route `/auth/access-unavailable`); a missing second factor sends the user to `/auth/mfa`; connection failure: the page shows an error and offers retry |
+| Alternate / exception | Inactive, suspended or deactivated account: access is denied (route `/auth/access-unavailable`); a missing second factor sends the user to `/auth/mfa`; connection failure: the page shows an error and offers retry; after 5 failed attempts the API refuses sign-in for 15 minutes and the page shows the lockout message |
 | Postconditions | An authenticated session exists; no client-supplied role or organization is trusted |
-| Gates | G-F1-1, G-F1-2, G-F1-3, G-F1-10 (Not met) |
+| Gates | G-F1-1, G-F1-2, G-F1-3, G-F1-10 |
 
 ##### UC-F1-2 Recover password
 
