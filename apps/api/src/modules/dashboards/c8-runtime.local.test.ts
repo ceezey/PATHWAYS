@@ -9,8 +9,11 @@ import { describe, expect, it } from 'vitest'
 import { DashboardsService } from './dashboards.service'
 
 const enabled = process.env.PATHWAYS_C8_LOCAL_TESTS === '1'
-const expectedPathwaysTableCount =
-  process.env.PATHWAYS_PROJECT_ACTIVITY_CREATION_LOCAL_TESTS === '1' ? 46 : 45
+// The current-schema replay supplies its measured table count.
+const expectedPathwaysTableCount = Number(
+  process.env.PATHWAYS_EXPECTED_TABLE_COUNT ??
+    (process.env.PATHWAYS_PROJECT_ACTIVITY_CREATION_LOCAL_TESTS === '1' ? 46 : 45),
+)
 const id = (number: number) => `a5800000-0000-4000-8000-${String(number).padStart(12, '0')}`
 const organizationId = id(1)
 const authSubject = id(2)
@@ -85,6 +88,8 @@ describe.skipIf(!enabled)('C8 service path on disposable PostgreSQL', () => {
                 skipDuplicates: true,
               })
             }
+            // Seed as superuser without the runtime-only source-proof triggers.
+            await tx.$executeRaw`SET LOCAL session_replication_role = replica`
             await tx.$executeRaw`INSERT INTO auth.users(id) VALUES (${authSubject}::uuid)`
             await tx.organization.create({
               data: {
@@ -160,6 +165,7 @@ describe.skipIf(!enabled)('C8 service path on disposable PostgreSQL', () => {
             })
             const beneficiaries = new BeneficiariesService(scoped)
             const dashboards = new DashboardsService(scoped, {} as IndicatorsService)
+            await tx.$executeRaw`SET LOCAL session_replication_role = origin`
             await tx.$executeRaw`SET LOCAL ROLE pathways_runtime`
 
             const list = (filters: Partial<BeneficiaryListQueryDto>) =>

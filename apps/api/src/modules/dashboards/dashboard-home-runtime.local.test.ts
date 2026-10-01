@@ -52,8 +52,10 @@ describe.skipIf(!enabled)('dashboard home on disposable PostgreSQL', () => {
       try {
         await client.$transaction(
           async (tx) => {
-            const role = await tx.role.create({
-              data: { id: id(10), code: 'PROJECT_OFFICER', name: 'Project Officer' },
+            const role = await tx.role.upsert({
+              where: { code: 'PROJECT_OFFICER' },
+              create: { id: id(10), code: 'PROJECT_OFFICER', name: 'Project Officer' },
+              update: { isActive: true },
               select: { id: true },
             })
             const permission = await tx.permission.upsert({
@@ -62,8 +64,15 @@ describe.skipIf(!enabled)('dashboard home on disposable PostgreSQL', () => {
               update: { name: 'projects.read', isActive: true },
               select: { id: true },
             })
-            await tx.rolePermission.create({
-              data: { roleId: role.id, permissionId: permission.id },
+            await tx.rolePermission.createMany({
+              data: [{ roleId: role.id, permissionId: permission.id }],
+              skipDuplicates: true,
+            })
+            // Seed as superuser without the runtime-only source-proof triggers.
+            await tx.$executeRaw`SET LOCAL session_replication_role = replica`
+            // The seeded role carries analytics.read; drop it inside the rolled-back fixture.
+            await tx.rolePermission.deleteMany({
+              where: { roleId: role.id, permission: { code: 'analytics.read' } },
             })
             await tx.$executeRaw`INSERT INTO auth.users(id) VALUES (${authSubject}::uuid)`
             await tx.organization.create({
@@ -119,6 +128,7 @@ describe.skipIf(!enabled)('dashboard home on disposable PostgreSQL', () => {
               value: (work: (inner: Prisma.TransactionClient) => Promise<unknown>) => work(tx),
             })
             const dashboards = new DashboardsService(scoped, {} as IndicatorsService)
+            await tx.$executeRaw`SET LOCAL session_replication_role = origin`
             await tx.$executeRaw`SET LOCAL ROLE pathways_runtime`
 
             const home = await dashboards.home(actor, {

@@ -38,7 +38,7 @@ $phase6Port = 55448
 $phase6Exit = 1
 $phase6Started = $false
 $phase6PreviousEnvironment = @{}
-foreach ($phase6EnvironmentName in @('PATHWAYS_PHASE6_REPLAY_MIGRATIONS','PATHWAYS_CSV_RBAC_LOCAL_TESTS','PATHWAYS_FEATURE_READ_LOCAL_TESTS','PATHWAYS_PROJECT_ACTIVITY_CREATION_LOCAL_TESTS','PATHWAYS_C8_LOCAL_TESTS','PATHWAYS_DASHBOARD_HOME_SCOPE_LOCAL_TESTS','DIRECT_URL','DATABASE_URL')) {
+foreach ($phase6EnvironmentName in @('PATHWAYS_PHASE6_REPLAY_MIGRATIONS','PATHWAYS_CSV_RBAC_LOCAL_TESTS','PATHWAYS_FEATURE_READ_LOCAL_TESTS','PATHWAYS_PROJECT_ACTIVITY_CREATION_LOCAL_TESTS','PATHWAYS_C8_LOCAL_TESTS','PATHWAYS_EXPECTED_TABLE_COUNT','PATHWAYS_DASHBOARD_HOME_SCOPE_LOCAL_TESTS','DIRECT_URL','DATABASE_URL')) {
   $phase6EnvironmentItem = Get-Item -LiteralPath "Env:$phase6EnvironmentName" -ErrorAction SilentlyContinue
   $phase6PreviousEnvironment[$phase6EnvironmentName] = if ($null -eq $phase6EnvironmentItem) {
     @{ Present = $false; Value = $null }
@@ -483,7 +483,7 @@ SELECT (SELECT count(*) FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamesp
   if ($ProjectActivityCreationRepair) {
     $env:PATHWAYS_PROJECT_ACTIVITY_CREATION_LOCAL_TESTS = '1'
   }
-  if (-not $CsvRbacRealignment) {
+  if (-not $CsvRbacRealignment -and -not ($Phase4IndicatorPolicy -or $RuleBasedAccessAlignment -or $DashboardHomeProjectScope -or $ProjectActivityCreationRepair)) {
   Push-Location $phase6Root
   try {
     pnpm --dir apps/api exec vitest run src/modules/activities/feature-read.local.test.ts
@@ -518,14 +518,7 @@ SELECT (SELECT count(*) FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamesp
   Invoke-LocalSql $phase6IndicatorSql $phase6Database
   Write-Output 'PROJECT_INDICATOR_DASHBOARD_RUNTIME=PASS'
   if ($DashboardHomeProjectScope -or $ProjectActivityCreationRepair) {
-    $env:PATHWAYS_DASHBOARD_HOME_SCOPE_LOCAL_TESTS = '1'
-    if (-not $CsvRbacRealignment) {
-    Push-Location $phase6Root
-    try {
-      pnpm --dir apps/api exec vitest run src/modules/dashboards/dashboard-home-runtime.local.test.ts
-      if ($LASTEXITCODE -ne 0) { throw '0024 API/Prisma runtime test failed.' }
-    } finally { Pop-Location }
-    }
+    # The current-schema dashboard-home vitest does not run against historical replay databases.
     Invoke-LocalSql ([IO.File]::ReadAllText((Join-Path $phase6Root 'apps/api/prisma/tests/dashboard-home-project-scope-runtime.sql'))) $phase6Database
     Write-Output 'DASHBOARD_HOME_PROJECT_SCOPE_RUNTIME=PASS'
   }
@@ -599,6 +592,22 @@ END $$;
       pnpm --dir apps/api exec vitest run src/modules/auth/csv-rbac.local.test.ts
       if ($LASTEXITCODE -ne 0) { throw 'CSV RBAC API runtime checks failed.' }
     } finally { Pop-Location }
+    if ($MigrationBaseline) {
+      # Only this path reaches the current schema, so the current-schema API suites run here.
+      # Fixed pathways table count at migration 0051 so a missing or extra table fails the guard.
+      $env:PATHWAYS_EXPECTED_TABLE_COUNT = "58"
+      $env:PATHWAYS_FEATURE_READ_LOCAL_TESTS = '1'
+      $env:PATHWAYS_C8_LOCAL_TESTS = '1'
+      $env:PATHWAYS_DASHBOARD_HOME_SCOPE_LOCAL_TESTS = '1'
+      Push-Location $phase6Root
+      try {
+        foreach ($currentSuite in @('activities/feature-read', 'dashboards/c8-runtime', 'dashboards/dashboard-home-runtime')) {
+          pnpm --dir apps/api exec vitest run "src/modules/$currentSuite.local.test.ts"
+          if ($LASTEXITCODE -ne 0) { throw "Current-schema suite $currentSuite failed." }
+        }
+      } finally { Pop-Location }
+      Write-Output 'CURRENT_SCHEMA_API_RUNTIME=PASS'
+    }
     Write-Output 'CSV_RBAC_UPGRADE_AND_FRESH_REPLAY=PASS'
   }
   Write-Output 'LEGACY_TABLE_PRESERVATION=PASS'
