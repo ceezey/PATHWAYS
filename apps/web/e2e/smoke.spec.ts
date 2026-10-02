@@ -106,12 +106,12 @@ test('mobile sidebar closes after opening a workspace', async ({ page }) => {
   await signIn(page, seedAccounts.PO, actors)
   await page.goto('/dashboard')
   const sidebar = page.getByRole('dialog', { name: 'Workspace navigation' })
-  // Retry the open click because it can land before hydration.
-  await expect(async () => {
-    await page.getByRole('button', { name: 'Open navigation' }).click()
-    await expect(sidebar).toBeVisible({ timeout: 2000 })
-  }).toPass()
-  await sidebar.getByRole('link', { name: 'Projects', exact: true }).click()
+  // Wait for the async role label so the click lands after hydration and the sidebar is populated.
+  await expect(page.getByText(/^Project Officer · /)).toBeVisible({ timeout: 30_000 })
+  await page.getByRole('button', { name: 'Open navigation' }).click()
+  const projects = sidebar.getByRole('link', { name: 'Projects', exact: true })
+  await expect(projects).toBeVisible({ timeout: 30_000 })
+  await projects.click()
   await expect(page).toHaveURL(/\/projects$/, { timeout: 30_000 })
   await expect(sidebar).toBeHidden()
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(
