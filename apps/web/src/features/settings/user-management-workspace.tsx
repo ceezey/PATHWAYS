@@ -362,16 +362,6 @@ export const UserManagementWorkspace = ({
         eyebrow="Administration"
         title={labels.moduleUserManagement}
         description={administrationSummary}
-        actions={
-          <div className="flex flex-wrap items-center gap-2">
-            {canCreateUsers ? (
-              <Button className="gap-2" onClick={openCreate} size="sm" type="button">
-                <Plus className="h-4 w-4" aria-hidden="true" />
-                Create user
-              </Button>
-            ) : null}
-          </div>
-        }
       />
 
       <section
@@ -388,7 +378,14 @@ export const UserManagementWorkspace = ({
         <SectionCard
           title="User accounts"
           description="Search accounts within your administrative authority."
-          actions={<StatusBadge tone="neutral">{filteredUsers.length} shown</StatusBadge>}
+          actions={
+            canCreateUsers ? (
+              <Button className="gap-2" onClick={openCreate} size="sm" type="button">
+                <Plus className="h-4 w-4" aria-hidden="true" />
+                Create user
+              </Button>
+            ) : null
+          }
         >
           <div className="mb-4 grid gap-3 sm:grid-cols-[minmax(0,1fr)_180px]">
             <label className="relative" htmlFor="user-management-search">
@@ -556,7 +553,7 @@ const AccountMetric = ({
   label: string
   value: number
 }) => (
-  <div className="flex items-center justify-between gap-4 bg-background p-4 sm:p-5">
+  <div className="flex items-center justify-between gap-4 bg-card p-4 sm:p-5">
     <div>
       <p className="text-sm text-muted-foreground">{label}</p>
       <p className="mt-1 text-2xl font-semibold text-foreground">{value}</p>
