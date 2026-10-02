@@ -81,8 +81,17 @@ const dummyStaff: DummyStaffAccount[] = [
   },
 ]
 
+// Role subdomains for dummy staff addresses, e.g. po.pathways.co.ph for Project Officers.
+const staffRoleSubdomain: Partial<Record<CanonicalRole, string>> = {
+  GRANT_MANAGER: 'gm',
+  MONITORING_AND_EVALUATION_OFFICER: 'meo',
+  PROGRAM_MANAGER: 'pgm',
+  PROJECT_MANAGER: 'pm',
+  PROJECT_OFFICER: 'po',
+}
+
 function staffEmail(staff: DummyStaffAccount) {
-  return `${staff.firstName.toLowerCase()}.${staff.lastName.toLowerCase()}@example.test`
+  return `${staff.firstName.toLowerCase()}.${staff.lastName.toLowerCase()}@${staffRoleSubdomain[staff.role]}.pathways.co.ph`
 }
 
 /** Stable deterministic UUID (v4-shaped, not cryptographically a v5) derived from a fixed seed

@@ -278,10 +278,11 @@ describe('staff and admin identity', () => {
     }
   })
 
-  it('dummy staff emails use only the @example.test namespace', () => {
+  it('dummy staff emails use the role subdomain of pathways.co.ph', () => {
     for (const staff of dummyStaff) {
-      expect(staffEmail(staff)).toMatch(/^[a-z]+\.[a-z]+@example\.test$/)
+      expect(staffEmail(staff)).toMatch(/^[a-z]+\.[a-z]+@(gm|meo|pgm|pm|po)\.pathways\.co\.ph$/)
     }
+    expect(dummyStaff.map(staffEmail)).toContain('emmanuel.cruz@po.pathways.co.ph')
   })
 
   it('covers exactly one of each required role plus two project officers', () => {
