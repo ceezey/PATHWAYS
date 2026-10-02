@@ -3,6 +3,7 @@ import type { Prisma } from '@prisma/client'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { PrismaService } from '../../prisma/prisma.service'
 import type { ApplicationProfileService } from './application-profile.service'
+import { rolePermissions } from './authorization-policy'
 import { AuthorizedDataService } from './authorized-data.service'
 import { type ApplicationIdentity, DEVELOPER_AUTH_UUID } from './developer-access'
 import { WorkspaceResolutionService } from './workspace-resolution.service'
@@ -132,6 +133,24 @@ describe('verified-subject workspace resolution (no live resources)', () => {
     ).rejects.toBeInstanceOf(ForbiddenException)
     expect(prisma.discoverWorkspace).not.toHaveBeenCalled()
     expect(profiles.resolveWithSession).toHaveBeenCalledTimes(4)
+  })
+  it('resolves v4 Project Officer permissions from the database, not the token', async () => {
+    // The token identity carries no permissions; each request takes them from the database grants.
+    const stale = {
+      ...profile,
+      permissions: [...rolePermissions.PROJECT_OFFICER, 'activities.create'],
+    }
+    profiles.resolveWithSession.mockResolvedValueOnce(stale)
+    const first = await service.resolveSelection(identity, organizationId, userId, sessionId)
+    expect(first.permissions).toContain('activities.create')
+    profiles.resolveWithSession.mockResolvedValue({
+      ...profile,
+      permissions: [...rolePermissions.PROJECT_OFFICER],
+    })
+    const actor = await service.resolveSelection(identity, organizationId, userId, sessionId)
+    expect(actor.permissions).not.toContain('activities.create')
+    expect(actor.permissions).toContain('activities.proof.submit')
+    expect(profiles.resolveWithSession).toHaveBeenCalledTimes(2)
   })
   it('does not reuse a selected context after profile removal', async () => {
     await service.resolveSelection(identity, organizationId, userId, sessionId)
