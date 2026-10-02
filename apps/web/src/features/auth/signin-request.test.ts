@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@/lib/env', () => ({ webEnv: { NEXT_PUBLIC_API_BASE_URL: 'http://127.0.0.1:4000/api' } }))
 
-import { requestSignIn } from './signin-request'
+import { formatLockRemaining, requestSignIn } from './signin-request'
 
 const reply = (status: number, body: unknown = {}) =>
   vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(JSON.stringify(body), { status })))
@@ -23,10 +23,32 @@ describe('requestSignIn', () => {
   })
 
   it('maps 429 to locked and 401 to invalid', async () => {
-    reply(429, { code: 'SIGN_IN_LOCKED' })
-    await expect(requestSignIn('a@x.org', 'pw')).resolves.toEqual({ kind: 'locked' })
+    reply(429, { code: 'SIGN_IN_LOCKED', retryAfterSeconds: 120.2 })
+    await expect(requestSignIn('a@x.org', 'pw')).resolves.toEqual({
+      kind: 'locked',
+      retryAfterSeconds: 121,
+    })
     reply(401)
     await expect(requestSignIn('a@x.org', 'pw')).resolves.toEqual({ kind: 'invalid' })
+  })
+
+  it.each([
+    ['missing', {}],
+    ['oversized', { retryAfterSeconds: 5000 }],
+    ['non-number', { retryAfterSeconds: '60' }],
+    ['negative', { retryAfterSeconds: -5 }],
+  ])('falls back to 900 seconds when retryAfterSeconds is %s', async (_name, body) => {
+    reply(429, body)
+    await expect(requestSignIn('a@x.org', 'pw')).resolves.toEqual({
+      kind: 'locked',
+      retryAfterSeconds: 900,
+    })
+  })
+
+  it('formats the remaining lock time as m:ss', () => {
+    expect(formatLockRemaining(900)).toBe('15:00')
+    expect(formatLockRemaining(61)).toBe('1:01')
+    expect(formatLockRemaining(0)).toBe('0:00')
   })
 
   it('treats outages and malformed success bodies as unavailable', async () => {
