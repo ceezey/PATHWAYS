@@ -255,6 +255,26 @@ describe('GET /projects/:projectId/overview-metrics', () => {
     expect(indicators.readInTransaction).not.toHaveBeenCalled()
   })
 
+  it('serves the efficiency ratio when both KPI and budget sections are readable', async () => {
+    const { service } = harness({ indicators: [cell('57')], approvedSpending: '140.00' })
+    const result = await service.read(actor('PROJECT_MANAGER'), projectA)
+    expect(result.efficiencyRatio).toEqual(cell('4.07'))
+  })
+
+  it('returns the efficiency ratio as null without budget or expense read permission', async () => {
+    const { service } = harness()
+    const officer = actor('MONITORING_AND_EVALUATION_OFFICER')
+    expect(officer.permissions).not.toContain('budgets.read')
+    expect((await service.read(officer, projectA)).efficiencyRatio).toBeNull()
+  })
+
+  it('returns the efficiency ratio as null without indicator or monitoring read permission', async () => {
+    const { service } = harness()
+    const manager = actor('PROGRAM_MANAGER')
+    expect(manager.permissions).not.toContain('indicators.read')
+    expect((await service.read(manager, projectA)).efficiencyRatio).toBeNull()
+  })
+
   it('reports the server-side aggregate total regardless of how many approved expenses exist', async () => {
     const { service, tx } = harness({ plannedBudget: '500000.00', approvedSpending: '123456.78' })
     const result = await service.read(actor('PROJECT_MANAGER'), projectA)
