@@ -1,7 +1,7 @@
 'use client'
 
 import { AlertTriangle, CheckCircle2, Lightbulb, Wallet } from 'lucide-react'
-import { useState } from 'react'
+import { type ReactNode, useState } from 'react'
 
 import {
   EmptyState,
@@ -23,6 +23,44 @@ const alertClass = {
   danger: 'border-danger/30 bg-danger-subtle',
   warning: 'border-warning/30 bg-warning-subtle',
 }
+
+const valueTone = {
+  default: 'text-foreground',
+  info: 'text-info',
+  success: 'text-success',
+  warning: 'text-warning',
+  danger: 'text-danger',
+}
+
+const pesoCompact = new Intl.NumberFormat('en-PH', {
+  style: 'currency',
+  currency: 'PHP',
+  notation: 'compact',
+  maximumFractionDigits: 1,
+})
+const peso = (value: number) => pesoCompact.format(value)
+const percent = (value: number | null) => (value === null ? 'n/a' : `${value}%`)
+
+const StatCard = ({
+  label,
+  value,
+  sub,
+  tone = 'default',
+  children,
+}: {
+  label: string
+  value: string
+  sub: string
+  tone?: keyof typeof valueTone
+  children?: ReactNode
+}) => (
+  <div className="rounded-md border border-border bg-card p-5">
+    <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{label}</p>
+    <p className={cn('mt-2 text-2xl font-semibold tabular-nums', valueTone[tone])}>{value}</p>
+    <p className="mt-1 text-xs text-muted-foreground tabular-nums">{sub}</p>
+    {children ? <div className="mt-3">{children}</div> : null}
+  </div>
+)
 
 const AlertCard = ({
   alert,
@@ -72,46 +110,30 @@ export const BudgetOverview = ({
   const visibleAlerts = alerts.filter((alert) => !dismissed.has(alert.id))
   const pct = totals.utilization
   const tone = toneFor(pct)
+  const remainingPct =
+    totals.allocated > 0 ? Math.round((totals.remaining / totals.allocated) * 100) : null
 
   return (
     <div className="space-y-6">
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        <MetricCard
-          description="Sum of all budget allocations recorded for this project."
-          icon={Wallet}
-          label="Total budget"
-          value={formatCurrency(totals.allocated)}
-        />
-        <div className="rounded-lg border border-info/30 bg-info-subtle p-5">
-          <p className="text-sm font-medium text-muted-foreground">Budget used</p>
-          <div className="mt-2 flex flex-wrap items-baseline justify-between gap-2">
-            <p className="text-3xl font-semibold tabular-nums text-foreground">
-              {formatCurrency(totals.used)}
-            </p>
-            <p className="text-sm text-muted-foreground tabular-nums">
-              of {formatCurrency(totals.allocated)}
-            </p>
-          </div>
-          <div className="mt-3">
-            <ProgressBar label="Utilization" tone={tone} value={pct ?? 0} />
-          </div>
-          <div className="mt-3 flex flex-wrap gap-2">
-            <StatusBadge tone={tone}>Actual {pct === null ? 'n/a' : `${pct}%`}</StatusBadge>
-            <StatusBadge tone="neutral">Alert at 90%</StatusBadge>
-          </div>
-          <p className="mt-3 text-xs text-muted-foreground">
-            Counts approved expenses only. Pending: {formatCurrency(totals.pending)}.
-          </p>
-        </div>
-        <MetricCard
-          description="Total budget minus approved expenses; pending expenses are not deducted."
+        <StatCard label="Total budget" sub="Approved allocation" value={peso(totals.allocated)} />
+        <StatCard
+          label="Total logged"
+          sub={pct === null ? 'Utilization not available' : `${pct}% utilized`}
+          tone={tone}
+          value={peso(totals.used)}
+        >
+          <ProgressBar hideText label="Total logged utilization" tone={tone} value={pct ?? 0} />
+        </StatCard>
+        <StatCard
           label="Remaining"
+          sub={remainingPct === null ? 'No budget recorded' : `${remainingPct}% of budget`}
           tone={totals.remaining < 0 ? 'danger' : 'success'}
-          value={formatCurrency(totals.remaining)}
+          value={peso(totals.remaining)}
         />
-        <MetricCard
-          description="KPI achievement divided by budget utilization. Above 1.00 means results are ahead of spending."
+        <StatCard
           label="Efficiency ratio"
+          sub={`KPI ${percent(totals.kpiPct)} ÷ Budget ${percent(totals.budgetMetricPct)}`}
           tone={
             totals.efficiency === null ? 'info' : totals.efficiency >= 1 ? 'success' : 'warning'
           }
@@ -207,6 +229,7 @@ export const BudgetOverview = ({
                     </td>
                     <td className="pr-3">
                       <ProgressBar
+                        hideText
                         label={`${row.title} utilization`}
                         tone={toneFor(row.utilization)}
                         value={row.utilization ?? 0}

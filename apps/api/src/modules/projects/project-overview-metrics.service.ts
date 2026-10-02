@@ -5,6 +5,7 @@ import {
   PROJECT_OVERVIEW_METRICS_CONTRACT_VERSION,
   budgetUtilization,
   businessCalendarDate,
+  efficiencyRatio,
   kpiAchievement,
   missingMetric,
   projectOverviewMetricsSchema,
@@ -134,6 +135,7 @@ export class ProjectOverviewMetricsService {
         generatedAt: new Date().toISOString(),
         kpiAchievement: kpi,
         budgetUtilization: budget,
+        efficiencyRatio: kpi && budget ? efficiencyRatio(kpi.metric, budget.metric) : null,
         beneficiariesReached: reached,
         timeline: {
           metric: timelineProgress(project.startDate, project.endDate, businessDate),

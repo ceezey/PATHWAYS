@@ -44,6 +44,8 @@ export const projectOverviewMetricsSchema = z
       })
       .strict()
       .nullable(),
+    // Null when either KPI or budget is hidden; absent in payloads from older APIs.
+    efficiencyRatio: metricCellSchema.nullable().optional(),
     beneficiariesReached: z
       .object({
         metric: metricCellSchema,
@@ -133,6 +135,25 @@ export function budgetUtilization(plannedBudget: string | null, approvedSpending
   const approvedCents = moneyCents(approvedSpending)
   if (plannedCents > 0n && approvedCents === 0n) return missingMetric('NO_APPROVED_EXPENSES')
   return overviewPercent(approvedCents, plannedCents)
+}
+
+/** KPI achievement percent over budget utilization percent, rounded once to two decimals. */
+export function efficiencyRatio(kpi: MetricCell, budget: MetricCell): MetricCell {
+  const visible = (cell: MetricCell) =>
+    (cell.state === 'AVAILABLE' || cell.state === 'ZERO') && cell.value !== null
+  if (!visible(kpi) || !visible(budget)) return missingMetric('INPUT_UNAVAILABLE')
+  const denominator = scaledDecimal(budget.value as string)
+  if (denominator === 0n)
+    return { state: 'NOT_APPLICABLE', value: null, reason: 'ZERO_DENOMINATOR' }
+  const hundredths = roundedQuotient(scaledDecimal(kpi.value as string) * 100n, denominator)
+  const negative = hundredths < 0n
+  const absolute = negative ? -hundredths : hundredths
+  const text = `${negative ? '-' : ''}${absolute / 100n}.${String(absolute % 100n).padStart(2, '0')}`
+  try {
+    return numericMetric(text)
+  } catch {
+    return missingMetric('OUT_OF_RANGE')
+  }
 }
 
 const day = 86_400_000
