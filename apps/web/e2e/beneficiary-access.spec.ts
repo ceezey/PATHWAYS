@@ -58,9 +58,10 @@ test.beforeAll(async () => {
   seedQuery(
     `INSERT INTO pathways.beneficiary_project_enrollments (organization_id, project_id, beneficiary_id, enrollment_date, recorded_by_id) SELECT ${org}, '${projectId}', '${beneficiaryId}', CURRENT_DATE, ${manager} WHERE NOT EXISTS (SELECT 1 FROM pathways.beneficiary_project_enrollments WHERE beneficiary_id='${beneficiaryId}' AND project_id='${projectId}')`,
   )
+  // Stages take the next free order so seeded demo stages never collide.
   for (const order of [1, 2]) {
     seedQuery(
-      `INSERT INTO pathways.journey_stages (organization_id, project_id, code, name, stage_order) SELECT ${org}, '${projectId}', 'E2E-S${order}', 'E2E Stage ${order}', ${order} WHERE NOT EXISTS (SELECT 1 FROM pathways.journey_stages WHERE project_id='${projectId}' AND code='E2E-S${order}')`,
+      `INSERT INTO pathways.journey_stages (organization_id, project_id, code, name, stage_order) SELECT ${org}, '${projectId}', 'E2E-S${order}', 'E2E Stage ${order}', (SELECT COALESCE(MAX(stage_order), 0) + 1 FROM pathways.journey_stages WHERE project_id='${projectId}') WHERE NOT EXISTS (SELECT 1 FROM pathways.journey_stages WHERE project_id='${projectId}' AND code='E2E-S${order}')`,
     )
   }
 })
@@ -175,7 +176,8 @@ test('Project Manager resumes a direct record link after step-up and picks a sta
   await page.getByRole('tab', { name: 'Participation history' }).click()
   await expect(page.getByRole('tabpanel')).toBeVisible()
   await page.getByRole('tab', { name: 'Journey tracking' }).click()
-  const stage = page.getByRole('button', { name: /E2E Stage 1/ })
+  // Earlier seeded stages lock later ones, so pick the first unlocked stage.
+  const stage = page.locator('button[aria-controls^="journey-stage-detail-"]:not([disabled])').first()
   await stage.click()
   await expect(stage).toHaveAttribute('aria-expanded', 'true')
   await expect(page.getByRole('dialog')).toHaveCount(0)

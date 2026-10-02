@@ -70,3 +70,10 @@ For development speed only. Save the replayed cluster once per migration change 
 - keep disposable task status outside the repository;
 - chat phase report;
 - hard stop.
+
+## End-to-end tests
+
+1. Stop anything on ports 3000 and 4000, then run `pnpm db:local:start`, `pnpm db:local:reset` and `pnpm db:local:demo`.
+2. Start the apps with `pnpm dev:local`, never `pnpm dev`: `pnpm dev` reads the hosted values in `apps/api/.env`, so real sign-in fails with 401 or 503 and the sign-in page never reaches `/auth/mfa`.
+3. Run `npx playwright test --config playwright.config.ts` (66 tests, serial, about 6 minutes) and `npx playwright test --config playwright.auth-navigation.config.ts` (27 tests).
+4. The real sign-in specs reset the `@pathways.example` seed passwords and TOTP factors on every run, and their rows accumulate until the next `pnpm db:local:reset`.

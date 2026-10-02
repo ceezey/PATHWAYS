@@ -35,6 +35,12 @@ const headers = (email: string, userId: string) => ({
   'Content-Type': 'application/json',
 })
 
+// Activities must end within the project period, so cap the planned end at the project end date.
+const plannedEnd = () => {
+  const end = ownerQuery(`SELECT end_date FROM pathways.projects WHERE id='${projectId}'`)
+  return end && end < day(30) ? end : day(30)
+}
+
 const activityIdByTitle = (title: string) =>
   ownerQuery(
     `SELECT id FROM pathways.project_activities WHERE project_id='${projectId}' AND title='${title}'`,
@@ -50,7 +56,7 @@ const seedStartedActivity = async (title: string, code: string) => {
       code,
       title,
       plannedStartDate: day(-1),
-      plannedEndDate: day(90),
+      plannedEndDate: plannedEnd(),
       assignedUserIds: [officerId],
     }),
   })
@@ -122,7 +128,7 @@ test('Project Manager creates an activity', async ({ page }) => {
   await dialog.getByLabel('Activity title').fill(title)
   await dialog.getByLabel('Description').fill('Created by the workflows e2e spec.')
   await dialog.getByLabel('Start date').fill(day(1))
-  await dialog.getByLabel('Due date').fill(day(60))
+  await dialog.getByLabel('Due date').fill(plannedEnd())
   await dialog
     .getByRole('group', { name: /Assigned officers/ })
     .getByRole('checkbox')
