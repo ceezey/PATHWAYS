@@ -43,6 +43,7 @@ each item in one place so it does not have to be reconstructed from individual C
 | Activity escalation | Gap (not built) | 2026-10-01 | v4 row 53 grants Activity Escalation Process to all six roles; permissions exist but no handler or UI does. | See [cr-pathways-rbac-audit-closure](cr-pathways-rbac-audit-closure.md) and [cr-pathways-rbac-v4-adoption](cr-pathways-rbac-v4-adoption.md) section 3.4. | Approve a CR defining the escalation flow, recipients and audit. |
 | Notification inbox | Deferred | 2026-10-01 | Shown on the Figma reference board for durable assignments; the system has toast and inline notices only and no build is committed. | DSD section 4 "Figma reference specimens (non-authoritative)". See [cr-pathways-figma-reference-integration](cr-pathways-figma-reference-integration.md). | Approve a CR defining inbox scope, storage and audit. |
 | Rules-engine runtime columns in Prisma | Deferred | 2026-10-02 | The runtime columns of `alert_rules`, `decision_recommendations` and `rule_based_alerts` added by 0031 are SQL-only and not modeled in `schema.prisma` until the API reads them; no API code uses them today. | `apps/api/prisma/migrations/0031_f10_f11_rules_runtime/migration.sql`, `infra/supabase/phase6/schema-drift-expected.sql` | Model the columns in `schema.prisma` when the API reads them (no migration), then re-run `Test-SchemaDrift.ps1 -Accept` and review the diff. |
+| Public-route and skip-link e2e coverage | Gap | 2026-10-02 | Dropped when the legacy demo-switcher specs were deleted in the e2e v4 sign-in move; no real-sign-in replacement was written. | See [e2e-legacy-spec-triage](e2e-legacy-spec-triage.md); `apps/web/e2e/`. | Add a Playwright spec for public routes and the skip link. |
 
 Analytics "Add to Dashboard" storage options (neither chosen yet):
 
@@ -60,4 +61,3 @@ Update this register in the same change that hides, defers, or discovers a gap i
 feature. Register updates here in `docs/index.md` section 2 when the register itself
 changes status, and keep entries reconciled with the Change Record or repository fact
 that established them.
-| Public-route and skip-link e2e coverage | Gap | 2026-10-02 | Dropped when the legacy demo-switcher specs were deleted in the e2e v4 sign-in move; no real-sign-in replacement was written. | See [e2e-legacy-spec-triage](e2e-legacy-spec-triage.md); `apps/web/e2e/`. | Add a Playwright spec for public routes and the skip link. |
