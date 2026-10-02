@@ -4,15 +4,12 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useRef } from 'react'
 
-import { StatusBadge } from '@/components/pathways/status-badge'
 import type { DisplayLabels } from '@/constants/display-labels'
 import { useCurrentRole } from '@/hooks/use-current-role'
 import { useDisplayLabels } from '@/hooks/use-display-labels'
 import { type WorkspaceTabAccess, filterWorkspaceTabs } from '@/lib/rbac/route-access'
 import { cn } from '@/lib/utils'
 import type { ProjectDetail } from '@/types/pathways'
-
-import { projectHealthTone, projectStatusTone } from './project-utils'
 
 // Each tab carries the route it opens, so tab visibility equals route access.
 const createWorkspaceTabs = (labels: DisplayLabels): WorkspaceTabAccess[] => [
@@ -41,10 +38,6 @@ export const ProjectWorkspaceHeader = ({ project }: { project: ProjectDetail }) 
       className="min-w-0 max-w-full overflow-x-hidden rounded-2xl border border-border bg-card p-4 sm:p-5"
     >
       <div className="min-w-0 space-y-3">
-        <div className="flex flex-wrap gap-2">
-          <StatusBadge tone={projectStatusTone(project.status)}>{project.status}</StatusBadge>
-          <StatusBadge tone={projectHealthTone(project.health)}>{project.health}</StatusBadge>
-        </div>
         <div>
           <h2 className="text-2xl font-semibold tracking-tight text-foreground sm:text-3xl">
             {project.title}
