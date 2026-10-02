@@ -9,21 +9,29 @@ export const EmptyState = ({
   icon: Icon,
   className,
   action,
+  tone = 'neutral',
 }: {
   title: string
   description: string
   icon?: LucideIcon
   className?: string
   action?: ReactNode
+  tone?: 'neutral' | 'danger'
 }) => (
   <div
     className={cn(
-      'flex min-h-[180px] flex-col items-center justify-center rounded-xl border border-dashed border-border bg-card px-6 py-8 text-center',
+      'flex min-h-[180px] flex-col items-center justify-center rounded-lg border bg-card px-6 py-8 text-center',
+      tone === 'danger' ? 'border-danger/40 bg-danger-subtle/40' : 'border-border',
       className,
     )}
   >
     {Icon ? (
-      <div className="mb-4 flex h-11 w-11 items-center justify-center rounded-sm bg-primary-subtle text-primary">
+      <div
+        className={cn(
+          'mb-4 flex h-11 w-11 items-center justify-center rounded-full',
+          tone === 'danger' ? 'bg-danger-subtle text-danger' : 'bg-primary-subtle text-primary',
+        )}
+      >
         <Icon className="h-5 w-5" aria-hidden="true" />
       </div>
     ) : null}
