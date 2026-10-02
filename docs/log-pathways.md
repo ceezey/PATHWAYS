@@ -47,6 +47,11 @@ Do not rewrite old entries to make them match newer architecture. Correct prior 
 - Rewrote this log, the index and the README on the new structure. One-time exception to append-only: the earlier entries were regrouped under the Action log with neutral wording and every dated fact and its order preserved.
 - No code, migration or agent behavior changed.
 
+### 2026-10-02: RBAC v4 Grant Migration
+
+- Added migration 0055 and [cr-pathways-rbac-v4-grant-migration](cr-pathways-rbac-v4-grant-migration.md) (Approved): seven grant cells, Project Officer `beneficiaries.aggregates.read` re-sourced to v4 rows 112-117, generic Encode Project Data retired with `submissions.write` kept for four form types.
+- Not applied to hosted Supabase; the record stays Approved until the role-staging apply is verified.
+
 ### 2026-10-01: RBAC v4 and Figma Reference Reconciliation
 
 - Adopted manuscript access matrix v4 in the docs under [cr-pathways-rbac-v4-adoption](cr-pathways-rbac-v4-adoption.md); code follows in the registered RBAC v4 grant migration.

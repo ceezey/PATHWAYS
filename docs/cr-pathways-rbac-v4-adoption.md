@@ -33,8 +33,8 @@ Roles: SA System Administrator, PO Project Officer, ME Monitoring and Evaluation
 | V4-C07 | 47 | Add Project Activity | PO | Denied | `activities.create` | Adopt | Revoke `activities.create` |
 | V4-C08 | 60 to 63 | Journey Tracking tab and configuration | SA | Granted | `journeys.manage`; `journeys.read` revoked by 0047 | Already satisfied | None |
 | V4-C09 | 97, 100 | Customize Dashboard; Assess Survey Improvements | PO | Denied | `dashboards.customize`, `assessments.read` | Adopt | Revoke both |
-| V4-C10 | 103, 104 | Perform SADDD Analysis; View SADDD Breakdown | PO | Denied; Granted | `analytics.saddd.read` | Adopt stricter reading (V4-R2) | Revoke `analytics.saddd.read`; `beneficiaries.aggregates.read` also sources only from rows 99 and 100 and gates activity, report and dashboard aggregates for PO, so the migration CR re-sources it to a v4 row (for example reporting rows 112 to 117) or revokes it |
-| V4-C11 | none | Encode Project Data | PO, ME | Row removed | `submissions.write` (UC-F5-2) | Retire | Revoke `submissions.write`; remove `/collection/entry` and direct entry routes |
+| V4-C10 | 103, 104 | Perform SADDD Analysis; View SADDD Breakdown | PO | Denied; Granted | `analytics.saddd.read` | Adopt stricter reading (V4-R2) | Revoke `analytics.saddd.read`; `beneficiaries.aggregates.read` re-sourced to v4 rows 112-117 |
+| V4-C11 | none | Encode Project Data | PO, ME | Row removed | `submissions.write` (UC-F5-2) | Retire | Retire `/collection/entry`; `submissions.write` kept for TRAINING_SURVEY, PRE_TEST, POST_TEST and ACTIVITY_MONITORING |
 
 V4-C04 and V4-C05: the expense chain stays ME verify, PM approve, PG or GM sign-off; v4 row 44 is read as the verify stage only. V4-C08: the tab and configuration run on `journeys.manage`, which SA keeps; individual journey history is denied to SA by v4 rows 81 to 85 as well.
 
@@ -107,4 +107,4 @@ Approved by the developer on 2026-10-01 for docs; the RBAC v4 grant migration ne
 
 ## 9. Disposition
 
-Docs propagated. Code pending the RBAC v4 grant migration in `deferred-features.md`.
+Code applied by 0055 under cr-pathways-rbac-v4-grant-migration.
