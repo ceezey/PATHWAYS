@@ -46,7 +46,7 @@ describe('direct form persisted submission reload', () => {
       version: 4,
       name: 'Entry form',
       description: null,
-      formType: 'OTHER',
+      formType: 'ACTIVITY_MONITORING',
       status: 'PUBLISHED',
       activityId: null,
       journeyStageId: null,

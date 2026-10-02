@@ -25,6 +25,14 @@ import type {
   FormValidationError,
 } from '@/types/pathways'
 
+// Mirrors the API DIRECT_ENTRY_FORM_TYPES (V4-C11).
+export const DIRECT_ENTRY_FORM_TYPES = [
+  'TRAINING_SURVEY',
+  'PRE_TEST',
+  'POST_TEST',
+  'ACTIVITY_MONITORING',
+]
+
 function verifySurveySubject(
   submission: DirectFormSubmission,
   form: DigitalFormDefinition,
@@ -45,7 +53,11 @@ function verifySurveySubject(
     throw new Error('The saved contributor does not match this submission.')
 }
 
-type EntryProps = { initialSubmissionId?: string; projectId: string; formId: string }
+type EntryProps = {
+  initialSubmissionId?: string
+  projectId: string
+  formId: string
+}
 export function DirectFormEntryWorkspace(props: EntryProps) {
   const { profile } = useCurrentRole()
   const scope = useSensitiveDraftOwner(
@@ -399,6 +411,17 @@ function OwnedDirectFormEntryWorkspace({
     return (
       <div className="rounded-2xl border border-warning/30 bg-warning/10 p-6 text-sm text-warning">
         Direct entry is available only for a published form version.
+      </div>
+    )
+  }
+
+  if (
+    !DIRECT_ENTRY_FORM_TYPES.includes(form.formType) &&
+    form.formType !== 'BENEFICIARY_REGISTRATION'
+  ) {
+    return (
+      <div className="rounded-2xl border bg-card p-6 text-sm text-muted-foreground">
+        Direct entry is available only for survey and monitoring forms.
       </div>
     )
   }

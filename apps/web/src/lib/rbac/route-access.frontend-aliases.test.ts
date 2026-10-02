@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest'
-import { authorizationPathForUiPath, getVerifiedRouteAccess, matchRoute } from './route-access'
+import {
+  authorizationPathForUiPath,
+  getVerifiedRouteAccess,
+  matchRoute,
+  routePolicy,
+} from './route-access'
 
 const projectId = '72000000-0000-4000-8000-000000000004'
 const beneficiaryId = '72000000-0000-4000-8000-000000000006'
@@ -53,8 +58,11 @@ describe('frontend route aliases', () => {
     expect(matchRoute(authorizationPathForUiPath('/transparency') ?? '')?.route).toBe(
       'transparencyQueue',
     )
-    expect(matchRoute(authorizationPathForUiPath('/collection/entry') ?? '')?.route).toBe(
-      'manualEntry',
+  })
+
+  it('retires the Encode project data route', () => {
+    expect(Object.values(routePolicy).some((route) => route.path === '/collection/entry')).toBe(
+      false,
     )
   })
 

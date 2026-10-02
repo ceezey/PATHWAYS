@@ -90,7 +90,6 @@ export const routePolicy = {
     'beneficiary',
   ),
   collection: entry('/collection', 'Collection', ['collection.read']),
-  manualEntry: entry('/collection/entry', 'Encode project data', ['submissions.write']),
   forms: entry('/collection/forms', 'Forms', ['forms.manage']),
   formCreate: entry('/collection/forms/new', 'Form setup', ['forms.manage']),
   form: entry(

@@ -45,7 +45,6 @@ test.describe('I03-I14 frontend-only workflow coverage', () => {
       ['/projects', 'Project Information Management'],
       ['/projects/futuremakers-ncr/indicators', 'Target Indicators'],
       ['/projects/futuremakers-ncr/activities', 'Project Activities'],
-      ['/collection/entry', 'Encode Project Data'],
       ['/collection/import', 'Metadata-Driven Data Integration'],
       ['/beneficiaries/duplicates', 'Possible Duplicate Review'],
       ['/beneficiaries/ben-001', 'Beneficiary NCR-001'],
@@ -85,36 +84,6 @@ test.describe('I03-I14 frontend-only workflow coverage', () => {
     await page.screenshot({
       path: testInfo.outputPath('i03-audit-log-desktop.png'),
       fullPage: true,
-    })
-    expect(browserErrors).toEqual([])
-  })
-
-  test('validates a local manual entry without submitting a record', async ({ page }, testInfo) => {
-    const browserErrors = observeBrowserErrors(page)
-    await page.setViewportSize({ width: 390, height: 844 })
-    await seedAdministratorSession(page)
-    await page.goto('/collection/entry')
-
-    await page.getByRole('button', { name: 'Validate entry' }).click()
-    await expect(page.getByText('Beneficiary code is required.')).toBeVisible()
-    await page.getByLabel('Beneficiary code').fill('BEN-NCR-001')
-    await page.getByLabel('Activity date').fill('2026-09-08')
-    await page.getByRole('combobox', { name: 'Attendance status' }).click()
-    await page.getByRole('option', { name: 'Present' }).click()
-    await page.getByRole('button', { name: 'Save local draft' }).click()
-    await expect(page.getByText(/Draft saved in this browser only/)).toBeVisible()
-    await page.getByRole('button', { name: 'Validate entry' }).click()
-    await expect(page.getByText(/Submission remains unavailable/)).toBeVisible()
-    await expectNoHorizontalPageOverflow(page)
-    await page.evaluate(() => {
-      document.documentElement.style.scrollBehavior = 'auto'
-      document.documentElement.scrollTop = 0
-      document.body.scrollTop = 0
-      document.querySelector<HTMLElement>('#main-content')?.focus({ preventScroll: true })
-    })
-    await page.waitForTimeout(100)
-    await page.screenshot({
-      path: testInfo.outputPath('i06-manual-entry-mobile.png'),
     })
     expect(browserErrors).toEqual([])
   })

@@ -381,7 +381,8 @@ describe('finite route and feature contract', () => {
       .filter(
         (p) =>
           p.endsWith('page.tsx') &&
-          !['imports', 'participants'].some((alias) => p.startsWith(alias)),
+          !['imports', 'participants'].some((alias) => p.startsWith(alias)) &&
+          p.replaceAll('\\', '/') !== 'collection/entry/page.tsx',
       )
     expect(pages.length).toBeGreaterThanOrEqual(Object.keys(routePolicy).length)
     for (const file of pages) {
