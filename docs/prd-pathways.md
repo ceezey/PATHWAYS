@@ -281,23 +281,23 @@ flowchart LR
 
 | Gate | Condition | Status | QAD |
 |---|---|---|---|
-| G-F2-1 | A Project Manager creates a project with target beneficiaries, an opening budget and automatic self-assignment, audited | Met | QAD-R08 |
-| G-F2-2 | Project list and detail show only scoped projects and the tabs the role may read | Met | QAD-R02 |
+| G-F2-1 | A Project Manager creates a project with target beneficiaries, an opening budget and automatic self-assignment, audited | Met | QAD-R08, QAD-T91, QAD-T92, QAD-A26 |
+| G-F2-2 | Project list and detail show only scoped projects and the tabs the role may read | Met | QAD-R02, QAD-T93, QAD-T94 |
 | G-F2-3 | Locked fields stay disabled and unsubmitted; a write carrying free-text implementing partners is rejected | Met | QAD-RBP-06, QAD-RBP-07 |
 | G-F2-4 | A project can be archived by a role holding `projects.archive` | Met | QAD-P10, QAD-T40 |
-| G-F2-5 | Authorized activity create and update persist; dates outside the project timeline need a justification | Met | QAD-T02 |
-| G-F2-6 | A progress update or proof submission enters review, and only one update awaits review per activity | Met | QAD-T02 |
-| G-F2-7 | A reviewer other than the submitter approves or returns an update, and only approval moves activity progress | Met | QAD-T41 |
-| G-F2-8 | Private proof inspection succeeds only for a pending update and fails with a conflict when revisions changed | Met | QAD-A22 |
-| G-F2-9 | A reviewer records an overdue explanation for an activity | Met | QAD-T42 |
-| G-F2-10 | Milestones are created and updated only with `milestones.manage` | Met | QAD-T43 |
+| G-F2-5 | Authorized activity create and update persist; dates outside the project timeline need a justification | Met | QAD-T02, QAD-T95, QAD-A27 |
+| G-F2-6 | A progress update or proof submission enters review, and only one update awaits review per activity | Met | QAD-T02, QAD-T96, QAD-A28 |
+| G-F2-7 | A reviewer other than the submitter approves or returns an update, and only approval moves activity progress | Met | QAD-T41, QAD-T97, QAD-A29 |
+| G-F2-8 | Private proof inspection succeeds only for a pending update and fails with a conflict when revisions changed | Met | QAD-A22, QAD-T98 |
+| G-F2-9 | A reviewer records an overdue explanation for an activity | Met | QAD-T42, QAD-T99, QAD-A30 |
+| G-F2-10 | Milestones are created and updated only with `milestones.manage` | Met | QAD-T43, QAD-T100, QAD-A31 |
 | G-F2-11 | Each role sees only the actions its permissions allow; a forged capability flag still returns 403 | Met | QAD-RBP-01, QAD-RBP-05 |
 | G-F2-12 | The assignable-officer read lists only active Project Officers with access, and denies other roles | Met | QAD-RBP-02, QAD-RBP-08 |
 | G-F2-13 | An out-of-scope project or activity is denied before any write | Met | QAD-A02, QAD-P09 |
-| G-F2-14 | A budget record is created or replaced with a stale-revision check | Met | QAD-T44 |
+| G-F2-14 | A budget record is created or replaced with a stale-revision check | Met | QAD-T44, QAD-T101, QAD-A32 |
 | G-F2-15 | An expense is submitted against a budget reference; a retry with the same client request id does not duplicate it | Met | QAD-T45, QAD-T84 |
-| G-F2-16 | A private receipt is attached to a pending expense, and verification or approval needs it | Met | QAD-T46 |
-| G-F2-17 | An expense is verified, then approved by a distinct reviewer; rejection requires a reason | Met | QAD-T47 |
+| G-F2-16 | A private receipt is attached to a pending expense, and verification or approval needs it | Met | QAD-T46, QAD-T102, QAD-A33 |
+| G-F2-17 | An expense is verified, then approved by a distinct reviewer; rejection requires a reason | Met | QAD-T47, QAD-T103, QAD-A34 |
 | G-F2-18 | Final sign-off is recorded once per expense by a holder of `expenses.signoff` | Met | QAD-T48, QAD-T85 |
 | G-F2-19 | Overview metrics derive budget utilization and timeline deterministically and deny out-of-scope projects | Met | QAD-P03, QAD-P08 |
 
