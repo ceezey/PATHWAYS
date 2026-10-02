@@ -974,13 +974,16 @@ Horizontal overflow container, tabular numerals, ~44px rows/headers, subtle head
 ### Dialogs
 Navy 45% overlay, centered bounded surface, scroll containment, visible 44px close control, stacked small-screen footer actions.
 
+### Figma component patterns (2026-10-03)
+Figma 1344:342 (content and decision support): metric cards show an uppercase muted label, a top-right tinted icon tile and a large value (danger tone colors the value), with no top border; project cards are flat white with title, area, period, status chips, a timeline bar and a footer action row. Figma 1344:505 (records): tables keep a subtle header surface and 52-64px rows; evidence and audit rows follow the existing list patterns. Figma 1344:179 (actions and inputs): buttons, underline tabs, dot-plus-text status badges and inputs already match; sizes stay 36/44/52. Figma 1344:646 (feedback): the detail sheet is 480px wide, confirmation dialogs lead with a tinted icon circle, empty states use an icon circle, error states use a red-tinted border with an outline retry, skeletons use 6px radius and toasts tint on success and error. Conflicts resolved to the DSD: tokens and the 8px card radius are kept; saturated sidebars, activity Delete and UCD/UCR chips are not adopted.
+
 ### LockedField
 A shared component for a control the caller may read but not change. It renders the field's visible label and current value inside a disabled control, with the tooltip "You are not authorized to change this field". The tooltip opens on hover and on keyboard focus of a focusable wrapper, and is linked through `aria-describedby` so it is announced with the control. A request never sends a locked field's value. `LockedField` shows only values the caller may already read; a value the caller cannot read stays omitted, never shown locked. Used for the activity budget (missing `budgets.create`/`budgets.update`), activity indicator links (missing `indicators.update`), and project profile fields (missing `projects.update`).
 
 ### Async / empty / error
 Use truthful loading, empty, unavailable, error, and retry states. Do not inject fake records just to avoid an empty state.
 
-A genuinely empty value or list reads "None yet". Load failures and permission states keep their error wording, such as "Unavailable" or "could not be loaded", with a retry where one helps. Missing data is never shown as 0; a real zero from the server is shown as 0.
+A genuinely empty value or list reads "None yet". Load failures and permission states keep their error wording, such as "Unavailable" or "could not be loaded", with a retry where one helps. Missing data is never shown as 0; a real zero from the server is shown as 0. Exception: the Project overview Budget utilization and Beneficiaries reached tiles show 0 when their source has no data ([cr-pathways-overview-zero-display](cr-pathways-overview-zero-display.md)).
 
 **Data fetching.** Protected reads go through `useAuthorizedRead` (TanStack Query). Reads are live by default. Lists and summaries may opt in to the 30-second summary window. Beneficiary, step-up and import batch-status reads are never cached. Workspace tabs share stable resource keys, such as one project read for the Overview and Activities tabs.
 
