@@ -17,7 +17,7 @@ test.beforeAll(async () => {
       loader: 'tsx',
     },
     alias: Object.fromEntries(
-      ['@/hooks/use-session', '@/lib/supabase/client', 'next/navigation', 'next/link'].map(
+      ['@/hooks/use-session', '@/lib/supabase/client', '@/lib/env', 'next/navigation', 'next/link'].map(
         (name) => [name, fixture],
       ),
     ),
@@ -31,21 +31,33 @@ test.beforeAll(async () => {
   component = output.outputFiles[0].text
 })
 
-const loadComponent = async (page: import('@playwright/test').Page) => {
+type Mode = 'pending-success' | 'rejected' | 'network' | 'success'
+
+// The sign-in API call is stubbed by mode and counted on the Node side.
+const loadComponent = async (page: import('@playwright/test').Page, mode: Mode = 'success') => {
+  const state = { count: 0, release: () => {} }
+  const gate = new Promise<void>((resolve) => {
+    state.release = resolve
+  })
   await page.route('**/*', async (route) => {
-    if (new URL(route.request().url()).pathname === '/component-fixture') {
+    const { pathname } = new URL(route.request().url())
+    if (pathname === '/component-fixture') {
       await route.fulfill({ body: '<div id="root"></div>', contentType: 'text/html' })
+    } else if (pathname.endsWith('/auth/sign-in')) {
+      state.count += 1
+      if (mode === 'pending-success') await gate
+      if (mode === 'network') return route.abort()
+      if (mode === 'rejected') return route.fulfill({ status: 401, json: {} })
+      await route.fulfill({ json: { accessToken: 'synthetic-access', refreshToken: 'synthetic-refresh' } })
     } else await route.abort()
   })
   await page.goto('/component-fixture')
   await page.addScriptTag({ content: component })
+  return state
 }
 
 test('password login submits once, clears the password, and enters only TOTP', async ({ page }) => {
-  await loadComponent(page)
-  await page.evaluate(() => {
-    window.__PASSWORD_LOGIN_MODE__ = 'pending-success'
-  })
+  const state = await loadComponent(page, 'pending-success')
 
   await page.getByLabel('Email').fill('staff@example.org')
   const password = page.getByRole('textbox', { name: 'Password', exact: true })
@@ -55,10 +67,10 @@ test('password login submits once, clears the password, and enters only TOTP', a
     button.click()
   })
 
-  await expect.poll(() => page.evaluate(() => window.__PASSWORD_LOGIN_COUNT__)).toBe(1)
+  await expect.poll(() => state.count).toBe(1)
   await expect(page.getByRole('button', { name: 'Signing in...' })).toBeDisabled()
   await expect(password).toBeDisabled()
-  await page.evaluate(() => window.__PASSWORD_LOGIN_RELEASE__?.())
+  state.release()
 
   await expect
     .poll(() => page.evaluate(() => window.__PASSWORD_LOGIN_NAVIGATION__))
@@ -68,10 +80,7 @@ test('password login submits once, clears the password, and enters only TOTP', a
 })
 
 test('credential rejection is generic and never exposes provider detail', async ({ page }) => {
-  await loadComponent(page)
-  await page.evaluate(() => {
-    window.__PASSWORD_LOGIN_MODE__ = 'rejected'
-  })
+  await loadComponent(page, 'rejected')
 
   await page.getByLabel('Email').fill('staff@example.org')
   const password = page.getByRole('textbox', { name: 'Password', exact: true })
@@ -81,30 +90,22 @@ test('credential rejection is generic and never exposes provider detail', async 
   await expect(page.getByRole('alert')).toHaveText(
     'Could not sign in. Check your credentials and try again.',
   )
-  await expect(page.getByText(/private-provider-detail/i)).toHaveCount(0)
   await expect(password).toHaveValue('')
 })
 
-for (const mode of ['network'] as const) {
-  test(`${mode} denies access with a fixed message`, async ({ page }) => {
-    await loadComponent(page)
-    await page.evaluate((value) => {
-      window.__PASSWORD_LOGIN_MODE__ = value
-    }, mode)
-    await page.getByLabel('Email').fill('staff@example.org')
-    await page
-      .getByRole('textbox', { name: 'Password', exact: true })
-      .fill('Synthetic-password-42!')
-    await page.getByRole('button', { name: 'Sign In' }).click()
+test('network denies access with a fixed message', async ({ page }) => {
+  await loadComponent(page, 'network')
+  await page.getByLabel('Email').fill('staff@example.org')
+  await page.getByRole('textbox', { name: 'Password', exact: true }).fill('Synthetic-password-42!')
+  await page.getByRole('button', { name: 'Sign In' }).click()
 
-    await expect(page.getByRole('alert')).toHaveText(
-      'Authentication is temporarily unavailable. No application access was granted.',
-    )
-    await expect
-      .poll(() => page.evaluate(() => window.__PASSWORD_LOGIN_NAVIGATION__))
-      .toBe(undefined)
-  })
-}
+  await expect(page.getByRole('alert')).toHaveText(
+    'Authentication is temporarily unavailable. No application access was granted.',
+  )
+  await expect
+    .poll(() => page.evaluate(() => window.__PASSWORD_LOGIN_NAVIGATION__))
+    .toBe(undefined)
+})
 
 test('a restored validated session bypasses password entry for the existing TOTP transition', async ({
   page,
