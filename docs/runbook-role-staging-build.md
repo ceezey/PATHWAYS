@@ -177,10 +177,11 @@ Migration 0045 (cr-pathways-f9-trusted-aggregates) adds two prisma-owned SECURIT
 
 2026-10-02, PATHWAYS-role-staging (ref `klbtoqdalmcsfjqophty`), read-only checks:
 
-- Ledger: 29 rows 0000-0054, all finished, none rolled back; 0046-0053 applied 2026-10-01 14:11-14:12 UTC, 0054 applied 2026-10-02.
+- Ledger: 30 rows 0000-0055, all finished, none rolled back; 0046-0053 applied 2026-10-01 14:11-14:12 UTC, 0054 and 0055 applied 2026-10-02.
+- 0055: 312 `role_permissions` rows; `p09_role_allows` denies `PROJECT_OFFICER` `activities.create` and `SYSTEM_ADMINISTRATOR` `budgets.read`, allows `GRANT_MANAGER` `activities.read`.
 - No residual temporary owner memberships for `prisma`; `pathways_runtime` LOGIN true.
 - Schema `pathways_auth` present; `supabase_auth_admin` has USAGE on `pathways_auth` and not on `pathways`.
-- `p09_role_allows` and `p09_role_allows_0048` ACLs equal `p09_role_allows_0035` (`pathways_runtime` and 8 `rules_*_owner` roles, EXECUTE); `anon`, `authenticated` and `service_role` cannot execute.
+- `p09_role_allows` (after the 0055 replace) and `p09_role_allows_0048` ACLs equal `p09_role_allows_0035` as grant sets (`pathways_runtime` and 8 `rules_*_owner` roles, EXECUTE); `anon`, `authenticated` and `service_role` cannot execute.
 - `SYSTEM_ADMINISTRATOR` lacks `journeys.read`; `MONITORING_AND_EVALUATION_OFFICER` holds `beneficiaries.identities.review`.
 - Password Verification Attempt hook not enabled on hosted (Free plan, developer decision).
 - Runtime SQL suites for these migrations pass in the local MigrationBaseline replay.

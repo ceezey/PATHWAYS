@@ -264,7 +264,7 @@ GRANT ALL ON ALL TABLES IN SCHEMA auth TO postgres;
       const finished = ledgerOut.trim().split(/\r?\n/).filter(Boolean)
       assert.deepEqual(finished, [...MIGRATIONS_IN_ORDER])
       t.diagnostic(
-        `PASS: local integration run finished all ${finished.length} migrations 0000-0054`,
+        `PASS: local integration run finished all ${finished.length} migrations 0000-0055`,
       )
     } finally {
       if (process.env.HOSTED_BUILD_KEEP_CLUSTER === '1') {
@@ -378,7 +378,7 @@ test(
       const finished = ledgerOut.trim().split(/\r?\n/).filter(Boolean)
       assert.deepEqual(finished, [...MIGRATIONS_IN_ORDER])
       t.diagnostic(
-        `PASS: --resume after an injected 0034 deploy failure reached all ${finished.length} migrations 0000-0054`,
+        `PASS: --resume after an injected 0034 deploy failure reached all ${finished.length} migrations 0000-0055`,
       )
     } finally {
       if (process.env.HOSTED_BUILD_KEEP_CLUSTER === '1') {
