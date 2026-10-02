@@ -2,10 +2,10 @@ import type { Metadata } from 'next'
 import { cookies } from 'next/headers'
 import Link from 'next/link'
 
+import { SkipLink } from '@/components/layout/skip-link'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { PasswordUpdateForm } from '@/features/auth/password-update-form'
-import { StaffAuthShell } from '@/features/auth/staff-auth-shell'
+import { StaffAuthFrame } from '@/features/auth/staff-auth-frame'
 import { webEnv, webSupabasePublishableKey } from '@/lib/env'
 import { createClient } from '@/lib/server'
 import {
@@ -57,29 +57,24 @@ export default async function UpdatePasswordPage() {
   const recoveryReady = await hasApprovedRecoverySession()
 
   return (
-    <StaffAuthShell>
+    <>
+      <SkipLink />
       {recoveryReady ? (
         <PasswordUpdateForm />
       ) : (
-        <Card className="w-full max-w-[460px] rounded-lg border-white/70 bg-white/95 shadow-xl backdrop-blur">
-          <CardHeader>
-            <CardTitle>Recovery link unavailable</CardTitle>
-            <CardDescription>
-              This link is expired, already used, belongs to another browser, or was not issued for
-              the signed-in account.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <p className="text-sm leading-6 text-muted-foreground">
-              Request one new message and open it in the same browser profile at this staff portal.
-              Do not copy its URL into chat.
-            </p>
-            <Button asChild className="w-full">
-              <Link href="/staff/forgot-password">Request a new recovery message</Link>
-            </Button>
-          </CardContent>
-        </Card>
+        <StaffAuthFrame
+          title="Recovery link unavailable"
+          description="This link is expired, already used, belongs to another browser, or was not issued for the signed-in account."
+        >
+          <p className="text-sm leading-6 text-muted-foreground">
+            Request one new message and open it in the same browser profile at this staff portal. Do
+            not copy its URL into chat.
+          </p>
+          <Button asChild className="w-full">
+            <Link href="/staff/forgot-password">Request a new recovery message</Link>
+          </Button>
+        </StaffAuthFrame>
       )}
-    </StaffAuthShell>
+    </>
   )
 }

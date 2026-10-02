@@ -7,10 +7,10 @@ import { useEffect, useRef, useState } from 'react'
 import { useForm } from 'react-hook-form'
 
 import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import {
   Form,
   FormControl,
+  FormDescription,
   FormField,
   FormItem,
   FormLabel,
@@ -23,13 +23,14 @@ import {
   passwordRecoveryCompletePath,
   passwordUpdateSchema,
 } from './password-recovery'
+import { StaffAuthFrame } from './staff-auth-frame'
 
 export const PasswordUpdateForm = () => {
   const [completion, setCompletion] = useState<{ sessionClosed: boolean } | null>(null)
   const [safeError, setSafeError] = useState<string | null>(null)
   const [showPassword, setShowPassword] = useState(false)
   const [uncertainOutcome, setUncertainOutcome] = useState(false)
-  const completionRef = useRef<HTMLDivElement>(null)
+  const completionRef = useRef<HTMLOutputElement>(null)
   const form = useForm<PasswordUpdate>({
     resolver: zodResolver(passwordUpdateSchema),
     defaultValues: { password: '', confirmPassword: '' },
@@ -71,120 +72,128 @@ export const PasswordUpdateForm = () => {
       setSafeError(
         'The password-change result could not be confirmed. Do not submit it again. First try signing in with the new password. If that fails, request one new recovery message.',
       )
-    } finally {
-      form.reset()
     }
   }
 
   if (completion) {
     return (
-      <Card
-        aria-live="polite"
-        className="w-full max-w-[460px] rounded-lg border-white/70 bg-white/95 shadow-xl backdrop-blur"
-        ref={completionRef}
-        tabIndex={-1}
+      <StaffAuthFrame
+        title="Password updated"
+        description="Your password change has been processed."
       >
-        <CardHeader className="items-center space-y-3 text-center">
-          <CheckCircle2 aria-hidden="true" className="h-12 w-12 text-success" />
-          <CardTitle>Password changed</CardTitle>
-          <CardDescription>
-            {completion.sessionClosed
-              ? 'Your recovery session was closed. Sign in with the new password, then continue the existing MFA check.'
-              : 'The password changed, but Supabase did not confirm that this browser session closed. Close this browser window now. Then reopen this staff portal and sign in with the new password.'}
-          </CardDescription>
-        </CardHeader>
+        <output
+          aria-live="polite"
+          className="block rounded-md border border-primary/25 bg-primary-subtle p-4 text-light-blue-foreground"
+          ref={completionRef}
+          tabIndex={-1}
+        >
+          <div className="flex items-start gap-3">
+            <CheckCircle2 aria-hidden="true" className="mt-0.5 h-5 w-5 shrink-0" />
+            <p className="text-sm leading-6">
+              {completion.sessionClosed
+                ? 'Your recovery session was closed. Sign in with the new password, then continue the existing MFA check.'
+                : 'The password changed, but Supabase did not confirm that this browser session closed. Close this browser window now. Then reopen this staff portal and sign in with the new password.'}
+            </p>
+          </div>
+        </output>
         {completion.sessionClosed ? (
-          <CardContent>
-            <Button asChild className="w-full">
-              <Link href="/staff/login">Return to sign in</Link>
-            </Button>
-          </CardContent>
+          <Button asChild className="w-full">
+            <Link href="/staff/login">Return to sign in</Link>
+          </Button>
         ) : null}
-      </Card>
+      </StaffAuthFrame>
     )
   }
 
   return (
-    <Card className="w-full max-w-[460px] rounded-lg border-white/70 bg-white/95 shadow-xl backdrop-blur">
-      <CardHeader className="items-center space-y-3 text-center">
-        <div className="flex h-14 w-14 items-center justify-center rounded-lg bg-primary text-primary-foreground shadow-sm">
-          <KeyRound aria-hidden="true" className="h-7 w-7" />
-        </div>
-        <CardTitle>Choose a new password</CardTitle>
-        <CardDescription>
-          Use a unique password with at least 12 characters, uppercase and lowercase letters, a
-          number, and a symbol.
-        </CardDescription>
-      </CardHeader>
-      <CardContent>
-        <Form {...form}>
-          <form className="space-y-5" onSubmit={form.handleSubmit(onSubmit)}>
-            {(['password', 'confirmPassword'] as const).map((name) => (
-              <FormField
-                control={form.control}
-                key={name}
-                name={name}
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>
-                      {name === 'password' ? 'New password' : 'Confirm password'}
-                    </FormLabel>
-                    <div className="relative">
-                      <FormControl>
-                        <Input
-                          autoComplete="new-password"
-                          className="pr-11"
-                          type={showPassword ? 'text' : 'password'}
-                          {...field}
-                        />
-                      </FormControl>
-                      <Button
-                        aria-label={showPassword ? 'Hide passwords' : 'Show passwords'}
-                        className="absolute right-1 top-1 h-8 w-8"
-                        onClick={() => setShowPassword((value) => !value)}
-                        size="icon"
-                        type="button"
-                        variant="ghost"
-                      >
-                        {showPassword ? (
-                          <EyeOff aria-hidden="true" className="h-4 w-4" />
-                        ) : (
-                          <Eye aria-hidden="true" className="h-4 w-4" />
-                        )}
-                      </Button>
-                    </div>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-            ))}
-            {safeError ? (
-              <div className="space-y-2">
-                <p className="text-sm leading-6 text-destructive" role="alert">
-                  {safeError}
-                </p>
-                <Button asChild size="sm" variant="outline">
-                  <Link href={uncertainOutcome ? '/staff/login' : '/staff/forgot-password'}>
-                    {uncertainOutcome ? 'Return to sign in' : 'Request a new recovery message'}
-                  </Link>
-                </Button>
-              </div>
-            ) : null}
-            <Button
-              className="w-full gap-2"
-              disabled={form.formState.isSubmitting || uncertainOutcome}
-              type="submit"
+    <StaffAuthFrame
+      title="Create a new password"
+      description="Choose a strong password and confirm it before continuing."
+    >
+      <Form {...form}>
+        <form className="space-y-5" onSubmit={form.handleSubmit(onSubmit)}>
+          <FormField
+            control={form.control}
+            name="password"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel required>New password</FormLabel>
+                <div className="relative">
+                  <FormControl aria-required="true">
+                    <Input
+                      autoComplete="new-password"
+                      className="pr-12"
+                      type={showPassword ? 'text' : 'password'}
+                      {...field}
+                    />
+                  </FormControl>
+                  <Button
+                    aria-label={showPassword ? 'Hide new password' : 'Show new password'}
+                    className="absolute right-0 top-0"
+                    onClick={() => setShowPassword((value) => !value)}
+                    size="icon"
+                    type="button"
+                    variant="ghost"
+                  >
+                    {showPassword ? (
+                      <EyeOff aria-hidden="true" className="h-4 w-4" />
+                    ) : (
+                      <Eye aria-hidden="true" className="h-4 w-4" />
+                    )}
+                  </Button>
+                </div>
+                <FormDescription>
+                  Use at least 12 characters with uppercase, lowercase, number, and symbol
+                  characters.
+                </FormDescription>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+          <FormField
+            control={form.control}
+            name="confirmPassword"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel required>Confirm new password</FormLabel>
+                <FormControl aria-required="true">
+                  <Input
+                    autoComplete="new-password"
+                    type={showPassword ? 'text' : 'password'}
+                    {...field}
+                  />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+          {safeError ? (
+            <div
+              className="space-y-3 rounded-md border border-destructive/30 bg-destructive/5 p-4"
+              role="alert"
             >
-              {form.formState.isSubmitting ? (
-                <Loader2 aria-hidden="true" className="h-4 w-4 animate-spin" />
-              ) : (
-                <KeyRound aria-hidden="true" className="h-4 w-4" />
-              )}
-              {form.formState.isSubmitting ? 'Changing password...' : 'Change password'}
-            </Button>
-          </form>
-        </Form>
-      </CardContent>
-    </Card>
+              <p className="text-sm leading-6 text-destructive">{safeError}</p>
+              <Button asChild size="sm" variant="outline">
+                <Link href={uncertainOutcome ? '/staff/login' : '/staff/forgot-password'}>
+                  {uncertainOutcome ? 'Return to sign in' : 'Request a new recovery message'}
+                </Link>
+              </Button>
+            </div>
+          ) : null}
+          <Button
+            className="w-full gap-2"
+            disabled={form.formState.isSubmitting || uncertainOutcome}
+            type="submit"
+          >
+            {form.formState.isSubmitting ? (
+              <Loader2 aria-hidden="true" className="h-4 w-4 animate-spin" />
+            ) : (
+              <KeyRound aria-hidden="true" className="h-4 w-4" />
+            )}
+            {form.formState.isSubmitting ? 'Changing password...' : 'Change password'}
+          </Button>
+        </form>
+      </Form>
+    </StaffAuthFrame>
   )
 }
