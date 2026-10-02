@@ -46,7 +46,7 @@ Six internal roles are defined in `apps/api/src/modules/auth/rbac-contract.json`
 
 | ID | Feature | Priority | Manuscript ID | Requirement | Objective | Status |
 |---|---|---|---|---|---|---|
-| PRD-F1 | RBAC and Workspace Management | Must-Have | F1 | R1 | 1.8 | Implemented; G-F1-10 not met (see [deferred features](deferred-features.md)) |
+| PRD-F1 | RBAC and Workspace Management | Must-Have | F1 | R1 | 1.8 | Implemented; all G-F1 gates met 2026-10-03 (G-F1-10 for app sign-in; hosted direct-grant bypass deferred, see [deferred features](deferred-features.md)) |
 | PRD-F2 | Project Profile and Activity Tracking | Must-Have | F2 | R1, R4, R5 | 1.1, 1.2, 1.5 | Implemented; G-F2-4 not met (see [deferred features](deferred-features.md)) |
 | PRD-F3 | Centralized Beneficiary Profile | Must-Have | F3 | R1, R5 | 1.1, 1.3 | Implemented; G-F3-6 partial (see [deferred features](deferred-features.md)) |
 | PRD-F4 | Beneficiary Journey Tracking | Must-Have | F4 | R6 | 1.1, 1.3 | Implemented; G-F4-6 not met (see [deferred features](deferred-features.md)) |
