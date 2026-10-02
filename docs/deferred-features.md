@@ -60,3 +60,4 @@ Update this register in the same change that hides, defers, or discovers a gap i
 feature. Register updates here in `docs/index.md` section 2 when the register itself
 changes status, and keep entries reconciled with the Change Record or repository fact
 that established them.
+| Public-route and skip-link e2e coverage | Gap | 2026-10-02 | Dropped when the legacy demo-switcher specs were deleted in the e2e v4 sign-in move; no real-sign-in replacement was written. | See [e2e-legacy-spec-triage](e2e-legacy-spec-triage.md); `apps/web/e2e/`. | Add a Playwright spec for public routes and the skip link. |
