@@ -48,8 +48,8 @@ vi.mock('@/lib/services/pathways-client', () => ({
 }))
 vi.mock('@/lib/services/private-proof-client', () => ({ privateProofClient: proofClient }))
 vi.mock('@/lib/services/core-feature-client', () => ({ coreDataClient: coreApi }))
-vi.mock('./live-finance-workspace', () => ({
-  LiveFinanceWorkspace: ({ projectId }: { projectId: string }) => (
+vi.mock('./budget-module/budget-module', () => ({
+  BudgetModule: ({ projectId }: { projectId: string }) => (
     <div>Finance for {projectId}</div>
   ),
 }))
