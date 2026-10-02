@@ -184,10 +184,7 @@ async function signIn(page: import('@playwright/test').Page, email: string) {
   )
 }
 
-// Known gap: middleware has no route policy for the retired /collection/entry, so it redirects to
-// /unauthorized before the page-level redirect to /collection can run. Remove test.fail once fixed.
 test('Project Officer: the retired entry route lands on Collection', async ({ page }) => {
-  test.fail()
   test.setTimeout(90_000)
   await signIn(page, officerEmail)
   await page.goto('/collection/entry')
