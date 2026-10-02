@@ -21,10 +21,9 @@ import { Input } from '@/components/ui/input'
 import { useSession } from '@/hooks/use-session'
 import { getBrowserSupabaseClient } from '@/lib/supabase/client'
 import { type LoginSchema, loginSchema } from './login-validation'
-import { requestSignIn } from './signin-request'
+import { formatLockRemaining, requestSignIn } from './signin-request'
 
 const invalidCredentialsMessage = 'Could not sign in. Check your credentials and try again.'
-const lockedMessage = 'Too many failed sign-in attempts. Try again in 15 minutes.'
 const authenticationUnavailableMessage =
   'Authentication is temporarily unavailable. No application access was granted.'
 
@@ -42,13 +41,42 @@ export const LoginForm = () => {
       password: '',
     },
   })
+  const identifier = form.watch('identifier')
+  const [lock, setLock] = useState<{ until: number; email: string } | null>(null)
+  const [remaining, setRemaining] = useState(0)
+  const locked = remaining > 0
 
   useEffect(() => {
     if (status === 'authenticated') router.replace('/auth/mfa')
   }, [router, status])
 
+  // Lockout is per identifier, so editing the email releases the local lock.
+  useEffect(() => {
+    if (lock && identifier.trim().toLowerCase() !== lock.email) setLock(null)
+  }, [identifier, lock])
+
+  // Recompute from the absolute timestamp so the countdown survives a sleeping tab.
+  useEffect(() => {
+    if (!lock) {
+      setRemaining(0)
+      return
+    }
+    const tick = () => {
+      const seconds = Math.ceil((lock.until - Date.now()) / 1000)
+      if (seconds > 0) {
+        setRemaining(seconds)
+        return
+      }
+      setRemaining(0)
+      setLock(null)
+    }
+    tick()
+    const timer = setInterval(tick, 1000)
+    return () => clearInterval(timer)
+  }, [lock])
+
   const onSubmit = async (values: LoginSchema) => {
-    if (inFlight.current) return
+    if (inFlight.current || locked) return
     const supabase = getBrowserSupabaseClient()
 
     if (!configured || !supabase) {
@@ -63,7 +91,10 @@ export const LoginForm = () => {
       const outcome = await requestSignIn(values.identifier, values.password)
       form.resetField('password')
       if (outcome.kind === 'locked') {
-        setError(lockedMessage)
+        setLock({
+          until: Date.now() + outcome.retryAfterSeconds * 1000,
+          email: values.identifier.trim().toLowerCase(),
+        })
         return
       }
       const { error: authError } =
@@ -119,6 +150,14 @@ export const LoginForm = () => {
           </p>
         ) : (
           <>
+            {locked && (
+              <p id="staff-login-error" className="text-sm text-destructive" role="alert">
+                <span className="sr-only">Sign-in is locked for 15 minutes. </span>
+                <span aria-hidden="true">
+                  Too many failed sign-in attempts. Try again in {formatLockRemaining(remaining)}.
+                </span>
+              </p>
+            )}
             {error && (
               <p
                 id="staff-login-error"
@@ -171,7 +210,7 @@ export const LoginForm = () => {
                             aria-label="Password"
                             autoComplete="current-password"
                             className="border-0 border-b border-border bg-transparent px-0 pr-11 shadow-none"
-                            disabled={busy}
+                            disabled={busy || locked}
                             maxLength={1024}
                             placeholder="Enter your password"
                             type={showPassword ? 'text' : 'password'}
@@ -215,7 +254,7 @@ export const LoginForm = () => {
                     Supabase password and TOTP authentication
                   </p>
                 </div>
-                <Button className="w-full gap-2" disabled={busy} type="submit">
+                <Button className="w-full gap-2" disabled={busy || locked} type="submit">
                   {busy ? (
                     <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
                   ) : (
