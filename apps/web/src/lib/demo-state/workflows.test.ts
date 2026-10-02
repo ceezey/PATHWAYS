@@ -201,7 +201,7 @@ describe('I03 linked delivery workflow', () => {
     switchDemoAccount('system-administrator')
     const unselectedOfficerId = saveDemoAccount({
       name: 'Unselected Fictional Officer',
-      email: 'unselected@demo.pathways.local',
+      email: 'arnel.bautista@org.pathways.com',
       role: 'Project Officer',
       projectIds: ['futuremakers-ncr'],
     })

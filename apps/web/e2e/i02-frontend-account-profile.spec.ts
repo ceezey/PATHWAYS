@@ -6,7 +6,7 @@ const seedPrototypeSession = async (page: Page) => {
     window.localStorage.setItem(
       'pathways.prototypeSession',
       JSON.stringify({
-        email: 'frontend.review@demo.pathways.local',
+        email: 'teresa.garcia@org.pathways.com',
         displayName: 'Frontend Review',
         role: 'Program Manager',
         signedInAt: new Date().toISOString(),
@@ -88,7 +88,7 @@ test.describe('I02 frontend-only recovery and own profile', () => {
     await page.setViewportSize({ width: 390, height: 844 })
     await seedPrototypeSession(page)
     await page.goto('/dashboard')
-    const sessionMenu = page.getByRole('button', { name: 'frontend.review@demo.pathways.local' })
+    const sessionMenu = page.getByRole('button', { name: 'teresa.garcia@org.pathways.com' })
     await sessionMenu.focus()
     await sessionMenu.press('Enter')
     const myProfile = page.getByRole('menuitem', { name: 'My Profile' })
@@ -103,12 +103,12 @@ test.describe('I02 frontend-only recovery and own profile', () => {
 
     await page.getByRole('textbox', { name: /^Name/ }).fill('Frontend Reviewer')
     await page.getByRole('textbox', { name: 'Contact number' }).fill('+63 917 123 4567')
-    await page.getByRole('textbox', { name: /^Email address/ }).fill('reviewer@demo.pathways.local')
+    await page.getByRole('textbox', { name: /^Email address/ }).fill('sofia.manalo@org.pathways.com')
     await page.getByRole('button', { name: 'Update browser profile' }).click()
     await expect(page.getByText(/updated in this browser only/)).toBeVisible()
     await page.reload()
     await expect(page.getByRole('textbox', { name: /^Email address/ })).toHaveValue(
-      'reviewer@demo.pathways.local',
+      'sofia.manalo@org.pathways.com',
     )
 
     await page.getByLabel(/^Current password/).fill('CurrentPathways!2025')

@@ -6,7 +6,7 @@ const seedPrototypeSession = async (page: Page, role: string) => {
       'pathways.prototypeSession',
       JSON.stringify({
         displayName: `${selectedRole} Demo`,
-        email: 'phase4@demo.pathways.local',
+        email: 'mark.lim@org.pathways.com',
         role: selectedRole,
         signedInAt: new Date().toISOString(),
       }),

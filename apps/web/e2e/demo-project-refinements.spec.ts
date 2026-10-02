@@ -41,7 +41,7 @@ test('project team reassignment is scoped, persists, and is hidden from disallow
   await expect(page.getByRole('heading', { name: 'Edit project team' })).toBeVisible()
   const projectManagerField = page.getByRole('combobox', { name: /^Project Manager/ })
   await expect(projectManagerField).toContainText('Project Manager A')
-  await expect(projectManagerField).not.toContainText('@existing.demo.pathways.local')
+  await expect(projectManagerField).not.toContainText('@existing.org.pathways.com')
   await page.getByRole('combobox', { name: /^Monitoring and Evaluation Officer/ }).click()
   await page.getByRole('option', { name: /^Ana Villanueva/ }).click()
   await page.getByRole('button', { name: 'Save assignments' }).click()

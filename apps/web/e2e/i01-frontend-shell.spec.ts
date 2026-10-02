@@ -6,7 +6,7 @@ const seedPrototypeSession = async (page: Page, role = 'Program Manager') => {
     window.localStorage.setItem(
       'pathways.prototypeSession',
       JSON.stringify({
-        email: 'frontend.review@demo.pathways.local',
+        email: 'teresa.garcia@org.pathways.com',
         displayName: 'Frontend Review',
         role: selectedRole,
         signedInAt: new Date().toISOString(),
@@ -50,7 +50,7 @@ test.describe('I01 frontend-only staff shell', () => {
     await expect(header.getByText('Project Officer · 1 assigned project · preview')).toBeVisible()
 
     const sessionButton = header.getByRole('button', {
-      name: 'frontend.review@demo.pathways.local',
+      name: 'teresa.garcia@org.pathways.com',
     })
     await sessionButton.focus()
     await expect(sessionButton).toBeFocused()

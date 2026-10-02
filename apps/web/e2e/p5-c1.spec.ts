@@ -8,7 +8,7 @@ const seedPrototypeSession = async (page: Page, role = 'Monitoring and Evaluatio
     window.localStorage.setItem(
       'pathways.prototypeSession',
       JSON.stringify({
-        email: 'monitoring.evaluation@demo.pathways.local',
+        email: 'grace.navarro@org.pathways.com',
         displayName: 'Monitoring and Evaluation Officer Demo',
         role: selectedRole,
         signedInAt: new Date().toISOString(),

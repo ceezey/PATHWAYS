@@ -8,7 +8,7 @@ const seedPrototypeSession = async (page: Page, role = 'Program Manager') => {
     window.localStorage.setItem(
       'pathways.prototypeSession',
       JSON.stringify({
-        email: 'program.manager@demo.pathways.local',
+        email: 'roberto.cruz@org.pathways.com',
         displayName: 'Program Manager Demo',
         role: selectedRole,
         signedInAt: new Date().toISOString(),
@@ -1105,7 +1105,7 @@ test('System Administrator can manage prototype users without server-side claims
   await expect(userList.getByText('Grant Manager A')).toBeVisible()
   const programManagerRow = userList
     .getByRole('listitem')
-    .filter({ hasText: 'program.manager.a@demo.pathways.local' })
+    .filter({ hasText: 'elena.marquez@org.pathways.com' })
 
   await programManagerRow.getByRole('button', { name: 'View' }).click()
   const detailDialog = page.getByRole('dialog', { name: 'Prototype account details' })
@@ -1129,7 +1129,7 @@ test('System Administrator can manage prototype users without server-side claims
   await expect(page.getByRole('option')).toHaveCount(6)
   await page.getByRole('option', { name: 'Project Officer' }).click()
   await createDialog.getByLabel('Full name').fill('New Project Officer')
-  await createDialog.getByLabel('Email').fill('new.officer@demo.pathways.local')
+  await createDialog.getByLabel('Email').fill('paolo.aquino@org.pathways.com')
   await createDialog.getByRole('checkbox', { name: 'Assign FutureMakers NCR' }).check()
   await createDialog.getByRole('button', { name: 'Create locally' }).click()
   await expect(userList.getByRole('listitem')).toHaveCount(8)
@@ -1137,7 +1137,7 @@ test('System Administrator can manage prototype users without server-side claims
 
   const officerRow = userList
     .getByRole('listitem')
-    .filter({ hasText: 'project.officer.a@demo.pathways.local' })
+    .filter({ hasText: 'kevin.dizon@org.pathways.com' })
   await officerRow.getByRole('button', { name: 'Account actions for Project Officer A' }).click()
   await page.getByRole('menuitem', { name: 'Deactivate locally' }).click()
   const deactivateDialog = page.getByRole('dialog', { name: 'Deactivate prototype account?' })
@@ -1180,7 +1180,7 @@ test('Program Manager can manage only Project Managers and M&E assignments', asy
   await expect(createDialog.getByText('Multiple projects may be selected.')).toBeVisible()
   await expect(createDialog.getByRole('checkbox')).toHaveCount(5)
   await createDialog.getByLabel('Full name').fill('M&E Multi-project Review')
-  await createDialog.getByLabel('Email').fill('me.multi@demo.pathways.local')
+  await createDialog.getByLabel('Email').fill('miguel.torres@org.pathways.com')
   await createDialog.getByRole('checkbox', { name: 'Assign Youth RISE - Western Samar' }).check()
   await createDialog.getByRole('checkbox', { name: 'Assign Girls Lead - Metro Manila' }).check()
   await createDialog.getByRole('button', { name: 'Create locally' }).click()
@@ -1188,7 +1188,7 @@ test('Program Manager can manage only Project Managers and M&E assignments', asy
   const createdRow = page
     .getByRole('list', { name: 'Prototype users' })
     .getByRole('listitem')
-    .filter({ hasText: 'me.multi@demo.pathways.local' })
+    .filter({ hasText: 'miguel.torres@org.pathways.com' })
   await expect(createdRow).toContainText('Youth RISE - Western Samar')
   await expect(createdRow).toContainText('Girls Lead - Metro Manila')
 

@@ -30,12 +30,12 @@ test('I01/I02: local login, profile propagation, audit, role denial and reset', 
   await page.getByLabel('Name', { exact: false }).first().fill('Fictional Officer Revised')
   await page
     .getByLabel('Email address', { exact: false })
-    .fill('revised.officer@demo.pathways.local')
+    .fill('daniel.ocampo@org.pathways.com')
   await page.getByRole('button', { name: 'Save profile', exact: true }).click()
   await expect(page.getByText('Profile updated.', { exact: false })).toBeVisible()
   await page.reload()
   await expect(page.getByLabel('Email address', { exact: false })).toHaveValue(
-    'revised.officer@demo.pathways.local',
+    'daniel.ocampo@org.pathways.com',
   )
   await page.screenshot({ path: info.outputPath('profile-desktop.png'), fullPage: true })
   await page.setViewportSize({ width: 390, height: 844 })
@@ -59,7 +59,7 @@ test('I01/I02: local login, profile propagation, audit, role denial and reset', 
   await page
     .getByLabel(/Username or email|Email or username|Email address/)
     .first()
-    .fill('revised.officer@demo.pathways.local')
+    .fill('daniel.ocampo@org.pathways.com')
   await page.getByRole('textbox', { name: /^Password/ }).fill('PathwaysDemo!2026')
   await page.getByRole('button', { name: 'Log In', exact: true }).click()
   await expect(page).toHaveURL(/dashboard/)

@@ -5,7 +5,7 @@ const seedPrototypeSession = async (page: Page) => {
     window.localStorage.setItem(
       'pathways.prototypeSession',
       JSON.stringify({
-        email: 'p5-c3@demo.pathways.local',
+        email: 'rafael.domingo@org.pathways.com',
         displayName: 'Program Manager Demo',
         role: 'Program Manager',
         signedInAt: new Date().toISOString(),
