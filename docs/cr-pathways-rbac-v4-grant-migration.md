@@ -2,7 +2,7 @@
 
 **ID:** `cr-pathways-rbac-v4-grant-migration`  
 **Date:** 2026-10-02  
-**Status:** Approved
+**Status:** Applied
 
 ## 1. Trigger
 
@@ -78,4 +78,4 @@ Approved by the developer on 2026-10-02.
 
 ## 9. Disposition
 
-Approved. Set to Applied after the role-staging apply is verified.
+Applied. Role-staging (`klbtoqdalmcsfjqophty`) ran 0055 on 2026-10-02; verified facts are in runbook-role-staging-build section 8.
