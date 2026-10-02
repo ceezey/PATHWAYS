@@ -759,7 +759,7 @@ flowchart LR
 | v4 | Generic screen retired (V4-C11); permission kept for TRAINING_SURVEY, PRE_TEST, POST_TEST and ACTIVITY_MONITORING |
 | Trigger | The user enters collected data for a published form. |
 | Preconditions | A published form exists in an assigned project. |
-| Main flow | 1. The user opens `/collection/entry` and selects the form. 2. The user fills the form; the web validates it (`POST /metadata/projects/:projectId/forms/:formId/validate`). 3. The user saves a draft (`POST /metadata/projects/:projectId/forms/:formId/submissions`) and later edits it (`PATCH /metadata/projects/:projectId/forms/:formId/submissions/:submissionId`). 4. The user submits (`POST /metadata/projects/:projectId/forms/:formId/submissions/:submissionId/submit`). |
+| Main flow | 1. The user opens the form for an assigned project from `/collection`; `/collection/entry` redirects there. 2. The user fills the form; the web validates it (`POST /metadata/projects/:projectId/forms/:formId/validate`). 3. The user saves a draft (`POST /metadata/projects/:projectId/forms/:formId/submissions`) and later edits it (`PATCH /metadata/projects/:projectId/forms/:formId/submissions/:submissionId`). 4. The user submits (`POST /metadata/projects/:projectId/forms/:formId/submissions/:submissionId/submit`). |
 | Alternate / exception | Validation failure: fields highlighted, submit blocked. Retry with the same client submission id returns the existing submission. Unassigned project: denied. |
 | Postconditions | A submission exists in the project with its status and an audit event. |
 | Gates | G-F5-2, G-F5-3, G-F5-5 |
