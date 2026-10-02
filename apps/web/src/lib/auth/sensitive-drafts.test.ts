@@ -16,7 +16,7 @@ const state = vi.hoisted(() => ({
   profile: {
     organizationId: 'org-a',
     userId: 'user-a',
-    roles: ['PROJECT_OFFICER'],
+    roles: ['PROJECT_MANAGER'],
     permissions: ['activities.create'],
     assignedProjectIds: ['project-a'],
   },
