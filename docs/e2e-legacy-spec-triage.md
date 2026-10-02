@@ -35,7 +35,7 @@ Verdict key: Task 3 = role smoke (`smoke.spec.ts`), Task 4 = collection/activiti
 | phase4 | team selectors, budget modify, activity status | delete; port to Task 4 |
 | phase4-final | UC entry points, dashboard, downloads, backups | keep until replaced; Task 3, 4 |
 | phase5 | public routes and staff auth presentation | keep until replaced; public, no sign-in |
-| smoke | full role sweep | keep until replaced; Task 3 |
+| smoke | full role sweep | rewritten on real sign-in (Task 3); non-smoke assertions dropped or moved to Tasks 4 and 5 |
 
 Dropped everywhere: the demo-account picker (p5-c5), "role preview switches" and "browser-local" profile/user storage assertions, the `Encode Project Data` entry (`/collection/entry` now redirects, V4-C11), and any assertion keyed to demo seed ids.
 
@@ -77,3 +77,7 @@ Dropped everywhere: the demo-account picker (p5-c5), "role preview switches" and
 - Beneficiary submission shows complete associated errors and keeps entered data (p5-c4).
 - Step-up outage keeps safe input and focus and reveals no record (p5-c1).
 - verify: relocated controls on a record (post-handoff-ui); media review and local previews (smoke); SA opens records across projects (smoke).
+
+## Task 3 outcome
+
+Landed in `smoke.spec.ts`: per-role landing and exact primary nav (six roles), SA reaches users and audit while PO is denied users, audit and labels, mobile sidebar closes after opening. Dropped as unconfirmed or out of smoke scope: dashboard chart customization (deferred, row 97), analytics location coverage, alert reviewed-not-resolved, report type dropdown, recovery and reset pages, profile edit, audit filter, duplicates and backups, landmarks and skip link, tablet overflow sweep, privacy-safe titles, in-place heading edit, user-management scope controls, label editing, shell sign out; each needs its own v4 grant check and belongs to a later pass. Public-page tests moved to the `phase5` spec; beneficiary and project-scope tests to Tasks 4 and 5.
