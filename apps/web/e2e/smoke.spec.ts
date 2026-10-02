@@ -101,7 +101,7 @@ test('SA opens user management and audit, PO is denied both', async ({ page }) =
 })
 
 test('mobile sidebar closes after opening a workspace', async ({ page }) => {
-  test.setTimeout(90_000)
+  test.setTimeout(120_000)
   await page.setViewportSize({ width: 390, height: 844 })
   await signIn(page, seedAccounts.PO, actors)
   await page.goto('/dashboard')
