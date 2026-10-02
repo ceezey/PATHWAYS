@@ -55,6 +55,21 @@ SELECT pg_temp.ok(NOT EXISTS(SELECT FROM unnest(ARRAY['pathways_runtime','anon',
 SELECT pg_temp.ok(NOT has_schema_privilege('supabase_auth_admin','pathways','USAGE')
  AND has_schema_privilege('supabase_auth_admin','pathways_auth','USAGE'),'auth admin has no pathways schema usage');
 
+-- QAD-T39: the fifth failure for a known account records SIGN_IN_LOCKED; an unknown identifier records none.
+INSERT INTO pathways.organizations(id,code,name) VALUES ('7b000000-0000-4000-8000-000000000a01','SPH_LOCK','Synthetic lockout org');
+INSERT INTO pathways.system_users(id,organization_id,role_id,full_name,email,account_status,activated_at)
+SELECT '7b000000-0000-4000-8000-000000000b01','7b000000-0000-4000-8000-000000000a01',r.id,'Synthetic lockout user','lock-known@example.test','ACTIVE',now()
+FROM pathways.roles r WHERE r.code='PROJECT_OFFICER';
+SELECT pathways.signin_lockout_failure('Lock-Known@Example.Test') FROM generate_series(1,4);
+SELECT pg_temp.ok(NOT EXISTS(SELECT FROM pathways.audit_logs WHERE action='SIGN_IN_LOCKED'
+ AND actor_user_id='7b000000-0000-4000-8000-000000000b01'),'no lock audit before the fifth failure');
+SELECT pathways.signin_lockout_failure('lock-known@example.test');
+SELECT pg_temp.ok((SELECT count(*) FROM pathways.audit_logs WHERE action='SIGN_IN_LOCKED' AND entity_type='Authentication'
+ AND organization_id='7b000000-0000-4000-8000-000000000a01' AND actor_user_id='7b000000-0000-4000-8000-000000000b01'
+ AND entity_id='7b000000-0000-4000-8000-000000000b01' AND (changes->>'failedAttempts')::int=5)=1,'fifth failure records one SIGN_IN_LOCKED audit row');
+SELECT pathways.signin_lockout_failure('nobody-known@example.test') FROM generate_series(1,5);
+SELECT pg_temp.ok((SELECT count(*) FROM pathways.audit_logs WHERE action='SIGN_IN_LOCKED')=1,'unknown identifier records no lock audit');
+
 -- Audit (informational): pathways functions still executable by PUBLIC.
 DO $$ DECLARE n integer; BEGIN
  SELECT count(*) INTO n FROM pg_proc p JOIN pg_namespace s ON s.oid=p.pronamespace
@@ -64,7 +79,7 @@ END $$;
 
 DO $$ DECLARE total integer; BEGIN
  SELECT count(*) INTO total FROM sph_results;
- IF total<>9 THEN RAISE EXCEPTION '0052 password hook checks expected 9 assertions, recorded %',total; END IF;
+ IF total<>12 THEN RAISE EXCEPTION '0052 password hook checks expected 12 assertions, recorded %',total; END IF;
  RAISE NOTICE 'SIGNIN_PASSWORD_HOOK_RUNTIME=PASS (% assertions)',total;
 END $$;
 ROLLBACK;
