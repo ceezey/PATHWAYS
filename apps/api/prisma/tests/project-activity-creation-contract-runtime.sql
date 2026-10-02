@@ -7,7 +7,7 @@ DO $$
 BEGIN
   IF current_database()<>'pathways_phase4_phase6_replay'
      OR inet_server_addr() IS DISTINCT FROM '127.0.0.1'::inet
-     OR inet_server_port()<>55448
+     OR inet_server_port() IS DISTINCT FROM current_setting('pathways.replay_port', true)::int
      OR current_user<>'postgres' THEN
     RAISE EXCEPTION 'P08 checks require the guarded disposable replay target';
   END IF;
@@ -282,7 +282,13 @@ BEGIN
 END
 $$;
 
--- Seven individuals exercise every authoritative Beneficiaries Reached filter.
+-- Seven individuals exercise every authoritative Beneficiaries Reached filter. This suite
+-- runs only through Replay-Local.ps1, immediately after migration 0025 is applied to the
+-- disposable pathways_phase4_phase6_replay database, before the 0027-0042 forward chain
+-- (verified separately against cloned databases in Verify-Forward.ps1) ever reaches this
+-- database. pathways.p08_activity_beneficiaries_reached is therefore still the participation
+-- based definition from 0025 at this point, not the 0042 approved-session-sum redefinition;
+-- see proof-session-beneficiary-count-runtime.sql for that redefinition's own coverage.
 INSERT INTO pathways.beneficiaries(
   id,organization_id,code,subject_type,first_name,last_name,consent_recorded,
   data_processing_consent_recorded,is_dummy_record,created_by_id

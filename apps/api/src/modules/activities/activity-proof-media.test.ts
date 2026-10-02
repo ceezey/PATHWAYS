@@ -96,6 +96,7 @@ const activity = {
   activityUpdate_activity: [],
   activityJourneyStageMapping_activity: [],
   activityIndicatorLink_activity: [],
+  activityOverdueExplanation_activity: [],
 }
 
 const sha = (seed: number) => seed.toString(16).padStart(2, '0').repeat(32)
@@ -232,6 +233,20 @@ describe('reserve (activities.proof.submit)', () => {
     expect(tx.auditLog.create).not.toHaveBeenCalled()
   })
 
+  it('reserves without a URL for an already stored object instead of failing (resume)', async () => {
+    storage.createPrivateUploadUrls.mockImplementation(async (_bucket, keys: string[]) =>
+      keys.map((path, index) => ({
+        path,
+        uploadUrl: index === 0 ? null : `https://storage.invalid/upload/${path}?token=t`,
+      })),
+    )
+    const result = await service.reserveProof(officer, projectId, activityId, reserveInput())
+    if (!('files' in result) || !result.files) throw new Error('Expected a reservation')
+    expect(result.status).toBe('UPLOADING')
+    expect(result.files[0].uploadUrl).toBeNull()
+    expect(result.files.slice(1).every((file) => typeof file.uploadUrl === 'string')).toBe(true)
+  })
+
   it.each(types)('types %s evidence as its media kind', (contentType, _name, type) => {
     expect(activityEvidenceType(contentType)).toBe(type)
   })
@@ -344,6 +359,87 @@ describe('reserve (activities.proof.submit)', () => {
     ])
   })
 
+  it('persists an optional beneficiariesReachedThisSession and returns it unchanged', async () => {
+    await service.reserveProof(
+      officer,
+      projectId,
+      activityId,
+      reserveInput({ beneficiariesReachedThisSession: 42 }),
+    )
+    expect(tx.activityUpdate.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ beneficiariesReachedThisSession: 42 }),
+      }),
+    )
+  })
+
+  it('defaults beneficiariesReachedThisSession to null when omitted', async () => {
+    await service.reserveProof(officer, projectId, activityId, reserveInput())
+    expect(tx.activityUpdate.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ beneficiariesReachedThisSession: null }),
+      }),
+    )
+  })
+
+  it.each([-1, 1.5, 100001])(
+    'rejects an invalid beneficiariesReachedThisSession value %s at the DTO boundary',
+    async (value) => {
+      const errors = await validate(
+        plainToInstance(
+          ReserveActivityProofDto,
+          reserveInput({ beneficiariesReachedThisSession: value }),
+        ),
+      )
+      expect(errors.map((error) => error.property)).toContain('beneficiariesReachedThisSession')
+    },
+  )
+
+  it('a retry with a changed beneficiariesReachedThisSession conflicts before any storage call', async () => {
+    tx.activityUpdate.findFirst.mockResolvedValue({
+      id: updateId,
+      projectId,
+      activityId,
+      progressPercent: 60,
+      note: 'Sessions held with evidence.',
+      status: 'PENDING',
+      beneficiariesReachedThisSession: 10,
+      evidenceMedia_update: files.map((file, index) =>
+        storedRow({
+          id: `5000000${index}-0000-4000-8000-00000000000${index}`,
+          fileName: file.fileName,
+          contentType: file.contentType,
+          sha256: file.sha256,
+          byteSize: BigInt(file.byteSize),
+          objectKey: keyFor(`5000000${index}-0000-4000-8000-00000000000${index}`, ''),
+          storageReady: true,
+        }),
+      ),
+    })
+    await expect(
+      service.reserveProof(
+        officer,
+        projectId,
+        activityId,
+        reserveInput({ beneficiariesReachedThisSession: 20 }),
+      ),
+    ).rejects.toBeInstanceOf(ConflictException)
+    expect(storage.createPrivateUploadUrls).not.toHaveBeenCalled()
+  })
+
+  it('hides a cross-project reservation attempt carrying a session count before any read', async () => {
+    tx.project.findFirst.mockResolvedValue(null)
+    await expect(
+      service.reserveProof(
+        officer,
+        '20000000-0000-4000-8000-00000000000f',
+        activityId,
+        reserveInput({ beneficiariesReachedThisSession: 15 }),
+      ),
+    ).rejects.toBeInstanceOf(NotFoundException)
+    expect(tx.activityUpdate.create).not.toHaveBeenCalled()
+  })
+
   it('a retry with changed declarations conflicts before any storage call', async () => {
     tx.activityUpdate.findFirst.mockResolvedValue({
       id: updateId,
@@ -442,6 +538,19 @@ describe('per-file finalize', () => {
         requestHash: null,
       },
     })
+  })
+
+  it('serializes finalizes of one update with a policy-free advisory lock before reading the file set', async () => {
+    await finalize()
+    const calls = tx.$queryRaw.mock.calls.map((call) => (call[0] as string[]).join('?'))
+    const lock = calls.findIndex((sql) => sql.includes('pg_advisory_xact_lock'))
+    expect(lock).toBeGreaterThanOrEqual(0)
+    // Prisma cannot deserialize a void column, so the lock must select a typed value.
+    expect(calls[lock]).toContain('SELECT 1::integer AS locked FROM')
+    expect(tx.$queryRaw.mock.calls[lock].slice(1).join()).toContain(updateId)
+    expect(tx.activityUpdate.findFirst.mock.invocationCallOrder[0]).toBeGreaterThan(
+      tx.$queryRaw.mock.invocationCallOrder[lock],
+    )
   })
 
   it('verifies the exact server-derived object, marks it ready and commits the last file for review', async () => {

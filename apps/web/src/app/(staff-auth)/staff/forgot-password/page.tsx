@@ -2,12 +2,12 @@ import type { Metadata } from 'next'
 import { headers } from 'next/headers'
 import { redirect } from 'next/navigation'
 
+import { SkipLink } from '@/components/layout/skip-link'
 import {
   localPasswordRecoveryOrigin,
   passwordRecoveryRequestUrl,
 } from '@/features/auth/password-recovery'
 import { PasswordRecoveryRequestForm } from '@/features/auth/password-recovery-request-form'
-import { StaffAuthShell } from '@/features/auth/staff-auth-shell'
 
 export const dynamic = 'force-dynamic'
 
@@ -23,8 +23,9 @@ export default async function ForgotPasswordPage() {
   }
 
   return (
-    <StaffAuthShell>
+    <>
+      <SkipLink />
       <PasswordRecoveryRequestForm />
-    </StaffAuthShell>
+    </>
   )
 }

@@ -43,6 +43,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
+import { UNFINISHED_CONTROLS_UI_ENABLED } from '@/constants/feature-flags'
 import { cn } from '@/lib/utils'
 import type {
   PublicDashboardLayoutPreset,
@@ -310,19 +311,23 @@ export const PublicProjectDetail = ({
                   Back to Public Tracker
                 </Link>
               </Button>
-              <Button
-                className="gap-2"
-                size="sm"
-                type="button"
-                {...Object.assign(
-                  { onClick: openEditor },
-                  unavailableControlProps('public-project-edit-staff-preview-hint'),
-                )}
-              >
-                <SlidersHorizontal className="h-4 w-4" aria-hidden="true" />
-                Edit staff preview
-              </Button>
-              <UnavailableHint id="public-project-edit-staff-preview-hint" />
+              {UNFINISHED_CONTROLS_UI_ENABLED ? (
+                <>
+                  <Button
+                    className="gap-2"
+                    size="sm"
+                    type="button"
+                    {...Object.assign(
+                      { onClick: openEditor },
+                      unavailableControlProps('public-project-edit-staff-preview-hint'),
+                    )}
+                  >
+                    <SlidersHorizontal className="h-4 w-4" aria-hidden="true" />
+                    Edit staff preview
+                  </Button>
+                  <UnavailableHint id="public-project-edit-staff-preview-hint" />
+                </>
+              ) : null}
             </div>
           </div>
         </section>
@@ -656,14 +661,7 @@ export const PublicProjectDetail = ({
                   onChange={(value) => updateDraft('closingText', value)}
                   value={draft.closingText}
                 />
-                <div className="grid gap-4 md:grid-cols-[0.8fr_1.2fr]">
-                  <div className="rounded-sm border border-info/25 bg-info-subtle p-4 text-sm leading-6 text-info">
-                    <p className="font-semibold">Primary public CTA</p>
-                    <p className="mt-1">
-                      {PUBLIC_DONATE_CTA_LABEL} remains fixed until an approved donation destination
-                      is available.
-                    </p>
-                  </div>
+                <div className="grid gap-4">
                   <CtaEditor
                     destination={draft.secondaryCtaHref}
                     id="public-secondary"

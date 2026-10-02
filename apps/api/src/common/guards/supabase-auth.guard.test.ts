@@ -29,6 +29,7 @@ import {
 } from '../../modules/auth/developer-access'
 import { RouteAccessController } from '../../modules/auth/route-access.controller'
 import { RouteAccessService } from '../../modules/auth/route-access.service'
+import { SignInLockoutService } from '../../modules/auth/signin-lockout.service'
 import { TokenAuthService, type VerifiedAuthSession } from '../../modules/auth/token-auth.service'
 import { WorkspaceResolutionService } from '../../modules/auth/workspace-resolution.service'
 import {
@@ -249,6 +250,7 @@ beforeAll(async () => {
       WorkspaceResolutionService,
       BeneficiaryStepUpService,
       BeneficiaryStepUpPinService,
+      SignInLockoutService,
       { provide: AuthService, useValue: { getStatus: () => ({ authenticated: true }) } },
       { provide: APP_GUARD, useClass: SupabaseAuthGuard },
     ],

@@ -40,6 +40,7 @@ import {
   MAX_ACTIVITY_EVIDENCE_FILES,
   PROOF_STORAGE_DEADLINE_MS,
   type RecordActivityProgressDto,
+  type RecordOverdueExplanationDto,
   type ReserveActivityProofDto,
   type ReviewActivityUpdateDto,
   type SaveMilestoneDto,
@@ -88,6 +89,9 @@ const activitySelection = {
       progressPercent: true,
       note: true,
       status: true,
+      clientUpdateId: true,
+      submittedById: true,
+      beneficiariesReachedThisSession: true,
       submittedAt: true,
       reviewedAt: true,
       reviewReason: true,
@@ -115,6 +119,17 @@ const activitySelection = {
   activityIndicatorLink_activity: {
     select: { indicatorId: true },
     orderBy: { indicatorId: 'asc' as const },
+    take: 100,
+  },
+  activityOverdueExplanation_activity: {
+    select: {
+      id: true,
+      category: true,
+      explanation: true,
+      recordedAt: true,
+      recordedBy: { select: { fullName: true } },
+    },
+    orderBy: { recordedAt: 'desc' as const },
     take: 100,
   },
 } satisfies Prisma.ProjectActivitySelect
@@ -147,6 +162,13 @@ const activityListSelection = {
   },
   activityJourneyStageMapping_activity: activitySelection.activityJourneyStageMapping_activity,
   activityIndicatorLink_activity: activitySelection.activityIndicatorLink_activity,
+  // Lean projection for overdueExplanationNeeded only: no category/explanation/actor text,
+  // those are detail-only (see activitySelection.activityOverdueExplanation_activity).
+  activityOverdueExplanation_activity: {
+    select: { recordedAt: true },
+    orderBy: { recordedAt: 'desc' as const },
+    take: 100,
+  },
 } satisfies Prisma.ProjectActivitySelect
 
 type ActivityListRow = Prisma.ProjectActivityGetPayload<{ select: typeof activityListSelection }>
@@ -183,13 +205,22 @@ export function activityCapabilities(
   personalAssignments: number | undefined,
 ) {
   const can = (
-    permission: 'activities.update' | 'activities.progress.update' | 'activities.proof.submit',
+    permission:
+      | 'activities.update'
+      | 'activities.progress.update'
+      | 'activities.proof.submit'
+      | 'monitoring.review',
   ) => hasAtomicPermission(actor.roles[0], actor.permissions, permission)
   const assigned = (personalAssignments ?? 0) > 0
   return {
     canEdit: can('activities.update') && !['COMPLETED', 'CANCELLED'].includes(status),
     canRecordProgress: can('activities.progress.update') && assigned,
     canSubmitProof: can('activities.proof.submit') && assigned,
+    // Project-scoped, not the personal activity assignment `assigned` reflects: any row
+    // reaching this function was already resolved through projectScope(actor) (see
+    // requireProject), which is the same project-assignment-or-org-wide rule
+    // pathways.p05_has_project_permission('monitoring.review', ...) applies at the RLS layer.
+    canExplainOverdue: can('monitoring.review'),
   }
 }
 
@@ -262,6 +293,7 @@ function mapActivity(
   row: ActivityRow,
   businessDate: string,
   metrics: ActivityReadMetrics = emptyActivityReadMetrics,
+  viewerId?: string,
 ) {
   const presentation = activityPresentationStatus(row.status, row.plannedEndDate, businessDate)
   const updates = row.activityUpdate_activity
@@ -312,24 +344,59 @@ function mapActivity(
         note: update.note,
       })),
     ),
-    updateNotes: updates.map((update) => ({
-      id: update.id,
-      kind: updateKind(update),
-      note: update.note,
-      progress: update.progressPercent,
-      status: reviewStatus[update.status],
-      submittedBy: update.submittedBy.fullName,
-      submittedAt: update.submittedAt.toISOString(),
-      reviewedBy: update.reviewedBy?.fullName ?? null,
-      reviewedAt: update.reviewedAt?.toISOString() ?? null,
-      reviewReason: update.reviewReason,
-      updatedAt: update.updatedAt.toISOString(),
-    })),
+    updateNotes: updates.map((update) => {
+      // A PENDING proof whose files are not all verified in storage yet (the read above lists
+      // only verified files). Only its submitter receives the id needed to resume it.
+      // It is also incomplete when every file is verified but the update never committed (the
+      // activity is not FOR_REVIEW): the submitter must be able to resume it to send the finalize.
+      const evidenceCount =
+        update._count?.evidenceMedia_update ?? update.evidenceMedia_update.length
+      const proofIncomplete =
+        update.status === 'PENDING' &&
+        (evidenceCount > update.evidenceMedia_update.length ||
+          (evidenceCount > 0 && row.status !== 'FOR_REVIEW'))
+      return {
+        id: update.id,
+        proofIncomplete,
+        resumeClientUpdateId:
+          proofIncomplete && viewerId && update.submittedById === viewerId
+            ? update.clientUpdateId
+            : null,
+        kind: updateKind(update),
+        note: update.note,
+        progress: update.progressPercent,
+        beneficiariesReachedThisSession: update.beneficiariesReachedThisSession ?? null,
+        status: reviewStatus[update.status],
+        submittedBy: update.submittedBy.fullName,
+        submittedAt: update.submittedAt.toISOString(),
+        reviewedBy: update.reviewedBy?.fullName ?? null,
+        reviewedAt: update.reviewedAt?.toISOString() ?? null,
+        reviewReason: update.reviewReason,
+        updatedAt: update.updatedAt.toISOString(),
+      }
+    }),
     updatedAt: row.updatedAt.toISOString(),
     // Approved expenses only; null when the viewer cannot read expenses, never a fabricated 0.
     budgetLogged: metrics.logged.get(row.id)?.total ?? null,
     budgetLoggedEntries: metrics.logged.get(row.id)?.entries ?? null,
+    overdueExplanations: row.activityOverdueExplanation_activity.map((explanation) => ({
+      id: explanation.id,
+      category: explanation.category,
+      explanation: explanation.explanation,
+      actorName: explanation.recordedBy.fullName,
+      recordedAt: explanation.recordedAt.toISOString(),
+    })),
+    overdueExplanationNeeded:
+      presentation.overdue &&
+      !hasExplanationSinceDue(row.activityOverdueExplanation_activity, row.plannedEndDate),
   }
+}
+
+/** True when an overdue explanation was recorded on or after the planned end date. */
+function hasExplanationSinceDue(explanations: { recordedAt: Date }[], plannedEndDate: Date | null) {
+  return explanations.some(
+    (explanation) => calendarDate(explanation.recordedAt) >= calendarDate(plannedEndDate),
+  )
 }
 
 /** A plain object, so server-computed per-item fields can be added without a detail read. */
@@ -358,6 +425,9 @@ export function mapActivityListItem(row: ActivityListRow, businessDate: string) 
     targetBeneficiaries: row.targetBeneficiaries ?? 0,
     progress: row.progressPercent,
     updatedAt: row.updatedAt.toISOString(),
+    overdueExplanationNeeded:
+      presentation.overdue &&
+      !hasExplanationSinceDue(row.activityOverdueExplanation_activity, row.plannedEndDate),
   }
 }
 
@@ -741,6 +811,9 @@ export class ActivitiesService {
       }
     }
     if (hasAtomicPermission(actor.roles[0], actor.permissions, 'beneficiaries.aggregates.read')) {
+      // cr-pathways-proof-session-beneficiary-count: the database function sums each
+      // activity's APPROVED beneficiaries_reached_this_session values (NULL as 0). PENDING,
+      // VERIFIED and REJECTED updates never contribute; a later rejection lowers the total.
       const ids = Prisma.join(activityIds.map((id) => Prisma.sql`${id}::uuid`))
       const rows = await tx.$queryRaw<
         Array<{ activityId: string; beneficiariesReached: number }>
@@ -786,7 +859,7 @@ export class ActivitiesService {
   ) {
     const metrics = await this.readMetrics(tx, actor, row.projectId, [row.id])
     return {
-      ...mapActivity(row, this.businessDate(), metrics),
+      ...mapActivity(row, this.businessDate(), metrics, actor.userId),
       capabilities: activityCapabilities(
         actor,
         row.status,
@@ -1472,6 +1545,94 @@ export class ActivitiesService {
     if (!assigned) throw new ForbiddenException('An active activity assignment is required.')
   }
 
+  /**
+   * Records a reason category plus a written explanation for an overdue activity
+   * (cr-pathways-activity-overdue-explanation). It is a prompt, not a block: the activity's
+   * transitions and other authority are unaffected. Overdue is determined by the same
+   * `activityPresentationStatus` predicate used by the activity list and detail, so this check
+   * never diverges from what the caller can already see. Append-only: a retry with the same
+   * clientMutationId and identical category/explanation returns the same row; a changed retry
+   * conflicts.
+   */
+  recordOverdueExplanation(
+    identity: ApplicationIdentity,
+    projectId: string,
+    activityId: string,
+    input: RecordOverdueExplanationDto,
+  ) {
+    return withAuthorizedOperation(
+      this.prisma,
+      identity,
+      'monitoring.review',
+      async (tx, actor) => {
+        // M&E officers are assigned to the PROJECT, not to individual activities, so this
+        // uses the project-scope rule requireActivity already applies (projectScope(actor)
+        // inside requireProject), not the personal-activity requireActiveAssignment used by
+        // recordProgress/reserveProof. This mirrors pathways.p05_has_project_permission
+        // ('monitoring.review', project_id) in migration 0043's RLS INSERT policy:
+        // SYSTEM_ADMINISTRATOR is org-wide, PROGRAM_MANAGER also via a managed program, and
+        // every other role (including GRANT_MANAGER) needs an active project assignment.
+        const activity = await this.requireActivity(tx, actor, projectId, activityId)
+        const clientMutationId = input.clientMutationId.toLowerCase()
+        const explanation = input.explanation.trim()
+        if (explanation.length < 10 || explanation.length > 2000)
+          throw new BadRequestException('The explanation must be 10 to 2000 characters.')
+        const existing = await tx.activityOverdueExplanation.findFirst({
+          where: { organizationId: actor.organizationId, clientMutationId },
+          select: { projectId: true, activityId: true, category: true, explanation: true },
+        })
+        if (existing) {
+          if (
+            existing.projectId !== activity.projectId ||
+            existing.activityId !== activity.id ||
+            existing.category !== input.category ||
+            existing.explanation !== explanation
+          )
+            throw new ConflictException(
+              'The overdue explanation id was reused with different input.',
+            )
+          return this.mapWithMetrics(tx, actor, activity)
+        }
+        const presentation = activityPresentationStatus(
+          activity.status,
+          activity.plannedEndDate,
+          this.businessDate(),
+        )
+        if (!presentation.overdue)
+          throw new ConflictException('An overdue explanation can be recorded only while overdue.')
+        const explanationId = randomUUID()
+        await tx.activityOverdueExplanation.create({
+          data: {
+            id: explanationId,
+            organizationId: actor.organizationId,
+            projectId: activity.projectId,
+            activityId: activity.id,
+            category: input.category,
+            explanation,
+            recordedById: actor.userId,
+            clientMutationId,
+          },
+        })
+        await tx.auditLog.create({
+          data: {
+            organizationId: actor.organizationId,
+            actorUserId: actor.userId,
+            projectId: activity.projectId,
+            action: 'ACTIVITY_OVERDUE_EXPLANATION_RECORDED',
+            entityType: 'ActivityOverdueExplanation',
+            entityId: explanationId,
+            changes: { activityId: activity.id, category: input.category },
+          },
+        })
+        return this.mapWithMetrics(
+          tx,
+          actor,
+          await this.readScopedActivity(tx, actor, activity.projectId, activity.id),
+        )
+      },
+    )
+  }
+
   /** Effective upload limits for the web client; the same values bound every reservation. */
   proofUploadLimits(projectId: string) {
     if (!UUID_PATTERN.test(projectId)) throw new NotFoundException('Project unavailable.')
@@ -1539,6 +1700,7 @@ export class ActivitiesService {
             progressPercent: true,
             note: true,
             status: true,
+            beneficiariesReachedThisSession: true,
             evidenceMedia_update: {
               select: {
                 id: true,
@@ -1563,6 +1725,8 @@ export class ActivitiesService {
             existing.activityId !== activity.id ||
             existing.progressPercent !== input.progressPercent ||
             existing.note !== note ||
+            (existing.beneficiariesReachedThisSession ?? null) !==
+              (input.beneficiariesReachedThisSession ?? null) ||
             JSON.stringify(stored) !== JSON.stringify(requested)
           )
             throw new ConflictException('The activity update id was reused with different input.')
@@ -1609,6 +1773,7 @@ export class ActivitiesService {
             clientUpdateId,
             progressPercent: input.progressPercent,
             note,
+            beneficiariesReachedThisSession: input.beneficiariesReachedThisSession ?? null,
             submittedById: actor.userId,
           },
         })
@@ -1660,7 +1825,9 @@ export class ActivitiesService {
         )
         unverified.forEach((row, index) => {
           if (signed[index]?.path !== row.objectKey) throw new Error('Unexpected upload URL')
-          urls.set(row.id, signed[index].uploadUrl)
+          // An already stored object gets no URL; finalize verifies its exact bytes.
+          const uploadUrl = signed[index].uploadUrl
+          if (uploadUrl) urls.set(row.id, uploadUrl)
         })
       } catch {
         throw new ServiceUnavailableException(
@@ -1793,6 +1960,9 @@ export class ActivitiesService {
       async (tx, actor) => {
         const { activity, row } = await readTarget(tx, actor)
         // Serialize finalizes of one update so exactly one of them observes the last ready file.
+        // The submitter has no UPDATE row policy on activity_updates, so the row lock below locks
+        // nothing for them; the advisory transaction lock keyed to the update is policy-free.
+        await tx.$queryRaw`SELECT 1::integer AS locked FROM pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended(${`proof-finalize:${scope.updateId}`},0))`
         await tx.$queryRaw`SELECT id FROM pathways.activity_updates WHERE organization_id=${actor.organizationId}::uuid
           AND project_id=${activity.projectId}::uuid AND activity_id=${activity.id}::uuid
           AND id=${scope.updateId}::uuid FOR UPDATE`

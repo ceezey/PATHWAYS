@@ -1,10 +1,17 @@
 # PATHWAYS Build Guide
 
+**Status:** Control
+**Version:** 2.0
+**Last reconciled:** 2026-10-01
+**Owner:** PATHWAYS capstone team
+
 **Canonical:** `docs/build-pathways.md`
 
 Root `AGENTS.md` is a materialized copy. Edit this guide first, then run `pnpm docs:materialize` and `pnpm docs:check`.
 
-## 1. Read Order
+## 1. How to Build From These Docs
+
+### 1.1 Read Order
 
 Before substantial implementation:
 
@@ -43,7 +50,7 @@ Reload `docs/index.md`, `AGENTS.md`, and the relevant registered docs:
 - after long research/tool detours;
 - when code contradicts docs.
 
-## 2. Source Authority
+### 1.2 Source Authority
 
 1. Latest explicit developer decision
 2. Verified current repository behavior
@@ -58,29 +65,9 @@ Never silently resolve material contradictions.
 
 For frontend tasks, read the canonical `docs/dsd-pathways.md` and use root `BRAND.md` / `DESIGN.md` as materialized references generated from it. If they conflict with newer verified code, reconcile the canonical DSD first rather than silently choosing whichever file is convenient.
 
-### Branch and release workflow
+### 1.3 Traceability
 
-- `origin/master` is the deployment branch.
-- `dev` is the development branch.
-- Prepare and verify changes on `dev`, then bring the approved release into `master` and push normally.
-- The Vercel `pathways-api` and `pathways-web` projects use `master` for production and `dev` for development previews.
-- Verify both development previews when shared web route policy affects API imports. If Vercel skips the API build, redeploy the reviewed development source explicitly and confirm both previews before database application.
-- Preserve branch history. Do not force-push a deployment branch or run database migrations as a deployment shortcut.
-
-### Release sequence
-
-Use `release-integrator` as the main-thread agent (`claude --agent release-integrator`) when integrating one or more feature branches for deployment. Stages run in order; any failure stops later stages and produces a report.
-
-1. **R1 Feature review:** each feature branch passes the SAD pipeline independently against `dev`.
-2. **R2 Integrate:** create `integration/<slug>` from current `dev` and merge each feature branch with `--no-ff`. Any conflict halts the run with a Human Intervention block; conflicts are never auto-resolved.
-3. **R3 Merged review:** run the SAD pipeline on the merged digest. Passing branches can still conflict semantically.
-4. **R4 Requirements QA:** `requirements-qa-gate` verifies each feature against its PRD acceptance criteria and QAD happy/sad/abuse rows. Every feature needs PASS.
-5. **R5 Development release:** merge into `dev`, push, and verify that both Vercel development previews build and respond.
-6. **R6 Deployment:** merge `dev` into `master` and push normally.
-
-The developer authorized R6 without per-release approval on 2026-09-28, only when all of these pass on the exact commit pushed: `pnpm -r typecheck`, test and build scripts, `pnpm docs:check`, `pnpm sad:signoff` with valid PASS evidence, R4 PASS for every feature, and healthy development previews. A release containing schema or migration changes stops before R6 for human authorization. Run logs and evidence go to `.tmp/release/<run>/`.
-
-## 3. Traceability
+Every requirement follows the chain `P<n>/R<n> -> PRD-F<n> -> G-F<n>-<m> -> UC-F<n>-<m> -> QAD-* -> ISO/IEC 25010`, with `FR-<n>` and `NFR-<n>` attached to the PRD features they serve. Use the table to choose what to read and verify.
 
 | Work | Read | Verify |
 |---|---|---|
@@ -94,7 +81,41 @@ The developer authorized R6 without per-release approval on 2026-09-28, only whe
 | UI | DSD + PRD | accessibility + backend-authority tests |
 | Migration/schema | SDD + RFC | replay/diff/integrity/recovery |
 
-## 4. Golden Paths
+## 2. Subagents
+
+### 2.1 SAD Review and Sign-off
+
+Use the seven-role SAD (`docs/sad-pathways.md`) for changed-path matching and engineering rules. Review proposed changes with matching specialists and design QA concurrently in bounded batches before implementation; stop dependent work on a violation. After implementation, run `pnpm sad:check`, relevant tests, and renewed specialist reviews against the final change digest. Run `pnpm sad:signoff -- --reviews <external-json-path>` before engineering sign-off. Missing, stale, malformed, or BLOCKED evidence withholds sign-off; changed content invalidates previous evidence. Automated diagnostics do not certify semantic safety. Keep review reports outside tracked files, and omit unmatched roles rather than claiming PASS.
+
+Run reviews through `sad-orchestrator` as the main-thread agent (`claude --agent sad-orchestrator`), following the SAD section 4.1 stage order and section 4.2 handoff packet. Definitions live in `.claude/agents/` and defer to the SAD.
+
+### 2.2 Release Sequence
+
+**Branch and release workflow**
+
+- `origin/master` is the deployment branch.
+- `dev` is the development branch.
+- Prepare and verify changes on `dev`, then bring the approved release into `master` and push normally.
+- The Vercel `pathways-api` and `pathways-web` projects use `master` for production and `dev` for development previews.
+- Verify both development previews when shared web route policy affects API imports. If Vercel skips the API build, redeploy the reviewed development source explicitly and confirm both previews before database application.
+- Preserve branch history. Do not force-push a deployment branch or run database migrations as a deployment shortcut.
+
+Use `release-integrator` as the main-thread agent (`claude --agent release-integrator`) when integrating one or more feature branches for deployment. Stages run in order; any failure stops later stages and produces a report.
+
+1. **R1 Feature review:** each feature branch passes the SAD pipeline independently against `dev`.
+2. **R2 Integrate:** create `integration/<slug>` from current `dev` and merge each feature branch with `--no-ff`. Any conflict halts the run with a Human Intervention block; conflicts are never auto-resolved.
+3. **R3 Merged review:** run the SAD pipeline on the merged digest. Passing branches can still conflict semantically.
+4. **R4 Requirements QA:** `requirements-qa-gate` verifies each feature against its PRD gate criteria (`G-F<n>-<m>`) and QAD happy/sad/abuse rows. Every feature needs PASS.
+5. **R5 Development release:** merge into `dev`, push, and verify that both Vercel development previews build and respond.
+6. **R6 Deployment:** merge `dev` into `master` and push normally.
+
+The developer authorized R6 without per-release approval on 2026-09-28, only when all of these pass on the exact commit pushed: `pnpm -r typecheck`, test and build scripts, `pnpm docs:check`, `pnpm sad:signoff` with valid PASS evidence, R4 PASS for every feature, and healthy development previews. A release containing schema or migration changes stops before R6 for human authorization. Run logs and evidence go to `.tmp/release/<run>/`.
+
+## 3. Stack Currency & Deprecations
+
+Stack, hosting and deprecation decisions are in SDD section 2.4 (`docs/sdd-pathways.md`). Versions come from the dependency files (`package.json`, `pnpm-lock.yaml`), verified 2026-10-01; never copy a version from prose.
+
+## 4. Golden-Path Patterns
 
 ### Protected request
 
@@ -151,7 +172,7 @@ No arbitrary SQL/code in user-created rules.
 
 Use the Locked SADDD RFC. Suppression is part of correctness.
 
-## 5. Guardrails
+## 5. Conventions & Guardrails
 
 ### Always
 
@@ -183,20 +204,7 @@ Use the Locked SADDD RFC. Suppression is part of correctness.
 - claim deployment/SSO/AWS completion without verified evidence;
 - display user-facing prototype/mock/demo/presentation-only product status.
 
-## 6. Restraint Ladder
-
-Before adding complexity:
-
-1. Does this need to exist?
-2. Does the repo already have a pattern?
-3. Can a native capability solve it?
-4. Can an installed dependency solve it?
-5. Can a small explicit implementation solve it?
-6. Only then add an abstraction/dependency.
-
-Never cut security, privacy, validation, auditability, recovery, tests, or accessibility for simplicity.
-
-## 7. Brownfield Change Workflow
+### 5.1 Brownfield Change Workflow
 
 Material change to a Locked contract:
 
@@ -214,13 +222,24 @@ explore
 
 Audits record findings. Change Records record decisions.
 
-### SAD review and sign-off
+### 5.2 Public Surface & Crawler Policy
 
-Use the seven-role [SAD](sad-pathways.md) for changed-path matching and engineering rules. Review proposed changes with matching specialists and design QA concurrently in bounded batches before implementation; stop dependent work on a violation. After implementation, run `pnpm sad:check`, relevant tests, and renewed specialist reviews against the final change digest. Run `pnpm sad:signoff -- --reviews <external-json-path>` before engineering sign-off. Missing, stale, malformed, or BLOCKED evidence withholds sign-off; changed content invalidates previous evidence. Automated diagnostics do not certify semantic safety. Keep review reports outside tracked files, and omit unmatched roles rather than claiming PASS.
+Not established: the public tracker surface (PRD-F13) has no crawler or indexing policy in the F13 charter or repository. Until one is approved, treat public pages as unindexed-by-default and expose only fields the F13 charter allows.
 
-Run reviews through `sad-orchestrator` as the main-thread agent (`claude --agent sad-orchestrator`), following the SAD section 3 stage order and section 3.1 handoff packet. Definitions live in `.claude/agents/` and defer to the SAD.
+### 5.3 Restraint Ladder
 
-## 8. Human Intervention Contract
+Before adding complexity:
+
+1. Does this need to exist?
+2. Does the repo already have a pattern?
+3. Can a native capability solve it?
+4. Can an installed dependency solve it?
+5. Can a small explicit implementation solve it?
+6. Only then add an abstraction/dependency.
+
+Never cut security, privacy, validation, auditability, recovery, tests, or accessibility for simplicity.
+
+### 5.4 Human Intervention Contract
 
 ```text
 HUMAN INTERVENTION REQUIRED: <title>
@@ -247,10 +266,10 @@ Can continue:
 
 Do not bury a human gate inside a long phase report.
 
-## 9. Definition of Done
+### 5.5 Definition of Done and Release Criteria
 
 - [ ] authorized phase scope implemented
-- [ ] relevant PRD acceptance criteria satisfied
+- [ ] relevant PRD gate criteria (`G-F<n>-<m>`) satisfied
 - [ ] security/privacy invariants preserved
 - [ ] schema/API matches current SDD/RFC or approved CR
 - [ ] relevant QAD happy/sad/abuse tests pass
@@ -262,8 +281,9 @@ Do not bury a human gate inside a long phase report.
 - [ ] disposable task state remains outside the repository
 - [ ] final report delivered in chat
 - [ ] next phase not started without explicit authorization
+- [ ] Manuscript Alignment gate satisfied (QAD section 6.1, `docs/qad-pathways.md`; audit in `docs/audit-pathways-manuscript-alignment-20261001.md`)
 
-## 10. Materialization
+## 6. Materialization
 
 | Target | File | Rule |
 |---|---|---|
@@ -277,14 +297,10 @@ Regenerate materialized files with `pnpm docs:materialize` (`scripts/docs/materi
 
 ## Self-Check
 
-- [x] read order
-- [x] source hierarchy
-- [x] status semantics
-- [x] authz golden path
-- [x] import golden path
-- [x] Beneficiary privacy
-- [x] rule determinism
-- [x] SADDD privacy
+- [x] read order and source hierarchy
+- [x] traceability chain
+- [x] SAD review and release sequence
+- [x] golden paths and guardrails
 - [x] Change Record flow
-- [x] human intervention
-- [x] phase hard-stop workflow
+- [x] human intervention contract
+- [x] definition of done and alignment gate

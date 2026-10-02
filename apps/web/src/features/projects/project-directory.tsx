@@ -29,7 +29,6 @@ import { type MetricCell, businessCalendarDate, timelineProgress } from '@pathwa
 import { ProjectPreviewDialog } from './project-preview-dialog'
 import {
   type ProjectStatusFilter,
-  formatNumber,
   overviewMetricLabel,
   projectHealthTone,
   projectStatusFilters,
@@ -64,7 +63,6 @@ export const ProjectDirectory = () => {
   const [query, setQuery] = useState('')
   const [statusFilter, setStatusFilter] = useState<ProjectStatusFilter>('All')
   const [previewId, setPreviewId] = useState<string | null>(null)
-  // The same project read as the Overview, so "Open Project" reuses it.
   const preview = useProjectRead(previewId ?? '', Boolean(previewId && canReadDetail))
   const previewProject = previewId && preview.data?.id === previewId ? preview.data : null
   const businessDate = businessCalendarDate(new Date(), 'Asia/Manila')
@@ -84,10 +82,6 @@ export const ProjectDirectory = () => {
       return matchesQuery && matchesStatus
     })
   }, [projects, query, statusFilter])
-
-  const openPreview = (id: string) => {
-    if (canReadDetail) setPreviewId(id)
-  }
 
   return (
     <>
@@ -199,16 +193,9 @@ export const ProjectDirectory = () => {
               </CardHeader>
               <CardContent className="flex-1 px-6 pb-6 pt-0">
                 <div className="space-y-3 border-t border-border pt-5">
-                  <ProjectMeasure label="KPI achievement" value="See overview" />
-                  <ProjectMeasure
-                    label="Target beneficiaries"
-                    value={
-                      project.targetBeneficiaries !== undefined
-                        ? formatNumber(project.targetBeneficiaries)
-                        : 'Not recorded'
-                    }
-                  />
-                  <ProjectMeasure label="Budget utilization" value="See overview" />
+                  <p className="line-clamp-4 text-base leading-6 text-foreground">
+                    {project.description || 'No project description recorded.'}
+                  </p>
                   <ProjectTimeline
                     timeline={timelineProgress(
                       project.startDate ?? null,
@@ -231,7 +218,7 @@ export const ProjectDirectory = () => {
                   <div className="grid w-full grid-cols-2 gap-2 2xl:flex 2xl:w-auto 2xl:justify-end">
                     <Button
                       className="gap-2 px-3"
-                      onClick={() => void openPreview(project.id)}
+                      onClick={() => setPreviewId(project.id)}
                       type="button"
                       variant="outline"
                     >
@@ -251,30 +238,13 @@ export const ProjectDirectory = () => {
           ))}
         </section>
       ) : null}
-      {previewId && !previewProject ? (
-        <div className="space-y-3">
-          <AsyncState
-            status={preview.isError ? 'error' : 'loading'}
-            title="Project preview"
-            description={
-              preview.isError
-                ? 'The preview could not be loaded. Try again.'
-                : 'Loading project details.'
-            }
-            onRetry={preview.isError ? () => void preview.refetch() : undefined}
-          />
-          <Button type="button" variant="outline" onClick={() => setPreviewId(null)}>
-            Cancel preview
-          </Button>
-        </div>
-      ) : null}
       <ProjectPreviewDialog
+        failed={preview.isError}
         onOpenChange={(open) => {
-          if (!open) {
-            setPreviewId(null)
-          }
+          if (!open) setPreviewId(null)
         }}
-        open={Boolean(previewProject)}
+        onRetry={() => void preview.refetch()}
+        open={Boolean(previewId)}
         project={previewProject}
       />
     </>
@@ -301,30 +271,6 @@ const ProjectTimeline = ({ timeline }: { timeline: MetricCell }) => (
     )}
     <span className="font-semibold tabular-nums text-foreground">
       {timeline.value !== null ? `${timeline.value}%` : '—'}
-    </span>
-  </div>
-)
-
-const ProjectMeasure = ({
-  label,
-  value,
-  tone,
-}: {
-  label: string
-  value: string
-  tone?: 'success' | 'warning' | 'danger'
-}) => (
-  <div className="flex items-center justify-between gap-4 text-sm">
-    <span className="text-muted-foreground">{label}</span>
-    <span
-      className={cn(
-        'text-base font-semibold tabular-nums text-foreground',
-        tone === 'success' && 'text-success',
-        tone === 'warning' && 'text-warning',
-        tone === 'danger' && 'text-danger',
-      )}
-    >
-      {value}
     </span>
   </div>
 )

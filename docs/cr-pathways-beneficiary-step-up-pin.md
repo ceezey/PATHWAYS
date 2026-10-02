@@ -6,6 +6,8 @@
 
 **Status:** Approved; implementation pending
 
+**Superseded by:** prd-pathways.md section 4 (PRD-F3) and IDEA.md section 4.5 (2026-10-01 reconciliation); citations of manuscript Objective 2.2 now read Objective 1.8, because rev-2026 Objective 2.2 is descriptive analytics
+
 ## 1. Trigger
 
 On 2026-09-28 the developer decided to keep MFA (TOTP) step-up as the primary check for Beneficiary identifying detail, and to add a user-set PIN as a fallback. The PIN is set on first Beneficiary access and can be changed in My Profile.

@@ -2,6 +2,7 @@ import type { FormFieldValidationContract } from '@pathways/shared'
 import { describe, expect, it } from 'vitest'
 
 import { normalizeImportedRow } from './normalization'
+import { buildImportValueMap, compatibleImportDataTypes } from './value-map'
 
 const fields: FormFieldValidationContract[] = [
   { code: 'text', label: 'Text', dataType: 'TEXT', required: true, maximumLength: 8 },
@@ -125,5 +126,74 @@ describe('import normalization contract', () => {
 
     expect(result.valid).toBe(false)
     expect(result.errors).toContainEqual(expect.objectContaining({ code: 'invalid_definition' }))
+  })
+
+  // QAD-T54
+  describe('value map and declared type', () => {
+    const sex: FormFieldValidationContract = {
+      code: 'sex',
+      label: 'Sex',
+      dataType: 'SELECT',
+      required: true,
+      allowedValues: ['Male', 'Female'],
+    }
+    const map = buildImportValueMap([
+      { from: 'M', to: 'Male' },
+      { from: 'F', to: 'Female' },
+    ])
+
+    it('translates source codes to canonical values, ignoring case and spaces', () => {
+      const rules = { sex: { valueMap: map } }
+      expect(normalizeImportedRow([sex], { sex: ' m ' }, rules).values.sex).toBe('Male')
+      expect(normalizeImportedRow([sex], { sex: 'F' }, rules).values.sex).toBe('Female')
+    })
+
+    it('keeps an untranslated value invalid with a reason instead of dropping it', () => {
+      const result = normalizeImportedRow([sex], { sex: 'X' }, { sex: { valueMap: map } })
+      expect(result.valid).toBe(false)
+      expect(result.errors).toEqual([
+        expect.objectContaining({ fieldCode: 'sex', code: 'invalid_value' }),
+      ])
+    })
+
+    it('fails a value that does not fit the declared data type', () => {
+      const count: FormFieldValidationContract = {
+        code: 'count',
+        label: 'Count',
+        dataType: 'DECIMAL',
+        required: true,
+      }
+      const rules = { count: { dataType: 'INTEGER' as const } }
+      expect(normalizeImportedRow([count], { count: '4' }, rules).valid).toBe(true)
+      const bad = normalizeImportedRow([count], { count: '4.5' }, rules)
+      expect(bad.valid).toBe(false)
+      expect(bad.errors[0]).toMatchObject({ fieldCode: 'count', code: 'AMBIGUOUS_INTEGER' })
+    })
+
+    it('does not execute or special-case prototype and formula-like source keys', () => {
+      const result = normalizeImportedRow(
+        [sex],
+        { sex: '=cmd|calc' },
+        { sex: { valueMap: buildImportValueMap([{ from: '__proto__', to: 'Male' }]) } },
+      )
+      expect(result.valid).toBe(false)
+      expect(result.errors).toEqual([expect.objectContaining({ fieldCode: 'sex' })])
+    })
+
+    it('rejects oversized and duplicate maps', () => {
+      const many = Array.from({ length: 51 }, (_, index) => ({ from: `k${index}`, to: 'Male' }))
+      expect(() => buildImportValueMap(many)).toThrow('VALUE_MAP_TOO_LARGE')
+      expect(() =>
+        buildImportValueMap([
+          { from: 'M', to: 'Male' },
+          { from: ' m', to: 'Female' },
+        ]),
+      ).toThrow('VALUE_MAP_INVALID')
+    })
+
+    it('offers only data types that fit the target field', () => {
+      expect(compatibleImportDataTypes('DECIMAL')).toEqual(['INTEGER', 'DECIMAL'])
+      expect(compatibleImportDataTypes('DATE')).toEqual(['DATE'])
+    })
   })
 })

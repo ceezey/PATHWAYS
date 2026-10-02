@@ -75,6 +75,8 @@ const savedActivity = {
 
   submittedProof: [],
   updateNotes: [],
+  overdueExplanations: [],
+  overdueExplanationNeeded: false,
   updatedAt: '2026-09-25T00:00:00.000Z',
 } satisfies Activity
 
@@ -229,7 +231,7 @@ describe('activity save continuation ownership', () => {
   })
 })
 
-describe('Project Officer activity creation and locked fields', () => {
+describe('limited activity creator and locked fields', () => {
   const officerPermissions = ['activities.create', 'activities.complete', 'journeys.read']
   const indicator = {
     id: '72000000-0000-4000-8000-000000000009',
@@ -241,7 +243,7 @@ describe('Project Officer activity creation and locked fields', () => {
     state.createActivity.mockReset().mockResolvedValue(savedActivity)
     state.onSaved.mockReset()
     state.transitionActivity.mockReset()
-    state.profile.roles = ['PROJECT_OFFICER']
+    state.profile.roles = ['PROJECT_MANAGER']
     state.profile.permissions = [...officerPermissions]
     state.profile.assignedProjectIds = [projectId]
   })

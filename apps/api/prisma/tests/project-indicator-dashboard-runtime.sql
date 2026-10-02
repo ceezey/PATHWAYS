@@ -5,7 +5,7 @@ BEGIN;
 DO $$ BEGIN
   IF current_database()<>'pathways_phase4_phase6_replay'
     OR inet_server_addr() IS DISTINCT FROM '127.0.0.1'::inet
-    OR inet_server_port()<>55448 OR current_user<>'postgres' THEN
+    OR inet_server_port() IS DISTINCT FROM current_setting('pathways.replay_port', true)::int OR current_user<>'postgres' THEN
     RAISE EXCEPTION 'P06 checks require the guarded disposable replay target';
   END IF;
 END $$;
@@ -444,6 +444,7 @@ BEGIN
  FOR b IN SELECT value FROM jsonb_array_elements(d->'age') LOOP
    PERFORM pg_temp.assert_true(b#>>'{metric,state}'='SUPPRESSED' AND b#>>'{metric,value}' IS NULL,'whole-release complement has no hidden numeric value');
  END LOOP;
+ PERFORM pg_temp.assert_true(EXISTS(SELECT 1 FROM jsonb_array_elements(d->'completeness') c WHERE c->>'key'='INVALID_BIRTH_DATE' AND c->>'label'='Excluded invalid birth date'),'G-F8-4 invalid birth date is flagged as an excluded completeness row');
 END $$;
 
 DO $$

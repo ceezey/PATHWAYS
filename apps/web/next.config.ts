@@ -69,6 +69,12 @@ export default function createNextConfig(phase: string): NextConfig {
           destination: '/collection/import',
           permanent: false,
         },
+        // Retired V4-C11 route; redirecting here runs before the middleware route check.
+        {
+          source: '/collection/entry',
+          destination: '/collection',
+          permanent: true,
+        },
       ]
     },
   }

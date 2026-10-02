@@ -10,6 +10,7 @@ import { useCurrentRole } from '@/hooks/use-current-role'
 import { isUiActionAvailable } from '@/lib/rbac/ui-action-availability'
 import { PathwaysClientError } from '@/lib/services/pathways-client'
 
+import { ProjectArchiveDialog } from './project-archive-dialog'
 import { ProjectOverviewMetrics } from './project-overview-metrics'
 import { ProjectTeamEditorDialog } from './project-team-editor-dialog'
 import { formatNumber, projectHealthTone, projectStatusTone } from './project-utils'
@@ -22,6 +23,7 @@ export const ProjectDetailView = ({ projectId }: { projectId: string }) => {
   // Team changes are saved through PATCH /projects/:id, which also requires projects.update.
   const canManageProjectTeam =
     isUiActionAvailable(role, 'projects.team.manage', profile) && canManageProjectProfile
+  const canArchiveProject = isUiActionAvailable(role, 'projects.archive', profile)
   // Shared with the Activities tab through the same stable query key.
   const read = useProjectRead(projectId)
   const project = read.data ?? null
@@ -112,6 +114,9 @@ export const ProjectDetailView = ({ projectId }: { projectId: string }) => {
                   <Pencil className="h-4 w-4" aria-hidden="true" />
                 </Link>
               </Button>
+            ) : null}
+            {role && canArchiveProject ? (
+              <ProjectArchiveDialog projectId={project.id} title={project.title} />
             ) : null}
           </div>
         }

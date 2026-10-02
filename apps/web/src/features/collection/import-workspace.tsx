@@ -1,6 +1,6 @@
 'use client'
 
-import { FileSpreadsheet, RefreshCw, Upload } from 'lucide-react'
+import { RefreshCw, Upload } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { toast } from 'sonner'
 
@@ -37,6 +37,12 @@ import {
   runImportProcessing,
 } from './import-auto-continue'
 import { ImportProcessingPanel, type ImportProcessingState } from './import-processing-panel'
+import {
+  type ColumnRuleDraft,
+  ImportValueMapEditor,
+  emptyColumnRule,
+  ruleToMappingInput,
+} from './import-value-map-editor'
 
 const mappingLockedStatuses = new Set(['PROCESSING', 'PARTIALLY_PROCESSED', 'PROCESSED', 'FAILED'])
 
@@ -78,10 +84,13 @@ export function ImportWorkspace() {
   const { profile } = useCurrentRole()
   const scope = useSensitiveDraftOwner(profile, 'import-workspace', 'imports.read', null, null)
   if (!scope) return <output>Current import access is required.</output>
+  // Sorted so a permission/assignment grant that is re-fetched with the same entries in a
+  // different order (e.g. after a token refresh) does not read as a changed key and force
+  // an unnecessary remount that would drop the workspace's in-progress project selection.
   const accessKey = JSON.stringify([
-    profile?.roles,
-    profile?.permissions,
-    profile?.assignedProjectIds,
+    [...(profile?.roles ?? [])].sort(),
+    [...(profile?.permissions ?? [])].sort(),
+    [...(profile?.assignedProjectIds ?? [])].sort(),
   ])
   return <OwnedImportWorkspace key={scope.key + scope.generation + accessKey} scope={scope} />
 }
@@ -100,6 +109,7 @@ function OwnedImportWorkspace({ scope }: { scope: SensitiveDraftOwner }) {
   const [batch, setBatch] = useState<ImportBatchDefinition | null>(null)
   const [rows, setRows] = useState<ImportRowDefinition[]>([])
   const [mapping, setMapping] = useState<Record<string, string>>({})
+  const [rules, setRules] = useState<Record<string, ColumnRuleDraft>>({})
   const [mappingNotice, setMappingNotice] = useState('')
   const mappingHeading = useRef<HTMLSpanElement>(null)
   const [pending, setPending] = useState(false)
@@ -172,7 +182,9 @@ function OwnedImportWorkspace({ scope }: { scope: SensitiveDraftOwner }) {
       .then((value) => {
         if (!mounted || !scope.isCurrent()) return
         setProjects(value)
-        setProjectId(value[0]?.id ?? '')
+        // Only default when nothing is chosen yet; a refetch (or a remount whose key was
+        // recomputed from the same access grants) must not discard the current pick.
+        setProjectId((current) => current || value[0]?.id || '')
         setLoadState('ready')
       })
       .catch(() => mounted && scope.isCurrent() && setLoadState('error'))
@@ -189,6 +201,7 @@ function OwnedImportWorkspace({ scope }: { scope: SensitiveDraftOwner }) {
     setBatch(null)
     setRows([])
     setMapping({})
+    setRules({})
     Promise.all([
       pathwaysClient.getDigitalForms(projectId),
       pathwaysClient.getImportBatches(projectId),
@@ -258,6 +271,14 @@ function OwnedImportWorkspace({ scope }: { scope: SensitiveDraftOwner }) {
       if (latest.current.batch?.id !== detail.id) setMappingNotice('')
       setBatch(detail)
       setRows(page.rows)
+      setRules(
+        Object.fromEntries(
+          (detail.mappings ?? []).map((stored) => [
+            stored.sourceFieldName,
+            { dataType: stored.dataType ?? '', pairs: stored.valueMap ?? [] },
+          ]),
+        ),
+      )
       setMapping(
         Object.fromEntries(
           (
@@ -381,6 +402,12 @@ function OwnedImportWorkspace({ scope }: { scope: SensitiveDraftOwner }) {
       sourceFieldName: column.key,
       ignored: draft[column.key] === '__ignore__',
       targetFieldCode: draft[column.key] === '__ignore__' ? undefined : draft[column.key],
+      ...(draft[column.key] === '__ignore__'
+        ? {}
+        : ruleToMappingInput(
+            rules[column.key],
+            selectedForm?.fields.find((field) => field.code === draft[column.key])?.dataType,
+          )),
     }))
     const ticket = begin('imports.review')
     if (!ticket) return
@@ -587,7 +614,7 @@ function OwnedImportWorkspace({ scope }: { scope: SensitiveDraftOwner }) {
 
       <fieldset disabled={pending} className="space-y-6">
         {loadState !== 'ready' ? (
-          <div className="rounded-lg border bg-card p-4 text-sm text-muted-foreground">
+          <div className="rounded-xl border bg-card p-4 text-sm text-muted-foreground">
             {loadState === 'loading'
               ? 'Loading authorized projects...'
               : 'Authorized projects could not be loaded.'}
@@ -739,14 +766,14 @@ function OwnedImportWorkspace({ scope }: { scope: SensitiveDraftOwner }) {
                   <CardContent>
                     <div className="grid gap-3 sm:grid-cols-3 lg:grid-cols-6">
                       {Object.entries(batch.totals).map(([label, value]) => (
-                        <div key={label} className="rounded-md bg-muted/40 p-3">
+                        <div key={label} className="rounded-xl bg-muted/40 p-3">
                           <p className="text-xs uppercase text-muted-foreground">{label}</p>
                           <p className="text-lg font-semibold">{value}</p>
                         </div>
                       ))}
                     </div>
                     {batch.failureCode ? (
-                      <p className="mt-4 rounded-md border border-warning/30 bg-warning/10 p-3 text-sm text-warning">
+                      <p className="mt-4 rounded-xl border border-warning/30 bg-warning/10 p-3 text-sm text-warning">
                         Import notice: {batch.failureCode.replaceAll('_', ' ')}
                       </p>
                     ) : null}
@@ -794,13 +821,16 @@ function OwnedImportWorkspace({ scope }: { scope: SensitiveDraftOwner }) {
                       {sourceColumns.map((column) => {
                         const stored = storedMappingByKey.get(column.key)
                         const automatic = automaticMatchReason(stored)
+                        const targetField = selectedForm?.fields.find(
+                          (field) => field.code === mapping[column.key],
+                        )
                         const suggestion = openSuggestions.find(
                           (item) => item.column.key === column.key,
                         )
                         return (
                           <div
                             key={column.key}
-                            className="grid items-center gap-3 rounded-md border p-3 sm:grid-cols-2"
+                            className="grid items-center gap-3 rounded-xl border p-3 sm:grid-cols-2"
                           >
                             <div className="space-y-1">
                               <span className="block break-all text-sm font-medium">
@@ -860,6 +890,22 @@ function OwnedImportWorkspace({ scope }: { scope: SensitiveDraftOwner }) {
                                 ))}
                               </SelectContent>
                             </Select>
+                            {targetField ? (
+                              <div className="sm:col-span-2">
+                                <ImportValueMapEditor
+                                  columnLabel={`column ${column.columnIndex}`}
+                                  disabled={!mappingEditable}
+                                  fieldType={targetField.dataType}
+                                  idPrefix={`import-rule-${column.key}`}
+                                  rule={rules[column.key] ?? emptyColumnRule}
+                                  onChange={(next) =>
+                                    !mutation.current &&
+                                    scope.isCurrent() &&
+                                    setRules((current) => ({ ...current, [column.key]: next }))
+                                  }
+                                />
+                              </div>
+                            ) : null}
                           </div>
                         )
                       })}
@@ -987,12 +1033,6 @@ function OwnedImportWorkspace({ scope }: { scope: SensitiveDraftOwner }) {
               </>
             )}
           </div>
-        </div>
-
-        <div className="rounded-lg border border-info/20 bg-info/10 p-4 text-sm text-info">
-          <FileSpreadsheet className="mr-2 inline h-4 w-4" aria-hidden="true" />
-          Beneficiary registration rows remain marked unprocessed until P04 supplies the domain
-          handler; generic valid rows alone become versioned submissions.
         </div>
       </fieldset>
     </div>

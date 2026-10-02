@@ -22,6 +22,7 @@ export type DashboardActionKind = 'dialog' | 'navigate' | 'toast'
 
 /** Project profile only. Overview metrics come from `GET /projects/:id/overview-metrics`. */
 export interface ProjectSummary {
+  description?: string
   targetBeneficiaries?: number
 
   startDate?: string | null
@@ -119,6 +120,32 @@ export interface ActivityCapabilities {
   canEdit: boolean
   canRecordProgress: boolean
   canSubmitProof: boolean
+  canExplainOverdue: boolean
+}
+
+export type OverdueExplanationCategory =
+  | 'WEATHER'
+  | 'SECURITY'
+  | 'FUNDING'
+  | 'COMMUNITY'
+  | 'LOGISTICS'
+  | 'OTHER'
+
+/** One append-only entry from `activityOverdueExplanations` (cr-pathways-activity-overdue-explanation). */
+export interface ActivityOverdueExplanation {
+  id: string
+  category: OverdueExplanationCategory
+  explanation: string
+  actorName: string
+  recordedAt: string
+}
+
+export interface RecordOverdueExplanationInput {
+  projectId: string
+  activityId: string
+  clientMutationId: string
+  category: OverdueExplanationCategory
+  explanation: string
 }
 
 /** Minimal projection from `GET /projects/:id/activities/assignable-officers`. */
@@ -163,6 +190,8 @@ export interface Activity {
   updateNotes: ActivityUpdateNote[]
   updatedAt: string
   capabilities?: ActivityCapabilities
+  overdueExplanations: ActivityOverdueExplanation[]
+  overdueExplanationNeeded: boolean
 }
 
 /**
@@ -190,6 +219,7 @@ export type ActivitySummary = Pick<
   | 'progress'
   | 'updatedAt'
   | 'capabilities'
+  | 'overdueExplanationNeeded'
 >
 
 export interface ActivityProof {
@@ -219,6 +249,8 @@ export interface ActivityUpdateNote {
   kind?: 'proof' | 'progress'
   note: string
   progress: number
+  /** Optional, recorded on this submission only (cr-pathways-proof-session-beneficiary-count). */
+  beneficiariesReachedThisSession?: number | null
   status: 'Submitted' | 'Flagged' | 'Accepted'
   submittedBy: string
   submittedAt: string
@@ -226,6 +258,10 @@ export interface ActivityUpdateNote {
   reviewedAt: string | null
   reviewReason: string | null
   updatedAt: string
+  /** True while a PENDING proof update still has files whose bytes are not verified in storage. */
+  proofIncomplete?: boolean
+  /** Only sent to the submitting user of an incomplete proof, so they can resume it. */
+  resumeClientUpdateId?: string | null
 }
 
 export interface CreateActivityInput {
@@ -287,6 +323,8 @@ export interface ReserveActivityProofUploadInput {
   progressPercent: number
   note: string
   files: ActivityProofFileDeclaration[]
+  /** Optional, recorded on this submission only (cr-pathways-proof-session-beneficiary-count). */
+  beneficiariesReachedThisSession?: number
 }
 
 export interface ActivityProofReservedFile {
@@ -383,6 +421,7 @@ export interface BeneficiaryJourneyEvent {
   eventType: JourneyEventType
   eventDate: string
   description: string | null
+  note?: string | null
   stageId: string | null
   stageCodeSnapshot: string | null
   stageNameSnapshot: string | null
@@ -414,12 +453,14 @@ export interface EnrollmentJourneyEventInput {
   description: string
   stageId?: string
   destinationProjectId?: string
+  note?: string
 }
 
 export interface CorrectJourneyEventInput {
   eventDate: string
   description: string
   reason: string
+  note?: string
   stageId?: string
 }
 
@@ -462,6 +503,7 @@ export interface BeneficiaryNoteRecord {
   createdAt: string
   visibility: 'Internal' | 'Project team'
   note: string
+  journeyNote?: string
 }
 
 export type BeneficiaryMediaType = 'Photo' | 'Video'
@@ -915,6 +957,8 @@ export interface ImportBatchDefinition {
     /** AUTO_SMART_V2: a field suggested for a PENDING column; confirmation needs imports.review. */
     suggestedField?: { code: string; label: string } | null
     matchScore?: number | null
+    dataType?: FormFieldDataType | null
+    valueMap?: Array<{ from: string; to: string }> | null
     matchReason?:
       | 'EXACT'
       | 'SYNONYM'
@@ -950,6 +994,10 @@ export interface ImportMappingInput {
   sourceFieldName: string
   targetFieldCode?: string
   ignored: boolean
+  /** Declared type of the translated values; must fit the target field. */
+  dataType?: FormFieldDataType
+  /** Exact-match translations applied before coercion; at most 50 entries. */
+  valueMap?: Array<{ from: string; to: string }>
 }
 
 export interface SurveyAggregateCount {

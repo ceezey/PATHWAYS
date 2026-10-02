@@ -34,7 +34,7 @@ export const LockedField = ({
     'aria-describedby': tooltipId,
     'aria-disabled': true,
     className:
-      'cursor-not-allowed border-border bg-secondary pr-10 text-disabled-foreground hover:border-border',
+      'cursor-not-allowed border-border bg-secondary pr-10 text-muted-foreground hover:border-border',
     'data-locked-field': '',
     id: controlId,
     onBlur: () => setOpen(false),
@@ -51,7 +51,10 @@ export const LockedField = ({
 
   return (
     <div className={cn('space-y-2', className)}>
-      <label className="block text-sm font-medium leading-none text-foreground" htmlFor={controlId}>
+      <label
+        className="block text-sm font-semibold leading-none text-foreground"
+        htmlFor={controlId}
+      >
         {label}
       </label>
       <div className="relative">

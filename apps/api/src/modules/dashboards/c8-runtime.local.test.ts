@@ -9,8 +9,13 @@ import { describe, expect, it } from 'vitest'
 import { DashboardsService } from './dashboards.service'
 
 const enabled = process.env.PATHWAYS_C8_LOCAL_TESTS === '1'
-const expectedPathwaysTableCount =
-  process.env.PATHWAYS_PROJECT_ACTIVITY_CREATION_LOCAL_TESTS === '1' ? 46 : 45
+const replayPort = Number(process.env.PATHWAYS_REPLAY_PORT)
+if (enabled && !replayPort) throw new Error('PATHWAYS_REPLAY_PORT is required')
+// The current-schema replay supplies its measured table count.
+const expectedPathwaysTableCount = Number(
+  process.env.PATHWAYS_EXPECTED_TABLE_COUNT ??
+    (process.env.PATHWAYS_PROJECT_ACTIVITY_CREATION_LOCAL_TESTS === '1' ? 46 : 45),
+)
 const id = (number: number) => `a5800000-0000-4000-8000-${String(number).padStart(12, '0')}`
 const organizationId = id(1)
 const authSubject = id(2)
@@ -38,7 +43,7 @@ describe.skipIf(!enabled)('C8 service path on disposable PostgreSQL', () => {
   it('uses real authorization, RLS, Prisma filters and the protected SQL release', async () => {
     const localUrl = new URL('postgresql://127.0.0.1')
     localUrl.username = 'postgres'
-    localUrl.port = '55448'
+    localUrl.port = String(replayPort)
     localUrl.pathname = '/pathways_phase4_phase6_replay'
     localUrl.searchParams.set('schema', 'public')
     localUrl.searchParams.set('connection_limit', '1')
@@ -51,7 +56,7 @@ describe.skipIf(!enabled)('C8 service path on disposable PostgreSQL', () => {
       const [guard] = await client.$queryRaw<Array<{ safe: boolean }>>`
         SELECT current_database() = 'pathways_phase4_phase6_replay'
           AND inet_server_addr() = '127.0.0.1'::inet
-          AND inet_server_port() = 55448
+          AND inet_server_port() = ${replayPort}
           AND current_user = 'postgres' AND session_user = 'postgres'
           AND (SELECT count(*) FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace
                WHERE n.nspname='pathways' AND c.relkind='r') = ${expectedPathwaysTableCount} AS safe
@@ -85,6 +90,8 @@ describe.skipIf(!enabled)('C8 service path on disposable PostgreSQL', () => {
                 skipDuplicates: true,
               })
             }
+            // Seed as superuser without the runtime-only source-proof triggers.
+            await tx.$executeRaw`SET LOCAL session_replication_role = replica`
             await tx.$executeRaw`INSERT INTO auth.users(id) VALUES (${authSubject}::uuid)`
             await tx.organization.create({
               data: {
@@ -160,6 +167,7 @@ describe.skipIf(!enabled)('C8 service path on disposable PostgreSQL', () => {
             })
             const beneficiaries = new BeneficiariesService(scoped)
             const dashboards = new DashboardsService(scoped, {} as IndicatorsService)
+            await tx.$executeRaw`SET LOCAL session_replication_role = origin`
             await tx.$executeRaw`SET LOCAL ROLE pathways_runtime`
 
             const list = (filters: Partial<BeneficiaryListQueryDto>) =>

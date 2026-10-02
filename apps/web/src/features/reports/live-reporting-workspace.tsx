@@ -121,6 +121,7 @@ export function LiveReportingWorkspace({
     owner && name?.owner === owner.key && name.generation === owner.generation ? name.value : ''
   const [format, setFormat] = useState<'CSV' | 'XLSX' | 'XLS' | 'PDF'>('PDF')
   const [busy, setBusy] = useState(false)
+  const [statusMessage, setStatusMessage] = useState('')
   // biome-ignore lint/correctness/useExhaustiveDependencies: Clear transient state when its authorization ownership changes.
   useEffect(() => {
     setName(null)
@@ -133,15 +134,20 @@ export function LiveReportingWorkspace({
   const download = async (reportId: string, extension: string) => {
     const captured = exportOwner
     if (!captured?.isCurrent()) return
+    setStatusMessage(`Downloading report as ${extension.toUpperCase()}.`)
     try {
       await downloadCoreArtifact(
         `/projects/${id}/reports/${reportId}/export`,
         `report-${reportId}.${extension}`,
         captured.isCurrent,
       )
+      if (captured.isCurrent()) setStatusMessage(`Report downloaded as ${extension.toUpperCase()}.`)
     } catch (error) {
-      if (captured.isCurrent())
-        toast.error(error instanceof Error ? error.message : 'Report download unavailable.')
+      if (captured.isCurrent()) {
+        const message = error instanceof Error ? error.message : 'Report download unavailable.'
+        setStatusMessage(message)
+        toast.error(message)
+      }
     }
   }
   const generate = async () => {
@@ -157,16 +163,23 @@ export function LiveReportingWorkspace({
     }
     const clientRequestId = requests.forBody(`${captured.key}:${captured.generation}`, body)
     setBusy(true)
+    setStatusMessage('Generating report.')
     try {
       await coreDataClient.generateReport(id, { clientRequestId, ...body })
       if (captured.isCurrent()) {
         requests.acknowledge(clientRequestId)
         await reports.refetch()
-        if (captured.isCurrent()) toast.success('Private report generated.')
+        if (captured.isCurrent()) {
+          setStatusMessage('Private report generated.')
+          toast.success('Private report generated.')
+        }
       }
     } catch (error) {
-      if (captured.isCurrent())
-        toast.error(error instanceof Error ? error.message : 'Report generation unavailable.')
+      if (captured.isCurrent()) {
+        const message = error instanceof Error ? error.message : 'Report generation unavailable.'
+        setStatusMessage(message)
+        toast.error(message)
+      }
     } finally {
       if (captured.isCurrent()) setBusy(false)
     }
@@ -178,6 +191,9 @@ export function LiveReportingWorkspace({
         title="Reports Workspace"
         description="Preview current authorized data and generate a private, immutable report artifact."
       />
+      <p aria-live="polite" className="sr-only">
+        {statusMessage}
+      </p>
       <SectionCard
         title="Report context"
         description="Unavailable and suppressed cells retain their meaning in every export."
@@ -301,7 +317,7 @@ export function LiveReportingWorkspace({
               placeholder="Project report"
             />
           </Label>
-          {!previewOnly && (
+          {!previewOnly && principalHasAtomicPermission(profile, 'reports.generate') && (
             <Button
               disabled={
                 !owner ||
@@ -416,18 +432,16 @@ export function LiveReportingWorkspace({
                     {report.format ?? 'Format not set'} · <StatusBadge>{report.status}</StatusBadge>
                   </p>
                 </div>
-                <Button
-                  variant="outline"
-                  disabled={
-                    report.status !== 'GENERATED' ||
-                    !report.format ||
-                    !principalHasAtomicPermission(profile, 'reports.export')
-                  }
-                  onClick={() => void download(report.id, report.format?.toLowerCase() ?? '')}
-                >
-                  <Download className="mr-2 h-4 w-4" />
-                  Download
-                </Button>
+                {principalHasAtomicPermission(profile, 'reports.export') && (
+                  <Button
+                    variant="outline"
+                    disabled={report.status !== 'GENERATED' || !report.format}
+                    onClick={() => void download(report.id, report.format?.toLowerCase() ?? '')}
+                  >
+                    <Download className="mr-2 h-4 w-4" />
+                    Download
+                  </Button>
+                )}
               </div>
             ))}
           </div>

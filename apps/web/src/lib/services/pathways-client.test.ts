@@ -324,6 +324,8 @@ describe('PATHWAYS frontend data boundary', () => {
 
       submittedProof: [],
       updateNotes: [],
+      overdueExplanations: [],
+      overdueExplanationNeeded: false,
       updatedAt: '2026-09-20T00:00:00.000Z',
     }
     vi.stubGlobal('window', {})
@@ -1231,6 +1233,35 @@ describe('Activity proof response parsing', () => {
     ).rejects.toMatchObject({ code: 'network' })
   })
 
+  it('rejects a loopback http uploadUrl when the configured Supabase URL is https', async () => {
+    stubResponse({
+      clientUpdateId: 'client-1',
+      updateId: 'update-1',
+      status: 'UPLOADING',
+      files: [
+        {
+          evidenceId: 'evidence-1',
+          fileName: 'a.pdf',
+          contentType: 'application/pdf',
+          byteSize: 1024,
+          sha256: 'x'.repeat(64),
+          storageReady: false,
+          uploadUrl: 'http://127.0.0.1:54321/storage/v1/object/upload/evidence-1',
+        },
+      ],
+    })
+    await expect(
+      pathwaysClient.reserveActivityProofUpload({
+        projectId,
+        activityId,
+        clientUpdateId: 'client-1',
+        progressPercent: 10,
+        note: 'note',
+        files: [],
+      }),
+    ).rejects.toMatchObject({ code: 'network' })
+  })
+
   it('rejects a reservation files array over 10 entries', async () => {
     stubResponse({
       clientUpdateId: 'client-1',
@@ -1305,6 +1336,8 @@ describe('Activity proof response parsing', () => {
       progress: 40,
       submittedProof: [],
       updateNotes: [],
+      overdueExplanations: [],
+      overdueExplanationNeeded: false,
       updatedAt: '2026-09-20T00:00:00.000Z',
       sourceAcknowledgement: { requestId: 'req-1', committed: true, replayed: false },
     }
@@ -1319,7 +1352,12 @@ describe('Activity proof response parsing', () => {
         // treated as withheld, and capabilities default when absent from the response.
         budgetLogged: null,
         budgetLoggedEntries: null,
-        capabilities: { canEdit: false, canRecordProgress: false, canSubmitProof: false },
+        capabilities: {
+          canEdit: false,
+          canRecordProgress: false,
+          canSubmitProof: false,
+          canExplainOverdue: false,
+        },
       },
     })
     // Extra top-level keys alongside `activity` are rejected.

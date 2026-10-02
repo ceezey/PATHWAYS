@@ -59,6 +59,7 @@ export const useSearchParams = () =>
 export const useFormRevision = () => useSyncExternalStore(subscribe, snapshot).formRevision
 export const getBrowserSupabaseClient = () => client
 export const webEnv = { NEXT_PUBLIC_API_BASE_URL: 'http://127.0.0.1:4000/api' }
+export const webSupabasePublishableKey = 'stub-key'
 const router = {
   replace: (path: string) => {
     // Record the requested fixed path without performing a real navigation.

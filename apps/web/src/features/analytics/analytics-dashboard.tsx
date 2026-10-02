@@ -26,33 +26,51 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { metricUnavailableLabel } from '@/features/projects/project-utils'
+import {
+  ANALYTICS_AGGREGATE_EXPORT_UI_ENABLED,
+  UNFINISHED_CONTROLS_UI_ENABLED,
+} from '@/constants/feature-flags'
+import { metricUnavailableLabel, overviewMetricLabel } from '@/features/projects/project-utils'
 import { useCurrentRole } from '@/hooks/use-current-role'
 import { useDisplayLabels } from '@/hooks/use-display-labels'
 import { can } from '@/lib/rbac/can'
 import { principalHasAtomicPermission } from '@/lib/rbac/route-access'
 import { coreDataClient, downloadCoreArtifact } from '@/lib/services/core-feature-client'
 import { descriptiveAnalyticsSearch, pathwaysClient } from '@/lib/services/pathways-client'
+import { rulesHumanClient } from '@/lib/services/rules-human-client'
+import { useAuthorizedRead } from '@/providers/authorized-query-provider'
 import type { ActivitySummary, ProjectIndicator, ProjectSummary } from '@/types/pathways'
 import {
   type DescriptiveAnalytics,
+  type MetricCell,
   type MonitoringDashboard,
   type SadddDashboard,
+  type SurveyAnalytics,
+  type SurveyGroup,
+  type TimelineAnalytics,
   formatMetricCell,
 } from '@pathways/shared'
 import { toast } from 'sonner'
 
-import { ActivityCompletionChart, DescriptiveAnalysisChart, SadddChart } from './analytics-charts'
+import {
+  ActivityCompletionChart,
+  DescriptiveAnalysisChart,
+  IndicatorProgressChart,
+  SadddChart,
+  SurveyImprovementChart,
+} from './analytics-charts'
 import { AnalyticsCoverageMap } from './analytics-coverage-map'
 import { toProjectCoverageFeatureCollection } from './analytics-location-utils'
-import { deriveAnalyticsReportingPeriods } from './analytics-reporting-periods'
-import { humanReviewDisclaimer } from './analytics-utils'
+import {
+  deriveAnalyticsReportingPeriods,
+  nonOverlappingAnalyticsPeriods,
+} from './analytics-reporting-periods'
 
 const analysisViews = [
   { value: 'kpi', label: 'KPI / indicator performance' },
   { value: 'participation', label: 'Participation patterns' },
-  { value: 'survey', label: 'Survey improvement', disabled: true },
-  { value: 'timeline', label: 'Project / activity timeline adherence', disabled: true },
+  { value: 'survey', label: 'Survey improvement' },
+  { value: 'timeline', label: 'Project / activity timeline adherence' },
 ] as const
 const visualizationTypes = [
   { value: 'bar', label: 'Bar chart' },
@@ -83,12 +101,61 @@ const metricNumber = (cell: { value: string | null }) => {
   return Number.isFinite(value) ? value : null
 }
 
+type SurveyErrorKind = 'restricted' | 'period' | 'retry'
+const SURVEY_RESTRICTED_MESSAGE = 'Survey improvement is restricted for your role.'
+const SURVEY_PERIOD_MESSAGE = 'This reporting period cannot be used for survey results.'
+
+/** 403 = role restriction and 400 = refused period are final; only network/5xx may be retried. */
+const surveyErrorKindFor = (caught: unknown): SurveyErrorKind => {
+  const status =
+    caught && typeof caught === 'object' && 'status' in caught
+      ? (caught as { status?: unknown }).status
+      : undefined
+  return status === 403 ? 'restricted' : status === 400 ? 'period' : 'retry'
+}
+
+const OPEN_ALERT_STATUSES = ['NEW', 'REVIEWED', 'ACTIONED'] as const
+const OPEN_ALERT_MAX_PAGES = 10
+
+/**
+ * Counts open alerts with the server status filter, following cursors per status. It stops
+ * after OPEN_ALERT_MAX_PAGES pages of a status and reports `capped` so the UI shows "N+".
+ */
+export const countOpenAlerts = async (projectId: string, signal?: AbortSignal) => {
+  let count = 0
+  let capped = false
+  for (const status of OPEN_ALERT_STATUSES) {
+    let cursor: string | undefined
+    for (let page = 0; ; page += 1) {
+      const result = await rulesHumanClient.listAlerts(
+        { projectId, status, limit: '100', ...(cursor ? { cursor } : {}) },
+        signal,
+      )
+      count += result.items.length
+      if (!result.nextCursor) break
+      if (page + 1 >= OPEN_ALERT_MAX_PAGES) {
+        capped = true
+        break
+      }
+      cursor = result.nextCursor
+    }
+  }
+  return { count, capped }
+}
+
 export const AnalyticsDashboard = () => {
   const { labels } = useDisplayLabels()
   const { role, profile } = useCurrentRole()
   const canReadActivities = principalHasAtomicPermission(profile, 'activities.read')
   const canReadIndicators = principalHasAtomicPermission(profile, 'monitoring.read')
   const canReadDescriptive = principalHasAtomicPermission(profile, 'analytics.descriptive.read')
+  // Survey and timeline read person-derived aggregates, so the API requires both permissions
+  // (analytics.descriptive.read and monitoring.read). Anything less is restricted, never "None yet".
+  const canReadSurveyTimeline = canReadDescriptive && canReadIndicators
+  // Survey improvement additionally requires assessments.detail.read (CR amendment 2026-09-30):
+  // aggregate-only roles (Program Manager, Grant Manager) see an explicit restricted state.
+  const canReadSurvey =
+    canReadSurveyTimeline && principalHasAtomicPermission(profile, 'assessments.detail.read')
   const canExportAnalytics =
     canReadDescriptive && principalHasAtomicPermission(profile, 'analytics.export')
   const canReadBudgetUtilization =
@@ -129,8 +196,33 @@ export const AnalyticsDashboard = () => {
   const [projectDataLoadAttempt, setProjectDataLoadAttempt] = useState(0)
   const [monitoringLoadAttempt, setMonitoringLoadAttempt] = useState(0)
   const [sadddLoadAttempt, setSadddLoadAttempt] = useState(0)
+  // F9 survey/timeline analytics (analytics.descriptive.survey.v1 / .timeline.v1).
+  const [survey, setSurvey] = useState<SurveyAnalytics | null>(null)
+  const [surveyLoading, setSurveyLoading] = useState(false)
+  const [surveyError, setSurveyError] = useState('')
+  // restricted (403) and period (400) are final answers, so only 'retry' offers Retry.
+  const [surveyErrorKind, setSurveyErrorKind] = useState<SurveyErrorKind>('retry')
+  const [surveyLoadAttempt, setSurveyLoadAttempt] = useState(0)
+  const [timeline, setTimeline] = useState<TimelineAnalytics | null>(null)
+  const [timelineLoading, setTimelineLoading] = useState(false)
+  const [timelineError, setTimelineError] = useState('')
+  const [timelineLoadAttempt, setTimelineLoadAttempt] = useState(0)
 
   const selectedProject = projects.find((row) => row.id === projectId)
+  const canReadAlerts = principalHasAtomicPermission(profile, 'alerts.read')
+  const alertRead = useAuthorizedRead(
+    'analytics-open-alerts',
+    projectId || null,
+    'alerts.read',
+    (signal) => countOpenAlerts(projectId, signal),
+    Boolean(projectId),
+  )
+  const openAlerts = alertRead.data ?? null
+  const openAlertCount = openAlerts ? openAlerts.count : null
+  // A capped count is shown as "N+" rather than passed off as exact.
+  const openAlertText = openAlerts ? `${openAlerts.count}${openAlerts.capped ? '+' : ''}` : ''
+  const alertsLoading = canReadAlerts && Boolean(projectId) && !openAlerts && !alertRead.isError
+  const alertsFailed = canReadAlerts && !openAlerts && alertRead.isError
   const projectCoverageFeatures = useMemo(
     () =>
       toProjectCoverageFeatureCollection(
@@ -146,8 +238,19 @@ export const AnalyticsDashboard = () => {
       ),
     [indicatorDefinitions, projectId, selectedProject],
   )
+  // Monitoring, KPI and descriptive panels always use every readable reporting period.
   const selectedPeriod =
     reportingPeriods.find((candidate) => candidate.value === period) ?? reportingPeriods[0]
+  // The survey releases only non-overlapping periods, so it keeps its own period. It never
+  // rewrites the shared period, so leaving the survey view restores the other panels' period.
+  const surveyPeriods = useMemo(
+    () => nonOverlappingAnalyticsPeriods(reportingPeriods),
+    [reportingPeriods],
+  )
+  const surveyPeriod =
+    surveyPeriods.find((candidate) => candidate.value === period) ?? surveyPeriods[0]
+  const pickerPeriods = analysisView === 'survey' ? surveyPeriods : reportingPeriods
+  const pickerPeriod = analysisView === 'survey' ? surveyPeriod : selectedPeriod
   const sadddUnavailableReason =
     !selectedProject?.startDate || !selectedProject.endDate
       ? missingSadddDates
@@ -377,18 +480,100 @@ export const AnalyticsDashboard = () => {
     }
   }, [canReadDescriptive, descriptiveLoadAttempt, projectId, selectedPeriod])
 
+  // Paired pre/post survey improvement. Requires a complete period, same as the API contract.
+  useEffect(() => {
+    if (!projectId || !surveyPeriod || !canReadSurvey || analysisView !== 'survey') {
+      setSurveyLoading(false)
+      setSurvey(null)
+      setSurveyError('')
+      setSurveyErrorKind('retry')
+      return
+    }
+    void surveyLoadAttempt
+    let active = true
+    setSurveyLoading(true)
+    setSurvey(null)
+    setSurveyError('')
+    setSurveyErrorKind('retry')
+    pathwaysClient
+      .getSurveyAnalytics({
+        projectId,
+        periodStart: surveyPeriod.start,
+        periodEnd: surveyPeriod.end,
+      })
+      .then((result) => {
+        if (active) setSurvey(result)
+      })
+      .catch((caught: unknown) => {
+        if (!active) return
+        const kind = surveyErrorKindFor(caught)
+        setSurveyErrorKind(kind)
+        setSurveyError(
+          kind === 'restricted'
+            ? SURVEY_RESTRICTED_MESSAGE
+            : kind === 'period'
+              ? SURVEY_PERIOD_MESSAGE
+              : caught instanceof Error
+                ? caught.message
+                : 'Survey analytics could not be loaded.',
+        )
+      })
+      .finally(() => {
+        if (active) setSurveyLoading(false)
+      })
+    return () => {
+      active = false
+    }
+  }, [analysisView, canReadSurvey, projectId, surveyPeriod, surveyLoadAttempt])
+
+  // Timeline adherence uses the business reporting date server-side; no period selection needed.
+  useEffect(() => {
+    if (!projectId || !canReadSurveyTimeline || analysisView !== 'timeline') {
+      setTimelineLoading(false)
+      setTimeline(null)
+      setTimelineError('')
+      return
+    }
+    void timelineLoadAttempt
+    let active = true
+    setTimelineLoading(true)
+    setTimeline(null)
+    setTimelineError('')
+    pathwaysClient
+      .getTimelineAnalytics({ projectId })
+      .then((result) => {
+        if (active) setTimeline(result)
+      })
+      .catch((caught: unknown) => {
+        if (active)
+          setTimelineError(
+            caught instanceof Error ? caught.message : 'Timeline analytics could not be loaded.',
+          )
+      })
+      .finally(() => {
+        if (active) setTimelineLoading(false)
+      })
+    return () => {
+      active = false
+    }
+  }, [analysisView, canReadSurveyTimeline, projectId, timelineLoadAttempt])
+
   const exportDescriptive = async () => {
-    if (!canExportAnalytics || !projectId || !selectedPeriod || exporting) return
+    const view = analysisView === 'survey' || analysisView === 'timeline' ? analysisView : undefined
+    if (!ANALYTICS_AGGREGATE_EXPORT_UI_ENABLED || !canExportAnalytics || !projectId || exporting)
+      return
+    const exportPeriod = view === 'survey' ? surveyPeriod : selectedPeriod
+    if (view !== 'timeline' && !exportPeriod) return
     const capturedProject = projectId
     setExporting(true)
     try {
       await downloadCoreArtifact(
         `/analytics/descriptive/export${descriptiveAnalyticsSearch({
           projectId: capturedProject,
-          periodStart: selectedPeriod.start,
-          periodEnd: selectedPeriod.end,
+          ...(exportPeriod ? { periodStart: exportPeriod.start, periodEnd: exportPeriod.end } : {}),
+          ...(view ? { view } : {}),
         })}`,
-        `descriptive-analytics-${capturedProject.toLowerCase()}.csv`,
+        `${view ?? 'descriptive'}-analytics-${capturedProject.toLowerCase()}.csv`,
       )
     } catch (caught) {
       toast.error(caught instanceof Error ? caught.message : 'Aggregate export unavailable.')
@@ -407,6 +592,11 @@ export const AnalyticsDashboard = () => {
     setSaddd(null)
     setDescriptive(null)
     setDescriptiveError('')
+    setSurvey(null)
+    setSurveyError('')
+    setSurveyErrorKind('retry')
+    setTimeline(null)
+    setTimelineError('')
     setBudgetTotals(null)
     setBudgetError('')
     setProjectDataLoading(true)
@@ -498,7 +688,7 @@ export const AnalyticsDashboard = () => {
       />
       <section
         aria-labelledby="analytics-view-title"
-        className="grid gap-4 rounded-lg border border-border bg-card p-5 sm:grid-cols-2 xl:grid-cols-12"
+        className="grid gap-4 rounded-2xl border border-border bg-card p-5 sm:grid-cols-2 xl:grid-cols-12"
       >
         <div className="sm:col-span-2 xl:col-span-12">
           <h2 className="text-lg font-semibold" id="analytics-view-title">
@@ -523,15 +713,15 @@ export const AnalyticsDashboard = () => {
         <div className="space-y-2 xl:col-span-2">
           <span className="text-sm font-medium">Reporting period</span>
           <Select
-            disabled={reportingPeriods.length === 0}
-            value={selectedPeriod?.value ?? ''}
+            disabled={pickerPeriods.length === 0}
+            value={pickerPeriod?.value ?? ''}
             onValueChange={setPeriod}
           >
             <SelectTrigger aria-label="Reporting period">
               <SelectValue placeholder="No reporting periods" />
             </SelectTrigger>
             <SelectContent>
-              {reportingPeriods.map((row) => (
+              {pickerPeriods.map((row) => (
                 <SelectItem key={row.value} value={row.value}>
                   {row.label}
                 </SelectItem>
@@ -549,16 +739,26 @@ export const AnalyticsDashboard = () => {
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              {analysisViews.map((view) => (
-                <SelectItem
-                  disabled={'disabled' in view && view.disabled}
-                  key={view.value}
-                  title={'disabled' in view && view.disabled ? 'Not available yet' : undefined}
-                  value={view.value}
-                >
-                  {view.label}
-                </SelectItem>
-              ))}
+              {analysisViews
+                .filter((view) => UNFINISHED_CONTROLS_UI_ENABLED || view.value !== 'participation')
+                .map((view) => (
+                  <SelectItem
+                    disabled={
+                      (view.value === 'survey' && !canReadSurvey) ||
+                      (view.value === 'timeline' && !canReadSurveyTimeline)
+                    }
+                    key={view.value}
+                    title={
+                      (view.value === 'survey' && !canReadSurvey) ||
+                      (view.value === 'timeline' && !canReadSurveyTimeline)
+                        ? 'Not available for this role'
+                        : undefined
+                    }
+                    value={view.value}
+                  >
+                    {view.label}
+                  </SelectItem>
+                ))}
             </SelectContent>
           </Select>
         </div>
@@ -600,14 +800,29 @@ export const AnalyticsDashboard = () => {
             </SelectContent>
           </Select>
         </div>
-        <div className="rounded-sm border border-info/25 bg-info-subtle p-3 text-sm leading-6 text-info sm:col-span-2 xl:col-span-3 xl:col-start-10 xl:row-start-2">
-          {humanReviewDisclaimer}
-        </div>
-        <div className="flex flex-wrap justify-end gap-2 border-t border-border pt-4 sm:col-span-2 xl:col-span-12 xl:row-start-4">
-          {canExportAnalytics ? (
+        {UNFINISHED_CONTROLS_UI_ENABLED ? (
+          <div className="flex items-end sm:col-span-2 xl:col-span-3 xl:col-start-10 xl:row-start-3">
             <Button
               className="shrink-0"
-              disabled={!selectedProject || !selectedPeriod || exporting}
+              type="button"
+              {...unavailableControlProps('analytics-add-to-dashboard-hint')}
+            >
+              <Plus className="mr-2 h-4 w-4" aria-hidden="true" />
+              Add to Dashboard
+            </Button>
+            <UnavailableHint id="analytics-add-to-dashboard-hint" />
+          </div>
+        ) : null}
+        {ANALYTICS_AGGREGATE_EXPORT_UI_ENABLED && canExportAnalytics ? (
+          <div className="flex flex-wrap justify-end gap-2 border-t border-border pt-4 sm:col-span-2 xl:col-span-12 xl:row-start-4">
+            <Button
+              className="shrink-0"
+              disabled={
+                !selectedProject ||
+                exporting ||
+                (analysisView !== 'timeline' && !pickerPeriod) ||
+                (analysisView === 'survey' && !canReadSurvey)
+              }
               onClick={() => void exportDescriptive()}
               type="button"
               variant="outline"
@@ -615,17 +830,8 @@ export const AnalyticsDashboard = () => {
               <Download className="mr-2 h-4 w-4" aria-hidden="true" />
               {exporting ? 'Exporting aggregates' : 'Export aggregates (CSV)'}
             </Button>
-          ) : null}
-          <Button
-            className="shrink-0"
-            type="button"
-            {...unavailableControlProps('analytics-add-to-dashboard-hint')}
-          >
-            <Plus className="mr-2 h-4 w-4" aria-hidden="true" />
-            Add to Dashboard
-          </Button>
-          <UnavailableHint id="analytics-add-to-dashboard-hint" />
-        </div>
+          </div>
+        ) : null}
       </section>
 
       {loading ? (
@@ -660,19 +866,22 @@ export const AnalyticsDashboard = () => {
             title={
               mapSelected
                 ? 'Project Coverage Map'
-                : `${analysisMeta.title} · ${visualizationTypes.find((type) => type.value === visualizationType)?.label}`
+                : analysisView === 'timeline' ||
+                    (analysisView === 'survey' && !['bar', 'table'].includes(visualizationType))
+                  ? analysisMeta.title
+                  : `${analysisMeta.title} · ${visualizationTypes.find((type) => type.value === visualizationType)?.label}`
             }
           >
             {mapSelected ? (
               <>
                 <AnalyticsCoverageMap featureCollection={projectCoverageFeatures} />
                 {mapDataLoading ? (
-                  <output className="mt-4 rounded-sm border border-border bg-surface-subtle p-3 text-sm text-muted-foreground">
+                  <output className="mt-4 rounded-xl border border-border bg-surface-subtle p-3 text-sm text-muted-foreground">
                     Updating project analytics.
                   </output>
                 ) : mapDataError ? (
                   <div
-                    className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-sm border border-danger/30 bg-danger-subtle p-3 text-sm text-danger"
+                    className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-danger/30 bg-danger-subtle p-3 text-sm text-danger"
                     role="alert"
                   >
                     <span>{mapDataError}</span>
@@ -691,6 +900,29 @@ export const AnalyticsDashboard = () => {
                   </div>
                 ) : null}
               </>
+            ) : analysisView === 'survey' && !canReadSurvey ? (
+              <UnavailableChart description={SURVEY_RESTRICTED_MESSAGE} />
+            ) : analysisView === 'timeline' && !canReadSurveyTimeline ? (
+              <UnavailableChart description="Timeline adherence is not available for this role." />
+            ) : analysisView === 'survey' ? (
+              <SurveyAnalyticsPanel
+                activities={activities}
+                data={survey}
+                error={surveyError}
+                errorKind={surveyErrorKind}
+                loading={surveyLoading}
+                noUsablePeriod={reportingPeriods.length > 0 && surveyPeriods.length === 0}
+                onRetry={() => setSurveyLoadAttempt((value) => value + 1)}
+                periodsReadable={periodsReadable}
+                showChart={visualizationType !== 'table'}
+              />
+            ) : analysisView === 'timeline' ? (
+              <TimelineAnalyticsPanel
+                data={timeline}
+                error={timelineError}
+                loading={timelineLoading}
+                onRetry={() => setTimelineLoadAttempt((value) => value + 1)}
+              />
             ) : !selectedPeriod ? (
               <UnavailableChart
                 description={
@@ -702,13 +934,9 @@ export const AnalyticsDashboard = () => {
               />
             ) : analysisRows.length === 0 ? (
               <UnavailableChart
-                description={
-                  analysisView === 'survey' || analysisView === 'timeline'
-                    ? 'This analysis view is unavailable in the current API.'
-                    : 'No released values are available for this selection.'
-                }
+                description="No released values are available for this selection."
                 title={
-                  analysisView === 'survey' || analysisView === 'timeline' || !monitoringReadable
+                  !monitoringReadable
                     ? undefined
                     : analysisView === 'participation'
                       ? participationEmptyTitle
@@ -790,11 +1018,15 @@ export const AnalyticsDashboard = () => {
               }
             />
             <MetricCard
-              description="Beneficiary reach is unavailable as a distinct server metric for this view."
+              description="Enrolled individuals overlapping the period; privacy suppression applies."
               icon={UsersRound}
               label="Beneficiary reach"
               tone="info"
-              value="Unavailable"
+              value={
+                monitoring?.enrolledIndividuals
+                  ? formatMetricCell(monitoring.enrolledIndividuals)
+                  : 'Unavailable'
+              }
             />
             <MetricCard
               description="Completed activities in the selected project."
@@ -806,19 +1038,47 @@ export const AnalyticsDashboard = () => {
               }
             />
             <MetricCard
-              description="Rule-Based Alerts are unavailable in the current API."
+              description={
+                !canReadAlerts
+                  ? 'Rule-Based Alerts are unavailable for this role.'
+                  : alertsFailed
+                    ? 'Open alerts could not be loaded. Use Retry in the Rule-Based Alerts panel.'
+                    : 'Open alerts (new, reviewed or actioned) in the selected project.'
+              }
               icon={AlertTriangle}
               label="Rule-Based Alerts"
-              tone="info"
-              value="Unavailable"
+              tone={openAlertCount ? 'warning' : 'info'}
+              value={
+                !canReadAlerts
+                  ? 'Unavailable'
+                  : alertsLoading
+                    ? 'Loading...'
+                    : alertsFailed
+                      ? 'Unavailable'
+                      : openAlerts
+                        ? openAlertText
+                        : 'Unavailable'
+              }
             />
           </section>
           <section className="space-y-6" aria-labelledby="fixed-monitoring-charts-title">
             <h2 className="text-lg font-semibold" id="fixed-monitoring-charts-title">
               Monitoring charts
             </h2>
-            <ChartPanel title="Project performance trend">
-              <UnavailableChart description="Project performance history is unavailable in the current API." />
+            <ChartPanel title="Indicator progress">
+              {indicators.some((row) => metricNumber(row.progress) !== null) ? (
+                <IndicatorProgressChart
+                  rows={indicators.flatMap((row) => {
+                    const value = metricNumber(row.progress)
+                    return value === null ? [] : [{ id: row.id, label: row.name, value }]
+                  })}
+                />
+              ) : (
+                <UnavailableChart
+                  description="No released indicator progress for this project and period."
+                  {...(monitoringReadable ? { title: 'None yet' } : {})}
+                />
+              )}
             </ChartPanel>
             <ChartPanel title="SADDD Analysis">
               {sadddLoading ? (
@@ -844,7 +1104,7 @@ export const AnalyticsDashboard = () => {
                   <div data-testid="saddd-chart">
                     <SadddChart dashboard={saddd} />
                   </div>
-                  <details className="mt-3 rounded-sm border border-border p-3 text-sm">
+                  <details className="mt-3 rounded-xl border border-border p-3 text-sm">
                     <summary className="cursor-pointer font-medium">
                       Accessible SADDD data table
                     </summary>
@@ -967,7 +1227,32 @@ export const AnalyticsDashboard = () => {
                 )}
               </ChartPanel>
               <ChartPanel title="Rule-Based Alerts">
-                <UnavailableChart description="Rule-Based Alerts are unavailable in the current API." />
+                {!canReadAlerts ? (
+                  <UnavailableChart description="Rule-Based Alerts are unavailable for this role." />
+                ) : alertsLoading ? (
+                  <AsyncState
+                    status="loading"
+                    title="Loading Rule-Based Alerts"
+                    description="Verifying current alert access."
+                    icon={AlertTriangle}
+                  />
+                ) : alertsFailed ? (
+                  <AsyncState
+                    status="error"
+                    title="Rule-Based Alerts unavailable"
+                    description="Open alerts could not be loaded."
+                    icon={AlertTriangle}
+                    onRetry={() => void alertRead.refetch()}
+                  />
+                ) : openAlerts ? (
+                  <p className="text-sm text-foreground">
+                    <span className="text-3xl font-semibold tabular-nums">{openAlertText}</span>{' '}
+                    open alert{openAlerts.count === 1 && !openAlerts.capped ? '' : 's'} in this
+                    project.
+                  </p>
+                ) : (
+                  <UnavailableChart description="Select a project to see its Rule-Based Alerts." />
+                )}
               </ChartPanel>
             </div>
           </section>
@@ -986,12 +1271,266 @@ const ChartPanel = ({
   description?: string
   children: React.ReactNode
 }) => (
-  <section className="overflow-hidden rounded-lg border border-border bg-card p-5">
+  <section className="overflow-hidden rounded-2xl border border-border bg-card p-5">
     <h2 className="text-lg font-semibold text-foreground">{title}</h2>
     {description ? <p className="mt-1 text-sm text-muted-foreground">{description}</p> : null}
     <div className="mt-4">{children}</div>
   </section>
 )
+
+/**
+ * A visible value (including a real zero) renders with its unit; MISSING/SUPPRESSED
+ * get the shared readable copy. `kind` matches overviewMetricLabel's Overview
+ * convention so a percent cell never displays as a bare, unit-less number.
+ */
+const analyticsCellValue = (cell: MetricCell, kind: 'percent' | 'pp' | 'count' = 'count') =>
+  overviewMetricLabel(cell, kind)
+
+const activityFallbackLabel = 'Activity (name unavailable)'
+
+/**
+ * Maps a per-activity survey group's activityId key to its human title from the
+ * already-loaded project activities, instead of showing a raw UUID. Falls back to
+ * a neutral label when the activity is not found (e.g. archived or deleted).
+ */
+const surveyGroupRows = (
+  data: SurveyAnalytics,
+  activities: readonly ActivitySummary[],
+): Array<SurveyGroup & { label: string }> => [
+  { ...data.overall, label: 'All activities (cohort change)' },
+  ...data.byActivity.map((group) => ({
+    ...group,
+    label: activities.find((activity) => activity.id === group.key)?.title ?? activityFallbackLabel,
+  })),
+]
+
+/**
+ * F9 survey improvement view (analytics.descriptive.survey.v1). Cards + chart cover the
+ * cohort ("all activities") group; the table lists every group, including per-activity
+ * breakdowns, with the same MISSING/SUPPRESSED wording as the rest of Analytics.
+ */
+const SurveyAnalyticsPanel = ({
+  data,
+  loading,
+  error,
+  errorKind,
+  noUsablePeriod,
+  onRetry,
+  periodsReadable,
+  showChart,
+  activities,
+}: {
+  data: SurveyAnalytics | null
+  loading: boolean
+  error: string
+  errorKind: SurveyErrorKind
+  noUsablePeriod: boolean
+  onRetry: () => void
+  periodsReadable: boolean
+  showChart: boolean
+  activities: readonly ActivitySummary[]
+}) => {
+  if (loading)
+    return (
+      <AsyncState
+        status="loading"
+        title="Loading survey analytics"
+        description="Loading scoped paired assessment data."
+        icon={BarChart3}
+      />
+    )
+  if (error && errorKind !== 'retry') return <UnavailableChart description={error} />
+  if (error)
+    return (
+      <AsyncState
+        status="error"
+        title="Survey analytics could not be loaded"
+        description={error}
+        icon={AlertTriangle}
+        onRetry={onRetry}
+      />
+    )
+  if (!data && noUsablePeriod) return <UnavailableChart description={SURVEY_PERIOD_MESSAGE} />
+  if (!data)
+    return (
+      <UnavailableChart
+        description={
+          periodsReadable
+            ? 'No active Indicator reporting period is available for this project.'
+            : 'Indicator reporting periods are not available for this role.'
+        }
+        title={periodsReadable ? 'None yet' : undefined}
+      />
+    )
+  const { overall } = data
+  const isSuppressed = overall.pairs.state === 'SUPPRESSED'
+  const isMissing = overall.pairs.value === '0'
+  return (
+    <div className="space-y-4" data-testid="survey-analytics">
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <MetricCard
+          description="Enrollments with both a PRE_TEST and a POST_TEST in this period."
+          icon={ClipboardCheck}
+          label="Paired assessments"
+          tone="info"
+          value={analyticsCellValue(overall.pairs)}
+        />
+        <MetricCard
+          description="Cohort mean normalized pre-test score (0-100)."
+          icon={BarChart3}
+          label="Mean pre-test"
+          tone="info"
+          value={analyticsCellValue(overall.meanPre, 'percent')}
+        />
+        <MetricCard
+          description="Cohort mean normalized post-test score (0-100)."
+          icon={BarChart3}
+          label="Mean post-test"
+          tone="info"
+          value={analyticsCellValue(overall.meanPost, 'percent')}
+        />
+        <MetricCard
+          description="Cohort-level change in mean normalized score. Never an individual verdict."
+          icon={Target}
+          label="Mean cohort change"
+          tone={
+            overall.meanChange.value === null
+              ? 'info'
+              : Number(overall.meanChange.value) < 0
+                ? 'warning'
+                : 'success'
+          }
+          value={analyticsCellValue(overall.meanChange, 'pp')}
+        />
+      </div>
+      {isSuppressed ? (
+        <p className="text-sm text-muted-foreground">Suppressed (fewer than 5)</p>
+      ) : isMissing ? (
+        <UnavailableChart description={metricUnavailableLabel(overall.meanPre)} title="None yet" />
+      ) : showChart ? (
+        <SurveyImprovementChart group={overall} title="Cohort change (all activities)" />
+      ) : null}
+      <table className="w-full text-left text-sm">
+        <caption className="sr-only">Survey improvement by group</caption>
+        <thead>
+          <tr className="border-b">
+            <th className="p-2">Group</th>
+            <th className="p-2">Pairs</th>
+            <th className="p-2">Mean pre</th>
+            <th className="p-2">Mean post</th>
+            <th className="p-2">Mean change</th>
+            <th className="p-2">Improved</th>
+            <th className="p-2">Same</th>
+            <th className="p-2">Declined</th>
+          </tr>
+        </thead>
+        <tbody>
+          {surveyGroupRows(data, activities).map((row) => (
+            <tr className="border-b" key={row.key}>
+              <td className="p-2">{row.label}</td>
+              <td className="p-2 tabular-nums">{analyticsCellValue(row.pairs)}</td>
+              <td className="p-2 tabular-nums">{analyticsCellValue(row.meanPre, 'percent')}</td>
+              <td className="p-2 tabular-nums">{analyticsCellValue(row.meanPost, 'percent')}</td>
+              <td className="p-2 tabular-nums">{analyticsCellValue(row.meanChange, 'pp')}</td>
+              <td className="p-2 tabular-nums">{analyticsCellValue(row.improved)}</td>
+              <td className="p-2 tabular-nums">{analyticsCellValue(row.same)}</td>
+              <td className="p-2 tabular-nums">{analyticsCellValue(row.declined)}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  )
+}
+
+/** F9 timeline adherence view (analytics.descriptive.timeline.v1). Cards only; no chart. */
+const TimelineAnalyticsPanel = ({
+  data,
+  loading,
+  error,
+  onRetry,
+}: {
+  data: TimelineAnalytics | null
+  loading: boolean
+  error: string
+  onRetry: () => void
+}) => {
+  if (loading)
+    return (
+      <AsyncState
+        status="loading"
+        title="Loading timeline analytics"
+        description="Loading scoped activity and milestone data."
+        icon={BarChart3}
+      />
+    )
+  if (error)
+    return (
+      <AsyncState
+        status="error"
+        title="Timeline analytics could not be loaded"
+        description={error}
+        icon={AlertTriangle}
+        onRetry={onRetry}
+      />
+    )
+  if (!data)
+    return (
+      <UnavailableChart description="Timeline adherence is not available for this selection." />
+    )
+  return (
+    <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3" data-testid="timeline-analytics">
+      <MetricCard
+        description="Share of the project period elapsed as of the reporting date."
+        icon={ClipboardCheck}
+        label="Elapsed"
+        tone="info"
+        value={analyticsCellValue(data.elapsedPercent, 'percent')}
+      />
+      <MetricCard
+        description="Calendar days remaining before the project's recorded end date."
+        icon={ClipboardCheck}
+        label="Remaining days"
+        tone="info"
+        value={analyticsCellValue(data.remainingDays)}
+      />
+      <MetricCard
+        description="Calendar days past the project's recorded end date."
+        icon={AlertTriangle}
+        label="Overdue days"
+        tone={
+          data.overdueDays.value !== null && Number(data.overdueDays.value) > 0 ? 'warning' : 'info'
+        }
+        value={analyticsCellValue(data.overdueDays)}
+      />
+      <MetricCard
+        description="Share of in-scope activities marked Completed."
+        icon={ClipboardCheck}
+        label="Activity completion"
+        tone="success"
+        value={analyticsCellValue(data.activityCompletionPercent, 'percent')}
+      />
+      <MetricCard
+        description="In-scope activities past their planned end date and not yet Completed."
+        icon={AlertTriangle}
+        label="Overdue activities"
+        tone={
+          data.activityOverdueCount.value !== null && Number(data.activityOverdueCount.value) > 0
+            ? 'warning'
+            : 'info'
+        }
+        value={analyticsCellValue(data.activityOverdueCount)}
+      />
+      <MetricCard
+        description="Completed milestones finished on or before their target date."
+        icon={Target}
+        label="Milestone on-time"
+        tone="success"
+        value={analyticsCellValue(data.milestoneOnTimePercent, 'percent')}
+      />
+    </div>
+  )
+}
 
 const sectionLabels: Record<DescriptiveAnalytics['distributions'][number]['section'], string> = {
   ACTIVITY_STATE: 'Activity state',

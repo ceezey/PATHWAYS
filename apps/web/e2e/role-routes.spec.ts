@@ -38,6 +38,7 @@ test.beforeAll(async () => {
         '@/hooks/use-session',
         '@/hooks/use-current-role',
         '@/lib/env',
+        '@/lib/auth/beneficiary-step-up',
         'next/navigation',
         'next/link',
       ].map((name) => [name, fixture]),
@@ -86,20 +87,19 @@ async function mount(page: Page, role: CanonicalRole = 'SYSTEM_ADMINISTRATOR') {
   await expect(page.getByRole('heading', { name: 'Protected fixture content' })).toBeVisible()
   return state
 }
-// All thirteen canonical features, with independent expected role sets.
+// All twelve canonical features, with independent expected role sets.
 const entries = [
   ['/dashboard', 'SPGJEO'],
   ['/projects', 'SPGJEO'],
-  ['/beneficiaries', 'SJEO'],
-  [`/beneficiaries/${id}`, 'SJEO'],
-  ['/collection/forms', 'SPJEO'],
-  ['/collection/import', 'SJEO'],
-  [`/projects/${id}/monitor-evaluate`, 'SPJE'],
-  ['/analytics', 'SPGJE'],
-  ['/analytics', 'SPGJE'],
-  ['/alerts', 'SPJEO'],
-  ['/alerts/repository', 'SPJEO'],
-  ['/recommendations', 'SPJEO'],
+  ['/beneficiaries', 'JEO'],
+  [`/beneficiaries/${id}`, 'JEO'],
+  ['/collection/forms', 'SE'],
+  ['/collection/import', 'SEO'],
+  [`/projects/${id}/monitor-evaluate`, 'SPGJE'],
+  ['/analytics', 'SPGJEO'],
+  ['/alerts', 'SPGJEO'],
+  ['/alerts/repository', 'S'],
+  ['/recommendations', 'SPGJEO'],
   ['/reports', 'SPGJEO'],
 ] as const
 const roleCodes: Record<CanonicalRole, string> = {
@@ -117,7 +117,7 @@ for (const role of Object.keys(roleCodes) as CanonicalRole[]) {
       name: 'Centralized Beneficiary Profile',
       exact: true,
     })
-    if ('SJEO'.includes(roleCodes[role])) await expect(identityLinks).toBeVisible()
+    if ('JEO'.includes(roleCodes[role])) await expect(identityLinks).toBeVisible()
     else await expect(identityLinks).toHaveCount(0)
     await expect(
       page.getByRole('link', { name: 'Public Project Tracker for Donors', exact: true }),
@@ -159,8 +159,9 @@ test('server revocation, outage recovery and session expiry remove content witho
     releaseDenial = resolve
   })
   await page.evaluate(() => window.dispatchEvent(new Event('focus')))
-  await expect(page.getByLabel('Loading content')).toHaveCount(1)
-  await expect(page.getByRole('heading', { name: 'Protected fixture content' })).toHaveCount(0)
+  // Rechecks of an already-allowed route run behind the mounted page.
+  await expect(page.getByLabel('Loading content')).toHaveCount(0)
+  await expect(page.getByRole('heading', { name: 'Protected fixture content' })).toHaveCount(1)
   await expect(page.getByText(/(?:verifying|rechecking) current (?:route )?access/i)).toHaveCount(0)
   releaseDenial()
   await expect(page.getByRole('heading', { name: 'Unauthorized access' })).toBeVisible()

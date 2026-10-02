@@ -39,6 +39,15 @@ const fallbackLimits: ActivityProofUploadLimits = {
 
 type FileStatus = 'waiting' | 'uploading' | 'uploaded' | 'failed'
 
+// A 409 on reservation means the activity cannot take this proof right now. The most common
+// case is an earlier progress note or proof that M&E has not reviewed yet: say so plainly and
+// say what unblocks it, instead of repeating the bare server sentence.
+function conflictMessage(serverMessage: string) {
+  if (/already awaiting review/i.test(serverMessage))
+    return 'Another update on this activity is still waiting for M&E review, so this proof cannot be submitted yet. Ask the M&E reviewer to approve or return that update, then submit again.'
+  return `${serverMessage} Reload the activity to see its current state, then try again.`
+}
+
 interface ProofFileItem {
   key: string
   file: File
@@ -104,27 +113,88 @@ const ScopedActivityProofDialog = ({
   const fileInputRef = useRef<HTMLInputElement | null>(null)
   const lockedNoticeRef = useRef<HTMLParagraphElement | null>(null)
   const reservation = useRef<{ updateId: string; clientUpdateId: string } | null>(null)
+  // An earlier reservation of the current user whose bytes never finished uploading. Reserving
+  // again with its clientUpdateId is idempotent on the server, so the officer re-selects the
+  // same files and finishes it instead of being blocked by a second reservation.
+  const resume = activity?.updateNotes?.find((item) => item.resumeClientUpdateId) ?? null
   // committed marks the update as durably committed server-side (retries after this point must
   // only retry the post-commit reload, never reserve a second update). finishing guards against
   // overlapping finish() calls without blocking a later retry after a failed reload.
   const committed = useRef(false)
   const finishing = useRef(false)
-  const [beneficiariesReachedThisSession, setBeneficiariesReachedThisSession] = useState(0)
+  // Keys of files whose signed-URL upload succeeded: the URL is single-use, so a retry of any
+  // later step (finalize, Submit) must never upload the file again.
+  const uploadedKeys = useRef(new Set<string>())
+  const [beneficiariesReachedThisSession, setBeneficiariesReachedThisSession] = useState('')
+  const progressError = error.startsWith('Progress must')
   const noteError = error === 'Enter an update note before submitting proof.'
   const fileError = error.startsWith('Attach') || error.startsWith('Select up to')
   const beneficiariesError = error.startsWith('Beneficiaries reached this session')
 
+  // Empty is allowed; otherwise a whole number from 0 to 100000. Returns null when the field
+  // should not be sent at all (empty), a number when valid, or undefined when invalid.
+  const parsedBeneficiariesReachedThisSession = (): number | null | undefined => {
+    const trimmed = beneficiariesReachedThisSession.trim()
+    if (!trimmed) return null
+    if (!/^\d+$/.test(trimmed)) return undefined
+    const value = Number(trimmed)
+    if (!Number.isInteger(value) || value < 0 || value > 100000) return undefined
+    return value
+  }
+
+  // The progress field follows the beneficiary-based suggestion until the officer edits it.
+  const [progressText, setProgressText] = useState('')
+  const [progressEdited, setProgressEdited] = useState(false)
+  const suggestion = (() => {
+    if (resume || !activity) return null
+    const target = activity.targetBeneficiaries
+    const reached = activity.beneficiariesReached
+    if (typeof target !== 'number' || !(target > 0) || typeof reached !== 'number') return null
+    const session = parsedBeneficiariesReachedThisSession()
+    const total = reached + (typeof session === 'number' ? session : 0)
+    const percent = Math.floor((total / target) * 100)
+    // Automatic suggestions never reach 100: completion is only ever an explicit choice.
+    return {
+      percent: Math.min(99, Math.max(activity.progress, percent)),
+      total,
+      target,
+      includesSession: typeof session === 'number',
+    }
+  })()
+  const progressValue = resume
+    ? String(resume.progress)
+    : progressEdited
+      ? progressText
+      : String(suggestion?.percent ?? activity?.progress ?? 0)
+
+  const numericProgress = progressValue.trim() === '' ? Number.NaN : Number(progressValue)
+  const lowerNotice =
+    !resume &&
+    progressEdited &&
+    activity !== null &&
+    activity !== undefined &&
+    Number.isInteger(numericProgress) &&
+    numericProgress >= 0 &&
+    numericProgress < activity.progress
+
   // biome-ignore lint/correctness/useExhaustiveDependencies: scope is stable per instance key.
   useEffect(() => {
     if (!activity || !open) return
-    setNote('')
+    setProgressText('')
+    setProgressEdited(false)
+    setNote(resume?.note ?? '')
     setFiles([])
     setError('')
     setLocked(false)
-    setBeneficiariesReachedThisSession(0)
+    setBeneficiariesReachedThisSession(
+      resume?.beneficiariesReachedThisSession == null
+        ? ''
+        : String(resume.beneficiariesReachedThisSession),
+    )
     reservation.current = null
     committed.current = false
     finishing.current = false
+    uploadedKeys.current = new Set()
     let cancelled = false
     pathwaysClient
       .getActivityProofUploadLimits(activity.projectId)
@@ -230,14 +300,15 @@ const ScopedActivityProofDialog = ({
   // Uploads (when the reservation issued a signed URL) and always finalizes: a file that the
   // reservation already reported storageReady still needs its finalize call to trigger the
   // update's commit, so this never skips straight to a local 'uploaded' status.
-  const processFile = async (item: ProofFileItem) => {
-    if (!activity || !reservation.current || !item.evidenceId) return
-    if (item.uploadUrl) {
+  const processFile = async (item: ProofFileItem): Promise<boolean> => {
+    if (!activity || !reservation.current || !item.evidenceId) return false
+    if (item.uploadUrl && !uploadedKeys.current.has(item.key)) {
       setFileState(item.key, { status: 'uploading', error: undefined })
       try {
         await pathwaysClient.uploadActivityProofFile(item.uploadUrl, item.file)
+        uploadedKeys.current.add(item.key)
       } catch (caught) {
-        if (!scope.isCurrent()) return
+        if (!scope.isCurrent()) return false
         setFileState(item.key, {
           status: 'failed',
           error:
@@ -245,10 +316,10 @@ const ScopedActivityProofDialog = ({
               ? caught.message
               : 'This file could not be uploaded. Retry it.',
         })
-        return
+        return false
       }
     }
-    if (!scope.isCurrent()) return
+    if (!scope.isCurrent()) return false
     try {
       const result = await pathwaysClient.finalizeActivityProofFile(
         activity.projectId,
@@ -256,13 +327,14 @@ const ScopedActivityProofDialog = ({
         reservation.current.updateId,
         item.evidenceId,
       )
-      if (!scope.isCurrent()) return
+      if (!scope.isCurrent()) return false
       setFileState(item.key, { status: 'uploaded' })
       if (result.status === 'COMMITTED') {
         await finish('activity' in result ? result.activity : undefined)
       }
+      return true
     } catch (caught) {
-      if (!scope.isCurrent()) return
+      if (!scope.isCurrent()) return false
       setFileState(item.key, {
         status: 'failed',
         error:
@@ -270,13 +342,25 @@ const ScopedActivityProofDialog = ({
             ? caught.message
             : 'This file could not be finalized. Retry it.',
       })
+      return false
     }
   }
 
   const retryFile = async (key: string) => {
     const item = files.find((entry) => entry.key === key)
     if (!item || item.status === 'uploading') return
-    await processFile(item)
+    setError('')
+    const ok = await processFile(item)
+    // Once this was the last file to land, an UPLOADING reply can still mean the update is ready:
+    // one more idempotent finalize commits it, and a miss is reported rather than left silent.
+    const allUploaded = files.every((entry) => entry.key === key || entry.status === 'uploaded')
+    if (ok && allUploaded && scope.isCurrent() && !committed.current) {
+      await processFile(item)
+      if (scope.isCurrent() && !committed.current)
+        setError(
+          'The proof files are uploaded, but the update was not submitted for review. Select Submit proof to retry.',
+        )
+    }
   }
 
   const submitUpdate = async () => {
@@ -287,6 +371,21 @@ const ScopedActivityProofDialog = ({
     }
     if (!files.length) {
       setError('Attach at least one proof file.')
+      return
+    }
+    const beneficiaries = parsedBeneficiariesReachedThisSession()
+    if (beneficiaries === undefined) {
+      setError('Beneficiaries reached this session must be a whole number from 0 to 100000.')
+      return
+    }
+    const progressPercent = resume ? resume.progress : Number(progressValue)
+    if (
+      !progressValue.trim() ||
+      !Number.isInteger(progressPercent) ||
+      progressPercent < 0 ||
+      progressPercent > 100
+    ) {
+      setError('Progress must be a whole number from 0 to 100.')
       return
     }
     setSubmitting(true)
@@ -302,7 +401,7 @@ const ScopedActivityProofDialog = ({
       if (!reservation.current) {
         // First attempt for this note/file set: mint the reservation's clientUpdateId once and
         // reuse it for every later retry so a resubmit is idempotent on the server.
-        const clientUpdateId = crypto.randomUUID()
+        const clientUpdateId = resume?.resumeClientUpdateId ?? crypto.randomUUID()
         // Hash sequentially: files can total up to 250 MB, and hashing them all in parallel would
         // hold every buffer in memory at once.
         const declarations: ActivityProofFileDeclaration[] = []
@@ -322,9 +421,10 @@ const ScopedActivityProofDialog = ({
           projectId: activity.projectId,
           activityId: activity.id,
           clientUpdateId,
-          progressPercent: activity.progress,
+          progressPercent,
           note: note.trim(),
           files: declarations,
+          ...(beneficiaries === null ? {} : { beneficiariesReachedThisSession: beneficiaries }),
         })
         if (!scope.isCurrent()) return
         if (reserved.status === 'COMMITTED') {
@@ -354,15 +454,43 @@ const ScopedActivityProofDialog = ({
       }
       // Every reserved file needs processing, including one the reservation already reported as
       // storageReady (a READY_TO_COMMIT reply): it still needs its finalize call to commit.
-      const targets = workingFiles.filter((item) => item.status !== 'uploaded' && item.evidenceId)
-      await Promise.all(targets.map((item) => processFile(item)))
-      if (scope.isCurrent() && !committed.current) setSubmitting(false)
+      const pendingTargets = workingFiles.filter(
+        (item) => item.status !== 'uploaded' && item.evidenceId,
+      )
+      // Every file already finalized but the update never committed: the retry is one finalize of
+      // a reserved file, which is idempotent and commits an update whose files are all ready.
+      const lastReserved = workingFiles.filter((item) => item.evidenceId).at(-1)
+      const targets = pendingTargets.length ? pendingTargets : lastReserved ? [lastReserved] : []
+      const outcomes = await Promise.all(targets.map((item) => processFile(item)))
+      // Finalizes that ran together can each report UPLOADING while the update is in fact ready.
+      // One more finalize, after all of them settled, is idempotent and commits it.
+      if (
+        scope.isCurrent() &&
+        !committed.current &&
+        outcomes.every(Boolean) &&
+        pendingTargets.length
+      ) {
+        await processFile(targets[targets.length - 1])
+      }
+      if (scope.isCurrent() && !committed.current) {
+        setSubmitting(false)
+        // Never leave an unfinished submission silent: the update stays reserved until it commits.
+        setError(
+          outcomes.some((ok) => !ok)
+            ? 'Not every proof file was uploaded, so this update is not submitted for review yet. Retry the failed files below.'
+            : 'The proof files are uploaded, but the update was not submitted for review. Select Submit proof to retry.',
+        )
+      }
     } catch (caught) {
       if (!scope.isCurrent()) return
       setError(
-        caught instanceof Error
-          ? caught.message
-          : 'The activity update could not be completed. Review the details and try again.',
+        caught instanceof PathwaysClientError && caught.status === 409
+          ? resume && /different input/i.test(caught.message)
+            ? 'These files do not match the ones first selected for this update. Select the original files to finish it.'
+            : conflictMessage(caught.message)
+          : caught instanceof Error
+            ? caught.message
+            : 'The activity update could not be completed. Review the details and try again.',
       )
       setSubmitting(false)
     }
@@ -391,6 +519,7 @@ const ScopedActivityProofDialog = ({
       >
         <form
           className="space-y-5"
+          noValidate
           onSubmit={(event) => {
             event.preventDefault()
             void submitUpdate()
@@ -399,30 +528,75 @@ const ScopedActivityProofDialog = ({
           <output aria-atomic="true" aria-live="polite" className="sr-only block">
             {liveStatus}
           </output>
+          {resume ? (
+            <p className="rounded-xl border border-warning/40 bg-warning-subtle p-3 text-sm text-foreground">
+              An earlier upload for this update did not finish. Its note is kept below. Select the
+              same proof files again to finish submitting it for review.
+            </p>
+          ) : null}
           <div className="space-y-2">
             <Label htmlFor="activity-beneficiaries-reached">
               Beneficiaries reached this session
             </Label>
             <Input
-              aria-describedby="activity-beneficiaries-reached-hint"
+              aria-describedby={
+                beneficiariesError
+                  ? 'activity-beneficiaries-reached-hint activity-beneficiaries-reached-error'
+                  : 'activity-beneficiaries-reached-hint'
+              }
               aria-invalid={beneficiariesError}
-              disabled
+              disabled={submitting || locked || Boolean(resume)}
               id="activity-beneficiaries-reached"
               min={0}
+              max={100000}
               onChange={(event) => {
-                setBeneficiariesReachedThisSession(Number(event.target.value))
+                setBeneficiariesReachedThisSession(event.target.value)
                 if (beneficiariesError) setError('')
               }}
-              title="Not available yet"
               type="number"
               step={1}
               value={beneficiariesReachedThisSession}
             />
             <p className="text-sm text-muted-foreground" id="activity-beneficiaries-reached-hint">
-              Session beneficiary counts are unavailable until backend support is added. The
-              submitted proof retains the current {activity?.progress ?? 0}% progress for M&E
-              review.
+              Counts toward the activity's beneficiaries reached once M&E approves this proof.
             </p>
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="activity-proof-progress">Progress (%)</Label>
+            <Input
+              aria-describedby={
+                [
+                  suggestion ? 'activity-proof-progress-hint' : '',
+                  lowerNotice ? 'activity-proof-progress-lower' : '',
+                  progressError ? 'activity-proof-progress-error' : '',
+                ]
+                  .filter(Boolean)
+                  .join(' ') || undefined
+              }
+              aria-invalid={progressError}
+              disabled={submitting || locked || Boolean(resume)}
+              id="activity-proof-progress"
+              max={100}
+              min={0}
+              onChange={(event) => {
+                setProgressText(event.target.value)
+                setProgressEdited(true)
+                if (progressError) setError('')
+              }}
+              step={1}
+              type="number"
+              value={progressValue}
+            />
+            {suggestion ? (
+              <p className="text-sm text-muted-foreground" id="activity-proof-progress-hint">
+                {`Suggested from beneficiaries: ${suggestion.total} of ${suggestion.target} reached ${suggestion.includesSession ? '(including this session) ' : ''}= ${suggestion.percent}%.`}
+              </p>
+            ) : null}
+            {lowerNotice && activity ? (
+              <p className="text-sm text-muted-foreground" id="activity-proof-progress-lower">
+                This is lower than the current progress ({activity.progress}%).
+              </p>
+            ) : null}
           </div>
           <div className="space-y-2">
             <Label htmlFor="activity-note">
@@ -433,7 +607,7 @@ const ScopedActivityProofDialog = ({
               <span className="sr-only"> (required)</span>
             </Label>
             <Textarea
-              disabled={submitting || locked}
+              disabled={submitting || locked || Boolean(resume)}
               aria-describedby={noteError ? 'activity-note-error' : undefined}
               aria-invalid={noteError}
               aria-required="true"
@@ -482,7 +656,7 @@ const ScopedActivityProofDialog = ({
               {files.map((item) => (
                 <li
                   key={item.key}
-                  className="flex items-center justify-between gap-2 rounded-sm border border-border bg-surface-subtle p-3"
+                  className="flex items-center justify-between gap-2 rounded-xl border border-border bg-surface-subtle p-3"
                 >
                   <div className="min-w-0 flex-1">
                     <p className="break-all text-sm font-medium text-foreground">
@@ -526,7 +700,15 @@ const ScopedActivityProofDialog = ({
             <p
               className="text-sm font-medium text-destructive"
               id={
-                noteError ? 'activity-note-error' : fileError ? 'activity-proof-error' : undefined
+                noteError
+                  ? 'activity-note-error'
+                  : fileError
+                    ? 'activity-proof-error'
+                    : beneficiariesError
+                      ? 'activity-beneficiaries-reached-error'
+                      : progressError
+                        ? 'activity-proof-progress-error'
+                        : undefined
               }
               role="alert"
             >

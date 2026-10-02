@@ -119,7 +119,7 @@ export function ImportProcessingPanel({
   return (
     <section
       aria-labelledby={headingId}
-      className="space-y-3 rounded-lg border bg-card p-4"
+      className="space-y-3 rounded-xl border bg-card p-4"
       data-testid="import-processing-panel"
       ref={sectionRef}
     >

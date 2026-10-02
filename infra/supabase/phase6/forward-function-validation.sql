@@ -9,7 +9,7 @@ DO $validation$
 DECLARE routine record; actual record; checked integer:=0;
 BEGIN
  IF current_user<>'postgres' OR session_user<>'postgres'
-  OR inet_server_addr() IS DISTINCT FROM '127.0.0.1'::inet OR inet_server_port() IS DISTINCT FROM 55448
+  OR inet_server_addr() IS DISTINCT FROM '127.0.0.1'::inet OR inet_server_port() IS DISTINCT FROM current_setting('pathways.replay_port', true)::int
   OR current_database() NOT IN ('pathways_phase4_phase6_replay','pathways_phase4_baseline','pathways_phase4_forward_restore','pathways_phase4_core_retry') THEN
   RAISE EXCEPTION 'Only owned disposable forward validation is permitted';
  END IF;

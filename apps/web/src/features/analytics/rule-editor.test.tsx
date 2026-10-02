@@ -487,7 +487,7 @@ describe('starting a rule from a template', () => {
     )
   })
 
-  it('renders the other three templates as disabled with their exact reason text', async () => {
+  it('shows the three templates that have no backend metric as text with their exact reason', async () => {
     renderEditor({ projectId })
     await screen.findByLabelText('Applies to')
     expect(
@@ -496,6 +496,26 @@ describe('starting a rule from a template', () => {
     expect(screen.getAllByText('Requires Budget burn, not yet available')).toHaveLength(2)
     expect(screen.queryByRole('button', { name: 'Apply Financial Efficiency Risk' })).toBeNull()
     expect(screen.queryByRole('button', { name: 'Apply Budget Under-utilization' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Apply Ideal Vector' })).toBeNull()
+  })
+
+  it('hides the three templates that have no backend metric while unfinished controls are hidden', async () => {
+    vi.resetModules()
+    vi.doMock('@/constants/feature-flags', () => ({ UNFINISHED_CONTROLS_UI_ENABLED: false }))
+    const { RuleEditor: HiddenRuleEditor } = await import('./rule-editor')
+    const { AuthorizedQueryProvider: HiddenProvider } = await import(
+      '@/providers/authorized-query-provider'
+    )
+    vi.doUnmock('@/constants/feature-flags')
+    render(
+      <QueryClientProvider client={new QueryClient()}>
+        <HiddenProvider>
+          <HiddenRuleEditor projectId={projectId} onSaved={vi.fn()} />
+        </HiddenProvider>
+      </QueryClientProvider>,
+    )
+    await screen.findByLabelText('Applies to')
+    expect(screen.queryByText(/not yet available/)).toBeNull()
     expect(screen.queryByRole('button', { name: 'Apply Ideal Vector' })).toBeNull()
   })
 })

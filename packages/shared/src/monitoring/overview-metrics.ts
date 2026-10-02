@@ -8,6 +8,8 @@ import {
   scaledDecimal,
 } from './metric-math'
 
+const moneyString = z.string().regex(/^\d{1,18}\.\d{2}$/)
+
 export const PROJECT_OVERVIEW_METRICS_CONTRACT_VERSION = 'project.overview-metrics.v1' as const
 
 const date = z.string().refine(isCalendarDate, 'Use a real YYYY-MM-DD date from 1900 through 2100.')
@@ -34,7 +36,14 @@ export const projectOverviewMetricsSchema = z
       })
       .strict()
       .nullable(),
-    budgetUtilization: z.object({ metric: metricCellSchema }).strict().nullable(),
+    budgetUtilization: z
+      .object({
+        metric: metricCellSchema,
+        approvedBudget: moneyString.nullable(),
+        countableSpending: moneyString,
+      })
+      .strict()
+      .nullable(),
     beneficiariesReached: z
       .object({
         metric: metricCellSchema,

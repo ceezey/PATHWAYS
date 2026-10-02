@@ -4,53 +4,84 @@
 
 @layer base {
   :root {
-    --background: 0 0% 100%;
-    --foreground: 205.7 43.2% 15.9%;
+    /* Neutrals: canvas page ground, paper cards, ink text, divider borders */
+    --background: 37.5 26.7% 94.1%;
+    --foreground: 227.1 16.7% 16.5%;
+    --ink: 227.1 16.7% 16.5%;
     --workspace: 0 0% 100%;
-    --surface-subtle: 210 33.3% 97.6%;
+    --surface-subtle: 228 33.3% 97.1%;
     --card: 0 0% 100%;
-    --card-foreground: 205.7 43.2% 15.9%;
+    --card-foreground: 227.1 16.7% 16.5%;
     --popover: 0 0% 100%;
-    --popover-foreground: 205.7 43.2% 15.9%;
-    --primary: 206.8 100% 40.4%;
-    --primary-hover: 206.6 100% 36.3%;
-    --primary-active: 206.5 100% 32%;
-    --primary-subtle: 206.7 75% 95.3%;
+    --popover-foreground: 227.1 16.7% 16.5%;
+    /* Blue family: 900 / 700 / 500 / 300 / 100 */
+    --blue-900: 211.4 100% 21.8%;
+    --blue-700: 210.5 100% 37.5%;
+    --blue-500: 210.5 100% 49.8%;
+    --blue-300: 209.4 100% 70%;
+    --blue-100: 210 100% 90.2%;
+    /* Cyan family: 900 / 700 / 500 / 300 / 100 */
+    --cyan-900: 200.8 100% 24.9%;
+    --cyan-700: 201.1 100% 35.1%;
+    --cyan-500: 201 100% 49.8%;
+    --cyan-300: 200.5 98.7% 69.8%;
+    --cyan-100: 201.2 100% 90%;
+    --primary: var(--blue-700);
+    --primary-hover: var(--blue-900);
+    --primary-active: var(--blue-900);
+    --primary-subtle: var(--blue-100);
     --primary-foreground: 0 0% 100%;
-    --navy: 209.1 75.6% 17.6%;
+    --brand: var(--blue-500);
+    --navy: var(--blue-900);
     --navy-foreground: 0 0% 100%;
     --navy-muted: 207.7 31% 83.5%;
-    --light-blue: 206.7 75% 95.3%;
-    --light-blue-foreground: 206.4 100% 32.9%;
-    --secondary: 206.7 25.7% 93.1%;
-    --secondary-foreground: 205.7 43.2% 15.9%;
-    --muted: 204 23.8% 95.9%;
-    --muted-foreground: 207.7 19.2% 39.8%;
-    --accent: 206.7 75% 95.3%;
-    --accent-foreground: 206.4 100% 32.9%;
-    --link: 206.4 100% 32.9%;
-    --success: 150.3 59.5% 30%;
-    --success-subtle: 147.7 41.9% 93.9%;
+    --light-blue: var(--blue-100);
+    --light-blue-foreground: var(--blue-700);
+    --secondary: 205.7 10.8% 92%;
+    --secondary-foreground: 227.1 16.7% 16.5%;
+    --muted: 228 33.3% 97.1%;
+    --muted-foreground: 218.8 9.5% 41.2%;
+    --accent: var(--blue-100);
+    --accent-foreground: var(--blue-700);
+    --link: var(--blue-700);
+    --success: 148.9 87.5% 25.1%;
+    --success-500: 146.1 75.1% 37.8%;
+    --success-subtle: 144.1 45.6% 91.4%;
     --success-foreground: 0 0% 100%;
-    --warning: 30.9 89% 28.6%;
-    --warning-subtle: 34.6 100% 94.9%;
+    --warning: 31.9 100% 30.2%;
+    --warning-500: 32.1 94.6% 43.7%;
+    --warning-subtle: 43.9 100% 89%;
     --warning-foreground: 0 0% 100%;
-    --danger: 4.2 76.5% 40%;
-    --danger-hover: 4.4 76.5% 35.1%;
-    --danger-active: 4.5 79.9% 29.2%;
-    --danger-subtle: 3.5 81% 95.9%;
+    --danger: 351.7 72.4% 41.2%;
+    --danger-500: 355.9 85.5% 56.9%;
+    --danger-hover: 351.7 72.4% 35%;
+    --danger-active: 351.7 72.4% 29%;
+    --danger-subtle: 352 100% 94.1%;
     --danger-foreground: 0 0% 100%;
-    --info: 206.4 100% 32.9%;
-    --info-subtle: 206.7 75% 95.3%;
+    --info: var(--blue-700);
+    --info-500: var(--blue-500);
+    --info-subtle: var(--blue-100);
     --info-foreground: 0 0% 100%;
-    --destructive: 4.2 76.5% 40%;
+    --destructive: var(--danger);
     --destructive-foreground: 0 0% 100%;
     --disabled-foreground: 209.1 15.3% 42.2%;
-    --border: 210 24.2% 87.1%;
+    --border: 205.7 10.8% 87.3%;
     --border-strong: 209.1 20.6% 65.7%;
-    --input: 210 15.2% 58.8%;
-    --ring: 206.8 100% 40.4%;
-    --radius: 0.375rem;
+    --input: 205.7 10.8% 87.3%;
+    --ring: var(--blue-500);
+    /* Chart palette: blue and cyan families, neutral categories only */
+    --chart-1: var(--blue-700);
+    --chart-2: var(--cyan-500);
+    --chart-3: var(--blue-300);
+    --chart-4: var(--cyan-700);
+    --chart-5: var(--blue-900);
+    --chart-grid: 205.7 10.8% 87.3%;
+    /* Radius scale: 4 tags, 8 controls, 12 cards, 16 panels */
+    --radius-sm: 4px;
+    --radius-md: 8px;
+    --radius-lg: 8px;
+    --radius-xl: 12px;
+    --radius-2xl: 16px;
   }
 
   * {
@@ -105,7 +136,7 @@
   }
 
   a:not([class]):focus-visible {
-    border-radius: calc(var(--radius) - 4px);
+    border-radius: var(--radius-sm);
     outline: 2px solid hsl(var(--ring));
     outline-offset: 2px;
   }

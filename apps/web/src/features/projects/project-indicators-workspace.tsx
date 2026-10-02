@@ -1,5 +1,7 @@
 'use client'
+import { recipeNames } from './indicator-recipes'
 import { SourceMutationRecovery } from './source-mutation-recovery'
+import { UseFromLibrary } from './use-from-library'
 
 import { EmptyState } from '@/components/pathways/empty-state'
 import { Button } from '@/components/ui/button'
@@ -9,6 +11,7 @@ import { useMonitoringRead } from '@/features/analytics/use-monitoring-read'
 import { useCurrentRole } from '@/hooks/use-current-role'
 import { useSourceMutationContext } from '@/hooks/use-source-mutation-context'
 import { principalHasAtomicPermission } from '@/lib/rbac/route-access'
+import { indicatorLibraryClient } from '@/lib/services/indicator-library-client'
 import { PathwaysClientError, pathwaysClient } from '@/lib/services/pathways-client'
 import {
   type SourceMutationResult,
@@ -28,18 +31,10 @@ import {
   numericKinds,
 } from '@pathways/shared'
 import { Target } from 'lucide-react'
+import Link from 'next/link'
 import { type FormEvent, useCallback, useEffect, useRef, useState } from 'react'
 
 const inputClass = 'w-full rounded-md border border-input bg-background px-3 py-2 text-sm'
-const recipeNames: Record<(typeof metricRecipes)[number], string> = {
-  PARTICIPATION_RECORD_COUNT: 'Committed participation records',
-  DISTINCT_ATTENDING_INDIVIDUALS: 'Distinct attending individuals',
-  ATTENDANCE_RECORDS_PER_INDIVIDUAL: 'Attendance records per individual',
-  EFFECTIVE_JOURNEY_EVENT_COUNT: 'Effective journey events',
-  FORM_NUMERIC_SUM: 'Validated form numeric sum',
-  FORM_NUMERIC_AVERAGE: 'Validated form numeric average',
-  ACTIVITY_COMPLETION_PERCENTAGE: 'Activity completion percentage',
-}
 const text = (form: FormData, name: string) => String(form.get(name) ?? '').trim()
 const optional = (form: FormData, name: string) => text(form, name) || undefined
 
@@ -122,7 +117,7 @@ function NewIndicator({
     }
   }
   return (
-    <details className="rounded-lg border border-border bg-card p-4">
+    <details className="rounded-xl border border-border bg-card p-4">
       <summary className="cursor-pointer font-medium">Add project indicator</summary>
       <p className="my-3 text-sm text-muted-foreground">
         A definition owns one reporting period and one value authority. Binding, unit, baseline,
@@ -357,7 +352,7 @@ function IndicatorEditor({
     }
   }
   return (
-    <details className="mt-4 rounded-md border border-border p-3">
+    <details className="mt-4 rounded-xl border border-border p-3">
       <summary className="cursor-pointer text-sm font-medium">Manage this indicator</summary>
       <form
         className="mt-3 space-y-3"
@@ -472,6 +467,15 @@ export function ProjectIndicatorsWorkspace({ projectId }: { projectId: string })
   const activeKey = `${authorityKey}:${projectId}`
   const currentKey = useRef(activeKey)
   currentKey.current = activeKey
+  const canReadLibrary = principalHasAtomicPermission(profile, 'indicators.library.read')
+  const libraryRead = useAuthorizedRead(
+    'indicator-library',
+    null,
+    'indicators.library.read',
+    () => indicatorLibraryClient.list(),
+    canCreate && canReadLibrary,
+    { freshness: 'summary' },
+  )
   const canReadForms = principalHasAtomicPermission(profile, 'forms.read')
   const canReadActivityContext = principalHasAtomicPermission(profile, 'activities.context.read')
   const canReadActivities = principalHasAtomicPermission(profile, 'activities.read')
@@ -576,12 +580,19 @@ export function ProjectIndicatorsWorkspace({ projectId }: { projectId: string })
             project-success rating.
           </p>
         </div>
-        <Button type="button" variant="outline" onClick={reload} disabled={loading || busy}>
-          {loading ? 'Refreshingâ€¦' : 'Refresh indicators'}
-        </Button>
+        <div className="flex flex-wrap gap-2">
+          {canReadLibrary ? (
+            <Button asChild variant="outline">
+              <Link href="/indicators/library">Indicator library</Link>
+            </Button>
+          ) : null}
+          <Button type="button" variant="outline" onClick={reload} disabled={loading || busy}>
+            {loading ? 'Refreshingâ€¦' : 'Refresh indicators'}
+          </Button>
+        </div>
       </header>
       {message ? (
-        <output aria-live="polite" className="block rounded-md border border-border p-3 text-sm">
+        <output aria-live="polite" className="block rounded-xl border border-border p-3 text-sm">
           {message}
         </output>
       ) : null}
@@ -594,6 +605,21 @@ export function ProjectIndicatorsWorkspace({ projectId }: { projectId: string })
           onSave={(input) =>
             mutate(() =>
               pathwaysClient.createProjectIndicator(projectId, input, createContext ?? undefined),
+            )
+          }
+        />
+      ) : null}
+      {canCreate && data && libraryRead.data?.length ? (
+        <UseFromLibrary
+          entries={libraryRead.data}
+          busy={busy}
+          onUse={(input) =>
+            mutate(() =>
+              pathwaysClient.createProjectIndicatorFromLibrary(
+                projectId,
+                input,
+                createContext ?? undefined,
+              ),
             )
           }
         />

@@ -20,10 +20,12 @@ import {
 } from '@/components/pathways'
 import { Button } from '@/components/ui/button'
 import { Sheet } from '@/components/ui/sheet'
+import { UNFINISHED_CONTROLS_UI_ENABLED } from '@/constants/feature-flags'
 import type { Activity, ActivityProof, Indicator, JourneyStageConfig } from '@/types/pathways'
 
 import { ActivityExpenseDialog, type ExpenseBudgetReference } from './activity-expense-dialog'
 import { ActivityExpenseReviewDialog, type PendingExpense } from './activity-expense-review-dialog'
+import { ActivityExplainDelayDialog, categoryLabels } from './activity-explain-delay-dialog'
 import { ActivityProgressDialog } from './activity-progress-dialog'
 import { ActivityProofFiles } from './activity-proof-files'
 import { ActivityProofReviewDialog } from './activity-proof-review-dialog'
@@ -94,6 +96,7 @@ export const ActivityDetailContent = ({
   requestedProofId?: string
 }) => {
   const [progressOpen, setProgressOpen] = useState(false)
+  const [explainDelayOpen, setExplainDelayOpen] = useState(false)
   const [expenseOpen, setExpenseOpen] = useState(false)
   const [expenseReviewTarget, setExpenseReviewTarget] = useState<PendingExpense | null>(null)
   const [reviewTarget, setReviewTarget] = useState<{
@@ -105,8 +108,12 @@ export const ActivityDetailContent = ({
   const showEdit = canEdit && activity.capabilities?.canEdit === true
   const showSubmitProof = canSubmitProof && activity.capabilities?.canSubmitProof === true
   const showRecordProgress = canRecordProgress && activity.capabilities?.canRecordProgress === true
+  const showExplainDelay =
+    activity.capabilities?.canExplainOverdue === true && activity.status === 'Overdue'
   const latestProof = activity.submittedProof.at(-1)
   const correctionRequired = latestProof?.status === 'Flagged'
+  const incompleteProof = activity.updateNotes.find((update) => update.proofIncomplete)
+  const ownIncompleteProof = Boolean(incompleteProof?.resumeClientUpdateId)
 
   const connectedIndicators = activity.indicatorIds.map((indicatorId) => {
     const indicator = indicators.find((item) => item.id === indicatorId)
@@ -118,6 +125,9 @@ export const ActivityDetailContent = ({
     <div className="space-y-5 pb-1">
       <div className="flex flex-wrap gap-2">
         <StatusBadge tone={activityStatusTone(activity.status)}>{activity.status}</StatusBadge>
+        {activity.overdueExplanationNeeded ? (
+          <StatusBadge tone="warning">Overdue: explanation needed</StatusBadge>
+        ) : null}
         {latestProof ? (
           <StatusBadge tone={proofTone(latestProof.status)}>
             Proof v{proofVersion(activity, latestProof)} · {latestProof.status}
@@ -134,7 +144,7 @@ export const ActivityDetailContent = ({
           value={activity.progress}
         />
       ) : null}
-      <dl className="grid gap-4 rounded-sm border border-border bg-surface-subtle p-4 text-sm sm:grid-cols-2">
+      <dl className="grid gap-4 rounded-xl border border-border bg-surface-subtle p-4 text-sm sm:grid-cols-2">
         <div>
           <dt className="text-muted-foreground">Dates</dt>
           <dd className="mt-1 font-medium text-foreground">
@@ -200,7 +210,7 @@ export const ActivityDetailContent = ({
               </article>
             ))
           ) : (
-            <p className="rounded-sm border border-dashed border-border p-4 text-sm text-muted-foreground">
+            <p className="rounded-xl border border-dashed border-border p-4 text-sm text-muted-foreground">
               No indicators are connected to this activity.
             </p>
           )}
@@ -255,12 +265,14 @@ export const ActivityDetailContent = ({
             {[...activity.submittedProof].reverse().map((proof, reverseIndex) => {
               const isLatest = reverseIndex === 0
               const highlighted = proof.id === requestedProofId
-              const progress =
-                activity.updateNotes.find((update) => update.id === proof.updateId)?.progress ??
-                activity.progress
+              const proofUpdate = activity.updateNotes.find(
+                (update) => update.id === proof.updateId,
+              )
+              const returnedUpdate = proof.status === 'Flagged' ? proofUpdate : undefined
+              const progress = proofUpdate?.progress ?? activity.progress
               return (
                 <article
-                  className={`rounded-sm border bg-background p-4 ${
+                  className={`rounded-xl border bg-background p-4 ${
                     highlighted ? 'border-primary ring-2 ring-primary/20' : 'border-border'
                   }`}
                   id={`activity-proof-${proof.id}`}
@@ -284,11 +296,42 @@ export const ActivityDetailContent = ({
                     <ActivityProofFiles proof={proof} />
                   </div>
                   {proof.status === 'Flagged' ? (
-                    <p className="mt-3 rounded-sm border border-danger/25 bg-danger-subtle p-3 text-sm text-danger">
-                      This proof was returned for correction.
+                    <div className="mt-3 rounded-xl border border-danger/25 bg-danger-subtle p-3 text-sm text-danger">
+                      <p>This proof was returned for correction.</p>
+                      {returnedUpdate?.reviewReason ? (
+                        <p className="mt-1">
+                          {returnedUpdate.reviewedBy
+                            ? `Returned by ${returnedUpdate.reviewedBy}: `
+                            : 'Return reason: '}
+                          {returnedUpdate.reviewReason}
+                        </p>
+                      ) : null}
+                      {isLatest && showSubmitProof && activity.status !== 'Completed' ? (
+                        <Button
+                          className="mt-3 gap-2"
+                          onClick={() => onSubmitProof(activity)}
+                          size="sm"
+                          type="button"
+                        >
+                          <UploadCloud className="h-4 w-4" aria-hidden="true" />
+                          Submit correction
+                        </Button>
+                      ) : null}
+                    </div>
+                  ) : null}
+                  {isLatest &&
+                  canValidateProof &&
+                  proof.status === 'Submitted' &&
+                  activity.storedStatus !== 'FOR_REVIEW' ? (
+                    <p className="mt-4 text-sm text-muted-foreground">
+                      Waiting for the officer to finish uploading this proof. It can be reviewed
+                      once every file is submitted.
                     </p>
                   ) : null}
-                  {isLatest && canValidateProof && proof.status === 'Submitted' ? (
+                  {isLatest &&
+                  canValidateProof &&
+                  proof.status === 'Submitted' &&
+                  activity.storedStatus === 'FOR_REVIEW' ? (
                     <Button
                       className="mt-4 gap-2"
                       onClick={() => setReviewTarget({ mode: 'validate', proof })}
@@ -315,7 +358,7 @@ export const ActivityDetailContent = ({
             })}
           </div>
         ) : (
-          <p className="mt-3 rounded-sm border border-dashed border-border p-4 text-sm text-muted-foreground">
+          <p className="mt-3 rounded-xl border border-dashed border-border p-4 text-sm text-muted-foreground">
             {activity.updateNotes.length > 0
               ? 'No proof has been submitted.'
               : 'No update or proof has been submitted.'}
@@ -379,8 +422,51 @@ export const ActivityDetailContent = ({
         </section>
       ) : null}
 
+      {activity.overdueExplanations.length > 0 || activity.status === 'Overdue' ? (
+        <section aria-labelledby={`overdue-explanations-${activity.id}`}>
+          <h3
+            className="text-sm font-semibold text-foreground"
+            id={`overdue-explanations-${activity.id}`}
+          >
+            Overdue explanations
+          </h3>
+          {activity.overdueExplanations.length > 0 ? (
+            <ul className="mt-3 space-y-2 text-sm text-muted-foreground">
+              {activity.overdueExplanations.map((entry) => (
+                <li
+                  className="rounded-sm border border-border bg-surface-subtle px-3 py-2"
+                  key={entry.id}
+                >
+                  <span className="font-medium text-foreground">
+                    {categoryLabels[entry.category]}
+                  </span>{' '}
+                  · {formatDate(entry.recordedAt)} · {entry.actorName}
+                  <p className="mt-1 leading-6">{entry.explanation}</p>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="mt-3 rounded-xl border border-dashed border-border p-4 text-sm text-muted-foreground">
+              None yet.
+            </p>
+          )}
+        </section>
+      ) : null}
+
+      {incompleteProof && ownIncompleteProof && showSubmitProof ? (
+        <output className="block rounded-xl border border-warning/40 bg-warning-subtle p-3 text-sm text-foreground">
+          Your proof upload was not finished, so this update is not with M&E yet. Choose Resume
+          proof upload, then select the same files again.
+        </output>
+      ) : null}
+      {incompleteProof && !ownIncompleteProof && canValidateProof ? (
+        <output className="block rounded-xl border border-border bg-surface-subtle p-3 text-sm text-muted-foreground">
+          Proof upload not finished. {incompleteProof.submittedBy} has an update waiting for its
+          files to upload. It can be reviewed once every file is submitted.
+        </output>
+      ) : null}
       {correctionRequired && showSubmitProof ? (
-        <p className="rounded-sm border border-danger/25 bg-danger-subtle p-3 text-sm text-danger">
+        <p className="rounded-xl border border-danger/25 bg-danger-subtle p-3 text-sm text-danger">
           A correction is required. Review the return reason above, then submit a new proof version.
         </p>
       ) : null}
@@ -399,7 +485,7 @@ export const ActivityDetailContent = ({
         {showSubmitProof && activity.status !== 'Completed' ? (
           <Button className="gap-2" onClick={() => onSubmitProof(activity)} type="button">
             <UploadCloud className="h-4 w-4" aria-hidden="true" />
-            Submit Update & Proof
+            {ownIncompleteProof ? 'Resume proof upload' : 'Submit Update & Proof'}
           </Button>
         ) : null}
         {showRecordProgress && activity.storedStatus === 'IN_PROGRESS' ? (
@@ -413,6 +499,17 @@ export const ActivityDetailContent = ({
             Record progress
           </Button>
         ) : null}
+        {showExplainDelay ? (
+          <Button
+            className="gap-2"
+            onClick={() => setExplainDelayOpen(true)}
+            type="button"
+            variant="outline"
+          >
+            <BellRing className="h-4 w-4" aria-hidden="true" />
+            Explain delay
+          </Button>
+        ) : null}
         {canLogExpense ? (
           <Button
             className="gap-2"
@@ -424,7 +521,9 @@ export const ActivityDetailContent = ({
             Log expense
           </Button>
         ) : null}
-        {canRequestExtension && activity.status !== 'Completed' ? (
+        {UNFINISHED_CONTROLS_UI_ENABLED &&
+        canRequestExtension &&
+        activity.status !== 'Completed' ? (
           <>
             <Button
               className="gap-2"
@@ -446,6 +545,14 @@ export const ActivityDetailContent = ({
           onOpenChange={setProgressOpen}
           onRecorded={onActivityChanged}
           open={progressOpen}
+        />
+      ) : null}
+      {explainDelayOpen ? (
+        <ActivityExplainDelayDialog
+          activity={activity}
+          onOpenChange={setExplainDelayOpen}
+          onRecorded={onActivityChanged}
+          open={explainDelayOpen}
         />
       ) : null}
       <ActivityExpenseDialog

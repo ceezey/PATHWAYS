@@ -21,6 +21,7 @@ import { fileURLToPath } from 'node:url'
 import {
   BASELINE,
   MIGRATIONS_IN_ORDER,
+  RESIDUAL_CHAIN_MIGRATIONS,
   assertResumablePrefix,
   buildPlan,
   planIndexForAppliedCount,
@@ -321,10 +322,30 @@ export async function resumePreflight(io, config) {
 
   const ledger = await readLedger(io, config.adminUrl)
   const appliedCount = assertResumablePrefix(ledger)
-  console.log(
-    `PASS: resume preflight (pathways schema present, auth.users present, prisma role present, ledger is a clean finished prefix with ${appliedCount} migrations applied)`,
+
+  // Disambiguate a ledger applied exactly through 0041, 0043 or 0044 (see planIndexForAppliedCount's
+  // PRIOR_BUILD_COMPLETION_POINTS comment): a completed build and a build killed while a temporary
+  // owner chain was granted produce the identical ledger, so read live database state rather than
+  // trusting the count alone. Only queried at those specific counts; harmless (and cheap) to skip
+  // otherwise.
+  const residualCounts = RESIDUAL_CHAIN_MIGRATIONS.map(
+    (name) => MIGRATIONS_IN_ORDER.indexOf(name) + 1,
   )
-  return appliedCount
+  let residualOwnerMemberships = false
+  if (residualCounts.includes(appliedCount)) {
+    const residualRows = io.psqlQuery(
+      config.adminUrl,
+      `SELECT count(*) FROM pg_catalog.pg_auth_members m JOIN pg_catalog.pg_roles r ON r.oid=m.roleid
+       JOIN pg_catalog.pg_roles p ON p.oid=m.member WHERE p.rolname='prisma'
+       AND r.rolname IN ('rules_store_owner','rules_enqueue_owner','rules_source_proof_owner','finance_operation_owner');`,
+    )
+    residualOwnerMemberships = residualRows[0] !== '0'
+  }
+
+  console.log(
+    `PASS: resume preflight (pathways schema present, auth.users present, prisma role present, ledger is a clean finished prefix with ${appliedCount} migrations applied${residualCounts.includes(appliedCount) ? `, residual temporary owner memberships: ${residualOwnerMemberships}` : ''})`,
+  )
+  return { appliedCount, residualOwnerMemberships }
 }
 
 export async function readLedger(io, adminUrl) {
@@ -358,11 +379,11 @@ export async function postconditions(io, config) {
     JSON.stringify(names) !== JSON.stringify(expectedNames)
   ) {
     throw new Error(
-      `Ledger postcondition failed: expected exactly the ${MIGRATIONS_IN_ORDER.length} migrations 0000-0041, all finished and none failed`,
+      `Ledger postcondition failed: expected exactly the ${MIGRATIONS_IN_ORDER.length} migrations 0000-0055, all finished and none failed`,
     )
   }
   console.log(
-    `PASS: ledger has exactly ${MIGRATIONS_IN_ORDER.length} migrations 0000-0041, all finished and none failed`,
+    `PASS: ledger has exactly ${MIGRATIONS_IN_ORDER.length} migrations 0000-0055, all finished and none failed`,
   )
 
   const residualRows = io.psqlQuery(
@@ -370,7 +391,7 @@ export async function postconditions(io, config) {
     `SELECT count(*) FROM pg_catalog.pg_auth_members m JOIN pg_catalog.pg_roles r ON r.oid=m.roleid
      JOIN pg_catalog.pg_roles p ON p.oid=m.member WHERE p.rolname='prisma'
      AND (r.rolname LIKE 'rules\\_%\\_owner' OR r.rolname IN
-       ('public_projection_owner','report_projection_owner','finance_operation_owner','rules_store_owner','rules_enqueue_owner'));`,
+       ('public_projection_owner','report_projection_owner','finance_operation_owner','rules_store_owner','rules_enqueue_owner','rules_source_proof_owner'));`,
   )
   if (residualRows[0] !== '0') {
     throw new Error(
@@ -402,6 +423,17 @@ export async function postconditions(io, config) {
   console.log(
     `PASS: schema-level permission grants observed (${grantRows[0]} USAGE/CREATE grants on pathways*)`,
   )
+
+  const runtimeLoginRows = io.psqlQuery(
+    config.adminUrl,
+    "SELECT rolcanlogin FROM pg_catalog.pg_roles WHERE rolname='pathways_runtime';",
+  )
+  if (runtimeLoginRows[0] !== 't') {
+    throw new Error(
+      'Postcondition failed: pathways_runtime.rolcanlogin is not true; alter-runtime-role did not run or was reverted',
+    )
+  }
+  console.log('PASS: pathways_runtime has LOGIN enabled')
 }
 
 // ---------------------------------------------------------------------------
@@ -451,8 +483,8 @@ export async function runHostedBuild({ io, config, resume = false, log = console
   let captured = {}
 
   if (resume) {
-    const appliedCount = await resumePreflight(io, config)
-    startIndex = planIndexForAppliedCount(appliedCount)
+    const { appliedCount, residualOwnerMemberships } = await resumePreflight(io, config)
+    startIndex = planIndexForAppliedCount(appliedCount, { residualOwnerMemberships })
     const receipt = io.readReceipt ? io.readReceipt() : null
     if (receipt) captured = { ...captured, ...receipt }
     log(`Resuming at plan step ${startIndex} (${appliedCount} migrations already applied)`)
@@ -585,7 +617,7 @@ export function printDryRunPlan(log = console.log) {
     'env file location, empty-target preflight (pathways schema absent, auth.users present, prisma absent).',
   )
   log(
-    'Checks that will run after the last step: exact 0000-0041 finished ledger, no residual prisma owner',
+    'Checks that will run after the last step: exact 0000-0055 finished ledger, no residual prisma owner',
   )
   log('memberships, repo-derived role/permission/grant counts.')
 }

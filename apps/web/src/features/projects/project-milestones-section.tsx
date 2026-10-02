@@ -248,7 +248,7 @@ export const ProjectMilestonesSection = ({
                 type="button"
                 disabled={!canManage}
                 onClick={() => edit(milestone)}
-                className="flex w-full flex-col gap-2 rounded-lg border border-border bg-background p-4 text-left disabled:cursor-default sm:flex-row sm:items-center sm:justify-between"
+                className="flex w-full flex-col gap-2 rounded-xl border border-border bg-background p-4 text-left disabled:cursor-default sm:flex-row sm:items-center sm:justify-between"
               >
                 <div>
                   <p className="font-medium text-foreground">{milestone.title}</p>

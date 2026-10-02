@@ -24,6 +24,7 @@ export type UiAction =
   | 'progress.review'
   | 'projects.profile.manage'
   | 'projects.team.manage'
+  | 'projects.archive'
   | 'journeys.manage'
   | 'milestones.manage'
 
@@ -36,6 +37,7 @@ const supportedActionPermission: Partial<Record<UiAction, AtomicPermission>> = {
   'assessments.detail.view': 'assessments.detail.read',
   'beneficiaries.create': 'beneficiaries.records.register',
   'beneficiaries.edit': 'beneficiaries.profiles.update',
+  'beneficiaries.merge': 'beneficiaries.identities.review',
   'beneficiaries.participation.record': 'participation.record',
   'beneficiaries.journey.transition': 'beneficiaries.enrollments.manage',
   'beneficiaries.journey.correct': 'participation.record',
@@ -44,6 +46,7 @@ const supportedActionPermission: Partial<Record<UiAction, AtomicPermission>> = {
   'milestones.manage': 'milestones.manage',
   'projects.profile.manage': 'projects.update',
   'projects.team.manage': 'assignments.manage',
+  'projects.archive': 'projects.archive',
 }
 
 export const isUiActionAvailable = (

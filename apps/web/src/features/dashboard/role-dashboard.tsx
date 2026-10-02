@@ -35,6 +35,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { Sheet } from '@/components/ui/sheet'
+import { UNFINISHED_CONTROLS_UI_ENABLED } from '@/constants/feature-flags'
 import { useCurrentRole } from '@/hooks/use-current-role'
 import { can } from '@/lib/rbac/can'
 import { type RoutePrincipal, principalHasAtomicPermission } from '@/lib/rbac/route-access'
@@ -48,7 +49,7 @@ import type {
   RoleDashboardViewModel,
 } from '@/types/pathways'
 import { type PathwaysRole, getPathwaysRoleDisplayName } from '@/types/pathways-role'
-import { formatMetricCell } from '@pathways/shared'
+import { businessCalendarDate, formatMetricCell } from '@pathways/shared'
 
 import { ActivityDetailPanel } from '../projects/activity-detail-panel'
 import { ActivityProofDialog } from '../projects/activity-proof-dialog'
@@ -268,6 +269,14 @@ const SavedMonitoringCharts = ({ projectId }: { projectId: string }) => (
     />
   </section>
 )
+/** Trailing 12 months (366 calendar days, the API maximum) ending today in Manila business time. */
+const trailingYearPeriod = () => {
+  const periodEnd = businessCalendarDate(new Date(), 'Asia/Manila')
+  const start = new Date(`${periodEnd}T00:00:00.000Z`)
+  start.setUTCDate(start.getUTCDate() - 365)
+  return { periodStart: start.toISOString().slice(0, 10), periodEnd }
+}
+const PERIOD_NOTE = 'Covers the last 12 months.'
 const ConnectedMonitoringSnapshot = ({
   role,
 }: {
@@ -290,7 +299,8 @@ const ConnectedMonitoringSnapshot = ({
         setProjectId((current) =>
           records.some((record) => record.id === current)
             ? current
-            : (records.find((record) => record.id === requested)?.id ?? records[0]?.id ?? ''),
+            : (records.find((record) => record.id === requested)?.id ??
+              (records.length ? 'all' : '')),
         )
       })
       .catch((caught: unknown) => {
@@ -308,7 +318,10 @@ const ConnectedMonitoringSnapshot = ({
     setMetrics([])
     setError('')
     pathwaysClient
-      .getMonitoringDashboard({ projectId })
+      .getMonitoringDashboard({
+        ...(projectId === 'all' ? {} : { projectId }),
+        ...trailingYearPeriod(),
+      })
       .then((result) => {
         if (!active) return
         setMetrics([
@@ -322,19 +335,19 @@ const ConnectedMonitoringSnapshot = ({
             id: 'participation',
             label: 'Participation records',
             value: formatMetricCell(result.participationRecords),
-            helperText: 'Committed records, not a count of people.',
+            helperText: `Committed records, not a count of people. ${PERIOD_NOTE}`,
           },
           {
             id: 'attending',
             label: 'Distinct attending individuals',
             value: formatMetricCell(result.attendingIndividuals),
-            helperText: 'Present/completed attendance; deduplicated across projects.',
+            helperText: `Present/completed attendance; deduplicated across projects. ${PERIOD_NOTE}`,
           },
           {
             id: 'enrolled',
             label: 'Enrolled individuals',
             value: formatMetricCell(result.enrolledIndividuals),
-            helperText: 'Enrollment overlaps this period; privacy suppression applies.',
+            helperText: 'Enrollment overlaps the last 12 months; privacy suppression applies.',
           },
         ])
       })
@@ -362,6 +375,7 @@ const ConnectedMonitoringSnapshot = ({
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
+              <SelectItem value="all">All authorized projects</SelectItem>
               {projects.map((project) => (
                 <SelectItem key={project.id} value={project.id}>
                   {project.title}
@@ -373,7 +387,7 @@ const ConnectedMonitoringSnapshot = ({
       </div>
       {error ? (
         <EmptyState
-          className="rounded-lg border border-border bg-card"
+          className="rounded-xl border border-border bg-card"
           description={error}
           icon={AlertTriangle}
           title="Monitoring data unavailable"
@@ -404,7 +418,7 @@ const ConnectedMonitoringSnapshot = ({
           title="No authorized projects"
         />
       )}
-      <SavedMonitoringCharts projectId={projectId} />
+      {UNFINISHED_CONTROLS_UI_ENABLED ? <SavedMonitoringCharts projectId={projectId} /> : null}
     </SectionCard>
   )
 }
@@ -550,7 +564,7 @@ export const RoleDashboard = () => {
     return (
       <>
         <h1 className="sr-only">Dashboard</h1>
-        <div className="flex min-h-[360px] items-center justify-center rounded-lg border border-border bg-card">
+        <div className="flex min-h-[360px] items-center justify-center rounded-2xl border border-border bg-card">
           <div className="flex items-center gap-3 text-sm text-muted-foreground">
             <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
             Loading dashboard...
@@ -565,7 +579,7 @@ export const RoleDashboard = () => {
       <>
         <h1 className="sr-only">Dashboard unavailable</h1>
         <EmptyState
-          className="min-h-[360px] rounded-lg border border-border bg-card"
+          className="min-h-[360px] rounded-2xl border border-border bg-card"
           description="We could not load this dashboard right now. Reload the page to try again."
           icon={AlertTriangle}
           title="Dashboard data unavailable"
@@ -602,7 +616,7 @@ export const RoleDashboard = () => {
       ) : null}
       {emptyDashboard ? (
         <EmptyState
-          className="min-h-[260px] rounded-lg border border-border bg-card"
+          className="min-h-[260px] rounded-2xl border border-border bg-card"
           description="No dashboard records are available for this account."
           icon={ShieldCheck}
           title="No dashboard records"

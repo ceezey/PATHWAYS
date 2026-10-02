@@ -39,6 +39,11 @@ describe('UI actions against the accepted backend policy', () => {
     expect(isUiActionAvailable('System Administrator', 'dashboard.configure')).toBe(false)
     expect(isUiActionAvailable('Project Manager', 'projects.team.manage')).toBe(true)
     expect(isUiActionAvailable('Project Officer', 'beneficiaries.merge')).toBe(false)
+    expect(isUiActionAvailable('Project Manager', 'beneficiaries.merge')).toBe(false)
+    expect(isUiActionAvailable('System Administrator', 'beneficiaries.merge')).toBe(false)
+    expect(isUiActionAvailable('Monitoring and Evaluation Officer', 'beneficiaries.merge')).toBe(
+      true,
+    )
     expect(isUiActionAvailable(null, 'activities.edit')).toBe(false)
   })
 

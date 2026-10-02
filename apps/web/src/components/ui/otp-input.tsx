@@ -214,7 +214,7 @@ const OtpInput = React.forwardRef<HTMLDivElement, OtpInputProps>(
             onKeyDown={(event) => handleKeyDown(index, event)}
             onPaste={(event) => handlePaste(index, event)}
             onFocus={(event) => event.target.select()}
-            className="h-11 w-11 rounded-md border border-input bg-background text-center text-lg font-medium text-foreground ring-offset-background transition-[border-color,box-shadow,color,background-color] duration-150 hover:border-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:border-border disabled:bg-secondary disabled:text-disabled-foreground"
+            className="h-11 w-11 rounded-md border border-input bg-card text-center text-lg font-medium text-foreground ring-offset-background transition-[border-color,box-shadow,color,background-color] duration-150 hover:border-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:border-border disabled:bg-secondary disabled:text-disabled-foreground"
           />
         ))}
       </div>

@@ -57,7 +57,13 @@ const listItem = {
   targetBeneficiaries: 0,
   progress: 0,
   updatedAt: '2026-09-28T00:00:00.000Z',
-  capabilities: { canEdit: false, canRecordProgress: true, canSubmitProof: true },
+  overdueExplanationNeeded: false,
+  capabilities: {
+    canEdit: false,
+    canRecordProgress: true,
+    canSubmitProof: true,
+    canExplainOverdue: false,
+  },
 }
 
 afterEach(() => vi.unstubAllGlobals())
@@ -102,6 +108,7 @@ describe('project data loading client contract', () => {
       budgetLogged: null,
       submittedProof: [],
       updateNotes: [],
+      overdueExplanations: [],
     })
     const controller = new AbortController()
     await expect(
@@ -110,6 +117,54 @@ describe('project data loading client contract', () => {
     expect(fetcher).toHaveBeenCalledWith(
       `http://127.0.0.1:4000/api/projects/${projectId}/activities/${listItem.id}`,
       expect.objectContaining({ signal: controller.signal }),
+    )
+  })
+
+  it.each([
+    [
+      {
+        id: 'e1',
+        category: 'HURRICANE',
+        explanation: 'x'.repeat(20),
+        actorName: 'A',
+        recordedAt: 'd',
+      },
+    ],
+    [{ id: 'e1', category: 'WEATHER', explanation: 'too short', actorName: 'A', recordedAt: 'd' }],
+    [
+      {
+        id: 'e1',
+        category: 'WEATHER',
+        explanation: 'x'.repeat(2001),
+        actorName: 'A',
+        recordedAt: 'd',
+      },
+    ],
+    [{ id: 'e1', category: 'WEATHER', explanation: 'x'.repeat(20), actorName: 'A' }],
+    [
+      {
+        id: 'e1',
+        category: 'WEATHER',
+        explanation: 'x'.repeat(20),
+        actorName: 'A',
+        recordedAt: 'd',
+        extra: 1,
+      },
+    ],
+    ['not-an-object'],
+  ])('rejects a malformed overdueExplanations entry %j', async (entry) => {
+    setup({
+      ...listItem,
+      assignedEmails: [],
+      beneficiariesReached: 0,
+      budgetAllocation: null,
+      budgetLogged: null,
+      submittedProof: [],
+      updateNotes: [],
+      overdueExplanations: [entry],
+    })
+    await expect(pathwaysClient.getActivity(projectId, listItem.id)).rejects.toBeInstanceOf(
+      PathwaysClientError,
     )
   })
 
@@ -134,6 +189,7 @@ describe('project data loading client contract', () => {
       budgetAllocation: null,
       submittedProof: [],
       updateNotes: [],
+      overdueExplanations: [],
       ...logged,
     })
     await expect(pathwaysClient.getActivity(projectId, listItem.id)).resolves.toMatchObject(parsed)
@@ -148,6 +204,7 @@ describe('project data loading client contract', () => {
       budgetLogged: 0,
       submittedProof: [],
       updateNotes: [],
+      overdueExplanations: [],
     })
     await expect(pathwaysClient.getActivity(projectId, listItem.id)).resolves.toMatchObject({
       budgetLogged: null,
@@ -167,6 +224,7 @@ describe('project data loading client contract', () => {
       budgetAllocation: null,
       submittedProof: [],
       updateNotes: [],
+      overdueExplanations: [],
       ...logged,
     })
     await expect(pathwaysClient.getActivity(projectId, listItem.id)).rejects.toBeInstanceOf(

@@ -1,6 +1,6 @@
 'use client'
 
-import { CircleUserRound, Menu, ShieldCheck } from 'lucide-react'
+import { Bell, CircleUserRound, Menu } from 'lucide-react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useState } from 'react'
@@ -44,6 +44,8 @@ export const AppShell = ({ children }: { children: React.ReactNode }) => {
   const canOpenProfile = Boolean(
     profile && getVerifiedRouteAccess(profile, '/settings/profile').allowed,
   )
+  const canOpenAlerts = Boolean(profile && getVerifiedRouteAccess(profile, '/alerts').allowed)
+  const initials = accountInitials(profile?.fullName ?? email)
 
   const handleSignOut = async () => {
     try {
@@ -84,47 +86,65 @@ export const AppShell = ({ children }: { children: React.ReactNode }) => {
                   <Sidebar onNavigate={() => setMobileOpen(false)} />
                 </SheetContent>
               </Sheet>
-              <div className="min-w-0">
-                <p className="truncate text-sm font-semibold text-foreground">{workspaceLabel}</p>
-                <p className="truncate text-[13px] leading-[18px] text-muted-foreground">
-                  {roleLabel} · {scopeLabel}
-                </p>
-              </div>
+              <p className="truncate text-sm font-semibold text-foreground">{workspaceLabel}</p>
             </div>
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button className="max-w-[48vw] gap-2 truncate" variant="outline">
-                  <ShieldCheck className="h-4 w-4 shrink-0" aria-hidden="true" />
-                  <span className="truncate">{email ?? 'Access state'}</span>
+            <div className="flex shrink-0 items-center gap-3">
+              {canOpenAlerts ? (
+                <Button asChild size="icon" variant="outline">
+                  <Link aria-label="Alerts" href="/alerts">
+                    <Bell className="h-4 w-4" aria-hidden="true" />
+                  </Link>
                 </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                <DropdownMenuLabel>Session</DropdownMenuLabel>
-                <DropdownMenuItem disabled>{email ?? 'No signed-in user'}</DropdownMenuItem>
-                <DropdownMenuItem disabled>{roleLabel}</DropdownMenuItem>
-                <DropdownMenuItem disabled>{scopeLabel}</DropdownMenuItem>
-                <DropdownMenuSeparator />
-                {canOpenProfile ? (
-                  <DropdownMenuItem asChild>
-                    <Link className="gap-2" href="/settings/profile">
-                      <CircleUserRound className="h-4 w-4" aria-hidden="true" />
-                      My Profile
-                    </Link>
-                  </DropdownMenuItem>
-                ) : null}
-                <DropdownMenuItem onClick={() => void handleSignOut()}>Sign out</DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
+              ) : null}
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <button
+                    aria-label="Account menu"
+                    className="flex h-11 w-11 items-center justify-center rounded-full bg-primary-subtle text-sm font-semibold text-primary transition-colors hover:bg-light-blue focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                    type="button"
+                  >
+                    {initials}
+                  </button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuLabel>Session</DropdownMenuLabel>
+                  <DropdownMenuItem disabled>{email ?? 'No signed-in user'}</DropdownMenuItem>
+                  <DropdownMenuItem disabled>{roleLabel}</DropdownMenuItem>
+                  <DropdownMenuItem disabled>{scopeLabel}</DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  {canOpenProfile ? (
+                    <DropdownMenuItem asChild>
+                      <Link className="gap-2" href="/settings/profile">
+                        <CircleUserRound className="h-4 w-4" aria-hidden="true" />
+                        My Profile
+                      </Link>
+                    </DropdownMenuItem>
+                  ) : null}
+                  <DropdownMenuItem onClick={() => void handleSignOut()}>Sign out</DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
           </div>
         </header>
         <main
           id="main-content"
           tabIndex={-1}
-          className={cn('flex-1 bg-workspace px-4 py-6 md:px-6 md:py-8')}
+          className={cn('flex-1 bg-background px-4 py-6 md:px-8 md:py-8 2xl:px-16')}
         >
-          <div className="mx-auto flex w-full max-w-7xl flex-col gap-6">{children}</div>
+          <div className="mx-auto flex w-full max-w-[1200px] flex-col gap-6">{children}</div>
         </main>
       </div>
     </div>
   )
+}
+
+// Up to two initials from the profile name, falling back to the email's first letter.
+const accountInitials = (name?: string | null) => {
+  const parts = (name ?? '')
+    .split('@')[0]
+    .split(/[\s._-]+/)
+    .filter(Boolean)
+  return (
+    parts.length > 1 ? parts[0][0] + parts[parts.length - 1][0] : (parts[0]?.[0] ?? '?')
+  ).toUpperCase()
 }

@@ -91,9 +91,9 @@ describe('dashboard home authorization parity', () => {
 
     const service = new DashboardsService({} as PrismaService, {} as IndicatorsService)
     await expect(service.monitoring(projectOfficer, {})).rejects.toMatchObject({ status: 403 })
-    await expect(service.saddd(projectOfficer, { projectId: id })).resolves.toBe(
-      'analytics.saddd.read',
-    )
+    await expect(service.saddd(projectOfficer, { projectId: id })).rejects.toMatchObject({
+      status: 403,
+    })
     expect(vi.mocked(withAuthorizedOperation).mock.calls.map((call) => call[2])).toEqual([
       'monitoring.read',
       'analytics.saddd.read',

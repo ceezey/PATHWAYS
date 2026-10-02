@@ -10,6 +10,7 @@ import { Button } from '@/components/ui/button'
 import { Dialog } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { STEP_UP_PIN_UI_ENABLED } from '@/constants/feature-flags'
 import {
   BeneficiaryStepUpError,
   PIN_LOCKED_MESSAGE,
@@ -159,7 +160,7 @@ export const BeneficiaryAccessGate = ({
         )
       }
       setPinState(nextPinState)
-      if (nextPinState === 'NONE') choose('offer')
+      if (STEP_UP_PIN_UI_ENABLED && nextPinState === 'NONE') choose('offer')
       else enter()
     } catch (error) {
       setStatus('error')
@@ -253,7 +254,7 @@ export const BeneficiaryAccessGate = ({
   }
 
   const methodChoice =
-    method !== 'offer' && pinState === 'SET' ? (
+    STEP_UP_PIN_UI_ENABLED && method !== 'offer' && pinState === 'SET' ? (
       <fieldset className="flex flex-col gap-2 sm:flex-row">
         <legend className="sr-only">Verification method</legend>
         <Button
@@ -312,19 +313,21 @@ export const BeneficiaryAccessGate = ({
         description={
           method === 'offer'
             ? 'Your authenticator stays the primary check. The PIN works only in this signed-in session window.'
-            : 'Beneficiary personal details require a recent authenticator or PIN verification. The server checks it on every request.'
+            : STEP_UP_PIN_UI_ENABLED
+              ? 'Beneficiary personal details require a recent authenticator or PIN verification. The server checks it on every request.'
+              : 'Beneficiary personal details require a recent authenticator verification. The server checks it on every request.'
         }
       >
         <div className="space-y-5">
           <output
             aria-atomic="true"
             aria-live="polite"
-            className="block rounded-lg border border-warning/20 bg-warning/10 p-4 text-sm leading-6 text-warning"
+            className="block rounded-xl border border-warning/20 bg-warning/10 p-4 text-sm leading-6 text-warning"
           >
             {message}
           </output>
           {methodChoice}
-          {pinState === 'LOCKED' && method === 'totp' ? (
+          {STEP_UP_PIN_UI_ENABLED && pinState === 'LOCKED' && method === 'totp' ? (
             <p className="text-sm text-muted-foreground">{PIN_LOCKED_MESSAGE}</p>
           ) : null}
           {method === 'totp' ? (
@@ -439,7 +442,7 @@ export const BeneficiaryAccessGate = ({
       </section>
     )
   if (blocking)
-    return <div className="flex min-h-[70vh] items-center justify-center p-6">{prompt}</div>
+    return <div className="flex min-h-state items-center justify-center p-6">{prompt}</div>
   return (
     <>
       {children}

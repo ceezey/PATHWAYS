@@ -76,7 +76,7 @@ const ActivityCard = ({
 }) => (
   <article
     aria-label={`Activity: ${activity.title}`}
-    className="flex min-w-0 flex-col rounded-sm border border-border bg-background p-4"
+    className="flex min-w-0 flex-col rounded-xl border border-border bg-background p-4"
   >
     <div className="flex items-start justify-between gap-3">
       <h3 className="min-w-0 break-words text-base font-semibold leading-6 text-foreground">
@@ -84,6 +84,11 @@ const ActivityCard = ({
       </h3>
       <StatusBadge tone={activityStatusTone(activity.status)}>{activity.status}</StatusBadge>
     </div>
+    {activity.overdueExplanationNeeded ? (
+      <div className="mt-2">
+        <StatusBadge tone="warning">Overdue: explanation needed</StatusBadge>
+      </div>
+    ) : null}
     <p
       className={`mt-3 flex items-center gap-2 text-sm font-medium ${
         activity.status === 'Overdue' ? 'text-danger' : 'text-muted-foreground'
@@ -142,7 +147,7 @@ const ActivityListRow = ({
 }) => (
   <article
     aria-label={`Activity: ${activity.title}`}
-    className="grid min-w-0 gap-4 rounded-sm border border-border bg-background p-4 md:grid-cols-2 xl:grid-cols-[minmax(0,1.4fr)_minmax(170px,0.7fr)_minmax(180px,0.8fr)_minmax(150px,0.6fr)_auto] xl:items-center"
+    className="grid min-w-0 gap-4 rounded-xl border border-border bg-background p-4 md:grid-cols-2 xl:grid-cols-[minmax(0,1.4fr)_minmax(170px,0.7fr)_minmax(180px,0.8fr)_minmax(150px,0.6fr)_auto] xl:items-center"
   >
     <div className="min-w-0">
       <h3 className="break-words text-base font-semibold leading-6 text-foreground">
@@ -155,6 +160,9 @@ const ActivityListRow = ({
     </div>
     <div className="space-y-2">
       <StatusBadge tone={activityStatusTone(activity.status)}>{activity.status}</StatusBadge>
+      {activity.overdueExplanationNeeded ? (
+        <StatusBadge tone="warning">Overdue: explanation needed</StatusBadge>
+      ) : null}
       <p
         className={`flex items-start gap-2 text-sm ${
           activity.status === 'Overdue' ? 'font-medium text-danger' : 'text-muted-foreground'
@@ -247,7 +255,7 @@ export const ProjectActivitiesWorkspace = ({
   const { labels } = useDisplayLabels()
   const { role, assignedProjectIds, profile } = useCurrentRole()
   const inProjectScope = role ? canAccessProjectForRole(role, projectId, assignedProjectIds) : false
-  // Create and edit are separate authorities (a Project Officer creates but never edits).
+  // Create and edit are separate authorities (a create-only role never edits).
   // Per-activity Edit, Record progress and Submit proof also need the server-computed
   // activity capabilities, which the detail panel applies.
   const canCreate = inProjectScope && principalHasAtomicPermission(profile, 'activities.create')

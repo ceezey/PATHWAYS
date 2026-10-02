@@ -28,6 +28,7 @@ Adopt in this order. Each item is measured before and after, and the next one st
 1. **Measure first.**
    - Record request counts, preflight counts and time to interactive for the dashboard, project workspace and Beneficiaries pages on the development preview.
    - Record API p95 latency per endpoint from existing logs.
+   - Measured 2026-10-01 on the local stack with `pnpm perf:dashboards` at the QAD-T62 scale (single user): warm p95 home 554 ms, monitoring 495 ms, SADDD 506 ms (first request 528, 505, 479), under the NFR-3 limit of 800 ms. Stale planner statistics after a bulk load pushed the profile query to about 430 ms until ANALYZE ran; production relies on autovacuum.
 2. **Short client cache for authorized reads.**
    - Replace `staleTime: 0` with a short window (proposed 30 seconds) for list and summary reads only.
    - Query keys always include organization id, user id, role and project id.
@@ -96,3 +97,5 @@ Developer decision on 2026-09-28, during audit-remediation planning: "Fold it in
 ## 9. Disposition
 
 The preflight cache change (5 minutes to 1 day) is implemented. Step 2 (short scoped client cache with live Beneficiary, step-up and import reads, denial epoch and write refresh) is implemented on `integration/audit-wave-a`; unit-level request counts are recorded and the development-preview measurement of step 1 is pending. Steps 3-5 are not started; step 5 stays deferred.
+
+Update 2026-10-02: staging re-measure (G-F8-7) remains pending; status stays Approved.

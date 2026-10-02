@@ -18,7 +18,7 @@ export const EmptyState = ({
 }) => (
   <div
     className={cn(
-      'flex min-h-[180px] flex-col items-center justify-center rounded-lg border border-dashed border-border bg-card px-6 py-8 text-center',
+      'flex min-h-[180px] flex-col items-center justify-center rounded-xl border border-dashed border-border bg-card px-6 py-8 text-center',
       className,
     )}
   >

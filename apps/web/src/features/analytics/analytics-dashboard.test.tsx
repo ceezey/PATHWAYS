@@ -3,7 +3,9 @@
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { AnalyticsDashboard } from './analytics-dashboard'
+import { rulesHumanClient } from '@/lib/services/rules-human-client'
+
+import { AnalyticsDashboard, countOpenAlerts } from './analytics-dashboard'
 
 const api = vi.hoisted(() => ({
   getActivities: vi.fn(),
@@ -12,7 +14,10 @@ const api = vi.hoisted(() => ({
   getProjectsForRole: vi.fn(),
   getSadddDashboard: vi.fn(),
   getDescriptiveAnalytics: vi.fn(),
+  getSurveyAnalytics: vi.fn(),
+  getTimelineAnalytics: vi.fn(),
 }))
+const alertHook = vi.hoisted(() => ({ result: { data: undefined } as Record<string, unknown> }))
 const download = vi.hoisted(() => vi.fn())
 const finance = vi.hoisted(() => ({
   budgets: vi.fn(),
@@ -53,10 +58,16 @@ vi.mock('@/lib/rbac/can', () => ({ can: () => false }))
 vi.mock('@/components/layout/page-header', () => ({
   PageHeader: ({ title }: { title: string }) => <h1>{title}</h1>,
 }))
+vi.mock('@/providers/authorized-query-provider', () => ({
+  useAuthorizedRead: () => alertHook.result,
+}))
+vi.mock('@/lib/services/rules-human-client', () => ({ rulesHumanClient: { listAlerts: vi.fn() } }))
 vi.mock('./analytics-charts', () => ({
   ActivityCompletionChart: () => <div>Activity chart</div>,
   DescriptiveAnalysisChart: () => <div>Analysis chart</div>,
   SadddChart: () => <div>SADDD chart</div>,
+  SurveyImprovementChart: () => <div>Survey chart</div>,
+  IndicatorProgressChart: () => <div>Indicator progress chart</div>,
 }))
 vi.mock('./analytics-coverage-map', async () => {
   const React = await import('react')
@@ -197,6 +208,7 @@ describe('Analytics dashboard request dependencies', () => {
       'monitoring.read',
       'analytics.read',
     ]
+    alertHook.result = { data: undefined }
     coverageMap.instanceCount = 0
     coverageMap.featureCollections.length = 0
     const projects = [
@@ -542,7 +554,17 @@ describe('Analytics dashboard request dependencies', () => {
     expect(api.getProjectIndicators).not.toHaveBeenCalled()
     expect(api.getMonitoringDashboard).not.toHaveBeenCalled()
   })
-  it('loads descriptive statistics and exports suppressed aggregates with the analytics permissions', async () => {
+  // The export button is hidden behind ANALYTICS_AGGREGATE_EXPORT_UI_ENABLED (see
+  // apps/web/src/constants/feature-flags.ts and docs/deferred-features.md). This test
+  // forces the flag on so the underlying export behaviour the API still serves stays
+  // covered while the flag is off in the running app.
+  it('loads descriptive statistics and exports suppressed aggregates with the analytics permissions (flag on)', async () => {
+    vi.resetModules()
+    vi.doMock('@/constants/feature-flags', () => ({
+      ANALYTICS_AGGREGATE_EXPORT_UI_ENABLED: true,
+      UNFINISHED_CONTROLS_UI_ENABLED: true,
+    }))
+    const { AnalyticsDashboard: ExportEnabledDashboard } = await import('./analytics-dashboard')
     currentAccess.profile.permissions = [
       ...currentAccess.profile.permissions,
       'analytics.descriptive.read',
@@ -573,7 +595,7 @@ describe('Analytics dashboard request dependencies', () => {
       indicatorSummaries: [],
     })
     download.mockResolvedValue(undefined)
-    render(<AnalyticsDashboard />)
+    render(<ExportEnabledDashboard />)
 
     await waitFor(() =>
       expect(api.getDescriptiveAnalytics).toHaveBeenCalledWith({
@@ -593,6 +615,20 @@ describe('Analytics dashboard request dependencies', () => {
         'descriptive-analytics-project-a.csv',
       ),
     )
+
+    vi.doUnmock('@/constants/feature-flags')
+  })
+
+  it('hides the export button even with the analytics.export permission while the flag is off', async () => {
+    currentAccess.profile.permissions = [
+      ...currentAccess.profile.permissions,
+      'analytics.descriptive.read',
+      'analytics.export',
+    ]
+    render(<AnalyticsDashboard />)
+    await waitFor(() => expect(api.getMonitoringDashboard).toHaveBeenCalled())
+    expect(screen.queryByRole('button', { name: 'Export aggregates (CSV)' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Exporting aggregates' })).toBeNull()
   })
 
   it('hides descriptive statistics and export for roles without the analytics permissions', async () => {
@@ -615,7 +651,7 @@ describe('Analytics dashboard request dependencies', () => {
     expect(download).not.toHaveBeenCalled()
   })
 
-  it('keeps Add to Dashboard disabled with a Not available yet hint and disables unbuilt analysis views', async () => {
+  it('keeps Add to Dashboard aria-disabled with a Not available yet hint', async () => {
     render(<AnalyticsDashboard />)
     await waitFor(() => expect(api.getMonitoringDashboard).toHaveBeenCalled())
 
@@ -623,9 +659,32 @@ describe('Analytics dashboard request dependencies', () => {
     // aria-disabled (not native disabled) so the control stays keyboard/AT reachable.
     expect(addToDashboard.hasAttribute('disabled')).toBe(false)
     expect(addToDashboard.getAttribute('aria-disabled')).toBe('true')
+    addToDashboard.focus()
+    expect(document.activeElement).toBe(addToDashboard)
     const describedBy = addToDashboard.getAttribute('aria-describedby')
     expect(describedBy).toBeTruthy()
     expect(document.getElementById(describedBy as string)?.textContent).toBe('Not available yet')
+  })
+
+  it('hides Add to Dashboard and Participation patterns while unfinished controls are hidden', async () => {
+    vi.resetModules()
+    vi.doMock('@/constants/feature-flags', () => ({
+      ANALYTICS_AGGREGATE_EXPORT_UI_ENABLED: false,
+      UNFINISHED_CONTROLS_UI_ENABLED: false,
+    }))
+    const { AnalyticsDashboard: HiddenDashboard } = await import('./analytics-dashboard')
+    vi.doUnmock('@/constants/feature-flags')
+    render(<HiddenDashboard />)
+    await waitFor(() => expect(api.getMonitoringDashboard).toHaveBeenCalled())
+
+    expect(screen.queryByRole('button', { name: 'Add to Dashboard' })).toBeNull()
+    expect(screen.queryByText('Not available yet')).toBeNull()
+    expect(screen.queryByText('Participation patterns', { selector: 'option' })).toBeNull()
+  })
+
+  it('restricts the survey/timeline views without the descriptive read permission', async () => {
+    render(<AnalyticsDashboard />)
+    await waitFor(() => expect(api.getMonitoringDashboard).toHaveBeenCalled())
 
     const surveyOption = screen.getByText('Survey improvement', {
       selector: 'option',
@@ -633,7 +692,738 @@ describe('Analytics dashboard request dependencies', () => {
     const timelineOption = screen.getByText('Project / activity timeline adherence', {
       selector: 'option',
     }) as HTMLOptionElement
+    // Default profile holds monitoring.read but not analytics.descriptive.read: restricted.
     expect(surveyOption.disabled).toBe(true)
     expect(timelineOption.disabled).toBe(true)
+  })
+
+  describe('overview metric cards', () => {
+    const cardText = (label: string) =>
+      screen
+        .getAllByText(label)
+        .map((node) => node.parentElement?.parentElement?.textContent ?? '')
+        .join(' | ')
+
+    it('shows the role-restricted state for alerts without alerts.read', async () => {
+      render(<AnalyticsDashboard />)
+      await waitFor(() => expect(api.getMonitoringDashboard).toHaveBeenCalled())
+      expect(cardText('Rule-Based Alerts')).toContain('Unavailable')
+      expect(screen.getByText('Rule-Based Alerts are unavailable for this role.')).toBeTruthy()
+      expect(screen.queryByText('Rule-Based Alerts unavailable')).toBeNull()
+    })
+
+    it('shows a loading state, not the role message, while alerts load', async () => {
+      currentAccess.profile.permissions = [...currentAccess.profile.permissions, 'alerts.read']
+      alertHook.result = { data: undefined, isError: false }
+      render(<AnalyticsDashboard />)
+      await waitFor(() => expect(api.getMonitoringDashboard).toHaveBeenCalled())
+      expect(cardText('Rule-Based Alerts')).toContain('Loading...')
+      expect(screen.getByText('Loading Rule-Based Alerts')).toBeTruthy()
+      expect(screen.queryByText('Rule-Based Alerts are unavailable for this role.')).toBeNull()
+    })
+
+    it('shows an error state with Retry when the alert read fails', async () => {
+      const refetch = vi.fn()
+      currentAccess.profile.permissions = [...currentAccess.profile.permissions, 'alerts.read']
+      alertHook.result = { data: undefined, isError: true, refetch }
+      render(<AnalyticsDashboard />)
+      await waitFor(() => expect(api.getMonitoringDashboard).toHaveBeenCalled())
+      expect(screen.getByText('Rule-Based Alerts unavailable')).toBeTruthy()
+      expect(screen.queryByText('Rule-Based Alerts are unavailable for this role.')).toBeNull()
+      fireEvent.click(screen.getByRole('button', { name: /retry/i }))
+      expect(refetch).toHaveBeenCalledTimes(1)
+    })
+
+    it.each([
+      [{ count: 7, capped: false }, '7', '7 open alerts'],
+      [{ count: 1, capped: false }, '1', '1 open alert in'],
+      [{ count: 1000, capped: true }, '1000+', '1000+ open alerts'],
+    ])('renders the open alert count %j', async (data, cardValue, panelText) => {
+      currentAccess.profile.permissions = [...currentAccess.profile.permissions, 'alerts.read']
+      alertHook.result = { data, isError: false }
+      render(<AnalyticsDashboard />)
+      await waitFor(() => expect(api.getMonitoringDashboard).toHaveBeenCalled())
+      expect(cardText('Rule-Based Alerts')).toContain(cardValue)
+      expect(document.body.textContent).toContain(panelText)
+    })
+
+    it('shows Beneficiary reach from the released aggregate cell', async () => {
+      api.getMonitoringDashboard.mockResolvedValue({
+        ...monitoring,
+        enrolledIndividuals: { state: 'AVAILABLE', value: '128', reason: null },
+      })
+      render(<AnalyticsDashboard />)
+      await waitFor(() => expect(cardText('Beneficiary reach')).toContain('128'))
+    })
+
+    it('shows suppression wording, never a number, for a suppressed Beneficiary reach', async () => {
+      api.getMonitoringDashboard.mockResolvedValue({
+        ...monitoring,
+        enrolledIndividuals: { state: 'SUPPRESSED', value: null, reason: 'SMALL_COHORT' },
+      })
+      render(<AnalyticsDashboard />)
+      await waitFor(() => expect(cardText('Beneficiary reach')).toContain('Suppressed'))
+    })
+
+    it('renders the Indicator progress chart only when a released progress value exists', async () => {
+      api.getMonitoringDashboard.mockResolvedValue({
+        ...monitoring,
+        indicators: [
+          {
+            ...indicator('project-a', 'A-SEP', '2026-09-01', '2026-09-30'),
+            progress: { state: 'AVAILABLE', value: '42', reason: null },
+          },
+        ],
+      })
+      render(<AnalyticsDashboard />)
+      expect(await screen.findByText('Indicator progress chart')).toBeTruthy()
+    })
+
+    it('shows None yet, not the chart, when no indicator progress is released', async () => {
+      api.getMonitoringDashboard.mockResolvedValue({
+        ...monitoring,
+        indicators: [indicator('project-a', 'A-SEP', '2026-09-01', '2026-09-30')],
+      })
+      render(<AnalyticsDashboard />)
+      await waitFor(() =>
+        expect(
+          screen.getByText('No released indicator progress for this project and period.'),
+        ).toBeTruthy(),
+      )
+      expect(screen.queryByText('Indicator progress chart')).toBeNull()
+    })
+  })
+
+  describe('countOpenAlerts', () => {
+    const page = (n: number, nextCursor: string | null) => ({
+      items: Array.from({ length: n }, (_, i) => ({ id: `alert-${i}` })),
+      nextCursor,
+    })
+
+    it('counts each open status with the server filter and follows cursors', async () => {
+      const list = vi.mocked(rulesHumanClient.listAlerts)
+      list.mockImplementation((async (input: { status?: string; cursor?: string }) => {
+        if (input.status === 'NEW') return input.cursor ? page(5, null) : page(100, 'c1')
+        if (input.status === 'REVIEWED') return page(3, null)
+        return page(0, null)
+      }) as never)
+      await expect(countOpenAlerts('project-a')).resolves.toEqual({ count: 108, capped: false })
+      expect(list).toHaveBeenCalledWith(
+        expect.objectContaining({ status: 'NEW', cursor: 'c1', projectId: 'project-a' }),
+        undefined,
+      )
+    })
+
+    it('stops at the page bound and reports the count as capped', async () => {
+      const list = vi.mocked(rulesHumanClient.listAlerts)
+      list.mockImplementation((async () => page(100, 'more')) as never)
+      const result = await countOpenAlerts('project-a')
+      expect(result.capped).toBe(true)
+      expect(result.count).toBe(3 * 10 * 100)
+      expect(list).toHaveBeenCalledTimes(30)
+    })
+  })
+
+  describe('F9 survey and timeline analytics views', () => {
+    beforeEach(() => {
+      currentAccess.profile.permissions = [
+        ...currentAccess.profile.permissions,
+        'analytics.descriptive.read',
+        'assessments.detail.read',
+      ]
+      // Keeps the unrelated "Descriptive statistics" panel from also erroring (and adding a
+      // second "Retry" button) while these tests exercise the survey/timeline views only.
+      api.getDescriptiveAnalytics.mockResolvedValue({
+        contractVersion: 'analytics.descriptive.v1',
+        projectId: 'project-a',
+        generatedAt: '2026-09-27T04:00:00.000Z',
+        monitoringPeriod: {
+          periodStart: '2026-09-01',
+          periodEnd: '2026-09-30',
+          businessTimeZone: 'Asia/Manila',
+        },
+        sadddPeriod: { periodStart: null, periodEnd: null },
+        sadddReleaseState: 'UNAVAILABLE',
+        privacy: {
+          threshold: 5,
+          complementarySuppression: true,
+          source: 'P06_SADDD_RELEASE',
+          beneficiaryRows: false,
+        },
+        counts: [],
+        distributions: [],
+        indicatorSummaries: [],
+      })
+    })
+
+    const suppressed = { state: 'SUPPRESSED', value: null, reason: 'SMALL_CELL' } as const
+    const missing = (reason: string) => ({ state: 'MISSING', value: null, reason }) as const
+    const available = (value: string) => ({ state: 'AVAILABLE', value, reason: null }) as const
+    const zero = { state: 'ZERO', value: '0', reason: null } as const
+
+    const surveyGroup = (overrides: Record<string, unknown> = {}) => ({
+      key: 'OVERALL',
+      label: 'All activities (cohort change)',
+      pairs: available('7'),
+      meanPre: available('40'),
+      meanPost: available('62'),
+      meanChange: available('22'),
+      improved: available('6'),
+      same: available('0'),
+      declined: available('1'),
+      ...overrides,
+    })
+
+    it('renders survey metric cards, chart and per-activity table, with activity titles instead of raw IDs', async () => {
+      const activityId = '40000000-0000-4000-8000-000000000099'
+      const unknownActivityId = '40000000-0000-4000-8000-0000000000aa'
+      api.getActivities.mockResolvedValue([
+        { id: activityId, projectId: 'project-a', code: 'A-1', title: 'Community Training' },
+      ])
+      api.getSurveyAnalytics.mockResolvedValue({
+        contractVersion: 'analytics.descriptive.survey.v1',
+        projectId: 'project-a',
+        generatedAt: '2026-09-27T04:00:00.000Z',
+        period: { periodStart: '2026-09-01', periodEnd: '2026-09-30' },
+        excludedRecords: 0,
+        overall: surveyGroup(),
+        byActivity: [
+          { ...surveyGroup(), key: activityId, label: activityId, pairs: available('5') },
+          {
+            ...surveyGroup(),
+            key: unknownActivityId,
+            label: unknownActivityId,
+            pairs: available('2'),
+          },
+        ],
+      })
+
+      render(<AnalyticsDashboard />)
+      await waitFor(() => expect(api.getMonitoringDashboard).toHaveBeenCalled())
+      fireEvent.change(screen.getByLabelText('Analysis view'), {
+        target: { value: 'survey' },
+      })
+
+      await waitFor(() =>
+        expect(api.getSurveyAnalytics).toHaveBeenCalledWith({
+          projectId: 'project-a',
+          periodStart: '2026-09-01',
+          periodEnd: '2026-09-30',
+        }),
+      )
+      const panel = await screen.findByTestId('survey-analytics')
+      expect(within(panel).getByText('Paired assessments')).toBeTruthy()
+      expect(within(panel).getByText('Survey chart')).toBeTruthy()
+      expect(within(panel).getByText('Community Training')).toBeTruthy()
+      expect(within(panel).getByText('Activity (name unavailable)')).toBeTruthy()
+      expect(panel.textContent).not.toMatch(
+        /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i,
+      )
+    })
+
+    it('labels survey mean pre/post in % and mean change in pp, never %', async () => {
+      const activityId = '40000000-0000-4000-8000-000000000099'
+      api.getActivities.mockResolvedValue([
+        { id: activityId, projectId: 'project-a', code: 'A-1', title: 'Community Training' },
+      ])
+      api.getSurveyAnalytics.mockResolvedValue({
+        contractVersion: 'analytics.descriptive.survey.v1',
+        projectId: 'project-a',
+        generatedAt: '2026-09-27T04:00:00.000Z',
+        period: { periodStart: '2026-09-01', periodEnd: '2026-09-30' },
+        excludedRecords: 0,
+        overall: surveyGroup({ pairs: available('12') }),
+        byActivity: [
+          {
+            ...surveyGroup({ pairs: available('12') }),
+            key: activityId,
+            label: activityId,
+            meanPre: available('41.5'),
+            meanPost: available('63.5'),
+            meanChange: available('22.5'),
+          },
+        ],
+      })
+
+      render(<AnalyticsDashboard />)
+      await waitFor(() => expect(api.getMonitoringDashboard).toHaveBeenCalled())
+      fireEvent.change(screen.getByLabelText('Analysis view'), { target: { value: 'survey' } })
+      const panel = await screen.findByTestId('survey-analytics')
+
+      // Cards (overall) and the per-activity table.
+      expect(within(panel).getAllByText('40%').length).toBeGreaterThan(0)
+      expect(within(panel).getAllByText('62%').length).toBeGreaterThan(0)
+      expect(within(panel).getAllByText('22pp').length).toBeGreaterThan(0)
+      expect(within(panel).getByText('41.5%')).toBeTruthy()
+      expect(within(panel).getByText('63.5%')).toBeTruthy()
+      expect(within(panel).getByText('22.5pp')).toBeTruthy()
+      expect(within(panel).queryByText('22%')).toBeNull()
+      expect(within(panel).queryByText('22.5%')).toBeNull()
+    })
+
+    it('labels timeline percentages with % and leaves day and count cells unitless', async () => {
+      api.getTimelineAnalytics.mockResolvedValue({
+        contractVersion: 'analytics.descriptive.timeline.v1',
+        projectId: 'project-a',
+        generatedAt: '2026-09-27T04:00:00.000Z',
+        reportingDate: '2026-09-27',
+        elapsedPercent: available('51'),
+        remainingDays: available('33'),
+        overdueDays: available('4'),
+        activityCompletionPercent: available('76'),
+        activityOverdueCount: available('3'),
+        milestoneOnTimePercent: available('88'),
+      })
+
+      render(<AnalyticsDashboard />)
+      await waitFor(() => expect(api.getMonitoringDashboard).toHaveBeenCalled())
+      fireEvent.change(screen.getByLabelText('Analysis view'), { target: { value: 'timeline' } })
+      const panel = await screen.findByTestId('timeline-analytics')
+
+      expect(within(panel).getByText('51%')).toBeTruthy()
+      expect(within(panel).getByText('76%')).toBeTruthy()
+      expect(within(panel).getByText('88%')).toBeTruthy()
+      expect(within(panel).getByText('33')).toBeTruthy()
+      expect(within(panel).getByText('4')).toBeTruthy()
+      expect(within(panel).getByText('3')).toBeTruthy()
+      expect(within(panel).queryByText('33%')).toBeNull()
+      expect(within(panel).queryByText('4%')).toBeNull()
+      expect(within(panel).queryByText('3%')).toBeNull()
+    })
+
+    it('shows the suppression label, never a raw count, when survey pairs are suppressed', async () => {
+      api.getSurveyAnalytics.mockResolvedValue({
+        contractVersion: 'analytics.descriptive.survey.v1',
+        projectId: 'project-a',
+        generatedAt: '2026-09-27T04:00:00.000Z',
+        period: { periodStart: '2026-09-01', periodEnd: '2026-09-30' },
+        excludedRecords: 0,
+        overall: surveyGroup({
+          pairs: suppressed,
+          meanPre: suppressed,
+          meanPost: suppressed,
+          meanChange: suppressed,
+          improved: suppressed,
+          same: suppressed,
+          declined: suppressed,
+        }),
+        byActivity: [],
+      })
+
+      render(<AnalyticsDashboard />)
+      await waitFor(() => expect(api.getMonitoringDashboard).toHaveBeenCalled())
+      fireEvent.change(screen.getByLabelText('Analysis view'), {
+        target: { value: 'survey' },
+      })
+
+      const panel = await screen.findByTestId('survey-analytics')
+      expect(within(panel).getAllByText('Suppressed (fewer than 5)').length).toBeGreaterThan(0)
+      expect(within(panel).queryByText('Survey chart')).toBeNull()
+    })
+
+    it('shows reason-coded guidance, never a fabricated zero, when survey has no paired assessments', async () => {
+      api.getSurveyAnalytics.mockResolvedValue({
+        contractVersion: 'analytics.descriptive.survey.v1',
+        projectId: 'project-a',
+        generatedAt: '2026-09-27T04:00:00.000Z',
+        period: { periodStart: '2026-09-01', periodEnd: '2026-09-30' },
+        excludedRecords: 0,
+        overall: surveyGroup({
+          pairs: zero,
+          meanPre: missing('NO_PAIRED_ASSESSMENTS'),
+          meanPost: missing('NO_PAIRED_ASSESSMENTS'),
+          meanChange: missing('NO_PAIRED_ASSESSMENTS'),
+          improved: missing('NO_PAIRED_ASSESSMENTS'),
+          same: missing('NO_PAIRED_ASSESSMENTS'),
+          declined: missing('NO_PAIRED_ASSESSMENTS'),
+        }),
+        byActivity: [],
+      })
+
+      render(<AnalyticsDashboard />)
+      await waitFor(() => expect(api.getMonitoringDashboard).toHaveBeenCalled())
+      fireEvent.change(screen.getByLabelText('Analysis view'), {
+        target: { value: 'survey' },
+      })
+
+      const panel = await screen.findByTestId('survey-analytics')
+      expect(
+        within(panel).getAllByText('No paired pre/post assessments yet').length,
+      ).toBeGreaterThan(0)
+      expect(within(panel).queryByText('0%')).toBeNull()
+    })
+
+    it('shows an error state with Retry when survey analytics fails to load', async () => {
+      api.getSurveyAnalytics.mockRejectedValue(new Error('Survey analytics could not be loaded.'))
+
+      render(<AnalyticsDashboard />)
+      await waitFor(() => expect(api.getMonitoringDashboard).toHaveBeenCalled())
+      fireEvent.change(screen.getByLabelText('Analysis view'), {
+        target: { value: 'survey' },
+      })
+
+      await waitFor(() =>
+        expect(screen.getByText('Survey analytics could not be loaded.')).toBeTruthy(),
+      )
+      const retry = screen.getByRole('button', { name: /retry/i })
+      api.getSurveyAnalytics.mockResolvedValue({
+        contractVersion: 'analytics.descriptive.survey.v1',
+        projectId: 'project-a',
+        generatedAt: '2026-09-27T04:00:00.000Z',
+        period: { periodStart: '2026-09-01', periodEnd: '2026-09-30' },
+        excludedRecords: 0,
+        overall: surveyGroup(),
+        byActivity: [],
+      })
+      fireEvent.click(retry)
+      await waitFor(() => expect(api.getSurveyAnalytics).toHaveBeenCalledTimes(2))
+      expect(await screen.findByTestId('survey-analytics')).toBeTruthy()
+    })
+
+    const restrictedProfiles = {
+      'a Project Officer without analytics.descriptive.read': [
+        'projects.read',
+        'activities.read',
+        'monitoring.read',
+        'analytics.read',
+      ],
+      'a role with analytics.descriptive.read but without monitoring.read': [
+        'projects.read',
+        'activities.read',
+        'analytics.read',
+        'analytics.descriptive.read',
+      ],
+    } as const
+
+    describe.each(Object.entries(restrictedProfiles))('for %s', (_label, permissions) => {
+      beforeEach(() => {
+        currentAccess.profile.permissions = [...permissions]
+      })
+
+      it('disables the survey and timeline options and never fetches them', async () => {
+        render(<AnalyticsDashboard />)
+        await waitFor(() => expect(api.getProjectsForRole).toHaveBeenCalled())
+        for (const name of ['Survey improvement', 'Project / activity timeline adherence']) {
+          const option = (await screen.findByText(name, {
+            selector: 'option',
+          })) as HTMLOptionElement
+          expect(option.disabled).toBe(true)
+        }
+        expect(api.getSurveyAnalytics).not.toHaveBeenCalled()
+        expect(api.getTimelineAnalytics).not.toHaveBeenCalled()
+      })
+
+      it.each([
+        ['survey', 'Survey improvement is restricted for your role.'],
+        ['timeline', 'Timeline adherence is not available for this role.'],
+      ])(
+        'shows restricted wording, never empty-data wording, for the %s view',
+        async (view, wording) => {
+          render(<AnalyticsDashboard />)
+          await waitFor(() => expect(api.getProjectsForRole).toHaveBeenCalled())
+          // A profile can lose a permission while a view is selected; the panel must stay restricted.
+          fireEvent.change(await screen.findByLabelText('Analysis view'), {
+            target: { value: view },
+          })
+          const restricted = await screen.findByText(wording)
+          // Other panels on the page may legitimately say "None yet"; this panel must not.
+          expect(within(restricted.parentElement as HTMLElement).queryByText('None yet')).toBeNull()
+          expect(screen.queryByText('No paired pre/post assessments yet')).toBeNull()
+          expect(screen.queryByText('No activities recorded yet')).toBeNull()
+          expect(screen.queryByText(/No active reporting period/)).toBeNull()
+          expect(screen.queryByText(/No project is available for this filter/)).toBeNull()
+          expect(screen.queryByTestId('survey-analytics')).toBeNull()
+          expect(screen.queryByTestId('timeline-analytics')).toBeNull()
+          expect(api.getSurveyAnalytics).not.toHaveBeenCalled()
+          expect(api.getTimelineAnalytics).not.toHaveBeenCalled()
+        },
+      )
+    })
+
+    describe('aggregate-only roles (Program/Grant Manager) without assessments.detail.read', () => {
+      beforeEach(() => {
+        currentAccess.profile.permissions = [
+          'projects.read',
+          'monitoring.read',
+          'analytics.read',
+          'analytics.descriptive.read',
+          'analytics.export',
+        ]
+      })
+
+      it('disables the survey option, keeps timeline enabled and real, and never fetches survey', async () => {
+        api.getTimelineAnalytics.mockResolvedValue({
+          contractVersion: 'analytics.descriptive.timeline.v1',
+          projectId: 'project-a',
+          generatedAt: '2026-09-27T04:00:00.000Z',
+          reportingDate: '2026-09-27',
+          elapsedPercent: available('50'),
+          remainingDays: available('30'),
+          overdueDays: zero,
+          activityCompletionPercent: available('75'),
+          activityOverdueCount: zero,
+          milestoneOnTimePercent: available('100'),
+        })
+        render(<AnalyticsDashboard />)
+        await waitFor(() => expect(api.getMonitoringDashboard).toHaveBeenCalled())
+        const survey = screen.getByText('Survey improvement', {
+          selector: 'option',
+        }) as HTMLOptionElement
+        const timeline = screen.getByText('Project / activity timeline adherence', {
+          selector: 'option',
+        }) as HTMLOptionElement
+        expect(survey.disabled).toBe(true)
+        expect(timeline.disabled).toBe(false)
+
+        // A survey view left selected still shows restricted wording, never "None yet" or Retry.
+        fireEvent.change(screen.getByLabelText('Analysis view'), { target: { value: 'survey' } })
+        const restricted = await screen.findByText(
+          'Survey improvement is restricted for your role.',
+        )
+        expect(within(restricted.parentElement as HTMLElement).queryByText('None yet')).toBeNull()
+        expect(screen.queryByRole('button', { name: /retry/i })).toBeNull()
+        expect(screen.queryByTestId('survey-analytics')).toBeNull()
+        expect(api.getSurveyAnalytics).not.toHaveBeenCalled()
+
+        fireEvent.change(screen.getByLabelText('Analysis view'), { target: { value: 'timeline' } })
+        expect(await screen.findByTestId('timeline-analytics')).toBeTruthy()
+        expect(api.getSurveyAnalytics).not.toHaveBeenCalled()
+      })
+    })
+
+    it('shows period wording with no Retry when the survey fetch is refused with a 400', async () => {
+      api.getSurveyAnalytics.mockRejectedValue(
+        Object.assign(new Error('Survey analytics requires exactly one defined period.'), {
+          status: 400,
+        }),
+      )
+      render(<AnalyticsDashboard />)
+      await waitFor(() => expect(api.getMonitoringDashboard).toHaveBeenCalled())
+      fireEvent.change(screen.getByLabelText('Analysis view'), { target: { value: 'survey' } })
+      expect(
+        await screen.findByText('This reporting period cannot be used for survey results.'),
+      ).toBeTruthy()
+      expect(screen.queryByRole('button', { name: /retry/i })).toBeNull()
+      expect(screen.queryByText('Survey analytics could not be loaded')).toBeNull()
+      expect(api.getSurveyAnalytics).toHaveBeenCalledTimes(1)
+    })
+
+    it('maps a 403 from the survey fetch to the restricted wording with no Retry', async () => {
+      api.getSurveyAnalytics.mockRejectedValue(
+        Object.assign(new Error('Survey improvement is restricted for your role.'), {
+          status: 403,
+        }),
+      )
+      render(<AnalyticsDashboard />)
+      await waitFor(() => expect(api.getMonitoringDashboard).toHaveBeenCalled())
+      fireEvent.change(screen.getByLabelText('Analysis view'), { target: { value: 'survey' } })
+      expect(
+        await screen.findByText('Survey improvement is restricted for your role.'),
+      ).toBeTruthy()
+      expect(screen.queryByRole('button', { name: /retry/i })).toBeNull()
+    })
+
+    it('keeps Retry for a network or 5xx survey failure', async () => {
+      api.getSurveyAnalytics.mockRejectedValue(
+        Object.assign(new Error('The requested operation could not be completed.'), {
+          status: 503,
+        }),
+      )
+      render(<AnalyticsDashboard />)
+      await waitFor(() => expect(api.getMonitoringDashboard).toHaveBeenCalled())
+      fireEvent.change(screen.getByLabelText('Analysis view'), { target: { value: 'survey' } })
+      await screen.findByText('The requested operation could not be completed.')
+      expect(screen.getByRole('button', { name: /retry/i })).toBeTruthy()
+    })
+
+    it('enables survey and timeline for a role holding both analytics.descriptive.read and monitoring.read', async () => {
+      render(<AnalyticsDashboard />)
+      await waitFor(() => expect(api.getMonitoringDashboard).toHaveBeenCalled())
+      const survey = screen.getByText('Survey improvement', {
+        selector: 'option',
+      }) as HTMLOptionElement
+      const timeline = screen.getByText('Project / activity timeline adherence', {
+        selector: 'option',
+      }) as HTMLOptionElement
+      expect(survey.disabled).toBe(false)
+      expect(timeline.disabled).toBe(false)
+    })
+
+    it('offers only the project defined reporting periods to the survey view', async () => {
+      api.getSurveyAnalytics.mockResolvedValue({
+        contractVersion: 'analytics.descriptive.survey.v1',
+        projectId: 'project-a',
+        generatedAt: '2026-09-27T04:00:00.000Z',
+        period: { periodStart: '2026-09-01', periodEnd: '2026-09-30' },
+        excludedRecords: 0,
+        overall: surveyGroup(),
+        byActivity: [],
+      })
+      render(<AnalyticsDashboard />)
+      await waitFor(() => expect(api.getMonitoringDashboard).toHaveBeenCalled())
+      fireEvent.change(screen.getByLabelText('Analysis view'), { target: { value: 'survey' } })
+      await waitFor(() => expect(api.getSurveyAnalytics).toHaveBeenCalled())
+      const period = screen.getByLabelText('Reporting period') as HTMLSelectElement
+      const values = [...period.options].map((option) => option.value).filter(Boolean)
+      expect(values).toEqual(['2026-09-01::2026-09-30', '2026-08-01::2026-08-31'])
+      for (const call of api.getSurveyAnalytics.mock.calls) {
+        expect(['2026-09-01', '2026-08-01']).toContain(call[0].periodStart)
+      }
+    })
+
+    it('hides overlapping periods from the survey period picker only', async () => {
+      api.getProjectIndicators.mockImplementation((projectId: string) =>
+        Promise.resolve(
+          projectId === 'project-a'
+            ? [
+                indicator('project-a', 'A-SEP', '2026-09-01', '2026-09-30'),
+                indicator('project-a', 'A-WIDE', '2026-08-15', '2026-09-15'),
+                indicator('project-a', 'A-JUL', '2026-07-01', '2026-07-31'),
+              ]
+            : [],
+        ),
+      )
+      api.getSurveyAnalytics.mockResolvedValue({
+        contractVersion: 'analytics.descriptive.survey.v1',
+        projectId: 'project-a',
+        generatedAt: '2026-09-27T04:00:00.000Z',
+        period: { periodStart: '2026-07-01', periodEnd: '2026-07-31' },
+        excludedRecords: 0,
+        overall: surveyGroup(),
+        byActivity: [],
+      })
+      render(<AnalyticsDashboard />)
+      await waitFor(() => expect(api.getMonitoringDashboard).toHaveBeenCalled())
+      const values = () =>
+        [...(screen.getByLabelText('Reporting period') as HTMLSelectElement).options]
+          .map((option) => option.value)
+          .filter(Boolean)
+      expect(values()).toHaveLength(3)
+      fireEvent.change(screen.getByLabelText('Analysis view'), { target: { value: 'survey' } })
+      await waitFor(() => expect(values()).toEqual(['2026-07-01::2026-07-31']))
+      await waitFor(() => expect(api.getSurveyAnalytics).toHaveBeenCalled())
+      for (const call of api.getSurveyAnalytics.mock.calls) {
+        expect(call[0].periodStart).toBe('2026-07-01')
+      }
+    })
+
+    it('keeps the other panels on their period when every period overlaps, and restores it after the survey view', async () => {
+      api.getProjectIndicators.mockImplementation((projectId: string) =>
+        Promise.resolve(
+          projectId === 'project-a'
+            ? [
+                indicator('project-a', 'A-SEP', '2026-09-01', '2026-09-30'),
+                indicator('project-a', 'A-WIDE', '2026-08-15', '2026-09-15'),
+              ]
+            : [],
+        ),
+      )
+      render(<AnalyticsDashboard />)
+      await waitFor(() => expect(api.getDescriptiveAnalytics).toHaveBeenCalled())
+      const selected = () => (screen.getByLabelText('Reporting period') as HTMLSelectElement).value
+      const before = selected()
+      expect(before).not.toBe('')
+      const periodCalls = () =>
+        api.getDescriptiveAnalytics.mock.calls.map((call) => {
+          const query = call[0] as { periodStart: string; periodEnd: string }
+          return `${query.periodStart}::${query.periodEnd}`
+        })
+      expect(new Set(periodCalls())).toEqual(new Set([before]))
+
+      fireEvent.change(screen.getByLabelText('Analysis view'), { target: { value: 'survey' } })
+      expect(
+        await screen.findByText('This reporting period cannot be used for survey results.'),
+      ).toBeTruthy()
+      expect(api.getSurveyAnalytics).not.toHaveBeenCalled()
+      // The descriptive panel keeps its loaded period and never falls back to "None yet".
+      expect(new Set(periodCalls())).toEqual(new Set([before]))
+      expect(
+        screen.queryByText('No active Indicator reporting period is available for this project.'),
+      ).toBeNull()
+
+      fireEvent.change(screen.getByLabelText('Analysis view'), { target: { value: 'kpi' } })
+      await waitFor(() => expect(selected()).toBe(before))
+      expect(new Set(periodCalls())).toEqual(new Set([before]))
+    })
+
+    it('does not add a chart-type suffix to the timeline panel title', async () => {
+      api.getTimelineAnalytics.mockResolvedValue({
+        contractVersion: 'analytics.descriptive.timeline.v1',
+        projectId: 'project-a',
+        generatedAt: '2026-09-27T04:00:00.000Z',
+        reportingDate: '2026-09-27',
+        elapsedPercent: available('50'),
+        remainingDays: available('30'),
+        overdueDays: zero,
+        activityCompletionPercent: available('75'),
+        activityOverdueCount: zero,
+        milestoneOnTimePercent: available('100'),
+      })
+      render(<AnalyticsDashboard />)
+      await waitFor(() => expect(api.getMonitoringDashboard).toHaveBeenCalled())
+      fireEvent.change(screen.getByLabelText('Analysis view'), { target: { value: 'timeline' } })
+      await screen.findByTestId('timeline-analytics')
+      expect(screen.queryByText(/timeline adherence · /i)).toBeNull()
+    })
+
+    it('renders timeline metric cards without requiring a reporting period', async () => {
+      api.getTimelineAnalytics.mockResolvedValue({
+        contractVersion: 'analytics.descriptive.timeline.v1',
+        projectId: 'project-a',
+        generatedAt: '2026-09-27T04:00:00.000Z',
+        reportingDate: '2026-09-27',
+        elapsedPercent: available('50'),
+        remainingDays: available('30'),
+        overdueDays: zero,
+        activityCompletionPercent: available('75'),
+        activityOverdueCount: zero,
+        milestoneOnTimePercent: missing('NO_COMPLETED_MILESTONES'),
+      })
+
+      render(<AnalyticsDashboard />)
+      await waitFor(() => expect(api.getMonitoringDashboard).toHaveBeenCalled())
+      fireEvent.change(screen.getByLabelText('Analysis view'), {
+        target: { value: 'timeline' },
+      })
+
+      await waitFor(() =>
+        expect(api.getTimelineAnalytics).toHaveBeenCalledWith({ projectId: 'project-a' }),
+      )
+      const panel = await screen.findByTestId('timeline-analytics')
+      expect(within(panel).getByText('Elapsed')).toBeTruthy()
+      expect(within(panel).getByText('No completed milestones yet')).toBeTruthy()
+    })
+
+    it('shows an error state with Retry when timeline analytics fails to load', async () => {
+      api.getTimelineAnalytics.mockRejectedValue(
+        new Error('Timeline analytics could not be loaded.'),
+      )
+
+      render(<AnalyticsDashboard />)
+      await waitFor(() => expect(api.getMonitoringDashboard).toHaveBeenCalled())
+      fireEvent.change(screen.getByLabelText('Analysis view'), {
+        target: { value: 'timeline' },
+      })
+
+      await waitFor(() =>
+        expect(screen.getByText('Timeline analytics could not be loaded.')).toBeTruthy(),
+      )
+      const retry = screen.getByRole('button', { name: /retry/i })
+      api.getTimelineAnalytics.mockResolvedValue({
+        contractVersion: 'analytics.descriptive.timeline.v1',
+        projectId: 'project-a',
+        generatedAt: '2026-09-27T04:00:00.000Z',
+        reportingDate: '2026-09-27',
+        elapsedPercent: available('50'),
+        remainingDays: available('30'),
+        overdueDays: zero,
+        activityCompletionPercent: available('75'),
+        activityOverdueCount: zero,
+        milestoneOnTimePercent: available('100'),
+      })
+      fireEvent.click(retry)
+      await waitFor(() => expect(api.getTimelineAnalytics).toHaveBeenCalledTimes(2))
+      expect(await screen.findByTestId('timeline-analytics')).toBeTruthy()
+    })
   })
 })

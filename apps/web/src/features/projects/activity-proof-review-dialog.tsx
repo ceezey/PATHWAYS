@@ -18,7 +18,11 @@ import { useSession } from '@/hooks/use-session'
 import { useSourceMutationContext } from '@/hooks/use-source-mutation-context'
 import { type SensitiveDraftOwner, useSensitiveDraftOwner } from '@/lib/auth/sensitive-drafts'
 import { pathwaysClient } from '@/lib/services/pathways-client'
-import { isSourceReplay, sourceMutationTickets } from '@/lib/services/source-mutation'
+import {
+  SourceMutationRecoveryError,
+  isSourceReplay,
+  sourceMutationTickets,
+} from '@/lib/services/source-mutation'
 import type { Activity, ActivityProof } from '@/types/pathways'
 import { useEffect, useRef, useState } from 'react'
 import { ActivityProofFiles } from './activity-proof-files'
@@ -32,6 +36,29 @@ type Props = {
   onOpenChange: (open: boolean) => void
   onUpdated: (activity: Activity) => void
 }
+// Show the server's own reason when it gave one (a 403 or 409 explains itself, for example that
+// the update is no longer awaiting review). Only a failure with no usable reason keeps the
+// generic "could not be confirmed" wording, because then the outcome really is unknown.
+function reviewFailureMessage(caught: unknown) {
+  if (caught instanceof SourceMutationRecoveryError && caught.message) return caught.message
+  // PathwaysClientError carries the HTTP status; matched by shape so the check does not depend
+  // on which module instance raised it.
+  const failure = caught as { name?: unknown; message?: unknown; status?: unknown } | null
+  if (
+    failure?.name === 'PathwaysClientError' &&
+    typeof failure.message === 'string' &&
+    failure.message &&
+    (failure.status === 400 ||
+      failure.status === 403 ||
+      failure.status === 409 ||
+      failure.status === 422)
+  )
+    return failure.status === 409
+      ? `${failure.message} Reload the activity to see its current state.`
+      : failure.message
+  return 'The review could not be confirmed. Reload the activity before trying again.'
+}
+
 export function ActivityProofReviewDialog(props: Props) {
   const { profile, access } = useCurrentRole()
   const { session } = useSession()
@@ -124,9 +151,8 @@ function OwnedReview({
         sourceMutationTickets.finishAcknowledgement(mutationContext, updated.requestId)
       onUpdated(record)
       if (current()) onOpenChange(false)
-    } catch {
-      if (current())
-        setNotice('The review could not be confirmed. Reload the activity before trying again.')
+    } catch (caught) {
+      if (current()) setNotice(reviewFailureMessage(caught))
     } finally {
       pending.current = false
       if (current()) setBusy(false)
@@ -163,7 +189,7 @@ function OwnedReview({
             <StatusBadge tone="warning">Submitted</StatusBadge>
           </div>
           {progressOnly ? (
-            <p className="rounded-sm border border-border bg-surface-subtle p-3 text-sm">
+            <p className="rounded-xl border border-border bg-surface-subtle p-3 text-sm">
               Progress note without proof files: {update?.note}
             </p>
           ) : (

@@ -292,13 +292,13 @@ describe('I02 local credential and scoped account flows', () => {
     switchDemoAccount('project-manager')
     const id = saveDemoAccount({
       name: 'Fictional Officer',
-      email: 'fictional@demo.pathways.local',
+      email: 'jose.reyes@org.pathways.com',
       role: 'Project Officer',
       projectIds: ['futuremakers-ncr'],
     })
-    expect(() => loginDemo('fictional@demo.pathways.local', DEMO_PASSWORD)).toThrow('authorized')
+    expect(() => loginDemo('jose.reyes@org.pathways.com', DEMO_PASSWORD)).toThrow('authorized')
     authorizeDemoAccount(id)
-    expect(loginDemo('fictional@demo.pathways.local', DEMO_PASSWORD).projectIds).toEqual([
+    expect(loginDemo('jose.reyes@org.pathways.com', DEMO_PASSWORD).projectIds).toEqual([
       'futuremakers-ncr',
     ])
     expect(getDemoState().notifications.some((n) => n.recipientId === id)).toBe(true)
@@ -307,7 +307,7 @@ describe('I02 local credential and scoped account flows', () => {
     switchDemoAccount('project-manager')
     const input = {
       name: 'Fictional Officer',
-      email: 'another@demo.pathways.local',
+      email: 'carla.mendoza@org.pathways.com',
       role: 'Project Officer' as const,
       projectIds: ['futuremakers-ncr'],
     }
@@ -326,11 +326,11 @@ describe('I02 local credential and scoped account flows', () => {
     switchDemoAccount('project-officer')
     updateDemoProfile({
       name: 'Fictional Revised Name',
-      email: 'revised@demo.pathways.local',
+      email: 'patricia.uy@org.pathways.com',
       contact: '09171234567',
     })
     expect(() => loginDemo('project.officer@pathways.example', DEMO_PASSWORD)).toThrow('incorrect')
-    expect(loginDemo('revised@demo.pathways.local', DEMO_PASSWORD).name).toBe(
+    expect(loginDemo('patricia.uy@org.pathways.com', DEMO_PASSWORD).name).toBe(
       'Fictional Revised Name',
     )
   })

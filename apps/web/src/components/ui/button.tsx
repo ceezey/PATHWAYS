@@ -11,18 +11,18 @@ const buttonVariants = cva(
       variant: {
         default:
           'bg-primary text-primary-foreground hover:bg-primary-hover active:bg-primary-active',
-        secondary: 'bg-secondary text-secondary-foreground hover:bg-muted active:bg-border',
+        secondary:
+          'border border-primary bg-card text-primary hover:bg-primary-subtle active:bg-secondary',
         outline:
-          'border border-input bg-background text-foreground hover:bg-muted active:bg-secondary',
-        ghost:
-          'bg-transparent text-foreground hover:bg-primary-subtle hover:text-light-blue-foreground active:bg-secondary',
+          'border border-primary bg-card text-primary hover:bg-primary-subtle active:bg-secondary',
+        ghost: 'bg-transparent text-primary hover:bg-primary-subtle active:bg-secondary',
         destructive:
           'bg-danger text-danger-foreground hover:bg-danger-hover active:bg-danger-active',
       },
       size: {
         default: 'h-11 px-4 py-2',
-        sm: 'h-10 rounded-md px-3',
-        lg: 'h-11 rounded-md px-8',
+        sm: 'relative h-9 px-3 after:absolute after:-inset-1 after:content-[""]',
+        lg: 'h-[3.25rem] px-8',
         icon: 'h-11 w-11',
       },
     },

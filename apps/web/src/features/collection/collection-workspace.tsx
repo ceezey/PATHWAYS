@@ -15,7 +15,7 @@ import {
   Trash2,
 } from 'lucide-react'
 import Link from 'next/link'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { toast } from 'sonner'
 
 import { createFileSummary } from '@pathways/imports'
@@ -51,6 +51,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import { UNFINISHED_CONTROLS_UI_ENABLED } from '@/constants/feature-flags'
 import { useCurrentRole } from '@/hooks/use-current-role'
 import { useDisplayLabels } from '@/hooks/use-display-labels'
 import { sensitiveDraftGeneration } from '@/lib/auth/sensitive-drafts'
@@ -85,7 +86,6 @@ import {
 } from './digital-form-contract'
 import {
   type FormDefinitionExportFormat,
-  formDefinitionExportFormats,
   formDefinitionExportRequest,
 } from './form-definition-export'
 import {
@@ -100,6 +100,11 @@ import { ImportProcessingPanel, type ImportProcessingState } from './import-proc
 type ExportFormat = FormDefinitionExportFormat
 
 type CollectionMode = 'scratch' | 'import' | 'extend'
+
+/** The read-only Data preview and Metadata mapping tables render at most this many rows. */
+const MAX_PREVIEW_ROWS = 5
+/** The editable correction table paginates instead of capping, so every row stays correctable. */
+const CORRECTION_PAGE_SIZE = 25
 type CollectionView = 'home' | 'forms' | 'builder' | 'import'
 type FieldType = BuilderFieldType
 type ImportStatus = 'idle' | 'reading' | 'ready' | 'error'
@@ -304,7 +309,7 @@ export const CollectionWorkspace = (props: CollectionWorkspaceProps) => {
       ? JSON.stringify([
           profile.userId,
           profile.organizationId,
-          profile.roles,
+          [...profile.roles].sort(),
           [...profile.permissions].sort(),
           [...profile.assignedProjectIds].sort(),
           props.initialProjectId,
@@ -314,7 +319,10 @@ export const CollectionWorkspace = (props: CollectionWorkspaceProps) => {
   const latestOwner = useRef(identity)
   latestOwner.current = identity
   const alive = useRef(true)
-  useEffect(() => {
+  // A layout effect, so React's development StrictMode remount re-arms this flag before the
+  // owned child's passive effects re-run. As a passive effect it ran after them, so the child's
+  // mount-time ownership check saw a dead owner and skipped loading the project list.
+  useLayoutEffect(() => {
     alive.current = true
     return () => {
       alive.current = false
@@ -342,9 +350,6 @@ const OwnedCollectionWorkspace = ({
   const canGenerateForms = principalHasAtomicPermission(profile, 'forms.generate')
   const canReadActivities = principalHasAtomicPermission(profile, 'activities.read')
   const canReadIndicators = principalHasAtomicPermission(profile, 'monitoring.read')
-  const canEncodeData = Boolean(
-    profile && getVerifiedRouteAccess(profile, '/collection/entry').allowed,
-  )
   const canOpenForms = Boolean(
     profile && getVerifiedRouteAccess(profile, '/collection/forms').allowed,
   )
@@ -356,6 +361,7 @@ const OwnedCollectionWorkspace = ({
   )
   const [mode, setMode] = useState<CollectionMode>(initialMode)
   const [projects, setProjects] = useState<ProjectSummary[]>([])
+  const [projectsLoaded, setProjectsLoaded] = useState(false)
   const [activities, setActivities] = useState<ActivitySummary[]>([])
   const [forms, setForms] = useState<DigitalFormDefinition[]>([])
   const [indicators, setIndicators] = useState<Indicator[]>([])
@@ -363,8 +369,10 @@ const OwnedCollectionWorkspace = ({
   const [hydratedFormId, setHydratedFormId] = useState<string | undefined>()
   const [editingBaseUpdatedAt, setEditingBaseUpdatedAt] = useState<string | null>(null)
   const [indicatorIds, setIndicatorIds] = useState<string[]>([])
-  const [exportFormat, setExportFormat] = useState<ExportFormat>('csv')
+  // Format selection is hidden (docs/deferred-features.md); exports use the default.
+  const exportFormat: ExportFormat = 'csv'
   const [duplicateDecision, setDuplicateDecision] = useState<'pending' | 'skip' | 'keep'>('pending')
+  const [correctionPage, setCorrectionPage] = useState(0)
   const [view, setView] = useState<CollectionView>(initialView)
   const [formTitle, setFormTitle] = useState('Journey 1 - Intake & Assessment Form')
   const [formType, setFormType] = useState('OTHER')
@@ -520,6 +528,17 @@ const OwnedCollectionWorkspace = ({
     }
     return { valid, finish }
   }
+  // Edits the isolated correction table in place; rows live in parsedImport so the
+  // correction stays available to whatever eventually reprocesses the batch.
+  const updateCorrectionCell = (rowIndex: number, column: string, value: string) => {
+    setParsedImport((current) => {
+      if (!current) return current
+      const rows = current.rows.slice()
+      rows[rowIndex] = { ...rows[rowIndex], [column]: value }
+      return { ...current, rows }
+    })
+  }
+
   const changeProject = (next: string) => {
     if (mutation.current || next === projectId) return
     intent.current++
@@ -527,6 +546,7 @@ const OwnedCollectionWorkspace = ({
     lastSelectedFileRef.current = null
     uploadIdentity.current = null
     setParsedImport(null)
+    setCorrectionPage(0)
     setImportStatus('idle')
     setUploadProgress(0)
     setImportMessage('No source file selected yet.')
@@ -567,25 +587,46 @@ const OwnedCollectionWorkspace = ({
     !editingFormId ||
     (hydratedFormId === editingFormId &&
       forms.some((form) => form.id === editingFormId && form.projectId === projectId))
+  // Keyed on primitives, not the profile object: a background `me` refetch hands back a new
+  // object for the same identity and must not cancel an in-flight load. A response dropped
+  // because the sensitive-draft generation moved (or the request lost ownership mid-flight)
+  // is retried against the new generation instead of leaving the list empty.
+  const hasProfile = Boolean(profile)
+  const profileUserId = profile?.userId
+  const profileOrganizationId = profile?.organizationId
+  // biome-ignore lint/correctness/useExhaustiveDependencies: identity primitives stand in for the profile object
   useEffect(() => {
-    if (!role || !profile || !eligible('projects.read', '')) return
+    if (!role || !hasProfile || !eligible('projects.read', '')) return
     let active = true
-    const generation = sensitiveDraftGeneration()
-    pathwaysClient
-      .getProjectsForRole(role)
-      .then((records) => {
-        if (!active || !isCurrentOwner() || generation !== sensitiveDraftGeneration()) return
+    const maxAttempts = 3
+    const load = async (attempt: number): Promise<void> => {
+      const generation = sensitiveDraftGeneration()
+      const retry = () => active && isCurrentOwner() && attempt < maxAttempts
+      try {
+        const records = await pathwaysClient.getProjectsForRole(role)
+        if (!active || !isCurrentOwner()) return
+        if (generation !== sensitiveDraftGeneration()) {
+          if (retry()) return load(attempt + 1)
+          // Retries exhausted: never render the dropped rows, but never stay on "Loading".
+          setProjectsLoaded(true)
+          setSavedNotice('Projects could not be loaded. Retry.')
+          return
+        }
         setProjects(records)
         setProjectId((current) => current || records[0]?.id || '')
-      })
-      .catch((error: unknown) => {
-        if (active && isCurrentOwner() && generation === sensitiveDraftGeneration())
-          setSavedNotice(error instanceof Error ? error.message : 'Projects could not be loaded.')
-      })
+        setProjectsLoaded(true)
+      } catch (error: unknown) {
+        if (!active || !isCurrentOwner()) return
+        if (generation !== sensitiveDraftGeneration() && retry()) return load(attempt + 1)
+        setProjectsLoaded(true)
+        setSavedNotice(error instanceof Error ? error.message : 'Projects could not be loaded.')
+      }
+    }
+    void load(1)
     return () => {
       active = false
     }
-  }, [profile, role, eligible, isCurrentOwner])
+  }, [hasProfile, profileUserId, profileOrganizationId, role, eligible, isCurrentOwner])
 
   useEffect(() => {
     if (!projectId) {
@@ -675,6 +716,7 @@ const OwnedCollectionWorkspace = ({
     lastSelectedFileRef.current = null
     uploadIdentity.current = null
     setParsedImport(null)
+    setCorrectionPage(0)
     setMappingRows([])
     const form = forms.find((f) => f.id === summary.id)
     if (!form) return
@@ -884,6 +926,7 @@ const OwnedCollectionWorkspace = ({
 
       if (!validParse()) return
       setParsedImport(parsed)
+      setCorrectionPage(0)
       const selectedForm = forms.find(
         (form) =>
           form.id === editingFormId && form.projectId === projectId && form.status === 'PUBLISHED',
@@ -1319,18 +1362,11 @@ const OwnedCollectionWorkspace = ({
         eyebrow="Data workspace"
         title={labels.moduleCollection}
         actions={
-          <>
-            {canEncodeData ? (
-              <Button asChild size="sm" variant="outline">
-                <Link href="/collection/entry">Encode data</Link>
-              </Button>
-            ) : null}
-            {canOpenForms ? (
-              <Button asChild size="sm">
-                <Link href="/collection/forms">Forms</Link>
-              </Button>
-            ) : null}
-          </>
+          canOpenForms ? (
+            <Button asChild size="sm">
+              <Link href="/collection/forms">Forms</Link>
+            </Button>
+          ) : null
         }
       />
 
@@ -1339,7 +1375,7 @@ const OwnedCollectionWorkspace = ({
           <Link
             key={item.id}
             className={cn(
-              'rounded-lg border bg-card p-4 text-left transition-colors hover:border-primary/50 hover:bg-primary-subtle focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
+              'rounded-xl border bg-card p-4 text-left transition-colors hover:border-primary/50 hover:bg-primary-subtle focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
               mode === item.id && 'border-primary bg-primary-subtle',
             )}
             href={item.href}
@@ -1359,7 +1395,7 @@ const OwnedCollectionWorkspace = ({
       </div>
 
       {savedNotice ? (
-        <div className="flex items-center justify-between rounded-sm border border-success/25 bg-success-subtle px-4 py-3 text-sm text-success">
+        <div className="flex items-center justify-between rounded-xl border border-success/25 bg-success-subtle px-4 py-3 text-sm text-success">
           <span className="flex items-center gap-2">
             <CheckCircle2 className="h-4 w-4" aria-hidden="true" />
             {savedNotice}
@@ -1396,20 +1432,6 @@ const OwnedCollectionWorkspace = ({
         />
       ) : null}
 
-      <label className="block text-sm">
-        Download format{' '}
-        <select
-          className="ml-2 rounded border p-2"
-          value={exportFormat}
-          onChange={(e) => setExportFormat(e.target.value as ExportFormat)}
-        >
-          {formDefinitionExportFormats.map((f) => (
-            <option key={f} value={f}>
-              {f.toUpperCase()}
-            </option>
-          ))}
-        </select>
-      </label>
       {view === 'builder' &&
         canManageForms &&
         forms.find((form) => form.id === editingFormId)?.status === 'PUBLISHED' && (
@@ -1532,7 +1554,7 @@ const OwnedCollectionWorkspace = ({
                 />
               </div>
             </div>
-            <div>
+            <div hidden={!UNFINISHED_CONTROLS_UI_ENABLED}>
               <p id="linked-indicators-label">Linked indicators</p>
               {indicators
                 .filter((i) => i.projectId === projectId)
@@ -1579,6 +1601,7 @@ const OwnedCollectionWorkspace = ({
               onPublish={() => void publishFormToApi()}
               projectActivities={projectActivities}
               projects={projects}
+              projectsLoaded={projectsLoaded}
               projectId={projectId}
               sadddCount={sadddCount}
               selectedField={selectedField}
@@ -1599,55 +1622,112 @@ const OwnedCollectionWorkspace = ({
 
       {view === 'import' ? (
         <div className="space-y-4">
-          <label>
-            Duplicate records decision{' '}
-            <select
-              className="rounded border p-2"
-              value={duplicateDecision}
-              onChange={(e) => {
-                if (mutation.current) return
-                intent.current++
-                setDuplicateDecision(e.target.value as 'pending' | 'skip' | 'keep')
-              }}
-            >
-              <option value="pending">Decide when duplicates are flagged</option>
-              <option disabled title="Not available yet" value="skip">
-                Skip duplicates (not available yet)
-              </option>
-              <option disabled title="Not available yet" value="keep">
-                Keep confirmed duplicates (not available yet)
-              </option>
-            </select>
-          </label>
-          {parsedImport?.rows.length ? (
-            <details>
-              <summary>Correct isolated data before reprocessing</summary>
-              <div className="overflow-x-auto">
-                <table>
-                  <tbody>
-                    {parsedImport.rows.map((row, index) => (
-                      <tr
-                        key={parsedImport.headers
-                          .map((column) => `${column}:${String(row[column] ?? '')}`)
-                          .join('|')}
-                      >
-                        {parsedImport.headers.map((column) => (
-                          <td key={column}>
-                            <Input
-                              aria-label={`Row ${index + 1}: ${column}`}
-                              value={String(row[column] ?? '')}
-                              readOnly
-                              aria-readonly="true"
-                            />
-                          </td>
-                        ))}
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </details>
+          {UNFINISHED_CONTROLS_UI_ENABLED ? (
+            <label>
+              Duplicate records decision{' '}
+              <select
+                className="rounded border p-2"
+                value={duplicateDecision}
+                onChange={(e) => {
+                  if (mutation.current) return
+                  intent.current++
+                  setDuplicateDecision(e.target.value as 'pending' | 'skip' | 'keep')
+                }}
+              >
+                <option value="pending">Decide when duplicates are flagged</option>
+                <option disabled title="Not available yet" value="skip">
+                  Skip duplicates (not available yet)
+                </option>
+                <option disabled title="Not available yet" value="keep">
+                  Keep confirmed duplicates (not available yet)
+                </option>
+              </select>
+            </label>
           ) : null}
+          {parsedImport?.rows.length
+            ? (() => {
+                const totalRows = parsedImport.rows.length
+                const totalPages = Math.max(1, Math.ceil(totalRows / CORRECTION_PAGE_SIZE))
+                const page = Math.min(correctionPage, totalPages - 1)
+                const pageStart = page * CORRECTION_PAGE_SIZE
+                const pageEnd = Math.min(pageStart + CORRECTION_PAGE_SIZE, totalRows)
+                const pageRows = parsedImport.rows.slice(pageStart, pageEnd)
+                return (
+                  <details className="min-w-0">
+                    <summary>Correct isolated data before reprocessing</summary>
+                    <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
+                      {totalPages > 1 ? (
+                        <output aria-live="polite" className="text-xs text-muted-foreground">
+                          Rows {pageStart + 1}-{pageEnd} of {totalRows}
+                        </output>
+                      ) : (
+                        <p className="text-xs text-muted-foreground">
+                          Rows {pageStart + 1}-{pageEnd} of {totalRows}
+                        </p>
+                      )}
+                      {totalPages > 1 ? (
+                        <div className="flex gap-2">
+                          <Button
+                            className="min-h-11"
+                            disabled={page === 0}
+                            onClick={() => setCorrectionPage((current) => Math.max(0, current - 1))}
+                            size="sm"
+                            type="button"
+                            variant="outline"
+                          >
+                            Previous
+                          </Button>
+                          <Button
+                            className="min-h-11"
+                            disabled={pageEnd >= totalRows}
+                            onClick={() => setCorrectionPage((current) => current + 1)}
+                            size="sm"
+                            type="button"
+                            variant="outline"
+                          >
+                            Next
+                          </Button>
+                        </div>
+                      ) : null}
+                    </div>
+                    <section
+                      aria-label="Isolated data rows awaiting correction"
+                      className="mt-2 max-w-full overflow-x-auto"
+                      // biome-ignore lint/a11y/noNoninteractiveTabindex: scroll container needs keyboard access to reach content clipped by overflow-x-auto
+                      tabIndex={0}
+                    >
+                      <table className="min-w-max">
+                        <tbody>
+                          {pageRows.map((row, relativeIndex) => {
+                            const rowIndex = pageStart + relativeIndex
+                            return (
+                              <tr key={rowIndex}>
+                                {parsedImport.headers.map((column) => {
+                                  const cellValue = String(row[column] ?? '')
+                                  return (
+                                    <td key={column}>
+                                      <Input
+                                        aria-label={`Row ${rowIndex + 1}: ${column}`}
+                                        className="max-w-[220px] truncate"
+                                        title={cellValue}
+                                        value={cellValue}
+                                        onChange={(event) =>
+                                          updateCorrectionCell(rowIndex, column, event.target.value)
+                                        }
+                                      />
+                                    </td>
+                                  )
+                                })}
+                              </tr>
+                            )
+                          })}
+                        </tbody>
+                      </table>
+                    </section>
+                  </details>
+                )
+              })()
+            : null}
           <ImportView
             fields={fields}
             formTitle={formTitle}
@@ -1671,6 +1751,7 @@ const OwnedCollectionWorkspace = ({
             )}
             projectActivities={projectActivities}
             projects={projects}
+            projectsLoaded={projectsLoaded}
             projectId={projectId}
             selectedProject={selectedProject?.title ?? 'No project selected'}
             setFormTitle={changeInput(setFormTitle)}
@@ -1706,7 +1787,7 @@ const OwnedCollectionWorkspace = ({
               permission-controlled action.
             </DialogDescription>
           </DialogHeader>
-          <div className="rounded-sm border bg-surface-subtle p-4 text-sm">
+          <div className="rounded-xl border bg-surface-subtle p-4 text-sm">
             <p className="font-medium text-foreground">{formTitle}</p>
             <p className="mt-1 text-muted-foreground">
               {fields.length} fields, {mappedCount} mapped, {sadddCount} SADDD fields.
@@ -1783,7 +1864,7 @@ const OwnedCollectionWorkspace = ({
         title={`Delete ${pendingDeleteField?.label ?? 'this field'}?`}
       >
         {pendingDeleteField ? (
-          <div className="rounded-sm border border-border bg-surface-subtle p-3 text-sm">
+          <div className="rounded-xl border border-border bg-surface-subtle p-3 text-sm">
             <p className="font-medium text-foreground">{pendingDeleteField.label}</p>
             <p className="mt-1 text-muted-foreground">
               Field code: {pendingDeleteField.code} · Type:{' '}
@@ -1811,7 +1892,7 @@ const FormsGeneratorView = ({
   onDownload: (form: SavedForm) => void
   savedForms: SavedForm[]
 }) => (
-  <div className="rounded-lg border bg-card p-5">
+  <div className="rounded-2xl border bg-card p-5">
     <div className="flex flex-col gap-3 border-b pb-4 sm:flex-row sm:items-center sm:justify-between">
       <div>
         <p className="text-xs font-semibold uppercase text-muted-foreground">Form Generator</p>
@@ -1849,7 +1930,7 @@ const FormsGeneratorView = ({
       {savedForms.map((form) => (
         <div
           key={form.id}
-          className="grid gap-3 rounded-sm border bg-surface-subtle p-4 text-sm md:grid-cols-[1fr_auto]"
+          className="grid gap-3 rounded-xl border bg-surface-subtle p-4 text-sm md:grid-cols-[1fr_auto]"
         >
           <div className="flex items-start gap-3">
             <div className="flex h-9 w-9 items-center justify-center rounded-sm bg-primary-subtle text-primary">
@@ -1895,6 +1976,7 @@ const BuilderView = ({
   onPublish,
   projectActivities,
   projects,
+  projectsLoaded,
   projectId,
   sadddCount,
   selectedField,
@@ -1926,6 +2008,7 @@ const BuilderView = ({
   onPublish: () => void
   projectActivities: ActivitySummary[]
   projects: ProjectSummary[]
+  projectsLoaded: boolean
   projectId: string
   sadddCount: number
   selectedField?: FormField
@@ -1940,8 +2023,8 @@ const BuilderView = ({
   setSelectedFieldId: (fieldId: string) => void
   updateField: (fieldId: string, patch: Partial<FormField>) => void
 }) => (
-  <div className="grid gap-4 xl:grid-cols-[1fr_300px]">
-    <div className="space-y-4">
+  <div className="grid min-w-0 gap-4 xl:grid-cols-[minmax(0,1fr)_300px]">
+    <div className="min-w-0 space-y-4">
       <FormInfoPanel
         formTitle={formTitle}
         formType={formType}
@@ -1949,6 +2032,7 @@ const BuilderView = ({
         linkedActivityId={linkedActivityId}
         projectActivities={projectActivities}
         projects={projects}
+        projectsLoaded={projectsLoaded}
         projectId={projectId}
         setFormTitle={setFormTitle}
         setFormType={setFormType}
@@ -1957,7 +2041,7 @@ const BuilderView = ({
         setProjectId={setProjectId}
       />
 
-      <div className="rounded-lg border bg-card p-4">
+      <div className="rounded-xl border bg-card p-4">
         <div className="flex flex-col gap-3 border-b pb-3 md:flex-row md:items-center md:justify-between">
           <div>
             <p className="text-xs font-semibold uppercase text-muted-foreground">
@@ -1979,7 +2063,7 @@ const BuilderView = ({
             <div
               key={field.id}
               className={cn(
-                'rounded-sm border bg-background p-3 transition',
+                'rounded-xl border bg-background p-3 transition',
                 selectedFieldId === field.id && 'border-primary bg-primary-subtle',
               )}
             >
@@ -2079,14 +2163,14 @@ const BuilderView = ({
             ) : null}
           </div>
         ) : (
-          <p className="mt-4 rounded-sm border border-dashed border-border p-3 text-sm text-muted-foreground">
+          <p className="mt-4 rounded-xl border border-dashed border-border p-3 text-sm text-muted-foreground">
             This form is available as read-only for your current role.
           </p>
         )}
       </div>
     </div>
 
-    <aside className="space-y-4">
+    <aside className="min-w-0 space-y-4">
       <MetadataMapPanel
         fields={fields}
         mappedCount={mappedCount}
@@ -2106,6 +2190,7 @@ const FormInfoPanel = ({
   linkedActivityId,
   projectActivities,
   projects,
+  projectsLoaded,
   projectId,
   setFormTitle,
   setFormType,
@@ -2119,6 +2204,7 @@ const FormInfoPanel = ({
   linkedActivityId: string
   projectActivities: ActivitySummary[]
   projects: ProjectSummary[]
+  projectsLoaded: boolean
   projectId: string
   setFormTitle: (value: string) => void
   setFormType: (value: string) => void
@@ -2126,7 +2212,7 @@ const FormInfoPanel = ({
   setLinkedActivityId: (value: string) => void
   setProjectId: (value: string) => void
 }) => (
-  <div className="rounded-lg border bg-card p-4">
+  <div className="rounded-xl border bg-card p-4">
     <div className="grid gap-4 md:grid-cols-2">
       <div className="space-y-2">
         <Label htmlFor="form-title">Form information</Label>
@@ -2152,10 +2238,12 @@ const FormInfoPanel = ({
         </Select>
       </div>
       <div className="space-y-2">
-        <Label>Project selection</Label>
+        <Label htmlFor="collection-project-select">Project selection</Label>
         <Select value={projectId} onValueChange={setProjectId}>
-          <SelectTrigger>
-            <SelectValue />
+          <SelectTrigger id="collection-project-select">
+            <SelectValue
+              placeholder={projectsLoaded ? 'No projects available' : 'Loading projects...'}
+            />
           </SelectTrigger>
           <SelectContent>
             {projects.map((project) => (
@@ -2459,7 +2547,7 @@ const MetadataMapPanel = ({
   selectedField?: FormField
   selectedProject: string
 }) => (
-  <div className="rounded-lg border bg-card p-4">
+  <div className="rounded-xl border bg-card p-4">
     <div className="flex items-center justify-between gap-3">
       <div>
         <p className="text-sm font-semibold text-foreground">Metadata map</p>
@@ -2468,7 +2556,7 @@ const MetadataMapPanel = ({
       <StatusBadge tone="info">Current</StatusBadge>
     </div>
     <div className="mt-4 space-y-3 text-sm">
-      <div className="rounded-sm bg-surface-subtle p-3">
+      <div className="rounded-xl bg-surface-subtle p-3">
         <div className="grid grid-cols-2 gap-2 text-xs text-muted-foreground">
           <span>Total fields</span>
           <span className="text-right font-medium text-foreground">{fields.length}</span>
@@ -2489,7 +2577,7 @@ const MetadataMapPanel = ({
       </div>
       <div>
         <p className="text-xs font-semibold uppercase text-muted-foreground">Selected field</p>
-        <div className="mt-2 rounded-sm border bg-surface-subtle p-3">
+        <div className="mt-2 rounded-xl border bg-surface-subtle p-3">
           <p className="font-medium text-foreground">
             {selectedField?.label ?? 'No field selected'}
           </p>
@@ -2512,12 +2600,12 @@ const MetadataMapPanel = ({
 )
 
 const FormPreviewPanel = ({ fields, formTitle }: { fields: FormField[]; formTitle: string }) => (
-  <div className="rounded-lg border bg-card p-4">
+  <div className="rounded-xl border bg-card p-4">
     <p className="text-sm font-semibold text-foreground">Form preview</p>
     <p className="mt-1 text-xs text-muted-foreground">{formTitle}</p>
     <div className="mt-4 space-y-3">
       {fields.slice(0, 4).map((field) => (
-        <div key={field.id} className="rounded-sm border bg-surface-subtle p-3">
+        <div key={field.id} className="rounded-xl border bg-surface-subtle p-3">
           <Label>{field.label}</Label>
           <div className="mt-2 h-9 rounded-sm border bg-background px-3 py-2 text-xs text-muted-foreground">
             {field.type.includes('select')
@@ -2548,6 +2636,7 @@ const ImportView = ({
   sourceFileEnabled,
   projectActivities,
   projects,
+  projectsLoaded,
   projectId,
   selectedProject,
   setFormTitle,
@@ -2579,6 +2668,7 @@ const ImportView = ({
   sourceFileEnabled: boolean
   projectActivities: ActivitySummary[]
   projects: ProjectSummary[]
+  projectsLoaded: boolean
   projectId: string
   selectedProject: string
   setFormTitle: (value: string) => void
@@ -2593,8 +2683,8 @@ const ImportView = ({
   retrySelectedFile: () => void
   uploadProgress: number
 }) => (
-  <div className="grid gap-4 xl:grid-cols-[1fr_300px]">
-    <div className="space-y-4">
+  <div className="grid min-w-0 gap-4 xl:grid-cols-[minmax(0,1fr)_300px]">
+    <div className="min-w-0 space-y-4">
       <FormInfoPanel
         formTitle={formTitle}
         formType={formType}
@@ -2602,6 +2692,7 @@ const ImportView = ({
         linkedActivityId={linkedActivityId}
         projectActivities={projectActivities}
         projects={projects}
+        projectsLoaded={projectsLoaded}
         projectId={projectId}
         setFormTitle={setFormTitle}
         setFormType={setFormType}
@@ -2610,7 +2701,7 @@ const ImportView = ({
         setProjectId={setProjectId}
       />
 
-      <div className="rounded-lg border bg-card p-5">
+      <div className="rounded-2xl border bg-card p-5">
         <div className="flex flex-col items-center justify-center rounded-sm border border-dashed bg-surface-subtle px-4 py-8 text-center">
           <FileUp className="h-8 w-8 text-primary" aria-hidden="true" />
           <h2 className="mt-3 text-base font-semibold text-foreground">
@@ -2685,7 +2776,7 @@ const ImportView = ({
       </div>
 
       {importSummary ? (
-        <div className="rounded-lg border bg-card p-4">
+        <div className="rounded-xl border bg-card p-4">
           <div className="grid gap-4 md:grid-cols-3">
             <SummaryMetric label="File" value={importSummary.fileName} />
             <SummaryMetric label="Rows" value={String(importSummary.totalRows)} />
@@ -2697,7 +2788,7 @@ const ImportView = ({
             </p>
           ) : null}
           {importSummary.warnings.length > 0 ? (
-            <div className="mt-3 rounded-sm bg-warning-subtle p-3 text-xs text-warning">
+            <div className="mt-3 rounded-xl bg-warning-subtle p-3 text-xs text-warning">
               {importSummary.warnings.join(' ')}
             </div>
           ) : null}
@@ -2721,13 +2812,13 @@ const ImportView = ({
       {parsedImport ? <DataPreview parsedImport={parsedImport} /> : null}
     </div>
 
-    <aside className="space-y-4">
+    <aside className="min-w-0 space-y-4">
       <ImportValidationPanel
         canProceed={importCanProceed}
         mappingReadiness={mappingReadiness}
         parsedImport={parsedImport}
       />
-      <div className="rounded-lg border bg-card p-4">
+      <div className="rounded-xl border bg-card p-4">
         <p className="text-sm font-semibold text-foreground">Connected to</p>
         <p className="mt-1 text-xs text-muted-foreground">{selectedProject}</p>
         <div className="mt-3 space-y-2">
@@ -2743,7 +2834,7 @@ const ImportView = ({
 )
 
 const SummaryMetric = ({ label, value }: { label: string; value: string }) => (
-  <div className="rounded-sm bg-surface-subtle p-3">
+  <div className="rounded-xl bg-surface-subtle p-3">
     <p className="text-xs font-medium uppercase text-muted-foreground">{label}</p>
     <p className="mt-1 break-words text-sm font-semibold text-foreground">{value}</p>
   </div>
@@ -2779,7 +2870,7 @@ const MappingTable = ({
       .map((row) => ({ code: row.targetField, label: row.sourceColumn })),
   ].filter((option, index, all) => all.findIndex((other) => other.code === option.code) === index)
   return (
-    <div className="rounded-lg border bg-card p-4">
+    <div className="min-w-0 rounded-xl border bg-card p-4">
       <div className="flex flex-col gap-3 border-b pb-3 md:flex-row md:items-center md:justify-between">
         <div>
           <h2 className="text-lg font-semibold text-foreground">Metadata mapping</h2>
@@ -2820,7 +2911,12 @@ const MappingTable = ({
               ? 'The current file must finish successfully before proceeding.'
               : mappingReadiness.message}
       </p>
-      <div className="mt-4 overflow-x-auto">
+      <section
+        aria-label="Metadata mapping rows"
+        className="mt-4 max-w-full overflow-x-auto"
+        // biome-ignore lint/a11y/noNoninteractiveTabindex: scroll container needs keyboard access to reach content clipped by overflow-x-auto
+        tabIndex={0}
+      >
         <table className="w-full min-w-[720px] text-left text-sm">
           <thead className="text-xs uppercase text-muted-foreground">
             <tr>
@@ -2832,8 +2928,10 @@ const MappingTable = ({
           <tbody>
             {mappingRows.map((row) => (
               <tr key={row.id} className="border-t">
-                <td className="px-3 py-3 font-medium text-foreground">
-                  <span className="block">{row.sourceColumn}</span>
+                <td className="max-w-[220px] px-3 py-3 font-medium text-foreground">
+                  <span className="block truncate" title={row.sourceColumn}>
+                    {row.sourceColumn}
+                  </span>
                   {row.autoMatched && row.status === 'mapped' ? (
                     <StatusBadge tone="success">Auto-matched</StatusBadge>
                   ) : null}
@@ -2904,41 +3002,54 @@ const MappingTable = ({
             ))}
           </tbody>
         </table>
-      </div>
+      </section>
     </div>
   )
 }
 
 const DataPreview = ({ parsedImport }: { parsedImport: ParsedImport }) => (
-  <div className="rounded-lg border bg-card p-4">
+  <div className="min-w-0 rounded-xl border bg-card p-4">
     <h2 className="text-lg font-semibold text-foreground">Data preview</h2>
     <p className="mt-1 text-sm text-muted-foreground">
-      The first rows are shown for mapping and validation review.
+      Showing the first {Math.min(parsedImport.rows.length, MAX_PREVIEW_ROWS)} of{' '}
+      {parsedImport.rows.length} rows for mapping and validation review.
     </p>
-    <div className="mt-4 overflow-x-auto">
+    <section
+      aria-label="Data preview rows"
+      className="mt-4 max-w-full overflow-x-auto"
+      // biome-ignore lint/a11y/noNoninteractiveTabindex: scroll container needs keyboard access to reach content clipped by overflow-x-auto
+      tabIndex={0}
+    >
       <table className="w-full min-w-[720px] text-left text-sm">
         <thead className="text-xs uppercase text-muted-foreground">
           <tr>
             {parsedImport.headers.map((header) => (
-              <th key={header} className="px-3 py-2">
+              <th key={header} className="max-w-[220px] truncate px-3 py-2" title={header}>
                 {header}
               </th>
             ))}
           </tr>
         </thead>
         <tbody>
-          {parsedImport.rows.slice(0, 5).map((row, index) => (
+          {parsedImport.rows.slice(0, MAX_PREVIEW_ROWS).map((row, index) => (
             <tr key={`${parsedImport.fileName}-${index}`} className="border-t">
-              {parsedImport.headers.map((header) => (
-                <td key={header} className="px-3 py-3 text-muted-foreground">
-                  {formatValue(row[header])}
-                </td>
-              ))}
+              {parsedImport.headers.map((header) => {
+                const cellText = formatValue(row[header])
+                return (
+                  <td
+                    key={header}
+                    className="max-w-[220px] truncate px-3 py-3 text-muted-foreground"
+                    title={cellText}
+                  >
+                    {cellText}
+                  </td>
+                )
+              })}
             </tr>
           ))}
         </tbody>
       </table>
-    </div>
+    </section>
   </div>
 )
 
@@ -2955,7 +3066,7 @@ const ImportValidationPanel = ({
   const progress = total === 0 ? 0 : Math.round((resolved / total) * 100)
 
   return (
-    <div className="rounded-lg border bg-card p-4">
+    <div className="rounded-xl border bg-card p-4">
       <div className="flex items-center justify-between gap-3">
         <div>
           <p className="text-sm font-semibold text-foreground">Validation summary</p>
@@ -2983,7 +3094,7 @@ const ImportValidationPanel = ({
           <SummaryPill label="Ignored" tone="neutral" value={ignored} />
           <SummaryPill label="Invalid" tone="danger" value={invalid} />
         </div>
-        <p className="rounded-sm bg-surface-subtle p-3 text-xs leading-5 text-muted-foreground">
+        <p className="rounded-xl bg-surface-subtle p-3 text-xs leading-5 text-muted-foreground">
           Validation checks column headings and preview rows before import.
         </p>
       </div>

@@ -216,6 +216,22 @@ describe('active canonical M&E review dialog', () => {
       expect(onOpenChange).not.toHaveBeenCalled()
     },
   )
+  it.each([
+    [403, 'A submitter cannot review their own update.', 'A submitter cannot review'],
+    [409, 'This update is no longer awaiting review.', 'no longer awaiting review'],
+  ])('shows the server reason for a %s review failure', async (status, message, expected) => {
+    api.reviewActivityUpdate.mockRejectedValue(
+      Object.assign(new Error(message), { name: 'PathwaysClientError', status }),
+    )
+    render(<ActivityProofReviewDialog {...props} />)
+    fireEvent.change(screen.getByLabelText('Review reason'), { target: { value: 'Checked.' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Approve update' }))
+    await waitFor(() => expect(screen.getByRole('alert').textContent).toContain(expected))
+    expect(screen.getByRole('alert').textContent).not.toContain('could not be confirmed')
+    if (status === 409)
+      expect(screen.getByRole('alert').textContent).toContain('Reload the activity')
+    expect(onUpdated).not.toHaveBeenCalled()
+  })
   it('prevents duplicate pending requests and reports uncertain failure without automatic replay', async () => {
     let reject!: (error: Error) => void
     api.reviewActivityUpdate.mockReturnValue(

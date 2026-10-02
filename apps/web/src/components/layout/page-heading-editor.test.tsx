@@ -1,12 +1,14 @@
 // @vitest-environment jsdom
 
 import { cleanup, render, screen } from '@testing-library/react'
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { PageHeadingEditor } from './page-heading-editor'
 
 afterEach(() => {
   cleanup()
+  vi.doUnmock('@/constants/feature-flags')
+  vi.resetModules()
 })
 
 describe('PageHeadingEditor', () => {
@@ -30,13 +32,6 @@ describe('PageHeadingEditor', () => {
     expect(hint?.className).toContain('sr-only')
   })
 
-  it('does not render a dialog', () => {
-    render(<PageHeadingEditor labelKey="moduleProjects" title="Projects" />)
-
-    expect(screen.queryByRole('dialog')).toBeNull()
-    expect(screen.queryByText('Edit page heading')).toBeNull()
-  })
-
   it('opens no dialog when clicked', () => {
     render(<PageHeadingEditor labelKey="moduleProjects" title="Projects" />)
 
@@ -45,5 +40,16 @@ describe('PageHeadingEditor', () => {
 
     expect(screen.queryByRole('dialog')).toBeNull()
     expect(button.getAttribute('aria-disabled')).toBe('true')
+  })
+
+  it('renders nothing while unfinished controls are hidden', async () => {
+    vi.resetModules()
+    vi.doMock('@/constants/feature-flags', () => ({ UNFINISHED_CONTROLS_UI_ENABLED: false }))
+    const { PageHeadingEditor: HiddenEditor } = await import('./page-heading-editor')
+    const { container } = render(<HiddenEditor labelKey="moduleProjects" title="Projects" />)
+
+    expect(container.innerHTML).toBe('')
+    expect(screen.queryByRole('button', { name: 'Edit Projects page heading' })).toBeNull()
+    expect(screen.queryByText('Not available yet')).toBeNull()
   })
 })

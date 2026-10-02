@@ -90,7 +90,7 @@ export const BudgetEditorDialog = ({
         </DialogHeader>
         <Form {...form}>
           <form className="space-y-5" onSubmit={form.handleSubmit(onSubmit)}>
-            <div className="rounded-sm border border-border bg-surface-subtle p-4">
+            <div className="rounded-xl border border-border bg-surface-subtle p-4">
               <p className="text-sm text-muted-foreground">Current actual spending</p>
               <p className="mt-1 text-xl font-semibold tabular-nums text-foreground">
                 {formatCurrency(budget.actualSpending)}
@@ -118,14 +118,14 @@ export const BudgetEditorDialog = ({
               )}
             />
             {overspendWarning ? (
-              <p className="rounded-sm border border-warning/30 bg-warning-subtle p-3 text-sm text-warning">
+              <p className="rounded-xl border border-warning/30 bg-warning-subtle p-3 text-sm text-warning">
                 This allocation is below actual spending. The remaining balance will be negative and
                 utilization will exceed 100 percent.
               </p>
             ) : null}
             {saveError ? (
               <p
-                className="rounded-sm border border-danger/25 bg-danger-subtle p-3 text-sm text-danger"
+                className="rounded-xl border border-danger/25 bg-danger-subtle p-3 text-sm text-danger"
                 role="alert"
               >
                 {saveError}

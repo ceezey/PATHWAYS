@@ -8,6 +8,8 @@
 
 **Approval:** Developer reply on 2026-09-28: "Approve A, 15 min"
 
+**Superseded by:** prd-pathways.md section 4 (PRD-F3) and IDEA.md section 4.5 (2026-10-01 reconciliation); citations of manuscript Objective 2.2 now read Objective 1.8, because rev-2026 Objective 2.2 is descriptive analytics
+
 ## 1. Trigger
 
 `apps/web/src/components/layout/beneficiary-access-gate.tsx` shows a client-only "beneficiary module access PIN" dialog on `/beneficiaries/**` after `RouteAccessGuard` passes its server route check. The PIN is a hardcoded constant compared in the browser, and the dialog displays it to every user. It originates from commit `3ba840a` ("Frontend and mockdata for presentation ONLY"). It adds no security, and the build guide prohibits user-facing prototype or presentation-only behavior.

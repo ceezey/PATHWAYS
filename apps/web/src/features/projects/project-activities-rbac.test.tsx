@@ -83,6 +83,7 @@ const serverFlags = (
   canEdit: has(role, 'activities.update') && !['COMPLETED', 'CANCELLED'].includes(status),
   canRecordProgress: has(role, 'activities.progress.update') && assigned,
   canSubmitProof: has(role, 'activities.proof.submit') && assigned,
+  canExplainOverdue: has(role, 'monitoring.review'),
 })
 
 const detailFor = (
@@ -112,6 +113,8 @@ const detailFor = (
   progress: 20,
   submittedProof: [],
   updateNotes: [],
+  overdueExplanations: [],
+  overdueExplanationNeeded: false,
   updatedAt: '2026-09-25T00:00:00.000Z',
   capabilities,
 })
@@ -204,19 +207,30 @@ describe('activity actions match the API for every role', () => {
     )
   })
 
-  it('never shows a Project Officer Edit, whatever the flags say', async () => {
+  it('never shows a Project Officer Edit or New Activity, whatever the flags say', async () => {
     asRole('PROJECT_OFFICER')
     await renderDetail(
-      detailFor('IN_PROGRESS', { canEdit: true, canRecordProgress: true, canSubmitProof: true }),
+      detailFor('IN_PROGRESS', {
+        canEdit: true,
+        canRecordProgress: true,
+        canSubmitProof: true,
+        canExplainOverdue: true,
+      }),
     )
     expect(visible('Edit activity')).toBe(false)
-    expect(visible('New Activity')).toBe(true)
+    expect(visible('New Activity')).toBe(false)
+    expect(visible('Submit Update & Proof')).toBe(true)
   })
 
   it('shows nothing to an administrator even with forged all-true flags', async () => {
     asRole('SYSTEM_ADMINISTRATOR')
     await renderDetail(
-      detailFor('IN_PROGRESS', { canEdit: true, canRecordProgress: true, canSubmitProof: true }),
+      detailFor('IN_PROGRESS', {
+        canEdit: true,
+        canRecordProgress: true,
+        canSubmitProof: true,
+        canExplainOverdue: true,
+      }),
     )
     for (const name of [
       'New Activity',

@@ -104,6 +104,7 @@ const activity = () => ({
   activityUpdate_activity: [],
   activityJourneyStageMapping_activity: [],
   activityIndicatorLink_activity: [],
+  activityOverdueExplanation_activity: [],
 })
 const update = () => ({
   id: updateId,

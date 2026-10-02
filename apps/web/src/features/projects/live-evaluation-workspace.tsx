@@ -233,7 +233,7 @@ function EvaluationContent({ projectId }: { projectId: string }) {
         ) : current?.criteria.length ? (
           <div className="space-y-4">
             {current.criteria.map((row) => (
-              <div key={row.id} className="grid gap-3 rounded-md border p-4 md:grid-cols-3">
+              <div key={row.id} className="grid gap-3 rounded-xl border p-4 md:grid-cols-3">
                 <div>
                   <p className="font-semibold">{row.name}</p>
                   <p className="text-sm text-muted-foreground">
@@ -289,7 +289,7 @@ function EvaluationContent({ projectId }: { projectId: string }) {
               <fieldset
                 key={row.localId}
                 disabled={busy}
-                className="grid gap-3 rounded-md border p-4 md:grid-cols-5"
+                className="grid gap-3 rounded-xl border p-4 md:grid-cols-5"
               >
                 <legend className="px-1 text-sm font-semibold">Criterion {index + 1}</legend>
                 <Label>
@@ -311,7 +311,7 @@ function EvaluationContent({ projectId }: { projectId: string }) {
                 <Label>
                   Type
                   <select
-                    className="h-10 w-full rounded-md border bg-background px-3"
+                    className="h-11 w-full rounded-md border bg-background px-3"
                     value={row.type}
                     onChange={(event) => edit(index, 'type', event.target.value)}
                   >

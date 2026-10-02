@@ -1,9 +1,6 @@
-import { ManualDataEntryWorkspace } from '@/features/collection/manual-data-entry-workspace'
-import { type ProtectedPageProps, requireServerPage } from '@/lib/rbac/server-access'
+import { redirect } from 'next/navigation'
 
-export const dynamic = 'force-dynamic'
-
-export default async function ProtectedPage(props: ProtectedPageProps) {
-  await requireServerPage('manualEntry', props)
-  return <ManualDataEntryWorkspace />
+// Encode Project Data is retired (V4-C11); old links land on Collection.
+export default function CollectionEntryPage() {
+  redirect('/collection')
 }

@@ -15,7 +15,7 @@
 
 - Source and desktop implementation are both 1512 × 1064 pixels, captured or generated for a 1512 × 1064 CSS-pixel viewport at device scale factor 1. No density resampling was needed.
 - Desktop source state: selected Option 1, Program Manager, expanded staff shell around the portfolio-triage concept.
-- Desktop implementation state: GUI prototype mode with synthetic `frontend.review@demo.pathways.local`, Program Manager, `Portfolio preview`, expanded staff shell at `/dashboard`.
+- Desktop implementation state: GUI prototype mode with synthetic `teresa.garcia@org.pathways.com`, Program Manager, `Portfolio preview`, expanded staff shell at `/dashboard`.
 - Mobile implementation state: 390 × 844 CSS pixels at device scale factor 1, Project Officer, workspace navigation open, close control focused.
 - The full-view comparison was used for shell proportions, hierarchy, color, and density. Focused sidebar/header comparisons were used because shell labels, icons, spacing, and identity details were too small to judge reliably in the full pair.
 

@@ -1,82 +1,48 @@
 # Wrap & Next Steps (WRAP)
 
+**Status:** Draft
+**Version:** 2.0
+**Last reconciled:** 2026-10-01
+**Owner:** PATHWAYS capstone team
+
+The project has not concluded, so outcome sections are Not established until it does. Source: developer answers 2026-10-01.
+
 ## 1. Outcome Snapshot
 
-PATHWAYS now has a curated repository-facing documentation/AI workflow based on the reviewed ArkiLaunch pattern:
-
-- manifest/control panel;
-- explicit source hierarchy;
-- stable feature IDs;
-- traceability;
-- Change Records;
-- audits as evidence;
-- canonical BUILD -> AGENTS materialization;
-- restraint rules;
-- Health Check.
+Not established: project in progress. Current position is in [state](state.md); alignment findings are in `docs/audit-pathways-manuscript-alignment-20261001.md`.
 
 ## 2. Keep / Cut / Borrow
 
-### Keep
-- six-role model;
-- metadata-driven preparation;
-- project-owned indicators;
-- Beneficiary privacy;
-- SADDD privacy;
-- deterministic rules/human review;
-- disposable phase/task control artifacts kept outside the repository.
+Not established: project in progress.
 
-### Cut / Avoid
-- AI/autonomous claims;
-- organization Indicator Library;
-- Project Template Library;
-- full real-time integration claims;
-- user-facing prototype/mock/demo status;
-- deployment/SSO/AWS during current feature work.
+## 3. Learnings (blameless)
 
-### Borrowed Workflow Concepts
-- `docs/index.md` control panel;
-- Locked/Working/Draft/Deferred statuses;
-- Change Records for Locked-contract changes;
-- audits separated from decisions;
-- docs-first agent read order;
-- canonical build guide materialized to `AGENTS.md`;
-- Health Check and traceability.
+Not established: project in progress.
 
-## 3. Lessons
+## 4. Scale & Continuation
 
-Documentation drift is more dangerous than missing prose when an AI agent can confidently implement stale assumptions.
+| Item | Position |
+|---|---|
+| Continuation owner | The capstone team until turnover, then PUP before release to Plan International Pilipinas |
+| Year-one scale | 1 organization, about 15 staff users |
+| Funding after the capstone | Not established: unknown |
+| Hosting | Current Supabase and Vercel arrangement; AWS is a proposal only (`docs/rfc-pathways-aws-hosting-migration.md`) |
 
-Therefore:
-- verify repo behavior;
-- record drift;
-- change Locked contracts through CRs;
-- never rewrite history to hide old decisions.
+## 5. Production Readiness Gate (final check)
 
-## 4. Continuation
+Production stays blocked: see `docs/qad-pathways.md` section 6.1 and `docs/audit-pathways-manuscript-alignment-20261001.md`. The final check is Not established until the project concludes.
 
-Priority:
-1. reconcile docs with current repo;
-2. complete/verify eight core features;
-3. complete supporting features;
-4. run UAT/security/performance;
-5. revisit deployment/SSO/AWS only when explicitly authorized.
+## 6. Owned Next Steps
 
-## 5. Production Readiness
-
-Not claimed.
-
-Production readiness needs separate evidence for:
-- deployment;
-- secrets;
-- observability;
-- backup/recovery;
-- security testing;
-- privacy/compliance;
-- UAT;
-- migration safety.
+| Step | Owner |
+|---|---|
+| Close non-Met audit rows by Change Record or deferral | Capstone team |
+| Turn the system over | Capstone team to PUP |
+| Release to Plan International Pilipinas | PUP |
+| Later next steps | Not established: project in progress |
 
 ## Self-Check
 
-- [x] workflow adoption recorded
-- [x] core feature priority preserved
-- [x] production readiness not overclaimed
+- [x] outcome sections marked Not established with the reason
+- [x] continuation owner recorded
+- [x] production not claimed ready

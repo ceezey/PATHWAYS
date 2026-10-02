@@ -314,7 +314,7 @@ const ScopedProjectSetupForm = ({
         <output
           aria-atomic="true"
           aria-live="polite"
-          className="mb-4 block rounded-sm border border-info/25 bg-info-subtle p-3 text-sm text-info"
+          className="mb-4 block rounded-xl border border-info/25 bg-info-subtle p-3 text-sm text-info"
         >
           Recovered your unsaved project draft.
         </output>
@@ -341,7 +341,7 @@ const ScopedProjectSetupForm = ({
             ) : null}
             {saveError ? (
               <p
-                className="rounded-sm border border-danger/30 bg-danger/5 p-3 text-sm text-danger"
+                className="rounded-xl border border-danger/30 bg-danger/5 p-3 text-sm text-danger"
                 role="alert"
               >
                 {saveError}
@@ -504,7 +504,7 @@ const ScopedProjectSetupForm = ({
                 )}
               />
             </div>
-            <div className="space-y-4 rounded-sm border border-border bg-surface-subtle p-4">
+            <div className="space-y-4 rounded-xl border border-border bg-surface-subtle p-4">
               <div>
                 <h2 className="text-lg font-semibold text-foreground">Project team</h2>
                 <p className="mt-1 text-sm text-muted-foreground">

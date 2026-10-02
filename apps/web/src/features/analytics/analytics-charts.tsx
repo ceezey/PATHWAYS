@@ -1,6 +1,7 @@
 'use client'
 
-import { type SadddDashboard, formatMetricCell } from '@pathways/shared'
+import { chartPalette, chartSignal } from '@/lib/chart-palette'
+import { type SadddDashboard, type SurveyGroup, formatMetricCell } from '@pathways/shared'
 import ReactECharts from 'echarts-for-react'
 
 import type { ActivitySummary, AlertRecord, BudgetRecord, ProjectDetail } from '@/types/pathways'
@@ -40,7 +41,7 @@ export const DescriptiveAnalysisChart = ({
         enabled: true,
         description: `${title}. ${rows.map((row) => `${row.label}: ${row.value} ${unit}`).join('; ')}.`,
       },
-      color: ['#0072CE'],
+      color: [chartPalette[0]],
       tooltip: {
         trigger: 'axis',
         valueFormatter: (value: number) => `${value.toLocaleString()} ${unit}`,
@@ -62,12 +63,36 @@ export const DescriptiveAnalysisChart = ({
 )
 
 const grid = { left: 16, right: 16, top: 28, bottom: 18, containLabel: true }
-const colors = ['#0072CE', '#0B2E4F', '#8A4B08', '#B42318', '#526779']
 
-export const ProjectPerformanceTrendChart = (_props: Pick<ChartProps, 'projects'>) => (
-  <div className="flex h-[300px] items-center justify-center rounded-sm border border-border bg-surface-subtle p-4 text-sm text-muted-foreground">
-    Historical project trends are unavailable until the API provides a time series.
-  </div>
+export const IndicatorProgressChart = ({ rows }: { rows: DescriptiveAnalysisRow[] }) => (
+  <ReactECharts
+    className="h-[320px] w-full"
+    option={{
+      animation: false,
+      aria: {
+        enabled: true,
+        description: `Indicator progress toward target. ${rows.map((row) => `${row.label}: ${row.value}%`).join('; ')}.`,
+      },
+      color: [chartPalette[0]],
+      tooltip: { trigger: 'axis', valueFormatter: (value: number) => `${value}%` },
+      grid: { ...grid, left: 8, right: 24 },
+      xAxis: {
+        type: 'value',
+        min: 0,
+        max: Math.max(100, ...rows.map((row) => row.value)),
+        name: '% of target',
+      },
+      yAxis: { type: 'category', inverse: true, data: rows.map((row) => row.label) },
+      series: [
+        {
+          name: 'Progress',
+          type: 'bar',
+          data: rows.map((row) => row.value),
+          label: { show: true, position: 'right', formatter: '{c}%' },
+        },
+      ],
+    }}
+  />
 )
 
 export const BudgetUtilizationChart = ({
@@ -89,7 +114,7 @@ export const BudgetUtilizationChart = ({
             legendLabels,
           ),
         },
-        color: ['#0072CE', '#8A4B08'],
+        color: chartPalette.slice(0, 2),
         tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' } },
         ...legendLayout,
         xAxis: { type: 'value' },
@@ -120,34 +145,65 @@ export const BudgetUtilizationChart = ({
   )
 }
 
+/**
+ * Shared bucket-chart-or-fallback pattern: a chart when at least one bucket has a
+ * releasable value, otherwise a plain-language fallback, plus a screen-reader-only
+ * accessible table of every bucket (including suppressed/missing ones, which never
+ * plot as a fabricated 0). Used by SadddChart and SurveyImprovementChart so the two
+ * views cannot drift.
+ */
+const AggregateBucketChart = ({
+  buckets,
+  label,
+  height,
+}: {
+  buckets: AggregateChartBucket[]
+  label: string
+  height: string
+}) => (
+  <div>
+    {buckets.some((bucket) => bucket.metric.value !== null) ? (
+      <ReactECharts className={`${height} w-full`} option={aggregateChartOption(buckets, label)} />
+    ) : (
+      <p className="rounded-xl border border-border bg-surface-subtle p-4 text-sm text-muted-foreground">
+        No releasable values for this view.
+      </p>
+    )}
+    <table className="sr-only">
+      <caption>{label} values</caption>
+      <tbody>
+        {buckets.map((bucket) => (
+          <tr key={bucket.key}>
+            <th>{bucket.label}</th>
+            <td>{formatMetricCell(bucket.metric)}</td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  </div>
+)
+
 export const SadddChart = (
   props: { dashboard: SadddDashboard } | { label: string; buckets: AggregateChartBucket[] },
 ) => {
   const buckets = 'dashboard' in props ? props.dashboard.sex : props.buckets
   const label = 'dashboard' in props ? 'Sex' : props.label
-  return (
-    <div>
-      {buckets.some((bucket) => bucket.metric.value !== null) ? (
-        <ReactECharts className="h-[280px] w-full" option={aggregateChartOption(buckets, label)} />
-      ) : (
-        <p className="rounded-sm border border-border bg-surface-subtle p-4 text-sm text-muted-foreground">
-          No releasable values for this view.
-        </p>
-      )}
-      <table className="sr-only">
-        <caption>{label} values</caption>
-        <tbody>
-          {buckets.map((bucket) => (
-            <tr key={bucket.key}>
-              <th>{bucket.label}</th>
-              <td>{formatMetricCell(bucket.metric)}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
-  )
+  return <AggregateBucketChart buckets={buckets} label={label} height="h-[280px]" />
 }
+/**
+ * F9 survey improvement (analytics.descriptive.survey.v1): improved/same/declined
+ * counts for one cohort group, reusing the same aggregate chart option and
+ * accessible-table pattern as SadddChart so suppressed/missing cells never plot as 0.
+ */
+export const SurveyImprovementChart = ({ group, title }: { group: SurveyGroup; title: string }) => {
+  const buckets: AggregateChartBucket[] = [
+    { key: 'improved', label: 'Improved', metric: group.improved },
+    { key: 'same', label: 'Same', metric: group.same },
+    { key: 'declined', label: 'Declined', metric: group.declined },
+  ]
+  return <AggregateBucketChart buckets={buckets} label={title} height="h-[260px]" />
+}
+
 export const ActivityCompletionChart = ({ activities }: Pick<ChartProps, 'activities'>) => {
   const statuses = ['Planned', 'In Progress', 'For Review', 'Overdue', 'Completed']
 
@@ -160,7 +216,7 @@ export const ActivityCompletionChart = ({ activities }: Pick<ChartProps, 'activi
           enabled: true,
           description: 'Project activity totals grouped by completion status.',
         },
-        color: colors,
+        color: chartPalette,
         tooltip: { trigger: 'item' },
         series: [
           {
@@ -189,7 +245,7 @@ export const AlertCountsChart = ({ alerts }: Pick<ChartProps, 'alerts'>) => {
           enabled: true,
           description: 'Rule-Based Alert totals grouped by severity.',
         },
-        color: ['#B42318', '#8A4B08', '#005EA8'],
+        color: [chartSignal.danger, chartSignal.warning, chartSignal.info],
         tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' } },
         grid,
         xAxis: { type: 'category', data: severities },

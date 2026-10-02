@@ -13,10 +13,12 @@ import {
   downloadCoreArtifact,
   type expenseAck,
 } from '@/lib/services/core-feature-client'
+import { pathwaysClient } from '@/lib/services/pathways-client'
 import { useAuthorizedRead } from '@/providers/authorized-query-provider'
 import { useEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
 import type { z } from 'zod'
+import { FinanceBudgetSummary } from './finance-budget-summary'
 
 export function LiveFinanceWorkspace({ projectId }: { projectId: string }) {
   const { profile } = useCurrentRole()
@@ -50,6 +52,18 @@ function FinanceContent({ projectId }: { projectId: string }) {
     'expenses.submit',
     (signal) => coreDataClient.budgetReferences(projectId, signal),
   )
+  const activityNames = useAuthorizedRead(
+    'expense-reference-activities',
+    projectId,
+    'activities.context.read',
+    (signal) => pathwaysClient.getActivityContext(projectId, signal),
+    can('activities.context.read'),
+  )
+  const referenceLabel = (row: { category: string; activityId: string | null }) => {
+    if (row.category !== 'ACTIVITY_PROFILE_TOTAL') return row.category
+    const title = activityNames.data?.find((activity) => activity.id === row.activityId)?.title
+    return title ? `Activity budget: ${title}` : 'Activity budget'
+  }
   const currentBudgets = !budgets.isError && !budgets.isPending ? budgets.data : undefined
   const currentReferences =
     !references.isError && !references.isPending ? references.data : undefined
@@ -137,6 +151,14 @@ function FinanceContent({ projectId }: { projectId: string }) {
   // Keyed per expense so a rationale can never carry over to a different expense.
   const [reasons, setReasons] = useState<Record<string, string>>({})
   const [editingBudget, setEditingBudget] = useState<{ id: string; updatedAt: string } | null>(null)
+  const allocationFormRef = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    if (!editingBudget) return
+    const form = allocationFormRef.current
+    if (!form) return
+    form.scrollIntoView?.({ behavior: 'smooth', block: 'center' })
+    form.querySelector('input')?.focus({ preventScroll: true })
+  }, [editingBudget])
   // biome-ignore lint/correctness/useExhaustiveDependencies: An allocation edit is invalidated with its update authority.
   useEffect(() => {
     setEditingBudget(null)
@@ -377,6 +399,9 @@ function FinanceContent({ projectId }: { projectId: string }) {
         title="Budget & Finance"
         description="Manage scoped allocations, private receipts, separated reviews and final sign-off."
       />
+      {can('budgets.read') && can('expenses.read') ? (
+        <FinanceBudgetSummary projectId={projectId} />
+      ) : null}
       <SectionCard
         title="Budget allocation"
         description="Budget detail requires current budget permission; expense submission uses references without exposing allocation amounts."
@@ -403,8 +428,8 @@ function FinanceContent({ projectId }: { projectId: string }) {
           ) : (
             <div className="space-y-3">
               {budgets.data.map((row) => (
-                <div key={row.id} className="rounded-md border p-4">
-                  <p className="font-semibold">{row.category}</p>
+                <div key={row.id} className="rounded-xl border p-4">
+                  <p className="font-semibold">{referenceLabel(row)}</p>
                   <p>PHP {row.plannedBudget}</p>
                   {row.remarks ? (
                     <p className="text-sm text-muted-foreground">{row.remarks}</p>
@@ -434,7 +459,7 @@ function FinanceContent({ projectId }: { projectId: string }) {
         )}
         {(budgetOwner || (editingBudget && budgetUpdateOwner)) &&
         (!editingBudget || currentBudgets) ? (
-          <div className="mt-5 grid gap-3 md:grid-cols-3">
+          <div ref={allocationFormRef} className="mt-5 grid gap-3 md:grid-cols-3">
             <Label>
               Category
               <Input
@@ -501,7 +526,7 @@ function FinanceContent({ projectId }: { projectId: string }) {
             <Label>
               Budget reference
               <select
-                className="h-10 w-full rounded-md border bg-background px-3"
+                className="h-11 w-full rounded-md border bg-background px-3"
                 value={reference}
                 disabled={!currentReferences}
                 onChange={(event) => setReference(event.target.value)}
@@ -509,7 +534,7 @@ function FinanceContent({ projectId }: { projectId: string }) {
                 <option value="">Choose an allocation</option>
                 {currentReferences?.map((row) => (
                   <option key={row.id} value={row.id}>
-                    {row.category}
+                    {referenceLabel(row)}
                   </option>
                 ))}
               </select>
@@ -553,7 +578,7 @@ function FinanceContent({ projectId }: { projectId: string }) {
             </Button>
           </div>
           {pending ? (
-            <div className="mt-5 rounded-md border p-4">
+            <div className="mt-5 rounded-xl border p-4">
               <p className="mb-3 text-sm">
                 Own submission {pending.id} · {pending.status}
               </p>
@@ -588,7 +613,7 @@ function FinanceContent({ projectId }: { projectId: string }) {
           ) : (
             <div className="space-y-4">
               {expenses.data.map((row) => (
-                <div key={row.id} className="space-y-3 rounded-md border p-4">
+                <div key={row.id} className="space-y-3 rounded-xl border p-4">
                   <div className="flex flex-wrap justify-between gap-3">
                     <div>
                       <p className="font-semibold">{row.description}</p>

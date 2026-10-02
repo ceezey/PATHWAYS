@@ -26,44 +26,51 @@ const accounts: SeedAccount[] = [
   {
     role: 'SYSTEM_ADMINISTRATOR',
     fullName: 'Cian Francisco',
-    email: process.env.PATHWAYS_LOCAL_ADMIN_EMAIL ?? 'cian.francisco@pathways.test',
+    email: process.env.PATHWAYS_LOCAL_ADMIN_EMAIL ?? 'cian.francisco@pathways.example',
     positionTitle: 'System Administrator',
     assigned: false,
   },
   {
     role: 'PROGRAM_MANAGER',
     fullName: 'Maria Santos',
-    email: 'maria.santos@pathways.test',
+    email: 'maria.santos@pathways.example',
     positionTitle: 'Program Manager, Education',
     assigned: false,
   },
   {
     role: 'GRANT_MANAGER',
     fullName: 'Jose Reyes',
-    email: 'jose.reyes@pathways.test',
+    email: 'jose.reyes@pathways.example',
     positionTitle: 'Grant Manager',
     assigned: true,
   },
   {
     role: 'PROJECT_MANAGER',
     fullName: 'Ana Dela Cruz',
-    email: 'ana.delacruz@pathways.test',
+    email: 'ana.delacruz@pathways.example',
     positionTitle: 'Project Manager',
     assigned: true,
   },
   {
     role: 'MONITORING_AND_EVALUATION_OFFICER',
     fullName: 'Carlo Mendoza',
-    email: 'carlo.mendoza@pathways.test',
+    email: 'carlo.mendoza@pathways.example',
     positionTitle: 'Monitoring and Evaluation Officer',
     assigned: true,
   },
   {
     role: 'PROJECT_OFFICER',
     fullName: 'Liza Bautista',
-    email: 'liza.bautista@pathways.test',
+    email: 'liza.bautista@pathways.example',
     positionTitle: 'Project Officer, Borongan',
     assigned: true,
+  },
+  {
+    role: 'PROJECT_OFFICER',
+    fullName: 'Emmanuel Cruz',
+    email: 'emmanuel.cruz@pathways.example',
+    positionTitle: 'Project Officer, Masbate',
+    assigned: false,
   },
 ]
 
@@ -159,13 +166,14 @@ async function main() {
         (await tx.organization.create({
           data: {
             ...approvedOrganization,
-            description: 'Synthetic local development organization.',
-            contactEmail: 'info@pathways.test',
+            description: 'Plan International Pilipinas country office workspace.',
+            contactEmail: 'info@pathways.example',
             address: 'Quezon City, Metro Manila',
           },
         }))
 
       const users = new Map<CanonicalRole, string>()
+      const usersByEmail = new Map<string, string>()
       for (const account of accounts) {
         const authUserId = authIds.get(account.email) as string
         const roleId = roles.get(account.role)
@@ -185,7 +193,8 @@ async function main() {
             activatedAt: seededAt,
           },
         })
-        users.set(account.role, user.id)
+        if (!users.has(account.role)) users.set(account.role, user.id)
+        usersByEmail.set(account.email, user.id)
       }
 
       const program =
@@ -204,7 +213,7 @@ async function main() {
             status: 'ONGOING',
           },
         }))
-      return { organizationId: organization.id, programId: program.id, users }
+      return { organizationId: organization.id, programId: program.id, users, usersByEmail }
     })
 
     // Projects carry rule-engine source provenance that only the runtime role
@@ -257,7 +266,7 @@ async function main() {
           set_config('app.organization_id', ${workspace.organizationId}, true),
           set_config('app.user_id', ${administratorUserId}, true)`
       for (const account of accounts.filter((entry) => entry.assigned)) {
-        const userId = workspace.users.get(account.role) as string
+        const userId = workspace.usersByEmail.get(account.email) as string
         const current = await tx.userProjectAssignment.findFirst({
           where: { projectId, userId, status: 'ACTIVE' },
         })

@@ -21,6 +21,7 @@ import { getBrowserSupabaseClient } from '@/lib/supabase/client'
 import type {
   Activity,
   ActivityCapabilities,
+  ActivityOverdueExplanation,
   ActivityProofFinalizeResult,
   ActivityProofReservation,
   ActivityProofReservedFile,
@@ -64,6 +65,7 @@ import type {
   RecommendationOutcomeRecord,
   RecommendationRecord,
   RecordActivityProgressInput,
+  RecordOverdueExplanationInput,
   RegisterBeneficiaryInput,
   ReportRecord,
   ReserveActivityProofUploadInput,
@@ -94,6 +96,9 @@ import {
   type MonitoringDashboard,
   type SadddDashboard,
   type SadddQuery,
+  type SurveyAnalytics,
+  type TimelineAnalytics,
+  type UseLibraryEntryInput,
   dashboardQuerySchema,
   descriptiveAnalyticsQuerySchema,
   descriptiveAnalyticsSchema,
@@ -103,11 +108,14 @@ import {
   projectIndicatorSchema,
   sadddDashboardSchema,
   sadddQuerySchema,
+  surveyAnalyticsSchema,
+  timelineAnalyticsSchema,
 } from '@pathways/shared'
 import { type ProjectOverviewMetrics, projectOverviewMetricsSchema } from '@pathways/shared'
 import { readPublicProjects } from './public-projects'
 type CreateIndicatorInput = Omit<ApiCreateIndicatorInput, 'clientMutationId'>
 type UpdateIndicatorInput = Omit<ApiUpdateIndicatorInput, 'clientMutationId'>
+type UseLibraryEntryDraft = Omit<UseLibraryEntryInput, 'clientMutationId'>
 import {
   STEP_UP_REQUIRED_CODE,
   announceStepUpRequired,
@@ -262,6 +270,7 @@ export interface PathwaysClient {
     input: UpdateProjectInput,
     context?: SourceMutationContext,
   ): Promise<SourceMutationResult<ProjectDetail>>
+  archiveProject(id: string): Promise<{ id: string; archivedAt: string }>
   updateProjectPeriod(
     id: string,
     endDate: string,
@@ -303,6 +312,7 @@ export interface PathwaysClient {
     context?: SourceMutationContext,
   ): Promise<SourceMutationResult<Activity>>
   recordActivityProgress(input: RecordActivityProgressInput): Promise<Activity>
+  recordOverdueExplanation(input: RecordOverdueExplanationInput): Promise<Activity>
   reviewActivityUpdate(
     projectId: string,
     activityId: string,
@@ -328,6 +338,11 @@ export interface PathwaysClient {
     input: CreateIndicatorInput,
     context?: SourceMutationContext,
   ): Promise<SourceMutationResult<ProjectIndicator>>
+  createProjectIndicatorFromLibrary(
+    projectId: string,
+    input: UseLibraryEntryDraft,
+    context?: SourceMutationContext,
+  ): Promise<SourceMutationResult<ProjectIndicator>>
   updateProjectIndicator(
     projectId: string,
     indicatorId: string,
@@ -349,6 +364,8 @@ export interface PathwaysClient {
   getMonitoringDashboard(query?: DashboardQuery): Promise<MonitoringDashboard>
   getSadddDashboard(query: SadddQuery): Promise<SadddDashboard>
   getDescriptiveAnalytics(query: DescriptiveAnalyticsQuery): Promise<DescriptiveAnalytics>
+  getSurveyAnalytics(query: DescriptiveAnalyticsQuery): Promise<SurveyAnalytics>
+  getTimelineAnalytics(query: DescriptiveAnalyticsQuery): Promise<TimelineAnalytics>
   getEvaluation(projectId: string): Promise<EvaluationRecord>
   getExpenses(projectId: string): Promise<ExpenseRecord[]>
   getRecommendationOutcomes(projectId: string): Promise<RecommendationOutcomeRecord[]>
@@ -386,6 +403,8 @@ export interface PathwaysClient {
     beneficiaryId: string,
     expectedUpdatedAt: string,
   ): Promise<{ id: string; status: 'ARCHIVED'; archivedAt: string }>
+  getDuplicateCandidates(projectId: string): Promise<DuplicateCandidatePair[]>
+  resolveDuplicate(projectId: string, input: ResolveDuplicateInput): Promise<void>
   getBeneficiaryMediaProofForRole(
     role: PathwaysRole,
     beneficiaryId: string,
@@ -611,6 +630,12 @@ class BackendReadyPathwaysClient implements PathwaysClient {
     )
   }
 
+  async archiveProject(id: string): Promise<{ id: string; archivedAt: string }> {
+    return (await requestFoundation(`/projects/${encodeURIComponent(id)}/archive`, {
+      method: 'POST',
+    })) as { id: string; archivedAt: string }
+  }
+
   async updateProjectPeriod(
     id: string,
     endDate: string,
@@ -792,6 +817,22 @@ class BackendReadyPathwaysClient implements PathwaysClient {
     )
   }
 
+  async recordOverdueExplanation(input: RecordOverdueExplanationInput): Promise<Activity> {
+    return parseActivity(
+      await requestFoundation(
+        `/projects/${encodeURIComponent(input.projectId)}/activities/${encodeURIComponent(input.activityId)}/overdue-explanations`,
+        {
+          method: 'POST',
+          body: JSON.stringify({
+            clientMutationId: input.clientMutationId,
+            category: input.category,
+            explanation: input.explanation,
+          }),
+        },
+      ),
+    )
+  }
+
   async submitActivityProof(
     input: SubmitActivityProofInput,
     context?: SourceMutationContext,
@@ -841,6 +882,9 @@ class BackendReadyPathwaysClient implements PathwaysClient {
         progressPercent: input.progressPercent,
         note: input.note,
         files: input.files,
+        ...(input.beneficiariesReachedThisSession === undefined
+          ? {}
+          : { beneficiariesReachedThisSession: input.beneficiariesReachedThisSession }),
       }),
     }).then(parseActivityProofReservation)
   }
@@ -966,6 +1010,20 @@ class BackendReadyPathwaysClient implements PathwaysClient {
     )
   }
 
+  async createProjectIndicatorFromLibrary(
+    projectId: string,
+    input: UseLibraryEntryDraft,
+    context?: SourceMutationContext,
+  ): Promise<SourceMutationResult<ProjectIndicator>> {
+    return requestSourceMutation(
+      `/projects/${encodeURIComponent(projectId)}/indicators/from-library`,
+      'POST',
+      input,
+      context,
+      (value) => projectIndicatorSchema.parse(value),
+    )
+  }
+
   async updateProjectIndicator(
     projectId: string,
     indicatorId: string,
@@ -1037,6 +1095,22 @@ class BackendReadyPathwaysClient implements PathwaysClient {
   async getDescriptiveAnalytics(query: DescriptiveAnalyticsQuery): Promise<DescriptiveAnalytics> {
     return descriptiveAnalyticsSchema.parse(
       await requestFoundation(`/analytics/descriptive${descriptiveAnalyticsSearch(query)}`),
+    )
+  }
+
+  async getSurveyAnalytics(query: DescriptiveAnalyticsQuery): Promise<SurveyAnalytics> {
+    return surveyAnalyticsSchema.parse(
+      await requestFoundation(
+        `/analytics/descriptive${descriptiveAnalyticsSearch({ ...query, view: 'survey' })}`,
+      ),
+    )
+  }
+
+  async getTimelineAnalytics(query: DescriptiveAnalyticsQuery): Promise<TimelineAnalytics> {
+    return timelineAnalyticsSchema.parse(
+      await requestFoundation(
+        `/analytics/descriptive${descriptiveAnalyticsSearch({ ...query, view: 'timeline' })}`,
+      ),
     )
   }
 
@@ -1225,6 +1299,19 @@ class BackendReadyPathwaysClient implements PathwaysClient {
       `/beneficiaries/projects/${encodeURIComponent(projectId)}/${encodeURIComponent(beneficiaryId)}/archive`,
       { method: 'POST', body: JSON.stringify({ expectedUpdatedAt }) },
     ) as Promise<{ id: string; status: 'ARCHIVED'; archivedAt: string }>
+  }
+
+  async getDuplicateCandidates(projectId: string): Promise<DuplicateCandidatePair[]> {
+    return (await requestFoundation(
+      `/beneficiaries/projects/${encodeURIComponent(projectId)}/duplicate-candidates`,
+    )) as DuplicateCandidatePair[]
+  }
+
+  async resolveDuplicate(projectId: string, input: ResolveDuplicateInput): Promise<void> {
+    await requestFoundation(
+      `/beneficiaries/projects/${encodeURIComponent(projectId)}/duplicate-candidates/resolve`,
+      { method: 'POST', body: JSON.stringify(input) },
+    )
   }
 
   async getBeneficiaryMediaProofForRole(
@@ -1760,6 +1847,7 @@ export function descriptiveAnalyticsSearch(query: DescriptiveAnalyticsQuery): st
     params.set('periodStart', parsed.periodStart)
     params.set('periodEnd', parsed.periodEnd)
   }
+  if (parsed.view) params.set('view', parsed.view)
   return `?${params.toString()}`
 }
 
@@ -1957,6 +2045,21 @@ function readContextCookie() {
     .find((part) => part.startsWith(`${contextCookieName}=`))
     ?.slice(contextCookieName.length + 1)
   return value
+}
+
+export type DuplicateProfile = {
+  id: string
+  code: string
+  name: string
+  birthDate: string
+  location: string
+  updatedAt: string
+}
+export type DuplicateCandidatePair = { left: DuplicateProfile; right: DuplicateProfile }
+export type ResolveDuplicateInput = {
+  leftId: string
+  rightId: string
+  decision: 'KEEP_DISTINCT' | 'LINK'
 }
 
 export async function requestFoundationResponse(
@@ -2297,11 +2400,12 @@ const activityResponseKeys = [
 ] as const satisfies readonly (keyof Activity)[]
 
 // Activity capability flags (feature/project-rbac-ui-and-partners). Advisory only: a response
-// without them shows no Edit, Record progress or Submit proof control.
+// without them shows no Edit, Record progress, Submit proof or Explain delay control.
 const noActivityCapabilities: ActivityCapabilities = {
   canEdit: false,
   canRecordProgress: false,
   canSubmitProof: false,
+  canExplainOverdue: false,
 }
 
 function parseActivityCapabilities(value: unknown): ActivityCapabilities {
@@ -2310,17 +2414,59 @@ function parseActivityCapabilities(value: unknown): ActivityCapabilities {
   if (
     !row ||
     typeof row !== 'object' ||
-    Object.keys(row).length !== 3 ||
+    Object.keys(row).length !== 4 ||
     typeof row.canEdit !== 'boolean' ||
     typeof row.canRecordProgress !== 'boolean' ||
-    typeof row.canSubmitProof !== 'boolean'
+    typeof row.canSubmitProof !== 'boolean' ||
+    typeof row.canExplainOverdue !== 'boolean'
   )
     throw new PathwaysClientError('Invalid activity response.', 'network')
   return {
     canEdit: row.canEdit,
     canRecordProgress: row.canRecordProgress,
     canSubmitProof: row.canSubmitProof,
+    canExplainOverdue: row.canExplainOverdue,
   }
+}
+
+const overdueExplanationCategories = new Set<string>([
+  'WEATHER',
+  'SECURITY',
+  'FUNDING',
+  'COMMUNITY',
+  'LOGISTICS',
+  'OTHER',
+] satisfies ActivityOverdueExplanation['category'][])
+
+function parseOverdueExplanation(value: unknown): ActivityOverdueExplanation {
+  const row = value as Partial<Record<keyof ActivityOverdueExplanation, unknown>> | null
+  if (
+    !row ||
+    typeof row !== 'object' ||
+    Object.keys(row).length !== 5 ||
+    typeof row.id !== 'string' ||
+    typeof row.category !== 'string' ||
+    !overdueExplanationCategories.has(row.category) ||
+    typeof row.explanation !== 'string' ||
+    row.explanation.length < 10 ||
+    row.explanation.length > 2000 ||
+    typeof row.actorName !== 'string' ||
+    typeof row.recordedAt !== 'string'
+  )
+    throw new PathwaysClientError('Invalid activity response.', 'network')
+  return {
+    id: row.id,
+    category: row.category as ActivityOverdueExplanation['category'],
+    explanation: row.explanation,
+    actorName: row.actorName,
+    recordedAt: row.recordedAt,
+  }
+}
+
+function parseOverdueExplanations(value: unknown): ActivityOverdueExplanation[] {
+  if (!Array.isArray(value) || value.length > 100)
+    throw new PathwaysClientError('Invalid activity response.', 'network')
+  return value.map(parseOverdueExplanation)
 }
 
 function parseAssignableProjectOfficers(value: unknown): AssignableProjectOfficer[] {
@@ -2361,7 +2507,13 @@ const isAllowedActivityProofUploadUrl = (value: unknown): value is string | null
   } catch {
     return false
   }
-  return parsed.protocol === 'https:' && parsed.origin === allowed.origin
+  if (parsed.origin !== allowed.origin) return false
+  if (parsed.protocol === 'https:') return true
+  // The local Supabase stack (pnpm dev:local) serves storage over plain http on a loopback host;
+  // that is accepted only when the configured Supabase URL is itself that loopback origin.
+  return (
+    parsed.protocol === 'http:' && ['localhost', '127.0.0.1', '[::1]'].includes(parsed.hostname)
+  )
 }
 
 function parseActivityProofUploadLimits(value: unknown): ActivityProofUploadLimits {
@@ -2497,7 +2649,8 @@ function parseActivity(value: unknown): Activity {
     !Array.isArray(row.indicatorIds) ||
     !Array.isArray(row.journeyStageIds) ||
     !Array.isArray(row.submittedProof) ||
-    !Array.isArray(row.updateNotes)
+    !Array.isArray(row.updateNotes) ||
+    typeof row.overdueExplanationNeeded !== 'boolean'
   ) {
     throw new PathwaysClientError('Invalid activity response.', 'network')
   }
@@ -2532,6 +2685,8 @@ function parseActivity(value: unknown): Activity {
     budgetLogged,
     budgetLoggedEntries,
     capabilities: parseActivityCapabilities(row.capabilities),
+    overdueExplanations: parseOverdueExplanations(row.overdueExplanations),
+    overdueExplanationNeeded: row.overdueExplanationNeeded,
   }
 }
 
@@ -2557,6 +2712,7 @@ const activitySummaryKeys = [
   'progress',
   'updatedAt',
   'capabilities',
+  'overdueExplanationNeeded',
 ] as const satisfies readonly (keyof ActivitySummary)[]
 
 const presentedActivityStatuses = new Set<string>([
@@ -2597,7 +2753,8 @@ function parseActivitySummary(value: unknown): ActivitySummary {
     !Array.isArray(row.assignedUserIds) ||
     !Array.isArray(row.assignedTo) ||
     !Array.isArray(row.indicatorIds) ||
-    !Array.isArray(row.journeyStageIds)
+    !Array.isArray(row.journeyStageIds) ||
+    typeof row.overdueExplanationNeeded !== 'boolean'
   ) {
     throw new PathwaysClientError('Invalid activity response.', 'network')
   }

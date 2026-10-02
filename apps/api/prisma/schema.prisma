@@ -87,6 +87,8 @@ model Organization {
   beneficiaryActivityParticipation_organization BeneficiaryActivityParticipation[] @relation("BeneficiaryActivityParticipation_organization")
   beneficiaryJourneyEvent_organization          BeneficiaryJourneyEvent[]          @relation("BeneficiaryJourneyEvent_organization")
   activityUpdate_organization                   ActivityUpdate[]                   @relation("ActivityUpdate_organization")
+  activityOverdueExplanation_organization       ActivityOverdueExplanation[]       @relation("ActivityOverdueExplanation_organization")
+  indicatorLibraryEntry_organization            IndicatorLibraryEntry[]            @relation("IndicatorLibraryEntry_organization")
 
   @@index([status], map: "organizations_status_idx")
   @@map("organizations")
@@ -214,6 +216,8 @@ model SystemUser {
   beneficiaryJourneyEvent_recordedBy          BeneficiaryJourneyEvent[]          @relation("BeneficiaryJourneyEvent_recordedBy")
   activityUpdate_submittedBy                  ActivityUpdate[]                   @relation("ActivityUpdate_submittedBy")
   activityUpdate_reviewedBy                   ActivityUpdate[]                   @relation("ActivityUpdate_reviewedBy")
+  activityOverdueExplanation_recordedBy       ActivityOverdueExplanation[]       @relation("ActivityOverdueExplanation_recordedBy")
+  indicatorLibraryEntry_createdBy             IndicatorLibraryEntry[]            @relation("IndicatorLibraryEntry_createdBy")
   userProjectAssignment_user                  UserProjectAssignment[]            @relation("UserProjectAssignment_user")
   projectPublication_submittedBy              ProjectPublication[]               @relation("ProjectPublication_submittedBy")
   projectPublication_approvedBy               ProjectPublication[]               @relation("ProjectPublication_approvedBy")
@@ -643,7 +647,7 @@ model ProjectImplementingPartner {
   partner        ImplementingPartner @relation(fields: [organizationId, partnerId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
 
   @@id([organizationId, projectId, partnerId])
-  @@index([organizationId, partnerId])
+  @@index([organizationId, partnerId], map: "project_implementing_partners_partner_idx")
   @@map("project_implementing_partners")
   @@schema("pathways")
 }
@@ -718,6 +722,7 @@ model Project {
   beneficiaryActivityParticipation_project BeneficiaryActivityParticipation[] @relation("BeneficiaryActivityParticipation_project")
   beneficiaryJourneyEvent_project          BeneficiaryJourneyEvent[]          @relation("BeneficiaryJourneyEvent_project")
   activityUpdate_project                   ActivityUpdate[]                   @relation("ActivityUpdate_project")
+  activityOverdueExplanation_project       ActivityOverdueExplanation[]       @relation("ActivityOverdueExplanation_project")
   projectPublication_project               ProjectPublication?                @relation("ProjectPublication_project")
 
   @@unique([organizationId, id], map: "projects_scope_key")
@@ -801,6 +806,7 @@ model ProjectActivity {
   beneficiaryActivityParticipation_activity BeneficiaryActivityParticipation[] @relation("BeneficiaryActivityParticipation_activity")
   beneficiaryJourneyEvent_activity          BeneficiaryJourneyEvent[]          @relation("BeneficiaryJourneyEvent_activity")
   activityUpdate_activity                   ActivityUpdate[]                   @relation("ActivityUpdate_activity")
+  activityOverdueExplanation_activity       ActivityOverdueExplanation[]       @relation("ActivityOverdueExplanation_activity")
 
   @@unique([organizationId, projectId, id], map: "project_activities_scope_key")
   @@unique([organizationId, projectId, code], map: "project_activities_project_code_key")
@@ -825,6 +831,7 @@ model ActivityUpdate {
   reviewedById         String?         @map("reviewed_by_id") @db.Uuid
   reviewedAt           DateTime?       @map("reviewed_at") @db.Timestamptz(3)
   reviewReason         String?         @map("review_reason")
+  beneficiariesReachedThisSession Int? @map("beneficiaries_reached_this_session")
   createdAt            DateTime        @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt            DateTime        @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
   organization         Organization    @relation("ActivityUpdate_organization", fields: [organizationId], references: [id], onDelete: Restrict, onUpdate: Restrict, map: "activity_updates_organization_fk")
@@ -841,6 +848,55 @@ model ActivityUpdate {
   @@index([organizationId, submittedById], map: "activity_updates_submitted_by_idx")
   @@index([organizationId, reviewedById], map: "activity_updates_reviewed_by_idx")
   @@map("activity_updates")
+  @@schema("pathways")
+}
+
+model ActivityOverdueExplanation {
+  id                String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId    String          @map("organization_id") @db.Uuid
+  projectId         String          @map("project_id") @db.Uuid
+  activityId        String          @map("activity_id") @db.Uuid
+  category          String
+  explanation       String
+  recordedById      String          @map("recorded_by_id") @db.Uuid
+  recordedAt        DateTime        @default(now()) @map("recorded_at") @db.Timestamptz(3)
+  clientMutationId  String          @map("client_mutation_id") @db.Uuid
+  organization      Organization    @relation("ActivityOverdueExplanation_organization", fields: [organizationId], references: [id], onDelete: Restrict, onUpdate: Restrict, map: "activity_overdue_explanations_organization_fk")
+  project           Project         @relation("ActivityOverdueExplanation_project", fields: [organizationId, projectId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict, map: "activity_overdue_explanations_project_fk")
+  activity          ProjectActivity @relation("ActivityOverdueExplanation_activity", fields: [organizationId, projectId, activityId], references: [organizationId, projectId, id], onDelete: Restrict, onUpdate: Restrict, map: "activity_overdue_explanations_activity_fk")
+  recordedBy        SystemUser      @relation("ActivityOverdueExplanation_recordedBy", fields: [organizationId, recordedById], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict, map: "activity_overdue_explanations_recorded_by_fk")
+
+  @@unique([organizationId, projectId, activityId, id], map: "activity_overdue_explanations_scope_key")
+  @@unique([organizationId, clientMutationId], map: "activity_overdue_explanations_client_key")
+  @@index([organizationId, projectId, activityId, recordedAt], map: "activity_overdue_explanations_activity_time_idx")
+  @@index([organizationId, recordedById], map: "activity_overdue_explanations_recorded_by_idx")
+  @@map("activity_overdue_explanations")
+  @@schema("pathways")
+}
+
+model IndicatorLibraryEntry {
+  id               String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId   String       @map("organization_id") @db.Uuid
+  code             String
+  name             String
+  description      String?
+  unitLabel        String       @map("unit_label")
+  dataSource       String       @map("data_source")
+  measurementMode  String       @map("measurement_mode")
+  numericKind      String       @map("numeric_kind")
+  direction        String
+  displayPrecision Int          @map("display_precision")
+  recipe           String?
+  clientMutationId String       @map("client_mutation_id") @db.Uuid
+  createdById      String       @map("created_by_id") @db.Uuid
+  createdAt        DateTime     @default(now()) @map("created_at") @db.Timestamptz(3)
+  archivedAt       DateTime?    @map("archived_at") @db.Timestamptz(3)
+  organization     Organization @relation("IndicatorLibraryEntry_organization", fields: [organizationId], references: [id], onDelete: Restrict, onUpdate: Restrict, map: "indicator_library_entries_organization_fk")
+  createdBy        SystemUser   @relation("IndicatorLibraryEntry_createdBy", fields: [organizationId, createdById], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict, map: "indicator_library_entries_created_by_fk")
+
+  @@unique([organizationId, clientMutationId], map: "indicator_library_entries_client_key")
+  @@index([organizationId, createdById], map: "indicator_library_entries_created_by_idx")
+  @@map("indicator_library_entries")
   @@schema("pathways")
 }
 
@@ -1058,7 +1114,7 @@ model DataImportBatch {
   originalFileName            String              @map("original_file_name")
   fileType                    ImportFileType      @default(CSV) @map("file_type")
   sourceChecksum              String              @map("source_checksum") @db.Char(64)
-  clientImportId              String              @map("client_import_id") @db.Uuid
+  clientImportId              String              @default(dbgenerated("gen_random_uuid()")) @map("client_import_id") @db.Uuid
   storageBucket               String              @map("storage_bucket")
   storageObjectKey            String              @map("storage_object_key")
   storageStatus               ImportStorageStatus @default(RESERVED) @map("storage_status")
@@ -1100,6 +1156,7 @@ model DataImportBatch {
   @@unique([organizationId, uploadedById, clientImportId], map: "data_import_batches_client_key")
   @@unique([storageBucket, storageObjectKey], map: "data_import_batches_storage_object_key")
   @@index([organizationId, projectId, status], map: "data_import_batches_project_status_idx")
+  @@index([organizationId, projectId, status, processingClaimedAt], map: "data_import_batches_claim_idx")
   @@index([organizationId, projectId, createdAt(sort: Desc), id], map: "data_import_batches_project_created_idx")
   @@index([organizationId, projectId, formId, formVersion], map: "data_import_batches_form_version_idx")
   @@index([organizationId, uploadedById], map: "data_import_batches_uploaded_by_idx")
@@ -1142,6 +1199,7 @@ model DataImportRow {
   @@unique([organizationId, projectId, formId, importBatchId, id], map: "data_import_rows_batch_scope_key")
   @@unique([importBatchId, rowNumber], map: "data_import_rows_batch_number_key")
   @@index([importBatchId, status], map: "data_import_rows_batch_status_idx")
+  @@index([importBatchId, status, processingClaimedAt], map: "data_import_rows_claim_idx")
   @@index([organizationId, validatedById], map: "data_import_rows_validated_by_idx")
   @@map("data_import_rows")
   @@schema("pathways")
@@ -1162,6 +1220,8 @@ model MetadataMapping {
   suggestedFieldId  String?         @map("suggested_field_id") @db.Uuid
   matchScore        Int?            @map("match_score") @db.SmallInt
   matchReason       String?         @map("match_reason")
+  dataType          FieldDataType?  @map("data_type")
+  valueMap          Json?           @map("value_map")
   createdAt         DateTime        @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt         DateTime        @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
   organization      Organization    @relation("MetadataMapping_organization", fields: [organizationId], references: [id], onDelete: Restrict, onUpdate: Restrict, map: "metadata_mappings_organization_fk")
@@ -1484,6 +1544,7 @@ model BeneficiaryJourneyEvent {
   eventType             JourneyEventType                  @map("event_type")
   eventDate             DateTime                          @map("event_date") @db.Date
   description           String?
+  note                  String?
   stageCodeSnapshot     String?                           @map("stage_code_snapshot")
   stageNameSnapshot     String?                           @map("stage_name_snapshot")
   activityCodeSnapshot  String?                           @map("activity_code_snapshot")

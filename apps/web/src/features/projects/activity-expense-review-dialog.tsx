@@ -70,8 +70,10 @@ export function ActivityExpenseReviewDialog({
       setError('A correction reason is required to return this expense.')
       return
     }
-    if (!expense.receiptEvidenceId) {
-      setError('A private receipt must be attached before this expense can be reviewed.')
+    // Only validation needs the private receipt (the server enforces it); returning an
+    // expense for correction must work without one so the submitter can attach it.
+    if (verified && !expense.receiptEvidenceId) {
+      setError('A private receipt must be attached before this expense can be validated.')
       return
     }
     setSubmitting(true)
@@ -101,7 +103,7 @@ export function ActivityExpenseReviewDialog({
         description="Validate the exact Project Officer submission before it enters the expense ledger."
       >
         <div className="space-y-4">
-          <div className="rounded-sm border border-border bg-surface-subtle p-4">
+          <div className="rounded-xl border border-border bg-surface-subtle p-4">
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div>
                 <p className="font-semibold text-foreground">{expense.category}</p>
@@ -141,7 +143,7 @@ export function ActivityExpenseReviewDialog({
           </div>
           {missingReceipt ? (
             <p className="text-sm font-medium text-muted-foreground" id={receiptHintId}>
-              Attach a private receipt before review.
+              Validation needs a private receipt. You can still return this expense for correction.
             </p>
           ) : null}
           {error ? (
@@ -154,18 +156,9 @@ export function ActivityExpenseReviewDialog({
               Cancel
             </Button>
             <Button
-              aria-describedby={missingReceipt ? receiptHintId : undefined}
-              aria-disabled={missingReceipt || undefined}
               className="gap-2"
               disabled={submitting || !canVerify || !reason.trim()}
-              onClick={(event) => {
-                blockMissingReceipt(event)
-                if (missingReceipt) return
-                void submit(false)
-              }}
-              onKeyDown={(event) => {
-                if (event.key === 'Enter' || event.key === ' ') blockMissingReceipt(event)
-              }}
+              onClick={() => void submit(false)}
               type="button"
               variant="outline"
             >

@@ -1,4 +1,4 @@
-import { IMPORT_ENGINEERING_LIMITS } from '@pathways/imports/server'
+import { IMPORT_ENGINEERING_LIMITS, IMPORT_VALUE_MAP_LIMITS } from '@pathways/imports/server'
 import { Transform, Type } from 'class-transformer'
 import {
   ArrayMaxSize,
@@ -25,6 +25,34 @@ export class UploadImportDto {
   clientImportId!: string
 }
 
+export const IMPORT_DATA_TYPES = [
+  'TEXT',
+  'LONG_TEXT',
+  'INTEGER',
+  'DECIMAL',
+  'DATE',
+  'BOOLEAN',
+  'SELECT',
+  'MULTIPLE_SELECT',
+] as const
+
+// No control characters, and no leading formula trigger (= + @ or a minus that is not a number).
+const SAFE_MAP_TEXT = /^(?![=+@\t\r]|-(?!\d))\P{Cc}*$/u
+
+export class ImportValueMapEntryDto {
+  @IsString()
+  @Length(1, IMPORT_VALUE_MAP_LIMITS.maxTextLength)
+  @Matches(SAFE_MAP_TEXT, { message: 'Control characters and formula prefixes are not allowed.' })
+  @Transform(({ value }) => (typeof value === 'string' ? value.trim() : value))
+  from!: string
+
+  @IsString()
+  @Length(0, IMPORT_VALUE_MAP_LIMITS.maxTextLength)
+  @Matches(SAFE_MAP_TEXT, { message: 'Control characters and formula prefixes are not allowed.' })
+  @Transform(({ value }) => (typeof value === 'string' ? value.trim() : value))
+  to!: string
+}
+
 export class ImportMappingItemDto {
   @IsString()
   @Length(1, 100)
@@ -40,6 +68,18 @@ export class ImportMappingItemDto {
 
   @IsBoolean()
   ignored!: boolean
+
+  @IsOptional()
+  @IsIn(IMPORT_DATA_TYPES)
+  dataType?: (typeof IMPORT_DATA_TYPES)[number]
+
+  @IsOptional()
+  @IsArray()
+  @ArrayMinSize(1)
+  @ArrayMaxSize(IMPORT_VALUE_MAP_LIMITS.maxEntries)
+  @ValidateNested({ each: true })
+  @Type(() => ImportValueMapEntryDto)
+  valueMap?: ImportValueMapEntryDto[]
 }
 
 export class SaveImportMappingDto {

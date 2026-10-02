@@ -2,6 +2,7 @@
 
 import { Loader2, ReceiptText } from 'lucide-react'
 import { useEffect, useState } from 'react'
+import { toast } from 'sonner'
 
 import { DialogShell } from '@/components/pathways'
 import { Button } from '@/components/ui/button'
@@ -21,6 +22,9 @@ export type ExpenseBudgetReference = {
   category: string
   activityId: string | null
 }
+
+const maxReceiptBytes = 10485760
+const receiptTypes = ['application/pdf', 'image/png', 'image/jpeg']
 
 const emptyDraft = { amount: '', budgetRecordId: '', date: '', description: '' }
 
@@ -43,11 +47,20 @@ export const ActivityExpenseDialog = ({
   const [draft, setDraft] = useState(emptyDraft)
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState('')
+  const [errorField, setErrorField] = useState<'receipt' | 'form' | 'server'>('form')
+  const [notice, setNotice] = useState('')
+  const [receiptFile, setReceiptFile] = useState<File | null>(null)
+  const [fileKey, setFileKey] = useState(0)
+  const canAttachReceipt = principalHasAtomicPermission(profile, 'expenses.evidence.submit')
 
   useEffect(() => {
     if (!open) return
     setDraft(emptyDraft)
     setError('')
+    setErrorField('form')
+    setNotice('')
+    setReceiptFile(null)
+    setFileKey((key) => key + 1)
   }, [open])
 
   const activityReferences = budgetReferences.filter((row) => row.activityId === activity.id)
@@ -61,11 +74,28 @@ export const ActivityExpenseDialog = ({
       !draft.date ||
       !draft.description.trim()
     ) {
+      setErrorField('form')
       setError('Choose a linked budget allocation and complete every field.')
+      return
+    }
+    if (!canAttachReceipt) {
+      setErrorField('receipt')
+      setError('A receipt is required, and this account cannot attach receipts.')
+      return
+    }
+    if (!receiptFile) {
+      setErrorField('receipt')
+      setError('Attach the receipt (PDF, PNG or JPEG) before submitting.')
+      return
+    }
+    if (receiptFile.size > maxReceiptBytes || !receiptTypes.includes(receiptFile.type)) {
+      setErrorField('receipt')
+      setError('Receipt must be a PDF, PNG or JPEG of at most 10 MiB.')
       return
     }
     setSubmitting(true)
     setError('')
+    setNotice('')
     const body = {
       budgetRecordId: draft.budgetRecordId,
       description: draft.description.trim(),
@@ -74,12 +104,28 @@ export const ActivityExpenseDialog = ({
     }
     const clientRequestId = requests.forBody(`activity-expense:${activity.id}`, body)
     try {
-      await coreDataClient.submitExpense(activity.projectId, { clientRequestId, ...body })
+      const ack = await coreDataClient.submitExpense(activity.projectId, {
+        clientRequestId,
+        ...body,
+      })
       requests.acknowledge(clientRequestId)
       setDraft(emptyDraft)
+      try {
+        await coreDataClient.uploadReceipt(activity.projectId, ack.id, ack.updatedAt, receiptFile)
+      } catch {
+        // The expense is already saved; keep the dialog open so the message is read.
+        setReceiptFile(null)
+        setFileKey((key) => key + 1)
+        setNotice('Expense saved; receipt not attached. Attach it from the Budget tab.')
+        toast.warning('Expense saved without its receipt.')
+        onSubmitted()
+        return
+      }
+      toast.success('Expense submitted for validation.')
       onSubmitted()
       onOpenChange(false)
     } catch (submitError) {
+      setErrorField('server')
       setError(
         submitError instanceof Error ? submitError.message : 'Expense submission unavailable.',
       )
@@ -107,7 +153,7 @@ export const ActivityExpenseDialog = ({
             void submit()
           }}
         >
-          <div className="rounded-sm border border-border bg-surface-subtle p-3 text-sm">
+          <div className="rounded-xl border border-border bg-surface-subtle p-3 text-sm">
             <p className="font-medium text-foreground">Linked activity</p>
             <p className="mt-1 text-muted-foreground">{activity.title}</p>
           </div>
@@ -125,7 +171,7 @@ export const ActivityExpenseDialog = ({
               <div className="space-y-2 sm:col-span-2">
                 <Label htmlFor="activity-expense-budget">Budget allocation</Label>
                 <select
-                  className="h-10 w-full rounded-md border bg-background px-3"
+                  className="h-11 w-full rounded-md border bg-background px-3"
                   id="activity-expense-budget"
                   onChange={(event) =>
                     setDraft((current) => ({ ...current, budgetRecordId: event.target.value }))
@@ -181,8 +227,40 @@ export const ActivityExpenseDialog = ({
               </div>
             </div>
           )}
-          {error ? (
+          {canSubmit && !canAttachReceipt ? (
             <p className="text-sm font-medium text-destructive" role="alert">
+              A receipt is required, and this account cannot attach receipts.
+            </p>
+          ) : null}
+          {canSubmit && activityReferences.length > 0 && canAttachReceipt ? (
+            <div className="space-y-2">
+              <Label htmlFor="activity-expense-receipt">
+                Private receipt (required; PDF, PNG or JPEG; maximum 10 MiB)
+              </Label>
+              <Input
+                accept="application/pdf,image/png,image/jpeg"
+                aria-required="true"
+                aria-describedby={
+                  error && errorField === 'receipt' ? 'activity-expense-error' : undefined
+                }
+                aria-invalid={error && errorField === 'receipt' ? true : undefined}
+                disabled={submitting}
+                id="activity-expense-receipt"
+                key={fileKey}
+                onChange={(event) => setReceiptFile(event.target.files?.[0] ?? null)}
+                type="file"
+              />
+            </div>
+          ) : null}
+          {notice ? (
+            <output className="block text-sm font-medium text-foreground">{notice}</output>
+          ) : null}
+          {error ? (
+            <p
+              className="text-sm font-medium text-destructive"
+              id="activity-expense-error"
+              role="alert"
+            >
               {error}
             </p>
           ) : null}
@@ -193,11 +271,13 @@ export const ActivityExpenseDialog = ({
               type="button"
               variant="outline"
             >
-              Cancel
+              {notice ? 'Close' : 'Cancel'}
             </Button>
             <Button
               className="gap-2"
-              disabled={submitting || !canSubmit || activityReferences.length === 0}
+              disabled={
+                submitting || !canSubmit || !canAttachReceipt || activityReferences.length === 0
+              }
               type="submit"
             >
               {submitting ? (

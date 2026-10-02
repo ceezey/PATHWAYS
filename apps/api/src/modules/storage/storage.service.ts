@@ -79,9 +79,15 @@ export class StorageService {
     const client = this.getClient()
     await this.requirePrivateBucket(client, bucket)
     const files = client.storage.from(bucket)
-    const signed: Array<{ path: string; uploadUrl: string }> = []
+    // uploadUrl is null when the object already exists: upsert stays disabled, so an earlier
+    // upload is never replaced here and is verified (or deleted on mismatch) at finalize.
+    const signed: Array<{ path: string; uploadUrl: string | null }> = []
     for (const path of paths) {
       const { data, error } = await files.createSignedUploadUrl(path, { upsert: false })
+      if (error && isExistingObjectError(error)) {
+        signed.push({ path, uploadUrl: null })
+        continue
+      }
       if (error || !data?.signedUrl || data.path !== path)
         throw new Error('A private upload URL could not be created.')
       signed.push({ path, uploadUrl: data.signedUrl })
@@ -110,4 +116,9 @@ export class StorageService {
 
     return data
   }
+}
+
+function isExistingObjectError(error: unknown) {
+  const { statusCode, message } = (error ?? {}) as { statusCode?: unknown; message?: unknown }
+  return String(statusCode) === '409' || message === 'The resource already exists'
 }

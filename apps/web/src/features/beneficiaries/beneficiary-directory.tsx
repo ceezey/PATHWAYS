@@ -327,7 +327,7 @@ export const BeneficiaryDirectory = ({
         title={labels.moduleBeneficiaries}
       />
 
-      <section className="space-y-4 rounded-lg border border-border bg-card p-4">
+      <section className="space-y-4 rounded-xl border border-border bg-card p-4">
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
           <div className="space-y-2">
             <Label htmlFor="beneficiary-search">Search by name or code</Label>

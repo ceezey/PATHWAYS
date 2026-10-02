@@ -7,6 +7,9 @@ import type { Activity } from '@/types/pathways'
 
 const state = vi.hoisted(() => ({
   submitExpense: vi.fn(),
+  uploadReceipt: vi.fn(),
+  toastSuccess: vi.fn(),
+  toastWarning: vi.fn(),
   profile: {
     userId: 'actor-a',
     organizationId: 'org-a',
@@ -20,7 +23,10 @@ vi.mock('@/hooks/use-current-role', () => ({
   useCurrentRole: () => ({ role: 'Project Officer', profile: state.profile }),
 }))
 vi.mock('@/lib/services/core-feature-client', () => ({
-  coreDataClient: { submitExpense: state.submitExpense },
+  coreDataClient: { submitExpense: state.submitExpense, uploadReceipt: state.uploadReceipt },
+}))
+vi.mock('sonner', () => ({
+  toast: { success: state.toastSuccess, warning: state.toastWarning },
 }))
 vi.mock('@/components/pathways', () => ({
   DialogShell: ({ children, title }: { children: ReactNode; title: string }) => (
@@ -61,6 +67,13 @@ const renderDialog = (permissions = state.profile.permissions) => {
   )
 }
 
+const withReceipt = ['expenses.submit', 'expenses.evidence.submit']
+const pickReceipt = () => {
+  const file = new File(['%PDF-synthetic'], 'receipt.pdf', { type: 'application/pdf' })
+  fireEvent.change(screen.getByLabelText(/Private receipt/), { target: { files: [file] } })
+  return file
+}
+
 const fill = () => {
   fireEvent.change(screen.getByLabelText('Budget allocation'), {
     target: { value: 'budget-1' },
@@ -84,10 +97,15 @@ describe('ActivityExpenseDialog', () => {
       updatedAt: '2026-01-15T00:00:00.000Z',
       receiptEvidenceId: null,
     })
-    renderDialog(['expenses.submit'])
+    state.uploadReceipt.mockResolvedValueOnce({})
+    renderDialog(withReceipt)
     fill()
+    pickReceipt()
     fireEvent.click(screen.getByRole('button', { name: /Save expense/ }))
     await waitFor(() => expect(state.submitExpense).toHaveBeenCalledTimes(1))
+    await waitFor(() =>
+      expect(state.toastSuccess).toHaveBeenCalledWith('Expense submitted for validation.'),
+    )
     const [projectId, body] = state.submitExpense.mock.calls[0]
     expect(projectId).toBe(activity.projectId)
     expect(body).toEqual({
@@ -120,7 +138,7 @@ describe('ActivityExpenseDialog', () => {
   it('shows the server error and does not close the dialog', async () => {
     state.submitExpense.mockRejectedValueOnce(new Error('Expense submission rejected.'))
     const onOpenChange = vi.fn()
-    state.profile.permissions = ['expenses.submit']
+    state.profile.permissions = withReceipt
     render(
       <ActivityExpenseDialog
         activity={activity}
@@ -131,10 +149,145 @@ describe('ActivityExpenseDialog', () => {
       />,
     )
     fill()
+    pickReceipt()
     fireEvent.click(screen.getByRole('button', { name: /Save expense/ }))
     await waitFor(() =>
       expect(screen.getByRole('alert').textContent).toBe('Expense submission rejected.'),
     )
     expect(onOpenChange).not.toHaveBeenCalled()
+  })
+
+  describe('required private receipt', () => {
+    const ack = {
+      id: 'expense-1',
+      projectId: activity.projectId,
+      status: 'PENDING',
+      updatedAt: '2026-01-15T00:00:00.000Z',
+      receiptEvidenceId: null,
+    }
+    const permissions = withReceipt
+    const pick = pickReceipt
+
+    it('attaches the chosen receipt through the existing endpoint after the expense is saved', async () => {
+      state.submitExpense.mockResolvedValueOnce(ack)
+      state.uploadReceipt.mockResolvedValueOnce({ ...ack, receiptEvidenceId: 'evidence-1' })
+      const onSubmitted = vi.fn()
+      const onOpenChange = vi.fn()
+      state.profile.permissions = permissions
+      render(
+        <ActivityExpenseDialog
+          activity={activity}
+          budgetReferences={references}
+          onOpenChange={onOpenChange}
+          onSubmitted={onSubmitted}
+          open
+        />,
+      )
+      fill()
+      const file = pick()
+      fireEvent.click(screen.getByRole('button', { name: /Save expense/ }))
+      await waitFor(() => expect(state.uploadReceipt).toHaveBeenCalledTimes(1))
+      expect(state.uploadReceipt).toHaveBeenCalledWith(
+        activity.projectId,
+        'expense-1',
+        ack.updatedAt,
+        file,
+      )
+      await waitFor(() => expect(onOpenChange).toHaveBeenCalledWith(false))
+      expect(onSubmitted).toHaveBeenCalledTimes(1)
+    })
+
+    it('marks the receipt input required and only flags it for receipt errors', async () => {
+      renderDialog(permissions)
+      const input = screen.getByLabelText(/Private receipt/)
+      expect(input.getAttribute('aria-required')).toBe('true')
+      fireEvent.click(screen.getByRole('button', { name: /Save expense/ }))
+      expect(screen.getByRole('alert').textContent).toContain('complete every field')
+      expect(input.getAttribute('aria-describedby')).toBeNull()
+      expect(input.getAttribute('aria-invalid')).toBeNull()
+      fill()
+      fireEvent.click(screen.getByRole('button', { name: /Save expense/ }))
+      expect(screen.getByRole('alert').textContent).toContain('Attach the receipt')
+      expect(input.getAttribute('aria-describedby')).toBe('activity-expense-error')
+      expect(input.getAttribute('aria-invalid')).toBe('true')
+      state.submitExpense.mockRejectedValueOnce(new Error('Expense submission rejected.'))
+      pick()
+      fireEvent.click(screen.getByRole('button', { name: /Save expense/ }))
+      await waitFor(() =>
+        expect(screen.getByRole('alert').textContent).toBe('Expense submission rejected.'),
+      )
+      expect(input.getAttribute('aria-describedby')).toBeNull()
+      expect(input.getAttribute('aria-invalid')).toBeNull()
+    })
+
+    it('rejects an oversized PDF before saving anything', () => {
+      renderDialog(permissions)
+      fill()
+      const big = new File(['x'], 'big.pdf', { type: 'application/pdf' })
+      Object.defineProperty(big, 'size', { value: 10485761 })
+      fireEvent.change(screen.getByLabelText(/Private receipt/), { target: { files: [big] } })
+      fireEvent.click(screen.getByRole('button', { name: /Save expense/ }))
+      expect(screen.getByRole('alert').textContent).toContain('10 MiB')
+      expect(state.submitExpense).not.toHaveBeenCalled()
+    })
+
+    it('blocks submission until a receipt is chosen', () => {
+      renderDialog(permissions)
+      fill()
+      fireEvent.click(screen.getByRole('button', { name: /Save expense/ }))
+      expect(screen.getByRole('alert').textContent).toContain('Attach the receipt')
+      expect(state.submitExpense).not.toHaveBeenCalled()
+      expect(state.uploadReceipt).not.toHaveBeenCalled()
+    })
+
+    it('blocks submission when the account cannot attach receipts', () => {
+      renderDialog(['expenses.submit'])
+      expect(screen.getByRole('alert').textContent).toContain(
+        'A receipt is required, and this account cannot attach receipts.',
+      )
+      expect(
+        (screen.getByRole('button', { name: /Save expense/ }) as HTMLButtonElement).disabled,
+      ).toBe(true)
+      expect(state.submitExpense).not.toHaveBeenCalled()
+    })
+
+    it('keeps the saved expense and explains a failed attach', async () => {
+      state.submitExpense.mockResolvedValueOnce(ack)
+      state.uploadReceipt.mockRejectedValueOnce(new Error('storage down'))
+      const onSubmitted = vi.fn()
+      const onOpenChange = vi.fn()
+      state.profile.permissions = permissions
+      render(
+        <ActivityExpenseDialog
+          activity={activity}
+          budgetReferences={references}
+          onOpenChange={onOpenChange}
+          onSubmitted={onSubmitted}
+          open
+        />,
+      )
+      fill()
+      pick()
+      fireEvent.click(screen.getByRole('button', { name: /Save expense/ }))
+      await waitFor(() =>
+        expect(screen.getByRole('status').textContent).toBe(
+          'Expense saved; receipt not attached. Attach it from the Budget tab.',
+        ),
+      )
+      expect(onSubmitted).toHaveBeenCalledTimes(1)
+      expect(onOpenChange).not.toHaveBeenCalled()
+      expect(state.toastWarning).toHaveBeenCalledWith('Expense saved without its receipt.')
+      expect(state.toastSuccess).not.toHaveBeenCalled()
+    })
+
+    it('rejects an unsupported receipt before saving anything', () => {
+      renderDialog(permissions)
+      fill()
+      const bad = new File(['x'], 'notes.txt', { type: 'text/plain' })
+      fireEvent.change(screen.getByLabelText(/Private receipt/), { target: { files: [bad] } })
+      fireEvent.click(screen.getByRole('button', { name: /Save expense/ }))
+      expect(screen.getByRole('alert').textContent).toContain('PDF, PNG or JPEG')
+      expect(state.submitExpense).not.toHaveBeenCalled()
+    })
   })
 })

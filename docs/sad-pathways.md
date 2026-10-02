@@ -1,14 +1,33 @@
 # Subagent Document (SAD)
 
 **Status:** Control
+**Version:** 2.0
+**Last reconciled:** 2026-10-01
+**Owner:** PATHWAYS capstone team
 
-**Last reconciled:** 2026-09-28
+## 1. Purpose & Scope
 
-**Basis:** developer-approved SAD adoption, 2026-09-26.
+These are review roles, not autonomous project owners. This governance reconciles the supplied SAD with repository patterns and Locked PATHWAYS contracts. It does not change runtime authorization, privacy, migration history, or feature scope. Basis: developer-approved SAD adoption, 2026-09-26.
 
-These are review roles, not autonomous project owners. This governance reconciles the supplied SAD with repository patterns and Locked PATHWAYS contracts. It does not change runtime authorization, privacy, migration history, or feature scope.
+## 2. Roster Design Rationale
 
-## 1. Roster and Trigger Paths
+Each role covers one or more of the eight ISO/IEC 25010 characteristics, named as in the [QAD](qad-pathways.md).
+
+| Role | Characteristics covered |
+|---|---|
+| organization-isolation-checker | Security |
+| migration-integrity-guardian | Reliability |
+| beneficiary-privacy-guardian | Compatibility, Security |
+| metadata-import-validator | Functional Suitability |
+| rule-engine-determinism-checker | Performance Efficiency |
+| restraint-guardian | Maintainability |
+| design-qa-agent | Functional Suitability, Performance Efficiency, Compatibility, Usability, Reliability, Security, Maintainability, Portability |
+
+Usability and Portability are covered only by design-qa-agent, which reviews every modified application and package file.
+
+## 3. The Roster
+
+### 3.1 Roster and Trigger Paths
 
 Paths are repository-relative globs normalized to forward slashes. `**` includes zero or more directories. Match both old and new paths for renames; deletions require review of affected callers. Semantic changes outside these paths still require the relevant specialist.
 
@@ -20,19 +39,19 @@ Paths are repository-relative globs normalized to forward slashes. `**` includes
 | metadata-import-validator | `packages/imports/src/**/*.ts`, `apps/api/src/modules/imports/**/*.ts` | Functional Suitability: correctness and appropriateness | sonnet |
 | rule-engine-determinism-checker | `packages/shared/src/monitoring/**/*.ts`, `apps/api/src/modules/indicators/**/*.ts` | Performance Efficiency: time behaviour and resource utilization | sonnet |
 | restraint-guardian | `**/package.json`, `pnpm-workspace.yaml`, `**/tsconfig*.json`, `scripts/sad/**` | Maintainability: modularity and reusability | opus |
-| design-qa-agent | `apps/api/src/**`, `apps/web/src/**`, `packages/**`, `scripts/sad/**`, `infra/supabase/phase6/*.ps1`, `.github/workflows/ci.yml` | All eight pillars below | opus |
+| design-qa-agent | `apps/api/src/**`, `apps/web/src/**`, `packages/**`, `scripts/sad/**`, `infra/supabase/phase6/*.ps1`, `.github/workflows/ci.yml` | All eight pillars (section 3.2) | opus |
 
 The core design QA role evaluates every modified or added application/package file before engineering sign-off. Review tooling and migration replay also receive QA because their correctness controls other reviews. Trigger routing is a minimum, not permission to omit an implicated specialist.
 
-## 2. Mandatory Engineering Rules
+### 3.2 Mandatory Engineering Rules
 
-### organization-isolation-checker
+#### organization-isolation-checker
 
 - Require structural tenant and assignment scope before retrieving multi-tenant data. Explicit `organizationId`/`projectId` predicates, verified shared predicates, relation filters, compound keys, and tenant-bound creation data are valid patterns. Never retrieve broadly and filter sensitive records in memory.
 - Review unsafe raw-query calls for parameterization; reject dynamic SQL assembled from untrusted inputs. A lexical match is a review flag, not proof that a parameterized call violates isolation.
 - RLS compares stored scope with trusted authenticated identity/claims natively where applicable. JWT metadata does not replace the verified identity, linked user, account state, organization, role, permissions, and assignment chain in the Locked auth RFC.
 
-### migration-integrity-guardian
+#### migration-integrity-guardian
 
 - Preserve exact applied SQL, archived bytes, and ledger checksums, including registered exceptions. Never silently rewrite applied migrations or introduce another Prisma ledger.
 - Block destructive table/column removal or type changes without separate authorization, an out-of-band data-preservation routine, and tested recovery. A lexical SQL match requires review of its actual effect.
@@ -40,29 +59,29 @@ The core design QA role evaluates every modified or added application/package fi
 - Permit compatible `CREATE OR REPLACE FUNCTION`; review signatures, dependencies, ownership, ACLs, search path, and security behavior. Require explicit `DROP FUNCTION IF EXISTS` teardown only when replacement requires it, with dependency/recovery review.
 - Verify replay against disposable databases. Baseline registration on populated databases must not execute baseline DDL.
 
-### beneficiary-privacy-guardian
+#### beneficiary-privacy-guardian
 
 - Permit authorized Beneficiary detail only within the Locked RBAC/project scope. Aggregate-only roles receive aggregates with SADDD protections; public media needs separate approval/provenance.
 - Omit unauthorized PII and internal secrets from responses and logs, including `pino.info()`. Review downstream ingestion, serializers, exports, and error paths.
 - Require explicit output allowlists or validated output schemas to prevent implicit internal-key leakage. Existing DTO/class-validator and shared validation patterns remain valid; do not mandate Zod where another adequate pattern exists.
 
-### metadata-import-validator
+#### metadata-import-validator
 
 - Validate bounded file envelopes before parsing, then normalize decoded untrusted records before domain use. Use `Zod.safeParse()` where Zod is the established boundary; preserve equivalent validated repository patterns.
 - Keep related database mutations atomic through established transactions. Do not wrap file parsing or external storage operations in long database transactions.
 - Preserve raw staging, validation failures, explicit mappings, authorization, retries, idempotency, and audit history.
 
-### rule-engine-determinism-checker
+#### rule-engine-determinism-checker
 
 - Handle divide-by-zero, empty sets, nulls, and missing properties in calculations and observation streams. Missing/unavailable metrics remain unavailable; do not invent a zero value.
 - Reject arbitrary executable expressions, `eval`, dynamic `Function`, arbitrary SQL, and unvalidated logic maps. Use typed metrics/operators, deterministic evaluation snapshots, and bounded execution.
 
-### restraint-guardian
+#### restraint-guardian
 
 - Flag new external npm dependencies for explicit justification against native capabilities, existing dependencies, and small explicit implementations.
 - Avoid unnecessary abstractions and coupling without cutting validation, security, privacy, recovery, tests, or accessibility.
 
-### design-qa-agent
+#### design-qa-agent
 
 | ISO 25010 pillar | Required review |
 |---|---|
@@ -77,7 +96,9 @@ The core design QA role evaluates every modified or added application/package fi
 
 Mark irrelevant pillar details as not applicable in evidence; a PASS must still state all eight were considered. Passing this review does not establish complete ISO certification.
 
-## 3. Sequenced Review Pipeline
+## 4. Orchestration
+
+### 4.1 Sequenced Review Pipeline
 
 Stages run in order. A gate failure stops every later stage.
 
@@ -91,11 +112,11 @@ Stages run in order. A gate failure stops every later stage.
 | S4 Re-route | Rerun S1. A new digest invalidates earlier evidence; newly matched paths add roles. | final manifest |
 | S5 Final review | Repeat specialist and design review against the final digest. | final envelopes |
 | S6 Assemble | Merge final envelopes into `.tmp/sad/<run>/reviews.json` with the final digest, sorted by role then path. | evidence file |
-| G2 Sign-off gate | Run `pnpm sad:signoff -- --reviews <evidence>`. Sign off only when all required roles have valid matching PASS evidence and required tests pass; otherwise raise a Human Intervention block from the build guide. | sign-off or block |
+| G2 Sign-off gate | Run `pnpm sad:signoff -- --reviews <evidence>`. Sign off only when all required roles have valid matching PASS evidence and required tests pass; otherwise raise a Human Intervention block (build guide section 5.4). | sign-off or block |
 
 Missing required evidence withholds engineering sign-off. Unmatched roles are omitted; documentation-only changes do not imply code compliance.
 
-### 3.1 Handoff Packet
+### 4.2 Handoff Packet
 
 The orchestrator dispatches one role per specialist call with this packet:
 
@@ -106,19 +127,19 @@ The orchestrator dispatches one role per specialist call with this packet:
   "change_digest": "<manifest digest>",
   "role": "beneficiary-privacy-guardian",
   "paths": ["apps/web/src/lib/services/pathways-client.ts"],
-  "contracts": ["docs/sad-pathways.md#2", "docs/clr-pathways.md"],
+  "contracts": ["docs/sad-pathways.md", "docs/clr-pathways.md"],
   "prior_findings": [],
-  "constraints": ["read-only", "review listed paths only", "return section 5 envelope only"]
+  "constraints": ["read-only", "review listed paths only", "return section 4.4 envelope only"]
 }
 ```
 
-The specialist returns exactly the section 5 envelope, with one entry per finding or one PASS entry per reviewed path, and its role's required ISO pillars. Specialists never edit files. The orchestrator discards a return whose packet digest differs from the current manifest, and redispatches a malformed return once before recording BLOCKED. `prior_findings` carries unresolved G1 findings into S5 so remediation is verified.
+The specialist returns exactly the section 4.4 envelope, with one entry per finding or one PASS entry per reviewed path, and its role's required ISO pillars. Specialists never edit files. The orchestrator discards a return whose packet digest differs from the current manifest, and redispatches a malformed return once before recording BLOCKED. `prior_findings` carries unresolved G1 findings into S5 so remediation is verified.
 
-Agent definitions live in `.claude/agents/`: `sad-orchestrator`, one file per section 1 specialist, `release-integrator` and `requirements-qa-gate`. Each definition sets its `model:` frontmatter: specialists use the section 1 Model column, `release-integrator` and `requirements-qa-gate` use opus, and `sad-orchestrator` uses sonnet. Changing a model is a SAD change. Definitions point to this document instead of restating rules; this document stays authoritative, and `pnpm docs:check` fails on roster drift. Claude Code subagents cannot spawn subagents, so coordinators run as the main thread (`claude --agent sad-orchestrator`). The release sequence that composes this pipeline is in the build guide section 2.
+Agent definitions live in `.claude/agents/`: `sad-orchestrator`, one file per section 3.1 specialist, `release-integrator` and `requirements-qa-gate`. Each definition sets its `model:` frontmatter: specialists use the section 3.1 Model column, `release-integrator` and `requirements-qa-gate` use opus, and `sad-orchestrator` uses sonnet. Changing a model is a SAD change. Definitions point to this document instead of restating rules; this document stays authoritative, and `pnpm docs:check` fails on roster drift. Claude Code subagents cannot spawn subagents, so coordinators run as the main thread (`claude --agent sad-orchestrator`). The release sequence that composes this pipeline is in the build guide section 2.2.
 
 Review reports, manifests, and task tracking belong outside tracked repository files. Use paths outside the repository or a Git-ignored disposable directory such as `.tmp`; unignored in-repository reports are prohibited. Evidence input and manifest output must use different paths. Do not commit disposable review artifacts.
 
-## 4. Commands and Evidence
+### 4.3 Commands and Evidence
 
 - `pnpm sad:check` scans local staged, unstaged, and untracked changes against HEAD. Use `--base REV --head REV` for an explicit committed range.
 - `pnpm sad:check --output <external-json-path>` writes the change manifest, SHA-256 digest, required roles, and automated diagnostics separately; stdout remains the evaluation envelope below.
@@ -132,7 +153,7 @@ The [approved rollout Change Record](cr-pathways-self-managed-rollout-scenarios.
 
 CI runs automated SAD checks independently on PRs and `dev`/`master` pushes, publishing diagnostics as artifacts. Automated CI is not an authenticated reviewer or full SAD approval system. Missing, stale, malformed, or BLOCKED external evidence fails final agent sign-off.
 
-## 5. Deterministic Output Schema
+### 4.4 Deterministic Output Schema
 
 Every evaluation uses exactly the supplied envelope. `implicated_lines` is an integer array of positive line numbers, with `[]` when no line applies. Emit one entry per finding or one PASS entry per completed role/file review. External sign-off evidence must cover every routed role/path pair, including both renamed paths, and all required ISO pillars. File paths are normalized and repository-relative; whole-change evidence does not substitute for file coverage.
 
@@ -176,3 +197,20 @@ The external evidence file binds that envelope to the manifest digest:
 ```
 
 Examples are schema illustrations, not executable review evidence. An empty evaluation array means no role evaluation was executed or required; it is not blanket PASS.
+
+## 5. Materialization (Platform Mapping)
+
+Agent definitions live in `.claude/agents/` and are read by Claude Code. They defer to this document; `pnpm docs:check` fails on roster or model drift. Coordinators run as the main thread because subagents cannot spawn subagents.
+
+## 6. Maintenance
+
+- Changing a role, trigger glob or model is a SAD change and must update `scripts/sad/check.ts` and `.claude/agents/` together.
+- Keep review reports and manifests outside tracked files.
+- Run `pnpm sad:test` and `pnpm sad:typecheck` after any checker change.
+
+## Self-Check
+
+- [x] roster rows and globs match `scripts/sad/check.ts`
+- [x] models match agent definitions
+- [x] ISO/IEC 25010 coverage stated per role
+- [x] pipeline, handoff packet and output schema anchored

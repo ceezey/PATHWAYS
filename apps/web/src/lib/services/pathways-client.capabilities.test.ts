@@ -52,6 +52,7 @@ const listItem = {
   targetBeneficiaries: 0,
   progress: 0,
   updatedAt: '2026-09-28T00:00:00.000Z',
+  overdueExplanationNeeded: false,
 }
 const detail = {
   ...listItem,
@@ -61,8 +62,14 @@ const detail = {
   budgetLogged: null,
   submittedProof: [],
   updateNotes: [],
+  overdueExplanations: [],
 }
-const allowed = { canEdit: true, canRecordProgress: true, canSubmitProof: false }
+const allowed = {
+  canEdit: true,
+  canRecordProgress: true,
+  canSubmitProof: false,
+  canExplainOverdue: false,
+}
 
 afterEach(() => vi.unstubAllGlobals())
 
@@ -84,6 +91,7 @@ describe('activity capability flags in the client allowlist', () => {
       canEdit: false,
       canRecordProgress: false,
       canSubmitProof: false,
+      canExplainOverdue: false,
     })
   })
 

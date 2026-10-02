@@ -46,6 +46,7 @@ export const routePolicy = {
     ['indicators.read'],
     'project',
   ),
+  indicatorLibrary: entry('/indicators/library', 'Indicator library', ['indicators.library.read']),
   monitoring: entry(
     '/projects/:projectId/monitor-evaluate',
     'Monitor & Evaluate',
@@ -89,7 +90,6 @@ export const routePolicy = {
     'beneficiary',
   ),
   collection: entry('/collection', 'Collection', ['collection.read']),
-  manualEntry: entry('/collection/entry', 'Encode project data', ['submissions.write']),
   forms: entry('/collection/forms', 'Forms', ['forms.manage']),
   formCreate: entry('/collection/forms/new', 'Form setup', ['forms.manage']),
   form: entry(

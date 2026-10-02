@@ -116,6 +116,7 @@ const activity = {
   activityUpdate_activity: [],
   activityJourneyStageMapping_activity: [],
   activityIndicatorLink_activity: [],
+  activityOverdueExplanation_activity: [],
 }
 
 const tx = {
@@ -257,6 +258,7 @@ describe('P05 activity proof authorization', () => {
         'journeyStageId',
         'journeyStageIds',
         'overdue',
+        'overdueExplanationNeeded',
         'progress',
         'projectId',
         'startDate',
@@ -429,6 +431,7 @@ describe('Activity creation contract authorization', () => {
       },
     ],
     activityIndicatorLink_activity: [{ indicatorId }],
+    activityOverdueExplanation_activity: [],
     activityJourneyStageMapping_activity: [{ stageId }],
   }
   const service = new ActivitiesService({} as PrismaService, storage as unknown as StorageService)

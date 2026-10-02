@@ -12,3 +12,7 @@ apps/api/prisma/migrations/0038_import_smart_mapping/migration.sql -text
 apps/api/prisma/migrations/0039_project_partner_backfill/migration.sql -text
 apps/api/prisma/migrations/0040_default_registration_form/migration.sql -text
 apps/api/prisma/migrations/0041_activity_media_evidence/migration.sql -text
+apps/api/prisma/migrations/0042_proof_session_beneficiary_count/migration.sql -text
+apps/api/prisma/migrations/0043_activity_overdue_explanation/migration.sql -text
+apps/api/prisma/migrations/0044_activity_progress_review/migration.sql -text
+apps/api/prisma/migrations/0045_f9_descriptive_aggregates/migration.sql -text

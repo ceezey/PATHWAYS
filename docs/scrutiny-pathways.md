@@ -1,55 +1,84 @@
 # Scrutiny Gate (SCRUTINY)
 
+**Status:** Working
+**Version:** 2.0
+**Last reconciled:** 2026-10-01
+**Owner:** PATHWAYS capstone team
+
 ## 1. Verdict
 
-**PROCEED WITH CONTROLLED IMPLEMENTATION**
+Decision: `PROCEED WITH FIXES`
 
-Conceptual scope is coherent. Main risk: docs/code drift and overclaiming implementation maturity.
+Claims extracted: 10 (8 verified, 2 caveated) from the rev-2026 manuscript and repository baseline.
 
-## 2. Claim Integrity
+The concept is coherent and bounded. The main risks are documentation drift from code and overclaiming implementation maturity; both are controlled by `pnpm docs:check` and the PRD gate criteria.
 
-Academic claims belong to the manuscript/Master Context Pack.
+## 2. Claim & Reference Audit
 
-Engineering claims require repository/test evidence or an explicit Planned/Deferred label.
+| # | Claim | Finding | Source |
+|---|---|---|---|
+| 1 | Field data move through separate tools and need repeated preparation | Verified | Manuscript Chapter 1, Problem and Solution Statement, rev-2026 |
+| 2 | About forty working hours of preparation per reporting cycle | Caveated: estimate, not a measured saving | Manuscript Chapter 1, Problem Analysis, rev-2026 |
+| 3 | Mobile collection tools often lack identity verification and record linking | Verified | Manuscript Chapter 2, Field Data Collection, Roberts et al. 2023 |
+| 4 | A monitoring layer need not replace KOBO | Verified | Manuscript Chapter 2, Field Data Collection, rev-2026 |
+| 5 | Decision support is rule-based and human-led | Verified | Manuscript Chapter 2, Decision Support, rev-2026 |
+| 6 | Role-based access is enforced server-side | Verified | Repository 2026, `apps/api/src/common/guards/supabase-auth.guard.ts` (reads the permission decorator on each route); grants defined in `apps/api/src/modules/auth/rbac-contract.json` and checked by `csv-rbac.test.ts` |
+| 7 | Data model covers organizations, projects and beneficiaries | Verified | Repository 2026, `apps/api/prisma/schema.prisma` |
+| 8 | Schema changes are versioned migrations | Verified | Repository 2026, `apps/api/prisma/migrations` |
+| 9 | Documentation set passes automated checks | Verified | Repository 2026, `scripts/docs/check.py` |
+| 10 | Pilot results prove the workflow saves effort | Caveated: no evaluation data yet | Manuscript Chapter 3, Evaluation Plan, rev-2026 |
 
-## 3. Gap Register
-
-Claims extracted: 10 gaps registered below; each carries a status and required treatment.
+## 3. Gap Analysis
 
 | Gap | Status | Required treatment |
 |---|---|---|
-| Generated suite vs current repo | Partially reconciled 2026-09-26 | keep `pnpm docs:check` green; resolve OPS open items before locking |
-| Core feature completion | Active | verify feature by feature |
-| Server-side isolation | Invariant | keep abuse tests mandatory |
-| Beneficiary privacy | Invariant | verify aggregate-only/project rules |
-| Metadata/import reliability | Active | staging/validation/idempotency |
-| SADDD privacy | Contract defined | implement exactly |
-| Rule engine | Supporting work | typed metrics/deterministic evaluation |
-| Public publishing | Supporting work | separate approval/publication |
-| Deployment/SSO/AWS | Deferred | not a current feature blocker |
-| UI maturity wording | Active | remove user-facing prototype/mock/demo labels |
+| Docs and code drift | Active | Keep `pnpm docs:check` at 0 failures and 0 warnings |
+| Feature completion | Active | Verify feature by feature against PRD gates |
+| Server-side isolation | Invariant | Keep abuse tests mandatory |
+| Beneficiary privacy | Invariant | Verify aggregate-only and project rules |
+| Import reliability | Active | Staging, validation, idempotency |
+| Rule engine explainability | Supporting | Typed metrics, deterministic evaluation |
+| Public publishing | Supporting | Separate approval step before publication |
+| Hosting, SSO, cloud move | Deferred | Not a current feature blocker; hosting and cloud are the hosting and AWS row of `docs/deferred-features.md`, and the identity provider is an open decision in `docs/rfc-pathways-aws-hosting-migration.md` section 9 |
+| UI maturity wording | Active | No prototype, mock or demo labels in user-facing copy |
 
-## 4. Assumption Stress Test
+## 4. Assumption Stress-Test
 
 - Simple UI does not imply simple security.
-- Metadata does not imply autonomous semantic inference.
+- Metadata-driven does not imply automatic semantic inference.
 - Decision support does not imply AI.
-- Public tracker does not imply public internal records.
-- System Administrator does not automatically imply unrestricted cross-org access.
-- "Progress" does not imply one universal overall project percentage.
+- A public tracker does not imply public internal records.
+- System Administrator does not imply unrestricted cross-organization access.
+- Progress does not imply one universal project percentage.
 
-## 5. Highest Risks
+## 5. Feasibility & Scope
 
-- Beneficiary identity/demographics/media;
-- imports;
-- cross-org/project access;
-- public publication;
-- account/assignment changes;
-- SADDD reconstruction;
-- budget/indicator rule explainability.
+Scope is bounded by project-owned indicators, descriptive analytics, deterministic rules and import-based integration. Calendar feasibility: Not established in the source material. Scope-reduction triggers are the kill criteria in `docs/val-pathways.md` section 4.
+
+## 6. Risk & Compliance Pre-flight
+
+Highest risks:
+
+- beneficiary identity, demographics and media;
+- imports and mapping errors;
+- cross-organization and cross-project access;
+- public publication of unapproved information;
+- account and assignment changes;
+- SADDD reconstruction from small groups;
+- budget and indicator rule explainability.
+
+Compliance: Philippine data privacy obligations apply to beneficiary data. A formal legal review is Not established here and is a blocking question below.
+
+## 7. Blocking Questions
+
+1. Who signs off public-tracker publication for each organization?
+2. What retention period applies to beneficiary records and media?
+3. Has legal counsel reviewed the privacy treatment of beneficiary data?
+4. What evaluation data will confirm or replace the forty-hour estimate?
 
 ## Self-Check
 
-- [x] verdict explicit
-- [x] overclaim risk explicit
-- [x] security/privacy are blockers
+- [x] decision explicit and within allowed values
+- [x] every Verified claim carries a manuscript section or repository path
+- [x] estimates and unmeasured results caveated
+- [x] security and privacy treated as blockers

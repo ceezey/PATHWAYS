@@ -90,7 +90,7 @@ catalogs, zero counts, checksums, ledger evidence, and `prisma migrate status`.
 `project-indicator-dashboard-runtime.sql` is a new candidate suite, not a recorded PASS.
 Run it only through the updated `infra/supabase/phase6/Replay-Local.ps1`; it refuses any
 other database/port/user. The harness replays 0001–0013 into its guarded loopback
-PostgreSQL 18 scratch cluster on port 55448 and removes that environment afterward.
+PostgreSQL 18 scratch cluster on the replay port and removes that environment afterward.
 This is not a live API database and never authorizes PATHWAYS-dev writes.
 
 The suite supplies synthetic two-organization/six-role records, 30 individuals with
@@ -129,11 +129,51 @@ The suite verifies the additive Project/Activity profile fields, normalized Proj
 Officer assignment rule, same-project Indicator/Journey links, immutable PHP budget
 records, timeline override constraint, and the aggregate-only
 `p08_activity_beneficiaries_reached` security boundary. Its participation fixtures
-prove distinct counting and exclusion of absent, archived, dummy, draft, and
-cancelled data. It also verifies Program Manager portfolio access without
-`beneficiaries.records.read`, guessed/cross-project/cross-organization rejection,
-function owner/search path/grants, forced RLS on the new link table, and runtime
-`NOBYPASSRLS`. Success prints `PROJECT_ACTIVITY_CREATION_CONTRACT_RUNTIME=PASS`.
+prove exclusion of absent, archived, dummy, draft, and cancelled data for the
+Program Manager portfolio and permission-boundary assertions; since
+`cr-pathways-proof-session-beneficiary-count` (migration 0042), participation no
+longer feeds the aggregate itself, so its expected `beneficiaries_reached` values are
+0 in this suite (no approved proof session exists in these fixtures). It also
+verifies Program Manager portfolio access without `beneficiaries.records.read`,
+guessed/cross-project/cross-organization rejection, function owner/search
+path/grants, forced RLS on the new link table, and runtime `NOBYPASSRLS`. Success
+prints `PROJECT_ACTIVITY_CREATION_CONTRACT_RUNTIME=PASS`.
+
+## Proof-session beneficiary count (migration 0042)
+
+`proof-session-beneficiary-count-runtime.sql` covers `cr-pathways-proof-session-beneficiary-count`.
+Run it as a local superuser against a disposable `pathways_phase2_*` or `pathways_phase4_*`
+database that already has 0042 applied. It rolls back all fixtures.
+
+The suite verifies that `p08_activity_beneficiaries_reached` sums an activity's `APPROVED`
+`activity_updates.beneficiaries_reached_this_session` values (treating NULL as 0), excludes
+PENDING and REJECTED updates, and that a `VERIFIED` update is structurally impossible on
+`activity_updates` (its CHECK constraint rejects it, so it can never contribute). It confirms an
+approved proof later rejected lowers the total, that an activity with no updates reports zero
+rather than null, cross-project isolation (an activity from another project in the same
+organization is rejected and the other project's own total is unaffected), cross-organization
+isolation in both directions, and that the function's owner, ACL, `SECURITY DEFINER` mode, empty
+search path, and `(activity_id, beneficiaries_reached)` signature are unchanged from the 0000
+baseline. Success prints `PROOF_SESSION_BENEFICIARY_COUNT_RUNTIME=PASS`.
+
+## Activity progress review (migration 0044)
+
+`activity-progress-review-runtime.sql` covers the progress-only review path. Run it as a local
+superuser against a disposable `pathways_phase2_*` or `pathways_phase4_*` database that already
+has 0044 applied and its cleanup run. It rolls back all fixtures.
+
+The suite runs each review exactly as the API does: as a `pathways_runtime` session with the
+`app.*` context, through `f10_begin_source_operation`, the two DML statements and
+`f10_finish_source_operation`. It verifies that an assigned M&E officer approves and returns a
+pending progress-only update (no evidence, below 100 percent) while the activity is
+`IN_PROGRESS`, that approve applies only the progress percent and return leaves it unchanged, and
+that an unassigned M&E officer, a cross-organization M&E officer, an assigned Project Manager
+(no `evidence.review`) and the submitter are all rejected. It also confirms the unchanged rules:
+a proof update with evidence is still not reviewable while `IN_PROGRESS`, a completing 100 percent
+progress-only update and a stale `expectedUpdatedAt` are still refused, and `FOR_REVIEW` proof
+approve and return still succeed. Last, it checks both replaced functions' owner, `SECURITY
+DEFINER` mode, empty search path, ACL and body digest, and that the temporary owner chain and lent
+schema CREATE rights are gone. Success prints `ACTIVITY_PROGRESS_REVIEW_RUNTIME=PASS`.
 
 ## Default registration form (migration 0040)
 

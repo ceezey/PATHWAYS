@@ -174,3 +174,14 @@ export interface RegistrationContextDto {
     })[]
   }[]
 }
+
+export class ResolveDuplicateDto {
+  @IsUUID()
+  leftId!: string
+
+  @IsUUID()
+  rightId!: string
+
+  @IsIn(['KEEP_DISTINCT', 'LINK'])
+  decision!: 'KEEP_DISTINCT' | 'LINK'
+}

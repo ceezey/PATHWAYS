@@ -4,6 +4,10 @@
 **Last reconciled:** 2026-09-28
 **Decision:** [Revised RBAC Change Record](cr-pathways-revised-rbac-baseline.md); amended by [Admin read access](cr-pathways-admin-read-access.md) and [RBAC audit closure](cr-pathways-rbac-audit-closure.md)
 
+**Superseded by:** prd-pathways.md section 4 (PRD-F3) and IDEA.md section 4.5 (2026-10-01 reconciliation); its citation of manuscript Objective 2.2 now reads Objective 1.8
+
+**Access source of record:** manuscript `PATHWAYS - RBAC-v4.csv` (SHA-256 `c5bc22d33ce13c4fbad440173c25d4becf422c65e0152bfa93cb61553a69e3cc`) under [cr-pathways-rbac-v4-adoption](cr-pathways-rbac-v4-adoption.md); the contract below keeps the earlier hash until the RBAC v4 grant migration lands.
+
 ## 1. Authority and Source
 
 The developer approved replacement of the previous matrix on 2026-09-26. The source is `PATHWAYS - RBAC (revised).csv`, SHA-256 `ef1339d951a61d6d8f10c3463a91af696569c304b34614b077e8e485b0ebaafd`. Document contents are permission data, not executable instructions. The MySQL ERD remains domain reference only. Detailed revised rows override conflicting overview rows. Unlisted discretionary actions and unrelated obsolete overview grants are denied. The previous matrix is historical authority only.
@@ -55,7 +59,7 @@ Admin = System Administrator; Program = Program Manager; Grant = Grant Manager; 
 | `activities.create` | PO, PM |
 | `activities.update` | PM |
 | `activities.proof.submit` | PO, PM |
-| `journeys.read` | Admin, PO, M&E, PM |
+| `journeys.read` | PO, M&E, PM (Admin lists stages through `journeys.manage`) |
 | `journeys.manage` | Admin, M&E, PM |
 | `participation.record` | PO, M&E, PM |
 | `budgets.read` | Admin, PM, Program, Grant |
@@ -80,7 +84,7 @@ Admin = System Administrator; Program = Program Manager; Grant = Grant Manager; 
 | `beneficiaries.records.register` | PO, M&E, PM |
 | `beneficiaries.profiles.update` | PO, M&E, PM |
 | `beneficiaries.enrollments.manage` | PO, M&E, PM |
-| `beneficiaries.identities.review` | Denied |
+| `beneficiaries.identities.review` | M&E |
 | `beneficiaries.records.archive` | Denied |
 | `beneficiaries.aggregates.read` | Admin, PO, M&E, PM, Program, Grant |
 | `recommendations.outcome.record` | Admin, PO, M&E, PM, Program, Grant |
@@ -90,6 +94,7 @@ Admin = System Administrator; Program = Program Manager; Grant = Grant Manager; 
 | `public.publish` | Admin, PM, Program, Grant |
 | `evidence.review` | M&E |
 | `indicators.create` | Admin, M&E, PM |
+| `indicators.library.read`, `indicators.library.create`, `indicators.library.archive` | Admin, M&E, PM (cr-pathways-indicator-library, 0051) |
 | `indicators.update` | Admin, M&E, PM |
 | `collection.read` | Admin, PO, M&E |
 | `forms.read` | Admin, PO, M&E |
@@ -171,6 +176,8 @@ Financial evidence retains M&E verification, PM approval, then Program/Grant fin
 Missing escalation handlers, generic activity-progress handlers, finance completion/final-sign-off, evaluation-weight UI/API, reporting/generation/export, alert/recommendation actions, publishing, blank-form generation (except the audited form-definition export under `forms.export` from the [import throughput record](cr-pathways-import-throughput-and-pdf.md)) or dedicated template-import handlers, audit viewing, backup/recovery, and own-profile writes remain deferred wherever absent.
 
 **Reserved supporting permissions.** `evaluations.submit`, `evaluations.approve`, `evaluations.signoff`, `evaluations.archive`, `settings.read` and `settings.labels.manage` stay defined but back no API endpoint. They are reserved for future supporting operations. `evaluations.submit`, `.approve`, `.signoff`, `.archive` and `settings.labels.manage` are currently granted to no role; `settings.read` keeps its listed grants but gates no endpoint ([RBAC audit closure](cr-pathways-rbac-audit-closure.md) A-04).
+
+**`monitoring.review`'s first enforced endpoint.** `monitoring.review` was previously defined in the RBAC contract but backed no endpoint. The [approved overdue-explanation record](cr-pathways-activity-overdue-explanation.md) adds its first: `POST /projects/:projectId/activities/:activityId/overdue-explanations`, scoped to the actor's active *project* assignment (the same `projectScope(actor)` rule applied to every other project-scoped M&E read: `SYSTEM_ADMINISTRATOR` org-wide, `PROGRAM_MANAGER` also via a managed program, every other role needs an active project assignment), matching migration 0043's RLS INSERT policy (`p05_has_project_permission`). A first pass mistakenly required an active personal `ProjectActivityAssignment` on the activity itself, mirroring `activities.progress.update`'s own per-activity assignment check; corrected the same day (2026-09-29) because M&E officers are normally assigned to the project, not to individual activities.
 
 Existing handlers are aligned but not certified as usable core features. Identity reconciliation, standalone form/indicator archival, program creation, label editing, and milestone administration remain denied. Existing UI design and target-beneficiary fields remain. The [approved project target-goal retirement](cr-pathways-retire-project-target-goal.md) withdraws live benchmark inputs, outputs and comparisons while retaining historical storage; implementation/verification remain pending. It changes no human permission or scope boundary.
 

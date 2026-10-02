@@ -1,61 +1,62 @@
 # House Style & Voice
 
-## 1. Hard Bans
+**Status:** Locked
+**Version:** 2.0
+**Last reconciled:** 2026-10-01
+**Owner:** PATHWAYS capstone team
 
-Do not describe PATHWAYS as:
+## 1. Hard Bans (always on)
 
-- AI-powered unless a separately approved AI feature exists;
-- autonomous humanitarian decision-making;
-- predictive ML;
-- a full ERP;
-- fully interoperable in real time with external enterprise systems;
-- production-ready/deployed unless verified;
-- a prototype/mock/demo/presentation-only product in user-facing copy.
+These mirror `scripts/docs/check.py` and fail the docs check.
 
-Do not claim feature completion from a screen, TODO, document, or schema concept alone.
+- No em dash or any dash look-alike (fullwidth hyphen, figure dash, horizontal bar, minus sign), however encoded.
+- En dash only inside numeric ranges with no spaces, for example `1–3`.
+- No `--` as punctuation in prose; it is allowed inside inline code and fenced blocks.
+- No stock phrases from the `BANNED_PHRASES` list in the checker (filler openers, hype adjectives and cliche connectives); the checker matches them even inside inline code, so never quote them.
+- No AI-tool markup artifacts in any document.
 
-## 2. Register
+Also banned as claims: a feature is complete because a screen, TODO or schema exists; the product is production-ready unless verified.
 
-### Engineering docs
-Direct, explicit, testable. Label Implemented / Verified / Planned / Deferred / Blocked.
+## 2. Register by document type
 
-### Manuscript / defense
-Formal but plain. Use the locked PATHWAYS identity.
+| Document type | Register |
+|---|---|
+| Engineering docs (SDD, SAD, QAD, BUILD) | Direct, explicit, testable; label Implemented, Verified, Planned, Deferred or Blocked |
+| Requirements docs (BRD, PRD) | Plain statements of need and behavior; one sentence per rule |
+| Manuscript and defense material | Formal but plain, using the locked PATHWAYS identity |
+| User interface copy | Normal product language; truthful empty, error and unavailable states |
+| Security statements | State evidence and limits; no bare "secure" without a control or test |
 
-### UI
-Normal product language. Truthful empty/error/unavailable states.
+## 3. AI-tell pass (before locking any doc)
 
-### Security
-State evidence and limitations. Avoid generic "secure" claims without controls/tests.
+Remove before locking:
 
-## 3. PATHWAYS Vocabulary
+- exaggerated certainty and filler adjectives;
+- fake precision and unsupported metrics;
+- leverage used as a verb, and robust without specifics;
+- listicle voice and symmetrical triplets used for rhythm;
+- opening or closing summaries that restate the section;
+- claims that human review is unnecessary;
+- hedging stacks that say nothing.
 
-Prefer:
+Then run `pnpm docs:check` and read the doc aloud once.
 
-- metadata-driven
-- project information management
-- Beneficiary profile
-- Beneficiary journey
-- project indicator
-- descriptive analytics
-- SADDD
-- rule-based alert
-- predefined recommendation
-- human review
-- approved public information
+## 4. Project Voice Tuning
 
-## 4. AI-Tell Pass
+Prefer this vocabulary:
 
-Remove:
+- organization, workspace, project, activity;
+- beneficiary as a data subject, never "user" or "customer";
+- metadata-driven, project information management, descriptive analytics;
+- SADDD (sex, age and disability disaggregated data), gate, charter;
+- rule-based alert, predefined recommendation, human review;
+- approved public information.
 
-- exaggerated certainty;
-- "seamless/intelligent/revolutionary" filler;
-- fake precision;
-- unsupported metrics;
-- claims that human review is unnecessary.
+Banned framings: `AI-powered` (unless a separately approved AI feature exists), autonomous humanitarian decision-making, predictive ML, a full ERP, real-time interoperability with enterprise systems, production-ready or deployed unless verified, and prototype, mock or demo in user-facing copy.
 
 ## Self-Check
 
-- [x] product/engineering voices separated
-- [x] AI overclaim blocked
-- [x] UI maturity language defined
+- [x] hard bans mirror the checker
+- [x] registers separated by document type
+- [x] AI-tell pass defined
+- [x] PATHWAYS vocabulary and banned framings stated

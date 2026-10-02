@@ -65,6 +65,7 @@ export class AuditService {
           entityId: true,
           projectId: true,
           actorUserId: true,
+          actor: { select: { fullName: true } },
         },
         orderBy: [{ occurredAt: 'desc' }, { id: 'desc' }],
         take: query.limit + 1,
@@ -72,7 +73,11 @@ export class AuditService {
       const page = rows.slice(0, query.limit)
       const last = page[page.length - 1]
       return {
-        rows: page.map((row) => ({ ...row, occurredAt: row.occurredAt.toISOString() })),
+        rows: page.map(({ actor, ...row }) => ({
+          ...row,
+          occurredAt: row.occurredAt.toISOString(),
+          actorName: actor?.fullName ?? null,
+        })),
         nextCursor:
           rows.length > query.limit && last ? `${last.occurredAt.toISOString()}|${last.id}` : null,
       }

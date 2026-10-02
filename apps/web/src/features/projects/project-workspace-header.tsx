@@ -38,7 +38,7 @@ export const ProjectWorkspaceHeader = ({ project }: { project: ProjectDetail }) 
   return (
     <section
       aria-label={`${project.title} workspace summary`}
-      className="min-w-0 max-w-full overflow-x-hidden rounded-lg border border-border bg-card p-4 sm:p-5"
+      className="min-w-0 max-w-full overflow-x-hidden rounded-2xl border border-border bg-card p-4 sm:p-5"
     >
       <div className="min-w-0 space-y-3">
         <div className="flex flex-wrap gap-2">

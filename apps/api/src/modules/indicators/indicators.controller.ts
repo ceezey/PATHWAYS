@@ -12,6 +12,7 @@ import {
 } from '@nestjs/common'
 import { RequirePermission } from '../../common/decorators/permission.decorator'
 import type { AuthenticatedRequest } from '../auth/developer-access'
+import { IndicatorLibraryService } from './indicator-library.service'
 import { archiveIndicatorSchema, parseIndicatorInput } from './indicators.dto'
 import { IndicatorsService } from './indicators.service'
 function identity(request: AuthenticatedRequest) {
@@ -20,7 +21,10 @@ function identity(request: AuthenticatedRequest) {
 }
 @Controller('projects/:projectId/indicators')
 export class IndicatorsController {
-  constructor(@Inject(IndicatorsService) private readonly service: IndicatorsService) {}
+  constructor(
+    @Inject(IndicatorsService) private readonly service: IndicatorsService,
+    @Inject(IndicatorLibraryService) private readonly library: IndicatorLibraryService,
+  ) {}
   @Get()
   @Header('Cache-Control', 'private, no-store')
   @RequirePermission('indicators.read')
@@ -46,6 +50,16 @@ export class IndicatorsController {
     @Body() body: unknown,
   ) {
     return this.service.create(identity(request), projectId, body)
+  }
+  @Post('from-library')
+  @Header('Cache-Control', 'private, no-store')
+  @RequirePermission('indicators.create')
+  createFromLibrary(
+    @Req() request: AuthenticatedRequest,
+    @Param('projectId') projectId: string,
+    @Body() body: unknown,
+  ) {
+    return this.library.createProjectIndicator(identity(request), projectId, body)
   }
   @Patch(':indicatorId')
   @Header('Cache-Control', 'private, no-store')
