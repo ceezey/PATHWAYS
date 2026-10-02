@@ -43,4 +43,58 @@ DO $$ DECLARE r text; BEGIN
    RAISE EXCEPTION 'Role % can execute p09_role_allows after 0055',r; END IF;
  END LOOP;
 END $$;
+
+-- Runtime RLS: Program Manager and Grant Manager read activity rows in their assigned projects only.
+CREATE TEMP TABLE v4_results(check_name text PRIMARY KEY) ON COMMIT DROP;
+GRANT INSERT, SELECT ON v4_results TO pathways_runtime;
+CREATE FUNCTION pg_temp.u(n integer) RETURNS uuid LANGUAGE sql IMMUTABLE AS $$
+  SELECT ('7c000000-0000-4000-8000-'||lpad(n::text,12,'0'))::uuid
+$$;
+CREATE FUNCTION pg_temp.ok(value boolean,label text) RETURNS void LANGUAGE plpgsql AS $$
+BEGIN
+ IF value IS DISTINCT FROM true THEN RAISE EXCEPTION 'Assertion % failed',label; END IF;
+ INSERT INTO v4_results VALUES(label);
+END $$;
+SET LOCAL session_replication_role = replica;
+INSERT INTO auth.users(id) SELECT pg_temp.u(200+n) FROM generate_series(1,2) n;
+INSERT INTO pathways.organizations(id,code,name) VALUES
+  (pg_temp.u(1),'V4A_ORG_A','Synthetic v4 org A'),(pg_temp.u(2),'V4A_ORG_B','Synthetic v4 org B');
+INSERT INTO pathways.roles(code,name) VALUES ('PROGRAM_MANAGER','Program Manager'),('GRANT_MANAGER','Grant Manager')
+ON CONFLICT(code) DO NOTHING;
+INSERT INTO pathways.system_users(id,organization_id,role_id,auth_user_id,full_name,email,account_status,activated_at)
+SELECT pg_temp.u(100+v.n),pg_temp.u(1),r.id,pg_temp.u(200+v.n),v.full_name,v.email,'ACTIVE',now()
+FROM (VALUES (1,'PROGRAM_MANAGER','V4 Program Manager','v4-pm@example.invalid'),
+  (2,'GRANT_MANAGER','V4 Grant Manager','v4-gm@example.invalid')) v(n,role_code,full_name,email)
+JOIN pathways.roles r ON r.code=v.role_code;
+INSERT INTO pathways.projects(id,organization_id,code,title,start_date,end_date,created_by_id) VALUES
+  (pg_temp.u(301),pg_temp.u(1),'V4A-A1','V4 Project A1','2026-01-01','2026-12-31',pg_temp.u(101)),
+  (pg_temp.u(302),pg_temp.u(1),'V4A-A2','V4 Project A2','2026-01-01','2026-12-31',pg_temp.u(101)),
+  (pg_temp.u(303),pg_temp.u(2),'V4A-B1','V4 Project B1','2026-01-01','2026-12-31',pg_temp.u(101));
+INSERT INTO pathways.user_project_assignments(id,organization_id,project_id,user_id,assigned_by_id) VALUES
+  (pg_temp.u(401),pg_temp.u(1),pg_temp.u(301),pg_temp.u(101),pg_temp.u(101)),
+  (pg_temp.u(402),pg_temp.u(1),pg_temp.u(301),pg_temp.u(102),pg_temp.u(101));
+INSERT INTO pathways.project_activities(id,organization_id,project_id,code,title,status,created_by_id) VALUES
+  (pg_temp.u(501),pg_temp.u(1),pg_temp.u(301),'V4A-1','In scope activity','NOT_STARTED',pg_temp.u(101)),
+  (pg_temp.u(502),pg_temp.u(1),pg_temp.u(302),'V4A-2','Unassigned project activity','NOT_STARTED',pg_temp.u(101)),
+  (pg_temp.u(503),pg_temp.u(2),pg_temp.u(303),'V4A-3','Other organization activity','NOT_STARTED',pg_temp.u(101));
+SET LOCAL session_replication_role = origin;
+
+SET LOCAL ROLE pathways_runtime;
+SELECT set_config('request.jwt.claim.sub',pg_temp.u(201)::text,true),
+       set_config('app.organization_id',pg_temp.u(1)::text,true),
+       set_config('app.user_id',pg_temp.u(101)::text,true);
+SELECT pg_temp.ok((SELECT count(*)=1 AND bool_and(id=pg_temp.u(501)) FROM pathways.project_activities),
+  'Program Manager sees only the assigned project activity');
+RESET ROLE;
+SET LOCAL ROLE pathways_runtime;
+SELECT set_config('request.jwt.claim.sub',pg_temp.u(202)::text,true),
+       set_config('app.organization_id',pg_temp.u(1)::text,true),
+       set_config('app.user_id',pg_temp.u(102)::text,true);
+SELECT pg_temp.ok((SELECT count(*)=1 AND bool_and(id=pg_temp.u(501)) FROM pathways.project_activities),
+  'Grant Manager sees only the assigned project activity');
+RESET ROLE;
+DO $$ DECLARE total integer; BEGIN
+ SELECT count(*) INTO total FROM v4_results;
+ IF total<>2 THEN RAISE EXCEPTION 'v4 activity RLS checks expected 2 assertions, recorded %',total; END IF;
+END $$;
 ROLLBACK;

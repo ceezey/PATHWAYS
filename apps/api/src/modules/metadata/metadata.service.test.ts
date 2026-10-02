@@ -10,7 +10,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { PrismaService } from '@app/prisma/prisma.service'
 import { rolePermissions } from '../auth/authorization-policy'
 import type { ApplicationIdentity } from '../auth/developer-access'
-import { MetadataService } from './metadata.service'
+import { DIRECT_ENTRY_FORM_TYPES, MetadataService } from './metadata.service'
 
 const state = vi.hoisted(() => ({
   actor: undefined as ApplicationIdentity | undefined,
@@ -525,10 +525,8 @@ describe('P02 metadata service', () => {
     },
   )
 
-  it('saves a training survey submission directly', async () => {
-    tx.digitalForm.findFirst.mockResolvedValue(
-      form({ status: 'PUBLISHED', formType: 'TRAINING_SURVEY' }),
-    )
+  it.each(DIRECT_ENTRY_FORM_TYPES)('saves a %s submission directly', async (formType) => {
+    tx.digitalForm.findFirst.mockResolvedValue(form({ status: 'PUBLISHED', formType }))
     tx.formSubmission.findFirst
       .mockResolvedValueOnce({
         id: submissionId,

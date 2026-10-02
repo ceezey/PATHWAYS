@@ -368,8 +368,8 @@ RBAC v4 under [its approved Change Record](cr-pathways-rbac-v4-grant-migration.m
 
 | Cell | Evidence |
 |---|---|
-| V4-C01, V4-C02, V4-C06, V4-C07, V4-C09, V4-C10 | `RBAC_V4_GRANTS_RUNTIME=PASS` (312 `role_permissions` rows); `apps/api/src/modules/auth/csv-rbac.test.ts` denies Program and Grant Manager archive, System Administrator budget reads, and Project Officer activity creation, dashboard customization, survey assessment and SADDD, and allows Program and Grant Manager activity reads; `workspace-resolution.service.test.ts` pins per-request grant resolution |
-| V4-C11 | `apps/api/src/modules/metadata/metadata.service.test.ts` allows direct save only for TRAINING_SURVEY, PRE_TEST, POST_TEST and ACTIVITY_MONITORING; `apps/web/src/lib/rbac/route-access.frontend-aliases.test.ts` and `apps/web/src/features/collection/*.test.tsx` cover the `/collection/entry` redirect |
+| V4-C01, V4-C02, V4-C06, V4-C07, V4-C09, V4-C10 | `RBAC_V4_GRANTS_RUNTIME=PASS` (312 `role_permissions` rows); `apps/api/src/modules/auth/csv-rbac.test.ts` denies Program and Grant Manager archive, System Administrator budget reads, and Project Officer activity creation, dashboard customization, survey assessment and SADDD, and allows Program and Grant Manager activity reads; the runtime block in `apps/api/prisma/tests/rbac-v4-grants-runtime.sql` proves both roles read in-scope `project_activities` rows only; `apps/web/e2e/rbac-v4.spec.ts` (local stack, real sign-in with TOTP) shows no New Activity for Project Officer, the Submit Update & Proof action, and New Activity for Project Manager; `workspace-resolution.service.test.ts` pins per-request grant resolution |
+| V4-C11 | `apps/api/src/modules/metadata/metadata.service.test.ts` allows direct save only for TRAINING_SURVEY, PRE_TEST, POST_TEST and ACTIVITY_MONITORING; `apps/web/src/lib/rbac/route-access.frontend-aliases.test.ts` and `apps/web/src/features/collection/*.test.tsx` cover the `/collection/entry` redirect; `apps/web/e2e/rbac-v4.spec.ts` shows no Encode link and marks the signed-in `/collection/entry` redirect `test.fail` because middleware sends it to `/unauthorized` |
 
 ## 4. Automation vs. Manual Testing
 

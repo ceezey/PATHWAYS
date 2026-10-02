@@ -40,6 +40,14 @@ describe('Next build-directory isolation', () => {
     expect(createNextConfig(PHASE_DEVELOPMENT_SERVER).skipMiddlewareUrlNormalize).toBe(true)
     expect(createNextConfig(PHASE_PRODUCTION_BUILD).skipMiddlewareUrlNormalize).toBe(true)
   })
+  it('redirects the retired collection entry route before middleware gating', async () => {
+    const redirects = (await createNextConfig(PHASE_PRODUCTION_BUILD).redirects?.()) ?? []
+    expect(redirects).toContainEqual({
+      source: '/collection/entry',
+      destination: '/collection',
+      permanent: true,
+    })
+  })
   it('keeps development artifacts separate from build and start artifacts', () => {
     expect(getWebBuildDirectory(PHASE_DEVELOPMENT_SERVER)).toBe('.next-dev')
     expect(getWebBuildDirectory(PHASE_PRODUCTION_BUILD)).toBe('.next')
