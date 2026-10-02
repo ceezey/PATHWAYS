@@ -11,6 +11,8 @@ param(
 $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot 'replay-port.ps1')
 . (Join-Path $PSScriptRoot 'migrations-hash.ps1')
+# A template must come from the full baseline replay.
+if ($SaveTemplate -and -not $MigrationBaseline) { throw '-SaveTemplate requires -MigrationBaseline.' }
 if ($MigrationBaseline) { $CsvRbacRealignment = $true }
 if ($CsvRbacRealignment) { $ProjectActivityCreationRepair = $true }
 $phase6Root = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot '../../..')).Path
@@ -618,6 +620,7 @@ END $$;
   if ($SaveTemplate) {
     $phase6Clones = @(& $phase6Tools['psql'] -X -w -q -A -t -h 127.0.0.1 -p $phase6Port -U postgres -d postgres -v ON_ERROR_STOP=1 `
       -c "SELECT datname FROM pg_database WHERE NOT datistemplate AND datname NOT IN ('postgres','$phase6Database')")
+    if ($LASTEXITCODE -ne 0) { throw 'Template clone list failed.' }
     foreach ($phase6Clone in $phase6Clones) {
       & $phase6Tools['psql'] -X -w -q -h 127.0.0.1 -p $phase6Port -U postgres -d postgres -v ON_ERROR_STOP=1 -c "DROP DATABASE `"$phase6Clone`" WITH (FORCE)"
       if ($LASTEXITCODE -ne 0) { throw "Template clone drop failed: $phase6Clone" }
