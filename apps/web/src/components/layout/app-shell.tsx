@@ -120,9 +120,9 @@ export const AppShell = ({ children }: { children: React.ReactNode }) => {
         <main
           id="main-content"
           tabIndex={-1}
-          className={cn('flex-1 bg-workspace px-4 py-6 md:px-6 md:py-8')}
+          className={cn('flex-1 bg-background px-4 py-6 md:px-8 md:py-8 2xl:px-16')}
         >
-          <div className="mx-auto flex w-full max-w-7xl flex-col gap-6">{children}</div>
+          <div className="mx-auto flex w-full max-w-[1200px] flex-col gap-6">{children}</div>
         </main>
       </div>
     </div>

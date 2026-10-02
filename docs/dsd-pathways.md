@@ -827,8 +827,9 @@ Desktop:
 - compact sidebar: `86px`
 - sticky/full-height navigation
 - sticky white header
-- staff content `max-w-7xl`
-- horizontal page padding: 16px mobile / 24px md+
+- `canvas` page ground behind `paper` cards; form controls use `paper`
+- staff content `max-w-[1200px]`, centered
+- horizontal page padding: 16px mobile / 32px md+ / 64px 2xl+
 - vertical page padding: 24px mobile / 32px md+
 
 Mobile:
