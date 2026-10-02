@@ -495,6 +495,29 @@ describe('P02 metadata service', () => {
     },
   )
 
+  it('saves a training survey submission directly', async () => {
+    tx.digitalForm.findFirst.mockResolvedValue(
+      form({ status: 'PUBLISHED', formType: 'TRAINING_SURVEY' }),
+    )
+    tx.formSubmission.findFirst
+      .mockResolvedValueOnce({ id: submissionId, projectId, formId, formVersion: 1, beneficiaryId: null })
+      .mockResolvedValueOnce({
+        id: submissionId,
+        clientSubmissionId,
+        status: 'DRAFT',
+        formVersion: 1,
+        submittedAt: null,
+        updatedAt: now,
+        formResponseValue_submission: [{ fieldId, value: '5' }],
+      })
+    await expect(
+      service.saveSubmission(state.actor as ApplicationIdentity, projectId, formId, {
+        clientSubmissionId,
+        values: { score: '5' },
+      }),
+    ).resolves.toMatchObject({ id: submissionId, values: { score: '5' } })
+  })
+
   it('keeps direct entry for training surveys', async () => {
     tx.digitalForm.findFirst.mockResolvedValue(form({ status: 'PUBLISHED', formType: 'TRAINING_SURVEY' }))
     await expect(
