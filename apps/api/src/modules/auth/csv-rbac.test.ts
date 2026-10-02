@@ -68,7 +68,7 @@ describe('approved CSV RBAC contract', () => {
     ).toBe(false)
     expect(hasAtomicPermission('PROJECT_MANAGER', ['imports.upload'], 'imports.upload')).toBe(false)
     expect(hasAtomicPermission('PROJECT_OFFICER', ['alerts.review'], 'alerts.review')).toBe(true)
-    expect(rolePermissions.PROJECT_OFFICER).toContain('activities.create')
+    expect(rolePermissions.PROJECT_OFFICER).not.toContain('activities.create')
     expect(rolePermissions.SYSTEM_ADMINISTRATOR).toContain('indicators.create')
     expect(rolePermissions.PROJECT_MANAGER).toContain('beneficiaries.profiles.update')
   })
@@ -98,9 +98,9 @@ describe('approved CSV RBAC contract', () => {
       'ef1339d951a61d6d8f10c3463a91af696569c304b34614b077e8e485b0ebaafd',
     )
   })
-  it('gives System Administrator read-only activity and budget views without detail or writes', () => {
+  it('gives System Administrator read-only activity views without budget detail or writes', () => {
     expect(rolePermissions.SYSTEM_ADMINISTRATOR).toContain('activities.read')
-    expect(rolePermissions.SYSTEM_ADMINISTRATOR).toContain('budgets.read')
+    expect(rolePermissions.SYSTEM_ADMINISTRATOR).not.toContain('budgets.read')
     for (const permission of [
       'beneficiaries.records.read',
       'activities.create',
@@ -113,6 +113,24 @@ describe('approved CSV RBAC contract', () => {
     ] as const) {
       expect(rolePermissions.SYSTEM_ADMINISTRATOR).not.toContain(permission)
     }
+  })
+  it('applies RBAC v4 cells through 0055', () => {
+    for (const role of ['PROGRAM_MANAGER', 'GRANT_MANAGER'] as const) {
+      expect(rolePermissions[role]).toContain('activities.read')
+      expect(rolePermissions[role]).not.toContain('projects.archive')
+      expect(rolePermissions[role]).not.toContain('activities.create')
+    }
+    for (const permission of [
+      'dashboards.customize',
+      'assessments.read',
+      'analytics.saddd.read',
+    ] as const) {
+      expect(rolePermissions.PROJECT_OFFICER).not.toContain(permission)
+    }
+    // V4-C10 decision: PO aggregates stay, re-sourced to v4 reporting rows 112-117.
+    expect(rolePermissions.PROJECT_OFFICER).toContain('beneficiaries.aggregates.read')
+    // V4-C11 decision: submissions.write stays for survey and activity-monitoring entry.
+    expect(rolePermissions.PROJECT_OFFICER).toContain('submissions.write')
   })
   it('grants the indicator library only to the roles that hold indicator creation', () => {
     for (const role of Object.keys(rolePermissions) as Array<keyof typeof rolePermissions>) {

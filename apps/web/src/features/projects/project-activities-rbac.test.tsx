@@ -207,7 +207,7 @@ describe('activity actions match the API for every role', () => {
     )
   })
 
-  it('never shows a Project Officer Edit, whatever the flags say', async () => {
+  it('never shows a Project Officer Edit or New Activity, whatever the flags say', async () => {
     asRole('PROJECT_OFFICER')
     await renderDetail(
       detailFor('IN_PROGRESS', {
@@ -218,7 +218,8 @@ describe('activity actions match the API for every role', () => {
       }),
     )
     expect(visible('Edit activity')).toBe(false)
-    expect(visible('New Activity')).toBe(true)
+    expect(visible('New Activity')).toBe(false)
+    expect(visible('Submit Update & Proof')).toBe(true)
   })
 
   it('shows nothing to an administrator even with forged all-true flags', async () => {

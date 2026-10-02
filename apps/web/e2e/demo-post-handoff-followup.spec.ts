@@ -49,7 +49,7 @@ test('journey stages are sequential and future stages cannot be opened', async (
   await page.screenshot({ fullPage: true, path: testInfo.outputPath('sequential-journey.png') })
 })
 
-test('Encode Data follows Collection-module access for every role', async ({ page }) => {
+test('Encode Project Data is retired and old links land on Collection', async ({ page }) => {
   await resetAndSwitch(page, 'system-administrator')
 
   for (const accountId of [
@@ -59,15 +59,9 @@ test('Encode Data follows Collection-module access for every role', async ({ pag
   ]) {
     await switchAccount(page, accountId)
     await page.goto('/collection')
-    await expect(page.getByRole('link', { name: 'Encode data' })).toBeVisible()
-    await page.getByRole('link', { name: 'Encode data' }).click()
-    await expect(page.getByRole('heading', { name: 'Encode Project Data' })).toBeVisible()
-  }
-
-  for (const accountId of ['project-manager', 'program-manager', 'grant-manager']) {
-    await switchAccount(page, accountId)
+    await expect(page.getByRole('link', { name: /Encode/ })).toHaveCount(0)
     await page.goto('/collection/entry')
-    await expect(page.getByText('Unauthorized access', { exact: true })).toBeVisible()
+    await expect(page).toHaveURL(/\/collection$/)
   }
 })
 

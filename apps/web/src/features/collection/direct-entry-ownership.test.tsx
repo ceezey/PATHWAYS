@@ -42,7 +42,7 @@ const definition = {
   name: 'Notes',
   version: 1,
   status: 'PUBLISHED',
-  formType: 'OTHER',
+  formType: 'ACTIVITY_MONITORING',
   fields: [{ id: 'field-1', code: 'note', label: 'Note', dataType: 'TEXT', required: false }],
 }
 const draft = {
@@ -83,6 +83,18 @@ describe('direct entry scoped retry and continuation ownership', () => {
     api.validateDigitalFormValues.mockResolvedValue({ valid: true, errors: [] })
   })
   afterEach(cleanup)
+  it('offers direct entry for survey forms but not for a published OTHER form', async () => {
+    api.getDigitalForm.mockResolvedValue({ ...definition, formType: 'OTHER' })
+    const other = render(<DirectFormEntryWorkspace {...props} />)
+    await screen.findByText('Direct entry is available only for survey and monitoring forms.')
+    expect(screen.queryByRole('button', { name: 'Save draft' })).toBeNull()
+    other.unmount()
+    state.profile.permissions = ['submissions.write', 'beneficiaries.records.read']
+    api.getDigitalForm.mockResolvedValue({ ...definition, formType: 'TRAINING_SURVEY' })
+    api.getDirectSubmissionByClientId.mockResolvedValue({ ...draft, beneficiaryId: null })
+    render(<DirectFormEntryWorkspace {...props} />)
+    await ready()
+  })
   it.each(['save', 'submit'] as const)(
     'rejects a %s acknowledgement for another contributor without displaying its values',
     async (operation) => {

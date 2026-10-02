@@ -350,9 +350,6 @@ const OwnedCollectionWorkspace = ({
   const canGenerateForms = principalHasAtomicPermission(profile, 'forms.generate')
   const canReadActivities = principalHasAtomicPermission(profile, 'activities.read')
   const canReadIndicators = principalHasAtomicPermission(profile, 'monitoring.read')
-  const canEncodeData = Boolean(
-    profile && getVerifiedRouteAccess(profile, '/collection/entry').allowed,
-  )
   const canOpenForms = Boolean(
     profile && getVerifiedRouteAccess(profile, '/collection/forms').allowed,
   )
@@ -1365,18 +1362,11 @@ const OwnedCollectionWorkspace = ({
         eyebrow="Data workspace"
         title={labels.moduleCollection}
         actions={
-          <>
-            {canEncodeData ? (
-              <Button asChild size="sm" variant="outline">
-                <Link href="/collection/entry">Encode data</Link>
-              </Button>
-            ) : null}
-            {canOpenForms ? (
-              <Button asChild size="sm">
-                <Link href="/collection/forms">Forms</Link>
-              </Button>
-            ) : null}
-          </>
+          canOpenForms ? (
+            <Button asChild size="sm">
+              <Link href="/collection/forms">Forms</Link>
+            </Button>
+          ) : null
         }
       />
 

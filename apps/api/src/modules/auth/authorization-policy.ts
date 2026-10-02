@@ -121,9 +121,8 @@ export type AtomicPermission = (typeof permissionCodes)[number]
 export const rolePermissions: Record<CanonicalRole, readonly AtomicPermission[]> = {
   SYSTEM_ADMINISTRATOR: [
     'projects.read',
-    // Read-only activity and budget views: cr-pathways-admin-read-access (0035).
+    // Read-only activity view: cr-pathways-admin-read-access (0035); budget read revoked by 0055.
     'activities.read',
-    'budgets.read',
     'activities.context.read',
     'journeys.manage',
     'monitoring.read',
@@ -190,7 +189,6 @@ export const rolePermissions: Record<CanonicalRole, readonly AtomicPermission[]>
   PROJECT_OFFICER: [
     'projects.read',
     'activities.read',
-    'activities.create',
     'activities.proof.submit',
     'journeys.read',
     'participation.record',
@@ -221,7 +219,6 @@ export const rolePermissions: Record<CanonicalRole, readonly AtomicPermission[]>
     'projects.detail.read',
     'activities.complete',
     'expenses.evidence.submit',
-    'assessments.read',
     'forms.generate',
     'forms.import',
     'imports.validate',
@@ -233,8 +230,6 @@ export const rolePermissions: Record<CanonicalRole, readonly AtomicPermission[]>
     'evidence.read',
     'activities.escalations.read',
     'activities.escalations.raise',
-    'dashboards.customize',
-    'analytics.saddd.read',
   ],
   MONITORING_AND_EVALUATION_OFFICER: [
     'projects.read',
@@ -371,6 +366,7 @@ export const rolePermissions: Record<CanonicalRole, readonly AtomicPermission[]>
     'analytics.saddd.read',
   ],
   PROGRAM_MANAGER: [
+    'activities.read',
     'projects.read',
     'budgets.read',
     'budgets.create',
@@ -395,7 +391,6 @@ export const rolePermissions: Record<CanonicalRole, readonly AtomicPermission[]>
     'assignments.manage',
     'settings.read',
     'projects.detail.read',
-    'projects.archive',
     'assessments.read',
     'public.approve',
     'analytics.export',
@@ -412,6 +407,7 @@ export const rolePermissions: Record<CanonicalRole, readonly AtomicPermission[]>
     'analytics.saddd.read',
   ],
   GRANT_MANAGER: [
+    'activities.read',
     'projects.read',
     'budgets.read',
     'budgets.create',
@@ -434,7 +430,6 @@ export const rolePermissions: Record<CanonicalRole, readonly AtomicPermission[]>
     'reports.indicator.read',
     'settings.read',
     'projects.detail.read',
-    'projects.archive',
     'assessments.read',
     'public.approve',
     'analytics.export',

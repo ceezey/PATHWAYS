@@ -255,7 +255,7 @@ export const ProjectActivitiesWorkspace = ({
   const { labels } = useDisplayLabels()
   const { role, assignedProjectIds, profile } = useCurrentRole()
   const inProjectScope = role ? canAccessProjectForRole(role, projectId, assignedProjectIds) : false
-  // Create and edit are separate authorities (a Project Officer creates but never edits).
+  // Create and edit are separate authorities (a create-only role never edits).
   // Per-activity Edit, Record progress and Submit proof also need the server-computed
   // activity capabilities, which the detail panel applies.
   const canCreate = inProjectScope && principalHasAtomicPermission(profile, 'activities.create')

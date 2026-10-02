@@ -102,7 +102,7 @@ test('Phase 4: all UC entry points are reachable by their final-source actors', 
 
   await switchAccount(page, 'project-officer')
   await page.goto('/collection/entry')
-  await expect(page.getByRole('heading', { name: 'Encode Project Data' })).toBeVisible()
+  await expect(page).toHaveURL(/\/collection$/)
   await page.goto('/analytics')
   await expect(page.getByText('Unauthorized access', { exact: true })).toBeVisible()
 

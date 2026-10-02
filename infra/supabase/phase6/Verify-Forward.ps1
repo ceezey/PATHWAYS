@@ -41,6 +41,7 @@ $forwardInventory = @(
   '0052_signin_password_hook'
   '0053_expense_submit_race'
   '0054_p09_role_allows_grants'
+  '0055_rbac_v4_grants'
 )
 if (($forwardMigrations.Name -join ',') -cne ($forwardInventory -join ',')) { throw 'Forward migration inventory requires renewed review.' }
 
@@ -614,12 +615,12 @@ SELECT NOT EXISTS(SELECT FROM pg_catalog.pg_auth_members m JOIN pg_catalog.pg_ro
   Write-Output 'FORWARD_FRESH_UPGRADE_CHECKSUM_PARITY=PASS'
   Write-Output 'FORWARD_IDEMPOTENT_DEPLOY=PASS'
   Write-Output 'FORWARD_BACKUP_RESTORE_RECOVERY=PASS'
-  # cr-pathways-admin-read-access: Admin gains only the two reads; writes, expenses and
-  # Beneficiary detail stay denied, and aggregate-only roles are unchanged.
+  # cr-pathways-admin-read-access: Admin gains only activities.read; 0055 (RBAC v4) revokes budgets.read,
+  # and writes, expenses and Beneficiary detail stay denied.
   foreach ($db in @('pathways_phase4_baseline', 'pathways_phase4_forward_restore', 'pathways_phase4_core_retry')) {
     $adminRead = Read-ForwardSql $db @"
 SELECT (pathways.p09_role_allows('SYSTEM_ADMINISTRATOR','activities.read')
- AND pathways.p09_role_allows('SYSTEM_ADMINISTRATOR','budgets.read')
+ AND NOT pathways.p09_role_allows('SYSTEM_ADMINISTRATOR','budgets.read')
  AND NOT pathways.p09_role_allows('SYSTEM_ADMINISTRATOR','beneficiaries.records.read')
  AND NOT pathways.p09_role_allows('SYSTEM_ADMINISTRATOR','activities.update')
  AND NOT pathways.p09_role_allows('SYSTEM_ADMINISTRATOR','budgets.create')
@@ -628,8 +629,8 @@ SELECT (pathways.p09_role_allows('SYSTEM_ADMINISTRATOR','activities.read')
  AND NOT pathways.p09_role_allows('GRANT_MANAGER','beneficiaries.records.read')
  AND (SELECT count(*) FROM pathways.role_permissions rp JOIN pathways.roles r ON r.id=rp.role_id
       JOIN pathways.permissions p ON p.id=rp.permission_id
-      WHERE r.code='SYSTEM_ADMINISTRATOR' AND p.code IN ('activities.read','budgets.read'))=2
- AND (SELECT count(*) FROM pathways.role_permissions)=317)::text;
+      WHERE r.code='SYSTEM_ADMINISTRATOR' AND p.code IN ('activities.read','budgets.read'))=1
+ AND (SELECT count(*) FROM pathways.role_permissions)=312)::text;
 "@
     if ($adminRead.Trim() -cne 'true') { throw "0035 admin read grants differ in $db." }
   }

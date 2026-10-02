@@ -67,7 +67,7 @@
     "monitoring.review": [97],
     "analytics.export": [98],
     "analytics.saddd.read": [99, 100],
-    "beneficiaries.aggregates.read": [99, 100],
+    "beneficiaries.aggregates.read": [99, 100, 112, 113, 114, 115, 116, 117],
     "alerts.review": [101],
     "alerts.outcome.record": [103],
     "recommendations.review": [104],
@@ -112,9 +112,11 @@
       "SYSTEM_ADMINISTRATOR",
       "PROJECT_OFFICER",
       "MONITORING_AND_EVALUATION_OFFICER",
-      "PROJECT_MANAGER"
+      "PROJECT_MANAGER",
+      "PROGRAM_MANAGER",
+      "GRANT_MANAGER"
     ],
-    "activities.create": ["PROJECT_OFFICER", "PROJECT_MANAGER"],
+    "activities.create": ["PROJECT_MANAGER"],
     "activities.update": ["PROJECT_MANAGER"],
     "activities.proof.submit": ["PROJECT_OFFICER", "PROJECT_MANAGER"],
     "journeys.read": ["PROJECT_OFFICER", "MONITORING_AND_EVALUATION_OFFICER", "PROJECT_MANAGER"],
@@ -128,7 +130,7 @@
       "MONITORING_AND_EVALUATION_OFFICER",
       "PROJECT_MANAGER"
     ],
-    "budgets.read": ["SYSTEM_ADMINISTRATOR", "PROJECT_MANAGER", "PROGRAM_MANAGER", "GRANT_MANAGER"],
+    "budgets.read": ["PROJECT_MANAGER", "PROGRAM_MANAGER", "GRANT_MANAGER"],
     "budgets.create": ["PROJECT_MANAGER", "PROGRAM_MANAGER", "GRANT_MANAGER"],
     "budgets.update": ["PROJECT_MANAGER", "PROGRAM_MANAGER", "GRANT_MANAGER"],
     "expenses.read": [
@@ -342,12 +344,7 @@
       "GRANT_MANAGER"
     ],
     "projects.update": ["PROJECT_MANAGER"],
-    "projects.archive": [
-      "SYSTEM_ADMINISTRATOR",
-      "PROJECT_MANAGER",
-      "PROGRAM_MANAGER",
-      "GRANT_MANAGER"
-    ],
+    "projects.archive": ["SYSTEM_ADMINISTRATOR", "PROJECT_MANAGER"],
     "activities.complete": [
       "PROJECT_OFFICER",
       "MONITORING_AND_EVALUATION_OFFICER",
@@ -367,7 +364,6 @@
     "evaluations.signoff": [],
     "assessments.read": [
       "SYSTEM_ADMINISTRATOR",
-      "PROJECT_OFFICER",
       "MONITORING_AND_EVALUATION_OFFICER",
       "PROJECT_MANAGER",
       "PROGRAM_MANAGER",
@@ -489,7 +485,6 @@
     "evaluations.weights.configure": ["SYSTEM_ADMINISTRATOR", "MONITORING_AND_EVALUATION_OFFICER"],
     "dashboards.customize": [
       "SYSTEM_ADMINISTRATOR",
-      "PROJECT_OFFICER",
       "MONITORING_AND_EVALUATION_OFFICER",
       "PROJECT_MANAGER",
       "PROGRAM_MANAGER",
@@ -504,7 +499,6 @@
     ],
     "analytics.saddd.read": [
       "SYSTEM_ADMINISTRATOR",
-      "PROJECT_OFFICER",
       "MONITORING_AND_EVALUATION_OFFICER",
       "PROJECT_MANAGER",
       "PROGRAM_MANAGER",
@@ -1835,6 +1829,21 @@
         ["PROJECT_MANAGER", "indicators.library.read"],
         ["PROJECT_MANAGER", "indicators.library.create"],
         ["PROJECT_MANAGER", "indicators.library.archive"]
+      ]
+    },
+    {
+      "changeRecord": "cr-pathways-rbac-v4-grant-migration",
+      "migration": "0055_rbac_v4_grants",
+      "rows": [35, 40, 42, 46, 47, 97, 100, 103],
+      "grants": [["PROGRAM_MANAGER", "activities.read"], ["GRANT_MANAGER", "activities.read"]],
+      "revokes": [
+        ["PROGRAM_MANAGER", "projects.archive"],
+        ["GRANT_MANAGER", "projects.archive"],
+        ["SYSTEM_ADMINISTRATOR", "budgets.read"],
+        ["PROJECT_OFFICER", "activities.create"],
+        ["PROJECT_OFFICER", "dashboards.customize"],
+        ["PROJECT_OFFICER", "assessments.read"],
+        ["PROJECT_OFFICER", "analytics.saddd.read"]
       ]
     }
   ]

@@ -231,7 +231,7 @@ SELECT pg_temp.ok(
   AND NOT has_function_privilege('service_role','pathways.p10_f9_survey_aggregate(uuid,uuid,date,date)','EXECUTE'),
   'only pathways_runtime may execute the functions');
 
--- Access: Program Manager and Grant Manager (no assessments.detail.read / activities.read) are
+-- Access: Program Manager and Grant Manager (no assessments.detail.read; 0055 grants activities.read) are
 -- refused the survey aggregate and still receive the timeline aggregate.
 SET LOCAL ROLE pathways_runtime;
 SELECT set_config('request.jwt.claim.sub',pg_temp.u(201)::text,true),
@@ -242,8 +242,6 @@ INSERT INTO f9_out VALUES
 -- The Program Manager cannot read the underlying rows directly, only the aggregate.
 SELECT pg_temp.ok((SELECT count(*)=0 FROM pathways.assessment_results),
   'Program Manager sees zero assessment rows directly (assessments.detail.read is absent)');
-SELECT pg_temp.ok((SELECT count(*)=0 FROM pathways.project_activities),
-  'Program Manager sees zero activity rows directly (activities.read is absent)');
 SELECT pg_temp.reject(
   format($i$SELECT pathways.p10_f9_survey_aggregate(%L,%L,DATE '2026-01-01',DATE '2026-12-31')$i$,pg_temp.u(1),pg_temp.u(301)),
   '42501','Program Manager is denied the survey aggregate (assessments.detail.read is absent)');
@@ -460,7 +458,7 @@ SELECT pg_temp.ok((SELECT NOT EXISTS(
 
 DO $$ DECLARE total integer; BEGIN
  SELECT count(*) INTO total FROM f9_results;
- IF total<>48 THEN RAISE EXCEPTION '0045 f9-descriptive-aggregates checks expected 48 assertions, recorded %',total; END IF;
+ IF total<>47 THEN RAISE EXCEPTION '0045 f9-descriptive-aggregates checks expected 47 assertions, recorded %',total; END IF;
  RAISE NOTICE 'F9_DESCRIPTIVE_AGGREGATES_RUNTIME=PASS (% assertions)',total;
 END $$;
 ROLLBACK;

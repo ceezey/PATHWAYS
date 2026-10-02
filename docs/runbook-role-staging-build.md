@@ -46,7 +46,7 @@ Keep both files under the repository's ignored `.tmp/` directory or outside the 
 node scripts/db/hosted-build.mjs --dry-run
 ```
 
-Check the printed 36-step plan. It covers the prisma role, the 0000 baseline and its registration, then staged deploys with the preprovision and cleanup steps around 0031, 0034, 0037, 0041 and 0044, with the 0042 and 0043 deploys between 0041 and 0044, the 0045 deploy after 0044 and one deploy each for 0046 to 0052 after 0045, then the expense-submit preprovision, the 0053 deploy and its cleanup, the 0054 deploy, then the runtime login, then the postconditions.
+Check the printed 37-step plan. It covers the prisma role, the 0000 baseline and its registration, then staged deploys with the preprovision and cleanup steps around 0031, 0034, 0037, 0041 and 0044, with the 0042 and 0043 deploys between 0041 and 0044, the 0045 deploy after 0044 and one deploy each for 0046 to 0052 after 0045, then the expense-submit preprovision, the 0053 deploy and its cleanup, the 0054 deploy, the 0055 deploy, then the runtime login, then the postconditions.
 
 ```bash
 node scripts/db/hosted-build.mjs --env-file .tmp/role-staging-build.env
@@ -54,7 +54,7 @@ node scripts/db/hosted-build.mjs --env-file .tmp/role-staging-build.env
 
 Every step prints `start` and `done` lines and has a time limit. A successful build ends with these PASS lines:
 
-- `PASS: ledger has exactly 29 migrations 0000-0054, all finished and none failed`
+- `PASS: ledger has exactly 30 migrations 0000-0055, all finished and none failed`
 - `PASS: no residual temporary owner memberships for prisma`
 - `PASS: role count matches the repo-derived expectation (21 roles ...)`
 - `PASS: schema-level permission grants observed (...)`
@@ -140,7 +140,7 @@ node scripts/db/hosted-build.mjs --env-file .tmp/role-staging-build.env --resume
 Because the ledger is already the complete, cleanly finished 0000 to 0041 prefix, `--resume` first checks for residual activity-media owner memberships (see above), then continues with the 0042 deploy, then the 0043 deploy, then the activity-review preprovision, the 0044 deploy and its cleanup, then the 0045 deploy, then the postconditions. Unless a residual membership was found, it does not re-run the activity-media cleanup; the runtime-role alteration always runs again at the end regardless, since `ALTER ROLE ... WITH LOGIN` is idempotent. A successful run ends with these PASS lines:
 
 - `PASS: resume preflight (pathways schema present, auth.users present, prisma role present, ledger is a clean finished prefix with 16 migrations applied, residual temporary owner memberships: false)`
-- `PASS: ledger has exactly 29 migrations 0000-0054, all finished and none failed`
+- `PASS: ledger has exactly 30 migrations 0000-0055, all finished and none failed`
 - `PASS: no residual temporary owner memberships for prisma`
 - `PASS: role count matches the repo-derived expectation (21 roles ...)`
 - `PASS: schema-level permission grants observed (...)`
@@ -155,6 +155,10 @@ If role-staging had already been resumed through 0042 alone before 0043 existed 
 ### Applying 0054 to role-staging
 
 Role-staging applied the original 0047, 0048 and 0051 before they were amended in place, so `pathways.p09_role_allows` and `p09_role_allows_0048` lost the EXECUTE grants held on `p09_role_allows_0035` (outcome recording fails with 42501). Those three files are restored byte for byte to what staging applied, and 0054 restores both ACLs to match `p09_role_allows_0035`. It needs no preprovision: prisma owns the functions. It is applied with the same `--resume` command; from a ledger ending at 0053 it runs the 0054 deploy, then the runtime-role alteration and the postconditions.
+
+### Applying 0055 to role-staging
+
+0055 (cr-pathways-rbac-v4-grant-migration) replaces `pathways.p09_role_allows` keeping the ACL restored by 0054, revokes seven `role_permissions` rows and grants two, so the table goes from 317 to 312 rows. It needs no preprovision: prisma owns the function. It is applied with the same `--resume` command; from a ledger ending at 0054 it runs the 0055 deploy, then the runtime-role alteration and the postconditions. Verify read-only afterwards: ledger 30 rows 0000-0055 finished, 312 `role_permissions` rows, and the `p09_role_allows` ACL equal to `p09_role_allows_0035`. Applying to role-staging follows the staging auto-migrate authorization; production needs separate developer authorization.
 
 ### Disambiguating a ledger that stops exactly at 0043 or 0044
 

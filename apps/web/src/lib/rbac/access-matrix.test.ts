@@ -45,8 +45,8 @@ describe('RBAC matrix', () => {
     ['Project Manager', 'evaluation.formal.submit', false],
     ['Project Manager', 'settings.users.manage', true],
     ['Program Manager', 'budget.portfolio_view', true],
-    ['Program Manager', 'activities.view', false],
-    ['Project Officer', 'activities.create', true],
+    ['Program Manager', 'activities.view', true],
+    ['Project Officer', 'activities.create', false],
     ['Project Officer', 'activities.update', false],
     ['Project Manager', 'activities.create', true],
     ['Project Manager', 'activities.update', true],
@@ -64,7 +64,7 @@ describe('RBAC matrix', () => {
     ['Grant Manager', 'reports.project_summary.view', true],
     ['Grant Manager', 'reports.indicator_summary.view', true],
     ['Grant Manager', 'reports.beneficiary_summary.view', false],
-    ['Grant Manager', 'activities.view', false],
+    ['Grant Manager', 'activities.view', true],
     ['Grant Manager', 'collection.view', false],
     ['Grant Manager', 'settings.view', true],
     ['Grant Manager', 'settings.users.manage', false],
@@ -226,14 +226,14 @@ describe('RBAC matrix', () => {
     }
   })
 
-  it('denies direct routes for disallowed modules', () => {
+  it('resolves direct routes per module and role', () => {
     expect(
       getRouteAccess(
         'Program Manager',
         '/projects/10000000-0000-4000-8000-000000000001/activities',
       ),
     ).toMatchObject({
-      allowed: false,
+      allowed: true,
       moduleName: 'Activities',
     })
     expect(

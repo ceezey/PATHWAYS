@@ -983,7 +983,7 @@ describe('analytics descriptive views: survey and timeline', () => {
     it.each(['PROGRAM_MANAGER', 'GRANT_MANAGER'] as const)(
       'happy: %s receives real timeline aggregates on read and export, not "No activities recorded yet"',
       async (role) => {
-        expect(rolePermissions[role]).not.toContain('activities.read')
+        expect(rolePermissions[role]).toContain('activities.read')
         const { service, tx, sqlCalls } = harness(releasedSaddd, '2026-12-31', {
           activities: [
             activityFixture('COMPLETED', '2026-02-01'),

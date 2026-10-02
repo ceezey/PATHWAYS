@@ -147,6 +147,15 @@ const csvFile = (name: string, readText: () => Promise<string>) => {
 }
 
 describe('collection import workspace', () => {
+  it('does not offer the retired Encode data link', () => {
+    render(
+      <DisplayLabelsProvider>
+        <CollectionWorkspace />
+      </DisplayLabelsProvider>,
+    )
+    expect(screen.queryByRole('link', { name: /Encode/i })).toBeNull()
+  })
+
   it('cannot create an unrelated draft while an existing form is delayed or unavailable', async () => {
     let rejectLoad: ((error: Error) => void) | undefined
     api.getDigitalForms.mockImplementation(

@@ -234,7 +234,9 @@ describe('project activities permission-aware loading', () => {
     expect(api.getJourneyStages).toHaveBeenCalledOnce()
   })
 
-  it('lets a Project Officer open New Activity with the scoped officer read', async () => {
+  it('lets a create-only Project Manager open New Activity with the scoped officer read', async () => {
+    access.role = 'Project Manager'
+    access.profile.roles = ['PROJECT_MANAGER']
     access.profile.permissions = [...access.profile.permissions, 'activities.create']
     renderWorkspace()
     await screen.findByRole('heading', { name: 'Activities' })
