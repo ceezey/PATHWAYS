@@ -19,7 +19,7 @@ Date: 2026-10-01. Branch: dev (a75406d). Read-only QA against PRD section 4 gate
 | Feature | Met | Not met / partial | Notes |
 |---|---|---|---|
 | F1 RBAC | 9/10 | G-F1-10 sign-in lockout not built (MA-04) | G-F1-7/8/9 lack QAD rows |
-| F2 Projects | 18/19 | G-F2-4 archive route/UI missing (MA-05) | 9 gates lack QAD rows; budget UI lacks utilization and remaining balance; target-goal CR preview pending |
+| F2 Projects | 19/19 | none (G-F2-4 archive Met, MA-05 closed 2026-10-03) | QAD rows present for all 19 gates (checked 2026-10-03); budget tab rebuilt with utilization and remaining balance; target-goal CR dropped |
 | F3 Beneficiaries | 5/6 | G-F3-6 partial: no role holds identities.review (MA-14) | Tests exist, PRD cell stale |
 | F4 Journey | 5/6 | G-F4-6 journey note not built (MA-06) | G-F4-1/3/4 untested; SA holds journeys.read |
 | F5 Collection | 4/5 | G-F5-1 partial: author cannot publish own form, single-officer projects blocked | G-F5-3 cell should cite QAD-T53 |
