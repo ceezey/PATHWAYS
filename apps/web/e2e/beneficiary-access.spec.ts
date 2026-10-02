@@ -5,10 +5,10 @@ import {
   type Actor,
   hasLocalDb,
   loadActors,
+  nextTotpCode,
   ownerQuery,
   signIn as realSignIn,
   seedAccounts,
-  totpCode,
 } from './fixtures/real-sign-in'
 
 const code = 'E2E-BEN-001'
@@ -93,12 +93,12 @@ const staleStepUp = async (page: Page) => {
 const gate = (page: Page) => page.getByRole('dialog', { name: 'Verify beneficiary module access' })
 
 // Answers the real step-up prompt with an authenticator code from a time step not yet used.
-const verifyStepUp = async (page: Page, email: string, offsetSteps = 0) => {
+const verifyStepUp = async (page: Page, email: string) => {
   const dialog = gate(page)
   await expect(dialog).toBeVisible({ timeout: 30_000 })
   await dialog
     .getByLabel('Authenticator code')
-    .fill(totpCode((actors[email] as Actor).secret, offsetSteps))
+    .fill(await nextTotpCode((actors[email] as Actor).secret))
   await dialog.getByRole('button', { name: 'Verify and enter' }).click()
   await expect(dialog).toBeHidden({ timeout: 30_000 })
 }

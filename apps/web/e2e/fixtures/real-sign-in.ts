@@ -68,6 +68,19 @@ export const totpCode = (secret: string, offsetSteps = 0) => {
   return String(value).padStart(6, '0')
 }
 
+const lastStep = new Map<string, number>()
+
+// Returns a code for a time step later than any used for this secret, waiting until it is acceptable.
+export const nextTotpCode = async (secret: string) => {
+  const now = Math.floor(Date.now() / 30_000)
+  const step = Math.max((lastStep.get(secret) ?? now - 1) + 1, now)
+  lastStep.set(secret, step)
+  // A step more than one ahead is outside the accepted window, so wait for it to approach.
+  if (step > now + 1)
+    await new Promise((r) => setTimeout(r, (step - 1) * 30_000 - Date.now() + 100))
+  return totpCode(secret, step - Math.floor(Date.now() / 30_000))
+}
+
 export interface Actor {
   password: string
   secret: string
@@ -100,7 +113,7 @@ async function prepareActor(
   const secret = enrolled.data.totp.secret
   const verified = await client.auth.mfa.challengeAndVerify({
     factorId: enrolled.data.id,
-    code: totpCode(secret),
+    code: await nextTotpCode(secret),
   })
   if (verified.error) throw new Error(`Could not verify the factor for ${email}`)
   const session = await client.auth.getSession()
@@ -136,8 +149,7 @@ export async function signIn(page: Page, email: string, actors: Record<string, A
   await page.getByLabel('Password', { exact: true }).fill(actor.password)
   await page.getByRole('button', { name: 'Sign In' }).click()
   await page.waitForURL('**/auth/mfa')
-  // The next time step avoids replaying the code used during enrollment.
-  const code = totpCode(actor.secret, 1)
+  const code = await nextTotpCode(actor.secret)
   for (let i = 0; i < 6; i++) {
     await page.getByLabel(`Digit ${i + 1} of 6`).fill(code[i] as string)
   }
