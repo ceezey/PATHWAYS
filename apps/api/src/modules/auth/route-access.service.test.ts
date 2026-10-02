@@ -34,11 +34,11 @@ const service = new RouteAccessService({
 // Explicit approved CSV route matrix, independent of the route implementation.
 const allowed: Record<CanonicalRole, string> = {
   SYSTEM_ADMINISTRATOR:
-    'dashboard unauthorized projects reports surveyReport forms form profile settings projectReport indicatorReport analytics indicators indicatorLibrary monitoring collection imports alerts recommendations rules settingsRules users audit backups transparency transparencyPreview transparencyQueue evidence formCreate journey project activities activity budget',
+    'dashboard unauthorized projects reports surveyReport forms form profile settings projectReport indicatorReport analytics indicators indicatorLibrary monitoring collection imports alerts recommendations rules settingsRules users audit backups transparency transparencyPreview transparencyQueue evidence formCreate journey project activities activity',
   PROGRAM_MANAGER:
-    'dashboard unauthorized projects reports surveyReport profile settings projectReport indicatorReport project analytics budget monitoring transparency transparencyPreview transparencyQueue alerts recommendations users audit evidence',
+    'dashboard unauthorized projects reports surveyReport profile settings projectReport indicatorReport project activities activity analytics budget monitoring transparency transparencyPreview transparencyQueue alerts recommendations users audit evidence',
   GRANT_MANAGER:
-    'dashboard unauthorized projects reports surveyReport profile settings projectReport indicatorReport project analytics budget monitoring transparency transparencyPreview transparencyQueue alerts recommendations evidence',
+    'dashboard unauthorized projects reports surveyReport profile settings projectReport indicatorReport project activities activity analytics budget monitoring transparency transparencyPreview transparencyQueue alerts recommendations evidence',
   PROJECT_MANAGER:
     'dashboard unauthorized projects reports surveyReport profile settings projectReport indicatorReport project projectCreate projectEdit analytics activities activity indicators indicatorLibrary budget monitoring transparency transparencyPreview transparencyQueue beneficiaries beneficiaryCreate beneficiary beneficiaryEdit alerts recommendations users audit beneficiaryReport reportPreview evidence journey',
   MONITORING_AND_EVALUATION_OFFICER:

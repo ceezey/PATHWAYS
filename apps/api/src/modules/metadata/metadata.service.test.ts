@@ -279,7 +279,7 @@ describe('P02 metadata service', () => {
   })
 
   it('rejects invalid or unknown direct-entry fields before persistence', async () => {
-    tx.digitalForm.findFirst.mockResolvedValue(form({ status: 'PUBLISHED' }))
+    tx.digitalForm.findFirst.mockResolvedValue(form({ status: 'PUBLISHED', formType: 'ACTIVITY_MONITORING' }))
     await expect(
       service.saveSubmission(state.actor as ApplicationIdentity, projectId, formId, {
         clientSubmissionId,
@@ -417,7 +417,7 @@ describe('P02 metadata service', () => {
   })
 
   it('returns a repeat retry-safe submission when its form version and normalized values match', async () => {
-    tx.digitalForm.findFirst.mockResolvedValue(form({ status: 'PUBLISHED' }))
+    tx.digitalForm.findFirst.mockResolvedValue(form({ status: 'PUBLISHED', formType: 'ACTIVITY_MONITORING' }))
     tx.formSubmission.findFirst
       .mockResolvedValueOnce({
         id: submissionId,
@@ -449,7 +449,7 @@ describe('P02 metadata service', () => {
   })
 
   it('rejects reuse of a submission identifier with different normalized values', async () => {
-    tx.digitalForm.findFirst.mockResolvedValue(form({ status: 'PUBLISHED' }))
+    tx.digitalForm.findFirst.mockResolvedValue(form({ status: 'PUBLISHED', formType: 'ACTIVITY_MONITORING' }))
     tx.formSubmission.findFirst
       .mockResolvedValueOnce({
         id: submissionId,
@@ -473,5 +473,34 @@ describe('P02 metadata service', () => {
         values: { score: '6' },
       }),
     ).rejects.toBeInstanceOf(ConflictException)
+  })
+
+  it.each(['OUTCOME_MONITORING', 'OTHER'] as const)(
+    'refuses direct entry for retired generic %s forms',
+    async (formType) => {
+      tx.digitalForm.findFirst.mockResolvedValue(form({ status: 'PUBLISHED', formType }))
+      const retired = 'Encode Project Data is retired; import this form instead.'
+      await expect(
+        service.saveSubmission(state.actor as ApplicationIdentity, projectId, formId, {
+          clientSubmissionId,
+          values: { score: '5' },
+        }),
+      ).rejects.toThrow(retired)
+      await expect(
+        service.validateValues(state.actor as ApplicationIdentity, projectId, formId, {
+          score: '5',
+        }),
+      ).rejects.toThrow(retired)
+      expect(tx.formSubmission.create).not.toHaveBeenCalled()
+    },
+  )
+
+  it('keeps direct entry for training surveys', async () => {
+    tx.digitalForm.findFirst.mockResolvedValue(form({ status: 'PUBLISHED', formType: 'TRAINING_SURVEY' }))
+    await expect(
+      service.validateValues(state.actor as ApplicationIdentity, projectId, formId, {
+        score: '5',
+      }),
+    ).resolves.toBeDefined()
   })
 })

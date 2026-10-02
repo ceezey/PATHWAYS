@@ -357,7 +357,7 @@ describe('GET projects/:projectId/activities/assignable-officers', () => {
     expect(names.indexOf('assignableOfficers')).toBeLessThan(names.indexOf('get'))
   })
 
-  it.each(['PROJECT_OFFICER', 'PROJECT_MANAGER'] as const)(
+  it.each(['PROJECT_MANAGER'] as const)(
     'returns only userId and displayName, at most 50 rows, for an assigned %s',
     async (role) => {
       const actor = actorFor(role)
@@ -391,6 +391,7 @@ describe('GET projects/:projectId/activities/assignable-officers', () => {
 
   it.each([
     'SYSTEM_ADMINISTRATOR',
+    'PROJECT_OFFICER',
     'MONITORING_AND_EVALUATION_OFFICER',
     'PROGRAM_MANAGER',
     'GRANT_MANAGER',
@@ -431,7 +432,7 @@ describe('GET projects/:projectId/activities/assignable-officers', () => {
   })
 
   it('returns 404 for a malformed project id without reading users', async () => {
-    const actor = actorFor('PROJECT_OFFICER')
+    const actor = actorFor('PROJECT_MANAGER')
     state.actor = actor
     await expect(service.assignableOfficers(actor, 'not-a-uuid')).rejects.toBeInstanceOf(
       NotFoundException,

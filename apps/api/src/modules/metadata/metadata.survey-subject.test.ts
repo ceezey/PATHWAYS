@@ -170,7 +170,7 @@ describe('optional identified training survey source boundary', () => {
       }),
     ).rejects.toMatchObject({ status: 404 })
     expect(tx.formSubmission.create).not.toHaveBeenCalled()
-    tx.digitalForm.findFirst.mockResolvedValue({ ...form, formType: 'OTHER' })
+    tx.digitalForm.findFirst.mockResolvedValue({ ...form, formType: 'ACTIVITY_MONITORING' })
     await expect(
       service.saveSubmission(currentActor(), project, formId, {
         clientSubmissionId: request,
