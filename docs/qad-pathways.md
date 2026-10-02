@@ -178,6 +178,8 @@ Every implemented feature requires:
 | QAD-T85 | a second final sign-off for the same expense is rejected by the once-per-expense key and by a holder without `expenses.signoff` | Abuse | Security | PRD-F2 | G-F2-18 | UC-F2-9 | `apps/api/prisma/tests/finance-expense-runtime.sql` |
 | QAD-T86 | five failed sign-ins lock the email for 15 minutes on the local stack: the sixth attempt returns 429 SIGN_IN_LOCKED even with the correct password, unknown and known emails fail identically, and an expired lock signs in with 200 | Abuse | Security | PRD-F1 | G-F1-10 | UC-F1-1 | `apps/web/e2e/signin-lockout.spec.ts` |
 | QAD-T87 | the first-request (single sample, not after an API restart) dashboard latency is recorded and stays under 800 ms at the same scale | Happy | Performance Efficiency | PRD-F8 | G-F8-7 | UC-F8-1 | Measured 2026-10-01: first request home 528 ms, monitoring 505 ms, SADDD 479 ms; `scripts/perf/dashboard-load.mjs` |
+| QAD-T89 | the Budget tab counts only approved expenses as used, shows pending separately, and derives utilization, remaining balance, efficiency ratio and advisory alerts per activity | Happy | Functional Suitability | PRD-F2 | G-F2-19 | UC-F2-9 | `apps/web/src/features/projects/budget-module/budget-math.test.ts` |
+| QAD-T90 | a zero budget or zero utilization yields no efficiency ratio instead of a division error, and pending, verified or rejected expenses never count as used | Sad | Reliability | PRD-F2 | G-F2-19 | UC-F2-9 | `apps/web/src/features/projects/budget-module/budget-math.test.ts` |
 
 ### 3.3 Abuse / Adversarial Paths
 

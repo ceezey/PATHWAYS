@@ -3,8 +3,8 @@
 import { PublicationQueueWorkspace } from '@/features/public/publication-queue-workspace'
 import { coreDataClient } from '@/lib/services/core-feature-client'
 import { formatMetricCell } from '@pathways/shared'
+import { BudgetModule } from './budget-module/budget-module'
 import { LiveEvaluationWorkspace } from './live-evaluation-workspace'
-import { LiveFinanceWorkspace } from './live-finance-workspace'
 import { ProjectRulesPanel } from './project-rules-panel'
 
 import { ArrowLeft, Download, FileText, Loader2, Plus, Save } from 'lucide-react'
@@ -126,7 +126,7 @@ export const ProjectPhaseFiveWorkspace = ({
   if (view === 'budget')
     return (
       <div className="space-y-6">
-        <LiveFinanceWorkspace projectId={projectId} />
+        <BudgetModule projectId={projectId} />
         <ProjectRulesPanel projectId={projectId} />
       </div>
     )

@@ -21,7 +21,7 @@ An audit records what was found. It does not become implementation authority by 
 | MA-02 | Medium | Manuscript claims prescriptive analytics; the system offers predefined rule-based recommendations only | G-F11-4; PRD-F9 out-of-scope note | Purpose and Description, R7 | CR to descope: reword to rule-based decision support, with manuscript impact |
 | MA-03 | Medium | The forty-hour preparation claim has no measurement | `val-pathways.md` P2; `idea-pathways.md` open question | Purpose and Description | Gather timing evidence in the evaluation, or present it as an estimate in the manuscript |
 | MA-04 | Medium | No in-app sign-in lockout | G-F1-10 | Objective 1.8 | Closed 2026-10-03: lockout built (cr-pathways-signin-lockout, migration 0046) and gate-verified; hosted direct-grant bypass deferred |
-| MA-05 | Low | Project archive has no route though `projects.archive` is granted | G-F2-4 | Objective 1.2 | CR to implement archive, or remove the permission |
+| MA-05 | Low | Project archive has no route though `projects.archive` is granted | G-F2-4 | Objective 1.2 | Closed 2026-10-03: the archive route exists (`projects.controller.ts`), G-F2-4 Met (QAD-P10, QAD-T40) |
 | MA-06 | Low | No free-text journey note | G-F4-6 | R6, Objective 1.3 | CR to implement or descope |
 | MA-07 | Medium | Import data type choice and value translation (closed 2026-10-01 by cr-pathways-import-value-map) | G-F6-7; QAD-T54 | R2, Objectives 1.4, 2.1 | Resume the held work by CR, or descope |
 | MA-08 | Medium | Dashboard scale unverified; participation breakdowns, indicator trends, server budget aggregate and manager survey totals not delivered | G-F8-7, G-F9-9, G-F9-10 | R3, Objectives 1.6, 2.2 | Complete the performance scaling CR steps and the deferred F9 views |
