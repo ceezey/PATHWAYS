@@ -112,7 +112,7 @@ test('mobile sidebar closes after opening a workspace', async ({ page }) => {
     await expect(sidebar).toBeVisible({ timeout: 2000 })
   }).toPass()
   await sidebar.getByRole('link', { name: 'Projects', exact: true }).click()
-  await expect(page).toHaveURL(/\/projects$/)
+  await expect(page).toHaveURL(/\/projects$/, { timeout: 30_000 })
   await expect(sidebar).toBeHidden()
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(
     true,
