@@ -11,11 +11,11 @@ const buttonVariants = cva(
       variant: {
         default:
           'bg-primary text-primary-foreground hover:bg-primary-hover active:bg-primary-active',
-        secondary: 'bg-secondary text-secondary-foreground hover:bg-muted active:bg-border',
+        secondary:
+          'border border-primary bg-card text-primary hover:bg-primary-subtle active:bg-secondary',
         outline:
-          'border border-input bg-card text-foreground hover:bg-muted active:bg-secondary',
-        ghost:
-          'bg-transparent text-foreground hover:bg-primary-subtle hover:text-light-blue-foreground active:bg-secondary',
+          'border border-primary bg-card text-primary hover:bg-primary-subtle active:bg-secondary',
+        ghost: 'bg-transparent text-primary hover:bg-primary-subtle active:bg-secondary',
         destructive:
           'bg-danger text-danger-foreground hover:bg-danger-hover active:bg-danger-active',
       },

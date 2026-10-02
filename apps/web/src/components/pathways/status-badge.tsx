@@ -9,7 +9,7 @@ export const StatusBadge = ({
 }) => (
   <span
     className={cn(
-      'inline-flex items-center rounded-full border px-2.5 py-1 text-xs font-medium',
+      'inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-semibold',
       tone === 'info' && 'border-info/30 bg-info-subtle text-info',
       tone === 'success' && 'border-success/30 bg-success-subtle text-success',
       tone === 'warning' && 'border-warning/30 bg-warning-subtle text-warning',
@@ -17,6 +17,7 @@ export const StatusBadge = ({
       tone === 'neutral' && 'border-border bg-muted text-muted-foreground',
     )}
   >
+    <span aria-hidden="true" className="h-1.5 w-1.5 shrink-0 rounded-full bg-current" />
     {children}
   </span>
 )
