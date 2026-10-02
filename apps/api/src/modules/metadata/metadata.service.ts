@@ -37,7 +37,12 @@ import { PublishedDefinitionCache } from './published-definition-cache'
 type Tx = Prisma.TransactionClient
 
 // V4-C11: direct entry stays only for survey, test and activity-monitoring forms.
-export const DIRECT_ENTRY_FORM_TYPES = ['TRAINING_SURVEY', 'PRE_TEST', 'POST_TEST', 'ACTIVITY_MONITORING'] as const
+export const DIRECT_ENTRY_FORM_TYPES = [
+  'TRAINING_SURVEY',
+  'PRE_TEST',
+  'POST_TEST',
+  'ACTIVITY_MONITORING',
+] as const
 
 const fieldSelection = {
   id: true,
@@ -603,12 +608,7 @@ export class MetadataService {
       async (tx, actor) => {
         const form = await this.requireForm(tx, actor, projectId, formId)
         if (form.status !== 'PUBLISHED') throw new NotFoundException('Published form unavailable.')
-        if (form.formType === 'BENEFICIARY_REGISTRATION') {
-          throw new ConflictException('Use the Beneficiary registration endpoint for this form.')
-        }
-        if (!(DIRECT_ENTRY_FORM_TYPES as readonly string[]).includes(form.formType)) {
-          throw new ConflictException('Encode Project Data is retired; import this form instead.')
-        }
+        this.assertDirectEntryForm(form)
         return validateAndNormalizeFormData(form.formField_form.map(contract), values, mode)
       },
     )
@@ -627,12 +627,7 @@ export class MetadataService {
       async (tx, actor) => {
         const form = await this.requireForm(tx, actor, projectId, formId)
         if (form.status !== 'PUBLISHED') throw new NotFoundException('Published form unavailable.')
-        if (form.formType === 'BENEFICIARY_REGISTRATION') {
-          throw new ConflictException('Use the Beneficiary registration endpoint for this form.')
-        }
-        if (!(DIRECT_ENTRY_FORM_TYPES as readonly string[]).includes(form.formType)) {
-          throw new ConflictException('Encode Project Data is retired; import this form instead.')
-        }
+        this.assertDirectEntryForm(form)
         const validation = validateAndNormalizeFormData(
           form.formField_form.map(contract),
           input.values,
@@ -770,6 +765,15 @@ export class MetadataService {
     )
   }
 
+  private assertDirectEntryForm(form: { formType: string }) {
+    if (form.formType === 'BENEFICIARY_REGISTRATION') {
+      throw new ConflictException('Use the Beneficiary registration endpoint for this form.')
+    }
+    if (!(DIRECT_ENTRY_FORM_TYPES as readonly string[]).includes(form.formType)) {
+      throw new ConflictException('Encode Project Data is retired; import this form instead.')
+    }
+  }
+
   updateSubmission(
     identity: ApplicationIdentity,
     projectId: string,
@@ -783,6 +787,7 @@ export class MetadataService {
       'submissions.write',
       async (tx, actor) => {
         const form = await this.requireForm(tx, actor, projectId, formId)
+        this.assertDirectEntryForm(form)
         const submission = await this.requireDraftSubmission(tx, actor, form, submissionId)
         const validation = validateAndNormalizeFormData(
           form.formField_form.map(contract),
@@ -885,6 +890,7 @@ export class MetadataService {
       'submissions.write',
       async (tx, actor) => {
         const form = await this.requireForm(tx, actor, projectId, formId)
+        this.assertDirectEntryForm(form)
         const submission = await this.findSubmission(tx, actor, form, submissionId)
         return validateAndNormalizeFormData(
           form.formField_form.map(contract),
@@ -908,6 +914,7 @@ export class MetadataService {
       'submissions.write',
       async (tx, actor) => {
         const form = await this.requireForm(tx, actor, projectId, formId)
+        this.assertDirectEntryForm(form)
         const submission = await this.findSubmission(tx, actor, form, submissionId)
         if (form.formType === 'TRAINING_SURVEY')
           await this.requireSurveySubject(tx, actor, form, submission.beneficiaryId ?? undefined)

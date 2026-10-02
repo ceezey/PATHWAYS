@@ -226,7 +226,7 @@ describe('RBAC matrix', () => {
     }
   })
 
-  it('denies direct routes for disallowed modules', () => {
+  it('resolves direct routes per module and role', () => {
     expect(
       getRouteAccess(
         'Program Manager',

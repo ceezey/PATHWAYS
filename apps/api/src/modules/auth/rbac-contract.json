@@ -67,7 +67,7 @@
     "monitoring.review": [97],
     "analytics.export": [98],
     "analytics.saddd.read": [99, 100],
-    "beneficiaries.aggregates.read": [99, 100],
+    "beneficiaries.aggregates.read": [99, 100, 112, 113, 114, 115, 116, 117],
     "alerts.review": [101],
     "alerts.outcome.record": [103],
     "recommendations.review": [104],
@@ -344,10 +344,7 @@
       "GRANT_MANAGER"
     ],
     "projects.update": ["PROJECT_MANAGER"],
-    "projects.archive": [
-      "SYSTEM_ADMINISTRATOR",
-      "PROJECT_MANAGER"
-    ],
+    "projects.archive": ["SYSTEM_ADMINISTRATOR", "PROJECT_MANAGER"],
     "activities.complete": [
       "PROJECT_OFFICER",
       "MONITORING_AND_EVALUATION_OFFICER",
@@ -1840,9 +1837,12 @@
       "rows": [35, 40, 42, 46, 47, 97, 100, 103],
       "grants": [["PROGRAM_MANAGER", "activities.read"], ["GRANT_MANAGER", "activities.read"]],
       "revokes": [
-        ["PROGRAM_MANAGER", "projects.archive"], ["GRANT_MANAGER", "projects.archive"],
-        ["SYSTEM_ADMINISTRATOR", "budgets.read"], ["PROJECT_OFFICER", "activities.create"],
-        ["PROJECT_OFFICER", "dashboards.customize"], ["PROJECT_OFFICER", "assessments.read"],
+        ["PROGRAM_MANAGER", "projects.archive"],
+        ["GRANT_MANAGER", "projects.archive"],
+        ["SYSTEM_ADMINISTRATOR", "budgets.read"],
+        ["PROJECT_OFFICER", "activities.create"],
+        ["PROJECT_OFFICER", "dashboards.customize"],
+        ["PROJECT_OFFICER", "assessments.read"],
         ["PROJECT_OFFICER", "analytics.saddd.read"]
       ]
     }
