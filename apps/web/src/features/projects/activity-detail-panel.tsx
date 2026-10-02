@@ -377,7 +377,7 @@ export const ActivityDetailContent = ({
           <ul className="mt-3 space-y-2 text-sm text-muted-foreground">
             {[...activity.updateNotes].reverse().map((update) => (
               <li
-                className="rounded-sm border border-border bg-surface-subtle px-3 py-2"
+                className="relative border-l-2 border-border py-1 pl-4 before:absolute before:-left-[5px] before:top-2.5 before:h-2 before:w-2 before:rounded-full before:bg-primary"
                 key={update.id}
               >
                 <span className="font-medium text-foreground">{update.progress}%</span> ·{' '}
@@ -434,7 +434,7 @@ export const ActivityDetailContent = ({
             <ul className="mt-3 space-y-2 text-sm text-muted-foreground">
               {activity.overdueExplanations.map((entry) => (
                 <li
-                  className="rounded-sm border border-border bg-surface-subtle px-3 py-2"
+                  className="relative border-l-2 border-border py-1 pl-4 before:absolute before:-left-[5px] before:top-2.5 before:h-2 before:w-2 before:rounded-full before:bg-primary"
                   key={entry.id}
                 >
                   <span className="font-medium text-foreground">
