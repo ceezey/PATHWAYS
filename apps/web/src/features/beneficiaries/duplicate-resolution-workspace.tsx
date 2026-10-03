@@ -99,8 +99,10 @@ export const DuplicateResolutionWorkspace = () => {
       )
       setDecision(null)
       await load()
-    } catch {
-      setStatus('failed')
+    } catch (error) {
+      toast.error(
+        error instanceof Error ? error.message : 'The decision could not be saved. Try again.',
+      )
       setDecision(null)
     } finally {
       setBusy(false)
@@ -215,7 +217,7 @@ export const DuplicateResolutionWorkspace = () => {
                   </Button>
                   <Button type="button" onClick={() => setDecision('LINK')}>
                     <Link2 className="mr-2 h-4 w-4" aria-hidden="true" />
-                    Merge linked profiles
+                    Link as same person
                   </Button>
                 </div>
               ) : null}

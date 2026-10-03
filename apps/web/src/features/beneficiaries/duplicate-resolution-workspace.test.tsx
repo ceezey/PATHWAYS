@@ -4,7 +4,7 @@ import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/re
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { client, session, toast } = vi.hoisted(() => ({
-  toast: { success: vi.fn() },
+  toast: { success: vi.fn(), error: vi.fn() },
   session: {
     profile: {
       roles: ['MONITORING_AND_EVALUATION_OFFICER'],
@@ -54,7 +54,7 @@ afterEach(() => {
 describe('DuplicateResolutionWorkspace', () => {
   it('shows both decision controls for a queued pair', async () => {
     render(<DuplicateResolutionWorkspace />)
-    expect(await screen.findByRole('button', { name: 'Merge linked profiles' })).toBeTruthy()
+    expect(await screen.findByRole('button', { name: 'Link as same person' })).toBeTruthy()
     expect(screen.getByRole('button', { name: 'Keep as distinct people' })).toBeTruthy()
     expect(screen.getAllByText('BEN-1 / BEN-2').length).toBeGreaterThan(0)
   })
@@ -74,19 +74,28 @@ describe('DuplicateResolutionWorkspace', () => {
     expect(toast.success).toHaveBeenCalledWith(expect.stringContaining('kept as distinct'))
   })
 
+  it('toasts a failed decision without showing the load-failure alert', async () => {
+    client.resolveDuplicate.mockRejectedValue(new Error('Pair already decided.'))
+    render(<DuplicateResolutionWorkspace />)
+    fireEvent.click(await screen.findByRole('button', { name: 'Keep as distinct people' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Confirm decision' }))
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith('Pair already decided.'))
+    expect(screen.queryByRole('alert')).toBeNull()
+  })
+
   it('hides the decision controls when the profile lacks the review grant', async () => {
     session.profile.permissions = []
     render(<DuplicateResolutionWorkspace />)
     expect((await screen.findAllByText('BEN-1 / BEN-2')).length).toBeGreaterThan(0)
     expect(screen.queryByRole('button', { name: 'Keep as distinct people' })).toBeNull()
-    expect(screen.queryByRole('button', { name: 'Merge linked profiles' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Link as same person' })).toBeNull()
   })
 
   it('shows an empty queue and no controls when there are no candidates', async () => {
     client.getDuplicateCandidates.mockResolvedValue([])
     render(<DuplicateResolutionWorkspace />)
     expect(await screen.findByText('No unreviewed matches were found.')).toBeTruthy()
-    expect(screen.queryByRole('button', { name: 'Merge linked profiles' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Link as same person' })).toBeNull()
   })
 
   it('shows an alert and no controls when the server denies the queue', async () => {
