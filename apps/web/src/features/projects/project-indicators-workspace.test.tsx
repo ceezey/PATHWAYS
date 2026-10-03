@@ -7,6 +7,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   ProjectIndicatorsWorkspace,
   indicatorInputFromForm,
+  indicatorPeriod,
   suggestIndicatorCode,
 } from './project-indicators-workspace'
 
@@ -143,39 +144,57 @@ describe('P06 dedicated indicator workspace', () => {
     expect(suggestIndicatorCode('2026 enrolment')).toBe('I_2026_ENROLMENT')
     expect(suggestIndicatorCode('  ')).toBe('')
   })
-  it('prefills code, unit, direction and hides decimal places in the add dialog', () => {
+  it('shows only code, name, baseline, target, recipe and source in the add dialog', () => {
     state.permissions = ['monitoring.read', 'indicators.create']
     render(
       createElement(ProjectIndicatorsWorkspace, {
         projectId: '79000000-0000-4000-8000-000000000003',
       }),
     )
+    expect(screen.queryByText('Activity completion percentage')).toBeNull()
     fireEvent.click(screen.getByRole('button', { name: 'Add project indicator' }))
     fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'Households reached' } })
     expect((screen.getByLabelText('Code') as HTMLInputElement).value).toBe('HOUSEHOLDS_REACHED')
-    expect((screen.getByLabelText('Unit label') as HTMLInputElement).value).toBe('count')
-    expect(screen.getByRole('combobox', { name: 'Direction' }).textContent).toContain(
-      'Higher is better',
+    expect(screen.getByRole('combobox', { name: 'Recipe' }).textContent).toContain(
+      'Activity completion percentage',
     )
-    expect(screen.queryByLabelText('Decimal Place')).toBeNull()
+    expect((screen.getByLabelText('Baseline') as HTMLInputElement).readOnly).toBe(true)
+    expect((screen.getByLabelText('Target') as HTMLInputElement).value).toBe('100')
+    for (const removed of [
+      'Authority',
+      'Unit label',
+      'Numeric domain',
+      'Direction',
+      'Period start',
+    ])
+      expect(screen.queryByLabelText(removed)).toBeNull()
     expect(screen.queryByText('Advanced settings')).toBeNull()
-    expect(screen.queryByLabelText('Description')).toBeNull()
     expect(screen.getByLabelText('Source description').tagName).toBe('TEXTAREA')
-    expect(screen.getByText('e.g. %, people')).toBeTruthy()
   })
-  it('opens the add dialog with the authority choices only on demand', () => {
-    state.permissions = ['monitoring.read', 'indicators.create']
-    render(
-      createElement(ProjectIndicatorsWorkspace, {
-        projectId: '79000000-0000-4000-8000-000000000003',
-      }),
-    )
-    expect(screen.queryByText('Manual measurement')).toBeNull()
-    fireEvent.click(screen.getByRole('button', { name: 'Add project indicator' }))
-    expect(screen.getByRole('dialog')).toBeTruthy()
-    expect(screen.getByRole('combobox', { name: 'Authority' }).textContent).toContain(
-      'Manual measurement',
-    )
+  it('sends a derived completion contract with two decimals and a capped period', () => {
+    const form = new FormData()
+    for (const [key, value] of Object.entries({
+      code: 'DONE_PCT',
+      name: 'Completion',
+      dataSource: 'Activity records',
+      mode: 'DERIVED',
+      direction: 'HIGHER_IS_BETTER',
+      numericKind: 'PERCENTAGE',
+      displayPrecision: '2',
+      unitLabel: '%',
+      recipe: 'ACTIVITY_COMPLETION_PERCENTAGE',
+      baseline: '0',
+      target: '100',
+      ...indicatorPeriod('2026-01-01', '2027-12-31'),
+    }))
+      form.set(key, value)
+    expect(indicatorPeriod('2026-01-01', '2027-12-31').periodEnd).toBe('2027-01-01')
+    expect(indicatorInputFromForm(form, [])).toMatchObject({
+      mode: 'DERIVED',
+      numericKind: 'PERCENTAGE',
+      displayPrecision: 2,
+      binding: { recipe: 'ACTIVITY_COMPLETION_PERCENTAGE' },
+    })
   })
   it('offers use-from-library only with library read and an existing entry', () => {
     const props = { projectId: '79000000-0000-4000-8000-000000000003' }

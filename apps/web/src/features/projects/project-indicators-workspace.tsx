@@ -3,6 +3,7 @@ import { recipeNames } from './indicator-recipes'
 import { InlineNotice, OptionSelect } from './option-select'
 import { SourceMutationRecovery } from './source-mutation-recovery'
 import { UseFromLibrary } from './use-from-library'
+import { useProjectRead } from './use-project-reads'
 
 import { AsyncState } from '@/components/pathways/async-state'
 import { DialogShell } from '@/components/pathways/dialog-shell'
@@ -36,10 +37,10 @@ import {
   createIndicatorDraftSchema,
   formatMetricCell,
   manualMeasurementSchema,
-  metricRecipes,
-  numericKinds,
+  type metricRecipes,
+  type numericKinds,
 } from '@pathways/shared'
-import { Loader2, Plus, Target } from 'lucide-react'
+import { Loader2, MoreHorizontal, Plus, Target } from 'lucide-react'
 import Link from 'next/link'
 import { type FormEvent, Fragment, useCallback, useEffect, useRef, useState } from 'react'
 
@@ -48,24 +49,6 @@ const optional = (form: FormData, name: string) => text(form, name) || undefined
 const allActivities = 'ALL'
 const headClass =
   'sticky top-0 z-10 h-10 bg-surface-subtle px-4 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground'
-const authorityOptions = [
-  { value: 'MANUAL', label: 'Manual measurement' },
-  { value: 'DERIVED', label: 'Typed derived calculation' },
-]
-const directionOptions = [
-  { value: 'DESCRIPTIVE', label: 'Descriptive only' },
-  { value: 'HIGHER_IS_BETTER', label: 'Higher is better' },
-  { value: 'LOWER_IS_BETTER', label: 'Lower is better' },
-]
-// Form defaults derived from the numeric domain; the API contract still receives every field.
-const kindDefaults: Record<(typeof numericKinds)[number], { unit: string; precision: number }> = {
-  COUNT: { unit: 'count', precision: 0 },
-  SIGNED_CHANGE: { unit: 'points', precision: 1 },
-  PERCENTAGE: { unit: '%', precision: 1 },
-  RATIO: { unit: 'ratio', precision: 2 },
-  NON_NEGATIVE: { unit: 'units', precision: 1 },
-}
-
 /** Suggests a contract-valid code from the indicator name. */
 export const suggestIndicatorCode = (name: string) => {
   const code = name
@@ -76,9 +59,6 @@ export const suggestIndicatorCode = (name: string) => {
   if (!code) return ''
   return /^[A-Z][A-Z0-9_-]{1,39}$/.test(code) ? code : `I_${code}`.slice(0, 40)
 }
-
-const kindOptions = numericKinds.map((kind) => ({ value: kind, label: kind.replaceAll('_', ' ') }))
-const recipeOptions = metricRecipes.map((value) => ({ value, label: recipeNames[value] }))
 
 /** Shared client validation is only UX; the API repeats the same contract authoritatively. */
 export function indicatorInputFromForm(
@@ -120,19 +100,48 @@ export function indicatorInputFromForm(
   })
 }
 
+type Recipe = (typeof metricRecipes)[number]
+
+// Only recipes the database computes today; the rest return no value (see deferred-features.md).
+const enabledRecipes: Recipe[] = ['ACTIVITY_COMPLETION_PERCENTAGE']
+const enabledRecipeOptions = enabledRecipes.map((value) => ({ value, label: recipeNames[value] }))
+
+// Hidden contract values per recipe; the database requires these numeric domains for each recipe.
+const recipeContract: Record<Recipe, { kind: (typeof numericKinds)[number]; unit: string }> = {
+  ACTIVITY_COMPLETION_PERCENTAGE: { kind: 'PERCENTAGE', unit: '%' },
+  PARTICIPATION_RECORD_COUNT: { kind: 'COUNT', unit: 'records' },
+  DISTINCT_ATTENDING_INDIVIDUALS: { kind: 'COUNT', unit: 'people' },
+  EFFECTIVE_JOURNEY_EVENT_COUNT: { kind: 'COUNT', unit: 'events' },
+  ATTENDANCE_RECORDS_PER_INDIVIDUAL: { kind: 'RATIO', unit: 'records per person' },
+  FORM_NUMERIC_SUM: { kind: 'NON_NEGATIVE', unit: 'value' },
+  FORM_NUMERIC_AVERAGE: { kind: 'NON_NEGATIVE', unit: 'value' },
+}
+
 // Values a recipe fixes: completion runs 0 to 100, and counts start from zero.
-const recipeLocks: Partial<
-  Record<(typeof metricRecipes)[number], { baseline: string; target?: string }>
-> = {
+const recipeLocks: Partial<Record<Recipe, { baseline: string; target?: string }>> = {
   ACTIVITY_COMPLETION_PERCENTAGE: { baseline: '0', target: '100' },
   PARTICIPATION_RECORD_COUNT: { baseline: '0' },
   DISTINCT_ATTENDING_INDIVIDUALS: { baseline: '0' },
   EFFECTIVE_JOURNEY_EVENT_COUNT: { baseline: '0' },
 }
 
+const dayMs = 86_400_000
+const isoDay = (value: number) => new Date(value).toISOString().slice(0, 10)
+const dayValue = (value: string) => Date.parse(`${value}T00:00:00Z`)
+
+/** Reporting period from the project dates, capped at the 365-day contract limit. */
+export const indicatorPeriod = (startDate?: string | null, endDate?: string | null) => {
+  const start = startDate && /^\d{4}-\d{2}-\d{2}$/.test(startDate) ? startDate : isoDay(Date.now())
+  const cap = dayValue(start) + 365 * dayMs
+  const end =
+    endDate && /^\d{4}-\d{2}-\d{2}$/.test(endDate) ? Math.min(dayValue(endDate), cap) : cap
+  return { periodStart: start, periodEnd: isoDay(Math.max(end, dayValue(start))) }
+}
+
 function IndicatorForm({
   forms,
   activities,
+  period,
   busy,
   message,
   onSave,
@@ -140,17 +149,15 @@ function IndicatorForm({
 }: {
   forms: DigitalFormDefinition[]
   activities: Pick<Activity, 'id' | 'title' | 'journeyStageId'>[]
+  period: { periodStart: string; periodEnd: string }
   busy: boolean
   message: string | null
   onSave: (input: CreateIndicatorInput) => Promise<boolean>
   onDone: () => void
 }) {
-  const [mode, setMode] = useState('MANUAL')
   const [name, setName] = useState('')
   const [code, setCode] = useState<string | null>(null)
-  const [kind, setKind] = useState<(typeof numericKinds)[number]>('COUNT')
-  const [unit, setUnit] = useState<string | null>(null)
-  const [recipe, setRecipe] = useState<(typeof metricRecipes)[number]>('PARTICIPATION_RECORD_COUNT')
+  const [recipe, setRecipe] = useState<Recipe>(enabledRecipes[0])
   const [formId, setFormId] = useState('')
   const [fieldId, setFieldId] = useState('')
   const [activityId, setActivityId] = useState(allActivities)
@@ -161,7 +168,8 @@ function IndicatorForm({
       (field) => field.id && ['INTEGER', 'DECIMAL'].includes(field.dataType),
     ) ?? []
   const formRecipe = recipe === 'FORM_NUMERIC_SUM' || recipe === 'FORM_NUMERIC_AVERAGE'
-  const locked = mode === 'DERIVED' ? recipeLocks[recipe] : undefined
+  const locked = recipeLocks[recipe]
+  const { kind, unit } = recipeContract[recipe]
   const save = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     try {
@@ -169,13 +177,19 @@ function IndicatorForm({
       setValidation(null)
       if (await onSave(input)) onDone()
     } catch {
-      setValidation(
-        'Check the period, exact decimal values, numeric domain, direction and required binding. Counts use precision 0; percentages use 0-100; ratios may exceed 1.',
-      )
+      setValidation('Check the code, name, baseline, target and recipe inputs, then save again.')
     }
   }
   return (
     <form onSubmit={save} className="space-y-4">
+      <input name="mode" type="hidden" value="DERIVED" />
+      <input name="direction" type="hidden" value="HIGHER_IS_BETTER" />
+      <input name="numericKind" type="hidden" value={kind} />
+      {/* Counts must be whole numbers; every other domain rounds to two decimals. */}
+      <input name="displayPrecision" type="hidden" value={kind === 'COUNT' ? 0 : 2} />
+      <input name="unitLabel" type="hidden" value={unit} />
+      <input name="periodStart" type="hidden" value={period.periodStart} />
+      <input name="periodEnd" type="hidden" value={period.periodEnd} />
       <fieldset disabled={busy} className="grid gap-3 md:grid-cols-2">
         <div>
           <label htmlFor="indicator-code">Code</label>
@@ -200,193 +214,96 @@ function IndicatorForm({
             maxLength={160}
           />
         </div>
-        <div>
-          <label htmlFor="indicator-unit-label">Unit label</label>
-          <Input
-            id="indicator-unit-label"
-            name="unitLabel"
-            value={unit ?? kindDefaults[kind].unit}
-            onChange={(event) => setUnit(event.target.value)}
-            required
-            maxLength={80}
-            aria-describedby="indicator-unit-hint"
-          />
-          <p className="mt-1 text-xs text-muted-foreground" id="indicator-unit-hint">
-            e.g. %, people
-          </p>
-        </div>
-        <div>
-          <label htmlFor="indicator-mode">Authority</label>
+        {(['baseline', 'target'] as const).map((field) => (
+          <div key={field}>
+            <label htmlFor={field}>{field === 'baseline' ? 'Baseline' : 'Target'}</label>
+            <Input
+              id={field}
+              key={`${field}-${locked?.[field] ?? 'free'}`}
+              name={field}
+              inputMode="decimal"
+              maxLength={21}
+              aria-describedby={`${field}-hint`}
+              readOnly={locked?.[field] !== undefined}
+              defaultValue={locked?.[field]}
+            />
+            <p className="mt-1 text-xs text-muted-foreground" id={`${field}-hint`}>
+              {locked?.[field] !== undefined ? 'Set by the recipe' : 'Blank means not configured'}
+            </p>
+          </div>
+        ))}
+        <div className="md:col-span-2">
+          <label htmlFor="indicator-recipe">Recipe</label>
           <OptionSelect
-            id="indicator-mode"
-            name="mode"
-            value={mode}
-            onValueChange={setMode}
-            options={authorityOptions}
+            id="indicator-recipe"
+            name="recipe"
+            value={recipe}
+            onValueChange={(value) => setRecipe(value as Recipe)}
+            options={enabledRecipeOptions}
           />
         </div>
-        <div>
-          <label htmlFor="indicator-kind">Numeric domain</label>
-          <OptionSelect
-            id="indicator-kind"
-            name="numericKind"
-            value={kind}
-            onValueChange={(value) => setKind(value as (typeof numericKinds)[number])}
-            options={kindOptions}
-          />
-        </div>
-        <div>
-          <label htmlFor="indicator-direction">Direction</label>
-          <OptionSelect
-            id="indicator-direction"
-            name="direction"
-            defaultValue="HIGHER_IS_BETTER"
-            options={directionOptions}
-          />
-        </div>
-        {kind === 'COUNT' ? <input name="displayPrecision" type="hidden" value={0} /> : null}
-        <div>
-          <label htmlFor="analytics-period-start">Period start</label>
-          <Input id="analytics-period-start" name="periodStart" type="date" required />
-        </div>
-        <div>
-          <label htmlFor="analytics-period-end">Period end</label>
-          <Input id="analytics-period-end" name="periodEnd" type="date" required />
-        </div>
-        <div>
-          <label htmlFor="baseline">Baseline</label>
-          <Input
-            id="baseline"
-            key={locked?.baseline ?? 'free'}
-            name="baseline"
-            inputMode="decimal"
-            maxLength={21}
-            aria-describedby="baseline-hint"
-            readOnly={locked?.baseline !== undefined}
-            defaultValue={locked?.baseline}
-          />
-          <p className="mt-1 text-xs text-muted-foreground" id="baseline-hint">
-            {locked?.baseline !== undefined ? 'Set by the recipe' : 'Blank means not configured'}
-          </p>
-        </div>
-        <div>
-          <label htmlFor="target">Target</label>
-          <Input
-            id="target"
-            key={locked?.target ?? 'free'}
-            name="target"
-            inputMode="decimal"
-            maxLength={21}
-            aria-describedby="target-hint"
-            readOnly={locked?.target !== undefined}
-            defaultValue={locked?.target}
-          />
-          <p className="mt-1 text-xs text-muted-foreground" id="target-hint">
-            {locked?.target !== undefined ? 'Set by the recipe' : 'Blank means not configured'}
-          </p>
-        </div>
-        {kind === 'COUNT' && mode !== 'DERIVED' ? null : (
-          // Opens for derived calculations because their required choices live inside.
-          <details
-            className="rounded-md border border-border p-3 md:col-span-2"
-            key={mode}
-            open={mode === 'DERIVED'}
-          >
-            <summary className="cursor-pointer text-sm font-medium">Advanced settings</summary>
-            <div className="mt-3 grid gap-4 md:grid-cols-2">
-              {kind === 'COUNT' ? null : (
-                <div className="max-w-xs md:col-span-2">
-                  <label htmlFor="indicator-precision">Decimal Place</label>
-                  <Input
-                    id="indicator-precision"
-                    key={kind}
-                    name="displayPrecision"
-                    type="number"
-                    min={0}
-                    max={4}
-                    step={1}
-                    defaultValue={kindDefaults[kind].precision}
-                    required
-                  />
-                </div>
-              )}
-              {mode === 'DERIVED' ? (
-                <>
-                  <div className="md:col-span-2">
-                    <label htmlFor="indicator-recipe">Recipe</label>
-                    <OptionSelect
-                      id="indicator-recipe"
-                      name="recipe"
-                      value={recipe}
-                      onValueChange={(value) => setRecipe(value as (typeof metricRecipes)[number])}
-                      options={recipeOptions}
-                    />
-                  </div>
-                  {formRecipe ? (
-                    <>
-                      <div>
-                        <label htmlFor="indicator-form">Exact published form version</label>
-                        <OptionSelect
-                          id="indicator-form"
-                          name="formId"
-                          required
-                          value={formId}
-                          onValueChange={(value) => {
-                            setFormId(value)
-                            setFieldId('')
-                          }}
-                          placeholder="Choose a version"
-                          options={forms
-                            .filter((form) => form.status === 'PUBLISHED')
-                            .map((form) => ({
-                              value: form.id,
-                              label: `${form.name} · v${form.version}`,
-                            }))}
-                        />
-                      </div>
-                      <div>
-                        <label htmlFor="indicator-field">Stable numeric field</label>
-                        <OptionSelect
-                          id="indicator-field"
-                          name="fieldId"
-                          required
-                          value={fieldId}
-                          onValueChange={setFieldId}
-                          placeholder="Choose a numeric field"
-                          options={numericFields.map((field) => ({
-                            value: field.id as string,
-                            label: `${field.label} (${field.code})`,
-                          }))}
-                        />
-                      </div>
-                    </>
-                  ) : recipe !== 'ACTIVITY_COMPLETION_PERCENTAGE' ? (
-                    <div>
-                      <label htmlFor="indicator-activity">Link Activity</label>
-                      <input
-                        type="hidden"
-                        name="activityId"
-                        value={activityId === allActivities ? '' : activityId}
-                      />
-                      <OptionSelect
-                        id="indicator-activity"
-                        value={activityId}
-                        onValueChange={setActivityId}
-                        options={[
-                          { value: allActivities, label: 'All permitted project activities' },
-                          ...activities.map((activity) => ({
-                            value: activity.id,
-                            label: activity.title,
-                          })),
-                        ]}
-                      />
-                    </div>
-                  ) : null}
-                </>
-              ) : null}
+        {/* Each recipe's own inputs live in this card. */}
+        <div className="grid gap-3 rounded-md border border-border bg-background p-3 md:col-span-2 md:grid-cols-2">
+          {formRecipe ? (
+            <>
+              <div>
+                <label htmlFor="indicator-form">Exact published form version</label>
+                <OptionSelect
+                  id="indicator-form"
+                  name="formId"
+                  required
+                  value={formId}
+                  onValueChange={(value) => {
+                    setFormId(value)
+                    setFieldId('')
+                  }}
+                  placeholder="Choose a version"
+                  options={forms
+                    .filter((form) => form.status === 'PUBLISHED')
+                    .map((form) => ({ value: form.id, label: `${form.name} · v${form.version}` }))}
+                />
+              </div>
+              <div>
+                <label htmlFor="indicator-field">Stable numeric field</label>
+                <OptionSelect
+                  id="indicator-field"
+                  name="fieldId"
+                  required
+                  value={fieldId}
+                  onValueChange={setFieldId}
+                  placeholder="Choose a numeric field"
+                  options={numericFields.map((field) => ({
+                    value: field.id as string,
+                    label: `${field.label} (${field.code})`,
+                  }))}
+                />
+              </div>
+            </>
+          ) : recipe === 'ACTIVITY_COMPLETION_PERCENTAGE' ? (
+            <p className="text-sm text-muted-foreground md:col-span-2">
+              Calculated from the share of this project's activities that are completed. No extra
+              input is needed.
+            </p>
+          ) : (
+            <div>
+              <label htmlFor="indicator-activity">Link Activity</label>
+              <input
+                type="hidden"
+                name="activityId"
+                value={activityId === allActivities ? '' : activityId}
+              />
+              <OptionSelect
+                id="indicator-activity"
+                value={activityId}
+                onValueChange={setActivityId}
+                options={[
+                  { value: allActivities, label: 'All permitted project activities' },
+                  ...activities.map((activity) => ({ value: activity.id, label: activity.title })),
+                ]}
+              />
             </div>
-          </details>
-        )}
+          )}
+        </div>
         <div className="md:col-span-2">
           <label htmlFor="indicator-data-source">Source description</label>
           <Textarea id="indicator-data-source" name="dataSource" required maxLength={300} />
@@ -414,7 +331,7 @@ function NewIndicator(props: Omit<Parameters<typeof IndicatorForm>[0], 'onDone'>
       </DialogTrigger>
       <DialogShell
         title="Add project indicator"
-        description="A definition owns one reporting period and one value authority. Binding, unit, baseline, target and period are immutable after creation; use a new code for a changed contract."
+        description="The recipe calculates this indicator automatically over the project period. Baseline, target and recipe cannot change after creation; use a new code instead."
       >
         <IndicatorForm {...props} onDone={() => setOpen(false)} />
       </DialogShell>
@@ -478,12 +395,9 @@ function IndicatorEditor({
   // Each row gets its own field ids so labels target the right indicator.
   const rowId = `indicator-${indicator.id}`
   return (
-    <details className="rounded-lg border border-border p-3">
-      <summary className="flex min-h-11 cursor-pointer items-center text-sm font-medium">
-        Manage this indicator
-      </summary>
+    <div className="space-y-3">
       <form
-        className="mt-3 space-y-3"
+        className="space-y-3"
         onSubmit={async (event) => {
           event.preventDefault()
           const data = new FormData(event.currentTarget)
@@ -586,7 +500,7 @@ function IndicatorEditor({
           </Button>
         </div>
       ) : null}
-    </details>
+    </div>
   )
 }
 
@@ -607,6 +521,10 @@ export function ProjectIndicatorsWorkspace({ projectId }: { projectId: string })
   const [message, setMessage] = useState<string | null>(null)
   const [recoveryGeneration, setRecoveryGeneration] = useState(0)
   const activeKey = `${authorityKey}:${projectId}`
+  const [managingId, setManagingId] = useState<string | null>(null)
+  const managed = data?.find((item) => item.id === managingId && item.status === 'ACTIVE')
+  const projectRead = useProjectRead(projectId)
+  const period = indicatorPeriod(projectRead.data?.startDate, projectRead.data?.endDate)
   const currentKey = useRef(activeKey)
   currentKey.current = activeKey
   const canReadLibrary = principalHasAtomicPermission(profile, 'indicators.library.read')
@@ -756,6 +674,7 @@ export function ProjectIndicatorsWorkspace({ projectId }: { projectId: string })
               key={activeKey}
               forms={availableBindings?.forms ?? []}
               activities={availableBindings?.activities ?? []}
+              period={period}
               busy={creating}
               message={message ?? pendingCreate.notice}
               onSave={(input) =>
@@ -831,9 +750,11 @@ export function ProjectIndicatorsWorkspace({ projectId }: { projectId: string })
                   <th className={headClass}>Indicator</th>
                   <th className={headClass}>Baseline</th>
                   <th className={headClass}>Target</th>
-                  <th className={headClass}>Latest value</th>
-                  <th className={headClass}>Progress</th>
+                  <th className={headClass}>Actual</th>
                   <th className={headClass}>Status</th>
+                  <th className={headClass}>
+                    <span className="sr-only">Actions</span>
+                  </th>
                 </tr>
               </thead>
               <tbody>
@@ -847,99 +768,44 @@ export function ProjectIndicatorsWorkspace({ projectId }: { projectId: string })
                         className="border-b border-border align-top hover:bg-muted"
                       >
                         <td className="px-4 py-3 text-muted-foreground">{indicator.code}</td>
-                        <td className="px-4 py-3">
+                        <td className="min-w-48 px-4 py-3">
                           <p className="font-medium text-foreground">{indicator.name}</p>
-                          <p className="text-xs text-muted-foreground">
-                            {indicator.periodStart ?? 'Unspecified'} to{' '}
-                            {indicator.periodEnd ?? 'Unspecified'} ·{' '}
-                            {indicator.unitLabel ?? 'Unit not configured'} ·{' '}
-                            {indicator.mode ?? 'Legacy authority not reviewed'}
-                          </p>
-                          <p className="text-xs text-muted-foreground">
-                            Definition source: {indicator.dataSource ?? 'Not configured'}
-                            {indicator.binding ? ` · ${recipeNames[indicator.binding.recipe]}` : ''}
-                          </p>
-                          {indicator.measurementSource ? (
-                            <p className="text-xs text-muted-foreground">
-                              Measurement source: {indicator.measurementSource}
-                            </p>
-                          ) : null}
-                          {indicator.measuredAt ? (
-                            <p className="text-xs text-muted-foreground">
-                              Measurement recorded: {indicator.measuredAt}
-                            </p>
-                          ) : null}
-                          {indicator.current.reason ? (
-                            <p className="text-xs">
-                              {indicator.current.reason.replaceAll('_', ' ')}
-                            </p>
-                          ) : null}
+                          <div className="mt-2 flex items-center gap-2">
+                            <div className="flex-1">
+                              <ProgressBar
+                                value={Number(progress ?? 0)}
+                                label={progressText}
+                                hideText
+                              />
+                            </div>
+                            <span className="text-xs text-muted-foreground">
+                              {progress !== null ? `${progress}%` : 'No progress yet'}
+                            </span>
+                          </div>
                         </td>
                         <td className="px-4 py-3">{indicator.baseline ?? 'Not configured'}</td>
                         <td className="px-4 py-3">{indicator.target ?? 'Not configured'}</td>
                         <td className="px-4 py-3">{formatMetricCell(indicator.current)}</td>
-                        <td className="min-w-32 px-4 py-3">
-                          {progress !== null ? (
-                            <ProgressBar value={Number(progress)} label={progressText} hideText />
-                          ) : (
-                            <span className="text-muted-foreground">{progressText}</span>
-                          )}
-                        </td>
                         <td className="px-4 py-3">
                           <StatusBadge tone={indicator.status === 'ACTIVE' ? 'success' : 'neutral'}>
                             {indicator.status.replaceAll('_', ' ')}
                           </StatusBadge>
                         </td>
+                        <td className="w-12 px-2 text-right">
+                          {canUpdate && indicator.status === 'ACTIVE' ? (
+                            <Button
+                              aria-label={`Manage ${indicator.name}`}
+                              onClick={() => setManagingId(indicator.id)}
+                              size="icon"
+                              title="Manage indicator"
+                              type="button"
+                              variant="ghost"
+                            >
+                              <MoreHorizontal className="h-4 w-4" aria-hidden="true" />
+                            </Button>
+                          ) : null}
+                        </td>
                       </tr>
-                      {canUpdate && indicator.status === 'ACTIVE' ? (
-                        <tr className="border-b border-border last:border-0">
-                          <td colSpan={7} className="px-4 py-2">
-                            <IndicatorEditor
-                              key={`${indicator.id}:${indicator.revision}:${indicator.measurementId ?? 'first'}:${recoveryGeneration}`}
-                              indicator={indicator}
-                              busy={busy}
-                              onSave={(input) =>
-                                mutate(() =>
-                                  pathwaysClient.recordIndicatorMeasurement(
-                                    projectId,
-                                    indicator.id,
-                                    input,
-                                    updateContext ?? undefined,
-                                  ),
-                                )
-                              }
-                              onUpdate={(name, description) =>
-                                mutate(() =>
-                                  pathwaysClient.updateProjectIndicator(
-                                    projectId,
-                                    indicator.id,
-                                    {
-                                      name,
-                                      description,
-                                      expectedRevision: indicator.revision,
-                                    },
-                                    updateContext ?? undefined,
-                                  ),
-                                )
-                              }
-                              canArchive={principalHasAtomicPermission(
-                                profile,
-                                'indicators.archive',
-                              )}
-                              onArchive={() =>
-                                mutate(() =>
-                                  pathwaysClient.archiveProjectIndicator(
-                                    projectId,
-                                    indicator.id,
-                                    indicator.revision,
-                                    archiveContext ?? undefined,
-                                  ),
-                                )
-                              }
-                            />
-                          </td>
-                        </tr>
-                      ) : null}
                     </Fragment>
                   )
                 })}
@@ -948,6 +814,52 @@ export function ProjectIndicatorsWorkspace({ projectId }: { projectId: string })
           </div>
         </SectionCard>
       )}
+      <Dialog open={Boolean(managed)} onOpenChange={(open) => (open ? null : setManagingId(null))}>
+        {managed ? (
+          <DialogShell title={`Manage ${managed.name}`} description={managed.code}>
+            <IndicatorEditor
+              key={`${managed.id}:${managed.revision}:${managed.measurementId ?? 'first'}:${recoveryGeneration}`}
+              indicator={managed}
+              busy={busy}
+              onSave={(input) =>
+                mutate(() =>
+                  pathwaysClient.recordIndicatorMeasurement(
+                    projectId,
+                    managed.id,
+                    input,
+                    updateContext ?? undefined,
+                  ),
+                )
+              }
+              onUpdate={(name, description) =>
+                mutate(() =>
+                  pathwaysClient.updateProjectIndicator(
+                    projectId,
+                    managed.id,
+                    {
+                      name,
+                      description,
+                      expectedRevision: managed.revision,
+                    },
+                    updateContext ?? undefined,
+                  ),
+                )
+              }
+              canArchive={principalHasAtomicPermission(profile, 'indicators.archive')}
+              onArchive={() =>
+                mutate(() =>
+                  pathwaysClient.archiveProjectIndicator(
+                    projectId,
+                    managed.id,
+                    managed.revision,
+                    archiveContext ?? undefined,
+                  ),
+                )
+              }
+            />
+          </DialogShell>
+        ) : null}
+      </Dialog>
     </section>
   )
 }
