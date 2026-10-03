@@ -268,7 +268,6 @@ describe('PATHWAYS frontend data boundary', () => {
       pathwaysClient.getExpenses('project-id'),
       pathwaysClient.getRecommendationOutcomes('project-id'),
       pathwaysClient.getTransparencySections('project-id'),
-      pathwaysClient.getBeneficiaryMediaProofForRole('Program Manager', 'beneficiary-id'),
       pathwaysClient.getBudgets(),
       pathwaysClient.getAlerts(),
       pathwaysClient.getRecommendations(),

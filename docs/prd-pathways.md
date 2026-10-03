@@ -274,7 +274,7 @@ flowchart LR
 - Reusable project structures (activity and monitoring templates): not built; stays a known gap for R4 (Scope and Limitations). Reusable indicator definitions are delivered by PRD-F7.
 - Project target goal: retired (cr-pathways-retire-project-target-goal).
 - Free-text implementing partners: writes are rejected (cr-pathways-project-rbac-ui-and-partners).
-- Request-an-extension and Media proof tab controls: hidden, see the deferred register (cr-pathways-frontend-usability).
+- Request-an-extension control: hidden, see the deferred register (cr-pathways-frontend-usability). Beneficiary Media proof is live without a review step (deferred register).
 **Lock:** Locked. Adding a gate or widening a bound requires an approved `cr-pathways-*`; anything outside these bounds is out of scope by default. System-wide bounds: section 6.1.
 
 #### Gate Criteria

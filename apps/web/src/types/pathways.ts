@@ -542,6 +542,33 @@ export interface BeneficiaryMediaProofRecord {
   source: 'Stored media' | 'Local preview'
 }
 
+export interface BeneficiaryMediaItem {
+  id: string
+  type: 'PHOTO' | 'VIDEO'
+  fileName: string
+  contentType: string
+  byteSize: number
+  description: string | null
+  submittedAt: string
+  submittedBy: string
+  storageReady: boolean
+}
+
+export interface BeneficiaryMediaLimits {
+  maxFiles: number
+  maxFileBytes: number
+  contentTypes: string[]
+}
+
+export interface BeneficiaryMediaReservedFile {
+  mediaId: string
+  fileName: string
+  contentType: string
+  byteSize: number
+  sha256: string
+  uploadUrl: string | null
+}
+
 export interface BeneficiaryRecord extends Beneficiary {
   subjectType: 'INDIVIDUAL' | 'GROUP' | 'COMMUNITY' | 'UNSPECIFIED_LEGACY'
   firstName: string

@@ -14,6 +14,7 @@ import { ActivitiesModule } from './modules/activities/activities.module'
 import { AuditModule } from './modules/audit/audit.module'
 import { AuthModule } from './modules/auth/auth.module'
 import { BeneficiariesModule } from './modules/beneficiaries/beneficiaries.module'
+import { BeneficiaryMediaModule } from './modules/beneficiary-media/beneficiary-media.module'
 import { DashboardsModule } from './modules/dashboards/dashboards.module'
 import { EvaluationsModule } from './modules/evaluations/evaluations.module'
 import { FinanceModule } from './modules/finance/finance.module'
@@ -173,6 +174,7 @@ export function createPathwaysPinoHttpOptions(environment = process.env.NODE_ENV
     ProfileModule,
     ActivitiesModule,
     BeneficiariesModule,
+    BeneficiaryMediaModule,
     UsersModule,
     ParticipantsModule,
     ProgramsModule,

@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest'
 
 import { BENEFICIARY_STEP_UP_KEY } from '../../common/decorators/beneficiary-step-up.decorator'
 import { BeneficiariesController } from '../beneficiaries/beneficiaries.controller'
+import { BeneficiaryMediaController } from '../beneficiary-media/beneficiary-media.controller'
 import {
   BeneficiaryJourneyController,
   JourneyStagesController,
@@ -62,6 +63,9 @@ describe('approved Beneficiary step-up route list', () => {
     }
     for (const handler of ['history', 'transition', 'correct']) {
       expect(required(BeneficiaryJourneyController.prototype, handler), handler).toBe(true)
+    }
+    for (const handler of ['list', 'limits', 'reserve', 'finalize', 'content']) {
+      expect(required(BeneficiaryMediaController.prototype, handler), handler).toBe(true)
     }
     expect(required(AuthorizedDataController.prototype, 'beneficiaries')).toBe(true)
   })
