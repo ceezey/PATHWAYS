@@ -42,7 +42,7 @@ describe('beneficiary journey history adapter', () => {
           activityCodeSnapshot: 'ACT-1',
           activityTitleSnapshot: 'Orientation',
           participationId: 'participation-a',
-          participation: { attendanceStatus: 'PARTIAL', progressStatus: 'IN_PROGRESS' },
+          participation: { attendanceStatus: 'NOT_COMPLETED', progressStatus: 'IN_PROGRESS' },
           correctsEventId: null,
           correctionReason: null,
           recordedAt: '2026-06-15T12:00:00.000Z',
@@ -57,7 +57,7 @@ describe('beneficiary journey history adapter', () => {
       expect.objectContaining({
         id: 'participation-a',
         activityId: 'activity-a',
-        attendanceStatus: 'Partial',
+        attendanceStatus: 'Not completed',
         note: 'Attended the session.',
       }),
     ])
@@ -96,5 +96,41 @@ describe('beneficiary journey history adapter', () => {
       'Needs a visit.',
     )
     expect(mapBeneficiaryJourneyHistory(history(null)).notes[0]).not.toHaveProperty('journeyNote')
+  })
+
+  it.each([
+    ['PRESENT', 'Present'],
+    ['ABSENT', 'Absent'],
+    ['COMPLETED', 'Completed'],
+    ['NOT_COMPLETED', 'Not completed'],
+    ['EXCUSED', 'Excused'],
+  ])('maps the %s attendance status to %s', (value, label) => {
+    const result = mapBeneficiaryJourneyHistory({
+      projectId: 'project-a',
+      beneficiaryId: 'beneficiary-a',
+      enrollmentId: 'enrollment-a',
+      enrollmentStatus: 'ACTIVE',
+      events: [
+        {
+          id: 'event-1',
+          eventType: 'PARTICIPATION',
+          eventDate: '2026-06-15',
+          description: null,
+          stageId: null,
+          stageCodeSnapshot: null,
+          stageNameSnapshot: null,
+          activityId: 'activity-a',
+          activityCodeSnapshot: null,
+          activityTitleSnapshot: null,
+          participationId: 'participation-a',
+          participation: { attendanceStatus: value, progressStatus: 'IN_PROGRESS' },
+          correctsEventId: null,
+          correctionReason: null,
+          recordedAt: '2026-06-15T12:00:00.000Z',
+          recordedBy: 'officer-a',
+        },
+      ],
+    })
+    expect(result.participation[0]?.attendanceStatus).toBe(label)
   })
 })

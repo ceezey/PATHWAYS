@@ -484,7 +484,7 @@ export interface BeneficiaryParticipationRecord {
   projectId: string
   activityId: string
   participatedAt: string
-  attendanceStatus: 'Present' | 'Partial' | 'Absent'
+  attendanceStatus: 'Present' | 'Partial' | 'Absent' | 'Completed' | 'Not completed' | 'Excused'
   note: string
 }
 
