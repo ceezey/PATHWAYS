@@ -1,7 +1,9 @@
+// @vitest-environment jsdom
 import type { DigitalFormDefinition } from '@/types/pathways'
+import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { createElement } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { ProjectIndicatorsWorkspace, indicatorInputFromForm } from './project-indicators-workspace'
 
 const state = vi.hoisted(() => ({
@@ -73,6 +75,7 @@ function form(overrides: Record<string, string> = {}) {
   return result
 }
 describe('P06 dedicated indicator workspace', () => {
+  afterEach(cleanup)
   beforeEach(() => {
     state.roles = ['PROJECT_MANAGER']
     state.permissions = ['monitoring.read']
@@ -129,8 +132,21 @@ describe('P06 dedicated indicator workspace', () => {
       }),
     )
     expect(html).toContain('Add project indicator')
-    expect(html).toContain('Manual measurement')
     expect(html).not.toContain('Indicator Library')
+  })
+  it('opens the add dialog with the authority choices only on demand', () => {
+    state.permissions = ['monitoring.read', 'indicators.create']
+    render(
+      createElement(ProjectIndicatorsWorkspace, {
+        projectId: '79000000-0000-4000-8000-000000000003',
+      }),
+    )
+    expect(screen.queryByText('Manual measurement')).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: 'Add project indicator' }))
+    expect(screen.getByRole('dialog')).toBeTruthy()
+    expect(screen.getByRole('combobox', { name: 'Authority' }).textContent).toContain(
+      'Manual measurement',
+    )
   })
   it('offers use-from-library only with library read and an existing entry', () => {
     const props = { projectId: '79000000-0000-4000-8000-000000000003' }
@@ -201,7 +217,7 @@ describe('P06 dedicated indicator workspace', () => {
         projectId: '79000000-0000-4000-8000-000000000003',
       }),
     )
-    expect(html).toContain('Target</dt><dd>20</dd>')
+    expect(html).toMatch(/<td[^>]*>20<[/]td>/)
     expect(html).not.toContain('Project target comparison:')
     expect(html).not.toContain('At project target')
     expect(html).toContain('Progress toward configured change: 75%')
