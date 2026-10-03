@@ -608,6 +608,11 @@ export interface EvidenceRecord {
   submitter: string
   submittedDate: string
   previewSummary: string
+  contentType: string
+  byteSize: number
+  isIdentifying: boolean
+  reviewedDate: string | null
+  reviewer: string | null
 }
 
 /** Aggregate-only roles receive per-activity counts, never file or submitter detail. */

@@ -170,6 +170,11 @@ export function parseEvidenceList(value: unknown): EvidenceList {
           submitter: evidenceText(row.submitter),
           submittedDate: evidenceText(row.submittedDate),
           previewSummary: evidenceText(row.previewSummary),
+          contentType: evidenceText(row.contentType),
+          byteSize: evidenceCount(row.byteSize),
+          isIdentifying: row.isIdentifying === true,
+          reviewedDate: typeof row.reviewedDate === 'string' ? row.reviewedDate : null,
+          reviewer: typeof row.reviewer === 'string' ? row.reviewer : null,
         }
       }),
     }

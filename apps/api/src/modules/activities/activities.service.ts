@@ -1113,7 +1113,22 @@ export class ActivitiesService {
               title: true,
               // Detail keeps the same bounded page as the activity list (100 activities,
               // 100 updates, 10 proofs per update); counts for totals use the aggregate path.
-              activityUpdate_activity: activitySelection.activityUpdate_activity,
+              activityUpdate_activity: {
+                ...activitySelection.activityUpdate_activity,
+                select: {
+                  ...activitySelection.activityUpdate_activity.select,
+                  evidenceMedia_update: {
+                    ...activitySelection.activityUpdate_activity.select.evidenceMedia_update,
+                    select: {
+                      ...activitySelection.activityUpdate_activity.select.evidenceMedia_update
+                        .select,
+                      contentType: true,
+                      byteSize: true,
+                      isIdentifying: true,
+                    },
+                  },
+                },
+              },
             },
             orderBy: [{ plannedEndDate: 'asc' }, { id: 'asc' }],
             take: 100,
@@ -1143,6 +1158,11 @@ export class ActivitiesService {
                       : ('Submitted' as const),
                 submitter: update.submittedBy.fullName,
                 submittedDate: proof.submittedAt.toISOString(),
+                contentType: proof.contentType,
+                byteSize: Number(proof.byteSize),
+                isIdentifying: proof.isIdentifying,
+                reviewedDate: update.reviewedAt?.toISOString() ?? null,
+                reviewer: update.reviewedBy?.fullName ?? null,
                 previewSummary: update.note ?? 'Activity evidence submission',
               }
             }),
