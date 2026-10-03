@@ -194,7 +194,7 @@ describe('P06 dedicated indicator workspace', () => {
     const html = renderToStaticMarkup(createElement(ProjectIndicatorsWorkspace, props))
     expect(html).toContain('Use from library')
     expect(html).toContain('WORKSHOP_ATTENDEES')
-    expect(html).toContain('href="/indicators/library"')
+    expect(html).toContain('href="/indicators/library?project=')
     state.permissions = ['monitoring.read', 'indicators.create']
     const denied = renderToStaticMarkup(createElement(ProjectIndicatorsWorkspace, props))
     expect(denied).not.toContain('Use from library')

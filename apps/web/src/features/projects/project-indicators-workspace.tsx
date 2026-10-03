@@ -717,7 +717,9 @@ export function ProjectIndicatorsWorkspace({ projectId }: { projectId: string })
         <div className="flex flex-wrap gap-2">
           {canReadLibrary ? (
             <Button asChild variant="outline">
-              <Link href="/indicators/library">Indicator library</Link>
+              <Link href={`/indicators/library?project=${encodeURIComponent(projectId)}`}>
+                Indicator library
+              </Link>
             </Button>
           ) : null}
           <Button type="button" variant="outline" onClick={reload} disabled={loading || busy}>

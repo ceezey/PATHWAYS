@@ -33,8 +33,28 @@ import { ActivityProofFiles } from './activity-proof-files'
 import { ActivityProofReviewDialog } from './activity-proof-review-dialog'
 import { activityStatusTone, formatCurrency, formatDate } from './activity-utils'
 
-const proofVersion = (activity: Activity, proof: ActivityProof) =>
-  activity.submittedProof.indexOf(proof) + 1
+type ProofGroup = ActivityProof & { proofIds: string[] }
+
+// One card per submitted update: the API returns one proof row per uploaded file.
+const groupProofsByUpdate = (proofs: ActivityProof[]) => {
+  const groups = new Map<string, ProofGroup>()
+  for (const proof of proofs) {
+    const names = proof.fileNames?.length ? proof.fileNames : [proof.fileName]
+    const group = groups.get(proof.updateId)
+    if (group) {
+      group.fileNames = [...(group.fileNames ?? []), ...names]
+      group.proofIds.push(proof.id)
+    } else {
+      groups.set(proof.updateId, {
+        ...proof,
+        files: undefined,
+        fileNames: names,
+        proofIds: [proof.id],
+      })
+    }
+  }
+  return [...groups.values()]
+}
 
 const proofTone = (status: ActivityProof['status']) => {
   if (status === 'Accepted') return 'success'
@@ -132,7 +152,7 @@ export const ActivityDetailContent = ({
         ) : null}
         {latestProof ? (
           <StatusBadge tone={proofTone(latestProof.status)}>
-            Proof v{proofVersion(activity, latestProof)} · {latestProof.status}
+            Proof v{groupProofsByUpdate(activity.submittedProof).length} · {latestProof.status}
           </StatusBadge>
         ) : null}
       </div>
@@ -264,100 +284,105 @@ export const ActivityDetailContent = ({
         </div>
         {activity.submittedProof.length > 0 ? (
           <div className="mt-3 space-y-3">
-            {[...activity.submittedProof].reverse().map((proof, reverseIndex) => {
-              const isLatest = reverseIndex === 0
-              const highlighted = proof.id === requestedProofId
-              const proofUpdate = activity.updateNotes.find(
-                (update) => update.id === proof.updateId,
-              )
-              const returnedUpdate = proof.status === 'Flagged' ? proofUpdate : undefined
-              const progress = proofUpdate?.progress ?? activity.progress
-              return (
-                <article
-                  className={`rounded-xl border bg-background p-4 ${
-                    highlighted ? 'border-primary ring-2 ring-primary/20' : 'border-border'
-                  }`}
-                  id={`activity-proof-${proof.id}`}
-                  key={proof.id}
-                >
-                  <div className="flex flex-wrap items-start justify-between gap-3">
-                    <div>
-                      <p className="text-sm font-semibold text-foreground">
-                        Version {proofVersion(activity, proof)} · {progress}%
-                      </p>
-                      <p className="mt-1 text-xs text-muted-foreground">
-                        Submitted {formatProofDate(proof.submittedAt)}
-                      </p>
-                    </div>
-                    <StatusBadge tone={proofTone(proof.status)}>{proof.status}</StatusBadge>
-                  </div>
-                  <p className="mt-3 text-sm leading-6 text-muted-foreground">
-                    {proof.note || 'No update note recorded.'}
-                  </p>
-                  <div className="mt-3">
-                    <ActivityProofFiles proof={proof} />
-                  </div>
-                  {proof.status === 'Flagged' ? (
-                    <div className="mt-3 rounded-xl border border-danger/25 bg-danger-subtle p-3 text-sm text-danger">
-                      <p>This proof was returned for correction.</p>
-                      {returnedUpdate?.reviewReason ? (
-                        <p className="mt-1">
-                          {returnedUpdate.reviewedBy
-                            ? `Returned by ${returnedUpdate.reviewedBy}: `
-                            : 'Return reason: '}
-                          {returnedUpdate.reviewReason}
+            {groupProofsByUpdate(activity.submittedProof)
+              .map((proof, index) => ({ proof, version: index + 1 }))
+              .reverse()
+              .map(({ proof, version }, reverseIndex) => {
+                const isLatest = reverseIndex === 0
+                const highlighted = Boolean(
+                  requestedProofId && proof.proofIds.includes(requestedProofId),
+                )
+                const proofUpdate = activity.updateNotes.find(
+                  (update) => update.id === proof.updateId,
+                )
+                const returnedUpdate = proof.status === 'Flagged' ? proofUpdate : undefined
+                const progress = proofUpdate?.progress ?? activity.progress
+                return (
+                  <article
+                    className={`rounded-xl border bg-background p-4 ${
+                      highlighted ? 'border-primary ring-2 ring-primary/20' : 'border-border'
+                    }`}
+                    id={`activity-proof-${proof.id}`}
+                    key={proof.id}
+                  >
+                    <div className="flex flex-wrap items-start justify-between gap-3">
+                      <div>
+                        <p className="text-sm font-semibold text-foreground">
+                          Version {version} · {progress}%
                         </p>
-                      ) : null}
-                      {isLatest && showSubmitProof && activity.status !== 'Completed' ? (
-                        <Button
-                          className="mt-3 gap-2"
-                          onClick={() => onSubmitProof(activity)}
-                          size="sm"
-                          type="button"
-                        >
-                          <UploadCloud className="h-4 w-4" aria-hidden="true" />
-                          Submit correction
-                        </Button>
-                      ) : null}
+                        <p className="mt-1 text-xs text-muted-foreground">
+                          Submitted {formatProofDate(proof.submittedAt)}
+                        </p>
+                      </div>
+                      <StatusBadge tone={proofTone(proof.status)}>{proof.status}</StatusBadge>
                     </div>
-                  ) : null}
-                  {isLatest &&
-                  canValidateProof &&
-                  proof.status === 'Submitted' &&
-                  activity.storedStatus !== 'FOR_REVIEW' ? (
-                    <p className="mt-4 text-sm text-muted-foreground">
-                      Waiting for the officer to finish uploading this proof. It can be reviewed
-                      once every file is submitted.
+                    <p className="mt-3 text-sm leading-6 text-muted-foreground">
+                      {proof.note || 'No update note recorded.'}
                     </p>
-                  ) : null}
-                  {isLatest &&
-                  canValidateProof &&
-                  proof.status === 'Submitted' &&
-                  activity.storedStatus === 'FOR_REVIEW' ? (
-                    <Button
-                      className="mt-4 gap-2"
-                      onClick={() => setReviewTarget({ mode: 'validate', proof })}
-                      size="sm"
-                      type="button"
-                    >
-                      <ClipboardCheck className="h-4 w-4" aria-hidden="true" />
-                      Review & validate proof
-                    </Button>
-                  ) : null}
-                  {isLatest && canDecideProof && proof.status === 'Accepted' ? (
-                    <Button
-                      className="mt-4 gap-2"
-                      onClick={() => setReviewTarget({ mode: 'decide', proof })}
-                      size="sm"
-                      type="button"
-                    >
-                      <ClipboardCheck className="h-4 w-4" aria-hidden="true" />
-                      Review decision
-                    </Button>
-                  ) : null}
-                </article>
-              )
-            })}
+                    <div className="mt-3">
+                      <ActivityProofFiles proof={proof} />
+                    </div>
+                    {proof.status === 'Flagged' ? (
+                      <div className="mt-3 rounded-xl border border-danger/25 bg-danger-subtle p-3 text-sm text-danger">
+                        <p>This proof was returned for correction.</p>
+                        {returnedUpdate?.reviewReason ? (
+                          <p className="mt-1">
+                            {returnedUpdate.reviewedBy
+                              ? `Returned by ${returnedUpdate.reviewedBy}: `
+                              : 'Return reason: '}
+                            {returnedUpdate.reviewReason}
+                          </p>
+                        ) : null}
+                        {isLatest && showSubmitProof && activity.status !== 'Completed' ? (
+                          <Button
+                            className="mt-3 gap-2"
+                            onClick={() => onSubmitProof(activity)}
+                            size="sm"
+                            type="button"
+                          >
+                            <UploadCloud className="h-4 w-4" aria-hidden="true" />
+                            Submit correction
+                          </Button>
+                        ) : null}
+                      </div>
+                    ) : null}
+                    {isLatest &&
+                    canValidateProof &&
+                    proof.status === 'Submitted' &&
+                    activity.storedStatus !== 'FOR_REVIEW' ? (
+                      <p className="mt-4 text-sm text-muted-foreground">
+                        Waiting for the officer to finish uploading this proof. It can be reviewed
+                        once every file is submitted.
+                      </p>
+                    ) : null}
+                    {isLatest &&
+                    canValidateProof &&
+                    proof.status === 'Submitted' &&
+                    activity.storedStatus === 'FOR_REVIEW' ? (
+                      <Button
+                        className="mt-4 gap-2"
+                        onClick={() => setReviewTarget({ mode: 'validate', proof })}
+                        size="sm"
+                        type="button"
+                      >
+                        <ClipboardCheck className="h-4 w-4" aria-hidden="true" />
+                        Review & validate proof
+                      </Button>
+                    ) : null}
+                    {isLatest && canDecideProof && proof.status === 'Accepted' ? (
+                      <Button
+                        className="mt-4 gap-2"
+                        onClick={() => setReviewTarget({ mode: 'decide', proof })}
+                        size="sm"
+                        type="button"
+                      >
+                        <ClipboardCheck className="h-4 w-4" aria-hidden="true" />
+                        Review decision
+                      </Button>
+                    ) : null}
+                  </article>
+                )
+              })}
           </div>
         ) : (
           <p className="mt-3 rounded-xl border border-dashed border-border p-4 text-sm text-muted-foreground">

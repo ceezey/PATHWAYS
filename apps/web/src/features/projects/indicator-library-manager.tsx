@@ -1,6 +1,8 @@
 'use client'
 
-import { LibraryBig, Loader2, Plus } from 'lucide-react'
+import { ArrowLeft, LibraryBig, Loader2, Plus } from 'lucide-react'
+import Link from 'next/link'
+import { useSearchParams } from 'next/navigation'
 import { type FormEvent, useRef, useState } from 'react'
 
 import { PageHeader } from '@/components/layout/page-header'
@@ -213,6 +215,12 @@ function NewEntry(props: Omit<Parameters<typeof EntryForm>[0], 'onDone'>) {
 
 export function IndicatorLibraryManager() {
   const { profile } = useCurrentRole()
+  // Returns to the project that opened the library, otherwise to the indicators overview.
+  const fromProject = useSearchParams().get('project')
+  const backHref =
+    fromProject && /^[0-9a-f-]{36}$/i.test(fromProject)
+      ? `/projects/${fromProject}/indicators`
+      : '/indicators'
   const canCreate = principalHasAtomicPermission(profile, 'indicators.library.create')
   const canArchive = principalHasAtomicPermission(profile, 'indicators.library.archive')
   const read = useAuthorizedRead('indicator-library', null, 'indicators.library.read', () =>
@@ -260,6 +268,14 @@ export function IndicatorLibraryManager() {
         eyebrow="Monitoring"
         title="Indicator library"
         description="Reusable indicator definitions for your organization. Using one copies its definition into a project; it never links back."
+        actions={
+          <Button asChild className="gap-2" variant="outline">
+            <Link href={backHref}>
+              <ArrowLeft className="h-4 w-4" aria-hidden="true" />
+              Back to Indicators
+            </Link>
+          </Button>
+        }
       />
       {canCreate ? (
         <div className="flex justify-end">
