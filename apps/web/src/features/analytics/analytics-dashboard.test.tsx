@@ -1176,43 +1176,85 @@ describe('Analytics dashboard request dependencies', () => {
         ]
       })
 
-      it('disables the survey option, keeps timeline enabled and real, and never fetches survey', async () => {
-        api.getTimelineAnalytics.mockResolvedValue({
-          contractVersion: 'analytics.descriptive.timeline.v1',
-          projectId: 'project-a',
-          generatedAt: '2026-09-27T04:00:00.000Z',
-          reportingDate: '2026-09-27',
-          elapsedPercent: available('50'),
-          remainingDays: available('30'),
-          overdueDays: zero,
-          activityCompletionPercent: available('75'),
-          activityOverdueCount: zero,
-          milestoneOnTimePercent: available('100'),
-        })
+      const surveyResult = () => ({
+        contractVersion: 'analytics.descriptive.survey.v1',
+        projectId: 'project-a',
+        generatedAt: '2026-09-27T04:00:00.000Z',
+        overall: surveyGroup(),
+        byActivity: [],
+      })
+
+      it('loads the frozen release and shows the caption for a closed period', async () => {
+        api.getSurveyAnalytics.mockResolvedValue(surveyResult())
         render(<AnalyticsDashboard />)
         await waitFor(() => expect(api.getMonitoringDashboard).toHaveBeenCalled())
         const survey = screen.getByText('Survey improvement', {
           selector: 'option',
         }) as HTMLOptionElement
-        const timeline = screen.getByText('Project / activity timeline adherence', {
-          selector: 'option',
-        }) as HTMLOptionElement
-        expect(survey.disabled).toBe(true)
-        expect(timeline.disabled).toBe(false)
-
-        // A survey view left selected still shows restricted wording, never "None yet" or Retry.
+        expect(survey.disabled).toBe(false)
         fireEvent.change(screen.getByLabelText('Analysis view'), { target: { value: 'survey' } })
-        const restricted = await screen.findByText(
-          'Survey improvement is restricted for your role.',
-        )
-        expect(within(restricted.parentElement as HTMLElement).queryByText('None yet')).toBeNull()
-        expect(screen.queryByRole('button', { name: /retry/i })).toBeNull()
+        fireEvent.change(screen.getByLabelText('Reporting period'), {
+          target: { value: '2026-08-01::2026-08-31' },
+        })
+        expect(await screen.findByTestId('survey-analytics')).toBeTruthy()
+        expect(
+          screen.getByText(
+            'Released once for this closed period; figures do not change on later views.',
+          ),
+        ).toBeTruthy()
+        expect(api.getSurveyAnalytics).toHaveBeenCalledWith({
+          projectId: 'project-a',
+          periodStart: '2026-08-01',
+          periodEnd: '2026-08-31',
+        })
+      })
+
+      it('shows the closed-period message without calling the survey client for an open period', async () => {
+        render(<AnalyticsDashboard />)
+        await waitFor(() => expect(api.getMonitoringDashboard).toHaveBeenCalled())
+        fireEvent.change(screen.getByLabelText('Analysis view'), { target: { value: 'survey' } })
+        expect(
+          await screen.findByText(
+            'Survey results for your role are released after the reporting period closes. Choose a closed period.',
+          ),
+        ).toBeTruthy()
         expect(screen.queryByTestId('survey-analytics')).toBeNull()
         expect(api.getSurveyAnalytics).not.toHaveBeenCalled()
+      })
 
-        fireEvent.change(screen.getByLabelText('Analysis view'), { target: { value: 'timeline' } })
-        expect(await screen.findByTestId('timeline-analytics')).toBeTruthy()
-        expect(api.getSurveyAnalytics).not.toHaveBeenCalled()
+      it('maps a 400 on a closed period to the closed-period message', async () => {
+        api.getSurveyAnalytics.mockRejectedValue(
+          Object.assign(new Error('refused'), { status: 400 }),
+        )
+        render(<AnalyticsDashboard />)
+        await waitFor(() => expect(api.getMonitoringDashboard).toHaveBeenCalled())
+        fireEvent.change(screen.getByLabelText('Analysis view'), { target: { value: 'survey' } })
+        fireEvent.change(screen.getByLabelText('Reporting period'), {
+          target: { value: '2026-08-01::2026-08-31' },
+        })
+        expect(await screen.findByText(/released after the reporting period closes/)).toBeTruthy()
+      })
+    })
+
+    describe('detail roles keep the live survey', () => {
+      it('loads the survey for the open period without the frozen caption', async () => {
+        api.getSurveyAnalytics.mockResolvedValue({
+          contractVersion: 'analytics.descriptive.survey.v1',
+          projectId: 'project-a',
+          generatedAt: '2026-09-27T04:00:00.000Z',
+          overall: surveyGroup(),
+          byActivity: [],
+        })
+        render(<AnalyticsDashboard />)
+        await waitFor(() => expect(api.getMonitoringDashboard).toHaveBeenCalled())
+        fireEvent.change(screen.getByLabelText('Analysis view'), { target: { value: 'survey' } })
+        expect(await screen.findByTestId('survey-analytics')).toBeTruthy()
+        expect(screen.queryByText(/Released once for this closed period/)).toBeNull()
+        expect(api.getSurveyAnalytics).toHaveBeenCalledWith({
+          projectId: 'project-a',
+          periodStart: '2026-09-01',
+          periodEnd: '2026-09-30',
+        })
       })
     })
 

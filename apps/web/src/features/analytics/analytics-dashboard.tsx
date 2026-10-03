@@ -111,6 +111,10 @@ const metricNumber = (cell: { value: string | null }) => {
 type SurveyErrorKind = 'restricted' | 'period' | 'retry'
 const SURVEY_RESTRICTED_MESSAGE = 'Survey improvement is restricted for your role.'
 const SURVEY_PERIOD_MESSAGE = 'This reporting period cannot be used for survey results.'
+const SURVEY_CLOSED_PERIOD_MESSAGE =
+  'Survey results for your role are released after the reporting period closes. Choose a closed period.'
+const SURVEY_FROZEN_CAPTION =
+  'Released once for this closed period; figures do not change on later views.'
 
 /** 403 = role restriction and 400 = refused period are final; only network/5xx may be retried. */
 const surveyErrorKindFor = (caught: unknown): SurveyErrorKind => {
@@ -159,10 +163,9 @@ export const AnalyticsDashboard = () => {
   // Survey and timeline read person-derived aggregates, so the API requires both permissions
   // (analytics.descriptive.read and monitoring.read). Anything less is restricted, never "None yet".
   const canReadSurveyTimeline = canReadDescriptive && canReadIndicators
-  // Survey improvement additionally requires assessments.detail.read (CR amendment 2026-09-30):
-  // aggregate-only roles (Program Manager, Grant Manager) see an explicit restricted state.
-  const canReadSurvey =
-    canReadSurveyTimeline && principalHasAtomicPermission(profile, 'assessments.detail.read')
+  const canReadSurvey = canReadSurveyTimeline
+  // Roles without assessments.detail.read (Program/Grant Manager) get a frozen release of closed periods only.
+  const surveyFrozenOnly = !principalHasAtomicPermission(profile, 'assessments.detail.read')
   const canExportAnalytics =
     canReadDescriptive && principalHasAtomicPermission(profile, 'analytics.export')
   const canReadBudgetUtilization = canReadInsight(profile, 'budget')
@@ -248,6 +251,9 @@ export const AnalyticsDashboard = () => {
   )
   const surveyPeriod =
     surveyPeriods.find((candidate) => candidate.value === period) ?? surveyPeriods[0]
+  const surveyClosedPeriodRequired =
+    surveyFrozenOnly && !(surveyPeriod && surveyPeriod.end < businessDateInManila())
+  const surveyUnavailable = !canReadSurvey || surveyClosedPeriodRequired
   const pickerPeriods = analysisView === 'survey' ? surveyPeriods : reportingPeriods
   const pickerPeriod = analysisView === 'survey' ? surveyPeriod : selectedPeriod
   const sadddUnavailableReason =
@@ -463,7 +469,7 @@ export const AnalyticsDashboard = () => {
 
   // Paired pre/post survey improvement. Requires a complete period, same as the API contract.
   useEffect(() => {
-    if (!projectId || !surveyPeriod || !canReadSurvey || analysisView !== 'survey') {
+    if (!projectId || !surveyPeriod || surveyUnavailable || analysisView !== 'survey') {
       setSurveyLoading(false)
       setSurvey(null)
       setSurveyError('')
@@ -493,7 +499,9 @@ export const AnalyticsDashboard = () => {
           kind === 'restricted'
             ? SURVEY_RESTRICTED_MESSAGE
             : kind === 'period'
-              ? SURVEY_PERIOD_MESSAGE
+              ? surveyFrozenOnly
+                ? SURVEY_CLOSED_PERIOD_MESSAGE
+                : SURVEY_PERIOD_MESSAGE
               : caught instanceof Error
                 ? caught.message
                 : 'Survey analytics could not be loaded.',
@@ -505,7 +513,14 @@ export const AnalyticsDashboard = () => {
     return () => {
       active = false
     }
-  }, [analysisView, canReadSurvey, projectId, surveyPeriod, surveyLoadAttempt])
+  }, [
+    analysisView,
+    surveyUnavailable,
+    surveyFrozenOnly,
+    projectId,
+    surveyPeriod,
+    surveyLoadAttempt,
+  ])
 
   // Timeline adherence uses the business reporting date server-side; no period selection needed.
   useEffect(() => {
@@ -545,6 +560,7 @@ export const AnalyticsDashboard = () => {
       return
     const exportPeriod = view === 'survey' ? surveyPeriod : selectedPeriod
     if (view !== 'timeline' && !exportPeriod) return
+    if (view === 'survey' && surveyUnavailable) return
     const capturedProject = projectId
     setExporting(true)
     try {
@@ -799,7 +815,7 @@ export const AnalyticsDashboard = () => {
                 !selectedProject ||
                 exporting ||
                 (analysisView !== 'timeline' && !pickerPeriod) ||
-                (analysisView === 'survey' && !canReadSurvey)
+                (analysisView === 'survey' && surveyUnavailable)
               }
               onClick={() => void exportDescriptive()}
               type="button"
@@ -880,6 +896,8 @@ export const AnalyticsDashboard = () => {
               </>
             ) : analysisView === 'survey' && !canReadSurvey ? (
               <UnavailableChart description={SURVEY_RESTRICTED_MESSAGE} />
+            ) : analysisView === 'survey' && surveyClosedPeriodRequired ? (
+              <UnavailableChart description={SURVEY_CLOSED_PERIOD_MESSAGE} />
             ) : analysisView === 'timeline' && !canReadSurveyTimeline ? (
               <UnavailableChart description="Timeline adherence is not available for this role." />
             ) : analysisView === 'survey' ? (
@@ -888,6 +906,7 @@ export const AnalyticsDashboard = () => {
                 data={survey}
                 error={surveyError}
                 errorKind={surveyErrorKind}
+                frozen={surveyFrozenOnly}
                 loading={surveyLoading}
                 noUsablePeriod={reportingPeriods.length > 0 && surveyPeriods.length === 0}
                 onRetry={() => setSurveyLoadAttempt((value) => value + 1)}
@@ -1271,6 +1290,7 @@ const SurveyAnalyticsPanel = ({
   loading,
   error,
   errorKind,
+  frozen,
   noUsablePeriod,
   onRetry,
   periodsReadable,
@@ -1281,6 +1301,7 @@ const SurveyAnalyticsPanel = ({
   loading: boolean
   error: string
   errorKind: SurveyErrorKind
+  frozen: boolean
   noUsablePeriod: boolean
   onRetry: () => void
   periodsReadable: boolean
@@ -1324,6 +1345,7 @@ const SurveyAnalyticsPanel = ({
   const isMissing = overall.pairs.value === '0'
   return (
     <div className="space-y-4" data-testid="survey-analytics">
+      {frozen ? <p className="text-sm text-muted-foreground">{SURVEY_FROZEN_CAPTION}</p> : null}
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <MetricCard
           description="Enrollments with both a PRE_TEST and a POST_TEST in this period."
