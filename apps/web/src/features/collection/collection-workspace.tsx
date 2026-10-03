@@ -99,6 +99,7 @@ import {
   fieldCodeWhileTyping,
   formTypeLabels,
   fromDigitalForm,
+  neatFormCode,
   toDigitalFormInput,
 } from './digital-form-contract'
 import {
@@ -1060,8 +1061,11 @@ const OwnedCollectionWorkspace = ({
       )
       return
     }
+    // Generated once per new draft so a retried create reuses the same code.
+    const code = formCode || neatFormCode(formTitle)
+    if (!formCode) setFormCode(code)
     const input = toDigitalFormInput({
-      code: fieldCodeFromText(formCode || formTitle).slice(0, 64),
+      code,
       name: formTitle.trim(),
       description: formDescription,
       formType: toApiFormType(formType),
@@ -1600,31 +1604,6 @@ const OwnedCollectionWorkspace = ({
           >
             <BuilderView
               addField={addField}
-              config={
-                <>
-                  <div className="space-y-2">
-                    <Label htmlFor="form-code">Form code</Label>
-                    <Input
-                      id="form-code"
-                      value={formCode}
-                      readOnly={Boolean(editingFormId)}
-                      placeholder="Generated from the title if left blank"
-                      onChange={(event) =>
-                        changeInput(setFormCode)(fieldCodeWhileTyping(event.target.value))
-                      }
-                      onBlur={(event) => setFormCode(fieldCodeFromText(event.target.value))}
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="form-description">Description</Label>
-                    <Input
-                      id="form-description"
-                      value={formDescription}
-                      onChange={(event) => changeInput(setFormDescription)(event.target.value)}
-                    />
-                  </div>
-                </>
-              }
               canManage={canManageForms}
               canPublish={
                 canPublishForms &&
@@ -2054,7 +2033,6 @@ const FormsGeneratorView = ({
 
 const BuilderView = ({
   addField,
-  config,
   canManage,
   canPublish,
   deleteField,
@@ -2087,7 +2065,6 @@ const BuilderView = ({
   updateField,
 }: {
   addField: () => void
-  config: ReactNode
   canManage: boolean
   canPublish: boolean
   deleteField: (fieldId: string) => void
@@ -2122,7 +2099,7 @@ const BuilderView = ({
   <div className="grid min-w-0 gap-4 xl:grid-cols-[minmax(0,1fr)_300px]">
     <div className="min-w-0 space-y-4">
       <FormInfoPanel
-        config={config}
+        showHeading
         formTitle={formTitle}
         formType={formType}
         journeyStage={journeyStage}
@@ -2275,7 +2252,7 @@ const BuilderView = ({
 )
 
 const FormInfoPanel = ({
-  config,
+  showHeading = false,
   formTitle,
   formType,
   journeyStage,
@@ -2290,7 +2267,7 @@ const FormInfoPanel = ({
   setLinkedActivityId,
   setProjectId,
 }: {
-  config?: ReactNode
+  showHeading?: boolean
   formTitle: string
   formType: string
   journeyStage: string
@@ -2306,15 +2283,14 @@ const FormInfoPanel = ({
   setProjectId: (value: string) => void
 }) => (
   <Card>
-    {config ? (
+    {showHeading ? (
       <CardHeader>
         <CardTitle>Form configuration</CardTitle>
       </CardHeader>
     ) : null}
-    <CardContent className={cn('grid gap-4 md:grid-cols-2', !config && 'pt-5')}>
-      {config}
+    <CardContent className={cn('grid gap-4 md:grid-cols-2', !showHeading && 'pt-5')}>
       <div className="space-y-2">
-        <Label htmlFor="form-title">Form information</Label>
+        <Label htmlFor="form-title">Form title</Label>
         <Input
           id="form-title"
           value={formTitle}
