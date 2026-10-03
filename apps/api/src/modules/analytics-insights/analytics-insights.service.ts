@@ -212,7 +212,7 @@ export class AnalyticsInsightsService {
           indicatorId: { in: indicators.map((i) => i.id) },
           periodEnd: range(query),
         },
-        orderBy: [{ periodEnd: 'asc' }, { recordedAt: 'asc' }],
+        orderBy: [{ periodEnd: 'desc' }, { recordedAt: 'desc' }],
         take: MAX_INDICATORS * MAX_POINTS * 4,
         select: {
           id: true,
