@@ -4,10 +4,9 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { MAX_DASHBOARD_PINS, addPin, readPins, removePin } from './dashboard-pins'
 
-const pin = (projectId: string, view: 'kpi' | 'budget' = 'kpi') => ({
+const pin = (projectId: string, view: 'kpi' | 'participation' = 'kpi') => ({
   view,
   projectId,
-  projectName: `Project ${projectId}`,
   periodStart: '2026-01-01',
   periodEnd: '2026-03-31',
 })
@@ -22,15 +21,32 @@ describe('dashboard pins', () => {
     expect(addPin('u1', pin('p1'))).toBe('added')
     const [stored] = readPins('u1')
     expect(Object.keys(stored).sort()).toEqual(
-      ['createdAt', 'id', 'periodEnd', 'periodStart', 'projectId', 'projectName', 'view'].sort(),
+      ['createdAt', 'id', 'periodEnd', 'periodStart', 'projectId', 'view'].sort(),
     )
     expect(readPins('u2')).toEqual([])
+  })
+
+  it('strips a stored project name and drops views the UI can no longer create', () => {
+    const legacy = {
+      id: 'a',
+      view: 'kpi',
+      projectId: 'p1',
+      projectName: 'Private title',
+      createdAt: '2026-01-01T00:00:00.000Z',
+    }
+    window.localStorage.setItem(
+      'pathways.dashboardPins.v1.u1',
+      JSON.stringify([legacy, { ...legacy, id: 'b', view: 'budget' }]),
+    )
+    expect(readPins('u1')).toEqual([
+      { id: 'a', view: 'kpi', projectId: 'p1', createdAt: '2026-01-01T00:00:00.000Z' },
+    ])
   })
 
   it('de-duplicates identical pins but keeps a different view or period', () => {
     addPin('u1', pin('p1'))
     expect(addPin('u1', pin('p1'))).toBe('duplicate')
-    expect(addPin('u1', pin('p1', 'budget'))).toBe('added')
+    expect(addPin('u1', pin('p1', 'participation'))).toBe('added')
     expect(addPin('u1', { ...pin('p1'), periodEnd: '2026-06-30' })).toBe('added')
     expect(readPins('u1')).toHaveLength(3)
   })

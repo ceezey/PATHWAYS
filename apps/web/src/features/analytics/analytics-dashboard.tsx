@@ -65,6 +65,7 @@ import {
 import { BudgetSummaryCard } from './budget-summary-card'
 import { IndicatorTrendChart } from './indicator-trend-chart'
 import { InsightStatus } from './insight-status'
+import { activeIndicators, metricNumber, progressRows } from './kpi-rows'
 import { ParticipationBreakdownPanel } from './participation-breakdown-panel'
 import {
   canReadInsight,
@@ -100,12 +101,6 @@ const businessDateInManila = (date = new Date()) => {
   }).formatToParts(date)
   const value = Object.fromEntries(parts.map((part) => [part.type, part.value]))
   return `${value.year}-${value.month}-${value.day}`
-}
-
-const metricNumber = (cell: { value: string | null }) => {
-  if (cell.value === null) return null
-  const value = Number(cell.value)
-  return Number.isFinite(value) ? value : null
 }
 
 type SurveyErrorKind = 'restricted' | 'period' | 'retry'
@@ -579,12 +574,27 @@ export const AnalyticsDashboard = () => {
     }
   }
 
+  // The pinned card re-reads the same source, so pinning needs the same permission and period.
+  const pinBlockedReason = {
+    kpi: !canReadIndicators
+      ? 'Your role cannot read indicator progress, so this view cannot be pinned.'
+      : !selectedPeriod
+        ? 'Choose a reporting period to pin this view.'
+        : '',
+    participation: canReadParticipation
+      ? ''
+      : 'Your role cannot read participation detail, so this view cannot be pinned.',
+    survey: 'Survey improvement cannot be pinned',
+    timeline: canReadSurveyTimeline
+      ? ''
+      : 'Your role cannot read timeline adherence, so this view cannot be pinned.',
+  }[analysisView]
   const addToDashboard = () => {
-    if (!selectedProject || !profile?.userId || analysisView === 'survey') return
+    if (!selectedProject || !profile?.userId || analysisView === 'survey' || pinBlockedReason)
+      return
     const result = addPin(profile.userId, {
       view: analysisView,
       projectId: selectedProject.id,
-      projectName: selectedProject.title,
       ...(analysisView !== 'timeline' && selectedPeriod
         ? { periodStart: selectedPeriod.start, periodEnd: selectedPeriod.end }
         : {}),
@@ -632,10 +642,7 @@ export const AnalyticsDashboard = () => {
     else if (projectDataError) setProjectDataLoadAttempt((value) => value + 1)
     else setMonitoringLoadAttempt((value) => value + 1)
   }
-  const indicators =
-    monitoring?.indicators.filter(
-      (row) => row.projectId === projectId && row.status === 'ACTIVE',
-    ) ?? []
+  const indicators = monitoring ? activeIndicators(monitoring, projectId) : []
   const analysisMeta = {
     kpi: { title: 'KPI / indicator performance', unit: '%' },
     participation: { title: 'Participation patterns', unit: 'records' },
@@ -645,12 +652,9 @@ export const AnalyticsDashboard = () => {
   const analysisRows = useMemo(() => {
     if (!selectedProject || !monitoring) return []
     if (analysisView === 'kpi')
-      return indicators
-        .filter((row) => indicatorId === 'all' || row.id === indicatorId)
-        .flatMap((row) => {
-          const value = metricNumber(row.progress)
-          return value === null ? [] : [{ id: row.id, label: row.name, value }]
-        })
+      return progressRows(
+        indicators.filter((row) => indicatorId === 'all' || row.id === indicatorId),
+      )
     return []
   }, [analysisView, indicatorId, indicators, monitoring, selectedProject])
   const progressValues = indicators
@@ -798,14 +802,20 @@ export const AnalyticsDashboard = () => {
         <div className="flex items-end sm:col-span-2 xl:col-span-3 xl:col-start-10 xl:row-start-3">
           <Button
             className="shrink-0"
-            disabled={!selectedProject || !profile?.userId || analysisView === 'survey'}
+            aria-describedby={pinBlockedReason ? 'pin-blocked-reason' : undefined}
+            disabled={!selectedProject || !profile?.userId || Boolean(pinBlockedReason)}
             onClick={addToDashboard}
-            title={analysisView === 'survey' ? 'Survey improvement cannot be pinned' : undefined}
+            title={pinBlockedReason || undefined}
             type="button"
           >
             <Plus className="mr-2 h-4 w-4" aria-hidden="true" />
             Add to Dashboard
           </Button>
+          {pinBlockedReason ? (
+            <span className="sr-only" id="pin-blocked-reason">
+              {pinBlockedReason}
+            </span>
+          ) : null}
         </div>
         {ANALYTICS_AGGREGATE_EXPORT_UI_ENABLED && canExportAnalytics ? (
           <div className="flex flex-wrap justify-end gap-2 border-t border-border pt-4 sm:col-span-2 xl:col-span-12 xl:row-start-4">
@@ -1071,12 +1081,7 @@ export const AnalyticsDashboard = () => {
             </h2>
             <ChartPanel title="Indicator progress">
               {indicators.some((row) => metricNumber(row.progress) !== null) ? (
-                <IndicatorProgressChart
-                  rows={indicators.flatMap((row) => {
-                    const value = metricNumber(row.progress)
-                    return value === null ? [] : [{ id: row.id, label: row.name, value }]
-                  })}
-                />
+                <IndicatorProgressChart rows={progressRows(indicators)} />
               ) : (
                 <UnavailableChart
                   description="No released indicator progress for this project and period."
@@ -1088,7 +1093,12 @@ export const AnalyticsDashboard = () => {
               <ChartPanel title="Indicator trends">
                 {canReadTrends ? (
                   <InsightStatus read={trendsRead} label="Indicator trends">
-                    {(data) => <IndicatorTrendChart data={data} />}
+                    {(data) => (
+                      <IndicatorTrendChart
+                        data={data}
+                        indicatorId={indicatorId === 'all' ? undefined : indicatorId}
+                      />
+                    )}
                   </InsightStatus>
                 ) : (
                   <UnavailableChart description="Indicator trends are not available for this role." />

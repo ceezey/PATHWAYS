@@ -391,7 +391,7 @@ const ConnectedMonitoringSnapshot = ({
           title="No authorized projects"
         />
       )}
-      <PinnedCharts />
+      <PinnedCharts projects={projects} />
     </SectionCard>
   )
 }

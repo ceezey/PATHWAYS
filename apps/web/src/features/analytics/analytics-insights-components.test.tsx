@@ -13,10 +13,11 @@ import {
 vi.mock('echarts-for-react', () => ({ default: () => <div>chart</div> }))
 
 const uuid = '11111111-1111-4111-8111-111111111111'
+const uuid2 = '22222222-2222-4222-8222-222222222222'
 afterEach(cleanup)
 
 describe('participation breakdown panel', () => {
-  it('labels suppressed cells as "Fewer than 5" and never plots them as zero', () => {
+  it('labels every hidden cell "Suppressed" and never plots them as zero', () => {
     render(
       <ParticipationBreakdownPanel
         data={{
@@ -25,19 +26,19 @@ describe('participation breakdown panel', () => {
           totalSuppressed: true,
           byActivity: [
             { activityId: uuid, activityName: 'Training', count: null, suppressed: true },
-            { activityId: uuid, activityName: 'Workshop', count: 12, suppressed: false },
+            { activityId: uuid2, activityName: 'Workshop', count: 12, suppressed: false },
           ],
           byMonth: [{ month: '2026-02', count: 7, suppressed: false }],
           byAttendanceStatus: [{ status: 'NOT_COMPLETED', count: null, suppressed: true }],
         }}
       />,
     )
-    expect(screen.getByText(/Total participation/).textContent).toContain('Fewer than 5')
-    expect(screen.getAllByText('Fewer than 5').length).toBeGreaterThanOrEqual(2)
+    expect(screen.getByText(/Total participation/).textContent).toContain('Suppressed')
+    expect(screen.getAllByText('Suppressed').length).toBeGreaterThanOrEqual(2)
     expect(screen.getByText('Not completed')).toBeTruthy()
     expect(screen.getByText('12')).toBeTruthy()
     const option = participationBarOption('By activity', [
-      { label: 'Training', count: null, suppressed: true },
+      { key: 'a', label: 'Training', count: null, suppressed: true },
     ])
     expect(option.series[0].data).toEqual([null])
   })
@@ -58,7 +59,7 @@ describe('indicator trends', () => {
         ],
       },
       {
-        indicatorId: uuid,
+        indicatorId: uuid2,
         name: 'Trained',
         unit: '',
         target: null,
@@ -67,15 +68,24 @@ describe('indicator trends', () => {
     ],
   }
 
-  it('builds one series per indicator with a dashed target line only when a target exists', () => {
+  it('plots one indicator per chart, defaulting to the first, with a dashed target line', () => {
     const option = indicatorTrendOption(trends)
     expect(option.xAxis.data).toEqual(['2026-01-31', '2026-02-28'])
-    expect(option.series).toHaveLength(2)
+    expect(option.series).toHaveLength(1)
     expect(option.series[0]).toMatchObject({
       markLine: { data: [{ yAxis: 100 }], lineStyle: { type: 'dashed' } },
     })
-    expect(option.series[1]).not.toHaveProperty('markLine')
-    expect(option.series[1].data).toEqual([null, 5])
+    expect(option.legend.type).toBe('scroll')
+  })
+
+  it('does not plot indicators with different units on one axis', () => {
+    const second = indicatorTrendOption(trends, uuid2)
+    expect(second.series).toHaveLength(1)
+    expect(second.series[0].name).toBe('Trained')
+    expect(second.series[0]).not.toHaveProperty('markLine')
+    expect(second.series[0].data).toEqual([5])
+    const first = indicatorTrendOption(trends, uuid)
+    expect(first.series.map((row) => row.name)).toEqual(['Enrolled (people)'])
   })
 
   it('shows "None yet" when there are no points', () => {
@@ -101,7 +111,12 @@ describe('budget summary card', () => {
     expect(screen.getByText('No budget')).toBeTruthy()
     expect(screen.getByText('PHP')).toBeTruthy()
     expect(screen.getByText('USD')).toBeTruthy()
-    expect(screen.getByText('Pending')).toBeTruthy()
+    expect(screen.getByText('Pending or verified (not counted)')).toBeTruthy()
+    expect(
+      screen.getByText(
+        'Utilization = approved expenses / planned budget; pending and verified amounts are not counted.',
+      ),
+    ).toBeTruthy()
   })
 
   it('shows "No budget" when no currency rows exist', () => {

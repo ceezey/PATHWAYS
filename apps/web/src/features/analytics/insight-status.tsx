@@ -8,6 +8,7 @@ import { EmptyState } from '@/components/pathways/empty-state'
 
 interface InsightRead<T> {
   data?: T
+  eligible?: boolean
   error: unknown
   isError: boolean
   isPending: boolean
@@ -33,6 +34,8 @@ export function InsightStatus<T>({
   label,
   children,
 }: { read: InsightRead<T>; label: string; children: (data: T) => ReactNode }) {
+  // An ineligible read never fetches, for example after the project assignment was removed.
+  if (read.eligible === false) return <RestrictedInsight label={label} />
   if (read.isError) {
     const status = statusOf(read.error)
     if (status === 403) return <RestrictedInsight label={label} />

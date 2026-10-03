@@ -536,7 +536,7 @@ describe('Analytics dashboard request dependencies', () => {
       target: { value: 'participation' },
     })
 
-    expect((await screen.findByText(/Total participation/)).textContent).toContain('Fewer than 5')
+    expect((await screen.findByText(/Total participation/)).textContent).toContain('Suppressed')
   })
 
   it('shows the restricted wording for participation to an aggregate-only role', async () => {
@@ -557,6 +557,10 @@ describe('Analytics dashboard request dependencies', () => {
     expect(
       await screen.findByText('Participation patterns are restricted for your role.'),
     ).toBeTruthy()
+    const pin = screen.getByRole('button', { name: 'Add to Dashboard' }) as HTMLButtonElement
+    expect(pin.disabled).toBe(true)
+    expect(pin.title).toContain('cannot read participation detail')
+    expect(pin.getAttribute('aria-describedby')).toBe('pin-blocked-reason')
   })
 
   it('does not issue permission-incompatible Activity or Indicator reads for Grant Manager', async () => {
@@ -686,7 +690,6 @@ describe('Analytics dashboard request dependencies', () => {
     expect(stored[0]).toMatchObject({
       view: 'kpi',
       projectId: 'project-a',
-      projectName: 'Project A',
       periodStart: '2026-09-01',
       periodEnd: '2026-09-30',
     })

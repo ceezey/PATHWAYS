@@ -1,13 +1,12 @@
 /** Browser-only dashboard pins: references to a view, never data; data is re-fetched under live permissions. */
 
-export const PIN_VIEWS = ['kpi', 'participation', 'trends', 'budget', 'saddd', 'timeline'] as const
+export const PIN_VIEWS = ['kpi', 'participation', 'timeline'] as const
 export type PinView = (typeof PIN_VIEWS)[number]
 
 export interface DashboardPin {
   id: string
   view: PinView
   projectId: string
-  projectName: string
   periodStart?: string
   periodEnd?: string
   createdAt: string
@@ -27,18 +26,28 @@ const isPin = (value: unknown): value is DashboardPin => {
     typeof pin.id === 'string' &&
     PIN_VIEWS.includes(pin.view) &&
     typeof pin.projectId === 'string' &&
-    typeof pin.projectName === 'string' &&
     typeof pin.createdAt === 'string' &&
     (pin.periodStart === undefined || typeof pin.periodStart === 'string') &&
     (pin.periodEnd === undefined || typeof pin.periodEnd === 'string')
   )
 }
 
+/** Keeps only the allowlisted keys so fields from older stored pins, such as a project name, are dropped. */
+const strip = (pin: DashboardPin): DashboardPin => ({
+  id: pin.id,
+  view: pin.view,
+  projectId: pin.projectId,
+  ...(pin.periodStart && pin.periodEnd
+    ? { periodStart: pin.periodStart, periodEnd: pin.periodEnd }
+    : {}),
+  createdAt: pin.createdAt,
+})
+
 /** Unavailable or corrupt storage reads as no pins. */
 export function readPins(userId: string): DashboardPin[] {
   try {
     const parsed: unknown = JSON.parse(window.localStorage.getItem(storageKey(userId)) ?? '[]')
-    return Array.isArray(parsed) ? parsed.filter(isPin).slice(0, MAX_DASHBOARD_PINS) : []
+    return Array.isArray(parsed) ? parsed.filter(isPin).slice(0, MAX_DASHBOARD_PINS).map(strip) : []
   } catch {
     return []
   }
@@ -66,7 +75,6 @@ export function addPin(
     id: crypto.randomUUID(),
     view: input.view,
     projectId: input.projectId,
-    projectName: input.projectName,
     ...(input.periodStart && input.periodEnd
       ? { periodStart: input.periodStart, periodEnd: input.periodEnd }
       : {}),
