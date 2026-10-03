@@ -192,7 +192,7 @@ const OtpInput = React.forwardRef<HTMLDivElement, OtpInputProps>(
         // without altering the approved visual design.
         role="group"
         aria-label={label}
-        className={cn('flex justify-between gap-2', className)}
+        className={cn('flex gap-2', className)}
       >
         {slots.map((digit, index) => (
           <input

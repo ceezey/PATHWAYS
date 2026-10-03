@@ -3,6 +3,7 @@
 import { ChevronDown, Loader2, RefreshCw, X } from 'lucide-react'
 import type { Control } from 'react-hook-form'
 
+import { AsyncState } from '@/components/pathways'
 import { Button } from '@/components/ui/button'
 import {
   DropdownMenu,
@@ -298,10 +299,11 @@ export const ProjectTeamSelectors = ({
   return (
     <div className="space-y-5">
       {loading ? (
-        <output className="flex items-center gap-2 text-sm text-muted-foreground">
-          <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
-          Loading active team members...
-        </output>
+        <AsyncState
+          description="Fetching the active people you can assign to this project."
+          status="loading"
+          title="Loading team members"
+        />
       ) : null}
       {loadError ? (
         <div
@@ -315,7 +317,7 @@ export const ProjectTeamSelectors = ({
           </Button>
         </div>
       ) : null}
-      <div className="grid gap-5 lg:grid-cols-2">
+      <div className={loading ? 'hidden' : 'grid gap-5 lg:grid-cols-2'}>
         {hiddenFields.includes('programManager') ? null : (
           <SingleTeamSelector
             allowClear={canClear('programManager')}
