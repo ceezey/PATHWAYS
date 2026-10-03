@@ -85,6 +85,7 @@ vi.mock('@/lib/services/pathways-client', () => ({
 }))
 
 beforeEach(() => {
+  sessionStorage.clear()
   currentAccess.profile.userId = 'actor-a'
   currentAccess.profile.organizationId = 'org-a'
   currentAccess.profile.assignedProjectIds = ['futuremakers-ncr']
