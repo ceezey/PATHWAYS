@@ -3,7 +3,12 @@ import { hasAtomicPermission, rolePermissions } from '@app/modules/auth/authoriz
 import { withAuthorizedOperation } from '@app/modules/auth/authorized-operation'
 import type { ApplicationIdentity } from '@app/modules/auth/developer-access'
 import type { PrismaService } from '@app/prisma/prisma.service'
-import { ForbiddenException, NotFoundException, ServiceUnavailableException } from '@nestjs/common'
+import {
+  BadRequestException,
+  ForbiddenException,
+  NotFoundException,
+  ServiceUnavailableException,
+} from '@nestjs/common'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { AnalyticsInsightsController } from './analytics-insights.controller'
 import { AnalyticsInsightsService } from './analytics-insights.service'
@@ -309,18 +314,17 @@ describe('AnalyticsInsightsService', () => {
     expect(tx.auditLog.create).not.toHaveBeenCalled()
   })
 
-  it('rejects an incomplete or reversed period with 400', async () => {
-    const { service } = harness()
-    const who = actor('PROJECT_MANAGER')
+  it.each([
+    { periodStart: '2026-01-01' },
+    { periodStart: '2026-02-01', periodEnd: '2026-01-01' },
+    { periodEnd: '2026-01-31' },
+    { unexpected: 'x' },
+  ])('rejects %j with 400 before any query or audit write', async (extra) => {
+    const { service, tx } = harness()
     await expect(
-      service.budget(who, { projectId: projectA, periodStart: '2026-01-01' }),
-    ).rejects.toThrow()
-    await expect(
-      service.budget(who, {
-        projectId: projectA,
-        periodStart: '2026-02-01',
-        periodEnd: '2026-01-01',
-      }),
-    ).rejects.toThrow()
+      service.budget(actor('PROJECT_MANAGER'), { projectId: projectA, ...extra }),
+    ).rejects.toBeInstanceOf(BadRequestException)
+    expect(tx.project.findFirst).not.toHaveBeenCalled()
+    expect(tx.auditLog.create).not.toHaveBeenCalled()
   })
 })
