@@ -594,6 +594,12 @@ describe('collection import workspace', () => {
     expect((screen.getByLabelText('Description') as HTMLInputElement).value).toBe(
       'Preserved description',
     )
+    expect(
+      screen.getByText('Form configuration').closest('.rounded-xl')?.contains(
+        screen.getByLabelText('Form code'),
+      ),
+    ).toBe(true)
+    expect(screen.queryByText('Linked indicators')).toBeNull()
     fireEvent.click(screen.getByRole('button', { name: 'Save draft' }))
     fireEvent.click(
       within(screen.getByRole('dialog', { name: 'Save form draft?' })).getByRole('button', {

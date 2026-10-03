@@ -38,10 +38,9 @@ import {
   ProgressBar,
   SectionCard,
   StatusBadge,
-  UnavailableHint,
 } from '@/components/pathways'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent } from '@/components/ui/card'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import {
   Dialog,
   DialogContent,
@@ -1605,57 +1604,33 @@ const OwnedCollectionWorkspace = ({
             }
             className="space-y-4"
           >
-            <legend className="font-semibold">Form configuration</legend>
-            <div className="grid gap-3 md:grid-cols-2">
-              <div className="space-y-2">
-                <Label htmlFor="form-code">Form code</Label>
-                <Input
-                  id="form-code"
-                  value={formCode}
-                  readOnly={Boolean(editingFormId)}
-                  placeholder="Generated from the title if left blank"
-                  onChange={(event) =>
-                    changeInput(setFormCode)(fieldCodeWhileTyping(event.target.value))
-                  }
-                  onBlur={(event) => setFormCode(fieldCodeFromText(event.target.value))}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="form-description">Description</Label>
-                <Input
-                  id="form-description"
-                  value={formDescription}
-                  onChange={(event) => changeInput(setFormDescription)(event.target.value)}
-                />
-              </div>
-            </div>
-            <div hidden={!UNFINISHED_CONTROLS_UI_ENABLED}>
-              <p id="linked-indicators-label">Linked indicators</p>
-              {indicators
-                .filter((i) => i.projectId === projectId)
-                .map((i) => (
-                  <label className="mr-4 inline-flex gap-2" key={i.id}>
-                    <input
-                      aria-describedby="linked-indicators-hint"
-                      checked={indicatorIds.includes(i.id)}
-                      disabled
-                      onChange={(e) =>
-                        changeInput(setIndicatorIds)(
-                          e.target.checked
-                            ? [...indicatorIds, i.id]
-                            : indicatorIds.filter((id) => id !== i.id),
-                        )
-                      }
-                      title="Not available yet"
-                      type="checkbox"
-                    />
-                    {i.label} <span className="text-muted-foreground">(not available yet)</span>
-                  </label>
-                ))}
-              <UnavailableHint id="linked-indicators-hint" />
-            </div>
             <BuilderView
               addField={addField}
+              config={
+                <>
+                  <div className="space-y-2">
+                    <Label htmlFor="form-code">Form code</Label>
+                    <Input
+                      id="form-code"
+                      value={formCode}
+                      readOnly={Boolean(editingFormId)}
+                      placeholder="Generated from the title if left blank"
+                      onChange={(event) =>
+                        changeInput(setFormCode)(fieldCodeWhileTyping(event.target.value))
+                      }
+                      onBlur={(event) => setFormCode(fieldCodeFromText(event.target.value))}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="form-description">Description</Label>
+                    <Input
+                      id="form-description"
+                      value={formDescription}
+                      onChange={(event) => changeInput(setFormDescription)(event.target.value)}
+                    />
+                  </div>
+                </>
+              }
               canManage={canManageForms}
               canPublish={
                 canPublishForms &&
@@ -2085,6 +2060,7 @@ const FormsGeneratorView = ({
 
 const BuilderView = ({
   addField,
+  config,
   canManage,
   canPublish,
   deleteField,
@@ -2117,6 +2093,7 @@ const BuilderView = ({
   updateField,
 }: {
   addField: () => void
+  config: ReactNode
   canManage: boolean
   canPublish: boolean
   deleteField: (fieldId: string) => void
@@ -2151,6 +2128,7 @@ const BuilderView = ({
   <div className="grid min-w-0 gap-4 xl:grid-cols-[minmax(0,1fr)_300px]">
     <div className="min-w-0 space-y-4">
       <FormInfoPanel
+        config={config}
         formTitle={formTitle}
         formType={formType}
         journeyStage={journeyStage}
@@ -2303,6 +2281,7 @@ const BuilderView = ({
 )
 
 const FormInfoPanel = ({
+  config,
   formTitle,
   formType,
   journeyStage,
@@ -2317,6 +2296,7 @@ const FormInfoPanel = ({
   setLinkedActivityId,
   setProjectId,
 }: {
+  config?: ReactNode
   formTitle: string
   formType: string
   journeyStage: string
@@ -2332,7 +2312,13 @@ const FormInfoPanel = ({
   setProjectId: (value: string) => void
 }) => (
   <Card>
-    <CardContent className="grid gap-4 pt-5 md:grid-cols-2">
+    {config ? (
+      <CardHeader>
+        <CardTitle>Form configuration</CardTitle>
+      </CardHeader>
+    ) : null}
+    <CardContent className={cn('grid gap-4 md:grid-cols-2', !config && 'pt-5')}>
+      {config}
       <div className="space-y-2">
         <Label htmlFor="form-title">Form information</Label>
         <Input
