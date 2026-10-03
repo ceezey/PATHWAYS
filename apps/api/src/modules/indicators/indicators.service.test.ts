@@ -357,6 +357,107 @@ describe('P06 IndicatorsService', () => {
     ).rejects.toBeInstanceOf(ConflictException)
     expect(tx.$executeRaw).not.toHaveBeenCalled()
   })
+  it('refuses a project of another organization or outside the assignment before any read or write', async () => {
+    tx.project.findFirst.mockResolvedValue(null)
+    const measurement = {
+      clientMeasurementId: '77000000-0000-4000-8000-000000000010',
+      periodStart: row.periodStart,
+      periodEnd: row.periodEnd,
+      value: '2',
+      source: 'Verified source',
+    }
+    const update = { clientMutationId: input.clientMutationId, name: 'Other', expectedRevision: 1 }
+    await expect(service.list(actor, projectId)).rejects.toBeInstanceOf(NotFoundException)
+    await expect(service.create(actor, projectId, input)).rejects.toBeInstanceOf(NotFoundException)
+    await expect(service.update(actor, projectId, indicatorId, update)).rejects.toBeInstanceOf(
+      NotFoundException,
+    )
+    await expect(
+      service.measure(actor, projectId, indicatorId, measurement),
+    ).rejects.toBeInstanceOf(NotFoundException)
+    expect(tx.$executeRaw).not.toHaveBeenCalled()
+    expect(tx.auditLog.create).not.toHaveBeenCalled()
+    expect(tx.project.findFirst.mock.calls[0][0].where.AND[0]).toMatchObject({ organizationId })
+  })
+  it('updates the label of an indicator in an assigned project with its audit', async () => {
+    await service.update(actor, projectId, indicatorId, {
+      clientMutationId: input.clientMutationId,
+      name: 'Updated label',
+      expectedRevision: 1,
+    })
+    expect(sqlText(tx.$executeRaw.mock.calls[0][0])).toContain(
+      'UPDATE pathways.project_indicators',
+    )
+    expect(tx.auditLog.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          action: 'PROJECT_INDICATOR_LABEL_UPDATED',
+          actorUserId: userId,
+          organizationId,
+          projectId,
+        }),
+      }),
+    )
+  })
+  it('rejects forged authority fields on an indicator update before any write', async () => {
+    for (const extra of [
+      { organizationId: 'x' },
+      { role: 'SYSTEM_ADMINISTRATOR' },
+      { target: '1' },
+    ]) {
+      await expect(
+        service.update(actor, projectId, indicatorId, {
+          clientMutationId: input.clientMutationId,
+          name: 'Updated label',
+          expectedRevision: 1,
+          ...extra,
+        }),
+      ).rejects.toBeInstanceOf(BadRequestException)
+    }
+    expect(boundary.run).not.toHaveBeenCalled()
+  })
+  it('returns not found for a malformed indicator id and for an indicator outside the project', async () => {
+    await expect(service.get(actor, projectId, 'not-a-uuid')).rejects.toBeInstanceOf(
+      NotFoundException,
+    )
+    tx.$queryRaw.mockResolvedValue([])
+    await expect(service.get(actor, projectId, indicatorId)).rejects.toBeInstanceOf(
+      NotFoundException,
+    )
+  })
+  it('refuses a measurement without the update permission and writes nothing', async () => {
+    await expect(
+      service.measure({ ...actor, permissions: ['indicators.read'] }, projectId, indicatorId, {
+        clientMeasurementId: '77000000-0000-4000-8000-000000000010',
+        periodStart: row.periodStart,
+        periodEnd: row.periodEnd,
+        value: '2',
+        source: 'Verified source',
+      }),
+    ).rejects.toBeInstanceOf(ForbiddenException)
+    expect(tx.$executeRaw).not.toHaveBeenCalled()
+    expect(tx.auditLog.create).not.toHaveBeenCalled()
+  })
+  it('rejects a measurement for an indicator id outside the project and a non-numeric value', async () => {
+    const measurement = {
+      clientMeasurementId: '77000000-0000-4000-8000-000000000010',
+      periodStart: row.periodStart,
+      periodEnd: row.periodEnd,
+      value: '2',
+      source: 'Verified source',
+    }
+    tx.$queryRaw.mockResolvedValue([])
+    await expect(
+      service.measure(actor, projectId, '77000000-0000-4000-8000-0000000000ff', measurement),
+    ).rejects.toBeInstanceOf(NotFoundException)
+    tx.$queryRaw.mockImplementation(async (query: unknown) =>
+      sqlText(query).includes('computed.payload') ? [{ ...row }] : [],
+    )
+    await expect(
+      service.measure(actor, projectId, indicatorId, { ...measurement, value: 'abc' }),
+    ).rejects.toBeInstanceOf(BadRequestException)
+    expect(tx.$executeRaw).not.toHaveBeenCalled()
+  })
   it('rejects an over-broad database response and translates a query timeout without data', async () => {
     tx.$queryRaw.mockImplementation(async (query: unknown) =>
       sqlText(query).includes('computed.payload')
