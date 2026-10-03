@@ -86,16 +86,17 @@ export class AnalyticsService {
   }
 
   /**
-   * Survey improvement is restricted to roles that also hold assessments.detail.read (CR
-   * amendment 2026-09-30). Aggregate-only roles (Program Manager, Grant Manager) are refused
-   * with a 403 before any survey query runs: repeated reads of an open period could otherwise
-   * be differenced to recover one person's scores. Like requireMonitoringRead, a denial throws
-   * inside the authorized transaction, so it writes no audit row. The web maps this 403 to the
-   * "restricted for your role" state.
+   * Survey improvement has two paths (CR section 10, G-F9-10). Roles holding assessments.detail.read
+   * read the live aggregate. Aggregate-only roles (Program Manager, Grant Manager) read only a closed
+   * period from the frozen release table, so repeated reads of an open period cannot be differenced to
+   * recover one person's scores. Any other role is refused with a 403 before a survey query runs. Like
+   * requireMonitoringRead, a denial throws inside the authorized transaction, so it writes no audit row.
    */
-  private requireSurveyAccess(actor: ApplicationIdentity) {
-    if (!hasAtomicPermission(actor.roles[0], actor.permissions, 'assessments.detail.read'))
-      throw new ForbiddenException('Survey improvement is restricted for your role.')
+  private surveyAccess(actor: ApplicationIdentity): 'live' | 'frozen' {
+    const role = actor.roles[0]
+    if (hasAtomicPermission(role, actor.permissions, 'assessments.detail.read')) return 'live'
+    if (hasAtomicPermission(role, actor.permissions, 'analytics.descriptive.read')) return 'frozen'
+    throw new ForbiddenException('Survey improvement is restricted for your role.')
   }
 
   /**
@@ -194,8 +195,8 @@ export class AnalyticsService {
    * other validation failure); the API deliberately does not re-read Indicator rows because
    * roles that hold monitoring.read need not hold indicators.read. The
    * unsuppressed group aggregate comes from pathways.p10_f9_survey_aggregate, which
-   * requires analytics.descriptive.read, monitoring.read and assessments.detail.read (checked
-   * here and again in the function). Assessment rows are never read here; threshold,
+   * requires analytics.descriptive.read, monitoring.read and assessments.detail.read; aggregate-only
+   * roles use p10_f9_survey_release (closed periods only, frozen copy), checked here and in the function. Assessment rows are never read here; threshold,
    * complementary suppression and cross-group withholding run in the shared calculator
    * before anything leaves this process.
    */
@@ -205,16 +206,32 @@ export class AnalyticsService {
     query: DescriptiveAnalyticsQuery,
   ): Promise<SurveyAnalytics> {
     this.requireMonitoringRead(actor)
-    this.requireSurveyAccess(actor)
+    const access = this.surveyAccess(actor)
     if (!query.periodStart || !query.periodEnd)
       throw new BadRequestException('Survey analytics requires a complete period.')
+    const frozen = access === 'frozen'
+    if (
+      frozen &&
+      query.periodEnd >=
+        businessCalendarDate(new Date(), readApiEnv(process.env).BUSINESS_TIME_ZONE)
+    )
+      throw new BadRequestException(
+        'Survey results for your role are released once the reporting period has closed.',
+      )
     const project = await this.requireProject(tx, actor, query.projectId)
+    const fn = frozen ? Prisma.raw('p10_f9_survey_release') : Prisma.raw('p10_f9_survey_aggregate')
     const raw = await this.callAggregate(
       tx,
-      Prisma.sql`SELECT pathways.p10_f9_survey_aggregate(${actor.organizationId}::uuid,${project.id}::uuid,${query.periodStart}::date,${query.periodEnd}::date) AS data`,
-      'Survey analytics requires exactly one defined, non-overlapping reporting period of this project.',
+      Prisma.sql`SELECT pathways.${fn}(${actor.organizationId}::uuid,${project.id}::uuid,${query.periodStart}::date,${query.periodEnd}::date) AS data`,
+      'Survey analytics requires exactly one defined, non-overlapping, closed reporting period of this project.',
     )
-    const aggregate = surveyAggregateSchema.safeParse(raw)
+    // The frozen release adds a state marker the aggregate contract does not carry.
+    const {
+      releaseState: _state,
+      releasedAt: _at,
+      ...rest
+    } = raw && typeof raw === 'object' ? (raw as Record<string, unknown>) : {}
+    const aggregate = surveyAggregateSchema.safeParse(frozen ? rest : raw)
     if (!aggregate.success)
       throw new ServiceUnavailableException('Survey aggregate response contract is unavailable.')
     return computeSurveyAnalyticsFromAggregates({
