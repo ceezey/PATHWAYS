@@ -490,6 +490,18 @@ export const BeneficiaryDetail = ({
         <DialogShell
           title="Profile summary"
           description="Coded profile details for this beneficiary."
+          actions={
+            canEditBeneficiary ? (
+              <Button asChild size="icon" title="Edit beneficiary profile" variant="outline">
+                <Link
+                  aria-label="Edit beneficiary profile"
+                  href={`/beneficiaries/${beneficiary.id}/edit?projectId=${encodeURIComponent(projectId)}`}
+                >
+                  <Pencil className="h-4 w-4" aria-hidden="true" />
+                </Link>
+              </Button>
+            ) : null
+          }
         >
           <div className="space-y-4">
             <div className="grid gap-3 text-sm">
@@ -535,16 +547,6 @@ export const BeneficiaryDetail = ({
                 </div>
               ))}
             </div>
-            {canEditBeneficiary ? (
-              <Button asChild size="icon" title="Edit beneficiary profile" variant="outline">
-                <Link
-                  aria-label="Edit beneficiary profile"
-                  href={`/beneficiaries/${beneficiary.id}/edit?projectId=${encodeURIComponent(projectId)}`}
-                >
-                  <Pencil className="h-4 w-4" aria-hidden="true" />
-                </Link>
-              </Button>
-            ) : null}
           </div>
         </DialogShell>
       </Dialog>
