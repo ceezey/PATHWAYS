@@ -315,3 +315,62 @@ describe('F4 journey stage, enrollment closure and correction gates', () => {
     expect((await validate(dto)).map((error) => error.property)).toContain('reason')
   })
 })
+
+describe('F4 journey history reads', () => {
+  const service = new ParticipantsService({} as PrismaService)
+  const caller = {} as ApplicationIdentity
+  const beneficiaryId = 'a1000000-0000-4000-8000-0000000000a1'
+  const reader: ApplicationIdentity = {
+    ...actor,
+    roles: ['MONITORING_AND_EVALUATION_OFFICER'],
+    permissions: ['journeys.read'],
+  }
+  const event = (id: string, eventDate: string, recordedAt: string) => ({
+    id,
+    eventDate: new Date(eventDate),
+    recordedAt: new Date(recordedAt),
+    recordedBy: { fullName: 'Synthetic recorder' },
+  })
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    state.actor = reader
+    txOps.project.findFirst.mockResolvedValue({ id: projectId })
+    txOps.beneficiaryProjectEnrollment.findFirst.mockResolvedValue({
+      id: enrollmentId,
+      status: 'ACTIVE',
+    })
+  })
+
+  it('G-F4-2 queries events in chronological order and returns them as stored', async () => {
+    txOps.beneficiaryJourneyEvent.findMany.mockResolvedValue([
+      event('e1', '2026-06-01', '2026-06-01T08:00:00Z'),
+      event('e2', '2026-06-15', '2026-06-15T08:00:00Z'),
+    ])
+    const result = await service.history(caller, projectId, beneficiaryId)
+    const query = txOps.beneficiaryJourneyEvent.findMany.mock.calls[0]?.[0]
+    expect(query.orderBy).toEqual([{ eventDate: 'asc' }, { recordedAt: 'asc' }, { id: 'asc' }])
+    expect(query.where).toMatchObject({ organizationId, projectId, enrollmentId })
+    expect(result.events.map((item) => item.id)).toEqual(['e1', 'e2'])
+    expect(result.events[0]?.eventDate).toBe('2026-06-01')
+  })
+
+  it.each([
+    ['an unassigned project', { ...reader, assignedProjectIds: [] }],
+    [
+      'a foreign organization',
+      { ...reader, organizationId: 'c1000000-0000-4000-8000-0000000000c1' },
+    ],
+  ])('G-F4-5 denies history for %s before any event read', async (_label, scoped) => {
+    state.actor = scoped
+    txOps.project.findFirst.mockResolvedValue(null)
+    await expect(service.history(caller, projectId, beneficiaryId)).rejects.toBeInstanceOf(
+      NotFoundException,
+    )
+    expect(JSON.stringify(txOps.project.findFirst.mock.calls[0]?.[0].where)).toContain(
+      scoped.organizationId,
+    )
+    expect(txOps.beneficiaryProjectEnrollment.findFirst).not.toHaveBeenCalled()
+    expect(txOps.beneficiaryJourneyEvent.findMany).not.toHaveBeenCalled()
+  })
+})
