@@ -50,8 +50,8 @@ Six internal roles are defined in `apps/api/src/modules/auth/rbac-contract.json`
 | PRD-F2 | Project Profile and Activity Tracking | Must-Have | F2 | R1, R4, R5 | 1.1, 1.2, 1.5 | Implemented; all F2 gates met (G-F2-4 reconciled 2026-10-03) |
 | PRD-F3 | Centralized Beneficiary Profile | Must-Have | F3 | R1, R5 | 1.1, 1.3 | Implemented; G-F3-6 partial (see [deferred features](deferred-features.md)) |
 | PRD-F4 | Beneficiary Journey Tracking | Must-Have | F4 | R6 | 1.1, 1.3 | Implemented; G-F4-6 not met (see [deferred features](deferred-features.md)) |
-| PRD-F5 | Digital Data Collection and Preparation | Must-Have | F5 | R2 | 1.4, 2.1 | Implemented; G-F6-7 on hold (see [deferred features](deferred-features.md)) |
-| PRD-F6 | Metadata-Driven Data Integration | Must-Have | F6 | R2 | 1.1, 1.4, 2.1 | Implemented; G-F6-7 on hold (see [deferred features](deferred-features.md)) |
+| PRD-F5 | Digital Data Collection and Preparation | Must-Have | F5 | R2 | 1.4, 2.1 | Implemented |
+| PRD-F6 | Metadata-Driven Data Integration | Must-Have | F6 | R2 | 1.1, 1.4, 2.1 | Implemented |
 | PRD-F7 | Project Indicator and Monitoring | Must-Have | F7 | R3, R4 | 1.5 | Implemented; G-F7-5 not met, deferred (see [deferred features](deferred-features.md)) |
 | PRD-F8 | Aggregated Monitoring Dashboard with SADDD Analysis | Must-Have | F8 | R3 | 1.6, 2.2, 2.3 | Implemented; G-F8-7 Met locally at assumed scale (staging re-measure pending) |
 | PRD-F9 | Descriptive Analytics and Project Performance Summaries | Supporting | F9 | R3, R7 | 1.6, 2.2 | Implemented for KPI, participation, survey and timeline views; on-hold items in the deferred register |
@@ -98,7 +98,7 @@ Status comes from the repository, not the manuscript labels "In Progress" and "P
 | FR-4 | Beneficiary participation and journey tracking | PRD-F4 | High | P6 / R6 | Implemented |
 | FR-5 | Beneficiary-related monitoring records | PRD-F3, PRD-F4, PRD-F5 | High | P2 / R2, P6 / R6 | Implemented |
 | FR-6 | Digital monitoring forms and fields | PRD-F5 | High | P2 / R2 | Implemented |
-| FR-7 | Dataset upload, mapping and validation | PRD-F5, PRD-F6 | High | P2 / R2 | Implemented; data-type and value mapping on hold |
+| FR-7 | Dataset upload, mapping and validation | PRD-F5, PRD-F6 | High | P2 / R2 | Implemented |
 | FR-8 | Centralized encoded and imported records | PRD-F6 | High | P5 / R5 | Implemented |
 | FR-9 | Indicator and monitoring parameter configuration | PRD-F7 | High | P3 / R3, P4 / R4 | Implemented; reusable indicator definitions through the organization library (cr-pathways-indicator-library); project structure templates not built |
 | FR-10 | Aggregated dashboards and SADDD summaries | PRD-F8 | High | P3 / R3 | Implemented |
@@ -773,7 +773,7 @@ flowchart LR
 | Trigger | The user downloads a form definition to share or reuse. |
 | Preconditions | The form exists in an assigned project. |
 | Main flow | 1. The user opens `/collection/forms`. 2. The user picks a format. 3. The web requests the file (`GET /metadata/projects/:projectId/forms/:formId/export`). 4. The system returns the definition and audits the export. |
-| Alternate / exception | Permission denied or cross-project request: 403. Definition beyond artifact bounds: the export fails whole, never truncated. |
+| Alternate / exception | Permission denied: 403. Cross-organization or unassigned-project request: 404 before any form is read, so the form's existence is not disclosed. Definition beyond artifact bounds: the export fails whole, never truncated. |
 | Postconditions | One audit row without field content. |
 | Gates | G-F5-4, G-F5-5 |
 
@@ -801,7 +801,6 @@ stateDiagram-v2
 - Process valid rows in chunks of at most 25, with resumable progress, into submissions linked to the project.
 **Bounds (out):**
 - AI or learned mapping: automatic mapping is rules over names and sampled values only (cr-pathways-smart-import-mapping).
-- Data-type selection for new fields and value translation: on hold (docs/deferred-features.md).
 - Real-time synchronization or API integration with KOBO, YES!ME or PMERL (Scope and Limitations, paragraph 3).
 - Scanned, encrypted, table-less or script-carrying PDFs and formula-like cells: rejected (cr-pathways-import-throughput-and-pdf).
 **Lock:** Locked. Adding a gate or widening a bound requires an approved `cr-pathways-*`; anything outside these bounds is out of scope by default. System-wide bounds: section 6.1.
