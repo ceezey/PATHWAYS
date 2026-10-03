@@ -174,19 +174,20 @@ describe('collection import workspace', () => {
       </DisplayLabelsProvider>,
     )
     await waitFor(() => expect(api.getDigitalForms).toHaveBeenCalled())
-    const save = screen.getByRole('button', { name: 'Save Draft' }) as HTMLButtonElement
+    const save = screen.getByRole('button', { name: 'Save draft' }) as HTMLButtonElement
     expect(save.matches(':disabled')).toBe(true)
     fireEvent.click(save)
     const dialog = screen.queryByRole('dialog')
     if (dialog) {
-      fireEvent.click(within(dialog).getByRole('button', { name: 'Save Draft' }))
+      fireEvent.click(within(dialog).getByRole('button', { name: 'Save draft' }))
       fireEvent.click(within(dialog).getByRole('button', { name: 'Cancel' }))
     }
     expect(api.createDigitalForm).not.toHaveBeenCalled()
     expect(api.updateDigitalForm).not.toHaveBeenCalled()
     await act(async () => rejectLoad?.(new Error('Form unavailable')))
     expect(save.matches(':disabled')).toBe(true)
-    expect(screen.getByRole('status').textContent).toContain('saved form is not ready')
+    expect(screen.getByText(/saved form is not ready/)).toBeTruthy()
+    expect(screen.getByText('Form unavailable')).toBeTruthy()
     expect(api.createDigitalForm).not.toHaveBeenCalled()
     expect(api.updateDigitalForm).not.toHaveBeenCalled()
   })
@@ -592,10 +593,10 @@ describe('collection import workspace', () => {
     expect((screen.getByLabelText('Description') as HTMLInputElement).value).toBe(
       'Preserved description',
     )
-    fireEvent.click(screen.getByRole('button', { name: 'Save Draft' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Save draft' }))
     fireEvent.click(
       within(screen.getByRole('dialog', { name: 'Save form draft?' })).getByRole('button', {
-        name: 'Save Draft',
+        name: 'Save draft',
       }),
     )
     await waitFor(() => expect(api.updateDigitalForm).toHaveBeenCalled())
@@ -654,9 +655,9 @@ describe('collection import workspace', () => {
     await waitFor(() => {
       expect(screen.getByText(/Questionnaire structure ready/)).toBeTruthy()
     })
-    fireEvent.click(screen.getByRole('button', { name: 'Create Draft' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Create draft' }))
     const dialog = screen.getByRole('dialog', { name: 'Create draft form?' })
-    fireEvent.click(within(dialog).getByRole('button', { name: 'Create Draft' }))
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Create draft' }))
 
     await waitFor(() => expect(api.createDigitalForm).toHaveBeenCalled())
     expect(await screen.findByText(/Draft form .* created on the server/)).toBeTruthy()
@@ -1313,8 +1314,8 @@ describe('collection operation ownership', () => {
     )
     const view = render(element())
     await waitFor(() => expect(api.getDigitalForms).toHaveBeenCalled())
-    fireEvent.click(screen.getByRole('button', { name: 'Save Draft' }))
-    fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Save Draft' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Save draft' }))
+    fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Save draft' }))
     expect(api.createDigitalForm).toHaveBeenCalledOnce()
     currentAccess.profile.organizationId = 'org-b'
     view.rerender(element())
