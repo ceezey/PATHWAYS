@@ -21,7 +21,7 @@ export const EmptyState = ({
   <div
     className={cn(
       'flex min-h-[180px] flex-col items-center justify-center rounded-lg border bg-card px-6 py-8 text-center',
-      tone === 'danger' ? 'border-danger/40 bg-danger-subtle/40' : 'border-border',
+      tone === 'danger' ? 'border-danger/40' : 'border-border',
       className,
     )}
   >
