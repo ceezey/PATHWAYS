@@ -66,6 +66,9 @@
 - Remaining spinner loading cards (journey stages, workspace tab) use the AsyncState skeleton.
 - 2026-10-03 Field code underscore: the builder kept stripping a typed trailing underscore on every keystroke; codes now clean fully on blur (fix/field-code-underscore).
 - 2026-10-03 Form code: the builder sent free-typed form codes such as TEST-FORM, which the API rejects; the form code now cleans to lowercase snake case while typing and on save.
+
+## 2026-10-03 Audit Log filter layout
+- Removed the Audit Log eyebrow, page description and filter card description; moved From/To date inside Event filters below the three fields.
 - 2026-10-03 Form builder layout: removed the placeholder Linked indicators checkboxes (indicator links are made on Target indicators); Form code and Description moved into the form information card under a Form configuration header.
 - 2026-10-03 Collection notices: success notices (draft saved, published, generated) now show as a toast pop-up instead of an inline banner.
 

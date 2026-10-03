@@ -397,6 +397,8 @@ export const ProjectActivitiesWorkspace = ({
         ...pickMetrics(previous?.find((current) => current.id === activity.id)),
       },
     ])
+    // Kept metrics are stale after a review or edit, so reread the list for reach and budget.
+    void activityList.refetch()
     if (selectActivity || selectedActivityId === activity.id) {
       setSelectedActivityId(activity.id)
       if (selectedActivityId === activity.id) detail.replaceData(() => activity)

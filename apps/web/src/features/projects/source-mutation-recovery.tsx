@@ -34,14 +34,14 @@ function OwnedSourceMutationRecovery({
     [],
   )
   const pending = context
-    ? sourceMutationTickets
-        .pendingOperations(context, prefix)
-        .filter(
-          (ticket) =>
-            !/^POST:\/projects\/[0-9a-f-]{36}\/activities\/[0-9a-f-]{36}\/updates$/i.test(
-              ticket.operation,
-            ),
-        )
+    ? sourceMutationTickets.pendingOperations(context, prefix).filter(
+        // In-flight saves are not failures; only unconfirmed ones need recovery.
+        (ticket) =>
+          !ticket.pending &&
+          !/^POST:\/projects\/[0-9a-f-]{36}\/activities\/[0-9a-f-]{36}\/updates$/i.test(
+            ticket.operation,
+          ),
+      )
     : []
   const recover = async (operation: string) => {
     if (!context?.isCurrent() || operationInFlight.current) return
