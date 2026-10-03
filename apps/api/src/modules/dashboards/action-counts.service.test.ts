@@ -70,6 +70,9 @@ describe('ActionCountsService', () => {
       expect(where.project).toMatchObject({ organizationId: org, id: { in: [project] } })
     }
     expect(tx.budgetExpenseEntry.count.mock.calls[0][0].where.status).toEqual({ in: ['PENDING'] })
+    expect(tx.budgetExpenseEntry.count.mock.calls[0][0].where.submittedById).toEqual({
+      not: expect.any(String),
+    })
     expect(result.overdueActivities?.mostOverdue?.code).toBe('ACT-1')
     expect(result.overdueActivities?.mostOverdue?.daysLate).toBeGreaterThan(1)
   })

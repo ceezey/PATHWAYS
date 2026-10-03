@@ -50,6 +50,9 @@ export class ActionCountsService {
         organizationId: actor.organizationId,
         project: projectScope(actor),
         status: { in: status },
+        // The review function refuses self-review, so own submissions and own verifications are not actionable.
+        submittedById: { not: actor.userId },
+        NOT: { status: 'VERIFIED', verifiedById: actor.userId },
       },
     })
   }
