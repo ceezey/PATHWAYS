@@ -16,7 +16,7 @@ const state = vi.hoisted(() => ({ actor: undefined as ApplicationIdentity | unde
 const txOps = vi.hoisted(() => ({
   project: { findFirst: vi.fn() },
   beneficiaryProjectEnrollment: { findFirst: vi.fn(), update: vi.fn() },
-  beneficiaryJourneyEvent: { findFirst: vi.fn(), create: vi.fn() },
+  beneficiaryJourneyEvent: { findFirst: vi.fn(), findMany: vi.fn(), create: vi.fn() },
   journeyStage: { findFirst: vi.fn() },
   auditLog: { create: vi.fn() },
 }))
@@ -75,7 +75,7 @@ const tx = {
   beneficiaryProjectEnrollment: { findFirst: vi.fn() },
   projectActivity: { findFirst: vi.fn() },
   activityJourneyStageMapping: { findFirst: vi.fn() },
-  beneficiaryJourneyEvent: { findFirst: vi.fn(), create: vi.fn() },
+  beneficiaryJourneyEvent: { findFirst: vi.fn(), findMany: vi.fn(), create: vi.fn() },
   formSubmission: { update: vi.fn() },
   auditLog: { create: vi.fn() },
 }
