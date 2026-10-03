@@ -41,6 +41,7 @@ import { ActivityDetailPanel } from './activity-detail-panel'
 import type { ExpenseBudgetReference } from './activity-expense-dialog'
 import type { PendingExpense } from './activity-expense-review-dialog'
 import { ActivityFormDialog } from './activity-form-dialog'
+import { ActivityListTable } from './activity-list-table'
 import { ActivityProofDialog } from './activity-proof-dialog'
 import {
   activityDueLabel,
@@ -66,6 +67,12 @@ const indicatorSummary = (activity: ActivitySummary, indicators: Indicator[]) =>
         indicators.find((indicator) => indicator.id === indicatorId)?.code ?? indicatorId,
     )
     .join(', ')
+
+// A saved activity keeps the list-only metrics the save response does not carry.
+const pickMetrics = (previous: ActivitySummary | undefined) => ({
+  beneficiariesReached: previous?.beneficiariesReached,
+  budgetUtilization: previous?.budgetUtilization,
+})
 
 const ActivityCard = ({
   activity,
@@ -138,75 +145,6 @@ const ActivityCard = ({
   </article>
 )
 
-const ActivityListRow = ({
-  activity,
-  onOpen,
-}: {
-  activity: ActivitySummary
-  onOpen: (activity: ActivitySummary) => void
-}) => (
-  <article
-    aria-label={`Activity: ${activity.title}`}
-    className="grid min-h-[52px] min-w-0 gap-4 rounded-lg border border-border bg-card px-4 py-3 md:grid-cols-2 xl:grid-cols-[minmax(0,1.4fr)_minmax(170px,0.7fr)_minmax(180px,0.8fr)_minmax(150px,0.6fr)_auto] xl:items-center"
-  >
-    <div className="min-w-0">
-      <h3 className="break-words text-base font-semibold leading-6 text-navy">{activity.title}</h3>
-      <p className="mt-2 text-sm leading-5 text-muted-foreground">
-        <span className="font-medium text-foreground">Next:</span>{' '}
-        {activityNextStep(activity.status)}
-      </p>
-    </div>
-    <div className="space-y-2">
-      <StatusBadge tone={activityStatusTone(activity.status)}>{activity.status}</StatusBadge>
-      {activity.overdueExplanationNeeded ? (
-        <StatusBadge tone="warning">Overdue: explanation needed</StatusBadge>
-      ) : null}
-      <p
-        className={`flex items-start gap-2 text-sm ${
-          activity.status === 'Overdue' ? 'font-medium text-danger' : 'text-muted-foreground'
-        }`}
-      >
-        <CalendarClock className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
-        {activityDueLabel(activity.status, activity.dueDate)}
-      </p>
-    </div>
-    <dl className="text-sm">
-      <div className="flex min-w-0 items-start gap-2">
-        <UsersRound className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />
-        <div className="min-w-0">
-          <dt className="text-muted-foreground">
-            {activity.assignedTo.length === 1 ? 'Owner' : 'Owners'}
-          </dt>
-          <dd className="mt-1 break-words font-medium text-foreground">
-            {activity.assignedTo.join(', ')}
-          </dd>
-        </div>
-      </div>
-    </dl>
-    {activity.status !== 'Completed' ? (
-      <ProgressBar
-        label="Progress"
-        tone={activityProgressTone(activity.status, activity.progress)}
-        value={activity.progress}
-      />
-    ) : (
-      <div aria-hidden="true" />
-    )}
-    <div className="flex md:col-span-2 md:justify-end xl:col-span-1">
-      <Button
-        className="w-full gap-2 sm:w-auto"
-        onClick={() => onOpen(activity)}
-        size="sm"
-        type="button"
-        variant="outline"
-      >
-        <Eye className="h-4 w-4" aria-hidden="true" />
-        View details
-      </Button>
-    </div>
-  </article>
-)
-
 const ActivityStatusSummary = ({
   activeStatus,
   counts,
@@ -216,7 +154,7 @@ const ActivityStatusSummary = ({
   counts: Record<ActivityStatus, number>
   onStatusChange: (status: ActivityStatus | null) => void
 }) => (
-  <section aria-label="Activity status filters" className="md:col-span-2">
+  <section aria-label="Activity status filters">
     <div className="flex flex-wrap gap-2">
       {activityStatuses.map((status) => {
         const selected = activeStatus === status
@@ -224,7 +162,7 @@ const ActivityStatusSummary = ({
           <button
             aria-label={`Filter activities by ${status} status, ${counts[status]} ${counts[status] === 1 ? 'activity' : 'activities'}`}
             aria-pressed={selected}
-            className={`min-h-11 rounded-full transition-shadow focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ${
+            className={`min-h-9 rounded-full transition-shadow focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ${
               selected ? 'ring-2 ring-primary ring-offset-2' : 'hover:ring-2 hover:ring-primary/30'
             }`}
             key={status}
@@ -450,7 +388,10 @@ export const ProjectActivitiesWorkspace = ({
     const item = activitySummary(activity)
     activityList.replaceData((previous) => [
       ...(previous ?? []).filter((current) => current.id !== activity.id),
-      item,
+      {
+        ...item,
+        ...pickMetrics(previous?.find((current) => current.id === activity.id)),
+      },
     ])
     if (selectActivity || selectedActivityId === activity.id) {
       setSelectedActivityId(activity.id)
@@ -574,29 +515,21 @@ export const ProjectActivitiesWorkspace = ({
         }
       />
       <ProjectWorkspaceHeader project={project} />
-      {canCreate ? (
-        <div className="flex justify-end">
-          <Button className="gap-2 whitespace-nowrap" onClick={openCreate} type="button">
-            <Plus className="h-4 w-4" aria-hidden="true" />
-            New Activity
-          </Button>
-        </div>
-      ) : null}
-      <FilterBar className="min-w-0 !flex flex-col gap-5 lg:!flex-row lg:items-center lg:justify-between lg:gap-8">
+      <FilterBar className="min-w-0 flex-wrap gap-x-3 gap-y-2 px-3 py-2">
         <ActivityStatusSummary
           activeStatus={statusFilter}
           counts={activityStatusCounts}
           onStatusChange={setStatusFilter}
         />
-        <div className="flex w-full min-w-0 flex-col gap-3 sm:flex-row sm:items-center lg:ml-auto lg:max-w-2xl lg:flex-1 lg:justify-end">
-          <div className="relative min-w-0 flex-1 lg:max-w-lg">
+        <div className="flex w-full min-w-0 flex-wrap items-center gap-2 lg:ml-auto lg:max-w-2xl lg:flex-1 lg:justify-end">
+          <div className="relative min-w-[12rem] flex-1 lg:max-w-lg">
             <Search
               className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground"
               aria-hidden="true"
             />
             <Input
               aria-label="Search activities"
-              className="pl-9"
+              className="h-9 pl-9"
               onChange={(event) => setQuery(event.target.value)}
               placeholder="Search activities, officers, or indicators"
               value={query}
@@ -608,6 +541,7 @@ export const ProjectActivitiesWorkspace = ({
               aria-label="List view"
               aria-pressed={viewMode === 'list'}
               onClick={() => setViewMode('list')}
+              className="h-9 w-9"
               size="icon"
               type="button"
               variant={viewMode === 'list' ? 'default' : 'outline'}
@@ -618,6 +552,7 @@ export const ProjectActivitiesWorkspace = ({
               aria-label="Board view"
               aria-pressed={viewMode === 'board'}
               onClick={() => setViewMode('board')}
+              className="h-9 w-9"
               size="icon"
               type="button"
               variant={viewMode === 'board' ? 'default' : 'outline'}
@@ -625,6 +560,17 @@ export const ProjectActivitiesWorkspace = ({
               <LayoutGrid className="h-4 w-4" aria-hidden="true" />
             </Button>
           </fieldset>
+          {canCreate ? (
+            <Button
+              className="gap-2 whitespace-nowrap"
+              onClick={openCreate}
+              size="sm"
+              type="button"
+            >
+              <Plus className="h-4 w-4" aria-hidden="true" />
+              New Activity
+            </Button>
+          ) : null}
         </div>
       </FilterBar>
       <ResultsAnnouncement
@@ -667,23 +613,11 @@ export const ProjectActivitiesWorkspace = ({
         </section>
       ) : null}
       {filteredActivities.length > 0 && viewMode === 'list' ? (
-        <SectionCard title="Activity list">
-          <div className="space-y-3">
-            <div
-              aria-hidden="true"
-              className="mb-2 hidden rounded-lg border border-border bg-surface-subtle px-4 py-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground xl:grid xl:grid-cols-[minmax(0,1.4fr)_minmax(170px,0.7fr)_minmax(180px,0.8fr)_minmax(150px,0.6fr)_auto] xl:gap-4"
-            >
-              <span>Activity</span>
-              <span>Status and due date</span>
-              <span>Owner</span>
-              <span>Progress</span>
-              <span className="w-28" />
-            </div>
-            {filteredActivities.map((activity) => (
-              <ActivityListRow key={activity.id} activity={activity} onOpen={openDetail} />
-            ))}
-          </div>
-        </SectionCard>
+        <ActivityListTable
+          activities={filteredActivities}
+          onOpen={openDetail}
+          projectId={projectId}
+        />
       ) : null}
       {selectedActivityId && detail.isError ? (
         <div className="space-y-3">

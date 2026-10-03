@@ -54,6 +54,40 @@ vi.mock('@/lib/services/pathways-client', () => ({
     }
   },
 }))
+// Radix menus are replaced by always-open lists, since jsdom lacks the pointer APIs they need.
+vi.mock('@/components/ui/dropdown-menu', () => ({
+  DropdownMenu: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+  DropdownMenuTrigger: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+  DropdownMenuContent: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
+  DropdownMenuLabel: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
+  DropdownMenuSeparator: () => <hr />,
+  DropdownMenuItem: ({
+    children,
+    onSelect,
+  }: { children: React.ReactNode; onSelect?: () => void }) => (
+    <button onClick={() => onSelect?.()} role="menuitem" type="button">
+      {children}
+    </button>
+  ),
+  DropdownMenuCheckboxItem: ({
+    checked,
+    children,
+    onCheckedChange,
+  }: {
+    checked: boolean
+    children: React.ReactNode
+    onCheckedChange: (value: boolean) => void
+  }) => (
+    <button
+      aria-checked={checked}
+      onClick={() => onCheckedChange(!checked)}
+      role="menuitemcheckbox"
+      type="button"
+    >
+      {children}
+    </button>
+  ),
+}))
 vi.mock('@/hooks/use-current-role', () => ({ useCurrentRole: () => access }))
 vi.mock('@/hooks/use-display-labels', () => ({
   useDisplayLabels: () => ({ labels: { projectActivities: 'Activities' } }),
@@ -254,7 +288,7 @@ describe('project activities permission-aware loading', () => {
       target: { value: 'ind-reading' },
     })
     await waitFor(() =>
-      expect(screen.getByRole('article', { name: 'Activity: Synthetic outreach' })).toBeTruthy(),
+      expect(screen.getByRole('row', { name: 'Activity: Synthetic outreach' })).toBeTruthy(),
     )
     fireEvent.change(screen.getByRole('textbox', { name: 'Search activities' }), {
       target: { value: 'ind-other' },
@@ -268,7 +302,7 @@ describe('project activities permission-aware loading', () => {
     renderWorkspace()
     await screen.findByRole('heading', { name: 'Activities' })
     for (let open = 0; open < 2; open += 1) {
-      fireEvent.click(screen.getByRole('button', { name: 'View details' }))
+      fireEvent.click(screen.getByRole('link', { name: 'Synthetic outreach' }))
       expect(await screen.findByText('Detail: Synthetic outreach')).toBeTruthy()
       fireEvent.click(screen.getByRole('button', { name: 'Close panel' }))
     }
@@ -277,6 +311,83 @@ describe('project activities permission-aware loading', () => {
     expect(api.getIndicators).toHaveBeenCalledOnce()
     expect(api.getJourneyStages).toHaveBeenCalledOnce()
     expect(api.getActivities).toHaveBeenCalledOnce()
+  })
+
+  it('renders the Figma activity table with metrics, em dash fallbacks and no Delete', async () => {
+    api.getActivities.mockResolvedValue([
+      {
+        ...summary,
+        code: 'ACT-001',
+        indicatorCount: 3,
+        beneficiariesReached: 4,
+        beneficiariesTarget: 10,
+        budgetUtilization: 91,
+      },
+      {
+        ...summary,
+        id: 'c1',
+        title: 'Second',
+        dueDate: '2026-03-01',
+        code: 'ACT-002',
+        beneficiariesTarget: 10,
+      },
+    ])
+    renderWorkspace()
+    expect(await screen.findByText('2 activities', { exact: false })).toBeTruthy()
+    for (const label of ['Code', 'Activity', 'Status', 'Beneficiaries', 'Indicators', 'Budget']) {
+      expect(screen.getByRole('columnheader', { name: label })).toBeTruthy()
+    }
+    const rows = screen.getAllByRole('row')
+    expect(rows[1].textContent).toContain('Second')
+    expect(screen.getByText('4 / 10')).toBeTruthy()
+    expect(screen.getByText('91%')).toBeTruthy()
+    expect(screen.getByText('— / 10')).toBeTruthy()
+    expect(screen.queryByText(/delete/i)).toBeNull()
+  })
+
+  it('opens detail from the overflow menu', async () => {
+    renderWorkspace()
+    await screen.findByRole('button', {
+      name: 'More actions for Synthetic outreach',
+    })
+    fireEvent.click(await screen.findByRole('menuitem', { name: 'View details' }))
+    expect(await screen.findByText('Detail: Synthetic outreach')).toBeTruthy()
+  })
+
+  it('hides a column from the Columns menu and sorts by due date', async () => {
+    api.getActivities.mockResolvedValue([
+      { ...summary, code: 'ACT-001' },
+      { ...summary, id: 'c1', title: 'Second', dueDate: '2026-03-01', code: 'ACT-002' },
+    ])
+    renderWorkspace()
+    fireEvent.click(await screen.findByRole('menuitemcheckbox', { name: 'Budget' }))
+    await waitFor(() => expect(screen.queryByRole('columnheader', { name: 'Budget' })).toBeNull())
+    fireEvent.click(screen.getByRole('button', { name: 'Due date' }))
+    expect(screen.getAllByRole('row')[1].textContent).toContain('Synthetic outreach')
+  })
+
+  it('exports the visible rows as CSV', async () => {
+    const blobs: Blob[] = []
+    URL.createObjectURL = vi.fn((blob: Blob) => {
+      blobs.push(blob)
+      return 'blob:x'
+    })
+    URL.revokeObjectURL = vi.fn()
+    const click = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {})
+    api.getActivities.mockResolvedValue([{ ...summary, title: '=cmd', code: 'ACT-001' }])
+    renderWorkspace()
+    fireEvent.click(await screen.findByRole('button', { name: 'Export' }))
+    expect(click).toHaveBeenCalledOnce()
+    const text = await new Promise<string>((resolve) => {
+      const reader = new FileReader()
+      reader.onload = () => resolve(String(reader.result))
+      reader.readAsText(blobs[0])
+    })
+    expect(text.split('\r\n')[0]).toBe(
+      '"Activity","Code","Status","Due date","Beneficiaries","Indicators","Budget"',
+    )
+    expect(text).toContain(`"'=cmd","ACT-001"`)
+    click.mockRestore()
   })
 
   it('loads the detail route through GET /activities/:id', async () => {
@@ -291,7 +402,7 @@ describe('project activities permission-aware loading', () => {
     expect(await screen.findByText('Activity not found')).toBeTruthy()
     expect(screen.queryByRole('region', { name: 'Activity panel' })).toBeNull()
     // The list stays usable; the route is not silently redirected.
-    expect(screen.getByRole('article', { name: 'Activity: Synthetic outreach' })).toBeTruthy()
+    expect(screen.getByRole('row', { name: 'Activity: Synthetic outreach' })).toBeTruthy()
     fireEvent.click(screen.getByRole('button', { name: 'Back to all activities' }))
     await waitFor(() => expect(screen.queryByText('Activity not found')).toBeNull())
   })
@@ -301,7 +412,7 @@ describe('project activities permission-aware loading', () => {
     renderWorkspace(activityId)
     expect(await screen.findByText('Activity not found')).toBeTruthy()
     await waitFor(() =>
-      expect(screen.getByRole('article', { name: 'Activity: Synthetic outreach' })).toBeTruthy(),
+      expect(screen.getByRole('row', { name: 'Activity: Synthetic outreach' })).toBeTruthy(),
     )
     await act(async () => new Promise((resolve) => setTimeout(resolve, 30)))
     expect(screen.queryByText('Project not found')).toBeNull()
