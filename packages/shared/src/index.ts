@@ -6,6 +6,7 @@ export * from './types/common'
 export * from './validation/beneficiary-registration'
 export * from './validation/activity-monitoring'
 export * from './validation/form-data'
+export * from './validation/project-code'
 
 export * from './monitoring/metric-contract'
 export * from './monitoring/descriptive-analytics'

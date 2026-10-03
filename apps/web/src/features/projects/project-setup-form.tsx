@@ -3,11 +3,12 @@ import { useSourceMutationContext } from '@/hooks/use-source-mutation-context'
 import { isSourceReplay, sourceMutationTickets } from '@/lib/services/source-mutation'
 
 import { zodResolver } from '@hookform/resolvers/zod'
+import { projectCodeBase } from '@pathways/shared'
 import { ArrowLeft, Loader2, Save } from 'lucide-react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useEffect, useState } from 'react'
-import { useForm } from 'react-hook-form'
+import { type UseFormReturn, useForm, useWatch } from 'react-hook-form'
 import { toast } from 'sonner'
 
 import { PageHeader } from '@/components/layout/page-header'
@@ -375,6 +376,7 @@ const ScopedProjectSetupForm = ({
                     <FormControl aria-required="true">
                       <Input placeholder="Community Resilience Project" {...field} />
                     </FormControl>
+                    {projectId ? null : <ProjectCodePreview form={form} />}
                     <FormMessage />
                   </FormItem>
                 )}
@@ -567,5 +569,19 @@ const ScopedProjectSetupForm = ({
         </Form>
       </SectionCard>
     </>
+  )
+}
+
+// Shows the code the API will generate; a numeric suffix is added on save if it is taken.
+const ProjectCodePreview = ({ form }: { form: UseFormReturn<ProjectSetupSchema> }) => {
+  const [title, area, startDate] = useWatch({
+    control: form.control,
+    name: ['title', 'area', 'startDate'],
+  })
+  if (!title?.trim()) return null
+  return (
+    <p className="text-xs text-muted-foreground">
+      Project code: {projectCodeBase({ title, area, startDate })}
+    </p>
   )
 }

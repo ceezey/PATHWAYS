@@ -3,7 +3,8 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "node ../../infra/supabase/security-adapter/dev-watch.mjs",
+    "dev": "node ../../infra/supabase/security-adapter/dev-local.mjs",
+    "dev:watch": "node ../../infra/supabase/security-adapter/dev-local.mjs --watch",
     "dev:legacy-db": "nest build && powershell.exe -NoProfile -File ../../infra/supabase/security-adapter/Start-DevRuntime.ps1 -Action Start",
     "start:dev": "nest build && powershell.exe -NoProfile -File ../../infra/supabase/security-adapter/Start-DevRuntime.ps1 -Action Start",
     "build": "pnpm --filter \"@pathways/api^...\" run build && prisma generate --config prisma.generate.config.ts && nest build",

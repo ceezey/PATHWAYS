@@ -1,5 +1,5 @@
 import { spawn } from 'node:child_process'
-// Local watch launcher: hosted devV2 runtime role from apps/api/.env, owner credentials blanked.
+// Local launcher: hosted devV2 runtime role from apps/api/.env, owner credentials blanked; --watch reloads on change.
 import fs from 'node:fs'
 import { createRequire } from 'node:module'
 import path from 'node:path'
@@ -19,7 +19,13 @@ const redact = createRuntimeRedactor(valueSets)
 // Empty values stop Nest's dotenv from reloading migration credentials into the runtime.
 const child = spawn(
   process.execPath,
-  [require.resolve('@nestjs/cli/bin/nest.js'), 'start', '--watch', '--entryFile', 'apps/api/src/main'],
+  [
+    require.resolve('@nestjs/cli/bin/nest.js'),
+    'start',
+    '--entryFile',
+    'apps/api/src/main',
+    ...(process.argv.includes('--watch') ? ['--watch'] : []),
+  ],
   {
     cwd: api,
     env: { ...process.env, DIRECT_URL: '', SHADOW_DATABASE_URL: '', PGPASSWORD: '' },
@@ -31,7 +37,7 @@ Promise.all([
   forwardRedactedLines(child.stdout, process.stdout, redact),
   forwardRedactedLines(child.stderr, process.stderr, redact),
 ]).catch(() => {
-  console.error('Watch output capture failed; sensitive details withheld.')
+  console.error('Output capture failed; sensitive details withheld.')
   process.exitCode = 1
 })
 for (const signal of ['SIGINT', 'SIGTERM']) process.on(signal, () => child.kill(signal))

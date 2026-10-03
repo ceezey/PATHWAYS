@@ -486,8 +486,9 @@ describe('P01 workspace and project services', () => {
     )
   })
 
-  it('assigns a unique internal project code when the accepted UI omits one', async () => {
+  it('assigns a readable project code when the accepted UI omits one', async () => {
     state.actor = actor('PROJECT_MANAGER', [projectId])
+    tx.project.findMany.mockResolvedValueOnce([])
     tx.project.create.mockImplementation(async ({ data }) => ({ id: data.id }))
     tx.project.findUniqueOrThrow.mockImplementation(async () => {
       const create = tx.project.create.mock.calls[0]?.[0] as { data: { code: string; id: string } }
@@ -537,7 +538,7 @@ describe('P01 workspace and project services', () => {
 
     const create = tx.project.create.mock.calls[0]?.[0] as { data: { code: string; id: string } }
     expect(create.data.id).toMatch(/^[0-9a-f-]{36}$/)
-    expect(create.data.code).toBe(`PRJ-${create.data.id.toUpperCase()}`)
+    expect(create.data.code).toBe('GCP-NA-2026')
     expect(result.code).toBe(create.data.code)
     expect(tx.auditLog.create).toHaveBeenCalledWith(
       expect.objectContaining({
