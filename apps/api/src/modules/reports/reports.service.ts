@@ -365,7 +365,19 @@ export class ReportsService {
       this.prisma,
       identity,
       'reports.read',
-      (tx, actor) => this.source(tx, actor, projectId, parsed.data.kind, parsed.data.formId),
+      async (tx, actor) => {
+        const source = await this.source(tx, actor, projectId, parsed.data.kind, parsed.data.formId)
+        // Explicit allowlist keeps internal ids such as evaluationId out of the response.
+        return {
+          projectId: source.projectId,
+          formId: source.formId,
+          kind: source.kind,
+          columns: source.columns,
+          rows: source.rows,
+          generatedAt: source.generatedAt,
+          unavailableReasons: source.unavailableReasons,
+        }
+      },
       { isolationLevel: 'RepeatableRead' },
     )
   }

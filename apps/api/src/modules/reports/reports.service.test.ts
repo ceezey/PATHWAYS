@@ -384,6 +384,16 @@ describe('report source authority, privacy and artifact recovery', () => {
       overallScore: { toString: () => '82.5' },
     }
 
+    const previewKeys = [
+      'columns',
+      'formId',
+      'generatedAt',
+      'kind',
+      'projectId',
+      'rows',
+      'unavailableReasons',
+    ]
+
     it('requires monitoring.read on top of the kind grant', async () => {
       grant('reports.indicator.read')
       await expect(
@@ -427,6 +437,7 @@ describe('report source authority, privacy and artifact recovery', () => {
       const preview = await service.preview(actor, projectId, { kind: 'EVALUATION_REPORT' })
       expect(preview.rows).toEqual([])
       expect(preview.unavailableReasons).toHaveLength(1)
+      expect(Object.keys(preview).sort()).toEqual(previewKeys)
       state.operations = 0
       await expect(
         service.generate(actor, projectId, { ...body, kind: 'EVALUATION_REPORT' }),
@@ -448,6 +459,7 @@ describe('report source authority, privacy and artifact recovery', () => {
       ])
       const preview = await service.preview(actor, projectId, { kind: 'EVALUATION_REPORT' })
       expect(preview.rows[1]).toEqual(['Criterion', 'C1 Relevance', '50', '8', '10', '40'])
+      expect(Object.keys(preview).sort()).toEqual(previewKeys)
       const where = tx.projectEvaluation.findFirst.mock.calls[0][0].where
       expect(where.status).toEqual({ in: ['SIGNED_OFF', 'ARCHIVED'] })
       await service.generate(actor, projectId, { ...body, kind: 'EVALUATION_REPORT' })
