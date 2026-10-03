@@ -117,7 +117,7 @@ export function buildPlan() {
     // 0055 needs no preprovision: prisma owns pathways.p09_role_allows.
     { type: 'deploy', migrations: range(55, 55) },
     // 0057 needs no preprovision: prisma owns p06_can, p10_f9_survey_aggregate and the source tables.
-    { type: 'deploy', migrations: range(56, 56) },
+    { type: 'deploy', migrations: range(57, 57) },
     { type: 'alter-runtime-role' },
     { type: 'postconditions' },
   ]
