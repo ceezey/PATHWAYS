@@ -141,7 +141,7 @@ describe('BeneficiaryMediaProof', () => {
     expect(api.reserveBeneficiaryMedia).not.toHaveBeenCalled()
   })
 
-  it('marks a failed finalize and retries without reserving or uploading again', async () => {
+  it('marks a failed finalize and retries without reserving again', async () => {
     api.finalizeBeneficiaryMedia.mockRejectedValueOnce(new Error('verify down'))
     renderMedia()
     await openDialog()
@@ -153,8 +153,44 @@ describe('BeneficiaryMediaProof', () => {
     fireEvent.click(retry)
     await waitFor(() => expect(api.finalizeBeneficiaryMedia).toHaveBeenCalledTimes(2))
     expect(api.reserveBeneficiaryMedia).toHaveBeenCalledTimes(1)
-    expect(api.uploadActivityProofFile).toHaveBeenCalledTimes(1)
+    expect(api.uploadActivityProofFile).toHaveBeenCalledTimes(2)
     await waitFor(() => expect(api.listBeneficiaryMedia).toHaveBeenCalledTimes(2))
+  })
+
+  it('uploads again on Retry after a finalize mismatch', async () => {
+    api.finalizeBeneficiaryMedia.mockRejectedValueOnce(new Error('does not match'))
+    renderMedia()
+    await openDialog()
+    selectFile()
+    await screen.findByText(/new.jpg/)
+    fireEvent.click(screen.getByRole('button', { name: /Upload media/ }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Retry new.jpg' }))
+    await waitFor(() => expect(api.finalizeBeneficiaryMedia).toHaveBeenCalledTimes(2))
+    expect(api.uploadActivityProofFile).toHaveBeenCalledTimes(2)
+    await waitFor(() => expect(api.listBeneficiaryMedia).toHaveBeenCalledTimes(2))
+  })
+
+  it('matches reservations by name and digest and fails a file left without one', async () => {
+    api.reserveBeneficiaryMedia.mockResolvedValue([
+      {
+        mediaId: 'media-other',
+        fileName: 'other.jpg',
+        contentType: 'image/jpeg',
+        byteSize: 1024,
+        sha256: sha,
+        uploadUrl: 'https://upload.test/o',
+      },
+    ])
+    renderMedia()
+    await openDialog()
+    selectFile()
+    await screen.findByText(/new.jpg/)
+    fireEvent.click(screen.getByRole('button', { name: /Upload media/ }))
+    await screen.findByText(/was not reserved for upload/)
+    expect(api.uploadActivityProofFile).not.toHaveBeenCalled()
+    expect(api.finalizeBeneficiaryMedia).not.toHaveBeenCalled()
+    expect(screen.queryByRole('button', { name: 'Retry new.jpg' })).toBeNull()
+    expect(screen.getByRole('button', { name: 'Close' })).toBeTruthy()
   })
 
   it('loads a preview as an authorized blob only when requested', async () => {

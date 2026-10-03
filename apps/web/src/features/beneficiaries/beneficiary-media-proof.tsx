@@ -30,7 +30,11 @@ import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { sha256Hex } from '@/lib/files/proof-file-hash'
 import { PathwaysClientError, pathwaysClient } from '@/lib/services/pathways-client'
-import type { BeneficiaryMediaItem, BeneficiaryMediaLimits } from '@/types/pathways'
+import type {
+  ActivityProofFileDeclaration,
+  BeneficiaryMediaItem,
+  BeneficiaryMediaLimits,
+} from '@/types/pathways'
 
 import { formatMediaFileSize } from './beneficiary-media-utils'
 import { formatDate } from './beneficiary-utils'
@@ -335,6 +339,8 @@ const AddMediaDialog = ({
       patch(item.key, { status: 'uploaded', error: undefined })
       return true
     } catch (caught) {
+      // The server may have deleted a mismatched object, so a retry uploads it again.
+      uploadedKeys.current.delete(item.key)
       patch(item.key, {
         status: 'failed',
         error:
@@ -365,7 +371,7 @@ const AddMediaDialog = ({
     setError('')
     try {
       // Hash one file at a time so large videos are never all held in memory together.
-      const declarations = []
+      const declarations: ActivityProofFileDeclaration[] = []
       for (const item of files)
         declarations.push({
           fileName: item.file.name,
@@ -378,14 +384,23 @@ const AddMediaDialog = ({
         ...(note.trim() ? { note: note.trim() } : {}),
       })
       setLocked(true)
-      // Reserved files come back in declaration order.
-      const working = files.map((item, index) => ({
-        ...item,
-        mediaId: reserved[index]?.mediaId,
-        uploadUrl: reserved[index]?.uploadUrl,
-      }))
+      // Each file is matched to its reservation by name and digest, never by position.
+      const working = files.map((item, index) => {
+        const row = reserved.find(
+          (entry) =>
+            entry.fileName === declarations[index].fileName &&
+            entry.sha256 === declarations[index].sha256,
+        )
+        return row
+          ? { ...item, mediaId: row.mediaId, uploadUrl: row.uploadUrl }
+          : {
+              ...item,
+              status: 'failed' as const,
+              error: `${item.file.name} was not reserved for upload. Close this dialog and add it again.`,
+            }
+      })
       setFiles(working)
-      complete(await Promise.all(working.map(processFile)))
+      complete(await Promise.all(working.map((item) => (item.mediaId ? processFile(item) : false))))
     } catch (caught) {
       setBusy(false)
       setError(
@@ -446,7 +461,7 @@ const AddMediaDialog = ({
                   </span>
                   <span className="flex shrink-0 items-center gap-2">
                     <span>{statusLabel[item.status]}</span>
-                    {item.status === 'failed' ? (
+                    {item.status === 'failed' && item.mediaId ? (
                       <Button
                         aria-label={`Retry ${item.file.name}`}
                         disabled={busy}
