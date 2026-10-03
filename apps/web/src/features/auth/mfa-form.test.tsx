@@ -174,20 +174,18 @@ describe('MfaForm code entry', () => {
     expect((boxes[1] as HTMLInputElement).value).toBe('')
   })
 
-  it('fills all boxes when six digits are pasted', async () => {
+  it('fills boxes from a pasted code', async () => {
     render(<MfaForm />)
     fireEvent.click(await screen.findByRole('button', { name: 'Set up authenticator' }))
     await screen.findByAltText('Private authenticator setup QR code')
 
     const boxes = screen.getAllByLabelText(/Digit \d of 6/)
-    const clipboardData = { getData: () => '123456' }
+    const clipboardData = { getData: () => '12345' }
     fireEvent.paste(boxes[0], { clipboardData })
-    boxes.forEach((box, index) => {
-      expect((box as HTMLInputElement).value).toBe(String(index + 1))
-    })
+    expect(boxes.map((box) => (box as HTMLInputElement).value)).toEqual(['1', '2', '3', '4', '5', ''])
   })
 
-  it('keeps submit disabled until all six digits are entered, and codes are not masked', async () => {
+  it('keeps submit disabled below six digits, codes are not masked, and six digits auto-verify', async () => {
     render(<MfaForm />)
     fireEvent.click(await screen.findByRole('button', { name: 'Set up authenticator' }))
     await screen.findByAltText('Private authenticator setup QR code')
@@ -204,7 +202,9 @@ describe('MfaForm code entry', () => {
     }
 
     fillCode('123456')
-    expect(submit.disabled).toBe(false)
+    await waitFor(() =>
+      expect(boxes.map((box) => (box as HTMLInputElement).value)).toEqual(['', '', '', '', '', '']),
+    )
   })
 
   it('does not shift later digits when a middle box is deleted', async () => {
@@ -212,17 +212,10 @@ describe('MfaForm code entry', () => {
     fireEvent.click(await screen.findByRole('button', { name: 'Set up authenticator' }))
     await screen.findByAltText('Private authenticator setup QR code')
 
-    const boxes = fillCode('123456')
+    const boxes = fillCode('12345')
     fireEvent.change(boxes[2], { target: { value: '' } })
 
-    expect(boxes.map((box) => (box as HTMLInputElement).value)).toEqual([
-      '1',
-      '2',
-      '',
-      '4',
-      '5',
-      '6',
-    ])
+    expect(boxes.map((box) => (box as HTMLInputElement).value)).toEqual(['1', '2', '', '4', '5', ''])
   })
 
   it('fills the first gap instead of the clicked box when typing past a gap', async () => {
@@ -245,9 +238,8 @@ describe('MfaForm code entry', () => {
     fireEvent.click(await screen.findByRole('button', { name: 'Set up authenticator' }))
     await screen.findByAltText('Private authenticator setup QR code')
 
+    // The sixth digit auto-submits, and a wrong code resets the controlled `value` prop back to ''.
     const boxes = fillCode('123456')
-    // Submitting a wrong code resets the controlled `value` prop back to ''.
-    fireEvent.click(screen.getByRole('button', { name: 'Verify authenticator code' }))
 
     await waitFor(() =>
       expect(boxes.map((box) => (box as HTMLInputElement).value)).toEqual(['', '', '', '', '', '']),
