@@ -107,7 +107,7 @@ const tx = {
   userProjectAssignment: { findMany: vi.fn() },
   projectBudgetRecord: { findMany: vi.fn() },
   budgetExpenseEntry: { aggregate: vi.fn() },
-  activityUpdate: { findFirst: vi.fn(), create: vi.fn() },
+  activityUpdate: { findFirst: vi.fn(), create: vi.fn(), groupBy: vi.fn() },
   auditLog: { create: vi.fn() },
 }
 
@@ -117,6 +117,7 @@ beforeEach(() => {
   vi.clearAllMocks()
   state.tx = tx as unknown as Prisma.TransactionClient
   tx.$queryRaw.mockResolvedValue([])
+  tx.activityUpdate.groupBy.mockResolvedValue([])
   tx.projectBudgetRecord.findMany.mockResolvedValue([])
   tx.budgetExpenseEntry.aggregate.mockResolvedValue({ _sum: { amount: null }, _count: { _all: 0 } })
   tx.project.findFirst.mockResolvedValue({ id: projectId, startDate: null, endDate: null })
@@ -204,30 +205,37 @@ describe('server-computed activity capabilities', () => {
     })
   })
 
-  it('reports the activity beneficiariesReached exactly as the database aggregate returns it', async () => {
-    // cr-pathways-proof-session-beneficiary-count: pathways.p08_activity_beneficiaries_reached
-    // now sums each activity's APPROVED beneficiaries_reached_this_session values (NULL as 0)
-    // and excludes PENDING, VERIFIED and REJECTED updates; a later rejection lowers the sum.
-    // The service is a pass-through of that already-aggregated total, so this test fixes the
-    // contract at the boundary. The SQL aggregation itself is covered by
-    // apps/api/prisma/tests/proof-session-beneficiary-count-runtime.sql.
+  it('sums APPROVED session counts for beneficiariesReached', async () => {
+    // cr-pathways-proof-session-beneficiary-count: APPROVED beneficiaries_reached_this_session
+    // values per activity (NULL as 0); PENDING, VERIFIED and REJECTED updates are excluded.
     const actor = actorFor('PROJECT_MANAGER')
     state.actor = actor
     tx.project.findFirst.mockResolvedValueOnce({
       projectActivity_project: [activityRow('IN_PROGRESS', 0)],
     })
-    tx.$queryRaw.mockResolvedValueOnce([{ activityId, beneficiariesReached: 17 }])
+    tx.activityUpdate.groupBy.mockResolvedValueOnce([
+      { activityId, _sum: { beneficiariesReachedThisSession: 17 } },
+    ])
     const detail = await service.get(actor, projectId, activityId)
     expect(detail.beneficiariesReached).toBe(17)
+    expect(tx.activityUpdate.groupBy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          organizationId: actor.organizationId,
+          projectId,
+          status: 'APPROVED',
+        }),
+      }),
+    )
   })
 
-  it('reports zero when the aggregate returns no row for the activity (no approved proofs yet)', async () => {
+  it('reports zero when no approved proofs exist yet', async () => {
     const actor = actorFor('PROJECT_MANAGER')
     state.actor = actor
     tx.project.findFirst.mockResolvedValueOnce({
       projectActivity_project: [activityRow('IN_PROGRESS', 0)],
     })
-    tx.$queryRaw.mockResolvedValueOnce([])
+    tx.activityUpdate.groupBy.mockResolvedValueOnce([])
     const detail = await service.get(actor, projectId, activityId)
     expect(detail.beneficiariesReached).toBe(0)
   })

@@ -80,3 +80,6 @@
 - Centered the six OTP boxes on the security check screen.
 - MFA code auto-verifies once all six digits are entered.
 - After an accepted MFA code the card shows "Code accepted. Opening your workspace..." instead of the code form; falls back with an error after 30s if aal2 is not confirmed.
+
+## 2026-10-04 Activity beneficiaries reached always 0
+- Root cause: p08_activity_beneficiaries_reached runs as `prisma` (no BYPASSRLS) and activity_updates forces RLS, so it saw no rows. readReached now uses a grouped Prisma query under runtime RLS; authorized callers get 0 instead of null. Privacy review: PASS WITH NOTES (notes applied); function repair deferred.

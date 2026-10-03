@@ -852,20 +852,23 @@ export class ActivitiesService {
     if (!hasAtomicPermission(actor.roles[0], actor.permissions, 'beneficiaries.aggregates.read')) {
       return reached
     }
-    // cr-pathways-proof-session-beneficiary-count: the database function sums each
-    // activity's APPROVED beneficiaries_reached_this_session values (NULL as 0).
-    const ids = Prisma.join(activityIds.map((id) => Prisma.sql`${id}::uuid`))
-    const rows = await tx.$queryRaw<Array<{ activityId: string; beneficiariesReached: number }>>(
-      Prisma.sql`
-        SELECT activity_id AS "activityId", beneficiaries_reached AS "beneficiariesReached"
-        FROM pathways.p08_activity_beneficiaries_reached(
-          ${actor.organizationId}::uuid,
-          ${projectId}::uuid,
-          ARRAY[${ids}]::uuid[]
-        )
-      `,
-    )
-    for (const row of rows) reached.set(row.activityId, Number(row.beneficiariesReached))
+    // Authorized callers see 0, not null, for activities with no approved sessions yet.
+    for (const id of activityIds) reached.set(id, 0)
+    // Sums APPROVED session counts; p08_activity_beneficiaries_reached runs as the owner, which
+    // forced RLS on activity_updates hides, so it always returned 0.
+    const rows = await tx.activityUpdate.groupBy({
+      by: ['activityId'],
+      where: {
+        organizationId: actor.organizationId,
+        projectId,
+        activityId: { in: activityIds },
+        status: 'APPROVED',
+        activity: { status: { not: 'CANCELLED' }, archivedAt: null },
+      },
+      _sum: { beneficiariesReachedThisSession: true },
+    })
+    for (const row of rows)
+      reached.set(row.activityId, row._sum.beneficiariesReachedThisSession ?? 0)
     return reached
   }
 
