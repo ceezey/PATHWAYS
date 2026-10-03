@@ -102,12 +102,10 @@ describe('"None yet" empty states versus error and permission wording', () => {
     expect(analytics).toContain(
       "import { metricUnavailableLabel, overviewMetricLabel } from '@/features/projects/project-utils'",
     )
-    expect(analytics).toContain('participationEmptyTitle')
-    // Whitespace-insensitive: only the ternary's structure matters, not its exact
-    // indentation, which is free to reflow with surrounding JSX.
-    const normalizedWhitespace = analytics.replace(/\s+/g, ' ')
-    expect(normalizedWhitespace).toContain(
-      "analysisView === 'participation' ? participationEmptyTitle : 'None yet'",
+    // Participation now renders its own breakdown panel, so no unconditional "None yet" title remains.
+    expect(analytics).toContain('ParticipationBreakdownPanel')
+    expect(analytics.replace(/\s+/g, ' ')).not.toContain(
+      "analysisView === 'participation' ? 'None yet'",
     )
     const projectUtils = source('features/projects/project-utils.ts')
     expect(projectUtils).toContain('export const metricUnavailableLabel')
