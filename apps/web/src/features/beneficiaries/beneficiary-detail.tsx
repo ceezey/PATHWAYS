@@ -428,7 +428,7 @@ export const BeneficiaryDetail = ({
           >
             {initials}
           </button>
-          <div className="min-w-0 space-y-2">
+          <div className="flex min-w-0 flex-wrap items-center gap-x-4 gap-y-2">
             <div>
               <h1 className="font-semibold text-foreground">{beneficiary.displayName}</h1>
               <p className="text-sm text-muted-foreground">{beneficiary.code}</p>
