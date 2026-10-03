@@ -61,6 +61,7 @@ import type {
   ProjectMilestone,
   ProjectStatus,
   ProjectSummary,
+  ProjectTeamMember,
   PublicProjectRecord,
   RecommendationOutcomeRecord,
   RecommendationRecord,
@@ -89,6 +90,7 @@ import type { PathwaysRole } from '@/types/pathways-role'
 import {
   type CreateIndicatorInput as ApiCreateIndicatorInput,
   type UpdateIndicatorInput as ApiUpdateIndicatorInput,
+  type DashboardActionCounts,
   type DashboardQuery,
   type DescriptiveAnalytics,
   type DescriptiveAnalyticsQuery,
@@ -99,6 +101,7 @@ import {
   type SurveyAnalytics,
   type TimelineAnalytics,
   type UseLibraryEntryInput,
+  dashboardActionCountsSchema,
   dashboardQuerySchema,
   descriptiveAnalyticsQuerySchema,
   descriptiveAnalyticsSchema,
@@ -367,6 +370,7 @@ export interface PathwaysClient {
     context?: SourceMutationContext,
   ): Promise<SourceMutationResult<ProjectIndicator>>
   getMonitoringDashboard(query?: DashboardQuery): Promise<MonitoringDashboard>
+  getDashboardActionCounts(): Promise<DashboardActionCounts>
   getSadddDashboard(query: SadddQuery): Promise<SadddDashboard>
   getDescriptiveAnalytics(query: DescriptiveAnalyticsQuery): Promise<DescriptiveAnalytics>
   getSurveyAnalytics(query: DescriptiveAnalyticsQuery): Promise<SurveyAnalytics>
@@ -1082,6 +1086,10 @@ class BackendReadyPathwaysClient implements PathwaysClient {
       context,
       (value) => projectIndicatorSchema.parse(value),
     )
+  }
+
+  async getDashboardActionCounts(): Promise<DashboardActionCounts> {
+    return dashboardActionCountsSchema.parse(await requestFoundation('/dashboards/action-counts'))
   }
 
   async getMonitoringDashboard(query: DashboardQuery = {}): Promise<MonitoringDashboard> {
@@ -1888,6 +1896,7 @@ interface ApiProject {
   programManagerId: string | null
   programManager: string | null
   projectManagerId: string | null
+  team?: ProjectTeamMember[]
   monitoringOfficerId: string | null
   monitoringOfficer: string | null
   projectOfficerIds: string[]
@@ -2250,6 +2259,7 @@ function mapProject(project: ApiProject): ProjectDetail {
     programManager: project.programManager ?? 'Not assigned',
     programManagerId: project.programManagerId,
     projectManagerId: project.projectManagerId,
+    team: project.team,
     monitoringOfficer: project.monitoringOfficer ?? 'Not assigned',
     monitoringOfficerId: project.monitoringOfficerId,
     projectOfficers: project.projectOfficers ?? [],

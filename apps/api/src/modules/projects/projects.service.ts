@@ -66,6 +66,7 @@ const projectTeamRoles = [
   'PROJECT_OFFICER',
 ] as const
 type ProjectTeamRole = (typeof projectTeamRoles)[number]
+const teamPreviewLimit = 8
 
 function mapProject(
   project: Prisma.ProjectGetPayload<{ select: typeof projectSelection }>,
@@ -106,6 +107,11 @@ function mapProject(
     monitoringOfficer: monitoringOfficers[0]?.user.fullName ?? null,
     projectOfficerIds: projectOfficers.map((assignment) => assignment.user.id),
     projectOfficers: projectOfficers.map((assignment) => assignment.user.fullName),
+    team: team.slice(0, teamPreviewLimit).map(({ user }) => ({
+      userId: user.id,
+      fullName: user.fullName,
+      role: user.role.code,
+    })),
     updatedAt: project.updatedAt.toISOString(),
   }
 }

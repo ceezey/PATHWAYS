@@ -1,11 +1,12 @@
 'use client'
 
-import { RefreshCw, Upload } from 'lucide-react'
+import { ArrowLeft, RefreshCw, Upload } from 'lucide-react'
+import Link from 'next/link'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { toast } from 'sonner'
 
 import { PageHeader } from '@/components/layout/page-header'
-import { StatusBadge } from '@/components/pathways'
+import { AsyncState, EmptyState, StatusBadge } from '@/components/pathways'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -17,10 +18,20 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table'
 import { useCurrentRole } from '@/hooks/use-current-role'
+import { useDisplayLabels } from '@/hooks/use-display-labels'
 import { type SensitiveDraftOwner, useSensitiveDraftOwner } from '@/lib/auth/sensitive-drafts'
-import { principalHasAtomicPermission } from '@/lib/rbac/route-access'
+import { getVerifiedRouteAccess, principalHasAtomicPermission } from '@/lib/rbac/route-access'
 import { pathwaysClient } from '@/lib/services/pathways-client'
+import { cn } from '@/lib/utils'
 import type {
   DigitalFormDefinition,
   ImportBatchDefinition,
@@ -37,6 +48,7 @@ import {
   runImportProcessing,
 } from './import-auto-continue'
 import { ImportProcessingPanel, type ImportProcessingState } from './import-processing-panel'
+import { enumLabel } from './import-status-labels'
 import {
   type ColumnRuleDraft,
   ImportValueMapEditor,
@@ -52,6 +64,14 @@ function batchTone(status: ImportBatchDefinition['status']) {
   if (status === 'PARTIALLY_PROCESSED') return 'warning' as const
   return 'info' as const
 }
+
+function rowTone(status: ImportRowDefinition['status']) {
+  if (status === 'PROCESSED') return 'success' as const
+  if (status === 'INVALID' || status === 'FAILED') return 'danger' as const
+  return status === 'UNPROCESSED' ? ('warning' as const) : ('info' as const)
+}
+
+const headClass = 'h-10 text-xs font-semibold uppercase tracking-wide text-muted-foreground'
 
 type StoredMapping = NonNullable<ImportBatchDefinition['mappings']>[number]
 
@@ -96,13 +116,18 @@ export function ImportWorkspace() {
 }
 function OwnedImportWorkspace({ scope }: { scope: SensitiveDraftOwner }) {
   const { profile } = useCurrentRole()
+  const { labels } = useDisplayLabels()
   const canUpload = principalHasAtomicPermission(profile, 'imports.upload')
   const canReview = principalHasAtomicPermission(profile, 'imports.review')
   const canValidate = principalHasAtomicPermission(profile, 'imports.validate')
   const canProcess = principalHasAtomicPermission(profile, 'imports.process')
+  const canOpenForms = Boolean(
+    profile && getVerifiedRouteAccess(profile, '/collection/forms').allowed,
+  )
   const [projects, setProjects] = useState<ProjectSummary[]>([])
   const [projectId, setProjectId] = useState('')
   const [forms, setForms] = useState<DigitalFormDefinition[]>([])
+  const [formsState, setFormsState] = useState<'loading' | 'ready' | 'error'>('ready')
   const [formId, setFormId] = useState('')
   const [file, setFile] = useState<File | null>(null)
   const [batches, setBatches] = useState<ImportBatchDefinition[]>([])
@@ -114,6 +139,7 @@ function OwnedImportWorkspace({ scope }: { scope: SensitiveDraftOwner }) {
   const mappingHeading = useRef<HTMLSpanElement>(null)
   const [pending, setPending] = useState(false)
   const [loadState, setLoadState] = useState<'loading' | 'ready' | 'error'>('loading')
+  const [loadAttempt, setLoadAttempt] = useState(0)
   const [processing, setProcessing] = useState<{
     batchId: string
     state: ImportProcessingState
@@ -175,6 +201,7 @@ function OwnedImportWorkspace({ scope }: { scope: SensitiveDraftOwner }) {
   }
   type Ticket = NonNullable<ReturnType<typeof begin>>
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies: loadAttempt restarts the project load on Retry.
   useEffect(() => {
     let mounted = true
     pathwaysClient
@@ -191,12 +218,13 @@ function OwnedImportWorkspace({ scope }: { scope: SensitiveDraftOwner }) {
     return () => {
       mounted = false
     }
-  }, [scope.isCurrent])
+  }, [scope.isCurrent, loadAttempt])
 
   useEffect(() => {
     if (!projectId) return
     let mounted = true
     setForms([])
+    setFormsState('loading')
     setBatches([])
     setBatch(null)
     setRows([])
@@ -210,6 +238,7 @@ function OwnedImportWorkspace({ scope }: { scope: SensitiveDraftOwner }) {
         if (!mounted || !scope.isCurrent() || latest.current.projectId !== projectId) return
         const published = formRecords.filter((item) => item.status === 'PUBLISHED')
         setForms(published)
+        setFormsState('ready')
         setFormId((current) =>
           published.some((item) => item.id === current) ? current : (published[0]?.id ?? ''),
         )
@@ -218,8 +247,10 @@ function OwnedImportWorkspace({ scope }: { scope: SensitiveDraftOwner }) {
         setRows([])
       })
       .catch(() => {
-        if (mounted && scope.isCurrent() && latest.current.projectId === projectId)
+        if (mounted && scope.isCurrent() && latest.current.projectId === projectId) {
+          setFormsState('error')
           toast.error('Import workspace data could not be loaded.')
+        }
       })
     return () => {
       mounted = false
@@ -595,8 +626,19 @@ function OwnedImportWorkspace({ scope }: { scope: SensitiveDraftOwner }) {
     <div className="space-y-6">
       <PageHeader
         eyebrow="Data workspace"
-        title="Metadata-Driven Data Integration"
+        editableLabelKey="moduleCollection"
+        title={labels.moduleCollection}
         description="Upload a private CSV, workbook or text-based PDF, review field mappings, validate every row, and promote only valid generic submissions."
+        actions={
+          canOpenForms ? (
+            <Button asChild variant="outline">
+              <Link href="/collection/forms">
+                <ArrowLeft className="mr-2 h-4 w-4" aria-hidden="true" />
+                Forms
+              </Link>
+            </Button>
+          ) : undefined
+        }
       />
 
       {visibleProcessing ? (
@@ -614,11 +656,23 @@ function OwnedImportWorkspace({ scope }: { scope: SensitiveDraftOwner }) {
 
       <fieldset disabled={pending} className="space-y-6">
         {loadState !== 'ready' ? (
-          <div className="rounded-xl border bg-card p-4 text-sm text-muted-foreground">
-            {loadState === 'loading'
-              ? 'Loading authorized projects...'
-              : 'Authorized projects could not be loaded.'}
-          </div>
+          <AsyncState
+            status={loadState}
+            title={
+              loadState === 'loading'
+                ? 'Loading authorized projects'
+                : 'Authorized projects could not be loaded'
+            }
+            description={
+              loadState === 'loading'
+                ? 'Projects you can import into will appear here.'
+                : 'Check your connection and access, then try again.'
+            }
+            onRetry={() => {
+              setLoadState('loading')
+              setLoadAttempt((current) => current + 1)
+            }}
+          />
         ) : null}
 
         <Card>
@@ -670,14 +724,40 @@ function OwnedImportWorkspace({ scope }: { scope: SensitiveDraftOwner }) {
                 }}
               >
                 <SelectTrigger>
-                  <SelectValue placeholder="Choose form" />
+                  <SelectValue
+                    placeholder={
+                      projectId && formsState === 'error'
+                        ? 'Forms could not be loaded.'
+                        : projectId && formsState === 'ready' && forms.length === 0
+                          ? 'No forms available.'
+                          : 'Choose form'
+                    }
+                  />
                 </SelectTrigger>
                 <SelectContent>
-                  {forms.map((form) => (
-                    <SelectItem key={form.id} value={form.id}>
-                      {form.name} - v{form.version}
-                    </SelectItem>
-                  ))}
+                  {projectId && formsState === 'loading' ? (
+                    // Shown only when the list is opened before the published forms arrive.
+                    <output
+                      aria-label="Loading published form versions"
+                      className="block space-y-2 p-2"
+                    >
+                      <div className="h-3 w-3/4 animate-pulse rounded-full bg-secondary" />
+                      <div className="h-3 w-full animate-pulse rounded-full bg-surface-subtle" />
+                      <div className="h-3 w-1/2 animate-pulse rounded-full bg-surface-subtle" />
+                    </output>
+                  ) : forms.length === 0 ? (
+                    <p className="px-2 py-1.5 text-sm text-muted-foreground">
+                      {formsState === 'error'
+                        ? 'Forms could not be loaded.'
+                        : 'No forms available.'}
+                    </p>
+                  ) : (
+                    forms.map((form) => (
+                      <SelectItem key={form.id} value={form.id}>
+                        {form.name} - v{form.version}
+                      </SelectItem>
+                    ))
+                  )}
                 </SelectContent>
               </Select>
             </div>
@@ -717,19 +797,23 @@ function OwnedImportWorkspace({ scope }: { scope: SensitiveDraftOwner }) {
             </CardHeader>
             <CardContent className="space-y-2">
               {batches.length === 0 ? (
-                <p className="text-sm text-muted-foreground">No imports found.</p>
+                <EmptyState title="None yet" description="No imports found." />
               ) : null}
               {batches.map((item) => (
                 <button
                   key={item.id}
-                  className="w-full rounded-md border p-3 text-left hover:border-primary/50"
+                  aria-pressed={batch?.id === item.id}
+                  className={cn(
+                    'w-full rounded-lg border p-3 text-left hover:border-primary/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+                    batch?.id === item.id && 'border-primary bg-info-subtle',
+                  )}
                   type="button"
                   onClick={() => void loadBatch(item.id)}
                 >
                   <div className="flex items-start justify-between gap-2">
                     <span className="text-sm font-medium">{item.originalFileName}</span>
                     <StatusBadge tone={batchTone(item.status)}>
-                      {item.status.replaceAll('_', ' ')}
+                      {enumLabel(item.status)}
                     </StatusBadge>
                   </div>
                   <p className="mt-1 text-xs text-muted-foreground">
@@ -742,11 +826,10 @@ function OwnedImportWorkspace({ scope }: { scope: SensitiveDraftOwner }) {
 
           <div className="space-y-4">
             {!batch ? (
-              <Card>
-                <CardContent className="p-6 text-sm text-muted-foreground">
-                  Select a persisted import batch to map, validate, review, or resume.
-                </CardContent>
-              </Card>
+              <EmptyState
+                title="No import selected"
+                description="Select a persisted import batch to map, validate, review, or resume."
+              />
             ) : (
               <>
                 <Card>
@@ -759,22 +842,22 @@ function OwnedImportWorkspace({ scope }: { scope: SensitiveDraftOwner }) {
                         </CardDescription>
                       </div>
                       <StatusBadge tone={batchTone(batch.status)}>
-                        {batch.status.replaceAll('_', ' ')}
+                        {enumLabel(batch.status)}
                       </StatusBadge>
                     </div>
                   </CardHeader>
                   <CardContent>
                     <div className="grid gap-3 sm:grid-cols-3 lg:grid-cols-6">
                       {Object.entries(batch.totals).map(([label, value]) => (
-                        <div key={label} className="rounded-xl bg-muted/40 p-3">
-                          <p className="text-xs uppercase text-muted-foreground">{label}</p>
+                        <div key={label} className="rounded-md bg-surface-subtle p-3">
+                          <p className="text-xs text-muted-foreground">{enumLabel(label)}</p>
                           <p className="text-lg font-semibold">{value}</p>
                         </div>
                       ))}
                     </div>
                     {batch.failureCode ? (
-                      <p className="mt-4 rounded-xl border border-warning/30 bg-warning/10 p-3 text-sm text-warning">
-                        Import notice: {batch.failureCode.replaceAll('_', ' ')}
+                      <p className="mt-4 rounded-md border border-warning/30 bg-warning-subtle p-3 text-sm text-warning">
+                        Import notice: {enumLabel(batch.failureCode)}
                       </p>
                     ) : null}
                     <div className="mt-4 flex flex-wrap gap-2">
@@ -782,7 +865,7 @@ function OwnedImportWorkspace({ scope }: { scope: SensitiveDraftOwner }) {
                         <Button onClick={() => void resume()}>Resume stored upload</Button>
                       ) : null}
                       <Button variant="outline" onClick={() => void loadBatch(batch.id)}>
-                        <RefreshCw className="mr-2 h-4 w-4" />
+                        <RefreshCw className="mr-2 h-4 w-4" aria-hidden="true" />
                         Reload server state
                       </Button>
                     </div>
@@ -830,7 +913,7 @@ function OwnedImportWorkspace({ scope }: { scope: SensitiveDraftOwner }) {
                         return (
                           <div
                             key={column.key}
-                            className="grid items-center gap-3 rounded-xl border p-3 sm:grid-cols-2"
+                            className="grid items-center gap-3 rounded-lg border p-3 sm:grid-cols-2"
                           >
                             <div className="space-y-1">
                               <span className="block break-all text-sm font-medium">
@@ -957,76 +1040,68 @@ function OwnedImportWorkspace({ scope }: { scope: SensitiveDraftOwner }) {
                       previews are never shown to aggregate-only roles.
                     </CardDescription>
                   </CardHeader>
-                  <CardContent className="overflow-x-auto">
+                  <CardContent>
                     {rows.length === 0 ? (
-                      <p className="text-sm text-muted-foreground">No staged rows are available.</p>
+                      <EmptyState title="None yet" description="No staged rows are available." />
                     ) : (
-                      <table className="w-full min-w-[720px] text-left text-sm">
-                        <thead>
-                          <tr className="border-b">
-                            <th className="p-2">Source row</th>
-                            <th className="p-2">Status</th>
-                            <th className="p-2">Original values</th>
-                            <th className="p-2">Validation</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {rows.map((row) => (
-                            <tr key={row.id} className="border-b align-top">
-                              <td className="p-2">{row.rowNumber}</td>
-                              <td className="p-2">
-                                <StatusBadge
-                                  tone={
-                                    row.status === 'PROCESSED'
-                                      ? 'success'
-                                      : row.status === 'INVALID' || row.status === 'FAILED'
-                                        ? 'danger'
-                                        : row.status === 'UNPROCESSED'
-                                          ? 'warning'
-                                          : 'info'
-                                  }
-                                >
-                                  {row.status}
-                                </StatusBadge>
-                              </td>
-                              <td className="p-2">
-                                <dl className="space-y-1">
-                                  {Object.entries(row.rawData).map(([key, value]) => (
-                                    <div key={key}>
-                                      <dt className="inline font-medium">
-                                        {sourceColumnByKey.has(key)
-                                          ? `Column ${sourceColumnByKey.get(key)?.columnIndex}: ${sourceColumnByKey.get(key)?.header}`
-                                          : key}
-                                        :{' '}
-                                      </dt>
-                                      <dd className="inline text-muted-foreground">
-                                        {displayValue(value)}
-                                      </dd>
-                                    </div>
-                                  ))}
-                                </dl>
-                              </td>
-                              <td className="p-2">
-                                {row.validationErrors.length ? (
-                                  <ul className="space-y-1 text-danger">
-                                    {row.validationErrors.map((error) => (
-                                      <li key={`${error.fieldCode}-${error.code}`}>
-                                        {error.fieldCode}: {error.message}
-                                      </li>
+                      <div className="overflow-x-auto rounded-lg border border-border">
+                        <Table className="min-w-[720px]">
+                          <TableHeader>
+                            <TableRow>
+                              <TableHead className={headClass}>Source row</TableHead>
+                              <TableHead className={headClass}>Status</TableHead>
+                              <TableHead className={headClass}>Original values</TableHead>
+                              <TableHead className={headClass}>Validation</TableHead>
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            {rows.map((row) => (
+                              <TableRow key={row.id} className="h-14 border-border">
+                                <TableCell className="align-top">{row.rowNumber}</TableCell>
+                                <TableCell className="align-top">
+                                  <StatusBadge tone={rowTone(row.status)}>
+                                    {enumLabel(row.status)}
+                                  </StatusBadge>
+                                </TableCell>
+                                <TableCell className="align-top">
+                                  <dl className="space-y-1">
+                                    {Object.entries(row.rawData).map(([key, value]) => (
+                                      <div key={key}>
+                                        <dt className="inline font-medium">
+                                          {sourceColumnByKey.has(key)
+                                            ? `Column ${sourceColumnByKey.get(key)?.columnIndex}: ${sourceColumnByKey.get(key)?.header}`
+                                            : key}
+                                          :{' '}
+                                        </dt>
+                                        <dd className="inline text-muted-foreground">
+                                          {displayValue(value)}
+                                        </dd>
+                                      </div>
                                     ))}
-                                  </ul>
-                                ) : row.processingErrorCode ? (
-                                  <span className="text-warning">
-                                    {row.processingErrorCode.replaceAll('_', ' ')}
-                                  </span>
-                                ) : (
-                                  <span className="text-muted-foreground">No errors</span>
-                                )}
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
+                                  </dl>
+                                </TableCell>
+                                <TableCell className="align-top">
+                                  {row.validationErrors.length ? (
+                                    <ul className="space-y-1 text-danger">
+                                      {row.validationErrors.map((error) => (
+                                        <li key={`${error.fieldCode}-${error.code}`}>
+                                          {error.fieldCode}: {error.message}
+                                        </li>
+                                      ))}
+                                    </ul>
+                                  ) : row.processingErrorCode ? (
+                                    <span className="text-warning">
+                                      {enumLabel(row.processingErrorCode)}
+                                    </span>
+                                  ) : (
+                                    <span className="text-muted-foreground">No errors</span>
+                                  )}
+                                </TableCell>
+                              </TableRow>
+                            ))}
+                          </TableBody>
+                        </Table>
+                      </div>
                     )}
                   </CardContent>
                 </Card>

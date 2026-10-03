@@ -2,6 +2,7 @@
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { DisplayLabelsProvider } from '@/providers/display-labels-provider'
 import { ImportWorkspace } from './import-workspace'
 
 const reviewer = ['imports.read', 'imports.review', 'imports.validate', 'forms.read']
@@ -98,7 +99,7 @@ const automatic = [
 ]
 
 const openBatch = async () => {
-  render(<ImportWorkspace />)
+  render(<ImportWorkspace />, { wrapper: DisplayLabelsProvider })
   fireEvent.click(await screen.findByText('people.csv'))
   await screen.findByText('Column 1: Given name')
 }

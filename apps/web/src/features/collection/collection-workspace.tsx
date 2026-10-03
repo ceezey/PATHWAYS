@@ -15,19 +15,32 @@ import {
   Trash2,
 } from 'lucide-react'
 import Link from 'next/link'
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import {
+  type ReactNode,
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react'
 import { toast } from 'sonner'
 
 import { createFileSummary } from '@pathways/imports'
 
 import { PageHeader } from '@/components/layout/page-header'
 import {
+  AsyncState,
   ConfirmationDialog,
+  EmptyState,
+  LoadingSkeleton,
   ProgressBar,
+  SectionCard,
   StatusBadge,
   UnavailableHint,
 } from '@/components/pathways'
 import { Button } from '@/components/ui/button'
+import { Card, CardContent } from '@/components/ui/card'
 import {
   Dialog,
   DialogContent,
@@ -51,6 +64,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import { TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { UNFINISHED_CONTROLS_UI_ENABLED } from '@/constants/feature-flags'
 import { useCurrentRole } from '@/hooks/use-current-role'
 import { useDisplayLabels } from '@/hooks/use-display-labels'
@@ -138,13 +152,14 @@ interface SavedForm {
 
 const toApiFormType = (type: string): DigitalFormType => type as DigitalFormType
 
-const metadataConnections = [
-  'Youth trained - vocational skills',
-  'Assessment delta (Effectiveness)',
-  'Monitoring dashboard',
-  'Beneficiary journey view',
-  'Evaluation center',
-]
+/** Matches the activity list table header so every collection table reads the same. */
+const tableHeadClass = 'h-10 text-xs uppercase tracking-wide'
+
+const savedFormStatus: Record<string, { label: string; tone: 'neutral' | 'success' }> = {
+  DRAFT: { label: 'Draft', tone: 'neutral' },
+  PUBLISHED: { label: 'Published', tone: 'success' },
+  ARCHIVED: { label: 'Archived', tone: 'neutral' },
+}
 
 const initialFields: FormField[] = [
   {
@@ -302,6 +317,19 @@ const formatValue = (value: unknown) => {
   return String(value)
 }
 
+// Saved dates render as a short UTC date and fall back to the raw value when unparsable.
+const formatSavedAt = (value: string) => {
+  const date = new Date(value)
+  return Number.isNaN(date.getTime())
+    ? value
+    : date.toLocaleDateString('en-GB', {
+        day: 'numeric',
+        month: 'short',
+        year: 'numeric',
+        timeZone: 'UTC',
+      })
+}
+
 export const CollectionWorkspace = (props: CollectionWorkspaceProps) => {
   const { profile } = useCurrentRole()
   const identity =
@@ -388,6 +416,9 @@ const OwnedCollectionWorkspace = ({
   const [creatingVersion, setCreatingVersion] = useState(false)
   const [pendingDeleteField, setPendingDeleteField] = useState<FormField | null>(null)
   const [savedNotice, setSavedNotice] = useState('')
+  const [loadError, setLoadError] = useState('')
+  const [reloadKey, setReloadKey] = useState(0)
+  const [formsLoaded, setFormsLoaded] = useState(false)
   const [parsedImport, setParsedImport] = useState<ParsedImport | null>(null)
   const [mappingRows, setMappingRows] = useState<MappingRow[]>([])
   const [uploadProgress, setUploadProgress] = useState(0)
@@ -609,7 +640,7 @@ const OwnedCollectionWorkspace = ({
           if (retry()) return load(attempt + 1)
           // Retries exhausted: never render the dropped rows, but never stay on "Loading".
           setProjectsLoaded(true)
-          setSavedNotice('Projects could not be loaded. Retry.')
+          setLoadError('Projects could not be loaded.')
           return
         }
         setProjects(records)
@@ -619,15 +650,16 @@ const OwnedCollectionWorkspace = ({
         if (!active || !isCurrentOwner()) return
         if (generation !== sensitiveDraftGeneration() && retry()) return load(attempt + 1)
         setProjectsLoaded(true)
-        setSavedNotice(error instanceof Error ? error.message : 'Projects could not be loaded.')
+        setLoadError(error instanceof Error ? error.message : 'Projects could not be loaded.')
       }
     }
     void load(1)
     return () => {
       active = false
     }
-  }, [hasProfile, profileUserId, profileOrganizationId, role, eligible, isCurrentOwner])
+  }, [hasProfile, profileUserId, profileOrganizationId, role, eligible, isCurrentOwner, reloadKey])
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies: reloadKey re-runs the load when Retry is pressed
   useEffect(() => {
     if (!projectId) {
       setForms([])
@@ -635,6 +667,8 @@ const OwnedCollectionWorkspace = ({
       setIndicators([])
       return
     }
+    setFormsLoaded(false)
+    setLoadError('')
     let active = true
     const generation = sensitiveDraftGeneration()
     const requests: Promise<void>[] = []
@@ -660,16 +694,21 @@ const OwnedCollectionWorkspace = ({
           current.current.projectId === projectId &&
           eligible(permission, projectId)
         ) {
-          setSavedNotice(error instanceof Error ? error.message : `${label} could not be loaded.`)
+          setLoadError(error instanceof Error ? error.message : `${label} could not be loaded.`)
         }
       }
     }
     if (canReadForms && eligible('forms.read', projectId)) {
       requests.push(
-        load(pathwaysClient.getDigitalForms(projectId), setForms, 'Forms', 'forms.read'),
+        load(pathwaysClient.getDigitalForms(projectId), setForms, 'Forms', 'forms.read').then(
+          () => {
+            if (active) setFormsLoaded(true)
+          },
+        ),
       )
     } else {
       setForms([])
+      setFormsLoaded(true)
     }
     if (view === 'builder' && canReadActivities && eligible('activities.read', projectId)) {
       requests.push(
@@ -699,7 +738,7 @@ const OwnedCollectionWorkspace = ({
     return () => {
       active = false
     }
-  }, [canReadActivities, canReadForms, canReadIndicators, projectId, view, eligible])
+  }, [canReadActivities, canReadForms, canReadIndicators, projectId, view, eligible, reloadKey])
 
   const savedForms: SavedForm[] = forms.map((f) => ({
     id: f.id,
@@ -1355,6 +1394,20 @@ const OwnedCollectionWorkspace = ({
       ticket.finish()
     }
   }
+  const canReadProjects = principalHasAtomicPermission(profile, 'projects.read')
+  // Without a selected project the list waits on the project load, unless projects cannot be read.
+  const formsLoading = projectId ? !formsLoaded : !projectsLoaded && canReadProjects
+  const loadErrorState = loadError ? (
+    <AsyncState
+      status="error"
+      title="Collection data could not be loaded"
+      description={loadError}
+      onRetry={() => {
+        setLoadError('')
+        setReloadKey((key) => key + 1)
+      }}
+    />
+  ) : null
   return (
     <fieldset disabled={operationPending} className="space-y-6">
       <PageHeader
@@ -1363,7 +1416,7 @@ const OwnedCollectionWorkspace = ({
         title={labels.moduleCollection}
         actions={
           canOpenForms ? (
-            <Button asChild size="sm">
+            <Button asChild>
               <Link href="/collection/forms">Forms</Link>
             </Button>
           ) : null
@@ -1386,16 +1439,16 @@ const OwnedCollectionWorkspace = ({
                 <p className="text-sm font-semibold text-foreground">{item.title}</p>
                 <p className="mt-1 text-xs leading-5 text-muted-foreground">{item.description}</p>
               </div>
-              <StatusBadge tone={mode === item.id ? 'info' : 'neutral'}>
-                {mode === item.id ? 'Selected' : 'Mode'}
-              </StatusBadge>
+              {mode === item.id ? <StatusBadge tone="info">Selected</StatusBadge> : null}
             </div>
           </Link>
         ))}
       </div>
 
+      {loadError && view !== 'forms' && view !== 'home' ? loadErrorState : null}
+
       {savedNotice ? (
-        <div className="flex items-center justify-between rounded-xl border border-success/25 bg-success-subtle px-4 py-3 text-sm text-success">
+        <div className="flex items-center justify-between rounded-lg border border-success/25 bg-success-subtle px-4 py-3 text-sm text-success">
           <span className="flex items-center gap-2">
             <CheckCircle2 className="h-4 w-4" aria-hidden="true" />
             {savedNotice}
@@ -1429,6 +1482,8 @@ const OwnedCollectionWorkspace = ({
           }}
           onDownload={downloadSavedForm}
           savedForms={savedForms}
+          status={formsLoading ? 'loading' : loadError ? 'error' : 'ready'}
+          errorState={loadErrorState}
         />
       ) : null}
 
@@ -1520,7 +1575,7 @@ const OwnedCollectionWorkspace = ({
       {view === 'builder' ? (
         <>
           {!editingReady && (
-            <output>
+            <output className="block rounded-md border border-border bg-surface-subtle px-3 py-2 text-sm text-muted-foreground">
               The saved form is not ready. Wait for it to load, or return to Forms if it is
               unavailable.
             </output>
@@ -1623,26 +1678,30 @@ const OwnedCollectionWorkspace = ({
       {view === 'import' ? (
         <div className="space-y-4">
           {UNFINISHED_CONTROLS_UI_ENABLED ? (
-            <label>
-              Duplicate records decision{' '}
-              <select
-                className="rounded border p-2"
+            <div className="space-y-2">
+              <Label htmlFor="duplicate-decision">Duplicate records decision</Label>
+              <Select
                 value={duplicateDecision}
-                onChange={(e) => {
+                onValueChange={(value) => {
                   if (mutation.current) return
                   intent.current++
-                  setDuplicateDecision(e.target.value as 'pending' | 'skip' | 'keep')
+                  setDuplicateDecision(value as 'pending' | 'skip' | 'keep')
                 }}
               >
-                <option value="pending">Decide when duplicates are flagged</option>
-                <option disabled title="Not available yet" value="skip">
-                  Skip duplicates (not available yet)
-                </option>
-                <option disabled title="Not available yet" value="keep">
-                  Keep confirmed duplicates (not available yet)
-                </option>
-              </select>
-            </label>
+                <SelectTrigger id="duplicate-decision">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="pending">Decide when duplicates are flagged</SelectItem>
+                  <SelectItem disabled title="Not available yet" value="skip">
+                    Skip duplicates (not available yet)
+                  </SelectItem>
+                  <SelectItem disabled title="Not available yet" value="keep">
+                    Keep confirmed duplicates (not available yet)
+                  </SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
           ) : null}
           {parsedImport?.rows.length
             ? (() => {
@@ -1692,20 +1751,20 @@ const OwnedCollectionWorkspace = ({
                     </div>
                     <section
                       aria-label="Isolated data rows awaiting correction"
-                      className="mt-2 max-w-full overflow-x-auto"
+                      className="mt-2 max-w-full overflow-x-auto rounded-lg border border-border"
                       // biome-ignore lint/a11y/noNoninteractiveTabindex: scroll container needs keyboard access to reach content clipped by overflow-x-auto
                       tabIndex={0}
                     >
-                      <table className="min-w-max">
-                        <tbody>
+                      <table className="min-w-max text-sm">
+                        <TableBody>
                           {pageRows.map((row, relativeIndex) => {
                             const rowIndex = pageStart + relativeIndex
                             return (
-                              <tr key={rowIndex}>
+                              <TableRow className="h-14" key={rowIndex}>
                                 {parsedImport.headers.map((column) => {
                                   const cellValue = String(row[column] ?? '')
                                   return (
-                                    <td key={column}>
+                                    <TableCell key={column}>
                                       <Input
                                         aria-label={`Row ${rowIndex + 1}: ${column}`}
                                         className="max-w-[220px] truncate"
@@ -1715,13 +1774,13 @@ const OwnedCollectionWorkspace = ({
                                           updateCorrectionCell(rowIndex, column, event.target.value)
                                         }
                                       />
-                                    </td>
+                                    </TableCell>
                                   )
                                 })}
-                              </tr>
+                              </TableRow>
                             )
                           })}
-                        </tbody>
+                        </TableBody>
                       </table>
                     </section>
                   </details>
@@ -1787,7 +1846,7 @@ const OwnedCollectionWorkspace = ({
               permission-controlled action.
             </DialogDescription>
           </DialogHeader>
-          <div className="rounded-xl border bg-surface-subtle p-4 text-sm">
+          <div className="rounded-md border bg-surface-subtle p-4 text-sm">
             <p className="font-medium text-foreground">{formTitle}</p>
             <p className="mt-1 text-muted-foreground">
               {fields.length} fields, {mappedCount} mapped, {sadddCount} SADDD fields.
@@ -1802,7 +1861,7 @@ const OwnedCollectionWorkspace = ({
               Cancel
             </Button>
             <Button disabled={operationPending} onClick={() => void saveDraftToApi()}>
-              Save Draft
+              Save draft
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -1844,7 +1903,7 @@ const OwnedCollectionWorkspace = ({
             </Button>
             {processingRun ? null : (
               <Button disabled={operationPending} onClick={confirmImportProceed}>
-                {parsedImport?.rows.length === 0 ? 'Create Draft' : 'Proceed'}
+                {parsedImport?.rows.length === 0 ? 'Create draft' : 'Proceed'}
               </Button>
             )}
           </DialogFooter>
@@ -1864,7 +1923,7 @@ const OwnedCollectionWorkspace = ({
         title={`Delete ${pendingDeleteField?.label ?? 'this field'}?`}
       >
         {pendingDeleteField ? (
-          <div className="rounded-xl border border-border bg-surface-subtle p-3 text-sm">
+          <div className="rounded-md border border-border bg-surface-subtle p-3 text-sm">
             <p className="font-medium text-foreground">{pendingDeleteField.label}</p>
             <p className="mt-1 text-muted-foreground">
               Field code: {pendingDeleteField.code} · Type:{' '}
@@ -1880,37 +1939,39 @@ const OwnedCollectionWorkspace = ({
 const FormsGeneratorView = ({
   canCreate,
   canImport,
+  errorState,
   onOpen,
   onCreate,
   onDownload,
   savedForms,
+  status,
 }: {
   canCreate: boolean
   canImport: boolean
+  errorState: ReactNode
   onOpen: (form: SavedForm) => void
   onCreate: () => void
   onDownload: (form: SavedForm) => void
   savedForms: SavedForm[]
+  status: 'loading' | 'error' | 'ready'
 }) => (
-  <div className="rounded-2xl border bg-card p-5">
-    <div className="flex flex-col gap-3 border-b pb-4 sm:flex-row sm:items-center sm:justify-between">
-      <div>
-        <p className="text-xs font-semibold uppercase text-muted-foreground">Form Generator</p>
-        <h2 className="mt-1 text-lg font-semibold text-foreground">Collection forms</h2>
-      </div>
-      {canCreate || canImport ? (
+  <SectionCard
+    title="Collection forms"
+    description="Form generator"
+    actions={
+      canCreate || canImport ? (
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button size="sm">
+            <Button>
               <Plus className="mr-2 h-4 w-4" aria-hidden="true" />
-              Add New
+              Add new
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-48">
             {canCreate ? (
               <DropdownMenuItem onClick={onCreate}>
                 <ListPlus className="mr-2 h-4 w-4" aria-hidden="true" />
-                Create New
+                Create new
               </DropdownMenuItem>
             ) : null}
             {canImport ? (
@@ -1923,39 +1984,62 @@ const FormsGeneratorView = ({
             ) : null}
           </DropdownMenuContent>
         </DropdownMenu>
-      ) : null}
-    </div>
-
-    <div className="mt-4 space-y-3">
-      {savedForms.map((form) => (
-        <div
-          key={form.id}
-          className="grid gap-3 rounded-xl border bg-surface-subtle p-4 text-sm md:grid-cols-[1fr_auto]"
-        >
-          <div className="flex items-start gap-3">
-            <div className="flex h-9 w-9 items-center justify-center rounded-sm bg-primary-subtle text-primary">
-              <Database className="h-4 w-4" aria-hidden="true" />
-            </div>
-            <div>
-              <p className="font-medium text-foreground">{form.title}</p>
-              <p className="mt-1 text-muted-foreground">
-                Status: {form.type} | {form.project} | {form.fieldCount} fields | Saved:{' '}
-                {form.savedAt}
-              </p>
-            </div>
-          </div>
-          <div className="flex items-center gap-2">
-            <Button size="sm" variant="outline" onClick={() => onOpen(form)}>
-              Open form
-            </Button>
-            <Button size="sm" variant="outline" onClick={() => onDownload(form)}>
-              Export form
-            </Button>
-          </div>
-        </div>
-      ))}
-    </div>
-  </div>
+      ) : null
+    }
+  >
+    {status === 'loading' ? (
+      <LoadingSkeleton lines={3} />
+    ) : status === 'error' ? (
+      errorState
+    ) : savedForms.length === 0 ? (
+      <EmptyState
+        icon={Database}
+        title="None yet"
+        description="No collection forms are saved for this project yet."
+      />
+    ) : (
+      <ul className="space-y-3">
+        {savedForms.map((form) => {
+          const display = savedFormStatus[form.type] ?? { label: form.type, tone: 'neutral' }
+          return (
+            <li
+              key={form.id}
+              className="flex min-h-[52px] flex-col gap-3 rounded-lg border border-border bg-card p-3 text-sm md:flex-row md:items-center md:justify-between"
+            >
+              <div className="flex min-w-0 items-start gap-3">
+                <div
+                  aria-hidden="true"
+                  className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-primary-subtle text-primary"
+                >
+                  <Database className="h-4 w-4" />
+                </div>
+                <div className="min-w-0">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <p className="font-semibold text-foreground">{form.title}</p>
+                    <StatusBadge dot={false} tone={display.tone}>
+                      {display.label}
+                    </StatusBadge>
+                  </div>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    {form.project} · {form.fieldCount} {form.fieldCount === 1 ? 'field' : 'fields'}{' '}
+                    · Saved {formatSavedAt(form.savedAt)}
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <Button size="sm" variant="outline" onClick={() => onOpen(form)}>
+                  Open form
+                </Button>
+                <Button size="sm" variant="outline" onClick={() => onDownload(form)}>
+                  Export form
+                </Button>
+              </div>
+            </li>
+          )
+        })}
+      </ul>
+    )}
+  </SectionCard>
 )
 
 const BuilderView = ({
@@ -2041,36 +2125,30 @@ const BuilderView = ({
         setProjectId={setProjectId}
       />
 
-      <div className="rounded-xl border bg-card p-4">
-        <div className="flex flex-col gap-3 border-b pb-3 md:flex-row md:items-center md:justify-between">
-          <div>
-            <p className="text-xs font-semibold uppercase text-muted-foreground">
-              {fields.length} Fields
-            </p>
-            <h2 className="text-lg font-semibold text-foreground">
-              {mode === 'extend' ? 'Imported fields and extensions' : 'Form field list'}
-            </h2>
-          </div>
-          <div className="flex flex-wrap gap-2 text-xs">
+      <SectionCard
+        title={mode === 'extend' ? 'Imported fields and extensions' : 'Form field list'}
+        description={`${fields.length} ${fields.length === 1 ? 'field' : 'fields'}`}
+        actions={
+          <>
             <StatusBadge tone="success">{mappedCount} mapped</StatusBadge>
             <StatusBadge tone="info">{metadataCount} metadata keys</StatusBadge>
-            <StatusBadge tone="warning">{sadddCount} SADDD fields</StatusBadge>
-          </div>
-        </div>
-
-        <div className="mt-4 space-y-3">
+            <StatusBadge tone="neutral">{sadddCount} SADDD fields</StatusBadge>
+          </>
+        }
+      >
+        <div className="space-y-3">
           {fields.map((field, index) => (
             <div
               key={field.id}
               className={cn(
-                'rounded-xl border bg-background p-3 transition',
+                'rounded-lg border border-border bg-card p-3 transition-colors',
                 selectedFieldId === field.id && 'border-primary bg-primary-subtle',
               )}
             >
               <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
                 <button
                   aria-pressed={selectedFieldId === field.id}
-                  className="flex flex-1 items-start gap-3 text-left focus:outline-none focus:ring-2 focus:ring-ring"
+                  className="flex flex-1 items-start gap-3 rounded-md text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                   id={`collection-field-choice-${field.id}`}
                   type="button"
                   onClick={() => setSelectedFieldId(field.id)}
@@ -2079,7 +2157,7 @@ const BuilderView = ({
                   <div>
                     <p className="font-medium text-foreground">{field.label}</p>
                     <p className="mt-1 text-xs text-muted-foreground">
-                      {dataTypeLabels[field.type]} | {field.code}
+                      {dataTypeLabels[field.type]} · {field.code}
                     </p>
                     <div className="mt-2 flex flex-wrap gap-2">
                       {selectedFieldId === field.id ? (
@@ -2088,12 +2166,12 @@ const BuilderView = ({
                           Selected
                         </span>
                       ) : null}
-                      {field.required ? <StatusBadge tone="danger">Required</StatusBadge> : null}
+                      {field.required ? <StatusBadge tone="neutral">Required</StatusBadge> : null}
                       {field.metadataKey ? (
                         <StatusBadge tone="info">Metadata key</StatusBadge>
                       ) : null}
                       {field.sadddField ? (
-                        <StatusBadge tone="warning">SADDD field</StatusBadge>
+                        <StatusBadge tone="neutral">SADDD field</StatusBadge>
                       ) : null}
                       <StatusBadge tone={statusTone(field.mappingStatus)}>
                         {field.mappingStatus}
@@ -2152,9 +2230,9 @@ const BuilderView = ({
               <Plus className="mr-2 h-4 w-4" aria-hidden="true" />
               Add field
             </Button>
-            <Button onClick={() => setSaveDialogOpen(true)}>
+            <Button variant="outline" onClick={() => setSaveDialogOpen(true)}>
               <Save className="mr-2 h-4 w-4" aria-hidden="true" />
-              Save Draft
+              Save draft
             </Button>
             {canPublish ? (
               <Button className="md:col-span-2" onClick={onPublish}>
@@ -2163,11 +2241,11 @@ const BuilderView = ({
             ) : null}
           </div>
         ) : (
-          <p className="mt-4 rounded-xl border border-dashed border-border p-3 text-sm text-muted-foreground">
+          <p className="mt-4 rounded-md border border-dashed border-border p-3 text-sm text-muted-foreground">
             This form is available as read-only for your current role.
           </p>
         )}
-      </div>
+      </SectionCard>
     </div>
 
     <aside className="min-w-0 space-y-4">
@@ -2212,8 +2290,8 @@ const FormInfoPanel = ({
   setLinkedActivityId: (value: string) => void
   setProjectId: (value: string) => void
 }) => (
-  <div className="rounded-xl border bg-card p-4">
-    <div className="grid gap-4 md:grid-cols-2">
+  <Card>
+    <CardContent className="grid gap-4 pt-5 md:grid-cols-2">
       <div className="space-y-2">
         <Label htmlFor="form-title">Form information</Label>
         <Input
@@ -2276,8 +2354,8 @@ const FormInfoPanel = ({
           </SelectContent>
         </Select>
       </div>
-    </div>
-  </div>
+    </CardContent>
+  </Card>
 )
 
 const JourneyStageSelector = ({
@@ -2502,12 +2580,12 @@ const FieldEditor = ({
       />
       <ToggleRow
         checked={field.metadataKey}
-        label="Metadata-key"
+        label="Metadata key"
         onChange={(checked) => updateField(field.id, { metadataKey: checked })}
       />
       <ToggleRow
         checked={field.sadddField}
-        label="SADDD-field"
+        label="SADDD field"
         onChange={(checked) => updateField(field.id, { sadddField: checked })}
       />
     </div>
@@ -2523,11 +2601,11 @@ const ToggleRow = ({
   label: string
   onChange: (checked: boolean) => void
 }) => (
-  <label className="flex items-center justify-between gap-3 rounded-sm border bg-surface-subtle px-3 py-2 text-sm">
+  <label className="flex min-h-11 cursor-pointer items-center justify-between gap-3 rounded-md border border-border bg-card px-3 py-2 text-sm transition-colors hover:bg-muted has-[:checked]:border-primary has-[:checked]:bg-info-subtle">
     <span className="font-medium text-foreground">{label}</span>
     <input
       checked={checked}
-      className="h-4 w-4 accent-primary"
+      className="h-4 w-4 rounded border-input accent-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
       type="checkbox"
       onChange={(event) => onChange(event.target.checked)}
     />
@@ -2547,16 +2625,9 @@ const MetadataMapPanel = ({
   selectedField?: FormField
   selectedProject: string
 }) => (
-  <div className="rounded-xl border bg-card p-4">
-    <div className="flex items-center justify-between gap-3">
-      <div>
-        <p className="text-sm font-semibold text-foreground">Metadata map</p>
-        <p className="text-xs text-muted-foreground">Current field summary</p>
-      </div>
-      <StatusBadge tone="info">Current</StatusBadge>
-    </div>
-    <div className="mt-4 space-y-3 text-sm">
-      <div className="rounded-xl bg-surface-subtle p-3">
+  <SectionCard title="Metadata map" description="Current field summary">
+    <div className="space-y-3 text-sm">
+      <div className="rounded-md bg-surface-subtle p-3">
         <div className="grid grid-cols-2 gap-2 text-xs text-muted-foreground">
           <span>Total fields</span>
           <span className="text-right font-medium text-foreground">{fields.length}</span>
@@ -2577,7 +2648,7 @@ const MetadataMapPanel = ({
       </div>
       <div>
         <p className="text-xs font-semibold uppercase text-muted-foreground">Selected field</p>
-        <div className="mt-2 rounded-xl border bg-surface-subtle p-3">
+        <div className="mt-2 rounded-md border bg-surface-subtle p-3">
           <p className="font-medium text-foreground">
             {selectedField?.label ?? 'No field selected'}
           </p>
@@ -2588,24 +2659,15 @@ const MetadataMapPanel = ({
           </p>
         </div>
       </div>
-      <div className="space-y-2">
-        {metadataConnections.map((item) => (
-          <div key={item} className="rounded-sm bg-info-subtle px-3 py-2 text-xs text-info">
-            {item}
-          </div>
-        ))}
-      </div>
     </div>
-  </div>
+  </SectionCard>
 )
 
 const FormPreviewPanel = ({ fields, formTitle }: { fields: FormField[]; formTitle: string }) => (
-  <div className="rounded-xl border bg-card p-4">
-    <p className="text-sm font-semibold text-foreground">Form preview</p>
-    <p className="mt-1 text-xs text-muted-foreground">{formTitle}</p>
-    <div className="mt-4 space-y-3">
+  <SectionCard title="Form preview" description={formTitle}>
+    <div className="space-y-3">
       {fields.slice(0, 4).map((field) => (
-        <div key={field.id} className="rounded-xl border bg-surface-subtle p-3">
+        <div key={field.id} className="rounded-md border bg-surface-subtle p-3">
           <Label>{field.label}</Label>
           <div className="mt-2 h-9 rounded-sm border bg-background px-3 py-2 text-xs text-muted-foreground">
             {field.type.includes('select')
@@ -2615,7 +2677,7 @@ const FormPreviewPanel = ({ fields, formTitle }: { fields: FormField[]; formTitl
         </div>
       ))}
     </div>
-  </div>
+  </SectionCard>
 )
 
 const ImportView = ({
@@ -2701,15 +2763,12 @@ const ImportView = ({
         setProjectId={setProjectId}
       />
 
-      <div className="rounded-2xl border bg-card p-5">
-        <div className="flex flex-col items-center justify-center rounded-sm border border-dashed bg-surface-subtle px-4 py-8 text-center">
+      <SectionCard
+        title="Upload your existing form file"
+        description="Select a CSV, XLS, or XLSX file to review and map its columns before import."
+      >
+        <div className="flex flex-col items-center justify-center rounded-md border border-dashed bg-surface-subtle px-4 py-8 text-center">
           <FileUp className="h-8 w-8 text-primary" aria-hidden="true" />
-          <h2 className="mt-3 text-base font-semibold text-foreground">
-            Upload your existing form file
-          </h2>
-          <p className="mt-1 max-w-xl text-sm text-muted-foreground">
-            Select a CSV, XLS, or XLSX file to review and map its columns before import.
-          </p>
           <div className="mt-4 w-full max-w-xl space-y-2 text-left">
             <Label htmlFor="collection-import-file">Source file</Label>
             <Input
@@ -2741,7 +2800,7 @@ const ImportView = ({
                 setView('builder')
               }}
             >
-              Build Forms
+              Build forms
             </Button>
           </div>
         </div>
@@ -2773,26 +2832,28 @@ const ImportView = ({
             </Button>
           ) : null}
         </div>
-      </div>
+      </SectionCard>
 
       {importSummary ? (
-        <div className="rounded-xl border bg-card p-4">
-          <div className="grid gap-4 md:grid-cols-3">
-            <SummaryMetric label="File" value={importSummary.fileName} />
-            <SummaryMetric label="Rows" value={String(importSummary.totalRows)} />
-            <SummaryMetric label="Columns" value={String(importSummary.totalColumns)} />
-          </div>
-          {parsedImport?.sheetNames?.length ? (
-            <p className="mt-3 text-xs text-muted-foreground">
-              Sheets detected: {parsedImport.sheetNames.join(', ')}
-            </p>
-          ) : null}
-          {importSummary.warnings.length > 0 ? (
-            <div className="mt-3 rounded-xl bg-warning-subtle p-3 text-xs text-warning">
-              {importSummary.warnings.join(' ')}
+        <Card>
+          <CardContent className="pt-5">
+            <div className="grid gap-4 md:grid-cols-3">
+              <SummaryMetric label="File" value={importSummary.fileName} />
+              <SummaryMetric label="Rows" value={String(importSummary.totalRows)} />
+              <SummaryMetric label="Columns" value={String(importSummary.totalColumns)} />
             </div>
-          ) : null}
-        </div>
+            {parsedImport?.sheetNames?.length ? (
+              <p className="mt-3 text-xs text-muted-foreground">
+                Sheets detected: {parsedImport.sheetNames.join(', ')}
+              </p>
+            ) : null}
+            {importSummary.warnings.length > 0 ? (
+              <div className="mt-3 rounded-md bg-warning-subtle p-3 text-xs text-warning">
+                {importSummary.warnings.join(' ')}
+              </div>
+            ) : null}
+          </CardContent>
+        </Card>
       ) : null}
 
       {mappingRows.length > 0 ? (
@@ -2818,23 +2879,15 @@ const ImportView = ({
         mappingReadiness={mappingReadiness}
         parsedImport={parsedImport}
       />
-      <div className="rounded-xl border bg-card p-4">
-        <p className="text-sm font-semibold text-foreground">Connected to</p>
-        <p className="mt-1 text-xs text-muted-foreground">{selectedProject}</p>
-        <div className="mt-3 space-y-2">
-          {metadataConnections.map((item) => (
-            <div key={item} className="rounded-sm bg-info-subtle px-3 py-2 text-xs text-info">
-              {item}
-            </div>
-          ))}
-        </div>
-      </div>
+      <SectionCard title="Connected to">
+        <p className="text-sm font-medium text-foreground">{selectedProject}</p>
+      </SectionCard>
     </aside>
   </div>
 )
 
 const SummaryMetric = ({ label, value }: { label: string; value: string }) => (
-  <div className="rounded-xl bg-surface-subtle p-3">
+  <div className="rounded-md bg-surface-subtle p-3">
     <p className="text-xs font-medium uppercase text-muted-foreground">{label}</p>
     <p className="mt-1 break-words text-sm font-semibold text-foreground">{value}</p>
   </div>
@@ -2870,33 +2923,30 @@ const MappingTable = ({
       .map((row) => ({ code: row.targetField, label: row.sourceColumn })),
   ].filter((option, index, all) => all.findIndex((other) => other.code === option.code) === index)
   return (
-    <div className="min-w-0 rounded-xl border bg-card p-4">
-      <div className="flex flex-col gap-3 border-b pb-3 md:flex-row md:items-center md:justify-between">
-        <div>
-          <h2 className="text-lg font-semibold text-foreground">Metadata mapping</h2>
-          <p className="text-sm text-muted-foreground">
-            Review source columns, target fields, and validation states.
-          </p>
-        </div>
-        <div className="flex gap-2">
+    <SectionCard
+      className="min-w-0"
+      title="Metadata mapping"
+      description="Review source columns, target fields, and validation states."
+      actions={
+        <>
           {mode === 'extend' ? (
-            <Button size="sm" variant="outline" onClick={() => setView('builder')}>
+            <Button variant="outline" onClick={() => setView('builder')}>
               Extend in builder
             </Button>
           ) : null}
           <Button
             aria-describedby="mapping-readiness-message"
             disabled={!canProceed}
-            size="sm"
             onClick={() => setProceedDialogOpen(true)}
           >
-            {createsDraft ? 'Create Draft' : 'Proceed'}
+            {createsDraft ? 'Create draft' : 'Proceed'}
           </Button>
-        </div>
-      </div>
+        </>
+      }
+    >
       <p
         className={cn(
-          'mt-3 rounded-md px-3 py-2 text-sm',
+          'rounded-md px-3 py-2 text-sm',
           canProceed && mappingReadiness.canProceed
             ? 'bg-success-subtle text-success'
             : 'bg-warning-subtle text-warning',
@@ -2913,22 +2963,22 @@ const MappingTable = ({
       </p>
       <section
         aria-label="Metadata mapping rows"
-        className="mt-4 max-w-full overflow-x-auto"
+        className="mt-4 max-w-full overflow-x-auto rounded-lg border border-border"
         // biome-ignore lint/a11y/noNoninteractiveTabindex: scroll container needs keyboard access to reach content clipped by overflow-x-auto
         tabIndex={0}
       >
-        <table className="w-full min-w-[720px] text-left text-sm">
-          <thead className="text-xs uppercase text-muted-foreground">
-            <tr>
-              <th className="px-3 py-2">Source columns</th>
-              <th className="px-3 py-2">Target fields</th>
-              <th className="px-3 py-2">Mapping status</th>
-            </tr>
-          </thead>
-          <tbody>
+        <table className="w-full min-w-[720px] text-sm">
+          <TableHeader>
+            <TableRow className="h-10">
+              <TableHead className={tableHeadClass}>Source columns</TableHead>
+              <TableHead className={tableHeadClass}>Target fields</TableHead>
+              <TableHead className={tableHeadClass}>Mapping status</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
             {mappingRows.map((row) => (
-              <tr key={row.id} className="border-t">
-                <td className="max-w-[220px] px-3 py-3 font-medium text-foreground">
+              <TableRow key={row.id} className="h-14">
+                <TableCell className="max-w-[220px] font-medium text-foreground">
                   <span className="block truncate" title={row.sourceColumn}>
                     {row.sourceColumn}
                   </span>
@@ -2940,8 +2990,8 @@ const MappingTable = ({
                       Suggested: {labelFor(row.suggestedField)}
                     </span>
                   ) : null}
-                </td>
-                <td className="px-3 py-3">
+                </TableCell>
+                <TableCell>
                   <Select
                     value={row.targetField || 'none'}
                     onValueChange={(value) =>
@@ -2971,8 +3021,8 @@ const MappingTable = ({
                       ))}
                     </SelectContent>
                   </Select>
-                </td>
-                <td className="px-3 py-3">
+                </TableCell>
+                <TableCell>
                   <Select
                     value={row.status}
                     onValueChange={(value) =>
@@ -2997,60 +3047,63 @@ const MappingTable = ({
                       <SelectItem value="invalid">Invalid</SelectItem>
                     </SelectContent>
                   </Select>
-                </td>
-              </tr>
+                </TableCell>
+              </TableRow>
             ))}
-          </tbody>
+          </TableBody>
         </table>
       </section>
-    </div>
+    </SectionCard>
   )
 }
 
 const DataPreview = ({ parsedImport }: { parsedImport: ParsedImport }) => (
-  <div className="min-w-0 rounded-xl border bg-card p-4">
-    <h2 className="text-lg font-semibold text-foreground">Data preview</h2>
-    <p className="mt-1 text-sm text-muted-foreground">
-      Showing the first {Math.min(parsedImport.rows.length, MAX_PREVIEW_ROWS)} of{' '}
-      {parsedImport.rows.length} rows for mapping and validation review.
-    </p>
+  <SectionCard
+    className="min-w-0"
+    title="Data preview"
+    description={`Showing the first ${Math.min(parsedImport.rows.length, MAX_PREVIEW_ROWS)} of ${parsedImport.rows.length} rows for mapping and validation review.`}
+  >
     <section
       aria-label="Data preview rows"
-      className="mt-4 max-w-full overflow-x-auto"
+      className="max-w-full overflow-x-auto rounded-lg border border-border"
       // biome-ignore lint/a11y/noNoninteractiveTabindex: scroll container needs keyboard access to reach content clipped by overflow-x-auto
       tabIndex={0}
     >
-      <table className="w-full min-w-[720px] text-left text-sm">
-        <thead className="text-xs uppercase text-muted-foreground">
-          <tr>
+      <table className="w-full min-w-[720px] text-sm">
+        <TableHeader>
+          <TableRow className="h-10">
             {parsedImport.headers.map((header) => (
-              <th key={header} className="max-w-[220px] truncate px-3 py-2" title={header}>
+              <TableHead
+                key={header}
+                className={cn(tableHeadClass, 'max-w-[220px] truncate')}
+                title={header}
+              >
                 {header}
-              </th>
+              </TableHead>
             ))}
-          </tr>
-        </thead>
-        <tbody>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
           {parsedImport.rows.slice(0, MAX_PREVIEW_ROWS).map((row, index) => (
-            <tr key={`${parsedImport.fileName}-${index}`} className="border-t">
+            <TableRow key={`${parsedImport.fileName}-${index}`} className="h-14">
               {parsedImport.headers.map((header) => {
                 const cellText = formatValue(row[header])
                 return (
-                  <td
+                  <TableCell
                     key={header}
-                    className="max-w-[220px] truncate px-3 py-3 text-muted-foreground"
+                    className="max-w-[220px] truncate text-muted-foreground"
                     title={cellText}
                   >
                     {cellText}
-                  </td>
+                  </TableCell>
                 )
               })}
-            </tr>
+            </TableRow>
           ))}
-        </tbody>
+        </TableBody>
       </table>
     </section>
-  </div>
+  </SectionCard>
 )
 
 const ImportValidationPanel = ({
@@ -3066,12 +3119,10 @@ const ImportValidationPanel = ({
   const progress = total === 0 ? 0 : Math.round((resolved / total) * 100)
 
   return (
-    <div className="rounded-xl border bg-card p-4">
-      <div className="flex items-center justify-between gap-3">
-        <div>
-          <p className="text-sm font-semibold text-foreground">Validation summary</p>
-          <p className="text-xs text-muted-foreground">Column and row checks</p>
-        </div>
+    <SectionCard
+      title="Validation summary"
+      description="Column and row checks"
+      actions={
         <StatusBadge
           tone={
             invalid > 0
@@ -3085,8 +3136,9 @@ const ImportValidationPanel = ({
         >
           {parsedImport ? (canProceed ? 'Ready to proceed' : 'Needs review') : 'Waiting'}
         </StatusBadge>
-      </div>
-      <div className="mt-4 space-y-3">
+      }
+    >
+      <div className="space-y-3">
         <ProgressBar label="Resolved columns" value={progress} />
         <div className="grid grid-cols-2 gap-2 text-xs">
           <SummaryPill label="Mapped" tone="success" value={mapped} />
@@ -3094,11 +3146,11 @@ const ImportValidationPanel = ({
           <SummaryPill label="Ignored" tone="neutral" value={ignored} />
           <SummaryPill label="Invalid" tone="danger" value={invalid} />
         </div>
-        <p className="rounded-xl bg-surface-subtle p-3 text-xs leading-5 text-muted-foreground">
+        <p className="rounded-md bg-surface-subtle p-3 text-xs leading-5 text-muted-foreground">
           Validation checks column headings and preview rows before import.
         </p>
       </div>
-    </div>
+    </SectionCard>
   )
 }
 

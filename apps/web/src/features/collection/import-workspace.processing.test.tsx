@@ -2,6 +2,7 @@
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { DisplayLabelsProvider } from '@/providers/display-labels-provider'
 import { ImportWorkspace } from './import-workspace'
 
 const state = vi.hoisted(() => ({
@@ -62,7 +63,7 @@ const batchWith = (processed: number, valid = 250) => ({
 })
 
 const openBatch = async () => {
-  render(<ImportWorkspace />)
+  render(<ImportWorkspace />, { wrapper: DisplayLabelsProvider })
   await screen.findByText('notes.xlsx')
   fireEvent.click(screen.getByText('notes.xlsx'))
   return screen.findByRole('button', { name: 'Process all valid rows' })
@@ -182,7 +183,7 @@ describe('import workspace automatic processing', () => {
           }
         }),
     )
-    const view = render(<ImportWorkspace />)
+    const view = render(<ImportWorkspace />, { wrapper: DisplayLabelsProvider })
     await screen.findByText('notes.xlsx')
     fireEvent.click(screen.getByText('notes.xlsx'))
     fireEvent.click(await screen.findByRole('button', { name: 'Process all valid rows' }))
