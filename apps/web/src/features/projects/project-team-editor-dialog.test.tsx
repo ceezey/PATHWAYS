@@ -165,29 +165,29 @@ describe('ProjectTeamEditorDialog', () => {
   // during unmount/cleanup — unrelated to this fix — so it is intentionally
   // not exercised as a full dialog interaction here.
 
-  it('lets a Program Manager assign Project Manager and M&E, but not Project Officer', async () => {
+  it('shows a Program Manager only the Project Manager and M&E fields', async () => {
     access.profile.roles = ['PROGRAM_MANAGER']
     await openDialog()
 
-    const projectManagerSelect = screen.getByLabelText('Project Manager')
-    const monitoringSelect = screen.getByLabelText('Monitoring and Evaluation Officer')
-    const officerButton = screen.getByRole('button', { name: /Project Officer/ })
-
-    expect(projectManagerSelect.hasAttribute('data-disabled')).toBe(false)
-    expect(monitoringSelect.hasAttribute('data-disabled')).toBe(false)
-    expect((officerButton as HTMLButtonElement).disabled).toBe(true)
+    expect(screen.getByLabelText('Project Manager').hasAttribute('data-disabled')).toBe(false)
+    expect(
+      screen.getByLabelText('Monitoring and Evaluation Officer').hasAttribute('data-disabled'),
+    ).toBe(false)
+    expect(screen.queryByRole('button', { name: /Project Officer/ })).toBeNull()
+    expect(screen.queryByLabelText('Program Manager')).toBeNull()
   })
 
-  it('lets a Project Manager assign Project Officer and M&E, but not Project Manager', async () => {
+  it('shows a Project Manager only the M&E and Project Officer fields', async () => {
     access.profile.roles = ['PROJECT_MANAGER']
     await openDialog()
 
-    const projectManagerSelect = screen.getByLabelText('Project Manager')
-    const monitoringSelect = screen.getByLabelText('Monitoring and Evaluation Officer')
-    const officerButton = screen.getByRole('button', { name: /Project Officer/ })
-
-    expect(projectManagerSelect.hasAttribute('data-disabled')).toBe(true)
-    expect(monitoringSelect.hasAttribute('data-disabled')).toBe(false)
-    expect((officerButton as HTMLButtonElement).disabled).toBe(false)
+    expect(screen.queryByLabelText('Project Manager')).toBeNull()
+    expect(screen.queryByLabelText('Program Manager')).toBeNull()
+    expect(
+      screen.getByLabelText('Monitoring and Evaluation Officer').hasAttribute('data-disabled'),
+    ).toBe(false)
+    expect(
+      (screen.getByRole('button', { name: /Project Officer/ }) as HTMLButtonElement).disabled,
+    ).toBe(false)
   })
 })

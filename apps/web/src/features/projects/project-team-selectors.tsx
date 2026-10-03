@@ -28,6 +28,11 @@ import {
 import type { UserRecord } from '@/types/pathways'
 import type { PathwaysRole } from '@/types/pathways-role'
 
+import {
+  type CanonicalRole,
+  canAssignRole,
+} from '../../../../api/src/modules/auth/authorization-policy'
+
 import type { ProjectSetupSchema } from './project-form-validation'
 
 export type TeamFieldName =
@@ -50,6 +55,22 @@ const roleLabels: Record<PathwaysRole, string> = {
   'Monitoring and Evaluation Officer': 'Monitoring and Evaluation Officer',
   'Project Officer': 'Project Officer',
   'System Administrator': 'System Administrator',
+}
+
+const hideableTargets: Record<TeamFieldName, CanonicalRole | null> = {
+  programManager: null,
+  projectManager: 'PROJECT_MANAGER',
+  monitoringOfficer: 'MONITORING_AND_EVALUATION_OFFICER',
+  projectOfficers: 'PROJECT_OFFICER',
+}
+
+/** Program and Project Managers only see the team fields they may assign; other roles see all. */
+export const hiddenTeamFields = (actorRole: string | undefined): TeamFieldName[] => {
+  if (actorRole !== 'PROJECT_MANAGER' && actorRole !== 'PROGRAM_MANAGER') return []
+  return (Object.keys(hideableTargets) as TeamFieldName[]).filter((field) => {
+    const target = hideableTargets[field]
+    return !target || !canAssignRole(actorRole, target)
+  })
 }
 
 export const getEligibleTeamUsers = (users: UserRecord[], role: PathwaysRole) =>
@@ -248,12 +269,14 @@ export const ProjectTeamSelectors = ({
   control,
   disallowAssignRoles,
   disallowClearRoles,
+  hiddenFields = [],
   loadError,
   loading,
   onRetry,
   unavailableMessage,
   users,
 }: {
+  hiddenFields?: TeamFieldName[]
   control: Control<ProjectSetupSchema>
   // Fields the signed-in actor is not authorized to assign (mirrors
   // canAssignRole server-side): the selector and its None option are
@@ -293,158 +316,168 @@ export const ProjectTeamSelectors = ({
         </div>
       ) : null}
       <div className="grid gap-5 lg:grid-cols-2">
-        <SingleTeamSelector
-          allowClear={canClear('programManager')}
-          control={control}
-          disabled={disabled || !canAssignField('programManager')}
-          fieldName="programManager"
-          label="Program Manager"
-          loadError={loadError}
-          loading={loading}
-          unavailableMessage={unavailableMessage}
-          users={users}
-        />
-        <SingleTeamSelector
-          allowClear={canClear('projectManager')}
-          control={control}
-          disabled={disabled || !canAssignField('projectManager')}
-          fieldName="projectManager"
-          label="Project Manager"
-          loadError={loadError}
-          loading={loading}
-          unavailableMessage={unavailableMessage}
-          users={users}
-        />
-        <SingleTeamSelector
-          allowClear={canClear('monitoringOfficer')}
-          control={control}
-          disabled={disabled || !canAssignField('monitoringOfficer')}
-          fieldName="monitoringOfficer"
-          label="Monitoring and Evaluation Officer"
-          loadError={loadError}
-          loading={loading}
-          unavailableMessage={unavailableMessage}
-          users={users}
-        />
-        <FormField
-          control={control}
-          name="projectOfficers"
-          render={({ field }) => {
-            const selectedNames = parseProjectOfficerNames(field.value)
-            const eligibleNames = new Set(officerOptions.map((user) => user.name))
-            const placeholder = optionPlaceholder(
-              'Project Officer',
-              loading,
-              loadError,
-              officerOptions.length,
-            )
+        {hiddenFields.includes('programManager') ? null : (
+          <SingleTeamSelector
+            allowClear={canClear('programManager')}
+            control={control}
+            disabled={disabled || !canAssignField('programManager')}
+            fieldName="programManager"
+            label="Program Manager"
+            loadError={loadError}
+            loading={loading}
+            unavailableMessage={unavailableMessage}
+            users={users}
+          />
+        )}
+        {hiddenFields.includes('projectManager') ? null : (
+          <SingleTeamSelector
+            allowClear={canClear('projectManager')}
+            control={control}
+            disabled={disabled || !canAssignField('projectManager')}
+            fieldName="projectManager"
+            label="Project Manager"
+            loadError={loadError}
+            loading={loading}
+            unavailableMessage={unavailableMessage}
+            users={users}
+          />
+        )}
+        {hiddenFields.includes('monitoringOfficer') ? null : (
+          <SingleTeamSelector
+            allowClear={canClear('monitoringOfficer')}
+            control={control}
+            disabled={disabled || !canAssignField('monitoringOfficer')}
+            fieldName="monitoringOfficer"
+            label="Monitoring and Evaluation Officer"
+            loadError={loadError}
+            loading={loading}
+            unavailableMessage={unavailableMessage}
+            users={users}
+          />
+        )}
+        {hiddenFields.includes('projectOfficers') ? null : (
+          <FormField
+            control={control}
+            name="projectOfficers"
+            render={({ field }) => {
+              const selectedNames = parseProjectOfficerNames(field.value)
+              const eligibleNames = new Set(officerOptions.map((user) => user.name))
+              const placeholder = optionPlaceholder(
+                'Project Officer',
+                loading,
+                loadError,
+                officerOptions.length,
+              )
 
-            const updateSelectedNames = (names: string[]) => field.onChange(names.join(', '))
+              const updateSelectedNames = (names: string[]) => field.onChange(names.join(', '))
 
-            return (
-              <FormItem>
-                <FormLabel>Project Officers</FormLabel>
-                <DropdownMenu>
-                  <FormControl>
-                    <DropdownMenuTrigger asChild>
-                      <Button
-                        className="w-full justify-between gap-3 font-normal"
-                        disabled={
-                          disabled ||
-                          Boolean(unavailableMessage) ||
-                          officerOptions.length === 0 ||
-                          !canAssignField('projectOfficers')
-                        }
-                        onBlur={field.onBlur}
-                        ref={field.ref}
-                        type="button"
-                        variant="outline"
-                      >
-                        <span className="truncate">
-                          {unavailableMessage
-                            ? 'Assignment unavailable'
-                            : selectedNames.length > 0
-                              ? `${selectedNames.length} Project Officer${selectedNames.length === 1 ? '' : 's'} selected`
-                              : placeholder}
-                        </span>
-                        <ChevronDown className="h-4 w-4 shrink-0 opacity-50" aria-hidden="true" />
-                      </Button>
-                    </DropdownMenuTrigger>
-                  </FormControl>
-                  <DropdownMenuContent
-                    align="start"
-                    className="w-[var(--radix-dropdown-menu-trigger-width)]"
-                  >
-                    {officerOptions.map((user) => (
-                      <DropdownMenuCheckboxItem
-                        checked={selectedNames.includes(user.name)}
-                        key={user.id}
-                        onCheckedChange={(checked) => {
-                          updateSelectedNames(
-                            checked
-                              ? [...selectedNames, user.name]
-                              : selectedNames.filter((name) => name !== user.name),
-                          )
-                        }}
-                        onSelect={(event) => event.preventDefault()}
-                      >
-                        <span className="flex min-w-0 flex-col">
-                          <span className="font-medium">{user.name}</span>
-                          <span className="truncate text-xs text-muted-foreground">
-                            {user.email}
-                          </span>
-                        </span>
-                      </DropdownMenuCheckboxItem>
-                    ))}
-                  </DropdownMenuContent>
-                </DropdownMenu>
-                {unavailableMessage ? (
-                  <FormDescription>{unavailableMessage}</FormDescription>
-                ) : !loading && !loadError && officerOptions.length === 0 ? (
-                  <FormDescription>No active Project Officer account is available.</FormDescription>
-                ) : (
-                  <FormDescription>Select one or more active Project Officers.</FormDescription>
-                )}
-                {selectedNames.length > 0 ? (
-                  <ul aria-label="Selected Project Officers" className="space-y-2">
-                    {selectedNames.map((name) => (
-                      <li
-                        className="flex min-h-11 items-center justify-between gap-3 rounded-md border border-border bg-muted/40 px-3 py-2 text-sm"
-                        key={name}
-                      >
-                        <span className="min-w-0">
-                          <span className="block break-words font-medium text-foreground">
-                            {name}
-                          </span>
-                          {!eligibleNames.has(name) ? (
-                            <span className="block text-xs text-danger">
-                              Unavailable account or role. Remove and select again.
-                            </span>
-                          ) : null}
-                        </span>
+              return (
+                <FormItem>
+                  <FormLabel>Project Officers</FormLabel>
+                  <DropdownMenu>
+                    <FormControl>
+                      <DropdownMenuTrigger asChild>
                         <Button
-                          aria-label={`Remove ${name}`}
-                          className="h-11 w-11 shrink-0"
-                          onClick={() =>
-                            updateSelectedNames(
-                              selectedNames.filter((selectedName) => selectedName !== name),
-                            )
+                          className="w-full justify-between gap-3 font-normal"
+                          disabled={
+                            disabled ||
+                            Boolean(unavailableMessage) ||
+                            officerOptions.length === 0 ||
+                            !canAssignField('projectOfficers')
                           }
-                          size="icon"
+                          onBlur={field.onBlur}
+                          ref={field.ref}
                           type="button"
-                          variant="ghost"
+                          variant="outline"
                         >
-                          <X className="h-4 w-4" aria-hidden="true" />
+                          <span className="truncate">
+                            {unavailableMessage
+                              ? 'Assignment unavailable'
+                              : selectedNames.length > 0
+                                ? `${selectedNames.length} Project Officer${selectedNames.length === 1 ? '' : 's'} selected`
+                                : placeholder}
+                          </span>
+                          <ChevronDown className="h-4 w-4 shrink-0 opacity-50" aria-hidden="true" />
                         </Button>
-                      </li>
-                    ))}
-                  </ul>
-                ) : null}
-                <FormMessage />
-              </FormItem>
-            )
-          }}
-        />
+                      </DropdownMenuTrigger>
+                    </FormControl>
+                    <DropdownMenuContent
+                      align="start"
+                      className="w-[var(--radix-dropdown-menu-trigger-width)]"
+                    >
+                      {officerOptions.map((user) => (
+                        <DropdownMenuCheckboxItem
+                          checked={selectedNames.includes(user.name)}
+                          key={user.id}
+                          onCheckedChange={(checked) => {
+                            updateSelectedNames(
+                              checked
+                                ? [...selectedNames, user.name]
+                                : selectedNames.filter((name) => name !== user.name),
+                            )
+                          }}
+                          onSelect={(event) => event.preventDefault()}
+                        >
+                          <span className="flex min-w-0 flex-col">
+                            <span className="font-medium">{user.name}</span>
+                            <span className="truncate text-xs text-muted-foreground">
+                              {user.email}
+                            </span>
+                          </span>
+                        </DropdownMenuCheckboxItem>
+                      ))}
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                  {unavailableMessage ? (
+                    <FormDescription>{unavailableMessage}</FormDescription>
+                  ) : !loading && !loadError && officerOptions.length === 0 ? (
+                    <FormDescription>
+                      No active Project Officer account is available.
+                    </FormDescription>
+                  ) : (
+                    <FormDescription>Select one or more active Project Officers.</FormDescription>
+                  )}
+                  {selectedNames.length > 0 ? (
+                    <ul aria-label="Selected Project Officers" className="space-y-2">
+                      {selectedNames.map((name) => (
+                        <li
+                          className="flex min-h-11 items-center justify-between gap-3 rounded-md border border-border bg-muted/40 px-3 py-2 text-sm"
+                          key={name}
+                        >
+                          <span className="min-w-0">
+                            <span className="block break-words font-medium text-foreground">
+                              {name}
+                            </span>
+                            {!eligibleNames.has(name) ? (
+                              <span className="block text-xs text-danger">
+                                Unavailable account or role. Remove and select again.
+                              </span>
+                            ) : null}
+                          </span>
+                          <Button
+                            aria-label={`Remove ${name}`}
+                            className="h-11 w-11 shrink-0"
+                            onClick={() =>
+                              updateSelectedNames(
+                                selectedNames.filter((selectedName) => selectedName !== name),
+                              )
+                            }
+                            size="icon"
+                            type="button"
+                            variant="ghost"
+                          >
+                            <X className="h-4 w-4" aria-hidden="true" />
+                          </Button>
+                        </li>
+                      ))}
+                    </ul>
+                  ) : null}
+                  <FormMessage />
+                </FormItem>
+              )
+            }}
+          />
+        )}
       </div>
     </div>
   )

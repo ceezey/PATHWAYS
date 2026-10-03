@@ -51,7 +51,7 @@ import {
   toProjectTeamInput,
   toUpdateProjectInput,
 } from './project-form-validation'
-import { ProjectTeamSelectors } from './project-team-selectors'
+import { ProjectTeamSelectors, hiddenTeamFields } from './project-team-selectors'
 
 const projectStatuses: ProjectStatus[] = ['Active', 'Needs Attention', 'Planned', 'Completed']
 const projectDraftFields = [
@@ -512,6 +512,7 @@ const ScopedProjectSetupForm = ({
                 </p>
               </div>
               <ProjectTeamSelectors
+                hiddenFields={hiddenTeamFields(profile?.roles[0])}
                 control={form.control}
                 loadError={usersLoadError}
                 loading={usersLoading}

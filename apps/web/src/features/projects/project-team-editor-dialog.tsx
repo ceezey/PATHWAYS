@@ -42,6 +42,7 @@ import {
 import {
   ProjectTeamSelectors,
   type TeamFieldName,
+  hiddenTeamFields,
   validateProjectTeamSelections,
 } from './project-team-selectors'
 
@@ -231,6 +232,7 @@ export const ProjectTeamEditorDialog = ({
               }}
             />
             <ProjectTeamSelectors
+              hiddenFields={hiddenTeamFields(profile?.roles[0])}
               control={form.control}
               disallowAssignRoles={disallowAssignRoles}
               disallowClearRoles={preventProjectManagerSelfRemoval ? ['projectManager'] : undefined}
