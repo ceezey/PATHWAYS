@@ -7,6 +7,7 @@ import { validate } from 'class-validator'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { hasAtomicPermission, rolePermissions } from '@app/modules/auth/authorization-policy'
+import { withAuthorizedOperation } from '@app/modules/auth/authorized-operation'
 import type { ApplicationIdentity } from '@app/modules/auth/developer-access'
 import type { PrismaService } from '@app/prisma/prisma.service'
 import { CorrectJourneyEventDto } from './participants.dto'
@@ -208,6 +209,15 @@ describe('F4 journey stage, enrollment closure and correction gates', () => {
       expect(canManageStages(role)).toBe(false)
   })
 
+  it('gives stage saves a 20s transaction budget for per-stage writes', async () => {
+    state.actor = { ...manager, roles: ['PROJECT_OFFICER'], permissions: [] }
+    await expect(service.saveStages(caller, projectId, { stages: [] })).rejects.toBeInstanceOf(
+      ForbiddenException,
+    )
+    expect(vi.mocked(withAuthorizedOperation).mock.calls[0]?.[4]).toEqual({
+      transactionTimeoutMs: 20_000,
+    })
+  })
   it('G-F4-1 denies stage save before any scoped read without the manage permission', async () => {
     state.actor = { ...manager, roles: ['PROJECT_OFFICER'], permissions: ['journeys.read'] }
     await expect(service.saveStages(caller, projectId, { stages: [] })).rejects.toBeInstanceOf(
