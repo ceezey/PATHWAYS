@@ -63,7 +63,7 @@ Apply `0057` through the normal replay and hosted build path after local suites 
 - `f9-survey-period-release-runtime.sql`: freeze on first call, identical later copy, open period `22023`, no runtime access to the table.
 - Web tests: participation, trend and budget components, pinned charts re-authorize on render, pins storage limits.
 - Full typecheck, tests, builds, `sad:check` and `docs:check`.
-- G-F12-1 integration evidence: pending replay evidence. G-F8-7 staging re-measure: pending replay evidence.
+- G-F12-1 integration evidence: `apps/api/src/modules/reports/reports-runtime.local.test.ts` runs in the replay current-schema suites (scope, permission denial, suppression, preview allowlist). G-F8-7 staging re-measure stays pending (cr-pathways-performance-scaling).
 
 ## 8. Approval
 
