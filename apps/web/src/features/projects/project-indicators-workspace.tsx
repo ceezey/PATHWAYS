@@ -120,6 +120,16 @@ export function indicatorInputFromForm(
   })
 }
 
+// Values a recipe fixes: completion runs 0 to 100, and counts start from zero.
+const recipeLocks: Partial<
+  Record<(typeof metricRecipes)[number], { baseline: string; target?: string }>
+> = {
+  ACTIVITY_COMPLETION_PERCENTAGE: { baseline: '0', target: '100' },
+  PARTICIPATION_RECORD_COUNT: { baseline: '0' },
+  DISTINCT_ATTENDING_INDIVIDUALS: { baseline: '0' },
+  EFFECTIVE_JOURNEY_EVENT_COUNT: { baseline: '0' },
+}
+
 function IndicatorForm({
   forms,
   activities,
@@ -151,6 +161,7 @@ function IndicatorForm({
       (field) => field.id && ['INTEGER', 'DECIMAL'].includes(field.dataType),
     ) ?? []
   const formRecipe = recipe === 'FORM_NUMERIC_SUM' || recipe === 'FORM_NUMERIC_AVERAGE'
+  const locked = mode === 'DERIVED' ? recipeLocks[recipe] : undefined
   const save = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     try {
@@ -239,51 +250,140 @@ function IndicatorForm({
           <Input id="analytics-period-start" name="periodStart" type="date" required />
         </div>
         <div>
-          <label htmlFor="analytics-period-end">Period end (inclusive)</label>
+          <label htmlFor="analytics-period-end">Period end</label>
           <Input id="analytics-period-end" name="periodEnd" type="date" required />
         </div>
         <div>
           <label htmlFor="baseline">Baseline</label>
           <Input
             id="baseline"
+            key={locked?.baseline ?? 'free'}
             name="baseline"
             inputMode="decimal"
             maxLength={21}
             aria-describedby="baseline-hint"
+            readOnly={locked?.baseline !== undefined}
+            defaultValue={locked?.baseline}
           />
           <p className="mt-1 text-xs text-muted-foreground" id="baseline-hint">
-            Blank means not configured
+            {locked?.baseline !== undefined ? 'Set by the recipe' : 'Blank means not configured'}
           </p>
         </div>
         <div>
           <label htmlFor="target">Target</label>
           <Input
             id="target"
+            key={locked?.target ?? 'free'}
             name="target"
             inputMode="decimal"
             maxLength={21}
             aria-describedby="target-hint"
+            readOnly={locked?.target !== undefined}
+            defaultValue={locked?.target}
           />
           <p className="mt-1 text-xs text-muted-foreground" id="target-hint">
-            Blank means not configured
+            {locked?.target !== undefined ? 'Set by the recipe' : 'Blank means not configured'}
           </p>
         </div>
-        {kind === 'COUNT' ? null : (
-          <details className="rounded-md border border-border p-3 md:col-span-2">
+        {kind === 'COUNT' && mode !== 'DERIVED' ? null : (
+          // Opens for derived calculations because their required choices live inside.
+          <details
+            className="rounded-md border border-border p-3 md:col-span-2"
+            key={mode}
+            open={mode === 'DERIVED'}
+          >
             <summary className="cursor-pointer text-sm font-medium">Advanced settings</summary>
-            <div className="mt-3 max-w-xs">
-              <label htmlFor="indicator-precision">Decimal Place</label>
-              <Input
-                id="indicator-precision"
-                key={kind}
-                name="displayPrecision"
-                type="number"
-                min={0}
-                max={4}
-                step={1}
-                defaultValue={kindDefaults[kind].precision}
-                required
-              />
+            <div className="mt-3 grid gap-4 md:grid-cols-2">
+              {kind === 'COUNT' ? null : (
+                <div className="max-w-xs md:col-span-2">
+                  <label htmlFor="indicator-precision">Decimal Place</label>
+                  <Input
+                    id="indicator-precision"
+                    key={kind}
+                    name="displayPrecision"
+                    type="number"
+                    min={0}
+                    max={4}
+                    step={1}
+                    defaultValue={kindDefaults[kind].precision}
+                    required
+                  />
+                </div>
+              )}
+              {mode === 'DERIVED' ? (
+                <>
+                  <div className="md:col-span-2">
+                    <label htmlFor="indicator-recipe">Recipe</label>
+                    <OptionSelect
+                      id="indicator-recipe"
+                      name="recipe"
+                      value={recipe}
+                      onValueChange={(value) => setRecipe(value as (typeof metricRecipes)[number])}
+                      options={recipeOptions}
+                    />
+                  </div>
+                  {formRecipe ? (
+                    <>
+                      <div>
+                        <label htmlFor="indicator-form">Exact published form version</label>
+                        <OptionSelect
+                          id="indicator-form"
+                          name="formId"
+                          required
+                          value={formId}
+                          onValueChange={(value) => {
+                            setFormId(value)
+                            setFieldId('')
+                          }}
+                          placeholder="Choose a version"
+                          options={forms
+                            .filter((form) => form.status === 'PUBLISHED')
+                            .map((form) => ({
+                              value: form.id,
+                              label: `${form.name} · v${form.version}`,
+                            }))}
+                        />
+                      </div>
+                      <div>
+                        <label htmlFor="indicator-field">Stable numeric field</label>
+                        <OptionSelect
+                          id="indicator-field"
+                          name="fieldId"
+                          required
+                          value={fieldId}
+                          onValueChange={setFieldId}
+                          placeholder="Choose a numeric field"
+                          options={numericFields.map((field) => ({
+                            value: field.id as string,
+                            label: `${field.label} (${field.code})`,
+                          }))}
+                        />
+                      </div>
+                    </>
+                  ) : recipe !== 'ACTIVITY_COMPLETION_PERCENTAGE' ? (
+                    <div>
+                      <label htmlFor="indicator-activity">Link Activity</label>
+                      <input
+                        type="hidden"
+                        name="activityId"
+                        value={activityId === allActivities ? '' : activityId}
+                      />
+                      <OptionSelect
+                        id="indicator-activity"
+                        value={activityId}
+                        onValueChange={setActivityId}
+                        options={[
+                          { value: allActivities, label: 'All permitted project activities' },
+                          ...activities.map((activity) => ({
+                            value: activity.id,
+                            label: activity.title,
+                          })),
+                        ]}
+                      />
+                    </div>
+                  ) : null}
+                </>
+              ) : null}
             </div>
           </details>
         )}
@@ -291,80 +391,6 @@ function IndicatorForm({
           <label htmlFor="indicator-data-source">Source description</label>
           <Textarea id="indicator-data-source" name="dataSource" required maxLength={300} />
         </div>
-        {mode === 'DERIVED' ? (
-          <>
-            <div className="md:col-span-2">
-              <label htmlFor="indicator-recipe">System-owned calculation</label>
-              <OptionSelect
-                id="indicator-recipe"
-                name="recipe"
-                value={recipe}
-                onValueChange={(value) => setRecipe(value as (typeof metricRecipes)[number])}
-                options={recipeOptions}
-              />
-            </div>
-            {formRecipe ? (
-              <>
-                <div>
-                  <label htmlFor="indicator-form">Exact published form version</label>
-                  <OptionSelect
-                    id="indicator-form"
-                    name="formId"
-                    required
-                    value={formId}
-                    onValueChange={(value) => {
-                      setFormId(value)
-                      setFieldId('')
-                    }}
-                    placeholder="Choose a version"
-                    options={forms
-                      .filter((form) => form.status === 'PUBLISHED')
-                      .map((form) => ({
-                        value: form.id,
-                        label: `${form.name} · v${form.version}`,
-                      }))}
-                  />
-                </div>
-                <div>
-                  <label htmlFor="indicator-field">Stable numeric field</label>
-                  <OptionSelect
-                    id="indicator-field"
-                    name="fieldId"
-                    required
-                    value={fieldId}
-                    onValueChange={setFieldId}
-                    placeholder="Choose a numeric field"
-                    options={numericFields.map((field) => ({
-                      value: field.id as string,
-                      label: `${field.label} (${field.code})`,
-                    }))}
-                  />
-                </div>
-              </>
-            ) : recipe !== 'ACTIVITY_COMPLETION_PERCENTAGE' ? (
-              <div>
-                <label htmlFor="indicator-activity">Activity binding (optional)</label>
-                <input
-                  type="hidden"
-                  name="activityId"
-                  value={activityId === allActivities ? '' : activityId}
-                />
-                <OptionSelect
-                  id="indicator-activity"
-                  value={activityId}
-                  onValueChange={setActivityId}
-                  options={[
-                    { value: allActivities, label: 'All permitted project activities' },
-                    ...activities.map((activity) => ({
-                      value: activity.id,
-                      label: activity.title,
-                    })),
-                  ]}
-                />
-              </div>
-            ) : null}
-          </>
-        ) : null}
       </fieldset>
       {validation ? <InlineNotice tone="danger">{validation}</InlineNotice> : null}
       {message ? <InlineNotice>{message}</InlineNotice> : null}

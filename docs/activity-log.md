@@ -94,3 +94,6 @@
 
 ## 2026-10-04 Turbopack for local web dev
 - `pnpm dev` runs the web with `next dev --turbopack` for faster page compiles; `turbopack.root` is pinned to the monorepo root. Builds and Vercel still use the standard bundler. Data fetching is unaffected.
+
+## 2026-10-04 Indicator form: recipe settings
+- Add project indicator: Recipe (was System-owned calculation) and Link Activity (was Activity binding (optional)) moved into Advanced settings, which opens for derived calculations; "(inclusive)" dropped from Period end. Baseline and Target lock by recipe: completion % fixes 0 and 100, count recipes fix baseline 0, sums and averages stay editable.

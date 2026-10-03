@@ -166,7 +166,7 @@ function EntryForm({
         </div>
         {mode === 'DERIVED' ? (
           <div className="md:col-span-2">
-            <label htmlFor="library-recipe">System-owned calculation</label>
+            <label htmlFor="library-recipe">Recipe</label>
             <OptionSelect
               id="library-recipe"
               name="recipe"

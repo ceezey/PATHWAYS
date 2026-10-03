@@ -79,7 +79,7 @@ export function UseFromLibrary({
             <Input id="use-library-start" name="periodStart" type="date" required />
           </div>
           <div>
-            <label htmlFor="use-library-end">Period end (inclusive)</label>
+            <label htmlFor="use-library-end">Period end</label>
             <Input id="use-library-end" name="periodEnd" type="date" required />
           </div>
           <div>
