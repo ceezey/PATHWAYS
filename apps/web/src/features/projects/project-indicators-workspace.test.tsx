@@ -157,7 +157,7 @@ describe('P06 dedicated indicator workspace', () => {
     expect(screen.getByRole('combobox', { name: 'Direction' }).textContent).toContain(
       'Higher is better',
     )
-    expect(screen.queryByLabelText('Chart-axis decimal places')).toBeNull()
+    expect(screen.queryByLabelText('Decimal Place')).toBeNull()
     expect(screen.queryByText('Advanced settings')).toBeNull()
     expect(screen.queryByLabelText('Description')).toBeNull()
     expect(screen.getByLabelText('Source description').tagName).toBe('TEXTAREA')

@@ -146,7 +146,7 @@ function EntryForm({
           />
         </div>
         <div>
-          <label htmlFor="library-precision">Chart-axis decimal places</label>
+          <label htmlFor="library-precision">Decimal Place</label>
           <Input
             id="library-precision"
             name="displayPrecision"

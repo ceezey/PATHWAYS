@@ -82,12 +82,30 @@ export function UseFromLibrary({
             <Input id="use-library-end" name="periodEnd" type="date" required />
           </div>
           <div>
-            <label htmlFor="use-library-baseline">Baseline (blank means not configured)</label>
-            <Input id="use-library-baseline" name="baseline" inputMode="decimal" maxLength={21} />
+            <label htmlFor="use-library-baseline">Baseline</label>
+            <Input
+              id="use-library-baseline"
+              name="baseline"
+              inputMode="decimal"
+              maxLength={21}
+              aria-describedby="use-library-baseline-hint"
+            />
+            <p className="mt-1 text-xs text-muted-foreground" id="use-library-baseline-hint">
+              Blank means not configured
+            </p>
           </div>
           <div>
-            <label htmlFor="use-library-target">Target (blank means not configured)</label>
-            <Input id="use-library-target" name="target" inputMode="decimal" maxLength={21} />
+            <label htmlFor="use-library-target">Target</label>
+            <Input
+              id="use-library-target"
+              name="target"
+              inputMode="decimal"
+              maxLength={21}
+              aria-describedby="use-library-target-hint"
+            />
+            <p className="mt-1 text-xs text-muted-foreground" id="use-library-target-hint">
+              Blank means not configured
+            </p>
           </div>
         </fieldset>
         {validation ? (

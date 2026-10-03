@@ -241,18 +241,36 @@ function IndicatorForm({
           <Input id="analytics-period-end" name="periodEnd" type="date" required />
         </div>
         <div>
-          <label htmlFor="baseline">Baseline (blank means not configured)</label>
-          <Input id="baseline" name="baseline" inputMode="decimal" maxLength={21} />
+          <label htmlFor="baseline">Baseline</label>
+          <Input
+            id="baseline"
+            name="baseline"
+            inputMode="decimal"
+            maxLength={21}
+            aria-describedby="baseline-hint"
+          />
+          <p className="mt-1 text-xs text-muted-foreground" id="baseline-hint">
+            Blank means not configured
+          </p>
         </div>
         <div>
-          <label htmlFor="target">Target (blank means not configured)</label>
-          <Input id="target" name="target" inputMode="decimal" maxLength={21} />
+          <label htmlFor="target">Target</label>
+          <Input
+            id="target"
+            name="target"
+            inputMode="decimal"
+            maxLength={21}
+            aria-describedby="target-hint"
+          />
+          <p className="mt-1 text-xs text-muted-foreground" id="target-hint">
+            Blank means not configured
+          </p>
         </div>
         {kind === 'COUNT' ? null : (
           <details className="rounded-md border border-border p-3 md:col-span-2">
             <summary className="cursor-pointer text-sm font-medium">Advanced settings</summary>
             <div className="mt-3 max-w-xs">
-              <label htmlFor="indicator-precision">Chart-axis decimal places</label>
+              <label htmlFor="indicator-precision">Decimal Place</label>
               <Input
                 id="indicator-precision"
                 key={kind}
