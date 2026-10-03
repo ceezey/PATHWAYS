@@ -51,7 +51,6 @@ export const JourneyConfigWorkspace = ({ project, activities, initialStages }: W
     [stages, selectedId],
   )
   const branches = branchSummary(stages)
-  const actor = [role, profile?.fullName].filter(Boolean).join(' · ')
 
   const update = <Key extends keyof JourneyStageConfig>(
     key: Key,
@@ -121,16 +120,17 @@ export const JourneyConfigWorkspace = ({ project, activities, initialStages }: W
         </div>
       </header>
 
-      <div className="flex flex-wrap items-center gap-2">
-        <StatusBadge tone="info">{stages.length} stages configured</StatusBadge>
-        <StatusBadge tone="neutral">{mappedCount(stages)} activities mapped</StatusBadge>
-        {branches ? <StatusBadge tone="success">Branching enabled · {branches}</StatusBadge> : null}
-        {actor ? <span className="ml-auto text-xs text-muted-foreground">{actor}</span> : null}
-      </div>
-
       <SectionCard
         title="Journey track preview"
-        description="Live view - updates as you configure stages below"
+        actions={
+          <>
+            <StatusBadge tone="info">{stages.length} stages configured</StatusBadge>
+            <StatusBadge tone="neutral">{mappedCount(stages)} activities mapped</StatusBadge>
+            {branches ? (
+              <StatusBadge tone="success">Branching enabled · {branches}</StatusBadge>
+            ) : null}
+          </>
+        }
       >
         <JourneyTrack stages={stages} selectedId={selectedId} onSelect={setSelectedId} />
       </SectionCard>
