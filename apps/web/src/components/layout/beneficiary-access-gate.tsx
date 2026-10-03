@@ -337,9 +337,7 @@ export const BeneficiaryAccessGate = ({
           ) : null}
           {method === 'totp' ? (
             <div className="space-y-2">
-              <Label className="block text-center" htmlFor="beneficiary-step-up-code">
-                Authenticator code
-              </Label>
+              <Label htmlFor="beneficiary-step-up-code">Authenticator code</Label>
               <OtpInput
                 id="beneficiary-step-up-code"
                 label="Authenticator code"

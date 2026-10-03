@@ -9,7 +9,7 @@ import { StatusMessage } from './status-message'
 type AsyncStateProps = {
   status: 'loading' | 'error' | 'empty'
   title: string
-  description: string
+  description?: string
   icon?: LucideIcon
   className?: string
   onRetry?: () => void
@@ -26,7 +26,7 @@ export const AsyncState = ({
   retryLabel = 'Retry',
 }: AsyncStateProps) => (
   <div data-async-state={status}>
-    <StatusMessage>{`${title}. ${description}`}</StatusMessage>
+    <StatusMessage>{description ? `${title}. ${description}` : title}</StatusMessage>
     {status === 'loading' ? (
       // Figma 1344:646 loading card: skeletons for expected content, then the title and a short note.
       <div
@@ -40,7 +40,9 @@ export const AsyncState = ({
           <div className="h-16 w-full animate-pulse rounded-md bg-muted" />
         </div>
         <p className="mt-4 text-center font-semibold text-foreground">{title}</p>
-        <p className="mt-1 text-center text-sm text-muted-foreground">{description}</p>
+        {description ? (
+          <p className="mt-1 text-center text-sm text-muted-foreground">{description}</p>
+        ) : null}
       </div>
     ) : (
       <EmptyState
