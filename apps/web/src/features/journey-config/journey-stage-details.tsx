@@ -92,7 +92,7 @@ export const JourneyStageDetails = ({
             </SelectTrigger>
             <SelectContent>
               {stages
-                .filter((item) => item.id !== stage.id && !item.parentStageId)
+                .filter((item) => item.id !== stage.id && item.type !== 'Branch')
                 .map((item) => (
                   <SelectItem key={item.id} value={item.id}>
                     {item.code} · {item.name}

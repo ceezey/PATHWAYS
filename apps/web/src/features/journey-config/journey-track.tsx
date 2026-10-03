@@ -54,34 +54,37 @@ export const JourneyTrack = ({ stages, selectedId, onSelect }: TrackProps) => {
       <ol className="flex min-w-max items-start px-2 py-3">
         {roots.map((root, index) => {
           const kids = childrenOf(stages, root.id)
-          const last = index === roots.length - 1
           return (
             <li key={root.id} className="flex items-start">
-              <Node stage={root} selected={root.id === selectedId} onSelect={onSelect} />
-              {!last || kids.length > 0 ? (
-                // Connector to the next stage; branches drop from its midpoint.
-                <div className="flex w-28 flex-col items-center">
-                  <span
-                    aria-hidden="true"
-                    className={cn(
-                      'mt-6 h-px bg-border-strong',
-                      last ? 'w-1/2 self-start' : 'w-full',
-                    )}
-                  />
-                  {kids.length > 0 ? (
-                    <ul
-                      className="flex flex-col items-center"
-                      aria-label={`Branches of ${root.code}`}
-                    >
-                      {kids.map((kid) => (
-                        <li key={kid.id} className="flex flex-col items-center">
-                          <span aria-hidden="true" className="h-5 w-px bg-border-strong" />
+              <div className="flex flex-col items-center">
+                <Node stage={root} selected={root.id === selectedId} onSelect={onSelect} />
+                {kids.length > 0 ? (
+                  <>
+                    <span aria-hidden="true" className="h-4 w-px bg-border-strong" />
+                    {/* Branches sit side by side under the parent, joined by one bar. */}
+                    <ul className="flex" aria-label={`Branches of ${root.code}`}>
+                      {kids.map((kid, kidIndex) => (
+                        <li key={kid.id} className="relative flex flex-col items-center">
+                          {kids.length > 1 ? (
+                            <span
+                              aria-hidden="true"
+                              className={cn(
+                                'absolute top-0 h-px bg-border-strong',
+                                kidIndex === 0 ? 'left-1/2 right-0' : 'left-0',
+                                kidIndex === kids.length - 1 ? 'right-1/2' : 'right-0',
+                              )}
+                            />
+                          ) : null}
+                          <span aria-hidden="true" className="h-4 w-px bg-border-strong" />
                           <Node stage={kid} selected={kid.id === selectedId} onSelect={onSelect} />
                         </li>
                       ))}
                     </ul>
-                  ) : null}
-                </div>
+                  </>
+                ) : null}
+              </div>
+              {index < roots.length - 1 ? (
+                <span aria-hidden="true" className="mt-6 h-px w-8 bg-border-strong" />
               ) : null}
             </li>
           )
