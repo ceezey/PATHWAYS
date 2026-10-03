@@ -79,6 +79,15 @@ export const indicatorBindingSchema = z
   })
 export type IndicatorBinding = z.infer<typeof indicatorBindingSchema>
 
+export const indicatorTypes = [
+  'OUTPUT',
+  'OUTCOME',
+  'ACTIVITY',
+  'BUDGET',
+  'TIMELINE',
+  'PARTICIPATION',
+  'SURVEY_SCORE',
+] as const
 const definitionFields = {
   code: z.string().regex(/^[A-Z][A-Z0-9_\-]{1,39}$/),
   name: z.string().trim().min(1).max(160),
@@ -94,6 +103,8 @@ const definitionFields = {
   baseline: decimal.nullable(),
   target: decimal.nullable(),
   binding: indicatorBindingSchema.optional(),
+  // Classification label only; omitted means OUTPUT, the column default.
+  indicatorType: z.enum(indicatorTypes).optional(),
 }
 const draftDefinitionSchema = z.object(definitionFields).strict()
 const validateIndicatorDefinition = (
@@ -255,6 +266,7 @@ export const monitoringIndicatorSchema = z
     code: z.string().max(100),
     name: z.string().max(250),
     description: z.string().nullable(),
+    indicatorType: z.enum(indicatorTypes).optional(),
     unitLabel: z.string().nullable(),
     dataSource: z.string().nullable(),
     mode: z.enum(['MANUAL', 'DERIVED']).nullable(),

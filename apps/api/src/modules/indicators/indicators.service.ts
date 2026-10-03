@@ -98,7 +98,7 @@ export class IndicatorsService {
     let rows: DefinitionRow[]
     try {
       rows = await tx.$queryRaw<DefinitionRow[]>(Prisma.sql`
-        SELECT i.id::text AS id,i.project_id::text AS "projectId",i.code,i.name,i.description,
+        SELECT i.id::text AS id,i.project_id::text AS "projectId",i.code,i.name,i.description,i.indicator_type::text AS "indicatorType",
           i.unit_label AS "unitLabel",i.data_source AS "dataSource",i.measurement_mode AS mode,i.numeric_kind AS "numericKind",i.direction,
           i.display_precision AS "displayPrecision",to_char(i.period_start,'YYYY-MM-DD') AS "periodStart",to_char(i.period_end,'YYYY-MM-DD') AS "periodEnd",
           trim_scale(i.baseline_value)::text AS baseline,trim_scale(i.target_value)::text AS target,
@@ -292,8 +292,8 @@ export class IndicatorsService {
               : 'OTHER'
         try {
           await tx.$executeRaw`
-          INSERT INTO pathways.project_indicators(id,organization_id,project_id,code,name,description,unit,unit_label,data_source,measurement_mode,numeric_kind,direction,display_precision,period_start,period_end,baseline_value,target_value,created_by_id)
-          VALUES (${indicatorId}::uuid,${actor.organizationId}::uuid,${id}::uuid,${input.code},${input.name},${input.description ?? null},${unit}::pathways.indicator_unit,${input.unitLabel},${input.dataSource},${input.mode},${input.numericKind},${input.direction},${input.displayPrecision},${input.periodStart}::date,${input.periodEnd}::date,${baseline}::numeric,${target}::numeric,${actor.userId}::uuid)
+          INSERT INTO pathways.project_indicators(id,organization_id,project_id,code,name,description,indicator_type,unit,unit_label,data_source,measurement_mode,numeric_kind,direction,display_precision,period_start,period_end,baseline_value,target_value,created_by_id)
+          VALUES (${indicatorId}::uuid,${actor.organizationId}::uuid,${id}::uuid,${input.code},${input.name},${input.description ?? null},${input.indicatorType ?? 'OUTPUT'}::pathways.indicator_type,${unit}::pathways.indicator_unit,${input.unitLabel},${input.dataSource},${input.mode},${input.numericKind},${input.direction},${input.displayPrecision},${input.periodStart}::date,${input.periodEnd}::date,${baseline}::numeric,${target}::numeric,${actor.userId}::uuid)
         `
           if (input.binding) {
             const b = input.binding

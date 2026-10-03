@@ -52,7 +52,7 @@ Six internal roles are defined in `apps/api/src/modules/auth/rbac-contract.json`
 | PRD-F4 | Beneficiary Journey Tracking | Must-Have | F4 | R6 | 1.1, 1.3 | Implemented; all G-F4 gates met |
 | PRD-F5 | Digital Data Collection and Preparation | Must-Have | F5 | R2 | 1.4, 2.1 | Implemented |
 | PRD-F6 | Metadata-Driven Data Integration | Must-Have | F6 | R2 | 1.1, 1.4, 2.1 | Implemented |
-| PRD-F7 | Project Indicator and Monitoring | Must-Have | F7 | R3, R4 | 1.5 | Implemented; G-F7-1..5 Met; project structure templates stay deferred (see [deferred features](deferred-features.md)) |
+| PRD-F7 | Project Indicator and Monitoring | Must-Have | F7 | R3, R4 | 1.5 | Implemented; G-F7-1..5 Met |
 | PRD-F8 | Aggregated Monitoring Dashboard with SADDD Analysis | Must-Have | F8 | R3 | 1.6, 2.2, 2.3 | Implemented; G-F8-7 Met locally at assumed scale (staging re-measure pending) |
 | PRD-F9 | Descriptive Analytics and Project Performance Summaries | Supporting | F9 | R3, R7 | 1.6, 2.2 | Implemented for KPI, participation, survey and timeline views; on-hold items in the deferred register |
 | PRD-F10 | Rule-Based Alerts | Supporting | F10 | R7 | 1.7, 2.4 | Local API and initial runtime slice; integration verification pending |
@@ -919,11 +919,13 @@ stateDiagram-v2
 **Bounds (in):**
 - Create, update and list project-scoped indicators with baseline, target, direction and data source.
 - Record measurements against an indicator, with a replayed save returning the original result.
-- Show trusted current value and progress; missing values and invalid denominators show the established unavailable state, never an invented zero.
+- Show trusted current value and progress; the API returns the established unavailable state for missing values and invalid denominators, never an invented zero, and the indicators list displays 0 or 0% for no data yet while suppressed values keep their label (cr-pathways-overview-zero-display).
+- Classify each indicator by type (Output, Outcome, Activity, Budget, Timeline, Participation, Survey score) and add indicators through a guided form: generated code, Activity completion % recipe, baseline 0 and the project period (cr-pathways-indicator-form-and-type).
 - Audit every indicator create, update and measurement.
 - Keep an organization indicator library of definition templates (create, list, archive under `indicators.library.*`) and create a project indicator from an entry by copying its definition; no live link and no project data in the library (cr-pathways-indicator-library).
 **Bounds (out):**
-- Live links between a library entry and project indicators, editing or deleting a library entry, sharing a library across organizations, and project structure templates: not built (deferred-features)
+- Live links between a library entry and project indicators, editing or deleting a library entry, and sharing a library across organizations: not built
+- Derived recipes other than Activity completion %: the database computes no value for them, so the add form does not offer them
 - Archiving indicators: the archive route exists but `indicators.archive` is granted to no role (rbac-contract.json)
 - Project-level target goal comparison: retired, historical column preserved (cr-pathways-retire-project-target-goal)
 - Disaggregation requirements on the indicator definition: disaggregation is computed in PRD-F8 from beneficiary fields (Scope and Limitations)
@@ -933,10 +935,10 @@ stateDiagram-v2
 
 | Gate | Condition | Status | QAD |
 |---|---|---|---|
-| G-F7-1 | An authorized user creates and updates an indicator in an assigned project; unauthorized roles and other organizations are refused | Met | QAD-T55, QAD-T106, QAD-A35 |
+| G-F7-1 | An authorized user creates and updates an indicator in an assigned project; unauthorized roles and other organizations are refused | Met | QAD-T55, QAD-T106, QAD-T110, QAD-T111, QAD-A35 |
 | G-F7-2 | An indicator shows the correct trusted metric, target and source | Met | QAD-T07, QAD-T107, QAD-A36 |
 | G-F7-3 | A measurement save is idempotent: the same key and input is read-only on retry, conflicting reuse fails | Met | QAD-T56, QAD-T108, QAD-A37, QAD-P05 |
-| G-F7-4 | Indicator progress is independent of the retired project target goal and shows unavailable states instead of zero | Met | QAD-T57, QAD-T109, QAD-A38 |
+| G-F7-4 | Indicator progress is independent of the retired project target goal; the API returns unavailable states instead of zero and the indicators list shows 0 only for no data yet | Met | QAD-T57, QAD-T109, QAD-T112, QAD-A38 |
 | G-F7-5 | Indicator definitions can be reused across projects through an organization library; a project indicator created from an entry is an independent copy | Met | QAD-IL-01, QAD-IL-02, QAD-T58 |
 
 #### Use Cases
@@ -963,7 +965,7 @@ flowchart LR
 | Permission | `indicators.create`, `indicators.update` |
 | Trigger | The user opens a project workspace to define or change an indicator |
 | Preconditions | The user is authenticated, assigned to the project and holds the permission |
-| Main flow | 1. The user opens the indicator list (route `/projects/:projectId/indicators`). 2. The system lists existing indicators (`indicators.read`). 3. The user defines name, unit, baseline, target, direction and source. 4. The system validates the definition. 5. The user saves. |
+| Main flow | 1. The user opens the indicator list (route `/projects/:projectId/indicators`). 2. The system lists existing indicators (`indicators.read`). 3. The user enters name, type, target, recipe and source; the code, baseline 0, unit, direction and period are set automatically. 4. The system validates the definition. 5. The user saves. |
 | Alternate / exception | Permission denied: 403, no change. Required field missing or invalid: 400, nothing saved. Library entry missing, archived or from another organization: 404, nothing created. Using a library entry also needs `indicators.library.read`. |
 | Postconditions | The indicator is stored for the project and an audit event is written |
 | Gates | G-F7-1, G-F7-2, G-F7-5 |

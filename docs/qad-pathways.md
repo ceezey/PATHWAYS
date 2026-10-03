@@ -199,6 +199,9 @@ Every implemented feature requires:
 | QAD-T107 | a malformed indicator id or an indicator outside the project returns not found, and a missing measurement shows the missing state instead of zero | Sad | Functional Suitability | PRD-F7 | G-F7-2 | UC-F7-2 | `apps/api/src/modules/indicators/indicators.service.test.ts`; `packages/shared/src/monitoring/metric-contract.test.ts` |
 | QAD-T108 | a measurement correcting a non-current value, using a different reporting period or carrying a non-numeric value is rejected with nothing written | Sad | Reliability | PRD-F7 | G-F7-3 | UC-F7-2 | `apps/api/src/modules/indicators/indicators.service.test.ts` |
 | QAD-T109 | a zero denominator, a missing baseline and a missing or suppressed measurement show the unavailable state, never zero | Sad | Functional Suitability | PRD-F7 | G-F7-4 | UC-F7-2 | `packages/shared/src/monitoring/metric-contract.test.ts`; `apps/api/src/modules/indicators/indicators.service.test.ts` |
+| QAD-T110 | an indicator is created with the chosen type, defaults to Output without one and an unknown type is rejected, in the API and in the database source operation | Happy | Functional Suitability | PRD-F7 | G-F7-1 | UC-F7-1 | `apps/api/src/modules/indicators/indicators.service.test.ts`; `apps/api/prisma/tests/indicator-type-runtime.sql` |
+| QAD-T111 | the add form asks only for name, type, target, recipe and source, generates a readable code and sends a valid derived definition with baseline 0 and the capped project period | Happy | Usability | PRD-F7 | G-F7-1 | UC-F7-1 | `apps/web/src/features/projects/project-indicators-workspace.test.tsx` |
+| QAD-T112 | the indicators list shows 0 and 0% for an indicator with no measurement yet and keeps the suppressed label (cr-pathways-overview-zero-display) | Sad | Usability | PRD-F7 | G-F7-4 | UC-F7-2 | `apps/web/src/features/projects/project-indicators-workspace.test.tsx` |
 
 ### 3.3 Abuse / Adversarial Paths
 
@@ -284,7 +287,7 @@ Every implemented feature requires:
 | PRD-F4 | Beneficiary Journey Tracking | QAD-T04, QAD-T49, QAD-T50, QAD-T51, QAD-T52, QAD-T83, QAD-A24 |
 | PRD-F5 | Digital Data Collection and Preparation | QAD-T05, QAD-IMP-04, QAD-IMP-09, QAD-IMP-11, QAD-IMP-13, QAD-T53, QAD-FP-01 |
 | PRD-F6 | Metadata-Driven Data Integration | QAD-T06, QAD-T21, QAD-T22, QAD-T25, QAD-A07, QAD-IMP-01, QAD-IMP-02, QAD-IMP-03, QAD-IMP-05, QAD-IMP-06, QAD-IMP-07, QAD-IMP-08, QAD-IMP-10, QAD-IMP-12, QAD-SM-01, QAD-SM-02, QAD-SM-03, QAD-SM-04, QAD-SM-05, QAD-SM-06, QAD-SM-07, QAD-SM-08, QAD-SM-09, QAD-SM-10, QAD-SM-11, QAD-T54 |
-| PRD-F7 | Project Indicator and Monitoring | QAD-T07, QAD-P05, QAD-T55, QAD-T56, QAD-T57, QAD-T58, QAD-T106, QAD-T107, QAD-T108, QAD-T109, QAD-A35, QAD-A36, QAD-A37, QAD-A38, QAD-IL-01, QAD-IL-02 |
+| PRD-F7 | Project Indicator and Monitoring | QAD-T07, QAD-P05, QAD-T55, QAD-T56, QAD-T57, QAD-T58, QAD-T106, QAD-T107, QAD-T108, QAD-T109, QAD-T110, QAD-T111, QAD-T112, QAD-A35, QAD-A36, QAD-A37, QAD-A38, QAD-IL-01, QAD-IL-02 |
 | PRD-F8 | Aggregated Monitoring Dashboard with SADDD Analysis | QAD-T08, QAD-T23, QAD-A10, QAD-T59, QAD-T60, QAD-T61, QAD-T62, QAD-T87, QAD-T105 |
 
 PRD-F9 to PRD-F13 rows are in the matrix above and are cited by their gates in the PRD.
