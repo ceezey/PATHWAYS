@@ -1,5 +1,7 @@
 'use client'
 
+import { AsyncState } from '@/components/pathways/async-state'
+
 import {
   BellRing,
   ClipboardCheck,
@@ -685,9 +687,11 @@ export const ActivityDetailPanel = ({
         </SidePanel>
       ) : loading ? (
         <SidePanel description="Loading the current activity record." title="Activity detail">
-          <output aria-live="polite" className="block text-sm text-muted-foreground">
-            Loading activity...
-          </output>
+          <AsyncState
+            description="Fetching the activity record, proofs and expenses."
+            status="loading"
+            title="Loading activity"
+          />
         </SidePanel>
       ) : null}
     </Sheet>
