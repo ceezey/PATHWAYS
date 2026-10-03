@@ -1,23 +1,21 @@
 'use client'
 
 import {
-  CalendarDays,
   Camera,
   Eye,
   FileImage,
-  HardDrive,
-  Play,
+  Loader2,
+  RotateCcw,
   ShieldCheck,
-  Tags,
   UploadCloud,
   Video,
+  X,
 } from 'lucide-react'
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
 
 import { EmptyState } from '@/components/pathways/empty-state'
 import { StatusBadge } from '@/components/pathways/status-badge'
-import { UnavailableHint, unavailableControlProps } from '@/components/pathways/unavailable-hint'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -29,194 +27,83 @@ import {
 } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
-import type {
-  ActivitySummary,
-  BeneficiaryMediaProofRecord,
-  BeneficiaryMediaReviewStatus,
-  BeneficiaryMediaType,
-  ProjectSummary,
-} from '@/types/pathways'
+import { sha256Hex } from '@/lib/files/proof-file-hash'
+import { PathwaysClientError, pathwaysClient } from '@/lib/services/pathways-client'
+import type { BeneficiaryMediaItem, BeneficiaryMediaLimits } from '@/types/pathways'
 
-import {
-  beneficiaryMediaReviewTone,
-  beneficiaryMediaTypeFromMime,
-  formatMediaDuration,
-  formatMediaFileSize,
-  isSupportedBeneficiaryMedia,
-  parseMediaTags,
-} from './beneficiary-media-utils'
-import { formatDate, projectTitle } from './beneficiary-utils'
+import { formatMediaFileSize } from './beneficiary-media-utils'
+import { formatDate } from './beneficiary-utils'
 
-type MediaProofWithPreview = BeneficiaryMediaProofRecord & {
-  previewUrl?: string
+type MediaFilter = 'All' | 'PHOTO' | 'VIDEO'
+type FileStatus = 'waiting' | 'uploading' | 'uploaded' | 'failed'
+type LoadState = 'loading' | 'error' | 'ready'
+
+interface UploadItem {
+  key: string
+  file: File
+  status: FileStatus
+  error?: string
+  mediaId?: string
+  uploadUrl?: string | null
 }
 
-type MediaFilter = 'All' | BeneficiaryMediaType
-
-const maxLocalFiles = 4
-const maxLocalFileSize = 50_000_000
+const maxNote = 500
+const filterLabels: Record<MediaFilter, string> = { All: 'All', PHOTO: 'Photos', VIDEO: 'Videos' }
+// Advisory defaults shown before the server limits load; the server stays authoritative.
+const fallbackLimits: BeneficiaryMediaLimits = {
+  maxFiles: 10,
+  maxFileBytes: 50 * 1024 * 1024,
+  contentTypes: [
+    'image/jpeg',
+    'image/png',
+    'image/webp',
+    'video/mp4',
+    'video/quicktime',
+    'video/webm',
+  ],
+}
+const typeLabels: Record<string, string> = {
+  'image/jpeg': 'JPEG',
+  'image/png': 'PNG',
+  'image/webp': 'WebP',
+  'video/mp4': 'MP4',
+  'video/quicktime': 'MOV',
+  'video/webm': 'WebM',
+}
 
 export const BeneficiaryMediaProof = ({
-  activities,
   beneficiaryId,
-  canManage = true,
-  mediaProof,
-  projectIds,
-  projects,
-  unavailableReason,
+  canManage,
+  projectId,
 }: {
-  activities: ActivitySummary[]
   beneficiaryId: string
-  canManage?: boolean
-  mediaProof: BeneficiaryMediaProofRecord[]
-  projectIds: string[]
-  projects: ProjectSummary[]
-  unavailableReason?: string
+  canManage: boolean
+  projectId: string
 }) => {
-  const writesAvailable = canManage && !unavailableReason
-  const [mediaItems, setMediaItems] = useState<MediaProofWithPreview[]>(mediaProof)
+  const [items, setItems] = useState<BeneficiaryMediaItem[]>([])
+  const [loadState, setLoadState] = useState<LoadState>('loading')
   const [filter, setFilter] = useState<MediaFilter>('All')
   const [addOpen, setAddOpen] = useState(false)
-  const [selectedFiles, setSelectedFiles] = useState<File[]>([])
-  const [capturedAt, setCapturedAt] = useState(new Date().toISOString().slice(0, 10))
-  const [activityId, setActivityId] = useState(activities[0]?.id ?? 'none')
-  const [note, setNote] = useState('')
-  const [tags, setTags] = useState('')
-  const [addError, setAddError] = useState('')
-  const [selectedMediaId, setSelectedMediaId] = useState<string | null>(null)
-  const [reviewStatus, setReviewStatus] = useState<BeneficiaryMediaReviewStatus>('For Review')
-  const [reviewNote, setReviewNote] = useState('')
-  const objectUrls = useRef<string[]>([])
+  const [viewing, setViewing] = useState<BeneficiaryMediaItem | null>(null)
 
-  useEffect(
-    () => () => {
-      for (const url of objectUrls.current) {
-        URL.revokeObjectURL(url)
-      }
-    },
-    [],
-  )
-
-  const selectedMedia = mediaItems.find((item) => item.id === selectedMediaId) ?? null
-  const visibleMedia = mediaItems.filter((item) => filter === 'All' || item.mediaType === filter)
-  const photoCount = mediaItems.filter((item) => item.mediaType === 'Photo').length
-  const videoCount = mediaItems.filter((item) => item.mediaType === 'Video').length
-  const reviewCount = mediaItems.filter((item) => item.reviewStatus === 'For Review').length
-
-  const openAddDialog = () => {
-    setSelectedFiles([])
-    setCapturedAt(new Date().toISOString().slice(0, 10))
-    setActivityId(activities[0]?.id ?? 'none')
-    setNote('')
-    setTags('')
-    setAddError('')
-    setAddOpen(true)
-  }
-
-  const selectLocalFiles = (files: File[]) => {
-    if (files.length > maxLocalFiles) {
-      setSelectedFiles([])
-      setAddError(`Choose up to ${maxLocalFiles} photo or video files at a time.`)
-      return
+  const load = useCallback(async () => {
+    setLoadState('loading')
+    try {
+      setItems(await pathwaysClient.listBeneficiaryMedia(projectId, beneficiaryId))
+      setLoadState('ready')
+    } catch {
+      setLoadState('error')
     }
+  }, [projectId, beneficiaryId])
 
-    if (files.some((file) => !isSupportedBeneficiaryMedia(file.type))) {
-      setSelectedFiles([])
-      setAddError('Use JPG, PNG, or MP4 files.')
-      return
-    }
+  useEffect(() => {
+    void load()
+  }, [load])
 
-    if (files.some((file) => file.size > maxLocalFileSize)) {
-      setSelectedFiles([])
-      setAddError('Each selected file must be 50 MB or smaller.')
-      return
-    }
-
-    setSelectedFiles(files)
-    setAddError('')
-  }
-
-  const addLocalMedia = () => {
-    if (selectedFiles.length === 0) {
-      setAddError('Choose at least one photo or video.')
-      return
-    }
-
-    if (!capturedAt) {
-      setAddError('Add the date the proof was captured.')
-      return
-    }
-
-    const now = new Date()
-    const parsedTags = parseMediaTags(tags)
-    const localItems = selectedFiles.reduce<MediaProofWithPreview[]>((items, file, index) => {
-      const mediaType = beneficiaryMediaTypeFromMime(file.type)
-
-      if (!mediaType) {
-        return items
-      }
-
-      const previewUrl = URL.createObjectURL(file)
-      objectUrls.current.push(previewUrl)
-      items.push({
-        id: `media-local-${now.getTime()}-${index}`,
-        beneficiaryId,
-        projectId:
-          activities.find((activity) => activity.id === activityId)?.projectId ??
-          projectIds[0] ??
-          '',
-        activityId: activityId === 'none' ? undefined : activityId,
-        mediaType,
-        fileName: file.name,
-        mimeType: file.type,
-        fileSizeBytes: file.size,
-        capturedAt,
-        addedAt: now.toISOString().slice(0, 10),
-        addedBy: 'Staff user',
-        note: note.trim() || undefined,
-        tags: parsedTags,
-        reviewStatus: 'For Review',
-        source: 'Local preview',
-        previewUrl,
-      })
-
-      return items
-    }, [])
-
-    setMediaItems((current) => [...localItems, ...current])
-    setFilter('All')
-    setAddOpen(false)
-    toast.success(
-      `${localItems.length} media preview${localItems.length === 1 ? '' : 's'} added.`,
-      {
-        description: 'Selected files are unsaved local previews only.',
-      },
-    )
-  }
-
-  const openReview = (item: MediaProofWithPreview) => {
-    setSelectedMediaId(item.id)
-    setReviewStatus(item.reviewStatus)
-    setReviewNote(item.reviewNote ?? '')
-  }
-
-  const saveReview = () => {
-    if (!selectedMedia) {
-      return
-    }
-
-    toast.error(
-      'Media review is unavailable until a server-backed review endpoint is available. No status was saved.',
-    )
-  }
+  const photoCount = items.filter((item) => item.type === 'PHOTO').length
+  const videoCount = items.filter((item) => item.type === 'VIDEO').length
+  const visible = items.filter((item) => filter === 'All' || item.type === filter)
 
   return (
     <section
@@ -233,54 +120,37 @@ export const BeneficiaryMediaProof = ({
               Media proof
             </h2>
             <p className="max-w-3xl text-base leading-6 text-muted-foreground">
-              Review photos and videos connected to this beneficiary record. Media remains private
-              to authorized staff.
+              Photos and videos attached to this beneficiary record. Media remains private to
+              authorized staff.
             </p>
           </div>
           {canManage ? (
-            writesAvailable ? (
-              <Button className="w-full gap-2 sm:w-auto" onClick={openAddDialog} type="button">
-                <UploadCloud className="h-4 w-4" aria-hidden="true" />
-                Add media
-              </Button>
-            ) : (
-              <>
-                <Button
-                  className="w-full gap-2 sm:w-auto"
-                  type="button"
-                  {...unavailableControlProps(
-                    'beneficiary-media-add-hint',
-                    unavailableReason ?? 'Not available yet',
-                  )}
-                >
-                  <UploadCloud className="h-4 w-4" aria-hidden="true" />
-                  Add media
-                </Button>
-                <UnavailableHint
-                  id="beneficiary-media-add-hint"
-                  message={unavailableReason ?? 'Not available yet'}
-                />
-              </>
-            )
+            <Button
+              className="w-full gap-2 sm:w-auto"
+              onClick={() => setAddOpen(true)}
+              type="button"
+            >
+              <UploadCloud className="h-4 w-4" aria-hidden="true" />
+              Add media
+            </Button>
           ) : null}
         </div>
         <div className="mt-4 flex items-start gap-3 rounded-xl border border-info/25 bg-info-subtle p-3 text-xs leading-5 text-info">
           <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
-          <p>{unavailableReason ?? 'Selected files are review-only and are not published.'}</p>
+          <p>Uploaded files are private and are not published.</p>
         </div>
       </div>
 
-      <div className="grid gap-px border-b border-border bg-border sm:grid-cols-2 xl:grid-cols-4">
-        <MediaKpi icon={FileImage} label="Media items" value={mediaItems.length} />
+      <div className="grid gap-px border-b border-border bg-border sm:grid-cols-3">
+        <MediaKpi icon={FileImage} label="Media items" value={items.length} />
         <MediaKpi icon={Camera} label="Photos" value={photoCount} />
         <MediaKpi icon={Video} label="Videos" value={videoCount} />
-        <MediaKpi icon={Eye} label="For review" value={reviewCount} />
       </div>
 
       <div className="p-4 sm:p-5">
         <fieldset className="mb-5 grid grid-cols-3 gap-2 sm:flex">
           <legend className="sr-only">Filter media proof</legend>
-          {(['All', 'Photo', 'Video'] as const).map((value) => (
+          {(Object.keys(filterLabels) as MediaFilter[]).map((value) => (
             <Button
               aria-pressed={filter === value}
               className="w-full sm:w-auto"
@@ -290,395 +160,469 @@ export const BeneficiaryMediaProof = ({
               type="button"
               variant={filter === value ? 'default' : 'outline'}
             >
-              {value === 'All' ? `All (${mediaItems.length})` : `${value}s`}
+              {value === 'All' ? `All (${items.length})` : filterLabels[value]}
             </Button>
           ))}
         </fieldset>
 
-        {visibleMedia.length > 0 ? (
+        {loadState === 'loading' ? (
+          <output className="flex items-center gap-2 text-sm text-muted-foreground">
+            <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+            Loading media proof
+          </output>
+        ) : loadState === 'error' ? (
+          <EmptyState
+            action={
+              <Button onClick={() => void load()} type="button" variant="outline">
+                Retry
+              </Button>
+            }
+            description="Media proof could not be loaded."
+            icon={Camera}
+            title="Media proof unavailable"
+            tone="danger"
+          />
+        ) : visible.length > 0 ? (
           <div className="grid gap-4 md:grid-cols-2 2xl:grid-cols-3">
-            {visibleMedia.map((item) => (
-              <MediaProofCard
-                activities={activities}
-                canManage={writesAvailable}
-                item={item}
+            {visible.map((item) => (
+              <article
+                aria-label={`Media proof: ${item.fileName}`}
+                className="flex min-w-0 flex-col gap-3 rounded-sm border border-border bg-background p-4"
                 key={item.id}
-                onReview={() => openReview(item)}
-                projects={projects}
-              />
+              >
+                <div className="flex flex-wrap items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <p className="break-words font-medium leading-6 text-foreground">
+                      {item.fileName}
+                    </p>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      {item.type === 'PHOTO' ? 'Photo' : 'Video'} ·{' '}
+                      {formatMediaFileSize(item.byteSize)}
+                    </p>
+                  </div>
+                  <StatusBadge tone="success">Uploaded</StatusBadge>
+                </div>
+                <p className="line-clamp-3 text-sm leading-6 text-muted-foreground">
+                  {item.description ?? 'No evidence note was added.'}
+                </p>
+                <div className="mt-auto flex items-center justify-between gap-3 border-t border-border pt-3">
+                  <p className="min-w-0 truncate text-xs text-muted-foreground">
+                    {formatDate(item.submittedAt)} · {item.submittedBy}
+                  </p>
+                  <Button
+                    aria-label={`Preview ${item.fileName}`}
+                    className="shrink-0 gap-2"
+                    onClick={() => setViewing(item)}
+                    size="sm"
+                    type="button"
+                    variant="outline"
+                  >
+                    <Eye className="h-4 w-4" aria-hidden="true" />
+                    Preview
+                  </Button>
+                </div>
+              </article>
             ))}
           </div>
         ) : (
           <EmptyState
             action={
               canManage ? (
-                writesAvailable ? (
-                  <Button onClick={openAddDialog} type="button" variant="outline">
-                    Add media
-                  </Button>
-                ) : (
-                  <>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      {...unavailableControlProps(
-                        'beneficiary-media-add-empty-hint',
-                        unavailableReason ?? 'Not available yet',
-                      )}
-                    >
-                      Add media
-                    </Button>
-                    <UnavailableHint
-                      id="beneficiary-media-add-empty-hint"
-                      message={unavailableReason ?? 'Not available yet'}
-                    />
-                  </>
-                )
+                <Button onClick={() => setAddOpen(true)} type="button" variant="outline">
+                  Add media
+                </Button>
               ) : undefined
             }
             description={
-              unavailableReason ?? `Add a ${filter.toLowerCase()} to this beneficiary record.`
+              canManage
+                ? 'Add a photo or video to this beneficiary record.'
+                : 'No photos or videos have been attached to this beneficiary record.'
             }
-            icon={filter === 'Video' ? Video : Camera}
-            title={`No ${filter.toLowerCase()} proof items`}
+            icon={filter === 'VIDEO' ? Video : Camera}
+            title="None yet"
           />
         )}
       </div>
 
-      <Dialog onOpenChange={setAddOpen} open={addOpen}>
-        <DialogContent className="max-h-dialog overflow-y-auto sm:max-w-2xl">
-          <DialogHeader>
-            <DialogTitle>Add media</DialogTitle>
-            <DialogDescription>
-              Choose photos or videos for beneficiary evidence review.
-            </DialogDescription>
-          </DialogHeader>
-
-          <div className="space-y-5 py-2">
-            <div className="space-y-2">
-              <Label htmlFor="beneficiary-media-files">Photo or video files</Label>
-              <Input
-                accept="image/jpeg,image/png,video/mp4"
-                id="beneficiary-media-files"
-                multiple
-                onChange={(event) => selectLocalFiles(Array.from(event.target.files ?? []))}
-                type="file"
-              />
-              <p className="text-xs leading-5 text-muted-foreground">
-                JPG, PNG, or MP4 · up to four files · 50 MB per file.
-              </p>
-            </div>
-
-            {selectedFiles.length > 0 ? (
-              <div className="space-y-2 rounded-xl border border-border bg-surface-subtle p-3">
-                <p className="text-sm font-medium text-foreground">Selected files</p>
-                {selectedFiles.map((file) => (
-                  <div
-                    className="flex items-center justify-between gap-3 text-sm text-muted-foreground"
-                    key={`${file.name}-${file.size}`}
-                  >
-                    <span className="min-w-0 truncate">{file.name}</span>
-                    <span className="shrink-0">{formatMediaFileSize(file.size)}</span>
-                  </div>
-                ))}
-              </div>
-            ) : null}
-
-            <div className="grid gap-4 sm:grid-cols-2">
-              <div className="space-y-2">
-                <Label htmlFor="beneficiary-media-date">Captured date</Label>
-                <Input
-                  id="beneficiary-media-date"
-                  onChange={(event) => setCapturedAt(event.target.value)}
-                  type="date"
-                  value={capturedAt}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="beneficiary-media-activity">Activity context</Label>
-                <Select onValueChange={setActivityId} value={activityId}>
-                  <SelectTrigger id="beneficiary-media-activity">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="none">No activity selected</SelectItem>
-                    {activities.map((activity) => (
-                      <SelectItem key={activity.id} value={activity.id}>
-                        {activity.title}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="beneficiary-media-note">Evidence note (optional)</Label>
-              <Textarea
-                id="beneficiary-media-note"
-                maxLength={320}
-                onChange={(event) => setNote(event.target.value)}
-                placeholder="Describe what the media shows and why it supports the record."
-                value={note}
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="beneficiary-media-tags">Tags (optional)</Label>
-              <Input
-                id="beneficiary-media-tags"
-                maxLength={220}
-                onChange={(event) => setTags(event.target.value)}
-                placeholder="Skills session, attendance context"
-                value={tags}
-              />
-              <p className="text-xs text-muted-foreground">Separate up to six tags with commas.</p>
-            </div>
-          </div>
-
-          {addError ? (
-            <p className="text-sm font-medium text-destructive" role="alert">
-              {addError}
-            </p>
-          ) : null}
-
-          <DialogFooter>
-            <Button onClick={() => setAddOpen(false)} type="button" variant="outline">
-              Cancel
-            </Button>
-            <Button className="gap-2" onClick={addLocalMedia} type="button">
-              <UploadCloud className="h-4 w-4" aria-hidden="true" />
-              Add to record
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      <Dialog
-        onOpenChange={(open) => {
-          if (!open) {
-            setSelectedMediaId(null)
-          }
-        }}
-        open={Boolean(selectedMedia)}
-      >
-        {selectedMedia ? (
-          <DialogContent className="max-h-dialog overflow-y-auto sm:max-w-2xl">
-            <DialogHeader>
-              <DialogTitle>Review media proof</DialogTitle>
-              <DialogDescription>
-                Review {selectedMedia.fileName} and record its status and notes.
-              </DialogDescription>
-            </DialogHeader>
-
-            <MediaPreview item={selectedMedia} large />
-
-            <div className="grid gap-3 sm:grid-cols-2">
-              <MetadataRow
-                label="File type"
-                value={`${selectedMedia.mediaType} · ${selectedMedia.mimeType}`}
-              />
-              <MetadataRow
-                label="File size"
-                value={formatMediaFileSize(selectedMedia.fileSizeBytes)}
-              />
-              <MetadataRow label="Captured" value={formatDate(selectedMedia.capturedAt)} />
-              <MetadataRow label="Added by" value={selectedMedia.addedBy} />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="beneficiary-media-review-status">Review status</Label>
-              <Select
-                onValueChange={(value) => setReviewStatus(value as BeneficiaryMediaReviewStatus)}
-                value={reviewStatus}
-              >
-                <SelectTrigger id="beneficiary-media-review-status">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="For Review">For Review</SelectItem>
-                  <SelectItem value="Accepted">Accepted</SelectItem>
-                  <SelectItem value="Needs Clarification">Needs Clarification</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="beneficiary-media-review-note">Review note (optional)</Label>
-              <Textarea
-                id="beneficiary-media-review-note"
-                maxLength={320}
-                onChange={(event) => setReviewNote(event.target.value)}
-                value={reviewNote}
-              />
-            </div>
-
-            <DialogFooter>
-              <Button onClick={() => setSelectedMediaId(null)} type="button" variant="outline">
-                Close
-              </Button>
-              <Button
-                type="button"
-                {...Object.assign(
-                  { onClick: saveReview },
-                  unavailableControlProps('beneficiary-media-save-review-hint'),
-                )}
-              >
-                Save review
-              </Button>
-              <UnavailableHint id="beneficiary-media-save-review-hint" />
-            </DialogFooter>
-          </DialogContent>
-        ) : null}
-      </Dialog>
+      {addOpen ? (
+        <AddMediaDialog
+          beneficiaryId={beneficiaryId}
+          onOpenChange={setAddOpen}
+          onUploaded={() => void load()}
+          projectId={projectId}
+        />
+      ) : null}
+      <MediaViewer
+        beneficiaryId={beneficiaryId}
+        item={viewing}
+        onClose={() => setViewing(null)}
+        projectId={projectId}
+      />
     </section>
   )
 }
 
-const MediaProofCard = ({
-  activities,
-  canManage,
-  item,
-  onReview,
-  projects,
+const AddMediaDialog = ({
+  beneficiaryId,
+  onOpenChange,
+  onUploaded,
+  projectId,
 }: {
-  activities: ActivitySummary[]
-  canManage: boolean
-  item: MediaProofWithPreview
-  onReview: () => void
-  projects: ProjectSummary[]
+  beneficiaryId: string
+  onOpenChange: (open: boolean) => void
+  onUploaded: () => void
+  projectId: string
 }) => {
-  const activity = activities.find((record) => record.id === item.activityId)
-  const duration = formatMediaDuration(item.durationSeconds)
+  const [limits, setLimits] = useState(fallbackLimits)
+  const [files, setFiles] = useState<UploadItem[]>([])
+  const [note, setNote] = useState('')
+  const [error, setError] = useState('')
+  const [busy, setBusy] = useState(false)
+  // The reserved set is locked: only per-file Retry remains until every file is uploaded.
+  const [locked, setLocked] = useState(false)
+  const inputRef = useRef<HTMLInputElement | null>(null)
+  const uploadedKeys = useRef(new Set<string>())
+
+  useEffect(() => {
+    let cancelled = false
+    pathwaysClient
+      .getBeneficiaryMediaLimits(projectId, beneficiaryId)
+      .then((value) => !cancelled && setLimits(value))
+      .catch(() => undefined)
+    return () => {
+      cancelled = true
+    }
+  }, [projectId, beneficiaryId])
+
+  const patch = (key: string, change: Partial<UploadItem>) =>
+    setFiles((current) => current.map((item) => (item.key === key ? { ...item, ...change } : item)))
+
+  const typeList = limits.contentTypes.map((type) => typeLabels[type] ?? type).join(', ')
+  const limitText = `${typeList} · up to ${limits.maxFiles} files · ${formatMediaFileSize(limits.maxFileBytes)} per file.`
+
+  const addFiles = (selected: File[]) => {
+    if (locked) return
+    const rejected: string[] = []
+    const accepted: UploadItem[] = []
+    const seen = new Set(files.map((item) => `${item.file.name}:${item.file.size}`))
+    for (const file of selected) {
+      const signature = `${file.name}:${file.size}`
+      if (seen.has(signature)) continue
+      if (!limits.contentTypes.includes(file.type)) rejected.push(`${file.name} (unsupported type)`)
+      else if (file.size < 1 || file.size > limits.maxFileBytes)
+        rejected.push(`${file.name} (over ${formatMediaFileSize(limits.maxFileBytes)})`)
+      else if (files.length + accepted.length >= limits.maxFiles)
+        rejected.push(`${file.name} (over ${limits.maxFiles} files)`)
+      else {
+        seen.add(signature)
+        accepted.push({ key: crypto.randomUUID(), file, status: 'waiting' })
+      }
+    }
+    setFiles((current) => [...current, ...accepted])
+    setError(rejected.length ? `Some files were not added: ${rejected.join(', ')}.` : '')
+    if (inputRef.current) inputRef.current.value = ''
+  }
+
+  const processFile = async (item: UploadItem) => {
+    if (!item.mediaId) return false
+    try {
+      if (item.uploadUrl && !uploadedKeys.current.has(item.key)) {
+        patch(item.key, { status: 'uploading', error: undefined })
+        await pathwaysClient.uploadActivityProofFile(item.uploadUrl, item.file)
+        uploadedKeys.current.add(item.key)
+      }
+      await pathwaysClient.finalizeBeneficiaryMedia(projectId, beneficiaryId, item.mediaId)
+      patch(item.key, { status: 'uploaded', error: undefined })
+      return true
+    } catch (caught) {
+      patch(item.key, {
+        status: 'failed',
+        error:
+          caught instanceof PathwaysClientError
+            ? caught.message
+            : 'This file could not be uploaded. Retry it.',
+      })
+      return false
+    }
+  }
+
+  const complete = (results: boolean[]) => {
+    setBusy(false)
+    if (results.every(Boolean)) {
+      toast.success('Media uploaded.')
+      onUploaded()
+      onOpenChange(false)
+    } else setError('Not every file was uploaded. Retry the failed files below.')
+  }
+
+  const submit = async () => {
+    if (busy) return
+    if (!files.length) {
+      setError('Choose at least one photo or video.')
+      return
+    }
+    setBusy(true)
+    setError('')
+    try {
+      // Hash one file at a time so large videos are never all held in memory together.
+      const declarations = []
+      for (const item of files)
+        declarations.push({
+          fileName: item.file.name,
+          contentType: item.file.type,
+          byteSize: item.file.size,
+          sha256: await sha256Hex(item.file),
+        })
+      const reserved = await pathwaysClient.reserveBeneficiaryMedia(projectId, beneficiaryId, {
+        files: declarations,
+        ...(note.trim() ? { note: note.trim() } : {}),
+      })
+      setLocked(true)
+      // Reserved files come back in declaration order.
+      const working = files.map((item, index) => ({
+        ...item,
+        mediaId: reserved[index]?.mediaId,
+        uploadUrl: reserved[index]?.uploadUrl,
+      }))
+      setFiles(working)
+      complete(await Promise.all(working.map(processFile)))
+    } catch (caught) {
+      setBusy(false)
+      setError(
+        caught instanceof Error ? caught.message : 'The media could not be uploaded. Try again.',
+      )
+    }
+  }
+
+  const retry = async (key: string) => {
+    const item = files.find((entry) => entry.key === key)
+    if (!item || busy) return
+    setBusy(true)
+    setError('')
+    const ok = await processFile(item)
+    complete([
+      ok,
+      ...files.filter((entry) => entry.key !== key).map((e) => e.status === 'uploaded'),
+    ])
+  }
 
   return (
-    <article
-      aria-label={`Media proof: ${item.fileName}`}
-      className="flex min-w-0 flex-col overflow-hidden rounded-sm border border-border bg-background"
+    <Dialog
+      onOpenChange={(open) => {
+        if (!open && busy) return
+        onOpenChange(open)
+      }}
+      open
     >
-      <MediaPreview item={item} />
-      <div className="flex flex-1 flex-col p-4">
-        <div className="flex flex-wrap items-start justify-between gap-2">
-          <div className="min-w-0">
-            <p className="break-words font-medium leading-6 text-foreground">{item.fileName}</p>
-            <p className="mt-1 text-xs text-muted-foreground">
-              {item.mediaType} · {formatMediaFileSize(item.fileSizeBytes)}
-              {duration ? ` · ${duration}` : ''}
-            </p>
+      <DialogContent className="max-h-dialog overflow-y-auto sm:max-w-2xl">
+        <DialogHeader>
+          <DialogTitle>Add media</DialogTitle>
+          <DialogDescription>Attach photos or videos to this beneficiary record.</DialogDescription>
+        </DialogHeader>
+        <div className="space-y-5 py-2">
+          <div className="space-y-2">
+            <Label htmlFor="beneficiary-media-files">Photo or video files</Label>
+            <Input
+              accept={limits.contentTypes.join(',')}
+              disabled={busy || locked}
+              id="beneficiary-media-files"
+              multiple
+              onChange={(event) => addFiles(Array.from(event.target.files ?? []))}
+              ref={inputRef}
+              type="file"
+            />
+            <p className="text-xs leading-5 text-muted-foreground">{limitText}</p>
           </div>
-          <StatusBadge tone={beneficiaryMediaReviewTone(item.reviewStatus)}>
-            {item.reviewStatus}
-          </StatusBadge>
+
+          {files.length > 0 ? (
+            <ul className="space-y-2 rounded-xl border border-border bg-surface-subtle p-3">
+              {files.map((item) => (
+                <li
+                  className="flex items-center justify-between gap-3 text-sm text-muted-foreground"
+                  key={item.key}
+                >
+                  <span className="min-w-0 truncate">
+                    {item.file.name} · {formatMediaFileSize(item.file.size)}
+                  </span>
+                  <span className="flex shrink-0 items-center gap-2">
+                    <span>{statusLabel[item.status]}</span>
+                    {item.status === 'failed' ? (
+                      <Button
+                        aria-label={`Retry ${item.file.name}`}
+                        disabled={busy}
+                        onClick={() => void retry(item.key)}
+                        size="sm"
+                        type="button"
+                        variant="outline"
+                      >
+                        <RotateCcw className="h-3.5 w-3.5" aria-hidden="true" />
+                        Retry
+                      </Button>
+                    ) : null}
+                    {!locked && !busy ? (
+                      <Button
+                        aria-label={`Remove ${item.file.name}`}
+                        onClick={() =>
+                          setFiles((current) => current.filter((entry) => entry.key !== item.key))
+                        }
+                        size="sm"
+                        type="button"
+                        variant="ghost"
+                      >
+                        <X className="h-3.5 w-3.5" aria-hidden="true" />
+                      </Button>
+                    ) : null}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          ) : null}
+          {files.some((item) => item.error) ? (
+            <p className="text-sm text-destructive">{files.find((item) => item.error)?.error}</p>
+          ) : null}
+
+          <div className="space-y-2">
+            <Label htmlFor="beneficiary-media-note">Evidence note (optional)</Label>
+            <Textarea
+              disabled={busy || locked}
+              id="beneficiary-media-note"
+              maxLength={maxNote}
+              onChange={(event) => setNote(event.target.value)}
+              placeholder="Describe what the media shows and why it supports the record."
+              value={note}
+            />
+          </div>
         </div>
 
-        <p className="mt-3 line-clamp-3 text-sm leading-6 text-muted-foreground">
-          {item.note ?? 'No evidence note was added.'}
-        </p>
-
-        {item.tags.length > 0 ? (
-          <div className="mt-3 flex flex-wrap gap-1.5">
-            {item.tags.map((tag) => (
-              <span
-                className="rounded-full border border-border bg-muted/40 px-2 py-1 text-xs font-medium text-muted-foreground"
-                key={tag}
-              >
-                {tag}
-              </span>
-            ))}
-          </div>
+        {error ? (
+          <p className="text-sm font-medium text-destructive" role="alert">
+            {error}
+          </p>
         ) : null}
 
-        <div className="mt-4 space-y-2 border-t border-border pt-3 text-xs text-muted-foreground">
-          <p className="flex items-center gap-2">
-            <CalendarDays className="h-3.5 w-3.5" aria-hidden="true" />
-            Captured {formatDate(item.capturedAt)}
-          </p>
-          <p className="flex items-center gap-2">
-            <HardDrive className="h-3.5 w-3.5" aria-hidden="true" />
-            {item.source === 'Stored media' ? 'Stored media' : 'Session media'} ·{' '}
-            {projectTitle(item.projectId, projects)}
-          </p>
-          {activity ? (
-            <p className="flex items-start gap-2">
-              <Tags className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden="true" />
-              <span>{activity.title}</span>
-            </p>
-          ) : null}
-        </div>
-
-        <div className="mt-auto flex items-center justify-between gap-3 pt-4">
-          <p className="min-w-0 truncate text-xs text-muted-foreground">Added by {item.addedBy}</p>
-          {canManage ? (
-            <Button
-              aria-label={`Review ${item.fileName}`}
-              className="shrink-0"
-              onClick={onReview}
-              size="sm"
-              type="button"
-              variant="outline"
-            >
-              Review
+        <DialogFooter>
+          <Button
+            disabled={busy}
+            onClick={() => onOpenChange(false)}
+            type="button"
+            variant="outline"
+          >
+            {locked ? 'Close' : 'Cancel'}
+          </Button>
+          {locked ? null : (
+            <Button className="gap-2" disabled={busy} onClick={() => void submit()} type="button">
+              {busy ? (
+                <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+              ) : (
+                <UploadCloud className="h-4 w-4" aria-hidden="true" />
+              )}
+              Upload media
             </Button>
-          ) : null}
-        </div>
-      </div>
-    </article>
+          )}
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   )
 }
 
-const MediaPreview = ({
+const statusLabel: Record<FileStatus, string> = {
+  waiting: 'Waiting',
+  uploading: 'Uploading',
+  uploaded: 'Uploaded',
+  failed: 'Failed',
+}
+
+// The file loads as an authorized blob only when previewed, so no bytes are fetched for the list.
+const MediaViewer = ({
+  beneficiaryId,
   item,
-  large = false,
-}: { item: MediaProofWithPreview; large?: boolean }) => {
-  const previewClassName = large ? 'h-56 sm:h-72' : 'aspect-video'
+  onClose,
+  projectId,
+}: {
+  beneficiaryId: string
+  item: BeneficiaryMediaItem | null
+  onClose: () => void
+  projectId: string
+}) => {
+  const [url, setUrl] = useState<string | null>(null)
+  const [state, setState] = useState<LoadState>('loading')
+  const [attempt, setAttempt] = useState(0)
 
-  if (item.previewUrl && item.mediaType === 'Photo') {
-    return (
-      <div className={previewClassName}>
-        {/* Blob URLs are browser-local and cannot use the Next.js image optimizer. */}
-        <img
-          alt={`Selected proof preview: ${item.fileName}`}
-          className="h-full w-full object-cover"
-          src={item.previewUrl}
-        />
-      </div>
-    )
-  }
-
-  if (item.previewUrl && item.mediaType === 'Video') {
-    return (
-      <video
-        aria-label={`Selected video proof preview: ${item.fileName}`}
-        className={`${previewClassName} w-full bg-ink object-contain`}
-        controls
-        muted
-        preload="metadata"
-        src={item.previewUrl}
-      />
-    )
-  }
+  // biome-ignore lint/correctness/useExhaustiveDependencies: attempt re-runs the load on Retry.
+  useEffect(() => {
+    if (!item) return
+    let cancelled = false
+    let objectUrl: string | null = null
+    setState('loading')
+    setUrl(null)
+    pathwaysClient
+      .getBeneficiaryMediaBlob(projectId, beneficiaryId, item.id)
+      .then((blob) => {
+        if (cancelled) return
+        objectUrl = URL.createObjectURL(blob)
+        setUrl(objectUrl)
+        setState('ready')
+      })
+      .catch(() => !cancelled && setState('error'))
+    return () => {
+      cancelled = true
+      if (objectUrl) URL.revokeObjectURL(objectUrl)
+    }
+  }, [item, projectId, beneficiaryId, attempt])
 
   return (
-    <div
-      className={`${previewClassName} relative flex items-center justify-center overflow-hidden bg-navy text-navy-foreground`}
-    >
-      <div className="relative flex flex-col items-center gap-3 text-center">
-        {item.mediaType === 'Video' ? (
-          <span className="flex h-14 w-14 items-center justify-center rounded-full border border-white/30 bg-ink/35">
-            <Play className="ml-1 h-6 w-6" fill="currentColor" aria-hidden="true" />
-          </span>
-        ) : (
-          <Camera className="h-11 w-11" aria-hidden="true" />
-        )}
-        <div>
-          <p className="text-sm font-semibold">{item.mediaType} preview unavailable</p>
-          <p className="mt-1 text-xs text-white/80">No file is available for this record</p>
-        </div>
-      </div>
-      <span className="absolute left-3 top-3 rounded-full border border-white/30 bg-ink/30 px-2 py-1 text-xs font-semibold uppercase tracking-wide">
-        Reference media
-      </span>
-    </div>
+    <Dialog onOpenChange={(open) => !open && onClose()} open={Boolean(item)}>
+      {item ? (
+        <DialogContent className="max-h-dialog overflow-y-auto sm:max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Media preview</DialogTitle>
+            <DialogDescription>{item.fileName}</DialogDescription>
+          </DialogHeader>
+          {state === 'loading' ? (
+            <output className="flex items-center gap-2 text-sm text-muted-foreground">
+              <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+              Loading preview
+            </output>
+          ) : state === 'error' || !url ? (
+            <EmptyState
+              action={
+                <Button
+                  onClick={() => setAttempt((value) => value + 1)}
+                  type="button"
+                  variant="outline"
+                >
+                  Retry
+                </Button>
+              }
+              description="The preview could not be loaded."
+              tone="danger"
+              title="Preview unavailable"
+            />
+          ) : item.type === 'PHOTO' ? (
+            // Blob URLs are browser-local and cannot use the Next.js image optimizer.
+            <img
+              alt={`Preview: ${item.fileName}`}
+              className="max-h-[60vh] w-full object-contain"
+              src={url}
+            />
+          ) : (
+            <video
+              aria-label={`Preview: ${item.fileName}`}
+              className="max-h-[60vh] w-full bg-ink object-contain"
+              controls
+              src={url}
+            >
+              <track kind="captions" />
+            </video>
+          )}
+          <DialogFooter>
+            <Button onClick={onClose} type="button" variant="outline">
+              Close
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      ) : null}
+    </Dialog>
   )
 }
 
@@ -700,11 +644,4 @@ const MediaKpi = ({
       <Icon className="h-4 w-4" aria-hidden="true" />
     </span>
   </article>
-)
-
-const MetadataRow = ({ label, value }: { label: string; value: string }) => (
-  <div className="rounded-xl border border-border bg-surface-subtle p-3">
-    <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{label}</p>
-    <p className="mt-1 break-words text-sm font-medium text-foreground">{value}</p>
-  </div>
 )

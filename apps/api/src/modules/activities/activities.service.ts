@@ -434,7 +434,7 @@ export function mapActivityListItem(row: ActivityListRow, businessDate: string) 
   }
 }
 
-const evidenceExtension: Record<ActivityEvidenceContentType, string> = {
+export const evidenceExtension: Record<ActivityEvidenceContentType, string> = {
   'application/pdf': '.pdf',
   'image/jpeg': '.jpg',
   'image/png': '.png',

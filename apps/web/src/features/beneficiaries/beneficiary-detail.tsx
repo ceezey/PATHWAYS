@@ -35,7 +35,6 @@ import {
 } from '@/components/ui/select'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Textarea } from '@/components/ui/textarea'
-import { UNFINISHED_CONTROLS_UI_ENABLED } from '@/constants/feature-flags'
 import { useCurrentRole } from '@/hooks/use-current-role'
 import { isUiActionAvailable } from '@/lib/rbac/ui-action-availability'
 import { type AssessmentDetail, pathwaysClient } from '@/lib/services/pathways-client'
@@ -147,6 +146,9 @@ export const BeneficiaryDetail = ({
     reason: '',
   })
   const canEditBeneficiary = isUiActionAvailable(role, 'beneficiaries.edit', profile)
+  // Aggregate-only roles never see beneficiary media; the server denies them as well.
+  const canViewMedia = role !== null && !['Program Manager', 'Grant Manager'].includes(role)
+  const canUploadMedia = isUiActionAvailable(role, 'beneficiaries.media.upload', profile)
   const canViewAssessmentDetail = isUiActionAvailable(role, 'assessments.detail.view', profile)
   const canTransitionJourney = isUiActionAvailable(
     role,
@@ -575,9 +577,7 @@ export const BeneficiaryDetail = ({
           <Tabs className="min-w-0" defaultValue="journey">
             <TabsList className="flex w-full overflow-x-auto" aria-label="Beneficiary information">
               <TabsTrigger value="journey">Journey tracking</TabsTrigger>
-              {UNFINISHED_CONTROLS_UI_ENABLED ? (
-                <TabsTrigger value="media">Media proof</TabsTrigger>
-              ) : null}
+              {canViewMedia ? <TabsTrigger value="media">Media proof</TabsTrigger> : null}
               <TabsTrigger value="participation">Participation history</TabsTrigger>
             </TabsList>
 
@@ -714,16 +714,12 @@ export const BeneficiaryDetail = ({
               ) : null}
             </TabsContent>
 
-            {UNFINISHED_CONTROLS_UI_ENABLED ? (
+            {canViewMedia ? (
               <TabsContent value="media">
                 <BeneficiaryMediaProof
-                  activities={activities}
                   beneficiaryId={beneficiary.id}
-                  canManage={canEditBeneficiary}
-                  mediaProof={[]}
-                  projectIds={beneficiary.projectIds}
-                  projects={projects}
-                  unavailableReason="Beneficiary media remains unavailable until a server-backed upload and review lifecycle is approved."
+                  canManage={canUploadMedia}
+                  projectId={projectId}
                 />
               </TabsContent>
             ) : null}
