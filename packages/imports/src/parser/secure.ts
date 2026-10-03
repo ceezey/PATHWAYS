@@ -1,5 +1,6 @@
 import { Worker } from 'node:worker_threads'
 
+import { importHeaderLabel } from '../header-label'
 import { IMPORT_ENGINEERING_LIMITS, type SupportedImportFileType } from '../limits'
 import { type PdfTableLimits, reconstructPdfTable } from './pdf-table'
 
@@ -376,12 +377,10 @@ function normalizeMatrix(
     if (typeof value !== 'string' && typeof value !== 'number') {
       reject('HEADER_INVALID', `Header ${index + 1} is invalid.`)
     }
-    const header = String(value)
-      .replace(/^\uFEFF/, '')
-      .trim()
+    const header = importHeaderLabel(String(value))
     const normalized = header.toLowerCase()
-    if (!header || header.length > IMPORT_ENGINEERING_LIMITS.maxHeaderCharacters) {
-      reject('HEADER_INVALID', `Header ${index + 1} is empty or too long.`)
+    if (!header) {
+      reject('HEADER_INVALID', `Header ${index + 1} is empty.`)
     }
     if (unsafeHeader.has(normalized)) {
       reject('HEADER_UNSAFE', `Header ${index + 1} uses a prohibited key.`)

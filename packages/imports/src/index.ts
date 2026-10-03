@@ -2,8 +2,10 @@
 
 export * from './mappers/smart-match'
 export * from './mappers/summary'
+export * from './header-label'
 export * from './limits'
 export * from './value-map'
+export * from './value-map-suggest'
 export * from './parser/csv'
 export * from './parser/xlsx'
 export * from './templates/export'
