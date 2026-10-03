@@ -746,12 +746,11 @@ export function ProjectIndicatorsWorkspace({ projectId }: { projectId: string })
             <table className="w-full min-w-[880px] text-sm tabular-nums">
               <thead>
                 <tr className="border-b border-border">
-                  <th className={headClass}>Code</th>
-                  <th className={headClass}>Indicator</th>
-                  <th className={headClass}>Baseline</th>
-                  <th className={headClass}>Target</th>
-                  <th className={headClass}>Actual</th>
-                  <th className={headClass}>Status</th>
+                  <th className={`${headClass} w-32`}>Code</th>
+                  <th className={`${headClass} w-[40%]`}>Indicator</th>
+                  <th className={`${headClass} text-center`}>Target</th>
+                  <th className={`${headClass} text-center`}>Actual</th>
+                  <th className={`${headClass} text-center`}>Status</th>
                   <th className={headClass}>
                     <span className="sr-only">Actions</span>
                   </th>
@@ -765,7 +764,7 @@ export function ProjectIndicatorsWorkspace({ projectId }: { projectId: string })
                     <Fragment key={indicator.id}>
                       <tr
                         aria-label={`Indicator: ${indicator.name}`}
-                        className="border-b border-border align-top hover:bg-muted"
+                        className="border-b border-border align-middle hover:bg-muted"
                       >
                         <td className="px-4 py-3 text-muted-foreground">{indicator.code}</td>
                         <td className="min-w-48 px-4 py-3">
@@ -778,15 +777,20 @@ export function ProjectIndicatorsWorkspace({ projectId }: { projectId: string })
                                 hideText
                               />
                             </div>
-                            <span className="text-xs text-muted-foreground">
-                              {progress !== null ? `${progress}%` : 'No progress yet'}
-                            </span>
+                            <span className="text-xs text-muted-foreground">{progress ?? 0}%</span>
                           </div>
                         </td>
-                        <td className="px-4 py-3">{indicator.baseline ?? 'Not configured'}</td>
-                        <td className="px-4 py-3">{indicator.target ?? 'Not configured'}</td>
-                        <td className="px-4 py-3">{formatMetricCell(indicator.current)}</td>
-                        <td className="px-4 py-3">
+                        <td className="px-4 py-3 text-center">
+                          {indicator.target ?? 'Not configured'}
+                        </td>
+                        {/* Product decision: no measurement yet reads as 0, like the overview tiles. */}
+                        <td className="px-4 py-3 text-center">
+                          {indicator.current.value === null &&
+                          indicator.current.state !== 'SUPPRESSED'
+                            ? '0'
+                            : formatMetricCell(indicator.current)}
+                        </td>
+                        <td className="px-4 py-3 text-center">
                           <StatusBadge tone={indicator.status === 'ACTIVE' ? 'success' : 'neutral'}>
                             {indicator.status.replaceAll('_', ' ')}
                           </StatusBadge>
