@@ -2,7 +2,7 @@ import { clearSensitiveDraftStorage } from '@/lib/auth/sensitive-drafts'
 /* @vitest-environment jsdom */
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { LiveReportingWorkspace } from './live-reporting-workspace'
+import { LiveReportingWorkspace, kinds } from './live-reporting-workspace'
 
 const state = vi.hoisted(() => ({
   user: 'reviewer-1',
@@ -290,5 +290,10 @@ describe('report generation owned retries', () => {
     render(<LiveReportingWorkspace initialKind="project-summary" />)
     expect(screen.queryByRole('button', { name: 'Generate private report' })).toBeNull()
     expect(screen.queryByRole('button', { name: 'Download' })).toBeNull()
+  })
+
+  it('lists the monitoring and evaluation report kinds with their labels', () => {
+    expect(kinds.MONITORING_REPORT.label).toBe('Monitoring report')
+    expect(kinds.EVALUATION_REPORT.label).toBe('Evaluation report')
   })
 })

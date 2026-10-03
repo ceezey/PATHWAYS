@@ -31,11 +31,13 @@ import { Download, FileSpreadsheet, Save } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { toast } from 'sonner'
 
-const kinds = {
+export const kinds = {
   PROJECT_SUMMARY: { label: 'Project summary', permission: 'reports.project.read' },
   INDICATOR_SUMMARY: { label: 'Indicator summary', permission: 'reports.indicator.read' },
   BENEFICIARY_SUMMARY: { label: 'Beneficiary summary', permission: 'reports.beneficiary.read' },
   SURVEY_FORM_RESULTS: { label: 'Survey results', permission: 'reports.project.read' },
+  MONITORING_REPORT: { label: 'Monitoring report', permission: 'reports.indicator.read' },
+  EVALUATION_REPORT: { label: 'Evaluation report', permission: 'reports.project.read' },
 } as const
 type Kind = keyof typeof kinds
 export function LiveReportingWorkspace({
@@ -176,7 +178,12 @@ export function LiveReportingWorkspace({
       }
     } catch (error) {
       if (captured.isCurrent()) {
-        const message = error instanceof Error ? error.message : 'Report generation unavailable.'
+        const message =
+          (error as { status?: number } | null)?.status === 409 && kind === 'EVALUATION_REPORT'
+            ? 'No signed-off evaluation exists for this project yet, so the report cannot be generated.'
+            : error instanceof Error
+              ? error.message
+              : 'Report generation unavailable.'
         setStatusMessage(message)
         toast.error(message)
       }
