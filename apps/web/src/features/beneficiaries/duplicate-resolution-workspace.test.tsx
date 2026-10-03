@@ -3,7 +3,14 @@
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { client } = vi.hoisted(() => ({
+const { client, session, toast } = vi.hoisted(() => ({
+  toast: { success: vi.fn() },
+  session: {
+    profile: {
+      roles: ['MONITORING_AND_EVALUATION_OFFICER'],
+      permissions: ['beneficiaries.identities.review'],
+    } as { roles: string[]; permissions: string[] },
+  },
   client: {
     getProjectsForRole: vi.fn(),
     getDuplicateCandidates: vi.fn(),
@@ -12,8 +19,12 @@ const { client } = vi.hoisted(() => ({
 }))
 
 vi.mock('@/hooks/use-current-role', () => ({
-  useCurrentRole: () => ({ role: 'Monitoring and Evaluation Officer' }),
+  useCurrentRole: () => ({
+    role: 'Monitoring and Evaluation Officer',
+    profile: session.profile,
+  }),
 }))
+vi.mock('sonner', () => ({ toast }))
 vi.mock('@/lib/services/pathways-client', () => ({ pathwaysClient: client }))
 
 import { DuplicateResolutionWorkspace } from './duplicate-resolution-workspace'
@@ -29,6 +40,7 @@ const profile = (id: string, code: string) => ({
 const pair = { left: profile('a', 'BEN-1'), right: profile('b', 'BEN-2') }
 
 beforeEach(() => {
+  session.profile.permissions = ['beneficiaries.identities.review']
   client.getProjectsForRole.mockResolvedValue([{ id: 'p1', title: 'Project One' }])
   client.getDuplicateCandidates.mockResolvedValue([pair])
   client.resolveDuplicate.mockResolvedValue(undefined)
@@ -59,6 +71,15 @@ describe('DuplicateResolutionWorkspace', () => {
       }),
     )
     await waitFor(() => expect(client.getDuplicateCandidates).toHaveBeenCalledTimes(2))
+    expect(toast.success).toHaveBeenCalledWith(expect.stringContaining('kept as distinct'))
+  })
+
+  it('hides the decision controls when the profile lacks the review grant', async () => {
+    session.profile.permissions = []
+    render(<DuplicateResolutionWorkspace />)
+    expect((await screen.findAllByText('BEN-1 / BEN-2')).length).toBeGreaterThan(0)
+    expect(screen.queryByRole('button', { name: 'Keep as distinct people' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Merge linked profiles' })).toBeNull()
   })
 
   it('shows an empty queue and no controls when there are no candidates', async () => {
