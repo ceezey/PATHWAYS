@@ -5,9 +5,10 @@ import ReactECharts from 'echarts-for-react'
 import { chartPalette } from '@/lib/chart-palette'
 import type { ParticipationBreakdown } from '@pathways/shared'
 
-export const SUPPRESSED_LABEL = 'Fewer than 5'
+export const SUPPRESSED_LABEL = 'Suppressed'
 
 interface Row {
+  key: string
   label: string
   count: number | null
   suppressed: boolean
@@ -60,7 +61,7 @@ const Breakdown = ({ title, rows }: { title: string; rows: Row[] }) => (
           <caption className="sr-only">{title}</caption>
           <tbody>
             {rows.map((row) => (
-              <tr className="border-b" key={row.label}>
+              <tr className="border-b" key={row.key}>
                 <td className="p-2">{row.label}</td>
                 <td className="p-2 tabular-nums">{countText(row)}</td>
               </tr>
@@ -85,15 +86,23 @@ export const ParticipationBreakdownPanel = ({ data }: { data: ParticipationBreak
     <div className="grid gap-6 xl:grid-cols-3">
       <Breakdown
         title="By activity"
-        rows={data.byActivity.map((row) => ({ ...row, label: row.activityName }))}
+        rows={data.byActivity.map((row) => ({
+          ...row,
+          key: row.activityId,
+          label: row.activityName,
+        }))}
       />
       <Breakdown
         title="By month"
-        rows={data.byMonth.map((row) => ({ ...row, label: row.month }))}
+        rows={data.byMonth.map((row) => ({ ...row, key: row.month, label: row.month }))}
       />
       <Breakdown
         title="By attendance status"
-        rows={data.byAttendanceStatus.map((row) => ({ ...row, label: statusLabel(row.status) }))}
+        rows={data.byAttendanceStatus.map((row) => ({
+          ...row,
+          key: row.status,
+          label: statusLabel(row.status),
+        }))}
       />
     </div>
   </div>
