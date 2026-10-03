@@ -33,6 +33,7 @@ import {
 } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
 import { useCurrentRole } from '@/hooks/use-current-role'
+import { usePendingCreate } from '@/hooks/use-pending-create'
 import {
   type SensitiveDraftOwner,
   readSensitiveDraft,
@@ -40,9 +41,10 @@ import {
   useSensitiveDraftOwner,
   writeSensitiveDraft,
 } from '@/lib/auth/sensitive-drafts'
+import { createdSince, fingerprintOf } from '@/lib/forms/pending-create'
 import { principalHasAtomicPermission } from '@/lib/rbac/route-access'
 import { PathwaysClientError, pathwaysClient } from '@/lib/services/pathways-client'
-import type { ProjectDetail, ProjectStatus, UserRecord } from '@/types/pathways'
+import type { ProjectDetail, ProjectStatus, ProjectSummary, UserRecord } from '@/types/pathways'
 
 import {
   type ProjectSetupSchema,
@@ -127,10 +129,27 @@ const ScopedProjectSetupForm = ({
   const [usersLoadError, setUsersLoadError] = useState<string | null>(null)
   const [usersLoadAttempt, setUsersLoadAttempt] = useState(0)
   const [saveError, setSaveError] = useState<string | null>(null)
+  const pendingCreate = usePendingCreate<ProjectSummary>({
+    profile,
+    kind: 'project',
+    projectId: projectId ?? null,
+    successMessage: 'Project created',
+    findCreated: async (fingerprint, startedAt) =>
+      (await pathwaysClient.getProjects()).find(
+        (item) =>
+          fingerprintOf(item.title) === fingerprint && createdSince(item.updatedAt, startedAt),
+      ),
+    onConfirmed: async (record) => {
+      removeSensitiveDraft(projectDraftStorageKey)
+      await refreshAccess()
+      router.push(`/projects/${record.id}`)
+    },
+  })
   const form = useForm<ProjectSetupSchema>({
     resolver: zodResolver(projectSetupSchema),
     defaultValues: projectDefaultValues,
   })
+  const savePending = form.formState.isSubmitting || pendingCreate.confirming
 
   useEffect(() => {
     if (projectId) {
@@ -262,11 +281,14 @@ const ScopedProjectSetupForm = ({
             },
             mutationContext ?? undefined,
           )
-        : await pathwaysClient.createProject({
-            ...toCreateProjectInput(values),
-            ...toProjectTeamInput(values, users),
-            ...budget,
-          })
+        : await pendingCreate.submit(fingerprintOf(values.title), () =>
+            pathwaysClient.createProject({
+              ...toCreateProjectInput(values),
+              ...toProjectTeamInput(values, users),
+              ...budget,
+            }),
+          )
+      if (!project) return
       if (!scope.isCurrent()) return
       if (!projectId) removeSensitiveDraft(projectDraftStorageKey)
       toast.success(existingProject ? 'Project profile updated.' : 'Project profile created.')
@@ -520,18 +542,23 @@ const ScopedProjectSetupForm = ({
                 users={users}
               />
             </div>
+            {pendingCreate.notice ? (
+              <output className="block rounded-xl border border-info/25 bg-info-subtle p-3 text-sm text-info">
+                {pendingCreate.notice}
+              </output>
+            ) : null}
             <div className="flex justify-end">
               <Button
                 className="gap-2"
-                disabled={form.formState.isSubmitting || Boolean(projectId && !existingProject)}
+                disabled={savePending || Boolean(projectId && !existingProject)}
                 type="submit"
               >
-                {form.formState.isSubmitting ? (
+                {savePending ? (
                   <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
                 ) : (
                   <Save className="h-4 w-4" aria-hidden="true" />
                 )}
-                {form.formState.isSubmitting
+                {savePending
                   ? projectId
                     ? 'Saving...'
                     : 'Creating...'
