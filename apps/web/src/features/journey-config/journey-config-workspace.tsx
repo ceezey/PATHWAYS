@@ -136,13 +136,18 @@ export const JourneyConfigWorkspace = ({ project, activities, initialStages }: W
       </SectionCard>
 
       <div className="grid gap-6 lg:grid-cols-2">
-        <SectionCard title="Stages" description="Click to configure · drag to reorder">
-          <div className="space-y-3">
-            {canEdit ? (
+        <SectionCard
+          title="Stages"
+          description="Click to configure · drag to reorder"
+          actions={
+            canEdit ? (
               <Button type="button" variant="outline" onClick={addStage}>
                 Add stage
               </Button>
-            ) : null}
+            ) : null
+          }
+        >
+          <div className="space-y-3">
             <JourneyStageList
               stages={stages}
               selectedId={selectedId}

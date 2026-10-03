@@ -70,12 +70,24 @@ export const JourneyTrack = ({ stages, selectedId, onSelect, stageState }: Track
     return <p className="text-sm text-muted-foreground">No stages configured yet.</p>
   return (
     <div className="overflow-x-auto" data-testid="journey-track">
-      <ol className="flex min-w-max items-start px-2 py-3">
+      <ol className="flex min-w-max items-start py-3">
         {roots.map((root, index) => {
           const kids = childrenOf(stages, root.id)
           return (
-            <li key={root.id} className="flex items-start">
-              <div className="flex flex-col items-center">
+            <li key={root.id} className="relative flex items-start px-4">
+              {/* Spine spans each column, so lines stay joined however wide the branches get. */}
+              {roots.length > 1 ? (
+                <span
+                  aria-hidden="true"
+                  className={cn(
+                    'absolute top-6 h-px',
+                    index === 0 ? 'left-1/2' : 'left-0',
+                    index === roots.length - 1 ? 'right-1/2' : 'right-0',
+                    stageState?.(root) === 'done' ? 'bg-primary' : 'bg-border-strong',
+                  )}
+                />
+              ) : null}
+              <div className="relative flex flex-col items-center">
                 <Node
                   stage={root}
                   selected={root.id === selectedId}
@@ -112,15 +124,6 @@ export const JourneyTrack = ({ stages, selectedId, onSelect, stageState }: Track
                   </>
                 ) : null}
               </div>
-              {index < roots.length - 1 ? (
-                <span
-                  aria-hidden="true"
-                  className={cn(
-                    'mt-6 h-px w-8',
-                    stageState?.(root) === 'done' ? 'bg-primary' : 'bg-border-strong',
-                  )}
-                />
-              ) : null}
             </li>
           )
         })}
