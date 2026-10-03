@@ -354,7 +354,7 @@ git commit -m "feat(auth): enforce sign-in lockout on direct password grants via
 
 - [ ] **Step 8: Developer handoff (not an agent step)**
 
-After 0052 is applied on `PATHWAYS-role-staging`, the developer enables it in the Supabase dashboard: Authentication, Hooks, Password Verification Attempt, Postgres function `pathways.p52_password_verification_attempt`. The agent writes these exact steps into the CR and stops.
+After 0052 is applied on `PATHWAYS-devV2`, the developer enables it in the Supabase dashboard: Authentication, Hooks, Password Verification Attempt, Postgres function `pathways.p52_password_verification_attempt`. The agent writes these exact steps into the CR and stops.
 
 ---
 

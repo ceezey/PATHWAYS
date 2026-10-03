@@ -1,4 +1,4 @@
-// Guard rails for the hosted PATHWAYS-role-staging seed. Never connects to any database or
+// Guard rails for the hosted PATHWAYS-devV2 seed. Never connects to any database or
 // Supabase project itself; only validates the target described by an env file the caller supplies.
 import { existsSync, readFileSync } from 'node:fs'
 import path from 'node:path'

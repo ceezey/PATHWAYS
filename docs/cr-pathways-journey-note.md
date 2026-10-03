@@ -2,7 +2,7 @@
 
 **ID:** `cr-pathways-journey-note`  
 **Date:** 2026-10-01  
-**Status:** Applied (2026-10-02; 0049 applied on PATHWAYS-role-staging)
+**Status:** Applied (2026-10-02; 0049 applied on PATHWAYS-devV2)
 
 ## 1. Trigger
 
@@ -59,4 +59,4 @@ Developer decision, 2026-10-01: approved to build G-F4-6 (read gate, UC-F4-2, UC
 
 Code, migration file and documentation are on branch `feat/f4-journey-note`. Do not mark Applied until migration 0049 is applied to staging and the hosted checks pass.
 
-Verified 2026-10-02: 0049 applied on PATHWAYS-role-staging (ledger 0000-0054 finished, none rolled back).
+Verified 2026-10-02: 0049 applied on PATHWAYS-devV2 (ledger 0000-0054 finished, none rolled back).

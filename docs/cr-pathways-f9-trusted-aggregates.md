@@ -68,7 +68,7 @@ API tests add Program Manager and Grant Manager cases for both views on read and
 
 ## 7. Release Impact
 
-This release now contains a migration. Release stage R6 stops for human authorization. Applying `0045` to `PATHWAYS-role-staging` or any hosted database needs separate developer authorization and follows the hosted build tooling. The `dev` to `master` question for migrations `0042` and `0043` is still undecided.
+This release now contains a migration. Release stage R6 stops for human authorization. Applying `0045` to `PATHWAYS-devV2` or any hosted database needs separate developer authorization and follows the hosted build tooling. The `dev` to `master` question for migrations `0042` and `0043` is still undecided.
 
 ## 8. Disposition
 

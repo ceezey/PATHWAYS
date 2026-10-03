@@ -69,6 +69,6 @@ Developer approved 2026-10-01 (building G-F6-7 as described in the request).
 
 Code and tests delivered on `feat/f6-import-value-map`. Migration 0050 not applied to any database; staging apply and release gates remain open.
 
-Update 2026-10-02: migration 0050 is applied on PATHWAYS-role-staging (ledger 0000-0054). Status stays Approved; open condition: release gates (dev to master) remain open.
+Update 2026-10-02: migration 0050 is applied on PATHWAYS-devV2 (ledger 0000-0054). Status stays Approved; open condition: release gates (dev to master) remain open.
 
 Update 2026-10-03: G-F6-7 verified Met on `feature/f5-f6-verify-dsd` with service-level evidence (`imports.f6-gates.test.ts`); status Implemented.

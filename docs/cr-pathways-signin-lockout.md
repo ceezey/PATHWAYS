@@ -2,7 +2,7 @@
 
 **ID:** `cr-pathways-signin-lockout`  
 **Date:** 2026-10-01  
-**Status:** Applied (2026-10-02; 0046 and 0052 applied on PATHWAYS-role-staging, runtime SQL passes; hosted hook not enabled on Free plan, not an Applied condition)
+**Status:** Applied (2026-10-02; 0046 and 0052 applied on PATHWAYS-devV2, runtime SQL passes; hosted hook not enabled on Free plan, not an Applied condition)
 
 ## 1. Trigger
 
@@ -68,7 +68,7 @@ Developer decision, 2026-10-01: build G-F1-10.
 
 ## 9. Disposition
 
-Residual risk: anyone can lock a known email for 15 minutes at a time. Locally, the direct-grant bypass is closed by migration 0052, which adds the password-verification-attempt hook `pathways_auth.password_verification_attempt` (read-only, executable only by `supabase_auth_admin`, which has USAGE on the dedicated `pathways_auth` schema and none on `pathways`; failures are still counted only by the API). Accepted residual: `supabase_auth_admin` can probe lock state for arbitrary emails through the `pathways_auth.lockout_remaining` helper; it is the auth role itself and already holds auth.users. Mark Applied after 0046 and 0052 are applied on `PATHWAYS-role-staging` and their runtime SQL tests pass; on the Free plan the hook is not enabled, so enabling it is not an Applied condition.
+Residual risk: anyone can lock a known email for 15 minutes at a time. Locally, the direct-grant bypass is closed by migration 0052, which adds the password-verification-attempt hook `pathways_auth.password_verification_attempt` (read-only, executable only by `supabase_auth_admin`, which has USAGE on the dedicated `pathways_auth` schema and none on `pathways`; failures are still counted only by the API). Accepted residual: `supabase_auth_admin` can probe lock state for arbitrary emails through the `pathways_auth.lockout_remaining` helper; it is the auth role itself and already holds auth.users. Mark Applied after 0046 and 0052 are applied on `PATHWAYS-devV2` and their runtime SQL tests pass; on the Free plan the hook is not enabled, so enabling it is not an Applied condition.
 
 ### Hosted hook status
 
@@ -80,4 +80,4 @@ If upgraded to a plan with Auth Hooks, enable it as a developer step:
 2. Rollback order: disable the hook first, then drop schema `pathways_auth`.
 3. A hook error blocks all password sign-ins.
 
-Verified 2026-10-02: 0046-0054 applied on PATHWAYS-role-staging (see the verified hosted facts in the staging runbook, section 8).
+Verified 2026-10-02: 0046-0054 applied on PATHWAYS-devV2 (see the verified hosted facts in the staging runbook, section 8).

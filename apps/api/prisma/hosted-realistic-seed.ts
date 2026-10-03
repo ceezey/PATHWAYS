@@ -22,7 +22,7 @@ import { seedCanonicalReferenceData } from './canonical-seed'
 import { approvedOrganization } from './developer-bootstrap'
 
 /**
- * Realistic, fictional Philippine-context hosted seed for the PATHWAYS-role-staging project
+ * Realistic, fictional Philippine-context hosted seed for the PATHWAYS-devV2 project
  * (klbtoqdalmcsfjqophty). Run only through scripts/db/hosted-seed.mjs, which validates the
  * target and forwards env vars; this file never resolves or validates a Supabase project on
  * its own. Never creates, invites, emails, or sets a password for the System Administrator
@@ -989,7 +989,7 @@ async function main() {
       (sum, p) => sum + p.registeredBeneficiaries,
       0,
     )
-    console.info('\n=== Hosted realistic seed complete (PATHWAYS-role-staging) ===')
+    console.info('\n=== Hosted realistic seed complete (PATHWAYS-devV2) ===')
     console.info(`Mode: ${guard.testLocal ? 'test-local' : 'hosted'}`)
     console.info(`Organization: ${approvedOrganization.name} (${approvedOrganization.code})`)
     console.info('\nStorage buckets:')
