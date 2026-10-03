@@ -4,7 +4,11 @@ import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { createElement } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { ProjectIndicatorsWorkspace, indicatorInputFromForm } from './project-indicators-workspace'
+import {
+  ProjectIndicatorsWorkspace,
+  indicatorInputFromForm,
+  suggestIndicatorCode,
+} from './project-indicators-workspace'
 
 const state = vi.hoisted(() => ({
   roles: ['PROJECT_MANAGER'],
@@ -133,6 +137,27 @@ describe('P06 dedicated indicator workspace', () => {
     )
     expect(html).toContain('Add project indicator')
     expect(html).not.toContain('Indicator Library')
+  })
+  it('suggests a contract-valid code from the name', () => {
+    expect(suggestIndicatorCode('Session attendance rate')).toBe('SESSION_ATTENDANCE_RATE')
+    expect(suggestIndicatorCode('2026 enrolment')).toBe('I_2026_ENROLMENT')
+    expect(suggestIndicatorCode('  ')).toBe('')
+  })
+  it('prefills code, unit, direction and hides decimal places in the add dialog', () => {
+    state.permissions = ['monitoring.read', 'indicators.create']
+    render(
+      createElement(ProjectIndicatorsWorkspace, {
+        projectId: '79000000-0000-4000-8000-000000000003',
+      }),
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'Add project indicator' }))
+    fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'Households reached' } })
+    expect((screen.getByLabelText('Code') as HTMLInputElement).value).toBe('HOUSEHOLDS_REACHED')
+    expect((screen.getByLabelText('Unit label') as HTMLInputElement).value).toBe('count')
+    expect(screen.getByRole('combobox', { name: 'Direction' }).textContent).toContain(
+      'Higher is better',
+    )
+    expect(screen.queryByLabelText('Chart-axis decimal places')).toBeNull()
   })
   it('opens the add dialog with the authority choices only on demand', () => {
     state.permissions = ['monitoring.read', 'indicators.create']
