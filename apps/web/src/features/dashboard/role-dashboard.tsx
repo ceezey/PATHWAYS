@@ -53,6 +53,7 @@ import { businessCalendarDate, formatMetricCell } from '@pathways/shared'
 
 import { ActivityDetailPanel } from '../projects/activity-detail-panel'
 import { ActivityProofDialog } from '../projects/activity-proof-dialog'
+import { ActionKpiRow } from './action-kpi-row'
 import { ExecutiveDashboard } from './executive-dashboard'
 
 export const canLoadDashboardMonitoring = (
@@ -608,6 +609,7 @@ export const RoleDashboard = () => {
         }
         title={`Welcome! ${roleLabel}`}
       />
+      <ActionKpiRow />
       {canLoadDashboardMonitoring(role, profile) ? (
         <ConnectedMonitoringSnapshot role={role} />
       ) : null}

@@ -21,6 +21,12 @@ export type DashboardSeverity = 'neutral' | 'info' | 'success' | 'warning' | 'da
 export type DashboardActionKind = 'dialog' | 'navigate' | 'toast'
 
 /** Project profile only. Overview metrics come from `GET /projects/:id/overview-metrics`. */
+export interface ProjectTeamMember {
+  userId: string
+  fullName: string
+  role: string
+}
+
 export interface ProjectSummary {
   description?: string
   targetBeneficiaries?: number
@@ -37,6 +43,7 @@ export interface ProjectSummary {
   health: HealthStatus
   period: string
   projectManager: string
+  team?: ProjectTeamMember[]
   updatedAt?: string
   programId?: string | null
 }
