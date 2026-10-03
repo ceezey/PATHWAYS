@@ -9,7 +9,6 @@ import {
 } from '@/components/pathways'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
 import { useCurrentRole } from '@/hooks/use-current-role'
 import { useOperationRequestId } from '@/lib/auth/operation-request-id'
 import { useSensitiveDraftOwner } from '@/lib/auth/sensitive-drafts'
@@ -18,7 +17,10 @@ import { coreDataClient } from '@/lib/services/core-feature-client'
 import { useAuthorizedRead } from '@/providers/authorized-query-provider'
 import { useEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
+import { InlineNotice, OptionSelect } from './option-select'
 
+const headClass =
+  'sticky top-0 z-10 h-10 bg-surface-subtle px-4 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground'
 const types = [
   'KPI',
   'TIMELINE_COMPLIANCE',
@@ -227,42 +229,62 @@ function EvaluationContent({ projectId }: { projectId: string }) {
         {read.isPending && !read.isError ? (
           <LoadingSkeleton />
         ) : read.isError ? (
-          <output>
+          <InlineNotice tone="danger">
             Current criteria access could not be verified. Reload the evaluation to continue.
-          </output>
+          </InlineNotice>
         ) : current?.criteria.length ? (
           <div className="space-y-4">
-            {current.criteria.map((row) => (
-              <div key={row.id} className="grid gap-3 rounded-xl border p-4 md:grid-cols-3">
-                <div>
-                  <p className="font-semibold">{row.name}</p>
-                  <p className="text-sm text-muted-foreground">
-                    {row.code} · {row.type} · Version {row.version}
-                  </p>
-                  <StatusBadge>{row.status}</StatusBadge>
-                </div>
-                <Label className="space-y-2">
-                  <span>Weight (%)</span>
-                  <Input
-                    type="number"
-                    min="0.0001"
-                    max="100"
-                    step="0.0001"
-                    disabled={!owner || row.status !== 'DRAFT' || busy}
-                    value={weights[row.id] ?? row.weightPercentage}
-                    onChange={(event) =>
-                      owner?.isCurrent() &&
-                      setWeightDraft({
-                        key: owner.key,
-                        generation: owner.generation,
-                        values: { ...weights, [row.id]: event.target.value },
-                      })
-                    }
-                  />
-                </Label>
-                <p>Maximum score: {row.maximumScore}</p>
-              </div>
-            ))}
+            <div className="max-h-[36rem] overflow-auto rounded-lg border border-border">
+              <table className="w-full min-w-[640px] text-sm tabular-nums">
+                <thead>
+                  <tr className="border-b border-border">
+                    <th className={headClass}>Criterion</th>
+                    <th className={headClass}>Status</th>
+                    <th className={headClass}>Weight (%)</th>
+                    <th className={headClass}>Maximum score</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {current.criteria.map((row) => (
+                    <tr
+                      key={row.id}
+                      className="border-b border-border last:border-0 hover:bg-muted"
+                    >
+                      <td className="px-4 py-3">
+                        <p className="font-medium text-foreground">{row.name}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {row.code} · {row.type} · Version {row.version}
+                        </p>
+                      </td>
+                      <td className="px-4 py-3">
+                        <StatusBadge>{row.status}</StatusBadge>
+                      </td>
+                      <td className="px-4 py-2">
+                        <Input
+                          aria-label="Weight (%)"
+                          className="w-32"
+                          type="number"
+                          min="0.0001"
+                          max="100"
+                          step="0.0001"
+                          disabled={!owner || row.status !== 'DRAFT' || busy}
+                          value={weights[row.id] ?? row.weightPercentage}
+                          onChange={(event) =>
+                            owner?.isCurrent() &&
+                            setWeightDraft({
+                              key: owner.key,
+                              generation: owner.generation,
+                              values: { ...weights, [row.id]: event.target.value },
+                            })
+                          }
+                        />
+                      </td>
+                      <td className="px-4 py-3">{row.maximumScore}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
             {owner && current.criteria.some((row) => row.status === 'DRAFT') ? (
               <Button disabled={busy} onClick={() => void configure()}>
                 {busy ? 'Saving' : 'Save draft weights'}
@@ -285,65 +307,81 @@ function EvaluationContent({ projectId }: { projectId: string }) {
           description="Define this project's criteria. Positive weights must total 100 percent; no score or evaluation history is created."
         >
           <div className="space-y-4">
-            {drafts.map((row, index) => (
-              <fieldset
-                key={row.localId}
-                disabled={busy}
-                className="grid gap-3 rounded-xl border p-4 md:grid-cols-5"
-              >
-                <legend className="px-1 text-sm font-semibold">Criterion {index + 1}</legend>
-                <Label>
-                  Code
-                  <Input
-                    maxLength={80}
-                    value={row.code}
-                    onChange={(event) => edit(index, 'code', event.target.value)}
-                  />
-                </Label>
-                <Label>
-                  Name
-                  <Input
-                    maxLength={200}
-                    value={row.name}
-                    onChange={(event) => edit(index, 'name', event.target.value)}
-                  />
-                </Label>
-                <Label>
-                  Type
-                  <select
-                    className="h-11 w-full rounded-md border bg-background px-3"
-                    value={row.type}
-                    onChange={(event) => edit(index, 'type', event.target.value)}
-                  >
-                    {types.map((type) => (
-                      <option key={type}>{type}</option>
+            <fieldset disabled={busy} className="min-w-0">
+              <legend className="sr-only">Initial draft criteria</legend>
+              <div className="overflow-auto rounded-lg border border-border">
+                <table className="w-full min-w-[820px] text-sm tabular-nums">
+                  <thead>
+                    <tr className="border-b border-border">
+                      <th className={headClass}>Criterion</th>
+                      <th className={headClass}>Code</th>
+                      <th className={headClass}>Name</th>
+                      <th className={headClass}>Type</th>
+                      <th className={headClass}>Weight (%)</th>
+                      <th className={headClass}>Maximum score</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {drafts.map((row, index) => (
+                      <tr key={row.localId} className="border-b border-border last:border-0">
+                        <th scope="row" className="px-4 py-2 text-left font-semibold">
+                          Criterion {index + 1}
+                        </th>
+                        <td className="px-2 py-2">
+                          <Input
+                            aria-label="Code"
+                            maxLength={80}
+                            value={row.code}
+                            onChange={(event) => edit(index, 'code', event.target.value)}
+                          />
+                        </td>
+                        <td className="px-2 py-2">
+                          <Input
+                            aria-label="Name"
+                            maxLength={200}
+                            value={row.name}
+                            onChange={(event) => edit(index, 'name', event.target.value)}
+                          />
+                        </td>
+                        <td className="px-2 py-2">
+                          <OptionSelect
+                            id={`criterion-type-${row.localId}`}
+                            label="Type"
+                            value={row.type}
+                            onValueChange={(value) => edit(index, 'type', value)}
+                            options={types.map((type) => ({ value: type, label: type }))}
+                          />
+                        </td>
+                        <td className="px-2 py-2">
+                          <Input
+                            aria-label="Weight (%)"
+                            type="number"
+                            min="0.0001"
+                            max="100"
+                            step="0.0001"
+                            value={row.weightPercentage}
+                            onChange={(event) =>
+                              edit(index, 'weightPercentage', event.target.value)
+                            }
+                          />
+                        </td>
+                        <td className="px-2 py-2">
+                          <Input
+                            aria-label="Maximum score"
+                            type="number"
+                            min="0.0001"
+                            max="1000000"
+                            step="0.0001"
+                            value={row.maximumScore}
+                            onChange={(event) => edit(index, 'maximumScore', event.target.value)}
+                          />
+                        </td>
+                      </tr>
                     ))}
-                  </select>
-                </Label>
-                <Label>
-                  Weight (%)
-                  <Input
-                    type="number"
-                    min="0.0001"
-                    max="100"
-                    step="0.0001"
-                    value={row.weightPercentage}
-                    onChange={(event) => edit(index, 'weightPercentage', event.target.value)}
-                  />
-                </Label>
-                <Label>
-                  Maximum score
-                  <Input
-                    type="number"
-                    min="0.0001"
-                    max="1000000"
-                    step="0.0001"
-                    value={row.maximumScore}
-                    onChange={(event) => edit(index, 'maximumScore', event.target.value)}
-                  />
-                </Label>
-              </fieldset>
-            ))}
+                  </tbody>
+                </table>
+              </div>
+            </fieldset>
             <div className="flex flex-wrap gap-3">
               <Button
                 variant="outline"

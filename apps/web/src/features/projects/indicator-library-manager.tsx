@@ -1,12 +1,21 @@
 'use client'
 
-import { LibraryBig } from 'lucide-react'
+import { LibraryBig, Plus } from 'lucide-react'
 import { type FormEvent, useRef, useState } from 'react'
 
 import { PageHeader } from '@/components/layout/page-header'
-import { ConfirmationDialog, EmptyState, StatusBadge } from '@/components/pathways'
+import {
+  AsyncState,
+  ConfirmationDialog,
+  DialogShell,
+  EmptyState,
+  SectionCard,
+  StatusBadge,
+} from '@/components/pathways'
 import { Button } from '@/components/ui/button'
+import { Dialog, DialogTrigger } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
+import { Textarea } from '@/components/ui/textarea'
 import { useCurrentRole } from '@/hooks/use-current-role'
 import { principalHasAtomicPermission } from '@/lib/rbac/route-access'
 import { indicatorLibraryClient } from '@/lib/services/indicator-library-client'
@@ -20,13 +29,21 @@ import {
   numericKinds,
 } from '@pathways/shared'
 import { recipeNames } from './indicator-recipes'
+import { InlineNotice, OptionSelect } from './option-select'
 
-const controlClass = 'h-11 w-full rounded-md border border-input bg-background px-3 text-sm'
 const field = (form: FormData, name: string) => String(form.get(name) ?? '').trim()
+const headClass =
+  'sticky top-0 z-10 h-10 bg-surface-subtle px-4 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground'
 
-function NewEntry({
+function EntryForm({
+  message,
   onCreate,
-}: { onCreate: (input: CreateLibraryEntryInput) => Promise<boolean> }) {
+  onDone,
+}: {
+  message: string | null
+  onCreate: (input: CreateLibraryEntryInput) => Promise<boolean>
+  onDone: () => void
+}) {
   const [mode, setMode] = useState('MANUAL')
   const [validation, setValidation] = useState<string | null>(null)
   const retry = useRef<{ signature: string; id: string } | null>(null)
@@ -63,126 +80,127 @@ function NewEntry({
     retry.current = attempt
     if (await onCreate(parsed.data)) {
       retry.current = null
-      element.reset()
-      setMode('MANUAL')
+      onDone()
     }
   }
   return (
-    <details className="rounded-xl border border-border bg-card p-4">
-      <summary className="flex min-h-11 cursor-pointer items-center font-medium">
-        Add library entry
-      </summary>
-      <p className="my-3 text-sm text-muted-foreground">
-        An entry is a definition template only. The period, baseline and target are set when a
-        project uses it, and later changes to the library never alter existing project indicators.
-      </p>
-      <form onSubmit={save} className="space-y-4">
-        <div className="grid gap-3 md:grid-cols-2">
-          <div>
-            <label htmlFor="library-code">Code</label>
-            <Input
-              id="library-code"
-              name="code"
-              required
-              maxLength={40}
-              pattern="[A-Z][A-Z0-9_\-]{1,39}"
-            />
-          </div>
-          <div>
-            <label htmlFor="library-name">Name</label>
-            <Input id="library-name" name="name" required maxLength={160} />
-          </div>
-          <div>
-            <label htmlFor="library-unit">Unit label</label>
-            <Input id="library-unit" name="unitLabel" required maxLength={80} />
-          </div>
-          <div>
-            <label htmlFor="library-source">Source description</label>
-            <Input id="library-source" name="dataSource" required maxLength={300} />
-          </div>
-          <div>
-            <label htmlFor="library-mode">Authority</label>
-            <select
-              id="library-mode"
-              className={controlClass}
-              value={mode}
-              onChange={(event) => setMode(event.target.value)}
-            >
-              <option value="MANUAL">Manual measurement</option>
-              <option value="DERIVED">Typed derived calculation</option>
-            </select>
-          </div>
-          <div>
-            <label htmlFor="library-kind">Numeric domain</label>
-            <select
-              id="library-kind"
-              name="numericKind"
-              className={controlClass}
-              defaultValue="COUNT"
-            >
-              {numericKinds.map((kind) => (
-                <option key={kind} value={kind}>
-                  {kind.replaceAll('_', ' ')}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <label htmlFor="library-direction">Direction</label>
-            <select
-              id="library-direction"
-              name="direction"
-              className={controlClass}
-              defaultValue="DESCRIPTIVE"
-            >
-              <option value="DESCRIPTIVE">Descriptive only</option>
-              <option value="HIGHER_IS_BETTER">Higher is better</option>
-              <option value="LOWER_IS_BETTER">Lower is better</option>
-            </select>
-          </div>
-          <div>
-            <label htmlFor="library-precision">Chart-axis decimal places</label>
-            <Input
-              id="library-precision"
-              name="displayPrecision"
-              type="number"
-              min={0}
-              max={4}
-              step={1}
-              defaultValue={0}
-              required
-            />
-          </div>
-          {mode === 'DERIVED' ? (
-            <div className="md:col-span-2">
-              <label htmlFor="library-recipe">System-owned calculation</label>
-              <select id="library-recipe" name="recipe" className={controlClass}>
-                {libraryRecipes.map((recipe) => (
-                  <option key={recipe} value={recipe}>
-                    {recipeNames[recipe]}
-                  </option>
-                ))}
-              </select>
-            </div>
-          ) : null}
-          <div className="md:col-span-2">
-            <label htmlFor="library-description">Description</label>
-            <textarea
-              id="library-description"
-              name="description"
-              maxLength={2000}
-              className="min-h-24 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-            />
-          </div>
+    <form onSubmit={save} className="space-y-4">
+      <div className="grid gap-3 md:grid-cols-2">
+        <div>
+          <label htmlFor="library-code">Code</label>
+          <Input
+            id="library-code"
+            name="code"
+            required
+            maxLength={40}
+            pattern="[A-Z][A-Z0-9_\-]{1,39}"
+          />
         </div>
-        {validation ? (
-          <p role="alert" className="text-sm text-destructive">
-            {validation}
-          </p>
+        <div>
+          <label htmlFor="library-name">Name</label>
+          <Input id="library-name" name="name" required maxLength={160} />
+        </div>
+        <div>
+          <label htmlFor="library-unit">Unit label</label>
+          <Input id="library-unit" name="unitLabel" required maxLength={80} />
+        </div>
+        <div>
+          <label htmlFor="library-source">Source description</label>
+          <Input id="library-source" name="dataSource" required maxLength={300} />
+        </div>
+        <div>
+          <label htmlFor="library-mode">Authority</label>
+          <OptionSelect
+            id="library-mode"
+            value={mode}
+            onValueChange={setMode}
+            options={[
+              { value: 'MANUAL', label: 'Manual measurement' },
+              { value: 'DERIVED', label: 'Typed derived calculation' },
+            ]}
+          />
+        </div>
+        <div>
+          <label htmlFor="library-kind">Numeric domain</label>
+          <OptionSelect
+            id="library-kind"
+            name="numericKind"
+            defaultValue="COUNT"
+            options={numericKinds.map((kind) => ({
+              value: kind,
+              label: kind.replaceAll('_', ' '),
+            }))}
+          />
+        </div>
+        <div>
+          <label htmlFor="library-direction">Direction</label>
+          <OptionSelect
+            id="library-direction"
+            name="direction"
+            defaultValue="DESCRIPTIVE"
+            options={[
+              { value: 'DESCRIPTIVE', label: 'Descriptive only' },
+              { value: 'HIGHER_IS_BETTER', label: 'Higher is better' },
+              { value: 'LOWER_IS_BETTER', label: 'Lower is better' },
+            ]}
+          />
+        </div>
+        <div>
+          <label htmlFor="library-precision">Chart-axis decimal places</label>
+          <Input
+            id="library-precision"
+            name="displayPrecision"
+            type="number"
+            min={0}
+            max={4}
+            step={1}
+            defaultValue={0}
+            required
+          />
+        </div>
+        {mode === 'DERIVED' ? (
+          <div className="md:col-span-2">
+            <label htmlFor="library-recipe">System-owned calculation</label>
+            <OptionSelect
+              id="library-recipe"
+              name="recipe"
+              defaultValue={libraryRecipes[0]}
+              options={libraryRecipes.map((recipe) => ({
+                value: recipe,
+                label: recipeNames[recipe],
+              }))}
+            />
+          </div>
         ) : null}
-        <Button type="submit">Save entry</Button>
-      </form>
-    </details>
+        <div className="md:col-span-2">
+          <label htmlFor="library-description">Description</label>
+          <Textarea id="library-description" name="description" maxLength={2000} />
+        </div>
+      </div>
+      {validation ? <InlineNotice tone="danger">{validation}</InlineNotice> : null}
+      {message ? <InlineNotice>{message}</InlineNotice> : null}
+      <Button type="submit">Save entry</Button>
+    </form>
+  )
+}
+
+function NewEntry(props: Omit<Parameters<typeof EntryForm>[0], 'onDone'>) {
+  const [open, setOpen] = useState(false)
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>
+        <Button type="button" className="gap-2">
+          <Plus className="h-4 w-4" aria-hidden="true" />
+          Add library entry
+        </Button>
+      </DialogTrigger>
+      <DialogShell
+        title="Add library entry"
+        description="An entry is a definition template only. The period, baseline and target are set when a project uses it, and later changes to the library never alter existing project indicators."
+      >
+        <EntryForm {...props} onDone={() => setOpen(false)} />
+      </DialogShell>
+    </Dialog>
   )
 }
 
@@ -224,22 +242,30 @@ export function IndicatorLibraryManager() {
         title="Indicator library"
         description="Reusable indicator definitions for your organization. Using one copies its definition into a project; it never links back."
       />
-      {message ? (
-        <output aria-live="polite" className="block rounded-xl border border-border p-3 text-sm">
-          {message}
-        </output>
-      ) : null}
       {canCreate ? (
-        <NewEntry
-          onCreate={(input) =>
-            run(() => indicatorLibraryClient.create(input), 'Library entry saved.')
-          }
-        />
+        <div className="flex justify-end">
+          <NewEntry
+            message={message}
+            onCreate={(input) =>
+              run(() => indicatorLibraryClient.create(input), 'Library entry saved.')
+            }
+          />
+        </div>
       ) : null}
+      {message ? <InlineNotice>{message}</InlineNotice> : null}
       {read.error ? (
-        <p role="alert">The library could not be loaded. Reload the page to try again.</p>
+        <AsyncState
+          status="error"
+          title="Library unavailable"
+          description="The library could not be loaded. Reload the page to try again."
+          onRetry={() => void read.refetch()}
+        />
       ) : !entries ? (
-        <output aria-live="polite">Loading the indicator library...</output>
+        <AsyncState
+          status="loading"
+          title="Loading the indicator library"
+          description="Verifying current access."
+        />
       ) : entries.length === 0 ? (
         <EmptyState
           icon={LibraryBig}
@@ -247,39 +273,68 @@ export function IndicatorLibraryManager() {
           description="Add a definition once, then reuse it in any project of your organization."
         />
       ) : (
-        <ul className="grid gap-4 xl:grid-cols-2">
-          {entries.map((entry) => (
-            <li key={entry.id} className="rounded-xl border border-border bg-card p-5">
-              <div className="flex flex-wrap items-start justify-between gap-3">
-                <div>
-                  <h2 className="font-heading text-lg">{entry.name}</h2>
-                  <p className="text-sm text-muted-foreground">
-                    {entry.code} · {entry.unitLabel}
-                  </p>
-                </div>
-                <StatusBadge tone="neutral">
-                  {entry.recipe ? recipeNames[entry.recipe] : 'Manual measurement'}
-                </StatusBadge>
-              </div>
-              {entry.description ? <p className="mt-3 text-sm">{entry.description}</p> : null}
-              <p className="mt-3 text-sm text-muted-foreground">
-                Source: {entry.dataSource} · {entry.numericKind.replaceAll('_', ' ')} ·{' '}
-                {entry.direction.replaceAll('_', ' ').toLowerCase()}
-              </p>
-              {canArchive ? (
-                <Button
-                  type="button"
-                  variant="outline"
-                  className="mt-4"
-                  disabled={busy}
-                  onClick={() => setArchiving(entry)}
-                >
-                  Archive entry
-                </Button>
-              ) : null}
-            </li>
-          ))}
-        </ul>
+        <SectionCard
+          title="Library entries"
+          description={`${entries.length} ${entries.length === 1 ? 'entry' : 'entries'} · definitions only, never linked back to projects`}
+        >
+          <div className="max-h-[36rem] overflow-auto rounded-lg border border-border">
+            <table className="w-full min-w-[760px] text-sm tabular-nums">
+              <thead>
+                <tr className="border-b border-border">
+                  <th className={headClass}>Code</th>
+                  <th className={headClass}>Entry</th>
+                  <th className={headClass}>Authority</th>
+                  <th className={headClass}>Domain and direction</th>
+                  <th className={headClass}>
+                    <span className="sr-only">Actions</span>
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {entries.map((entry) => (
+                  <tr
+                    aria-label={`Library entry: ${entry.name}`}
+                    className="border-b border-border align-top last:border-0 hover:bg-muted"
+                    key={entry.id}
+                  >
+                    <td className="px-4 py-3 text-muted-foreground">{entry.code}</td>
+                    <td className="px-4 py-3">
+                      <p className="font-medium text-foreground">{entry.name}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {entry.unitLabel} · Source: {entry.dataSource}
+                      </p>
+                      {entry.description ? (
+                        <p className="mt-1 text-sm">{entry.description}</p>
+                      ) : null}
+                    </td>
+                    <td className="px-4 py-3">
+                      <StatusBadge tone="neutral">
+                        {entry.recipe ? recipeNames[entry.recipe] : 'Manual measurement'}
+                      </StatusBadge>
+                    </td>
+                    <td className="px-4 py-3 text-muted-foreground">
+                      {entry.numericKind.replaceAll('_', ' ')} ·{' '}
+                      {entry.direction.replaceAll('_', ' ').toLowerCase()}
+                    </td>
+                    <td className="px-4 py-3 text-right">
+                      {canArchive ? (
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          disabled={busy}
+                          onClick={() => setArchiving(entry)}
+                        >
+                          Archive entry
+                        </Button>
+                      ) : null}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </SectionCard>
       )}
       <ConfirmationDialog
         open={archiving !== null}
