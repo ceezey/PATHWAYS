@@ -1,3 +1,5 @@
+import path from 'node:path'
+
 import type { NextConfig } from 'next'
 import { PHASE_DEVELOPMENT_SERVER } from 'next/constants'
 
@@ -30,6 +32,8 @@ export default function createNextConfig(phase: string): NextConfig {
     // Next 15 does not yet provide isolatedDevBuild. Keep development output
     // separate so a validation build cannot invalidate the running UI assets.
     distDir: getWebBuildDirectory(phase),
+    // The monorepo root holds the lockfile; pinning it stops Turbopack guessing in nested worktrees.
+    turbopack: { root: path.resolve(process.cwd(), '../..') },
     // Preserve approved loopback redirects: Next's response adapter otherwise
     // rewrites 127.0.0.1 to localhost after our middleware has returned.
     skipMiddlewareUrlNormalize: true,
