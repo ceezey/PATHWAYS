@@ -163,9 +163,11 @@ const ScopedActivityProofDialog = ({
   })()
   const progressValue = resume
     ? String(resume.progress)
-    : progressEdited
-      ? progressText
-      : String(suggestion?.percent ?? activity?.progress ?? 0)
+    : suggestion
+      ? String(suggestion.percent)
+      : progressEdited
+        ? progressText
+        : String(activity?.progress ?? 0)
 
   const numericProgress = progressValue.trim() === '' ? Number.NaN : Number(progressValue)
   const lowerNotice =
@@ -562,36 +564,52 @@ const ScopedActivityProofDialog = ({
             </p>
           </div>
           <div className="space-y-2">
-            <Label htmlFor="activity-proof-progress">Progress (%)</Label>
-            <Input
-              aria-describedby={
-                [
-                  suggestion ? 'activity-proof-progress-hint' : '',
-                  lowerNotice ? 'activity-proof-progress-lower' : '',
-                  progressError ? 'activity-proof-progress-error' : '',
-                ]
-                  .filter(Boolean)
-                  .join(' ') || undefined
-              }
-              aria-invalid={progressError}
-              disabled={submitting || locked || Boolean(resume)}
-              id="activity-proof-progress"
-              max={100}
-              min={0}
-              onChange={(event) => {
-                setProgressText(event.target.value)
-                setProgressEdited(true)
-                if (progressError) setError('')
-              }}
-              step={1}
-              type="number"
-              value={progressValue}
-            />
             {suggestion ? (
-              <p className="text-sm text-muted-foreground" id="activity-proof-progress-hint">
-                {`Suggested from beneficiaries: ${suggestion.total} of ${suggestion.target} reached ${suggestion.includesSession ? '(including this session) ' : ''}= ${suggestion.percent}%.`}
-              </p>
-            ) : null}
+              // Derived from beneficiaries, so it is read-only and shown as a bar.
+              <>
+                <Label id="activity-proof-progress-label">Progress {suggestion.percent}%</Label>
+                <div
+                  aria-labelledby="activity-proof-progress-label"
+                  aria-valuemax={100}
+                  aria-valuemin={0}
+                  aria-valuenow={suggestion.percent}
+                  className="h-2 w-full overflow-hidden rounded-full bg-muted"
+                  role="progressbar"
+                >
+                  <div
+                    className="h-full rounded-full bg-primary transition-[width]"
+                    style={{ width: `${suggestion.percent}%` }}
+                  />
+                </div>
+              </>
+            ) : (
+              <>
+                <Label htmlFor="activity-proof-progress">Progress (%)</Label>
+                <Input
+                  aria-describedby={
+                    [
+                      lowerNotice ? 'activity-proof-progress-lower' : '',
+                      progressError ? 'activity-proof-progress-error' : '',
+                    ]
+                      .filter(Boolean)
+                      .join(' ') || undefined
+                  }
+                  aria-invalid={progressError}
+                  disabled={submitting || locked || Boolean(resume)}
+                  id="activity-proof-progress"
+                  max={100}
+                  min={0}
+                  onChange={(event) => {
+                    setProgressText(event.target.value)
+                    setProgressEdited(true)
+                    if (progressError) setError('')
+                  }}
+                  step={1}
+                  type="number"
+                  value={progressValue}
+                />
+              </>
+            )}
             {lowerNotice && activity ? (
               <p className="text-sm text-muted-foreground" id="activity-proof-progress-lower">
                 This is lower than the current progress ({activity.progress}%).
