@@ -61,7 +61,7 @@ export function ImportValueMapEditor({
       pairs: rule.pairs.map((pair, at) => (at === index ? { ...pair, [key]: value } : pair)),
     })
   return (
-    <div className="space-y-3 rounded-xl border bg-muted/30 p-3">
+    <div className="space-y-3 rounded-md border bg-surface-subtle p-3">
       <div className="space-y-1">
         <Label htmlFor={`${idPrefix}-type`}>Data type for {columnLabel}</Label>
         <Select
@@ -129,7 +129,7 @@ export function ImportValueMapEditor({
                 onChange({ ...rule, pairs: rule.pairs.filter((_, at) => at !== index) })
               }
             >
-              <Trash2 className="h-4 w-4" />
+              <Trash2 className="h-4 w-4" aria-hidden="true" />
             </Button>
           </div>
         ))}
@@ -139,7 +139,7 @@ export function ImportValueMapEditor({
           variant="outline"
           onClick={() => onChange({ ...rule, pairs: [...rule.pairs, { from: '', to: '' }] })}
         >
-          <Plus className="mr-2 h-4 w-4" />
+          <Plus className="mr-2 h-4 w-4" aria-hidden="true" />
           {full ? `Limit of ${IMPORT_VALUE_MAP_LIMITS.maxEntries} reached` : 'Add translation'}
         </Button>
       </fieldset>

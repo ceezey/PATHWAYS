@@ -23,7 +23,7 @@ Date: 2026-10-01. Branch: dev (a75406d). Read-only QA against PRD section 4 gate
 | F3 Beneficiaries | 5/6 | G-F3-6 partial: no role holds identities.review (MA-14) | Tests exist, PRD cell stale |
 | F4 Journey | 5/6 | G-F4-6 journey note not built (MA-06) | G-F4-1/3/4 untested; SA holds journeys.read |
 | F5 Collection | 4/5 | G-F5-1 partial: author cannot publish own form, single-officer projects blocked | G-F5-3 cell should cite QAD-T53 |
-| F6 Integration | 6/7 | G-F6-7 type choice and value map not built (MA-07) | automatic-mapping route undocumented |
+| F6 Integration | 6/7 | G-F6-7 type choice and value map not built (MA-07); superseded 2026-10-03: built by cr-pathways-import-value-map, 7/7 Met | automatic-mapping route undocumented |
 | F7 Indicators | 4/5 | G-F7-5 library not built (MA-01) | Dead mock file indicator-library-workspace.tsx; G-F7-1/3/4 lack QAD rows |
 | F8 Dashboard | 6/7 | G-F8-7 load not verified (MA-08) | G-F8-1/4/6 lack QAD rows; UC-F8-2 route name drift |
 
@@ -37,6 +37,6 @@ Date: 2026-10-01. Branch: dev (a75406d). Read-only QA against PRD section 4 gate
 
 ## Decisions required (Change Record or descope)
 
-G-F3-6, G-F4-5 (SA journeys.read), G-F4-6, G-F5-1 two-person rule, G-F6-7, G-F7-5, G-F8-7.
+G-F3-6, G-F4-5 (SA journeys.read), G-F4-6, G-F5-1 two-person rule, G-F6-7 (superseded 2026-10-03: Met), G-F7-5, G-F8-7.
 
 > Note 2026-10-01: G-F8-7 was later measured locally at assumed scale and is Met (single user; staging re-measure pending); see QAD-T62 in [qad-pathways](qad-pathways.md). The finding above is kept as dated.

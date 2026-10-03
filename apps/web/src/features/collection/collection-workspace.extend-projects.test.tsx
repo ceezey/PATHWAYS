@@ -185,12 +185,46 @@ describe('extend import project dropdown', () => {
         <CollectionWorkspace initialView="import" initialMode="extend" />
       </DisplayLabelsProvider>,
     )
-    await screen.findByText('Projects could not be loaded. Retry.')
+    await screen.findByText('Projects could not be loaded.')
     expect(api.getProjectsForRole).toHaveBeenCalledTimes(3)
     expect(screen.queryByText('Loading projects...')).toBeNull()
     expect(Array.from(projectSelect().options).map((option) => option.textContent)).toEqual([
       'No projects available',
     ])
+  })
+
+  it('shows a load failure as an error with Retry that reloads, never as a success notice', async () => {
+    api.getProjectsForRole.mockRejectedValueOnce(new Error('Projects could not be loaded.'))
+    render(
+      <DisplayLabelsProvider>
+        <CollectionWorkspace initialView="import" initialMode="extend" />
+      </DisplayLabelsProvider>,
+    )
+    await screen.findByText('Collection data could not be loaded')
+    expect(screen.queryByText('Dismiss')).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: 'Retry' }))
+    await waitFor(() => expect(projectSelect().value).toBe('project-a'))
+    expect(api.getProjectsForRole).toHaveBeenCalledTimes(2)
+    expect(screen.queryByText('Collection data could not be loaded')).toBeNull()
+  })
+
+  it('shows empty and error states in the saved forms list', async () => {
+    api.getProjectsForRole.mockResolvedValue([])
+    const first = render(
+      <DisplayLabelsProvider>
+        <CollectionWorkspace initialView="forms" />
+      </DisplayLabelsProvider>,
+    )
+    await screen.findByText('None yet')
+    first.unmount()
+    api.getProjectsForRole.mockRejectedValue(new Error('Projects could not be loaded.'))
+    render(
+      <DisplayLabelsProvider>
+        <CollectionWorkspace initialView="forms" />
+      </DisplayLabelsProvider>,
+    )
+    await screen.findByText('Collection data could not be loaded')
+    expect(screen.queryByText('None yet')).toBeNull()
   })
 
   it('shows the empty placeholder for an empty result', async () => {

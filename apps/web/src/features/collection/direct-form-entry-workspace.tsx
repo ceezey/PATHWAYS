@@ -3,13 +3,14 @@
 import { FormDefinitionEntryField as EntryField } from './form-definition-entry-field'
 import { SurveySubjectPicker } from './survey-subject-picker'
 
-import { CheckCircle2, Save, Send } from 'lucide-react'
+import { CheckCircle2, Save, Send, TriangleAlert } from 'lucide-react'
 import Link from 'next/link'
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { type ReactNode, useEffect, useMemo, useRef, useState } from 'react'
 
 import { PageHeader } from '@/components/layout/page-header'
-import { StatusBadge } from '@/components/pathways'
+import { AsyncState, EmptyState, LoadingSkeleton, StatusBadge } from '@/components/pathways'
 import { Button } from '@/components/ui/button'
+import { Card, CardContent } from '@/components/ui/card'
 import { useCurrentRole } from '@/hooks/use-current-role'
 import {
   type SensitiveDraftOwner,
@@ -53,6 +54,21 @@ function verifySurveySubject(
     throw new Error('The saved contributor does not match this submission.')
 }
 
+const StateShell = ({
+  eyebrow = 'Data workspace',
+  title = 'Direct form entry',
+  children,
+}: {
+  eyebrow?: string
+  title?: string
+  children: ReactNode
+}) => (
+  <div className="space-y-6">
+    <PageHeader eyebrow={eyebrow} title={title} />
+    {children}
+  </div>
+)
+
 type EntryProps = {
   initialSubmissionId?: string
   projectId: string
@@ -67,7 +83,15 @@ export function DirectFormEntryWorkspace(props: EntryProps) {
     props.projectId,
     JSON.stringify([props.formId, props.initialSubmissionId ?? null]),
   )
-  if (!scope) return <output>Current direct entry access is required.</output>
+  if (!scope)
+    return (
+      <StateShell>
+        <EmptyState
+          title="Access required"
+          description="Current direct entry access is required."
+        />
+      </StateShell>
+    )
   return (
     <OwnedDirectFormEntryWorkspace key={scope.key + scope.generation} {...props} scope={scope} />
   )
@@ -108,7 +132,8 @@ function OwnedDirectFormEntryWorkspace({
   const [errors, setErrors] = useState<FormValidationError[]>([])
   const [loadStatus, setLoadStatus] = useState<'loading' | 'ready' | 'error'>('loading')
   const [pending, setPending] = useState<'save' | 'validate' | 'submit' | null>(null)
-  const [notice, setNotice] = useState('')
+  const [notice, setNotice] = useState<{ text: string; error?: boolean } | null>(null)
+  const [loadAttempt, setLoadAttempt] = useState(0)
   const clientSubmissionId = useRef('')
   const loadEpoch = useRef(0)
   const storageKey = scope.key
@@ -130,7 +155,7 @@ function OwnedDirectFormEntryWorkspace({
     const version = form.version
     operation.current = marker
     setPending(kind)
-    setNotice('')
+    setNotice(null)
     return {
       valid: () =>
         scope.isCurrent() &&
@@ -146,6 +171,7 @@ function OwnedDirectFormEntryWorkspace({
     }
   }
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies: loadAttempt restarts the same load on Retry.
   useEffect(() => {
     let active = true
     const epoch = loadEpoch.current
@@ -212,11 +238,12 @@ function OwnedDirectFormEntryWorkspace({
           setSubjectLocked(true)
           setSubmission(persisted)
           setValues(persisted.values)
-          setNotice(
-            persisted.status === 'VALIDATED'
-              ? 'This record was already submitted.'
-              : 'Your persisted draft was restored.',
-          )
+          setNotice({
+            text:
+              persisted.status === 'VALIDATED'
+                ? 'This record was already submitted.'
+                : 'Your persisted draft was restored.',
+          })
         } catch (error) {
           if (!active || epoch !== loadEpoch.current || !scope.isCurrent()) return
           if (!(error instanceof PathwaysClientError) || error.code !== 'not_found') throw error
@@ -234,6 +261,7 @@ function OwnedDirectFormEntryWorkspace({
       active = false
     }
   }, [
+    loadAttempt,
     formId,
     initialSubmissionId,
     projectId,
@@ -267,9 +295,9 @@ function OwnedDirectFormEntryWorkspace({
     setBeneficiaryId('')
     setSubjectLocked(false)
     setErrors([])
-    setNotice(
-      'A separate response is ready. The previous attempt and its history remain unchanged.',
-    )
+    setNotice({
+      text: 'A separate response is ready. The previous attempt and its history remain unchanged.',
+    })
     setLoadStatus('ready')
   }
 
@@ -299,12 +327,15 @@ function OwnedDirectFormEntryWorkspace({
       setSubmission(result)
       setValues(result.values)
       setErrors([])
-      setNotice('Draft saved to PATHWAYS. You can safely reload before submitting.')
+      setNotice({ text: 'Draft saved to PATHWAYS. You can safely reload before submitting.' })
       return result
     } catch (error) {
       if (!ticket.valid()) return
       if (error instanceof PathwaysClientError) setErrors(error.fieldErrors)
-      setNotice(error instanceof Error ? error.message : 'The draft could not be saved.')
+      setNotice({
+        text: error instanceof Error ? error.message : 'The draft could not be saved.',
+        error: true,
+      })
       return null
     } finally {
       ticket.finish()
@@ -318,13 +349,19 @@ function OwnedDirectFormEntryWorkspace({
       const result = await pathwaysClient.validateDigitalFormValues(projectId, formId, values)
       if (!ticket.valid()) return
       setErrors(result.errors)
-      setNotice(
-        result.valid ? 'All fields passed server validation.' : 'Review the highlighted fields.',
-      )
+      setNotice({
+        text: result.valid
+          ? 'All fields passed server validation.'
+          : 'Review the highlighted fields.',
+        error: !result.valid,
+      })
     } catch (error) {
       if (!ticket.valid()) return
       if (error instanceof PathwaysClientError) setErrors(error.fieldErrors)
-      setNotice(error instanceof Error ? error.message : 'Validation could not be completed.')
+      setNotice({
+        text: error instanceof Error ? error.message : 'Validation could not be completed.',
+        error: true,
+      })
     } finally {
       ticket.finish()
     }
@@ -364,11 +401,16 @@ function OwnedDirectFormEntryWorkspace({
       setSubmission(result)
       setValues(result.values)
       setErrors([])
-      setNotice(`Submission validated against form version ${result.formVersion} and finalized.`)
+      setNotice({
+        text: `Submission validated against form version ${result.formVersion} and finalized.`,
+      })
     } catch (error) {
       if (!ticket.valid()) return
       if (error instanceof PathwaysClientError) setErrors(error.fieldErrors)
-      setNotice(error instanceof Error ? error.message : 'The record could not be submitted.')
+      setNotice({
+        text: error instanceof Error ? error.message : 'The record could not be submitted.',
+        error: true,
+      })
     } finally {
       ticket.finish()
     }
@@ -376,42 +418,59 @@ function OwnedDirectFormEntryWorkspace({
 
   if (form?.formType === 'TRAINING_SURVEY' && beneficiaryId && !subjectOwner?.isCurrent())
     return (
-      <div className="space-y-3 rounded-2xl border p-5">
-        <output>
-          Current identified survey access is unavailable. Existing values and contributor details
-          are hidden; the saved record is unchanged.
-        </output>
-        {initialSubmissionId ? (
-          <Button asChild variant="outline">
-            <Link
-              onClick={prepareSeparateResponse}
-              href={`/collection/projects/${encodeURIComponent(projectId)}/forms/${encodeURIComponent(formId)}/entries/new`}
-            >
-              Open a separate response
-            </Link>
-          </Button>
-        ) : (
-          <Button variant="outline" onClick={startSeparateResponse}>
-            Open a separate response
-          </Button>
-        )}
-      </div>
+      <StateShell eyebrow={`Form ${form.code} · version ${form.version}`} title={form.name}>
+        <EmptyState
+          title="Identified survey access unavailable"
+          description="Current identified survey access is unavailable. Existing values and contributor details are hidden; the saved record is unchanged."
+          action={
+            initialSubmissionId ? (
+              <Button asChild variant="outline">
+                <Link
+                  onClick={prepareSeparateResponse}
+                  href={`/collection/projects/${encodeURIComponent(projectId)}/forms/${encodeURIComponent(formId)}/entries/new`}
+                >
+                  Open a separate response
+                </Link>
+              </Button>
+            ) : (
+              <Button variant="outline" onClick={startSeparateResponse}>
+                Open a separate response
+              </Button>
+            )
+          }
+        />
+      </StateShell>
     )
   if (loadStatus !== 'ready' || !form) {
     return (
-      <div className="rounded-2xl border bg-card p-6 text-sm text-muted-foreground">
-        {loadStatus === 'loading'
-          ? 'Loading the published form definition...'
-          : 'The form could not be loaded. Check the project, form, and your access.'}
-      </div>
+      <StateShell>
+        {loadStatus === 'loading' ? (
+          <LoadingSkeleton />
+        ) : (
+          <AsyncState
+            status="error"
+            title="The form could not be loaded"
+            description="Check the project, form, and your access."
+            onRetry={() => {
+              setLoadStatus('loading')
+              setLoadAttempt((current) => current + 1)
+            }}
+          />
+        )}
+      </StateShell>
     )
   }
 
+  const formShell = { eyebrow: `Form ${form.code} · version ${form.version}`, title: form.name }
+
   if (form.status !== 'PUBLISHED') {
     return (
-      <div className="rounded-2xl border border-warning/30 bg-warning/10 p-6 text-sm text-warning">
-        Direct entry is available only for a published form version.
-      </div>
+      <StateShell {...formShell}>
+        <div className="flex items-start gap-2 rounded-xl border border-warning/30 bg-warning-subtle p-4 text-sm text-warning">
+          <TriangleAlert className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
+          <span>Direct entry is available only for a published form version.</span>
+        </div>
+      </StateShell>
     )
   }
 
@@ -420,23 +479,28 @@ function OwnedDirectFormEntryWorkspace({
     form.formType !== 'BENEFICIARY_REGISTRATION'
   ) {
     return (
-      <div className="rounded-2xl border bg-card p-6 text-sm text-muted-foreground">
-        Direct entry is available only for survey and monitoring forms.
-      </div>
+      <StateShell {...formShell}>
+        <EmptyState
+          title="Direct entry unavailable"
+          description="Direct entry is available only for survey and monitoring forms."
+        />
+      </StateShell>
     )
   }
 
   if (form.formType === 'BENEFICIARY_REGISTRATION') {
     return (
-      <div className="space-y-4 rounded-2xl border bg-card p-6 text-sm text-muted-foreground">
-        <p>
-          Beneficiary registration uses the registration workflow so the profile, enrollment,
-          consent provenance, submission, and audit record are committed together.
-        </p>
-        <Button asChild>
-          <Link href="/beneficiaries/new">Open beneficiary registration</Link>
-        </Button>
-      </div>
+      <StateShell {...formShell}>
+        <EmptyState
+          title="Use the registration workflow"
+          description="Beneficiary registration uses the registration workflow so the profile, enrollment, consent provenance, submission, and audit record are committed together."
+          action={
+            <Button asChild>
+              <Link href="/beneficiaries/new">Open beneficiary registration</Link>
+            </Button>
+          }
+        />
+      </StateShell>
     )
   }
 
@@ -456,121 +520,145 @@ function OwnedDirectFormEntryWorkspace({
       />
 
       {notice ? (
-        <div className="flex items-start gap-2 rounded-xl border border-info/20 bg-info/10 px-4 py-3 text-sm text-info">
-          <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
-          <span>{notice}</span>
+        <div
+          role={notice.error ? 'alert' : 'status'}
+          className={`flex items-start gap-2 rounded-lg border px-4 py-3 text-sm ${
+            notice.error
+              ? 'border-danger/30 bg-danger-subtle text-danger'
+              : 'border-success/30 bg-success-subtle text-success'
+          }`}
+        >
+          {notice.error ? (
+            <TriangleAlert className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
+          ) : (
+            <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
+          )}
+          <span>{notice.text}</span>
         </div>
       ) : null}
 
-      <div className="space-y-5 rounded-2xl border bg-card p-5 shadow-sm">
-        {form.formType === 'TRAINING_SURVEY' ? (
-          <SurveySubjectPicker
-            projectId={projectId}
-            formId={formId}
-            value={beneficiaryId}
-            locked={subjectLocked || Boolean(submission) || Boolean(pending)}
-            onChange={(value) => {
-              if (!operation.current && !subjectLocked && scope.isCurrent()) setBeneficiaryId(value)
-            }}
-          />
-        ) : null}
-        {form.fields.map((field) => (
-          <EntryField
-            key={field.id ?? field.code}
-            disabled={finalized || Boolean(pending)}
-            errors={errorsByField[field.code] ?? []}
-            field={field}
-            value={values[field.code]}
-            onChange={(value) => {
-              if (!operation.current && scope.isCurrent())
-                setValues((current) => ({ ...current, [field.code]: value }))
-            }}
-          />
-        ))}
+      <Card>
+        <CardContent className="space-y-5 pt-5">
+          {form.formType === 'TRAINING_SURVEY' ? (
+            <SurveySubjectPicker
+              projectId={projectId}
+              formId={formId}
+              value={beneficiaryId}
+              locked={subjectLocked || Boolean(submission) || Boolean(pending)}
+              onChange={(value) => {
+                if (!operation.current && !subjectLocked && scope.isCurrent())
+                  setBeneficiaryId(value)
+              }}
+            />
+          ) : null}
+          {form.fields.map((field) => (
+            <EntryField
+              key={field.id ?? field.code}
+              disabled={finalized || Boolean(pending)}
+              errors={errorsByField[field.code] ?? []}
+              field={field}
+              value={values[field.code]}
+              onChange={(value) => {
+                if (!operation.current && scope.isCurrent())
+                  setValues((current) => ({ ...current, [field.code]: value }))
+              }}
+            />
+          ))}
 
-        {form.fields.length === 0 ? (
-          <p className="rounded-2xl border border-dashed p-6 text-center text-sm text-muted-foreground">
-            This published form has no fields.
-          </p>
-        ) : null}
-
-        {form.formType === 'TRAINING_SURVEY' && subjectLocked && !finalized ? (
-          <div className="space-y-2 rounded-xl border p-3 text-sm">
-            <p>
-              The previous draft or uncertain save may already exist. Retry preserves its exact
-              contributor and submission identifier. Starting a separate response preserves that
-              prior record; review it in the project's entries.
+          {form.fields.length === 0 ? (
+            <p className="rounded-lg border border-dashed p-6 text-center text-sm text-muted-foreground">
+              This published form has no fields.
             </p>
-            {initialSubmissionId ? (
-              <Button asChild variant="outline">
-                <Link
-                  onClick={prepareSeparateResponse}
-                  href={`/collection/projects/${encodeURIComponent(projectId)}/forms/${encodeURIComponent(formId)}/entries/new`}
+          ) : null}
+
+          {form.formType === 'TRAINING_SURVEY' && subjectLocked && !finalized ? (
+            <div className="space-y-2 rounded-lg border p-3 text-sm">
+              <p>
+                The previous draft or uncertain save may already exist. Retry preserves its exact
+                contributor and submission identifier. Starting a separate response preserves that
+                prior record; review it in the project's entries.
+              </p>
+              {initialSubmissionId ? (
+                <Button asChild variant="outline">
+                  <Link
+                    onClick={prepareSeparateResponse}
+                    href={`/collection/projects/${encodeURIComponent(projectId)}/forms/${encodeURIComponent(formId)}/entries/new`}
+                  >
+                    Start a separate response
+                  </Link>
+                </Button>
+              ) : (
+                <Button
+                  variant="outline"
+                  disabled={Boolean(pending)}
+                  onClick={startSeparateResponse}
                 >
                   Start a separate response
-                </Link>
-              </Button>
-            ) : (
-              <Button variant="outline" disabled={Boolean(pending)} onClick={startSeparateResponse}>
-                Start a separate response
-              </Button>
-            )}
-          </div>
-        ) : null}
-        <div className="flex flex-wrap gap-2 border-t pt-4">
-          <Button
-            disabled={
-              Boolean(pending) || finalized || Boolean(beneficiaryId && !subjectOwner?.isCurrent())
-            }
-            variant="outline"
-            onClick={() => void save()}
-          >
-            <Save className="mr-2 h-4 w-4" aria-hidden="true" />
-            {pending === 'save' ? 'Saving...' : 'Save draft'}
-          </Button>
-          <Button
-            disabled={
-              Boolean(pending) || finalized || Boolean(beneficiaryId && !subjectOwner?.isCurrent())
-            }
-            variant="outline"
-            onClick={() => void validate()}
-          >
-            {pending === 'validate' ? 'Validating...' : 'Validate'}
-          </Button>
-          <Button
-            disabled={
-              Boolean(pending) || finalized || Boolean(beneficiaryId && !subjectOwner?.isCurrent())
-            }
-            onClick={() => void submit()}
-          >
-            <Send className="mr-2 h-4 w-4" aria-hidden="true" />
-            {pending === 'submit' ? 'Submitting...' : 'Submit'}
-          </Button>
-          {finalized ? (
-            initialSubmissionId ? (
-              <Button asChild variant="outline">
-                <Link
-                  onClick={prepareSeparateResponse}
-                  href={`/collection/projects/${encodeURIComponent(projectId)}/forms/${encodeURIComponent(formId)}/entries/new`}
+                </Button>
+              )}
+            </div>
+          ) : null}
+          <div className="flex flex-wrap gap-2 border-t pt-4">
+            <Button
+              disabled={
+                Boolean(pending) ||
+                finalized ||
+                Boolean(beneficiaryId && !subjectOwner?.isCurrent())
+              }
+              variant="outline"
+              onClick={() => void save()}
+            >
+              <Save className="mr-2 h-4 w-4" aria-hidden="true" />
+              {pending === 'save' ? 'Saving...' : 'Save draft'}
+            </Button>
+            <Button
+              disabled={
+                Boolean(pending) ||
+                finalized ||
+                Boolean(beneficiaryId && !subjectOwner?.isCurrent())
+              }
+              variant="outline"
+              onClick={() => void validate()}
+            >
+              {pending === 'validate' ? 'Validating...' : 'Validate'}
+            </Button>
+            <Button
+              disabled={
+                Boolean(pending) ||
+                finalized ||
+                Boolean(beneficiaryId && !subjectOwner?.isCurrent())
+              }
+              onClick={() => void submit()}
+            >
+              <Send className="mr-2 h-4 w-4" aria-hidden="true" />
+              {pending === 'submit' ? 'Submitting...' : 'Submit'}
+            </Button>
+            {finalized ? (
+              initialSubmissionId ? (
+                <Button asChild variant="outline">
+                  <Link
+                    onClick={prepareSeparateResponse}
+                    href={`/collection/projects/${encodeURIComponent(projectId)}/forms/${encodeURIComponent(formId)}/entries/new`}
+                  >
+                    Start another record
+                  </Link>
+                </Button>
+              ) : (
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    if (operation.current || !scope.isCurrent()) return
+                    removeSensitiveDraft(storageKey)
+                    window.location.reload()
+                  }}
                 >
                   Start another record
-                </Link>
-              </Button>
-            ) : (
-              <Button
-                variant="outline"
-                onClick={() => {
-                  if (operation.current || !scope.isCurrent()) return
-                  removeSensitiveDraft(storageKey)
-                  window.location.reload()
-                }}
-              >
-                Start another record
-              </Button>
-            )
-          ) : null}
-        </div>
-      </div>
+                </Button>
+              )
+            ) : null}
+          </div>
+        </CardContent>
+      </Card>
     </div>
   )
 }
