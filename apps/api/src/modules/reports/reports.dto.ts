@@ -4,6 +4,8 @@ export const reportKinds = [
   'INDICATOR_SUMMARY',
   'BENEFICIARY_SUMMARY',
   'SURVEY_FORM_RESULTS',
+  'MONITORING_REPORT',
+  'EVALUATION_REPORT',
 ] as const
 const reportContext = z
   .object({ kind: z.enum(reportKinds), formId: z.string().uuid().optional() })
