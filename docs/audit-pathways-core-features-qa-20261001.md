@@ -24,7 +24,7 @@ Date: 2026-10-01. Branch: dev (a75406d). Read-only QA against PRD section 4 gate
 | F4 Journey | 5/6 | G-F4-6 journey note not built (MA-06) | G-F4-1/3/4 untested; SA holds journeys.read |
 | F5 Collection | 4/5 | G-F5-1 partial: author cannot publish own form, single-officer projects blocked | G-F5-3 cell should cite QAD-T53 |
 | F6 Integration | 6/7 | G-F6-7 type choice and value map not built (MA-07); superseded 2026-10-03: built by cr-pathways-import-value-map, 7/7 Met | automatic-mapping route undocumented |
-| F7 Indicators | 4/5 | G-F7-5 library not built (MA-01) | Dead mock file indicator-library-workspace.tsx; G-F7-1/3/4 lack QAD rows |
+| F7 Indicators | 5/5 | None; project template library stays deferred (MA-01, deferred-features) | Superseded 2026-10-03: the dead mock file is gone and every gate has happy, sad and abuse rows (QAD-T55, T106, A35; T07, T107, A36; T56, T108, A37, P05; T57, T109, A38; IL-01, T58, IL-02) |
 | F8 Dashboard | 6/7 | G-F8-7 load not verified (MA-08) | G-F8-1/4/6 lack QAD rows; UC-F8-2 route name drift |
 
 ## UI alignment (all features)
