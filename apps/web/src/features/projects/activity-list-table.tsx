@@ -5,12 +5,6 @@ import { useMemo, useState } from 'react'
 
 import { SectionCard, StatusBadge } from '@/components/pathways'
 import { Button } from '@/components/ui/button'
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu'
 import { cn } from '@/lib/utils'
 import type { ActivitySummary } from '@/types/pathways'
 
@@ -217,23 +211,16 @@ export const ActivityListTable = ({
                     </td>
                   ) : null}
                   <td className="w-12 px-2 text-right">
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button
-                          aria-label={`More actions for ${activity.title}`}
-                          size="icon"
-                          type="button"
-                          variant="ghost"
-                        >
-                          <MoreHorizontal className="h-4 w-4" aria-hidden="true" />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
-                        <DropdownMenuItem onSelect={() => onOpen(activity)}>
-                          View details
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
+                    <Button
+                      aria-label={`View details for ${activity.title}`}
+                      onClick={() => onOpen(activity)}
+                      size="icon"
+                      title="View details"
+                      type="button"
+                      variant="ghost"
+                    >
+                      <MoreHorizontal className="h-4 w-4" aria-hidden="true" />
+                    </Button>
                   </td>
                 </tr>
               )
