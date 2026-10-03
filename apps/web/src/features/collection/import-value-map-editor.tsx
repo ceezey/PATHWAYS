@@ -1,7 +1,12 @@
 'use client'
 
-import { IMPORT_VALUE_MAP_LIMITS, compatibleImportDataTypes } from '@pathways/imports'
-import { Plus, Trash2 } from 'lucide-react'
+import {
+  IMPORT_VALUE_MAP_LIMITS,
+  compatibleImportDataTypes,
+  suggestValueMap,
+} from '@pathways/imports'
+import { Plus, Sparkles, Trash2 } from 'lucide-react'
+import { useState } from 'react'
 
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -43,6 +48,16 @@ interface Props {
   disabled: boolean
   rule: ColumnRuleDraft
   onChange: (next: ColumnRuleDraft) => void
+  /** Distinct values seen in the loaded rows for this column. */
+  sourceValues?: string[]
+  /** The target field's allowed values, for choice fields. */
+  allowedValues?: string[] | null
+}
+
+/** Values a translation may produce for the field, or none when suggestions do not apply. */
+function suggestionTargets(fieldType: FormFieldDataType, allowedValues?: string[] | null) {
+  if (fieldType === 'BOOLEAN') return ['true', 'false']
+  return fieldType === 'SELECT' ? (allowedValues ?? []) : []
 }
 
 export function ImportValueMapEditor({
@@ -52,9 +67,30 @@ export function ImportValueMapEditor({
   disabled,
   rule,
   onChange,
+  sourceValues = [],
+  allowedValues,
 }: Props) {
+  const [suggestNote, setSuggestNote] = useState('')
   const types = compatibleImportDataTypes(fieldType)
   const full = rule.pairs.length >= IMPORT_VALUE_MAP_LIMITS.maxEntries
+  const targets = suggestionTargets(fieldType, allowedValues)
+  const suggest = () => {
+    const kept = rule.pairs.filter((pair) => pair.from.trim())
+    // Booleans already accept true and false in any case, so only other spellings need a pair.
+    const values =
+      fieldType === 'BOOLEAN'
+        ? sourceValues.filter((value) => !/^(true|false)$/i.test(value.trim()))
+        : sourceValues
+    const { pairs, unmatched } = suggestValueMap(values, targets, kept)
+    onChange({ ...rule, pairs: [...kept, ...pairs] })
+    setSuggestNote(
+      `${pairs.length} suggested from the loaded rows. ${
+        unmatched.length
+          ? `${unmatched.length} need a translation you choose.`
+          : 'Review before saving.'
+      }`,
+    )
+  }
   const setPair = (index: number, key: 'from' | 'to', value: string) =>
     onChange({
       ...rule,
@@ -133,15 +169,32 @@ export function ImportValueMapEditor({
             </Button>
           </div>
         ))}
-        <Button
-          disabled={disabled || full}
-          type="button"
-          variant="outline"
-          onClick={() => onChange({ ...rule, pairs: [...rule.pairs, { from: '', to: '' }] })}
-        >
-          <Plus className="mr-2 h-4 w-4" aria-hidden="true" />
-          {full ? `Limit of ${IMPORT_VALUE_MAP_LIMITS.maxEntries} reached` : 'Add translation'}
-        </Button>
+        <div className="flex flex-wrap gap-2">
+          <Button
+            disabled={disabled || full}
+            type="button"
+            variant="outline"
+            onClick={() => onChange({ ...rule, pairs: [...rule.pairs, { from: '', to: '' }] })}
+          >
+            <Plus className="mr-2 h-4 w-4" aria-hidden="true" />
+            {full ? `Limit of ${IMPORT_VALUE_MAP_LIMITS.maxEntries} reached` : 'Add translation'}
+          </Button>
+          {targets.length && sourceValues.length ? (
+            <Button
+              aria-label={`Suggest translations for ${columnLabel}`}
+              disabled={disabled || full}
+              type="button"
+              variant="outline"
+              onClick={suggest}
+            >
+              <Sparkles className="mr-2 h-4 w-4" aria-hidden="true" />
+              Suggest translations
+            </Button>
+          ) : null}
+        </div>
+        <p aria-live="polite" className="text-xs text-muted-foreground">
+          {suggestNote}
+        </p>
       </fieldset>
     </div>
   )
