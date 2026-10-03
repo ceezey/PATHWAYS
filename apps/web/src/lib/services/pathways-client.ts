@@ -2713,6 +2713,10 @@ const activitySummaryKeys = [
   'updatedAt',
   'capabilities',
   'overdueExplanationNeeded',
+  'indicatorCount',
+  'beneficiariesReached',
+  'beneficiariesTarget',
+  'budgetUtilization',
 ] as const satisfies readonly (keyof ActivitySummary)[]
 
 const presentedActivityStatuses = new Set<string>([
@@ -2754,7 +2758,11 @@ function parseActivitySummary(value: unknown): ActivitySummary {
     !Array.isArray(row.assignedTo) ||
     !Array.isArray(row.indicatorIds) ||
     !Array.isArray(row.journeyStageIds) ||
-    typeof row.overdueExplanationNeeded !== 'boolean'
+    typeof row.overdueExplanationNeeded !== 'boolean' ||
+    (row.indicatorCount !== undefined && typeof row.indicatorCount !== 'number') ||
+    [row.beneficiariesReached, row.beneficiariesTarget, row.budgetUtilization].some(
+      (metric) => metric != null && typeof metric !== 'number',
+    )
   ) {
     throw new PathwaysClientError('Invalid activity response.', 'network')
   }

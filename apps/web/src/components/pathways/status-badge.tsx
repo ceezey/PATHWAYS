@@ -3,9 +3,11 @@ import { cn } from '@/lib/utils'
 export const StatusBadge = ({
   children,
   tone = 'info',
+  dot = true,
 }: {
   children: React.ReactNode
   tone?: 'info' | 'success' | 'warning' | 'danger' | 'neutral'
+  dot?: boolean
 }) => (
   <span
     className={cn(
@@ -17,7 +19,9 @@ export const StatusBadge = ({
       tone === 'neutral' && 'border-border bg-muted text-muted-foreground',
     )}
   >
-    <span aria-hidden="true" className="h-1.5 w-1.5 shrink-0 rounded-full bg-current" />
+    {dot ? (
+      <span aria-hidden="true" className="h-1.5 w-1.5 shrink-0 rounded-full bg-current" />
+    ) : null}
     {children}
   </span>
 )

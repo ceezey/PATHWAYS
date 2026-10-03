@@ -220,7 +220,13 @@ export type ActivitySummary = Pick<
   | 'updatedAt'
   | 'capabilities'
   | 'overdueExplanationNeeded'
->
+> & {
+  /** List-only metrics; null or absent means not readable or no source, never zero. */
+  indicatorCount?: number
+  beneficiariesReached?: number | null
+  beneficiariesTarget?: number | null
+  budgetUtilization?: number | null
+}
 
 export interface ActivityProof {
   id: string

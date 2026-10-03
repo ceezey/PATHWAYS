@@ -49,9 +49,7 @@ vi.mock('@/lib/services/pathways-client', () => ({
 vi.mock('@/lib/services/private-proof-client', () => ({ privateProofClient: proofClient }))
 vi.mock('@/lib/services/core-feature-client', () => ({ coreDataClient: coreApi }))
 vi.mock('./budget-module/budget-module', () => ({
-  BudgetModule: ({ projectId }: { projectId: string }) => (
-    <div>Finance for {projectId}</div>
-  ),
+  BudgetModule: ({ projectId }: { projectId: string }) => <div>Finance for {projectId}</div>,
 }))
 vi.mock('./live-evaluation-workspace', () => ({
   LiveEvaluationWorkspace: ({ projectId }: { projectId: string }) => (
