@@ -296,8 +296,8 @@ flowchart LR
 | G-F2-13 | An out-of-scope project or activity is denied before any write | Met | QAD-A02, QAD-P09 |
 | G-F2-14 | A budget record is created or replaced with a stale-revision check | Met | QAD-T44, QAD-T101, QAD-A32 |
 | G-F2-15 | An expense is submitted against a budget reference; a retry with the same client request id does not duplicate it | Met | QAD-T45, QAD-T84 |
-| G-F2-16 | A private receipt is attached to a pending expense, and verification or approval needs it | Met; SQL verification pending (see [deferred features](deferred-features.md)) | QAD-T46, QAD-T102, QAD-A33 |
-| G-F2-17 | An expense is verified, then approved by a distinct reviewer; rejection requires a reason | Met; SQL verification pending (see [deferred features](deferred-features.md)) | QAD-T47, QAD-T103, QAD-A34 |
+| G-F2-16 | A private receipt is attached to a pending expense, and verification or approval needs it | Met | QAD-T46, QAD-T102, QAD-A33 |
+| G-F2-17 | An expense is verified, then approved by a distinct reviewer; rejection requires a reason | Met | QAD-T47, QAD-T103, QAD-A34 |
 | G-F2-18 | Final sign-off is recorded once per expense by a holder of `expenses.signoff` | Met | QAD-T48, QAD-T85 |
 | G-F2-19 | Overview metrics derive budget utilization and timeline deterministically and deny out-of-scope projects | Met | QAD-P03, QAD-P08 |
 
