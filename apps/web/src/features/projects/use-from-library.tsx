@@ -1,5 +1,6 @@
 'use client'
 
+import { Loader2 } from 'lucide-react'
 import { type FormEvent, useState } from 'react'
 
 import { Button } from '@/components/ui/button'
@@ -113,8 +114,9 @@ export function UseFromLibrary({
             {validation}
           </p>
         ) : null}
-        <Button type="submit" disabled={busy}>
-          Create indicator from entry
+        <Button className="gap-2" type="submit" disabled={busy}>
+          {busy ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : null}
+          {busy ? 'Saving...' : 'Create indicator from entry'}
         </Button>
       </form>
     </details>
