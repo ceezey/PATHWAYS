@@ -187,9 +187,9 @@ export const ProjectDirectory = () => {
                   <p className="text-sm tabular-nums text-muted-foreground">{project.period}</p>
                 </div>
               </CardHeader>
-              <CardContent className="flex-1 px-6 pb-6 pt-0">
-                <div className="space-y-3 border-t border-border pt-5">
-                  <p className="line-clamp-4 text-base leading-6 text-foreground">
+              <CardContent className="flex flex-1 flex-col px-6 pb-6 pt-0">
+                <div className="flex flex-1 flex-col gap-3 border-t border-border pt-5">
+                  <p className="line-clamp-4 flex-1 text-base leading-6 text-foreground">
                     {project.description || 'No project description recorded.'}
                   </p>
                   <ProjectTimeline
