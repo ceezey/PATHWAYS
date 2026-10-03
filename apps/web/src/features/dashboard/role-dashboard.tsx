@@ -335,19 +335,19 @@ const ConnectedMonitoringSnapshot = ({
           {
             id: 'participation',
             label: 'Participation records',
-            value: formatMetricCell(result.participationRecords),
+            value: countOrZero(result.participationRecords),
             helperText: `Committed records, not a count of people. ${PERIOD_NOTE}`,
           },
           {
             id: 'attending',
             label: 'Distinct attending individuals',
-            value: formatMetricCell(result.attendingIndividuals),
+            value: countOrZero(result.attendingIndividuals),
             helperText: `Present/completed attendance; deduplicated across projects. ${PERIOD_NOTE}`,
           },
           {
             id: 'enrolled',
             label: 'Enrolled individuals',
-            value: formatMetricCell(result.enrolledIndividuals),
+            value: countOrZero(result.enrolledIndividuals),
             helperText: 'Enrollment overlaps the last 12 months; privacy suppression applies.',
           },
         ])
@@ -497,6 +497,10 @@ const DashboardListItem = ({
     ) : null}
   </div>
 )
+
+// Snapshot counts read 0 when no records exist yet; suppressed counts keep their label (cr-pathways-overview-zero-display).
+const countOrZero = (cell: Parameters<typeof formatMetricCell>[0]) =>
+  cell.state === 'MISSING' || cell.state === 'NOT_APPLICABLE' ? '0' : formatMetricCell(cell)
 
 export const RoleDashboard = () => {
   const router = useRouter()

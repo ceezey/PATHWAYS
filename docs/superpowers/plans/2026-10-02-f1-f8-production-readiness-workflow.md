@@ -107,7 +107,7 @@ Detailed plan: `docs/superpowers/plans/2026-10-0X-ui-consistency.md` (written af
 
 Detailed plan: none (doc and verification edits, one branch `docs/cr-closures-20261002`).
 
-- [ ] Item 4: `docs/cr-pathways-self-managed-rollout-scenarios.md` section 3 names PATHWAYS-dev. Replace it with PATHWAYS-role-staging (`klbtoqdalmcsfjqophty`), and note that PATHWAYS-dev is retired later.
+- [ ] Item 4: `docs/cr-pathways-self-managed-rollout-scenarios.md` section 3 names PATHWAYS-dev. Replace it with PATHWAYS-devV2 (`klbtoqdalmcsfjqophty`), and note that PATHWAYS-dev is retired later.
 - [ ] Item 5a, import value map: once Phase 3 passes the release gates, set `docs/cr-pathways-import-value-map.md` to Applied, with evidence.
 - [ ] Item 5b, performance scaling: re-measure G-F8-7 on role-staging using the QAD-T62 procedure. Record the numbers in QAD-T62 and set `docs/cr-pathways-performance-scaling.md` to Applied if the numbers pass. Otherwise open a Phase 3 finding.
 - [ ] Item 6: change `docs/cr-pathways-signin-lockout.md` section 9 to the Free-plan wording. App sign-in is protected by the API lockout. Direct `/auth/v1/token` calls rely on Supabase rate limits. The hook is inert on the Free plan, and CAPTCHA is the documented alternative.

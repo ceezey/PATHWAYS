@@ -1,4 +1,4 @@
-// Launches apps/api/prisma/hosted-realistic-seed.ts against the hosted PATHWAYS-role-staging
+// Launches apps/api/prisma/hosted-realistic-seed.ts against the hosted PATHWAYS-devV2
 // project. Never connects to anything itself: it only validates the env file the developer
 // points at, then hands the resulting env vars to the seed process.
 //
@@ -31,7 +31,7 @@ function main() {
 
   console.info(
     target.mode === 'hosted'
-      ? `Seeding hosted project ${target.projectRef} (PATHWAYS-role-staging).`
+      ? `Seeding hosted project ${target.projectRef} (PATHWAYS-devV2).`
       : 'Running against a loopback target (--test-local).',
   )
 

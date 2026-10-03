@@ -398,7 +398,7 @@ export interface Beneficiary {
   projectIds: string[]
   location: string
   sex: 'Female' | 'Male' | 'Other' | 'Prefer not to say' | 'Not specified'
-  ageGroup?: '0-9' | '10-14' | '15-17' | '18-24' | '25+' | 'Unknown'
+  ageGroup?: '5-9' | '10-14' | '15-17' | '18-24' | '25+' | 'Unknown'
   disabilityStatus: 'With disability' | 'Without disability' | 'Not specified'
   enrollmentStatus: BeneficiaryEnrollmentStatus
 }

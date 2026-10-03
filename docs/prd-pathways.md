@@ -52,7 +52,7 @@ Six internal roles are defined in `apps/api/src/modules/auth/rbac-contract.json`
 | PRD-F4 | Beneficiary Journey Tracking | Must-Have | F4 | R6 | 1.1, 1.3 | Implemented; all G-F4 gates met |
 | PRD-F5 | Digital Data Collection and Preparation | Must-Have | F5 | R2 | 1.4, 2.1 | Implemented |
 | PRD-F6 | Metadata-Driven Data Integration | Must-Have | F6 | R2 | 1.1, 1.4, 2.1 | Implemented |
-| PRD-F7 | Project Indicator and Monitoring | Must-Have | F7 | R3, R4 | 1.5 | Implemented; G-F7-5 not met, deferred (see [deferred features](deferred-features.md)) |
+| PRD-F7 | Project Indicator and Monitoring | Must-Have | F7 | R3, R4 | 1.5 | Implemented; G-F7-1..5 Met; project structure templates stay deferred (see [deferred features](deferred-features.md)) |
 | PRD-F8 | Aggregated Monitoring Dashboard with SADDD Analysis | Must-Have | F8 | R3 | 1.6, 2.2, 2.3 | Implemented; G-F8-7 Met locally at assumed scale (staging re-measure pending) |
 | PRD-F9 | Descriptive Analytics and Project Performance Summaries | Supporting | F9 | R3, R7 | 1.6, 2.2 | Implemented for KPI, participation, survey and timeline views; on-hold items in the deferred register |
 | PRD-F10 | Rule-Based Alerts | Supporting | F10 | R7 | 1.7, 2.4 | Local API and initial runtime slice; integration verification pending |
@@ -933,10 +933,10 @@ stateDiagram-v2
 
 | Gate | Condition | Status | QAD |
 |---|---|---|---|
-| G-F7-1 | An authorized user creates and updates an indicator in an assigned project; unauthorized roles and other organizations are refused | Met | QAD-T55 |
-| G-F7-2 | An indicator shows the correct trusted metric, target and source | Met | QAD-T07 |
-| G-F7-3 | A measurement save is idempotent: the same key and input is read-only on retry, conflicting reuse fails | Met | QAD-T56 |
-| G-F7-4 | Indicator progress is independent of the retired project target goal and shows unavailable states instead of zero | Met | QAD-T57 |
+| G-F7-1 | An authorized user creates and updates an indicator in an assigned project; unauthorized roles and other organizations are refused | Met | QAD-T55, QAD-T106, QAD-A35 |
+| G-F7-2 | An indicator shows the correct trusted metric, target and source | Met | QAD-T07, QAD-T107, QAD-A36 |
+| G-F7-3 | A measurement save is idempotent: the same key and input is read-only on retry, conflicting reuse fails | Met | QAD-T56, QAD-T108, QAD-A37, QAD-P05 |
+| G-F7-4 | Indicator progress is independent of the retired project target goal and shows unavailable states instead of zero | Met | QAD-T57, QAD-T109, QAD-A38 |
 | G-F7-5 | Indicator definitions can be reused across projects through an organization library; a project indicator created from an entry is an independent copy | Met | QAD-IL-01, QAD-IL-02, QAD-T58 |
 
 #### Use Cases

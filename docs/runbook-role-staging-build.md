@@ -1,8 +1,8 @@
-# Runbook: Build PATHWAYS-role-staging
+# Runbook: Build PATHWAYS-devV2
 
 **Status:** Working
 
-**Target:** PATHWAYS-role-staging, project ref `klbtoqdalmcsfjqophty`, Singapore ap-southeast-1, PostgreSQL 17.
+**Target:** PATHWAYS-devV2, project ref `klbtoqdalmcsfjqophty`, Singapore ap-southeast-1, PostgreSQL 17.
 
 **Decision:** On 2026-09-29 the developer chose this project to replace PATHWAYS-dev. It starts empty: the schema is built from migrations 0000 through 0041, and then fictional dummy data is seeded. Nothing is copied from PATHWAYS-dev.
 
@@ -175,7 +175,7 @@ Migration 0045 (cr-pathways-f9-trusted-aggregates) adds two prisma-owned SECURIT
 
 ## 8. Verified hosted facts
 
-2026-10-02, PATHWAYS-role-staging (ref `klbtoqdalmcsfjqophty`), read-only checks:
+2026-10-02, PATHWAYS-devV2 (ref `klbtoqdalmcsfjqophty`), read-only checks:
 
 - Ledger: 30 rows 0000-0055, all finished, none rolled back; 0046-0053 applied 2026-10-01 14:11-14:12 UTC, 0054 and 0055 applied 2026-10-02.
 - 0055: 312 `role_permissions` rows; `p09_role_allows` denies `PROJECT_OFFICER` `activities.create` and `SYSTEM_ADMINISTRATOR` `budgets.read`, allows `GRANT_MANAGER` `activities.read`.

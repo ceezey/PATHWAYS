@@ -16,6 +16,7 @@ DSD rule: missing data is never shown as 0; a real zero from the server is shown
 
 - Budget utilization shows `0%` when its metric is MISSING or NOT_APPLICABLE.
 - Beneficiaries reached shows `0` when its metric is MISSING or NOT_APPLICABLE, and a missing target shows `0`.
+- Dashboard Project monitoring cards (Participation records, Distinct attending individuals, Enrolled individuals) show `0` when MISSING or NOT_APPLICABLE (added 2026-10-03, `apps/web/src/features/dashboard/role-dashboard.tsx`).
 - Unchanged: suppressed counts (1-4) still read "Suppressed (fewer than 5)", a section withheld by permission still reads "Unavailable", load failures keep their error and retry, and KPI achievement and Timeline keep their "None yet" style labels.
 
 ## 4. Impact

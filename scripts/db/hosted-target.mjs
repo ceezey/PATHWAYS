@@ -4,7 +4,7 @@
 import { readFileSync } from 'node:fs'
 import path from 'node:path'
 
-// Exactly one allowed hosted target: PATHWAYS-role-staging.
+// Exactly one allowed hosted target: PATHWAYS-devV2.
 export const ALLOWED_TARGET_REFS = Object.freeze(['klbtoqdalmcsfjqophty'])
 
 export const MIN_PASSWORD_LENGTH = 24

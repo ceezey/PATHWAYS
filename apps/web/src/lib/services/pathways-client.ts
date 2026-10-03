@@ -2273,6 +2273,15 @@ function mapProject(project: ApiProject): ProjectDetail {
   }
 }
 
+// Whole years from a YYYY-MM-DD birth date to the enrollment date, or today without one.
+const ageFromBirthDate = (birthDate?: string, asOf?: string) => {
+  if (!birthDate) return null
+  const [by, bm, bd] = birthDate.slice(0, 10).split('-').map(Number)
+  const [ay, am, ad] = (asOf ?? new Date().toISOString()).slice(0, 10).split('-').map(Number)
+  if (!by || !ay) return null
+  return ay - by - (am < bm || (am === bm && ad < bd) ? 1 : 0)
+}
+
 function mapBeneficiary(row: ApiBeneficiary): BeneficiaryRecord {
   const sex = {
     FEMALE: 'Female',
@@ -2319,16 +2328,19 @@ function mapBeneficiary(row: ApiBeneficiary): BeneficiaryRecord {
     [row.locationBarangay, row.locationCityMunicipality, row.locationProvince]
       .filter(Boolean)
       .join(', ') || 'Not recorded'
+  // Rows registered with a birth date store no age, so derive it at enrollment like the API does.
+  const age =
+    row.ageAtRegistration ?? ageFromBirthDate(row.birthDate, row.enrollment?.enrollmentDate)
   const ageGroup =
-    row.ageAtRegistration === null
+    age === null
       ? 'Unknown'
-      : row.ageAtRegistration <= 9
-        ? '0-9'
-        : row.ageAtRegistration <= 14
+      : age <= 9
+        ? '5-9'
+        : age <= 14
           ? '10-14'
-          : row.ageAtRegistration <= 17
+          : age <= 17
             ? '15-17'
-            : row.ageAtRegistration <= 24
+            : age <= 24
               ? '18-24'
               : '25+'
   return {
@@ -2346,7 +2358,7 @@ function mapBeneficiary(row: ApiBeneficiary): BeneficiaryRecord {
     middleName: row.middleName ?? undefined,
     lastName: row.lastName ?? '',
     birthDate: row.birthDate,
-    age: row.ageAtRegistration ?? undefined,
+    age: age ?? undefined,
     province: row.locationProvince ?? '',
     city: row.locationCityMunicipality ?? '',
     barangay: row.locationBarangay ?? '',

@@ -108,7 +108,7 @@ export const BeneficiaryDirectory = ({
     ]),
   )
   const [ageGroup, setAgeGroup] = useState(() =>
-    safeFilterValue(readParam('age'), ['0-9', '10-14', '15-17', '18-24', '25+', 'Unknown']),
+    safeFilterValue(readParam('age'), ['5-9', '10-14', '15-17', '18-24', '25+', 'Unknown']),
   )
   const [disabilityStatus, setDisabilityStatus] = useState(() =>
     safeFilterValue(readParam('disability'), [
@@ -371,7 +371,7 @@ export const BeneficiaryDirectory = ({
           </FilterSelect>
           <FilterSelect label="Age group" value={ageGroup} onValueChange={setAgeGroup}>
             <SelectItem value={allValue}>All age groups</SelectItem>
-            <SelectItem value="0-9">0-9</SelectItem>
+            <SelectItem value="5-9">5-9</SelectItem>
             <SelectItem value="10-14">10-14</SelectItem>
             <SelectItem value="15-17">15-17</SelectItem>
             <SelectItem value="18-24">18-24</SelectItem>
@@ -399,18 +399,18 @@ export const BeneficiaryDirectory = ({
             <SelectItem value="Completed">Completed</SelectItem>
             <SelectItem value="Exited">Exited</SelectItem>
           </FilterSelect>
-        </div>
-
-        <div className="flex justify-end border-t border-border pt-4">
-          <Button
-            disabled={!filtersActive}
-            onClick={clearAllFilters}
-            type="button"
-            variant="outline"
-          >
-            <RotateCcw className="mr-2 h-4 w-4" aria-hidden="true" />
-            Clear all filters
-          </Button>
+          <div className="flex items-end">
+            <Button
+              className="w-full"
+              disabled={!filtersActive}
+              onClick={clearAllFilters}
+              type="button"
+              variant="outline"
+            >
+              <RotateCcw className="mr-2 h-4 w-4" aria-hidden="true" />
+              Clear all filters
+            </Button>
+          </div>
         </div>
 
         <ResultsAnnouncement

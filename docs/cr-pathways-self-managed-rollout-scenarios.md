@@ -56,7 +56,7 @@ Remove gibberish from active business records and interface copy. Historical aud
 
 ## 3. Target and release
 
-The authorized retained staging project is PATHWAYS-role-staging in ceezey's Org, Singapore ap-southeast-1, PostgreSQL 17. Project ref klbtoqdalmcsfjqophty was created under the confirmed zero monthly project quote. No upgrade or change to the inactive existing project is authorized.
+The authorized retained staging project is PATHWAYS-devV2 in ceezey's Org, Singapore ap-southeast-1, PostgreSQL 17. Project ref klbtoqdalmcsfjqophty was created under the confirmed zero monthly project quote. No upgrade or change to the inactive existing project is authorized.
 
 The existing production-used PATHWAYS-dev target remains pdqwsknbzkdtiwjjibqt. Its latest verified forward migration is 0028; 0029-0033 and feature roles are absent. Recheck before application. Rehearse pre-upgrade synthetic cleanup, fresh/upgrade migration, new dataset and failure cleanup in isolation first. Verify both exact-source dev previews before live application.
 
