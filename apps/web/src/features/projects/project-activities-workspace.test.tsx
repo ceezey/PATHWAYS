@@ -354,14 +354,15 @@ describe('project activities permission-aware loading', () => {
     expect(await screen.findByText('Detail: Synthetic outreach')).toBeTruthy()
   })
 
-  it('hides a column from the Columns menu and sorts by due date', async () => {
+  it('shows every column without a Columns menu and sorts by due date', async () => {
     api.getActivities.mockResolvedValue([
       { ...summary, code: 'ACT-001' },
       { ...summary, id: 'c1', title: 'Second', dueDate: '2026-03-01', code: 'ACT-002' },
     ])
     renderWorkspace()
-    fireEvent.click(await screen.findByRole('menuitemcheckbox', { name: 'Budget' }))
-    await waitFor(() => expect(screen.queryByRole('columnheader', { name: 'Budget' })).toBeNull())
+    expect(await screen.findByRole('columnheader', { name: 'Budget' })).toBeTruthy()
+    expect(screen.queryByRole('button', { name: 'Columns' })).toBeNull()
+    expect(screen.queryByText('List view', { selector: 'span' })).toBeNull()
     fireEvent.click(screen.getByRole('button', { name: 'Due date' }))
     expect(screen.getAllByRole('row')[1].textContent).toContain('Synthetic outreach')
   })

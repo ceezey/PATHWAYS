@@ -7,11 +7,8 @@ import { SectionCard, StatusBadge } from '@/components/pathways'
 import { Button } from '@/components/ui/button'
 import {
   DropdownMenu,
-  DropdownMenuCheckboxItem,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { cn } from '@/lib/utils'
@@ -88,20 +85,12 @@ export const ActivityListTable = ({
   onOpen: (activity: ActivitySummary) => void
   projectId: string
 }) => {
-  const [hidden, setHidden] = useState<ReadonlySet<ColumnKey>>(new Set())
   const [descending, setDescending] = useState(false)
-  const columns = columnKeys.filter((key) => !hidden.has(key))
+  const columns = columnKeys
   const rows = useMemo(() => {
     const sorted = [...activities].sort((a, b) => a.dueDate.localeCompare(b.dueDate))
     return descending ? sorted.reverse() : sorted
   }, [activities, descending])
-  const toggle = (key: ColumnKey, visible: boolean) =>
-    setHidden((current) => {
-      const next = new Set(current)
-      if (visible) next.delete(key)
-      else next.add(key)
-      return next
-    })
 
   return (
     <SectionCard
@@ -109,30 +98,6 @@ export const ActivityListTable = ({
       description={`${activities.length} ${activities.length === 1 ? 'activity' : 'activities'} · sorted by due date`}
       actions={
         <>
-          <span className="rounded-full border border-info/30 bg-info-subtle px-2.5 py-1 text-xs font-semibold text-info">
-            List view
-          </span>
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button size="sm" type="button" variant="outline">
-                Columns
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuLabel>Visible columns</DropdownMenuLabel>
-              <DropdownMenuSeparator />
-              {columnKeys.map((key) => (
-                <DropdownMenuCheckboxItem
-                  checked={!hidden.has(key)}
-                  key={key}
-                  onCheckedChange={(checked) => toggle(key, checked === true)}
-                  onSelect={(event) => event.preventDefault()}
-                >
-                  {columnLabels[key]}
-                </DropdownMenuCheckboxItem>
-              ))}
-            </DropdownMenuContent>
-          </DropdownMenu>
           <Button
             className="gap-2"
             onClick={() => downloadCsv(activitiesCsv(rows, columns))}
