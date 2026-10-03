@@ -78,12 +78,6 @@ export const BeneficiaryDirectory = ({
   const searchParams = useSearchParams()
   const readParam = (name: string) => searchParams?.get(name) ?? null
   const projectAccess = role ? getAccessProfile(role).projectAccess : 'assigned-projects'
-  const projectAccessLabel =
-    projectAccess === 'assigned-projects'
-      ? 'Assigned projects'
-      : projectAccess === 'organization'
-        ? 'All projects'
-        : 'Portfolio view'
   const scopedProjects = useMemo(
     () => (role ? scopeProjectsForRole(projects, role, assignedProjectIds) : []),
     [projects, role, assignedProjectIds],
@@ -183,9 +177,7 @@ export const BeneficiaryDirectory = ({
         cell: ({ row }) => (
           <div className="space-y-1">
             <p className="font-semibold text-foreground">{row.original.displayName}</p>
-            <p className="text-xs text-muted-foreground">
-              {row.original.code} · {row.original.location}
-            </p>
+            <p className="text-xs text-muted-foreground">{row.original.code}</p>
           </div>
         ),
       },
@@ -323,7 +315,6 @@ export const BeneficiaryDirectory = ({
             ) : null}
           </>
         }
-        eyebrow={projectAccessLabel}
         title={labels.moduleBeneficiaries}
       />
 
