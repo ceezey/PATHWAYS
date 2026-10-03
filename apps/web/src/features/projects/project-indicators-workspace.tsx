@@ -246,7 +246,7 @@ function NewIndicator({
                         .filter((form) => form.status === 'PUBLISHED')
                         .map((form) => (
                           <option key={form.id} value={form.id}>
-                            {form.name} Â· v{form.version}
+                            {form.name} · v{form.version}
                           </option>
                         ))}
                     </select>
@@ -647,14 +647,14 @@ export function ProjectIndicatorsWorkspace({ projectId }: { projectId: string })
               <CardHeader>
                 <CardTitle>{indicator.name}</CardTitle>
                 <p className="text-sm text-muted-foreground">
-                  {indicator.code} Â· {indicator.status.replaceAll('_', ' ')} Â·{' '}
+                  {indicator.code} · {indicator.status.replaceAll('_', ' ')} ·{' '}
                   {indicator.mode ?? 'Legacy authority not reviewed'}
                 </p>
               </CardHeader>
               <CardContent>
                 <p className="mb-3 text-sm">
                   {indicator.periodStart ?? 'Unspecified'} to {indicator.periodEnd ?? 'Unspecified'}{' '}
-                  Â· {indicator.unitLabel ?? 'Unit not configured'}
+                  · {indicator.unitLabel ?? 'Unit not configured'}
                 </p>
                 <dl className="grid gap-3 text-sm sm:grid-cols-3">
                   <div>
@@ -676,7 +676,7 @@ export function ProjectIndicatorsWorkspace({ projectId }: { projectId: string })
                 </p>
                 <p className="mt-2 text-sm text-muted-foreground">
                   Definition source: {indicator.dataSource ?? 'Not configured'}
-                  {indicator.binding ? ` Â· ${recipeNames[indicator.binding.recipe]}` : ''}
+                  {indicator.binding ? ` · ${recipeNames[indicator.binding.recipe]}` : ''}
                 </p>
                 {indicator.measurementSource ? (
                   <p className="mt-2 text-sm text-muted-foreground">
