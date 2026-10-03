@@ -48,8 +48,8 @@ Six internal roles are defined in `apps/api/src/modules/auth/rbac-contract.json`
 |---|---|---|---|---|---|---|
 | PRD-F1 | RBAC and Workspace Management | Must-Have | F1 | R1 | 1.8 | Implemented; all G-F1 gates met 2026-10-03 (G-F1-10 for app sign-in; hosted direct-grant bypass deferred, see [deferred features](deferred-features.md)) |
 | PRD-F2 | Project Profile and Activity Tracking | Must-Have | F2 | R1, R4, R5 | 1.1, 1.2, 1.5 | Implemented; all F2 gates met (G-F2-4 reconciled 2026-10-03) |
-| PRD-F3 | Centralized Beneficiary Profile | Must-Have | F3 | R1, R5 | 1.1, 1.3 | Implemented; G-F3-6 partial (see [deferred features](deferred-features.md)) |
-| PRD-F4 | Beneficiary Journey Tracking | Must-Have | F4 | R6 | 1.1, 1.3 | Implemented; G-F4-6 not met (see [deferred features](deferred-features.md)) |
+| PRD-F3 | Centralized Beneficiary Profile | Must-Have | F3 | R1, R5 | 1.1, 1.3 | Implemented; all G-F3 gates met |
+| PRD-F4 | Beneficiary Journey Tracking | Must-Have | F4 | R6 | 1.1, 1.3 | Implemented; all G-F4 gates met |
 | PRD-F5 | Digital Data Collection and Preparation | Must-Have | F5 | R2 | 1.4, 2.1 | Implemented; G-F6-7 on hold (see [deferred features](deferred-features.md)) |
 | PRD-F6 | Metadata-Driven Data Integration | Must-Have | F6 | R2 | 1.1, 1.4, 2.1 | Implemented; G-F6-7 on hold (see [deferred features](deferred-features.md)) |
 | PRD-F7 | Project Indicator and Monitoring | Must-Have | F7 | R3, R4 | 1.5 | Implemented; G-F7-5 not met, deferred (see [deferred features](deferred-features.md)) |
