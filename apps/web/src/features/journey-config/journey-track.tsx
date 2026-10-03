@@ -18,7 +18,7 @@ const stateStyle: Record<StageState, { node: string; label: string }> = {
     node: 'border-primary bg-primary text-primary-foreground ring-2 ring-primary/30 ring-offset-2',
     label: 'Current',
   },
-  upcoming: { node: 'border-border bg-muted text-muted-foreground', label: 'Locked' },
+  upcoming: { node: 'border-border bg-muted text-muted-foreground', label: 'Upcoming' },
 }
 
 const Node = ({
@@ -42,7 +42,7 @@ const Node = ({
         status ? `${stage.code} ${stage.name}: ${status.label}` : `${stage.code} ${stage.name}`
       }
       aria-current={state === 'current' ? 'step' : undefined}
-      disabled={!onSelect || state === 'upcoming'}
+      disabled={!onSelect}
       onClick={() => onSelect?.(stage.id)}
       className="flex w-24 flex-col items-center gap-1 rounded-md text-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-default"
     >

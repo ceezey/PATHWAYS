@@ -28,7 +28,7 @@ describe('JourneyTrack', () => {
     render(<JourneyTrack stages={stages} />)
     expect(screen.getByRole('button', { name: 'J1 Stage 1' })).toBeTruthy()
     expect(screen.queryByText('Done')).toBeNull()
-    expect(screen.queryByText('Locked')).toBeNull()
+    expect(screen.queryByText('Upcoming')).toBeNull()
   })
 
   it('shows done, current and locked states with stageState', () => {
@@ -38,7 +38,7 @@ describe('JourneyTrack', () => {
     )
     expect(screen.getByText('Done')).toBeTruthy()
     expect(screen.getByText('Current')).toBeTruthy()
-    expect(screen.getByText('Locked')).toBeTruthy()
+    expect(screen.getByText('Upcoming')).toBeTruthy()
     expect(
       screen.getByRole('button', { name: 'J2 Stage 2: Current' }).getAttribute('aria-current'),
     ).toBe('step')
