@@ -162,8 +162,8 @@ const ActivityStatusSummary = ({
           <button
             aria-label={`Filter activities by ${status} status, ${counts[status]} ${counts[status] === 1 ? 'activity' : 'activities'}`}
             aria-pressed={selected}
-            className={`min-h-9 rounded-full transition-shadow focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ${
-              selected ? 'ring-2 ring-primary ring-offset-2' : 'hover:ring-2 hover:ring-primary/30'
+            className={`min-h-9 rounded-full transition-shadow focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
+              selected ? 'ring-2 ring-primary' : 'hover:ring-2 hover:ring-primary/30'
             }`}
             key={status}
             onClick={() => onStatusChange(selected ? null : status)}
