@@ -194,6 +194,7 @@ Every implemented feature requires:
 | QAD-T102 | a receipt with mismatched content type, a malformed or foreign-project expense and an absent evidence grant are refused before storage or bytes; verification of an expense without a verified receipt is rejected (23514) | Sad | Security | PRD-F2 | G-F2-16 | UC-F2-7 | `apps/api/src/modules/finance/finance.service.test.ts`; `apps/api/prisma/tests/finance-expense-review-runtime.sql` |
 | QAD-T103 | a return for correction without a reason is rejected, and the reviewer permission check holds when the grant is absent | Sad | Functional Suitability | PRD-F2 | G-F2-17 | UC-F2-8 | `apps/api/src/modules/finance/finance.service.test.ts`; `apps/api/prisma/tests/finance-expense-review-runtime.sql` |
 | QAD-T104 | the activity list returns indicator count, reached and target beneficiaries and budget utilization from grouped scoped queries, and budget utilization is null without budgets.read plus expenses.read and reached is null without the aggregates grant; the table renders the columns, overflow menu, column toggle and a formula-safe CSV export | Happy | Functional Suitability | PRD-F2 | G-F2-10 | UC-F2-5 | `apps/api/src/modules/activities/activities.access.test.ts`; `apps/web/src/features/projects/project-activities-workspace.test.tsx` |
+| QAD-T105 | the dashboard action-counts endpoint scopes every count to the organization and the actor project scope, returns null with no query for a missing grant (expenses.verify or expenses.approve, alerts.read, activities.read, evidence.review), counts PENDING for the verifier and VERIFIED for the approver, applies the activity overdue rule, and sums NEW and REVIEWED alerts through the scoped rules read routine; the projects list returns a capped team with name and role | Sad | Security | PRD-F8 | G-F8-2 | UC-F8-1 | `apps/api/src/modules/dashboards/action-counts.service.test.ts`; `apps/api/src/modules/projects/projects.service.test.ts`; `apps/web/src/features/dashboard/action-kpi-row.test.ts` |
 
 ### 3.3 Abuse / Adversarial Paths
 
@@ -276,7 +277,7 @@ Every implemented feature requires:
 | PRD-F5 | Digital Data Collection and Preparation | QAD-T05, QAD-IMP-04, QAD-IMP-09, QAD-IMP-11, QAD-IMP-13, QAD-T53, QAD-FP-01 |
 | PRD-F6 | Metadata-Driven Data Integration | QAD-T06, QAD-T21, QAD-T22, QAD-T25, QAD-A07, QAD-IMP-01, QAD-IMP-02, QAD-IMP-03, QAD-IMP-05, QAD-IMP-06, QAD-IMP-07, QAD-IMP-08, QAD-IMP-10, QAD-IMP-12, QAD-SM-01, QAD-SM-02, QAD-SM-03, QAD-SM-04, QAD-SM-05, QAD-SM-06, QAD-SM-07, QAD-SM-08, QAD-SM-09, QAD-SM-10, QAD-SM-11, QAD-T54 |
 | PRD-F7 | Project Indicator and Monitoring | QAD-T07, QAD-P05, QAD-T55, QAD-T56, QAD-T57, QAD-T58, QAD-IL-01, QAD-IL-02 |
-| PRD-F8 | Aggregated Monitoring Dashboard with SADDD Analysis | QAD-T08, QAD-T23, QAD-A10, QAD-T59, QAD-T60, QAD-T61, QAD-T62, QAD-T87 |
+| PRD-F8 | Aggregated Monitoring Dashboard with SADDD Analysis | QAD-T08, QAD-T23, QAD-A10, QAD-T59, QAD-T60, QAD-T61, QAD-T62, QAD-T87, QAD-T105 |
 
 PRD-F9 to PRD-F13 rows are in the matrix above and are cited by their gates in the PRD.
 
