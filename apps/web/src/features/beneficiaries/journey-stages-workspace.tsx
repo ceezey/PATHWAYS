@@ -126,7 +126,7 @@ export const JourneyStagesWorkspace = ({
     <div className="space-y-6">
       <section
         aria-label="Journey stage configuration"
-        className="rounded-2xl border border-border bg-card p-5"
+        className="rounded-lg border border-border bg-card p-5"
       >
         <div className="grid gap-3 lg:grid-cols-5">
           {orderedStages.map((stage) => (
@@ -222,7 +222,7 @@ export const JourneyStagesWorkspace = ({
             </div>
           </div>
 
-          <aside className="space-y-5 rounded-2xl border border-border bg-surface-subtle p-5">
+          <aside className="space-y-5 rounded-lg border border-border bg-surface-subtle p-5">
             <h2 className="text-lg font-semibold text-foreground">Stage details</h2>
             {selectedStage ? (
               <>
@@ -342,7 +342,7 @@ export const JourneyStagesWorkspace = ({
                       </Label>
                     ))
                   ) : (
-                    <p className="rounded-xl border border-warning/30 bg-warning-subtle p-3 text-sm text-warning">
+                    <p className="rounded-lg border border-warning/30 bg-warning-subtle p-3 text-sm text-warning">
                       No project activities are available for mapping.
                     </p>
                   )}
@@ -361,7 +361,7 @@ export const JourneyStagesWorkspace = ({
               branchStages.map((stage) => (
                 <div
                   key={stage.id}
-                  className="rounded-xl border border-border bg-surface-subtle p-4"
+                  className="rounded-lg border border-border bg-surface-subtle p-4"
                 >
                   <StatusBadge tone="warning">{stage.code}</StatusBadge>
                   <p className="mt-3 font-semibold text-foreground">{stage.name}</p>
@@ -372,7 +372,7 @@ export const JourneyStagesWorkspace = ({
                 </div>
               ))
             ) : (
-              <p className="rounded-xl border border-border bg-surface-subtle p-4 text-sm text-muted-foreground">
+              <p className="rounded-lg border border-border bg-surface-subtle p-4 text-sm text-muted-foreground">
                 No branch stages are configured yet.
               </p>
             )}
@@ -388,7 +388,7 @@ export const JourneyStagesWorkspace = ({
               Confirm this journey-stage configuration. Other project records are not changed.
             </DialogDescription>
           </DialogHeader>
-          <div className="rounded-xl border border-border bg-surface-subtle p-4 text-sm">
+          <div className="rounded-lg border border-border bg-surface-subtle p-4 text-sm">
             <p className="font-medium text-foreground">{project.title}</p>
             <p className="mt-1 text-muted-foreground">{stages.length} stages configured.</p>
           </div>
