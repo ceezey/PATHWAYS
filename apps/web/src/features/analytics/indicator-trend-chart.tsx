@@ -7,8 +7,10 @@ import { EmptyState } from '@/components/pathways/empty-state'
 import { chartPalette } from '@/lib/chart-palette'
 import type { IndicatorTrends } from '@pathways/shared'
 
-/** One line per indicator over period end dates, with a dashed target line when a target exists. */
-export function indicatorTrendOption(data: IndicatorTrends) {
+/** One indicator, so one unit, per chart: the chosen indicator or the first, with a dashed target line when set. */
+export function indicatorTrendOption(all: IndicatorTrends, indicatorId?: string) {
+  const chosen = all.indicators.find((row) => row.indicatorId === indicatorId) ?? all.indicators[0]
+  const data = { ...all, indicators: chosen ? [chosen] : [] }
   const ends = [
     ...new Set(data.indicators.flatMap((row) => row.points.map((point) => point.periodEnd))),
   ].sort()
@@ -23,7 +25,7 @@ export function indicatorTrendOption(data: IndicatorTrends) {
         )
         .join('; ')}.`,
     },
-    legend: { top: 0 },
+    legend: { top: 0, type: 'scroll' },
     tooltip: { trigger: 'axis' },
     grid: { left: 16, right: 16, top: 40, bottom: 18, containLabel: true },
     xAxis: { type: 'category', data: ends },
@@ -53,9 +55,12 @@ export function indicatorTrendOption(data: IndicatorTrends) {
   }
 }
 
-export const IndicatorTrendChart = ({ data }: { data: IndicatorTrends }) =>
+export const IndicatorTrendChart = ({
+  data,
+  indicatorId,
+}: { data: IndicatorTrends; indicatorId?: string }) =>
   data.indicators.some((row) => row.points.length > 0) ? (
-    <ReactECharts className="h-[320px] w-full" option={indicatorTrendOption(data)} />
+    <ReactECharts className="h-[320px] w-full" option={indicatorTrendOption(data, indicatorId)} />
   ) : (
     <EmptyState
       description="No released indicator values are available for this selection."
