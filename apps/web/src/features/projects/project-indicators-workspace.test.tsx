@@ -158,6 +158,10 @@ describe('P06 dedicated indicator workspace', () => {
       'Higher is better',
     )
     expect(screen.queryByLabelText('Chart-axis decimal places')).toBeNull()
+    expect(screen.queryByText('Advanced settings')).toBeNull()
+    expect(screen.queryByLabelText('Description')).toBeNull()
+    expect(screen.getByLabelText('Source description').tagName).toBe('TEXTAREA')
+    expect(screen.getByText('e.g. %, people')).toBeTruthy()
   })
   it('opens the add dialog with the authority choices only on demand', () => {
     state.permissions = ['monitoring.read', 'indicators.create']
