@@ -44,4 +44,26 @@ describe('evidence list transport', () => {
       parseEvidenceList({ scope: 'detail', records: [{ id: 'e1', status: 'Unknown' }] }),
     ).toThrow('invalid_evidence_response')
   })
+  it('keeps file metadata and review fields on detail records', () => {
+    const row = {
+      id: 'e1',
+      projectId: 'p1',
+      activityId: 'a1',
+      updateId: 'u1',
+      updateUpdatedAt: '2026-01-01T00:00:00.000Z',
+      fileName: 'proof.pdf',
+      reportTitle: 'Synthetic activity',
+      status: 'Approved',
+      submitter: 'Synthetic officer',
+      submittedDate: '2026-01-01T00:00:00.000Z',
+      previewSummary: 'note',
+      contentType: 'application/pdf',
+      byteSize: 10,
+      isIdentifying: true,
+      reviewedDate: '2026-01-02T00:00:00.000Z',
+      reviewer: 'Synthetic reviewer',
+    }
+    const parsed = parseEvidenceList({ scope: 'detail', records: [{ ...row, extra: 'x' }] })
+    expect(parsed).toEqual({ scope: 'detail', records: [row] })
+  })
 })
