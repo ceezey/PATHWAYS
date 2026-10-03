@@ -609,9 +609,10 @@ END $$;
       $env:PATHWAYS_FEATURE_READ_LOCAL_TESTS = '1'
       $env:PATHWAYS_C8_LOCAL_TESTS = '1'
       $env:PATHWAYS_DASHBOARD_HOME_SCOPE_LOCAL_TESTS = '1'
+      $env:PATHWAYS_REPORTS_LOCAL_TESTS = '1'
       Push-Location $phase6Root
       try {
-        foreach ($currentSuite in @('activities/feature-read', 'dashboards/c8-runtime', 'dashboards/dashboard-home-runtime')) {
+        foreach ($currentSuite in @('activities/feature-read', 'dashboards/c8-runtime', 'dashboards/dashboard-home-runtime', 'reports/reports-runtime')) {
           pnpm --dir apps/api exec vitest run "src/modules/$currentSuite.local.test.ts"
           if ($LASTEXITCODE -ne 0) { throw "Current-schema suite $currentSuite failed." }
         }
