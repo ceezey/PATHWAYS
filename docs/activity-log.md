@@ -69,3 +69,5 @@
 
 ## 2026-10-03 Audit Log filter layout
 - Removed the Audit Log eyebrow, page description and filter card description; moved From/To date inside Event filters below the three fields.
+- 2026-10-03 Form builder layout: removed the placeholder Linked indicators checkboxes (indicator links are made on Target indicators); Form code and Description moved into the form information card under a Form configuration header.
+- 2026-10-03 Collection notices: success notices (draft saved, published, generated) now show as a toast pop-up instead of an inline banner.

@@ -279,9 +279,11 @@ describe('BeneficiaryDetail layout', () => {
     renderDetail([stage, second])
     const current = screen.getByRole('button', { name: 'J1 Entry stage: Current' })
     expect(current.getAttribute('aria-current')).toBe('step')
-    expect(
-      (screen.getByRole('button', { name: 'J2 Core stage: Locked' }) as HTMLButtonElement).disabled,
-    ).toBe(true)
+    // Upcoming stages stay selectable so participation can advance the journey.
+    const upcoming = screen.getByRole('button', { name: 'J2 Core stage: Upcoming' })
+    expect((upcoming as HTMLButtonElement).disabled).toBe(false)
+    fireEvent.click(upcoming)
+    expect(upcoming.getAttribute('aria-pressed')).toBe('true')
   })
 })
 

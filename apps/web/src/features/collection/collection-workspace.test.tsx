@@ -53,6 +53,8 @@ const currentAccess = vi.hoisted(() => ({
     assignedProjectIds: ['futuremakers-ncr'],
   },
 }))
+const toasts = vi.hoisted(() => ({ success: vi.fn(), error: vi.fn() }))
+vi.mock('sonner', () => ({ toast: toasts }))
 
 vi.mock('@/providers/current-role-provider', () => ({
   useCurrentRole: () => currentAccess,
@@ -85,6 +87,7 @@ vi.mock('@/lib/services/pathways-client', () => ({
 }))
 
 beforeEach(() => {
+  toasts.success.mockClear()
   sessionStorage.clear()
   currentAccess.profile.userId = 'actor-a'
   currentAccess.profile.organizationId = 'org-a'
@@ -594,6 +597,13 @@ describe('collection import workspace', () => {
     expect((screen.getByLabelText('Description') as HTMLInputElement).value).toBe(
       'Preserved description',
     )
+    expect(
+      screen
+        .getByText('Form configuration')
+        .closest('.rounded-xl')
+        ?.contains(screen.getByLabelText('Form code')),
+    ).toBe(true)
+    expect(screen.queryByText('Linked indicators')).toBeNull()
     fireEvent.click(screen.getByRole('button', { name: 'Save draft' }))
     fireEvent.click(
       within(screen.getByRole('dialog', { name: 'Save form draft?' })).getByRole('button', {
@@ -661,7 +671,11 @@ describe('collection import workspace', () => {
     fireEvent.click(within(dialog).getByRole('button', { name: 'Create draft' }))
 
     await waitFor(() => expect(api.createDigitalForm).toHaveBeenCalled())
-    expect(await screen.findByText(/Draft form .* created on the server/)).toBeTruthy()
+    await waitFor(() =>
+      expect(toasts.success).toHaveBeenCalledWith(
+        expect.stringMatching(/Draft form .* created on the server/),
+      ),
+    )
     expect(api.createDigitalForm).toHaveBeenCalledWith(
       'futuremakers-ncr',
       expect.objectContaining({
@@ -1235,7 +1249,11 @@ describe('collection operation ownership', () => {
     const { submit } = await ownedDataset()
     fireEvent.click(submit)
 
-    await screen.findByText('Server import batch-owned: 250 processed, 0 failed.')
+    await waitFor(() =>
+      expect(toasts.success).toHaveBeenCalledWith(
+        'Server import batch-owned: 250 processed, 0 failed.',
+      ),
+    )
     expect(api.processImport).toHaveBeenCalledTimes(3)
     expect(api.processImport).toHaveBeenCalledWith('futuremakers-ncr', 'batch-owned', 1)
   })
@@ -1329,7 +1347,7 @@ describe('collection operation ownership', () => {
         updatedAt: 'old',
       }),
     )
-    expect(screen.queryByText('Draft saved to the server.')).toBeNull()
+    expect(toasts.success).not.toHaveBeenCalledWith('Draft saved to the server.')
     expect(screen.queryByText('Old saved form')).toBeNull()
   })
 })
@@ -1424,8 +1442,8 @@ describe('persisted collection completion ownership', () => {
       await act(async () => pending.resolve({ ...form, id: 'late-definition' }))
       expect(create).not.toHaveBeenCalled()
       expect(download).not.toHaveBeenCalled()
-      expect(screen.queryByText('Form published to the server.')).toBeNull()
-      expect(screen.queryByText('A new draft version is ready for editing.')).toBeNull()
+      expect(toasts.success).not.toHaveBeenCalledWith('Form published to the server.')
+      expect(toasts.success).not.toHaveBeenCalledWith('A new draft version is ready for editing.')
     },
   )
 })
@@ -1495,7 +1513,10 @@ describe('forms.generate action', () => {
       expect.objectContaining({ sourceFormId: 'form-source', name: 'Baseline (copy)' }),
     )
     expect(api.generateDigitalForm.mock.calls[0]?.[1].code).toMatch(/^baseline_copy_[a-z0-9]+$/)
-    expect(await screen.findByText('Generated draft form Baseline (copy).')).toBeTruthy()
+    await waitFor(() =>
+      expect(toasts.success).toHaveBeenCalledWith('Generated draft form Baseline (copy).'),
+    )
+    expect(screen.queryByText('Generated draft form Baseline (copy).')).toBeNull()
   })
 })
 
