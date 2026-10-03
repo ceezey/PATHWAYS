@@ -1056,13 +1056,7 @@ const OwnedCollectionWorkspace = ({
       return
     }
     const input = toDigitalFormInput({
-      code:
-        formCode ||
-        formTitle
-          .toLowerCase()
-          .replace(/[^a-z0-9]+/g, '_')
-          .replace(/^_+|_+$/g, '')
-          .slice(0, 64),
+      code: fieldCodeFromText(formCode || formTitle).slice(0, 64),
       name: formTitle.trim(),
       description: formDescription,
       formType: toApiFormType(formType),
@@ -1620,7 +1614,10 @@ const OwnedCollectionWorkspace = ({
                   value={formCode}
                   readOnly={Boolean(editingFormId)}
                   placeholder="Generated from the title if left blank"
-                  onChange={(event) => changeInput(setFormCode)(event.target.value)}
+                  onChange={(event) =>
+                    changeInput(setFormCode)(fieldCodeWhileTyping(event.target.value))
+                  }
+                  onBlur={(event) => setFormCode(fieldCodeFromText(event.target.value))}
                 />
               </div>
               <div className="space-y-2">
