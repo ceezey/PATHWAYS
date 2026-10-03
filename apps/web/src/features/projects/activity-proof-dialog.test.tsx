@@ -1189,41 +1189,42 @@ describe('ActivityProofDialog progress suggestion', () => {
   const show = (a: Activity) =>
     render(<ActivityProofDialog activity={a} onOpenChange={vi.fn()} onSubmitted={vi.fn()} open />)
   const progressInput = () => screen.getByLabelText('Progress (%)') as HTMLInputElement
+  const bar = () => screen.getByRole('progressbar').getAttribute('aria-valuenow')
+  const manual = (extra: Record<string, unknown> = {}) =>
+    withTarget({ targetBeneficiaries: null, ...extra })
   const session = (value: string) =>
     fireEvent.change(screen.getByLabelText(/Beneficiaries reached this session/), {
       target: { value },
     })
 
-  it('suggests from approved plus session beneficiaries and updates live', () => {
+  it('derives read-only progress from approved plus session beneficiaries', () => {
     show(withTarget())
-    expect(progressInput().value).toBe('20')
+    expect(bar()).toBe('20')
     session('5')
-    expect(progressInput().value).toBe('25')
-    expect(screen.getByText(/25 of 100 reached \(including this session\) = 25%/)).toBeTruthy()
-    expect(progressInput().getAttribute('aria-describedby')).toContain(
-      'activity-proof-progress-hint',
-    )
+    expect(bar()).toBe('25')
+    expect(screen.getByText('Progress 25%')).toBeTruthy()
+    expect(screen.queryByLabelText('Progress (%)')).toBeNull()
+    expect(screen.queryByText(/Suggested from beneficiaries/)).toBeNull()
   })
 
   it('never auto-fills 100 (caps the suggestion at 99)', () => {
     show(withTarget())
     session('500')
-    expect(progressInput().value).toBe('99')
+    expect(bar()).toBe('99')
   })
 
-  it('stops overwriting after a manual edit and offers no suggestion button', () => {
-    show(withTarget())
+  it('keeps a manual value without a target', () => {
+    show(manual())
     fireEvent.change(progressInput(), { target: { value: '60' } })
     session('30')
     expect(progressInput().value).toBe('60')
-    expect(screen.queryByRole('button', { name: /Use suggestion/ })).toBeNull()
   })
 
   it('never suggests below the current progress', () => {
     show(withTarget({ progress: 70 }))
-    expect(progressInput().value).toBe('70')
+    expect(bar()).toBe('70')
     session('5')
-    expect(progressInput().value).toBe('70')
+    expect(bar()).toBe('70')
   })
 
   it('offers no suggestion when the target is 0 or missing', () => {
@@ -1272,7 +1273,7 @@ describe('ActivityProofDialog progress suggestion', () => {
   })
 
   const submitWith = async (value: string) => {
-    show(withTarget())
+    show(manual())
     fireEvent.change(progressInput(), { target: { value } })
     fireEvent.change(screen.getByLabelText(/Narrative Notes/), { target: { value: 'done' } })
     selectFiles([makeFile('a.pdf', 'application/pdf')])
@@ -1306,13 +1307,13 @@ describe('ActivityProofDialog progress suggestion', () => {
   })
 
   it('shows no completion warning at 100', () => {
-    show(withTarget())
+    show(manual())
     fireEvent.change(progressInput(), { target: { value: '100' } })
     expect(screen.queryByText(/marks this activity Completed/)).toBeNull()
   })
 
   it('shows a non-blocking note below current progress', () => {
-    show(withTarget({ progress: 50 }))
+    show(manual({ progress: 50 }))
     fireEvent.change(progressInput(), { target: { value: '30' } })
     expect(screen.getByText('This is lower than the current progress (50%).')).toBeTruthy()
   })
