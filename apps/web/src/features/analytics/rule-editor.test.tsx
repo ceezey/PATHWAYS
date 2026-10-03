@@ -241,6 +241,23 @@ describe('two-step rule editor navigation', () => {
   })
 })
 
+describe('aggregate metric options', () => {
+  it('offers the new metrics with friendly labels and no record binding', async () => {
+    renderEditor({ projectId })
+    await screen.findByLabelText('Applies to')
+    const metricSelect = screen.getByLabelText('Metric')
+    for (const label of [
+      'Budget utilization (%)',
+      'Beneficiaries needing follow-up (%)',
+      'Mean survey improvement (points)',
+    ])
+      expect(within(metricSelect).getByText(label)).toBeTruthy()
+    fireEvent.change(metricSelect, { target: { value: 'BUDGET_UTILIZATION_PERCENT' } })
+    expect(screen.queryByLabelText('Activity')).toBeNull()
+    expect(screen.queryByLabelText('Indicator')).toBeNull()
+  })
+})
+
 describe('project-scoped record bindings', () => {
   it('scopes activity options to the selected project and clears bindings on project change', async () => {
     renderEditor({ projectId })

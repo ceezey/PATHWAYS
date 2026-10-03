@@ -16,7 +16,12 @@ const nodeKey = (node: RuleNode): string =>
   node.kind === 'CONDITION'
     ? node.id
     : `group_${node.children[0] ? nodeKey(node.children[0]) : 'empty'}`
-const label = (value: string) => value.replaceAll('_', ' ').toLowerCase()
+const metricLabels: Record<string, string> = {
+  BUDGET_UTILIZATION_PERCENT: 'Budget utilization (%)',
+  BENEFICIARY_FOLLOW_UP_PERCENT: 'Beneficiaries needing follow-up (%)',
+  SURVEY_MEAN_IMPROVEMENT_POINTS: 'Mean survey improvement (points)',
+}
+const label = (value: string) => metricLabels[value] ?? value.replaceAll('_', ' ').toLowerCase()
 export const newCondition = (): RuleNode => ({
   kind: 'CONDITION',
   id: `c_${crypto.randomUUID().replaceAll('-', '')}`,

@@ -15,11 +15,20 @@ import {
   type MetricDirection,
   type NumericKind,
   businessCalendarDate,
+  decimalString,
   numericKinds,
   numericMetric,
+  scaledDecimal,
 } from '@pathways/shared'
 import { useEffect, useRef, useState } from 'react'
-import { activityObservation, indicatorObservation, timelineObservation } from './rule-test-metrics'
+import {
+  activityObservation,
+  beneficiaryFollowUpObservation,
+  budgetObservation,
+  indicatorObservation,
+  surveyImprovementObservation,
+  timelineObservation,
+} from './rule-test-metrics'
 type IndicatorInput = {
   current: string
   baseline: string
@@ -32,6 +41,19 @@ type ActivityInput = {
   status: 'NOT_STARTED' | 'IN_PROGRESS' | 'FOR_REVIEW' | 'COMPLETED'
   plannedEndDate: string
 }
+const aggregateFields = [
+  ['budgetPlanned', 'Test planned budget total', 'BUDGET_UTILIZATION_PERCENT'],
+  ['budgetApproved', 'Test approved expense total', 'BUDGET_UTILIZATION_PERCENT'],
+  [
+    'followUpPopulation',
+    'Test active enrollments with participation',
+    'BENEFICIARY_FOLLOW_UP_PERCENT',
+  ],
+  ['followUpCount', 'Test enrollments needing follow-up', 'BENEFICIARY_FOLLOW_UP_PERCENT'],
+  ['surveyPairs', 'Test complete pre and post pairs', 'SURVEY_MEAN_IMPROVEMENT_POINTS'],
+  ['surveyMean', 'Test mean improvement in points', 'SURVEY_MEAN_IMPROVEMENT_POINTS'],
+] as const
+type AggregateKey = (typeof aggregateFields)[number][0]
 const collect = (node: RuleNode): RuleCondition[] =>
   node.kind === 'CONDITION' ? [node] : node.children.flatMap(collect)
 export function RuleTestWorkspace({ rule }: { rule: HumanRule }) {
@@ -87,6 +109,14 @@ function OwnedRuleTest({
   const [activities, setActivities] = useState<ActivityInput[]>(() =>
     boundActivityIds.map((id) => ({ id, status: 'NOT_STARTED', plannedEndDate: '' })),
   )
+  const [aggregates, setAggregates] = useState<Record<AggregateKey, string>>({
+    budgetPlanned: '',
+    budgetApproved: '',
+    followUpPopulation: '',
+    followUpCount: '',
+    surveyPairs: '',
+    surveyMean: '',
+  })
   const [result, setResult] = useState<Awaited<ReturnType<typeof rulesHumanClient.dryRun>> | null>(
     null,
   )
@@ -158,6 +188,39 @@ function OwnedRuleTest({
             startDate: startDate || null,
             endDate: endDate || null,
           })
+        const open = {
+          scope,
+          conditionId: condition.id,
+          asOf,
+          projectStatus: 'PLANNED',
+          projectArchived: false,
+          revision,
+        }
+        const whole = (value: string) => Number(value || '0')
+        if (condition.metric === 'BUDGET_UTILIZATION_PERCENT')
+          return budgetObservation({
+            ...open,
+            recordCount: aggregates.budgetPlanned ? 1 : 0,
+            currencyCount: 1,
+            plannedTotal: aggregates.budgetPlanned || '0',
+            approvedExpenseTotal: aggregates.budgetApproved || '0',
+          })
+        if (condition.metric === 'BENEFICIARY_FOLLOW_UP_PERCENT')
+          return beneficiaryFollowUpObservation({
+            ...open,
+            population: whole(aggregates.followUpPopulation),
+            followUp: whole(aggregates.followUpCount),
+          })
+        if (condition.metric === 'SURVEY_MEAN_IMPROVEMENT_POINTS') {
+          const pairCount = whole(aggregates.surveyPairs)
+          return surveyImprovementObservation({
+            ...open,
+            pairCount,
+            differenceSum: decimalString(
+              scaledDecimal(aggregates.surveyMean || '0') * BigInt(pairCount),
+            ),
+          })
+        }
         return activityObservation({
           ...base,
           reportingDate,
@@ -271,6 +334,22 @@ function OwnedRuleTest({
               </p>
             </div>
           ) : null}
+          {aggregateFields
+            .filter(([, , metric]) => conditions.some((item) => item.metric === metric))
+            .map(([key, text]) => (
+              <div key={key}>
+                <Label htmlFor={`test-${key}`}>{text}</Label>
+                <Input
+                  id={`test-${key}`}
+                  maxLength={20}
+                  value={aggregates[key]}
+                  onChange={(event) => {
+                    change()
+                    setAggregates((values) => ({ ...values, [key]: event.target.value }))
+                  }}
+                />
+              </div>
+            ))}
           {indicatorIds.map((id, index) => {
             const input = indicators[id]
             const update = (patch: Partial<IndicatorInput>) => {

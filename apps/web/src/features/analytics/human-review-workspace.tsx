@@ -17,7 +17,8 @@ import { HumanReviewAction } from './human-review-action'
 import { RuleTreeView, comparisonCopy } from './rule-condition-editor'
 import type { HumanAlert, HumanNotification } from './rules-human-contract'
 
-const copy = (value: string) => value.replaceAll('_', ' ').toLowerCase()
+const copy = (value: string) =>
+  value === 'AUTO_RESOLVED' ? 'Auto-resolved' : value.replaceAll('_', ' ').toLowerCase()
 const instant = (value: string) =>
   new Date(value).toLocaleString('en-US', { timeZone: 'Asia/Manila' })
 const permissionFor = (kind: 'alert' | 'recommendation', action: 'read' | 'review' | 'outcome') =>
@@ -313,7 +314,8 @@ export function HumanReviewWorkspace({
                     </Button>
                   ) : null}
                   {principalHasAtomicPermission(profile, permissionFor(kind, 'outcome')) &&
-                  (!('freshness' in item) || item.freshness === 'CURRENT') ? (
+                  (!('freshness' in item) || item.freshness === 'CURRENT') &&
+                  !('status' in item && item.status === 'AUTO_RESOLVED') ? (
                     <Button type="button" variant="outline" onClick={() => setMode('outcome')}>
                       Record outcome
                     </Button>

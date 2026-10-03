@@ -92,7 +92,7 @@ describe('bounded typed rule configuration', () => {
     { threshold: 'NaN' },
     { threshold: '0.00001' },
     { operator: 'eval' },
-    { metric: 'BUDGET_UTILIZATION_PERCENT' },
+    { metric: 'FOO' },
     { sql: 'SELECT * FROM beneficiaries' },
     { thresholdMaximum: '20' },
     { operator: 'BETWEEN' },
@@ -303,5 +303,59 @@ describe('deterministic evidence evaluation', () => {
     observations[0].cell.value = '999'
     expect(result.rule.recommendations[0].text).toBe('Review the project schedule.')
     expect(result.evidence).toHaveProperty('observation.cell.value', '9')
+  })
+  it('evaluates binding-free aggregate metrics against their own source kinds', () => {
+    const aggregate = (metric: string, kind: string, value: string, calculation: object) => ({
+      ...observation('A', value),
+      metric,
+      calculation: { kind, ...calculation },
+      source: { kind, recordId: project, revision: '1' },
+    })
+    const budget = { plannedTotal: '4', approvedExpenseTotal: '5' }
+    const cases = [
+      ['BUDGET_UTILIZATION_PERCENT', 'BUDGET_AGGREGATE', '125', budget],
+      [
+        'BENEFICIARY_FOLLOW_UP_PERCENT',
+        'BENEFICIARY_AGGREGATE',
+        '40',
+        { population: 10, followUp: 4 },
+      ],
+      [
+        'SURVEY_MEAN_IMPROVEMENT_POINTS',
+        'SURVEY_AGGREGATE',
+        '-2.5',
+        { pairCount: 6, differenceSum: '-15' },
+      ],
+    ] as const
+    for (const [metric, kind, value, calculation] of cases) {
+      const result = evaluateRule({
+        rule: definition(
+          leaf({ metric, operator: 'GTE', threshold: metric.startsWith('SURVEY') ? '-3' : '3' }),
+        ),
+        asOf,
+        observations: [aggregate(metric, kind, value, calculation)],
+      })
+      expect(result.result).toBe('TRUE')
+    }
+    expect(() =>
+      evaluateRule({
+        rule: definition(leaf({ metric: 'BUDGET_UTILIZATION_PERCENT', threshold: '5' })),
+        asOf,
+        observations: [aggregate('BUDGET_UTILIZATION_PERCENT', 'SURVEY_AGGREGATE', '125', budget)],
+      }),
+    ).toThrow()
+    expect(
+      metricObservationSchema.safeParse(
+        aggregate('SURVEY_MEAN_IMPROVEMENT_POINTS', 'BUDGET_AGGREGATE', '1', budget),
+      ).success,
+    ).toBe(false)
+    expect(
+      metricObservationSchema.safeParse(
+        aggregate('SURVEY_MEAN_IMPROVEMENT_POINTS', 'SURVEY_AGGREGATE', '100.5', {
+          pairCount: 5,
+          differenceSum: '502.5',
+        }),
+      ).success,
+    ).toBe(false)
   })
 })

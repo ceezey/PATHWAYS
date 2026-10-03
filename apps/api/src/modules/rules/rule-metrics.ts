@@ -1,8 +1,10 @@
 import {
+  decimalString,
   indicatorProgress,
   isCalendarDate,
   normalizeMetricDecimal,
   numericKinds,
+  scaledDecimal,
   metricCellSchema as sharedCellSchema,
   numericMetric as sharedNumericMetric,
 } from '@pathways/shared'
@@ -405,6 +407,141 @@ export function activityAggregateCells(input: unknown): {
   }
 }
 
+const MIN_COHORT = 5n
+const aggregateBase = {
+  scope: scopeSchema,
+  conditionId: conditionIdSchema,
+  asOf: instant,
+  revision,
+  projectStatus: z.enum(['PLANNED', 'ONGOING', 'COMPLETED', 'ON_HOLD', 'CANCELLED']),
+  projectArchived: z.boolean(),
+}
+const count = z.number().int().min(0).max(1000000000)
+const nonNegativeDecimal = decimalSchema.refine((value) => scaledDecimal(value) >= 0n)
+const suppressed = () => unavailable('SUPPRESSED', 'SUPPRESSED')
+const notApplicable = () => unavailable('NOT_APPLICABLE', 'NOT_APPLICABLE')
+const aggregateOpen = (input: { projectStatus: string; projectArchived: boolean }) =>
+  !input.projectArchived && ['PLANNED', 'ONGOING'].includes(input.projectStatus)
+
+/** Round once to four places, half away from zero, for a positive denominator. */
+function divideRounded(numerator: bigint, denominator: bigint) {
+  const n = numerator < 0n ? -numerator : numerator
+  const value = n / denominator + ((n % denominator) * 2n >= denominator ? 1n : 0n)
+  return numerator < 0n ? -value : value
+}
+function aggregateObservation(
+  input: z.infer<z.ZodObject<typeof aggregateBase>>,
+  metric: RuleMetricKey,
+  kind: 'BUDGET_AGGREGATE' | 'BENEFICIARY_AGGREGATE' | 'SURVEY_AGGREGATE',
+  cell: Cell,
+  calculation: Record<string, unknown>,
+): MetricObservation {
+  const { scope, conditionId, asOf } = input
+  const visible = cell.value !== null
+  return metricObservationSchema.parse({
+    ...scope,
+    conditionId,
+    asOf,
+    metric,
+    cell,
+    calculation: visible ? { kind, ...calculation } : null,
+    source: visible ? { kind, recordId: scope.projectId, revision: input.revision } : null,
+  })
+}
+
+const budgetInputSchema = z
+  .object({
+    ...aggregateBase,
+    recordCount: count,
+    currencyCount: count,
+    plannedTotal: nonNegativeDecimal,
+    approvedExpenseTotal: nonNegativeDecimal,
+  })
+  .strict()
+
+/** Aggregate-only: APPROVED expense total over the planned total of non-archived budget records. */
+export function budgetObservation(input: unknown): MetricObservation {
+  const data = budgetInputSchema.parse(input)
+  let cell: Cell
+  if (!aggregateOpen(data)) cell = notApplicable()
+  else if (data.recordCount === 0) cell = unavailable('EMPTY_POPULATION')
+  else if (data.currencyCount > 1) cell = unavailable('UNSUPPORTED_SOURCE')
+  else if (scaledDecimal(data.plannedTotal) === 0n) cell = unavailable('ZERO_DENOMINATOR')
+  else
+    cell = safeCell(
+      indicatorProgress(
+        numericMetric(data.approvedExpenseTotal),
+        '0',
+        data.plannedTotal,
+        'HIGHER_IS_BETTER',
+      ),
+    )
+  return aggregateObservation(data, 'BUDGET_UTILIZATION_PERCENT', 'BUDGET_AGGREGATE', cell, {
+    plannedTotal: data.plannedTotal,
+    approvedExpenseTotal: data.approvedExpenseTotal,
+  })
+}
+
+const beneficiaryInputSchema = z
+  .object({ ...aggregateBase, population: count, followUp: count })
+  .strict()
+  .refine((data) => data.followUp <= data.population, 'Follow-up cannot exceed the population.')
+
+/** Aggregate-only: share of active enrollments whose latest participation needs follow-up. */
+export function beneficiaryFollowUpObservation(input: unknown): MetricObservation {
+  const data = beneficiaryInputSchema.parse(input)
+  const small = (value: number) => value >= 1 && BigInt(value) < MIN_COHORT
+  let cell: Cell
+  if (!aggregateOpen(data)) cell = notApplicable()
+  else if (data.population === 0) cell = unavailable('EMPTY_POPULATION')
+  else if (
+    BigInt(data.population) < MIN_COHORT ||
+    small(data.followUp) ||
+    small(data.population - data.followUp)
+  )
+    cell = suppressed()
+  else
+    cell = safeCell(
+      indicatorProgress(
+        numericMetric(String(data.followUp)),
+        '0',
+        String(data.population),
+        'HIGHER_IS_BETTER',
+      ),
+    )
+  return aggregateObservation(
+    data,
+    'BENEFICIARY_FOLLOW_UP_PERCENT',
+    'BENEFICIARY_AGGREGATE',
+    cell,
+    { population: data.population, followUp: data.followUp },
+  )
+}
+
+const surveyInputSchema = z
+  .object({ ...aggregateBase, pairCount: count, differenceSum: decimalSchema })
+  .strict()
+
+/** Aggregate-only: mean of post minus pre percentage points over complete pairs. */
+export function surveyImprovementObservation(input: unknown): MetricObservation {
+  const data = surveyInputSchema.parse(input)
+  let cell: Cell
+  if (!aggregateOpen(data)) cell = notApplicable()
+  else if (data.pairCount === 0) cell = unavailable('EMPTY_POPULATION')
+  else if (BigInt(data.pairCount) < MIN_COHORT) cell = suppressed()
+  else {
+    const mean = divideRounded(scaledDecimal(data.differenceSum), BigInt(data.pairCount))
+    cell =
+      mean < -1000000n || mean > 1000000n
+        ? unavailable('INVALID_METRIC')
+        : numericMetric(decimalString(mean))
+  }
+  return aggregateObservation(data, 'SURVEY_MEAN_IMPROVEMENT_POINTS', 'SURVEY_AGGREGATE', cell, {
+    pairCount: data.pairCount,
+    differenceSum: data.differenceSum,
+  })
+}
+
 export const supportedInitialMetrics: readonly RuleMetricKey[] = [
   'INDICATOR_CURRENT_VALUE',
   'INDICATOR_PROGRESS_PERCENT',
@@ -414,4 +551,7 @@ export const supportedInitialMetrics: readonly RuleMetricKey[] = [
   'ACTIVITY_COMPLETION_PERCENT',
   'ACTIVITY_OVERDUE_COUNT',
   'ACTIVITY_OVERDUE_DAYS',
+  'BUDGET_UTILIZATION_PERCENT',
+  'BENEFICIARY_FOLLOW_UP_PERCENT',
+  'SURVEY_MEAN_IMPROVEMENT_POINTS',
 ]

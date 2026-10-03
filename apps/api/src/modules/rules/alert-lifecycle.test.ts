@@ -3,6 +3,7 @@ import {
   alertStatuses,
   applyEvaluation,
   applyHumanAction,
+  canAutoResolveRecommendation,
   decisionOutcomes,
   initialEpisodeCursor,
   supersedeEpisode,
@@ -156,5 +157,15 @@ describe('human actions do not prove condition resolution', () => {
     const action = { kind, ...(kind === 'OUTCOME' ? { outcome: 'ACCEPT' } : {}) }
     for (const note of [undefined, '', '   ', 'a'.repeat(2001)])
       expect(() => applyHumanAction('NEW', { ...action, note })).toThrow()
+  })
+})
+
+describe('recommendation auto-resolution eligibility', () => {
+  it('allows only open recommendations with no recorded decision', () => {
+    expect(canAutoResolveRecommendation('NEW', false)).toBe(true)
+    expect(canAutoResolveRecommendation('REVIEWED', false)).toBe(true)
+    expect(canAutoResolveRecommendation('REVIEWED', true)).toBe(false)
+    for (const status of ['RESOLVED', 'DISMISSED', 'AUTO_RESOLVED'])
+      expect(canAutoResolveRecommendation(status, false)).toBe(false)
   })
 })

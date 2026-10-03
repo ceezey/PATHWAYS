@@ -18,6 +18,9 @@ export const ruleMetrics = [
   'ACTIVITY_COMPLETION_PERCENT',
   'ACTIVITY_OVERDUE_COUNT',
   'ACTIVITY_OVERDUE_DAYS',
+  'BUDGET_UTILIZATION_PERCENT',
+  'BENEFICIARY_FOLLOW_UP_PERCENT',
+  'SURVEY_MEAN_IMPROVEMENT_POINTS',
 ] as const
 export type RuleMetricKey = (typeof ruleMetrics)[number]
 export const uuidSchema = z
@@ -51,8 +54,19 @@ export type RuleGroup = { kind: 'GROUP'; mode: 'AND' | 'OR'; children: RuleNode[
 export type RuleNode = RuleCondition | RuleGroup
 
 export function validateMetricDomain(metric: RuleMetricKey, value: string) {
-  if (metric === 'ACTIVITY_COMPLETION_PERCENT') normalizeMetricDecimal(value, 'PERCENTAGE')
-  if (['PROJECT_TIMELINE_ELAPSED_PERCENT', 'PROJECT_OVERDUE_DAYS'].includes(metric))
+  if (['ACTIVITY_COMPLETION_PERCENT', 'BENEFICIARY_FOLLOW_UP_PERCENT'].includes(metric))
+    normalizeMetricDecimal(value, 'PERCENTAGE')
+  if (metric === 'SURVEY_MEAN_IMPROVEMENT_POINTS') {
+    if (scaledDecimal(value) < -1000000n || scaledDecimal(value) > 1000000n)
+      throw new Error('Survey improvement must be between -100 and 100 points.')
+  }
+  if (
+    [
+      'PROJECT_TIMELINE_ELAPSED_PERCENT',
+      'PROJECT_OVERDUE_DAYS',
+      'BUDGET_UTILIZATION_PERCENT',
+    ].includes(metric)
+  )
     normalizeMetricDecimal(value, 'NON_NEGATIVE')
   if (['ACTIVITY_OVERDUE_COUNT', 'ACTIVITY_OVERDUE_DAYS'].includes(metric))
     normalizeMetricDecimal(value, 'COUNT')
@@ -257,7 +271,33 @@ const calculationSchema = z.discriminatedUnion('kind', [
         .max(1000),
     })
     .strict(),
+  z
+    .object({
+      kind: z.literal('BUDGET_AGGREGATE'),
+      plannedTotal: decimalSchema,
+      approvedExpenseTotal: decimalSchema,
+    })
+    .strict(),
+  z
+    .object({
+      kind: z.literal('BENEFICIARY_AGGREGATE'),
+      population: z.number().int().min(0),
+      followUp: z.number().int().min(0),
+    })
+    .strict(),
+  z
+    .object({
+      kind: z.literal('SURVEY_AGGREGATE'),
+      pairCount: z.number().int().min(0),
+      differenceSum: decimalSchema,
+    })
+    .strict(),
 ])
+const aggregateMetric = {
+  BUDGET_AGGREGATE: 'BUDGET_UTILIZATION_PERCENT',
+  BENEFICIARY_AGGREGATE: 'BENEFICIARY_FOLLOW_UP_PERCENT',
+  SURVEY_AGGREGATE: 'SURVEY_MEAN_IMPROVEMENT_POINTS',
+} as const
 export const metricObservationSchema = z
   .object({
     conditionId: conditionIdSchema,
@@ -277,6 +317,9 @@ export const metricObservationSchema = z
           'PROJECT',
           'ACTIVITY_POPULATION',
           'ACTIVITY',
+          'BUDGET_AGGREGATE',
+          'BENEFICIARY_AGGREGATE',
+          'SURVEY_AGGREGATE',
         ]),
         recordId: uuidSchema,
         revision: z.string().regex(/^[A-Za-z0-9_.:-]{1,80}$/),
@@ -325,9 +368,12 @@ export const metricObservationSchema = z
           message: 'Indicator calculation uses an unsupported source definition.',
         })
     } else if (
-      calculation?.kind === 'PROJECT_TIMELINE' &&
-      !observation.metric.startsWith('PROJECT_')
+      calculation &&
+      calculation.kind in aggregateMetric &&
+      aggregateMetric[calculation.kind as keyof typeof aggregateMetric] !== observation.metric
     )
+      ctx.addIssue({ code: 'custom', message: 'Aggregate calculation does not match the metric.' })
+    else if (calculation?.kind === 'PROJECT_TIMELINE' && !observation.metric.startsWith('PROJECT_'))
       ctx.addIssue({ code: 'custom', message: 'Timeline calculation does not match the metric.' })
     else if (calculation?.kind === 'ACTIVITY_POPULATION') {
       if (

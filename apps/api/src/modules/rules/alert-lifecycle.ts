@@ -132,3 +132,8 @@ export function applyHumanAction(
 export function isOpenAlert(status: AlertStatus) {
   return !terminal.has(status)
 }
+
+/** A recommendation auto-resolves only while it is NEW or REVIEWED and has no recorded decision. */
+export function canAutoResolveRecommendation(status: string, hasDecision: boolean) {
+  return (status === 'NEW' || status === 'REVIEWED') && !hasDecision
+}
