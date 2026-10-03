@@ -165,6 +165,7 @@ describe('P06 IndicatorsService', () => {
       {
         id: indicatorId,
         current: { state: 'MISSING', value: null },
+        dataSource: 'Verified source',
 
         contractVersion: 'p06.v1',
       },
@@ -199,6 +200,7 @@ describe('P06 IndicatorsService', () => {
           {
             ...row,
             current: { state: 'AVAILABLE', value: '5', reason: null },
+            measurementSource: 'June field report',
           },
         ]
       }
@@ -206,6 +208,8 @@ describe('P06 IndicatorsService', () => {
     })
 
     await expect(service.get(actor, projectId, indicatorId)).resolves.toMatchObject({
+      dataSource: 'Verified source',
+      measurementSource: 'June field report',
       target: '10',
       progress: { state: 'AVAILABLE', value: '75' },
     })
@@ -385,9 +389,7 @@ describe('P06 IndicatorsService', () => {
       name: 'Updated label',
       expectedRevision: 1,
     })
-    expect(sqlText(tx.$executeRaw.mock.calls[0][0])).toContain(
-      'UPDATE pathways.project_indicators',
-    )
+    expect(sqlText(tx.$executeRaw.mock.calls[0][0])).toContain('UPDATE pathways.project_indicators')
     expect(tx.auditLog.create).toHaveBeenCalledWith(
       expect.objectContaining({
         data: expect.objectContaining({
