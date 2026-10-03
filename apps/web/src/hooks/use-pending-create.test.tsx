@@ -55,6 +55,7 @@ describe('usePendingCreate', () => {
     act(() => {
       first = hook.result.current.submit('a', run)
     })
+    expect(hook.result.current.pending).toBe(true)
     await act(async () => {
       expect(await hook.result.current.submit('a', run)).toBeUndefined()
     })
@@ -63,6 +64,7 @@ describe('usePendingCreate', () => {
       await first
     })
     expect(run).toHaveBeenCalledTimes(1)
+    expect(hook.result.current.pending).toBe(false)
     expect(sessionStorage.getItem(key)).toBeNull()
   })
 

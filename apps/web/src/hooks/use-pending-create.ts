@@ -40,6 +40,7 @@ export function usePendingCreate<T>(options: Options<T>) {
   const inFlight = useRef(false)
   const timer = useRef<ReturnType<typeof setInterval> | null>(null)
   const [confirming, setConfirming] = useState(false)
+  const [submitting, setSubmitting] = useState(false)
   const [notice, setNotice] = useState<string | null>(null)
 
   const stop = useCallback(() => {
@@ -96,6 +97,7 @@ export function usePendingCreate<T>(options: Options<T>) {
     async <R>(fingerprint: string, run: () => Promise<R>): Promise<R | undefined> => {
       if (!key || inFlight.current || confirming || readPendingCreate(key)) return undefined
       inFlight.current = true
+      setSubmitting(true)
       setNotice(null)
       const marker = { startedAt: Date.now(), fingerprint }
       writePendingCreate(key, marker)
@@ -109,10 +111,11 @@ export function usePendingCreate<T>(options: Options<T>) {
         throw error
       } finally {
         inFlight.current = false
+        setSubmitting(false)
       }
     },
     [key, confirming, confirm],
   )
 
-  return { submit, confirming, notice }
+  return { submit, confirming, notice, pending: submitting || confirming }
 }
