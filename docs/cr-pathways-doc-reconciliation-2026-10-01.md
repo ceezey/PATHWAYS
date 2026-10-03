@@ -250,9 +250,9 @@ Every Not met or Partly met gate is registered in [deferred-features](deferred-f
 | G-F13-5 | Public pages verified hosted | Hosted application deferred | deferred-features: Hosting, SSO and cloud move to the client AWS stack (MA-10) |
 | G-F3-6 | Registration sharing an identity is held for review; review step unreachable by default roles (permission granted to no role); no merge | Review permission not granted to any role; no merge or linkage-flag operation | deferred-features: Duplicate-identity review and merge (MA-14) |
 | G-F4-6 | A user can attach a free-text note to a journey record | No note route or table for journey notes | deferred-features: Free-text journey note (MA-06) |
-| G-F6-7 | Choosing a data type for a new field and translating values during import | On hold per developer request | deferred-features: Import data-type and value mapping (MA-07) |
+| G-F6-7 | Choosing a data type for a new field and translating values during import | On hold per developer request | deferred-features: Import data-type and value mapping (MA-07); superseded 2026-10-03: delivered by cr-pathways-import-value-map, G-F6-7 Met (QAD-T54) |
 | G-F1-10 | The app locks sign-in after repeated failures | No in-app sign-in lockout; the API does not implement one (only the step-up PIN lockout exists, PRD-F3) | deferred-features: Sign-in lockout after repeated failures (MA-04) |
-| G-F2-4 | A project can be archived by a role holding `projects.archive` | Permission granted in rbac-contract.json but no archive route or UI (projects.controller.ts has create and update only) | deferred-features: Project archive (MA-05) |
+| G-F2-4 | A project can be archived by a role holding `projects.archive` | Permission granted in rbac-contract.json but no archive route or UI (projects.controller.ts has create and update only) | deferred-features: Project archive (MA-05); reconciled 2026-10-03: the archive route exists (`projects.controller.ts`), G-F2-4 is Met (QAD-P10, QAD-T40) |
 
 ### 3.13 Records touched
 

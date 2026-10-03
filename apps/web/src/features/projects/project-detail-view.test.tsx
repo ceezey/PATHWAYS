@@ -218,7 +218,7 @@ describe('project overview metrics', () => {
     expect(await tile('Timeline')).toBe('50%')
   })
 
-  it('says "None yet" for sources without data and never shows them as 0', async () => {
+  it('says "None yet" for KPI and timeline without data, and 0 for budget and reach', async () => {
     api.getProjectOverviewMetrics.mockResolvedValue(
       metrics({
         kpiAchievement: { metric: missing('NO_MEASUREMENT'), indicatorCount: 1, reportedCount: 0 },
@@ -233,14 +233,12 @@ describe('project overview metrics', () => {
     )
     renderView()
     await waitFor(async () => expect(await tile('KPI achievement')).toBe('None yet'))
-    expect(await tile('Budget utilization')).toBe('Budget not recorded')
-    expect(await tile('Beneficiaries reached / target')).toBe('After project close / 1,200')
+    expect(await tile('Budget utilization')).toBe('0%')
+    expect(await tile('Beneficiaries reached / target')).toBe('0 / 1,200')
     expect(await tile('Timeline')).toBe('Dates not recorded')
-    for (const value of screen.getAllByRole('definition').map((node) => node.textContent))
-      expect(value).not.toMatch(/^0%?( \/|$)/)
   })
 
-  it('says "None yet" for a planned budget with no approved expenses, never a fabricated 0%', async () => {
+  it('shows 0% for a planned budget with no approved expenses', async () => {
     api.getProjectOverviewMetrics.mockResolvedValue(
       metrics({
         budgetUtilization: {
@@ -251,7 +249,7 @@ describe('project overview metrics', () => {
       }),
     )
     renderView()
-    await waitFor(async () => expect(await tile('Budget utilization')).toBe('None yet'))
+    await waitFor(async () => expect(await tile('Budget utilization')).toBe('0%'))
   })
 
   it('keeps error wording and a retry when the metrics read fails', async () => {

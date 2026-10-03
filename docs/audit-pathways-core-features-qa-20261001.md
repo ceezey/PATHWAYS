@@ -18,12 +18,12 @@ Date: 2026-10-01. Branch: dev (a75406d). Read-only QA against PRD section 4 gate
 
 | Feature | Met | Not met / partial | Notes |
 |---|---|---|---|
-| F1 RBAC | 9/10 | G-F1-10 sign-in lockout not built (MA-04) | G-F1-7/8/9 lack QAD rows |
-| F2 Projects | 18/19 | G-F2-4 archive route/UI missing (MA-05) | 9 gates lack QAD rows; budget UI lacks utilization and remaining balance; target-goal CR preview pending |
+| F1 RBAC | 10/10 (closed 2026-10-03) | None; G-F1-10 met for app sign-in, hosted bypass deferred | Superseded: QAD-T36/T37/T38 and T39/T86/A25 exist |
+| F2 Projects | 19/19 | none (G-F2-4 archive Met, MA-05 closed 2026-10-03) | QAD rows present for all 19 gates (checked 2026-10-03); budget tab rebuilt with utilization and remaining balance; target-goal CR dropped |
 | F3 Beneficiaries | 5/6 | G-F3-6 partial: no role holds identities.review (MA-14) | Tests exist, PRD cell stale |
 | F4 Journey | 5/6 | G-F4-6 journey note not built (MA-06) | G-F4-1/3/4 untested; SA holds journeys.read |
 | F5 Collection | 4/5 | G-F5-1 partial: author cannot publish own form, single-officer projects blocked | G-F5-3 cell should cite QAD-T53 |
-| F6 Integration | 6/7 | G-F6-7 type choice and value map not built (MA-07) | automatic-mapping route undocumented |
+| F6 Integration | 6/7 | G-F6-7 type choice and value map not built (MA-07); superseded 2026-10-03: built by cr-pathways-import-value-map, 7/7 Met | automatic-mapping route undocumented |
 | F7 Indicators | 4/5 | G-F7-5 library not built (MA-01) | Dead mock file indicator-library-workspace.tsx; G-F7-1/3/4 lack QAD rows |
 | F8 Dashboard | 6/7 | G-F8-7 load not verified (MA-08) | G-F8-1/4/6 lack QAD rows; UC-F8-2 route name drift |
 
@@ -37,6 +37,6 @@ Date: 2026-10-01. Branch: dev (a75406d). Read-only QA against PRD section 4 gate
 
 ## Decisions required (Change Record or descope)
 
-G-F1-10, G-F3-6, G-F4-5 (SA journeys.read), G-F4-6, G-F5-1 two-person rule, G-F6-7, G-F7-5, G-F8-7.
+G-F3-6, G-F4-5 (SA journeys.read), G-F4-6, G-F5-1 two-person rule, G-F6-7 (superseded 2026-10-03: Met), G-F7-5, G-F8-7.
 
 > Note 2026-10-01: G-F8-7 was later measured locally at assumed scale and is Met (single user; staging re-measure pending); see QAD-T62 in [qad-pathways](qad-pathways.md). The finding above is kept as dated.

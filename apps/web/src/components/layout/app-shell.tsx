@@ -8,6 +8,7 @@ import { toast } from 'sonner'
 
 import { Sidebar } from '@/components/layout/sidebar'
 import { SkipLink } from '@/components/layout/skip-link'
+import { TopBarBreadcrumb } from '@/components/layout/top-bar-breadcrumb'
 import { Button } from '@/components/ui/button'
 import {
   DropdownMenu,
@@ -86,7 +87,7 @@ export const AppShell = ({ children }: { children: React.ReactNode }) => {
                   <Sidebar onNavigate={() => setMobileOpen(false)} />
                 </SheetContent>
               </Sheet>
-              <p className="truncate text-sm font-semibold text-foreground">{workspaceLabel}</p>
+              <TopBarBreadcrumb label={workspaceLabel} pathname={pathname} />
             </div>
             <div className="flex shrink-0 items-center gap-3">
               {canOpenAlerts ? (

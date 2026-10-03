@@ -365,7 +365,7 @@ export const BeneficiaryMediaProof = ({
                 type="file"
               />
               <p className="text-xs leading-5 text-muted-foreground">
-                JPG, PNG, or MP4 Â· up to four files Â· 50 MB per file.
+                JPG, PNG, or MP4 · up to four files · 50 MB per file.
               </p>
             </div>
 
@@ -476,7 +476,7 @@ export const BeneficiaryMediaProof = ({
             <div className="grid gap-3 sm:grid-cols-2">
               <MetadataRow
                 label="File type"
-                value={`${selectedMedia.mediaType} Â· ${selectedMedia.mimeType}`}
+                value={`${selectedMedia.mediaType} · ${selectedMedia.mimeType}`}
               />
               <MetadataRow
                 label="File size"
@@ -562,8 +562,8 @@ const MediaProofCard = ({
           <div className="min-w-0">
             <p className="break-words font-medium leading-6 text-foreground">{item.fileName}</p>
             <p className="mt-1 text-xs text-muted-foreground">
-              {item.mediaType} Â· {formatMediaFileSize(item.fileSizeBytes)}
-              {duration ? ` Â· ${duration}` : ''}
+              {item.mediaType} · {formatMediaFileSize(item.fileSizeBytes)}
+              {duration ? ` · ${duration}` : ''}
             </p>
           </div>
           <StatusBadge tone={beneficiaryMediaReviewTone(item.reviewStatus)}>
@@ -595,7 +595,7 @@ const MediaProofCard = ({
           </p>
           <p className="flex items-center gap-2">
             <HardDrive className="h-3.5 w-3.5" aria-hidden="true" />
-            {item.source === 'Stored media' ? 'Stored media' : 'Session media'} Â·{' '}
+            {item.source === 'Stored media' ? 'Stored media' : 'Session media'} ·{' '}
             {projectTitle(item.projectId, projects)}
           </p>
           {activity ? (

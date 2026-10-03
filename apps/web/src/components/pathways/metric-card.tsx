@@ -21,15 +21,7 @@ export const MetricCard = ({
   tone?: 'info' | 'success' | 'warning' | 'danger'
   href?: string
 }) => (
-  <Card
-    className={cn(
-      'relative border-t-2',
-      tone === 'info' && 'border-t-info',
-      tone === 'success' && 'border-t-success',
-      tone === 'warning' && 'border-t-warning',
-      tone === 'danger' && 'border-t-danger',
-    )}
-  >
+  <Card className={cn('relative')}>
     {href ? (
       <Link
         aria-label={`View ${label}`}
@@ -42,7 +34,9 @@ export const MetricCard = ({
     <CardContent className="pointer-events-none relative flex items-start justify-between gap-4 p-5">
       <div className="min-w-0">
         <div className="flex items-center gap-1">
-          <p className="text-sm font-medium text-muted-foreground">{label}</p>
+          <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+            {label}
+          </p>
           <MetricTooltip label={label}>{description}</MetricTooltip>
         </div>
         <p className="mt-2 text-3xl font-semibold tracking-tight text-foreground tabular-nums">

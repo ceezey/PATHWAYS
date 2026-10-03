@@ -7,6 +7,7 @@ import { useMemo, useState } from 'react'
 import { PageHeader } from '@/components/layout/page-header'
 import {
   AsyncState,
+  AvatarStack,
   EmptyState,
   FilterBar,
   FilterChoiceGroup,
@@ -160,12 +161,7 @@ export const ProjectDirectory = () => {
         <section className="grid gap-4 xl:grid-cols-2">
           {filteredProjects.map((project) => (
             <Card
-              className={cn(
-                'flex min-w-0 flex-col overflow-hidden border-t-4 shadow-sm',
-                project.health === 'On Track' && 'border-t-success',
-                project.health === 'At Risk' && 'border-t-warning',
-                project.health === 'Critical' && 'border-t-danger',
-              )}
+              className={cn('flex min-w-0 flex-col overflow-hidden')}
               data-testid={`project-card-${project.id}`}
               key={project.id}
             >
@@ -174,7 +170,7 @@ export const ProjectDirectory = () => {
                   <p className="text-sm font-medium uppercase tracking-[0.08em] text-muted-foreground">
                     {project.sector}
                   </p>
-                  <h2 className="font-heading text-2xl font-normal leading-8 text-navy">
+                  <h2 className="font-heading text-xl font-normal leading-7 text-navy">
                     {project.title}
                   </h2>
                   <p className="text-base text-muted-foreground">{project.area}</p>
@@ -205,15 +201,14 @@ export const ProjectDirectory = () => {
                   />
                 </div>
               </CardContent>
-              <CardFooter className="mt-auto flex flex-col items-stretch gap-4 border-t border-border bg-primary-subtle/40 p-5 2xl:flex-row 2xl:items-center 2xl:justify-between">
-                <div className="flex min-w-0 items-center gap-3">
-                  <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary-subtle text-sm font-semibold text-primary">
-                    {managerInitials(project.projectManager)}
-                  </span>
-                  <span className="truncate text-sm font-medium text-muted-foreground">
-                    {project.projectManager}
-                  </span>
-                </div>
+              <CardFooter className="mt-auto flex flex-col items-stretch gap-4 border-t border-border bg-card p-5 2xl:flex-row 2xl:items-center 2xl:justify-between">
+                <AvatarStack
+                  members={
+                    project.team?.length
+                      ? project.team
+                      : [{ userId: project.id, fullName: project.projectManager }]
+                  }
+                />
                 {canReadDetail ? (
                   <div className="grid w-full grid-cols-2 gap-2 2xl:flex 2xl:w-auto 2xl:justify-end">
                     <Button
@@ -250,15 +245,6 @@ export const ProjectDirectory = () => {
     </>
   )
 }
-
-const managerInitials = (name: string) =>
-  name
-    .split(/\s+/)
-    .filter(Boolean)
-    .map((part) => part[0])
-    .join('')
-    .slice(0, 2)
-    .toUpperCase()
 
 /** Same deterministic date-derived timeline as the Overview endpoint. */
 const ProjectTimeline = ({ timeline }: { timeline: MetricCell }) => (

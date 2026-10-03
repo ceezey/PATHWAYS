@@ -210,6 +210,10 @@ describe('Project creation contract', () => {
 
       projectManagerId: managerId,
       projectOfficerIds: [officerId],
+      team: [
+        { userId: managerId, fullName: manager.fullName, role: 'PROJECT_MANAGER' },
+        { userId: officerId, fullName: 'Synthetic Project Officer', role: 'PROJECT_OFFICER' },
+      ],
     })
     expect(created).not.toHaveProperty('targetGoal')
     expect(tx.project.create.mock.calls[0]?.[0].data).not.toHaveProperty('targetGoal')

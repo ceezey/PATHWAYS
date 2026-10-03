@@ -241,6 +241,25 @@ export class UsersService {
           throw new ForbiddenException('Target role is outside your authority.')
         }
 
+        // The last active System Administrator must not be demoted or deactivated.
+        if (
+          target.role.code === 'SYSTEM_ADMINISTRATOR' &&
+          (input.role !== 'SYSTEM_ADMINISTRATOR' || input.accountStatus !== 'ACTIVE')
+        ) {
+          const others = await tx.systemUser.count({
+            where: {
+              organizationId: actor.organizationId,
+              id: { not: target.id },
+              accountStatus: 'ACTIVE',
+              archivedAt: null,
+              role: { code: 'SYSTEM_ADMINISTRATOR' },
+            },
+          })
+          if (others === 0) {
+            throw new ForbiddenException('The last active System Administrator cannot be changed.')
+          }
+        }
+
         if (actorRole !== 'SYSTEM_ADMINISTRATOR') {
           const [allActiveAssignments, scopedActiveAssignments] = await Promise.all([
             tx.userProjectAssignment.count({

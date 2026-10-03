@@ -4,9 +4,12 @@ export const ProgressBar = ({
   value,
   label,
   tone = 'info',
+  hideText = false,
 }: {
   value: number
   label?: string
+  /** Keeps the label for assistive technology but hides the visible label and percent. */
+  hideText?: boolean
   tone?: 'info' | 'success' | 'warning' | 'danger'
 }) => {
   const safeValue = Math.min(100, Math.max(0, value))
@@ -14,7 +17,7 @@ export const ProgressBar = ({
 
   return (
     <div className="space-y-2">
-      {label ? (
+      {label && !hideText ? (
         <div className="flex items-center justify-between gap-3 text-sm">
           <span className="font-medium text-foreground">{label}</span>
           <span className="text-muted-foreground tabular-nums">{safeValue}%</span>

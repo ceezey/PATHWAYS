@@ -2,6 +2,7 @@
 
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
 import { useCurrentRole } from '@/hooks/use-current-role'
 import { useSensitiveDraftOwner } from '@/lib/auth/sensitive-drafts'
 import { pathwaysClient } from '@/lib/services/pathways-client'
@@ -93,8 +94,8 @@ function OwnedSurveySubjectPicker({
       </p>
     )
   return (
-    <section className="space-y-3 rounded-xl border p-4" aria-label="Survey contributor">
-      <label htmlFor="survey-contributor">Contributor (optional)</label>
+    <section className="space-y-3 rounded-lg border p-4" aria-label="Survey contributor">
+      <Label htmlFor="survey-contributor">Contributor (optional)</Label>
       <p className="text-sm text-muted-foreground">
         Anonymous responses are saved but excluded from identified-person aggregates. A contributor
         cannot be changed after saving or an uncertain save response.
@@ -122,7 +123,7 @@ function OwnedSurveySubjectPicker({
         <>
           <select
             id="survey-contributor"
-            className="w-full rounded-md border p-2"
+            className="h-11 w-full rounded-md border border-input bg-card px-3 py-2 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:border-primary focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:bg-secondary"
             value={value}
             onChange={(event) => {
               if (isCurrent()) onChange(event.target.value)

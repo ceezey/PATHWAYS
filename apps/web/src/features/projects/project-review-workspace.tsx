@@ -3,11 +3,12 @@
 import { PublicationQueueWorkspace } from '@/features/public/publication-queue-workspace'
 import { coreDataClient } from '@/lib/services/core-feature-client'
 import { formatMetricCell } from '@pathways/shared'
+import { BudgetModule } from './budget-module/budget-module'
+import { AuditMetadataCard, EvidenceAttachmentsCard } from './evidence-panels'
 import { LiveEvaluationWorkspace } from './live-evaluation-workspace'
-import { LiveFinanceWorkspace } from './live-finance-workspace'
 import { ProjectRulesPanel } from './project-rules-panel'
 
-import { ArrowLeft, Download, FileText, Loader2, Plus, Save } from 'lucide-react'
+import { ArrowLeft, Eye, FileText, Loader2, Plus, Save } from 'lucide-react'
 import Link from 'next/link'
 import { type ReactNode, useEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
@@ -126,7 +127,7 @@ export const ProjectPhaseFiveWorkspace = ({
   if (view === 'budget')
     return (
       <div className="space-y-6">
-        <LiveFinanceWorkspace projectId={projectId} />
+        <BudgetModule projectId={projectId} />
         <ProjectRulesPanel projectId={projectId} />
       </div>
     )
@@ -541,8 +542,8 @@ const EvidenceDownloadControl = ({
 
   if (!owner) {
     return (
-      <Button disabled size="sm" type="button" variant="outline">
-        Not available yet
+      <Button aria-label="Not available yet" disabled size="sm" type="button" variant="outline">
+        View
       </Button>
     )
   }
@@ -587,6 +588,7 @@ const EvidenceDownloadControl = ({
   return (
     <div className="flex flex-col items-end gap-1">
       <Button
+        aria-label="Download for review"
         className="gap-2"
         disabled={busy}
         onClick={() => void download()}
@@ -597,9 +599,9 @@ const EvidenceDownloadControl = ({
         {busy ? (
           <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
         ) : (
-          <Download className="h-4 w-4" aria-hidden="true" />
+          <Eye className="h-4 w-4" aria-hidden="true" />
         )}
-        Download for review
+        View
       </Button>
       {notice ? (
         <output aria-live="polite" className="max-w-xs text-right text-xs text-destructive">
@@ -627,75 +629,39 @@ const EvidenceView = ({
     {evidenceSummary ? (
       <EvidenceSummaryCard activities={evidenceSummary} />
     ) : (
-      <SectionCard
-        title="Activity evidence list"
-        description="Review submitted proof. Status changes require backend persistence."
-      >
-        <div className="space-y-3">
-          {evidence.length > 0 ? (
-            evidence.map((record) => (
-              <div key={record.id} className="rounded-xl border border-border bg-background p-4">
-                <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
-                  <div className="min-w-0">
-                    <p className="break-words font-medium text-foreground">{record.reportTitle}</p>
-                    <p className="mt-1 break-all text-sm text-muted-foreground">
-                      {record.fileName}
-                    </p>
-                  </div>
-                  <StatusBadge tone={statusTone(record.status)}>{record.status}</StatusBadge>
-                </div>
-                <dl className="mt-4 grid gap-3 text-sm sm:grid-cols-3">
-                  <div>
-                    <dt className="text-muted-foreground">Submitter</dt>
-                    <dd className="mt-1 font-medium text-foreground">{record.submitter}</dd>
-                  </div>
-                  <div>
-                    <dt className="text-muted-foreground">Submitted date</dt>
-                    <dd className="mt-1 font-medium text-foreground">
-                      {formatDate(record.submittedDate)}
-                    </dd>
-                  </div>
-                  <div>
-                    <dt className="text-muted-foreground">Proof review</dt>
-                    <dd className="mt-1 font-medium text-foreground">{record.previewSummary}</dd>
-                  </div>
-                </dl>
-                <div className="mt-4 flex flex-wrap items-start justify-end gap-2">
-                  <EvidenceDownloadControl
-                    activityId={record.activityId}
-                    eligible={
-                      canReviewEvidence &&
-                      record.projectId === projectId &&
-                      record.status === 'Submitted'
-                    }
-                    evidenceId={record.id}
-                    projectId={projectId}
-                    updateId={record.updateId}
-                  />
-                  {canReviewEvidence &&
-                  record.projectId === projectId &&
-                  record.status === 'Submitted' ? (
-                    <Button asChild size="sm" variant="outline">
-                      <Link
-                        prefetch={false}
-                        href={`/projects/${encodeURIComponent(projectId)}/activities/${encodeURIComponent(record.activityId)}?review=${encodeURIComponent(record.id)}`}
-                      >
-                        Review proof
-                      </Link>
-                    </Button>
-                  ) : null}
-                </div>
-              </div>
-            ))
-          ) : (
-            <p className="rounded-2xl border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
-              No evidence records are available for this project.
-            </p>
-          )}
-        </div>
-      </SectionCard>
+      <>
+        <EvidenceAttachmentsCard
+          records={evidence}
+          renderActions={(record) => {
+            const eligible =
+              canReviewEvidence && record.projectId === projectId && record.status === 'Submitted'
+            return (
+              <>
+                <EvidenceDownloadControl
+                  activityId={record.activityId}
+                  eligible={eligible}
+                  evidenceId={record.id}
+                  projectId={projectId}
+                  updateId={record.updateId}
+                />
+                {eligible ? (
+                  <Button asChild size="sm" variant="ghost">
+                    <Link
+                      prefetch={false}
+                      href={`/projects/${encodeURIComponent(projectId)}/activities/${encodeURIComponent(record.activityId)}?review=${encodeURIComponent(record.id)}`}
+                    >
+                      Review proof
+                    </Link>
+                  </Button>
+                ) : null}
+              </>
+            )
+          }}
+        />
+        <AuditMetadataCard records={evidence} />
+      </>
     )}
-    <SectionCard title="Report records">
+    <SectionCard className="xl:col-span-2" title="Report records">
       <div className="space-y-3">
         {reports.length > 0 ? (
           reports.map((report) => (

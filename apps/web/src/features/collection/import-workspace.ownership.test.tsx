@@ -1,4 +1,5 @@
 import { clearSensitiveDraftStorage } from '@/lib/auth/sensitive-drafts'
+import { DisplayLabelsProvider } from '@/providers/display-labels-provider'
 /* @vitest-environment jsdom */
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -87,7 +88,7 @@ describe('import uploader automation and ownership', () => {
   })
   afterEach(cleanup)
   it('permits PO upload and conservative automatic mapping without reviewer grant', async () => {
-    render(<ImportWorkspace />)
+    render(<ImportWorkspace />, { wrapper: DisplayLabelsProvider })
     await chooseFile()
     fireEvent.click(screen.getByRole('button', { name: 'Upload privately' }))
     await waitFor(() =>
@@ -103,8 +104,8 @@ describe('import uploader automation and ownership', () => {
         resolveProjects = resolve
       }),
     )
-    render(<ImportWorkspace />)
-    await screen.findByText('Loading authorized projects...')
+    render(<ImportWorkspace />, { wrapper: DisplayLabelsProvider })
+    await screen.findByText('Loading authorized projects')
     await act(async () => {
       resolveProjects?.([
         { id: 'project-1', title: 'Project' },
@@ -122,12 +123,12 @@ describe('import uploader automation and ownership', () => {
 
   it('shows the fetched projects again on a second mount (a cached list on remount)', async () => {
     api.getProjects.mockResolvedValue([{ id: 'project-1', title: 'Project' }])
-    const first = render(<ImportWorkspace />)
+    const first = render(<ImportWorkspace />, { wrapper: DisplayLabelsProvider })
     await waitFor(() => expect(api.getDigitalForms).toHaveBeenCalled())
     first.unmount()
     api.getProjects.mockClear()
 
-    render(<ImportWorkspace />)
+    render(<ImportWorkspace />, { wrapper: DisplayLabelsProvider })
     await waitFor(() => expect(api.getProjects).toHaveBeenCalled())
     await waitFor(() =>
       expect(
@@ -143,7 +144,7 @@ describe('import uploader automation and ownership', () => {
       { id: 'project-1', title: 'Project' },
       { id: 'project-2', title: 'Second Project' },
     ])
-    const view = render(<ImportWorkspace />)
+    const view = render(<ImportWorkspace />, { wrapper: DisplayLabelsProvider })
     await waitFor(() => expect(api.getDigitalForms).toHaveBeenCalled())
     expect(api.getProjects).toHaveBeenCalledTimes(1)
 
@@ -176,7 +177,7 @@ describe('import uploader automation and ownership', () => {
           resolve = resolvePromise
         }),
       )
-      const view = render(<ImportWorkspace />)
+      const view = render(<ImportWorkspace />, { wrapper: DisplayLabelsProvider })
       await chooseFile()
       fireEvent.click(screen.getByRole('button', { name: 'Upload privately' }))
       await waitFor(() => expect(api.uploadImport).toHaveBeenCalledTimes(1))
@@ -202,7 +203,7 @@ describe('import uploader automation and ownership', () => {
   )
   it('retains upload request identity when automatic mapping fails and selected file is retried', async () => {
     api.automaticImportMapping.mockRejectedValueOnce(new Error('Temporary mapping failure'))
-    render(<ImportWorkspace />)
+    render(<ImportWorkspace />, { wrapper: DisplayLabelsProvider })
     await chooseFile()
     fireEvent.click(screen.getByRole('button', { name: 'Upload privately' }))
     await waitFor(() => expect(api.automaticImportMapping).toHaveBeenCalledTimes(1))

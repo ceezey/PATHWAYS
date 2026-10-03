@@ -787,6 +787,7 @@ export class MetadataService {
       'submissions.write',
       async (tx, actor) => {
         const form = await this.requireForm(tx, actor, projectId, formId)
+        if (form.status !== 'PUBLISHED') throw new NotFoundException('Published form unavailable.')
         this.assertDirectEntryForm(form)
         const submission = await this.requireDraftSubmission(tx, actor, form, submissionId)
         const validation = validateAndNormalizeFormData(
@@ -890,6 +891,7 @@ export class MetadataService {
       'submissions.write',
       async (tx, actor) => {
         const form = await this.requireForm(tx, actor, projectId, formId)
+        if (form.status !== 'PUBLISHED') throw new NotFoundException('Published form unavailable.')
         this.assertDirectEntryForm(form)
         const submission = await this.findSubmission(tx, actor, form, submissionId)
         return validateAndNormalizeFormData(
@@ -914,6 +916,7 @@ export class MetadataService {
       'submissions.write',
       async (tx, actor) => {
         const form = await this.requireForm(tx, actor, projectId, formId)
+        if (form.status !== 'PUBLISHED') throw new NotFoundException('Published form unavailable.')
         this.assertDirectEntryForm(form)
         const submission = await this.findSubmission(tx, actor, form, submissionId)
         if (form.formType === 'TRAINING_SURVEY')

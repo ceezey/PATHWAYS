@@ -303,7 +303,7 @@ export const BeneficiaryDetail = ({
         {
           beneficiary_code: beneficiary.code,
           participation_date: participationDraft.participatedAt,
-          attendance_status: participationDraft.attendanceStatus.toUpperCase(),
+          attendance_status: participationDraft.attendanceStatus.toUpperCase().replace(' ', '_'),
           progress_status: 'IN_PROGRESS',
           progress_notes: participationDraft.note.trim() || null,
         },
@@ -403,7 +403,7 @@ export const BeneficiaryDetail = ({
 
   return (
     <div className="space-y-6">
-      <section className="flex flex-col gap-4 rounded-2xl border border-border bg-card p-5 lg:flex-row lg:items-start lg:justify-between">
+      <section className="flex flex-col gap-4 rounded-lg border border-border bg-card p-5 lg:flex-row lg:items-start lg:justify-between">
         <div className="space-y-3">
           <div className="flex flex-wrap gap-2">
             <StatusBadge tone={enrollmentTone(enrollmentStatus)}>{enrollmentStatus}</StatusBadge>
@@ -446,7 +446,7 @@ export const BeneficiaryDetail = ({
       </section>
 
       <div className="grid min-w-0 gap-6 xl:grid-cols-[360px_minmax(0,1fr)]">
-        <aside className="min-w-0 space-y-4 rounded-2xl border border-border bg-card p-5">
+        <aside className="min-w-0 space-y-4 rounded-lg border border-border bg-card p-5">
           <div className="flex items-center justify-between gap-3">
             <h2 className="text-lg font-semibold text-foreground">Profile summary</h2>
             {canEditBeneficiary ? (
@@ -484,7 +484,7 @@ export const BeneficiaryDetail = ({
               }
             />
           </div>
-          <div className="rounded-xl border border-border bg-surface-subtle p-4">
+          <div className="rounded-lg border border-border bg-surface-subtle p-4">
             <p className="text-xs uppercase text-muted-foreground">Project enrollment</p>
             {beneficiary.enrollments.map((enrollment) => (
               <div key={enrollment.id} className="mt-3 space-y-2">
@@ -508,7 +508,7 @@ export const BeneficiaryDetail = ({
         <div className="min-w-0 space-y-6">
           {beneficiary.sex === 'Prefer not to say' ||
           beneficiary.disabilityStatus === 'Not specified' ? (
-            <div className="rounded-xl border border-warning/30 bg-warning-subtle p-4 text-sm text-warning">
+            <div className="rounded-lg border border-warning/30 bg-warning-subtle p-4 text-sm text-warning">
               SADDD completeness warning: one or more sex, age, or disability dimensions are not
               disclosed for this profile.
             </div>
@@ -539,7 +539,7 @@ export const BeneficiaryDetail = ({
               </TabsList>
 
               <TabsContent value="journey">
-                <section className="min-w-0 overflow-hidden rounded-2xl border border-border bg-card">
+                <section className="min-w-0 overflow-hidden rounded-lg border border-border bg-card">
                   <div className="flex flex-col gap-3 border-b border-border bg-surface-subtle p-4 sm:flex-row sm:items-start sm:justify-between sm:p-5">
                     <div>
                       <h3 className="text-lg font-semibold text-foreground">Journey tracker</h3>
@@ -690,9 +690,9 @@ export const BeneficiaryDetail = ({
                   ) : null}
                 </section>
 
-                <section className="mt-4 rounded-2xl border border-border bg-card p-5">
+                <section className="mt-4 rounded-lg border border-border bg-card p-5">
                   <h3 className="text-lg font-semibold text-foreground">Follow-up status</h3>
-                  <div className="mt-3 rounded-xl border border-border bg-surface-subtle p-4">
+                  <div className="mt-3 rounded-lg border border-border bg-surface-subtle p-4">
                     <p className="font-medium text-foreground">
                       {latestEnrollment?.followUpStatus ?? 'Not due'}
                     </p>
@@ -757,7 +757,7 @@ export const BeneficiaryDetail = ({
             </p>
           ) : selectedAssessment && assessmentDetail.state === 'ready' ? (
             <div className="space-y-4">
-              <div className="rounded-xl border border-border bg-surface-subtle p-4">
+              <div className="rounded-lg border border-border bg-surface-subtle p-4">
                 <p className="text-sm text-muted-foreground">Score</p>
                 <p className="mt-1 text-3xl font-semibold text-foreground">
                   {assessmentDetail.detail.score} / {assessmentDetail.detail.maximumScore}
@@ -826,9 +826,9 @@ export const BeneficiaryDetail = ({
                 }
               />
             </Label>
-            <fieldset className="grid grid-cols-3 gap-2">
+            <fieldset className="grid grid-cols-2 gap-2 sm:grid-cols-3">
               <legend className="sr-only">Attendance status</legend>
-              {['Present', 'Partial', 'Absent'].map((status) => (
+              {['Present', 'Absent', 'Excused', 'Completed', 'Not completed'].map((status) => (
                 <Button
                   aria-pressed={participationDraft.attendanceStatus === status}
                   key={status}
@@ -1045,7 +1045,7 @@ export const BeneficiaryDetail = ({
 }
 
 const SummaryRow = ({ label, value }: { label: string; value?: string }) => (
-  <div className="rounded-xl border border-border bg-surface-subtle p-3">
+  <div className="rounded-lg border border-border bg-surface-subtle p-3">
     <p className="text-xs uppercase text-muted-foreground">{label}</p>
     <p className="mt-1 font-medium text-foreground">{value || 'Not recorded'}</p>
   </div>
@@ -1062,7 +1062,7 @@ const RecordList = ({
   stages: JourneyStageConfig[]
   title: string
 }) => (
-  <section className="rounded-2xl border border-border bg-card p-5">
+  <section className="rounded-lg border border-border bg-card p-5">
     <h2 className="text-lg font-semibold text-foreground">{title}</h2>
     <div className="mt-4 space-y-3">
       {participation.length > 0 ? (
@@ -1076,7 +1076,7 @@ const RecordList = ({
             return (
               <div
                 key={record.id}
-                className="rounded-xl border border-border bg-surface-subtle p-4"
+                className="rounded-lg border border-border bg-surface-subtle p-4"
               >
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div>
@@ -1096,7 +1096,7 @@ const RecordList = ({
             )
           })
       ) : (
-        <p className="rounded-xl border border-border bg-surface-subtle p-4 text-sm text-muted-foreground">
+        <p className="rounded-lg border border-border bg-surface-subtle p-4 text-sm text-muted-foreground">
           No participation history is available for this coded profile.
         </p>
       )}
@@ -1111,7 +1111,7 @@ const StageActivityList = ({
   activities: ActivitySummary[]
   participation: BeneficiaryParticipationRecord[]
 }) => (
-  <section className="rounded-xl border border-border bg-card p-4">
+  <section className="rounded-lg border border-border bg-card p-4">
     <h5 className="font-semibold text-foreground">Stage activities</h5>
     <div className="mt-3 space-y-2">
       {activities.length > 0 ? (
@@ -1122,7 +1122,7 @@ const StageActivityList = ({
 
           return (
             <div
-              className="rounded-xl border border-border bg-surface-subtle p-3"
+              className="rounded-lg border border-border bg-surface-subtle p-3"
               key={activity.id}
             >
               <p className="text-sm font-medium text-foreground">{activity.title}</p>
@@ -1152,7 +1152,7 @@ const JourneyNoteList = ({
   notes: BeneficiaryNoteRecord[]
   title: string
 }) => (
-  <section className="rounded-xl border border-border bg-card p-4">
+  <section className="rounded-lg border border-border bg-card p-4">
     <h5 className="font-semibold text-foreground">{title}</h5>
     {description ? (
       <p className="mt-1 text-sm leading-6 text-muted-foreground">{description}</p>
@@ -1160,11 +1160,11 @@ const JourneyNoteList = ({
     <div className="mt-3 space-y-2">
       {notes.length > 0 ? (
         notes.map((note) => (
-          <div className="rounded-xl border border-border bg-surface-subtle p-3" key={note.id}>
+          <div className="rounded-lg border border-border bg-surface-subtle p-3" key={note.id}>
             <StatusBadge tone="neutral">{note.visibility}</StatusBadge>
             <p className="mt-2 text-sm leading-6 text-foreground">{note.note}</p>
             {note.journeyNote ? (
-              <p className="mt-2 rounded-xl border border-border bg-card p-3 text-sm leading-6 text-foreground">
+              <p className="mt-2 rounded-lg border border-border bg-card p-3 text-sm leading-6 text-foreground">
                 {note.journeyNote}
               </p>
             ) : null}

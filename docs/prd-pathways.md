@@ -46,12 +46,12 @@ Six internal roles are defined in `apps/api/src/modules/auth/rbac-contract.json`
 
 | ID | Feature | Priority | Manuscript ID | Requirement | Objective | Status |
 |---|---|---|---|---|---|---|
-| PRD-F1 | RBAC and Workspace Management | Must-Have | F1 | R1 | 1.8 | Implemented; G-F1-10 not met (see [deferred features](deferred-features.md)) |
-| PRD-F2 | Project Profile and Activity Tracking | Must-Have | F2 | R1, R4, R5 | 1.1, 1.2, 1.5 | Implemented; G-F2-4 not met (see [deferred features](deferred-features.md)) |
-| PRD-F3 | Centralized Beneficiary Profile | Must-Have | F3 | R1, R5 | 1.1, 1.3 | Implemented; G-F3-6 partial (see [deferred features](deferred-features.md)) |
-| PRD-F4 | Beneficiary Journey Tracking | Must-Have | F4 | R6 | 1.1, 1.3 | Implemented; G-F4-6 not met (see [deferred features](deferred-features.md)) |
-| PRD-F5 | Digital Data Collection and Preparation | Must-Have | F5 | R2 | 1.4, 2.1 | Implemented; G-F6-7 on hold (see [deferred features](deferred-features.md)) |
-| PRD-F6 | Metadata-Driven Data Integration | Must-Have | F6 | R2 | 1.1, 1.4, 2.1 | Implemented; G-F6-7 on hold (see [deferred features](deferred-features.md)) |
+| PRD-F1 | RBAC and Workspace Management | Must-Have | F1 | R1 | 1.8 | Implemented; all G-F1 gates met 2026-10-03 (G-F1-10 for app sign-in; hosted direct-grant bypass deferred, see [deferred features](deferred-features.md)) |
+| PRD-F2 | Project Profile and Activity Tracking | Must-Have | F2 | R1, R4, R5 | 1.1, 1.2, 1.5 | Implemented; all F2 gates met (G-F2-4 reconciled 2026-10-03) |
+| PRD-F3 | Centralized Beneficiary Profile | Must-Have | F3 | R1, R5 | 1.1, 1.3 | Implemented; all G-F3 gates met |
+| PRD-F4 | Beneficiary Journey Tracking | Must-Have | F4 | R6 | 1.1, 1.3 | Implemented; all G-F4 gates met |
+| PRD-F5 | Digital Data Collection and Preparation | Must-Have | F5 | R2 | 1.4, 2.1 | Implemented |
+| PRD-F6 | Metadata-Driven Data Integration | Must-Have | F6 | R2 | 1.1, 1.4, 2.1 | Implemented |
 | PRD-F7 | Project Indicator and Monitoring | Must-Have | F7 | R3, R4 | 1.5 | Implemented; G-F7-5 not met, deferred (see [deferred features](deferred-features.md)) |
 | PRD-F8 | Aggregated Monitoring Dashboard with SADDD Analysis | Must-Have | F8 | R3 | 1.6, 2.2, 2.3 | Implemented; G-F8-7 Met locally at assumed scale (staging re-measure pending) |
 | PRD-F9 | Descriptive Analytics and Project Performance Summaries | Supporting | F9 | R3, R7 | 1.6, 2.2 | Implemented for KPI, participation, survey and timeline views; on-hold items in the deferred register |
@@ -98,7 +98,7 @@ Status comes from the repository, not the manuscript labels "In Progress" and "P
 | FR-4 | Beneficiary participation and journey tracking | PRD-F4 | High | P6 / R6 | Implemented |
 | FR-5 | Beneficiary-related monitoring records | PRD-F3, PRD-F4, PRD-F5 | High | P2 / R2, P6 / R6 | Implemented |
 | FR-6 | Digital monitoring forms and fields | PRD-F5 | High | P2 / R2 | Implemented |
-| FR-7 | Dataset upload, mapping and validation | PRD-F5, PRD-F6 | High | P2 / R2 | Implemented; data-type and value mapping on hold |
+| FR-7 | Dataset upload, mapping and validation | PRD-F5, PRD-F6 | High | P2 / R2 | Implemented |
 | FR-8 | Centralized encoded and imported records | PRD-F6 | High | P5 / R5 | Implemented |
 | FR-9 | Indicator and monitoring parameter configuration | PRD-F7 | High | P3 / R3, P4 / R4 | Implemented; reusable indicator definitions through the organization library (cr-pathways-indicator-library); project structure templates not built |
 | FR-10 | Aggregated dashboards and SADDD summaries | PRD-F8 | High | P3 / R3 | Implemented |
@@ -281,23 +281,23 @@ flowchart LR
 
 | Gate | Condition | Status | QAD |
 |---|---|---|---|
-| G-F2-1 | A Project Manager creates a project with target beneficiaries, an opening budget and automatic self-assignment, audited | Met | QAD-R08 |
-| G-F2-2 | Project list and detail show only scoped projects and the tabs the role may read | Met | QAD-R02 |
+| G-F2-1 | A Project Manager creates a project with target beneficiaries, an opening budget and automatic self-assignment, audited | Met | QAD-R08, QAD-T91, QAD-T92, QAD-A26 |
+| G-F2-2 | Project list and detail show only scoped projects and the tabs the role may read | Met | QAD-R02, QAD-T93, QAD-T94 |
 | G-F2-3 | Locked fields stay disabled and unsubmitted; a write carrying free-text implementing partners is rejected | Met | QAD-RBP-06, QAD-RBP-07 |
 | G-F2-4 | A project can be archived by a role holding `projects.archive` | Met | QAD-P10, QAD-T40 |
-| G-F2-5 | Authorized activity create and update persist; dates outside the project timeline need a justification | Met | QAD-T02 |
-| G-F2-6 | A progress update or proof submission enters review, and only one update awaits review per activity | Met | QAD-T02 |
-| G-F2-7 | A reviewer other than the submitter approves or returns an update, and only approval moves activity progress | Met | QAD-T41 |
-| G-F2-8 | Private proof inspection succeeds only for a pending update and fails with a conflict when revisions changed | Met | QAD-A22 |
-| G-F2-9 | A reviewer records an overdue explanation for an activity | Met | QAD-T42 |
-| G-F2-10 | Milestones are created and updated only with `milestones.manage` | Met | QAD-T43 |
+| G-F2-5 | Authorized activity create and update persist; dates outside the project timeline need a justification | Met | QAD-T02, QAD-T95, QAD-A27 |
+| G-F2-6 | A progress update or proof submission enters review, and only one update awaits review per activity | Met | QAD-T02, QAD-T96, QAD-A28 |
+| G-F2-7 | A reviewer other than the submitter approves or returns an update, and only approval moves activity progress | Met | QAD-T41, QAD-T97, QAD-A29 |
+| G-F2-8 | Private proof inspection succeeds only for a pending update and fails with a conflict when revisions changed | Met | QAD-A22, QAD-T98 |
+| G-F2-9 | A reviewer records an overdue explanation for an activity | Met | QAD-T42, QAD-T99, QAD-A30 |
+| G-F2-10 | Milestones are created and updated only with `milestones.manage` | Met | QAD-T43, QAD-T100, QAD-A31 |
 | G-F2-11 | Each role sees only the actions its permissions allow; a forged capability flag still returns 403 | Met | QAD-RBP-01, QAD-RBP-05 |
 | G-F2-12 | The assignable-officer read lists only active Project Officers with access, and denies other roles | Met | QAD-RBP-02, QAD-RBP-08 |
 | G-F2-13 | An out-of-scope project or activity is denied before any write | Met | QAD-A02, QAD-P09 |
-| G-F2-14 | A budget record is created or replaced with a stale-revision check | Met | QAD-T44 |
+| G-F2-14 | A budget record is created or replaced with a stale-revision check | Met | QAD-T44, QAD-T101, QAD-A32 |
 | G-F2-15 | An expense is submitted against a budget reference; a retry with the same client request id does not duplicate it | Met | QAD-T45, QAD-T84 |
-| G-F2-16 | A private receipt is attached to a pending expense, and verification or approval needs it | Met | QAD-T46 |
-| G-F2-17 | An expense is verified, then approved by a distinct reviewer; rejection requires a reason | Met | QAD-T47 |
+| G-F2-16 | A private receipt is attached to a pending expense, and verification or approval needs it | Met | QAD-T46, QAD-T102, QAD-A33 |
+| G-F2-17 | An expense is verified, then approved by a distinct reviewer; rejection requires a reason | Met | QAD-T47, QAD-T103, QAD-A34 |
 | G-F2-18 | Final sign-off is recorded once per expense by a holder of `expenses.signoff` | Met | QAD-T48, QAD-T85 |
 | G-F2-19 | Overview metrics derive budget utilization and timeline deterministically and deny out-of-scope projects | Met | QAD-P03, QAD-P08 |
 
@@ -563,7 +563,7 @@ flowchart LR
 | Permission | `beneficiaries.identities.review` |
 | Trigger | A registration shares an identity with an existing profile and is held for review. |
 | Preconditions | The user holds the review permission, a fresh step-up and project assignment. |
-| Main flow | 1. The registration response reports `IDENTITY_REVIEW_REQUIRED` or `DUPLICATE_IDENTITY` (`POST /beneficiaries/projects/:projectId/registrations`). 2. The reviewer opens `/beneficiaries/duplicates`, which lists unreviewed pairs (`GET /beneficiaries/projects/:projectId/duplicate-candidates`). 3. The reviewer compares a pair and confirms Keep as distinct people or Merge linked profiles (`POST /beneficiaries/projects/:projectId/duplicate-candidates/resolve`). |
+| Main flow | 1. The registration response reports `IDENTITY_REVIEW_REQUIRED` or `DUPLICATE_IDENTITY` (`POST /beneficiaries/projects/:projectId/registrations`). 2. The reviewer opens `/beneficiaries/duplicates`, which lists unreviewed pairs (`GET /beneficiaries/projects/:projectId/duplicate-candidates`). 3. The reviewer compares a pair and confirms Keep as distinct people or Link as same person (`POST /beneficiaries/projects/:projectId/duplicate-candidates/resolve`). |
 | Alternate / exception | A caller without the review permission sees only the review-required code and cannot see the matched profile; the queue and decision routes return 403. A pair already decided, the same profile twice or a profile outside the project is rejected. |
 | Postconditions | The pair leaves the queue; no profile data is merged or moved; the decision is audited. |
 | Gates | G-F3-6 |
@@ -773,7 +773,7 @@ flowchart LR
 | Trigger | The user downloads a form definition to share or reuse. |
 | Preconditions | The form exists in an assigned project. |
 | Main flow | 1. The user opens `/collection/forms`. 2. The user picks a format. 3. The web requests the file (`GET /metadata/projects/:projectId/forms/:formId/export`). 4. The system returns the definition and audits the export. |
-| Alternate / exception | Permission denied or cross-project request: 403. Definition beyond artifact bounds: the export fails whole, never truncated. |
+| Alternate / exception | Permission denied: 403. Cross-organization or unassigned-project request: 404 before any form is read, so the form's existence is not disclosed. Definition beyond artifact bounds: the export fails whole, never truncated. |
 | Postconditions | One audit row without field content. |
 | Gates | G-F5-4, G-F5-5 |
 
@@ -801,7 +801,6 @@ stateDiagram-v2
 - Process valid rows in chunks of at most 25, with resumable progress, into submissions linked to the project.
 **Bounds (out):**
 - AI or learned mapping: automatic mapping is rules over names and sampled values only (cr-pathways-smart-import-mapping).
-- Data-type selection for new fields and value translation: on hold (docs/deferred-features.md).
 - Real-time synchronization or API integration with KOBO, YES!ME or PMERL (Scope and Limitations, paragraph 3).
 - Scanned, encrypted, table-less or script-carrying PDFs and formula-like cells: rejected (cr-pathways-import-throughput-and-pdf).
 **Lock:** Locked. Adding a gate or widening a bound requires an approved `cr-pathways-*`; anything outside these bounds is out of scope by default. System-wide bounds: section 6.1.

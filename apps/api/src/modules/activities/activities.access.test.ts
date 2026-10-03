@@ -136,10 +136,16 @@ const tx = {
     update: vi.fn(),
   },
   evidenceMedia: { findFirst: vi.fn(), updateMany: vi.fn() },
-  budgetExpenseEntry: { aggregate: vi.fn() },
+  budgetExpenseEntry: { aggregate: vi.fn(), groupBy: vi.fn() },
   activityUpdate: { findFirst: vi.fn(), update: vi.fn() },
   auditLog: { create: vi.fn() },
 }
+const listMetricKeys = [
+  'indicatorCount',
+  'beneficiariesTarget',
+  'beneficiariesReached',
+  'budgetUtilization',
+]
 const storage = { downloadPrivateFile: vi.fn() }
 
 describe('P05 activity proof authorization', () => {
@@ -249,11 +255,15 @@ describe('P05 activity proof authorization', () => {
       [
         'assignedTo',
         'assignedUserIds',
+        'beneficiariesReached',
+        'beneficiariesTarget',
+        'budgetUtilization',
         'capabilities',
         'code',
         'description',
         'dueDate',
         'id',
+        'indicatorCount',
         'indicatorIds',
         'journeyStageId',
         'journeyStageIds',
@@ -275,11 +285,81 @@ describe('P05 activity proof authorization', () => {
     expect(select.projectActivityAssignment_activity.select.projectAssignment.select.user).toEqual({
       select: { fullName: true },
     })
-    // Budget and reach metrics are detail-only reads.
-    expect(tx.$queryRaw).not.toHaveBeenCalled()
-    expect(tx.projectBudgetRecord.findMany).not.toHaveBeenCalled()
+    // The list never runs the per-activity detail aggregate and carries no logged total.
     expect(tx.budgetExpenseEntry.aggregate).not.toHaveBeenCalled()
     expect(item).not.toHaveProperty('budgetLogged')
+  })
+
+  it('returns grouped list metrics in single scoped queries for a full reader', async () => {
+    state.actor = {
+      ...actor,
+      roles: ['PROJECT_MANAGER'],
+      permissions: [
+        'activities.read',
+        'budgets.read',
+        'expenses.read',
+        'beneficiaries.aggregates.read',
+      ],
+    }
+    tx.project.findFirst.mockResolvedValueOnce({
+      projectActivity_project: [
+        {
+          ...activity,
+          activityIndicatorLink_activity: [{ indicatorId: 'i1' }, { indicatorId: 'i2' }],
+        },
+      ],
+    })
+    tx.$queryRaw.mockResolvedValueOnce([{ activityId: activity.id, beneficiariesReached: 12 }])
+    tx.projectBudgetRecord.findMany.mockResolvedValueOnce([
+      {
+        id: 'r1',
+        activityId: activity.id,
+        plannedBudget: new Prisma.Decimal('1000'),
+        archivedAt: null,
+      },
+      {
+        id: 'r0',
+        activityId: activity.id,
+        plannedBudget: new Prisma.Decimal('500'),
+        archivedAt: new Date(),
+      },
+    ])
+    tx.budgetExpenseEntry.groupBy.mockResolvedValueOnce([
+      { budgetRecordId: 'r1', _sum: { amount: new Prisma.Decimal('400') } },
+      { budgetRecordId: 'r0', _sum: { amount: new Prisma.Decimal('100') } },
+    ])
+    const [item] = await service.list(state.actor, projectId)
+    expect(item).toMatchObject({
+      indicatorCount: 2,
+      beneficiariesTarget: 25,
+      beneficiariesReached: 12,
+      budgetUtilization: 50,
+    })
+    expect(tx.$queryRaw).toHaveBeenCalledTimes(1)
+    expect(tx.budgetExpenseEntry.groupBy).toHaveBeenCalledTimes(1)
+    expect(tx.projectBudgetRecord.findMany.mock.calls[0][0].where).toMatchObject({
+      organizationId,
+      projectId,
+    })
+    expect(tx.budgetExpenseEntry.groupBy.mock.calls[0][0].where).toMatchObject({
+      organizationId,
+      projectId,
+      status: 'APPROVED',
+    })
+  })
+
+  it('returns null budget and reached metrics without the grants and skips their queries', async () => {
+    state.actor = {
+      ...actor,
+      roles: ['PROJECT_MANAGER'],
+      permissions: ['activities.read', 'budgets.read'],
+    }
+    tx.project.findFirst.mockResolvedValueOnce({ projectActivity_project: [activity] })
+    const [item] = await service.list(state.actor, projectId)
+    expect(item).toMatchObject({ budgetUtilization: null, beneficiariesReached: null })
+    expect(tx.$queryRaw).not.toHaveBeenCalled()
+    expect(tx.projectBudgetRecord.findMany).not.toHaveBeenCalled()
+    expect(tx.budgetExpenseEntry.groupBy).not.toHaveBeenCalled()
   })
 
   it('returns the approved logged total for an expense reader, scoped to the activity', async () => {
@@ -483,12 +563,11 @@ describe('Activity creation contract authorization', () => {
     const { sourceAcknowledgement, ...savedActivity } = created
     expect(sourceAcknowledgement).toMatchObject({ committed: true, replayed: false })
     const [listed] = await service.list(projectManager, projectId)
-    expect(listed).toEqual(
+    expect(listed).toMatchObject(
       Object.fromEntries(
-        Object.keys(listed ?? {}).map((key) => [
-          key,
-          (savedActivity as Record<string, unknown>)[key],
-        ]),
+        Object.keys(listed ?? {})
+          .filter((key) => !listMetricKeys.includes(key))
+          .map((key) => [key, (savedActivity as Record<string, unknown>)[key]]),
       ),
     )
     expect(tx.projectActivity.create).toHaveBeenCalledWith(

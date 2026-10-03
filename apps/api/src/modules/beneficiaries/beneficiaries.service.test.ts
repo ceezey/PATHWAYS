@@ -1,9 +1,26 @@
-import { BadRequestException, ConflictException, ForbiddenException } from '@nestjs/common'
+import {
+  BadRequestException,
+  ConflictException,
+  ForbiddenException,
+  NotFoundException,
+} from '@nestjs/common'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { PrismaService } from '@app/prisma/prisma.service'
 import type { ApplicationIdentity } from '../auth/developer-access'
+import { hasAtomicPermission } from '../auth/authorization-policy'
 import { BeneficiariesService } from './beneficiaries.service'
+
+const readState = vi.hoisted(() => ({ tx: undefined as unknown }))
+
+// The operation boundary is replaced with the real permission policy against the synthetic actor.
+vi.mock('../auth/authorized-operation', () => ({
+  withAuthorizedOperation: vi.fn(async (_prisma, identity, permission: string, work) => {
+    if (!hasAtomicPermission(identity.roles[0], identity.permissions, permission))
+      throw new ForbiddenException('Permission denied.')
+    return work(readState.tx, identity)
+  }),
+}))
 
 vi.mock('node:crypto', async (importOriginal) => ({
   ...(await importOriginal<typeof import('node:crypto')>()),
@@ -660,4 +677,75 @@ describe('P04 beneficiary registration service', () => {
     expect(tx.formSubmission.create).not.toHaveBeenCalled()
     expect(tx.auditLog.create).not.toHaveBeenCalled()
   })
+})
+
+describe('F3 scoped read and denial gates', () => {
+  const readTx = {
+    project: { findFirst: vi.fn() },
+    beneficiary: { findMany: vi.fn(), findFirst: vi.fn() },
+  }
+  const at = new Date('2026-01-01T00:00:00.000Z')
+  const row = {
+    id: beneficiaryId,
+    code: 'BEN-001',
+    subjectType: 'INDIVIDUAL',
+    displayName: 'Synthetic Person',
+    status: 'ACTIVE',
+    birthDate: at,
+    updatedAt: at,
+    beneficiaryProjectEnrollment_beneficiary: [
+      { id: enrollmentId, enrollmentDate: at, status: 'ACTIVE', updatedAt: at },
+    ],
+    beneficiaryConsentRecord_beneficiary: [],
+  }
+  const query = { limit: 10 } as never
+  let service: BeneficiariesService
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    readState.tx = readTx
+    service = new BeneficiariesService({} as PrismaService)
+    readTx.project.findFirst.mockResolvedValue({ id: projectId, startDate: at, endDate: null })
+    readTx.beneficiary.findMany.mockResolvedValue([row])
+    readTx.beneficiary.findFirst.mockResolvedValue(row)
+  })
+
+  it('G-F3-1 lists and reads a profile only inside the assigned project and organization', async () => {
+    const page = await service.list(actor, projectId, query)
+    expect(page.items.map((item) => item.code)).toEqual(['BEN-001'])
+    expect((await service.get(actor, projectId, beneficiaryId)).code).toBe('BEN-001')
+    expect(JSON.stringify(readTx.project.findFirst.mock.calls[0]?.[0].where)).toContain(projectId)
+    expect(readTx.beneficiary.findMany.mock.calls[0]?.[0].where).toMatchObject({
+      organizationId,
+      beneficiaryProjectEnrollment_beneficiary: { some: { organizationId, projectId } },
+    })
+    expect(readTx.beneficiary.findFirst.mock.calls[0]?.[0].where).toMatchObject({
+      organizationId,
+      beneficiaryProjectEnrollment_beneficiary: { some: { organizationId, projectId } },
+    })
+  })
+
+  it.each([
+    ['an unassigned project', actor],
+    ['a foreign-organization project', { ...actor, organizationId: otherProjectId }],
+  ])('G-F3-1 denies list and detail for %s before any beneficiary read', async (_name, who) => {
+    readTx.project.findFirst.mockResolvedValue(null)
+    await expect(service.list(who, otherProjectId, query)).rejects.toBeInstanceOf(NotFoundException)
+    await expect(service.get(who, otherProjectId, beneficiaryId)).rejects.toBeInstanceOf(
+      NotFoundException,
+    )
+    expect(readTx.beneficiary.findMany).not.toHaveBeenCalled()
+    expect(readTx.beneficiary.findFirst).not.toHaveBeenCalled()
+  })
+
+  it.each(['PROGRAM_MANAGER', 'GRANT_MANAGER', 'SYSTEM_ADMINISTRATOR'])(
+    'G-F3-5 denies beneficiary detail to %s even with a claimed records.read grant',
+    async (role) => {
+      await expect(
+        service.get({ ...actor, roles: [role] }, projectId, beneficiaryId),
+      ).rejects.toBeInstanceOf(ForbiddenException)
+      expect(readTx.project.findFirst).not.toHaveBeenCalled()
+      expect(readTx.beneficiary.findFirst).not.toHaveBeenCalled()
+    },
+  )
 })

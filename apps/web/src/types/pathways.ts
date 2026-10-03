@@ -21,6 +21,12 @@ export type DashboardSeverity = 'neutral' | 'info' | 'success' | 'warning' | 'da
 export type DashboardActionKind = 'dialog' | 'navigate' | 'toast'
 
 /** Project profile only. Overview metrics come from `GET /projects/:id/overview-metrics`. */
+export interface ProjectTeamMember {
+  userId: string
+  fullName: string
+  role: string
+}
+
 export interface ProjectSummary {
   description?: string
   targetBeneficiaries?: number
@@ -37,6 +43,7 @@ export interface ProjectSummary {
   health: HealthStatus
   period: string
   projectManager: string
+  team?: ProjectTeamMember[]
   updatedAt?: string
   programId?: string | null
 }
@@ -220,7 +227,13 @@ export type ActivitySummary = Pick<
   | 'updatedAt'
   | 'capabilities'
   | 'overdueExplanationNeeded'
->
+> & {
+  /** List-only metrics; null or absent means not readable or no source, never zero. */
+  indicatorCount?: number
+  beneficiariesReached?: number | null
+  beneficiariesTarget?: number | null
+  budgetUtilization?: number | null
+}
 
 export interface ActivityProof {
   id: string
@@ -478,7 +491,7 @@ export interface BeneficiaryParticipationRecord {
   projectId: string
   activityId: string
   participatedAt: string
-  attendanceStatus: 'Present' | 'Partial' | 'Absent'
+  attendanceStatus: 'Present' | 'Partial' | 'Absent' | 'Completed' | 'Not completed' | 'Excused'
   note: string
 }
 
@@ -602,6 +615,11 @@ export interface EvidenceRecord {
   submitter: string
   submittedDate: string
   previewSummary: string
+  contentType: string
+  byteSize: number
+  isIdentifying: boolean
+  reviewedDate: string | null
+  reviewer: string | null
 }
 
 /** Aggregate-only roles receive per-activity counts, never file or submitter detail. */
