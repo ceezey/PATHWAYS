@@ -584,7 +584,7 @@ export const AnalyticsDashboard = () => {
     participation: canReadParticipation
       ? ''
       : 'Your role cannot read participation detail, so this view cannot be pinned.',
-    survey: 'Survey improvement cannot be pinned',
+    survey: 'Survey improvement cannot be pinned.',
     timeline: canReadSurveyTimeline
       ? ''
       : 'Your role cannot read timeline adherence, so this view cannot be pinned.',
@@ -812,9 +812,9 @@ export const AnalyticsDashboard = () => {
             Add to Dashboard
           </Button>
           {pinBlockedReason ? (
-            <span className="sr-only" id="pin-blocked-reason">
+            <p className="ml-3 text-xs text-muted-foreground" id="pin-blocked-reason">
               {pinBlockedReason}
-            </span>
+            </p>
           ) : null}
         </div>
         {ANALYTICS_AGGREGATE_EXPORT_UI_ENABLED && canExportAnalytics ? (

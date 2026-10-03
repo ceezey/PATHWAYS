@@ -296,11 +296,15 @@ describe.skipIf(!enabled)('report preview scope and suppression on disposable Po
               projectAssigned,
               'MONITORING_REPORT',
             )
+            // The trusted monitoring aggregate withholds participation counts from every role.
+            const participation = monitoring.rows.filter((row) => row[0] === 'Participation')
             expect(
-              monitoring.rows.filter(
-                (row) => row[0] === 'Participation' && /^[1-4]$/.test(row[2] ?? ''),
-              ),
-              'monitoring report shows no participation count of 1 to 4',
+              participation.length,
+              'monitoring report lists participation rows',
+            ).toBeGreaterThan(0)
+            expect(
+              participation.filter((row) => /^\d+$/.test(row[2] ?? '')),
+              'monitoring report withholds every participation count',
             ).toEqual([])
 
             // 6. No signed-off evaluation: empty rows, a reason, and only allowlisted keys.

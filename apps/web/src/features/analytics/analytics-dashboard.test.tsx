@@ -561,6 +561,9 @@ describe('Analytics dashboard request dependencies', () => {
     expect(pin.disabled).toBe(true)
     expect(pin.title).toContain('cannot read participation detail')
     expect(pin.getAttribute('aria-describedby')).toBe('pin-blocked-reason')
+    expect(document.getElementById('pin-blocked-reason')?.textContent).toContain(
+      'cannot read participation detail',
+    )
   })
 
   it('does not issue permission-incompatible Activity or Indicator reads for Grant Manager', async () => {
