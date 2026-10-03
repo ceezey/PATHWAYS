@@ -236,6 +236,55 @@ describe('BeneficiaryDetail participation', () => {
   })
 })
 
+describe('BeneficiaryDetail layout', () => {
+  const renderDetail = (stages: JourneyStageConfig[] = [stage]) =>
+    render(
+      <BeneficiaryDetail
+        activities={[activity]}
+        beneficiary={beneficiary}
+        participationForms={[form]}
+        projectId={project.id}
+        projects={[project]}
+        stages={stages}
+      />,
+    )
+
+  it('opens the profile summary dialog from the avatar button', () => {
+    renderDetail()
+    expect(screen.queryByText('Safe profile name')).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: 'Open profile summary' }))
+    expect(screen.getByRole('dialog')).toBeTruthy()
+    expect(screen.getByText('Safe profile name')).toBeTruthy()
+    expect(screen.getByRole('link', { name: 'Edit beneficiary profile' })).toBeTruthy()
+  })
+
+  it('shows header chips and the project link', () => {
+    renderDetail()
+    expect(screen.getByText('26 yrs')).toBeTruthy()
+    expect(screen.getByRole('link', { name: project.title }).getAttribute('href')).toBe(
+      '/projects/project-a',
+    )
+  })
+
+  it('renders the project stages with the current stage marked and locks later ones', () => {
+    const second: JourneyStageConfig = {
+      ...stage,
+      id: 'stage-b',
+      code: 'J2',
+      name: 'Core stage',
+      order: 2,
+      type: 'Core',
+      mappedActivityIds: [],
+    }
+    renderDetail([stage, second])
+    const current = screen.getByRole('button', { name: 'J1 Entry stage: Current' })
+    expect(current.getAttribute('aria-current')).toBe('step')
+    expect(
+      (screen.getByRole('button', { name: 'J2 Core stage: Locked' }) as HTMLButtonElement).disabled,
+    ).toBe(true)
+  })
+})
+
 describe('BeneficiaryDetail journey actions', () => {
   it('lets an allowed role update enrollment status and reload journey history', async () => {
     client.transitionBeneficiaryJourney.mockResolvedValue({
