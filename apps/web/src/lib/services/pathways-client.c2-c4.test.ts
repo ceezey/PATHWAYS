@@ -254,6 +254,54 @@ describe('PATHWAYS C2/C4 browser client', () => {
     })
   })
 
+  it('derives age at enrollment from the birth date when no age was stored', async () => {
+    const base = {
+      id: '76000000-0000-4000-8000-000000000016',
+      code: 'BEN-C3-002',
+      subjectType: 'INDIVIDUAL',
+      displayName: 'Synthetic Child',
+      firstName: 'Synthetic',
+      middleName: null,
+      lastName: 'Child',
+      sex: 'NOT_SPECIFIED',
+      ageAtRegistration: null,
+      disabilityStatus: 'NOT_SPECIFIED',
+      locationBarangay: null,
+      locationCityMunicipality: null,
+      locationProvince: null,
+      status: 'ACTIVE',
+      consentRecorded: true,
+      dataProcessingConsentRecorded: true,
+      isMinor: true,
+      guardianConsentRecorded: true,
+      projectId,
+      enrollment: {
+        id: '76000000-0000-4000-8000-000000000017',
+        projectId,
+        enrollmentDate: '2026-06-01',
+        status: 'ACTIVE',
+      },
+      consentProvenance: [],
+      updatedAt: '2026-06-01T00:00:00.000Z',
+    }
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValueOnce(
+        json({
+          items: [
+            { ...base, birthDate: '2020-06-01' },
+            { ...base, id: '76000000-0000-4000-8000-000000000018', birthDate: '2016-06-02' },
+          ],
+          nextCursor: null,
+        }),
+      ),
+    )
+    const rows = await pathwaysClient.getBeneficiaryRecordsForRole('Project Officer', projectId)
+    expect(rows.map((item) => [item.age, item.ageGroup])).toEqual([
+      [6, '5-9'],
+      [9, '5-9'],
+    ])
+  })
   it('uses project-scoped beneficiary list/detail/write endpoints and maps age bands', async () => {
     const beneficiaryId = '76000000-0000-4000-8000-000000000012'
     const row = {
