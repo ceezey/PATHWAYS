@@ -6,6 +6,8 @@ import { EmptyState } from '@/components/pathways/empty-state'
 import type { BudgetSummary } from '@pathways/shared'
 
 export const NO_BUDGET_LABEL = 'No budget'
+export const UTILIZATION_CAPTION =
+  'Utilization = approved expenses / planned budget; pending and verified amounts are not counted.'
 
 const money = (amount: number, currency: string) =>
   amount.toLocaleString('en-US', { style: 'currency', currency })
@@ -20,6 +22,7 @@ export const BudgetSummaryCard = ({ data }: { data: BudgetSummary }) =>
     />
   ) : (
     <div className="overflow-x-auto">
+      <p className="mb-2 text-sm text-muted-foreground">{UTILIZATION_CAPTION}</p>
       <table className="w-full text-left text-sm">
         <caption className="sr-only">Budget summary by currency</caption>
         <thead>
@@ -27,7 +30,7 @@ export const BudgetSummaryCard = ({ data }: { data: BudgetSummary }) =>
             <th className="p-3">Currency</th>
             <th className="p-3">Planned</th>
             <th className="p-3">Approved</th>
-            <th className="p-3">Pending</th>
+            <th className="p-3">Pending or verified (not counted)</th>
             <th className="p-3">Utilization</th>
           </tr>
         </thead>
