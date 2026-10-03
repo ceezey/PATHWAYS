@@ -79,6 +79,9 @@ export const moveStage = (stages: JourneyStageConfig[], id: string, targetId: st
 export const validateStages = (stages: JourneyStageConfig[]) => {
   if (stages.some((stage) => !stage.code.trim() || !stage.name.trim()))
     return 'Every stage needs a code and a name.'
+  // Mirrors the API rule so a bad code is caught before saving.
+  if (stages.some((stage) => !/^[A-Z0-9][A-Z0-9._-]{1,39}$/.test(stage.code.trim().toUpperCase())))
+    return 'Stage codes need 2-40 characters: capital letters, digits, dots, dashes or underscores.'
   if (stages.filter((stage) => stage.type === 'Entry').length > 1)
     return 'Only one entry stage is allowed per journey.'
   if (stages.some((stage) => stage.type === 'Branch' && !stage.parentStageId))
