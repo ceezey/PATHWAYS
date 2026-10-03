@@ -372,12 +372,8 @@ describe('BeneficiaryForm', () => {
     expect(
       (screen.getByLabelText(/Data storage consent confirmed/) as HTMLInputElement).disabled,
     ).toBe(true)
-    expect((screen.getByLabelText(/Beneficiary is a minor/) as HTMLInputElement).disabled).toBe(
-      true,
-    )
-    expect((screen.getByLabelText(/Guardian consent confirmed/) as HTMLInputElement).disabled).toBe(
-      true,
-    )
+    expect(screen.queryByLabelText(/Beneficiary is a minor/)).toBeNull()
+    expect(screen.queryByLabelText(/Guardian consent confirmed/)).toBeNull()
     expect(screen.getByText(/Consent and minor-status provenance are read only/)).toBeTruthy()
     fireEvent.change(screen.getByLabelText(/City or municipality/), {
       target: { value: 'Updated Test City' },
@@ -708,6 +704,26 @@ describe('BeneficiaryForm', () => {
     )
   })
 
+  it('derives minor status from the birth date and shows guardian consent only for minors', async () => {
+    window.sessionStorage.setItem(
+      draftKey(validDraft.projectId),
+      JSON.stringify({ ...validDraft, birthDate: '', age: '', guardianConsent: false }),
+    )
+    client.getBeneficiaryRegistrationContext.mockResolvedValue(
+      context([{ id: 'registration-form', version: 1 }]),
+    )
+    render(<BeneficiaryForm projects={mockProjects} />)
+    await completeSelects()
+    await screen.findByText(/Registration, version 1/)
+    expect(screen.queryByLabelText(/Beneficiary is a minor/)).toBeNull()
+    const birthDate = screen.getByLabelText(/Birth date/) as HTMLInputElement
+
+    fireEvent.change(birthDate, { target: { value: '2014-01-01' } })
+    expect(screen.getByLabelText(/Guardian consent confirmed/)).toBeTruthy()
+
+    fireEvent.change(birthDate, { target: { value: '2000-01-01' } })
+    expect(screen.queryByLabelText(/Guardian consent confirmed/)).toBeNull()
+  })
   it('caps the birth date, derives a read-only age and shows the minimum-age error accessibly', async () => {
     window.sessionStorage.setItem(
       draftKey(validDraft.projectId),

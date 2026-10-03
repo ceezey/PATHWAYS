@@ -488,6 +488,8 @@ const ScopedBeneficiaryForm = ({
   const ageRuleMessage = ageRuleApplies ? ageAssessment.error : null
   const ageRuleField: BeneficiaryFieldKey = ageFromBirthDate ? 'birthDate' : 'age'
   const registrationIsMinor = registrationAge === null ? null : registrationAge < 18
+  // Minor status comes from the calculated age, so guardian consent only applies to minors.
+  const showsGuardianConsent = beneficiary ? draft.isMinor : registrationIsMinor === true
   const validationIssues = useMemo(() => {
     const issues: ValidationIssue[] = []
 
@@ -613,7 +615,7 @@ const ScopedBeneficiaryForm = ({
       consent_recorded: draft.consentToParticipate,
       data_processing_consent_recorded: draft.consentToStoreData,
       is_minor: registrationIsMinor ?? draft.isMinor,
-      guardian_consent_recorded: draft.guardianConsent,
+      guardian_consent_recorded: registrationIsMinor === true && draft.guardianConsent,
       enrollment_date: registrationContext?.businessDate ?? null,
       external_identifier_type: null,
       external_identifier_value: null,
@@ -1126,23 +1128,16 @@ const ScopedBeneficiaryForm = ({
               onChange={(checked) => updateDraft('consentToStoreData', checked)}
               required
             />
-            <ToggleField
-              hidden={!supportsCode('is_minor')}
-              checked={beneficiary ? draft.isMinor : (registrationIsMinor ?? draft.isMinor)}
-              disabled={Boolean(beneficiary) || registrationIsMinor !== null}
-              id="beneficiary-is-minor"
-              label="Beneficiary is a minor"
-              onChange={(checked) => updateDraft('isMinor', checked)}
-            />
+
             <ToggleField
               checked={draft.guardianConsent}
               disabled={Boolean(beneficiary)}
               error={submitted ? fieldErrors.guardianConsent : undefined}
-              hidden={!supportsProfileField('guardianConsent')}
+              hidden={!supportsProfileField('guardianConsent') || !showsGuardianConsent}
               id={fieldIds.guardianConsent}
               label="Guardian consent confirmed"
               onChange={(checked) => updateDraft('guardianConsent', checked)}
-              required={beneficiary ? draft.isMinor : registrationIsMinor === true}
+              required
             />
             {beneficiary ? (
               <p className="text-sm leading-6 text-muted-foreground md:col-span-2">

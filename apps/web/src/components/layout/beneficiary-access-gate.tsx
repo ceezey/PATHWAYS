@@ -337,10 +337,13 @@ export const BeneficiaryAccessGate = ({
           ) : null}
           {method === 'totp' ? (
             <div className="space-y-2">
-              <Label htmlFor="beneficiary-step-up-code">Authenticator code</Label>
+              <Label className="block text-center" htmlFor="beneficiary-step-up-code">
+                Authenticator code
+              </Label>
               <OtpInput
                 id="beneficiary-step-up-code"
                 label="Authenticator code"
+                className="justify-center"
                 length={6}
                 autoFocus
                 disabled={status === 'loading'}
