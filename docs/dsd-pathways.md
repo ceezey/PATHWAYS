@@ -1166,3 +1166,5 @@ Regenerate with `pnpm docs:materialize` after any DSD change. Never hand-edit `B
 - Every value in section 2 comes from the foundations or `globals.css`; the gap table lists all 47 current variables plus new targets marked `(new)`.
 - One open ambiguity: success.700 and success.100 differ between the color foundations file and the palette image (section 2.1).
 - The target design is not shipped; current values stay the implementation baseline.
+
+**Journey configuration.** The journey stage page opens with summary pills, a live track of circular stage nodes (Entry info, Core neutral, Branch cyan below its parent, Follow-up amber dashed) and a stage list beside stage details and a type guide. Only one Entry stage is allowed, Branch stages need a parent, and edit controls show only for roles holding `journeys.manage`. Branch uses the cyan token because the DSD defines no purple.
