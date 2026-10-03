@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   PROJECT_OVERVIEW_METRICS_CONTRACT_VERSION,
   budgetUtilization,
+  efficiencyRatio,
   kpiAchievement,
   moneyCents,
   overviewPercent,
@@ -12,6 +13,19 @@ import {
 const available = (value: string) => ({ state: 'AVAILABLE' as const, value, reason: null })
 
 describe('project overview metric math', () => {
+  it('divides KPI achievement by budget utilization to two decimals', () => {
+    expect(efficiencyRatio(available('57'), available('14'))).toEqual(available('4.07'))
+    expect(efficiencyRatio(available('50'), available('100'))).toEqual(available('0.5'))
+    expect(efficiencyRatio(available('50'), { state: 'ZERO', value: '0', reason: null })).toEqual({
+      state: 'NOT_APPLICABLE',
+      value: null,
+      reason: 'ZERO_DENOMINATOR',
+    })
+    expect(
+      efficiencyRatio(available('50'), { state: 'MISSING', value: null, reason: 'X' }).state,
+    ).toBe('MISSING')
+  })
+
   it('rounds percentages once to one decimal place, half away from zero', () => {
     expect(overviewPercent(1n, 3n)).toEqual(available('33.3'))
     expect(overviewPercent(2n, 3n)).toEqual(available('66.7'))

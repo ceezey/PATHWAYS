@@ -96,10 +96,10 @@ describe('project workspace tab access', () => {
     expect(screen.queryByRole('tab', { name: 'Indicators' })).toBeNull()
   })
 
-  it('shows the project health status rather than a fabricated "Not assessed" badge', () => {
+  it('omits status and health badges from the header', () => {
     render(<ProjectWorkspaceHeader project={project} />)
 
-    expect(screen.getByText('On Track')).toBeTruthy()
+    expect(screen.queryByText('On Track')).toBeNull()
     expect(screen.queryByText('Not assessed')).toBeNull()
   })
 })

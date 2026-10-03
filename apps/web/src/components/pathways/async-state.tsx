@@ -29,12 +29,13 @@ export const AsyncState = ({
     <EmptyState
       action={
         status === 'error' && onRetry ? (
-          <Button onClick={onRetry} type="button">
+          <Button onClick={onRetry} type="button" variant="outline">
             {retryLabel}
           </Button>
         ) : undefined
       }
       className={className}
+      tone={status === 'error' ? 'danger' : 'neutral'}
       description={description}
       icon={icon}
       title={title}

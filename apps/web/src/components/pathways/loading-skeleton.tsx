@@ -17,7 +17,7 @@ export const LoadingSkeleton = ({
         // biome-ignore lint/suspicious/noArrayIndexKey: fixed-count skeleton rows do not reorder.
         key={index}
         className={cn(
-          'h-4 animate-pulse rounded-sm bg-secondary',
+          'h-4 animate-pulse rounded-md bg-secondary',
           index === 0 && 'w-3/4',
           index === 1 && 'w-full',
           index > 1 && 'w-5/6',

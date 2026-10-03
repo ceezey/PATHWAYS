@@ -5,7 +5,6 @@ import {
   buildActivityRows,
   deriveAlerts,
   deriveRecommendations,
-  efficiencyRatio,
   remaining,
   toneFor,
   utilization,
@@ -29,12 +28,6 @@ describe('budget math', () => {
     expect(utilization(250, 1000)).toBe(25)
     expect(utilization(10, 0)).toBeNull()
     expect(remaining(1000, 250)).toBe(750)
-  })
-
-  it('computes the efficiency ratio and guards zero', () => {
-    expect(efficiencyRatio(60, 40)).toBe(1.5)
-    expect(efficiencyRatio(60, 0)).toBeNull()
-    expect(efficiencyRatio(null, 40)).toBeNull()
   })
 
   it('maps thresholds to tones', () => {

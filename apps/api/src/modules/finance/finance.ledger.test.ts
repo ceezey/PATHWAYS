@@ -111,6 +111,25 @@ describe('F2 budget and expense ledger gates', () => {
     expect(tx.projectBudgetRecord.create).not.toHaveBeenCalled()
   })
 
+  it('G-F2-14 abuse: a caller without the budget grant or outside project scope writes nothing', async () => {
+    state.actor = identity('PROJECT_OFFICER', ['budgets.read'])
+    expect(() => service.createBudget({} as ApplicationIdentity, projectId, budget)).toThrow(
+      ForbiddenException,
+    )
+    expect(() =>
+      service.replaceBudget({} as ApplicationIdentity, projectId, budgetId, {
+        ...budget,
+        expectedUpdatedAt: updatedAt.toISOString(),
+      }),
+    ).toThrow(ForbiddenException)
+    state.actor = identity('PROJECT_MANAGER', ['budgets.create'])
+    tx.project.findFirst.mockResolvedValue(null)
+    await expect(
+      service.createBudget({} as ApplicationIdentity, projectId, budget),
+    ).rejects.toThrow()
+    expect(tx.projectBudgetRecord.create).not.toHaveBeenCalled()
+  })
+
   it('G-F2-15 submits with the client request id so the database function can replay it', async () => {
     state.actor = identity('PROJECT_OFFICER', ['expenses.submit'])
     tx.$queryRaw.mockResolvedValue([{ value: { id: 'expense', status: 'PENDING' } }])

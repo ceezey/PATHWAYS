@@ -10,7 +10,6 @@ import {
   buildActivityRows,
   deriveAlerts,
   deriveRecommendations,
-  efficiencyRatio,
   remaining,
   toNumber,
   utilization,
@@ -35,8 +34,9 @@ export const useBudgetModule = (projectId: string) => {
     const used = rows.reduce((sum, row) => sum + row.used, 0)
     const pending = rows.reduce((sum, row) => sum + row.pending, 0)
     const budgetPct = utilization(used, allocated)
-    const kpiValue = metrics.data?.kpiAchievement?.metric.value
-    const kpiPct = kpiValue === null || kpiValue === undefined ? null : toNumber(kpiValue)
+    const metricNumber = (value: string | null | undefined) =>
+      value === null || value === undefined ? null : toNumber(value)
+    const efficiencyValue = metrics.data?.efficiencyRatio?.value
     return {
       totals: {
         allocated,
@@ -44,8 +44,10 @@ export const useBudgetModule = (projectId: string) => {
         pending,
         remaining: remaining(allocated, used),
         utilization: budgetPct,
-        kpiPct,
-        efficiency: efficiencyRatio(kpiPct, budgetPct),
+        // Efficiency and its inputs come from the overview-metrics API.
+        kpiPct: metricNumber(metrics.data?.kpiAchievement?.metric.value),
+        budgetMetricPct: metricNumber(metrics.data?.budgetUtilization?.metric.value),
+        efficiency: metricNumber(efficiencyValue),
       },
       activityRows: rows,
       alerts: deriveAlerts(rows, expenseRows, allocated, used),

@@ -8,6 +8,15 @@ import { useProjectOverviewMetricsRead } from './use-project-reads'
 
 const unavailable = 'Unavailable'
 
+type Cell = Parameters<typeof overviewMetricLabel>[0]
+// Budget and reach tiles show zero when no figure is available; suppressed counts keep their label.
+const orZero = (cell: Cell, kind: 'percent' | 'count') =>
+  cell.state === 'AVAILABLE' || cell.state === 'ZERO' || cell.state === 'SUPPRESSED'
+    ? overviewMetricLabel(cell, kind)
+    : kind === 'percent'
+      ? '0%'
+      : '0'
+
 /** KPI, budget, reach and timeline tiles from `GET /projects/:id/overview-metrics`. */
 export const ProjectOverviewMetrics = ({
   projectId,
@@ -23,8 +32,7 @@ export const ProjectOverviewMetrics = ({
   const failed = read.isError || !read.eligible
   const value = (compute: (data: NonNullable<typeof metrics>) => string) =>
     metrics ? compute(metrics) : failed ? unavailable : 'Loading...'
-  const target =
-    targetBeneficiaries === undefined ? 'Not recorded' : formatNumber(targetBeneficiaries)
+  const target = formatNumber(targetBeneficiaries ?? 0)
   const tiles = [
     {
       label: 'KPI achievement',
@@ -37,18 +45,12 @@ export const ProjectOverviewMetrics = ({
     {
       label: 'Budget utilization',
       value: value((data) =>
-        data.budgetUtilization
-          ? overviewMetricLabel(data.budgetUtilization.metric, 'percent')
-          : unavailable,
+        data.budgetUtilization ? orZero(data.budgetUtilization.metric, 'percent') : unavailable,
       ),
     },
     {
       label: compact ? 'Beneficiaries' : 'Beneficiaries reached / target',
-      value: `${value((data) =>
-        data.beneficiariesReached
-          ? overviewMetricLabel(data.beneficiariesReached.metric, 'count')
-          : unavailable,
-      )} / ${target}`,
+      value: `${value((data) => (data.beneficiariesReached ? orZero(data.beneficiariesReached.metric, 'count') : unavailable))} / ${target}`,
     },
     {
       label: 'Timeline',

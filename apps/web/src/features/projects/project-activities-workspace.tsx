@@ -147,12 +147,10 @@ const ActivityListRow = ({
 }) => (
   <article
     aria-label={`Activity: ${activity.title}`}
-    className="grid min-w-0 gap-4 rounded-xl border border-border bg-background p-4 md:grid-cols-2 xl:grid-cols-[minmax(0,1.4fr)_minmax(170px,0.7fr)_minmax(180px,0.8fr)_minmax(150px,0.6fr)_auto] xl:items-center"
+    className="grid min-h-[52px] min-w-0 gap-4 rounded-lg border border-border bg-card px-4 py-3 md:grid-cols-2 xl:grid-cols-[minmax(0,1.4fr)_minmax(170px,0.7fr)_minmax(180px,0.8fr)_minmax(150px,0.6fr)_auto] xl:items-center"
   >
     <div className="min-w-0">
-      <h3 className="break-words text-base font-semibold leading-6 text-foreground">
-        {activity.title}
-      </h3>
+      <h3 className="break-words text-base font-semibold leading-6 text-navy">{activity.title}</h3>
       <p className="mt-2 text-sm leading-5 text-muted-foreground">
         <span className="font-medium text-foreground">Next:</span>{' '}
         {activityNextStep(activity.status)}
@@ -671,6 +669,16 @@ export const ProjectActivitiesWorkspace = ({
       {filteredActivities.length > 0 && viewMode === 'list' ? (
         <SectionCard title="Activity list">
           <div className="space-y-3">
+            <div
+              aria-hidden="true"
+              className="mb-2 hidden rounded-lg border border-border bg-surface-subtle px-4 py-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground xl:grid xl:grid-cols-[minmax(0,1.4fr)_minmax(170px,0.7fr)_minmax(180px,0.8fr)_minmax(150px,0.6fr)_auto] xl:gap-4"
+            >
+              <span>Activity</span>
+              <span>Status and due date</span>
+              <span>Owner</span>
+              <span>Progress</span>
+              <span className="w-28" />
+            </div>
             {filteredActivities.map((activity) => (
               <ActivityListRow key={activity.id} activity={activity} onOpen={openDetail} />
             ))}

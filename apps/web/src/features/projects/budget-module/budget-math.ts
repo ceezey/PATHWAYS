@@ -43,12 +43,6 @@ export const utilization = (used: number, allocated: number) =>
 
 export const remaining = (allocated: number, used: number) => allocated - used
 
-/** KPI achievement over budget utilization, both in percent; null when either is unknown or zero. */
-export const efficiencyRatio = (kpiPct: number | null, budgetPct: number | null) =>
-  kpiPct === null || budgetPct === null || budgetPct <= 0
-    ? null
-    : Math.round((kpiPct / budgetPct) * 100) / 100
-
 export const toneFor = (pct: number | null): Tone =>
   pct === null ? 'info' : pct >= DANGER_PCT ? 'danger' : pct >= WARN_PCT ? 'warning' : 'success'
 
