@@ -450,7 +450,7 @@ const ScopedActivityFormDialog = ({
                 <output
                   aria-atomic="true"
                   aria-live="polite"
-                  className="block rounded-xl border border-info/25 bg-info-subtle p-3 text-sm text-info"
+                  className="block rounded-md border border-info/25 bg-info-subtle p-3 text-sm text-info"
                 >
                   Recovered your unsaved activity draft.
                 </output>
@@ -655,7 +655,7 @@ const ScopedActivityFormDialog = ({
                   render={({ field }) => (
                     <FormItem className="lg:col-span-2">
                       <FormControl aria-required="true">
-                        <fieldset className="space-y-2 rounded-xl border border-input bg-background p-3">
+                        <fieldset className="space-y-2 rounded-md border border-border bg-card p-3">
                           <legend className="px-1 text-sm font-medium text-foreground">
                             Assigned officers
                             <span aria-hidden="true" className="ml-1 text-danger">
@@ -666,12 +666,12 @@ const ScopedActivityFormDialog = ({
                           {officers.length > 0 ? (
                             officers.map((officer) => (
                               <label
-                                className="flex min-h-11 items-center gap-3 rounded-md border border-border p-3 text-sm"
+                                className="flex min-h-11 cursor-pointer items-center gap-3 rounded-md border border-border bg-card p-3 text-sm transition-colors hover:bg-muted has-[:checked]:border-primary has-[:checked]:bg-info-subtle"
                                 key={officer.userId}
                               >
                                 <input
                                   checked={field.value.includes(officer.userId)}
-                                  className="h-4 w-4 rounded border-input focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                                  className="h-4 w-4 rounded border-input accent-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                                   onBlur={field.onBlur}
                                   onChange={(event) =>
                                     field.onChange(
@@ -709,19 +709,19 @@ const ScopedActivityFormDialog = ({
                     render={({ field }) => (
                       <FormItem className="lg:col-span-2">
                         <FormControl>
-                          <fieldset className="space-y-2 rounded-xl border border-input bg-background p-3">
+                          <fieldset className="space-y-2 rounded-md border border-border bg-card p-3">
                             <legend className="px-1 text-sm font-medium text-foreground">
                               Connected indicators
                             </legend>
                             {indicators.length > 0 ? (
                               indicators.map((indicator) => (
                                 <label
-                                  className="flex items-start gap-3 rounded-md border border-border p-3 text-sm"
+                                  className="flex min-h-11 cursor-pointer items-start gap-3 rounded-md border border-border bg-card p-3 text-sm transition-colors hover:bg-muted has-[:checked]:border-primary has-[:checked]:bg-info-subtle"
                                   key={indicator.id}
                                 >
                                   <input
                                     checked={field.value.includes(indicator.id)}
-                                    className="mt-0.5 h-4 w-4 rounded border-input focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                                    className="mt-0.5 h-4 w-4 rounded border-input accent-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                                     onBlur={field.onBlur}
                                     onChange={(event) =>
                                       field.onChange(
