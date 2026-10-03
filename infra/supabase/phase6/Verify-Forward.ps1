@@ -42,6 +42,7 @@ $forwardInventory = @(
   '0053_expense_submit_race'
   '0054_p09_role_allows_grants'
   '0055_rbac_v4_grants'
+  '0056_f9_survey_period_release'
 )
 if (($forwardMigrations.Name -join ',') -cne ($forwardInventory -join ',')) { throw 'Forward migration inventory requires renewed review.' }
 
