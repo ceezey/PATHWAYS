@@ -1,3 +1,6 @@
+import { Trash2 } from 'lucide-react'
+
+import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import {
@@ -17,6 +20,7 @@ type DetailsProps = {
   stages: JourneyStageConfig[]
   activities: Pick<Activity, 'id' | 'title' | 'journeyStageId'>[]
   canEdit: boolean
+  onRemove: () => void
   onChange: <Key extends keyof JourneyStageConfig>(key: Key, value: JourneyStageConfig[Key]) => void
 }
 
@@ -26,6 +30,7 @@ export const JourneyStageDetails = ({
   activities,
   canEdit,
   onChange,
+  onRemove,
 }: DetailsProps) => {
   const toggle = (id: string) =>
     onChange(
@@ -139,6 +144,17 @@ export const JourneyStageDetails = ({
           </p>
         )}
       </div>
+      {canEdit ? (
+        <Button
+          className="border-danger/40 text-danger hover:bg-danger-subtle"
+          type="button"
+          variant="outline"
+          onClick={onRemove}
+        >
+          <Trash2 className="h-4 w-4" aria-hidden="true" />
+          Remove stage
+        </Button>
+      ) : null}
     </div>
   )
 }

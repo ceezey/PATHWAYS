@@ -22,6 +22,8 @@ import {
   branchSummary,
   mappedCount,
   moveStage,
+  nextStageCode,
+  removeStage,
   stageTypeStyle,
   stageTypes,
   validateStages,
@@ -71,7 +73,7 @@ export const JourneyConfigWorkspace = ({ project, activities, initialStages }: W
     const stage: JourneyStageConfig = {
       id: crypto.randomUUID(),
       projectId: project.id,
-      code: `J${order}`,
+      code: nextStageCode(stages),
       name: 'New journey stage',
       order,
       type: 'Core',
@@ -161,6 +163,11 @@ export const JourneyConfigWorkspace = ({ project, activities, initialStages }: W
                 activities={activities}
                 canEdit={canEdit}
                 onChange={update}
+                onRemove={() => {
+                  if (!canEdit) return
+                  setStages((current) => removeStage(current, selected.id))
+                  setSelectedId('')
+                }}
               />
             ) : (
               <p className="text-sm text-muted-foreground">

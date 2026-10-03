@@ -81,3 +81,17 @@ export const validateStages = (stages: JourneyStageConfig[]) => {
     return 'Branch stages need a parent stage.'
   return ''
 }
+
+// Next J-number after the highest numeric stage code, so new codes follow the existing ones.
+export const nextStageCode = (stages: JourneyStageConfig[]) =>
+  `J${Math.max(0, ...stages.map((stage) => Number(/^J(\d+)$/i.exec(stage.code)?.[1] ?? 0))) + 1}`
+
+// Drops a stage and turns its branches into core stages, since they lose their parent.
+export const removeStage = (stages: JourneyStageConfig[], id: string) =>
+  stages
+    .filter((stage) => stage.id !== id)
+    .map((stage) =>
+      stage.parentStageId === id
+        ? { ...stage, parentStageId: undefined, type: 'Core' as const }
+        : stage,
+    )
