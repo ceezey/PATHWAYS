@@ -89,7 +89,7 @@ INSERT INTO pathways.projects(id,organization_id,code,title,start_date,end_date,
   (pg_temp.u(306),pg_temp.u(1),'SRA-A6','SR Project A6 ends yesterday','2025-01-01','2026-12-31',pg_temp.u(101)),
   (pg_temp.u(307),pg_temp.u(1),'SRA-A7','SR Project A7 ends today','2025-01-01','2026-12-31',pg_temp.u(101));
 INSERT INTO pathways.user_project_assignments(id,organization_id,project_id,user_id,assigned_by_id)
-SELECT pg_temp.u(400+row_number() OVER ()),v.org_id,pg_temp.u(v.project),pg_temp.u(v.usr),pg_temp.u(101)
+SELECT pg_temp.u((400+row_number() OVER ())::integer),o.org_id,pg_temp.u(v.project),pg_temp.u(v.usr),pg_temp.u(101)
 FROM (VALUES
   (1,301,101),(1,301,102),(1,302,102),(1,304,102),(1,306,102),(1,307,102),(1,301,103),(1,301,104),(2,303,105)
 ) v(org_n,project,usr)
@@ -107,14 +107,14 @@ FROM (VALUES
   (2107,pg_temp.u(1),307,'2026-01-01',((now() AT TIME ZONE 'Asia/Manila')::date)::text,pg_temp.u(101))
 ) v(n,org_id,project,s,e,by_id);
 
-INSERT INTO pathways.project_activities(id,organization_id,project_id,code,title,planned_start_date,planned_end_date,status,created_by_id) VALUES
-  (pg_temp.u(501),pg_temp.u(1),pg_temp.u(301),'SRA-1','Large group','2025-01-01','2025-12-01','COMPLETED',pg_temp.u(101)),
-  (pg_temp.u(502),pg_temp.u(1),pg_temp.u(301),'SRA-2','Small group','2025-01-01','2025-12-01','COMPLETED',pg_temp.u(101));
+INSERT INTO pathways.project_activities(id,organization_id,project_id,code,title,planned_start_date,planned_end_date,actual_start_date,actual_end_date,status,created_by_id,reviewed_by_id,reviewed_at) VALUES
+  (pg_temp.u(501),pg_temp.u(1),pg_temp.u(301),'SRA-1','Large group','2025-01-01','2025-12-01','2025-01-01','2025-12-01','COMPLETED',pg_temp.u(101),pg_temp.u(102),'2025-12-01T12:00:00Z'),
+  (pg_temp.u(502),pg_temp.u(1),pg_temp.u(301),'SRA-2','Small group','2025-01-01','2025-12-01','2025-01-01','2025-12-01','COMPLETED',pg_temp.u(101),pg_temp.u(102),'2025-12-01T12:00:00Z');
 
 -- A1 2025: five improved pairs in activity 501 (40 -> 60) and one pair in activity 502 (30 -> 90).
 INSERT INTO pathways.assessment_results(id,organization_id,project_id,activity_id,enrollment_id,type,score,maximum_score,assessment_date,recorded_by_id)
 SELECT pg_temp.u(1000+e*2+t),pg_temp.u(1),pg_temp.u(301),pg_temp.u(CASE WHEN e<=5 THEN 501 ELSE 502 END),pg_temp.u(700+e),
-  CASE t WHEN 0 THEN 'PRE_TEST' ELSE 'POST_TEST' END,
+  (CASE t WHEN 0 THEN 'PRE_TEST' ELSE 'POST_TEST' END)::pathways.assessment_type,
   CASE WHEN e<=5 THEN 40+20*t ELSE 30+60*t END,100,
   CASE t WHEN 0 THEN DATE '2025-02-01' ELSE DATE '2025-03-01' END,pg_temp.u(101)
 FROM generate_series(1,6) e CROSS JOIN generate_series(0,1) t;
@@ -281,6 +281,8 @@ WHERE rp.role_id=r.id AND rp.permission_id=p.id AND r.code='GRANT_MANAGER' AND p
 SET LOCAL ROLE pathways_runtime;
 SELECT pg_temp.reject(pg_temp.rel(1,301,'2025-01-01','2025-12-31'),'42501','Grant Manager without analytics.descriptive.read is denied');
 RESET ROLE;
+INSERT INTO pathways.role_permissions(role_id,permission_id)
+SELECT r.id,p.id FROM pathways.roles r,pathways.permissions p WHERE r.code='GRANT_MANAGER' AND p.code='analytics.descriptive.read';
 
 -- Org B Grant Manager freezes only its own data.
 SET LOCAL ROLE pathways_runtime;
@@ -304,7 +306,7 @@ SELECT pg_temp.ok((SELECT NOT EXISTS(
 
 DO $$ DECLARE total integer; BEGIN
  SELECT count(*) INTO total FROM sr_results;
- IF total<>31 THEN RAISE EXCEPTION '0057 survey-period-release checks expected 31 assertions, recorded %',total; END IF;
+ IF total<>33 THEN RAISE EXCEPTION '0057 survey-period-release checks expected 33 assertions, recorded %',total; END IF;
  RAISE NOTICE 'F9_SURVEY_PERIOD_RELEASE_RUNTIME=PASS (% assertions)',total;
 END $$;
 ROLLBACK;

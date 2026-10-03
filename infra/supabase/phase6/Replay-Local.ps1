@@ -592,6 +592,8 @@ END $$;
       Write-Output 'P09_ROLE_ALLOWS_GRANTS_RUNTIME=PASS'
       Invoke-LocalSql ([IO.File]::ReadAllText((Join-Path $phase6Root 'apps/api/prisma/tests/rbac-v4-grants-runtime.sql'))) $phase6Database
       Write-Output 'RBAC_V4_GRANTS_RUNTIME=PASS'
+      Invoke-LocalSql ([IO.File]::ReadAllText((Join-Path $phase6Root 'apps/api/prisma/tests/f9-survey-period-release-runtime.sql'))) $phase6Database
+      Write-Output 'F9_SURVEY_PERIOD_RELEASE_RUNTIME=PASS'
     }
     Invoke-LocalSql 'ALTER ROLE pathways_runtime LOGIN;' $phase6Database
     $env:PATHWAYS_CSV_RBAC_LOCAL_TESTS = '1'
