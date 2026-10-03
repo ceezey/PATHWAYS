@@ -380,6 +380,8 @@ function IndicatorEditor({
       setError('Enter an exact decimal, a source and a correction reason when replacing a value.')
     }
   }
+  // Each row gets its own field ids so labels target the right indicator.
+  const rowId = `indicator-${indicator.id}`
   return (
     <details className="rounded-lg border border-border p-3">
       <summary className="flex min-h-11 cursor-pointer items-center text-sm font-medium">
@@ -395,15 +397,21 @@ function IndicatorEditor({
       >
         <fieldset disabled={busy} className="space-y-2">
           <div>
-            <label htmlFor="name">Name</label>
-            <Input id="name" name="name" defaultValue={indicator.name} maxLength={160} required />
+            <label htmlFor={`${rowId}-name`}>Name</label>
+            <Input
+              id={`${rowId}-name`}
+              name="name"
+              defaultValue={indicator.name}
+              maxLength={160}
+              required
+            />
           </div>
           <div>
-            <label htmlFor="description" className="block">
+            <label htmlFor={`${rowId}-description`} className="block">
               Description
             </label>
             <Textarea
-              id="description"
+              id={`${rowId}-description`}
               name="description"
               defaultValue={indicator.description ?? ''}
               maxLength={2000}
@@ -421,30 +429,36 @@ function IndicatorEditor({
               {indicator.measurementId ? 'Append a correction' : 'Record the first measurement'}
             </legend>
             <div>
-              <label htmlFor="value" className="block">
+              <label htmlFor={`${rowId}-value`} className="block">
                 Exact value
               </label>
-              <Input id="value" name="value" inputMode="decimal" maxLength={21} required />
+              <Input
+                id={`${rowId}-value`}
+                name="value"
+                inputMode="decimal"
+                maxLength={21}
+                required
+              />
             </div>
             <div>
-              <label htmlFor="source" className="block">
+              <label htmlFor={`${rowId}-source`} className="block">
                 Measurement source
               </label>
-              <Input id="source" name="source" maxLength={300} required />
+              <Input id={`${rowId}-source`} name="source" maxLength={300} required />
             </div>
             <div>
-              <label htmlFor="note" className="block">
+              <label htmlFor={`${rowId}-note`} className="block">
                 Note
               </label>
-              <Input id="note" name="note" maxLength={1000} />
+              <Input id={`${rowId}-note`} name="note" maxLength={1000} />
             </div>
 
             {indicator.measurementId ? (
               <div>
-                <label htmlFor="reason" className="block">
+                <label htmlFor={`${rowId}-reason`} className="block">
                   Correction reason
                 </label>
-                <Input id="reason" name="reason" maxLength={1000} required />
+                <Input id={`${rowId}-reason`} name="reason" maxLength={1000} required />
               </div>
             ) : null}
             <Button type="submit">Save measurement</Button>
