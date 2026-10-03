@@ -563,7 +563,7 @@ flowchart LR
 | Permission | `beneficiaries.identities.review` |
 | Trigger | A registration shares an identity with an existing profile and is held for review. |
 | Preconditions | The user holds the review permission, a fresh step-up and project assignment. |
-| Main flow | 1. The registration response reports `IDENTITY_REVIEW_REQUIRED` or `DUPLICATE_IDENTITY` (`POST /beneficiaries/projects/:projectId/registrations`). 2. The reviewer opens `/beneficiaries/duplicates`, which lists unreviewed pairs (`GET /beneficiaries/projects/:projectId/duplicate-candidates`). 3. The reviewer compares a pair and confirms Keep as distinct people or Merge linked profiles (`POST /beneficiaries/projects/:projectId/duplicate-candidates/resolve`). |
+| Main flow | 1. The registration response reports `IDENTITY_REVIEW_REQUIRED` or `DUPLICATE_IDENTITY` (`POST /beneficiaries/projects/:projectId/registrations`). 2. The reviewer opens `/beneficiaries/duplicates`, which lists unreviewed pairs (`GET /beneficiaries/projects/:projectId/duplicate-candidates`). 3. The reviewer compares a pair and confirms Keep as distinct people or Link as same person (`POST /beneficiaries/projects/:projectId/duplicate-candidates/resolve`). |
 | Alternate / exception | A caller without the review permission sees only the review-required code and cannot see the matched profile; the queue and decision routes return 403. A pair already decided, the same profile twice or a profile outside the project is rejected. |
 | Postconditions | The pair leaves the queue; no profile data is merged or moved; the decision is audited. |
 | Gates | G-F3-6 |
