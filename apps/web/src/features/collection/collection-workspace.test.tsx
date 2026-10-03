@@ -256,9 +256,7 @@ describe('collection import workspace', () => {
       </DisplayLabelsProvider>,
     )
     await waitFor(() =>
-      expect((screen.getByLabelText('Form information') as HTMLInputElement).value).toBe(
-        'Attendance',
-      ),
+      expect((screen.getByLabelText('Form title') as HTMLInputElement).value).toBe('Attendance'),
     )
     fireEvent.change(screen.getByLabelText('Source file'), {
       target: {
@@ -429,9 +427,7 @@ describe('collection import workspace', () => {
       </DisplayLabelsProvider>,
     )
     await waitFor(() =>
-      expect((screen.getByLabelText('Form information') as HTMLInputElement).value).toBe(
-        'Attendance',
-      ),
+      expect((screen.getByLabelText('Form title') as HTMLInputElement).value).toBe('Attendance'),
     )
     const file = csvFile(
       'uncertain.csv',
@@ -517,9 +513,7 @@ describe('collection import workspace', () => {
       </DisplayLabelsProvider>,
     )
     await waitFor(() =>
-      expect((screen.getByLabelText('Form information') as HTMLInputElement).value).toBe(
-        'Attendance',
-      ),
+      expect((screen.getByLabelText('Form title') as HTMLInputElement).value).toBe('Attendance'),
     )
     fireEvent.change(screen.getByLabelText('Source file'), {
       target: {
@@ -592,17 +586,15 @@ describe('collection import workspace', () => {
       </DisplayLabelsProvider>,
     )
     await waitFor(() =>
-      expect((screen.getByLabelText('Form code') as HTMLInputElement).value).toBe('original_code'),
+      expect(
+        screen
+          .getByText('Form configuration')
+          .closest('.rounded-xl')
+          ?.contains(screen.getByLabelText('Form title')),
+      ).toBe(true),
     )
-    expect((screen.getByLabelText('Description') as HTMLInputElement).value).toBe(
-      'Preserved description',
-    )
-    expect(
-      screen
-        .getByText('Form configuration')
-        .closest('.rounded-xl')
-        ?.contains(screen.getByLabelText('Form code')),
-    ).toBe(true)
+    expect(screen.queryByLabelText('Form code')).toBeNull()
+    expect(screen.queryByLabelText('Description')).toBeNull()
     expect(screen.queryByText('Linked indicators')).toBeNull()
     fireEvent.click(screen.getByRole('button', { name: 'Save draft' }))
     fireEvent.click(
@@ -1146,9 +1138,7 @@ const ownedDataset = async () => {
   )
   const view = render(element())
   await waitFor(() =>
-    expect((screen.getByLabelText('Form information') as HTMLInputElement).value).toBe(
-      'Attendance',
-    ),
+    expect((screen.getByLabelText('Form title') as HTMLInputElement).value).toBe('Attendance'),
   )
   fireEvent.change(screen.getByLabelText('Source file'), {
     target: { files: [csvFile('owned.csv', async () => 'beneficiary_id\nBEN-OWNER')] },
@@ -1288,7 +1278,7 @@ describe('collection operation ownership', () => {
     const { view, element, submit } = await ownedDataset()
     fireEvent.click(submit)
     fireEvent.click(submit)
-    fireEvent.change(screen.getByLabelText('Form information'), {
+    fireEvent.change(screen.getByLabelText('Form title'), {
       target: { value: 'Injected change' },
     })
     currentAccess.profile = {
@@ -1297,7 +1287,7 @@ describe('collection operation ownership', () => {
     }
     view.rerender(element())
     expect(api.uploadImport).toHaveBeenCalledOnce()
-    expect((screen.getByLabelText('Form information') as HTMLInputElement).value).toBe('Attendance')
+    expect((screen.getByLabelText('Form title') as HTMLInputElement).value).toBe('Attendance')
     await act(async () => pending.resolve({ id: 'batch-owned', mappingRevision: 0 }))
     await waitFor(() => expect(api.processImport).toHaveBeenCalledOnce())
   })
@@ -1421,7 +1411,7 @@ describe('persisted collection completion ownership', () => {
       if (operation === 'export') await screen.findByText('Owned definition')
       else
         await waitFor(() =>
-          expect((screen.getByLabelText('Form information') as HTMLInputElement).value).toBe(
+          expect((screen.getByLabelText('Form title') as HTMLInputElement).value).toBe(
             'Owned definition',
           ),
         )
@@ -1488,9 +1478,7 @@ describe('forms.generate action', () => {
     api.getDigitalForms.mockResolvedValue([source])
     renderBuilder()
     await waitFor(() =>
-      expect((screen.getByLabelText('Form information') as HTMLInputElement).value).toBe(
-        'Baseline',
-      ),
+      expect((screen.getByLabelText('Form title') as HTMLInputElement).value).toBe('Baseline'),
     )
     expect(screen.queryByRole('button', { name: 'Generate copy' })).toBeNull()
   })
