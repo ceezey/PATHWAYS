@@ -16,3 +16,4 @@ apps/api/prisma/migrations/0042_proof_session_beneficiary_count/migration.sql -t
 apps/api/prisma/migrations/0043_activity_overdue_explanation/migration.sql -text
 apps/api/prisma/migrations/0044_activity_progress_review/migration.sql -text
 apps/api/prisma/migrations/0045_f9_descriptive_aggregates/migration.sql -text
+apps/api/prisma/migrations/0056_indicator_type/migration.sql -text

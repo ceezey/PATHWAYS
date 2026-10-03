@@ -66,6 +66,7 @@ describe('Deferred legacy-table retirement contract', () => {
       '0053_expense_submit_race',
       '0054_p09_role_allows_grants',
       '0055_rbac_v4_grants',
+      '0056_indicator_type',
     ])
     expect(migration).toContain('DEFERRED REVIEW ARTIFACT -- NOT AN ACTIVE PRISMA MIGRATION')
   })
