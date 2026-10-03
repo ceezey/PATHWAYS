@@ -404,8 +404,8 @@ export const ProjectActivitiesWorkspace = ({
 
   const openDetail = (activity: ActivitySummary) => {
     activityDetailTrigger.current = document.activeElement as HTMLElement | null
+    // Opens in place; pushing a URL here makes Next render the detail route and remount the page.
     setSelectedActivityId(activity.id)
-    window.history.pushState(null, '', `/projects/${projectId}/activities/${activity.id}`)
   }
 
   const closeDetail = (open: boolean) => {
@@ -414,7 +414,6 @@ export const ProjectActivitiesWorkspace = ({
     }
 
     setSelectedActivityId(null)
-    window.history.replaceState(null, '', `/projects/${projectId}/activities`)
     window.requestAnimationFrame(() => activityDetailTrigger.current?.focus())
   }
 

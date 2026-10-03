@@ -351,13 +351,15 @@ describe('project activities permission-aware loading', () => {
     expect(screen.queryByText(/delete/i)).toBeNull()
   })
 
-  it('opens detail from the overflow menu', async () => {
+  it('opens detail in place from the row dots without changing the URL', async () => {
+    const push = vi.spyOn(window.history, 'pushState')
     renderWorkspace()
-    await screen.findByRole('button', {
-      name: 'More actions for Synthetic outreach',
-    })
-    fireEvent.click(await screen.findByRole('menuitem', { name: 'View details' }))
+    fireEvent.click(
+      await screen.findByRole('button', { name: 'View details for Synthetic outreach' }),
+    )
     expect(await screen.findByText('Detail: Synthetic outreach')).toBeTruthy()
+    expect(push).not.toHaveBeenCalled()
+    push.mockRestore()
   })
 
   it('shows every column without a Columns menu and sorts by due date', async () => {
