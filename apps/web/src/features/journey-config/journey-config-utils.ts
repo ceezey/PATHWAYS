@@ -34,14 +34,18 @@ export type StageRow = { stage: JourneyStageConfig; parent?: JourneyStageConfig 
 
 const byOrder = (a: JourneyStageConfig, b: JourneyStageConfig) => a.order - b.order
 
+// Only Branch stages hang off a parent; core stages may still link to the stage before them.
+const isBranchOf = (stage: JourneyStageConfig, ids: Set<string>) =>
+  stage.type === 'Branch' && Boolean(stage.parentStageId) && ids.has(stage.parentStageId ?? '')
+
 export const childrenOf = (stages: JourneyStageConfig[], parentId: string) =>
-  stages.filter((stage) => stage.parentStageId === parentId).sort(byOrder)
+  stages
+    .filter((stage) => stage.type === 'Branch' && stage.parentStageId === parentId)
+    .sort(byOrder)
 
 export const rootStages = (stages: JourneyStageConfig[]) => {
   const ids = new Set(stages.map((stage) => stage.id))
-  return stages
-    .filter((stage) => !stage.parentStageId || !ids.has(stage.parentStageId))
-    .sort(byOrder)
+  return stages.filter((stage) => !isBranchOf(stage, ids)).sort(byOrder)
 }
 
 // Parents followed by their branch children, in stage order.
@@ -92,6 +96,10 @@ export const removeStage = (stages: JourneyStageConfig[], id: string) =>
     .filter((stage) => stage.id !== id)
     .map((stage) =>
       stage.parentStageId === id
-        ? { ...stage, parentStageId: undefined, type: 'Core' as const }
+        ? {
+            ...stage,
+            parentStageId: undefined,
+            type: stage.type === 'Branch' ? ('Core' as const) : stage.type,
+          }
         : stage,
     )

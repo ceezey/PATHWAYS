@@ -117,4 +117,12 @@ describe('journey config utils', () => {
     expect(left.some((item) => item.id === parentId)).toBe(false)
     expect(left.every((item) => !item.parentStageId)).toBe(true)
   })
+
+  it('keeps linked core stages in the main sequence', () => {
+    const chain = [
+      { ...stages[0], id: 'c1', type: 'Entry' as const, parentStageId: undefined, order: 1 },
+      { ...stages[0], id: 'c2', code: 'J2', type: 'Core' as const, parentStageId: 'c1', order: 2 },
+    ]
+    expect(branchSummary(chain)).toBe('')
+  })
 })
