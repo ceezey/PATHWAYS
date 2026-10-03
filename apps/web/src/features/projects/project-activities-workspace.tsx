@@ -198,6 +198,9 @@ export const ProjectActivitiesWorkspace = ({
   const canUpdate = inProjectScope && principalHasAtomicPermission(profile, 'activities.update')
   const canReadIndicators = principalHasAtomicPermission(profile, 'indicators.read')
   const canReadJourneyStages = principalHasAtomicPermission(profile, 'journeys.read')
+  const canReadBudget =
+    principalHasAtomicPermission(profile, 'budgets.read') &&
+    principalHasAtomicPermission(profile, 'expenses.read')
   const canReadOfficers = canCreate || canUpdate
   const canSubmitProof =
     inProjectScope && principalHasAtomicPermission(profile, 'activities.proof.submit')
@@ -615,6 +618,7 @@ export const ProjectActivitiesWorkspace = ({
       {filteredActivities.length > 0 && viewMode === 'list' ? (
         <ActivityListTable
           activities={filteredActivities}
+          canReadBudget={canReadBudget}
           onOpen={openDetail}
           projectId={projectId}
         />
