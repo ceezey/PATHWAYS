@@ -4,6 +4,7 @@ import { PageHeader } from '@/components/layout/page-header'
 import { AsyncState, EmptyState, SectionCard, StatusBadge } from '@/components/pathways'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
+import { ReviewCardList } from '@/features/rules-board/review-card-list'
 import { useCurrentRole } from '@/hooks/use-current-role'
 import { useDisplayLabels } from '@/hooks/use-display-labels'
 import { useSensitiveDraftOwner } from '@/lib/auth/sensitive-drafts'
@@ -156,6 +157,13 @@ export function HumanReviewWorkspace({
         title={kind === 'alert' ? labels.moduleAlerts : labels.moduleRecommendations}
         eyebrow="Human review required"
         description="Review recorded evidence and predefined recommendations. Decisions remain with your project team."
+        actions={
+          principalHasAtomicPermission(profile, 'rules.read') ? (
+            <Button asChild variant="outline">
+              <Link href="/alerts/repository">Manage rules</Link>
+            </Button>
+          ) : undefined
+        }
       />
       <div className="flex flex-wrap items-end gap-3">
         <div className="min-w-64 space-y-2">
@@ -218,23 +226,12 @@ export function HumanReviewWorkspace({
       ) : (
         <div className="grid gap-6 xl:grid-cols-[minmax(260px,.7fr)_minmax(0,1.3fr)]">
           <SectionCard title={kind === 'alert' ? 'Alert queue' : 'Recommendation queue'}>
-            <ul className="space-y-2">
-              {queue.data?.items.map((record) => (
-                <li key={record.id}>
-                  <button
-                    className="w-full rounded-sm border border-border p-3 text-left hover:bg-primary-subtle"
-                    type="button"
-                    aria-pressed={record.id === selectedId}
-                    onClick={() => choose(record.id)}
-                  >
-                    <span className="block font-semibold">{record.title}</span>
-                    <span className="text-sm text-muted-foreground">
-                      {copy('lifecycle' in record ? record.lifecycle : record.status)}
-                    </span>
-                  </button>
-                </li>
-              ))}
-            </ul>
+            <ReviewCardList
+              items={queue.data?.items ?? []}
+              selectedId={selectedId}
+              onSelect={choose}
+              projectLabel={(id) => projects.data?.find((project) => project.id === id)?.title}
+            />
             {!queue.data?.items.length ? (
               <p className="text-sm text-muted-foreground">No records in this queue.</p>
             ) : null}

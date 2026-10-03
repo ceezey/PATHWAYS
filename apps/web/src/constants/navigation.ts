@@ -9,7 +9,6 @@ import {
   LineChart,
   ScrollText,
   Share2,
-  SlidersHorizontal,
   UserCog,
   UsersRound,
 } from 'lucide-react'
@@ -112,12 +111,6 @@ export const createDashboardNavGroups = (): DashboardNavGroup[] => [
         label: fixedDashboardNavItemLabels.reports,
         description: 'Human-reviewed reporting outputs.',
         icon: LineChart,
-      },
-      {
-        href: '/alerts/repository',
-        label: fixedDashboardNavItemLabels.alertsRepository,
-        description: 'Review the rules used to surface alerts for human review.',
-        icon: SlidersHorizontal,
       },
       {
         href: '/transparency',
