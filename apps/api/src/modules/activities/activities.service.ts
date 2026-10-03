@@ -50,6 +50,9 @@ import {
   activityEvidenceContentTypes,
 } from './activities.dto'
 
+// Create and update write assignments, links, budget and rule sources in one transaction; 5s is too short on the pooled remote DB.
+const ACTIVITY_SAVE_TRANSACTION_TIMEOUT_MS = 20_000
+
 type Tx = Prisma.TransactionClient
 const activityBudgetCategory = 'ACTIVITY_PROFILE_TOTAL'
 
@@ -1304,6 +1307,7 @@ export class ActivitiesService {
         )
         return { ...result, sourceAcknowledgement }
       },
+      { transactionTimeoutMs: ACTIVITY_SAVE_TRANSACTION_TIMEOUT_MS },
     )
   }
 
@@ -1443,6 +1447,7 @@ export class ActivitiesService {
         )
         return { ...result, sourceAcknowledgement }
       },
+      { transactionTimeoutMs: ACTIVITY_SAVE_TRANSACTION_TIMEOUT_MS },
     )
   }
 
