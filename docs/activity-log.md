@@ -77,3 +77,4 @@
 
 ## 2026-10-04 MFA code boxes centered
 - Centered the six OTP boxes on the security check screen.
+- MFA code auto-verifies once all six digits are entered.

@@ -331,6 +331,11 @@ export function MfaForm() {
     }
   }
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies: auto-submit fires only when the code changes.
+  useEffect(() => {
+    if (isTotpCode(code)) void verify()
+  }, [code])
+
   const leave = async () => {
     ++operation.current
     setEnrollment(null)
