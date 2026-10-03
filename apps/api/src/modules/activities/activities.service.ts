@@ -810,22 +810,8 @@ export class ActivitiesService {
         if (row.activityId) budgets.set(row.activityId, row.plannedBudget.toFixed(2))
       }
     }
-    if (hasAtomicPermission(actor.roles[0], actor.permissions, 'beneficiaries.aggregates.read')) {
-      // cr-pathways-proof-session-beneficiary-count: the database function sums each
-      // activity's APPROVED beneficiaries_reached_this_session values (NULL as 0). PENDING,
-      // VERIFIED and REJECTED updates never contribute; a later rejection lowers the total.
-      const ids = Prisma.join(activityIds.map((id) => Prisma.sql`${id}::uuid`))
-      const rows = await tx.$queryRaw<
-        Array<{ activityId: string; beneficiariesReached: number }>
-      >(Prisma.sql`
-        SELECT activity_id AS "activityId", beneficiaries_reached AS "beneficiariesReached"
-        FROM pathways.p08_activity_beneficiaries_reached(
-          ${actor.organizationId}::uuid,
-          ${projectId}::uuid,
-          ARRAY[${ids}]::uuid[]
-        )
-      `)
-      for (const row of rows) reached.set(row.activityId, Number(row.beneficiariesReached))
+    for (const [id, count] of await this.readReached(tx, actor, projectId, activityIds)) {
+      reached.set(id, count)
     }
     // Same grant as GET /expenses; the expense SELECT policy also requires it per project.
     // Logged means APPROVED, as in the finance ledger and the overview budget metric.
@@ -850,6 +836,84 @@ export class ActivitiesService {
       }
     }
     return { budgets, reached, logged }
+  }
+
+  /** APPROVED beneficiaries reached per activity; empty without beneficiaries.aggregates.read. */
+  private async readReached(
+    tx: Tx,
+    actor: ApplicationIdentity,
+    projectId: string,
+    activityIds: string[],
+  ) {
+    const reached = new Map<string, number>()
+    if (!hasAtomicPermission(actor.roles[0], actor.permissions, 'beneficiaries.aggregates.read')) {
+      return reached
+    }
+    // cr-pathways-proof-session-beneficiary-count: the database function sums each
+    // activity's APPROVED beneficiaries_reached_this_session values (NULL as 0).
+    const ids = Prisma.join(activityIds.map((id) => Prisma.sql`${id}::uuid`))
+    const rows = await tx.$queryRaw<Array<{ activityId: string; beneficiariesReached: number }>>(
+      Prisma.sql`
+        SELECT activity_id AS "activityId", beneficiaries_reached AS "beneficiariesReached"
+        FROM pathways.p08_activity_beneficiaries_reached(
+          ${actor.organizationId}::uuid,
+          ${projectId}::uuid,
+          ARRAY[${ids}]::uuid[]
+        )
+      `,
+    )
+    for (const row of rows) reached.set(row.activityId, Number(row.beneficiariesReached))
+    return reached
+  }
+
+  /**
+   * Batched list metrics: reached needs beneficiaries.aggregates.read; budget utilization
+   * needs budgets.read AND expenses.read (approved spend over planned), else null.
+   */
+  private async readListMetrics(
+    tx: Tx,
+    actor: ApplicationIdentity,
+    projectId: string,
+    activityIds: string[],
+  ) {
+    const budgetUtilization = new Map<string, number | null>()
+    if (activityIds.length === 0) return { reached: new Map<string, number>(), budgetUtilization }
+    const reached = await this.readReached(tx, actor, projectId, activityIds)
+    const can = (permission: 'budgets.read' | 'expenses.read') =>
+      hasAtomicPermission(actor.roles[0], actor.permissions, permission)
+    if (can('budgets.read') && can('expenses.read')) {
+      const records = await tx.projectBudgetRecord.findMany({
+        where: { organizationId: actor.organizationId, projectId, activityId: { in: activityIds } },
+        select: { id: true, activityId: true, plannedBudget: true, archivedAt: true },
+        take: 1000,
+      })
+      const spend = await tx.budgetExpenseEntry.groupBy({
+        by: ['budgetRecordId'],
+        where: {
+          organizationId: actor.organizationId,
+          projectId,
+          status: 'APPROVED',
+          budgetRecordId: { in: records.map((record) => record.id) },
+        },
+        _sum: { amount: true },
+      })
+      const spendByRecord = new Map(
+        spend.map((row) => [row.budgetRecordId, Number(row._sum.amount ?? 0)]),
+      )
+      const totals = new Map<string, { planned: number; used: number }>()
+      for (const record of records) {
+        if (!record.activityId) continue
+        const total = totals.get(record.activityId) ?? { planned: 0, used: 0 }
+        // Spend on an archived (replaced) record still counts, its plan does not.
+        if (!record.archivedAt) total.planned += Number(record.plannedBudget)
+        total.used += spendByRecord.get(record.id) ?? 0
+        totals.set(record.activityId, total)
+      }
+      for (const [id, { planned, used }] of totals) {
+        budgetUtilization.set(id, planned > 0 ? Math.round((used / planned) * 100) : null)
+      }
+    }
+    return { reached, budgetUtilization }
   }
 
   private async mapWithMetrics(
@@ -965,8 +1029,18 @@ export class ActivitiesService {
       })
       if (!project) throw new NotFoundException('Project unavailable.')
       const today = this.businessDate()
+      const metrics = await this.readListMetrics(
+        tx,
+        actor,
+        projectId.toLowerCase(),
+        project.projectActivity_project.map((row) => row.id),
+      )
       return project.projectActivity_project.map((row) => ({
         ...mapActivityListItem(row, today),
+        indicatorCount: row.activityIndicatorLink_activity.length,
+        beneficiariesTarget: row.targetBeneficiaries,
+        beneficiariesReached: metrics.reached.get(row.id) ?? null,
+        budgetUtilization: metrics.budgetUtilization.get(row.id) ?? null,
         capabilities: activityCapabilities(
           actor,
           row.status,
