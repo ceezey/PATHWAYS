@@ -79,3 +79,4 @@
 ## 2026-10-04 MFA code boxes centered
 - Centered the six OTP boxes on the security check screen.
 - MFA code auto-verifies once all six digits are entered.
+- After an accepted MFA code the card shows "Code accepted. Opening your workspace..." instead of the code form; falls back with an error after 30s if aal2 is not confirmed.
