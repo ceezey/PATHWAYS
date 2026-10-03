@@ -23,8 +23,6 @@ import {
   SectionCard,
   SidePanel,
   StatusBadge,
-  UnavailableHint,
-  unavailableControlProps,
 } from '@/components/pathways'
 import { Button } from '@/components/ui/button'
 import {
@@ -35,7 +33,6 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { Sheet } from '@/components/ui/sheet'
-import { UNFINISHED_CONTROLS_UI_ENABLED } from '@/constants/feature-flags'
 import { useCurrentRole } from '@/hooks/use-current-role'
 import { can } from '@/lib/rbac/can'
 import { type RoutePrincipal, principalHasAtomicPermission } from '@/lib/rbac/route-access'
@@ -55,6 +52,7 @@ import { ActivityDetailPanel } from '../projects/activity-detail-panel'
 import { ActivityProofDialog } from '../projects/activity-proof-dialog'
 import { ActionKpiRow } from './action-kpi-row'
 import { ExecutiveDashboard } from './executive-dashboard'
+import { PinnedCharts } from './pinned-charts'
 
 export const canLoadDashboardMonitoring = (
   role: PathwaysRole | null,
@@ -244,32 +242,6 @@ const DashboardActivityReviewPanel = ({
   )
 }
 
-const SavedMonitoringCharts = ({ projectId }: { projectId: string }) => (
-  <section className="mt-6 border-t border-border pt-6" aria-labelledby="saved-charts-title">
-    <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-      <h3 className="text-lg font-semibold" id="saved-charts-title">
-        Monitoring charts
-      </h3>
-      <Button
-        size="sm"
-        variant="outline"
-        {...unavailableControlProps('role-dashboard-add-chart-hint')}
-      >
-        Add a chart
-      </Button>
-      <UnavailableHint id="role-dashboard-add-chart-hint" />
-    </div>
-    <EmptyState
-      description={
-        projectId
-          ? 'Saved chart configuration is unavailable until a server-backed service is available.'
-          : 'Select a project above to view monitoring data.'
-      }
-      icon={BarChart3}
-      title={projectId ? 'Charts unavailable' : 'Choose a project'}
-    />
-  </section>
-)
 /** Trailing 12 months (366 calendar days, the API maximum) ending today in Manila business time. */
 const trailingYearPeriod = () => {
   const periodEnd = businessCalendarDate(new Date(), 'Asia/Manila')
@@ -419,7 +391,7 @@ const ConnectedMonitoringSnapshot = ({
           title="No authorized projects"
         />
       )}
-      {UNFINISHED_CONTROLS_UI_ENABLED ? <SavedMonitoringCharts projectId={projectId} /> : null}
+      <PinnedCharts />
     </SectionCard>
   )
 }
