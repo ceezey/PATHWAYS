@@ -55,6 +55,26 @@ const directionOptions = [
   { value: 'HIGHER_IS_BETTER', label: 'Higher is better' },
   { value: 'LOWER_IS_BETTER', label: 'Lower is better' },
 ]
+// Form defaults derived from the numeric domain; the API contract still receives every field.
+const kindDefaults: Record<(typeof numericKinds)[number], { unit: string; precision: number }> = {
+  COUNT: { unit: 'count', precision: 0 },
+  SIGNED_CHANGE: { unit: 'points', precision: 1 },
+  PERCENTAGE: { unit: '%', precision: 1 },
+  RATIO: { unit: 'ratio', precision: 2 },
+  NON_NEGATIVE: { unit: 'units', precision: 1 },
+}
+
+/** Suggests a contract-valid code from the indicator name. */
+export const suggestIndicatorCode = (name: string) => {
+  const code = name
+    .toUpperCase()
+    .replace(/[^A-Z0-9]+/g, '_')
+    .replace(/^_+|_+$/g, '')
+    .slice(0, 40)
+  if (!code) return ''
+  return /^[A-Z][A-Z0-9_-]{1,39}$/.test(code) ? code : `I_${code}`.slice(0, 40)
+}
+
 const kindOptions = numericKinds.map((kind) => ({ value: kind, label: kind.replaceAll('_', ' ') }))
 const recipeOptions = metricRecipes.map((value) => ({ value, label: recipeNames[value] }))
 
@@ -114,6 +134,10 @@ function IndicatorForm({
   onDone: () => void
 }) {
   const [mode, setMode] = useState('MANUAL')
+  const [name, setName] = useState('')
+  const [code, setCode] = useState<string | null>(null)
+  const [kind, setKind] = useState<(typeof numericKinds)[number]>('COUNT')
+  const [unit, setUnit] = useState<string | null>(null)
   const [recipe, setRecipe] = useState<(typeof metricRecipes)[number]>('PARTICIPATION_RECORD_COUNT')
   const [formId, setFormId] = useState('')
   const [fieldId, setFieldId] = useState('')
@@ -145,6 +169,8 @@ function IndicatorForm({
           <Input
             id="indicator-code"
             name="code"
+            value={code ?? suggestIndicatorCode(name)}
+            onChange={(event) => setCode(event.target.value.toUpperCase())}
             required
             maxLength={40}
             pattern="[A-Z][A-Z0-9_-]{1,39}"
@@ -152,11 +178,25 @@ function IndicatorForm({
         </div>
         <div>
           <label htmlFor="indicator-name">Name</label>
-          <Input id="indicator-name" name="name" required maxLength={160} />
+          <Input
+            id="indicator-name"
+            name="name"
+            value={name}
+            onChange={(event) => setName(event.target.value)}
+            required
+            maxLength={160}
+          />
         </div>
         <div>
           <label htmlFor="indicator-unit-label">Unit label</label>
-          <Input id="indicator-unit-label" name="unitLabel" required maxLength={80} />
+          <Input
+            id="indicator-unit-label"
+            name="unitLabel"
+            value={unit ?? kindDefaults[kind].unit}
+            onChange={(event) => setUnit(event.target.value)}
+            required
+            maxLength={80}
+          />
         </div>
         <div>
           <label htmlFor="indicator-data-source">Source description</label>
@@ -177,7 +217,8 @@ function IndicatorForm({
           <OptionSelect
             id="indicator-kind"
             name="numericKind"
-            defaultValue="COUNT"
+            value={kind}
+            onValueChange={(value) => setKind(value as (typeof numericKinds)[number])}
             options={kindOptions}
           />
         </div>
@@ -186,23 +227,11 @@ function IndicatorForm({
           <OptionSelect
             id="indicator-direction"
             name="direction"
-            defaultValue="DESCRIPTIVE"
+            defaultValue="HIGHER_IS_BETTER"
             options={directionOptions}
           />
         </div>
-        <div>
-          <label htmlFor="displayDirectionPrecision">Chart-axis decimal places</label>
-          <Input
-            id="displayDirectionPrecision"
-            name="displayPrecision"
-            type="number"
-            min={0}
-            max={4}
-            step={1}
-            defaultValue={0}
-            required
-          />
-        </div>
+        <input name="displayPrecision" type="hidden" value={kindDefaults[kind].precision} />
         <div>
           <label htmlFor="analytics-period-start">Period start</label>
           <Input id="analytics-period-start" name="periodStart" type="date" required />
