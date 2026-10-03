@@ -5,8 +5,10 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { useCurrentRole } from '@/hooks/use-current-role'
+import { usePendingCreate } from '@/hooks/use-pending-create'
 import { useOperationRequestId } from '@/lib/auth/operation-request-id'
 import { useSensitiveDraftOwner } from '@/lib/auth/sensitive-drafts'
+import { createdSince, fingerprintOf } from '@/lib/forms/pending-create'
 import { principalHasAtomicPermission } from '@/lib/rbac/route-access'
 import {
   coreDataClient,
@@ -15,6 +17,7 @@ import {
 } from '@/lib/services/core-feature-client'
 import { pathwaysClient } from '@/lib/services/pathways-client'
 import { useAuthorizedRead } from '@/providers/authorized-query-provider'
+import { Loader2 } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
 import type { z } from 'zod'
@@ -208,18 +211,32 @@ function FinanceContent({ projectId }: { projectId: string }) {
   const refresh = async () => {
     await Promise.all([budgets.refetch(), expenses.refetch(), references.refetch()])
   }
+  const pendingCreate = usePendingCreate<{ id: string }>({
+    profile,
+    kind: 'budget-allocation',
+    projectId,
+    successMessage: 'Budget allocation recorded.',
+    findCreated: async (fingerprint, startedAt) =>
+      (await coreDataClient.budgets(projectId)).find(
+        (row) =>
+          fingerprintOf(row.category) === fingerprint && createdSince(row.updatedAt, startedAt),
+      ),
+    onConfirmed: () => void refresh(),
+  })
   const createBudget = async () => {
     if (!budgetOwner?.isCurrent() || busy || activeOperation.current) return
     const captured = budgetOwner
     activeOperation.current = captured
     setBusy(true)
     try {
-      await coreDataClient.createBudget(projectId, {
-        category,
-        plannedBudget: planned,
-        remarks: remarks || null,
-      })
-      if (captured.isCurrent()) {
+      const created = await pendingCreate.submit(fingerprintOf(category), () =>
+        coreDataClient.createBudget(projectId, {
+          category,
+          plannedBudget: planned,
+          remarks: remarks || null,
+        }),
+      )
+      if (created && captured.isCurrent()) {
         setCategory('')
         setPlanned('')
         setRemarks('')
@@ -484,11 +501,22 @@ function FinanceContent({ projectId }: { projectId: string }) {
                 onChange={(event) => setRemarks(event.target.value)}
               />
             </Label>
+            {pendingCreate.notice ? (
+              <output className="block text-sm text-info">{pendingCreate.notice}</output>
+            ) : null}
             <Button
-              disabled={busy || !category.trim() || !planned.trim()}
+              className="gap-2"
+              disabled={busy || pendingCreate.pending || !category.trim() || !planned.trim()}
               onClick={() => void (editingBudget ? replaceBudget() : createBudget())}
             >
-              {editingBudget ? 'Save allocation changes' : 'Record allocation'}
+              {!editingBudget && (busy || pendingCreate.pending) ? (
+                <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+              ) : null}
+              {editingBudget
+                ? 'Save allocation changes'
+                : busy || pendingCreate.pending
+                  ? 'Recording...'
+                  : 'Record allocation'}
             </Button>
             {editingBudget && (
               <Button
