@@ -56,8 +56,13 @@ import { STEP_UP_REQUIRED_EVENT } from '@/lib/auth/beneficiary-step-up-events'
 import { BeneficiaryAccessGate } from './beneficiary-access-gate'
 
 const content = <p>Scoped beneficiary content</p>
-const codeInput = () => screen.getByRole('textbox', { name: 'Authenticator code' })
-const verifyButton = () => screen.getByRole('button', { name: 'Verify and enter' })
+const codeInput = () => screen.getByRole('textbox', { name: 'Digit 1 of 6' })
+const enteredCode = () =>
+  screen
+    .getAllByRole('textbox', { name: /^Digit \d of 6$/ })
+    .map((box) => (box as HTMLInputElement).value)
+    .join('')
+const verifyButton = () => screen.getByRole('button', { name: 'Verify' })
 
 const stale = (pinState: 'NONE' | 'SET' | 'LOCKED' = 'SET') => ({
   fresh: false,
@@ -105,12 +110,10 @@ describe('BeneficiaryAccessGate (server-verified step-up)', () => {
     fireEvent.click(verifyButton())
     expect(await screen.findByText(/The code was not accepted/)).toBeTruthy()
     expect(screen.queryByText('Scoped beneficiary content')).toBeNull()
-    expect((codeInput() as HTMLInputElement).value).toBe('')
-    expect(document.activeElement).toBe(codeInput())
+    await waitFor(() => expect(enteredCode()).toBe(''))
+    await waitFor(() => expect(document.activeElement).toBe(codeInput()))
 
     fireEvent.change(codeInput(), { target: { value: '12a34567' } })
-    expect((codeInput() as HTMLInputElement).value).toBe('123456')
-    fireEvent.click(verifyButton())
     expect(await screen.findByText('Scoped beneficiary content')).toBeTruthy()
     expect(mocks.verify).toHaveBeenLastCalledWith('123456')
     expect(window.sessionStorage.length).toBe(0)
@@ -120,12 +123,12 @@ describe('BeneficiaryAccessGate (server-verified step-up)', () => {
   it('reports a verification outage without revealing content or clearing the code', async () => {
     mocks.verify.mockRejectedValueOnce(new BeneficiaryStepUpError('down', 'unavailable'))
     render(<BeneficiaryAccessGate preflight>{content}</BeneficiaryAccessGate>)
-    fireEvent.change(await screen.findByRole('textbox', { name: 'Authenticator code' }), {
+    fireEvent.change(await screen.findByRole('textbox', { name: 'Digit 1 of 6' }), {
       target: { value: '123456' },
     })
     fireEvent.click(verifyButton())
     expect(await screen.findByText(/could not be reached/)).toBeTruthy()
-    expect((codeInput() as HTMLInputElement).value).toBe('123456')
+    expect(enteredCode()).toBe('123456')
     await waitFor(() => expect(document.activeElement).toBe(verifyButton()))
     expect(screen.queryByText('Scoped beneficiary content')).toBeNull()
   })
@@ -140,9 +143,21 @@ describe('BeneficiaryAccessGate (server-verified step-up)', () => {
     expect(await screen.findByText('Scoped beneficiary content')).toBeTruthy()
   })
 
+  it('auto-verifies once all six digits are entered, without a button click', async () => {
+    mocks.getStatus.mockResolvedValue(stale('SET'))
+    mocks.verify.mockResolvedValue(totpFresh('SET'))
+    render(<BeneficiaryAccessGate preflight>{content}</BeneficiaryAccessGate>)
+    fireEvent.change(await screen.findByRole('textbox', { name: 'Digit 1 of 6' }), {
+      target: { value: '123456' },
+    })
+    expect(await screen.findByText('Scoped beneficiary content')).toBeTruthy()
+    expect(mocks.verify).toHaveBeenCalledOnce()
+    expect(mocks.verify).toHaveBeenCalledWith('123456')
+  })
+
   it('returns to the dashboard when a blocking prompt is dismissed', async () => {
     render(<BeneficiaryAccessGate preflight>{content}</BeneficiaryAccessGate>)
-    fireEvent.click(await screen.findByRole('button', { name: 'Back to dashboard' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Dashboard' }))
     expect(mocks.routerPush).toHaveBeenCalledWith('/dashboard')
   })
 
@@ -189,7 +204,7 @@ describe('BeneficiaryAccessGate (STEP_UP_PIN_UI_ENABLED false)', () => {
     mocks.getStatus.mockResolvedValue(stale('NONE'))
     mocks.verify.mockResolvedValue(totpFresh('NONE'))
     render(<BeneficiaryAccessGate preflight>{content}</BeneficiaryAccessGate>)
-    fireEvent.change(await screen.findByRole('textbox', { name: 'Authenticator code' }), {
+    fireEvent.change(await screen.findByRole('textbox', { name: 'Digit 1 of 6' }), {
       target: { value: '123456' },
     })
     fireEvent.click(verifyButton())
@@ -284,7 +299,7 @@ describe('BeneficiaryAccessGate PIN fallback (cr-pathways-beneficiary-step-up-pi
     mocks.getStatus.mockResolvedValue(stale('LOCKED'))
     mocks.verify.mockResolvedValue(totpFresh('LOCKED'))
     renderGate({ preflight: true })
-    fireEvent.change(await screen.findByRole('textbox', { name: 'Authenticator code' }), {
+    fireEvent.change(await screen.findByRole('textbox', { name: 'Digit 1 of 6' }), {
       target: { value: '123456' },
     })
     fireEvent.click(verifyButton())
@@ -296,7 +311,7 @@ describe('BeneficiaryAccessGate PIN fallback (cr-pathways-beneficiary-step-up-pi
     mocks.getStatus.mockResolvedValue(stale('NONE'))
     mocks.verify.mockResolvedValue(totpFresh('NONE'))
     renderGate({ preflight: true })
-    fireEvent.change(await screen.findByRole('textbox', { name: 'Authenticator code' }), {
+    fireEvent.change(await screen.findByRole('textbox', { name: 'Digit 1 of 6' }), {
       target: { value: '123456' },
     })
     fireEvent.click(verifyButton())
@@ -311,7 +326,7 @@ describe('BeneficiaryAccessGate PIN fallback (cr-pathways-beneficiary-step-up-pi
     mocks.getStatus.mockResolvedValue(stale('NONE'))
     mocks.verify.mockResolvedValue(totpFresh('NONE'))
     renderGate({ preflight: true })
-    fireEvent.change(await screen.findByRole('textbox', { name: 'Authenticator code' }), {
+    fireEvent.change(await screen.findByRole('textbox', { name: 'Digit 1 of 6' }), {
       target: { value: '123456' },
     })
     fireEvent.click(verifyButton())
@@ -347,7 +362,7 @@ describe('BeneficiaryAccessGate PIN fallback (cr-pathways-beneficiary-step-up-pi
     mocks.getStatus.mockResolvedValue(stale('NONE'))
     mocks.verify.mockResolvedValue(totpFresh('NONE'))
     renderGate({ preflight: true })
-    fireEvent.change(await screen.findByRole('textbox', { name: 'Authenticator code' }), {
+    fireEvent.change(await screen.findByRole('textbox', { name: 'Digit 1 of 6' }), {
       target: { value: '123456' },
     })
     fireEvent.click(verifyButton())
@@ -369,7 +384,7 @@ describe('BeneficiaryAccessGate PIN fallback (cr-pathways-beneficiary-step-up-pi
     mocks.getStatus.mockResolvedValue(stale('NONE'))
     mocks.verify.mockResolvedValue(totpFresh('NONE'))
     renderGate({ preflight: true })
-    fireEvent.change(await screen.findByRole('textbox', { name: 'Authenticator code' }), {
+    fireEvent.change(await screen.findByRole('textbox', { name: 'Digit 1 of 6' }), {
       target: { value: '123456' },
     })
     fireEvent.click(verifyButton())

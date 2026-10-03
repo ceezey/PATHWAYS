@@ -10,6 +10,7 @@ import { Button } from '@/components/ui/button'
 import { Dialog } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { OtpInput } from '@/components/ui/otp-input'
 import { STEP_UP_PIN_UI_ENABLED } from '@/constants/feature-flags'
 import {
   BeneficiaryStepUpError,
@@ -62,7 +63,6 @@ export const BeneficiaryAccessGate = ({
   const [status, setStatus] = useState<'idle' | 'loading' | 'error'>('idle')
   const [message, setMessage] = useState(PROMPT)
   const verifyButtonRef = useRef<HTMLButtonElement>(null)
-  const codeInputRef = useRef<HTMLInputElement>(null)
   const pinInputRef = useRef<HTMLInputElement>(null)
   const pinConfirmRef = useRef<HTMLInputElement>(null)
 
@@ -111,10 +111,14 @@ export const BeneficiaryAccessGate = ({
   }, [])
 
   useEffect(() => {
-    if (status === 'error' && method === 'totp' && code.length === 6) {
-      verifyButtonRef.current?.focus()
-    }
+    if (status !== 'error' || method !== 'totp') return
+    // Boxes re-enable after the request settles, so refocus here rather than in the handler.
+    if (code.length === 6) verifyButtonRef.current?.focus()
+    else if (!code) focusCode()
   }, [code, method, status])
+
+  // The OTP group owns its boxes, so focus targets the first box by id.
+  const focusCode = () => document.getElementById('beneficiary-step-up-code')?.focus()
 
   const clearSecrets = () => {
     setCode('')
@@ -133,7 +137,8 @@ export const BeneficiaryAccessGate = ({
 
   const reset = () => {
     choose(method)
-    ;(method === 'pin' ? pinInputRef : codeInputRef).current?.focus()
+    if (method === 'pin') pinInputRef.current?.focus()
+    else focusCode()
   }
 
   const enter = () => {
@@ -145,12 +150,12 @@ export const BeneficiaryAccessGate = ({
     setPhase('open')
   }
 
-  const verifyCode = async () => {
-    if (code.length !== 6 || status === 'loading') return
+  const verifyCode = async (submitted = code) => {
+    if (submitted.length !== 6 || status === 'loading') return
     setStatus('loading')
     setMessage('Verifying with the server...')
     try {
-      const result = await verifyBeneficiaryStepUp(code)
+      const result = await verifyBeneficiaryStepUp(submitted)
       let nextPinState = result.pinState
       if (nextPinState === 'LOCKED') {
         // A fresh authenticator verification unlocks the PIN; failure leaves it locked.
@@ -170,7 +175,7 @@ export const BeneficiaryAccessGate = ({
           'The code was not accepted. Personal details remain hidden; try the next authenticator code.',
         )
         // The verify button disables with an empty code; keep focus in the dialog.
-        codeInputRef.current?.focus()
+        focusCode()
       } else {
         setMessage(
           'The verification service could not be reached. Check your connection and try again.',
@@ -193,7 +198,7 @@ export const BeneficiaryAccessGate = ({
         setPinState('LOCKED')
         choose('totp', PIN_LOCKED_MESSAGE)
         setStatus('error')
-        codeInputRef.current?.focus()
+        focusCode()
         return
       }
       setStatus('error')
@@ -333,21 +338,18 @@ export const BeneficiaryAccessGate = ({
           {method === 'totp' ? (
             <div className="space-y-2">
               <Label htmlFor="beneficiary-step-up-code">Authenticator code</Label>
-              <Input
+              <OtpInput
                 id="beneficiary-step-up-code"
-                ref={codeInputRef}
-                autoComplete="one-time-code"
+                label="Authenticator code"
+                length={6}
                 autoFocus
-                inputMode="numeric"
-                maxLength={6}
-                placeholder="6-digit code"
+                disabled={status === 'loading'}
                 value={code}
-                onChange={(event) => setCode(digitsOnly(event.target.value, 6))}
-                onKeyDown={(event) => {
-                  if (event.key === 'Enter') {
-                    event.preventDefault()
-                    void verifyCode()
-                  }
+                onChange={(next) => {
+                  const digits = digitsOnly(next, 6)
+                  setCode(digits)
+                  // Submit as soon as the sixth digit lands, like the sign-in OTP flow.
+                  if (digits.length === 6) void verifyCode(digits)
                 }}
               />
             </div>
@@ -386,9 +388,9 @@ export const BeneficiaryAccessGate = ({
               </>
             ) : (
               <>
-                <Button type="button" variant="ghost" onClick={leave}>
+                <Button type="button" variant="ghost" className="sm:mr-auto" onClick={leave}>
                   <ArrowLeft className="mr-2 h-4 w-4" aria-hidden="true" />
-                  {blocking ? 'Back to dashboard' : 'Not now'}
+                  {blocking ? 'Dashboard' : 'Not now'}
                 </Button>
                 <Button type="button" variant="outline" onClick={reset}>
                   <RotateCcw className="mr-2 h-4 w-4" aria-hidden="true" />
@@ -398,7 +400,7 @@ export const BeneficiaryAccessGate = ({
                   <Button
                     ref={verifyButtonRef}
                     disabled={code.length !== 6 || status === 'loading'}
-                    onClick={verifyCode}
+                    onClick={() => void verifyCode()}
                     type="button"
                   >
                     {status === 'loading' ? (
@@ -406,7 +408,7 @@ export const BeneficiaryAccessGate = ({
                     ) : (
                       <KeyRound className="mr-2 h-4 w-4" aria-hidden="true" />
                     )}
-                    Verify and enter
+                    Verify
                   </Button>
                 ) : (
                   <Button
