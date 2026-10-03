@@ -196,11 +196,11 @@ function IndicatorForm({
             onChange={(event) => setUnit(event.target.value)}
             required
             maxLength={80}
+            aria-describedby="indicator-unit-hint"
           />
-        </div>
-        <div>
-          <label htmlFor="indicator-data-source">Source description</label>
-          <Input id="indicator-data-source" name="dataSource" required maxLength={300} />
+          <p className="mt-1 text-xs text-muted-foreground" id="indicator-unit-hint">
+            e.g. %, people
+          </p>
         </div>
         <div>
           <label htmlFor="indicator-mode">Authority</label>
@@ -231,7 +231,7 @@ function IndicatorForm({
             options={directionOptions}
           />
         </div>
-        <input name="displayPrecision" type="hidden" value={kindDefaults[kind].precision} />
+        {kind === 'COUNT' ? <input name="displayPrecision" type="hidden" value={0} /> : null}
         <div>
           <label htmlFor="analytics-period-start">Period start</label>
           <Input id="analytics-period-start" name="periodStart" type="date" required />
@@ -248,9 +248,28 @@ function IndicatorForm({
           <label htmlFor="target">Target (blank means not configured)</label>
           <Input id="target" name="target" inputMode="decimal" maxLength={21} />
         </div>
+        {kind === 'COUNT' ? null : (
+          <details className="rounded-md border border-border p-3 md:col-span-2">
+            <summary className="cursor-pointer text-sm font-medium">Advanced settings</summary>
+            <div className="mt-3 max-w-xs">
+              <label htmlFor="indicator-precision">Chart-axis decimal places</label>
+              <Input
+                id="indicator-precision"
+                key={kind}
+                name="displayPrecision"
+                type="number"
+                min={0}
+                max={4}
+                step={1}
+                defaultValue={kindDefaults[kind].precision}
+                required
+              />
+            </div>
+          </details>
+        )}
         <div className="md:col-span-2">
-          <label htmlFor="indicator-description">Description</label>
-          <Textarea id="indicator-description" name="description" maxLength={2000} />
+          <label htmlFor="indicator-data-source">Source description</label>
+          <Textarea id="indicator-data-source" name="dataSource" required maxLength={300} />
         </div>
         {mode === 'DERIVED' ? (
           <>
