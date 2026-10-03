@@ -1,11 +1,12 @@
 'use client'
 
-import { RefreshCw, Upload } from 'lucide-react'
+import { ArrowLeft, RefreshCw, Upload } from 'lucide-react'
+import Link from 'next/link'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { toast } from 'sonner'
 
 import { PageHeader } from '@/components/layout/page-header'
-import { AsyncState, EmptyState, StatusBadge } from '@/components/pathways'
+import { AsyncState, EmptyState, LoadingCard, StatusBadge } from '@/components/pathways'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -28,7 +29,7 @@ import {
 import { useCurrentRole } from '@/hooks/use-current-role'
 import { useDisplayLabels } from '@/hooks/use-display-labels'
 import { type SensitiveDraftOwner, useSensitiveDraftOwner } from '@/lib/auth/sensitive-drafts'
-import { principalHasAtomicPermission } from '@/lib/rbac/route-access'
+import { getVerifiedRouteAccess, principalHasAtomicPermission } from '@/lib/rbac/route-access'
 import { pathwaysClient } from '@/lib/services/pathways-client'
 import { cn } from '@/lib/utils'
 import type {
@@ -120,9 +121,13 @@ function OwnedImportWorkspace({ scope }: { scope: SensitiveDraftOwner }) {
   const canReview = principalHasAtomicPermission(profile, 'imports.review')
   const canValidate = principalHasAtomicPermission(profile, 'imports.validate')
   const canProcess = principalHasAtomicPermission(profile, 'imports.process')
+  const canOpenForms = Boolean(
+    profile && getVerifiedRouteAccess(profile, '/collection/forms').allowed,
+  )
   const [projects, setProjects] = useState<ProjectSummary[]>([])
   const [projectId, setProjectId] = useState('')
   const [forms, setForms] = useState<DigitalFormDefinition[]>([])
+  const [formsState, setFormsState] = useState<'loading' | 'ready' | 'error'>('ready')
   const [formId, setFormId] = useState('')
   const [file, setFile] = useState<File | null>(null)
   const [batches, setBatches] = useState<ImportBatchDefinition[]>([])
@@ -219,6 +224,7 @@ function OwnedImportWorkspace({ scope }: { scope: SensitiveDraftOwner }) {
     if (!projectId) return
     let mounted = true
     setForms([])
+    setFormsState('loading')
     setBatches([])
     setBatch(null)
     setRows([])
@@ -232,6 +238,7 @@ function OwnedImportWorkspace({ scope }: { scope: SensitiveDraftOwner }) {
         if (!mounted || !scope.isCurrent() || latest.current.projectId !== projectId) return
         const published = formRecords.filter((item) => item.status === 'PUBLISHED')
         setForms(published)
+        setFormsState('ready')
         setFormId((current) =>
           published.some((item) => item.id === current) ? current : (published[0]?.id ?? ''),
         )
@@ -240,8 +247,10 @@ function OwnedImportWorkspace({ scope }: { scope: SensitiveDraftOwner }) {
         setRows([])
       })
       .catch(() => {
-        if (mounted && scope.isCurrent() && latest.current.projectId === projectId)
+        if (mounted && scope.isCurrent() && latest.current.projectId === projectId) {
+          setFormsState('error')
           toast.error('Import workspace data could not be loaded.')
+        }
       })
     return () => {
       mounted = false
@@ -620,6 +629,16 @@ function OwnedImportWorkspace({ scope }: { scope: SensitiveDraftOwner }) {
         editableLabelKey="moduleCollection"
         title={labels.moduleCollection}
         description="Upload a private CSV, workbook or text-based PDF, review field mappings, validate every row, and promote only valid generic submissions."
+        actions={
+          canOpenForms ? (
+            <Button asChild variant="outline">
+              <Link href="/collection/forms">
+                <ArrowLeft className="mr-2 h-4 w-4" aria-hidden="true" />
+                Forms
+              </Link>
+            </Button>
+          ) : undefined
+        }
       />
 
       {visibleProcessing ? (
@@ -693,30 +712,49 @@ function OwnedImportWorkspace({ scope }: { scope: SensitiveDraftOwner }) {
                 </SelectContent>
               </Select>
             </div>
-            <div className="space-y-2">
-              <Label>Published form version</Label>
-              <Select
-                value={formId}
-                onValueChange={(value) => {
-                  if (!mutation.current && scope.isCurrent()) {
-                    setFormId(value)
-                    setFile(null)
-                  }
-                }}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Choose form" />
-                </SelectTrigger>
-                <SelectContent>
-                  {forms.map((form) => (
-                    <SelectItem key={form.id} value={form.id}>
-                      {form.name} - v{form.version}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2">
+            {projectId && formsState === 'loading' ? (
+              <LoadingCard
+                className="md:col-span-2"
+                title="Loading published form versions"
+                description="Published forms for this project will appear here."
+              />
+            ) : (
+              <div className="space-y-2">
+                <Label>Published form version</Label>
+                <Select
+                  disabled={projectId !== '' && forms.length === 0}
+                  value={formId}
+                  onValueChange={(value) => {
+                    if (!mutation.current && scope.isCurrent()) {
+                      setFormId(value)
+                      setFile(null)
+                    }
+                  }}
+                >
+                  <SelectTrigger>
+                    <SelectValue
+                      placeholder={
+                        !projectId
+                          ? 'Choose form'
+                          : formsState === 'error'
+                            ? 'Forms could not be loaded.'
+                            : forms.length === 0
+                              ? 'No forms available.'
+                              : 'Choose form'
+                      }
+                    />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {forms.map((form) => (
+                      <SelectItem key={form.id} value={form.id}>
+                        {form.name} - v{form.version}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+            <div className={cn('space-y-2', projectId && formsState === 'loading' && 'hidden')}>
               <Label htmlFor="import-file">Source file</Label>
               <Input
                 id="import-file"
