@@ -74,3 +74,6 @@
 
 ## 2026-10-04 Local dev against hosted devV2
 - `pnpm dev` now runs the API in watch mode (`dev-watch.mjs`) against devV2 using the runtime role, with owner credentials blanked and output redacted; the legacy PATHWAYS-dev launcher moved to `dev:legacy-db`. How-to in docs/local-dev.md.
+
+## 2026-10-04 MFA code boxes centered
+- Centered the six OTP boxes on the security check screen.

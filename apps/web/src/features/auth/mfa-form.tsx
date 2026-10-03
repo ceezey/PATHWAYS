@@ -549,6 +549,7 @@ export function MfaForm() {
                   value={code}
                   onChange={(next) => setCode(next.replace(/\D/g, '').slice(0, 6))}
                   disabled={busy}
+                  className="justify-center"
                 />
                 <Button type="submit" disabled={busy || !isTotpCode(code)}>
                   {busy ? 'Verifying...' : 'Verify authenticator code'}
