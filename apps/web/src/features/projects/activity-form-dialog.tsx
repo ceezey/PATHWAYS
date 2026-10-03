@@ -29,6 +29,7 @@ import {
 } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
 import { useCurrentRole } from '@/hooks/use-current-role'
+import { usePendingCreate } from '@/hooks/use-pending-create'
 import { useSourceMutationContext } from '@/hooks/use-source-mutation-context'
 import {
   type SensitiveDraftOwner,
@@ -37,6 +38,7 @@ import {
   useSensitiveDraftOwner,
   writeSensitiveDraft,
 } from '@/lib/auth/sensitive-drafts'
+import { createdSince, fingerprintOf } from '@/lib/forms/pending-create'
 import { principalHasAtomicPermission } from '@/lib/rbac/route-access'
 import { isUiActionAvailable } from '@/lib/rbac/ui-action-availability'
 import { pathwaysClient } from '@/lib/services/pathways-client'
@@ -130,6 +132,24 @@ const ScopedActivityFormDialog = ({
     activity?.id ?? null,
     open,
   )
+  const pendingCreate = usePendingCreate<Activity>({
+    profile,
+    kind: 'activity',
+    projectId,
+    successMessage: 'Activity created',
+    findCreated: async (fingerprint, startedAt) => {
+      const found = (await pathwaysClient.getActivities(projectId)).find(
+        (item) =>
+          fingerprintOf(item.title) === fingerprint && createdSince(item.updatedAt, startedAt),
+      )
+      return found ? pathwaysClient.getActivity(projectId, found.id) : null
+    },
+    onConfirmed: (record) => {
+      removeSensitiveDraft(draftStorageKey)
+      onCreatedOrUpdated(record)
+      onOpenChange(false)
+    },
+  })
   const savedPhase = useRef<{ input: string; activity: Activity } | null>(null)
   const [recoveringPhase, setRecoveringPhase] = useState(false)
   const canEditStatus = isUiActionAvailable(role, 'activities.status.edit', profile)
@@ -163,6 +183,7 @@ const ScopedActivityFormDialog = ({
     defaultValues,
   })
   const draftStorageKey = scope.key
+  const savePending = form.formState.isSubmitting || pendingCreate.confirming
   const initialValues = useMemo<ActivityFormSchema>(
     () =>
       activity
@@ -325,7 +346,10 @@ const ScopedActivityFormDialog = ({
               { ...input, id: activity.id, expectedUpdatedAt: activity.updatedAt },
               mutationContext,
             )
-          : await pathwaysClient.createActivity(input, mutationContext))
+          : await pendingCreate.submit(fingerprintOf(input.title), () =>
+              pathwaysClient.createActivity(input, mutationContext),
+            ))
+      if (!first) return
       if (!scope.isCurrent() || !mutationContext.isCurrent()) return
       if (isSourceReplay(first)) {
         await pathwaysClient.getActivities(projectId)
@@ -799,17 +823,26 @@ const ScopedActivityFormDialog = ({
                   )}
                 />
               </div>
+              {pendingCreate.notice ? (
+                <output className="block rounded-xl border border-info/25 bg-info-subtle p-3 text-sm text-info">
+                  {pendingCreate.notice}
+                </output>
+              ) : null}
               <DialogFooter>
                 <Button type="button" variant="outline" onClick={() => requestOpenChange(false)}>
                   Cancel
                 </Button>
-                <Button className="gap-2" disabled={form.formState.isSubmitting} type="submit">
-                  {form.formState.isSubmitting ? (
+                <Button className="gap-2" disabled={savePending} type="submit">
+                  {savePending ? (
                     <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
                   ) : (
                     <Save className="h-4 w-4" aria-hidden="true" />
                   )}
-                  {activity ? 'Save Activity' : 'Create Activity'}
+                  {savePending && !activity
+                    ? 'Creating...'
+                    : activity
+                      ? 'Save Activity'
+                      : 'Create Activity'}
                 </Button>
               </DialogFooter>
             </form>

@@ -141,6 +141,7 @@ describe('user management: create user via existing Auth authorization', () => {
       { id: 'project-1', title: 'Project One', area: 'Area A', targetGoal: null },
     ])
     authorizeExistingUser.mockReset()
+    sessionStorage.clear()
     updateAuthorizedUser.mockReset()
   })
 
@@ -188,7 +189,9 @@ describe('user management: create user via existing Auth authorization', () => {
   })
 
   it('shows a 403 server error from authorizeExistingUser', async () => {
-    authorizeExistingUser.mockRejectedValue(new Error('Target role is outside your authority.'))
+    authorizeExistingUser.mockRejectedValue(
+      Object.assign(new Error('Target role is outside your authority.'), { status: 403 }),
+    )
     await openCreateDialog()
 
     fillMinimalCreateForm()
@@ -198,7 +201,9 @@ describe('user management: create user via existing Auth authorization', () => {
   })
 
   it('shows a 404 server error from authorizeExistingUser', async () => {
-    authorizeExistingUser.mockRejectedValue(new Error('One or more projects are unavailable.'))
+    authorizeExistingUser.mockRejectedValue(
+      Object.assign(new Error('One or more projects are unavailable.'), { status: 404 }),
+    )
     await openCreateDialog()
 
     fillMinimalCreateForm()
@@ -208,7 +213,9 @@ describe('user management: create user via existing Auth authorization', () => {
   })
 
   it('shows a 400 server error from authorizeExistingUser', async () => {
-    authorizeExistingUser.mockRejectedValue(new Error('Target role is unavailable.'))
+    authorizeExistingUser.mockRejectedValue(
+      Object.assign(new Error('Target role is unavailable.'), { status: 400 }),
+    )
     await openCreateDialog()
 
     fillMinimalCreateForm()

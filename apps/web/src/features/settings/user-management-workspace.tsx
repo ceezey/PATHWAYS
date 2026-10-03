@@ -5,6 +5,7 @@ import {
   Clock3,
   Eye,
   KeyRound,
+  Loader2,
   Mail,
   MoreHorizontal,
   Pencil,
@@ -50,6 +51,8 @@ import {
 } from '@/components/ui/select'
 import { useCurrentRole } from '@/hooks/use-current-role'
 import { useDisplayLabels } from '@/hooks/use-display-labels'
+import { usePendingCreate } from '@/hooks/use-pending-create'
+import { createdSince, fingerprintOf } from '@/lib/forms/pending-create'
 import type { ProjectAssignableRole } from '@/lib/rbac/access-matrix'
 import { pathwaysClient } from '@/lib/services/pathways-client'
 import type { ProjectSummary, UserAccountStatus, UserRecord } from '@/types/pathways'
@@ -140,6 +143,20 @@ export const UserManagementWorkspace = ({
   const [viewUserId, setViewUserId] = useState<string | null>(null)
   const [deactivateUserId, setDeactivateUserId] = useState<string | null>(null)
   const [editorError, setEditorError] = useState('')
+  const pendingCreate = usePendingCreate<UserRecord>({
+    profile,
+    kind: 'user',
+    successMessage: 'Account authorized',
+    findCreated: async (fingerprint, startedAt) =>
+      (await pathwaysClient.getUsers()).find(
+        (user) =>
+          fingerprintOf(user.authUserId) === fingerprint && createdSince(user.createdAt, startedAt),
+      ),
+    onConfirmed: () => {
+      setLoadAttempt((attempt) => attempt + 1)
+      setEditor(null)
+    },
+  })
   const manageableRoles = useMemo(
     () => (actorRole ? getManageableUserRoles(actorRole) : []),
     [actorRole],
@@ -241,12 +258,15 @@ export const UserManagementWorkspace = ({
         return
       }
       try {
-        await pathwaysClient.authorizeExistingUser({
-          authUserId,
-          fullName: name,
-          role: editor.role,
-          projectIds,
-        })
+        const created = await pendingCreate.submit(fingerprintOf(authUserId), () =>
+          pathwaysClient.authorizeExistingUser({
+            authUserId,
+            fullName: name,
+            role: editor.role,
+            projectIds,
+          }),
+        )
+        if (!created) return
         setLoadAttempt((attempt) => attempt + 1)
         toast.success('Account authorized. Sign-in access is active.')
       } catch (error) {
@@ -509,6 +529,8 @@ export const UserManagementWorkspace = ({
           setEditorError('')
         }}
         onSave={saveEditor}
+        notice={pendingCreate.notice}
+        pending={pendingCreate.pending}
         projects={assignableProjects}
       />
 
@@ -659,6 +681,8 @@ const UserEditorDialog = ({
   onChange,
   onClose,
   onSave,
+  notice,
+  pending,
   projects,
 }: {
   editor: UserEditorState | null
@@ -667,6 +691,8 @@ const UserEditorDialog = ({
   onChange: (editor: UserEditorState) => void
   onClose: () => void
   onSave: () => void
+  notice: string | null
+  pending: boolean
   projects: ProjectSummary[]
 }) => (
   <Dialog onOpenChange={(open) => !open && onClose()} open={Boolean(editor)}>
@@ -819,13 +845,19 @@ const UserEditorDialog = ({
             {error}
           </p>
         ) : null}
+        {notice ? <output className="block text-sm text-info">{notice}</output> : null}
 
         <DialogFooter>
           <Button onClick={onClose} type="button" variant="outline">
             Cancel
           </Button>
-          <Button onClick={onSave} type="button">
-            {editor.mode === 'create' ? 'Authorize account' : 'Save changes'}
+          <Button disabled={pending} onClick={onSave} type="button">
+            {pending ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : null}
+            {pending && editor.mode === 'create'
+              ? 'Authorizing...'
+              : editor.mode === 'create'
+                ? 'Authorize account'
+                : 'Save changes'}
           </Button>
         </DialogFooter>
       </DialogContent>

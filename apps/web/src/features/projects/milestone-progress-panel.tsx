@@ -4,6 +4,8 @@ import { SectionCard, StatusBadge } from '@/components/pathways'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { useCurrentRole } from '@/hooks/use-current-role'
+import { usePendingCreate } from '@/hooks/use-pending-create'
+import { createdSince, fingerprintOf } from '@/lib/forms/pending-create'
 import { isUiActionAvailable } from '@/lib/rbac/ui-action-availability'
 import { pathwaysClient } from '@/lib/services/pathways-client'
 import type { ActivitySummary, ProjectMilestone } from '@/types/pathways'
@@ -39,9 +41,24 @@ export function MilestoneProgressPanel({ projectId }: { projectId: string }) {
     }
   }, [profile, projectId])
 
-  const run = async (operation: () => Promise<ProjectMilestone>) => {
+  const pendingCreate = usePendingCreate<ProjectMilestone>({
+    profile,
+    kind: 'milestone',
+    projectId,
+    successMessage: 'Milestone saved.',
+    findCreated: async (fingerprint, startedAt) =>
+      (await pathwaysClient.getMilestones(projectId)).find(
+        (row) => fingerprintOf(row.title) === fingerprint && createdSince(row.updatedAt, startedAt),
+      ),
+    onConfirmed: (record) =>
+      setMilestones((current) => [...current.filter((row) => row.id !== record.id), record]),
+  })
+  const run = async (operation: () => Promise<ProjectMilestone>, createFingerprint?: string) => {
     try {
-      const saved = await operation()
+      const saved = createFingerprint
+        ? await pendingCreate.submit(createFingerprint, operation)
+        : await operation()
+      if (!saved) return
       setMilestones((current) => [...current.filter((row) => row.id !== saved.id), saved])
       setMessage('Milestone saved.')
     } catch (error) {
@@ -70,11 +87,13 @@ export function MilestoneProgressPanel({ projectId }: { projectId: string }) {
                 setMessage('Milestone title and planned date are required.')
                 return
               }
-              void run(() =>
-                pathwaysClient.createMilestone(projectId, {
-                  title: title.trim(),
-                  targetDate: date,
-                }),
+              void run(
+                () =>
+                  pathwaysClient.createMilestone(projectId, {
+                    title: title.trim(),
+                    targetDate: date,
+                  }),
+                fingerprintOf(title),
               )
             }}
           >
@@ -106,7 +125,12 @@ export function MilestoneProgressPanel({ projectId }: { projectId: string }) {
                 onChange={(event) => setActualDate(event.target.value)}
               />
             </label>
-            <Button type="submit">Save milestone</Button>
+            {pendingCreate.notice ? (
+              <output className="text-sm text-info">{pendingCreate.notice}</output>
+            ) : null}
+            <Button disabled={pendingCreate.pending} type="submit">
+              {pendingCreate.pending ? 'Saving...' : 'Save milestone'}
+            </Button>
           </form>
         ) : null}
         <ul className="mt-4 space-y-3">

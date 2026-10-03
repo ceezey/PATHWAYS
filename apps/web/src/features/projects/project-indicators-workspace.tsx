@@ -16,7 +16,9 @@ import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { useMonitoringRead } from '@/features/analytics/use-monitoring-read'
 import { useCurrentRole } from '@/hooks/use-current-role'
+import { usePendingCreate } from '@/hooks/use-pending-create'
 import { useSourceMutationContext } from '@/hooks/use-source-mutation-context'
+import { fingerprintOf } from '@/lib/forms/pending-create'
 import { principalHasAtomicPermission } from '@/lib/rbac/route-access'
 import { indicatorLibraryClient } from '@/lib/services/indicator-library-client'
 import { PathwaysClientError, pathwaysClient } from '@/lib/services/pathways-client'
@@ -37,7 +39,7 @@ import {
   metricRecipes,
   numericKinds,
 } from '@pathways/shared'
-import { Plus, Target } from 'lucide-react'
+import { Loader2, Plus, Target } from 'lucide-react'
 import Link from 'next/link'
 import { type FormEvent, Fragment, useCallback, useEffect, useRef, useState } from 'react'
 
@@ -366,8 +368,9 @@ function IndicatorForm({
       </fieldset>
       {validation ? <InlineNotice tone="danger">{validation}</InlineNotice> : null}
       {message ? <InlineNotice>{message}</InlineNotice> : null}
-      <Button type="submit" disabled={busy}>
-        Save indicator
+      <Button className="gap-2" type="submit" disabled={busy}>
+        {busy ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : null}
+        {busy ? 'Saving...' : 'Save indicator'}
       </Button>
     </form>
   )
@@ -620,13 +623,31 @@ export function ProjectIndicatorsWorkspace({ projectId }: { projectId: string })
     canCreate,
     { freshness: 'summary' },
   )
-  const mutate = async (action: () => Promise<SourceMutationResult<ProjectIndicator>>) => {
+  const pendingCreate = usePendingCreate<ProjectIndicator>({
+    profile,
+    kind: 'project-indicator',
+    projectId,
+    successMessage: 'Indicator created',
+    findCreated: async (fingerprint) =>
+      (await pathwaysClient.getProjectIndicators(projectId)).find(
+        (item) => fingerprintOf(item.code) === fingerprint,
+      ),
+    onConfirmed: () => reload(),
+  })
+  const creating = busy || pendingCreate.pending
+  const mutate = async (
+    action: () => Promise<SourceMutationResult<ProjectIndicator>>,
+    createFingerprint?: string,
+  ) => {
     if (busy) return false
     const startedKey = activeKey
     setBusy(true)
     setMessage(null)
     try {
-      const result = await action()
+      const result = createFingerprint
+        ? await pendingCreate.submit(createFingerprint, action)
+        : await action()
+      if (!result) return false
       const owner = updateContext ?? createContext ?? archiveContext
       if (!owner?.isCurrent()) return false
       if (isSourceReplay(result)) {
@@ -707,15 +728,17 @@ export function ProjectIndicatorsWorkspace({ projectId }: { projectId: string })
               key={activeKey}
               forms={availableBindings?.forms ?? []}
               activities={availableBindings?.activities ?? []}
-              busy={busy}
-              message={message}
+              busy={creating}
+              message={message ?? pendingCreate.notice}
               onSave={(input) =>
-                mutate(() =>
-                  pathwaysClient.createProjectIndicator(
-                    projectId,
-                    input,
-                    createContext ?? undefined,
-                  ),
+                mutate(
+                  () =>
+                    pathwaysClient.createProjectIndicator(
+                      projectId,
+                      input,
+                      createContext ?? undefined,
+                    ),
+                  fingerprintOf(input.code),
                 )
               }
             />
@@ -726,13 +749,17 @@ export function ProjectIndicatorsWorkspace({ projectId }: { projectId: string })
       {canCreate && data && libraryRead.data?.length ? (
         <UseFromLibrary
           entries={libraryRead.data}
-          busy={busy}
+          busy={creating}
           onUse={(input) =>
-            mutate(() =>
-              pathwaysClient.createProjectIndicatorFromLibrary(
-                projectId,
-                input,
-                createContext ?? undefined,
+            mutate(
+              () =>
+                pathwaysClient.createProjectIndicatorFromLibrary(
+                  projectId,
+                  input,
+                  createContext ?? undefined,
+                ),
+              fingerprintOf(
+                libraryRead.data?.find((entry) => entry.id === input.libraryEntryId)?.code,
               ),
             )
           }

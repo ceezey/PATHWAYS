@@ -33,7 +33,8 @@ vi.mock('@/hooks/use-current-role', () => ({
     },
   }),
 }))
-vi.mock('@/lib/auth/sensitive-drafts', () => ({
+vi.mock('@/lib/auth/sensitive-drafts', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/lib/auth/sensitive-drafts')>()),
   useSensitiveDraftOwner: (_profile: unknown, kind: string, permission: string) => {
     if (!state.permissions.includes(permission)) return null
     const user = state.user

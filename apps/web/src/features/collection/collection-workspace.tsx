@@ -9,6 +9,7 @@ import {
   FileUp,
   GripVertical,
   ListPlus,
+  Loader2,
   Pencil,
   Plus,
   Save,
@@ -68,7 +69,9 @@ import { TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/compon
 import { UNFINISHED_CONTROLS_UI_ENABLED } from '@/constants/feature-flags'
 import { useCurrentRole } from '@/hooks/use-current-role'
 import { useDisplayLabels } from '@/hooks/use-display-labels'
+import { usePendingCreate } from '@/hooks/use-pending-create'
 import { sensitiveDraftGeneration } from '@/lib/auth/sensitive-drafts'
+import { createdSince, fingerprintOf } from '@/lib/forms/pending-create'
 import { getVerifiedRouteAccess, principalHasAtomicPermission } from '@/lib/rbac/route-access'
 import { downloadCoreArtifact } from '@/lib/services/core-feature-client'
 import { pathwaysClient } from '@/lib/services/pathways-client'
@@ -430,6 +433,23 @@ const OwnedCollectionWorkspace = ({
   const parsing = useRef(0)
   const mutation = useRef<object | null>(null)
   const [operationPending, setOperationPending] = useState(false)
+  const formCreate = usePendingCreate<DigitalFormDefinition>({
+    profile,
+    kind: 'digital-form',
+    projectId: projectId || null,
+    successMessage: 'Draft form created',
+    findCreated: async (fingerprint, startedAt) =>
+      (await pathwaysClient.getDigitalForms(projectId)).find(
+        (form) =>
+          fingerprintOf(form.code) === fingerprint && createdSince(form.updatedAt, startedAt),
+      ),
+    onConfirmed: (created) => {
+      setForms((current) => [...current.filter((form) => form.id !== created.id), created])
+      setSaveDialogOpen(false)
+      setSavedNotice(`Draft form "${created.name}" is saved on the server.`)
+    },
+  })
+  const createPending = formCreate.confirming
   const [processingRun, setProcessingRun] = useState<{
     projectId: string
     batchId: string
@@ -1062,8 +1082,10 @@ const OwnedCollectionWorkspace = ({
             ...input,
             expectedUpdatedAt: editingBaseUpdatedAt ?? existing.updatedAt,
           })
-        : await pathwaysClient.createDigitalForm(projectId, input)
-      if (!ticket.valid()) return
+        : await formCreate.submit(fingerprintOf(input.code), () =>
+            pathwaysClient.createDigitalForm(projectId, input),
+          )
+      if (!saved || !ticket.valid()) return
       setForms((current) => [...current.filter((form) => form.id !== saved.id), saved])
       setEditingFormId(saved.id)
       setHydratedFormId(saved.id)
@@ -1219,21 +1241,21 @@ const OwnedCollectionWorkspace = ({
         if (!importedFields.length)
           throw new Error('Map at least one field before creating a form.')
         const importedTitle = formTitleFromFileName(parsedImport.fileName)
-        const created = await pathwaysClient.createDigitalForm(
-          projectId,
-          toDigitalFormInput({
-            code: importedTitle
-              .toLowerCase()
-              .replace(/[^a-z0-9]+/g, '_')
-              .replace(/^_+|_+$/g, '')
-              .slice(0, 64),
-            name: importedTitle,
-            description: formDescription,
-            formType: toApiFormType(formType),
-            fields: importedFields,
-          }),
+        const importedInput = toDigitalFormInput({
+          code: importedTitle
+            .toLowerCase()
+            .replace(/[^a-z0-9]+/g, '_')
+            .replace(/^_+|_+$/g, '')
+            .slice(0, 64),
+          name: importedTitle,
+          description: formDescription,
+          formType: toApiFormType(formType),
+          fields: importedFields,
+        })
+        const created = await formCreate.submit(fingerprintOf(importedInput.code), () =>
+          pathwaysClient.createDigitalForm(projectId, importedInput),
         )
-        if (!ticket.valid()) return
+        if (!created || !ticket.valid()) return
         setForms((current) => [...current, created])
         setEditingFormId(created.id)
         setHydratedFormId(created.id)
@@ -1852,6 +1874,9 @@ const OwnedCollectionWorkspace = ({
               {fields.length} fields, {mappedCount} mapped, {sadddCount} SADDD fields.
             </p>
           </div>
+          {formCreate.notice ? (
+            <output className="block text-sm text-info">{formCreate.notice}</output>
+          ) : null}
           <DialogFooter>
             <Button
               disabled={operationPending}
@@ -1860,8 +1885,15 @@ const OwnedCollectionWorkspace = ({
             >
               Cancel
             </Button>
-            <Button disabled={operationPending} onClick={() => void saveDraftToApi()}>
-              Save draft
+            <Button
+              className="gap-2"
+              disabled={operationPending || createPending}
+              onClick={() => void saveDraftToApi()}
+            >
+              {operationPending || createPending ? (
+                <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+              ) : null}
+              {operationPending || createPending ? 'Saving...' : 'Save draft'}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -1902,8 +1934,19 @@ const OwnedCollectionWorkspace = ({
               {processingRun ? 'Close' : 'Cancel'}
             </Button>
             {processingRun ? null : (
-              <Button disabled={operationPending} onClick={confirmImportProceed}>
-                {parsedImport?.rows.length === 0 ? 'Create draft' : 'Proceed'}
+              <Button
+                className="gap-2"
+                disabled={operationPending || createPending}
+                onClick={confirmImportProceed}
+              >
+                {operationPending || createPending ? (
+                  <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+                ) : null}
+                {operationPending || createPending
+                  ? 'Working...'
+                  : parsedImport?.rows.length === 0
+                    ? 'Create draft'
+                    : 'Proceed'}
               </Button>
             )}
           </DialogFooter>

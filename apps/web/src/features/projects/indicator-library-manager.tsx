@@ -1,6 +1,6 @@
 'use client'
 
-import { LibraryBig, Plus } from 'lucide-react'
+import { LibraryBig, Loader2, Plus } from 'lucide-react'
 import { type FormEvent, useRef, useState } from 'react'
 
 import { PageHeader } from '@/components/layout/page-header'
@@ -17,6 +17,8 @@ import { Dialog, DialogTrigger } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { useCurrentRole } from '@/hooks/use-current-role'
+import { usePendingCreate } from '@/hooks/use-pending-create'
+import { fingerprintOf } from '@/lib/forms/pending-create'
 import { principalHasAtomicPermission } from '@/lib/rbac/route-access'
 import { indicatorLibraryClient } from '@/lib/services/indicator-library-client'
 import { PathwaysClientError } from '@/lib/services/pathways-client'
@@ -36,10 +38,12 @@ const headClass =
   'sticky top-0 z-10 h-10 bg-surface-subtle px-4 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground'
 
 function EntryForm({
+  busy,
   message,
   onCreate,
   onDone,
 }: {
+  busy: boolean
   message: string | null
   onCreate: (input: CreateLibraryEntryInput) => Promise<boolean>
   onDone: () => void
@@ -179,7 +183,10 @@ function EntryForm({
       </div>
       {validation ? <InlineNotice tone="danger">{validation}</InlineNotice> : null}
       {message ? <InlineNotice>{message}</InlineNotice> : null}
-      <Button type="submit">Save entry</Button>
+      <Button className="gap-2" disabled={busy} type="submit">
+        {busy ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : null}
+        {busy ? 'Saving...' : 'Save entry'}
+      </Button>
     </form>
   )
 }
@@ -214,12 +221,24 @@ export function IndicatorLibraryManager() {
   const [message, setMessage] = useState<string | null>(null)
   const [archiving, setArchiving] = useState<LibraryEntry | null>(null)
   const [busy, setBusy] = useState(false)
-  const run = async (action: () => Promise<unknown>, done: string) => {
+  const pendingCreate = usePendingCreate<LibraryEntry>({
+    profile,
+    kind: 'indicator-library-entry',
+    successMessage: 'Library entry saved',
+    findCreated: async (fingerprint) =>
+      (await indicatorLibraryClient.list()).find(
+        (entry) => fingerprintOf(entry.code) === fingerprint,
+      ),
+    onConfirmed: () => void read.refetch(),
+  })
+  const run = async (action: () => Promise<unknown>, done: string, createFingerprint?: string) => {
     if (busy) return false
     setBusy(true)
     setMessage(null)
     try {
-      await action()
+      if (createFingerprint) {
+        if (!(await pendingCreate.submit(createFingerprint, action))) return false
+      } else await action()
       setMessage(done)
       void read.refetch()
       return true
@@ -245,9 +264,14 @@ export function IndicatorLibraryManager() {
       {canCreate ? (
         <div className="flex justify-end">
           <NewEntry
-            message={message}
+            busy={busy || pendingCreate.pending}
+            message={message ?? pendingCreate.notice}
             onCreate={(input) =>
-              run(() => indicatorLibraryClient.create(input), 'Library entry saved.')
+              run(
+                () => indicatorLibraryClient.create(input),
+                'Library entry saved.',
+                fingerprintOf(input.code),
+              )
             }
           />
         </div>
