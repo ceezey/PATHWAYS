@@ -1,9 +1,10 @@
 'use client'
 
-import { Loader2, RouteOff } from 'lucide-react'
+import { RouteOff } from 'lucide-react'
 import Link from 'next/link'
 import { useEffect, useState } from 'react'
 
+import { AsyncState } from '@/components/pathways/async-state'
 import { EmptyState } from '@/components/pathways/empty-state'
 import { Button } from '@/components/ui/button'
 import { PathwaysClientError, pathwaysClient } from '@/lib/services/pathways-client'
@@ -63,8 +64,8 @@ export const JourneyStagesLoader = ({ projectId }: { projectId: string }) => {
 
   if (loading) {
     return (
-      <EmptyState
-        icon={Loader2}
+      <AsyncState
+        status="loading"
         title="Loading journey stages"
         description="Loading persisted project journey configuration."
       />

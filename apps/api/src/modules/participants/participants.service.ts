@@ -231,10 +231,30 @@ export class ParticipantsService {
 
       for (const stage of current)
         await tx.journeyStage.update({ where: { id: stage.id }, data: { parentStageId: null } })
-      for (const [index, stage] of current.entries())
+      // Archived rows still hold unique codes and orders, so park them past every live slot.
+      const archived = await tx.journeyStage.findMany({
+        where: { organizationId: actor.organizationId, projectId: id, archivedAt: { not: null } },
+        select: { id: true, code: true, stageOrder: true },
+        take: 1000,
+      })
+      const maxWanted = Math.max(0, ...input.stages.map((stage) => stage.order))
+      let parking = Math.max(10000, maxWanted, ...archived.map((stage) => stage.stageOrder)) + 1
+      const wantedCodes = new Set(input.stages.map((stage) => stage.code))
+      for (const stage of archived) {
+        const clashes = wantedCodes.has(stage.code)
+        if (!clashes && stage.stageOrder > maxWanted) continue
         await tx.journeyStage.update({
           where: { id: stage.id },
-          data: { stageOrder: 10000 + index },
+          data: {
+            stageOrder: parking++,
+            ...(clashes ? { code: `${stage.code}~${stage.id.slice(0, 8)}` } : {}),
+          },
+        })
+      }
+      for (const stage of current)
+        await tx.journeyStage.update({
+          where: { id: stage.id },
+          data: { stageOrder: parking++ },
         })
       const existingIds = new Set(current.map((stage) => stage.id))
       for (const [index, stage] of input.stages.entries()) {
@@ -281,7 +301,10 @@ export class ParticipantsService {
           })
       const removed = current.filter((stage) => !knownIds.has(stage.id))
       for (const stage of removed)
-        await tx.journeyStage.update({ where: { id: stage.id }, data: { archivedAt: new Date() } })
+        await tx.journeyStage.update({
+          where: { id: stage.id },
+          data: { archivedAt: new Date(), code: `${stage.code}~${stage.id.slice(0, 8)}` },
+        })
       await tx.activityJourneyStageMapping.deleteMany({
         where: { organizationId: actor.organizationId, projectId: id },
       })

@@ -14,7 +14,7 @@ import { type ReactNode, useEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
 
 import { PageHeader } from '@/components/layout/page-header'
-import { DialogShell, EmptyState, SectionCard, StatusBadge } from '@/components/pathways'
+import { AsyncState, DialogShell, EmptyState, SectionCard, StatusBadge } from '@/components/pathways'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogFooter } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
@@ -270,9 +270,9 @@ const LegacyProjectWorkspace = ({
 
   if (loading) {
     return (
-      <EmptyState
+      <AsyncState
         description="Loading the project workspace tab."
-        icon={Loader2}
+        status="loading"
         title="Loading workspace"
       />
     )

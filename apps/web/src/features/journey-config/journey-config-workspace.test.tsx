@@ -5,7 +5,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import type { JourneyStageConfig, ProjectDetail } from '@/types/pathways'
 
-import { branchSummary, moveStage } from './journey-config-utils'
+import { branchSummary, moveStage, nextStageCode, removeStage } from './journey-config-utils'
 import { JourneyConfigWorkspace } from './journey-config-workspace'
 
 const access = vi.hoisted(() => ({
@@ -103,5 +103,18 @@ describe('journey config utils', () => {
     const moved = moveStage(stages, 's3', 's1')
     expect(moved.find((item) => item.id === 's3')?.order).toBe(1)
     expect(moved.find((item) => item.id === 's1')?.order).toBe(2)
+  })
+
+  it('numbers new stages after the highest code and unparents branches on remove', () => {
+    expect(
+      nextStageCode([
+        { ...stages[0], code: 'J1' },
+        { ...stages[1], code: 'J2' },
+      ]),
+    ).toBe('J3')
+    const parentId = stages.find((item) => item.parentStageId)?.parentStageId ?? ''
+    const left = removeStage(stages, parentId)
+    expect(left.some((item) => item.id === parentId)).toBe(false)
+    expect(left.every((item) => !item.parentStageId)).toBe(true)
   })
 })

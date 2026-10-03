@@ -1,6 +1,4 @@
 'use client'
-import { SourceMutationRecovery } from './source-mutation-recovery'
-
 import { useSourceMutationContext } from '@/hooks/use-source-mutation-context'
 import { isSourceReplay, sourceMutationTickets } from '@/lib/services/source-mutation'
 
@@ -13,7 +11,7 @@ import { useForm } from 'react-hook-form'
 import { toast } from 'sonner'
 
 import { PageHeader } from '@/components/layout/page-header'
-import { LockedField, SectionCard } from '@/components/pathways'
+import { AsyncState, LockedField, SectionCard } from '@/components/pathways'
 import { Button } from '@/components/ui/button'
 import {
   Form,
@@ -129,6 +127,7 @@ const ScopedProjectSetupForm = ({
   const [usersLoadError, setUsersLoadError] = useState<string | null>(null)
   const [usersLoadAttempt, setUsersLoadAttempt] = useState(0)
   const [saveError, setSaveError] = useState<string | null>(null)
+  const [projectLoadFailed, setProjectLoadFailed] = useState(false)
   const pendingCreate = usePendingCreate<ProjectSummary>({
     profile,
     kind: 'project',
@@ -182,6 +181,7 @@ const ScopedProjectSetupForm = ({
         })
         .catch(() => {
           if (!scope.isCurrent()) return
+          setProjectLoadFailed(true)
           form.setError('title', { message: 'The project could not be loaded from the service.' })
         })
       setDraftHydrated(true)
@@ -345,22 +345,18 @@ const ScopedProjectSetupForm = ({
         title="Project information"
         description="Required fields are validated before the project is saved."
       >
+        {projectId && !existingProject && !projectLoadFailed ? (
+          <AsyncState
+            description="Fetching the saved project details."
+            status="loading"
+            title="Loading project information"
+          />
+        ) : null}
         <Form {...form}>
-          <form className="space-y-6" onSubmit={form.handleSubmit(onSubmit)}>
-            {projectId ? (
-              <SourceMutationRecovery
-                context={mutationContext}
-                prefix={`/projects/${projectId}`}
-                onRecovered={async () => {
-                  await pathwaysClient.getProject(projectId)
-                  return () => {
-                    removeSensitiveDraft(projectDraftStorageKey)
-                    router.push(`/projects/${projectId}`)
-                    router.refresh()
-                  }
-                }}
-              />
-            ) : null}
+          <form
+            className={projectId && !existingProject && !projectLoadFailed ? 'hidden' : 'space-y-6'}
+            onSubmit={form.handleSubmit(onSubmit)}
+          >
             {saveError ? (
               <p
                 className="rounded-xl border border-danger/30 bg-danger/5 p-3 text-sm text-danger"

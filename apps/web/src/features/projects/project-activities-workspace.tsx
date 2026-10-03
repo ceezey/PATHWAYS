@@ -449,7 +449,6 @@ export const ProjectActivitiesWorkspace = ({
     return (
       <AsyncState
         description="Loading project activities."
-        icon={Loader2}
         status="loading"
         title="Loading activities"
       />
