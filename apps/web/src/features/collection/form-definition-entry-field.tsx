@@ -8,8 +8,19 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import { Textarea } from '@/components/ui/textarea'
 import type { DigitalFormFieldDefinition } from '@/types/pathways'
 import type { ReactNode } from 'react'
+
+// Visual asterisk plus screen-reader text, matching the shared form label convention.
+const RequiredMark = () => (
+  <>
+    <span aria-hidden="true" className="ml-1 text-danger">
+      *
+    </span>
+    <span className="sr-only"> (required)</span>
+  </>
+)
 
 export function FormDefinitionEntryField({
   disabled,
@@ -102,9 +113,9 @@ export function FormDefinitionEntryField({
         }
         className="grid gap-2 sm:grid-cols-2"
       >
-        <legend className="text-sm font-medium">
+        <legend className="px-1 text-sm font-medium text-foreground">
           {field.label}
-          {field.required ? ' (required)' : ''}
+          {field.required ? <RequiredMark /> : null}
         </legend>
         {field.required ? (
           <p id={`${id}-requirement`} className="text-xs text-muted-foreground">
@@ -114,9 +125,10 @@ export function FormDefinitionEntryField({
         {(field.allowedValues ?? []).map((option) => (
           <label
             key={option}
-            className="flex items-center gap-2 rounded-md border px-3 py-2 text-sm"
+            className="flex min-h-11 cursor-pointer items-center gap-3 rounded-md border border-border bg-card px-3 py-2 text-sm transition-colors hover:bg-muted has-[:checked]:border-primary has-[:checked]:bg-info-subtle"
           >
             <input
+              className="h-4 w-4 rounded border-input accent-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               disabled={disabled}
               type="checkbox"
               aria-describedby={describedBy}
@@ -137,9 +149,8 @@ export function FormDefinitionEntryField({
     )
   } else if (field.dataType === 'LONG_TEXT') {
     control = (
-      <textarea
+      <Textarea
         {...common}
-        className="min-h-24 w-full rounded-md border bg-background px-3 py-2 text-sm"
         value={typeof value === 'string' ? value : ''}
         onChange={(event) => onChange(event.target.value)}
       />
@@ -169,7 +180,7 @@ export function FormDefinitionEntryField({
       {field.dataType !== 'MULTIPLE_SELECT' ? (
         <Label htmlFor={id}>
           {field.label}
-          {field.required ? ' *' : ''}
+          {field.required ? <RequiredMark /> : null}
         </Label>
       ) : null}
       {control}

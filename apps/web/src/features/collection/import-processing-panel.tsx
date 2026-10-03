@@ -119,12 +119,12 @@ export function ImportProcessingPanel({
   return (
     <section
       aria-labelledby={headingId}
-      className="space-y-3 rounded-xl border bg-card p-4"
+      className="space-y-3 rounded-xl border border-border bg-card p-4 text-card-foreground"
       data-testid="import-processing-panel"
       ref={sectionRef}
     >
       <h3
-        className="text-sm font-semibold text-foreground focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        className="font-heading text-base font-normal text-foreground focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
         id={headingId}
         ref={headingRef}
         tabIndex={-1}
