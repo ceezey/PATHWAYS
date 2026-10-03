@@ -420,6 +420,12 @@ const OwnedCollectionWorkspace = ({
   const [pendingDeleteField, setPendingDeleteField] = useState<FormField | null>(null)
   const [savedNotice, setSavedNotice] = useState('')
   const [loadError, setLoadError] = useState('')
+  // Success notices show as a toast pop-up instead of an inline banner.
+  useEffect(() => {
+    if (!savedNotice) return
+    toast.success(savedNotice)
+    setSavedNotice('')
+  }, [savedNotice])
   const [reloadKey, setReloadKey] = useState(0)
   const [formsLoaded, setFormsLoaded] = useState(false)
   const [parsedImport, setParsedImport] = useState<ParsedImport | null>(null)
@@ -1462,18 +1468,6 @@ const OwnedCollectionWorkspace = ({
       </div>
 
       {loadError && view !== 'forms' && view !== 'home' ? loadErrorState : null}
-
-      {savedNotice ? (
-        <div className="flex items-center justify-between rounded-lg border border-success/25 bg-success-subtle px-4 py-3 text-sm text-success">
-          <span className="flex items-center gap-2">
-            <CheckCircle2 className="h-4 w-4" aria-hidden="true" />
-            {savedNotice}
-          </span>
-          <Button size="sm" variant="ghost" onClick={() => setSavedNotice('')}>
-            Dismiss
-          </Button>
-        </div>
-      ) : null}
 
       {view === 'forms' || view === 'home' ? (
         <FormsGeneratorView
