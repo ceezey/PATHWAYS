@@ -204,6 +204,11 @@ describe('shared project workspace optional loading', () => {
     submittedDate: '2026-01-01',
     submitter: 'Synthetic staff',
     previewSummary: 'Submitted proof',
+    contentType: 'application/pdf',
+    byteSize: 2411724,
+    isIdentifying: false,
+    reviewedDate: null,
+    reviewer: null,
   }
   const proofContext = {
     activityId,
@@ -235,6 +240,47 @@ describe('shared project workspace optional loading', () => {
     for (const name of ['Validate', 'Flag', 'Approve', 'Return for Revision'])
       expect(screen.queryByRole('button', { name })).toBeNull()
     expect(screen.getByRole('button', { name: 'Download for review' })).toBeTruthy()
+  })
+  it('renders evidence rows with icon, size, uploader, date, status and View', async () => {
+    access.profile.permissions = reviewerPermissions
+    api.getEvidence.mockResolvedValue({
+      scope: 'detail',
+      records: [
+        proof,
+        {
+          ...proof,
+          id: 'img',
+          fileName: 'photos.png',
+          contentType: 'image/png',
+          byteSize: 512,
+          status: 'Approved',
+          reviewedDate: '2026-01-03',
+          reviewer: 'Synthetic reviewer',
+        },
+        { ...proof, id: 'lock', fileName: 'private.pdf', isIdentifying: true, status: 'Returned' },
+      ],
+    })
+    render(<ProjectPhaseFiveWorkspace projectId={projectId} view="evidence" />)
+    expect(await screen.findByText('Evidence & attachments')).toBeTruthy()
+    expect(screen.getByText('synthetic.pdf')).toBeTruthy()
+    expect(screen.getAllByText(/2\.3 MB · Uploaded by Synthetic staff/)).toHaveLength(2)
+    expect(screen.getByText(/512 B · Uploaded by/)).toBeTruthy()
+    expect(screen.getByText('Needs review')).toBeTruthy()
+    expect(screen.getByText('Approved')).toBeTruthy()
+    expect(screen.getByText('Returned')).toBeTruthy()
+    expect(document.querySelectorAll('[data-testid="evidence-icon"] svg')).toHaveLength(3)
+    expect(screen.getAllByText('View')).toHaveLength(3)
+    expect(screen.getByText('Audit metadata')).toBeTruthy()
+    expect(screen.getByText('Evidence approved')).toBeTruthy()
+    expect(screen.getByText(/Synthetic reviewer/)).toBeTruthy()
+    expect(screen.getAllByText('Evidence uploaded')).toHaveLength(3)
+  })
+  it('shows the audit empty state without evidence records', async () => {
+    access.profile.permissions = reviewerPermissions
+    api.getEvidence.mockResolvedValue({ scope: 'detail', records: [] })
+    render(<ProjectPhaseFiveWorkspace projectId={projectId} view="evidence" />)
+    expect(await screen.findByText('No audit events')).toBeTruthy()
+    expect(screen.getByText('No evidence records')).toBeTruthy()
   })
   it.each(['Project Officer', 'Project Manager'])(
     'preserves %s read-only evidence without dead approval controls',
