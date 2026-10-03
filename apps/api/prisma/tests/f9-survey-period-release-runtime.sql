@@ -1,14 +1,14 @@
--- cr-pathways-f9-trusted-aggregates section 10 (migration 0056): behavioral checks for the closed-period
+-- cr-pathways-f9-trusted-aggregates section 10 (migration 0057): behavioral checks for the closed-period
 -- survey release freeze pathways.p10_f9_survey_release and its table pathways.survey_period_releases.
 -- Synthetic fixtures only; everything rolls back. Run as a local superuser against a disposable
--- pathways_phase2_* or pathways_phase4_* replay database that already has 0056 applied.
+-- pathways_phase2_* or pathways_phase4_* replay database that already has 0057 applied.
 \set ON_ERROR_STOP on
 BEGIN;
 
 DO $$ BEGIN
  IF current_database() !~ '^pathways_phase(2|4)_[a-z0-9_]+$' OR NOT (SELECT rolsuper FROM pg_roles WHERE rolname=current_user)
  OR inet_server_addr() IS DISTINCT FROM '127.0.0.1'::inet THEN
-  RAISE EXCEPTION '0056 survey-period-release checks require a disposable local database'; END IF;
+  RAISE EXCEPTION '0057 survey-period-release checks require a disposable local database'; END IF;
 END $$;
 
 CREATE TEMP TABLE sr_results(check_name text PRIMARY KEY) ON COMMIT DROP;
@@ -304,7 +304,7 @@ SELECT pg_temp.ok((SELECT NOT EXISTS(
 
 DO $$ DECLARE total integer; BEGIN
  SELECT count(*) INTO total FROM sr_results;
- IF total<>31 THEN RAISE EXCEPTION '0056 survey-period-release checks expected 31 assertions, recorded %',total; END IF;
+ IF total<>31 THEN RAISE EXCEPTION '0057 survey-period-release checks expected 31 assertions, recorded %',total; END IF;
  RAISE NOTICE 'F9_SURVEY_PERIOD_RELEASE_RUNTIME=PASS (% assertions)',total;
 END $$;
 ROLLBACK;

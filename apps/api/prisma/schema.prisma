@@ -2429,7 +2429,7 @@ model SensitiveAggregateRelease {
   @@schema("pathways")
 }
 
-/// cr-pathways-f9-trusted-aggregates (0056). RLS forced, no API-role grants: runtime access only through p10_f9_survey_release.
+/// cr-pathways-f9-trusted-aggregates (0057). RLS forced, no API-role grants: runtime access only through p10_f9_survey_release.
 model SurveyPeriodRelease {
   organizationId    String   @map("organization_id") @db.Uuid
   projectId         String   @map("project_id") @db.Uuid

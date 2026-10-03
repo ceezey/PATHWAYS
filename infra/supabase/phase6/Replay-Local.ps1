@@ -602,7 +602,7 @@ END $$;
     } finally { Pop-Location }
     if ($MigrationBaseline) {
       # Only this path reaches the current schema, so the current-schema API suites run here.
-      # Fixed pathways table count (59 after 0056 adds survey_period_releases; 0052 adds only the pathways_auth schema) so a missing or extra table fails the guard.
+      # Fixed pathways table count (59 after 0057 adds survey_period_releases; 0052 adds only the pathways_auth schema) so a missing or extra table fails the guard.
       $env:PATHWAYS_EXPECTED_TABLE_COUNT = "59"
       $env:PATHWAYS_FEATURE_READ_LOCAL_TESTS = '1'
       $env:PATHWAYS_C8_LOCAL_TESTS = '1'

@@ -11,11 +11,11 @@ BEGIN;
 SET LOCAL lock_timeout = '5s';
 SET LOCAL statement_timeout = '60s';
 DO $$ BEGIN
- IF current_user <> 'prisma' THEN RAISE EXCEPTION '0056 must run as prisma'; END IF;
+ IF current_user <> 'prisma' THEN RAISE EXCEPTION '0057 must run as prisma'; END IF;
  IF EXISTS(SELECT FROM pg_catalog.pg_class WHERE relnamespace='pathways'::pg_catalog.regnamespace AND relname='survey_period_releases')
   OR EXISTS(SELECT FROM pg_catalog.pg_proc p WHERE p.pronamespace='pathways'::pg_catalog.regnamespace
    AND p.proname IN ('p10_f9_survey_compute','p10_f9_survey_release'))
- THEN RAISE EXCEPTION '0056 requires its table and functions to not already exist'; END IF;
+ THEN RAISE EXCEPTION '0057 requires its table and functions to not already exist'; END IF;
  IF (SELECT pg_catalog.pg_get_userbyid(proowner) FROM pg_catalog.pg_proc
   WHERE oid='pathways.p06_can(text,uuid)'::pg_catalog.regprocedure)<>'prisma'
   OR (SELECT pg_catalog.pg_get_userbyid(proowner) FROM pg_catalog.pg_proc
@@ -23,7 +23,7 @@ DO $$ BEGIN
   OR (SELECT pg_catalog.pg_get_userbyid(relowner) FROM pg_catalog.pg_class WHERE oid='pathways.assessment_results'::pg_catalog.regclass)<>'prisma'
   OR (SELECT pg_catalog.pg_get_userbyid(relowner) FROM pg_catalog.pg_class WHERE oid='pathways.project_indicators'::pg_catalog.regclass)<>'prisma'
   OR (SELECT pg_catalog.pg_get_userbyid(relowner) FROM pg_catalog.pg_class WHERE oid='pathways.projects'::pg_catalog.regclass)<>'prisma'
- THEN RAISE EXCEPTION '0056 requires prisma ownership of p06_can, p10_f9_survey_aggregate and the source tables'; END IF;
+ THEN RAISE EXCEPTION '0057 requires prisma ownership of p06_can, p10_f9_survey_aggregate and the source tables'; END IF;
 END $$;
 SELECT pg_advisory_xact_lock(505005,2);
 
@@ -248,7 +248,7 @@ DO $$ DECLARE fn text; BEGIN
   IF NOT EXISTS(SELECT FROM pg_catalog.pg_proc p WHERE p.oid=fn::pg_catalog.regprocedure
    AND pg_catalog.pg_get_userbyid(p.proowner)='prisma' AND p.prosecdef
    AND p.proconfig IS NOT DISTINCT FROM ARRAY['search_path=""'])
-  THEN RAISE EXCEPTION '0056 % owner/security/search_path postcondition failed',fn; END IF;
+  THEN RAISE EXCEPTION '0057 % owner/security/search_path postcondition failed',fn; END IF;
   IF EXISTS(SELECT FROM pg_catalog.pg_proc p
    CROSS JOIN LATERAL pg_catalog.aclexplode(coalesce(p.proacl,pg_catalog.acldefault('f',p.proowner))) a
    WHERE p.oid=fn::pg_catalog.regprocedure
@@ -256,7 +256,7 @@ DO $$ DECLARE fn text; BEGIN
   OR has_function_privilege('pathways_runtime',fn,'EXECUTE') IS DISTINCT FROM (fn NOT LIKE '%compute%')
   OR EXISTS(SELECT FROM (VALUES('anon'),('authenticated'),('service_role')) r(name)
    WHERE has_function_privilege(r.name,fn,'EXECUTE'))
-  THEN RAISE EXCEPTION '0056 % ACL postcondition failed',fn; END IF;
+  THEN RAISE EXCEPTION '0057 % ACL postcondition failed',fn; END IF;
  END LOOP;
  IF NOT EXISTS(SELECT FROM pg_catalog.pg_class c WHERE c.oid='pathways.survey_period_releases'::pg_catalog.regclass
    AND pg_catalog.pg_get_userbyid(c.relowner)='prisma' AND c.relrowsecurity AND c.relforcerowsecurity)
@@ -265,6 +265,6 @@ DO $$ DECLARE fn text; BEGIN
   OR EXISTS(SELECT FROM pg_catalog.pg_class c
    CROSS JOIN LATERAL pg_catalog.aclexplode(coalesce(c.relacl,pg_catalog.acldefault('r',c.relowner))) a
    WHERE c.oid='pathways.survey_period_releases'::pg_catalog.regclass AND a.grantee<>c.relowner)
- THEN RAISE EXCEPTION '0056 survey_period_releases owner/RLS/ACL postcondition failed'; END IF;
+ THEN RAISE EXCEPTION '0057 survey_period_releases owner/RLS/ACL postcondition failed'; END IF;
 END $$;
 COMMIT;
