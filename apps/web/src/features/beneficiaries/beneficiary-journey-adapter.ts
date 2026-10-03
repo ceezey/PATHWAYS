@@ -4,11 +4,16 @@ import type {
   BeneficiaryParticipationRecord,
 } from '@/types/pathways'
 
-const attendanceStatus = (value: string): BeneficiaryParticipationRecord['attendanceStatus'] => {
-  if (value === 'PARTIAL') return 'Partial'
-  if (value === 'ABSENT') return 'Absent'
-  return 'Present'
+const attendanceLabels: Record<string, BeneficiaryParticipationRecord['attendanceStatus']> = {
+  PRESENT: 'Present',
+  ABSENT: 'Absent',
+  COMPLETED: 'Completed',
+  NOT_COMPLETED: 'Not completed',
+  EXCUSED: 'Excused',
 }
+
+const attendanceStatus = (value: string): BeneficiaryParticipationRecord['attendanceStatus'] =>
+  attendanceLabels[value] ?? 'Present'
 
 export const mapBeneficiaryJourneyHistory = (history: BeneficiaryJourneyHistory) => {
   const orderedEvents = history.events
