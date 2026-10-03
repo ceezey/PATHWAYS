@@ -167,6 +167,11 @@ const renderWorkspace = (initialActivityId?: string) =>
       <ProjectActivitiesWorkspace initialActivityId={initialActivityId} projectId={projectId} />,
     ),
   )
+const withBudgetRead = () => {
+  asProjectManager()
+  access.profile.permissions = [...access.profile.permissions, 'budgets.read', 'expenses.read']
+}
+
 const asProjectManager = () => {
   access.role = 'Project Manager'
   access.profile.roles = ['PROJECT_MANAGER']
@@ -332,6 +337,7 @@ describe('project activities permission-aware loading', () => {
         beneficiariesTarget: 10,
       },
     ])
+    withBudgetRead()
     renderWorkspace()
     expect(await screen.findByText('2 activities', { exact: false })).toBeTruthy()
     for (const label of ['Code', 'Activity', 'Status', 'Beneficiaries', 'Indicators', 'Budget']) {
@@ -359,12 +365,21 @@ describe('project activities permission-aware loading', () => {
       { ...summary, code: 'ACT-001' },
       { ...summary, id: 'c1', title: 'Second', dueDate: '2026-03-01', code: 'ACT-002' },
     ])
+    withBudgetRead()
     renderWorkspace()
     expect(await screen.findByRole('columnheader', { name: 'Budget' })).toBeTruthy()
     expect(screen.queryByRole('button', { name: 'Columns' })).toBeNull()
     expect(screen.queryByText('List view', { selector: 'span' })).toBeNull()
     fireEvent.click(screen.getByRole('button', { name: 'Due date' }))
     expect(screen.getAllByRole('row')[1].textContent).toContain('Synthetic outreach')
+  })
+
+  it('hides the Budget column without budget and expense read', async () => {
+    api.getActivities.mockResolvedValue([{ ...summary, code: 'ACT-001' }])
+    access.profile.permissions = [...access.profile.permissions, 'budgets.read']
+    renderWorkspace()
+    expect(await screen.findByRole('columnheader', { name: 'Code' })).toBeTruthy()
+    expect(screen.queryByRole('columnheader', { name: 'Budget' })).toBeNull()
   })
 
   it('exports the visible rows as CSV', async () => {
@@ -376,6 +391,7 @@ describe('project activities permission-aware loading', () => {
     URL.revokeObjectURL = vi.fn()
     const click = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {})
     api.getActivities.mockResolvedValue([{ ...summary, title: '=cmd', code: 'ACT-001' }])
+    withBudgetRead()
     renderWorkspace()
     fireEvent.click(await screen.findByRole('button', { name: 'Export' }))
     expect(click).toHaveBeenCalledOnce()

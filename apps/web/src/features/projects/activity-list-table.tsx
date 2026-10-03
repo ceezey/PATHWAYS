@@ -78,15 +78,18 @@ const headClass =
 
 export const ActivityListTable = ({
   activities,
+  canReadBudget,
   onOpen,
   projectId,
 }: {
   activities: ActivitySummary[]
+  canReadBudget: boolean
   onOpen: (activity: ActivitySummary) => void
   projectId: string
 }) => {
   const [descending, setDescending] = useState(false)
-  const columns = columnKeys
+  // Budget is hidden entirely for roles that cannot read both budgets and expenses.
+  const columns = canReadBudget ? columnKeys : columnKeys.filter((key) => key !== 'budget')
   const rows = useMemo(() => {
     const sorted = [...activities].sort((a, b) => a.dueDate.localeCompare(b.dueDate))
     return descending ? sorted.reverse() : sorted
