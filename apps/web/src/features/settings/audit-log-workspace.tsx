@@ -131,11 +131,7 @@ const AuditContent = ({ authorized }: { authorized: boolean }) => {
 
   return (
     <div className="space-y-6">
-      <PageHeader
-        eyebrow="Administration"
-        title="Audit Log"
-        description="Review significant account, project, evidence, collection, and monitoring events in chronological order."
-      />
+      <PageHeader title="Audit Log" />
 
       {accessError ? (
         <div role="alert">
@@ -143,35 +139,8 @@ const AuditContent = ({ authorized }: { authorized: boolean }) => {
           <Button onClick={() => void read.refetch()}>Retry audit access</Button>
         </div>
       ) : null}
-      <div className="grid gap-3 sm:grid-cols-2">
-        <label htmlFor="audit-from-date">
-          From date
-          <Input
-            id="audit-from-date"
-            type="date"
-            value={from}
-            onChange={(e) => {
-              setFrom(e.target.value)
-              setPage(0)
-            }}
-          />
-        </label>
-        <label htmlFor="audit-to-date">
-          To date
-          <Input
-            id="audit-to-date"
-            type="date"
-            value={to}
-            onChange={(e) => {
-              setTo(e.target.value)
-              setPage(0)
-            }}
-          />
-        </label>
-      </div>
       <SectionCard
         title="Event filters"
-        description="Filter this authorized page without changing any audit record."
         actions={
           <Button onClick={clearFilters} size="sm" variant="outline">
             <FilterX className="mr-2 h-4 w-4" aria-hidden="true" />
@@ -240,6 +209,32 @@ const AuditContent = ({ authorized }: { authorized: boolean }) => {
                 ))}
               </SelectContent>
             </Select>
+          </div>
+        </div>
+        <div className="mt-4 grid gap-4 sm:grid-cols-2">
+          <div className="space-y-2">
+            <Label htmlFor="audit-from-date">From date</Label>
+            <Input
+              id="audit-from-date"
+              type="date"
+              value={from}
+              onChange={(e) => {
+                setFrom(e.target.value)
+                setPage(0)
+              }}
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="audit-to-date">To date</Label>
+            <Input
+              id="audit-to-date"
+              type="date"
+              value={to}
+              onChange={(e) => {
+                setTo(e.target.value)
+                setPage(0)
+              }}
+            />
           </div>
         </div>
       </SectionCard>
