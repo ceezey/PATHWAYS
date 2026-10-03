@@ -97,6 +97,7 @@ import {
   type BuilderFieldType,
   type BuilderFormField,
   fieldCodeFromText,
+  fieldCodeWhileTyping,
   formTypeLabels,
   fromDigitalForm,
   toDigitalFormInput,
@@ -2481,7 +2482,10 @@ const FieldEditor = ({
       <Input
         id={`${field.id}-code`}
         value={field.code}
-        onChange={(event) => updateField(field.id, { code: fieldCodeFromText(event.target.value) })}
+        onChange={(event) =>
+          updateField(field.id, { code: fieldCodeWhileTyping(event.target.value) })
+        }
+        onBlur={(event) => updateField(field.id, { code: fieldCodeFromText(event.target.value) })}
       />
     </div>
     <div className="space-y-2">

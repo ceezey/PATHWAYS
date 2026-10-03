@@ -64,3 +64,4 @@
 - API saveStages parks archived stages past live order slots and suffixes their codes, so removed codes and orders can be reused.
 - Project cards pin the timeline to the bottom; project edit form shows the skeleton card while loading and no longer shows the unconfirmed save banner.
 - Remaining spinner loading cards (journey stages, workspace tab) use the AsyncState skeleton.
+- 2026-10-03 Field code underscore: the builder kept stripping a typed trailing underscore on every keystroke; codes now clean fully on blur (fix/field-code-underscore).
