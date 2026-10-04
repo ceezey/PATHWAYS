@@ -37,6 +37,7 @@ export async function stageIndicators(ctx: DemoContext) {
       if (!indicatorId) {
         const created = (await ctx.services.indicators.create(me, projectId, {
           code: indicator.code,
+          indicatorType: indicator.indicatorType,
           name: indicator.name,
           unitLabel: indicator.unit,
           dataSource: 'Field monitoring reports and attendance records',

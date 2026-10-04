@@ -182,3 +182,9 @@
 - Gate review found QAD-T74, QAD-T75 and QAD-A09 cited public.service.test.ts without matching tests; added service tests for distinct-approver approval, self-approval refusal, out-of-stage transitions, withdraw then public not found, and the anonymous route list (no media route), plus a queue test that the submitter cannot approve.
 - PublicService now refuses self-approval with a 409 before the database trigger does. The trigger and the PUBLISHED-only projection are still not exercised by a database-backed test.
 - Rebased onto dev per Cian; on dev the web auth-navigation contract test already fails (AppShell layout now reads the sidebar cookie), unrelated to F13.
+## 2026-10-04 Defense demo verify fixes
+
+- Verifier: activity updates, library entries, indicator bindings and publications force RLS, so the owner read 0; those checks now run as the M&E Officer or Project Manager on the runtime role. Escalation is read from the `decision.recorded` audit trail (F10 decisions never set `decision_recommendations.outcome`).
+- Seed: the Lavezares import faults (under minimum age, guardian consent) only failed at promotion as retryable errors, leaving the batch unfinished; they are now a day-first birth date and a blank required consent, rejected at validation.
+- Clean local wipe, full seed and `--verify`: exit 0, 23 of 23 checks. CRL follow-up and WSH survey improvement alerts fire (issue 2 confirmed, no fix needed).
+- Reported, not fixed (API): registration rule failures during import promotion are retried as transient instead of being flagged at validation or marked for review.

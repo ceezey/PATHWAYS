@@ -132,9 +132,9 @@ export const demoProjects: DemoProject[] = [
     targetBeneficiaries: 60,
     projectBudget: '450000.00',
     partners: ['Masbate City Social Welfare and Development Office'],
-    startOffset: -120,
-    endOffset: 245,
-    status: 'ONGOING',
+    startOffset: 21,
+    endOffset: 386,
+    status: 'PLANNED',
     officers: ['emmanuel'],
     province: 'Masbate',
     cityMunicipality: 'Masbate City',
@@ -188,6 +188,7 @@ export const demoProjects: DemoProject[] = [
 
 export type ActivityOutcome =
   | 'COMPLETED'
+  | 'COMPLETED_LATE'
   | 'PENDING_REVIEW'
   | 'RETURNED'
   | 'PROGRESS_VERIFIED'
@@ -206,7 +207,8 @@ export type DemoActivity = {
   startOffset: number
   endOffset: number
   target: number
-  budget: string
+  /** Planned PHP allocation; omitted when the project budget is held at envelope level. */
+  budget?: string
   outcome: ActivityOutcome
   officer: 'liza' | 'emmanuel'
   /** Progress percent used by the outcome (proof or recorded progress). */
@@ -313,7 +315,7 @@ export const demoActivities: Record<ProjectKey, DemoActivity[]> = {
       startOffset: -45,
       endOffset: -7,
       target: 12,
-      budget: '45000.00',
+      budget: '0.00',
       outcome: 'OVERDUE_OPEN',
       officer: 'liza',
     },
@@ -371,7 +373,6 @@ export const demoActivities: Record<ProjectKey, DemoActivity[]> = {
       startOffset: -180,
       endOffset: -140,
       target: 400,
-      budget: '210000.00',
       outcome: 'COMPLETED',
       officer: 'emmanuel',
       progress: 100,
@@ -388,7 +389,6 @@ export const demoActivities: Record<ProjectKey, DemoActivity[]> = {
       startOffset: -90,
       endOffset: -40,
       target: 100,
-      budget: '240000.00',
       outcome: 'COMPLETED',
       officer: 'liza',
       progress: 100,
@@ -405,7 +405,6 @@ export const demoActivities: Record<ProjectKey, DemoActivity[]> = {
       startOffset: -30,
       endOffset: 60,
       target: 150,
-      budget: '900000.00',
       outcome: 'PROGRESS_VERIFIED',
       officer: 'emmanuel',
       progress: 40,
@@ -421,7 +420,6 @@ export const demoActivities: Record<ProjectKey, DemoActivity[]> = {
       startOffset: 15,
       endOffset: 120,
       target: 200,
-      budget: '180000.00',
       outcome: 'NOT_STARTED',
       officer: 'liza',
     },
@@ -433,9 +431,71 @@ export const demoActivities: Record<ProjectKey, DemoActivity[]> = {
       startOffset: -10,
       endOffset: 20,
       target: 5,
-      budget: '40000.00',
       outcome: 'IN_PROGRESS',
       officer: 'emmanuel',
+    },
+    {
+      key: 'hazards',
+      title: 'Barangay hazard map validation and evacuation signage',
+      type: 'Capacity Building',
+      description:
+        'Validation of barangay hazard maps with residents and installation of evacuation route signage.',
+      startOffset: -75,
+      endOffset: -25,
+      target: 5,
+      outcome: 'COMPLETED_LATE',
+      officer: 'liza',
+      progress: 100,
+      category: 'LOGISTICS',
+      explanation:
+        'Signage printing was delayed by the supplier and two barangays rescheduled the validation sessions because of fishing season; installation finished two weeks after the planned date.',
+      note: 'Hazard maps validated in five barangays and 32 evacuation route signs installed.',
+      reviewNote: 'Signage photos and validation attendance sheets match the plan.',
+      reached: 5,
+    },
+    {
+      key: 'coordination',
+      title: 'Coordination meeting with the provincial agriculture office',
+      type: 'Coordination',
+      description:
+        'Meeting to agree on technical support and market linkages for the supported livelihood groups.',
+      startOffset: -40,
+      endOffset: -12,
+      target: 2,
+      outcome: 'OVERDUE_OPEN',
+      officer: 'liza',
+    },
+    {
+      key: 'enterprise',
+      title: 'Enterprise record keeping coaching for grant recipients',
+      type: 'Capacity Building',
+      description:
+        'Coaching of grant recipients on simple bookkeeping and cash management for household enterprises.',
+      startOffset: -28,
+      endOffset: 14,
+      target: 60,
+      outcome: 'RETURNED',
+      officer: 'emmanuel',
+      progress: 45,
+      note: 'Coaching days 1 and 2 completed for 27 grant recipients in Bocsol.',
+      reviewNote:
+        'The reported 27 participants do not match the 21 names on the uploaded attendance sheet; please upload the complete sheet.',
+      reached: 27,
+    },
+    {
+      key: 'drill',
+      title: 'Community early warning and evacuation drill',
+      type: 'Capacity Building',
+      description:
+        'Simulation drill with trained barangay response teams and households in coastal purok.',
+      startOffset: -12,
+      endOffset: 9,
+      target: 150,
+      outcome: 'PENDING_REVIEW',
+      officer: 'liza',
+      progress: 80,
+      note: 'Drills held in Baybay and Cawayan with 118 residents; evaluation form results attached.',
+      reached: 118,
     },
   ],
   ALS: [
@@ -448,7 +508,6 @@ export const demoActivities: Record<ProjectKey, DemoActivity[]> = {
       startOffset: -320,
       endOffset: -280,
       target: 300,
-      budget: '150000.00',
       outcome: 'COMPLETED',
       officer: 'liza',
       progress: 100,
@@ -464,7 +523,6 @@ export const demoActivities: Record<ProjectKey, DemoActivity[]> = {
       startOffset: -270,
       endOffset: -230,
       target: 24,
-      budget: '190000.00',
       outcome: 'COMPLETED',
       officer: 'liza',
       progress: 100,
@@ -480,12 +538,29 @@ export const demoActivities: Record<ProjectKey, DemoActivity[]> = {
       startOffset: -220,
       endOffset: -100,
       target: 287,
-      budget: '640000.00',
       outcome: 'COMPLETED',
       officer: 'liza',
       progress: 100,
       note: 'Cycle 1 concluded with 251 learners completing the module set.',
       reviewNote: 'Session logs and completion list verified.',
+      reached: 251,
+    },
+    {
+      key: 'results',
+      title: 'Cycle 1 learner results validation',
+      type: 'Review',
+      description: 'Validation of cycle 1 learner results with the division ALS coordinator.',
+      startOffset: -75,
+      endOffset: -20,
+      target: 251,
+      outcome: 'COMPLETED_LATE',
+      officer: 'liza',
+      progress: 100,
+      category: 'COMMUNITY',
+      explanation:
+        'The division coordinator was only available after the schedule of the national assessment, so the validation was held two weeks after the planned date.',
+      note: 'Results of 251 cycle 1 learners validated and signed by the division coordinator.',
+      reviewNote: 'Signed results list matches the learner completion records.',
       reached: 251,
     },
     {
@@ -496,7 +571,6 @@ export const demoActivities: Record<ProjectKey, DemoActivity[]> = {
       startOffset: -60,
       endOffset: 10,
       target: 251,
-      budget: '380000.00',
       outcome: 'PROGRESS_VERIFIED',
       officer: 'liza',
       progress: 85,
@@ -512,7 +586,6 @@ export const demoActivities: Record<ProjectKey, DemoActivity[]> = {
       startOffset: 7,
       endOffset: 18,
       target: 40,
-      budget: '90000.00',
       outcome: 'NOT_STARTED',
       officer: 'liza',
     },
@@ -523,16 +596,12 @@ export const demoActivities: Record<ProjectKey, DemoActivity[]> = {
       title: 'Parenting sessions for caregivers of children under five',
       type: 'Capacity Building',
       description: 'Bi-weekly parenting sessions for caregivers in four barangays.',
-      startOffset: -60,
-      endOffset: 90,
+      startOffset: 28,
+      endOffset: 118,
       target: 40,
       budget: '150000.00',
-      outcome: 'PROGRESS_VERIFIED',
+      outcome: 'NOT_STARTED',
       officer: 'emmanuel',
-      progress: 35,
-      note: 'Five parenting sessions completed with five caregiver-child pairs.',
-      reviewNote: 'Attendance sheets verified.',
-      reached: 5,
     },
     {
       key: 'play',
@@ -540,11 +609,11 @@ export const demoActivities: Record<ProjectKey, DemoActivity[]> = {
       type: 'Infrastructure',
       description:
         'Setup of play and stimulation corners in two community child development centers.',
-      startOffset: -30,
-      endOffset: 20,
+      startOffset: 35,
+      endOffset: 70,
       target: 2,
       budget: '95000.00',
-      outcome: 'IN_PROGRESS',
+      outcome: 'NOT_STARTED',
       officer: 'emmanuel',
     },
     {
@@ -552,8 +621,8 @@ export const demoActivities: Record<ProjectKey, DemoActivity[]> = {
       title: 'Home visits for developmental screening',
       type: 'Monitoring',
       description: 'Home visits to screen developmental milestones of enrolled children.',
-      startOffset: 15,
-      endOffset: 100,
+      startOffset: 60,
+      endOffset: 140,
       target: 30,
       budget: '60000.00',
       outcome: 'NOT_STARTED',
@@ -569,7 +638,6 @@ export const demoActivities: Record<ProjectKey, DemoActivity[]> = {
       startOffset: -390,
       endOffset: -350,
       target: 12,
-      budget: '120000.00',
       outcome: 'COMPLETED',
       officer: 'liza',
       progress: 100,
@@ -583,14 +651,14 @@ export const demoActivities: Record<ProjectKey, DemoActivity[]> = {
       type: 'Infrastructure',
       description: 'Construction and repair of handwashing stations and toilet blocks.',
       startOffset: -340,
-      endOffset: -60,
+      endOffset: 25,
       target: 12,
-      budget: '1650000.00',
-      outcome: 'OVERDUE_EXPLAINED',
+      outcome: 'PROGRESS_VERIFIED',
       officer: 'emmanuel',
-      category: 'WEATHER',
-      explanation:
-        'Two typhoons in the last quarter flooded four school sites and construction materials could not be delivered until the roads reopened.',
+      progress: 70,
+      note: 'Eight of twelve schools have completed handwashing stations and toilet blocks; four flooded sites resume once materials arrive.',
+      reviewNote: 'Site photos and acceptance forms match the eight completed schools.',
+      reached: 8,
     },
     {
       key: 'hygiene',
@@ -598,21 +666,22 @@ export const demoActivities: Record<ProjectKey, DemoActivity[]> = {
       type: 'Capacity Building',
       description: 'Formation and training of hygiene clubs in each partner school.',
       startOffset: -200,
-      endOffset: -45,
+      endOffset: 20,
       target: 360,
-      budget: '380000.00',
-      outcome: 'OVERDUE_OPEN',
+      outcome: 'PENDING_REVIEW',
       officer: 'liza',
+      progress: 60,
+      note: 'Hygiene clubs formed and trained in eight schools; club officers elected and attendance sheets attached.',
+      reached: 240,
     },
     {
       key: 'handover',
       title: 'Facility handover and maintenance plan signing',
       type: 'Coordination',
       description: 'Handover ceremonies and signing of maintenance plans with school heads.',
-      startOffset: -30,
-      endOffset: -5,
+      startOffset: 5,
+      endOffset: 40,
       target: 12,
-      budget: '60000.00',
       outcome: 'NOT_STARTED',
       officer: 'emmanuel',
     },
@@ -626,7 +695,6 @@ export const demoActivities: Record<ProjectKey, DemoActivity[]> = {
       startOffset: -290,
       endOffset: -250,
       target: 450,
-      budget: '520000.00',
       outcome: 'COMPLETED',
       officer: 'liza',
       progress: 100,
@@ -642,7 +710,6 @@ export const demoActivities: Record<ProjectKey, DemoActivity[]> = {
       startOffset: -245,
       endOffset: -150,
       target: 450,
-      budget: '300000.00',
       outcome: 'COMPLETED',
       officer: 'liza',
       progress: 100,
@@ -675,7 +742,8 @@ export const demoCohorts: Record<ProjectKey, DemoCohort> = {
     femaleShare: 0.6,
   },
   ALS: { count: 24, ages: [17, 19, 22, 25, 18, 30, 21, 16, 27, 35, 20, 24], femaleShare: 0.55 },
-  ECD: { count: 5, ages: [5, 6, 5, 34, 29], femaleShare: 0.6 },
+  // The pilot has not started, so nobody is enrolled yet.
+  ECD: { count: 0, ages: [5], femaleShare: 0.5 },
   WSH: { count: 20, ages: [8, 9, 10, 11, 12, 7, 6, 41, 35, 50], femaleShare: 0.5 },
   EHK: { count: 16, ages: [6, 7, 8, 9, 10, 11, 12, 13, 38, 44], femaleShare: 0.55 },
 }
@@ -829,8 +897,18 @@ export function daysBetween(fromIso: string, toIso: string) {
   )
 }
 
+export type IndicatorType =
+  | 'OUTPUT'
+  | 'OUTCOME'
+  | 'ACTIVITY'
+  | 'BUDGET'
+  | 'TIMELINE'
+  | 'PARTICIPATION'
+  | 'SURVEY_SCORE'
+
 export type DemoIndicator = {
   code: string
+  indicatorType: IndicatorType
   name: string
   unit: string
   numericKind: 'COUNT' | 'PERCENTAGE' | 'NON_NEGATIVE'
@@ -844,6 +922,7 @@ export const demoIndicators: Record<ProjectKey, DemoIndicator[]> = {
   SSG: [
     {
       code: 'SSG-GIRLS-ENR',
+      indicatorType: 'OUTPUT',
       name: 'Girls reached with school protection activities',
       unit: 'girls',
       numericKind: 'COUNT',
@@ -853,6 +932,7 @@ export const demoIndicators: Record<ProjectKey, DemoIndicator[]> = {
     },
     {
       code: 'SSG-ATT-RATE',
+      indicatorType: 'OUTCOME',
       name: 'Regular school attendance rate of girls',
       unit: 'percent',
       numericKind: 'PERCENTAGE',
@@ -862,6 +942,7 @@ export const demoIndicators: Record<ProjectKey, DemoIndicator[]> = {
     },
     {
       code: 'SSG-COMM-FUNC',
+      indicatorType: 'ACTIVITY',
       name: 'School protection committees functioning',
       unit: 'committees',
       numericKind: 'COUNT',
@@ -869,10 +950,21 @@ export const demoIndicators: Record<ProjectKey, DemoIndicator[]> = {
       target: '14',
       readings: ['3', '5', '8'],
     },
+    {
+      code: 'SSG-KNOW-SCORE',
+      indicatorType: 'SURVEY_SCORE',
+      name: 'Average school safety knowledge score of committee members',
+      unit: 'points',
+      numericKind: 'NON_NEGATIVE',
+      baseline: '52.00',
+      target: '75.00',
+      readings: ['58.00', '63.50', '67.00'],
+    },
   ],
   CRL: [
     {
       code: 'CRL-HH-DIV',
+      indicatorType: 'OUTCOME',
       name: 'Households with two or more income sources',
       unit: 'households',
       numericKind: 'COUNT',
@@ -882,6 +974,7 @@ export const demoIndicators: Record<ProjectKey, DemoIndicator[]> = {
     },
     {
       code: 'CRL-DRR-TEAMS',
+      indicatorType: 'OUTPUT',
       name: 'Barangay disaster response teams trained',
       unit: 'teams',
       numericKind: 'COUNT',
@@ -889,10 +982,21 @@ export const demoIndicators: Record<ProjectKey, DemoIndicator[]> = {
       target: '10',
       readings: ['2', '5', '5'],
     },
+    {
+      code: 'CRL-BUDGET-USE',
+      indicatorType: 'BUDGET',
+      name: 'Share of the livelihood grant fund released to household groups',
+      unit: 'percent',
+      numericKind: 'PERCENTAGE',
+      baseline: '0.00',
+      target: '100.00',
+      readings: ['25.00', '48.50', '71.00'],
+    },
   ],
   ALS: [
     {
       code: 'ALS-ENROLLED',
+      indicatorType: 'PARTICIPATION',
       name: 'Out-of-school learners enrolled in learning centers',
       unit: 'learners',
       numericKind: 'COUNT',
@@ -902,6 +1006,7 @@ export const demoIndicators: Record<ProjectKey, DemoIndicator[]> = {
     },
     {
       code: 'ALS-COMPLETION',
+      indicatorType: 'OUTCOME',
       name: 'Learners completing the module set',
       unit: 'percent',
       numericKind: 'PERCENTAGE',
@@ -913,17 +1018,19 @@ export const demoIndicators: Record<ProjectKey, DemoIndicator[]> = {
   ECD: [
     {
       code: 'ECD-CAREGIVERS',
+      indicatorType: 'PARTICIPATION',
       name: 'Caregivers attending parenting sessions',
       unit: 'caregivers',
       numericKind: 'COUNT',
       baseline: '0',
       target: '40',
-      readings: ['3', '5'],
+      readings: [],
     },
   ],
   WSH: [
     {
       code: 'WSH-SCHOOLS',
+      indicatorType: 'OUTPUT',
       name: 'Schools with functioning handwashing stations',
       unit: 'schools',
       numericKind: 'COUNT',
@@ -933,6 +1040,7 @@ export const demoIndicators: Record<ProjectKey, DemoIndicator[]> = {
     },
     {
       code: 'WSH-CLUBS',
+      indicatorType: 'ACTIVITY',
       name: 'School hygiene clubs active',
       unit: 'clubs',
       numericKind: 'COUNT',
@@ -940,10 +1048,21 @@ export const demoIndicators: Record<ProjectKey, DemoIndicator[]> = {
       target: '12',
       readings: ['1', '3'],
     },
+    {
+      code: 'WSH-HANDOVER',
+      indicatorType: 'TIMELINE',
+      name: 'Schools handed over against the revised work plan',
+      unit: 'percent',
+      numericKind: 'PERCENTAGE',
+      baseline: '0.00',
+      target: '100.00',
+      readings: ['17.00', '33.00', '42.00'],
+    },
   ],
   EHK: [
     {
       code: 'EHK-FAMILIES',
+      indicatorType: 'OUTPUT',
       name: 'Families receiving hygiene and learning kits',
       unit: 'families',
       numericKind: 'COUNT',
@@ -957,20 +1076,16 @@ export const demoIndicators: Record<ProjectKey, DemoIndicator[]> = {
 export type DemoBudgetLine = {
   category: string
   amount: string
-  activityKey?: string
   remarks?: string
 }
 
+/** Category lines that are not activity allocations; activity budgets come from the activities. */
 export const demoBudgets: Partial<Record<ProjectKey, DemoBudgetLine[]>> = {
   SSG: [
-    { category: 'Survey and data collection', amount: '180000.00', activityKey: 'baseline' },
-    { category: 'Community orientation sessions', amount: '95000.00', activityKey: 'orientation' },
-    { category: 'Life skills session materials', amount: '260000.00', activityKey: 'lifeskills' },
-    { category: 'Learning kits and hygiene supplies', amount: '320000.00', activityKey: 'kits' },
     {
-      category: 'Committee training venue and meals',
-      amount: '150000.00',
-      activityKey: 'committee',
+      category: 'PROJECT_PROFILE_TOTAL',
+      amount: '1455000.00',
+      remarks: 'Project profile planned budget.',
     },
     {
       category: 'Project staff travel',
@@ -978,24 +1093,13 @@ export const demoBudgets: Partial<Record<ProjectKey, DemoBudgetLine[]>> = {
       remarks: 'Monthly travel to partner schools.',
     },
   ],
-  CRL: [
-    { category: 'Livelihood starter grants', amount: '900000.00', activityKey: 'livelihood' },
-    { category: 'Disaster response team training', amount: '240000.00', activityKey: 'drrm' },
-    { category: 'Household assessment', amount: '210000.00', activityKey: 'assessment' },
-  ],
-  ALS: [
-    { category: 'Learning materials and modules', amount: '640000.00', activityKey: 'sessions' },
-    { category: 'Facilitator honoraria', amount: '190000.00', activityKey: 'facilitators' },
-  ],
-  WSH: [
-    { category: 'Construction materials', amount: '1650000.00', activityKey: 'rehab' },
-    { category: 'Hygiene club training', amount: '380000.00', activityKey: 'hygiene' },
-  ],
 }
 
 export type DemoExpense = {
   project: ProjectKey
-  budgetCategory: string
+  /** Charged to this activity budget row; otherwise to the category line or the project envelope. */
+  activityKey?: string
+  budgetCategory?: string
   description: string
   amount: string
   /** Days before the run date. */
@@ -1004,48 +1108,107 @@ export type DemoExpense = {
   /** Where the expense ends up. */
   flow: 'SUBMITTED' | 'VERIFIED' | 'APPROVED' | 'SIGNED_OFF' | 'REJECTED'
   receipt: boolean
+  /** Who signs off a SIGNED_OFF expense; defaults to the Program Manager. */
+  signer?: 'PROGRAM_MANAGER' | 'GRANT_MANAGER'
+  /** Review stage that rejects a REJECTED expense; defaults to VERIFY. */
+  rejectStage?: 'VERIFY' | 'APPROVE'
   reason?: string
 }
 
 export const demoExpenses: DemoExpense[] = [
   {
     project: 'SSG',
-    budgetCategory: 'Survey and data collection',
+    activityKey: 'baseline',
     description: 'Tablet data collection allowance for 12 enumerators, six barangays',
     amount: '42000.00',
-    daysAgo: 150,
+    daysAgo: 58,
     submitter: 'liza',
     flow: 'SIGNED_OFF',
     receipt: true,
+    signer: 'PROGRAM_MANAGER',
   },
   {
     project: 'SSG',
-    budgetCategory: 'Community orientation sessions',
+    activityKey: 'orientation',
     description: 'Venue rental and snacks for six barangay orientation sessions',
     amount: '38500.00',
-    daysAgo: 112,
+    daysAgo: 52,
     submitter: 'liza',
     flow: 'APPROVED',
     receipt: true,
   },
   {
     project: 'SSG',
-    budgetCategory: 'Life skills session materials',
+    activityKey: 'orientation',
+    description:
+      'Printed child protection materials and snacks for follow-up orientation in Maypangdan',
+    amount: '51750.00',
+    daysAgo: 47,
+    submitter: 'liza',
+    flow: 'APPROVED',
+    receipt: true,
+  },
+  {
+    project: 'SSG',
+    activityKey: 'returnedproof',
+    description: 'Venue, meals and materials for peer educator training day 1',
+    amount: '64400.00',
+    daysAgo: 34,
+    submitter: 'liza',
+    flow: 'SIGNED_OFF',
+    receipt: true,
+    signer: 'GRANT_MANAGER',
+  },
+  {
+    project: 'SSG',
+    activityKey: 'returnedproof',
+    description: 'Honoraria for two peer educator trainers',
+    amount: '50000.00',
+    daysAgo: 27,
+    submitter: 'liza',
+    flow: 'SIGNED_OFF',
+    receipt: true,
+    signer: 'PROGRAM_MANAGER',
+  },
+  {
+    project: 'SSG',
+    budgetCategory: 'Project staff travel',
+    description: 'Fuel and van rental for monthly monitoring visits to partner schools',
+    amount: '44350.00',
+    daysAgo: 19,
+    submitter: 'liza',
+    flow: 'SIGNED_OFF',
+    receipt: true,
+    signer: 'PROGRAM_MANAGER',
+  },
+  {
+    project: 'SSG',
+    activityKey: 'lifeskills',
     description: 'Printed activity sheets and art materials for sessions 1 to 6',
     amount: '27350.00',
-    daysAgo: 28,
+    daysAgo: 26,
     submitter: 'liza',
     flow: 'VERIFIED',
     receipt: true,
   },
   {
     project: 'SSG',
-    budgetCategory: 'Learning kits and hygiene supplies',
+    activityKey: 'kits',
     description: 'Partial payment to supplier for 150 school bags',
     amount: '96000.00',
-    daysAgo: 21,
+    daysAgo: 16,
     submitter: 'liza',
     flow: 'SUBMITTED',
+    receipt: true,
+  },
+  {
+    project: 'SSG',
+    activityKey: 'referral',
+    description: 'Meals and transport for referral mapping meetings with municipal offices',
+    amount: '9800.00',
+    daysAgo: 4,
+    submitter: 'liza',
+    flow: 'VERIFIED',
     receipt: true,
   },
   {
@@ -1057,21 +1220,21 @@ export const demoExpenses: DemoExpense[] = [
     submitter: 'liza',
     flow: 'REJECTED',
     receipt: false,
+    rejectStage: 'VERIFY',
     reason: 'The receipt is missing and the rental dates do not match the visit schedule.',
   },
   {
     project: 'CRL',
-    budgetCategory: 'Disaster response team training',
     description: 'Training venue, meals and first aid supplies for five barangay teams',
     amount: '118400.00',
-    daysAgo: 62,
+    daysAgo: 56,
     submitter: 'liza',
     flow: 'SIGNED_OFF',
     receipt: true,
+    signer: 'PROGRAM_MANAGER',
   },
   {
     project: 'CRL',
-    budgetCategory: 'Livelihood starter grants',
     description: 'Abaca stripping tools for 60 households, Bocsol and Dalakit',
     amount: '312000.00',
     daysAgo: 24,
@@ -1080,24 +1243,182 @@ export const demoExpenses: DemoExpense[] = [
     receipt: true,
   },
   {
-    project: 'WSH',
-    budgetCategory: 'Construction materials',
-    description: 'Cement, hollow blocks and PVC pipes for four school sites',
-    amount: '486200.00',
-    daysAgo: 120,
+    project: 'CRL',
+    description: 'Starter grants first tranche to 60 households, Bocsol and Dalakit',
+    amount: '1250000.00',
+    daysAgo: 41,
     submitter: 'emmanuel',
     flow: 'SIGNED_OFF',
+    receipt: true,
+    signer: 'GRANT_MANAGER',
+  },
+  {
+    project: 'CRL',
+    description: 'Coconut by-product processing equipment for six household groups',
+    amount: '985000.00',
+    daysAgo: 30,
+    submitter: 'emmanuel',
+    flow: 'SIGNED_OFF',
+    receipt: true,
+    signer: 'PROGRAM_MANAGER',
+  },
+  {
+    project: 'CRL',
+    description: 'Early warning radios, life vests and rescue kits for five response teams',
+    amount: '278600.00',
+    daysAgo: 12,
+    submitter: 'liza',
+    flow: 'SIGNED_OFF',
+    receipt: true,
+    signer: 'PROGRAM_MANAGER',
+  },
+  {
+    project: 'CRL',
+    description: 'Transport and meals for monthly monitoring visits to Bocsol and Dalakit',
+    amount: '18750.00',
+    daysAgo: 3,
+    submitter: 'emmanuel',
+    flow: 'SUBMITTED',
+    receipt: true,
+  },
+  {
+    project: 'CRL',
+    description: 'Printing and venue for enterprise record keeping coaching, Bocsol',
+    amount: '185000.00',
+    daysAgo: 9,
+    submitter: 'emmanuel',
+    flow: 'VERIFIED',
+    receipt: true,
+  },
+  {
+    project: 'CRL',
+    description: 'Second billing for abaca stripping tools already paid in full',
+    amount: '96500.00',
+    daysAgo: 15,
+    submitter: 'emmanuel',
+    flow: 'REJECTED',
+    receipt: true,
+    rejectStage: 'APPROVE',
+    reason:
+      'This invoice duplicates the supplier invoice already paid for the stripping tools, so the second payment is not allowable.',
+  },
+  {
+    project: 'ALS',
+    description: 'Printing of learner modules for cycle 1',
+    amount: '154800.00',
+    daysAgo: 60,
+    submitter: 'liza',
+    flow: 'SIGNED_OFF',
+    receipt: true,
+    signer: 'PROGRAM_MANAGER',
+  },
+  {
+    project: 'ALS',
+    description: 'Honoraria of 24 learning facilitators, final payment',
+    amount: '190000.00',
+    daysAgo: 50,
+    submitter: 'liza',
+    flow: 'SIGNED_OFF',
+    receipt: true,
+    signer: 'GRANT_MANAGER',
+  },
+  {
+    project: 'ALS',
+    description: 'Learner modules and review materials for cycle 2',
+    amount: '640000.00',
+    daysAgo: 38,
+    submitter: 'liza',
+    flow: 'SIGNED_OFF',
+    receipt: true,
+    signer: 'PROGRAM_MANAGER',
+  },
+  {
+    project: 'ALS',
+    description: 'Learning center rent, utilities and learner snacks for review classes',
+    amount: '495200.00',
+    daysAgo: 22,
+    submitter: 'liza',
+    flow: 'APPROVED',
     receipt: true,
   },
   {
     project: 'ALS',
-    budgetCategory: 'Learning materials and modules',
-    description: 'Printing of learner modules for cycle 1',
-    amount: '154800.00',
-    daysAgo: 210,
+    description: 'Cash advance for accreditation and equivalency assessment registration fees',
+    amount: '12000.00',
+    daysAgo: 2,
+    submitter: 'liza',
+    flow: 'SUBMITTED',
+    receipt: false,
+  },
+  {
+    project: 'WSH',
+    description: 'Cement, hollow blocks and PVC pipes for four school sites',
+    amount: '486200.00',
+    daysAgo: 60,
+    submitter: 'emmanuel',
+    flow: 'SIGNED_OFF',
+    receipt: true,
+    signer: 'PROGRAM_MANAGER',
+  },
+  {
+    project: 'WSH',
+    description: 'Plumbing fixtures and roofing sheets for six school sites',
+    amount: '912300.00',
+    daysAgo: 44,
+    submitter: 'emmanuel',
+    flow: 'SIGNED_OFF',
+    receipt: true,
+    signer: 'GRANT_MANAGER',
+  },
+  {
+    project: 'WSH',
+    description: 'Contractor progress billing for school sites 7 to 9',
+    amount: '1184000.00',
+    daysAgo: 29,
+    submitter: 'emmanuel',
+    flow: 'SIGNED_OFF',
+    receipt: true,
+    signer: 'PROGRAM_MANAGER',
+  },
+  {
+    project: 'WSH',
+    description: 'Venue, meals and materials for school hygiene club training',
+    amount: '200000.00',
+    daysAgo: 10,
     submitter: 'liza',
     flow: 'SIGNED_OFF',
     receipt: true,
+    signer: 'GRANT_MANAGER',
+  },
+  {
+    project: 'EHK',
+    description: 'Procurement of 450 hygiene and learning kits',
+    amount: '520000.00',
+    daysAgo: 59,
+    submitter: 'liza',
+    flow: 'SIGNED_OFF',
+    receipt: true,
+    signer: 'PROGRAM_MANAGER',
+  },
+  {
+    project: 'EHK',
+    description: 'Hauling, packing and distribution logistics in three barangays',
+    amount: '300000.00',
+    daysAgo: 52,
+    submitter: 'liza',
+    flow: 'SIGNED_OFF',
+    receipt: true,
+    signer: 'GRANT_MANAGER',
+  },
+  {
+    project: 'EHK',
+    description: 'Distribution monitoring, acknowledgment lists and liquidation',
+    amount: '120800.00',
+    daysAgo: 46,
+    submitter: 'liza',
+    flow: 'SIGNED_OFF',
+    receipt: true,
+    signer: 'PROGRAM_MANAGER',
   },
 ]
 
@@ -1113,6 +1434,9 @@ export type DemoRule = {
       | 'ACTIVITY_OVERDUE_COUNT'
       | 'PROJECT_REMAINING_DAYS'
       | 'PROJECT_OVERDUE_DAYS'
+      | 'BUDGET_UTILIZATION_PERCENT'
+      | 'BENEFICIARY_FOLLOW_UP_PERCENT'
+      | 'SURVEY_MEAN_IMPROVEMENT_POINTS'
     operator: 'LT' | 'LTE' | 'EQ' | 'GTE' | 'GT'
     threshold: string
   }>
@@ -1199,6 +1523,66 @@ export const demoRules: DemoRule[] = [
       {
         title: 'Discuss workload at the next coordination meeting',
         text: 'Review field workload with the project officers if activity delays start to accumulate.',
+      },
+    ],
+  },
+  {
+    project: 'CRL',
+    code: 'BUDGET_NEAR_EXHAUSTED',
+    name: 'Approved spending near the planned budget',
+    severity: 'HIGH',
+    mode: 'AND',
+    conditions: [{ metric: 'BUDGET_UTILIZATION_PERCENT', operator: 'GTE', threshold: '90' }],
+    recommendations: [
+      {
+        title: 'Review the remaining budget with the Grant Manager',
+        text: 'Compare the unspent balance with the activities still planned and agree on which costs are paused or reallocated.',
+      },
+      {
+        title: 'Pause new grant tranches until the budget is reviewed',
+        text: 'Hold approval of further grant tranches until the revised spending plan is confirmed.',
+      },
+    ],
+  },
+  {
+    project: 'CRL',
+    code: 'FOLLOW_UP_GAP',
+    name: 'Beneficiaries needing follow-up',
+    severity: 'MEDIUM',
+    mode: 'AND',
+    conditions: [{ metric: 'BENEFICIARY_FOLLOW_UP_PERCENT', operator: 'GTE', threshold: '25' }],
+    recommendations: [
+      {
+        title: 'Schedule household follow-up visits',
+        text: 'Assign field officers to visit the participants marked for follow-up and record the outcome of each visit.',
+      },
+    ],
+  },
+  {
+    project: 'WSH',
+    code: 'LOW_SURVEY_IMPROVEMENT',
+    name: 'Low improvement in survey results',
+    severity: 'MEDIUM',
+    mode: 'AND',
+    conditions: [{ metric: 'SURVEY_MEAN_IMPROVEMENT_POINTS', operator: 'LT', threshold: '20' }],
+    recommendations: [
+      {
+        title: 'Review the hygiene club training content',
+        text: 'Review the training sessions with the facilitators and strengthen the topics where learners improved least.',
+      },
+    ],
+  },
+  {
+    project: 'CRL',
+    code: 'ACTIVITY_OVERDUE_ANY',
+    name: 'An activity is past its planned end date',
+    severity: 'MEDIUM',
+    mode: 'AND',
+    conditions: [{ metric: 'ACTIVITY_OVERDUE_COUNT', operator: 'GTE', threshold: '1' }],
+    recommendations: [
+      {
+        title: 'Confirm a new date for the overdue activity',
+        text: 'Ask the assigned officer to confirm a revised date and record the reason the activity is late.',
       },
     ],
   },

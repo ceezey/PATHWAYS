@@ -60,7 +60,24 @@ const reportPlans: ReportPlan[] = [
     by: 'projectManager',
     kind: 'PROJECT_SUMMARY',
     format: 'CSV',
-    name: 'Masbate early childhood pilot progress summary',
+    name: 'Masbate early childhood pilot plan summary',
+  },
+  // Survey results come last because one form is small enough to be suppressed.
+  {
+    project: 'SSG',
+    by: 'me',
+    kind: 'SURVEY_FORM_RESULTS',
+    format: 'XLSX',
+    name: 'Life skills session feedback results',
+    formCode: 'training_outcome_survey',
+  },
+  {
+    project: 'ALS',
+    by: 'me',
+    kind: 'SURVEY_FORM_RESULTS',
+    format: 'XLSX',
+    name: 'Review class learner feedback results',
+    formCode: 'review_class_feedback',
   },
 ]
 
@@ -70,6 +87,17 @@ export async function stageReports(ctx: DemoContext) {
   let generated = 0
   for (const plan of reportPlans) {
     const projectId = projectOf(ctx, plan.project)
+    const clientRequestId = ctx.stable(
+      `report:${plan.project}:${plan.kind}:${plan.format}:${plan.name}`,
+    )
+    // A released report is done: replaying its key after the source moved on is refused as a conflict.
+    if (
+      await ctx.owner.report.findFirst({
+        where: { organizationId: ctx.organizationId, clientRequestId, generatedAt: { not: null } },
+        select: { id: true },
+      })
+    )
+      continue
     const identity = ctx.staff[plan.by].identity
     let formId: string | undefined
     if (plan.formCode) {
@@ -81,9 +109,7 @@ export async function stageReports(ctx: DemoContext) {
     }
     await step(`report ${plan.name}`, () =>
       ctx.services.reports.generate(identity, projectId, {
-        clientRequestId: ctx.stable(
-          `report:${plan.project}:${plan.kind}:${plan.format}:${plan.name}`,
-        ),
+        clientRequestId,
         kind: plan.kind,
         format: plan.format,
         name: plan.name,

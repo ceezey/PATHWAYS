@@ -1,4 +1,6 @@
-import { demoRules } from './local-demo-data'
+import { ConflictException } from '@nestjs/common'
+
+import { type ProjectKey, demoRules } from './local-demo-data'
 import type { DemoContext } from './local-demo-seed'
 import { projectOf, step } from './local-demo-util'
 
@@ -35,18 +37,22 @@ export async function stageDecisions(ctx: DemoContext) {
     })) as unknown as { items: RuleRow[] }
     for (const row of listed.items) ruleCodes.set(row.id, row.code)
   }
-  const found = (await rules.listAlerts(admin, { limit: '100' })) as unknown as {
-    items: AlertRow[]
+  // Alert reads cost about a second per alert, so each read is scoped to one project to stay inside the 10 second transaction limit.
+  const alertsOf = async (identity: Identity, code: string) => {
+    const plan = demoRules.find((rule) => rule.code === code)
+    const listed = (await rules.listAlerts(identity, {
+      projectId: projectOf(ctx, plan?.project as ProjectKey),
+      limit: '100',
+    })) as unknown as { items: AlertRow[] }
+    return listed.items.filter((row) => ruleCodes.get(row.ruleId) === code)
   }
-  if (found.items.length === 0) {
-    ctx.log('  no alerts to decide on (rule evaluation did not run)')
-    return
-  }
-  const alertFor = (code: string) => {
-    const alert = found.items.find((row) => ruleCodes.get(row.ruleId) === code)
+  const alertFor = async (code: string) => {
+    const [alert] = await alertsOf(admin, code)
     if (!alert) throw new Error(`No alert was produced for rule ${code}.`)
     return alert
   }
+  // A recommendation keeps status NEW after an outcome, so revision 1 marks one nobody has touched.
+  const untouched = (row: RecommendationRow) => row.revision === '1'
   const key = (seed: string) => ctx.stable(`decision:${seed}`)
   const recommendationsOf = async (identity: Identity, alertId: string) =>
     (
@@ -65,25 +71,33 @@ export async function stageDecisions(ctx: DemoContext) {
     note: string,
     seed: string,
   ) {
-    const current = await reload(identity, alert.id)
-    const preview = (await rules.previewRecommendation(identity, recommendation.id, {
-      expectedRevision: recommendation.revision,
-      note,
-      clientOperationId: key(`${seed}:preview`),
-      outcome,
-      ...(['ACCEPT', 'PARTIALLY_ACCEPT'].includes(outcome)
-        ? { expectedAlertRevision: current.revision }
-        : {}),
-    })) as unknown as { previewId: string }
-    await rules.confirmRecommendation(identity, recommendation.id, {
-      previewId: preview.previewId,
-      clientOperationId: key(`${seed}:confirm`),
-    })
+    // A replayed preview that already expired is refused on confirm, so retry once under fresh keys.
+    for (const salt of ['', `:${Date.now()}`]) {
+      const current = await reload(identity, alert.id)
+      const preview = (await rules.previewRecommendation(identity, recommendation.id, {
+        expectedRevision: recommendation.revision,
+        note,
+        clientOperationId: key(`${seed}${salt}:preview`),
+        outcome,
+        ...(['ACCEPT', 'PARTIALLY_ACCEPT'].includes(outcome)
+          ? { expectedAlertRevision: current.revision }
+          : {}),
+      })) as unknown as { previewId: string }
+      try {
+        await rules.confirmRecommendation(identity, recommendation.id, {
+          previewId: preview.previewId,
+          clientOperationId: key(`${seed}${salt}:confirm`),
+        })
+        return
+      } catch (error) {
+        if (!(error instanceof ConflictException) || salt) throw error
+      }
+    }
   }
 
   // Operations Bottleneck (water, sanitation and hygiene project): reviewed, first action accepted.
-  const bottleneck = alertFor('OPERATIONS_BOTTLENECK')
-  if (bottleneck.lifecycle === 'NEW') {
+  const bottleneck = await alertFor('OPERATIONS_BOTTLENECK')
+  if (bottleneck.lifecycle === 'NEW')
     await step('review bottleneck alert', () =>
       rules.reviewAlert(pm, bottleneck.id, {
         expectedRevision: bottleneck.revision,
@@ -91,7 +105,8 @@ export async function stageDecisions(ctx: DemoContext) {
         clientOperationId: key('bottleneck:review'),
       }),
     )
-    const [first, second] = await recommendationsOf(pm, bottleneck.id)
+  const [first, second] = await recommendationsOf(pm, bottleneck.id)
+  if (untouched(first))
     await step('accept bottleneck recommendation', () =>
       decide(
         pm,
@@ -102,21 +117,18 @@ export async function stageDecisions(ctx: DemoContext) {
         'bottleneck:first',
       ),
     )
-    const reviewed = (await recommendationsOf(me, bottleneck.id)).find(
-      (row) => row.id === second.id,
+  const reviewed = (await recommendationsOf(me, bottleneck.id)).find((row) => row.id === second.id)
+  if (reviewed && untouched(reviewed))
+    await step('review second bottleneck recommendation', () =>
+      rules.reviewRecommendation(me, second.id, {
+        expectedRevision: reviewed.revision,
+        note: 'The extension request needs donor guidance first; keeping this for the next review.',
+        clientOperationId: key('bottleneck:second-review'),
+      }),
     )
-    if (reviewed)
-      await step('review second bottleneck recommendation', () =>
-        rules.reviewRecommendation(me, second.id, {
-          expectedRevision: reviewed.revision,
-          note: 'The extension request needs donor guidance first; keeping this for the next review.',
-          clientOperationId: key('bottleneck:second-review'),
-        }),
-      )
-  }
 
   // Multiple activities behind schedule (Eastern Samar): partly accepted, second option declined.
-  const delays = alertFor('ACTIVITY_DELAYS')
+  const delays = await alertFor('ACTIVITY_DELAYS')
   if (delays.lifecycle === 'NEW') {
     await step('review delays alert', () =>
       rules.reviewAlert(programManager, delays.id, {
@@ -152,7 +164,7 @@ export async function stageDecisions(ctx: DemoContext) {
   }
 
   // Closing within 30 days (Lavezares): reviewed by Monitoring and Evaluation, then resolved.
-  const closing = alertFor('CLOSING_SOON')
+  const closing = await alertFor('CLOSING_SOON')
   if (closing.lifecycle === 'NEW') {
     const reviewed = (await step('review closing alert', () =>
       rules.reviewAlert(me, closing.id, {
@@ -169,6 +181,55 @@ export async function stageDecisions(ctx: DemoContext) {
         clientOperationId: key('closing:resolve'),
       }),
     )
+  }
+  // Budget and beneficiary alerts are hidden from the System Administrator, so the Project Manager
+  // and the Monitoring and Evaluation Officer decide them. The survey, past-end and overdue
+  // alerts are deliberately left new.
+  const [budgetAlert] = await alertsOf(pm, 'BUDGET_NEAR_EXHAUSTED')
+  if (budgetAlert) {
+    if (budgetAlert.lifecycle === 'NEW')
+      await step('review budget alert', () =>
+        rules.reviewAlert(pm, budgetAlert.id, {
+          expectedRevision: budgetAlert.revision,
+          note: 'Spending is close to the planned budget; the Grant Manager has been informed.',
+          clientOperationId: key('budget:review'),
+        }),
+      )
+    const [pending] = await recommendationsOf(pm, budgetAlert.id)
+    if (untouched(pending))
+      await step('escalate budget recommendation', () =>
+        decide(
+          pm,
+          budgetAlert,
+          pending,
+          'ESCALATE',
+          'The remaining budget needs a decision from the Grant Manager before further tranches.',
+          'budget:first',
+        ),
+      )
+  }
+  const [followUpAlert] = await alertsOf(me, 'FOLLOW_UP_GAP')
+  if (followUpAlert) {
+    if (followUpAlert.lifecycle === 'NEW')
+      await step('review follow-up alert', () =>
+        rules.reviewAlert(me, followUpAlert.id, {
+          expectedRevision: followUpAlert.revision,
+          note: 'Six participants are marked for follow-up after the fourth coaching session.',
+          clientOperationId: key('followup:review'),
+        }),
+      )
+    const [pending] = await recommendationsOf(me, followUpAlert.id)
+    if (untouched(pending))
+      await step('accept follow-up recommendation', () =>
+        decide(
+          me,
+          followUpAlert,
+          pending,
+          'ACCEPT',
+          'Household visits are scheduled for the coming week.',
+          'followup:first',
+        ),
+      )
   }
   ctx.log('  alert decisions recorded')
 }
