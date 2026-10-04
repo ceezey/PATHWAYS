@@ -284,7 +284,7 @@ describe('P06 dedicated indicator workspace', () => {
     expect(html).not.toContain('At project target')
     expect(html).toContain('Progress toward configured change: 75%')
   })
-  it('shows 0 and 0% for no measurement yet and keeps the suppressed label', () => {
+  it('shows 0 and 0% only for no measurement yet; other unavailable states keep their label', () => {
     const base = {
       projectId: '79000000-0000-4000-8000-000000000003',
       code: 'P06-02',
@@ -310,24 +310,65 @@ describe('P06 dedicated indicator workspace', () => {
     }
     const missing = { state: 'MISSING', value: null, reason: 'NO_MEASUREMENT' }
     const suppressed = { state: 'SUPPRESSED', value: null, reason: 'SMALL_COHORT' }
+    const withheld = { state: 'MISSING', value: null, reason: 'SENSITIVE_RELEASE_NOT_ENABLED_V1' }
+    const noTarget = {
+      state: 'NOT_APPLICABLE',
+      value: null,
+      reason: 'BASELINE_TARGET_DIRECTION_REQUIRED',
+    }
+    const row = (n: number, current: unknown, progress: unknown, extra = {}) => ({
+      ...base,
+      id: `79000000-0000-4000-8000-0000000000${n}`,
+      code: `P06-${n}`,
+      current,
+      progress,
+      ...extra,
+    })
+    const render = () =>
+      renderToStaticMarkup(
+        createElement(ProjectIndicatorsWorkspace, {
+          projectId: '79000000-0000-4000-8000-000000000003',
+        }),
+      )
+    state.data = [row(11, missing, missing)]
+    const empty = render()
+    expect(empty).toMatch(/<td[^>]*>0<[/]td>/)
+    expect(empty).toMatch(/>0%</)
     state.data = [
-      { ...base, id: '79000000-0000-4000-8000-000000000011', current: missing, progress: missing },
-      {
-        ...base,
-        id: '79000000-0000-4000-8000-000000000012',
-        code: 'P06-03',
-        current: suppressed,
-        progress: missing,
-      },
+      row(12, suppressed, suppressed),
+      row(13, withheld, withheld),
+      row(14, { state: 'AVAILABLE', value: '7', reason: null }, noTarget, { target: null }),
     ]
-    const html = renderToStaticMarkup(
+    const labelled = render()
+    expect(labelled).not.toMatch(/<td[^>]*>0<[/]td>/)
+    expect(labelled).not.toMatch(/>0%</)
+    expect(labelled).toContain(formatMetricCell(suppressed as never))
+    expect(labelled).toContain(formatMetricCell(withheld as never))
+    expect(labelled).toContain(formatMetricCell(noTarget as never))
+  })
+  it('renders a derived definition with baseline 0, a generated code and the chosen type', () => {
+    state.permissions = ['monitoring.read', 'indicators.create']
+    render(
       createElement(ProjectIndicatorsWorkspace, {
         projectId: '79000000-0000-4000-8000-000000000003',
       }),
     )
-    expect(html).toMatch(/<td[^>]*>0<[/]td>/)
-    expect(html).toMatch(/>0(<!-- -->)?%</)
-    expect(html.match(/<td[^>]*>0<[/]td>/g)).toHaveLength(1)
-    expect(html).toContain(formatMetricCell(suppressed as never))
+    fireEvent.click(screen.getByRole('button', { name: 'Add project indicator' }))
+    fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'Households reached' } })
+    const form = screen.getByLabelText('Name').closest('form') as HTMLFormElement
+    const values = Object.fromEntries(new FormData(form).entries())
+    expect(values).toMatchObject({
+      mode: 'DERIVED',
+      baseline: '0',
+      code: 'HR-01',
+      indicatorType: 'OUTPUT',
+      direction: 'HIGHER_IS_BETTER',
+      numericKind: 'PERCENTAGE',
+      displayPrecision: '2',
+    })
+    // Without loaded project dates Save stays disabled instead of guessing a period.
+    expect(
+      (screen.getByRole('button', { name: 'Save indicator' }) as HTMLButtonElement).disabled,
+    ).toBe(true)
   })
 })

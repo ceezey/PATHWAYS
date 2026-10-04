@@ -174,7 +174,8 @@ export class ReportsService {
               unitLabel: z.string().nullable(),
               baseline: z.string().nullable(),
               target: z.string().nullable(),
-              direction: z.string(),
+              // Legacy indicators may predate the required direction; it is not a report column.
+              direction: z.string().nullable(),
               periodStart: z.string().nullable(),
               periodEnd: z.string().nullable(),
               current: metricCellSchema,

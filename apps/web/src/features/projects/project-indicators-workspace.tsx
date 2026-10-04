@@ -81,10 +81,9 @@ export const generateIndicatorCode = (name: string, existing: string[]) => {
   }
 }
 
-const typeOptions = indicatorTypes.map((value) => ({
-  value,
-  label: value.charAt(0) + value.slice(1).toLowerCase().replaceAll('_', ' '),
-}))
+const typeLabel = (value = 'OUTPUT') =>
+  value.charAt(0) + value.slice(1).toLowerCase().replaceAll('_', ' ')
+const typeOptions = indicatorTypes.map((value) => ({ value, label: typeLabel(value) }))
 
 /** Suggests a contract-valid code from the indicator name. */
 export const suggestIndicatorCode = (name: string) => {
@@ -183,7 +182,7 @@ function IndicatorForm({
 }: {
   forms: DigitalFormDefinition[]
   activities: Pick<Activity, 'id' | 'title' | 'journeyStageId'>[]
-  period: { periodStart: string; periodEnd: string }
+  period: { periodStart: string; periodEnd: string } | null
   existingCodes: string[]
   busy: boolean
   message: string | null
@@ -225,8 +224,8 @@ function IndicatorForm({
       {formRecipe ? null : <input name="unitLabel" type="hidden" value={unit} />}
       <input name="code" type="hidden" value={code} />
       <input name="baseline" type="hidden" value="0" />
-      <input name="periodStart" type="hidden" value={period.periodStart} />
-      <input name="periodEnd" type="hidden" value={period.periodEnd} />
+      <input name="periodStart" type="hidden" value={period?.periodStart ?? ''} />
+      <input name="periodEnd" type="hidden" value={period?.periodEnd ?? ''} />
       <fieldset disabled={busy} className="grid gap-3 md:grid-cols-2">
         <div className="md:col-span-2">
           <label htmlFor="indicator-name">Name</label>
@@ -351,7 +350,10 @@ function IndicatorForm({
       </fieldset>
       {validation ? <InlineNotice tone="danger">{validation}</InlineNotice> : null}
       {message ? <InlineNotice>{message}</InlineNotice> : null}
-      <Button className="gap-2" type="submit" disabled={busy}>
+      {period ? null : (
+        <InlineNotice>Loading the project dates for the reporting period.</InlineNotice>
+      )}
+      <Button className="gap-2" type="submit" disabled={busy || !period}>
         {busy ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : null}
         {busy ? 'Saving...' : 'Save indicator'}
       </Button>
@@ -564,7 +566,9 @@ export function ProjectIndicatorsWorkspace({ projectId }: { projectId: string })
   const [managingId, setManagingId] = useState<string | null>(null)
   const managed = data?.find((item) => item.id === managingId && item.status === 'ACTIVE')
   const projectRead = useProjectRead(projectId)
-  const period = indicatorPeriod(projectRead.data?.startDate, projectRead.data?.endDate)
+  const period = projectRead.data
+    ? indicatorPeriod(projectRead.data.startDate, projectRead.data.endDate)
+    : null
   const currentKey = useRef(activeKey)
   currentKey.current = activeKey
   const canReadLibrary = principalHasAtomicPermission(profile, 'indicators.library.read')
@@ -753,12 +757,6 @@ export function ProjectIndicatorsWorkspace({ projectId }: { projectId: string })
           }
         />
       ) : null}
-      {canCreate && data && !availableBindings ? (
-        <InlineNotice>
-          Binding choices could not be loaded yet. Manual definitions remain available; do not guess
-          form or activity identifiers.
-        </InlineNotice>
-      ) : null}
       {error ? (
         <AsyncState
           status="error"
@@ -800,6 +798,10 @@ export function ProjectIndicatorsWorkspace({ projectId }: { projectId: string })
               <tbody>
                 {data.map((indicator) => {
                   const progress = indicator.progress.value
+                  // Product decision: only "no measurement yet" reads as 0; other unavailable states keep their label.
+                  const noDataYet =
+                    indicator.current.state === 'MISSING' &&
+                    indicator.current.reason === 'NO_MEASUREMENT'
                   const progressText = `Progress toward configured change: ${formatMetricCell(indicator.progress)}${progress !== null ? '%' : ''}`
                   return (
                     <Fragment key={indicator.id}>
@@ -818,18 +820,20 @@ export function ProjectIndicatorsWorkspace({ projectId }: { projectId: string })
                                 hideText
                               />
                             </div>
-                            <span className="text-xs text-muted-foreground">{progress ?? 0}%</span>
+                            <span className="text-xs text-muted-foreground">
+                              {progress !== null
+                                ? `${progress}%`
+                                : noDataYet
+                                  ? '0%'
+                                  : formatMetricCell(indicator.progress)}
+                            </span>
                           </div>
                         </td>
                         <td className="px-4 py-3 text-center">
                           {indicator.target ?? 'Not configured'}
                         </td>
-                        {/* Product decision: no measurement yet reads as 0, like the overview tiles. */}
                         <td className="px-4 py-3 text-center">
-                          {indicator.current.value === null &&
-                          indicator.current.state !== 'SUPPRESSED'
-                            ? '0'
-                            : formatMetricCell(indicator.current)}
+                          {noDataYet ? '0' : formatMetricCell(indicator.current)}
                         </td>
                         <td className="px-4 py-3 text-center">
                           <StatusBadge tone={indicator.status === 'ACTIVE' ? 'success' : 'neutral'}>
@@ -861,7 +865,10 @@ export function ProjectIndicatorsWorkspace({ projectId }: { projectId: string })
       )}
       <Dialog open={Boolean(managed)} onOpenChange={(open) => (open ? null : setManagingId(null))}>
         {managed ? (
-          <DialogShell title={`Manage ${managed.name}`} description={managed.code}>
+          <DialogShell
+            title={`Manage ${managed.name}`}
+            description={`${managed.code} · ${typeLabel(managed.indicatorType)} · Source: ${managed.dataSource ?? 'Not configured'}`}
+          >
             <IndicatorEditor
               key={`${managed.id}:${managed.revision}:${managed.measurementId ?? 'first'}:${recoveryGeneration}`}
               indicator={managed}

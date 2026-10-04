@@ -33,6 +33,11 @@ import {
   numericKinds,
 } from '@pathways/shared'
 import { recipeNames } from './indicator-recipes'
+
+// Only recipes the database computes today (see deferred-features.md), matching the add form.
+const offeredRecipes = libraryRecipes.filter(
+  (recipe) => recipe === 'ACTIVITY_COMPLETION_PERCENTAGE',
+)
 import { InlineNotice, OptionSelect } from './option-select'
 
 const field = (form: FormData, name: string) => String(form.get(name) ?? '').trim()
@@ -170,8 +175,8 @@ function EntryForm({
             <OptionSelect
               id="library-recipe"
               name="recipe"
-              defaultValue={libraryRecipes[0]}
-              options={libraryRecipes.map((recipe) => ({
+              defaultValue={offeredRecipes[0]}
+              options={offeredRecipes.map((recipe) => ({
                 value: recipe,
                 label: recipeNames[recipe],
               }))}

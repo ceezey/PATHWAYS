@@ -2,7 +2,7 @@
 
 **ID:** `cr-pathways-indicator-form-and-type`  
 **Date:** 2026-10-04  
-**Status:** Approved by the product owner (2026-10-04)
+**Status:** Applied (2026-10-04; 0056 on PATHWAYS-devV2)
 
 ## 1. Trigger
 
@@ -36,7 +36,7 @@ The form exposed every definition field: code, unit label, authority, numeric do
 New indicators are derived Activity completion % indicators with a type label. Manual indicators are still created from Manual library entries.
 
 ### Data / Migration
-Migration `0056_indicator_type`: replaces two functions owned by `rules_enqueue_owner`. There is no table, column or grant change. The DBA prerequisite is the same role chain as 0041, run through `hosted-indicator-type-preprovision.sql` and `hosted-indicator-type-cleanup.sql`.
+Migration `0056_indicator_type`: replaces two functions owned by `rules_enqueue_owner`. There is no table, column or grant change. The DBA prerequisite is the same role chain as 0041, run through `hosted-indicator-type-preprovision.sql` and `hosted-indicator-type-cleanup.sql`. The form always sends `indicatorType`, so 0056 must be applied before the new form is used against any database, including for Output indicators. Applied to PATHWAYS-devV2 on 2026-10-04 through `scripts/db/hosted-build.mjs --resume` after a full local replay (143 PASS) and `indicator-type-runtime.sql` (18 assertions PASS).
 
 ### Tests
 - `apps/api/src/modules/indicators/indicators.service.test.ts`
