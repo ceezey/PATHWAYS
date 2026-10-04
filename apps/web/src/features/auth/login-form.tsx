@@ -125,11 +125,7 @@ export const LoginForm = () => {
   const checkingSession = status === 'loading' || status === 'authenticated'
 
   return (
-    <StaffAuthFrame
-      title="Staff sign in"
-      description="Project Information Management"
-      backLink={false}
-    >
+    <StaffAuthFrame title="Sign in" backLink={false}>
       {checkingSession ? (
         <output className="block text-sm text-muted-foreground" aria-live="polite">
           Checking your existing session...
@@ -241,7 +237,7 @@ export const LoginForm = () => {
                   </FormItem>
                 )}
               />
-              <div className="flex justify-end">
+              <div className="flex justify-start">
                 <Link
                   className="inline-flex min-h-11 items-center rounded-sm text-sm font-semibold text-primary underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                   href="/staff/forgot-password"
