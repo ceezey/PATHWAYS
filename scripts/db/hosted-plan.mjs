@@ -4,7 +4,7 @@
 
 export const BASELINE = '0000_pathways_baseline_through_0026'
 
-// The exact 30-row migration ledger (baseline plus 0027-0055) this script must produce, in order. This is
+// The exact 33-row migration ledger (baseline plus 0027-0055 and 0058-0060) this script must produce, in order. This is
 // the repository's own migration directory listing (apps/api/prisma/migrations),
 // asserted against the real directory in hosted-plan.test.mjs so this literal
 // list can never silently drift from the repo.
@@ -39,6 +39,9 @@ export const MIGRATIONS_IN_ORDER = Object.freeze([
   '0053_expense_submit_race',
   '0054_p09_role_allows_grants',
   '0055_rbac_v4_grants',
+  '0058_rules_decision_status_auto_resolved',
+  '0059_rules_recommendation_auto_resolve',
+  '0060_rules_budget_beneficiary_survey_metrics',
 ])
 
 function range(from, to) {
@@ -115,6 +118,14 @@ export function buildPlan() {
     { type: 'deploy', migrations: range(54, 54) },
     // 0055 needs no preprovision: prisma owns pathways.p09_role_allows.
     { type: 'deploy', migrations: range(55, 55) },
+    // 0058 needs no preprovision: it only adds one enum label owned by prisma.
+    { type: 'deploy', migrations: range(58, 58) },
+    // 0059 and 0060 replace rules-owned SECURITY DEFINER functions and change policies on rules_store_owner tables,
+    // so one temporary SET-only owner chain covers both, like 0044.
+    { type: 'preprovision', name: 'rules-catalog', file: 'hosted-rules-catalog-preprovision.sql' },
+    { type: 'deploy', migrations: range(59, 59) },
+    { type: 'deploy', migrations: range(60, 60) },
+    { type: 'cleanup', name: 'rules-catalog', file: 'hosted-rules-catalog-cleanup.sql' },
     { type: 'alter-runtime-role' },
     { type: 'postconditions' },
   ]
@@ -155,7 +166,7 @@ export function assertResumablePrefix(ledgerRows) {
   }
   if (appliedCount !== names.length) {
     throw new Error(
-      'Ledger is not an exact finished prefix of the expected 0000-0055 migrations; --resume refuses it',
+      'Ledger is not an exact finished prefix of the expected 0000-0060 migrations; --resume refuses it',
     )
   }
   return appliedCount
@@ -164,7 +175,7 @@ export function assertResumablePrefix(ledgerRows) {
 // Maps a count of already-applied migrations (from assertResumablePrefix) to
 // the plan step index to resume at. Cleanup steps are not tracked by the
 // Prisma ledger, so when resuming right after a migration that has a
-// following cleanup step (0031, 0034, 0041, 0044, 0053), that cleanup step is re-run;
+// following cleanup step (0031, 0034, 0041, 0044, 0053, 0060), that cleanup step is re-run;
 // each cleanup script's own preconditions reject a target that was already
 // cleaned, surfacing a clear error rather than silently skipping it.
 //
@@ -179,6 +190,9 @@ export function assertResumablePrefix(ledgerRows) {
 //    deploy, whose temporary chain is still granted (the preprovision would refuse to run again).
 //  * 0052_signin_password_hook and 0053_expense_submit_race follow the same two shapes for the 0053
 //    expense-submit preprovision and cleanup (temporary finance_operation_owner membership).
+//  * 0058_rules_decision_status_auto_resolved and 0060_rules_budget_beneficiary_survey_metrics follow the same
+//    two shapes for the rules-catalog chain shared by 0059 and 0060; a ledger ending at 0059 always resumes at
+//    the 0060 deploy, whose own precondition fails closed when the chain is not granted.
 // The caller therefore checks live database state (whether prisma still holds a temporary
 // rules owner membership) and passes it in as `residualOwnerMemberships`.
 // 0042_proof_session_beneficiary_count has no preprovision/cleanup pair (see buildPlan), so a
@@ -190,6 +204,8 @@ const PRIOR_BUILD_COMPLETION_POINTS = [
   '0044_activity_progress_review',
   '0052_signin_password_hook',
   '0053_expense_submit_race',
+  '0058_rules_decision_status_auto_resolved',
+  '0060_rules_budget_beneficiary_survey_metrics',
 ]
 
 // The migrations whose completion is ambiguous with a residual temporary owner chain, and the
@@ -198,6 +214,7 @@ export const RESIDUAL_CHAIN_CLEANUPS = Object.freeze({
   '0041_activity_media_evidence': 'activity-media',
   '0044_activity_progress_review': 'activity-review',
   '0053_expense_submit_race': 'expense-submit',
+  '0060_rules_budget_beneficiary_survey_metrics': 'rules-catalog',
 })
 // Ledger counts at which the caller must read live owner-membership state.
 export const RESIDUAL_CHAIN_MIGRATIONS = Object.freeze([
@@ -206,6 +223,8 @@ export const RESIDUAL_CHAIN_MIGRATIONS = Object.freeze([
   '0044_activity_progress_review',
   '0052_signin_password_hook',
   '0053_expense_submit_race',
+  '0058_rules_decision_status_auto_resolved',
+  '0060_rules_budget_beneficiary_survey_metrics',
 ])
 
 export function planIndexForAppliedCount(appliedCount, { residualOwnerMemberships = false } = {}) {

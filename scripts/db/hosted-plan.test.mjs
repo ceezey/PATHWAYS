@@ -24,8 +24,8 @@ test('MIGRATIONS_IN_ORDER matches the real migrations directory exactly, in orde
   assert.deepEqual([...MIGRATIONS_IN_ORDER].sort(), onDisk)
   // The migrations directory holds one folder per Prisma migration. 0000
   // squashes the original 0001-0026 into a single reviewed baseline, so the
-  // ledger has 30 rows (baseline plus 0027-0055) even though the numbering has gaps.
-  assert.equal(MIGRATIONS_IN_ORDER.length, 30)
+  // ledger has 33 rows (baseline plus 0027-0055 and 0058-0060) even though the numbering has gaps.
+  assert.equal(MIGRATIONS_IN_ORDER.length, 33)
   assert.equal(MIGRATIONS_IN_ORDER[0], BASELINE)
 })
 
@@ -74,6 +74,11 @@ test('the dry-run plan order exactly matches the documented stop points', () => 
     'cleanup:expense-submit',
     'deploy:0054_p09_role_allows_grants',
     'deploy:0055_rbac_v4_grants',
+    'deploy:0058_rules_decision_status_auto_resolved',
+    'preprovision:rules-catalog',
+    'deploy:0059_rules_recommendation_auto_resolve',
+    'deploy:0060_rules_budget_beneficiary_survey_metrics',
+    'cleanup:rules-catalog',
     'alter-runtime-role',
     'postconditions',
   ])
@@ -236,15 +241,47 @@ test('planIndexForAppliedCount on a 0000-0048 ledger resumes at the 0049 deploy'
   assert.deepEqual(plan[index].migrations, ['0049_journey_event_note'])
 })
 
-test('planIndexForAppliedCount on a complete 0000-0055 ledger resumes at alter-runtime-role', () => {
+test('planIndexForAppliedCount on a complete 0000-0060 ledger resumes at alter-runtime-role', () => {
   const plan = buildPlan()
   const index = planIndexForAppliedCount(MIGRATIONS_IN_ORDER.length)
   assert.equal(plan[index].type, 'alter-runtime-role')
 })
 
 test('planIndexForAppliedCount on a 0000-0054 ledger resumes at the 0055 deploy', () => {
-  const index = planIndexForAppliedCount(MIGRATIONS_IN_ORDER.length - 1)
+  const index = planIndexForAppliedCount(MIGRATIONS_IN_ORDER.indexOf('0054_p09_role_allows_grants') + 1)
   assert.deepEqual(buildPlan()[index].migrations, ['0055_rbac_v4_grants'])
+})
+
+test('planIndexForAppliedCount on a 0000-0055 ledger resumes at the 0058 deploy', () => {
+  const index = planIndexForAppliedCount(MIGRATIONS_IN_ORDER.indexOf('0055_rbac_v4_grants') + 1)
+  assert.deepEqual(buildPlan()[index].migrations, ['0058_rules_decision_status_auto_resolved'])
+})
+
+test('planIndexForAppliedCount on a 0000-0058 ledger resumes at the rules-catalog preprovision, or at the 0059 deploy when its chain is granted', () => {
+  const plan = buildPlan()
+  const applied = MIGRATIONS_IN_ORDER.indexOf('0058_rules_decision_status_auto_resolved') + 1
+  const fresh = planIndexForAppliedCount(applied)
+  assert.equal(plan[fresh].type, 'preprovision')
+  assert.equal(plan[fresh].name, 'rules-catalog')
+  assert.deepEqual(plan[fresh + 1].migrations, ['0059_rules_recommendation_auto_resolve'])
+  const granted = planIndexForAppliedCount(applied, { residualOwnerMemberships: true })
+  assert.deepEqual(plan[granted].migrations, ['0059_rules_recommendation_auto_resolve'])
+})
+
+test('planIndexForAppliedCount on a 0000-0059 ledger resumes at the 0060 deploy', () => {
+  const index = planIndexForAppliedCount(
+    MIGRATIONS_IN_ORDER.indexOf('0059_rules_recommendation_auto_resolve') + 1,
+  )
+  assert.deepEqual(buildPlan()[index].migrations, ['0060_rules_budget_beneficiary_survey_metrics'])
+})
+
+test('planIndexForAppliedCount on a 0000-0060 ledger resumes at alter-runtime-role, or at the rules-catalog cleanup with residual owner memberships', () => {
+  const plan = buildPlan()
+  const applied = MIGRATIONS_IN_ORDER.indexOf('0060_rules_budget_beneficiary_survey_metrics') + 1
+  assert.equal(plan[planIndexForAppliedCount(applied)].type, 'alter-runtime-role')
+  const index = planIndexForAppliedCount(applied, { residualOwnerMemberships: true })
+  assert.equal(plan[index].type, 'cleanup')
+  assert.equal(plan[index].name, 'rules-catalog')
 })
 
 test('planIndexForAppliedCount on a 0000-0044 ledger with residual owner memberships resumes at the activity-review cleanup step', () => {
