@@ -11,6 +11,7 @@ import { RolesGuard } from './common/guards/roles.guard'
 import { SupabaseAuthGuard } from './common/guards/supabase-auth.guard'
 import { SentryInterceptor } from './common/interceptors/sentry.interceptor'
 import { ActivitiesModule } from './modules/activities/activities.module'
+import { ActivityExtensionsModule } from './modules/activity-extensions/activity-extensions.module'
 import { AnalyticsInsightsModule } from './modules/analytics-insights/analytics-insights.module'
 import { AuditModule } from './modules/audit/audit.module'
 import { AuthModule } from './modules/auth/auth.module'
@@ -174,6 +175,7 @@ export function createPathwaysPinoHttpOptions(environment = process.env.NODE_ENV
     AuthModule,
     ProfileModule,
     ActivitiesModule,
+    ActivityExtensionsModule,
     BeneficiariesModule,
     BeneficiaryMediaModule,
     UsersModule,
