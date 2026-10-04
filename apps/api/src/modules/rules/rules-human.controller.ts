@@ -72,6 +72,13 @@ export class AlertsController {
   list(@Req() request: AuthenticatedRequest, @Query() query: unknown) {
     return this.service.listAlerts(actor(request), query)
   }
+  // Declared before ':id' so the fixed segment is not captured as an identifier.
+  @Get('escalated')
+  @Header('Cache-Control', 'private, no-store')
+  @RequirePermission('alerts.read')
+  escalated(@Req() request: AuthenticatedRequest, @Query() query: unknown) {
+    return this.service.listEscalatedAlerts(actor(request), query)
+  }
   @Get(':id')
   @Header('Cache-Control', 'private, no-store')
   @RequirePermission('alerts.read')
