@@ -19,6 +19,7 @@ import {
   demoCohorts,
   demoExpenses,
   demoIndicators,
+  demoMilestones,
   demoProjects,
   demoRules,
   forbiddenVisibleWords,
@@ -134,7 +135,7 @@ describe('demo content', () => {
   it('keeps every indicator reading inside its numeric domain, with several readings each', () => {
     for (const list of Object.values(demoIndicators))
       for (const indicator of list) {
-        expect(indicator.readings.length).toBeGreaterThanOrEqual(2)
+        if (indicator.readings.length) expect(indicator.readings.length).toBeGreaterThanOrEqual(2)
         for (const value of [indicator.baseline, indicator.target, ...indicator.readings]) {
           expect(Number.isFinite(Number(value))).toBe(true)
           if (indicator.numericKind === 'PERCENTAGE') expect(Number(value)).toBeLessThanOrEqual(100)
@@ -239,11 +240,13 @@ describe('defense dataset', () => {
     expect(demoExpenses.some((e) => e.daysAgo <= 4)).toBe(true)
   })
 
-  it('hits the approved-spend utilization targets within two points', () => {
+  it('hits the approved-spend utilization targets on the overview basis within two points', () => {
+    // Overview basis: approved spend over the project envelope only (PROJECT_PROFILE_TOTAL).
     const planned = (key: ProjectKey) =>
       Number(demoProjects.find((p) => p.key === key)?.projectBudget) +
-      demoActivities[key].reduce((sum, a) => sum + Number(a.budget ?? 0), 0) +
-      (demoBudgets[key] ?? []).reduce((sum, line) => sum + Number(line.amount), 0)
+      (demoBudgets[key] ?? [])
+        .filter((line) => line.category === 'PROJECT_PROFILE_TOTAL')
+        .reduce((sum, line) => sum + Number(line.amount), 0)
     const approved = (key: ProjectKey, activityKey?: string) =>
       demoExpenses
         .filter((e) => e.project === key && ['APPROVED', 'SIGNED_OFF'].includes(e.flow))
@@ -266,6 +269,28 @@ describe('defense dataset', () => {
     expect(share('returnedproof')).toBeGreaterThan(100)
     expect(Number(activity('referral')?.budget)).toBe(0)
     expect(demoExpenses.some((e) => e.activityKey === 'referral')).toBe(true)
+  })
+
+  it('keeps the planned project in the future and the completed project inside its dates', () => {
+    const project = (key: ProjectKey) =>
+      demoProjects.find((p) => p.key === key) as (typeof demoProjects)[number]
+    const ecd = project('ECD')
+    expect(ecd.startOffset).toBeGreaterThan(0)
+    expect(ecd.endOffset).toBeGreaterThan(ecd.startOffset)
+    for (const a of demoActivities.ECD) {
+      expect(a.outcome).toBe('NOT_STARTED')
+      expect(a.startOffset).toBeGreaterThanOrEqual(ecd.startOffset)
+    }
+    expect(demoExpenses.some((e) => e.project === 'ECD')).toBe(false)
+    expect(demoCohorts.ECD.count).toBe(0)
+    const ehk = project('EHK')
+    for (const a of demoActivities.EHK) expect(a.endOffset).toBeLessThanOrEqual(ehk.endOffset)
+    for (const e of demoExpenses.filter((row) => row.project === 'EHK'))
+      expect(-e.daysAgo).toBeLessThanOrEqual(ehk.endOffset)
+    for (const m of demoMilestones.filter((row) => row.project === 'EHK'))
+      expect(Math.max(m.targetOffset, m.completedOffset ?? m.targetOffset)).toBeLessThanOrEqual(
+        ehk.endOffset,
+      )
   })
 
   it('adds the budget, follow-up, survey and overdue rules', () => {

@@ -132,8 +132,8 @@ export const demoProjects: DemoProject[] = [
     targetBeneficiaries: 60,
     projectBudget: '450000.00',
     partners: ['Masbate City Social Welfare and Development Office'],
-    startOffset: -120,
-    endOffset: 245,
+    startOffset: 21,
+    endOffset: 386,
     status: 'PLANNED',
     officers: ['emmanuel'],
     province: 'Masbate',
@@ -596,16 +596,12 @@ export const demoActivities: Record<ProjectKey, DemoActivity[]> = {
       title: 'Parenting sessions for caregivers of children under five',
       type: 'Capacity Building',
       description: 'Bi-weekly parenting sessions for caregivers in four barangays.',
-      startOffset: -60,
-      endOffset: 90,
+      startOffset: 28,
+      endOffset: 118,
       target: 40,
       budget: '150000.00',
-      outcome: 'PROGRESS_VERIFIED',
+      outcome: 'NOT_STARTED',
       officer: 'emmanuel',
-      progress: 35,
-      note: 'Five parenting sessions completed with five caregiver-child pairs.',
-      reviewNote: 'Attendance sheets verified.',
-      reached: 5,
     },
     {
       key: 'play',
@@ -613,11 +609,11 @@ export const demoActivities: Record<ProjectKey, DemoActivity[]> = {
       type: 'Infrastructure',
       description:
         'Setup of play and stimulation corners in two community child development centers.',
-      startOffset: -30,
-      endOffset: 20,
+      startOffset: 35,
+      endOffset: 70,
       target: 2,
       budget: '95000.00',
-      outcome: 'IN_PROGRESS',
+      outcome: 'NOT_STARTED',
       officer: 'emmanuel',
     },
     {
@@ -625,8 +621,8 @@ export const demoActivities: Record<ProjectKey, DemoActivity[]> = {
       title: 'Home visits for developmental screening',
       type: 'Monitoring',
       description: 'Home visits to screen developmental milestones of enrolled children.',
-      startOffset: 15,
-      endOffset: 100,
+      startOffset: 60,
+      endOffset: 140,
       target: 30,
       budget: '60000.00',
       outcome: 'NOT_STARTED',
@@ -746,7 +742,8 @@ export const demoCohorts: Record<ProjectKey, DemoCohort> = {
     femaleShare: 0.6,
   },
   ALS: { count: 24, ages: [17, 19, 22, 25, 18, 30, 21, 16, 27, 35, 20, 24], femaleShare: 0.55 },
-  ECD: { count: 5, ages: [5, 6, 5, 34, 29], femaleShare: 0.6 },
+  // The pilot has not started, so nobody is enrolled yet.
+  ECD: { count: 0, ages: [5], femaleShare: 0.5 },
   WSH: { count: 20, ages: [8, 9, 10, 11, 12, 7, 6, 41, 35, 50], femaleShare: 0.5 },
   EHK: { count: 16, ages: [6, 7, 8, 9, 10, 11, 12, 13, 38, 44], femaleShare: 0.55 },
 }
@@ -1027,7 +1024,7 @@ export const demoIndicators: Record<ProjectKey, DemoIndicator[]> = {
       numericKind: 'COUNT',
       baseline: '0',
       target: '40',
-      readings: ['3', '5'],
+      readings: [],
     },
   ],
   WSH: [
@@ -1085,6 +1082,11 @@ export type DemoBudgetLine = {
 /** Category lines that are not activity allocations; activity budgets come from the activities. */
 export const demoBudgets: Partial<Record<ProjectKey, DemoBudgetLine[]>> = {
   SSG: [
+    {
+      category: 'PROJECT_PROFILE_TOTAL',
+      amount: '1455000.00',
+      remarks: 'Project profile planned budget.',
+    },
     {
       category: 'Project staff travel',
       amount: '210000.00',

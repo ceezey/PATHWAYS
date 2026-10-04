@@ -60,7 +60,7 @@ const reportPlans: ReportPlan[] = [
     by: 'projectManager',
     kind: 'PROJECT_SUMMARY',
     format: 'CSV',
-    name: 'Masbate early childhood pilot progress summary',
+    name: 'Masbate early childhood pilot plan summary',
   },
 ]
 
