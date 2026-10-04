@@ -110,4 +110,21 @@ describe('OfficerOverview', () => {
     expect(screen.getByText('Returned')).toBeTruthy()
     expect(screen.getByText(/PHP 14,800.00/)).toBeTruthy()
   })
+  it('renders no restricted sections when every list is null', () => {
+    render(
+      <OfficerOverview
+        data={{
+          ...data,
+          myActivities: null,
+          flaggedProof: null,
+          recentSubmissions: null,
+          submittedThisMonth: null,
+        }}
+        fullName="Ron"
+        onOpenActivity={vi.fn()}
+      />,
+    )
+    for (const text of ['Overdue', 'Flagged proof', 'Your activities', 'Needs your attention'])
+      expect(screen.queryByText(text)).toBeNull()
+  })
 })

@@ -25,6 +25,7 @@ const longDate = (day: string) =>
   })
 const daysLate = (today: string, due: string | null) =>
   due ? Math.round((Date.parse(today) - Date.parse(due)) / 86_400_000) : 0
+const daysText = (n: number) => `${n} day${n === 1 ? '' : 's'}`
 const statusBadge = (row: NonNullable<Data['myActivities']>['rows'][number]) =>
   row.overdue
     ? { text: 'Overdue', tone: 'danger' as const }
@@ -88,7 +89,13 @@ export const OfficerOverview = ({
             label="Overdue"
             sub={
               overdue[0]
-                ? `${overdue[0].code} · ${daysLate(data.businessDate, overdue[0].plannedEndDate)} days`
+                ? [
+                    overdue[0].code,
+                    overdue[0].plannedEndDate &&
+                      daysText(daysLate(data.businessDate, overdue[0].plannedEndDate)),
+                  ]
+                    .filter(Boolean)
+                    .join(' · ')
                 : 'Nothing is past due'
             }
             tone="danger"
@@ -144,54 +151,58 @@ export const OfficerOverview = ({
             })}
           </ListCard>
         ) : null}
-        <section className="space-y-3 rounded-xl border border-border bg-card p-4">
-          <h3 className="text-sm font-semibold text-foreground">Needs your attention</h3>
-          {flagged?.rows.map((row) => (
-            <div
-              className="space-y-2 rounded-lg border border-warning/40 bg-warning-subtle p-3"
-              key={row.updateId}
-            >
-              <p className="text-sm font-semibold text-foreground">
-                Proof returned · {row.activityCode}
-              </p>
-              <p className="text-sm text-foreground">
-                {row.reviewReason || 'The reviewer returned this proof.'}
-              </p>
-              <Button
-                onClick={() => onOpenActivity(activityHref(row.projectId, row.activityId))}
-                size="sm"
-                type="button"
+        {activities || flagged ? (
+          <section className="space-y-3 rounded-xl border border-border bg-card p-4">
+            <h3 className="text-sm font-semibold text-foreground">Needs your attention</h3>
+            {flagged?.rows.map((row) => (
+              <div
+                className="space-y-2 rounded-lg border border-warning/40 bg-warning-subtle p-3"
+                key={row.updateId}
               >
-                Resubmit proof
-              </Button>
-            </div>
-          ))}
-          {overdue.map((row) => (
-            <div
-              className="space-y-2 rounded-lg border border-danger/30 bg-danger-subtle p-3"
-              key={row.id}
-            >
-              <p className="text-sm font-semibold text-foreground">
-                {row.code} is {daysLate(data.businessDate, row.plannedEndDate)} days overdue
-              </p>
-              <p className="text-sm text-foreground">
-                {row.title} passed its planned end date. Submit a progress update.
-              </p>
-              <Button
-                onClick={() => onOpenActivity(activityHref(row.projectId, row.id))}
-                size="sm"
-                type="button"
+                <p className="text-sm font-semibold text-foreground">
+                  Proof returned · {row.activityCode}
+                </p>
+                <p className="text-sm text-foreground">
+                  {row.reviewReason || 'The reviewer returned this proof.'}
+                </p>
+                <Button
+                  onClick={() => onOpenActivity(activityHref(row.projectId, row.activityId))}
+                  size="sm"
+                  type="button"
+                >
+                  Resubmit proof
+                </Button>
+              </div>
+            ))}
+            {overdue.map((row) => (
+              <div
+                className="space-y-2 rounded-lg border border-danger/30 bg-danger-subtle p-3"
+                key={row.id}
               >
-                Submit update
-              </Button>
-            </div>
-          ))}
-          {!flagged?.rows.length && !overdue.length ? (
-            <p className="py-4 text-center text-sm text-muted-foreground">
-              Nothing needs your attention.
-            </p>
-          ) : null}
-        </section>
+                <p className="text-sm font-semibold text-foreground">
+                  {row.plannedEndDate
+                    ? `${row.code} is ${daysText(daysLate(data.businessDate, row.plannedEndDate))} overdue`
+                    : `${row.code} is overdue`}
+                </p>
+                <p className="text-sm text-foreground">
+                  {row.title} passed its planned end date. Submit a progress update.
+                </p>
+                <Button
+                  onClick={() => onOpenActivity(activityHref(row.projectId, row.id))}
+                  size="sm"
+                  type="button"
+                >
+                  Submit update
+                </Button>
+              </div>
+            ))}
+            {!flagged?.rows.length && !overdue.length ? (
+              <p className="py-4 text-center text-sm text-muted-foreground">
+                Nothing needs your attention.
+              </p>
+            ) : null}
+          </section>
+        ) : null}
       </div>
       {data.recentSubmissions ? (
         <ListCard empty="You have not submitted anything yet." title="Recent submissions">
@@ -208,7 +219,12 @@ export const OfficerOverview = ({
                     ? () => onOpenActivity(activityHref(row.projectId, activityId))
                     : undefined
                 }
-                title={`${row.label} · ${row.amount ? peso(row.amount) : `${row.progress}%`}`}
+                title={[
+                  row.label,
+                  row.amount ? peso(row.amount) : row.progress !== null ? `${row.progress}%` : null,
+                ]
+                  .filter(Boolean)
+                  .join(' · ')}
                 trailing={<StatusBadge tone={tone}>{text}</StatusBadge>}
               />
             )
