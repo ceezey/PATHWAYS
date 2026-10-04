@@ -102,6 +102,7 @@ describe('direct current recommendation selection', () => {
         `/alerts?alert=${record.alertId}`,
       )
       expect(screen.queryByRole('button', { name: 'Mark reviewed' })).toBeNull()
+      expect(screen.queryByRole('button', { name: 'Record outcome' })).toBeNull()
     },
   )
   it.each([

@@ -312,7 +312,11 @@ export function HumanReviewWorkspace({
                   ) : null}
                   {principalHasAtomicPermission(profile, permissionFor(kind, 'outcome')) &&
                   (!('freshness' in item) || item.freshness === 'CURRENT') &&
-                  !('status' in item && item.status === 'AUTO_RESOLVED') ? (
+                  !('status' in item && item.status === 'AUTO_RESOLVED') &&
+                  !(
+                    'lifecycle' in item &&
+                    ['RESOLVED', 'DISMISSED', 'AUTO_RESOLVED'].includes(item.lifecycle)
+                  ) ? (
                     <Button type="button" variant="outline" onClick={() => setMode('outcome')}>
                       Record outcome
                     </Button>

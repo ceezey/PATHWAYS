@@ -12,6 +12,7 @@ const state = vi.hoisted(() => ({
   recommendations: vi.fn(),
   rules: vi.fn(),
   notifications: vi.fn(),
+  getAlert: vi.fn(),
 }))
 vi.mock('@/hooks/use-current-role', () => ({
   useCurrentRole: () => ({
@@ -43,6 +44,7 @@ vi.mock('@/lib/services/rules-human-client', () => ({
     listRecommendations: state.recommendations,
     listRules: state.rules,
     listNotifications: state.notifications,
+    getAlert: state.getAlert,
   },
 }))
 const renderWorkspace = () =>
@@ -104,5 +106,51 @@ describe('permission-scoped alerts loading', () => {
     await screen.findByText('Access unavailable')
     expect(state.alerts).not.toHaveBeenCalled()
     expect(state.rules).not.toHaveBeenCalled()
+  })
+})
+describe('alert outcome controls', () => {
+  const alert = {
+    id: '30000000-0000-4000-8000-000000000001',
+    projectId: '10000000-0000-4000-8000-000000000001',
+    ruleId: '40000000-0000-4000-8000-000000000001',
+    ruleVersion: 1,
+    title: 'Synthetic alert',
+    explanation: 'Recorded source.',
+    severity: 'LOW',
+    lifecycle: 'NEW',
+    revision: '9',
+    evaluatedAt: '2026-09-27T01:00:00Z',
+    freshness: 'CURRENT',
+    conditions: {
+      kind: 'CONDITION',
+      id: 'days',
+      metric: 'PROJECT_REMAINING_DAYS',
+      operator: 'LT',
+      threshold: '0',
+    },
+    evidence: [],
+    asOf: '2026-09-27T01:00:00Z',
+    reportingDate: '2026-09-27',
+    calendar: { zone: 'Asia/Manila', version: '1' },
+    predefinedRecommendations: [],
+    linkedRecommendationIds: [],
+  }
+  it.each([
+    ['NEW', true],
+    ['RESOLVED', false],
+    ['DISMISSED', false],
+    ['AUTO_RESOLVED', false],
+  ])('shows outcome recording for a %s alert: %s', async (lifecycle, shown) => {
+    state.permissions = ['projects.read', 'alerts.read', 'alerts.outcome.record']
+    state.getAlert.mockResolvedValue({ ...alert, lifecycle })
+    render(
+      <QueryClientProvider client={new QueryClient()}>
+        <AuthorizedQueryProvider>
+          <HumanReviewWorkspace kind="alert" initialId={alert.id} />
+        </AuthorizedQueryProvider>
+      </QueryClientProvider>,
+    )
+    await screen.findByRole('heading', { name: alert.title })
+    expect(Boolean(screen.queryByRole('button', { name: 'Record outcome' }))).toBe(shown)
   })
 })
