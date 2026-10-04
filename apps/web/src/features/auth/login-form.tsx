@@ -1,7 +1,7 @@
 'use client'
 
 import { zodResolver } from '@hookform/resolvers/zod'
-import { Eye, EyeOff, Info, Loader2, LogIn, UserRound } from 'lucide-react'
+import { Eye, EyeOff, Loader2, LogIn, UserRound } from 'lucide-react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useEffect, useRef, useState } from 'react'
@@ -241,19 +241,13 @@ export const LoginForm = () => {
                     </FormItem>
                   )}
                 />
-                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                  <Button
-                    asChild
-                    className="w-fit px-0 underline-offset-4 hover:underline"
-                    variant="ghost"
-                  >
-                    <Link href="/staff/forgot-password">Forgot Password?</Link>
-                  </Button>
-                  <p className="inline-flex items-center gap-2 text-xs text-muted-foreground">
-                    <Info className="h-3.5 w-3.5" aria-hidden="true" />
-                    Supabase password and TOTP authentication
-                  </p>
-                </div>
+                <Button
+                  asChild
+                  className="w-fit px-0 underline-offset-4 hover:underline"
+                  variant="ghost"
+                >
+                  <Link href="/staff/forgot-password">Forgot Password?</Link>
+                </Button>
                 <Button className="w-full gap-2" disabled={busy || locked} type="submit">
                   {busy ? (
                     <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
