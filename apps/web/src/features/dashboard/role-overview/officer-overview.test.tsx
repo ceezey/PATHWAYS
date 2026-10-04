@@ -69,6 +69,8 @@ const data = {
   submittedThisMonth: { updates: 2, expenses: 1 },
   proofQueue: null,
   approvalQueue: null,
+  myExtensions: null,
+  extensionQueue: null,
   datasetsImportedThisMonth: null,
   alerts: null,
 } as RoleOverview
@@ -137,5 +139,38 @@ describe('OfficerOverview', () => {
       />,
     )
     expect(screen.getByText('1+')).toBeTruthy()
+  })
+  it('shows returned extension notes and an Extension pending badge', () => {
+    const open = vi.fn()
+    const own = (status: string, id: string, note: string | null) => ({
+      id,
+      activityId: a,
+      projectId: p,
+      activityCode: 'ACT-001',
+      activityTitle: 'Distribute kits',
+      requestedEndDate: '2026-12-15',
+      status,
+      note,
+    })
+    render(
+      <OfficerOverview
+        data={{
+          ...data,
+          myExtensions: {
+            count: 2,
+            rows: [
+              own('RETURNED', '70000000-0000-4000-8000-000000000001', 'Attach the revised plan.'),
+              own('PENDING', '70000000-0000-4000-8000-000000000002', null),
+            ],
+          } as RoleOverview['myExtensions'],
+        }}
+        fullName="Ron"
+        onOpenActivity={open}
+      />,
+    )
+    expect(screen.getByText('Attach the revised plan.')).toBeTruthy()
+    expect(screen.getByText('Extension pending')).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: 'Open activity' }))
+    expect(open).toHaveBeenCalledWith(`/projects/${p}/activities/${a}`)
   })
 })

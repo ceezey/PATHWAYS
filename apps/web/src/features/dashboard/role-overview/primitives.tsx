@@ -77,18 +77,23 @@ export const AccentKpi = ({
 
 export const ListCard = ({
   title,
+  caption,
   viewAll,
   empty,
   children,
 }: {
   title: string
+  caption?: string
   viewAll?: { label: string; href: string }
   empty: string
   children: ReactNode
 }) => (
   <section className="rounded-xl border border-border bg-card">
     <div className="flex min-h-12 items-center justify-between gap-3 border-b border-border px-4">
-      <h3 className="text-sm font-semibold text-foreground">{title}</h3>
+      <div>
+        <h3 className="text-sm font-semibold text-foreground">{title}</h3>
+        {caption ? <p className="text-xs text-muted-foreground">{caption}</p> : null}
+      </div>
       {viewAll ? (
         <Link
           className="inline-flex min-h-11 items-center text-sm font-medium text-primary hover:underline"
@@ -113,7 +118,7 @@ export const InitialsBadge = ({ text }: { text: string }) => (
     aria-hidden="true"
     className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary-subtle text-xs font-semibold text-primary"
   >
-    {text.slice(0, 2).toUpperCase()}
+    {text.slice(0, 3).toUpperCase()}
   </span>
 )
 
