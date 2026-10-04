@@ -4,6 +4,7 @@ import { AsyncState } from '@/components/pathways/async-state'
 
 import {
   BellRing,
+  CalendarClock,
   ClipboardCheck,
   FileText,
   Pencil,
@@ -13,21 +14,17 @@ import {
 } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 
-import {
-  ProgressBar,
-  SidePanel,
-  StatusBadge,
-  UnavailableHint,
-  unavailableControlProps,
-} from '@/components/pathways'
+import { ProgressBar, SidePanel, StatusBadge } from '@/components/pathways'
 import { Button } from '@/components/ui/button'
 import { Sheet } from '@/components/ui/sheet'
-import { UNFINISHED_CONTROLS_UI_ENABLED } from '@/constants/feature-flags'
+import { pathwaysClient } from '@/lib/services/pathways-client'
 import type { Activity, ActivityProof, Indicator, JourneyStageConfig } from '@/types/pathways'
 
 import { ActivityExpenseDialog, type ExpenseBudgetReference } from './activity-expense-dialog'
 import { ActivityExpenseReviewDialog, type PendingExpense } from './activity-expense-review-dialog'
 import { ActivityExplainDelayDialog, categoryLabels } from './activity-explain-delay-dialog'
+import { ActivityExtensionDialog } from './activity-extension-dialog'
+import { ActivityExtensionPanel } from './activity-extension-panel'
 import { ActivityProgressDialog } from './activity-progress-dialog'
 import { ActivityProofFiles } from './activity-proof-files'
 import { ActivityProofReviewDialog } from './activity-proof-review-dialog'
@@ -78,6 +75,7 @@ export const ActivityDetailContent = ({
   activity,
   budgetReferences = [],
   canDecideProof,
+  canDecideExtension = false,
   canEdit,
   canLogExpense,
   canReadBudgets = false,
@@ -99,6 +97,7 @@ export const ActivityDetailContent = ({
   activity: Activity
   budgetReferences?: ExpenseBudgetReference[]
   canDecideProof: boolean
+  canDecideExtension?: boolean
   canEdit: boolean
   canLogExpense: boolean
   canReadBudgets?: boolean
@@ -120,6 +119,8 @@ export const ActivityDetailContent = ({
   const [progressOpen, setProgressOpen] = useState(false)
   const [explainDelayOpen, setExplainDelayOpen] = useState(false)
   const [expenseOpen, setExpenseOpen] = useState(false)
+  const [extensionOpen, setExtensionOpen] = useState(false)
+  const [extensionRefresh, setExtensionRefresh] = useState(0)
   const [expenseReviewTarget, setExpenseReviewTarget] = useState<PendingExpense | null>(null)
   const [reviewTarget, setReviewTarget] = useState<{
     mode: 'validate' | 'decide'
@@ -548,24 +549,41 @@ export const ActivityDetailContent = ({
             Log expense
           </Button>
         ) : null}
-        {UNFINISHED_CONTROLS_UI_ENABLED &&
-        canRequestExtension &&
-        activity.status !== 'Completed' ? (
-          <>
-            <Button
-              className="gap-2"
-              type="button"
-              variant="outline"
-              {...unavailableControlProps('activity-request-extension-hint')}
-            >
-              <BellRing className="h-4 w-4" aria-hidden="true" />
-              Request an extension
-            </Button>
-            <UnavailableHint id="activity-request-extension-hint" />
-          </>
+        {canRequestExtension &&
+        activity.status !== 'Completed' &&
+        activity.storedStatus !== 'CANCELLED' ? (
+          <Button
+            className="gap-2"
+            onClick={() => setExtensionOpen(true)}
+            type="button"
+            variant="outline"
+          >
+            <CalendarClock className="h-4 w-4" aria-hidden="true" />
+            Request an extension
+          </Button>
         ) : null}
       </div>
 
+      <ActivityExtensionPanel
+        activity={activity}
+        canDecide={canDecideExtension}
+        canVerify={canValidateProof}
+        onDecided={() => {
+          void pathwaysClient
+            .getActivity(activity.projectId, activity.id)
+            .then(onActivityChanged)
+            .catch(() => {})
+        }}
+        refreshKey={extensionRefresh}
+      />
+      {extensionOpen ? (
+        <ActivityExtensionDialog
+          activity={activity}
+          onOpenChange={setExtensionOpen}
+          onRequested={() => setExtensionRefresh((value) => value + 1)}
+          open={extensionOpen}
+        />
+      ) : null}
       {progressOpen ? (
         <ActivityProgressDialog
           activity={activity}
@@ -614,6 +632,7 @@ export const ActivityDetailPanel = ({
   activity,
   budgetReferences = [],
   canDecideProof,
+  canDecideExtension = false,
   canEdit,
   canLogExpense,
   canReadBudgets = false,
@@ -638,6 +657,7 @@ export const ActivityDetailPanel = ({
   activity: Activity | null
   budgetReferences?: ExpenseBudgetReference[]
   canDecideProof: boolean
+  canDecideExtension?: boolean
   canEdit: boolean
   canLogExpense: boolean
   canReadBudgets?: boolean
@@ -691,6 +711,7 @@ export const ActivityDetailPanel = ({
             activity={activity}
             budgetReferences={budgetReferences}
             canDecideProof={canDecideProof}
+            canDecideExtension={canDecideExtension}
             canEdit={canEdit}
             canLogExpense={canLogExpense}
             canReadBudgets={canReadBudgets}

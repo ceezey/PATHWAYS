@@ -186,6 +186,7 @@ export const DashboardActivityReviewPanel = ({
         <ActivityDetailPanel
           activity={activity}
           canDecideProof={role === 'Project Manager'}
+          canDecideExtension={role === 'Project Manager'}
           canEdit={false}
           canLogExpense={role === 'Project Officer'}
           canRequestExtension={role === 'Project Officer'}
