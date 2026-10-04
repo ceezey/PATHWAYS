@@ -1712,6 +1712,7 @@ enum DecisionStatus {
   REVIEWED
   RESOLVED
   DISMISSED
+  AUTO_RESOLVED
 
   @@map("decision_status")
   @@schema("pathways")
