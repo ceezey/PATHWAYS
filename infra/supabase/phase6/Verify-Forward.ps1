@@ -42,6 +42,7 @@ $forwardInventory = @(
   '0053_expense_submit_race'
   '0054_p09_role_allows_grants'
   '0055_rbac_v4_grants'
+  '0057_f9_survey_period_release'
   '0058_rules_decision_status_auto_resolved'
   '0059_rules_recommendation_auto_resolve'
   '0060_rules_budget_beneficiary_survey_metrics'

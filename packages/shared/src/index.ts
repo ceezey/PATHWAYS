@@ -10,5 +10,6 @@ export * from './validation/project-code'
 
 export * from './monitoring/metric-contract'
 export * from './monitoring/descriptive-analytics'
+export * from './monitoring/analytics-insights'
 export * from './monitoring/overview-metrics'
 export * from './monitoring/action-counts'

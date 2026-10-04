@@ -53,11 +53,11 @@ Six internal roles are defined in `apps/api/src/modules/auth/rbac-contract.json`
 | PRD-F5 | Digital Data Collection and Preparation | Must-Have | F5 | R2 | 1.4, 2.1 | Implemented |
 | PRD-F6 | Metadata-Driven Data Integration | Must-Have | F6 | R2 | 1.1, 1.4, 2.1 | Implemented |
 | PRD-F7 | Project Indicator and Monitoring | Must-Have | F7 | R3, R4 | 1.5 | Implemented; G-F7-1..5 Met; project structure templates stay deferred (see [deferred features](deferred-features.md)) |
-| PRD-F8 | Aggregated Monitoring Dashboard with SADDD Analysis | Must-Have | F8 | R3 | 1.6, 2.2, 2.3 | Implemented; G-F8-7 Met locally at assumed scale (staging re-measure pending) |
-| PRD-F9 | Descriptive Analytics and Project Performance Summaries | Supporting | F9 | R3, R7 | 1.6, 2.2 | Implemented for KPI, participation, survey and timeline views; on-hold items in the deferred register |
+| PRD-F8 | Aggregated Monitoring Dashboard with SADDD Analysis | Must-Have | F8 | R3 | 1.6, 2.2, 2.3 | Implemented; Add to Dashboard live with browser pins; G-F8-7 Met locally at assumed scale (staging re-measure pending) |
+| PRD-F9 | Descriptive Analytics and Project Performance Summaries | Supporting | F9 | R3, R7 | 1.6, 2.2 | Implemented for KPI, participation, survey and timeline views plus participation breakdowns, indicator trends, server budget aggregate and closed-period survey release (hosted apply of 0057 pending); aggregate-only participation breakdowns deferred |
 | PRD-F10 | Rule-Based Alerts | Supporting | F10 | R7 | 1.7, 2.4 | Local API and initial runtime slice; integration verification pending |
 | PRD-F11 | Rule-Based Decision Support and Recommendations | Supporting | F11 | R7 | 1.7, 2.4 | Local human review API; integration verification pending |
-| PRD-F12 | Reporting and Data Visualization | Supporting | None | R3 | 1.6 | Local preview and artifact APIs; final verification pending; hosted application deferred |
+| PRD-F12 | Reporting and Data Visualization | Supporting | None | R3 | 1.6 | Local preview and artifact APIs; six report kinds export as CSV, XLS, XLSX and PDF; scope and suppression verified on local PostgreSQL; hosted application deferred |
 | PRD-F13 | Public Project Tracker | Supporting | F12 | R8 | 1.8 | Local publication and approved-public APIs; final verification pending; hosted application deferred |
 
 Do not renumber these IDs. Material renumbering requires a Change Record. Status is taken from `docs/index.md` section 6 and [deferred-features](deferred-features.md).
@@ -102,11 +102,11 @@ Status comes from the repository, not the manuscript labels "In Progress" and "P
 | FR-8 | Centralized encoded and imported records | PRD-F6 | High | P5 / R5 | Implemented |
 | FR-9 | Indicator and monitoring parameter configuration | PRD-F7 | High | P3 / R3, P4 / R4 | Implemented; reusable indicator definitions through the organization library (cr-pathways-indicator-library); project structure templates not built |
 | FR-10 | Aggregated dashboards and SADDD summaries | PRD-F8 | High | P3 / R3 | Implemented |
-| FR-11 | Descriptive analytics and performance summaries | PRD-F9 | Medium | P3 / R3, P7 / R7 | Implemented for four views; breakdowns, trends and server budget aggregate on hold |
+| FR-11 | Descriptive analytics and performance summaries | PRD-F9 | Medium | P3 / R3, P7 / R7 | Implemented for four views and the breakdowns, trends and server budget aggregate; closed-period survey release awaits hosted apply of 0057 |
 | FR-12 | Rule-based alerts | PRD-F10 | Medium | P7 / R7 | Local API and runtime slice; integration verification pending |
 | FR-13 | Budget expense entries and liquidation evidence | PRD-F2 | High | P5 / R5 | Implemented |
 | FR-14 | Predefined recommendation prompts | PRD-F11 | Medium | P7 / R7 | Local human review API; integration verification pending |
-| FR-15 | Monitoring reports and visual outputs | PRD-F12 | High | P3 / R3 | Local preview and artifact APIs; CSV generation gap; final verification pending |
+| FR-15 | Monitoring reports and visual outputs | PRD-F12 | High | P3 / R3 | Local preview and artifact APIs; six report kinds in four formats; verified on local PostgreSQL |
 | FR-16 | Publish approved project information | PRD-F13 | Medium | P8 / R8 | Local publication API; final verification pending |
 | FR-17 | External view of approved summaries | PRD-F13 | Medium | P8 / R8 | Local approved-public API; final verification pending |
 | NFR-1 | RBAC and organization workspace isolation | PRD-F1 | High | Objective 3.6 | Implemented |
@@ -995,10 +995,11 @@ Not applicable: indicators have active and archived flags only; no approval life
 - Age is completed years at period end in the business timezone, in the locked bands 0–9, 10–14, 15–17, 18–24, 25+ and Unknown (rfc-pathways-saddd-privacy). A missing birth date is Unknown; an invalid one is excluded and flagged.
 - Small-cell suppression: counts 1 to 4 are suppressed (threshold 5), with complementary suppression so a suppressed value cannot be rebuilt from totals.
 - Aggregate output only; no SADDD drilldown to individual beneficiaries for any role.
+- "Add to Dashboard" pins from Analytics: up to 8 per browser, stored as references in local storage and re-fetched live on the role dashboard, so current permissions always apply (cr-pathways-f8-f9-f12-gate-closure).
 **Bounds (out):**
 - SADDD for an open or undefined project period: omitted, not estimated (analytics.service.ts precondition)
 - Drilldown to beneficiary records for Program Manager and Grant Manager: aggregate-only roles (rfc-pathways-auth-rbac-isolation)
-- Custom dashboard widgets and "Add to Dashboard": hidden pending a storage decision (deferred-features)
+- Server-stored or shared dashboard pins and free-form dashboard widgets: not built; pins are browser-only (cr-pathways-f8-f9-f12-gate-closure)
 - Predictive or machine-learning analysis: not in scope (Scope and Limitations)
 **Lock:** Locked. Adding a gate or widening a bound requires an approved `cr-pathways-*`; anything outside these bounds is out of scope by default. System-wide bounds: section 6.1.
 
@@ -1070,17 +1071,17 @@ Not applicable: the dashboard is a read model with no lifecycle.
 **Why it helps:** Puts performance summaries in front of managers without manual preparation so weak conditions show earlier. (P3, P7; Project Manager, Program Manager, Grant Manager)
 **Bounds (in):**
 - Four views: KPI summary, participation total, survey improvement and timeline status, for exactly one authorized project and an optional complete period.
+- Participation breakdowns by activity, month and attendance status; an indicator trend chart with a dashed target line; a server-side budget aggregate with approved-only utilization per currency (`/analytics/insights/*`, cr-pathways-f8-f9-f12-gate-closure).
+- Analytics CSV export button in the interface, and the Participation view option always listed.
 - Aggregates read from persisted metrics (cr-pathways-f9-trusted-aggregates); an empty readable set shows "None yet" and a restricted or withheld set keeps its unavailable wording.
-- Survey improvement only for roles holding `assessments.detail.read`, only for an exact non-overlapping defined period, and only for groups of 5 or more pairs.
-- Program Manager and Grant Manager see the timeline view but a restricted state for survey improvement.
+- Survey improvement only for an exact non-overlapping defined period and only for groups of 5 or more pairs; roles holding `assessments.detail.read` read it live.
+- Program Manager, Grant Manager and other aggregate-only roles read survey improvement for a closed period only, from a copy frozen on first release (migration 0057); an open period is refused with 400.
 - Aggregate CSV export endpoint, audited per view and export.
 - Rule-based suggestions only; every suggestion is a deterministic rule output that a person reviews.
 **Bounds (out):**
 - Prescriptive analytics beyond rules: the manuscript phrase is not carried forward; decision support stays rule-based (PRD-F11)
-- Participation breakdowns by activity, month and attendance status: on hold (deferred-features)
-- Indicator trend chart and server-side budget aggregate: on hold (deferred-features)
-- Closed-period survey totals for aggregate-only roles: on hold until a frozen release table exists (cr-pathways-f9-trusted-aggregates)
-- Export button in the user interface: hidden, endpoint kept (deferred-features)
+- Participation breakdowns for aggregate-only roles: restricted state until a definer release function exists (deferred-features)
+- Open-period survey results for aggregate-only roles: refused to prevent differencing (cr-pathways-f9-trusted-aggregates section 11)
 - Performance at scale, steps 3 to 5: deferred (cr-pathways-performance-scaling)
 **Lock:** Locked. Adding a gate or widening a bound requires an approved `cr-pathways-*`; anything outside these bounds is out of scope by default. System-wide bounds: section 6.1.
 
@@ -1096,8 +1097,8 @@ Not applicable: the dashboard is a read model with no lifecycle.
 | G-F9-6 | A retrieval fault returns 503, never a 500 or a silently empty payload | Met | QAD-T30 |
 | G-F9-7 | Survey results are released only for an exact non-overlapping period and only to roles with `assessments.detail.read` | Met | QAD-T33 |
 | G-F9-8 | Aggregate-only roles cannot difference open-period survey releases | Met | QAD-A21 |
-| G-F9-9 | Participation breakdowns, indicator trends and a server budget aggregate are available | Not met | QAD-T63 |
-| G-F9-10 | Survey totals for Program Manager and Grant Manager through a closed-period release table | Not met | QAD-T64 |
+| G-F9-9 | Participation breakdowns, indicator trends and a server budget aggregate are available | Met | QAD-T63, QAD-T110, QAD-A39 |
+| G-F9-10 | Survey totals for Program Manager and Grant Manager through a closed-period release table | Met (local; hosted apply of 0057 pending) | QAD-T64 |
 
 #### Use Cases
 
@@ -1126,9 +1127,9 @@ flowchart LR
 | Trigger | The user opens Analytics |
 | Preconditions | The user holds the permission and `monitoring.read` for the project; processed data exists |
 | Main flow | 1. The user opens Analytics (route `/analytics`). 2. The user selects one project, an optional period and a view. 3. The system returns the aggregate (route `/analytics/descriptive`). 4. The user reads the summary and any rule-based suggestion. |
-| Alternate / exception | Insufficient data: "None yet". Survey view without `assessments.detail.read`: 403 and a restricted message, no audit row. Retrieval fault: 503. Project Officer: denied. |
+| Alternate / exception | Insufficient data: "None yet". Manager survey (no `assessments.detail.read`): closed period only, otherwise 400 and no audit row; participation breakdowns for aggregate-only roles show a restricted state. Retrieval fault: 503. Project Officer: denied. |
 | Postconditions | One `ANALYTICS_DESCRIPTIVE_VIEWED` audit row is written |
-| Gates | G-F9-1, G-F9-2, G-F9-3, G-F9-4, G-F9-5, G-F9-6, G-F9-7, G-F9-8, G-F9-9 (Not met), G-F9-10 (Not met) |
+| Gates | G-F9-1, G-F9-2, G-F9-3, G-F9-4, G-F9-5, G-F9-6, G-F9-7, G-F9-8, G-F9-9, G-F9-10 |
 
 ##### UC-F9-2 Export aggregate summary
 
@@ -1139,7 +1140,7 @@ flowchart LR
 | Trigger | An API client or staff member requests the aggregate export |
 | Preconditions | The user holds `analytics.export` and `analytics.descriptive.read` for the same project |
 | Main flow | 1. The caller requests the export (route `/analytics/descriptive/export`). 2. The system applies the same role, period and suppression rules as the view. 3. The system returns the aggregate rows. |
-| Alternate / exception | Permission denied or survey restriction: 403 before any query. Retrieval fault: 503. The interface button is hidden. |
+| Alternate / exception | Permission denied: 403 before any query. Open period for a role without `assessments.detail.read`: 400 and no audit row. Retrieval fault: 503. The interface button is visible. |
 | Postconditions | One `ANALYTICS_DESCRIPTIVE_EXPORTED` audit row records contract version, view and row count |
 | Gates | G-F9-4, G-F9-6, G-F9-7 |
 
@@ -1345,7 +1346,7 @@ stateDiagram-v2
 **Purpose:** Let authorized users preview, generate and export scoped monitoring reports and view descriptive visual outputs from trusted data. (R3; objective 1.6)
 **Why it helps:** Replaces manual assembly of monitoring outputs with reports and charts built from the same trusted records, so figures match across views. (P3; Monitoring and Evaluation Officer, Project Manager, Program Manager, Grant Manager)
 **Bounds (in):**
-- Project summary, indicator summary, Beneficiary summary, survey results, evaluation and monitoring report types scoped by project and period.
+- Project summary, indicator summary, Beneficiary summary, survey results, evaluation and monitoring report types scoped by project and period; the monitoring report covers at most 366 days and the evaluation report uses the latest signed-off or archived evaluation.
 - Report preview, generation, stored artifact and export as CSV, XLS, XLSX or PDF.
 - Descriptive survey and timeline views with CSV export, governed by the aggregate rules of PRD-F9.
 - Role scope and small-group suppression applied to every output.
@@ -1360,10 +1361,10 @@ stateDiagram-v2
 
 | Gate | Condition | Status | QAD |
 |---|---|---|---|
-| G-F12-1 | Report and visualization output respects role scope and suppression | Partly met | QAD-T13 |
+| G-F12-1 | Report and visualization output respects role scope and suppression | Met (local PostgreSQL replay) | QAD-T13 |
 | G-F12-2 | A failed report or export leaves source data intact | Met | QAD-T26 |
 | G-F12-3 | Export writes an audit event without report content | Met | QAD-T72 |
-| G-F12-4 | Every report type exports as CSV, XLS, XLSX and PDF | Not met | QAD-T73 |
+| G-F12-4 | Every report type exports as CSV, XLS, XLSX and PDF | Met | QAD-T73, QAD-T111 |
 | G-F12-5 | Descriptive views refuse callers without `analytics.descriptive.read` and exports refuse callers without `analytics.export` | Met | QAD-A18 |
 
 #### Use Cases
@@ -1391,8 +1392,8 @@ flowchart LR
 | Permission | `reports.generate` |
 | Trigger | User needs a monitoring report for a scope and period |
 | Preconditions | Authenticated; project data exists in scope |
-| Main flow | 1. User opens reports (route `/reports`). 2. User selects a report type and scope. 3. System previews it (route `/projects/:projectId/reports/preview`). 4. User generates it (route `/projects/:projectId/reports`). |
-| Alternate / exception | Permission denied: generate control hidden; no data: empty preview message |
+| Main flow | 1. User opens reports (route `/reports`). 2. User selects one of the six report types and a scope. 3. System previews it (route `/projects/:projectId/reports/preview`). 4. User generates it (route `/projects/:projectId/reports`). |
+| Alternate / exception | Permission denied: generate control hidden; no data: empty preview message; evaluation report with no signed-off evaluation: 409 and nothing stored |
 | Postconditions | Report artifact stored and listed; generation recorded in the audit log |
 | Gates | G-F12-1, G-F12-2 |
 
@@ -1930,9 +1931,9 @@ Current position is in [state](state.md); manuscript alignment findings are in `
 | Feature | Status |
 |---|---|
 | PRD-F1 to PRD-F8 | Implemented |
-| PRD-F9 | Implemented for four views; breakdowns, trends and server budget aggregate on hold |
+| PRD-F9 | Implemented for four views and the breakdowns, trends and server budget aggregate; closed-period survey release awaits hosted apply of 0057 |
 | PRD-F10, PRD-F11 | Local API; integration verification pending |
-| PRD-F12 | Local preview and artifact APIs; final verification pending |
+| PRD-F12 | Local preview and artifact APIs; six report kinds in four formats; verified on local PostgreSQL |
 | PRD-F13 | Local publication and approved-public APIs; final verification pending |
 
 Core features come first; supporting features follow their dependencies. Every authorized phase reads the manifest and registered docs, implements only its authorized scope, tests, updates durable docs when an approved contract or verified fact changes, reports and stops.

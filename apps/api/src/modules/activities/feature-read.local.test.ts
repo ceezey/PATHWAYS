@@ -177,9 +177,13 @@ describe.skipIf(!enabled)('joined feature reads on disposable PostgreSQL', () =>
 
             queries.length = 0
             await expect(activities.list(actor, projectId)).resolves.toHaveLength(1)
-            expect(queries, queries.join(' ## ')).toHaveLength(3)
+            // One joined list read, then one batched read per list metric (reach, budget, spend), never per activity.
+            expect(queries, queries.join(' ## ')).toHaveLength(6)
             expect(queries[2]).toMatch(/project_activities/i)
             expect(queries[2]).toMatch(/project_activity_assignments/i)
+            expect(queries[3]).toMatch(/activity_updates/i)
+            expect(queries[4]).toMatch(/project_budget_records/i)
+            expect(queries[5]).toMatch(/budget_expense_entries/i)
 
             completed = true
             throw rollback

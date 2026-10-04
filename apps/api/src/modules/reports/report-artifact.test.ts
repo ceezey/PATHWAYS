@@ -1,7 +1,10 @@
 import { describe, expect, it } from 'vitest'
-import { createReportArtifact, safeSpreadsheetCell } from './report-artifact'
+import { createReportArtifact, reportMime, safeSpreadsheetCell } from './report-artifact'
 
 describe('bounded truthful report artifacts', () => {
+  it('sends the bare CSV mime accepted by the private bucket allow-list', () => {
+    expect(reportMime.CSV).toBe('text/csv')
+  })
   it.each(['漢字', '🙂', '\ud800', '\u0000'])(
     'rejects unsupported or unsafe PDF text %s without silently losing glyphs',
     async (value) => {

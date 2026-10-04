@@ -1064,6 +1064,8 @@ Libraries: ECharts, MapLibre GL.
 - label statuses/values in text;
 - avoid misleading scales;
 - aggregate-only roles cannot gain sensitive detail through drilldowns;
+- indicator trend charts draw the target as a dashed line beside the solid measured series;
+- pinned charts on the role dashboard are compact cards that re-fetch live and show the restricted state when permission is lost;
 - apply SADDD suppression before visualization/export;
 - do not expose sensitive Beneficiary coordinates without explicit authorization.
 

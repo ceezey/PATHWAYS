@@ -4,7 +4,7 @@
 
 export const BASELINE = '0000_pathways_baseline_through_0026'
 
-// The exact 33-row migration ledger (baseline plus 0027-0055 and 0058-0060) this script must produce, in order. This is
+// The exact 34-row migration ledger (baseline plus 0027-0055, 0057 and 0058-0060) this script must produce, in order. This is
 // the repository's own migration directory listing (apps/api/prisma/migrations),
 // asserted against the real directory in hosted-plan.test.mjs so this literal
 // list can never silently drift from the repo.
@@ -39,6 +39,7 @@ export const MIGRATIONS_IN_ORDER = Object.freeze([
   '0053_expense_submit_race',
   '0054_p09_role_allows_grants',
   '0055_rbac_v4_grants',
+  '0057_f9_survey_period_release',
   '0058_rules_decision_status_auto_resolved',
   '0059_rules_recommendation_auto_resolve',
   '0060_rules_budget_beneficiary_survey_metrics',
@@ -118,6 +119,8 @@ export function buildPlan() {
     { type: 'deploy', migrations: range(54, 54) },
     // 0055 needs no preprovision: prisma owns pathways.p09_role_allows.
     { type: 'deploy', migrations: range(55, 55) },
+    // 0057 needs no preprovision: prisma owns p06_can, p10_f9_survey_aggregate and the source tables.
+    { type: 'deploy', migrations: range(57, 57) },
     // 0058 needs no preprovision: it only adds one enum label owned by prisma.
     { type: 'deploy', migrations: range(58, 58) },
     // 0059 and 0060 replace rules-owned SECURITY DEFINER functions and change policies on rules_store_owner tables,
